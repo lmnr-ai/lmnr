@@ -1,14 +1,14 @@
 "use client";
 
 // TEMPORARY style exploration tooling — safe to delete this folder + the mount in layout.tsx.
-// Live preview swatches for the 9 surface stops, recomputed from the curve state.
+// Live preview swatches for a scale's stops, recomputed from the curve state.
 
 import { useStyleContext } from "./style-context";
-import { computeSurfaceColor } from "./tokens";
+import { computeSurfaceColor, type CurveKey } from "./tokens";
 
-export default function SurfaceChips() {
+export default function ScaleChips({ curve }: { curve: CurveKey }) {
   const { state } = useStyleContext();
-  const { points, endpoints } = state.surfaceCurve;
+  const { points, endpoints } = state[curve];
 
   return (
     <div className="flex flex-col gap-1">

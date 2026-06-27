@@ -1,19 +1,19 @@
 "use client";
 
 // TEMPORARY style exploration tooling — safe to delete this folder + the mount in layout.tsx.
-// 2D drag canvas: X = interpolation param t, Y = OKLCH lightness (top = light).
+// 2D drag canvas for a curve: X = interpolation param t, Y = OKLCH lightness (top = light).
 
 import { useCallback, useRef, useState } from "react";
 
 import { useStyleContext } from "./style-context";
-import { clamp, computeSurfaceColor } from "./tokens";
+import { clamp, computeSurfaceColor, type CurveKey } from "./tokens";
 
-export default function SurfaceCurveEditor() {
+export default function CurveEditor({ curve }: { curve: CurveKey }) {
   const { state, setPoint } = useStyleContext();
   const boxRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<string | null>(null);
 
-  const { points, endpoints } = state.surfaceCurve;
+  const { points, endpoints } = state[curve];
 
   const updateFromEvent = useCallback(
     (key: string, clientX: number, clientY: number) => {
@@ -22,9 +22,9 @@ export default function SurfaceCurveEditor() {
       const rect = box.getBoundingClientRect();
       const t = clamp((clientX - rect.left) / rect.width, 0, 1);
       const l = clamp(1 - (clientY - rect.top) / rect.height, 0, 1);
-      setPoint(key, t, l);
+      setPoint(curve, key, t, l);
     },
-    [setPoint]
+    [curve, setPoint]
   );
 
   const onPointerDown = (key: string) => (e: React.PointerEvent) => {

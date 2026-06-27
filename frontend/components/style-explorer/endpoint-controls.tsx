@@ -6,7 +6,7 @@
 import { Slider } from "@/components/ui/slider";
 
 import { useStyleContext } from "./style-context";
-import type { SurfaceEndpoints } from "./tokens";
+import type { CurveKey, SurfaceEndpoints } from "./tokens";
 
 const FIELDS: { key: keyof SurfaceEndpoints; label: string; min: number; max: number; step: number }[] = [
   { key: "cStart", label: "C start", min: 0, max: 0.3, step: 0.005 },
@@ -15,9 +15,9 @@ const FIELDS: { key: keyof SurfaceEndpoints; label: string; min: number; max: nu
   { key: "hEnd", label: "H end", min: 0, max: 360, step: 1 },
 ];
 
-export default function EndpointControls() {
+export default function EndpointControls({ curve }: { curve: CurveKey }) {
   const { state, setEndpoint } = useStyleContext();
-  const { endpoints } = state.surfaceCurve;
+  const { endpoints } = state[curve];
 
   return (
     <div className="grid grid-cols-2 gap-3">
@@ -32,7 +32,7 @@ export default function EndpointControls() {
             min={f.min}
             max={f.max}
             step={f.step}
-            onValueChange={(v) => setEndpoint(f.key, v[0])}
+            onValueChange={(v) => setEndpoint(curve, f.key, v[0])}
           />
         </div>
       ))}

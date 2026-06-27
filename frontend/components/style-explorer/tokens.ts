@@ -14,6 +14,9 @@ export interface SurfaceEndpoints {
   hEnd: number;
 }
 
+// Which curve a generic curve component edits.
+export type CurveKey = "surfaceCurve" | "foregroundCurve";
+
 // Bucket 1 — OKLCH @theme surface scale (curve editor target). Lightness seeds, ordered 200..1000.
 export const SURFACE_SEED: { key: string; l: number }[] = [
   { key: "surface-200", l: 0.3092 },
@@ -29,23 +32,31 @@ export const SURFACE_SEED: { key: string; l: number }[] = [
 
 export const SURFACE_KEYS: string[] = SURFACE_SEED.map((s) => s.key);
 
+// Bucket 1b — OKLCH @theme foreground (text) scale. Lightness seeds, ordered 50..600.
+export const FOREGROUND_SEED: { key: string; l: number }[] = [
+  { key: "foreground-50", l: 1 },
+  { key: "foreground-100", l: 0.9249 },
+  { key: "foreground-200", l: 0.7731 },
+  { key: "foreground-300", l: 0.696 },
+  { key: "foreground-400", l: 0.6167 },
+  { key: "foreground-500", l: 0.4962 },
+  { key: "foreground-600", l: 0.3904 },
+];
+
 export const DEFAULT_ENDPOINTS: SurfaceEndpoints = { cStart: 0, hStart: 0, cEnd: 0, hEnd: 0 };
 
-// Build the 9-point curve array: evenly spaced t (i/8), seeded l.
-export function initialPoints(): SurfacePoint[] {
-  const n = SURFACE_SEED.length;
-  return SURFACE_SEED.map((s, i) => ({ key: s.key, t: i / (n - 1), l: s.l }));
+// Build a curve array from a seed: evenly spaced t (i/(n-1)), seeded l.
+export function pointsFromSeed(seed: { key: string; l: number }[]): SurfacePoint[] {
+  const n = seed.length;
+  return seed.map((s, i) => ({ key: s.key, t: i / (n - 1), l: s.l }));
 }
 
-// Bucket 2 — other OKLCH @theme ramps (foreground + primary). Full oklch(...) strings.
+export const initialPoints = (): SurfacePoint[] => pointsFromSeed(SURFACE_SEED);
+export const initialForegroundPoints = (): SurfacePoint[] => pointsFromSeed(FOREGROUND_SEED);
+
+// Bucket 2 — remaining OKLCH @theme ramp (primary). Full oklch(...) strings.
+// Foreground stops moved to FOREGROUND_SEED (driven by the text curve).
 export const OKLCH_SEED: Record<string, string> = {
-  "--color-foreground-50": "oklch(1 0 0)",
-  "--color-foreground-100": "oklch(0.9249 0 0)",
-  "--color-foreground-200": "oklch(0.7731 0 0)",
-  "--color-foreground-300": "oklch(0.696 0 0)",
-  "--color-foreground-400": "oklch(0.6167 0 0)",
-  "--color-foreground-500": "oklch(0.4962 0 0)",
-  "--color-foreground-600": "oklch(0.3904 0 0)",
   "--color-primary-200": "oklch(0.7019 0.1158 46.05)",
   "--color-primary-300": "oklch(0.6789 0.1207 44.39)",
   "--color-primary-400": "oklch(0.6559 0.1262 43.33)",

@@ -8,20 +8,25 @@ import { createContext, type PropsWithChildren, useCallback, useContext, useMemo
 
 import {
   computeSurfaceColor,
+  type CurveKey,
   DEFAULT_ENDPOINTS,
   HSL_SEED,
+  initialForegroundPoints,
   initialPoints,
   OKLCH_SEED,
   type SurfaceEndpoints,
   type SurfacePoint,
 } from "./tokens";
 
+interface Curve {
+  endpoints: SurfaceEndpoints;
+  points: SurfacePoint[];
+}
+
 export interface StyleState {
   version: 1;
-  surfaceCurve: {
-    endpoints: SurfaceEndpoints;
-    points: SurfacePoint[];
-  };
+  surfaceCurve: Curve;
+  foregroundCurve: Curve;
   oklch: Record<string, string>;
   hsl: Record<string, string>;
 }
@@ -30,6 +35,7 @@ function freshState(): StyleState {
   return {
     version: 1,
     surfaceCurve: { endpoints: { ...DEFAULT_ENDPOINTS }, points: initialPoints() },
+    foregroundCurve: { endpoints: { ...DEFAULT_ENDPOINTS }, points: initialForegroundPoints() },
     oklch: { ...OKLCH_SEED },
     hsl: { ...HSL_SEED },
   };
@@ -37,9 +43,9 @@ function freshState(): StyleState {
 
 interface StyleContextValue {
   state: StyleState;
-  setPoint: (key: string, t: number, l: number) => void;
-  setEndpoint: (which: keyof SurfaceEndpoints, value: number) => void;
-  interpolatePoints: () => void;
+  setPoint: (curve: CurveKey, key: string, t: number, l: number) => void;
+  setEndpoint: (curve: CurveKey, which: keyof SurfaceEndpoints, value: number) => void;
+  interpolatePoints: (curve: CurveKey) => void;
   setOklch: (varName: string, value: string) => void;
   setHsl: (varName: string, value: string) => void;
   replaceState: (next: StyleState) => void;
@@ -59,9 +65,11 @@ export function useStyleContext(): StyleContextValue {
 function applyState(state: StyleState): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
-  // Bucket 1 — surface stops derived from the curve.
-  for (const point of state.surfaceCurve.points) {
-    root.style.setProperty(`--color-${point.key}`, computeSurfaceColor(point, state.surfaceCurve.endpoints));
+  // Bucket 1 — surface + foreground stops derived from their curves.
+  for (const curve of [state.surfaceCurve, state.foregroundCurve]) {
+    for (const point of curve.points) {
+      root.style.setProperty(`--color-${point.key}`, computeSurfaceColor(point, curve.endpoints));
+    }
   }
   // Bucket 2 — full oklch(...) strings verbatim.
   for (const [name, value] of Object.entries(state.oklch)) {
@@ -80,6 +88,10 @@ function validateState(parsed: unknown): StyleState {
     throw new Error("surfaceCurve.points must have 9 entries");
   }
   if (!s.surfaceCurve.endpoints) throw new Error("Missing surfaceCurve.endpoints");
+  if (!s.foregroundCurve || !Array.isArray(s.foregroundCurve.points) || s.foregroundCurve.points.length !== 7) {
+    throw new Error("foregroundCurve.points must have 7 entries");
+  }
+  if (!s.foregroundCurve.endpoints) throw new Error("Missing foregroundCurve.endpoints");
   if (!s.oklch || typeof s.oklch !== "object") throw new Error("Missing oklch bucket");
   if (!s.hsl || typeof s.hsl !== "object") throw new Error("Missing hsl bucket");
   return s as StyleState;
@@ -88,36 +100,36 @@ function validateState(parsed: unknown): StyleState {
 export function StyleProvider({ children }: PropsWithChildren) {
   const [state, setState] = useState<StyleState>(freshState);
 
-  const setPoint = useCallback((key: string, t: number, l: number) => {
+  const setPoint = useCallback((curve: CurveKey, key: string, t: number, l: number) => {
     setState((prev) => ({
       ...prev,
-      surfaceCurve: {
-        ...prev.surfaceCurve,
-        points: prev.surfaceCurve.points.map((p) => (p.key === key ? { ...p, t, l } : p)),
+      [curve]: {
+        ...prev[curve],
+        points: prev[curve].points.map((p) => (p.key === key ? { ...p, t, l } : p)),
       },
     }));
   }, []);
 
-  const setEndpoint = useCallback((which: keyof SurfaceEndpoints, value: number) => {
+  const setEndpoint = useCallback((curve: CurveKey, which: keyof SurfaceEndpoints, value: number) => {
     setState((prev) => ({
       ...prev,
-      surfaceCurve: { ...prev.surfaceCurve, endpoints: { ...prev.surfaceCurve.endpoints, [which]: value } },
+      [curve]: { ...prev[curve], endpoints: { ...prev[curve].endpoints, [which]: value } },
     }));
   }, []);
 
   // Evenly redistribute every point's t/l on the straight line from the
   // first point to the last (endpoints stay put).
-  const interpolatePoints = useCallback(() => {
+  const interpolatePoints = useCallback((curve: CurveKey) => {
     setState((prev) => {
-      const pts = prev.surfaceCurve.points;
+      const pts = prev[curve].points;
       if (pts.length < 2) return prev;
       const first = pts[0];
       const last = pts[pts.length - 1];
       const n = pts.length - 1;
       return {
         ...prev,
-        surfaceCurve: {
-          ...prev.surfaceCurve,
+        [curve]: {
+          ...prev[curve],
           points: pts.map((p, i) => ({
             ...p,
             t: first.t + ((last.t - first.t) * i) / n,
