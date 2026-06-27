@@ -127,6 +127,7 @@
     "posthog-node": "^5.35.0",
     "re-resizable": "^6.11.2",
     "react": "^19.2.3",
+    "react-colorful": "^5.7.0",
     "react-day-picker": "^8.10.1",
     "react-dom": "^19.2.3",
     "react-grid-layout": "^1.5.2",

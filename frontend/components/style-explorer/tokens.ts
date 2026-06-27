@@ -138,6 +138,32 @@ export const HSL_SEED: Record<string, string> = {
   "--subagent": "187 94% 43%",
 };
 
+export const HSL_KEYS: string[] = Object.keys(HSL_SEED);
+
+// ---- HSL triplet helpers (bare "H S% L%" <-> react-colorful {h,s,l}) ----
+
+export interface Hsl {
+  h: number;
+  s: number;
+  l: number;
+}
+
+export function parseHslTriplet(triplet: string): Hsl {
+  const [h, s, l] = triplet.trim().replace(/%/g, "").split(/\s+/).map(Number);
+  return { h: h || 0, s: s || 0, l: l || 0 };
+}
+
+export function formatHslTriplet({ h, s, l }: Hsl): string {
+  const r = (n: number) => Math.round(n * 10) / 10;
+  return `${r(h)} ${r(s)}% ${r(l)}%`;
+}
+
+// CSS color string for a swatch preview from a bare triplet.
+export const hslCss = (triplet: string): string => {
+  const { h, s, l } = parseHslTriplet(triplet);
+  return `hsl(${h} ${s}% ${l}%)`;
+};
+
 // ---- pure curve math helpers ----
 
 export function lerp(a: number, b: number, t: number): number {

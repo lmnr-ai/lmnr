@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 
 import BindingsSection from "./bindings-section";
 import ScaleSection from "./scale-section";
+import SemanticColorsSection from "./semantic-colors-section";
 import { useStyleContext } from "./style-context";
 
 export default function ColorTab() {
@@ -19,6 +20,8 @@ export default function ColorTab() {
       <ScaleSection curve="foregroundCurve" title="Text curve" chipsLabel="Text stops" />
       <div className="h-px w-full bg-border" />
       <BindingsSection />
+      <div className="h-px w-full bg-border" />
+      <SemanticColorsSection />
       <Button variant="default" size="md" onClick={applyToDocument} className="w-full">
         Save (apply to app)
       </Button>
