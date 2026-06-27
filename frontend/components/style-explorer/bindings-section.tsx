@@ -29,7 +29,7 @@ export default function BindingsSection() {
             <SelectTrigger className="h-7 w-36 shrink-0 text-xs">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="max-h-72">
+            <SelectContent className="z-[10000] max-h-72">
               {STOP_GROUPS.map((g) => (
                 <SelectGroup key={g.label}>
                   <SelectLabel>{g.label}</SelectLabel>
