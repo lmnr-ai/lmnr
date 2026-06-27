@@ -83,12 +83,10 @@ export async function register() {
             console.error("Failed to fetch LiteLLM model prices:", error);
             console.log("Continuing with bundled model costs only...");
           }
-          const modelCostsData = { ...data };
-          for (const [modelName, costs] of Object.entries(STARVERI_MODEL_COSTS)) {
-            if (!(modelName in modelCostsData)) {
-              modelCostsData[modelName] = costs;
-            }
-          }
+          // Bundled Starveri rows always win: if LiteLLM later publishes a
+          // stale or incorrect starveri/* entry, the source-backed local
+          // mapping takes precedence rather than being silently overwritten.
+          const modelCostsData = { ...data, ...STARVERI_MODEL_COSTS };
 
           const rows = new Map<string, unknown>();
           for (const [modelName, info] of Object.entries(modelCostsData)) {
