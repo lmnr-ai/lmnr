@@ -39,6 +39,7 @@ interface StyleContextValue {
   state: StyleState;
   setPoint: (key: string, t: number, l: number) => void;
   setEndpoint: (which: keyof SurfaceEndpoints, value: number) => void;
+  interpolatePoints: () => void;
   setOklch: (varName: string, value: string) => void;
   setHsl: (varName: string, value: string) => void;
   replaceState: (next: StyleState) => void;
@@ -104,6 +105,29 @@ export function StyleProvider({ children }: PropsWithChildren) {
     }));
   }, []);
 
+  // Evenly redistribute every point's t/l on the straight line from the
+  // first point to the last (endpoints stay put).
+  const interpolatePoints = useCallback(() => {
+    setState((prev) => {
+      const pts = prev.surfaceCurve.points;
+      if (pts.length < 2) return prev;
+      const first = pts[0];
+      const last = pts[pts.length - 1];
+      const n = pts.length - 1;
+      return {
+        ...prev,
+        surfaceCurve: {
+          ...prev.surfaceCurve,
+          points: pts.map((p, i) => ({
+            ...p,
+            t: first.t + ((last.t - first.t) * i) / n,
+            l: first.l + ((last.l - first.l) * i) / n,
+          })),
+        },
+      };
+    });
+  }, []);
+
   const setOklch = useCallback((varName: string, value: string) => {
     setState((prev) => ({ ...prev, oklch: { ...prev.oklch, [varName]: value } }));
   }, []);
@@ -129,6 +153,7 @@ export function StyleProvider({ children }: PropsWithChildren) {
       state,
       setPoint,
       setEndpoint,
+      interpolatePoints,
       setOklch,
       setHsl,
       replaceState,
@@ -136,7 +161,7 @@ export function StyleProvider({ children }: PropsWithChildren) {
       toJSON,
       fromJSON,
     }),
-    [state, setPoint, setEndpoint, setOklch, setHsl, replaceState, applyToDocument, toJSON, fromJSON]
+    [state, setPoint, setEndpoint, interpolatePoints, setOklch, setHsl, replaceState, applyToDocument, toJSON, fromJSON]
   );
 
   return <StyleContext.Provider value={value}>{children}</StyleContext.Provider>;

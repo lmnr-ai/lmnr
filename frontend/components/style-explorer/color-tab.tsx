@@ -11,12 +11,17 @@ import SurfaceChips from "./surface-chips";
 import SurfaceCurveEditor from "./surface-curve-editor";
 
 export default function ColorTab() {
-  const { applyToDocument } = useStyleContext();
+  const { applyToDocument, interpolatePoints } = useStyleContext();
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <div className="text-xs font-medium text-foreground">Surface curve</div>
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-medium text-foreground">Surface curve</div>
+          <Button variant="outline" size="sm" onClick={interpolatePoints}>
+            Interpolate
+          </Button>
+        </div>
         <div className="text-[11px] text-muted-foreground">Drag points: X = chroma/hue blend, Y = lightness.</div>
         <SurfaceCurveEditor />
       </div>
