@@ -6,6 +6,7 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { type PropsWithChildren } from "react";
 
 import BasePathFetchShim from "@/components/common/base-path-fetch-shim";
+import StyleExplorer from "@/components/style-explorer";
 import { Toaster } from "@/components/ui/toaster";
 import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flags-context";
 import { getServerSession } from "@/lib/auth-session";
@@ -79,6 +80,8 @@ export default async function RootLayout({ children }: PropsWithChildren) {
           </div>
         </div>
       </NuqsAdapter>
+      {/* TEMPORARY: style exploration HUD — remove this line + components/style-explorer/ to rip out. */}
+      <StyleExplorer />
     </body>
   );
 
