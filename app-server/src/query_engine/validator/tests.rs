@@ -803,6 +803,87 @@ fn test_not_in_with_array_placeholder() {
 }
 
 #[test]
+fn test_in_with_bare_scalar_literal() {
+    // ClickHouse accepts a bare single value after IN (it wraps it in a tuple).
+    let result = validate_ok("SELECT span_id FROM spans WHERE input_tokens IN 5");
+    assert!(contains_ws(&result, "input_tokens IN (5)"), "got: {result}");
+}
+
+#[test]
+fn test_in_with_bare_string_literal() {
+    let result = validate_ok("SELECT span_id FROM spans WHERE span_type IN 'TOOL'");
+    assert!(
+        contains_ws(&result, "span_type IN ('TOOL')"),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_in_with_bare_function_call() {
+    // `IN power(2, 3)` — the RHS is a full expression, not a parenthesized list.
+    let result = validate_ok("SELECT span_id FROM spans WHERE input_tokens IN power(2, 3)");
+    assert!(
+        contains_ws(&result, "input_tokens IN (power(2, 3))"),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_in_with_bare_column_ref_not_rewritten() {
+    // A bare identifier RHS is a column reference, NOT a relation — it must not
+    // be rewritten to a `_v0` view function.
+    let result = validate_ok("SELECT span_id FROM spans WHERE span_id IN parent_span_id");
+    assert!(
+        contains_ws(&result, "span_id IN (parent_span_id)"),
+        "got: {result}"
+    );
+    assert!(!result.contains("parent_span_id_v0"), "got: {result}");
+}
+
+#[test]
+fn test_not_in_with_bare_function_call() {
+    let result = validate_ok("SELECT span_id FROM spans WHERE input_tokens NOT IN power(2, 3)");
+    assert!(
+        contains_ws(&result, "input_tokens NOT IN (power(2, 3))"),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_in_with_interval_rhs_cross_feature() {
+    // Exercises BOTH the optional-interval-qualifier dialect AND the bare-IN
+    // expression parse together: `toIntervalDay(1) IN INTERVAL 1 day`.
+    let result =
+        validate_ok("SELECT span_id FROM spans WHERE toIntervalDay(1) IN INTERVAL 1 day LIMIT 1");
+    assert!(
+        contains_ws(&result, "toIntervalDay(1) IN (INTERVAL 1 DAY)"),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_in_bare_rhs_does_not_swallow_trailing_and() {
+    // The bare RHS is parsed at BETWEEN precedence, so a following `AND` is a
+    // separate predicate — not absorbed into the IN operand.
+    let result =
+        validate_ok("SELECT span_id FROM spans WHERE input_tokens IN 5 AND span_type = 'LLM'");
+    assert!(contains_ws(&result, "input_tokens IN (5)"), "got: {result}");
+    assert!(contains_ws(&result, "span_type = 'LLM'"), "got: {result}");
+}
+
+#[test]
+fn test_in_with_blocked_function_rhs_still_rejected() {
+    // The parse_infix override only changes parsing; the validator still scans
+    // the parsed InList RHS, so a blocked function there is rejected.
+    let err = validate("SELECT span_id FROM spans WHERE span_id IN url('http://evil')")
+        .expect_err("blocked function in IN RHS must be rejected");
+    assert!(
+        err.to_lowercase().contains("url") || err.contains("blocked"),
+        "got: {err}"
+    );
+}
+
+#[test]
 fn test_array_join_column_not_rewritten() {
     // `ARRAY JOIN clusters AS cluster_id` unnests the `clusters` ARRAY column of
     // signal_events — `clusters` here is a column, NOT the `clusters` table, so
@@ -949,6 +1030,24 @@ fn test_interval_with_unit_inside_string_literal() {
 }
 
 #[test]
+fn test_interval_with_unit_outside_string_literal() {
+    let result = validate_ok(
+        "SELECT span_id FROM spans WHERE start_time > now() - interval '1' day LIMIT 1",
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+        ),
+        "got: {result}"
+    );
+    assert!(
+        contains_ws(&result, "start_time > now() - INTERVAL '1' DAY"),
+        "interval literal not parsed with string amount: {result}"
+    );
+}
+
+#[test]
 fn test_interval_with_explicit_unit_still_parses() {
     // The classic `INTERVAL 1 HOUR` form must keep working after the dialect
     // swap.
@@ -980,6 +1079,36 @@ fn test_string_literal_resembling_interval_not_misparsed() {
     // and must survive untouched.
     let result = validate_ok("SELECT span_id FROM spans WHERE name = '1 day ago' LIMIT 1");
     assert!(contains_ws(&result, "name = '1 day ago'"), "got: {result}");
+}
+
+#[test]
+fn test_mixed_type_intervals_with_range_qualifier() {
+    // https://clickhouse.com/docs/sql-reference/data-types/special-data-types/interval#mixed-type-intervals
+    // Fairly new for ClickHouse (~26.4 or 26.5), but have been there in some
+    // other dialects for quite a while.
+    for lit in [
+        "INTERVAL '2-6' YEAR TO MONTH",
+        "INTERVAL '5 12' DAY TO HOUR",
+        "INTERVAL '5 12:30' DAY TO MINUTE",
+        "INTERVAL '5 12:30:45' DAY TO SECOND",
+        "INTERVAL '1:30' HOUR TO MINUTE",
+        "INTERVAL '1:30:45' HOUR TO SECOND",
+        "INTERVAL '5:30' MINUTE TO SECOND",
+    ] {
+        let query = format!("SELECT span_id FROM spans WHERE start_time > now() - {lit} LIMIT 1");
+        let result = validate_ok(&query);
+        assert!(
+            contains_ws(
+                &result,
+                &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+            ),
+            "table not rewritten for {lit}: {result}"
+        );
+        assert!(
+            contains_ws(&result, &format!("start_time > now() - {lit}")),
+            "mixed-type interval not preserved verbatim for {lit}: {result}"
+        );
+    }
 }
 
 #[test]

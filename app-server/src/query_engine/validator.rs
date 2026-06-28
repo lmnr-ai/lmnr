@@ -16,10 +16,10 @@ use sqlparser::ast::{
     ObjectNamePart, Query, Select, Statement, TableAlias, TableFactor, TableFunctionArgs, Value,
     ValueWithSpan, Visit, VisitMut, Visitor, VisitorMut,
 };
-use sqlparser::dialect::{ClickHouseDialect, Dialect};
+use sqlparser::dialect::{ClickHouseDialect, Dialect, Precedence};
 use sqlparser::keywords::Keyword;
-use sqlparser::parser::Parser;
-use sqlparser::tokenizer::{Span, Token, TokenWithSpan, Tokenizer};
+use sqlparser::parser::{Parser, ParserError};
+use sqlparser::tokenizer::{Span, Token, Tokenizer};
 
 const VIEW_VERSION: &str = "v0";
 
@@ -113,25 +113,35 @@ pub fn find_blocked_function_in_expr(expr: &Expr) -> Option<String> {
     scan.blocked
 }
 
-/// `ClickHouseDialect` that does NOT require a trailing unit qualifier on an
-/// `INTERVAL` literal, so `INTERVAL '1 day'` (the unit inside the string, as
-/// ClickHouse and Postgres both accept) parses instead of erroring with
-/// "INTERVAL requires a unit after the literal value".
+/// `ClickHouseDialect` with two upstream `sqlparser` strictnesses relaxed back to
+/// what ClickHouse actually accepts:
 ///
-/// Upstream `ClickHouseDialect::require_interval_qualifier()` returns `true`,
-/// which makes `Parser::parse_interval` hard-require a temporal-unit keyword
-/// after the value. Flipping just that one flag back to the trait default
-/// (`false`) makes the parser produce an `Interval` with `leading_field: None`,
-/// which round-trips verbatim back to `INTERVAL '1 day'` — the unit token can't
-/// be synthesized at the token level because `Interval`'s `Display` would then
-/// append it (`INTERVAL '1 day' SECOND`) and corrupt the SQL sent to ClickHouse.
+/// 1. **Optional `INTERVAL` unit qualifier.** Upstream
+///    `ClickHouseDialect::require_interval_qualifier()` returns `true`, making
+///    `Parser::parse_interval` hard-require a temporal-unit keyword after the
+///    value, so `INTERVAL '1 day'` (unit inside the string, as ClickHouse and
+///    Postgres both accept) errors. Flipping that flag back to the trait default
+///    (`false`) makes the parser produce an `Interval` with `leading_field:
+///    None`, which round-trips verbatim — the unit token can't be synthesized at
+///    the token level because `Interval`'s `Display` would then append it
+///    (`INTERVAL '1 day' SECOND`) and corrupt the SQL sent to ClickHouse.
+///    Upstream issue: https://github.com/apache/datafusion-sqlparser-rs/issues/2390
+///
+/// 2. **Unparenthesized single-expression `IN` RHS.** Upstream `Parser::parse_in`
+///    hard-requires a `(` after `IN` and rejects a bare right operand, but
+///    ClickHouse accepts any single expression there (`col IN 5`, `col IN
+///    {ids:Array(UUID)}`, `col IN power(2,3)`, `x IN INTERVAL 1 day`) — it
+///    type-casts both sides to a supertype and wraps a singular value in a tuple
+///    (https://clickhouse.com/docs/sql-reference/operators/in). The `parse_infix`
+///    override below parses such a bare RHS with the real expression parser.
+///    Upstream issue: https://github.com/apache/datafusion-sqlparser-rs/issues/2384
 ///
 /// Every other `Dialect` method delegates to the wrapped `ClickHouseDialect`, so
-/// this is ClickHouse parsing in every respect except the interval qualifier.
-/// Workaround for an upstream `sqlparser` over-strict check; drop this wrapper
-/// (parse with `ClickHouseDialect` directly) once the qualifier is optional
-/// upstream. NOTE: the delegation list mirrors `ClickHouseDialect`'s overrides
-/// for the pinned sqlparser version — re-check it when bumping the crate.
+/// this is ClickHouse parsing in every respect except those two relaxations.
+/// Workaround for upstream over-strict checks; drop this wrapper (parse with
+/// `ClickHouseDialect` directly) once both are fixed upstream. NOTE: the
+/// delegation list mirrors `ClickHouseDialect`'s overrides for the pinned
+/// sqlparser version — re-check it when bumping the crate.
 #[derive(Debug, Default, Clone, Copy)]
 struct ClickHouseOptionalIntervalDialect(ClickHouseDialect);
 
@@ -145,9 +155,60 @@ impl Dialect for ClickHouseOptionalIntervalDialect {
         self.0.dialect()
     }
 
-    // The one behavioural change: make the interval unit qualifier optional.
+    // Make the interval unit qualifier optional (relaxation #1).
     fn require_interval_qualifier(&self) -> bool {
         false
+    }
+
+    // Accept a bare single-expression `IN` / `NOT IN` right operand (relaxation
+    // #2). `parse_infix` is consulted BEFORE the operator is consumed, so we peek
+    // for `NOT? IN <not-'('-and-not-UNNEST>`. A `(` or `UNNEST` after `IN` means
+    // a list / subquery / empty-list / `IN UNNEST(...)`, which stock `parse_in`
+    // already handles — return `None` so the parser takes its default path. Any
+    // other infix also returns `None`, leaving all other parsing untouched.
+    fn parse_infix(
+        &self,
+        parser: &mut Parser,
+        expr: &Expr,
+        _precedence: u8,
+    ) -> Option<Result<Expr, ParserError>> {
+        let is_in = |t: &Token| matches!(t, Token::Word(w) if w.keyword == Keyword::IN);
+        let is_not = |t: &Token| matches!(t, Token::Word(w) if w.keyword == Keyword::NOT);
+
+        // Locate the `IN` keyword and the token immediately after it, honoring an
+        // optional leading `NOT`. (peek_* skip whitespace.)
+        let (negated, after_in) =
+            if is_not(&parser.peek_token().token) && is_in(&parser.peek_nth_token(1).token) {
+                (true, parser.peek_nth_token(2).token)
+            } else if is_in(&parser.peek_token().token) {
+                (false, parser.peek_nth_token(1).token)
+            } else {
+                return None;
+            };
+
+        // Parenthesized list / subquery / empty list / `IN UNNEST(...)` — let the
+        // stock `parse_in` handle these unchanged.
+        if matches!(after_in, Token::LParen)
+            || matches!(&after_in, Token::Word(w) if w.keyword == Keyword::UNNEST)
+        {
+            return None;
+        }
+
+        // Bare single-expression RHS: consume `NOT? IN`, then parse one expression
+        // at BETWEEN precedence (the same bound `parse_between` uses) so a trailing
+        // `AND` / `OR` / comma is NOT swallowed into the RHS.
+        Some((|| {
+            if negated {
+                parser.expect_keyword(Keyword::NOT)?;
+            }
+            parser.expect_keyword(Keyword::IN)?;
+            let rhs = parser.parse_subexpr(self.0.prec_value(Precedence::Between))?;
+            Ok(Expr::InList {
+                expr: Box::new(expr.clone()),
+                list: vec![rhs],
+                negated,
+            })
+        })())
     }
 
     // Everything else forwards verbatim to ClickHouseDialect.
@@ -234,92 +295,14 @@ impl Dialect for ClickHouseOptionalIntervalDialect {
     }
 }
 
-/// Parse ClickHouse SQL, working around two upstream `sqlparser` strictnesses:
-///
-/// 1. The `IN` operator's parser hard-requires a `(` and rejects a bare
-///    ClickHouse query-parameter placeholder list (`col IN {ids:Array(UUID)}`),
-///    even though the parenthesized form (`col IN ({ids:Array(UUID)})`) parses
-///    fine and is identical to ClickHouse. We tokenize, wrap any placeholder
-///    group that directly follows `IN` / `NOT IN` in parentheses, and parse the
-///    resulting token stream — so string literals and comments are never
-///    rewritten. Upstream: https://github.com/apache/datafusion-sqlparser-rs/issues/2384
-///
-/// 2. `ClickHouseDialect` requires a unit qualifier after an `INTERVAL` literal,
-///    rejecting `INTERVAL '1 day'` (unit inside the string) which ClickHouse and
-///    Postgres both accept. We parse with `ClickHouseOptionalIntervalDialect`,
-///    which is `ClickHouseDialect` with that one flag flipped.
-///
-/// Remove these workarounds (and parse with `ClickHouseDialect` directly) once
-/// both are fixed upstream.
-pub(crate) fn parse_clickhouse_sql(
-    sql: &str,
-) -> Result<Vec<Statement>, sqlparser::parser::ParserError> {
+pub(crate) fn parse_clickhouse_sql(sql: &str) -> Result<Vec<Statement>, ParserError> {
     let dialect = ClickHouseOptionalIntervalDialect::default();
     // Tokenize WITH locations: the validator later identifies ARRAY JOIN array
     // columns by their source span, so spans must survive into the parsed AST.
     let tokens = Tokenizer::new(&dialect, sql).tokenize_with_location()?;
-    let tokens = wrap_in_placeholder_lists(tokens);
     Parser::new(&dialect)
         .with_tokens_with_locations(tokens)
         .parse_statements()
-}
-
-/// Insert `(`/`)` tokens around a `{...}` placeholder group that immediately
-/// follows an `IN` keyword, so the `IN` parser accepts it. Operates purely on
-/// the token stream (string literals are opaque `Token::SingleQuotedString`
-/// values, comments are `Token::Whitespace`), so a `{` inside a string or
-/// comment is never matched. The injected parens get empty spans — they don't
-/// correspond to source text and are never span-matched downstream.
-///
-/// Workaround for sqlparser bug — `IN {placeholder}` rejected without parens:
-/// https://github.com/apache/datafusion-sqlparser-rs/issues/2384
-fn wrap_in_placeholder_lists(tokens: Vec<TokenWithSpan>) -> Vec<TokenWithSpan> {
-    let is_in_keyword =
-        |t: &TokenWithSpan| matches!(&t.token, Token::Word(w) if w.keyword == Keyword::IN);
-
-    let mut out: Vec<TokenWithSpan> = Vec::with_capacity(tokens.len() + 4);
-    let mut i = 0;
-    while i < tokens.len() {
-        // Find the previous non-whitespace token already emitted.
-        let prev_significant = out.iter().rev().find(|t| !is_whitespace(&t.token));
-        if matches!(&tokens[i].token, Token::LBrace)
-            && prev_significant.is_some_and(is_in_keyword)
-            && let Some(close) = matching_brace_end(&tokens, i)
-        {
-            out.push(TokenWithSpan::wrap(Token::LParen));
-            out.extend_from_slice(&tokens[i..=close]);
-            out.push(TokenWithSpan::wrap(Token::RParen));
-            i = close + 1;
-            continue;
-        }
-        out.push(tokens[i].clone());
-        i += 1;
-    }
-    out
-}
-
-fn is_whitespace(t: &Token) -> bool {
-    matches!(t, Token::Whitespace(_))
-}
-
-/// Given the index of an `LBrace`, return the index of its matching `RBrace`,
-/// honoring nesting (a placeholder type like `Array(Map(...))` has no braces,
-/// but nest defensively in case ClickHouse param syntax grows them).
-fn matching_brace_end(tokens: &[TokenWithSpan], open: usize) -> Option<usize> {
-    let mut depth = 0usize;
-    for (idx, t) in tokens.iter().enumerate().skip(open) {
-        match t.token {
-            Token::LBrace => depth += 1,
-            Token::RBrace => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(idx);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
 }
 
 #[derive(Debug, Clone)]
