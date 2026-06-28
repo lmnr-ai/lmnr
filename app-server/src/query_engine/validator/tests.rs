@@ -981,3 +981,20 @@ fn test_string_literal_resembling_interval_not_misparsed() {
     let result = validate_ok("SELECT span_id FROM spans WHERE name = '1 day ago' LIMIT 1");
     assert!(contains_ws(&result, "name = '1 day ago'"), "got: {result}");
 }
+
+#[test]
+fn test_backtick_quoted_identifiers_still_parse() {
+    // ClickHouseDialect does NOT override is_delimited_identifier_start; the
+    // trait default accepts backticks. ClickHouseOptionalIntervalDialect must
+    // tokenize backtick-quoted identifiers identically to the bare dialect.
+    let result = validate_ok("SELECT `span_id` FROM spans WHERE `name` = 'x' LIMIT 1");
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+        ),
+        "got: {result}"
+    );
+    assert!(contains_ws(&result, "`span_id`"), "got: {result}");
+    assert!(contains_ws(&result, "`name` = 'x'"), "got: {result}");
+}
