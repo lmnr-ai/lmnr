@@ -38,7 +38,14 @@ const FilterSelect = ({ tagId, selectType, ref }: FilterSelectProps) => {
 
   const options: FilterSelectOption[] = useMemo(() => {
     if (selectType === "field") {
-      return filters.map((f) => ({ value: f.key, label: f.name }));
+      const fieldOptions = filters.map((f) => ({ value: f.key, label: f.name }));
+      // A filter from a shared URL may target a column not in this user's list
+      // (e.g. someone else's custom column). Surface it so the field is labelled
+      // rather than showing the empty-select placeholder.
+      if (tag && !fieldOptions.some((o) => o.value === tag.field)) {
+        fieldOptions.push({ value: tag.field, label: tag.field });
+      }
+      return fieldOptions;
     } else {
       // operator
       if (!tag) return [];
