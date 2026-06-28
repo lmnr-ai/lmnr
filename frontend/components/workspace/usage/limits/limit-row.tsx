@@ -130,17 +130,20 @@ export default function LimitRow({
         <span className="text-sm font-medium">{label}</span>
         <p className="text-xs text-muted-foreground">Plan includes {includedLabel}</p>
       </div>
-      <div className="flex items-center border-t px-4 h-10 gap-2">
-        <input
-          type="number"
-          step="any"
-          min="0"
-          placeholder="No limit"
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          className="flex-1 bg-transparent text-sm tabular-nums placeholder:text-muted-foreground outline-none min-w-0 hide-arrow"
-        />
+      <div className="flex items-center border-t p-3 gap-2">
+        <div className="flex flex-1 items-center gap-2 min-w-0 rounded-md border border-input bg-secondary px-3 h-8 transition-[color,box-shadow] focus-within:border-primary">
+          <input
+            type="number"
+            step="any"
+            min="0"
+            placeholder="No limit"
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="flex-1 bg-transparent text-sm tabular-nums placeholder:text-muted-foreground outline-none min-w-0 hide-arrow"
+          />
+          <span className="text-xs text-muted-foreground shrink-0">{unit}</span>
+        </div>
         {hasChanged ? (
           <Button
             variant="ghost"
@@ -165,7 +168,6 @@ export default function LimitRow({
             {isRemoving ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3 text-destructive" />}
           </Button>
         ) : null}
-        <span className="text-xs text-secondary-foreground shrink-0">{unit}</span>
       </div>
     </div>
   );

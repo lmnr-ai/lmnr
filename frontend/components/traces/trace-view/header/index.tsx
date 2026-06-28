@@ -29,7 +29,7 @@ import TraceDropdown from "./trace-dropdown";
 
 const HEADER_ITEM_CLS = "flex items-center h-7";
 
-const FREE_TIER_RETENTION_DAYS = 15;
+const FREE_TIER_RETENTION_DAYS = 7;
 
 interface HeaderProps {
   handleClose: () => void;
