@@ -114,13 +114,20 @@ export function useViewState({ projectId, resource }: UseViewStateOptions): View
   const listKey = `/api/projects/${projectId}/views?resource=${resource}`;
   const { data: views } = useSWR<View[]>(listKey, swrFetcher);
 
+  // A link that carries filter/search/sort params but no explicit `v` is a
+  // standalone/shared link — adopting our local last-view there would stamp our
+  // view id onto someone else's filter-only link and compute dirty state against
+  // an unrelated saved view. Only fall back to the last-view when the URL is clean.
+  const urlHasFormParams = hasFormParams(form);
+
   const resolvedViewId = useMemo<string | null>(() => {
     if (form.v) return form.v;
+    if (urlHasFormParams) return null;
     if (lastViewId && views && views.some((v) => v.id === lastViewId)) {
       return lastViewId;
     }
     return null;
-  }, [form.v, lastViewId, views]);
+  }, [form.v, urlHasFormParams, lastViewId, views]);
 
   const view = useMemo<View | null>(() => {
     if (!resolvedViewId || !views) return null;
@@ -128,13 +135,15 @@ export function useViewState({ projectId, resource }: UseViewStateOptions): View
   }, [resolvedViewId, views]);
 
   // When the active view came from localStorage (not the URL), reflect it into
-  // the URL so a shared link carries the view, not just its filters. Idempotent:
+  // the URL so a shared link carries the view, not just its filters. Skipped when
+  // the URL already carries form params (`view` is null there via resolvedViewId),
+  // so we never bind our local view to a shared filter-only link. Idempotent:
   // once `v` is present the condition is false, so no render loop.
   useEffect(() => {
-    if (view && !form.v) {
+    if (view && !form.v && !urlHasFormParams) {
       void setForm((prev) => ({ ...prev, v: view.id }));
     }
-  }, [view, form.v, setForm]);
+  }, [view, form.v, urlHasFormParams, setForm]);
 
   const baseline = useMemo<ViewParams>(
     () => (view ? readParamsFromView(view.config as Record<string, unknown>) : EMPTY_VIEW_PARAMS),
