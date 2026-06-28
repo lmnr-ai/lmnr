@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Pricing - Laminar",
     description: "Transparent pricing for Laminar. Start free with generous limits, scale as your AI agents grow.",
-    images: { url: "/twitter-image.png", alt: "Laminar", width: 1200, height: 630 },
+    images: { url: "/opengraph-image.png", alt: "Laminar", width: 1200, height: 630 },
   },
 };
 

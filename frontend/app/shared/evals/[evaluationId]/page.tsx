@@ -32,7 +32,7 @@ export const generateMetadata = async (props: { params: Promise<{ evaluationId: 
         card: "summary_large_image",
         title,
         description,
-        images: { url: "/twitter-image.png", alt: "Laminar", width: 1200, height: 630 },
+        images: { url: "/opengraph-image.png", alt: "Laminar", width: 1200, height: 630 },
       },
     };
   } catch {
