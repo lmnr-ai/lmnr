@@ -49,7 +49,7 @@ const FilterSelect = ({ tagId, selectType, ref }: FilterSelectProps) => {
     } else {
       // operator
       if (!tag) return [];
-      const operations = getOperationsForField(filters, tag.field);
+      const operations = getOperationsForField(filters, tag.field, tag.dataType);
       return operations.map((op) => ({ value: op.key, label: op.label }));
     }
   }, [selectType, filters, tag]);
