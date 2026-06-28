@@ -922,3 +922,62 @@ fn test_full_clusters_emerging_query() {
     // Only the outer clusters TABLE is rewritten; the array-join column is not.
     assert_eq!(result.matches("clusters_v0").count(), 1, "got: {result}");
 }
+
+#[test]
+fn test_interval_with_unit_inside_string_literal() {
+    // LAM-1854: ClickHouse (and Postgres) accept the unit inside the string
+    // literal, e.g. `interval '1 day'`. sqlparser's stock ClickHouseDialect
+    // rejects it ("INTERVAL requires a unit after the literal value"); our
+    // optional-qualifier dialect must parse it and round-trip it verbatim.
+    let result = validate_ok(
+        "SELECT span_id FROM spans WHERE start_time > now() - interval '1 day' LIMIT 1",
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+        ),
+        "got: {result}"
+    );
+    // The unit must NOT be hoisted out of the literal into a trailing qualifier
+    // (that would corrupt the SQL sent to ClickHouse).
+    assert!(
+        contains_ws(&result, "start_time > now() - INTERVAL '1 day'"),
+        "interval literal not preserved verbatim in: {result}"
+    );
+    assert!(!contains_ws(&result, "'1 day' SECOND"), "got: {result}");
+}
+
+#[test]
+fn test_interval_with_explicit_unit_still_parses() {
+    // The classic `INTERVAL 1 HOUR` form must keep working after the dialect
+    // swap.
+    let result =
+        validate_ok("SELECT span_id FROM spans WHERE start_time > now() - INTERVAL 1 HOUR LIMIT 1");
+    assert!(
+        contains_ws(&result, "start_time > now() - INTERVAL 1 HOUR"),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_interval_various_units_inside_string_literal() {
+    for unit in ["1 hour", "30 minute", "2 week", "3 month", "1 year"] {
+        let query = format!(
+            "SELECT span_id FROM spans WHERE start_time > now() - interval '{unit}' LIMIT 1"
+        );
+        let result = validate_ok(&query);
+        assert!(
+            contains_ws(&result, &format!("INTERVAL '{unit}'")),
+            "unit '{unit}' not preserved in: {result}"
+        );
+    }
+}
+
+#[test]
+fn test_string_literal_resembling_interval_not_misparsed() {
+    // A plain string literal that merely contains the words is NOT an INTERVAL
+    // and must survive untouched.
+    let result = validate_ok("SELECT span_id FROM spans WHERE name = '1 day ago' LIMIT 1");
+    assert!(contains_ws(&result, "name = '1 day ago'"), "got: {result}");
+}

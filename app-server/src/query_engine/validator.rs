@@ -7,6 +7,7 @@
 //! and rewrites allowed table references to their project-scoped `_v0` view
 //! functions.
 
+use std::any::TypeId;
 use std::collections::{HashMap, HashSet};
 use std::ops::ControlFlow;
 
@@ -15,7 +16,7 @@ use sqlparser::ast::{
     ObjectNamePart, Query, Select, Statement, TableAlias, TableFactor, TableFunctionArgs, Value,
     ValueWithSpan, Visit, VisitMut, Visitor, VisitorMut,
 };
-use sqlparser::dialect::ClickHouseDialect;
+use sqlparser::dialect::{ClickHouseDialect, Dialect};
 use sqlparser::keywords::Keyword;
 use sqlparser::parser::Parser;
 use sqlparser::tokenizer::{Span, Token, TokenWithSpan, Tokenizer};
@@ -112,20 +113,148 @@ pub fn find_blocked_function_in_expr(expr: &Expr) -> Option<String> {
     scan.blocked
 }
 
-/// Parse ClickHouse SQL, working around an upstream `sqlparser` bug: the `IN`
-/// operator's parser hard-requires a `(` and rejects a bare ClickHouse
-/// query-parameter placeholder list (`col IN {ids:Array(UUID)}`), even though
-/// the equivalent parenthesized form (`col IN ({ids:Array(UUID)})`) parses fine
-/// and is identical to ClickHouse. We tokenize, wrap any placeholder group that
-/// directly follows `IN` / `NOT IN` in parentheses, and parse the resulting
-/// token stream directly — so string literals and comments are never rewritten.
+/// `ClickHouseDialect` that does NOT require a trailing unit qualifier on an
+/// `INTERVAL` literal, so `INTERVAL '1 day'` (the unit inside the string, as
+/// ClickHouse and Postgres both accept) parses instead of erroring with
+/// "INTERVAL requires a unit after the literal value".
 ///
-/// Upstream issue: https://github.com/apache/datafusion-sqlparser-rs/issues/2384
-/// Remove this shim (and call `Parser::parse_sql` directly) once it's fixed.
+/// Upstream `ClickHouseDialect::require_interval_qualifier()` returns `true`,
+/// which makes `Parser::parse_interval` hard-require a temporal-unit keyword
+/// after the value. Flipping just that one flag back to the trait default
+/// (`false`) makes the parser produce an `Interval` with `leading_field: None`,
+/// which round-trips verbatim back to `INTERVAL '1 day'` — the unit token can't
+/// be synthesized at the token level because `Interval`'s `Display` would then
+/// append it (`INTERVAL '1 day' SECOND`) and corrupt the SQL sent to ClickHouse.
+///
+/// Every other `Dialect` method delegates to the wrapped `ClickHouseDialect`, so
+/// this is ClickHouse parsing in every respect except the interval qualifier.
+/// Workaround for an upstream `sqlparser` over-strict check; drop this wrapper
+/// (parse with `ClickHouseDialect` directly) once the qualifier is optional
+/// upstream. NOTE: the delegation list mirrors `ClickHouseDialect`'s overrides
+/// for the pinned sqlparser version — re-check it when bumping the crate.
+#[derive(Debug, Default, Clone, Copy)]
+struct ClickHouseOptionalIntervalDialect(ClickHouseDialect);
+
+impl Dialect for ClickHouseOptionalIntervalDialect {
+    // Report ClickHouseDialect's identity so `dialect_of!(self is
+    // ClickHouseDialect)` checks inside the parser (e.g. parametric aggregate
+    // functions `quantile(0.9)(duration)`) still take the ClickHouse path. The
+    // `Dialect::dialect()` override is the upstream-blessed way to wrap a
+    // dialect without losing its type identity.
+    fn dialect(&self) -> TypeId {
+        self.0.dialect()
+    }
+
+    // The one behavioural change: make the interval unit qualifier optional.
+    fn require_interval_qualifier(&self) -> bool {
+        false
+    }
+
+    // Everything else forwards verbatim to ClickHouseDialect.
+    fn is_identifier_start(&self, ch: char) -> bool {
+        self.0.is_identifier_start(ch)
+    }
+    fn is_identifier_part(&self, ch: char) -> bool {
+        self.0.is_identifier_part(ch)
+    }
+    fn supports_string_literal_backslash_escape(&self) -> bool {
+        self.0.supports_string_literal_backslash_escape()
+    }
+    fn supports_select_wildcard_except(&self) -> bool {
+        self.0.supports_select_wildcard_except()
+    }
+    fn describe_requires_table_keyword(&self) -> bool {
+        self.0.describe_requires_table_keyword()
+    }
+    fn supports_limit_comma(&self) -> bool {
+        self.0.supports_limit_comma()
+    }
+    fn supports_insert_table_function(&self) -> bool {
+        self.0.supports_insert_table_function()
+    }
+    fn supports_insert_format(&self) -> bool {
+        self.0.supports_insert_format()
+    }
+    fn supports_numeric_literal_underscores(&self) -> bool {
+        self.0.supports_numeric_literal_underscores()
+    }
+    fn supports_partition_by_after_order_by(&self) -> bool {
+        self.0.supports_partition_by_after_order_by()
+    }
+    fn supports_array_join_syntax(&self) -> bool {
+        self.0.supports_array_join_syntax()
+    }
+    fn supports_dictionary_syntax(&self) -> bool {
+        self.0.supports_dictionary_syntax()
+    }
+    fn supports_lambda_functions(&self) -> bool {
+        self.0.supports_lambda_functions()
+    }
+    fn supports_from_first_select(&self) -> bool {
+        self.0.supports_from_first_select()
+    }
+    fn supports_order_by_all(&self) -> bool {
+        self.0.supports_order_by_all()
+    }
+    fn supports_group_by_expr(&self) -> bool {
+        self.0.supports_group_by_expr()
+    }
+    fn supports_group_by_with_modifier(&self) -> bool {
+        self.0.supports_group_by_with_modifier()
+    }
+    fn supports_nested_comments(&self) -> bool {
+        self.0.supports_nested_comments()
+    }
+    fn supports_optimize_table(&self) -> bool {
+        self.0.supports_optimize_table()
+    }
+    fn supports_prewhere(&self) -> bool {
+        self.0.supports_prewhere()
+    }
+    fn supports_with_fill(&self) -> bool {
+        self.0.supports_with_fill()
+    }
+    fn supports_limit_by(&self) -> bool {
+        self.0.supports_limit_by()
+    }
+    fn supports_interpolate(&self) -> bool {
+        self.0.supports_interpolate()
+    }
+    fn supports_settings(&self) -> bool {
+        self.0.supports_settings()
+    }
+    fn supports_select_format(&self) -> bool {
+        self.0.supports_select_format()
+    }
+    fn supports_select_wildcard_replace(&self) -> bool {
+        self.0.supports_select_wildcard_replace()
+    }
+    fn supports_comma_separated_trim(&self) -> bool {
+        self.0.supports_comma_separated_trim()
+    }
+}
+
+/// Parse ClickHouse SQL, working around two upstream `sqlparser` strictnesses:
+///
+/// 1. The `IN` operator's parser hard-requires a `(` and rejects a bare
+///    ClickHouse query-parameter placeholder list (`col IN {ids:Array(UUID)}`),
+///    even though the parenthesized form (`col IN ({ids:Array(UUID)})`) parses
+///    fine and is identical to ClickHouse. We tokenize, wrap any placeholder
+///    group that directly follows `IN` / `NOT IN` in parentheses, and parse the
+///    resulting token stream — so string literals and comments are never
+///    rewritten. Upstream: https://github.com/apache/datafusion-sqlparser-rs/issues/2384
+///
+/// 2. `ClickHouseDialect` requires a unit qualifier after an `INTERVAL` literal,
+///    rejecting `INTERVAL '1 day'` (unit inside the string) which ClickHouse and
+///    Postgres both accept. We parse with `ClickHouseOptionalIntervalDialect`,
+///    which is `ClickHouseDialect` with that one flag flipped.
+///
+/// Remove these workarounds (and parse with `ClickHouseDialect` directly) once
+/// both are fixed upstream.
 pub(crate) fn parse_clickhouse_sql(
     sql: &str,
 ) -> Result<Vec<Statement>, sqlparser::parser::ParserError> {
-    let dialect = ClickHouseDialect {};
+    let dialect = ClickHouseOptionalIntervalDialect::default();
     // Tokenize WITH locations: the validator later identifies ARRAY JOIN array
     // columns by their source span, so spans must survive into the parsed AST.
     let tokens = Tokenizer::new(&dialect, sql).tokenize_with_location()?;
