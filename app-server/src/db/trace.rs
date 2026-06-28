@@ -315,6 +315,7 @@ pub async fn upsert_trace_statistics_batch(
                 cost = traces.cost + EXCLUDED.cost,
                 status = CASE
                     WHEN traces.status = 'error' OR EXCLUDED.status = 'error' THEN 'error'
+                    WHEN traces.status = 'warning' OR EXCLUDED.status = 'warning' THEN 'warning'
                     ELSE COALESCE(EXCLUDED.status, traces.status)
                 END,
                 tags = array(SELECT DISTINCT unnest(traces.tags || EXCLUDED.tags)),

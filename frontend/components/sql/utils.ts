@@ -31,7 +31,7 @@ import { defaultThemeSettings } from "@/components/ui/content-renderer/utils";
 export const enumValues = {
   span_type: ["DEFAULT", "LLM", "EXECUTOR", "EVALUATOR", "EVALUATION", "TOOL", "HUMAN_EVALUATOR", "CACHED", "UNKNOWN"],
   trace_type: ["DEFAULT", "EVALUATION", "PLAYGROUND"],
-  status: ["success", "error"],
+  status: ["success", "warning", "error"],
   signal_run_status: ["PENDING", "COMPLETED", "FAILED", "UNKNOWN"],
   signal_run_mode: ["BATCH", "REALTIME", "UNKNOWN"],
 } as const satisfies Record<string, readonly string[]>;
@@ -140,7 +140,7 @@ export const tableSchemas: Record<string, TableSchema> = {
         type: "String",
         enumType: "status",
         description:
-          "Normalized status of the trace. 'error' if any span in the trace has status 'error', otherwise 'success'",
+          "Normalized status of the trace. 'error' if the root span has status 'error', 'warning' if a non-root span has status 'error', otherwise 'success'",
       },
       { name: "user_id", type: "String", description: "User ID sent with the trace" },
       { name: "session_id", type: "String", description: "Session identifier" },
