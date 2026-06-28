@@ -1,7 +1,7 @@
 "use client";
 
 import { parseAsArrayOf, parseAsString, useQueryStates } from "nuqs";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 
 import { type Filter, FilterSchemaRelaxed } from "@/lib/actions/common/filters";
@@ -126,6 +126,15 @@ export function useViewState({ projectId, resource }: UseViewStateOptions): View
     if (!resolvedViewId || !views) return null;
     return views.find((v) => v.id === resolvedViewId) ?? null;
   }, [resolvedViewId, views]);
+
+  // When the active view came from localStorage (not the URL), reflect it into
+  // the URL so a shared link carries the view, not just its filters. Idempotent:
+  // once `v` is present the condition is false, so no render loop.
+  useEffect(() => {
+    if (view && !form.v) {
+      void setForm((prev) => ({ ...prev, v: view.id }));
+    }
+  }, [view, form.v, setForm]);
 
   const baseline = useMemo<ViewParams>(
     () => (view ? readParamsFromView(view.config as Record<string, unknown>) : EMPTY_VIEW_PARAMS),
