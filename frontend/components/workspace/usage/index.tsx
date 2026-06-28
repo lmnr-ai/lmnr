@@ -10,6 +10,7 @@ import { SettingsSection, SettingsSectionHeader } from "@/components/settings/se
 import { ChartContainer } from "@/components/ui/chart";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type WorkspaceStats } from "@/lib/actions/usage/types";
+import { normalizeTier, signalInputRate, signalOutputRate } from "@/lib/billing/tiers";
 import { Feature } from "@/lib/features/features";
 import { track } from "@/lib/posthog";
 import { type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
@@ -35,10 +36,6 @@ interface TierHint {
   overageDataPrice: number;
   teamMembers: string;
 }
-
-// Signal overage is billed by token cost. These mirror the app-server defaults.
-const SIGNAL_INPUT_PRICE_PER_MTOK = 0.5;
-const SIGNAL_OUTPUT_PRICE_PER_MTOK = 3;
 
 const TIER_USAGE_HINTS: Record<string, TierHint> = {
   free: {
@@ -76,11 +73,12 @@ const getUsageDescription = (tierName?: string): string => {
   if (!tierName) return DEFAULT_USAGE_DESCRIPTION;
   const tierHintInfo = TIER_USAGE_HINTS[tierName.toLowerCase().trim()];
   if (!tierHintInfo) return DEFAULT_USAGE_DESCRIPTION;
+  const tier = normalizeTier(tierName);
   const tierHint = `${capitalize(tierName)} tier comes with ${tierHintInfo.data} data and ${tierHintInfo.signalBudget} of included Signals usage per month.`;
   const tierHintOverages =
     "If you exceed these limits, " +
     (tierHintInfo.isOverageAllowed
-      ? `you will be charged $${tierHintInfo.overageDataPrice} per GB for additional data and $${SIGNAL_INPUT_PRICE_PER_MTOK} / 1M input tokens and $${SIGNAL_OUTPUT_PRICE_PER_MTOK} / 1M output tokens for additional Signals usage.`
+      ? `you will be charged $${tierHintInfo.overageDataPrice} per GB for additional data and $${signalInputRate(tier)} / 1M input tokens and $${signalOutputRate(tier)} / 1M output tokens for additional Signals usage.`
       : "you won't be able to send any more data during current billing cycle.");
   return `${tierHint} ${tierHintOverages}`;
 };
@@ -131,8 +129,8 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
 
       <SettingsSection>
         <SettingsSectionHeader size="sm" title="Usage summary" description={usageDescription} />
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="border rounded-md p-6 bg-secondary flex-1 max-w-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="border rounded-md p-6 bg-secondary">
             <div className="flex justify-between items-center">
               <div className="flex flex-col gap-1">
                 <span className="text-sm font-medium">Data usage</span>
@@ -157,7 +155,7 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
             </div>
           </div>
 
-          <div className="border rounded-md p-6 bg-secondary flex-1 max-w-xs">
+          <div className="border rounded-md p-6 bg-secondary">
             <div className="flex justify-between items-center">
               <div className="flex flex-col gap-1">
                 <span className="text-sm font-medium">Signals usage</span>

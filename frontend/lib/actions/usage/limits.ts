@@ -2,6 +2,7 @@ import { addMonths, subHours } from "date-fns";
 import { and, eq } from "drizzle-orm";
 
 import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
+import { retentionCutoff } from "@/lib/billing/retention";
 import { normalizeTier, signalTokenCostMicroUsd } from "@/lib/billing/tiers";
 import {
   cache,
@@ -14,12 +15,6 @@ import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { projects, subscriptionTiers, workspaces, workspaceUsageLimits } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
-
-const TIER_RETENTION_DAYS: Record<string, number> = {
-  free: 15,
-  hobby: 30,
-  pro: 90,
-};
 
 interface ProjectBillingInfo {
   id: string;
@@ -216,9 +211,8 @@ export async function checkDataRetentionAccess(
     return null;
   }
 
-  const tierKey = info.tierName.trim().toLowerCase();
-  const retentionDays = TIER_RETENTION_DAYS[tierKey];
-  if (retentionDays === undefined) {
+  const cutoff = retentionCutoff(info.tierName);
+  if (!cutoff) {
     return null;
   }
 
@@ -234,9 +228,7 @@ export async function checkDataRetentionAccess(
     return null;
   }
 
-  const retentionCutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
-
-  if (effectiveStart < retentionCutoff) {
+  if (effectiveStart < cutoff) {
     return Response.json(
       {
         error: `Forbidden.`,

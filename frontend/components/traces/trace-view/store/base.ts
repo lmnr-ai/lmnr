@@ -130,6 +130,8 @@ export type TraceViewTrace = {
   metadata: string;
   status: string;
   traceType: string;
+  topSpanName?: string | null;
+  topSpanType?: SpanType | null;
   visibility: "public" | "private";
   hasBrowserSession: boolean;
   sessionId?: string;
