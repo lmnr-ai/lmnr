@@ -90,11 +90,18 @@ export function parseLlmDefaultHeaders(value = process.env.LLM_DEFAULT_HEADERS_J
   return Object.keys(headers).length > 0 ? headers : undefined;
 }
 
+let hasWarnedAboutHeaders = false;
+
 function hasValidLlmDefaultHeaders(): boolean {
   try {
     parseLlmDefaultHeaders();
     return true;
-  } catch {
+  } catch (error) {
+    if (!hasWarnedAboutHeaders) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`AI provider failed to configure: ${message}`);
+      hasWarnedAboutHeaders = true;
+    }
     return false;
   }
 }
