@@ -7,3 +7,8 @@ export const ogImage = {
   width: 1200,
   height: 630,
 };
+
+export const title = "Laminar - Open-source observability for AI agents";
+
+export const description =
+  "Open-source platform to trace, evaluate, and debug AI agents. Laminar surfaces agent failures, and helps you fix them.";
