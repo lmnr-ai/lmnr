@@ -11,17 +11,17 @@ import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flag
 import { getServerSession } from "@/lib/auth-session";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
 import { manrope, sans, sansLanding } from "@/lib/fonts";
+import { description,ogImage, title } from "@/lib/metadata";
 import { PostHogProvider } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://laminar.sh"),
   title: {
-    default: "Laminar - Open-source observability for long-running agents",
+    default: title,
     template: "%s | Laminar",
   },
-  description:
-    "Open-source platform to trace, evaluate, and improve AI agents. Debug LLM calls, track tool use, and run evaluations on your AI applications.",
+  description,
   keywords: [
     "laminar",
     "evals",
@@ -47,28 +47,17 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     type: "website",
-    title: "Laminar - Open-source observability for long-running agents",
-    description:
-      "Open-source platform to trace, evaluate, and improve AI agents. Debug LLM calls, track tool use, and run evaluations on your AI applications.",
+    title,
+    description,
     siteName: "Laminar",
-    images: {
-      url: "/opengraph-image.png",
-      alt: "Laminar - Open-source observability for long-running agents",
-      width: 1200,
-      height: 630,
-    },
+    url: "https://laminar.sh",
+    images: [ogImage],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Laminar - Open-source observability for long-running agents",
-    description:
-      "Open-source platform to trace, evaluate, and improve AI agents. Debug LLM calls, track tool use, and run evaluations on your AI applications.",
-    images: {
-      url: "/twitter-image.png",
-      alt: "Laminar - Open-source observability for long-running agents",
-      width: 1200,
-      height: 630,
-    },
+    title,
+    description,
+    images: [ogImage],
   },
 };
 
