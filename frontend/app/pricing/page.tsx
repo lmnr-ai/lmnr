@@ -4,7 +4,7 @@ import { LANDING_COLUMN_MAX_W } from "@/components/landing/class-names";
 import LandingHeader from "@/components/landing/header";
 import Pricing from "@/components/landing/pricing";
 import { getServerSession } from "@/lib/auth-session";
-import { ogImage, SITE_URL } from "@/lib/metadata";
+import { ogImage } from "@/lib/metadata";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Pricing - Laminar",
     description: "Transparent pricing for Laminar. Start free with generous limits, scale as your AI agents grow.",
-    url: `${SITE_URL}/pricing`,
+    url: "https://laminar.sh/pricing",
     images: [ogImage],
   },
   twitter: {

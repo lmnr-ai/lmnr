@@ -11,7 +11,7 @@ import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flag
 import { getServerSession } from "@/lib/auth-session";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
 import { manrope, sans, sansLanding } from "@/lib/fonts";
-import { ogImage, SITE_NAME, SITE_URL } from "@/lib/metadata";
+import { ogImage, SITE_NAME } from "@/lib/metadata";
 import { PostHogProvider } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
@@ -21,7 +21,7 @@ const description =
   "Open-source platform to trace, evaluate, and debug AI agents. Monitor LLM calls, tool use, and run evals on your apps.";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(SITE_URL),
+  metadataBase: new URL("https://laminar.sh"),
   title: {
     default: title,
     template: "%s | Laminar",
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
     title,
     description,
     siteName: SITE_NAME,
-    url: SITE_URL,
+    url: "https://laminar.sh",
     images: [ogImage],
   },
   twitter: {

@@ -6,7 +6,7 @@ import PageViewTracker from "@/components/common/page-view-tracker";
 import SharedEvaluation from "@/components/shared/evaluation/shared-evaluation";
 import { getEvaluationScoreNames } from "@/lib/actions/evaluation";
 import { getSharedEvaluation } from "@/lib/actions/shared/evaluation";
-import { ogImage, SITE_URL } from "@/lib/metadata";
+import { ogImage } from "@/lib/metadata";
 
 const getCachedSharedEvaluation = cache((evaluationId: string) => getSharedEvaluation({ evaluationId }));
 
@@ -26,7 +26,7 @@ export const generateMetadata = async (props: { params: Promise<{ evaluationId: 
         title,
         description,
         type: "website",
-        url: `${SITE_URL}/shared/evals/${evaluationId}`,
+        url: `https://laminar.sh/shared/evals/${evaluationId}`,
         images: [ogImage],
       },
       twitter: {
