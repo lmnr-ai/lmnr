@@ -11,7 +11,7 @@ import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flag
 import { getServerSession } from "@/lib/auth-session";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
 import { manrope, sans, sansLanding } from "@/lib/fonts";
-import { ogImage, SITE_NAME } from "@/lib/metadata";
+import { ogImage } from "@/lib/metadata";
 import { PostHogProvider } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
@@ -54,7 +54,7 @@ export const metadata: Metadata = {
     type: "website",
     title,
     description,
-    siteName: SITE_NAME,
+    siteName: "Laminar",
     url: "https://laminar.sh",
     images: [ogImage],
   },

@@ -1,5 +1,3 @@
-export const SITE_NAME = "Laminar";
-
 // Shared 1200x630 social card (public/opengraph-image.png), used as the default
 // OG/Twitter image across pages. Next.js overwrites the whole openGraph object
 // per segment, so any page that sets its own openGraph must re-reference this.
