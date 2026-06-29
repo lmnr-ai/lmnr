@@ -479,21 +479,23 @@ fn render_usage_warning_email(
     // into their plan's flat rate. If the tier bills overage (Hobby / Pro) we
     // additionally make the "from now on it's billable" message explicit.
     let tier_message_html = if at_tier_included_allowance {
+        // Space-prefixed tier name, or empty when the tier display name is
+        // unknown (legacy emails) so the surrounding copy stays grammatical.
         let tier_label = if tier_display_name.is_empty() {
-            "your".to_string()
+            String::new()
         } else {
-            html_escape(tier_display_name)
+            format!(" {}", html_escape(tier_display_name))
         };
         let billing_sentence = if overage_billable {
             format!(
-                " <strong>From now until the next billing cycle, any further {meter_description} is billable.</strong> It is charged pay-as-you-go at the {tier_label} tier's overage rate, on top of your flat monthly rate."
+                " <strong>From now until the next billing cycle, any further {meter_description} is billable.</strong> It is charged pay-as-you-go at the{tier_label} tier's overage rate, on top of your flat monthly rate."
             )
         } else {
             String::new()
         };
         format!(
             r#"<p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
-      This threshold equals the {meter_description} already included in your {tier_label} plan's flat monthly rate, so you have now used up everything bundled into your plan for this cycle.{billing_sentence}
+      This threshold equals the {meter_description} already included in your{tier_label} plan's flat monthly rate, so you have now used up everything bundled into your plan for this cycle.{billing_sentence}
     </p>"#
         )
     } else {
