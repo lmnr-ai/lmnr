@@ -42,7 +42,7 @@ export default function WarningsSettings({ workspaceId }: WarningsSettingsProps)
       <SettingsSectionHeader
         size="sm"
         title="Email warnings"
-        description="Get notified when your usage reaches a threshold. You can set multiple thresholds per meter."
+        description="Get notified when your total usage this billing cycle reaches a threshold. Thresholds are measured from zero and count the allowance included in your plan — for example, a Signals threshold equal to your included allowance notifies you once that allowance is used up, not after you spend that much on top of it. You can set multiple thresholds per meter."
       />
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="flex flex-col rounded-md border flex-1">

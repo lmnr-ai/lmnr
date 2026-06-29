@@ -110,10 +110,7 @@ export default function SwitchTierDialog({
               </>
             )}
           </p>
-          <p>
-            Usage-based charges (data and signal runs) will be billed at the end of the cycle based on your active plan
-            at that time.
-          </p>
+          <p>Any usage-based charges accrued this cycle will be billed at the end of the cycle.</p>
           {!isUpgrade && (
             <p className="text-xs text-muted-foreground">
               Some features and limits may no longer be available after downgrading.

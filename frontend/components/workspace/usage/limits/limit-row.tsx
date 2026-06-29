@@ -131,7 +131,8 @@ export default function LimitRow({
         <p className="text-xs text-muted-foreground">Plan includes {includedLabel}</p>
       </div>
       <div className="flex items-center border-t p-3 gap-2">
-        <div className="flex flex-1 items-center gap-2 min-w-0 rounded-md border border-input bg-secondary px-3 h-8 transition-[color,box-shadow] focus-within:border-primary">
+        <label className="flex flex-1 items-center gap-2 min-w-0 rounded-md border border-input bg-background px-3 h-8 cursor-text transition-[color,box-shadow] focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
+          <span className="text-xs text-muted-foreground shrink-0">Reject above</span>
           <input
             type="number"
             step="any"
@@ -140,10 +141,10 @@ export default function LimitRow({
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="flex-1 bg-transparent text-sm tabular-nums placeholder:text-muted-foreground outline-none min-w-0 hide-arrow"
+            className="flex-1 bg-transparent text-sm tabular-nums text-right placeholder:text-muted-foreground outline-none min-w-0 hide-arrow"
           />
           <span className="text-xs text-muted-foreground shrink-0">{unit}</span>
-        </div>
+        </label>
         {hasChanged ? (
           <Button
             variant="ghost"

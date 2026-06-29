@@ -455,8 +455,8 @@ fn render_usage_warning_email(
     overage_billable: bool,
 ) -> String {
     let meter_description = match usage_item {
-        "bytes" => "data ingested",
-        "signal_cost" => "signals cost",
+        "bytes" => "data ingestion",
+        "signal_cost" => "Signals usage",
         _ => "usage",
     };
 
@@ -475,10 +475,9 @@ fn render_usage_warning_email(
     );
 
     // When the threshold being hit is exactly the included allowance of the
-    // workspace's tier, append a sentence telling the customer they've
-    // exhausted their included free allowance for the cycle. If the tier bills
-    // overage (Hobby / Pro) we additionally tell them they'll now be billed
-    // pay-as-you-go.
+    // workspace's tier, tell the customer they've used up the allowance bundled
+    // into their plan's flat rate. If the tier bills overage (Hobby / Pro) we
+    // additionally make the "from now on it's billable" message explicit.
     let tier_message_html = if at_tier_included_allowance {
         let tier_label = if tier_display_name.is_empty() {
             "your".to_string()
@@ -487,14 +486,14 @@ fn render_usage_warning_email(
         };
         let billing_sentence = if overage_billable {
             format!(
-                " From now until the next billing cycle, additional {meter_description} will be billed in a pay-as-you-go manner at the overage rate for the {tier_label} tier."
+                " <strong>From now until the next billing cycle, any further {meter_description} is billable.</strong> It is charged pay-as-you-go at the {tier_label} tier's overage rate, on top of your flat monthly rate."
             )
         } else {
             String::new()
         };
         format!(
             r#"<p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
-      This threshold matches the {tier_label} tier's included allowance, so you have now used up the free {meter_description} included in your current plan.{billing_sentence}
+      This threshold equals the {meter_description} already included in your {tier_label} plan's flat monthly rate, so you have now used up everything bundled into your plan for this cycle.{billing_sentence}
     </p>"#
         )
     } else {
