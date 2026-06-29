@@ -6,6 +6,7 @@ import PageViewTracker from "@/components/common/page-view-tracker";
 import SharedEvaluation from "@/components/shared/evaluation/shared-evaluation";
 import { getEvaluationScoreNames } from "@/lib/actions/evaluation";
 import { getSharedEvaluation } from "@/lib/actions/shared/evaluation";
+import { ogImage, SITE_URL } from "@/lib/metadata";
 
 const getCachedSharedEvaluation = cache((evaluationId: string) => getSharedEvaluation({ evaluationId }));
 
@@ -25,14 +26,14 @@ export const generateMetadata = async (props: { params: Promise<{ evaluationId: 
         title,
         description,
         type: "website",
-        url: `https://laminar.sh/shared/evals/${evaluationId}`,
-        images: { url: "/opengraph-image.png", alt: "Laminar", width: 1200, height: 630 },
+        url: `${SITE_URL}/shared/evals/${evaluationId}`,
+        images: [ogImage],
       },
       twitter: {
         card: "summary_large_image",
         title,
         description,
-        images: { url: "/opengraph-image.png", alt: "Laminar", width: 1200, height: 630 },
+        images: [ogImage],
       },
     };
   } catch {

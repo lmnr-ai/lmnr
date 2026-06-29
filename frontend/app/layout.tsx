@@ -11,6 +11,7 @@ import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flag
 import { getServerSession } from "@/lib/auth-session";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
 import { manrope, sans, sansLanding } from "@/lib/fonts";
+import { ogImage, SITE_NAME, SITE_URL } from "@/lib/metadata";
 import { PostHogProvider } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
@@ -18,15 +19,9 @@ const title = "Laminar - Open-source observability for long-running agents";
 // Keep <= 125 chars: social previews truncate og:description around there.
 const description =
   "Open-source platform to trace, evaluate, and debug AI agents. Monitor LLM calls, tool use, and run evals on your apps.";
-const ogImage = {
-  url: "/opengraph-image.png",
-  alt: title,
-  width: 1200,
-  height: 630,
-};
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://laminar.sh"),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: title,
     template: "%s | Laminar",
@@ -59,8 +54,8 @@ export const metadata: Metadata = {
     type: "website",
     title,
     description,
-    siteName: "Laminar",
-    url: "https://laminar.sh",
+    siteName: SITE_NAME,
+    url: SITE_URL,
     images: [ogImage],
   },
   twitter: {
