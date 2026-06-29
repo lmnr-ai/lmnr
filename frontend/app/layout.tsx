@@ -15,7 +15,7 @@ import { ogImage } from "@/lib/metadata";
 import { PostHogProvider } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
-const title = "Laminar - Open-source observability for long-running agents";
+const title = "Laminar - Open-source observability for AI agents";
 // Keep <= 125 chars: social previews truncate og:description around there.
 const description =
   "Open-source platform to trace, evaluate, and debug AI agents. Monitor LLM calls, tool use, and run evals on your apps.";

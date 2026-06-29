@@ -3,7 +3,7 @@
 // per segment, so any page that sets its own openGraph must re-reference this.
 export const ogImage = {
   url: "/opengraph-image.png",
-  alt: "Laminar - Open-source observability for long-running agents",
+  alt: "Laminar - Open-source observability for AI agents",
   width: 1200,
   height: 630,
 };
