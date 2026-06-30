@@ -125,14 +125,16 @@ export default function LimitRow({
   };
 
   return (
-    <div className="flex flex-col rounded-md border flex-1">
-      <div className="flex items-center justify-between px-3 h-10">
+    <div className="flex flex-col rounded-md border flex-1 p-3 gap-2">
+      <div className="flex items-baseline justify-between gap-2">
         <span className="text-sm font-medium">{label}</span>
-        <p className="text-xs text-muted-foreground">Plan includes {includedLabel}</p>
+        <span className="text-xs text-muted-foreground shrink-0">Included: {includedLabel}</span>
       </div>
-      <div className="flex items-center border-t p-3 gap-2">
-        <label className="flex flex-1 items-center gap-2 min-w-0 rounded-md border border-input bg-background px-3 h-8 cursor-text transition-[color,box-shadow] focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
-          <span className="text-xs text-muted-foreground shrink-0">Reject above</span>
+      <div className="flex items-center gap-2">
+        <label className="flex flex-1 items-center min-w-0 h-9 rounded-md border border-input bg-background overflow-hidden cursor-text transition-[color,box-shadow] focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
+          <span className="flex items-center self-stretch px-2.5 text-xs font-medium text-muted-foreground bg-muted/40 border-r select-none shrink-0">
+            {unit}
+          </span>
           <input
             type="number"
             step="any"
@@ -141,19 +143,11 @@ export default function LimitRow({
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="flex-1 bg-transparent text-sm tabular-nums text-right placeholder:text-muted-foreground outline-none min-w-0 hide-arrow"
+            className="flex-1 min-w-0 bg-transparent px-3 text-sm tabular-nums text-left placeholder:text-muted-foreground outline-none hide-arrow"
           />
-          <span className="text-xs text-muted-foreground shrink-0">{unit}</span>
         </label>
         {hasChanged ? (
-          <Button
-            variant="ghost"
-            type="button"
-            size="sm"
-            className="h-7 shrink-0"
-            onClick={handleSave}
-            disabled={isSaving}
-          >
+          <Button type="button" size="sm" className="h-9 shrink-0" onClick={handleSave} disabled={isSaving}>
             {isSaving && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
             Save
           </Button>
@@ -161,12 +155,13 @@ export default function LimitRow({
           <Button
             type="button"
             size="icon"
-            variant="ghost"
-            className={cn("h-7 w-7 shrink-0", isRemoving && "pointer-events-none")}
+            variant="outline"
+            className={cn("h-9 w-9 shrink-0", isRemoving && "pointer-events-none")}
             onClick={handleRemove}
             disabled={isRemoving}
+            title="Remove limit"
           >
-            {isRemoving ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3 text-destructive" />}
+            {isRemoving ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3.5 w-3.5 text-destructive" />}
           </Button>
         ) : null}
       </div>
