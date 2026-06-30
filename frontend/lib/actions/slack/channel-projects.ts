@@ -41,7 +41,10 @@ export async function getChannelProjectBindings(workspaceId: string): Promise<Sl
 }
 
 /**
- * Bind a Slack channel to a project (upsert on the unique `(workspace_id, channel_id)` index). The
+ * Bind a Slack channel to a project (upsert on the global unique `channel_id` index). A channel routes
+ * to at most one project instance-wide, so the conflict target is `channel_id` alone — this also lets
+ * the team-wide in-Slack picker MOVE a binding to a project in a different workspace (the inserted
+ * `workspace_id` would otherwise collide with the existing row's global `channel_id` and fail). The
  * caller must ensure `projectId` belongs to `workspaceId`; the route is membership-gated by proxy.ts.
  */
 export async function upsertChannelProjectBinding(input: z.infer<typeof UpsertBindingSchema>) {
@@ -71,8 +74,8 @@ export async function upsertChannelProjectBinding(input: z.infer<typeof UpsertBi
     .insert(slackChannelProjects)
     .values({ workspaceId, channelId, channelName: channelName ?? null, projectId, integrationId: integration.id })
     .onConflictDoUpdate({
-      target: [slackChannelProjects.workspaceId, slackChannelProjects.channelId],
-      set: { projectId, channelName: channelName ?? null, integrationId: integration.id },
+      target: slackChannelProjects.channelId,
+      set: { workspaceId, projectId, channelName: channelName ?? null, integrationId: integration.id },
     });
 }
 

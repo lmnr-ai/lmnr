@@ -528,23 +528,33 @@ pub async fn send_message(
     Ok(())
 }
 
-/// Post a plain-text reply into a Slack thread via `chat.postMessage`. Used by the inbound agent
-/// (`slack/events`) to answer where the user mentioned the bot. `text` is truncated to the Slack
-/// section limit by the caller. Errors propagate so the spawned handler can log them.
-pub async fn post_thread_reply(
+/// Post a message into a Slack thread via `chat.postMessage`. Pass `blocks: Some(..)` for a Block Kit
+/// message (e.g. the in-Slack project picker), `None` for a plain-text reply. `text` is the plain body
+/// / Block Kit notification fallback and must be pre-truncated to the Slack section limit by the caller.
+/// Returns the posted message `ts` (None when Slack omits it) so callers that persist the turn can key
+/// it by `external_id`; callers that don't persist (e.g. the picker) ignore it. Errors propagate so the
+/// spawned handler can log them.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub async fn post_thread_message(
     slack_client: &Client,
     token: &str,
     channel_id: &str,
     thread_ts: &str,
     text: &str,
+    blocks: Option<serde_json::Value>,
 ) -> Result<Option<String>> {
-    let body = json!({
+    let mut body = json!({
         "channel": channel_id,
         "thread_ts": thread_ts,
         "text": text,
         "unfurl_links": false,
         "unfurl_media": false,
     });
+    // Insert `blocks` only when present — never send `blocks: null`. `body` is an object literal, so
+    // serde_json's IndexMut adds the key in place.
+    if let Some(blocks) = blocks {
+        body["blocks"] = blocks;
+    }
 
     let response = slack_client
         .post(format!("{}/chat.postMessage", SLACK_API_BASE))
@@ -557,7 +567,7 @@ pub async fn post_thread_reply(
     let body = response.text().await?;
     if !status.is_success() {
         return Err(anyhow::anyhow!(
-            "Failed to post Slack thread reply. HTTP Status: {}, Response: {}",
+            "Failed to post Slack thread message. HTTP Status: {}, Response: {}",
             status,
             body
         ));
