@@ -4,14 +4,16 @@ import { type ColumnDef, type Row, type RowSelectionState } from "@tanstack/reac
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { shallow } from "zustand/shallow";
 
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import { Button } from "@/components/ui/button.tsx";
-import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { useTableConfigStore, useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
+import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { type Datapoint, type Dataset as DatasetType } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -23,7 +25,9 @@ import DownloadButton from "../ui/download-button";
 import Header from "../ui/header";
 import JsonTooltip from "../ui/json-tooltip";
 import AddDatapointsDialog from "./add-datapoints-dialog";
+import DatasetColumnsMenu from "./dataset-columns-menu";
 import DatasetPanel from "./dataset-panel";
+import { buildColumnDefs, buildFetchParams, datasetFilters } from "./dataset-table-store";
 import DownloadParquetDialog from "./download-parquet-dialog";
 import ManualAddDatapoint from "./manual-add-datapoint-dialog";
 
@@ -84,8 +88,32 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   const { toast } = useToast();
   const [totalCount, setTotalCount] = useState(0);
 
+  const { effective, setFilters } = useTableView();
+  const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
+
+  const { customColumns, removeCustomColumn } = useTableConfigStore(
+    (s) => ({
+      customColumns: s.config.customColumns,
+      removeCustomColumn: s.removeCustomColumn,
+    }),
+    shallow
+  );
+
+  const columnDefs = useMemo(() => buildColumnDefs(columns, customColumns), [customColumns]);
+  const columnSqls = useMemo(() => columnDefs.map((c) => c.meta?.sql).filter(Boolean), [columnDefs]);
+
+  const allFilters = useMemo(() => {
+    const customColumnFilters = customColumns.map((cc) => ({
+      name: cc.name,
+      key: `custom:${cc.name}`,
+      dataType: cc.dataType === "number" ? ("number" as const) : ("string" as const),
+    }));
+    return [...datasetFilters, ...customColumnFilters];
+  }, [customColumns]);
+
   const fetchCount = useCallback(async () => {
-    const url = `/api/projects/${projectId}/datasets/${dataset.id}/count`;
+    const params = buildFetchParams({ pageNumber: 0, pageSize: FETCH_SIZE, filter }, columnDefs);
+    const url = `/api/projects/${projectId}/datasets/${dataset.id}/count?${params.toString()}`;
     const res = await fetch(url, {
       method: "GET",
       headers: {
@@ -103,7 +131,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
 
     const data = await res.json();
     return data.totalCount;
-  }, [projectId, dataset.id, toast]);
+  }, [projectId, dataset.id, filter, columnDefs]);
 
   useEffect(() => {
     fetchCount()
@@ -122,7 +150,8 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   const fetchDatapoints = useCallback(
     async (pageNumber: number) => {
       try {
-        const url = `/api/projects/${projectId}/datasets/${dataset.id}/datapoints?pageNumber=${pageNumber}&pageSize=${FETCH_SIZE}`;
+        const params = buildFetchParams({ pageNumber, pageSize: FETCH_SIZE, filter }, columnDefs);
+        const url = `/api/projects/${projectId}/datasets/${dataset.id}/datapoints?${params.toString()}`;
         const res = await fetch(url, {
           method: "GET",
           headers: {
@@ -145,7 +174,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
         throw error;
       }
     },
-    [projectId, dataset.id, toast]
+    [projectId, dataset.id, filter, columnDefs, toast]
   );
 
   const {
@@ -159,7 +188,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   } = useInfiniteScroll<Datapoint>({
     fetchFn: fetchDatapoints,
     enabled: true,
-    deps: [dataset.id],
+    deps: [dataset.id, filter, columnSqls],
   });
 
   const selectedDatapointIds = useMemo(() => Object.keys(rowSelection), [rowSelection]);
@@ -252,6 +281,18 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
     }
   }, [datapointId, datapoints]);
 
+  const columnLabels = useMemo(
+    () =>
+      columnDefs.map((column) => ({
+        id: column.id!,
+        label: typeof column.header === "string" ? column.header : column.id!,
+        ...(column.id!.startsWith("custom:") && {
+          onDelete: () => removeCustomColumn(column.id!.replace("custom:", "")),
+        }),
+      })),
+    [columnDefs, removeCustomColumn]
+  );
+
   return (
     <>
       <Header path={"datasets/" + dataset.name} />
@@ -299,7 +340,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
         </div>
         <div className="flex overflow-hidden flex-1">
           <InfiniteDataTable
-            columns={columns}
+            columns={columnDefs}
             data={datapoints}
             hasMore={hasMore}
             isFetching={isFetching}
@@ -326,12 +367,8 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
             )}
           >
             <div className="flex flex-1 w-full space-x-2">
-              <ColumnsMenu
-                columnLabels={columns.map((column: ColumnDef<Datapoint>) => ({
-                  id: column.id!,
-                  label: typeof column.header === "string" ? column.header : column.id!,
-                }))}
-              />
+              <DataTableFilter columns={allFilters} filters={effective.filters} onFiltersChange={setFilters} />
+              <DatasetColumnsMenu columnLabels={columnLabels} columnDefs={columnDefs} />
               <ViewsToolbar projectId={String(projectId)} resource={RESOURCE} />
             </div>
           </InfiniteDataTable>

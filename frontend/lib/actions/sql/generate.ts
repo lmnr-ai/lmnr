@@ -16,7 +16,7 @@ const GenerationResultSchema = z.object({
 const GenerateSchema = z.object({
   projectId: z.guid(),
   prompt: z.string().min(1, "Prompt is required"),
-  mode: z.enum(["query", "eval-expression", "trace-expression"]).optional(),
+  mode: z.enum(["query", "eval-expression", "trace-expression", "dataset-expression"]).optional(),
   currentQuery: z.string().optional(),
 });
 
