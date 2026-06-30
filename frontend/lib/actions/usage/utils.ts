@@ -1,16 +1,9 @@
-import { addMonths } from "date-fns";
 import { and, eq } from "drizzle-orm";
 
-import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
+import { getWorkspaceUsage } from "@/lib/actions/workspace";
 import { cache, PROJECT_CACHE_KEY, WORKSPACE_USAGE_WARNINGS_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
-import {
-  projects,
-  subscriptionTiers,
-  workspaceHardLimitNotifications,
-  workspaces,
-  workspaceUsage,
-} from "@/lib/db/migrations/schema";
+import { projects, subscriptionTiers, workspaceHardLimitNotifications, workspaces } from "@/lib/db/migrations/schema";
 import { getHasClusteringAccess } from "@/lib/features/clustering";
 
 import type { UsageLimitType } from "./custom-usage-limits";
@@ -79,23 +72,21 @@ export const deleteHardLimitNotification = async (workspaceId: string, usageItem
 // already notified this billing cycle AND the new limit sits above current usage —
 // i.e. the workspace is back below its (higher) cap and a future breach is a fresh
 // event worth notifying about. If usage already exceeds the new limit, the existing
-// stamp correctly continues to suppress duplicate notifications. `workspace_usage`
-// is refreshed by cron and may lag up to ~24h, which is acceptable here.
+// stamp correctly continues to suppress duplicate notifications.
+//
+// Current usage comes from `getWorkspaceUsage` (cache → ClickHouse), NOT the
+// `workspace_usage` table: those columns are only written on checkout/reset and are
+// not kept in sync with the enforcement caches, and `signal_cost` there isn't stored
+// in micro-USD. `getWorkspaceUsage` returns `totalSignalCostMicroUsd`, matching the
+// micro-USD unit of `signal_cost` limits, and `totalBytesIngested` for bytes limits.
 export const clearHardLimitNotificationOnIncrease = async (
   workspaceId: string,
   usageItem: UsageLimitType,
   newLimitValue: number
 ): Promise<void> => {
   const rows = await db
-    .select({
-      lastNotifiedAt: workspaceHardLimitNotifications.lastNotifiedAt,
-      resetTime: workspaces.resetTime,
-      bytes: workspaceUsage.bytes,
-      signalCost: workspaceUsage.signalCost,
-    })
+    .select({ lastNotifiedAt: workspaceHardLimitNotifications.lastNotifiedAt })
     .from(workspaceHardLimitNotifications)
-    .innerJoin(workspaces, eq(workspaceHardLimitNotifications.workspaceId, workspaces.id))
-    .leftJoin(workspaceUsage, eq(workspaceUsage.workspaceId, workspaces.id))
     .where(
       and(
         eq(workspaceHardLimitNotifications.workspaceId, workspaceId),
@@ -108,19 +99,20 @@ export const clearHardLimitNotificationOnIncrease = async (
     return;
   }
 
-  const { lastNotifiedAt, resetTime, bytes, signalCost } = rows[0];
+  const { lastNotifiedAt } = rows[0];
   if (!lastNotifiedAt) {
     return;
   }
 
-  const resetTimeDate = new Date(resetTime);
-  const cycleStart = addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
-  const notifiedThisCycle = new Date(lastNotifiedAt) >= cycleStart;
+  // getWorkspaceUsage recomputes the billing-cycle start from resetTime internally,
+  // so compare lastNotifiedAt against that same cycle start.
+  const usage = await getWorkspaceUsage(workspaceId);
+  const notifiedThisCycle = new Date(lastNotifiedAt) >= usage.resetTime;
   if (!notifiedThisCycle) {
     return;
   }
 
-  const currentUsage = usageItem === "bytes" ? (bytes ?? 0) : (signalCost ?? 0);
+  const currentUsage = usageItem === "bytes" ? usage.totalBytesIngested : usage.totalSignalCostMicroUsd;
   if (newLimitValue > currentUsage) {
     await deleteHardLimitNotification(workspaceId, usageItem);
   }
