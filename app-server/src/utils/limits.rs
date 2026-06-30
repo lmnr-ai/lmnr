@@ -8,7 +8,7 @@ use crate::{
     cache::{
         Cache, CacheTrait,
         keys::{
-            HARD_LIMIT_NOTIFIED_CACHE_KEY, PROJECT_CACHE_KEY, WORKSPACE_BYTES_USAGE_CACHE_KEY,
+            PROJECT_CACHE_KEY, WORKSPACE_BYTES_USAGE_CACHE_KEY,
             WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY,
             WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY,
             WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY, WORKSPACE_USAGE_WARNINGS_CACHE_KEY,
@@ -33,13 +33,6 @@ const WORKSPACE_USAGE_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
 /// TTL for cached usage warnings per workspace. The cache is explicitly cleared
 /// by the frontend whenever warnings are added or removed, so a long TTL is fine.
 const USAGE_WARNINGS_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24 * 7; // 7 days
-
-/// TTL for the hard-limit dedup key. Hard limits have no DB `last_notified_at`
-/// column (unlike soft warnings), so dedup lives entirely in the cache. We notify
-/// as soon as usage crosses the cap; this short TTL just avoids re-emailing on
-/// every subsequent ingestion batch while usage stays over. It re-arms after the
-/// window, which is fine — being slightly over for >1 day is worth a reminder.
-const HARD_LIMIT_NOTIFIED_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
 
 /// TTL for cached project + workspace billing info. The frontend explicitly
 /// removes this key whenever the underlying data changes (tier switch, custom
@@ -147,13 +140,13 @@ pub async fn get_workspace_bytes_limit_exceeded(
     // Enforcement also notifies: if a workspace is already over the cap (e.g. a
     // custom limit was lowered below current usage), no further ingestion batch
     // reaches the update path, so this gate is the only place the owner email
-    // can fire. check_hard_limit dedups via its cache key, so calling it here as
-    // well as from the update path is safe.
+    // can fire. check_hard_limit dedups per billing cycle via the DB
+    // last_notified_at, so calling it here as well as from the update path is safe.
     check_hard_limit(
         db,
-        cache,
         queue,
         workspace_id,
+        project_info.reset_time,
         UsageItem::Bytes,
         bytes_ingested,
         Some(effective_limit),
@@ -223,12 +216,12 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     );
 
     // See get_workspace_bytes_limit_exceeded: enforcement is the only path that
-    // notifies when usage is already over the cap. Dedup via the cache key.
+    // notifies when usage is already over the cap. Dedup via the DB last_notified_at.
     check_hard_limit(
         db,
-        cache,
         queue,
         workspace_id,
+        project_info.reset_time,
         UsageItem::SignalCost,
         signal_cost,
         Some(effective_limit),
@@ -435,9 +428,9 @@ pub async fn update_workspace_bytes_ingested(
 
     check_hard_limit(
         db,
-        cache,
         queue,
         workspace_id,
+        project_info.reset_time,
         UsageItem::Bytes,
         current_value,
         effective_bytes_limit,
@@ -646,9 +639,9 @@ pub async fn update_workspace_signal_tokens(
 
     check_hard_limit(
         db,
-        cache,
         queue,
         workspace_id,
+        project_info.reset_time,
         UsageItem::SignalCost,
         current_cost,
         effective_signal_cost_limit,
@@ -800,16 +793,17 @@ async fn send_soft_limit_notification(
 }
 
 /// Check the hard limit against the current usage value and, the first time the
-/// workspace crosses it, enqueue a notification telling owners that the metered
-/// activity (data ingestion / signal runs) is now blocked until the cycle resets.
-/// Dedup is via a short-lived cache key — there is no DB column for hard-limit
-/// notifications (unlike warnings), so we just suppress re-emailing on every batch
-/// for `HARD_LIMIT_NOTIFIED_TTL_SECONDS` after a notification goes out.
+/// workspace crosses it this billing cycle, enqueue a notification telling owners
+/// that the metered activity (data ingestion / signal runs) is now blocked until
+/// the cycle resets. Dedup mirrors soft warnings exactly: a `last_notified_at`
+/// timestamp (in `workspace_hard_limit_notifications`) is compared against the
+/// billing-period start, so we email once per crossing per cycle rather than on
+/// every blocked batch.
 async fn check_hard_limit(
     db: Arc<DB>,
-    cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
     workspace_id: Uuid,
+    reset_time: DateTime<Utc>,
     usage_item: UsageItem,
     current_value: i64,
     effective_limit: Option<i64>,
@@ -822,20 +816,16 @@ async fn check_hard_limit(
         return;
     }
 
-    // Dedup the notification. try_acquire_lock sets the key with the given TTL
-    // only if absent, so the first crossing proceeds and later ingestion batches
-    // short-circuit until the key expires.
-    let dedup_key = format!("{HARD_LIMIT_NOTIFIED_CACHE_KEY}:{workspace_id}:{usage_item}");
-    match cache
-        .try_acquire_lock(&dedup_key, HARD_LIMIT_NOTIFIED_TTL_SECONDS)
-        .await
+    let billing_start = current_billing_period_start(reset_time);
+
+    match usage_warnings::get_hard_limit_last_notified_at(&db.pool, workspace_id, &usage_item).await
     {
-        Ok(true) => {}
-        Ok(false) => return, // already notified within the dedup window
+        Ok(Some(t)) if t >= billing_start => return, // already notified this billing cycle
+        Ok(_) => {}
         Err(e) => {
-            // Don't risk emailing on every batch if the cache is unhealthy.
+            // Don't risk emailing on every batch if the lookup is unhealthy.
             log::warn!(
-                "Failed to acquire hard-limit dedup key for workspace [{}]: {:?}",
+                "Failed to read hard-limit last_notified_at for workspace [{}]: {:?}",
                 workspace_id,
                 e
             );
@@ -877,17 +867,6 @@ async fn check_hard_limit(
                 workspace_id,
                 e
             );
-            // Release the dedup key so a later batch retries the notification.
-            // Must use release_lock, not remove: the in-memory cache keeps locks
-            // in a separate map from regular keys, so remove() would leave the
-            // dedup lock held until its TTL and suppress all retries this cycle.
-            if let Err(e) = cache.release_lock(&dedup_key).await {
-                log::warn!(
-                    "Failed to release hard-limit dedup key for workspace [{}]: {:?}",
-                    workspace_id,
-                    e
-                );
-            }
         }
         Ok(()) => {
             log::info!(
@@ -896,6 +875,18 @@ async fn check_hard_limit(
                 usage_item,
                 limit
             );
+            // Message is now durably queued. Eagerly stamp last_notified_at so
+            // ingestion workers don't re-enqueue for the same billing cycle.
+            if let Err(e) =
+                usage_warnings::mark_hard_limit_as_notified(&db.pool, workspace_id, &usage_item)
+                    .await
+            {
+                log::error!(
+                    "Failed to update hard-limit last_notified_at for workspace [{}]: {:?}",
+                    workspace_id,
+                    e
+                );
+            }
         }
     }
 }
