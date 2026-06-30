@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { z } from "zod/v4";
 
-import { deleteSlackIntegration } from "@/lib/actions/slack/index.ts";
+import { addEyesReaction, deleteSlackIntegration } from "@/lib/actions/slack/index.ts";
 import { SlackEventSchema } from "@/lib/actions/slack/types.ts";
 
 const VerifySlackRequestSchema = z.object({
@@ -44,6 +44,13 @@ export function verifySlackRequest(input: z.infer<typeof VerifySlackRequestSchem
   }
 }
 
+// Pull channel + ts off an app_mention event for the :eyes: ack — the union narrowing on the loose
+// event schema widens extra props to `{}`, so re-parse the fields we need.
+const AppMentionAckSchema = z.object({
+  channel: z.string().optional(),
+  ts: z.string().optional(),
+});
+
 const ProcessSlackEventSchema = z.object({
   event: SlackEventSchema,
   teamId: z.string(),
@@ -64,9 +71,16 @@ export async function processSlackEvent(input: z.infer<typeof ProcessSlackEventS
       await deleteSlackIntegration({ teamId });
       break;
 
-    case "app_mention":
+    case "app_mention": {
+      // React with :eyes: immediately (before the slow agent run) so the user sees an ack.
+      // addEyesReaction is best-effort and never throws.
+      const { channel, ts } = AppMentionAckSchema.parse(event);
+      if (channel && ts) {
+        await addEyesReaction({ teamId, channel, ts });
+      }
       await forwardSlackEventToBackend(rawBody);
       break;
+    }
 
     default:
       console.log(`Unhandled Slack event type: ${event.type}`);

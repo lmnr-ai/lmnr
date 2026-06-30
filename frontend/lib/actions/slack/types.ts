@@ -3,8 +3,9 @@ import { z } from "zod/v4";
 // Scopes requested for every Slack OAuth flow (direct-connect and broker).
 // Defined here (no server-only imports) so client components can import it too.
 // Notification scopes: chat:write*, *:read. Channel-agent scopes (app_mention + thread
-// backfill): app_mentions:read, channels:history, groups:history. Must match the Slack app
-// manifest's bot scopes — adding here only requests them; existing installs need to reconnect.
+// backfill): app_mentions:read, channels:history, groups:history. reactions:write powers the
+// :eyes: ack on mention. Must match the Slack app manifest's bot scopes — adding here only
+// requests them; existing installs need to reconnect.
 export const SLACK_SCOPES = [
   "chat:write",
   "chat:write.public",
@@ -14,6 +15,7 @@ export const SLACK_SCOPES = [
   "app_mentions:read",
   "channels:history",
   "groups:history",
+  "reactions:write",
 ];
 
 const SlackOauthSuccessResponseSchema = z.looseObject({
@@ -59,8 +61,11 @@ const SlackTokensRevokedEventSchema = z.looseObject({
 });
 
 // Mention of the bot in a channel — forwarded (raw) to app-server, which runs the agent and replies.
+// channel + ts are captured so the webhook can post an immediate :eyes: ack on the mentioned message.
 const SlackAppMentionEventSchema = z.looseObject({
   type: z.literal("app_mention"),
+  channel: z.string().optional(),
+  ts: z.string().optional(),
 });
 
 const SlackGenericEventSchema = z.looseObject({
