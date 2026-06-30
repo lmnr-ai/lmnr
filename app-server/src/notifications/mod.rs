@@ -63,6 +63,7 @@ pub enum NotificationDefinitionType {
     Alert,
     Report,
     UsageWarning,
+    UsageHardLimit,
 }
 
 impl std::fmt::Display for NotificationDefinitionType {
@@ -71,6 +72,7 @@ impl std::fmt::Display for NotificationDefinitionType {
             Self::Alert => f.write_str("ALERT"),
             Self::Report => f.write_str("REPORT"),
             Self::UsageWarning => f.write_str("USAGE_WARNING"),
+            Self::UsageHardLimit => f.write_str("USAGE_HARD_LIMIT"),
         }
     }
 }
@@ -174,6 +176,16 @@ pub enum NotificationKind {
         /// the customer they will now be billed pay-as-you-go.
         #[serde(default)]
         overage_billable: bool,
+    },
+    /// A workspace has hit a hard usage limit. Unlike `UsageWarning` (a soft
+    /// nudge), this means ingestion (bytes) or signal runs (signal_cost) are now
+    /// BLOCKED until the billing cycle resets. The email must convey that data
+    /// ingestion / signal runs have stopped until reset.
+    UsageHardLimit {
+        workspace_name: String,
+        usage_label: String,
+        formatted_limit: String,
+        usage_item: String,
     },
 }
 
@@ -300,6 +312,7 @@ impl MessageHandler for NotificationHandler {
                 NotificationKind::NewCluster { project_id, .. } => *project_id,
                 NotificationKind::SignalsReport { project_id, .. } => *project_id,
                 NotificationKind::UsageWarning { .. } => Uuid::nil(),
+                NotificationKind::UsageHardLimit { .. } => Uuid::nil(),
             };
 
             let payload = serde_json::to_string(kind).map_err(|e| {
@@ -469,8 +482,9 @@ impl NotificationHandler {
                     })
                     .collect())
             }
-            NotificationDefinitionType::UsageWarning => {
-                // Usage warnings go to workspace owners via email.
+            NotificationDefinitionType::UsageWarning
+            | NotificationDefinitionType::UsageHardLimit => {
+                // Usage warnings and hard limits both go to workspace owners via email.
                 let owner_emails = crate::db::usage_warnings::get_workspace_owner_emails(
                     &self.db.pool,
                     message.workspace_id,
