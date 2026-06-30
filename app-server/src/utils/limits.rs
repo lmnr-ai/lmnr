@@ -805,7 +805,10 @@ fn seconds_until_next_billing_reset(reset_time: DateTime<Utc>) -> u64 {
     let next_reset = billing_start
         .checked_add_months(Months::new(1))
         .unwrap_or(billing_start);
-    (next_reset - Utc::now()).num_seconds().max(0) as u64
+    // Clamp to >= 1: at the exact reset instant the delta is 0, and Redis rejects
+    // `SET ... EX 0` ("invalid expire time"), which would surface as an error from
+    // try_acquire_lock and silently drop the hard-limit notification for that batch.
+    (next_reset - Utc::now()).num_seconds().max(1) as u64
 }
 
 /// Check the hard limit against the current usage value and, the first time the
