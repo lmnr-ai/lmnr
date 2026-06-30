@@ -53,12 +53,6 @@ export function parseProjectSelection(rawPayload: string): ProjectSelection | nu
 // Reply to an interaction via its response_url (the URL is the capability — no bot token needed).
 // `replace_original: true` swaps the message carrying the picker for the given text. Best-effort.
 async function postToResponseUrl(responseUrl: string, text: string): Promise<void> {
-  // Defence in depth: the payload is HMAC-verified so this is Slack-minted, but pin the host to
-  // hooks.slack.com so a compromised signing secret can't turn this into an SSRF probe of internals.
-  if (!responseUrl.startsWith("https://hooks.slack.com/")) {
-    console.warn("Slack response_url has unexpected host, refusing to post.");
-    return;
-  }
   try {
     // Bound the call to stay under Slack's 3s interactivity budget — abort after ~2.5s, then continue.
     const res = await fetch(responseUrl, {
