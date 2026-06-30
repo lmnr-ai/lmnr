@@ -38,12 +38,11 @@ pub const REPORT_SCHEDULER_LAST_CHECK_CACHE_KEY: &str = "report_scheduler_last_c
 pub const SAMPLING_FACTORS_CACHE_KEY: &str = "sampling_factors";
 pub const WORKSPACE_USAGE_WARNINGS_CACHE_KEY: &str = "workspace_usage_warnings";
 pub const USAGE_WARNING_SEND_LOCK_KEY: &str = "usage_warning_send_lock";
-/// Marks that a hard-limit notification has already been sent this billing cycle
-/// for a given (workspace, usage item). Keyed `…:{workspace_id}:{usage_item}` and
-/// set with a TTL until the next billing reset so it fires at most once per cycle.
-/// There is no DB column for hard-limit notifications (unlike warnings'
-/// `last_notified_at`), so this cache key is the sole dedup mechanism.
-pub const HARD_LIMIT_NOTIFIED_CACHE_KEY: &str = "workspace_hard_limit_notified";
+/// Race guard mirroring `USAGE_WARNING_SEND_LOCK_KEY` for hard-limit
+/// notifications. Hard-limit messages share `definition_id` (= workspace_id)
+/// across usage items, so the lock is keyed `…:{workspace_id}:{usage_item}` to
+/// avoid a bytes notification suppressing a concurrent signal-cost one.
+pub const HARD_LIMIT_SEND_LOCK_KEY: &str = "hard_limit_send_lock";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SYS_PROMPT_SUMMARY_CACHE_KEY: &str = "sys_prompt_summary_v2";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]

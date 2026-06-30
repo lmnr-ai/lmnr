@@ -5,7 +5,10 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::cache::{Cache, CacheTrait, keys::USAGE_WARNING_SEND_LOCK_KEY};
+use crate::cache::{
+    Cache, CacheTrait,
+    keys::{HARD_LIMIT_SEND_LOCK_KEY, USAGE_WARNING_SEND_LOCK_KEY},
+};
 use crate::ch::notifications::CHNotification;
 use crate::ch::service::ClickhouseService;
 use crate::db::DB;
@@ -237,10 +240,36 @@ pub async fn push_to_notification_queue(
 // notifications_consumer — stage 1: persist notifications + fan-out to targets
 // ══════════════════════════════════════════════════════════════════════════════
 
-/// How long the per-warning dedup lock is held.
+/// How long the per-warning / per-hard-limit dedup lock is held.
 /// This prevents concurrent ingestion workers from enqueuing duplicate
-/// usage-warning notifications for the same warning definition.
+/// usage notifications for the same definition before the DB `last_notified_at`
+/// stamp takes effect.
 const USAGE_WARNING_SEND_LOCK_TTL_SECONDS: u64 = 300; // 5 minutes
+
+/// Race-guard lock key for a usage notification message, or `None` if the
+/// definition type needs no send lock. Usage warnings key on `definition_id`
+/// (the warning row); hard limits share `definition_id` (= workspace_id) across
+/// usage items, so they additionally key on the usage item to keep the bytes and
+/// signal-cost notifications from suppressing one another.
+fn usage_send_lock_key(message: &NotificationMessage) -> Option<String> {
+    match message.definition_type {
+        NotificationDefinitionType::UsageWarning => Some(format!(
+            "{}:{}",
+            USAGE_WARNING_SEND_LOCK_KEY, message.definition_id
+        )),
+        NotificationDefinitionType::UsageHardLimit => {
+            let usage_item = message.notifications.iter().find_map(|kind| match kind {
+                NotificationKind::UsageHardLimit { usage_item, .. } => Some(usage_item.as_str()),
+                _ => None,
+            })?;
+            Some(format!(
+                "{}:{}:{}",
+                HARD_LIMIT_SEND_LOCK_KEY, message.definition_id, usage_item
+            ))
+        }
+        _ => None,
+    }
+}
 
 pub struct NotificationHandler {
     pub db: Arc<DB>,
@@ -270,28 +299,28 @@ impl MessageHandler for NotificationHandler {
     type Message = NotificationMessage;
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
-        // For usage warnings, acquire a dedup lock keyed on definition_id (the
-        // warning row). Multiple ingestion workers can race through
-        // check_soft_limits and enqueue duplicate NotificationMessages for the
-        // same warning before mark_warning_as_notified takes effect.
-        if message.definition_type == NotificationDefinitionType::UsageWarning {
-            let lock_key = format!("{}:{}", USAGE_WARNING_SEND_LOCK_KEY, message.definition_id);
+        // For usage notifications, acquire a dedup lock. Multiple ingestion
+        // workers can race through check_soft_limits / check_hard_limit and
+        // enqueue duplicate NotificationMessages for the same definition before
+        // the DB last_notified_at stamp takes effect.
+        let send_lock_key = usage_send_lock_key(&message);
+        if let Some(lock_key) = &send_lock_key {
             match self
                 .cache
-                .try_acquire_lock(&lock_key, USAGE_WARNING_SEND_LOCK_TTL_SECONDS)
+                .try_acquire_lock(lock_key, USAGE_WARNING_SEND_LOCK_TTL_SECONDS)
                 .await
             {
                 Ok(true) => {} // Lock acquired – proceed.
                 Ok(false) => {
                     log::debug!(
-                        "[Notifications] Usage warning send lock held for [{}], skipping",
-                        message.definition_id
+                        "[Notifications] Usage send lock held for [{}], skipping",
+                        lock_key
                     );
                     return Ok(());
                 }
                 Err(e) => {
                     return Err(HandlerError::Transient(anyhow::anyhow!(
-                        "Cache error acquiring usage warning notification lock: {}",
+                        "Cache error acquiring usage notification lock: {}",
                         e
                     )));
                 }
@@ -404,12 +433,11 @@ impl MessageHandler for NotificationHandler {
         }
 
         if failures == total {
-            // Release the usage warning dedup lock so the requeued message can
-            // re-acquire it on retry. Without this, the lock's TTL would cause
-            // the retry to silently skip, permanently losing the notification.
-            if message.definition_type == NotificationDefinitionType::UsageWarning {
-                let lock_key = format!("{}:{}", USAGE_WARNING_SEND_LOCK_KEY, message.definition_id);
-                let _ = self.cache.remove(&lock_key).await;
+            // Release the usage dedup lock so the requeued message can re-acquire
+            // it on retry. Without this, the lock's TTL would cause the retry to
+            // silently skip, permanently losing the notification.
+            if let Some(lock_key) = &send_lock_key {
+                let _ = self.cache.release_lock(lock_key).await;
             }
             return Err(HandlerError::transient(anyhow::anyhow!(
                 "Failed to push all {} delivery messages for definition {}",
