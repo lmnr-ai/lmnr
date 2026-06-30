@@ -311,7 +311,14 @@ async function getScoreAveragesByEvaluationIds(
     // evaluation_id -> score name -> running sum/count for averaging.
     const acc = new Map<string, Map<string, { sum: number; count: number }>>();
     for (const row of rows) {
-      const scores = (row.scores ? JSON.parse(row.scores) : {}) as Record<string, number | null>;
+      // Per-row parse guard: one malformed `scores` blob must not wipe out the
+      // averages for every other eval in the session.
+      let scores: Record<string, number | null>;
+      try {
+        scores = (row.scores ? JSON.parse(row.scores) : {}) as Record<string, number | null>;
+      } catch {
+        continue;
+      }
       const byName = acc.get(row.evaluationId) ?? new Map<string, { sum: number; count: number }>();
       for (const [name, value] of Object.entries(scores)) {
         if (typeof value !== "number" || Number.isNaN(value)) continue;
