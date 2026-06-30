@@ -8,7 +8,7 @@ const MESSAGE_TYPE = "__TEMPLATE_DATA_UPDATE__";
 const RELOAD_MESSAGE_TYPE = "__TEMPLATE_RELOAD_REQUEST__";
 const MAX_LOAD_ATTEMPTS = 3;
 
-const createIframeContent = (templateCode: string, isFinalAttempt: boolean): string => {
+const createIframeContent = (templateCode: string, isFinalAttempt: boolean, reloadNonce: string): string => {
   const escapedTemplateCode = templateCode
     .replace(/\\/g, "\\\\")
     .replace(/`/g, "\\`")
@@ -82,6 +82,7 @@ const createIframeContent = (templateCode: string, isFinalAttempt: boolean): str
     const parentOrigin = window.origin;
     const LAMINAR_THEME = ${themeJson};
     const IS_FINAL_ATTEMPT = ${isFinalAttempt ? "true" : "false"};
+    const RELOAD_NONCE = ${JSON.stringify(reloadNonce)};
 
     class TemplateRenderer {
       constructor() {
@@ -205,7 +206,7 @@ const createIframeContent = (templateCode: string, isFinalAttempt: boolean): str
           window.parent.postMessage({ type: '${MESSAGE_TYPE}_READY' }, parentOrigin);
         } catch (error) {
           if (error && error.isDependencyLoadError && !IS_FINAL_ATTEMPT) {
-            window.parent.postMessage({ type: '${RELOAD_MESSAGE_TYPE}' }, parentOrigin);
+            window.parent.postMessage({ type: '${RELOAD_MESSAGE_TYPE}', nonce: RELOAD_NONCE }, parentOrigin);
             return;
           }
           this.showError(error.message || 'Unknown error occurred', error.stack);
@@ -279,10 +280,15 @@ const JsxRenderer = ({ code, data, className, autoHeight = false }: JsxRendererP
 
     iframeReadyRef.current = false;
     let attempt = 0;
+    // Identifies this effect cycle's srcdoc. A srcdoc navigation reuses the same
+    // browsing context, so a RELOAD_MESSAGE_TYPE queued by a superseded load
+    // (e.g. after `code` changed mid-failure) still passes the contentWindow
+    // source check; the nonce lets us drop those stale reload requests.
+    const reloadNonce = crypto.randomUUID();
 
     const writeSrcdoc = () => {
       try {
-        iframe.srcdoc = createIframeContent(normalizeTemplateCode(code), attempt >= MAX_LOAD_ATTEMPTS - 1);
+        iframe.srcdoc = createIframeContent(normalizeTemplateCode(code), attempt >= MAX_LOAD_ATTEMPTS - 1, reloadNonce);
       } catch (error) {
         iframe.srcdoc = createErrorContent(
           error instanceof Error ? error.message : "Failed to initialize template renderer"
@@ -297,7 +303,7 @@ const JsxRenderer = ({ code, data, className, autoHeight = false }: JsxRendererP
       // iframe with a fresh module map — a re-import in the same realm would hit
       // the browser's cached failed-module record and never re-fetch.
       if (event.data?.type === RELOAD_MESSAGE_TYPE) {
-        if (attempt < MAX_LOAD_ATTEMPTS - 1) {
+        if (event.data.nonce === reloadNonce && attempt < MAX_LOAD_ATTEMPTS - 1) {
           attempt += 1;
           iframeReadyRef.current = false;
           writeSrcdoc();
