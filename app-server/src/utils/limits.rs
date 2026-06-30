@@ -34,6 +34,13 @@ const WORKSPACE_USAGE_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
 /// by the frontend whenever warnings are added or removed, so a long TTL is fine.
 const USAGE_WARNINGS_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24 * 7; // 7 days
 
+/// TTL for the hard-limit dedup key. Hard limits have no DB `last_notified_at`
+/// column (unlike soft warnings), so dedup lives entirely in the cache. We notify
+/// as soon as usage crosses the cap; this short TTL just avoids re-emailing on
+/// every subsequent ingestion batch while usage stays over. It re-arms after the
+/// window, which is fine — being slightly over for >1 day is worth a reminder.
+const HARD_LIMIT_NOTIFIED_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
+
 /// TTL for cached project + workspace billing info. The frontend explicitly
 /// removes this key whenever the underlying data changes (tier switch, custom
 /// limit edit, project create/delete), so the TTL is just a backstop against an
@@ -100,7 +107,6 @@ pub async fn get_workspace_bytes_limit_exceeded(
     };
 
     let workspace_id = project_info.workspace_id;
-    let reset_time = project_info.reset_time;
     let cache_key = format!("{WORKSPACE_BYTES_USAGE_CACHE_KEY}:{workspace_id}");
 
     let bytes_ingested = match cache.get::<i64>(&cache_key).await {
@@ -141,14 +147,13 @@ pub async fn get_workspace_bytes_limit_exceeded(
     // Enforcement also notifies: if a workspace is already over the cap (e.g. a
     // custom limit was lowered below current usage), no further ingestion batch
     // reaches the update path, so this gate is the only place the owner email
-    // can fire. check_hard_limit is idempotent per billing cycle via its dedup
-    // cache key, so calling it here as well as from the update path is safe.
+    // can fire. check_hard_limit dedups via its cache key, so calling it here as
+    // well as from the update path is safe.
     check_hard_limit(
         db,
         cache,
         queue,
         workspace_id,
-        reset_time,
         UsageItem::Bytes,
         bytes_ingested,
         Some(effective_limit),
@@ -218,13 +223,12 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     );
 
     // See get_workspace_bytes_limit_exceeded: enforcement is the only path that
-    // notifies when usage is already over the cap. Idempotent per cycle.
+    // notifies when usage is already over the cap. Dedup via the cache key.
     check_hard_limit(
         db,
         cache,
         queue,
         workspace_id,
-        project_info.reset_time,
         UsageItem::SignalCost,
         signal_cost,
         Some(effective_limit),
@@ -434,7 +438,6 @@ pub async fn update_workspace_bytes_ingested(
         cache,
         queue,
         workspace_id,
-        project_info.reset_time,
         UsageItem::Bytes,
         current_value,
         effective_bytes_limit,
@@ -646,7 +649,6 @@ pub async fn update_workspace_signal_tokens(
         cache,
         queue,
         workspace_id,
-        project_info.reset_time,
         UsageItem::SignalCost,
         current_cost,
         effective_signal_cost_limit,
@@ -797,31 +799,17 @@ async fn send_soft_limit_notification(
     }
 }
 
-/// Seconds from now until the next billing reset for this workspace. Used as the
-/// TTL for the hard-limit dedup key so the notification fires at most once per
-/// billing cycle and re-arms after reset.
-fn seconds_until_next_billing_reset(reset_time: DateTime<Utc>) -> u64 {
-    let billing_start = current_billing_period_start(reset_time);
-    let next_reset = billing_start
-        .checked_add_months(Months::new(1))
-        .unwrap_or(billing_start);
-    // Clamp to >= 1: at the exact reset instant the delta is 0, and Redis rejects
-    // `SET ... EX 0` ("invalid expire time"), which would surface as an error from
-    // try_acquire_lock and silently drop the hard-limit notification for that batch.
-    (next_reset - Utc::now()).num_seconds().max(1) as u64
-}
-
 /// Check the hard limit against the current usage value and, the first time the
-/// workspace crosses it in a billing cycle, enqueue a notification telling owners
-/// that the metered activity (data ingestion / signal runs) is now blocked until
-/// the cycle resets. Dedup is via a cache key whose TTL runs until the next reset
-/// — there is no DB column for hard-limit notifications (unlike warnings).
+/// workspace crosses it, enqueue a notification telling owners that the metered
+/// activity (data ingestion / signal runs) is now blocked until the cycle resets.
+/// Dedup is via a short-lived cache key — there is no DB column for hard-limit
+/// notifications (unlike warnings), so we just suppress re-emailing on every batch
+/// for `HARD_LIMIT_NOTIFIED_TTL_SECONDS` after a notification goes out.
 async fn check_hard_limit(
     db: Arc<DB>,
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
     workspace_id: Uuid,
-    reset_time: DateTime<Utc>,
     usage_item: UsageItem,
     current_value: i64,
     effective_limit: Option<i64>,
@@ -834,14 +822,16 @@ async fn check_hard_limit(
         return;
     }
 
-    // Dedup once per billing cycle. try_acquire_lock sets the key with the given
-    // TTL only if absent, so the first crossing this cycle proceeds and later
-    // ingestion batches short-circuit until the key expires at the next reset.
+    // Dedup the notification. try_acquire_lock sets the key with the given TTL
+    // only if absent, so the first crossing proceeds and later ingestion batches
+    // short-circuit until the key expires.
     let dedup_key = format!("{HARD_LIMIT_NOTIFIED_CACHE_KEY}:{workspace_id}:{usage_item}");
-    let ttl = seconds_until_next_billing_reset(reset_time);
-    match cache.try_acquire_lock(&dedup_key, ttl).await {
+    match cache
+        .try_acquire_lock(&dedup_key, HARD_LIMIT_NOTIFIED_TTL_SECONDS)
+        .await
+    {
         Ok(true) => {}
-        Ok(false) => return, // already notified this billing cycle
+        Ok(false) => return, // already notified within the dedup window
         Err(e) => {
             // Don't risk emailing on every batch if the cache is unhealthy.
             log::warn!(
@@ -995,30 +985,5 @@ pub async fn get_workspace_info_for_project_id(
             }
             Ok(info)
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn ttl_until_reset_is_positive_and_within_a_month() {
-        // reset_time well in the past: next reset is some point in the current
-        // month window, so the TTL is positive and < ~32 days.
-        let reset_time = Utc::now() - Months::new(13);
-        let ttl = seconds_until_next_billing_reset(reset_time);
-        assert!(ttl > 0);
-        assert!(ttl <= 32 * 24 * 60 * 60);
-    }
-
-    #[test]
-    fn ttl_for_future_reset_is_bounded() {
-        // Before the first reset has elapsed, the next reset is one month after
-        // reset_time; the TTL must still be a sane positive bound.
-        let reset_time = Utc::now() - chrono::Duration::days(2);
-        let ttl = seconds_until_next_billing_reset(reset_time);
-        assert!(ttl > 0);
-        assert!(ttl <= 32 * 24 * 60 * 60);
     }
 }
