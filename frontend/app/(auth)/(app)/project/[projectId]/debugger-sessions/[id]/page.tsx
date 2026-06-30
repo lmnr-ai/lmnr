@@ -1,12 +1,15 @@
 import { notFound } from "next/navigation";
 
 import DebuggerSessionView from "@/components/debugger-sessions/debugger-session-view";
-import { getDebuggerSession } from "@/lib/actions/debugger-sessions";
+import { getDebuggerSession, getSessionEvaluations } from "@/lib/actions/debugger-sessions";
 
 export default async function DebuggerSessionPage(props: { params: Promise<{ projectId: string; id: string }> }) {
   const { projectId, id } = await props.params;
 
-  const session = await getDebuggerSession({ projectId, id });
+  const [session, evaluations] = await Promise.all([
+    getDebuggerSession({ projectId, id }),
+    getSessionEvaluations({ projectId, sessionId: id }),
+  ]);
 
   if (!session) return notFound();
 
@@ -16,5 +19,12 @@ export default async function DebuggerSessionPage(props: { params: Promise<{ pro
     { name: sessionName, copyValue: session.id },
   ];
 
-  return <DebuggerSessionView headerPath={headerPath} sessionId={session.id} initialName={session.name ?? null} />;
+  return (
+    <DebuggerSessionView
+      headerPath={headerPath}
+      sessionId={session.id}
+      initialName={session.name ?? null}
+      evaluations={evaluations}
+    />
+  );
 }

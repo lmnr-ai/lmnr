@@ -8,12 +8,14 @@ import { shallow } from "zustand/shallow";
 import SessionSpanPanel from "@/components/traces/session-view/session-span-panel";
 import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
 import { Skeleton } from "@/components/ui/skeleton";
+import { type SessionEvaluation } from "@/lib/actions/debugger-sessions";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type RealtimeSpan } from "@/lib/traces/types";
 
 import DebuggerTraceList from "./debugger-trace-list";
 import NewTracePill from "./new-trace-pill";
+import SessionEvaluations from "./session-evaluations";
 import SessionHeader from "./session-header";
 import SessionOutline from "./session-outline";
 import { useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "./store";
@@ -37,7 +39,13 @@ const minMaxFromTraces = (traces: { startTime: string; endTime: string }[]) => {
 
 // Page scroll container with a sticky left outline, a 720px article column, and
 // a right spacer; span clicks open the in-flow SessionSpanPanel.
-export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: string }) {
+export default function DebuggerSessionViewContent({
+  sessionId,
+  evaluations = [],
+}: {
+  sessionId?: string;
+  evaluations?: SessionEvaluation[];
+}) {
   const { projectId } = useParams<{ projectId: string }>();
   const router = useRouter();
   const { toast } = useToast();
@@ -179,6 +187,7 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
               runCount={traces.length}
               sessionId={sessionId ?? ""}
             />
+            <SessionEvaluations projectId={projectId} evaluations={evaluations} />
             {/* Same error → loading → content branching as the regular session
                 view (session-panel/index.tsx); fetchSessionTraces owns the flags. */}
             {tracesError ? (

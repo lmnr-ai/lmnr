@@ -5,8 +5,14 @@ import { type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { PaginationSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle";
-import { debuggerSessions, sharedTraces } from "@/lib/db/migrations/schema";
+import { debuggerSessions, evaluations, sharedTraces } from "@/lib/db/migrations/schema";
 import { NotFoundError } from "@/lib/errors";
+
+// Metadata keys evals share with this view's traces: the session link and the
+// agent-authored note (markdown). Same `rollout.*` convention the trace notes
+// rendered in this view already use.
+const SESSION_ID_METADATA_KEY = "rollout.session_id";
+const NOTE_METADATA_KEY = "rollout.note";
 
 export type DebuggerSession = {
   id: string;
@@ -209,4 +215,123 @@ export async function getLatestTraceBySessionId(
     ...trace,
     visibility: sharedTrace ? "public" : "private",
   };
+}
+
+export type SessionEvaluationScore = {
+  name: string;
+  averageValue: number;
+};
+
+export type SessionEvaluation = {
+  id: string;
+  name: string;
+  createdAt: string;
+  groupId: string;
+  // Agent-authored note off `metadata['rollout.note']` (markdown), or null.
+  note: string | null;
+  // Per-score-name average across the eval's datapoints (from ClickHouse).
+  scores: SessionEvaluationScore[];
+};
+
+const GetSessionEvaluationsSchema = z.object({
+  projectId: z.guid(),
+  sessionId: z.guid(),
+});
+
+/**
+ * Evaluations linked to a debugger session via
+ * `evaluations.metadata['rollout.session_id']`. Each row carries its note
+ * (`metadata['rollout.note']`) and per-score-name averages computed from the
+ * ClickHouse `evaluation_datapoints.scores` map. The scores query is
+ * best-effort: a CH error yields empty scores so the cards still render.
+ */
+export async function getSessionEvaluations(
+  input: z.infer<typeof GetSessionEvaluationsSchema>
+): Promise<SessionEvaluation[]> {
+  const { projectId, sessionId } = GetSessionEvaluationsSchema.parse(input);
+
+  const rows = await db
+    .select()
+    .from(evaluations)
+    .where(
+      and(
+        eq(evaluations.projectId, projectId),
+        sql`${evaluations.metadata}->>${SESSION_ID_METADATA_KEY} = ${sessionId}`
+      )
+    )
+    .orderBy(desc(evaluations.createdAt));
+
+  if (rows.length === 0) return [];
+
+  const scoresById = await getScoreAveragesByEvaluationIds(
+    projectId,
+    rows.map((r) => r.id)
+  );
+
+  return rows.map((row) => {
+    const note = (row.metadata as Record<string, unknown> | null)?.[NOTE_METADATA_KEY];
+    return {
+      id: row.id,
+      name: row.name,
+      createdAt: row.createdAt,
+      groupId: row.groupId,
+      note: typeof note === "string" ? note : null,
+      scores: scoresById.get(row.id) ?? [],
+    };
+  });
+}
+
+/**
+ * Per-evaluation, per-score-name averages from ClickHouse. `scores` is a
+ * JSON-string map on `evaluation_datapoints` (a ReplacingMergeTree, hence
+ * FINAL); we fetch the raw maps and average the numeric values per
+ * (evaluation_id, name) in memory — same shape as `getEvaluationTimeProgression`
+ * (the validator rejects the tuple `ARRAY JOIN` aggregate). Best-effort: a CH
+ * error yields an empty map so the cards still render.
+ */
+async function getScoreAveragesByEvaluationIds(
+  projectId: string,
+  evaluationIds: string[]
+): Promise<Map<string, SessionEvaluationScore[]>> {
+  if (evaluationIds.length === 0) return new Map();
+
+  try {
+    const rows = await executeQuery<{ evaluationId: string; scores: string }>({
+      query: `
+        SELECT
+          evaluation_id AS evaluationId,
+          scores
+        FROM evaluation_datapoints FINAL
+        WHERE evaluation_id IN {evaluationIds: Array(UUID)}
+      `,
+      projectId,
+      parameters: { evaluationIds },
+    });
+
+    // evaluation_id -> score name -> running sum/count for averaging.
+    const acc = new Map<string, Map<string, { sum: number; count: number }>>();
+    for (const row of rows) {
+      const scores = (row.scores ? JSON.parse(row.scores) : {}) as Record<string, number | null>;
+      const byName = acc.get(row.evaluationId) ?? new Map<string, { sum: number; count: number }>();
+      for (const [name, value] of Object.entries(scores)) {
+        if (typeof value !== "number" || Number.isNaN(value)) continue;
+        const agg = byName.get(name) ?? { sum: 0, count: 0 };
+        agg.sum += value;
+        agg.count += 1;
+        byName.set(name, agg);
+      }
+      acc.set(row.evaluationId, byName);
+    }
+
+    const byId = new Map<string, SessionEvaluationScore[]>();
+    for (const [evaluationId, byName] of acc) {
+      const scores = [...byName.entries()]
+        .map(([name, { sum, count }]) => ({ name, averageValue: sum / count }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      byId.set(evaluationId, scores);
+    }
+    return byId;
+  } catch {
+    return new Map();
+  }
 }
