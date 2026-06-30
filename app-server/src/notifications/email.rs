@@ -147,6 +147,25 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 *overage_billable,
             ),
         },
+        NotificationKind::UsageHardLimit {
+            workspace_name,
+            usage_label,
+            formatted_limit,
+            usage_item,
+        } => EmailContent {
+            from: USAGE_WARNING_FROM_EMAIL.to_string(),
+            subject: format!(
+                "Usage limit reached: {} \u{2013} {}",
+                usage_label, workspace_name
+            ),
+            html: render_usage_hard_limit_email(
+                workspace_name,
+                *workspace_id,
+                usage_item,
+                formatted_limit,
+                usage_label,
+            ),
+        },
     }
 }
 
@@ -558,6 +577,88 @@ fn render_usage_warning_email(
         secondary_message_html = secondary_message_html,
         view_usage_link = view_usage_link,
         manage_thresholds_link = manage_thresholds_link,
+    )
+}
+
+/// Render an HTML email for a usage hard-limit notification. Unlike the soft
+/// warning, this tells the owner that the metered activity is now BLOCKED until
+/// the billing cycle resets.
+fn render_usage_hard_limit_email(
+    workspace_name: &str,
+    workspace_id: Uuid,
+    usage_item: &str,
+    formatted_limit: &str,
+    usage_label: &str,
+) -> String {
+    // What is now blocked, and the noun used in the running-cost copy.
+    let (blocked_activity, meter_description) = match usage_item {
+        "bytes" => ("data ingestion", "data ingested"),
+        "signal_cost" => ("signal runs", "signals cost"),
+        _ => ("usage", "usage"),
+    };
+
+    let base = frontend_url_email();
+    let view_usage_link = with_utm(
+        &format!("{}/workspace/{}?tab=usage", base, workspace_id),
+        "email",
+        "usage_hard_limit",
+        "view_usage",
+    );
+    let manage_limits_link = with_utm(
+        &format!("{}/workspace/{}?tab=usage", base, workspace_id),
+        "email",
+        "usage_hard_limit",
+        "manage_limits",
+    );
+
+    format!(
+        r##"<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Usage Limit Reached – {workspace_name}</title>
+</head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+<div style="max-width:640px;margin:0 auto;padding:24px 16px;">
+
+  <!-- Header -->
+  <div style="background:#0A0A0A;border-radius:10px;padding:28px 24px;margin-bottom:20px;">
+    <img src="cid:laminar-logo" alt="Laminar" width="120" height="21" style="display:block;margin-bottom:16px;" />
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#ffffff;">Usage Limit Reached</h1>
+    <p style="margin:0;font-size:16px;color:#ef4444;">{usage_label} hard limit hit &middot; {blocked_activity} paused</p>
+  </div>
+
+  <!-- Content -->
+  <div style="background:#ffffff;border-radius:10px;border:1px solid #e5e7eb;padding:24px;margin-bottom:20px;">
+    <p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
+      Your workspace <strong>{workspace_name}</strong> has reached its hard limit of <strong>{formatted_limit}</strong> of {meter_description} for the current billing cycle.
+    </p>
+    <p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
+      <strong>From now on, {blocked_activity} will stop until your billing cycle resets.</strong> To resume sooner, raise or remove this limit from your workspace usage settings.
+    </p>
+    <div style="text-align:center;padding-top:8px;">
+      <a href="{view_usage_link}" style="display:inline-block;background:#D0754E;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:600;">View Usage</a>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div style="text-align:center;padding:16px 0;">
+    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">This notification was generated automatically by <a href="https://www.lmnr.ai" style="color:#D0754E;text-decoration:none;">Laminar</a>.</p>
+    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">You are receiving this because you are the owner of the {workspace_name} workspace.</p>
+    <p style="margin:0;font-size:12px;color:#9ca3af;"><a href="{manage_limits_link}" style="color:#D0754E;text-decoration:none;">Manage usage limits</a></p>
+  </div>
+
+</div>
+</body>
+</html>"##,
+        workspace_name = html_escape(workspace_name),
+        usage_label = html_escape(usage_label),
+        formatted_limit = html_escape(formatted_limit),
+        blocked_activity = blocked_activity,
+        meter_description = meter_description,
+        view_usage_link = view_usage_link,
+        manage_limits_link = manage_limits_link,
     )
 }
 

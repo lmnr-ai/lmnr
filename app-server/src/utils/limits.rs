@@ -8,7 +8,7 @@ use crate::{
     cache::{
         Cache, CacheTrait,
         keys::{
-            PROJECT_CACHE_KEY, WORKSPACE_BYTES_USAGE_CACHE_KEY,
+            HARD_LIMIT_NOTIFIED_CACHE_KEY, PROJECT_CACHE_KEY, WORKSPACE_BYTES_USAGE_CACHE_KEY,
             WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY,
             WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY,
             WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY, WORKSPACE_USAGE_WARNINGS_CACHE_KEY,
@@ -79,6 +79,7 @@ pub async fn get_workspace_bytes_limit_exceeded(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
+    queue: Arc<MessageQueue>,
     project_id: Uuid,
 ) -> Result<bool> {
     let project_info =
@@ -99,6 +100,7 @@ pub async fn get_workspace_bytes_limit_exceeded(
     };
 
     let workspace_id = project_info.workspace_id;
+    let reset_time = project_info.reset_time;
     let cache_key = format!("{WORKSPACE_BYTES_USAGE_CACHE_KEY}:{workspace_id}");
 
     let bytes_ingested = match cache.get::<i64>(&cache_key).await {
@@ -136,6 +138,23 @@ pub async fn get_workspace_bytes_limit_exceeded(
         }
     };
 
+    // Enforcement also notifies: if a workspace is already over the cap (e.g. a
+    // custom limit was lowered below current usage), no further ingestion batch
+    // reaches the update path, so this gate is the only place the owner email
+    // can fire. check_hard_limit is idempotent per billing cycle via its dedup
+    // cache key, so calling it here as well as from the update path is safe.
+    check_hard_limit(
+        db,
+        cache,
+        queue,
+        workspace_id,
+        reset_time,
+        UsageItem::Bytes,
+        bytes_ingested,
+        Some(effective_limit),
+    )
+    .await;
+
     Ok(bytes_ingested >= effective_limit)
 }
 
@@ -144,6 +163,7 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
+    queue: Arc<MessageQueue>,
     project_id: Uuid,
 ) -> Result<bool> {
     let project_info = match get_workspace_info_for_project_id(
@@ -196,6 +216,20 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
         signal_cost,
         effective_limit
     );
+
+    // See get_workspace_bytes_limit_exceeded: enforcement is the only path that
+    // notifies when usage is already over the cap. Idempotent per cycle.
+    check_hard_limit(
+        db,
+        cache,
+        queue,
+        workspace_id,
+        project_info.reset_time,
+        UsageItem::SignalCost,
+        signal_cost,
+        Some(effective_limit),
+    )
+    .await;
 
     Ok(signal_cost >= effective_limit)
 }
@@ -330,6 +364,8 @@ pub async fn update_workspace_bytes_ingested(
         };
 
     let workspace_id = project_info.workspace_id;
+    // Capture before `workspace_project_ids` is moved into the ClickHouse query below.
+    let effective_bytes_limit = get_effective_bytes_limit(&project_info);
 
     let cache_key = format!("{WORKSPACE_BYTES_USAGE_CACHE_KEY}:{workspace_id}");
 
@@ -384,12 +420,24 @@ pub async fn update_workspace_bytes_ingested(
     check_soft_limits(
         db.clone(),
         cache.clone(),
-        queue,
+        queue.clone(),
         workspace_id,
         project_info.reset_time,
         UsageItem::Bytes,
         current_value,
         &project_info.tier_name,
+    )
+    .await;
+
+    check_hard_limit(
+        db,
+        cache,
+        queue,
+        workspace_id,
+        project_info.reset_time,
+        UsageItem::Bytes,
+        current_value,
+        effective_bytes_limit,
     )
     .await;
 
@@ -443,6 +491,8 @@ pub async fn update_workspace_signal_tokens(
     };
 
     let workspace_id = project_info.workspace_id;
+    // Capture before `workspace_project_ids` is moved into the ClickHouse query below.
+    let effective_signal_cost_limit = get_effective_signal_cost_limit_micro_usd(&project_info);
 
     let input_key = format!("{WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY}:{workspace_id}");
     let cache_read_key =
@@ -582,12 +632,24 @@ pub async fn update_workspace_signal_tokens(
     check_soft_limits(
         db.clone(),
         cache.clone(),
-        queue,
+        queue.clone(),
         workspace_id,
         project_info.reset_time,
         UsageItem::SignalCost,
         current_cost,
         &project_info.tier_name,
+    )
+    .await;
+
+    check_hard_limit(
+        db,
+        cache,
+        queue,
+        workspace_id,
+        project_info.reset_time,
+        UsageItem::SignalCost,
+        current_cost,
+        effective_signal_cost_limit,
     )
     .await;
 
@@ -735,6 +797,116 @@ async fn send_soft_limit_notification(
     }
 }
 
+/// Seconds from now until the next billing reset for this workspace. Used as the
+/// TTL for the hard-limit dedup key so the notification fires at most once per
+/// billing cycle and re-arms after reset.
+fn seconds_until_next_billing_reset(reset_time: DateTime<Utc>) -> u64 {
+    let billing_start = current_billing_period_start(reset_time);
+    let next_reset = billing_start
+        .checked_add_months(Months::new(1))
+        .unwrap_or(billing_start);
+    (next_reset - Utc::now()).num_seconds().max(0) as u64
+}
+
+/// Check the hard limit against the current usage value and, the first time the
+/// workspace crosses it in a billing cycle, enqueue a notification telling owners
+/// that the metered activity (data ingestion / signal runs) is now blocked until
+/// the cycle resets. Dedup is via a cache key whose TTL runs until the next reset
+/// — there is no DB column for hard-limit notifications (unlike warnings).
+async fn check_hard_limit(
+    db: Arc<DB>,
+    cache: Arc<Cache>,
+    queue: Arc<MessageQueue>,
+    workspace_id: Uuid,
+    reset_time: DateTime<Utc>,
+    usage_item: UsageItem,
+    current_value: i64,
+    effective_limit: Option<i64>,
+) {
+    let limit = match effective_limit {
+        Some(l) => l,
+        None => return,
+    };
+    if current_value < limit {
+        return;
+    }
+
+    // Dedup once per billing cycle. try_acquire_lock sets the key with the given
+    // TTL only if absent, so the first crossing this cycle proceeds and later
+    // ingestion batches short-circuit until the key expires at the next reset.
+    let dedup_key = format!("{HARD_LIMIT_NOTIFIED_CACHE_KEY}:{workspace_id}:{usage_item}");
+    let ttl = seconds_until_next_billing_reset(reset_time);
+    match cache.try_acquire_lock(&dedup_key, ttl).await {
+        Ok(true) => {}
+        Ok(false) => return, // already notified this billing cycle
+        Err(e) => {
+            // Don't risk emailing on every batch if the cache is unhealthy.
+            log::warn!(
+                "Failed to acquire hard-limit dedup key for workspace [{}]: {:?}",
+                workspace_id,
+                e
+            );
+            return;
+        }
+    }
+
+    let workspace_name = match usage_warnings::get_workspace_name(&db.pool, workspace_id).await {
+        Ok(name) => name,
+        Err(e) => {
+            log::warn!(
+                "Failed to get workspace name for [{}]: {:?}",
+                workspace_id,
+                e
+            );
+            "Your workspace".to_string()
+        }
+    };
+
+    let (usage_label, formatted_limit) = format_usage_item(&usage_item, limit);
+
+    let notification_message = NotificationMessage {
+        definition_type: NotificationDefinitionType::UsageHardLimit,
+        definition_id: workspace_id,
+        workspace_id,
+        project_id: None,
+        notifications: vec![NotificationKind::UsageHardLimit {
+            workspace_name,
+            usage_label,
+            formatted_limit,
+            usage_item: usage_item.to_string(),
+        }],
+    };
+
+    match notifications::push_to_notification_queue(notification_message, queue).await {
+        Err(e) => {
+            log::error!(
+                "Failed to push hard limit notification for workspace [{}]: {:?}",
+                workspace_id,
+                e
+            );
+            // Release the dedup key so a later batch retries the notification.
+            // Must use release_lock, not remove: the in-memory cache keeps locks
+            // in a separate map from regular keys, so remove() would leave the
+            // dedup lock held until its TTL and suppress all retries this cycle.
+            if let Err(e) = cache.release_lock(&dedup_key).await {
+                log::warn!(
+                    "Failed to release hard-limit dedup key for workspace [{}]: {:?}",
+                    workspace_id,
+                    e
+                );
+            }
+        }
+        Ok(()) => {
+            log::info!(
+                "Pushed hard limit notification for workspace [{}], item={}, limit={}",
+                workspace_id,
+                usage_item,
+                limit
+            );
+        }
+    }
+}
+
 fn format_usage_item(usage_item: &UsageItem, limit_value: i64) -> (String, String) {
     match usage_item {
         UsageItem::Bytes => {
@@ -820,5 +992,30 @@ pub async fn get_workspace_info_for_project_id(
             }
             Ok(info)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ttl_until_reset_is_positive_and_within_a_month() {
+        // reset_time well in the past: next reset is some point in the current
+        // month window, so the TTL is positive and < ~32 days.
+        let reset_time = Utc::now() - Months::new(13);
+        let ttl = seconds_until_next_billing_reset(reset_time);
+        assert!(ttl > 0);
+        assert!(ttl <= 32 * 24 * 60 * 60);
+    }
+
+    #[test]
+    fn ttl_for_future_reset_is_bounded() {
+        // Before the first reset has elapsed, the next reset is one month after
+        // reset_time; the TTL must still be a sane positive bound.
+        let reset_time = Utc::now() - chrono::Duration::days(2);
+        let ttl = seconds_until_next_billing_reset(reset_time);
+        assert!(ttl > 0);
+        assert!(ttl <= 32 * 24 * 60 * 60);
     }
 }
