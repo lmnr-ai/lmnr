@@ -300,7 +300,7 @@ impl MessageHandler for NotificationHandler {
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
         // For usage notifications, acquire a dedup lock. Multiple ingestion
-        // workers can race through check_soft_limits / check_hard_limit and
+        // workers can race through check_soft_limits / check_notify_hard_limit and
         // enqueue duplicate NotificationMessages for the same definition before
         // the DB last_notified_at stamp takes effect.
         let send_lock_key = usage_send_lock_key(&message);
