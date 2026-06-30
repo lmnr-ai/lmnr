@@ -72,13 +72,11 @@ export async function processSlackEvent(input: z.infer<typeof ProcessSlackEventS
       break;
 
     case "app_mention": {
-      // Fire the :eyes: ack but DON'T await it — the route ACKs Slack only after this returns, and
-      // Slack's Events API needs a 200 within 3s. Awaiting reactions.add (up to 2.5s) could starve
-      // forwardSlackEventToBackend and blow the deadline, triggering a retry with a new event_id we
-      // can't dedupe (→ duplicate agent run). It's best-effort and never throws.
+      // React with :eyes: immediately (before the slow agent run) so the user sees an ack.
+      // addEyesReaction is best-effort and never throws.
       const { channel, ts } = AppMentionAckSchema.parse(event);
       if (channel && ts) {
-        void addEyesReaction({ teamId, channel, ts });
+        await addEyesReaction({ teamId, channel, ts });
       }
       await forwardSlackEventToBackend(rawBody);
       break;
