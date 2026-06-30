@@ -5,7 +5,12 @@ import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { db } from "@/lib/db/drizzle";
 import { workspaceUsageLimits } from "@/lib/db/migrations/schema";
 
-import { invalidateProjectCacheForWorkspace, isFreeTierWorkspace } from "./utils";
+import {
+  clearHardLimitNotificationOnIncrease,
+  deleteHardLimitNotification,
+  invalidateProjectCacheForWorkspace,
+  isFreeTierWorkspace,
+} from "./utils";
 
 export const USAGE_LIMIT_TYPES = ["bytes", "signal_cost"] as const;
 export type UsageLimitType = (typeof USAGE_LIMIT_TYPES)[number];
@@ -59,6 +64,13 @@ export async function setUsageLimit(input: z.infer<typeof SetUsageLimitSchema>):
     throw new Error("Custom usage limits are not available on the free tier.");
   }
 
+  // Read the prior value before the upsert so we can tell a raise from a reduction.
+  const [priorLimit] = await db
+    .select({ limitValue: workspaceUsageLimits.limitValue })
+    .from(workspaceUsageLimits)
+    .where(and(eq(workspaceUsageLimits.workspaceId, workspaceId), eq(workspaceUsageLimits.limitType, limitType)))
+    .limit(1);
+
   const [result] = await db
     .insert(workspaceUsageLimits)
     .values({
@@ -76,6 +88,14 @@ export async function setUsageLimit(input: z.infer<typeof SetUsageLimitSchema>):
       limitType: workspaceUsageLimits.limitType,
       limitValue: workspaceUsageLimits.limitValue,
     });
+
+  // On a raise, the workspace may be back below its (higher) cap, so a future breach
+  // is a fresh event — clear the dedup stamp if it was already notified this cycle and
+  // usage now sits under the new limit. Reductions never clear it (the prior breach,
+  // if any, still stands). A brand-new limit (no prior row) has no stamp to clear.
+  if (priorLimit && limitValue > priorLimit.limitValue) {
+    await clearHardLimitNotificationOnIncrease(workspaceId, limitType, limitValue);
+  }
 
   // Invalidate project cache entries for all projects in this workspace
   // so the app-server picks up the new limits
@@ -96,6 +116,10 @@ export async function removeUsageLimit(input: z.infer<typeof RemoveUsageLimitSch
   await db
     .delete(workspaceUsageLimits)
     .where(and(eq(workspaceUsageLimits.workspaceId, workspaceId), eq(workspaceUsageLimits.limitType, limitType)));
+
+  // Removing the limit means a re-created one is a fresh start — drop the dedup
+  // stamp so it can't suppress the next notification.
+  await deleteHardLimitNotification(workspaceId, limitType);
 
   await invalidateProjectCacheForWorkspace(workspaceId);
 }

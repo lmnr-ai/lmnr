@@ -3,6 +3,7 @@ import { type Stripe } from "stripe";
 
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
 import {
+  deleteHardLimitNotification,
   invalidateProjectCacheForWorkspace,
   invalidateUsageWarningsCacheForWorkspace,
 } from "@/lib/actions/usage/utils";
@@ -436,7 +437,7 @@ const upsertDefaultTierUsageLimits = async ({
     if (!clearableValues.includes(legacyHobbyDefault)) {
       clearableValues.push(legacyHobbyDefault);
     }
-    await db
+    const deleted = await db
       .delete(workspaceUsageLimits)
       .where(
         and(
@@ -444,17 +445,29 @@ const upsertDefaultTierUsageLimits = async ({
           eq(workspaceUsageLimits.limitType, "signal_cost"),
           inArray(workspaceUsageLimits.limitValue, clearableValues)
         )
-      );
+      )
+      .returning({ id: workspaceUsageLimits.id });
+    // Mirror the user-facing delete path: clearing the default hard limit must also
+    // drop the dedup stamp so a re-applied limit on a future upgrade starts fresh.
+    if (deleted.length > 0) {
+      await deleteHardLimitNotification(workspaceId, "signal_cost");
+    }
   }
 
   if (newTierName === "hobby") {
-    await db
+    const inserted = await db
       .insert(workspaceUsageLimits)
       .values({
         workspaceId,
         limitType: "signal_cost",
         limitValue: HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_COST_MICRO_USD,
       })
-      .onConflictDoNothing({ target: [workspaceUsageLimits.workspaceId, workspaceUsageLimits.limitType] });
+      .onConflictDoNothing({ target: [workspaceUsageLimits.workspaceId, workspaceUsageLimits.limitType] })
+      .returning({ id: workspaceUsageLimits.id });
+    // A freshly inserted default is a brand-new limit; drop any leftover dedup stamp
+    // (e.g. from a prior Hobby stint) so the first breach under the new limit notifies.
+    if (inserted.length > 0) {
+      await deleteHardLimitNotification(workspaceId, "signal_cost");
+    }
   }
 };
