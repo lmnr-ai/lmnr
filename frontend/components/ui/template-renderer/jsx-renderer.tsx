@@ -5,8 +5,10 @@ import { cn } from "@/lib/utils";
 import { LAMINAR_IFRAME_THEME, laminarIframeThemeJson } from "./theme";
 
 const MESSAGE_TYPE = "__TEMPLATE_DATA_UPDATE__";
+const RELOAD_MESSAGE_TYPE = "__TEMPLATE_RELOAD_REQUEST__";
+const MAX_LOAD_ATTEMPTS = 3;
 
-const createIframeContent = (templateCode: string): string => {
+const createIframeContent = (templateCode: string, isFinalAttempt: boolean): string => {
   const escapedTemplateCode = templateCode
     .replace(/\\/g, "\\\\")
     .replace(/`/g, "\\`")
@@ -44,9 +46,9 @@ const createIframeContent = (templateCode: string): string => {
       "preact": "https://esm.sh/preact@10.19.6",
       "preact/hooks": "https://esm.sh/preact@10.19.6/hooks",
       "@babel/standalone": "https://esm.sh/@babel/standalone@7.23.6",
-      "@twind/core": "https://esm.sh/@twind/core",
-      "@twind/preset-tailwind": "https://esm.sh/@twind/preset-tailwind",
-      "@twind/preset-autoprefix": "https://esm.sh/@twind/preset-autoprefix"
+      "@twind/core": "https://esm.sh/@twind/core@1.1.3",
+      "@twind/preset-tailwind": "https://esm.sh/@twind/preset-tailwind@1.1.4",
+      "@twind/preset-autoprefix": "https://esm.sh/@twind/preset-autoprefix@1.0.7"
     }
   }
   </script>
@@ -79,6 +81,7 @@ const createIframeContent = (templateCode: string): string => {
   <script type="module">
     const parentOrigin = window.origin;
     const LAMINAR_THEME = ${themeJson};
+    const IS_FINAL_ATTEMPT = ${isFinalAttempt ? "true" : "false"};
 
     class TemplateRenderer {
       constructor() {
@@ -100,14 +103,24 @@ const createIframeContent = (templateCode: string): string => {
       }
       
       async loadDependencies() {
-        const [preactModule, preactHooksModule, babelModule, twindCore, presetTailwind, presetAutoprefix] = await Promise.all([
-          import('preact'),
-          import('preact/hooks'),
-          import('@babel/standalone'),
-          import('@twind/core'),
-          import('@twind/preset-tailwind'),
-          import('@twind/preset-autoprefix')
-        ]);
+        let modules;
+        try {
+          modules = await Promise.all([
+            import('preact'),
+            import('preact/hooks'),
+            import('@babel/standalone'),
+            import('@twind/core'),
+            import('@twind/preset-tailwind'),
+            import('@twind/preset-autoprefix')
+          ]);
+        } catch (error) {
+          // Browsers cache a failed dynamic-import record, so re-importing here
+          // wouldn't re-fetch. Surface a recoverable flag so the host can remount
+          // the iframe with a fresh module map (the same thing reopening does).
+          error.isDependencyLoadError = true;
+          throw error;
+        }
+        const [preactModule, preactHooksModule, babelModule, twindCore, presetTailwind, presetAutoprefix] = modules;
         
         const core = twindCore.default || twindCore;
         const tailwind = presetTailwind.default || presetTailwind;
@@ -191,6 +204,10 @@ const createIframeContent = (templateCode: string): string => {
 
           window.parent.postMessage({ type: '${MESSAGE_TYPE}_READY' }, parentOrigin);
         } catch (error) {
+          if (error && error.isDependencyLoadError && !IS_FINAL_ATTEMPT) {
+            window.parent.postMessage({ type: '${RELOAD_MESSAGE_TYPE}' }, parentOrigin);
+            return;
+          }
           this.showError(error.message || 'Unknown error occurred', error.stack);
         }
       }
@@ -261,9 +278,33 @@ const JsxRenderer = ({ code, data, className, autoHeight = false }: JsxRendererP
     if (!iframe) return;
 
     iframeReadyRef.current = false;
+    let attempt = 0;
 
-    const handleReady = (event: MessageEvent) => {
+    const writeSrcdoc = () => {
+      try {
+        iframe.srcdoc = createIframeContent(normalizeTemplateCode(code), attempt >= MAX_LOAD_ATTEMPTS - 1);
+      } catch (error) {
+        iframe.srcdoc = createErrorContent(
+          error instanceof Error ? error.message : "Failed to initialize template renderer"
+        );
+      }
+    };
+
+    const handleMessage = (event: MessageEvent) => {
       if (event.source !== iframe.contentWindow) return;
+
+      // A dependency import failed (e.g. transient esm.sh hiccup). Remount the
+      // iframe with a fresh module map — a re-import in the same realm would hit
+      // the browser's cached failed-module record and never re-fetch.
+      if (event.data?.type === RELOAD_MESSAGE_TYPE) {
+        if (attempt < MAX_LOAD_ATTEMPTS - 1) {
+          attempt += 1;
+          iframeReadyRef.current = false;
+          writeSrcdoc();
+        }
+        return;
+      }
+
       if (event.data?.type !== `${MESSAGE_TYPE}_READY`) return;
       iframeReadyRef.current = true;
 
@@ -272,17 +313,11 @@ const JsxRenderer = ({ code, data, className, autoHeight = false }: JsxRendererP
       }
     };
 
-    window.addEventListener("message", handleReady);
+    window.addEventListener("message", handleMessage);
 
-    try {
-      iframe.srcdoc = createIframeContent(normalizeTemplateCode(code));
-    } catch (error) {
-      iframe.srcdoc = createErrorContent(
-        error instanceof Error ? error.message : "Failed to initialize template renderer"
-      );
-    }
+    writeSrcdoc();
 
-    return () => window.removeEventListener("message", handleReady);
+    return () => window.removeEventListener("message", handleMessage);
   }, [code]);
 
   useEffect(() => {
