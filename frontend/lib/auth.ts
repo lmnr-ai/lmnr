@@ -1,19 +1,36 @@
+import { betterAuth, type BetterAuthOptions } from "better-auth";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { nextCookies } from "better-auth/next-js";
+import { bearer } from "better-auth/plugins/bearer";
+import { deviceAuthorization } from "better-auth/plugins/device-authorization";
+import { genericOAuth, keycloak, microsoftEntraId, okta } from "better-auth/plugins/generic-oauth";
+import { jwt } from "better-auth/plugins/jwt";
+import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
-import type { NextAuthOptions, User } from "next-auth";
-import AzureADProvider from "next-auth/providers/azure-ad";
-import CredentialsProvider from "next-auth/providers/credentials";
-import GithubProvider from "next-auth/providers/github";
-import GoogleProvider from "next-auth/providers/google";
-import KeycloakProvider from "next-auth/providers/keycloak";
-import OktaProvider from "next-auth/providers/okta";
 
-import { createUser, getUserByEmail, updateUserAvatar } from "@/lib/db/auth";
+import { localEmail } from "@/lib/auth-local-email";
 import { db } from "@/lib/db/drizzle";
-import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
-import { getEmailsConfig } from "@/lib/server-utils";
+import * as schema from "@/lib/db/migrations/schema";
+import { membersOfWorkspaces, users, workspaceInvitations } from "@/lib/db/migrations/schema";
+import PostHogClient from "@/lib/posthog/server";
+import { BASE_PATH } from "@/lib/utils";
 
-import { sendWelcomeEmail } from "./emails/utils";
 import { Feature, isFeatureEnabled } from "./features/features";
+
+const AUTH_SECRET = process.env.BETTER_AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
+const AUTH_URL = process.env.BETTER_AUTH_URL ?? process.env.NEXTAUTH_URL;
+
+// Better Auth's router derives its mount/strip path from `new URL(baseURL).pathname`
+// (better-auth/dist/api/index.mjs), and Next.js already strips NEXT_PUBLIC_BASE_PATH
+// before the route handler runs. So if a self-hoster sets BETTER_AUTH_URL to their
+// full external URL including the sub-path (e.g. https://host/lmnr) — the natural
+// thing to do — the router would try to strip `/lmnr` off an already-stripped
+// `/api/auth/...` request and 404 EVERY auth route. Pin the server baseURL to the
+// ORIGIN so the router always mounts at the default `/api/auth`. The sub-path is
+// reintroduced where it's genuinely needed: in-browser client requests (see
+// auth-client.ts `baseURL`) and OAuth callback URIs (prefixedCallbackUri below, which
+// rebuilds the prefixed `/api/auth/callback/<id>` from AUTH_ORIGIN + BASE_PATH).
+const AUTH_ORIGIN = AUTH_URL ? new URL(AUTH_URL).origin : undefined;
 
 /**
  * Process any pending workspace invitations for the given user.
@@ -48,140 +65,233 @@ const processPendingInvitations = async (userId: string, email: string): Promise
   });
 };
 
-const getProviders = () => {
-  const providerConfigs = [
-    {
-      feature: Feature.GITHUB_AUTH,
-      provider: () =>
-        GithubProvider({
-          clientId: process.env.AUTH_GITHUB_ID!,
-          clientSecret: process.env.AUTH_GITHUB_SECRET!,
-        }),
-    },
-    {
-      feature: Feature.GOOGLE_AUTH,
-      provider: () =>
-        GoogleProvider({
-          clientId: process.env.AUTH_GOOGLE_ID!,
-          clientSecret: process.env.AUTH_GOOGLE_SECRET!,
-        }),
-    },
-    {
-      feature: Feature.AZURE_AUTH,
-      provider: () =>
-        AzureADProvider({
-          clientId: process.env.AUTH_AZURE_AD_CLIENT_ID!,
-          clientSecret: process.env.AUTH_AZURE_AD_CLIENT_SECRET!,
-          tenantId: process.env.AUTH_AZURE_AD_TENANT_ID!,
-        }),
-    },
-    {
-      feature: Feature.OKTA_AUTH,
-      provider: () =>
-        OktaProvider({
-          clientId: process.env.AUTH_OKTA_CLIENT_ID!,
-          clientSecret: process.env.AUTH_OKTA_CLIENT_SECRET!,
-          issuer: process.env.AUTH_OKTA_ISSUER!,
-        }),
-    },
-    {
-      feature: Feature.KEYCLOAK_AUTH,
-      provider: () =>
-        KeycloakProvider({
-          clientId: process.env.AUTH_KEYCLOAK_ID!,
-          clientSecret: process.env.AUTH_KEYCLOAK_SECRET!,
-          issuer: process.env.AUTH_KEYCLOAK_ISSUER!,
-        }),
-    },
-    {
-      feature: Feature.EMAIL_AUTH,
-      provider: () =>
-        CredentialsProvider({
-          id: "email",
-          name: "Email",
-          credentials: {
-            email: {
-              label: "Email",
-              type: "email",
-              placeholder: "username@example.com",
-            },
-            name: { label: "Name", type: "text", placeholder: "username" },
-          },
-          async authorize(credentials, req) {
-            if (!credentials?.email) {
-              return null;
-            }
-            return {
-              id: credentials.email,
-              name: credentials.name,
-              email: credentials.email,
-            } as User;
-          },
-        }),
-    },
-  ];
+const trackUserCreated = (email: string): void => {
+  try {
+    const client = PostHogClient();
+    if (!client) return;
 
-  return providerConfigs.filter(({ feature }) => isFeatureEnabled(feature)).map(({ provider }) => provider());
+    const createdAt = new Date().toISOString();
+    client.capture({
+      distinctId: email,
+      event: "auth:user_created",
+      properties: {
+        $set_once: {
+          created_at: createdAt,
+        },
+      },
+    });
+  } catch {
+    // Analytics failures must never break login.
+  }
 };
 
-export const authOptions: NextAuthOptions = {
-  providers: getProviders(),
+const getSocialProviders = (): NonNullable<BetterAuthOptions["socialProviders"]> => {
+  const providers: NonNullable<BetterAuthOptions["socialProviders"]> = {};
+  if (isFeatureEnabled(Feature.GITHUB_AUTH)) {
+    providers.github = {
+      clientId: process.env.AUTH_GITHUB_ID!,
+      clientSecret: process.env.AUTH_GITHUB_SECRET!,
+      // Social providers derive redirect_uri from `${context.baseURL}/callback/<id>`,
+      // and baseURL is pinned to the origin (AUTH_ORIGIN), so under a sub-path deploy
+      // the callback would drop the prefix and the IdP redirect_uri match fails. Pin
+      // it explicitly to the prefixed callback path, same as the generic-OAuth providers.
+      redirectURI: prefixedCallbackUri("github"),
+      // Re-sync name/avatar from the IdP on every sign-in. The IdP is the sole
+      // source of truth (no in-app profile editing), so this is safe and also
+      // backfills avatars for users created before they had a picture (parity
+      // with the legacy NextAuth `updateUserAvatar` backfill). Fields the IdP
+      // omits are left untouched by the drizzle adapter, so an absent picture
+      // won't clear an existing avatar.
+      overrideUserInfoOnSignIn: true,
+    };
+  }
+  if (isFeatureEnabled(Feature.GOOGLE_AUTH)) {
+    providers.google = {
+      clientId: process.env.AUTH_GOOGLE_ID!,
+      clientSecret: process.env.AUTH_GOOGLE_SECRET!,
+      redirectURI: prefixedCallbackUri("google"),
+      overrideUserInfoOnSignIn: true,
+    };
+  }
+  return providers;
+};
+
+// Build the OAuth redirect_uri as `<origin><base-path>/api/auth/callback/<id>`.
+//
+// Path: pin to the NextAuth-style path (`/api/auth/callback/<id>`), NOT Better Auth's
+// default (`/oauth2/callback/<id>`): self-hosters already registered this path with
+// their IdP, and sending the new one fails the IdP's redirect_uri match. The
+// next.config.ts rewrite forwards the inbound hit to Better Auth's handler. (Azure's
+// id here is `azure-ad`, matching what was registered.)
+//
+// Prefix: derive the sub-path from the build-time-baked BASE_PATH (NEXT_PUBLIC_BASE_PATH),
+// NOT from AUTH_URL. The whole point of this dynamic resolution is that an operator
+// running under a sub-path does NOT have to put it in BETTER_AUTH_URL — they keep
+// BETTER_AUTH_URL as their bare origin (`https://app.company.com`) and the prefix is
+// recovered from BASE_PATH. Deriving the callback from AUTH_URL would drop the prefix →
+// the IdP redirects to the unprefixed `/api/auth/callback/<id>`, which the reverse proxy
+// doesn't forward → 404. No-op (empty BASE_PATH) when root-served.
+const prefixedCallbackUri = (providerId: string) => `${AUTH_ORIGIN}${BASE_PATH}/api/auth/callback/${providerId}`;
+
+const getGenericOAuthConfig = () => {
+  const config = [];
+  if (isFeatureEnabled(Feature.AZURE_AUTH)) {
+    config.push(
+      microsoftEntraId({
+        clientId: process.env.AUTH_AZURE_AD_CLIENT_ID!,
+        clientSecret: process.env.AUTH_AZURE_AD_CLIENT_SECRET!,
+        tenantId: process.env.AUTH_AZURE_AD_TENANT_ID!,
+        redirectURI: prefixedCallbackUri("azure-ad"),
+        // PKCE on (NextAuth parity + OAuth 2.1): genericOAuth always sends a
+        // code_verifier at token exchange, so without a code_challenge at
+        // authorize the IdP rejects with invalid_grant. Required for OIDC here.
+        pkce: true,
+        // Re-sync name/avatar from the IdP on every sign-in (parity with the
+        // legacy `updateUserAvatar` backfill). See getSocialProviders above.
+        overrideUserInfo: true,
+      })
+    );
+  }
+  if (isFeatureEnabled(Feature.OKTA_AUTH)) {
+    config.push(
+      okta({
+        clientId: process.env.AUTH_OKTA_CLIENT_ID!,
+        clientSecret: process.env.AUTH_OKTA_CLIENT_SECRET!,
+        issuer: process.env.AUTH_OKTA_ISSUER!,
+        redirectURI: prefixedCallbackUri("okta"),
+        pkce: true,
+        overrideUserInfo: true,
+      })
+    );
+  }
+  if (isFeatureEnabled(Feature.KEYCLOAK_AUTH)) {
+    config.push(
+      keycloak({
+        clientId: process.env.AUTH_KEYCLOAK_ID!,
+        clientSecret: process.env.AUTH_KEYCLOAK_SECRET!,
+        issuer: process.env.AUTH_KEYCLOAK_ISSUER!,
+        redirectURI: prefixedCallbackUri("keycloak"),
+        pkce: true,
+        overrideUserInfo: true,
+      })
+    );
+  }
+  return config;
+};
+
+export const auth = betterAuth({
+  secret: AUTH_SECRET,
+  baseURL: AUTH_ORIGIN,
   session: {
-    strategy: "jwt",
-  },
-  callbacks: {
-    async signIn({ user, account }) {
-      const list = await getEmailsConfig();
-      if (account?.provider === "github" && user?.email && !!list) {
-        return list.includes(user.email);
-      }
-      return true;
+    // Verify session from a signed cookie instead of the DB; revocation lags up to maxAge.
+    cookieCache: {
+      enabled: true,
+      maxAge: 5 * 60,
     },
-    async jwt({ token, profile, trigger }) {
-      if (trigger === "signIn") {
-        if (!token.name || !token.email) {
-          throw new Error("Name and email are required");
-        }
-
-        try {
-          const existingUser = await getUserByEmail(token.email);
-          if (existingUser) {
-            token.userId = existingUser.id;
-            if (!existingUser?.avatarUrl && token?.picture) {
-              await updateUserAvatar(existingUser.id, token.picture);
-            }
-          } else {
-            const user = await createUser(token.name, token.email, token.picture);
-            token.userId = user.id;
-
-            if (isFeatureEnabled(Feature.SEND_EMAIL) && profile?.email) {
-              await sendWelcomeEmail(profile?.email);
-            }
-          }
-
-          // In self-hosted mode (no email sending), process any pending
-          // workspace invitations for this user. When SEND_EMAIL is enabled
-          // (cloud), invitations go through the explicit email accept/decline
-          // flow instead, so we must not auto-accept them here.
+  },
+  // Reuse the existing `users` row id (uuid, DB default). Generating a uuid here
+  // keeps every Better-Auth-managed id (session/account/verification/jwks, all
+  // `text`) valid for the `uuid` users.id column and its FKs across the schema.
+  advanced: {
+    database: {
+      generateId: () => randomUUID(),
+    },
+  },
+  database: drizzleAdapter(db, {
+    provider: "pg",
+    schema,
+    usePlural: true,
+  }),
+  user: {
+    // Our column is `avatar_url`; Better Auth's user model field is `image`.
+    fields: {
+      image: "avatarUrl",
+    },
+  },
+  account: {
+    accountLinking: {
+      enabled: true,
+      trustedProviders: ["github", "google", "microsoft-entra-id", "okta", "keycloak"],
+    },
+  },
+  socialProviders: getSocialProviders(),
+  plugins: [
+    genericOAuth({ config: getGenericOAuthConfig() }),
+    // Preserve a verifiable JWT for any consumer that expects one (parity with
+    // the legacy NextAuth JWT session). Exposes /api/auth/token + /api/auth/jwks.
+    jwt({
+      // `usePlural: true` on the drizzle adapter appends "s" to each model name.
+      // The jwt plugin's model is already plural (`jwks`), so it becomes `jwkss`
+      // (no such table). Set the singular base so pluralization yields `jwks`.
+      schema: {
+        jwks: {
+          modelName: "jwk",
+        },
+      },
+      jwt: {
+        definePayload: ({ user }) => ({
+          userId: user.id,
+          name: user.name,
+          email: user.email,
+        }),
+      },
+    }),
+    // Accept Authorization: Bearer <session-token> so the device-flow access
+    // token (which IS a session token) round-trips through getSession().
+    bearer(),
+    // RFC 8628 device authorization for the CLI. /api/auth/device/{code,token}
+    // run the protocol; /api/auth/device + /api/auth/device/{approve,deny} drive
+    // the browser approval page at /device.
+    deviceAuthorization({
+      // Better Auth resolves this via `new URL(verificationUri, baseURL)`, and
+      // baseURL is origin-only (AUTH_ORIGIN) — a bare `/device` would replace the
+      // whole path and drop the baked sub-path, pointing the CLI at the unprefixed
+      // (404ing) `/device`. Prefix with BASE_PATH so the RFC 8628 verification_uri
+      // is `<origin><base>/device`; no-op (`/device`) when root-served.
+      verificationUri: `${BASE_PATH}/device`,
+      expiresIn: "15m",
+      interval: "5s",
+      userCodeLength: 8,
+      deviceCodeLength: 40,
+      validateClient: async (clientId: string) => clientId === "lmnr-cli",
+      schema: {
+        deviceCode: { modelName: "deviceCode" },
+      },
+    }),
+    // Passwordless local-email sign-in (self-hosted convenience); only mounted
+    // when no real IdP is configured, matching the legacy Credentials provider.
+    ...(isFeatureEnabled(Feature.EMAIL_AUTH) ? [localEmail()] : []),
+    // Keep Set-Cookie working from Next.js server actions / route handlers.
+    nextCookies(),
+  ],
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          trackUserCreated(user.email);
+        },
+      },
+    },
+    session: {
+      create: {
+        after: async (session) => {
+          // In self-hosted mode (no email sending) auto-accept pending workspace
+          // invitations on every sign-in. With SEND_EMAIL (cloud), invitations
+          // go through the explicit email accept/decline flow instead.
           if (!isFeatureEnabled(Feature.SEND_EMAIL)) {
-            await processPendingInvitations(token.userId as string, token.email);
+            const [user] = await db
+              .select({ email: users.email })
+              .from(users)
+              .where(eq(users.id, session.userId))
+              .limit(1);
+            if (user) {
+              await processPendingInvitations(session.userId, user.email);
+            }
           }
-        } catch (e) {
-          throw new Error("Failed to authenticate user.");
-        }
-      }
-
-      return token;
-    },
-    session({ session, token }) {
-      session.user.email = token.email;
-      session.user.name = token.name;
-      session.user.id = token.userId;
-
-      return session;
+        },
+      },
     },
   },
-  pages: {
-    signIn: "/sign-in", // overrides the next-auth default signin page https://authjs.dev/guides/basics/pages
-  },
-};
+});
+
+export type Session = typeof auth.$Infer.Session;

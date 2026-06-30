@@ -1,4 +1,4 @@
-import { type ColumnDef, type Row } from "@tanstack/react-table";
+import { type ColumnDef } from "@tanstack/react-table";
 import { capitalize } from "lodash";
 import React from "react";
 
@@ -8,11 +8,12 @@ import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatab
 import Mono from "@/components/ui/mono";
 import { type SignalRunRow } from "@/lib/actions/signal-runs";
 
-export const getSignalRunsColumns = ({
-  onJobNav,
-}: {
-  onJobNav: (row: Row<SignalRunRow>) => void;
-}): ColumnDef<SignalRunRow>[] => [
+// Cost is priced server-side (see `getSignalRuns`) so env rate overrides are
+// honoured; the cell only renders the precomputed micro-USD value as USD.
+const formatRunCost = (row: SignalRunRow): string =>
+  `$${(row.costMicroUsd / 1_000_000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`;
+
+export const getSignalRunsColumns = (): ColumnDef<SignalRunRow>[] => [
   {
     accessorKey: "runId",
     cell: (row) => <Mono>{String(row.getValue())}</Mono>,
@@ -37,25 +38,11 @@ export const getSignalRunsColumns = ({
     id: "eventId",
   },
   {
-    cell: (row) => {
-      if (row.row.original.jobId !== "00000000-0000-0000-0000-000000000000") {
-        return (
-          <Badge
-            onClick={() => onJobNav(row.row)}
-            className="rounded-3xl mr-1 hover:underline cursor-pointer"
-            variant="outline"
-          >
-            Job
-          </Badge>
-        );
-      }
-
-      return (
-        <Badge className="rounded-3xl mr-1" variant="outline">
-          Trigger
-        </Badge>
-      );
-    },
+    cell: (row) => (
+      <Badge className="rounded-3xl mr-1" variant="outline">
+        {row.row.original.jobId !== "00000000-0000-0000-0000-000000000000" ? "Backfill" : "Trigger"}
+      </Badge>
+    ),
     header: "Source",
     size: 120,
     id: "source",
@@ -72,18 +59,10 @@ export const getSignalRunsColumns = ({
     id: "status",
   },
   {
-    accessorKey: "mode",
-    header: "Mode",
-    cell: ({ row }) => {
-      const mode = row.original.mode;
-      return (
-        <Badge className="rounded-3xl mr-1" variant="outline">
-          {mode === "REALTIME" ? "Realtime" : "Batch"}
-        </Badge>
-      );
-    },
-    size: 120,
-    id: "mode",
+    header: "Cost",
+    cell: (row) => <Mono>{formatRunCost(row.row.original)}</Mono>,
+    size: 100,
+    id: "cost",
   },
   {
     accessorKey: "updatedAt",
@@ -94,7 +73,7 @@ export const getSignalRunsColumns = ({
   },
 ];
 
-export const defaultRunsColumnOrder = ["runId", "traceId", "eventId", "source", "mode", "status", "updatedAt"];
+export const defaultRunsColumnOrder = ["runId", "traceId", "eventId", "source", "status", "cost", "updatedAt"];
 
 export const signalRunsFilters: ColumnFilter[] = [
   {

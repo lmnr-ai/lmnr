@@ -10,6 +10,10 @@ const CreateProjectApiKeySchema = z.object({
   projectId: z.guid(),
   name: z.string().optional().nullable(),
   isIngestOnly: z.boolean(),
+  // User that created the key — recorded for UI/auditing only, never cached.
+  userId: z.guid().optional().nullable(),
+  // Absolute expiry as an ISO timestamp; null = never expires.
+  expiresAt: z.string().optional().nullable(),
 });
 
 const GetProjectApiKeysSchema = z.object({
@@ -22,15 +26,17 @@ const DeleteProjectApiKeySchema = z.object({
 });
 
 export interface ProjectApiKeyResponse {
+  id: string;
   value: string;
   projectId: string;
   name: string | null;
   shorthand: string;
   isIngestOnly: boolean;
+  expiresAt: string | null;
 }
 
 export async function createApiKey(input: z.infer<typeof CreateProjectApiKeySchema>): Promise<ProjectApiKeyResponse> {
-  const { projectId, name, isIngestOnly } = CreateProjectApiKeySchema.parse(input);
+  const { projectId, name, isIngestOnly, userId, expiresAt } = CreateProjectApiKeySchema.parse(input);
 
   const { value, hash, shorthand } = createProjectApiKey();
 
@@ -42,31 +48,50 @@ export async function createApiKey(input: z.infer<typeof CreateProjectApiKeySche
       hash,
       shorthand,
       isIngestOnly: isIngestOnly ?? false,
+      userId: userId || null,
+      expiresAt: expiresAt || null,
     })
     .returning();
 
-  // Cache the newly created key
+  // Cache the newly created key. user_id is deliberately NOT cached (it's for the
+  // UI only); expires_at IS cached so the app-server can enforce expiry lazily.
   const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${hash}`;
-  await cache.set(cacheKey, {
-    projectId: key.projectId,
-    name: key.name,
-    hash: key.hash,
-    shorthand: key.shorthand,
-    isIngestOnly: key.isIngestOnly,
-  });
+  await cache.set(
+    cacheKey,
+    {
+      projectId: key.projectId,
+      name: key.name,
+      hash: key.hash,
+      shorthand: key.shorthand,
+      isIngestOnly: key.isIngestOnly,
+      expiresAt: key.expiresAt,
+    },
+    // Match the app-server's 1-day cache TTL so an expired key can't outlive its
+    // window in cache; without expiry the app-server re-reads from the DB anyway.
+    key.expiresAt ? { expireAt: new Date(key.expiresAt) } : {}
+  );
 
   return {
+    id: key.id,
     value,
     projectId,
     name: name || null,
     shorthand,
     isIngestOnly,
+    expiresAt: key.expiresAt,
   };
 }
 
-export async function getApiKeys(
-  input: z.infer<typeof GetProjectApiKeysSchema>
-): Promise<Array<{ id: string; projectId: string; name?: string; shorthand: string; isIngestOnly: boolean }>> {
+export async function getApiKeys(input: z.infer<typeof GetProjectApiKeysSchema>): Promise<
+  Array<{
+    id: string;
+    projectId: string;
+    name?: string;
+    shorthand: string;
+    isIngestOnly: boolean;
+    expiresAt: string | null;
+  }>
+> {
   const { projectId } = GetProjectApiKeysSchema.parse(input);
 
   const apiKeys = await db
@@ -76,6 +101,7 @@ export async function getApiKeys(
       name: projectApiKeys.name,
       shorthand: projectApiKeys.shorthand,
       isIngestOnly: projectApiKeys.isIngestOnly,
+      expiresAt: projectApiKeys.expiresAt,
     })
     .from(projectApiKeys)
     .where(eq(projectApiKeys.projectId, projectId));

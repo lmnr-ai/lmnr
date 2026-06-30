@@ -16,7 +16,7 @@ use crate::worker::{HandlerError, MessageHandler};
 
 pub mod delivery;
 mod email;
-mod slack;
+pub mod slack;
 mod utils;
 
 use delivery::{DeliveryTarget, NotificationDeliveryMessage, push_to_deliveries_queue};
@@ -117,6 +117,8 @@ pub enum NotificationKind {
     EventIdentification {
         project_id: Uuid,
         #[serde(default)]
+        project_name: String,
+        #[serde(default)]
         signal_id: Uuid,
         trace_id: Uuid,
         #[serde(default)]
@@ -154,6 +156,24 @@ pub enum NotificationKind {
         usage_label: String,
         formatted_limit: String,
         usage_item: String,
+        /// True when `limit_value` equals the tier's included allowance for this
+        /// usage item (e.g. 3 GiB bytes on Hobby). Used by the email template to
+        /// switch between a generic threshold-reached message and tier-specific
+        /// copy about the included allowance being consumed.
+        #[serde(default)]
+        at_tier_included_allowance: bool,
+        /// Tier display name ("Free", "Hobby", "Pro", or "your" for unknown tiers).
+        /// Defaults to empty string only when the field is absent in a legacy queued
+        /// message (backward-compat via `#[serde(default)]`); the email template's
+        /// `is_empty()` guard handles that case.
+        #[serde(default)]
+        tier_display_name: String,
+        /// True when exceeding the included allowance for this item results in
+        /// metered overage billing (Hobby / Pro, but not Free / Other). When
+        /// true and `at_tier_included_allowance` is also true, the email tells
+        /// the customer they will now be billed pay-as-you-go.
+        #[serde(default)]
+        overage_billable: bool,
     },
 }
 

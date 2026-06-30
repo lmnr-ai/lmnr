@@ -1,48 +1,49 @@
 "use client";
 
+import { type ColumnDef } from "@tanstack/react-table";
 import { useMemo } from "react";
+import { shallow } from "zustand/shallow";
 
-import { useTracesTableStore } from "@/components/traces/traces-table/traces-table-store";
 import { type ColumnActions, ColumnsMenu, type CustomColumnPanelConfig } from "@/components/ui/columns-menu";
+import { useTableConfigStore } from "@/components/ui/infinite-datatable/model/table-config-store";
+import { type TraceRow } from "@/lib/traces/types";
 
 interface TracesColumnsMenuProps {
-  lockedColumns?: string[];
   columnLabels?: { id: string; label: string; onDelete?: () => void }[];
+  columnDefs: ColumnDef<TraceRow>[];
 }
 
-export default function TracesColumnsMenu({ lockedColumns = [], columnLabels = [] }: TracesColumnsMenuProps) {
-  const addCustomColumn = useTracesTableStore((s) => s.addCustomColumn);
-  const updateCustomColumn = useTracesTableStore((s) => s.updateCustomColumn);
+export default function TracesColumnsMenu({ columnLabels = [], columnDefs }: TracesColumnsMenuProps) {
+  const { addCustomColumn, updateCustomColumn } = useTableConfigStore(
+    (s) => ({
+      addCustomColumn: s.addCustomColumn,
+      updateCustomColumn: s.updateCustomColumn,
+    }),
+    shallow
+  );
 
   const panelConfig = useMemo<CustomColumnPanelConfig>(
     () => ({
       schema: { tables: ["traces"] },
       generationMode: "trace-expression",
       buildTestQuery: (sql) => `SELECT ${sql} as \`test\` FROM traces LIMIT 1`,
-      getColumnDefs: () => useTracesTableStore.getState().columnDefs,
+      getColumnDefs: () => columnDefs,
       namePlaceholder: "e.g. LLM span count",
       sqlPlaceholder: "e.g. total_tokens * total_cost",
       aiInputPlaceholder: "e.g. Calculate cost per token",
       sqlHint: "Expression is added as a column: SELECT <expr> FROM traces",
     }),
-    []
+    [columnDefs]
   );
 
   const columnActions = useMemo<ColumnActions>(
     () => ({
       addCustomColumn,
       updateCustomColumn,
-      getColumnDef: (columnId) => useTracesTableStore.getState().columnDefs.find((c) => c.id === columnId),
+      getColumnDef: (columnId) => columnDefs.find((c) => c.id === columnId),
     }),
-    [addCustomColumn, updateCustomColumn]
+    [addCustomColumn, updateCustomColumn, columnDefs]
   );
 
-  return (
-    <ColumnsMenu
-      lockedColumns={lockedColumns}
-      columnLabels={columnLabels}
-      panelConfig={panelConfig}
-      columnActions={columnActions}
-    />
-  );
+  return <ColumnsMenu columnLabels={columnLabels} panelConfig={panelConfig} columnActions={columnActions} />;
 }

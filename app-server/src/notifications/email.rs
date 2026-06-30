@@ -42,6 +42,7 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
     match first {
         NotificationKind::EventIdentification {
             project_id,
+            project_name,
             signal_id,
             trace_id,
             event_name,
@@ -65,11 +66,20 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 .clone()
                 .unwrap_or(serde_json::Value::Object(Default::default()));
             let severity_label = severity_label(*severity);
+            let subject = if project_name.is_empty() {
+                format!("{}: {} event", event_name, severity_label)
+            } else {
+                format!(
+                    "[{}] {}: {} event",
+                    project_name, event_name, severity_label
+                )
+            };
             EmailContent {
                 from: ALERT_FROM_EMAIL.to_string(),
-                subject: format!("{}: {} event", event_name, severity_label),
+                subject,
                 html: render_alert_email(
                     event_name,
+                    project_name,
                     &attributes,
                     &trace_link,
                     project_id,
@@ -117,6 +127,9 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
             usage_label,
             formatted_limit,
             usage_item,
+            at_tier_included_allowance,
+            tier_display_name,
+            overage_billable,
         } => EmailContent {
             from: USAGE_WARNING_FROM_EMAIL.to_string(),
             subject: format!(
@@ -129,6 +142,9 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 usage_item,
                 formatted_limit,
                 usage_label,
+                *at_tier_included_allowance,
+                tier_display_name,
+                *overage_billable,
             ),
         },
     }
@@ -159,6 +175,7 @@ fn severity_color(severity: u8) -> &'static str {
 /// Render an HTML email for an alert notification.
 fn render_alert_email(
     event_name: &str,
+    project_name: &str,
     attributes: &serde_json::Value,
     trace_link: &str,
     project_id: &Uuid,
@@ -266,6 +283,12 @@ fn render_alert_email(
         "manage_preferences",
     );
 
+    let eyebrow = if project_name.is_empty() {
+        "New event for signal".to_string()
+    } else {
+        format!("New event for signal · {}", html_escape(project_name))
+    };
+
     format!(
         r##"<!DOCTYPE html>
 <html lang="en">
@@ -277,9 +300,9 @@ fn render_alert_email(
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
 <div style="max-width:640px;margin:0 auto;padding:24px 16px;">
 
-  <div style="background:#0A0A0A;border-radius:10px;padding:28px 24px;margin-bottom:20px;">
-    <img src="cid:laminar-logo" alt="Laminar" width="120" height="21" style="display:block;margin-bottom:16px;" />
-    <p style="margin:0 0 6px;font-size:13px;color:#9ca3af;">New event for signal</p>
+  <div style="background:#0A0A0A;border-radius:10px;padding:24px 28px 16px;margin-bottom:20px;">
+    <img src="cid:laminar-logo" alt="Laminar" width="120" height="21" style="display:block;margin-bottom:24px;" />
+    <p style="margin:0 0 6px;font-size:13px;color:#9ca3af;">{eyebrow}</p>
     <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">{event_name}</h1>
   </div>
 
@@ -302,6 +325,7 @@ fn render_alert_email(
 </html>"##,
         event_name = html_escape(event_name),
         severity_label = severity_label,
+        eyebrow = eyebrow,
         attributes_html = attributes_html,
         trace_link = trace_link,
         manage_prefs_link = manage_prefs_link,
@@ -419,16 +443,20 @@ fn render_new_cluster_email(
 }
 
 /// Render an HTML email for a usage warning notification.
+#[allow(clippy::too_many_arguments)]
 fn render_usage_warning_email(
     workspace_name: &str,
     workspace_id: Uuid,
     usage_item: &str,
     formatted_limit: &str,
     usage_label: &str,
+    at_tier_included_allowance: bool,
+    tier_display_name: &str,
+    overage_billable: bool,
 ) -> String {
     let meter_description = match usage_item {
         "bytes" => "data ingested",
-        "signal_runs" => "signal runs used",
+        "signal_cost" => "signals cost",
         _ => "usage",
     };
 
@@ -445,6 +473,41 @@ fn render_usage_warning_email(
         "usage_warning",
         "manage_thresholds",
     );
+
+    // When the threshold being hit is exactly the included allowance of the
+    // workspace's tier, append a sentence telling the customer they've
+    // exhausted their included free allowance for the cycle. If the tier bills
+    // overage (Hobby / Pro) we additionally tell them they'll now be billed
+    // pay-as-you-go.
+    let tier_message_html = if at_tier_included_allowance {
+        let tier_label = if tier_display_name.is_empty() {
+            "your".to_string()
+        } else {
+            html_escape(tier_display_name)
+        };
+        let billing_sentence = if overage_billable {
+            format!(
+                " From now until the next billing cycle, additional {meter_description} will be billed in a pay-as-you-go manner at the overage rate for the {tier_label} tier."
+            )
+        } else {
+            String::new()
+        };
+        format!(
+            r#"<p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
+      This threshold matches the {tier_label} tier's included allowance, so you have now used up the free {meter_description} included in your current plan.{billing_sentence}
+    </p>"#
+        )
+    } else {
+        String::new()
+    };
+
+    let secondary_message_html = if at_tier_included_allowance {
+        String::new()
+    } else {
+        r#"<p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
+      This is a warning notification you configured. No action is required unless you want to adjust your usage or limits.
+    </p>"#.to_string()
+    };
 
     format!(
         r##"<!DOCTYPE html>
@@ -469,9 +532,8 @@ fn render_usage_warning_email(
     <p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
       Your workspace <strong>{workspace_name}</strong> has reached <strong>{formatted_limit}</strong> of {meter_description} in the current billing cycle.
     </p>
-    <p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
-      This is a warning notification you configured. No action is required unless you want to adjust your usage or limits.
-    </p>
+    {tier_message_html}
+    {secondary_message_html}
     <div style="text-align:center;padding-top:8px;">
       <a href="{view_usage_link}" style="display:inline-block;background:#D0754E;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:600;">View Usage</a>
     </div>
@@ -491,6 +553,8 @@ fn render_usage_warning_email(
         usage_label = html_escape(usage_label),
         formatted_limit = html_escape(formatted_limit),
         meter_description = meter_description,
+        tier_message_html = tier_message_html,
+        secondary_message_html = secondary_message_html,
         view_usage_link = view_usage_link,
         manage_thresholds_link = manage_thresholds_link,
     )

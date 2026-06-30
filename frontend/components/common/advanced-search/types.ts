@@ -6,7 +6,7 @@ import { type Operator } from "@/lib/actions/common/operators";
 
 export type { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 
-export type AdvancedSearchMode = "url" | "state";
+export type AdvancedSearchResource = "traces" | "spans" | "sessions" | "signal-events";
 
 export type AutocompleteCache = Map<string, string[]>;
 
@@ -57,9 +57,13 @@ export function createTagFromFilter(filter: Filter): FilterTag {
   };
 }
 
-export function getOperationsForField(filters: ColumnFilter[], field: string) {
+export function getOperationsForField(
+  filters: ColumnFilter[],
+  field: string,
+  fallbackDataType: FilterDataType = "string"
+) {
   const columnFilter = filters.find((f) => f.key === field);
-  if (!columnFilter) return dataTypeOperationsMap.string;
+  if (!columnFilter) return dataTypeOperationsMap[fallbackDataType];
   return dataTypeOperationsMap[columnFilter.dataType];
 }
 

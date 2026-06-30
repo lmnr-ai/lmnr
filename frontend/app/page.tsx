@@ -1,30 +1,29 @@
 import { type Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
 
 import Landing from "@/components/landing";
-import { authOptions } from "@/lib/auth";
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { getServerSession } from "@/lib/auth-session";
+import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
+import { description,ogImage, title } from "@/lib/metadata";
 
 export const metadata: Metadata = {
-  title: { absolute: "Laminar - Open-source observability for AI agents" },
-  description:
-    "Open-source platform to trace, evaluate, and improve AI agents. Debug LLM calls, track tool use, and run evaluations on your AI applications.",
+  title: { absolute: title },
+  description: description,
   openGraph: {
-    title: "Laminar - Open-source observability for AI agents",
-    description:
-      "Open-source platform to trace, evaluate, and improve AI agents. Debug LLM calls, track tool use, and run evaluations on your AI applications.",
+    title: title,
+    description: description,
     url: "https://laminar.sh",
+    images: [ogImage],
   },
   twitter: {
-    title: "Laminar - Open-source observability for AI agents",
-    description:
-      "Open-source platform to trace, evaluate, and improve AI agents. Debug LLM calls, track tool use, and run evaluations on your AI applications.",
+    title: title,
+    description: description,
+    images: [ogImage],
   },
 };
 
 export default async function LandingPage() {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
 
   if (!isFeatureEnabled(Feature.LANDING)) {
     if (!session) {

@@ -16,26 +16,19 @@ pub struct UsageWarningDbRow {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
 pub enum UsageItem {
+    #[serde(rename = "bytes")]
     Bytes,
-    // We'll delete this once all of the:
-    // - Stripe
-    // - workspace usage limits
-    // - workspace usage warnings
-    // - project cache and signal runs cache are pruned
-    // are updated
-    #[deprecated = "signals are now billed for steps processed"]
-    SignalRuns,
-    SignalStepsProcessed,
+    /// Signals billed by token cost in micro-USD.
+    #[serde(rename = "signal_cost")]
+    SignalCost,
 }
 
 impl UsageItem {
     fn try_from_str(s: &str) -> anyhow::Result<Self> {
         match s.to_lowercase().trim() {
             "bytes" => Ok(Self::Bytes),
-            "signal_runs" | "signalruns" => Ok(Self::SignalRuns),
-            "signal_steps_processed" | "signalstepsprocessed" => Ok(Self::SignalStepsProcessed),
+            "signal_cost" | "signalcost" => Ok(Self::SignalCost),
             x => Err(anyhow::anyhow!("unknown usage item value {}", x)),
         }
     }
@@ -45,8 +38,7 @@ impl Display for UsageItem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
             Self::Bytes => "bytes",
-            Self::SignalRuns => "signal_runs",
-            Self::SignalStepsProcessed => "signal_steps_processed",
+            Self::SignalCost => "signal_cost",
         };
         f.write_str(s)
     }

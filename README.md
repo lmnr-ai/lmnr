@@ -1,5 +1,6 @@
 <a href="https://www.ycombinator.com/companies/laminar-ai">![Static Badge](https://img.shields.io/badge/Y%20Combinator-S24-orange)</a>
 <a href="https://x.com/lmnrai">![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/lmnrai)</a>
+<a href="https://www.linkedin.com/company/lmnr-ai">![LinkedIn](https://img.shields.io/badge/-LinkedIn-blue?style=flat-square&logo=Linkedin&logoColor=white&link=https://www.linkedin.com/company/lmnr-ai)</a>
 <a href="https://discord.gg/nNFUUDAKub"> ![Static Badge](https://img.shields.io/badge/Join_Discord-464646?&logo=discord&logoColor=5865F2) </a>
 
 ![Laminar banner](./images/laminar-banner.png)
@@ -10,19 +11,22 @@
 
 - [x] Tracing. [Docs](https://laminar.sh/docs/tracing/introduction)
     - [x] OpenTelemetry-native powerful tracing SDK - 1 line of code to automatically trace **Vercel AI SDK, Browser Use, Stagehand, LangChain, OpenAI, Anthropic, Gemini, and more**.
+- [x] Signals. [Docs](https://laminar.sh/docs/signals/introduction)
+    - [x] Describe any behavior of your agent that you want to track in plain English (e.g. "agent is stuck in a loop")
+    - [x] Laminar reads every agent run and pings you in Slack when it happens.
 - [x] Evals. [Docs](https://laminar.sh/docs/evaluations/introduction)
     - [x] Unopinionated, extensible SDK and CLI for running evals locally or in CI/CD pipeline.
     - [x] UI for visualizing evals and comparing results.
-- [x] AI monitoring. [Docs](https://laminar.sh/docs/signals)
-    - [x] Define events with natural language descriptions to track issues, logical errors, and custom behavior of your agent.
-- [x] SQL access to all data. [Docs](https://laminar.sh/docs/platform/sql-editor)
-    - [x] Query traces, metrics, and events with a built-in SQL editor. Bulk create datasets from queries. Available via API.
+- [x] [MCP](https://laminar.sh/docs/platform/mcp) / [CLI](https://laminar.sh/docs/platform/cli) access for your coding agent 
+    - [x] Query traces, spans, metrics, and events with SQL
+    - [x] Let your coding agent investigate and debug issues based on your traces
 - [x] Dashboards. [Docs](https://laminar.sh/docs/custom-dashboards/overview)
     - [x] Powerful dashboard builder for traces, metrics, and events with support of custom SQL queries.
 - [x] Data annotation & Datasets. [Docs](https://laminar.sh/docs/datasets/introduction)
     - [x] Custom data rendering UI for fast data annotation and dataset creation for evals.
 - [x] Extremely high performance.
     - [x] Written in Rust 🦀
+    - [x] 20x trace compression for efficient ingestion and storage. Read more about it [here](https://laminar.sh/blog/laminar-20x-agent-trace-compression).
     - [x] Custom realtime engine for viewing traces as they happen.
     - [x] Ultra-fast full-text search over span data.
     - [x] gRPC exporter for tracing data.
@@ -31,7 +35,7 @@
 
 ## Documentation
 
-Check out full documentation here [laminar.sh/docs](https://laminar.sh/docs).
+Check out the full documentation here [laminar.sh/docs](https://laminar.sh/docs).
 
 ## Getting started
 
@@ -53,14 +57,54 @@ You will also need to properly configure the SDK, with `baseUrl` and correct por
 
 For production environment, we recommend using our [managed platform](https://laminar.sh) or `docker compose -f docker-compose-full.yml up -d`.
 
-### Enabling the Signals feature
+### Configuring LLM provider (optional)
 
-To enable [Signals / AI monitoring](https://laminar.sh/docs/signals) in self-hosted mode, set the `GOOGLE_GENERATIVE_AI_API_KEY` environment variable in your `.env` file. This key is required by both the app-server and the frontend.
+Frontend AI features (chat-with-trace, SQL-with-AI) and server-side AI workers require an LLM provider. Configure one in your `.env` file at the repo root.
+
+Pick one of the following provider setups. `LLM_MODEL_SMALL|MEDIUM|LARGE` are optional — per-provider defaults apply when unset. `LLM_DEFAULT_HEADERS_JSON` is optional for any provider or gateway that requires static headers.
 
 ```sh
-# In .env at the repo root
-GOOGLE_GENERATIVE_AI_API_KEY=your_key_here
+# Optional for any provider/gateway that requires static headers
+# LLM_DEFAULT_HEADERS_JSON='{"X-Gateway-Tenant":"tenant"}'
+
+# Option A: Gemini
+LLM_PROVIDER=gemini
+LLM_API_KEY=your_gemini_key
+
+# Option B: OpenAI (or any OpenAI-compatible gateway such as LiteLLM, OpenRouter, vLLM)
+LLM_PROVIDER=openai
+# LLM_BASE_URL=http://localhost:4000   # optional, for OpenAI-compatible gateways
+LLM_API_KEY=your_openai_key
+
+# Option C: AWS Bedrock (Anthropic Claude). Uses AWS credentials instead of LLM_API_KEY.
+LLM_PROVIDER=bedrock
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_REGION=us-east-1
 ```
+
+### Custom Postgres schema (optional)
+
+By default Laminar uses the `public` schema. To target a different schema (e.g.
+when deploying alongside other services in a shared Postgres instance), set the
+same value for both the frontend and the app-server:
+
+```sh
+POSTGRES_SCHEMA=laminar
+# Set to false if the schema is pre-provisioned or the DB role lacks CREATE.
+# POSTGRES_CREATE_SCHEMA=true
+```
+
+The schema is applied as the connection `search_path`, so all tables, foreign
+keys, and migrations target it. When a non-public schema is set, the frontend
+also tracks migrations inside that schema (`<schema>.__drizzle_migrations`)
+rather than the shared `drizzle` schema. Note that running Laminar alongside
+another Drizzle-managed service in the same database may still require manual
+intervention, since Drizzle's migration journal is versioned per-schema.
+
+## Anonymous usage telemetry
+
+Self-hosted deployments collect anonymized usage telemetry. To opt out, set `LAMINAR_TELEMETRY_DISABLED=true` in your `.env`.
 
 ## Contributing
 
@@ -109,7 +153,7 @@ First, [create a project](https://laminar.sh/projects) and generate a project AP
 ```sh
 pip install --upgrade 'lmnr[all]'
 ```
-It will install Laminar Python SDK and all instrumentation packages. See list of all instruments [here](https://laminar.sh/docs/installation)
+It will install Laminar Python SDK and all instrumentation packages. See list of all instruments [here](https://laminar.sh/docs/tracing/integrations/overview)
 
 
 To start tracing LLM calls just add

@@ -1,19 +1,21 @@
 import { addMonths } from "date-fns";
 import { and, eq } from "drizzle-orm";
-import { getServerSession } from "next-auth";
 import { z } from "zod/v4";
 
 import { stripe } from "@/lib/actions/checkout/stripe.ts";
 import { deleteProject } from "@/lib/actions/project";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
+import { normalizeTier, signalTokenCostMicroUsd } from "@/lib/billing/tiers";
 import {
   cache,
   PROJECT_MEMBER_CACHE_KEY,
   WORKSPACE_BYTES_USAGE_CACHE_KEY,
   WORKSPACE_MEMBER_CACHE_KEY,
-  WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY,
+  WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY,
+  WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY,
+  WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY,
 } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
@@ -27,9 +29,6 @@ import {
 } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { type Workspace, type WorkspaceTier, type WorkspaceUsage, type WorkspaceUser } from "@/lib/workspaces/types";
-
-const LAST_WORKSPACE_ID = "last-workspace-id";
-const MAX_AGE = 60 * 60 * 24 * 30;
 
 const DeleteWorkspaceSchema = z.object({
   workspaceId: z.guid(),
@@ -198,14 +197,19 @@ export const getWorkspaceInfo = async (workspaceId: string): Promise<Workspace> 
 };
 
 export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceUsage> => {
-  const workspace = await db.query.workspaces.findFirst({
-    where: eq(workspaces.id, workspaceId),
-    columns: { resetTime: true },
-  });
+  const workspaceRows = await db
+    .select({ resetTime: workspaces.resetTime, tierName: subscriptionTiers.name })
+    .from(workspaces)
+    .innerJoin(subscriptionTiers, eq(workspaces.tierId, subscriptionTiers.id))
+    .where(eq(workspaces.id, workspaceId))
+    .limit(1);
 
-  if (!workspace) {
+  if (workspaceRows.length === 0) {
     throw new Error("Workspace not found");
   }
+
+  const workspace = workspaceRows[0];
+  const tier = normalizeTier(workspace.tierName);
 
   const resetTimeDate = new Date(workspace.resetTime);
   const latestResetTime = addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
@@ -221,19 +225,34 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
     console.error("Error reading bytes usage from cache:", error);
   }
 
-  // --- Signal steps: cache → ClickHouse fallback ---
-  let totalSignalSteps = null;
-  const signalStepsCacheKey = `${WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY}:${workspaceId}`;
+  // --- Signal cost: cache → ClickHouse fallback ---
+  // Tokens are cached raw in three keys (input, cache-read, output priced at
+  // different rates); cost in micro-USD is derived here so a rate change
+  // re-prices the cache too. `totalSignalCostMicroUsd` is that derived cost.
+  let signalInputTokens: number | null = null;
+  let signalCacheReadTokens: number | null = null;
+  let signalOutputTokens: number | null = null;
+  const signalInputTokensCacheKey = `${WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`;
+  const signalCacheReadTokensCacheKey = `${WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`;
+  const signalOutputTokensCacheKey = `${WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`;
   try {
-    const cached = await cache.get<number>(signalStepsCacheKey);
-    totalSignalSteps = cached;
+    [signalInputTokens, signalCacheReadTokens, signalOutputTokens] = await Promise.all([
+      cache.get<number>(signalInputTokensCacheKey),
+      cache.get<number>(signalCacheReadTokensCacheKey),
+      cache.get<number>(signalOutputTokensCacheKey),
+    ]);
   } catch (error) {
     console.error("Error reading signal runs usage from cache:", error);
   }
 
+  let totalSignalCostMicroUsd =
+    signalInputTokens !== null && signalCacheReadTokens !== null && signalOutputTokens !== null
+      ? signalTokenCostMicroUsd(signalInputTokens, signalCacheReadTokens, signalOutputTokens, tier)
+      : null;
+
   // If both came from cache, return early
-  if (totalBytesIngested !== null && totalSignalSteps !== null) {
-    return { totalBytesIngested, totalSignalSteps, resetTime: latestResetTime };
+  if (totalBytesIngested !== null && totalSignalCostMicroUsd !== null) {
+    return { totalBytesIngested, totalSignalCostMicroUsd, resetTime: latestResetTime };
   }
 
   // Need ClickHouse — fetch project IDs once
@@ -245,7 +264,7 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
   if (projectRows.length === 0) {
     return {
       totalBytesIngested: totalBytesIngested ?? 0,
-      totalSignalSteps: totalSignalSteps ?? 0,
+      totalSignalCostMicroUsd: totalSignalCostMicroUsd ?? 0,
       resetTime: latestResetTime,
     };
   }
@@ -278,8 +297,8 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
     totalBytesIngested = bytesRows.length > 0 ? Number(bytesRows[0].total_bytes_ingested) : 0;
   }
 
-  if (totalSignalSteps === null) {
-    const signalRunsQuery = `SELECT SUM(IF(steps_processed > 0, steps_processed, 1)) as totalSignalSteps
+  if (totalSignalCostMicroUsd === null) {
+    const signalRunsQuery = `SELECT SUM(input_tokens) as inputTokens, SUM(cache_read_tokens) as cacheReadTokens, SUM(output_tokens) as outputTokens
     FROM signal_runs FINAL
     WHERE project_id IN { projectIds: Array(UUID) }
     AND signal_runs.updated_at >= { latestResetTime: DateTime(3, "UTC") }
@@ -290,11 +309,23 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
       format: "JSONEachRow",
       query_params: { projectIds, latestResetTime: latestResetTimeStr },
     });
-    const signalRunsRows = await signalRunsResult.json<{ totalSignalSteps: number }>();
-    totalSignalSteps = signalRunsRows.length > 0 ? Number(signalRunsRows[0].totalSignalSteps) : 0;
+    const signalRunsRows = await signalRunsResult.json<{
+      inputTokens: number;
+      cacheReadTokens: number;
+      outputTokens: number;
+    }>();
+    totalSignalCostMicroUsd =
+      signalRunsRows.length > 0
+        ? signalTokenCostMicroUsd(
+            Number(signalRunsRows[0].inputTokens),
+            Number(signalRunsRows[0].cacheReadTokens),
+            Number(signalRunsRows[0].outputTokens),
+            tier
+          )
+        : 0;
   }
 
-  return { totalBytesIngested, totalSignalSteps: totalSignalSteps, resetTime: latestResetTime };
+  return { totalBytesIngested, totalSignalCostMicroUsd, resetTime: latestResetTime };
 };
 
 export const updateRole = async (input: z.infer<typeof UpdateRoleSchema>) => {
@@ -322,8 +353,6 @@ export const updateRole = async (input: z.infer<typeof UpdateRoleSchema>) => {
 
   return { success: true, message: "User role updated successfully" };
 };
-
-export { LAST_WORKSPACE_ID, MAX_AGE };
 
 export const TransferOwnershipSchema = z.object({
   workspaceId: z.guid(),
@@ -366,7 +395,7 @@ export async function transferOwnership(input: z.infer<typeof TransferOwnershipS
 export async function removeUserFromWorkspace(input: z.infer<typeof RemoveUserSchema>) {
   const { workspaceId, userId } = RemoveUserSchema.parse(input);
 
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   if (!session?.user?.id) {
     throw new Error("Unauthorized: User not authenticated");
   }

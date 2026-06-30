@@ -1,19 +1,22 @@
 import { type ColumnDef } from "@tanstack/react-table";
 import { Check, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import React from "react";
+import React, { useMemo } from "react";
+import { shallow } from "zustand/shallow";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type SchemaField, type SchemaFieldType } from "@/components/signals/utils";
+import { renderSpanReferences, type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
 import { Badge } from "@/components/ui/badge";
 import CopyTooltip from "@/components/ui/copy-tooltip";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import Mono from "@/components/ui/mono.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SEVERITY_LABELS } from "@/lib/actions/alerts/types";
+import { type SnippetInfo } from "@/lib/actions/traces/search";
 import { type EventRow } from "@/lib/events/types.ts";
-import { parseSpanLinks } from "@/lib/traces/span-link-parsing";
+import { type SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 function PayloadFieldHeader({ name, description }: { name: string; description: string }) {
@@ -74,64 +77,70 @@ function parsePayloadField(payload: string, fieldName: string): unknown {
   }
 }
 
-function SpanLink({ label, traceId, spanId }: { label: string; traceId: string; spanId?: string }) {
+function PayloadText({
+  text,
+  eventId,
+  spanTypes,
+}: {
+  text: string;
+  eventId: string;
+  spanTypes?: Record<string, string>;
+}) {
   const router = useRouter();
   const pathName = usePathname();
   const searchParams = useSearchParams();
-  const { setTraceId, setSpanId } = useSignalStoreContext((state) => ({
-    setTraceId: state.setTraceId,
-    setSpanId: state.setSpanId,
-  }));
-
-  const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    setTraceId(traceId);
-    setSpanId(spanId ?? null);
-
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("traceId", traceId);
-    if (spanId) {
-      params.set("spanId", spanId);
-    } else {
-      params.delete("spanId");
-    }
-    router.replace(`${pathName}?${params.toString()}`);
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={handleClick}
-      className="text-primary underline underline-offset-2 hover:text-primary/80"
-    >
-      {label}
-    </button>
+  const { setTraceId, setSpanId } = useSignalStoreContext(
+    (state) => ({ setTraceId: state.setTraceId, setSpanId: state.setSpanId }),
+    shallow
   );
+
+  const callbacks = useMemo<SpanReferenceCallbacks>(
+    () => ({
+      resolveSpanId: async () => null,
+      getSpanType: (uuid) => spanTypes?.[uuid] as SpanType | undefined,
+      onSelectSpan: ({ traceId, spanId }) => {
+        if (!traceId) return;
+        setTraceId(traceId);
+        setSpanId(spanId ?? null);
+
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("traceId", traceId);
+        params.set("eventId", eventId);
+        if (spanId) {
+          params.set("spanId", spanId);
+        } else {
+          params.delete("spanId");
+        }
+        router.replace(`${pathName}?${params.toString()}`);
+      },
+    }),
+    [router, pathName, searchParams, setTraceId, setSpanId, spanTypes, eventId]
+  );
+
+  return <>{renderSpanReferences(text, callbacks) ?? text}</>;
 }
 
-function renderPayloadText(text: string): React.ReactNode {
-  const matches = parseSpanLinks(text);
-  if (matches.length === 0) {
-    return text;
-  }
-
-  const parts: React.ReactNode[] = [];
-  let lastIndex = 0;
-
-  matches.forEach((m, i) => {
-    if (m.index > lastIndex) {
-      parts.push(text.slice(lastIndex, m.index));
-    }
-    parts.push(<SpanLink key={`span-link-${i}`} label={m.label} traceId={m.traceId} spanId={m.spanId} />);
-    lastIndex = m.index + m.length;
-  });
-
-  if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
-  }
-
-  return <>{parts}</>;
+/**
+ * Render the snippet text with the matched span wrapped in `<mark>`. Offsets
+ * are UTF-16 code units (what the backend produces, what JS `slice` consumes)
+ * so emoji/CJK content stays aligned. Span-link parsing is intentionally not
+ * applied here — the snippet is a truncated window and a link that straddles
+ * the boundary would render half-broken.
+ *
+ * No `+N` count badge here (unlike `SnippetPreview` for traces): every
+ * matched field renders in its own column, so there are no hidden matches a
+ * count badge would point at.
+ */
+function HighlightedSnippet({ snippet }: { snippet: SnippetInfo }) {
+  const { text, highlight } = snippet;
+  const [start, end] = highlight;
+  return (
+    <span className="line-clamp-3 whitespace-normal break-words text-secondary-foreground">
+      {text.slice(0, start)}
+      <mark className="font-medium text-primary bg-primary/15 rounded px-0.5">{text.slice(start, end)}</mark>
+      {text.slice(end)}
+    </span>
+  );
 }
 
 function createPayloadColumnDef(field: SchemaField): ColumnDef<EventRow> {
@@ -142,7 +151,12 @@ function createPayloadColumnDef(field: SchemaField): ColumnDef<EventRow> {
     accessorFn: (row) => parsePayloadField(row.payload, field.name),
     header: () => <PayloadFieldHeader name={field.name} description={field.description} />,
     size: getColumnSize(field.type),
-    cell: ({ getValue }) => {
+    cell: ({ row, getValue }) => {
+      const snippet = row.original.fieldSnippets?.[field.name];
+      if (snippet) {
+        return <HighlightedSnippet snippet={snippet} />;
+      }
+
       const value = getValue();
       if (value === null || value === undefined) {
         return <span className="text-muted-foreground">—</span>;
@@ -158,7 +172,7 @@ function createPayloadColumnDef(field: SchemaField): ColumnDef<EventRow> {
         case "string":
           return (
             <span className="line-clamp-3 whitespace-normal break-words text-secondary-foreground">
-              {renderPayloadText(String(value))}
+              <PayloadText text={String(value)} eventId={row.original.id} spanTypes={row.original.spanTypes} />
             </span>
           );
       }

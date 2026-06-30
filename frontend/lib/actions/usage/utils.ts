@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { cache, PROJECT_CACHE_KEY, WORKSPACE_USAGE_WARNINGS_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
 import { projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
+import { getHasClusteringAccess } from "@/lib/features/clustering";
 
 export const isFreeTierWorkspace = async (workspaceId: string): Promise<boolean> => {
   const result = await db
@@ -13,6 +14,19 @@ export const isFreeTierWorkspace = async (workspaceId: string): Promise<boolean>
     .limit(1);
 
   return result.length > 0 && result[0].tierName.toLowerCase() === "free";
+};
+
+export const hasClusteringAccessForProject = async (projectId: string): Promise<boolean> => {
+  const result = await db
+    .select({ tierName: subscriptionTiers.name })
+    .from(projects)
+    .innerJoin(workspaces, eq(projects.workspaceId, workspaces.id))
+    .innerJoin(subscriptionTiers, eq(workspaces.tierId, subscriptionTiers.id))
+    .where(eq(projects.id, projectId))
+    .limit(1);
+
+  if (result.length === 0) return false;
+  return getHasClusteringAccess(result[0].tierName);
 };
 
 export const invalidateProjectCacheForWorkspace = async (workspaceId: string): Promise<void> => {

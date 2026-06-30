@@ -47,19 +47,24 @@ export async function getSlackIntegration(workspaceId: string): Promise<SlackInt
   return result || null;
 }
 
-export async function connectSlackIntegration(input: z.infer<typeof ConnectSlackIntegrationSchema>) {
-  const { code, workspaceId } = ConnectSlackIntegrationSchema.parse(input);
+// Exchanges an OAuth code for a bot token via Slack's oauth.v2.access endpoint
+// using HTTP Basic auth with the app credentials. The redirect_uri must match
+// the one used in the authorize leg or Slack returns bad_redirect_uri.
+export async function exchangeSlackOauthCode(code: string, redirectUri: string, codeVerifier?: string) {
   const clientId = process.env.SLACK_CLIENT_ID;
   const clientSecret = process.env.SLACK_CLIENT_SECRET;
-
   if (!clientId || !clientSecret) {
     throw new Error("No client id/secret provided.");
   }
-  const redirectUri = process.env.SLACK_REDIRECT_URL;
+
   const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
 
-  if (!redirectUri) {
-    throw new Error("No redirect uri set.");
+  const body = new URLSearchParams({
+    code,
+    redirect_uri: redirectUri,
+  });
+  if (codeVerifier) {
+    body.set("code_verifier", codeVerifier);
   }
 
   const tokenResponse = await fetch("https://slack.com/api/oauth.v2.access", {
@@ -68,10 +73,7 @@ export async function connectSlackIntegration(input: z.infer<typeof ConnectSlack
       "Content-Type": "application/x-www-form-urlencoded",
       Authorization: `Basic ${basicAuth}`,
     },
-    body: new URLSearchParams({
-      code,
-      redirect_uri: redirectUri,
-    }),
+    body,
   });
 
   const json = await tokenResponse.json();
@@ -81,26 +83,108 @@ export async function connectSlackIntegration(input: z.infer<typeof ConnectSlack
     throw new Error(data.error);
   }
 
-  const { value: encryptedToken, nonce } = await encodeSlackToken(data.team.id, data.access_token);
+  return data;
+}
+
+// Encrypts the bot token and upserts the workspace's Slack integration. Shared
+// by the direct-connect (cloud) path and the brokered (self-hosted) path so the
+// stored row is identical regardless of how the token was obtained.
+async function persistSlackIntegration(input: {
+  workspaceId: string;
+  teamId: string;
+  teamName: string | null;
+  token: string;
+}) {
+  const { workspaceId, teamId, teamName, token } = input;
+  const { value: encryptedToken, nonce } = await encodeSlackToken(teamId, token);
 
   await db
     .insert(slackIntegrations)
     .values({
       workspaceId,
-      teamId: data.team.id,
-      teamName: data.team.name || null,
+      teamId,
+      teamName,
       token: encryptedToken,
       nonceHex: nonce,
     })
     .onConflictDoUpdate({
       target: slackIntegrations.workspaceId,
       set: {
-        teamId: data.team.id,
-        teamName: data.team.name || null,
+        teamId,
+        teamName,
         token: encryptedToken,
         nonceHex: nonce,
       },
     });
+}
+
+export async function connectSlackIntegration(input: z.infer<typeof ConnectSlackIntegrationSchema>) {
+  const { code, workspaceId } = ConnectSlackIntegrationSchema.parse(input);
+
+  const redirectUri = process.env.SLACK_REDIRECT_URL;
+  if (!redirectUri) {
+    throw new Error("No redirect uri set.");
+  }
+
+  const data = await exchangeSlackOauthCode(code, redirectUri);
+
+  await persistSlackIntegration({
+    workspaceId,
+    teamId: data.team.id,
+    teamName: data.team.name || null,
+    token: data.access_token,
+  });
+}
+
+const BrokerRedeemResponseSchema = z.object({
+  token: z.string(),
+  teamId: z.string(),
+  teamName: z.string().nullable(),
+  workspaceId: z.guid(),
+});
+
+// Brokered (self-hosted) connect: redeem the one-time claim from the broker for
+// the bot token, server-to-server, authenticated by this instance's license
+// key, then persist exactly as the direct path does. The token transits over
+// TLS only — it never appears in a browser URL. Inert unless SLACK_BROKER_URL
+// and LMNR_LICENSE_KEY are configured.
+export async function redeemBrokeredSlackToken(input: { claim: string; workspaceId: string }) {
+  const brokerUrl = process.env.SLACK_BROKER_URL;
+  const licenseKey = process.env.LMNR_LICENSE_KEY;
+  if (!brokerUrl || !licenseKey) {
+    throw new Error("Slack broker is not configured (SLACK_BROKER_URL / LMNR_LICENSE_KEY).");
+  }
+
+  const response = await fetch(`${brokerUrl.replace(/\/+$/, "")}/api/broker/slack/redeem`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${licenseKey}`,
+    },
+    body: JSON.stringify({ claim: input.claim }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Broker redeem failed with status ${response.status}`);
+  }
+
+  const { token, teamId, teamName, workspaceId } = BrokerRedeemResponseSchema.parse(await response.json());
+
+  // The claim is bound at /cb to the workspace the flow was started for. The
+  // caller's URL workspaceId is attacker-controllable (it rides the public
+  // callback as a query param), so reject any claim whose bound workspace
+  // doesn't match — otherwise a member of workspace B could redeem a claim
+  // minted for workspace A by rewriting the workspaceId in the callback URL.
+  if (workspaceId !== input.workspaceId) {
+    throw new Error("Broker claim workspace mismatch.");
+  }
+
+  await persistSlackIntegration({
+    workspaceId,
+    teamId,
+    teamName,
+    token,
+  });
 }
 
 export async function deleteSlackIntegration(

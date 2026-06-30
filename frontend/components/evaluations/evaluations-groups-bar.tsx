@@ -1,9 +1,10 @@
 import { type ColumnDef } from "@tanstack/react-table";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
+import { parseAsString, useQueryState } from "nuqs";
 import { useEffect } from "react";
 import useSWR from "swr";
 
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import { swrFetcher } from "@/lib/utils";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
@@ -15,33 +16,27 @@ export const defaultEvaluationsGroupsBarColumnOrder = ["groupId", "lastEvaluatio
 
 export default function EvaluationsGroupsBar() {
   return (
-    <DataTableStateProvider
-      storageKey="evaluations-groups-bar"
-      defaultColumnOrder={defaultEvaluationsGroupsBarColumnOrder}
-    >
+    <InfiniteDataTableProvider defaults={{ columnOrder: defaultEvaluationsGroupsBarColumnOrder }}>
       <EvaluationsGroupsBarContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }
 
 function EvaluationsGroupsBarContent() {
   const { projectId } = useParams();
 
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const [groupId, setGroupId] = useQueryState("groupId", parseAsString);
 
   const { data: groups, isLoading } = useSWR<EvaluationGroup[]>(
     `/api/projects/${projectId}/evaluation-groups`,
     swrFetcher
   );
 
-  const groupId = searchParams.get("groupId");
-
   useEffect(() => {
     if (groups && groups.length > 0 && !groupId) {
-      router.replace(`/project/${projectId}/evaluations?groupId=${groups[0].groupId}`);
+      void setGroupId(groups[0].groupId);
     }
-  }, [groups, groupId, router, projectId]);
+  }, [groups, groupId, setGroupId]);
 
   const columns: ColumnDef<EvaluationGroup>[] = [
     {

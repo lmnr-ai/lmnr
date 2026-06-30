@@ -21,7 +21,14 @@ If the request is unrelated to SQL, data querying, or the available schema, resp
 function buildTableSchemaText(schemas: Record<string, TableSchema>): string {
   return Object.entries(schemas)
     .map(([tableName, tableData]) => {
-      const columns = tableData.columns.map((col) => `  ${col.name} (${col.type}) - ${col.description}`).join("\n");
+      const columns = tableData.columns
+        .map((col) => {
+          const enumValuesList = col.enumType
+            ? ` Allowed values: ${enumValues[col.enumType].map((v) => `'${v}'`).join(", ")}.`
+            : "";
+          return `  ${col.name} (${col.type}) - ${col.description}.${enumValuesList}`;
+        })
+        .join("\n");
       return `${tableName}: ${tableData.description}\n${columns}`;
     })
     .join("\n\n");

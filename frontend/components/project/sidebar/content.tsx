@@ -18,17 +18,18 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar.tsx";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { useProjectContext } from "@/contexts/project-context";
 import { type ProjectDetails } from "@/lib/actions/project";
 import { Feature } from "@/lib/features/features";
 import { cn } from "@/lib/utils.ts";
 
 const UsageDisplay = ({ usageDetails, open }: { usageDetails: ProjectDetails; open: boolean }) => {
+  const { settingsHref } = useProjectContext();
   const {
     gbLimit,
     gbUsedThisMonth,
-    signalStepsLimit: signalRunsLimit,
-    signalStepsUsedThisMonth: signalRunsUsedThisMonth,
-    workspaceId,
+    signalCostLimit: signalRunsLimit,
+    signalCostUsedThisMonth: signalRunsUsedThisMonth,
   } = usageDetails;
   const formatGB = (gb: number) => {
     if (gb < 0.001) {
@@ -37,11 +38,9 @@ const UsageDisplay = ({ usageDetails, open }: { usageDetails: ProjectDetails; op
     return `${gb.toFixed(1)} GB`;
   };
 
-  const formatRuns = (runs: number) => {
-    if (runs >= 1_000_000) return `${(runs / 1_000_000).toFixed(1)}M`;
-    if (runs >= 1_000) return `${(runs / 1_000).toFixed(1)}K`;
-    return runs.toLocaleString();
-  };
+  // Signal usage/limit are micro-USD (1e-6 USD); render as a dollar amount.
+  const formatSignalCost = (microUsd: number) =>
+    `$${(microUsd / 1_000_000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const storagePercentage = gbLimit > 0 ? Math.min((gbUsedThisMonth / gbLimit) * 100, 100) : 0;
   const runsPercentage = signalRunsLimit > 0 ? Math.min((signalRunsUsedThisMonth / signalRunsLimit) * 100, 100) : 0;
@@ -71,10 +70,11 @@ const UsageDisplay = ({ usageDetails, open }: { usageDetails: ProjectDetails; op
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-1 text-muted-foreground">
             <Radio className="size-3.5" />
-            Signal runs
+            Signals
           </span>
           <span className="font-medium text-secondary-foreground">
-            <span className="font-semibold">{formatRuns(signalRunsUsedThisMonth)}</span> / {formatRuns(signalRunsLimit)}
+            <span className="font-semibold">{formatSignalCost(signalRunsUsedThisMonth)}</span> /{" "}
+            {formatSignalCost(signalRunsLimit)}
           </span>
         </div>
         <Progress
@@ -84,7 +84,7 @@ const UsageDisplay = ({ usageDetails, open }: { usageDetails: ProjectDetails; op
         />
       </div>
 
-      <Link href={`/workspace/${workspaceId}?tab=billing`}>
+      <Link href={settingsHref("billing")}>
         <Button className="w-full">
           <span>Upgrade</span>
           <SquareArrowOutUpRight className="ml-1 h-3.5 w-3.5" />

@@ -1,12 +1,24 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import { type NextConfig } from "next";
 
+// Baked at BUILD time (not a runtime flip) — Next inlines basePath into the
+// standalone bundle's asset URLs. Empty/unset => root-served (the regular
+// `frontend-ee` image is byte-identical). The `frontend-ee-basepath` image is
+// built with NEXT_PUBLIC_BASE_PATH=/lmnr so self-hosters can reverse-proxy
+// Laminar under a sub-path without a dedicated domain.
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || undefined;
+
 const nextConfig: NextConfig = {
+  basePath,
   env: {
     LAMINAR_CLOUD: process.env.LAMINAR_CLOUD,
   },
   experimental: {
     turbopackFileSystemCacheForDev: true,
+    // Rewrites barrel imports from "recharts" into direct submodule imports at build
+    // time. Reshapes the chunk graph to avoid the Turbopack production interop split that
+    // left recharts' internal usePrefersReducedMotion unlinked ("(0, v.usePrefersReducedMotion) is not a function").
+    optimizePackageImports: ["recharts"],
   },
   reactStrictMode: false,
   logging: {
@@ -16,6 +28,19 @@ const nextConfig: NextConfig = {
   },
   serverExternalPackages: ["@lmnr-ai/lmnr", "@sentry/nextjs"],
   output: "standalone",
+  async rewrites() {
+    // Forward LEGACY NextAuth genericOAuth callbacks to Better Auth's handler so
+    // self-hosted Okta/Keycloak/Azure SSO keeps working with no IdP change (paired
+    // with the pinned redirectURI in lib/auth.ts). `beforeFiles` to beat the
+    // `/api/auth/[...all]` catch-all; scoped to these 3 ids ONLY (NOT github/google).
+    return {
+      beforeFiles: [
+        { source: "/api/auth/callback/okta", destination: "/api/auth/oauth2/callback/okta" },
+        { source: "/api/auth/callback/keycloak", destination: "/api/auth/oauth2/callback/keycloak" },
+        { source: "/api/auth/callback/azure-ad", destination: "/api/auth/oauth2/callback/microsoft-entra-id" },
+      ],
+    };
+  },
   async headers() {
     return [
       {
@@ -27,8 +52,9 @@ const nextConfig: NextConfig = {
           },
           {
             key: "Content-Security-Policy",
+            // base-uri is intentionally omitted: rrweb-player rebuilds browser session snapshots by injecting a <base href="<recorded-origin>"> so relative URLs inside the captured DOM resolve against the original site. base-uri 'self' blocked that and the replay lost every relative asset.
             value:
-              "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://esm.sh https://p.laminar.sh https://us.i.posthog.com https://www.gstatic.com http://www.gstatic.com; worker-src 'self' blob: https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https: data:; font-src 'self' https: data:; img-src 'self' data: https: blob:; connect-src 'self' https: wss: ws: https://p.laminar.sh https://us.i.posthog.com https://github.com https://api.github.com; frame-src 'self' https://unpkg.com https://www.youtube-nocookie.com; media-src 'self' https://*.mux.com https://*.muxed.com blob:; object-src 'none'; base-uri 'self'; form-action 'self' https://github.com; frame-ancestors 'none';",
+              "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://esm.sh https://p.laminar.sh https://us.i.posthog.com https://www.gstatic.com http://www.gstatic.com; worker-src 'self' blob: https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https: data:; font-src 'self' https: data:; img-src 'self' data: https: blob:; connect-src 'self' https: wss: ws: https://p.laminar.sh https://us.i.posthog.com https://github.com https://api.github.com; frame-src 'self' https://unpkg.com https://www.youtube-nocookie.com; media-src 'self' https://*.mux.com https://*.muxed.com blob:; object-src 'none'; form-action 'self' https://github.com; frame-ancestors 'none';",
           },
           {
             key: "X-Content-Type-Options",

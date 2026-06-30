@@ -15,12 +15,11 @@ import {
   filters as tableFilters,
 } from "@/components/traces/traces-table/columns.tsx";
 import { Button } from "@/components/ui/button.tsx";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DateRangeFilter from "@/components/ui/date-range-filter";
-import Header from "@/components/ui/header.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store.tsx";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import type { Filter } from "@/lib/actions/common/filters.ts";
@@ -215,19 +214,19 @@ const CreateSignalJobContent = () => {
 
       if (!response.ok) {
         const body = await response.json().catch(() => null);
-        throw new Error(body?.error ?? "Failed to create signal job");
+        throw new Error(body?.error ?? "Failed to create backfill");
       }
 
       setConfirmDialogOpen(false);
-      router.push(`/project/${projectId}/signals/${signal.id}?tab=jobs`);
+      router.push(`/project/${projectId}/signals/${signal.id}?tab=settings&section=activity`);
       toast({
-        title: "Signal job created",
-        description: `Job for "${signal.name}" has been queued for ${selectedCount?.toLocaleString() ?? "selected"} traces.`,
+        title: "Backfill created",
+        description: `Backfill for "${signal.name}" has been queued for ${selectedCount?.toLocaleString() ?? "selected"} traces.`,
       });
     } catch (error) {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create signal job. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to create backfill. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -265,26 +264,12 @@ const CreateSignalJobContent = () => {
         mode={jobMode}
         onModeChange={setJobMode}
       />
-      <Header
-        path={[
-          { name: "signals", href: `/project/${projectId}/signals` },
-          { name: signal.name, href: `/project/${projectId}/signals/${signal.id}?tab=jobs` },
-          { name: "create signal job" },
-        ]}
-      />
       <div className="flex gap-2 px-4 pt-2 pb-4">
-        <div>
-          <p className="text-sm text-muted-foreground">
-            Selected traces will be analyzed against the{" "}
-            <span className="font-medium text-foreground">"{signal.name}"</span> signal. You can select specific traces
-            or all matching traces based on your current filters and time range.
-          </p>
-        </div>
-        <Button className="ml-auto" onClick={handleOpenConfirmDialog} disabled={selectionMode === "none"}>
-          {selectionMode === "none"
-            ? "Create signal job"
-            : `Create signal job (${selectionMode === "all" ? traceCount.toLocaleString() : selectedCount.toLocaleString()} traces)`}
-        </Button>
+        <p className="text-sm text-muted-foreground">
+          Selected traces will be analyzed against the{" "}
+          <span className="font-medium text-foreground">"{signal.name}"</span> signal. You can select specific traces or
+          all matching traces based on your current filters and time range.
+        </p>
       </div>
 
       <div className="flex flex-1 overflow-hidden px-4 pb-4">
@@ -306,27 +291,31 @@ const CreateSignalJobContent = () => {
           }}
           onRowSelectionChange={onRowSelectionChange}
           getRowHref={getRowHref}
-          lockedColumns={["__row_selection", "status"]}
         >
-          <div className="flex flex-1 w-full h-full gap-2">
-            <ColumnsMenu
-              lockedColumns={["__row_selection", "status"]}
-              columnLabels={columns.map((column) => ({
-                id: column.id!,
-                label: typeof column.header === "string" ? column.header : column.id!,
-              }))}
-            />
-            <DateRangeFilter mode="state" value={dateRange} onChange={setDateRange} />
-            <RefreshButton onClick={refetch} variant="outline" />
+          <div className="flex flex-1 w-full h-full items-center justify-between gap-2">
+            <div className="flex gap-2">
+              <ColumnsMenu
+                columnLabels={columns.map((column) => ({
+                  id: column.id!,
+                  label: typeof column.header === "string" ? column.header : column.id!,
+                }))}
+              />
+              <DateRangeFilter mode="state" value={dateRange} onChange={setDateRange} />
+              <RefreshButton onClick={refetch} variant="outline" />
+            </div>
+            <Button onClick={handleOpenConfirmDialog} disabled={selectionMode === "none"}>
+              {selectionMode === "none"
+                ? "Create backfill"
+                : `Create backfill (${selectionMode === "all" ? traceCount.toLocaleString() : selectedCount.toLocaleString()} traces)`}
+            </Button>
           </div>
           <div className="w-full px-px">
             <AdvancedSearch
               storageKey="traces"
-              mode="state"
               filters={tableFilters}
               resource="traces"
               value={filters}
-              onSubmit={(filters, search) => setFilters({ filters, search })}
+              onChange={({ filters, search }) => setFilters({ filters, search })}
               placeholder="Search by root span name, tokens, tags, full text and more..."
               className="w-full flex-1"
             />
@@ -375,8 +364,11 @@ export default function CreateSignalJob({ traceId }: { traceId?: string }) {
   }, []);
 
   return (
-    <DataTableStateProvider defaultColumnOrder={["__row_selection", ...defaultTracesColumnOrder]}>
+    <InfiniteDataTableProvider
+      defaults={{ columnOrder: ["__row_selection", ...defaultTracesColumnOrder] }}
+      lockedColumns={["__row_selection", "status"]}
+    >
       <CreateSignalJobContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }

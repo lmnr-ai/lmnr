@@ -1,4 +1,4 @@
-FROM node:24-alpine AS base
+FROM node:26-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps
@@ -7,8 +7,9 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Install dependencies based on the preferred package manager
-COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
-RUN yarn global add pnpm && pnpm i --frozen-lockfile
+COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* pnpm-workspace.yaml* ./
+RUN npm i -g pnpm@latest-11
+RUN pnpm i --frozen-lockfile
 
 
 # Rebuild the source code only when needed
@@ -16,6 +17,15 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+
+# Version baked in at build time.
+ARG NEXT_PUBLIC_APP_VERSION
+ENV NEXT_PUBLIC_APP_VERSION=$NEXT_PUBLIC_APP_VERSION
+
+# Sub-path the app is served under (e.g. /lmnr), baked into next.config.ts at
+# build time. Empty => root-served. The frontend-ee-basepath image sets /lmnr.
+ARG NEXT_PUBLIC_BASE_PATH
+ENV NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH
 
 # Next.js collects completely anonymous telemetry data about general usage.
 # Learn more here: https://nextjs.org/telemetry
@@ -52,6 +62,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/lib/clickhouse/migrations ./lib/c
 USER nextjs
 
 EXPOSE 3000
+
+# This is used at runtime as well
+ARG NEXT_PUBLIC_BASE_PATH
+ENV NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH
 
 ENV PORT=3000
 # set hostname to localhost

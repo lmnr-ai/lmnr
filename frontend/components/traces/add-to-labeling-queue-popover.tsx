@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { type LabelingQueue } from "@/lib/queue/types";
 import { type PaginatedResponse } from "@/lib/types";
 import { swrFetcher } from "@/lib/utils";
@@ -97,6 +98,9 @@ export default function AddToLabelingQueuePopover({
       })();
 
       if (response.ok) {
+        track("labeling_queues", "added", {
+          source: isSpanMode ? "span" : isDatapointMode ? "datapoint" : "queue",
+        });
         toast({
           title: "Success",
           description: (

@@ -2,11 +2,11 @@
 
 import { Book, X } from "lucide-react";
 import Link from "next/link";
-import React from "react";
 
+import laminarIcon from "@/assets/logo/icon.svg";
+import laminarWordmark from "@/assets/logo/laminar-wordmark.svg";
+import VersionBadge from "@/components/common/version-badge.tsx";
 import GitHubStarsButton from "@/components/landing/header/github-stars-button.tsx";
-import { IconGitHub } from "@/components/ui/icons";
-import { LaminarIcon, LaminarLogo } from "@/components/ui/icons.tsx";
 import {
   SidebarFooter,
   SidebarGroup,
@@ -16,6 +16,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar.tsx";
+import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { cn } from "@/lib/utils.ts";
 
@@ -23,32 +24,29 @@ const SidebarFooterComponent = () => {
   const { open, openMobile } = useSidebar();
   const [showStarCard, setShowStarCard] = useLocalStorage("showStarCard", true);
 
+  const features = useFeatureFlags();
+  const logo = open || openMobile ? laminarWordmark : laminarIcon;
+
   return (
-    <SidebarFooter className="px-0 mb-2">
-      <SidebarGroup className={cn((open || openMobile) && showStarCard ? "text-sm" : "hidden")}>
-        <SidebarGroupContent>
-          <div className={cn("flex flex-col rounded-lg border bg-muted relative p-2")}>
-            <div className="flex justify-between items-start">
-              <p className="text-xs text-muted-foreground mb-2">Laminar is fully open source</p>
-              <button onClick={() => setShowStarCard(false)} className="text-muted-foreground hover:text-foreground">
-                <X size={16} />
-              </button>
+    <SidebarFooter className="px-0">
+      {features.LAMINAR_CLOUD && (
+        <SidebarGroup className={cn((open || openMobile) && showStarCard ? "text-sm" : "hidden")}>
+          <SidebarGroupContent>
+            <div className={cn("flex flex-col rounded-lg border bg-muted relative p-2")}>
+              <div className="flex justify-between items-start">
+                <p className="text-xs text-muted-foreground mb-2">Laminar is fully open source</p>
+                <button onClick={() => setShowStarCard(false)} className="text-muted-foreground hover:text-foreground">
+                  <X size={16} />
+                </button>
+              </div>
+              <GitHubStarsButton owner="lmnr-ai" repo="lmnr" className="w-fit" />
             </div>
-            <GitHubStarsButton owner="lmnr-ai" repo="lmnr" className="w-fit" />
-          </div>
-        </SidebarGroupContent>
-      </SidebarGroup>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      )}
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
-            <SidebarMenuItem className="h-7">
-              <SidebarMenuButton tooltip="Github" asChild>
-                <Link href="https://github.com/lmnr-ai/lmnr" target="_blank" rel="noopener noreferrer">
-                  <IconGitHub className="w-4 h-4" />
-                  <span>Github</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuButton tooltip="Docs" asChild>
                 <Link href="https://laminar.sh/docs" target="_blank" rel="noopener noreferrer">
@@ -59,28 +57,30 @@ const SidebarFooterComponent = () => {
             </SidebarMenuItem>
             <SidebarMenuItem className="mt-4 mx-0 px-2">
               <Link passHref href="/projects" className="flex items-center">
-                <div className="relative flex">
-                  <LaminarIcon
-                    className={cn(
-                      "w-4 h-4 transition-all duration-300 ease-in-out",
-                      open || openMobile ? "opacity-0 scale-50 absolute" : "opacity-100 scale-100"
-                    )}
-                    fill="#5B5B5B"
-                  />
-
-                  <LaminarLogo
-                    fill="#5B5B5B"
-                    className={cn(
-                      "w-30 h-5 text-secondary transition-all duration-300 ease-in-out",
-                      open || openMobile ? "opacity-100 scale-100" : "opacity-0 scale-50 absolute"
-                    )}
-                  />
-                </div>
+                {/* mask + bg tint: the SVGs are hard fill="white", so next/image can't be recolored */}
+                <span
+                  aria-label="Laminar"
+                  className={cn("block bg-secondary-foreground/30", open || openMobile ? "w-30" : "w-[35px]")}
+                  style={{
+                    maskImage: `url(${logo.src})`,
+                    WebkitMaskImage: `url(${logo.src})`,
+                    maskRepeat: "no-repeat",
+                    WebkitMaskRepeat: "no-repeat",
+                    maskSize: "contain",
+                    WebkitMaskSize: "contain",
+                    aspectRatio: `${logo.width} / ${logo.height}`,
+                  }}
+                />
               </Link>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
+      {(open || openMobile) && !features.LAMINAR_CLOUD && (
+        <div className="px-5 flex">
+          <VersionBadge />
+        </div>
+      )}
     </SidebarFooter>
   );
 };

@@ -126,10 +126,7 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
   }, [trace?.id, spans.length]);
 
   const { userInput, isLoading: isUserInputLoading } = useTraceUserInput(projectId, trace?.id, isShared, llmSpanCount);
-  // Render the user-input row whenever we know an LLM span exists (even while
-  // its content is still being fetched). This makes the input appear as soon
-  // as the first LLM span arrives over realtime.
-  const hasUserInput = llmSpanCount > 0 || isUserInputLoading || !!userInput;
+  const hasUserInput = !!userInput;
 
   const flatRows = useMemo(() => {
     const rows: FlatRow[] = [];
@@ -170,6 +167,11 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
     return types;
   }, [transcriptEntries, spans]);
 
+  // Pending spans don't have stable input/output yet — fetching previews for
+  // them returns null content (or content from a stale time window), and the
+  // hook's permanent dedup would then prevent a re-fetch once the realtime
+  // span_update flips the span to non-pending. Skip them here so the next
+  // visibility effect picks them up cleanly once they're complete.
   const { inputSpanIds, promptHashes } = useMemo(() => {
     const ids: string[] = [];
     const hashes: Record<string, string> = {};
@@ -177,8 +179,9 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
 
     for (const entry of transcriptEntries) {
       if (entry.type === "group" && entry.firstLlmSpanId) {
-        ids.push(entry.firstLlmSpanId);
         const span = spanMap.get(entry.firstLlmSpanId);
+        if (span?.pending) continue;
+        ids.push(entry.firstLlmSpanId);
         const hash = span?.attributes?.["lmnr.span.prompt_hash"] as string | undefined;
         if (hash) {
           hashes[entry.firstLlmSpanId] = hash;
@@ -298,9 +301,10 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
     () =>
       items.flatMap((item) => {
         const row = flatRows[item.index];
-        return row ? getSpanIdsForRow(row, transcriptExpandedGroups) : [];
+        if (!row) return [];
+        return getSpanIdsForRow(row, transcriptExpandedGroups).filter((id) => !spansById.get(id)?.pending);
       }),
-    [items, flatRows, transcriptExpandedGroups]
+    [items, flatRows, transcriptExpandedGroups, spansById]
   );
 
   const scrollOffset = virtualizer.scrollOffset ?? 0;
@@ -411,7 +415,6 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
             <GroupChildWrapper isLast={row.isLast}>
               <SpanItem
                 span={row.span}
-                fullSpan={spansById.get(row.span.spanId)}
                 output={previews[row.span.spanId]}
                 onSpanSelect={handleSpanSelect}
                 isSelected={selectedSpan?.spanId === row.span.spanId}
@@ -424,7 +427,6 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
           return (
             <SpanItem
               span={row.span}
-              fullSpan={spansById.get(row.span.spanId)}
               output={previews[row.span.spanId]}
               onSpanSelect={handleSpanSelect}
               isSelected={selectedSpan?.spanId === row.span.spanId}

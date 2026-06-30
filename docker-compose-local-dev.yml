@@ -25,11 +25,7 @@ services:
       retries: 5
 
   clickhouse:
-    # Version 26.3 will break queries on the spans_v0 view, if they are
-    # not filtered by trace_id and/or ordered by start_time. This is a
-    # known bug, tracking https://github.com/ClickHouse/ClickHouse/pull/101218.
-    # We will pin to the earliest stable version once this is fixed
-    image: clickhouse/clickhouse-server:latest
+    image: clickhouse/clickhouse-server:26.5
     pull_policy: always
     container_name: clickhouse
     ports:
@@ -73,19 +69,6 @@ services:
       timeout: 5s
       retries: 3
 
-  query-engine:
-    image: ghcr.io/lmnr-ai/query-engine
-    pull_policy: always
-    ports:
-      - "${QUERY_ENGINE_HOST_PORT:-8903}:8903"
-    environment:
-      PORT: 8903
-    healthcheck:
-      test: ["CMD", "sleep", "5"]
-      interval: 10s
-      timeout: 6s
-      retries: 3
-
   app-server:
     image: ghcr.io/lmnr-ai/app-server
     pull_policy: always
@@ -98,8 +81,6 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_started
-      query-engine:
-        condition: service_healthy
       quickwit:
         condition: service_healthy
 
@@ -115,11 +96,9 @@ services:
       CLICKHOUSE_RO_PASSWORD: ${CLICKHOUSE_RO_PASSWORD}
       ENVIRONMENT: LITE # this disables runtime dependency on rabbitmq
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
-      QUERY_ENGINE_URL: http://query-engine:8903
       QUICKWIT_SEARCH_URL: http://quickwit:7280
       QUICKWIT_INGEST_URL: http://quickwit:7281
       QUICKWIT_SPANS_INDEX_ID: spans_v2
-      GOOGLE_GENERATIVE_AI_API_KEY: ${GOOGLE_GENERATIVE_AI_API_KEY}
 
 volumes:
   postgres-data:

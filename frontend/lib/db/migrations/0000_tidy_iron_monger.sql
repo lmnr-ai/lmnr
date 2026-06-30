@@ -1,11 +1,11 @@
-CREATE TYPE "public"."event_source" AS ENUM('AUTO', 'MANUAL', 'CODE');--> statement-breakpoint
-CREATE TYPE "public"."event_type" AS ENUM('BOOLEAN', 'STRING', 'NUMBER');--> statement-breakpoint
-CREATE TYPE "public"."label_job_status" AS ENUM('RUNNING', 'DONE');--> statement-breakpoint
-CREATE TYPE "public"."label_source" AS ENUM('MANUAL', 'AUTO');--> statement-breakpoint
-CREATE TYPE "public"."label_type" AS ENUM('BOOLEAN', 'CATEGORICAL');--> statement-breakpoint
-CREATE TYPE "public"."span_type" AS ENUM('DEFAULT', 'LLM', 'PIPELINE', 'EXECUTOR', 'EVALUATOR', 'EVALUATION');--> statement-breakpoint
-CREATE TYPE "public"."trace_type" AS ENUM('DEFAULT', 'EVENT', 'EVALUATION');--> statement-breakpoint
-CREATE TYPE "public"."workspace_role" AS ENUM('member', 'owner');--> statement-breakpoint
+CREATE TYPE "event_source" AS ENUM('AUTO', 'MANUAL', 'CODE');--> statement-breakpoint
+CREATE TYPE "event_type" AS ENUM('BOOLEAN', 'STRING', 'NUMBER');--> statement-breakpoint
+CREATE TYPE "label_job_status" AS ENUM('RUNNING', 'DONE');--> statement-breakpoint
+CREATE TYPE "label_source" AS ENUM('MANUAL', 'AUTO');--> statement-breakpoint
+CREATE TYPE "label_type" AS ENUM('BOOLEAN', 'CATEGORICAL');--> statement-breakpoint
+CREATE TYPE "span_type" AS ENUM('DEFAULT', 'LLM', 'PIPELINE', 'EXECUTOR', 'EVALUATOR', 'EVALUATION');--> statement-breakpoint
+CREATE TYPE "trace_type" AS ENUM('DEFAULT', 'EVENT', 'EVALUATION');--> statement-breakpoint
+CREATE TYPE "workspace_role" AS ENUM('member', 'owner');--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "api_keys" (
 	"api_key" text PRIMARY KEY NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -291,145 +291,145 @@ CREATE TABLE IF NOT EXISTS "workspaces" (
 );
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "dataset_datapoints" ADD CONSTRAINT "dataset_datapoints_dataset_id_fkey" FOREIGN KEY ("dataset_id") REFERENCES "public"."datasets"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "dataset_datapoints" ADD CONSTRAINT "dataset_datapoints_dataset_id_fkey" FOREIGN KEY ("dataset_id") REFERENCES "datasets"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "datasets" ADD CONSTRAINT "public_datasets_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "datasets" ADD CONSTRAINT "public_datasets_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "evaluation_results" ADD CONSTRAINT "evaluation_results_evaluation_id_fkey1" FOREIGN KEY ("evaluation_id") REFERENCES "public"."evaluations"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "evaluation_results" ADD CONSTRAINT "evaluation_results_evaluation_id_fkey1" FOREIGN KEY ("evaluation_id") REFERENCES "evaluations"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "evaluations" ADD CONSTRAINT "evaluations_project_id_fkey1" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "evaluations" ADD CONSTRAINT "evaluations_project_id_fkey1" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "event_templates" ADD CONSTRAINT "event_templates_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "event_templates" ADD CONSTRAINT "event_templates_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "events" ADD CONSTRAINT "events_template_id_fkey" FOREIGN KEY ("template_id") REFERENCES "public"."event_templates"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "events" ADD CONSTRAINT "events_template_id_fkey" FOREIGN KEY ("template_id") REFERENCES "event_templates"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "label_classes" ADD CONSTRAINT "label_classes_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "label_classes" ADD CONSTRAINT "label_classes_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "label_classes_for_path" ADD CONSTRAINT "autoeval_labels_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "label_classes_for_path" ADD CONSTRAINT "autoeval_labels_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "labels" ADD CONSTRAINT "trace_tags_span_id_fkey" FOREIGN KEY ("span_id") REFERENCES "public"."spans"("span_id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "labels" ADD CONSTRAINT "trace_tags_span_id_fkey" FOREIGN KEY ("span_id") REFERENCES "spans"("span_id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "labels" ADD CONSTRAINT "trace_tags_type_id_fkey" FOREIGN KEY ("class_id") REFERENCES "public"."label_classes"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "labels" ADD CONSTRAINT "trace_tags_type_id_fkey" FOREIGN KEY ("class_id") REFERENCES "label_classes"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "members_of_workspaces" ADD CONSTRAINT "members_of_workspaces_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "members_of_workspaces" ADD CONSTRAINT "members_of_workspaces_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "members_of_workspaces" ADD CONSTRAINT "public_members_of_workspaces_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "members_of_workspaces" ADD CONSTRAINT "public_members_of_workspaces_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "pipelines" ADD CONSTRAINT "pipelines_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "pipelines" ADD CONSTRAINT "pipelines_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "project_api_keys" ADD CONSTRAINT "public_project_api_keys_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "project_api_keys" ADD CONSTRAINT "public_project_api_keys_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "projects" ADD CONSTRAINT "projects_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "projects" ADD CONSTRAINT "projects_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "provider_api_keys" ADD CONSTRAINT "provider_api_keys_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "provider_api_keys" ADD CONSTRAINT "provider_api_keys_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "spans" ADD CONSTRAINT "new_spans_trace_id_fkey" FOREIGN KEY ("trace_id") REFERENCES "public"."traces"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "spans" ADD CONSTRAINT "new_spans_trace_id_fkey" FOREIGN KEY ("trace_id") REFERENCES "traces"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "target_pipeline_versions" ADD CONSTRAINT "target_pipeline_versions_pipeline_id_fkey" FOREIGN KEY ("pipeline_id") REFERENCES "public"."pipelines"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "target_pipeline_versions" ADD CONSTRAINT "target_pipeline_versions_pipeline_id_fkey" FOREIGN KEY ("pipeline_id") REFERENCES "pipelines"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "target_pipeline_versions" ADD CONSTRAINT "target_pipeline_versions_pipeline_version_id_fkey" FOREIGN KEY ("pipeline_version_id") REFERENCES "public"."pipeline_versions"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "target_pipeline_versions" ADD CONSTRAINT "target_pipeline_versions_pipeline_version_id_fkey" FOREIGN KEY ("pipeline_version_id") REFERENCES "pipeline_versions"("id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "traces" ADD CONSTRAINT "new_traces_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "traces" ADD CONSTRAINT "new_traces_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "user_subscription_info" ADD CONSTRAINT "user_subscription_info_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "user_subscription_info" ADD CONSTRAINT "user_subscription_info_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "workspace_usage" ADD CONSTRAINT "user_usage_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "workspace_usage" ADD CONSTRAINT "user_usage_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "workspaces" ADD CONSTRAINT "workspaces_tier_id_fkey" FOREIGN KEY ("tier_id") REFERENCES "public"."subscription_tiers"("id") ON DELETE no action ON UPDATE cascade;
+ ALTER TABLE "workspaces" ADD CONSTRAINT "workspaces_tier_id_fkey" FOREIGN KEY ("tier_id") REFERENCES "subscription_tiers"("id") ON DELETE no action ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;

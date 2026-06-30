@@ -2,7 +2,6 @@
 
 import { Cloud, Loader2, Lock, Server } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import useSWR from "swr";
@@ -21,7 +20,7 @@ import {
 import { Button } from "@/components/ui/button.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import HybridSetup from "@/components/workspace/deployment-settings/hybrid-setup.tsx";
-import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider.tsx";
+import { useProjectContext } from "@/contexts/project-context";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils.ts";
@@ -40,8 +39,10 @@ interface WorkspaceDeploymentProps {
 }
 
 const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
-  const { workspaceId } = useParams<{ workspaceId: string }>();
-  const { setMenu } = useWorkspaceMenuContext();
+  // Settings render under /project/[projectId], so the workspace id comes from the prop, not the
+  // route param.
+  const workspaceId = workspace.id;
+  const { settingsHref } = useProjectContext();
 
   const isPro = workspace.tierName === WorkspaceTier.PRO || workspace.tierName === WorkspaceTier.ENTERPRISE;
   const hasDataPlaneAddon = workspace.addons?.includes(DATA_PLANE_ADDON) ?? false;
@@ -215,7 +216,7 @@ const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
                     : "Your workspace is on the Pro plan, but the Data Plane addon is required to enable hybrid data residency."}
                 </p>
               </div>
-              <Link passHref href={`/workspace/${workspaceId}?tab=billing`} onClick={() => setMenu("billing")}>
+              <Link passHref href={settingsHref("billing")}>
                 <Button className="bg-secondary" variant="outline">
                   {!isPro ? "View pricing" : "Go to billing settings"}
                 </Button>
@@ -248,7 +249,12 @@ const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
 
         {/* Hybrid setup - shown when hybrid is selected */}
         {mode === DeploymentType.HYBRID && isEnabled && (
-          <HybridSetup isSaving={isSaving} isVerified={isVerified} onVerifiedChange={setIsVerified} />
+          <HybridSetup
+            workspaceId={workspaceId}
+            isSaving={isSaving}
+            isVerified={isVerified}
+            onVerifiedChange={setIsVerified}
+          />
         )}
 
         {/* Unsaved changes bar */}

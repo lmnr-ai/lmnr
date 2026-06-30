@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clickhouse::Row;
+use clickhouse::insert::Insert;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -12,7 +13,10 @@ use crate::{
     utils::sanitize_string,
 };
 
-use super::{ClickhouseInsertable, DataPlaneBatch, Table, utils::chrono_to_nanoseconds};
+use super::{
+    ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS, Table,
+    utils::chrono_to_nanoseconds,
+};
 
 /// for inserting into clickhouse
 ///
@@ -109,6 +113,36 @@ pub struct CHSpan {
     /// Span events stored as Array(Tuple(timestamp Int64, name String, attributes String))
     #[serde(default)]
     pub events: Vec<(i64, String, String)>,
+    /// Hashes of deduplicated LLM input messages. When non-empty, `input` is
+    /// left empty and the view reconstructs the input JSON array by joining
+    /// against the project-scoped `deduped_content` table via
+    /// `deduped_content_dict`, or for legacy spans the trace-scoped
+    /// `llm_messages` table via `llm_messages_dict`.
+    #[serde(default)]
+    pub input_message_hashes: Vec<[u8; 32]>,
+    /// 0-based positions into `input_message_hashes` for messages this span
+    /// was first to introduce in its trace. Used by the search snippet query
+    /// to scope input matching to the new-messages subset only. Trace-scoped
+    /// even though storage is project-scoped — search "first occurrence per
+    /// trace" semantic must be preserved.
+    #[serde(default)]
+    pub input_new_message_indices: Vec<u16>,
+    /// Hashes of deduplicated LLM output messages. When non-empty, `output`
+    /// is left empty and the view reconstructs the array via
+    /// `deduped_content_dict`. Project-scoped — output of span A and input
+    /// of span B in the same project collapse to the same row when content
+    /// matches.
+    #[serde(default)]
+    pub output_message_hashes: Vec<[u8; 32]>,
+    /// Trace-scoped first-occurrence positions for output messages. Mirrors
+    /// `input_new_message_indices` semantics for the output array.
+    #[serde(default)]
+    pub output_new_message_indices: Vec<u16>,
+    /// Single hash for the span's normalized tool-definitions array. Empty
+    /// when the span has no tools or is a legacy span. Reconstructed by the
+    /// view as a virtual `tool_definitions` column via `deduped_content_dict`.
+    #[serde(default)]
+    pub tool_definitions_hash: [u8; 32],
 }
 
 impl CHSpan {
@@ -184,12 +218,27 @@ impl CHSpan {
                     )
                 })
                 .collect(),
+            input_message_hashes: Vec::new(),
+            input_new_message_indices: Vec::new(),
+            output_message_hashes: Vec::new(),
+            output_new_message_indices: Vec::new(),
+            tool_definitions_hash: [0u8; 32],
         }
     }
 }
 
 impl ClickhouseInsertable for CHSpan {
     const TABLE: Table = Table::Spans;
+
+    // Cap the server-side async-insert coalescing wait. The Rust batcher
+    // already coalesces upstream; without this, CH parks at the adaptive
+    // max (~1s) because per-flush byte size is well below the size cap.
+    fn configure_insert(insert: Insert<Self>) -> Insert<Self> {
+        insert.with_setting(
+            "async_insert_busy_timeout_max_ms",
+            SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS.as_str(),
+        )
+    }
 
     fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
         DataPlaneBatch::Spans(items)
@@ -235,4 +284,73 @@ pub async fn is_span_in_project(
         .await?;
 
     Ok(result > 0)
+}
+
+/// One LLM/CACHED span of a replay trace, with the reconstructed input and the
+/// raw output-bearing attributes needed by the debugger warmup (LAM-1715).
+///
+/// `input` is the reconstructed message-array JSON from `spans_v0` (dedup'd
+/// spans store an empty `spans.input`; the view rebuilds it from
+/// `deduped_content_dict` / `llm_messages_dict`). `raw_response`, `gen_ai_output`
+/// and `finish_reason` are extracted from the raw `attributes` blob via
+/// `JSONExtractRaw`, which yields an empty string when the key is absent.
+///
+/// Rows arrive in `start_time` ASC order from the query, so earliest-wins
+/// dedup is satisfied by iteration order — no start_time field is needed here.
+#[derive(Row, Deserialize, Debug, Clone)]
+pub struct DebugCacheSpanRow {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub span_id: Uuid,
+    pub input: String,
+    /// output column
+    pub output: String,
+    /// `lmnr.sdk.raw.response` attribute (preferred output source). Empty if absent.
+    pub raw_response: String,
+    /// `gen_ai.output.messages` attribute (fallback output source). Empty if absent.
+    pub gen_ai_output: String,
+    /// `gen_ai.response.finish_reason` attribute (single string). Empty if absent.
+    pub finish_reason: String,
+    /// `gen_ai.response.finish_reasons` attribute (JSON array). Empty if absent.
+    pub finish_reasons: String,
+    /// `gen_ai.response.model` attribute. Empty if absent.
+    pub model: String,
+}
+
+/// Fetch one page of a trace's LLM + CACHED spans in `start_time` ASC order,
+/// reading reconstructed input + output attributes from `spans_v0`.
+///
+/// `spans_v0` is a parameterized view (`WHERE project_id = {project_id:UUID}`),
+/// so the project scope is passed as a query param rather than a WHERE clause.
+pub async fn query_debug_cache_spans_page(
+    clickhouse: clickhouse::Client,
+    project_id: Uuid,
+    trace_id: Uuid,
+    limit: u32,
+    offset: u32,
+) -> Result<Vec<DebugCacheSpanRow>> {
+    let rows = clickhouse
+        .query(
+            "SELECT
+                span_id,
+                input,
+                output,
+                JSONExtractRaw(attributes, 'lmnr.sdk.raw.response') AS raw_response,
+                JSONExtractRaw(attributes, 'gen_ai.output.messages') AS gen_ai_output,
+                JSONExtractRaw(attributes, 'gen_ai.response.finish_reason') AS finish_reason,
+                JSONExtractRaw(attributes, 'gen_ai.response.finish_reasons') AS finish_reasons,
+                JSONExtractString(attributes, 'gen_ai.response.model') AS model
+            FROM spans_v0(project_id={project_id:UUID})
+            WHERE trace_id = {trace_id:UUID}
+              AND span_type IN ('LLM', 'CACHED')
+            ORDER BY start_time ASC
+            LIMIT {limit:UInt32} OFFSET {offset:UInt32}",
+        )
+        .param("project_id", project_id)
+        .param("trace_id", trace_id)
+        .param("limit", limit)
+        .param("offset", offset)
+        .fetch_all::<DebugCacheSpanRow>()
+        .await?;
+
+    Ok(rows)
 }

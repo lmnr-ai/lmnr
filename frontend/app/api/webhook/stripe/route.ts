@@ -1,35 +1,49 @@
 import { type NextRequest } from "next/server";
 import Stripe from "stripe";
 
-import {
-  type ItemDescription,
-  LOOKUP_KEY_DISPLAY_NAMES,
-  LOOKUP_KEY_TO_TIER_NAME,
-  type PaidTier,
-  TIER_CONFIG,
-} from "@/lib/actions/checkout/types";
+import { type PaidTier, TIER_CONFIG } from "@/lib/actions/checkout/types";
 import { handleInvoiceFinalized, handleSubscriptionChange } from "@/lib/actions/checkout/webhook";
 import { sendOnPaymentFailedEmail, sendOnPaymentReceivedEmail } from "@/lib/emails/utils";
 
-function getLookupKey(line: Stripe.InvoiceLineItem): string | null {
-  // Stripe still sends the legacy `price` field as an expanded object in webhooks
-  // even though the v20 types omit it.
-  const legacyPrice = (line as unknown as Record<string, unknown>)["price"];
-  if (typeof legacyPrice === "object" && legacyPrice && "lookup_key" in legacyPrice) {
-    return (legacyPrice as { lookup_key: string | null }).lookup_key;
+// Stripe zero-decimal currencies are billed in their major units directly.
+// https://docs.stripe.com/currencies#zero-decimal
+const ZERO_DECIMAL_CURRENCIES = new Set([
+  "bif",
+  "clp",
+  "djf",
+  "gnf",
+  "jpy",
+  "kmf",
+  "krw",
+  "mga",
+  "pyg",
+  "rwf",
+  "ugx",
+  "vnd",
+  "vuv",
+  "xaf",
+  "xof",
+  "xpf",
+]);
+
+function formatInvoiceTotal(amount: number, currency: string): string {
+  const code = (currency || "usd").toLowerCase();
+  const majorUnits = ZERO_DECIMAL_CURRENCIES.has(code) ? amount : amount / 100;
+  try {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: code.toUpperCase() }).format(majorUnits);
+  } catch {
+    return `${code.toUpperCase()} ${majorUnits.toFixed(ZERO_DECIMAL_CURRENCIES.has(code) ? 0 : 2)}`;
   }
-  return null;
 }
 
-function buildItemDescriptions(lines: Stripe.InvoiceLineItem[]): ItemDescription[] {
-  return lines
-    .filter((line) => line.amount > 0)
-    .map((line) => {
-      const lookupKey = getLookupKey(line);
-      const productDescription = (lookupKey && LOOKUP_KEY_DISPLAY_NAMES[lookupKey]) ?? line.description ?? "";
-      const shortDescription = lookupKey ? LOOKUP_KEY_TO_TIER_NAME[lookupKey] : undefined;
-      return { productDescription, quantity: line.quantity ?? undefined, shortDescription };
-    });
+// Stripe stores our workspace binding in the subscription's metadata (set at
+// checkout). The invoice inherits it via `parent.subscription_details.metadata`;
+// older invoices may also carry it on `invoice.metadata` directly.
+function getWorkspaceId(invoice: Stripe.Invoice): string | null {
+  const parent = invoice.parent;
+  const fromSubscription =
+    parent?.type === "subscription_details" ? parent.subscription_details?.metadata?.workspaceId : undefined;
+  return fromSubscription ?? invoice.metadata?.workspaceId ?? null;
 }
 
 /**
@@ -60,19 +74,17 @@ async function addOveragePricesToSubscription(subscription: Stripe.Subscription)
   const existingLookupKeys = new Set(freshSubscription.items.data.map((item) => item.price.lookup_key));
   if (
     existingLookupKeys.has(tierConfig.overageMegabytesLookupKey) &&
-    existingLookupKeys.has(tierConfig.overageSignalStepsProcessedLookupKey)
+    existingLookupKeys.has(tierConfig.overageSignalCostLookupKey)
   ) {
     return;
   }
 
   const overagePrices = await s.prices.list({
-    lookup_keys: [tierConfig.overageMegabytesLookupKey, tierConfig.overageSignalStepsProcessedLookupKey],
+    lookup_keys: [tierConfig.overageMegabytesLookupKey, tierConfig.overageSignalCostLookupKey],
   });
 
   const bytesOveragePrice = overagePrices.data.find((p) => p.lookup_key === tierConfig.overageMegabytesLookupKey);
-  const signalRunsOveragePrice = overagePrices.data.find(
-    (p) => p.lookup_key === tierConfig.overageSignalStepsProcessedLookupKey
-  );
+  const signalRunsOveragePrice = overagePrices.data.find((p) => p.lookup_key === tierConfig.overageSignalCostLookupKey);
 
   if (!bytesOveragePrice || !signalRunsOveragePrice) {
     console.error(`Could not resolve overage prices for tier ${tierEntry[0]}`);
@@ -83,7 +95,7 @@ async function addOveragePricesToSubscription(subscription: Stripe.Subscription)
   if (!existingLookupKeys.has(tierConfig.overageMegabytesLookupKey)) {
     items.push({ price: bytesOveragePrice.id });
   }
-  if (!existingLookupKeys.has(tierConfig.overageSignalStepsProcessedLookupKey)) {
+  if (!existingLookupKeys.has(tierConfig.overageSignalCostLookupKey)) {
     items.push({ price: signalRunsOveragePrice.id });
   }
 
@@ -113,24 +125,38 @@ export async function POST(req: NextRequest): Promise<Response> {
     case "invoice.payment_succeeded": {
       const invoice = event.data.object;
       if (invoice.amount_paid <= 0) break;
-      const itemDescriptions = buildItemDescriptions(invoice.lines.data);
       const customerEmail = invoice.customer_email;
-      const date = new Date(invoice.created * 1000).toLocaleDateString();
-      if (customerEmail && itemDescriptions.length > 0) {
-        await sendOnPaymentReceivedEmail(customerEmail, itemDescriptions, date);
+      const workspaceId = getWorkspaceId(invoice);
+      if (!customerEmail) break;
+      if (!workspaceId) {
+        console.log("invoice.payment_succeeded: no workspaceId in subscription metadata");
+        break;
       }
+      await sendOnPaymentReceivedEmail({
+        email: customerEmail,
+        workspaceId,
+        total: formatInvoiceTotal(invoice.amount_paid, invoice.currency),
+        date: new Date(invoice.created * 1000).toLocaleDateString(),
+      });
       break;
     }
     case "invoice.payment_failed": {
       const invoice = event.data.object;
       if (!invoice.attempted) break;
       if (invoice.amount_due <= 0) break;
-      const itemDescriptions = buildItemDescriptions(invoice.lines.data);
       const customerEmail = invoice.customer_email;
-      const date = new Date(invoice.created * 1000).toLocaleDateString();
-      if (customerEmail && itemDescriptions.length > 0) {
-        await sendOnPaymentFailedEmail(customerEmail, itemDescriptions, date);
+      const workspaceId = getWorkspaceId(invoice);
+      if (!customerEmail) break;
+      if (!workspaceId) {
+        console.log("invoice.payment_failed: no workspaceId in subscription metadata");
+        break;
       }
+      await sendOnPaymentFailedEmail({
+        email: customerEmail,
+        workspaceId,
+        total: formatInvoiceTotal(invoice.amount_due, invoice.currency),
+        date: new Date(invoice.created * 1000).toLocaleDateString(),
+      });
       break;
     }
     case "invoice.finalized": {
@@ -138,29 +164,33 @@ export async function POST(req: NextRequest): Promise<Response> {
 
       if (invoice.parent?.type !== "subscription_details") break;
 
-      // Filter: must contain a line for a known overage price.
-      // This excludes addon-only invoices and other unrelated invoices.
-      const knownLookupKeys = new Set<string>(
-        Object.values(TIER_CONFIG).flatMap((c) => [c.overageMegabytesLookupKey, c.overageSignalStepsProcessedLookupKey])
-      );
+      // Filter: must contain a line for a signal or data overage price.
+      // We match on the lookup-key shape ("signal" / "bytes" substrings) rather
+      // than an exact TIER_CONFIG allowlist so that subscriptions still billing
+      // a previous overage price are still recognised and reset. An exact-match
+      // gate would silently skip those cycles' billing reset + cache
+      // invalidation. This excludes addon-only and other unrelated invoices.
       let hasBytesOverage = false;
       let hasSignalRunsOverage = false;
       let resetTime: Date | null = null;
       const relevantLines = invoice.lines.data.filter((line) => {
         const priceObj = (line as any).price ?? line.pricing?.price_details?.price;
         const lookupKey = typeof priceObj === "object" && priceObj ? priceObj.lookup_key : null;
-        if (lookupKey) {
-          if (String(lookupKey).toLowerCase().includes("signal")) {
-            // includes signal runs or signal steps lookup key
-            hasSignalRunsOverage = true;
-            resetTime = new Date(line.period.end * 1000);
-          } else if (String(lookupKey).toLowerCase().includes("bytes")) {
-            hasBytesOverage = true;
-            // it's fine to override here, most of the times they are same
-            resetTime = new Date(line.period.end * 1000);
-          }
+        if (!lookupKey) return false;
+        const normalizedLookupKey = String(lookupKey).toLowerCase();
+        if (normalizedLookupKey.includes("signal")) {
+          // includes signal runs or signal steps lookup key
+          hasSignalRunsOverage = true;
+          resetTime = new Date(line.period.end * 1000);
+          return true;
         }
-        return lookupKey && knownLookupKeys.has(lookupKey);
+        if (normalizedLookupKey.includes("bytes")) {
+          hasBytesOverage = true;
+          // it's fine to override here, most of the times they are same
+          resetTime = new Date(line.period.end * 1000);
+          return true;
+        }
+        return false;
       });
       if (relevantLines.length === 0) break;
 

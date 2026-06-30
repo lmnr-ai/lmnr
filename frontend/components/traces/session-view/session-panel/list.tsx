@@ -5,22 +5,24 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
 import { useBatchedTraceIO } from "@/components/traces/sessions-table/use-batched-trace-io";
-import { type TraceViewSpan, type TranscriptListGroup } from "@/components/traces/trace-view/store/base";
+import { type TranscriptListGroup } from "@/components/traces/trace-view/store/base";
 import {
   AgentGroupHeader,
   GroupChildWrapper,
   InputItem,
   SpanItem,
 } from "@/components/traces/trace-view/transcript/item";
+import { SpanCard } from "@/components/traces/trace-view/tree/span-card";
 import {
   filterToViewport,
   useReportVisibleTimeRange,
 } from "@/components/traces/trace-view/use-report-visible-time-range";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
+import { cn, formatDuration } from "@/lib/utils";
 
-import { useSessionViewStore } from "../store";
-import { buildSessionFlatRows, formatGap } from "../utils";
+import { useSessionViewBaseStore } from "../store";
+import { buildSessionFlatRows } from "../utils";
+import TraceCollapsedBody from "./trace-collapsed-body.tsx";
 import TraceItem from "./trace-item.tsx";
 import { useSessionSpanPreviews } from "./use-session-span-previews.ts";
 
@@ -44,15 +46,20 @@ export default function SessionList() {
     traceSpansError,
     expandedTraceIds,
     transcriptExpandedGroups,
+    traceViewModes,
+    traceShowTreeContent,
     selectedSpan,
     searchResults,
     toggleTraceExpanded,
     toggleTranscriptGroup,
+    toggleSpanCollapse,
     setSelectedSpan,
     setScrollTimeRange,
     scrollToGroup,
     consumeScrollToGroup,
-  } = useSessionViewStore(
+    scrollToTraceId,
+    consumeScrollToTrace,
+  } = useSessionViewBaseStore(
     (s) => ({
       projectId: s.projectId,
       traces: s.traces,
@@ -61,14 +68,19 @@ export default function SessionList() {
       traceSpansError: s.traceSpansError,
       expandedTraceIds: s.expandedTraceIds,
       transcriptExpandedGroups: s.transcriptExpandedGroups,
+      traceViewModes: s.traceViewModes,
+      traceShowTreeContent: s.traceShowTreeContent,
       selectedSpan: s.selectedSpan,
       searchResults: s.searchResults,
       toggleTraceExpanded: s.toggleTraceExpanded,
       toggleTranscriptGroup: s.toggleTranscriptGroup,
+      toggleSpanCollapse: s.toggleSpanCollapse,
       setSelectedSpan: s.setSelectedSpan,
       setScrollTimeRange: s.setScrollTimeRange,
       scrollToGroup: s.scrollToGroup,
       consumeScrollToGroup: s.consumeScrollToGroup,
+      scrollToTraceId: s.scrollToTraceId,
+      consumeScrollToTrace: s.consumeScrollToTrace,
     }),
     shallow
   );
@@ -83,8 +95,18 @@ export default function SessionList() {
         expandedTraceIds,
         transcriptExpandedGroups,
         searchResults,
+        traceViewModes,
       }),
-    [traces, traceSpans, traceSpansLoading, traceSpansError, expandedTraceIds, transcriptExpandedGroups, searchResults]
+    [
+      traces,
+      traceSpans,
+      traceSpansLoading,
+      traceSpansError,
+      expandedTraceIds,
+      transcriptExpandedGroups,
+      searchResults,
+      traceViewModes,
+    ]
   );
 
   const traceIndexById = useMemo(() => {
@@ -93,10 +115,20 @@ export default function SessionList() {
     return map;
   }, [traces]);
 
+  // Resolve a TraceRow by id for the trace-collapsed-body row (which carries
+  // only traceId to stay light + avoid stale snapshots).
+  const traceById = useMemo(() => {
+    const map = new Map<string, (typeof traces)[number]>();
+    for (const t of traces) map.set(t.id, t);
+    return map;
+  }, [traces]);
+
+  // Every trace-header row is sticky — collapsed AND expanded. The collapsed
+  // body is its own (non-sticky) row, so a stuck header pins just the ~40px bar.
   const stickyIndexes = useMemo(
     () =>
       flatRows.reduce<number[]>((acc, row, idx) => {
-        if (row.type === "trace-header" && row.expanded) acc.push(idx);
+        if (row.type === "trace-header") acc.push(idx);
         return acc;
       }, []),
     [flatRows]
@@ -129,6 +161,9 @@ export default function SessionList() {
   // expand/collapse shifts indices.
   const flatRowsRef = useRef(flatRows);
   flatRowsRef.current = flatRows;
+  // Read latest content-visibility in estimateSize without re-creating it.
+  const traceShowTreeContentRef = useRef(traceShowTreeContent);
+  traceShowTreeContentRef.current = traceShowTreeContent;
   const getItemKey = useCallback((index: number) => {
     const row = flatRowsRef.current[index];
     if (!row) return index;
@@ -149,6 +184,10 @@ export default function SessionList() {
         return `gh::${row.traceId}::${row.group.groupId}`;
       case "group-span":
         return `gs::${row.traceId}::${row.span.spanId}`;
+      case "tree-span":
+        return `ts::${row.traceId}::${row.span.spanId}`;
+      case "trace-collapsed-body":
+        return `tcb::${row.traceId}`;
       case "trace-collapsed-end":
         return `tcend::${row.traceId}`;
       case "trace-expanded-end":
@@ -165,9 +204,18 @@ export default function SessionList() {
     if (!row) return 70;
     switch (row.type) {
       case "trace-header":
-        return row.expanded ? 36 : 280;
+        // Uniform header height in BOTH states (the collapsed body is its own row).
+        return 36;
+      case "trace-collapsed-body":
+        // Input preview + last-span preview (~the old 280 collapsed card minus
+        // the ~40px header). The virtualizer measures the real height.
+        return 240;
       case "group-header":
         return 36;
+      case "tree-span":
+        // Content-visible trees show an LLM preview (~taller) — estimate higher
+        // so initial paint re-anchors less; collapsed-content rows stay 36.
+        return traceShowTreeContentRef.current[row.traceId] !== false ? 56 : 36;
       case "trace-error":
       case "trace-empty":
         return 42;
@@ -213,7 +261,7 @@ export default function SessionList() {
       if (!row) continue;
       let startStr: string | undefined;
       let endStr: string | undefined;
-      if (row.type === "span" || row.type === "group-span") {
+      if (row.type === "span" || row.type === "group-span" || row.type === "tree-span") {
         startStr = row.span.startTime;
         endStr = row.span.endTime;
       } else if (row.type === "group-header") {
@@ -256,7 +304,7 @@ export default function SessionList() {
 
     const idx = flatRows.findIndex(
       (r) =>
-        (r.type === "span" || r.type === "group-span") &&
+        (r.type === "span" || r.type === "group-span" || r.type === "tree-span") &&
         r.traceId === selectedSpan.traceId &&
         r.span.spanId === selectedSpan.spanId
     );
@@ -301,6 +349,27 @@ export default function SessionList() {
     return () => cancelAnimationFrame(rafId);
   }, [scrollToGroup, flatRows, virtualizer, consumeScrollToGroup]);
 
+  // Scroll the just-collapsed trace's header into view. Keyed on flatRows so it
+  // runs AFTER the collapse rebuilds rows (expanded body rows removed, indices
+  // shifted). `align:"auto"` scrolls ONLY when the header is out of view — no
+  // jump if it's already visible, never snaps to list top. Two-pass rAF re-runs
+  // after the freshly-estimated post-collapse rows are measured, so the header
+  // lands correctly even though surrounding offsets were estimates.
+  useEffect(() => {
+    if (!scrollToTraceId) return;
+    const idx = flatRows.findIndex((r) => r.type === "trace-header" && r.trace.id === scrollToTraceId);
+    if (idx === -1) {
+      consumeScrollToTrace();
+      return;
+    }
+    virtualizer.scrollToIndex(idx, { align: "auto" });
+    const rafId = requestAnimationFrame(() => {
+      virtualizer.scrollToIndex(idx, { align: "auto" });
+      consumeScrollToTrace();
+    });
+    return () => cancelAnimationFrame(rafId);
+  }, [scrollToTraceId, flatRows, virtualizer, consumeScrollToTrace]);
+
   // --- Preview fetching (batched across traces) ---
   //
   // Derive the set of span IDs currently visible in the virtualizer window,
@@ -323,7 +392,7 @@ export default function SessionList() {
       const row = flatRows[i];
       if (!row) continue;
 
-      if (row.type === "span" || row.type === "group-span") {
+      if (row.type === "span" || row.type === "group-span" || row.type === "tree-span") {
         pushUnique(visible, row.traceId, row.span.spanId);
       } else if (row.type === "group-header") {
         const group = row.group as TranscriptListGroup;
@@ -364,15 +433,6 @@ export default function SessionList() {
     spanTypesByTrace,
   });
 
-  // Flat spanId → TraceViewSpan lookup across all loaded traces.
-  const allSpansById = useMemo(() => {
-    const map = new Map<string, TraceViewSpan>();
-    for (const spans of Object.values(traceSpans)) {
-      for (const s of spans) map.set(s.spanId, s);
-    }
-    return map;
-  }, [traceSpans]);
-
   // Main-agent input/output text + output span, fetched in one batched call
   // per session. Reuses the `/traces/io` endpoint + hook that powers the
   // sessions-table trace cards. Sessions can have many traces, so we pass
@@ -386,10 +446,9 @@ export default function SessionList() {
       className="overflow-x-hidden overflow-y-auto grow relative h-full w-full styled-scrollbar px-2"
     >
       <div
-        className="relative"
+        className="relative mx-auto w-full max-w-4xl 2xl:max-w-6xl"
         style={{
           height: virtualizer.getTotalSize(),
-          width: "100%",
           position: "relative",
         }}
       >
@@ -404,7 +463,11 @@ export default function SessionList() {
             : { position: "absolute", top: 0, transform: `translateY(${virtualRow.start}px)` };
 
           if (row.type === "trace-header") {
-            positionStyle.zIndex = virtualRow.index + 1;
+            // Lift the whole sticky-header band ABOVE any row-internal z-index
+            // (span-type icons / tree connectors carry up to z-30) so content
+            // scrolling under a stuck header can't paint over it. The +index
+            // preserves swap ordering between two adjacent stuck headers.
+            positionStyle.zIndex = 100 + virtualRow.index;
           }
 
           return (
@@ -412,6 +475,7 @@ export default function SessionList() {
               key={virtualRow.key}
               ref={virtualizer.measureElement}
               data-index={virtualRow.index}
+              data-vrow
               style={{ ...positionStyle, left: 0, width: "100%" }}
             >
               {row.type === "trace-header" ? (
@@ -421,8 +485,12 @@ export default function SessionList() {
                   traceIndex={traceIndexById.get(row.trace.id) ?? 0}
                   totalTraces={traces.length}
                   onToggle={() => toggleTraceExpanded(row.trace.id)}
-                  traceIO={traceIO[row.trace.id]}
                 />
+              ) : row.type === "trace-collapsed-body" ? (
+                (() => {
+                  const t = traceById.get(row.traceId);
+                  return t ? <TraceCollapsedBody trace={t} traceIO={traceIO[row.traceId]} /> : null;
+                })()
               ) : row.type === "trace-loading" ? (
                 <div className="flex flex-col gap-2 py-2 px-2">
                   <Skeleton className="h-5 w-full" />
@@ -441,8 +509,8 @@ export default function SessionList() {
                   )}
                 >
                   <div className="w-full border-b" />
-                  {formatGap(row.gapMs) && (
-                    <span className="text-xs text-muted-foreground shrink-0 px-2">{formatGap(row.gapMs)}</span>
+                  {formatDuration(row.gapMs) && (
+                    <span className="text-xs text-muted-foreground shrink-0 px-2">{formatDuration(row.gapMs)}</span>
                   )}
                   <div className="w-full border-b" />
                 </div>
@@ -466,7 +534,6 @@ export default function SessionList() {
                 <GroupChildWrapper isLast={row.isLast} className="mx-0">
                   <SpanItem
                     span={row.span}
-                    fullSpan={allSpansById.get(row.span.spanId)}
                     output={previews[row.span.spanId]}
                     onSpanSelect={(s) => setSelectedSpan({ traceId: row.traceId, spanId: s.spanId })}
                     isSelected={
@@ -475,10 +542,23 @@ export default function SessionList() {
                     inGroup
                   />
                 </GroupChildWrapper>
+              ) : row.type === "tree-span" ? (
+                <SpanCard
+                  span={row.span}
+                  branchMask={row.branchMask}
+                  depth={row.depth}
+                  hasChildren={row.hasChildren}
+                  output={previews[row.span.spanId]}
+                  showTreeContent={traceShowTreeContent[row.traceId] ?? true}
+                  isSelected={
+                    !!selectedSpan && selectedSpan.traceId === row.traceId && selectedSpan.spanId === row.span.spanId
+                  }
+                  onSpanSelect={(s) => s && setSelectedSpan({ traceId: row.traceId, spanId: s.spanId })}
+                  onToggleCollapse={(spanId) => toggleSpanCollapse(row.traceId, spanId)}
+                />
               ) : (
                 <SpanItem
                   span={row.span}
-                  fullSpan={allSpansById.get(row.span.spanId)}
                   output={previews[row.span.spanId]}
                   onSpanSelect={(s) => setSelectedSpan({ traceId: row.traceId, spanId: s.spanId })}
                   isSelected={

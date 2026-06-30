@@ -1,9 +1,69 @@
 pub mod limits;
+pub mod text_cleaning;
 
-use backoff::ExponentialBackoffBuilder;
-use serde::de::DeserializeOwned;
 use serde_json::Value;
-use std::{env, time::Duration};
+
+#[cfg(feature = "signals")]
+use crate::{db::projects::WorkspaceTierName, env::private::signals};
+
+/// Cost in micro-USD (1e-6 USD) of the given signal token spend, priced at the
+/// per-token rate for `tier` (see `env::private::signals`).
+///
+/// `input_tokens` is the provider-reported prompt token count, which *includes*
+/// `cache_read_tokens` as a subset (every provider sums cached reads into the
+/// prompt total). To avoid charging cached reads at the full input rate, the
+/// cached portion is split out and billed at the cheaper cache rate; only the
+/// remaining fresh input is billed at the input rate.
+///
+/// Pro workspaces are metered at the discounted Pro rates so accumulated cost
+/// matches the cheaper rates they're actually billed at; every other tier uses
+/// the standard rate. Metering Pro at the standard rate would over-count and
+/// trip hard limits / soft warnings before the workspace reaches its budget.
+///
+/// Tokens are persisted raw and cost is derived here at read time, so a future
+/// rate change re-prices historical runs. Micro-USD keeps billing arithmetic
+/// in integers: it's the unit compared against tier allowances, cached, and
+/// reported to Stripe (divided back to dollars only at the meter boundary).
+/// At the default rates one fresh input token costs 0.5 µ$, one cached-read
+/// token 0.05 µ$, and one output token 3 µ$.
+#[cfg(feature = "signals")]
+pub fn signal_token_cost_micro_usd(
+    input_tokens: u64,
+    cache_read_tokens: u64,
+    output_tokens: u64,
+    tier: &WorkspaceTierName,
+) -> u64 {
+    let is_pro = *tier == WorkspaceTierName::Pro;
+    let input_rate = if is_pro {
+        signals::PRO_INPUT_TOKEN_PRICE_PER_MILLION.get()
+    } else {
+        signals::INPUT_TOKEN_PRICE_PER_MILLION.get()
+    };
+    let cache_read_rate = if is_pro {
+        signals::PRO_CACHE_READ_TOKEN_PRICE_PER_MILLION.get()
+    } else {
+        signals::CACHE_READ_TOKEN_PRICE_PER_MILLION.get()
+    };
+    let output_rate = if is_pro {
+        signals::PRO_OUTPUT_TOKEN_PRICE_PER_MILLION.get()
+    } else {
+        signals::OUTPUT_TOKEN_PRICE_PER_MILLION.get()
+    };
+
+    // Cache reads are a subset of the input total; bill the non-cached
+    // remainder at the input rate and the cached portion at the cache rate.
+    // Clamp cache reads to the prompt total so malformed provider usage
+    // metadata (cache reads above the reported prompt) can never bill more
+    // tokens than the prompt actually contained.
+    let cache_read_tokens = cache_read_tokens.min(input_tokens);
+    let fresh_input_tokens = input_tokens - cache_read_tokens;
+    let input_cost = fresh_input_tokens as f64 * input_rate;
+    let cache_read_cost = cache_read_tokens as f64 * cache_read_rate;
+    let output_cost = output_tokens as f64 * output_rate;
+    // price_per_million µ$/token = price_per_million / 1_000_000 * 1_000_000,
+    // so (tokens * price_per_million) is already in micro-USD.
+    (input_cost + cache_read_cost + output_cost).round() as u64
+}
 
 pub fn json_value_to_string(v: &Value) -> String {
     match v {
@@ -66,88 +126,4 @@ pub fn sanitize_string(input: &str) -> String {
             true
         })
         .collect::<String>()
-}
-
-/// Call an HTTP service with retry logic using exponential backoff
-/// Returns the deserialized response on success
-pub async fn call_service_with_retry<T>(
-    client: &reqwest::Client,
-    service_url: &str,
-    auth_token: &str,
-    request_body: &Value,
-) -> anyhow::Result<T>
-where
-    T: DeserializeOwned,
-{
-    let call_service = || async {
-        let response = client
-            .post(service_url)
-            .header("Authorization", format!("Bearer {}", auth_token))
-            .header("Content-Type", "application/json")
-            .json(request_body)
-            .send()
-            .await
-            .map_err(|e| {
-                log::warn!("Failed to call service ({}): {:?}", service_url, e);
-                backoff::Error::transient(anyhow::Error::from(e))
-            })?;
-
-        let status = response.status();
-
-        if status.is_success() {
-            let response_text = response.text().await.unwrap_or_default();
-            // log::debug!("Service response ({}): {}", service_url, response_text);
-
-            serde_json::from_str(&response_text).map_err(|e| {
-                log::error!(
-                    "Failed to deserialize response from {}: {:?}",
-                    service_url,
-                    e
-                );
-                backoff::Error::permanent(anyhow::Error::from(e))
-            })
-        } else if status.is_server_error() {
-            let response_text = response.text().await.unwrap_or_default();
-
-            log::warn!(
-                "Service returned server error status {}: Response: {}",
-                status,
-                response_text
-            );
-            Err(backoff::Error::transient(anyhow::anyhow!(
-                "Service server error. Response: {}",
-                response_text
-            )))
-        } else {
-            let status = response.status();
-            let response_text = response.text().await.unwrap_or_default();
-            log::warn!(
-                "Service returned error status {}, Response: {}",
-                status,
-                response_text
-            );
-            Err(backoff::Error::permanent(anyhow::anyhow!(
-                "Service error: {}, Response: {}",
-                status,
-                response_text
-            )))
-        }
-    };
-
-    let backoff = ExponentialBackoffBuilder::new()
-        .with_initial_interval(Duration::from_millis(1000))
-        .with_max_interval(Duration::from_secs(30))
-        .with_max_elapsed_time(Some(Duration::from_secs(60))) // 1 minute max
-        .build();
-
-    backoff::future::retry(backoff, call_service)
-        .await
-        .map_err(Into::into)
-}
-
-pub fn get_unsigned_env_with_default(key: &str, default: usize) -> usize {
-    env::var(key)
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(default)
 }

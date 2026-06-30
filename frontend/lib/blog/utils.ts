@@ -1,3 +1,5 @@
+import GithubSlugger from "github-slugger";
+
 import { type BlogListItem, type MatterAndContent, type StrapiListResponse, type StrapiPost } from "./types";
 
 const STRAPI_URL = process.env.STRAPI_URL || "http://localhost:1337";
@@ -75,15 +77,21 @@ export const getBlogPost = async (slug: string): Promise<MatterAndContent | null
   return { data: mapped.data, content: normalizeUploadUrls(post.content) };
 };
 
-export const headingToUrl = (heading: string) =>
-  heading
-    .replace(/[ ]/g, "-")
-    .replace(/[^a-zA-Z0-9-]/g, "")
-    .toLowerCase();
-
+// Anchor slugs are produced by `github-slugger`, the same library `rehype-slug`
+// uses internally when it walks the rendered HTML tree and assigns `id`s to
+// heading nodes. A single fresh `GithubSlugger` per call tracks occurrence
+// counts, so duplicate heading text gets suffixed (`laminar` → `laminar-1` →
+// `laminar-2`). The TOC's anchors therefore match the DOM heading ids exactly.
+//
+// Match order matters: github-slugger is stateful and counts by call order.
+// rehype-slug walks the rendered HTML tree in document order; we match that
+// here by reading the raw markdown sequentially. (The previous concat of
+// `tagHeadings + mdHeadings` had a latent ordering bug for mixed-syntax posts
+// but most content is purely markdown, so it never surfaced.)
 export const parseHeadings = (content: string) => {
   const tagHeadings = content.match(/(<h\d>)(.*)<\/h\d>/gm);
   const mdHeadings = content.match(/^ *(#{1,4}) (.*)$/gm);
+  const slugger = new GithubSlugger();
   const headings = [...(tagHeadings ?? []), ...(mdHeadings ?? [])];
   return headings
     .map((heading) => {
@@ -94,7 +102,7 @@ export const parseHeadings = (content: string) => {
         .replace(/<h\d>/, "")
         .replace(/<\/h\d>/, "")
         .trim();
-      return { level: level - 1, text, anchor: headingToUrl(text) };
+      return { level: level - 1, text, anchor: slugger.slug(text) };
     })
     .filter((heading) => heading.text !== "" && heading.level >= 0);
 };

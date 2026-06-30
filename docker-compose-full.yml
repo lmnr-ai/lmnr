@@ -18,11 +18,7 @@ services:
       retries: 3
 
   clickhouse:
-    # Version 26.3 will break queries on the spans_v0 view, if they are
-    # not filtered by trace_id and/or ordered by start_time. This is a
-    # known bug, tracking https://github.com/ClickHouse/ClickHouse/pull/101218.
-    # We will pin to the earliest stable version once this is fixed
-    image: clickhouse/clickhouse-server:latest
+    image: clickhouse/clickhouse-server:26.5
     pull_policy: always
     container_name: clickhouse
     volumes:
@@ -63,19 +59,6 @@ services:
       timeout: 5s
       retries: 5
 
-  query-engine:
-    image: ghcr.io/lmnr-ai/query-engine
-    pull_policy: always
-    ports:
-      - "${QUERY_ENGINE_HOST_PORT:-8903}:8903"
-    environment:
-      PORT: 8903
-    healthcheck:
-      test: ["CMD", "sleep", "5"]
-      interval: 10s
-      timeout: 6s
-      retries: 3
-
   quickwit:
     image: quickwit/quickwit:v0.8.2
     pull_policy: always
@@ -107,8 +90,6 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_started
-      query-engine:
-        condition: service_started
       quickwit:
         condition: service_healthy
     environment:
@@ -124,11 +105,9 @@ services:
       SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}
       ENVIRONMENT: FULL
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
-      QUERY_ENGINE_URL: http://query-engine:8903
       QUICKWIT_SEARCH_URL: http://quickwit:7280
       QUICKWIT_INGEST_URL: http://quickwit:7281
       QUICKWIT_SPANS_INDEX_ID: spans_v2
-      GOOGLE_GENERATIVE_AI_API_KEY: ${GOOGLE_GENERATIVE_AI_API_KEY}
 
   frontend:
     image: ghcr.io/lmnr-ai/frontend
@@ -158,7 +137,19 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
       QUICKWIT_SEARCH_URL: http://quickwit:7280
-      GOOGLE_GENERATIVE_AI_API_KEY: ${GOOGLE_GENERATIVE_AI_API_KEY}
+      # LLM provider for frontend AI features (chat-with-trace, SQL-with-AI).
+      # openai | gemini | bedrock. openai/gemini use LLM_API_KEY (+ optional LLM_BASE_URL);
+      # bedrock uses AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_REGION.
+      LLM_PROVIDER: ${LLM_PROVIDER}
+      LLM_BASE_URL: ${LLM_BASE_URL}
+      LLM_API_KEY: ${LLM_API_KEY}
+      # LLM_MODEL_* overrides (optional — per-provider defaults apply when unset).
+      LLM_MODEL_SMALL: ${LLM_MODEL_SMALL}
+      LLM_MODEL_MEDIUM: ${LLM_MODEL_MEDIUM}
+      LLM_MODEL_LARGE: ${LLM_MODEL_LARGE}
+      AWS_REGION: ${AWS_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
 
 volumes:
   clickhouse-data:

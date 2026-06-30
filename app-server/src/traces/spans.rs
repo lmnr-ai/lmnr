@@ -641,6 +641,18 @@ impl SpanAttributes {
         }
     }
 
+    pub fn is_metadata_only(&self) -> bool {
+        self.raw_attributes
+            .get(super::span_attributes::SPAN_METADATA_ONLY)
+            .is_some_and(|v| *v == Value::Bool(true))
+    }
+
+    pub fn is_checkpoint_internal(&self) -> bool {
+        self.raw_attributes
+            .get(super::span_attributes::CHECKPOINT_INTERNAL_SPAN)
+            .is_some_and(|v| *v == Value::Bool(true))
+    }
+
     fn get_flattened_association_properties(&self, entity: &str) -> HashMap<String, Value> {
         self.get_flattened_properties(ASSOCIATION_PROPERTIES_PREFIX, entity)
     }
@@ -1055,38 +1067,39 @@ impl Span {
         }
     }
 
-    /// This function MUST to be called right after we deserialize or create a span object.
-    pub fn estimate_size_bytes(&mut self) {
-        // 16 bytes for span_id,
-        // 16 bytes for trace_id,
-        // 16 bytes for parent_span_id,
-        // 8 bytes for start_time,
-        // 8 bytes for end_time,
-
-        // For OTel spans, input/output start inside raw_attributes and are
-        // parsed out later, so raw_attributes alone captures the payload.
-        // For /v1/spans, input/output are set directly on the Span and must
-        // be counted separately.
-        let size_bytes = 16
-            + 16
-            + 16
-            + 8
-            + 8
+    /// Must run after `parse_and_enrich_attributes` + `convert_span_to_provider_format`.
+    /// Input and output are charged separately via `increment_size_bytes` (dedup'd LLM
+    /// spans pay for the hash array + newly-inserted content; everyone else pays for the
+    /// raw JSON), so both are excluded here — the post-dedup loop in `processor.rs` owns
+    /// their accounting symmetrically.
+    /// `raw_attributes` is filtered via `should_keep_attribute` to match what CH stores
+    /// in the `attributes` column — attributes like `lmnr.span.input` / `ai.prompt.messages`
+    /// are copied into `span.input` during parsing but dropped from the CH attributes blob,
+    /// so counting them here would double-bill against the input charge.
+    pub fn estimate_size_bytes_no_payload(&mut self) {
+        let size_bytes = 16 // span_id
+            + 16 // trace_id
+            + 16 // parent_span_id
+            + 8  // start_time
+            + 8  // end_time
             + self.name.len()
             + self
                 .attributes
                 .raw_attributes
                 .iter()
+                .filter(|(k, _)| should_keep_attribute(k))
                 .map(|(k, v)| k.len() + estimate_json_size(v))
                 .sum::<usize>()
-            + self.input.as_ref().map_or(0, |v| estimate_json_size(v))
-            + self.output.as_ref().map_or(0, |v| estimate_json_size(v))
             + self
                 .events
                 .iter()
                 .map(|event| event.estimate_size_bytes())
                 .sum::<usize>();
         self.size_bytes = size_bytes;
+    }
+
+    pub fn increment_size_bytes(&mut self, added: usize) {
+        self.size_bytes = self.size_bytes.saturating_add(added);
     }
 
     /// Check if the span is the wrapper of a tool call made by AI SDK on behalf
@@ -1123,6 +1136,12 @@ impl Span {
         // Signal spans are assumed to be leaf spans, so they are not removed from path.
         // They could be LLM spans though, so this check can/should be performed after
         // aggregating trace token/cost stats.
+
+        // Metadata-only virtual spans (POST /v1/traces/metadata) carry only a metadata
+        // patch — they must never be recorded as real spans.
+        if self.attributes.is_metadata_only() {
+            return false;
+        }
 
         // One of the signal spans is the span that carries the attribute to indicate whether
         // the trace has a browser session or not and is named "cdp_use.session".
@@ -1257,6 +1276,9 @@ pub struct SpanUsage {
     pub input_tokens: i64,
     pub output_tokens: i64,
     pub total_tokens: i64,
+    pub cache_read_input_tokens: i64,
+    pub cache_creation_input_tokens: i64,
+    pub reasoning_tokens: i64,
     pub input_cost: f64,
     pub output_cost: f64,
     pub total_cost: f64,
@@ -4264,10 +4286,8 @@ mod tests {
     #[test]
     fn test_gen_ai_rename_skipped_when_name_attribute_missing_or_empty() {
         // No tool name attribute → name unchanged.
-        let mut attributes = HashMap::from([(
-            "gen_ai.operation.name".to_string(),
-            json!("execute_tool"),
-        )]);
+        let mut attributes =
+            HashMap::from([("gen_ai.operation.name".to_string(), json!("execute_tool"))]);
         let mut span = Span {
             span_id: Uuid::new_v4(),
             project_id: Uuid::new_v4(),
@@ -4455,5 +4475,49 @@ mod tests {
         assert_eq!(arr[0]["role"], "system");
         // Bare strings are preserved verbatim in `parts`.
         assert_eq!(arr[0]["parts"], system_instructions);
+    }
+
+    #[test]
+    fn metadata_only_span_skips_clickhouse_and_metadata_extraction_works() {
+        let attributes = HashMap::from([
+            (
+                super::super::span_attributes::SPAN_METADATA_ONLY.to_string(),
+                json!(true),
+            ),
+            (
+                format!("{ASSOCIATION_PROPERTIES_PREFIX}.metadata.score"),
+                json!(0.85),
+            ),
+            (
+                format!("{ASSOCIATION_PROPERTIES_PREFIX}.metadata.reviewer"),
+                json!("alice"),
+            ),
+        ]);
+
+        let span = Span {
+            span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            trace_id: Uuid::new_v4(),
+            parent_span_id: None,
+            name: "lmnr.trace.metadata".to_string(),
+            attributes: SpanAttributes::new(attributes),
+            input: None,
+            output: None,
+            span_type: SpanType::Default,
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            events: vec![],
+            status: None,
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        };
+
+        assert!(span.attributes.is_metadata_only());
+        assert!(!span.should_record_to_clickhouse());
+        let metadata = span.attributes.metadata().expect("metadata expected");
+        assert_eq!(metadata.get("score"), Some(&json!(0.85)));
+        assert_eq!(metadata.get("reviewer"), Some(&json!("alice")));
     }
 }

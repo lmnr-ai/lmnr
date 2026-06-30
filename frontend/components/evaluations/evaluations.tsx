@@ -1,23 +1,28 @@
 "use client";
 
 import { type ColumnDef } from "@tanstack/react-table";
-import { useParams, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { parseAsString, useQueryState } from "nuqs";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import useSWR from "swr";
 
-import SearchInput from "@/components/common/search-input";
+import AdvancedSearch from "@/components/common/advanced-search";
 import ProgressionChart from "@/components/evaluations/progression-chart";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
+import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar.tsx";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
 import { type Evaluation } from "@/lib/evaluation/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
+import { swrFetcher } from "@/lib/utils";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import Header from "../ui/header";
@@ -93,22 +98,39 @@ const filters: ColumnFilter[] = [
 ];
 
 const FETCH_SIZE = 50;
+const RESOURCE = "evaluations";
 
 export default function Evaluations() {
+  const { projectId } = useParams<{ projectId: string }>();
   return (
-    <DataTableStateProvider storageKey="evaluations-table" defaultColumnOrder={defaultEvaluationsColumnOrder}>
+    <InfiniteDataTableProvider
+      defaults={{ columnOrder: defaultEvaluationsColumnOrder }}
+      lockedColumns={["__row_selection"]}
+      views={{ projectId, resource: RESOURCE }}
+    >
       <EvaluationsContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }
 
 function EvaluationsContent() {
-  const params = useParams();
+  const params = useParams<{ projectId: string }>();
   const { toast } = useToast();
-  const searchParams = useSearchParams();
-  const groupId = searchParams.get("groupId");
-  const filter = searchParams.getAll("filter");
-  const search = searchParams.get("search");
+  const [groupId] = useQueryState("groupId", parseAsString);
+  const { data: groups, isLoading: isGroupsLoading } = useSWR<{ groupId: string; lastEvaluationCreatedAt: string }[]>(
+    `/api/projects/${params?.projectId}/evaluation-groups`,
+    swrFetcher
+  );
+  // The groups bar defaults groupId to the first group on load. Until that default
+  // resolves, hold off fetching so the table never flashes the unfiltered (all-groups) list.
+  const isGroupDefaultPending = isGroupsLoading || (!groupId && (groups?.length ?? 0) > 0);
+  const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
+  const searchValue = useMemo(
+    () => ({ filters: effective.filters, search: effective.search }),
+    [effective.filters, effective.search]
+  );
+  const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
+  const search = effective.search.length > 0 ? effective.search : null;
 
   useEffect(() => {
     track("evaluations", "page_viewed");
@@ -169,7 +191,7 @@ function EvaluationsContent() {
     refetch,
   } = useInfiniteScroll<Evaluation>({
     fetchFn: fetchEvaluations,
-    enabled: true,
+    enabled: !isViewLoading && !isGroupDefaultPending,
     deps: [filter, groupId, params?.projectId, search],
   });
 
@@ -213,7 +235,7 @@ function EvaluationsContent() {
         <EvaluationsGroupsBar />
         <div className="flex flex-col w-full gap-2 overflow-hidden">
           <div className="flex gap-4 items-center">
-            <div className="font-medium text-lg">{searchParams.get("groupId")}</div>
+            <div className="font-medium text-lg">{groupId}</div>
             <Select
               value={aggregationFunction}
               onValueChange={(value) => setAggregationFunction(value as AggregationFunction)}
@@ -249,11 +271,10 @@ function EvaluationsContent() {
                 getRowHref={(row) => `/project/${params?.projectId}/evaluations/${row.original.id}`}
                 hasMore={hasMore}
                 isFetching={isFetching}
-                isLoading={isLoading}
+                isLoading={isLoading || isViewLoading || isGroupDefaultPending}
                 fetchNextPage={fetchNextPage}
                 state={{ rowSelection }}
                 onRowSelectionChange={onRowSelectionChange}
-                lockedColumns={["__row_selection"]}
                 selectionPanel={(selectedRowIds) => (
                   <div className="flex flex-col space-y-2">
                     <DeleteSelectedRows
@@ -265,17 +286,25 @@ function EvaluationsContent() {
                 )}
               >
                 <div className="flex flex-1 w-full space-x-2">
-                  <DataTableFilter columns={filters} />
+                  <DataTableFilter columns={filters} filters={effective.filters} onFiltersChange={setFilters} />
                   <ColumnsMenu
-                    lockedColumns={["__row_selection"]}
                     columnLabels={columns.map((column) => ({
                       id: column.id!,
                       label: typeof column.header === "string" ? column.header : column.id!,
                     }))}
                   />
-                  <SearchInput placeholder="Search evaluations by name..." />
+                  <ViewsToolbar projectId={params.projectId} resource={RESOURCE} />
                 </div>
-                <DataTableFilterList />
+                <div className="w-full">
+                  <AdvancedSearch
+                    value={searchValue}
+                    onChange={setSearchAndFilters}
+                    storageKey={`evaluations-${params?.projectId}`}
+                    filters={filters}
+                    placeholder="Search evaluations..."
+                    className="w-full flex-1"
+                  />
+                </div>
               </InfiniteDataTable>
             </ResizablePanel>
           </ResizablePanelGroup>
