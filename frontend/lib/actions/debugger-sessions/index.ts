@@ -312,13 +312,17 @@ async function getScoreAveragesByEvaluationIds(
     const acc = new Map<string, Map<string, { sum: number; count: number }>>();
     for (const row of rows) {
       // Per-row parse guard: one malformed `scores` blob must not wipe out the
-      // averages for every other eval in the session.
+      // averages for every other eval in the session. `JSON.parse("null")`
+      // returns `null` without throwing, so reject any non-object result too —
+      // otherwise `Object.entries(null)` below would throw and hit the outer
+      // catch, discarding scores for the whole session.
       let scores: Record<string, number | null>;
       try {
         scores = (row.scores ? JSON.parse(row.scores) : {}) as Record<string, number | null>;
       } catch {
         continue;
       }
+      if (scores === null || typeof scores !== "object") continue;
       const byName = acc.get(row.evaluationId) ?? new Map<string, { sum: number; count: number }>();
       for (const [name, value] of Object.entries(scores)) {
         if (typeof value !== "number" || Number.isNaN(value)) continue;
