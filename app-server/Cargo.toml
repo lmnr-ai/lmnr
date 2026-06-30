@@ -43,7 +43,7 @@ moka = {version = "0.12", features = ["sync", "future"]}
 ndarray = {version = "0.17", optional = true}
 num_cpus = "1.17.0"
 opentelemetry = {version = "0.29.1", features = ["trace"]}
-opentelemetry_sdk = {version = "0.29.0", features = ["trace"]}
+opentelemetry_sdk = {version = "0.32.1", features = ["trace"]}
 ort = {version = "=2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic", "api-24"], optional = true}
 prost = "0.14"
 rand = "0.10"
