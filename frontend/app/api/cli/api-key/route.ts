@@ -19,7 +19,8 @@ const Body = z
 // Mints a project API key for the session-bearer user. `lmnr-cli setup` is the
 // caller today (it writes LMNR_PROJECT_API_KEY into ./.env after login), but the
 // endpoint is intentionally generic — not bound to the setup flow. Auth comes
-// from a BetterAuth session token via the bearer() plugin.
+// from a BetterAuth session token via the bearer() plugin. CLI-minted keys have
+// no expiration. The minting user is recorded for auditing.
 export async function POST(req: NextRequest) {
   try {
     const session = await auth.api.getSession({ headers: await headers() });
@@ -52,7 +53,13 @@ export async function POST(req: NextRequest) {
       if (!project) {
         return NextResponse.json({ error: "Project not found" }, { status: 404 });
       }
-      const key = await createApiKey({ projectId: project.id, name: keyName, isIngestOnly: false });
+      const key = await createApiKey({
+        projectId: project.id,
+        name: keyName,
+        isIngestOnly: false,
+        userId,
+        expiresAt: null,
+      });
       return NextResponse.json({
         apiKey: key.value,
         apiKeyId: key.id,
@@ -90,7 +97,13 @@ export async function POST(req: NextRequest) {
     }
 
     const project = userProjects[0];
-    const key = await createApiKey({ projectId: project.id, name: keyName, isIngestOnly: false });
+    const key = await createApiKey({
+      projectId: project.id,
+      name: keyName,
+      isIngestOnly: false,
+      userId,
+      expiresAt: null,
+    });
     return NextResponse.json({
       apiKey: key.value,
       apiKeyId: key.id,

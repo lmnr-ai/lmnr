@@ -42,6 +42,7 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
     match first {
         NotificationKind::EventIdentification {
             project_id,
+            project_name,
             signal_id,
             trace_id,
             event_name,
@@ -65,11 +66,20 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 .clone()
                 .unwrap_or(serde_json::Value::Object(Default::default()));
             let severity_label = severity_label(*severity);
+            let subject = if project_name.is_empty() {
+                format!("{}: {} event", event_name, severity_label)
+            } else {
+                format!(
+                    "[{}] {}: {} event",
+                    project_name, event_name, severity_label
+                )
+            };
             EmailContent {
                 from: ALERT_FROM_EMAIL.to_string(),
-                subject: format!("{}: {} event", event_name, severity_label),
+                subject,
                 html: render_alert_email(
                     event_name,
+                    project_name,
                     &attributes,
                     &trace_link,
                     project_id,
@@ -165,6 +175,7 @@ fn severity_color(severity: u8) -> &'static str {
 /// Render an HTML email for an alert notification.
 fn render_alert_email(
     event_name: &str,
+    project_name: &str,
     attributes: &serde_json::Value,
     trace_link: &str,
     project_id: &Uuid,
@@ -272,6 +283,12 @@ fn render_alert_email(
         "manage_preferences",
     );
 
+    let eyebrow = if project_name.is_empty() {
+        "New event for signal".to_string()
+    } else {
+        format!("New event for signal · {}", html_escape(project_name))
+    };
+
     format!(
         r##"<!DOCTYPE html>
 <html lang="en">
@@ -283,9 +300,9 @@ fn render_alert_email(
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
 <div style="max-width:640px;margin:0 auto;padding:24px 16px;">
 
-  <div style="background:#0A0A0A;border-radius:10px;padding:28px 24px;margin-bottom:20px;">
-    <img src="cid:laminar-logo" alt="Laminar" width="120" height="21" style="display:block;margin-bottom:16px;" />
-    <p style="margin:0 0 6px;font-size:13px;color:#9ca3af;">New event for signal</p>
+  <div style="background:#0A0A0A;border-radius:10px;padding:24px 28px 16px;margin-bottom:20px;">
+    <img src="cid:laminar-logo" alt="Laminar" width="120" height="21" style="display:block;margin-bottom:24px;" />
+    <p style="margin:0 0 6px;font-size:13px;color:#9ca3af;">{eyebrow}</p>
     <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">{event_name}</h1>
   </div>
 
@@ -308,6 +325,7 @@ fn render_alert_email(
 </html>"##,
         event_name = html_escape(event_name),
         severity_label = severity_label,
+        eyebrow = eyebrow,
         attributes_html = attributes_html,
         trace_link = trace_link,
         manage_prefs_link = manage_prefs_link,
@@ -438,7 +456,7 @@ fn render_usage_warning_email(
 ) -> String {
     let meter_description = match usage_item {
         "bytes" => "data ingested",
-        "signal_runs" | "signal_steps_processed" => "signal steps processed",
+        "signal_cost" => "signals cost",
         _ => "usage",
     };
 

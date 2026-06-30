@@ -87,13 +87,31 @@ export async function updateProject(input: z.infer<typeof UpdateProjectSchema>) 
 async function deleteProjectDataFromClickHouse(
   projectId: string
 ): Promise<{ success: true } | { success: false; tables: string[] }> {
+  // Every project-scoped physical ClickHouse table must be listed here so deleting
+  // a project fully purges its data. Keep in sync with the schema: when a migration
+  // drops a table, remove it from this list too — an ALTER ... DELETE against a
+  // dropped table throws and aborts the purge after Postgres has already committed.
   const tables = [
     "default.spans",
-    "default.events",
+    "default.traces_replacing",
+    "default.trace_tags",
+    "default.trace_summaries",
+    "default.browser_session_events",
+    "default.deduped_content",
+    "default.llm_messages",
+    "default.logs",
     "default.evaluation_scores",
     "default.evaluation_datapoints",
-    "default.tags",
-    "default.browser_session_events",
+    "default.evaluation_datapoint_executor_outputs",
+    "default.dataset_datapoints",
+    "default.labeling_queue_items",
+    "default.notifications",
+    "default.notification_deliveries",
+    "default.signal_events",
+    "default.signal_event_clusters",
+    "default.signal_runs",
+    "default.signal_run_messages",
+    "default.events_to_clusters",
   ];
 
   const deletionPromises = tables.map(async (table) => {
@@ -187,8 +205,8 @@ export interface ProjectDetails {
   workspaceId: string;
   gbUsedThisMonth: number;
   gbLimit: number;
-  signalStepsUsedThisMonth: number;
-  signalStepsLimit: number;
+  signalCostUsedThisMonth: number;
+  signalCostLimit: number;
   logRetentionDays: number;
   isFreeTier: boolean;
   settings: ProjectSettings;
@@ -237,7 +255,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
     .select({
       name: subscriptionTiers.name,
       bytesLimit: subscriptionTiers.bytesIngested,
-      signalStepsLimit: subscriptionTiers.signalStepsProcessed,
+      signalCostLimit: subscriptionTiers.signalCostIncludedMicroUsd,
       logRetentionDays: subscriptionTiers.logRetentionDays,
     })
     .from(subscriptionTiers)
@@ -252,7 +270,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
 
   const bytesToGB = (bytes: number): number => bytes / (1024 * 1024 * 1024);
   const gbLimit = bytesToGB(Number(tier.bytesLimit));
-  const signalStepsLimit = Number(tier.signalStepsLimit);
+  const signalCostLimit = Number(tier.signalCostLimit);
 
   if (!isFreeTier) {
     return {
@@ -263,8 +281,8 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
       // not used in ui
       gbUsedThisMonth: 0,
       gbLimit,
-      signalStepsLimit,
-      signalStepsUsedThisMonth: 0,
+      signalCostLimit,
+      signalCostUsedThisMonth: 0,
       isFreeTier,
       settings,
     };
@@ -272,7 +290,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
 
   const usageResult = await getWorkspaceUsage(project.workspaceId);
   const gbUsedThisMonth = bytesToGB(usageResult.totalBytesIngested);
-  const signalStepsUsedThisMonth = usageResult.totalSignalSteps;
+  const signalCostUsedThisMonth = usageResult.totalSignalCostMicroUsd;
 
   return {
     id: project.id,
@@ -281,8 +299,8 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
     logRetentionDays: tier.logRetentionDays,
     gbUsedThisMonth,
     gbLimit,
-    signalStepsUsedThisMonth: signalStepsUsedThisMonth,
-    signalStepsLimit: signalStepsLimit,
+    signalCostUsedThisMonth,
+    signalCostLimit,
     isFreeTier,
     settings,
   };

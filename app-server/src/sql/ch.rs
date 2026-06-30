@@ -46,6 +46,11 @@ pub async fn query(
         if max_memory_usage != "0" {
             clickhouse_query = clickhouse_query.with_setting("max_memory_usage", max_memory_usage);
         }
+        let min_bytes_direct_io = env::sql::MIN_BYTES_TO_USE_DIRECT_IO.get();
+        if min_bytes_direct_io != "0" {
+            clickhouse_query =
+                clickhouse_query.with_setting("min_bytes_to_use_direct_io", min_bytes_direct_io);
+        }
     }
 
     for (key, value) in parameters {

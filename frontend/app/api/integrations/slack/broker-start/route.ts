@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import { getWorkspaceSettingsPath } from "@/lib/actions/projects";
 import { getServerSession } from "@/lib/auth-session";
 import { isUserMemberOfWorkspace } from "@/lib/authorization";
+import { BASE_PATH } from "@/lib/utils";
 
 // Brokered (self-hosted) Slack connect entrypoint. The connect button links the
 // browser here; this route calls the Laminar Cloud broker's /start with the
@@ -24,7 +25,10 @@ export async function GET(request: NextRequest): Promise<Response> {
   // Fall back to the request origin so a missing NEXT_PUBLIC_URL still yields a
   // valid absolute redirect target (NextResponse.redirect rejects a malformed
   // `undefined/...` URL) rather than throwing from the misconfiguration path.
-  const errorBase = baseUrl ?? request.nextUrl.origin;
+  // Append BASE_PATH (sub-path deploys): NextResponse.redirect is not auto-prefixed
+  // by Next, and the returnPath/settings paths below are prefix-free. Strip to
+  // .origin first so an env URL that already carries the sub-path doesn't double it.
+  const errorBase = `${new URL(baseUrl ?? request.nextUrl.origin).origin}${BASE_PATH}`;
   // Settings live at /project/[id]/settings — prefer the caller's returnPath, else resolve the
   // workspace's project, else fall back to /projects (workspaceId may be missing/invalid here).
   const buildErrorRedirect = async (): Promise<string> => {
@@ -62,7 +66,9 @@ export async function GET(request: NextRequest): Promise<Response> {
     return NextResponse.redirect(await buildErrorRedirect());
   }
 
-  const callback = new URL(`${baseUrl.replace(/\/+$/, "")}/api/integrations/slack`);
+  // The route is mounted under BASE_PATH (Next prefixes API route mounting), so the
+  // returnUrl the broker redirects the browser back to must include the sub-path.
+  const callback = new URL(`${new URL(baseUrl).origin}${BASE_PATH}/api/integrations/slack`);
   callback.searchParams.set("workspaceId", workspaceId);
   if (returnPath) {
     callback.searchParams.set("returnPath", returnPath);

@@ -16,17 +16,19 @@ pub struct UsageWarningDbRow {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
 pub enum UsageItem {
+    #[serde(rename = "bytes")]
     Bytes,
-    SignalStepsProcessed,
+    /// Signals billed by token cost in micro-USD.
+    #[serde(rename = "signal_cost")]
+    SignalCost,
 }
 
 impl UsageItem {
     fn try_from_str(s: &str) -> anyhow::Result<Self> {
         match s.to_lowercase().trim() {
             "bytes" => Ok(Self::Bytes),
-            "signal_steps_processed" | "signalstepsprocessed" => Ok(Self::SignalStepsProcessed),
+            "signal_cost" | "signalcost" => Ok(Self::SignalCost),
             x => Err(anyhow::anyhow!("unknown usage item value {}", x)),
         }
     }
@@ -36,7 +38,7 @@ impl Display for UsageItem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
             Self::Bytes => "bytes",
-            Self::SignalStepsProcessed => "signal_steps_processed",
+            Self::SignalCost => "signal_cost",
         };
         f.write_str(s)
     }

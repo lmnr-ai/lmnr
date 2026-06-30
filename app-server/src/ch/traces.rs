@@ -6,7 +6,7 @@ use clickhouse::insert::Insert;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::utils::chrono_to_nanoseconds;
+use super::utils::{chrono_to_nanoseconds, merge_json_objects};
 use super::{
     ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS, Table,
 };
@@ -58,6 +58,9 @@ pub struct CHTrace {
     pub span_names: Vec<String>,
     pub root_span_input: String,
     pub root_span_output: String,
+    pub cache_read_input_tokens: u64,
+    pub cache_creation_input_tokens: u64,
+    pub reasoning_tokens: u64,
 }
 
 impl CHTrace {
@@ -81,6 +84,9 @@ impl CHTrace {
             input_tokens: trace.input_token_count(),
             output_tokens: trace.output_token_count(),
             total_tokens: trace.total_token_count(),
+            cache_read_input_tokens: trace.cache_read_input_tokens() as u64,
+            cache_creation_input_tokens: trace.cache_creation_input_tokens() as u64,
+            reasoning_tokens: trace.reasoning_tokens() as u64,
             input_cost: trace.input_cost(),
             output_cost: trace.output_cost(),
             total_cost: trace.cost(),
@@ -126,6 +132,9 @@ pub struct TraceAggregation {
     pub input_tokens: i64,
     pub output_tokens: i64,
     pub total_tokens: i64,
+    pub cache_read_input_tokens: i64,
+    pub cache_creation_input_tokens: i64,
+    pub reasoning_tokens: i64,
     pub input_cost: f64,
     pub output_cost: f64,
     pub total_cost: f64,
@@ -164,6 +173,9 @@ impl TraceAggregation {
                         input_tokens: 0,
                         output_tokens: 0,
                         total_tokens: 0,
+                        cache_read_input_tokens: 0,
+                        cache_creation_input_tokens: 0,
+                        reasoning_tokens: 0,
                         input_cost: 0.0,
                         output_cost: 0.0,
                         total_cost: 0.0,
@@ -199,6 +211,9 @@ impl TraceAggregation {
             entry.input_tokens += span_usage.input_tokens;
             entry.output_tokens += span_usage.output_tokens;
             entry.total_tokens += span_usage.total_tokens;
+            entry.cache_read_input_tokens += span_usage.cache_read_input_tokens;
+            entry.cache_creation_input_tokens += span_usage.cache_creation_input_tokens;
+            entry.reasoning_tokens += span_usage.reasoning_tokens;
             entry.input_cost += span_usage.input_cost;
             entry.output_cost += span_usage.output_cost;
             entry.total_cost += span_usage.total_cost;
@@ -225,11 +240,12 @@ impl TraceAggregation {
                     entry.status = Some(status.clone());
                 }
             }
-            if entry.metadata.is_none() {
-                if let Some(metadata) = span.attributes.metadata() {
-                    if let Ok(metadata_value) = serde_json::to_value(&metadata) {
-                        entry.metadata = Some(metadata_value);
-                    }
+            if let Some(metadata) = span.attributes.metadata() {
+                if let Ok(metadata_value) = serde_json::to_value(&metadata) {
+                    entry.metadata = Some(match entry.metadata.take() {
+                        Some(existing) => merge_json_objects(existing, metadata_value),
+                        None => metadata_value,
+                    });
                 }
             }
             if entry.trace_type == 0 {

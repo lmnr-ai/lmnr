@@ -1,16 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
 import { type TraceIOEntry } from "@/components/traces/sessions-table/use-batched-trace-io";
-import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { InputItem, SpanItem } from "@/components/traces/trace-view/transcript/item";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type TraceRow } from "@/lib/traces/types";
 
 import { useSessionViewBaseStore } from "../store";
-import { spanToListSpan } from "../utils";
 
 interface TraceCollapsedBodyProps {
   trace: TraceRow;
@@ -34,15 +31,7 @@ export default function TraceCollapsedBody({ trace, traceIO }: TraceCollapsedBod
     shallow
   );
 
-  const lastFullSpan = useMemo(() => {
-    if (!traceIO?.outputSpan) return null;
-    return traceIO.outputSpan as unknown as TraceViewSpan;
-  }, [traceIO?.outputSpan]);
-
-  const lastSpan = useMemo(() => {
-    if (!lastFullSpan) return null;
-    return spanToListSpan(lastFullSpan);
-  }, [lastFullSpan]);
+  const lastSpan = traceIO?.outputSpan ?? null;
 
   return (
     <div

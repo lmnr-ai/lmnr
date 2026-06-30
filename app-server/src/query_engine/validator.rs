@@ -7,6 +7,7 @@
 //! and rewrites allowed table references to their project-scoped `_v0` view
 //! functions.
 
+use std::any::TypeId;
 use std::collections::{HashMap, HashSet};
 use std::ops::ControlFlow;
 
@@ -15,10 +16,10 @@ use sqlparser::ast::{
     ObjectNamePart, Query, Select, Statement, TableAlias, TableFactor, TableFunctionArgs, Value,
     ValueWithSpan, Visit, VisitMut, Visitor, VisitorMut,
 };
-use sqlparser::dialect::ClickHouseDialect;
+use sqlparser::dialect::{ClickHouseDialect, Dialect, Precedence};
 use sqlparser::keywords::Keyword;
-use sqlparser::parser::Parser;
-use sqlparser::tokenizer::{Span, Token, TokenWithSpan, Tokenizer};
+use sqlparser::parser::{Parser, ParserError};
+use sqlparser::tokenizer::{Span, Token, Tokenizer};
 
 const VIEW_VERSION: &str = "v0";
 
@@ -112,85 +113,196 @@ pub fn find_blocked_function_in_expr(expr: &Expr) -> Option<String> {
     scan.blocked
 }
 
-/// Parse ClickHouse SQL, working around an upstream `sqlparser` bug: the `IN`
-/// operator's parser hard-requires a `(` and rejects a bare ClickHouse
-/// query-parameter placeholder list (`col IN {ids:Array(UUID)}`), even though
-/// the equivalent parenthesized form (`col IN ({ids:Array(UUID)})`) parses fine
-/// and is identical to ClickHouse. We tokenize, wrap any placeholder group that
-/// directly follows `IN` / `NOT IN` in parentheses, and parse the resulting
-/// token stream directly — so string literals and comments are never rewritten.
+/// `ClickHouseDialect` with two upstream `sqlparser` strictnesses relaxed back to
+/// what ClickHouse actually accepts:
 ///
-/// Upstream issue: https://github.com/apache/datafusion-sqlparser-rs/issues/2384
-/// Remove this shim (and call `Parser::parse_sql` directly) once it's fixed.
-pub(crate) fn parse_clickhouse_sql(
-    sql: &str,
-) -> Result<Vec<Statement>, sqlparser::parser::ParserError> {
-    let dialect = ClickHouseDialect {};
+/// 1. **Optional `INTERVAL` unit qualifier.** Upstream
+///    `ClickHouseDialect::require_interval_qualifier()` returns `true`, making
+///    `Parser::parse_interval` hard-require a temporal-unit keyword after the
+///    value, so `INTERVAL '1 day'` (unit inside the string, as ClickHouse and
+///    Postgres both accept) errors. Flipping that flag back to the trait default
+///    (`false`) makes the parser produce an `Interval` with `leading_field:
+///    None`, which round-trips verbatim — the unit token can't be synthesized at
+///    the token level because `Interval`'s `Display` would then append it
+///    (`INTERVAL '1 day' SECOND`) and corrupt the SQL sent to ClickHouse.
+///    Upstream issue: https://github.com/apache/datafusion-sqlparser-rs/issues/2390
+///
+/// 2. **Unparenthesized single-expression `IN` RHS.** Upstream `Parser::parse_in`
+///    hard-requires a `(` after `IN` and rejects a bare right operand, but
+///    ClickHouse accepts any single expression there (`col IN 5`, `col IN
+///    {ids:Array(UUID)}`, `col IN power(2,3)`, `x IN INTERVAL 1 day`) — it
+///    type-casts both sides to a supertype and wraps a singular value in a tuple
+///    (https://clickhouse.com/docs/sql-reference/operators/in). The `parse_infix`
+///    override below parses such a bare RHS with the real expression parser.
+///    Upstream issue: https://github.com/apache/datafusion-sqlparser-rs/issues/2384
+///
+/// Every other `Dialect` method delegates to the wrapped `ClickHouseDialect`, so
+/// this is ClickHouse parsing in every respect except those two relaxations.
+/// Workaround for upstream over-strict checks; drop this wrapper (parse with
+/// `ClickHouseDialect` directly) once both are fixed upstream. NOTE: the
+/// delegation list mirrors `ClickHouseDialect`'s overrides for the pinned
+/// sqlparser version — re-check it when bumping the crate.
+#[derive(Debug, Default, Clone, Copy)]
+struct ClickHouseOptionalIntervalDialect(ClickHouseDialect);
+
+impl Dialect for ClickHouseOptionalIntervalDialect {
+    // Report ClickHouseDialect's identity so `dialect_of!(self is
+    // ClickHouseDialect)` checks inside the parser (e.g. parametric aggregate
+    // functions `quantile(0.9)(duration)`) still take the ClickHouse path. The
+    // `Dialect::dialect()` override is the upstream-blessed way to wrap a
+    // dialect without losing its type identity.
+    fn dialect(&self) -> TypeId {
+        self.0.dialect()
+    }
+
+    // Make the interval unit qualifier optional (relaxation #1).
+    fn require_interval_qualifier(&self) -> bool {
+        false
+    }
+
+    // Accept a bare single-expression `IN` / `NOT IN` right operand (relaxation
+    // #2). `parse_infix` is consulted BEFORE the operator is consumed, so we peek
+    // for `NOT? IN <not-'('-and-not-UNNEST>`. A `(` or `UNNEST` after `IN` means
+    // a list / subquery / empty-list / `IN UNNEST(...)`, which stock `parse_in`
+    // already handles — return `None` so the parser takes its default path. Any
+    // other infix also returns `None`, leaving all other parsing untouched.
+    fn parse_infix(
+        &self,
+        parser: &mut Parser,
+        expr: &Expr,
+        _precedence: u8,
+    ) -> Option<Result<Expr, ParserError>> {
+        let is_in = |t: &Token| matches!(t, Token::Word(w) if w.keyword == Keyword::IN);
+        let is_not = |t: &Token| matches!(t, Token::Word(w) if w.keyword == Keyword::NOT);
+
+        // Locate the `IN` keyword and the token immediately after it, honoring an
+        // optional leading `NOT`. (peek_* skip whitespace.)
+        let (negated, after_in) =
+            if is_not(&parser.peek_token().token) && is_in(&parser.peek_nth_token(1).token) {
+                (true, parser.peek_nth_token(2).token)
+            } else if is_in(&parser.peek_token().token) {
+                (false, parser.peek_nth_token(1).token)
+            } else {
+                return None;
+            };
+
+        // Parenthesized list / subquery / empty list / `IN UNNEST(...)` — let the
+        // stock `parse_in` handle these unchanged.
+        if matches!(after_in, Token::LParen)
+            || matches!(&after_in, Token::Word(w) if w.keyword == Keyword::UNNEST)
+        {
+            return None;
+        }
+
+        // Bare single-expression RHS: consume `NOT? IN`, then parse one expression
+        // at BETWEEN precedence (the same bound `parse_between` uses) so a trailing
+        // `AND` / `OR` / comma is NOT swallowed into the RHS.
+        Some((|| {
+            if negated {
+                parser.expect_keyword(Keyword::NOT)?;
+            }
+            parser.expect_keyword(Keyword::IN)?;
+            let rhs = parser.parse_subexpr(self.0.prec_value(Precedence::Between))?;
+            Ok(Expr::InList {
+                expr: Box::new(expr.clone()),
+                list: vec![rhs],
+                negated,
+            })
+        })())
+    }
+
+    // Everything else forwards verbatim to ClickHouseDialect.
+    fn is_identifier_start(&self, ch: char) -> bool {
+        self.0.is_identifier_start(ch)
+    }
+    fn is_identifier_part(&self, ch: char) -> bool {
+        self.0.is_identifier_part(ch)
+    }
+    fn supports_string_literal_backslash_escape(&self) -> bool {
+        self.0.supports_string_literal_backslash_escape()
+    }
+    fn supports_select_wildcard_except(&self) -> bool {
+        self.0.supports_select_wildcard_except()
+    }
+    fn describe_requires_table_keyword(&self) -> bool {
+        self.0.describe_requires_table_keyword()
+    }
+    fn supports_limit_comma(&self) -> bool {
+        self.0.supports_limit_comma()
+    }
+    fn supports_insert_table_function(&self) -> bool {
+        self.0.supports_insert_table_function()
+    }
+    fn supports_insert_format(&self) -> bool {
+        self.0.supports_insert_format()
+    }
+    fn supports_numeric_literal_underscores(&self) -> bool {
+        self.0.supports_numeric_literal_underscores()
+    }
+    fn supports_partition_by_after_order_by(&self) -> bool {
+        self.0.supports_partition_by_after_order_by()
+    }
+    fn supports_array_join_syntax(&self) -> bool {
+        self.0.supports_array_join_syntax()
+    }
+    fn supports_dictionary_syntax(&self) -> bool {
+        self.0.supports_dictionary_syntax()
+    }
+    fn supports_lambda_functions(&self) -> bool {
+        self.0.supports_lambda_functions()
+    }
+    fn supports_from_first_select(&self) -> bool {
+        self.0.supports_from_first_select()
+    }
+    fn supports_order_by_all(&self) -> bool {
+        self.0.supports_order_by_all()
+    }
+    fn supports_group_by_expr(&self) -> bool {
+        self.0.supports_group_by_expr()
+    }
+    fn supports_group_by_with_modifier(&self) -> bool {
+        self.0.supports_group_by_with_modifier()
+    }
+    fn supports_nested_comments(&self) -> bool {
+        self.0.supports_nested_comments()
+    }
+    fn supports_optimize_table(&self) -> bool {
+        self.0.supports_optimize_table()
+    }
+    fn supports_prewhere(&self) -> bool {
+        self.0.supports_prewhere()
+    }
+    fn supports_with_fill(&self) -> bool {
+        self.0.supports_with_fill()
+    }
+    fn supports_limit_by(&self) -> bool {
+        self.0.supports_limit_by()
+    }
+    fn supports_interpolate(&self) -> bool {
+        self.0.supports_interpolate()
+    }
+    fn supports_settings(&self) -> bool {
+        self.0.supports_settings()
+    }
+    fn supports_select_format(&self) -> bool {
+        self.0.supports_select_format()
+    }
+    fn supports_select_wildcard_replace(&self) -> bool {
+        self.0.supports_select_wildcard_replace()
+    }
+    fn supports_comma_separated_trim(&self) -> bool {
+        self.0.supports_comma_separated_trim()
+    }
+}
+
+pub(crate) fn parse_clickhouse_sql(sql: &str) -> Result<Vec<Statement>, ParserError> {
+    let dialect = ClickHouseOptionalIntervalDialect::default();
     // Tokenize WITH locations: the validator later identifies ARRAY JOIN array
     // columns by their source span, so spans must survive into the parsed AST.
     let tokens = Tokenizer::new(&dialect, sql).tokenize_with_location()?;
-    let tokens = wrap_in_placeholder_lists(tokens);
     Parser::new(&dialect)
         .with_tokens_with_locations(tokens)
         .parse_statements()
-}
-
-/// Insert `(`/`)` tokens around a `{...}` placeholder group that immediately
-/// follows an `IN` keyword, so the `IN` parser accepts it. Operates purely on
-/// the token stream (string literals are opaque `Token::SingleQuotedString`
-/// values, comments are `Token::Whitespace`), so a `{` inside a string or
-/// comment is never matched. The injected parens get empty spans — they don't
-/// correspond to source text and are never span-matched downstream.
-///
-/// Workaround for sqlparser bug — `IN {placeholder}` rejected without parens:
-/// https://github.com/apache/datafusion-sqlparser-rs/issues/2384
-fn wrap_in_placeholder_lists(tokens: Vec<TokenWithSpan>) -> Vec<TokenWithSpan> {
-    let is_in_keyword =
-        |t: &TokenWithSpan| matches!(&t.token, Token::Word(w) if w.keyword == Keyword::IN);
-
-    let mut out: Vec<TokenWithSpan> = Vec::with_capacity(tokens.len() + 4);
-    let mut i = 0;
-    while i < tokens.len() {
-        // Find the previous non-whitespace token already emitted.
-        let prev_significant = out.iter().rev().find(|t| !is_whitespace(&t.token));
-        if matches!(&tokens[i].token, Token::LBrace)
-            && prev_significant.is_some_and(is_in_keyword)
-            && let Some(close) = matching_brace_end(&tokens, i)
-        {
-            out.push(TokenWithSpan::wrap(Token::LParen));
-            out.extend_from_slice(&tokens[i..=close]);
-            out.push(TokenWithSpan::wrap(Token::RParen));
-            i = close + 1;
-            continue;
-        }
-        out.push(tokens[i].clone());
-        i += 1;
-    }
-    out
-}
-
-fn is_whitespace(t: &Token) -> bool {
-    matches!(t, Token::Whitespace(_))
-}
-
-/// Given the index of an `LBrace`, return the index of its matching `RBrace`,
-/// honoring nesting (a placeholder type like `Array(Map(...))` has no braces,
-/// but nest defensively in case ClickHouse param syntax grows them).
-fn matching_brace_end(tokens: &[TokenWithSpan], open: usize) -> Option<usize> {
-    let mut depth = 0usize;
-    for (idx, t) in tokens.iter().enumerate().skip(open) {
-        match t.token {
-            Token::LBrace => depth += 1,
-            Token::RBrace => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(idx);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
 }
 
 #[derive(Debug, Clone)]
@@ -266,6 +378,9 @@ impl TableRegistry {
             "input_tokens",
             "output_tokens",
             "total_tokens",
+            "cache_read_input_tokens",
+            "cache_creation_input_tokens",
+            "reasoning_tokens",
             "input_cost",
             "output_cost",
             "total_cost",
@@ -303,6 +418,9 @@ impl TableRegistry {
             "error_message",
             "mode",
             "updated_at",
+            "input_tokens",
+            "cache_read_tokens",
+            "output_tokens",
         ];
 
         let signal_events_columns = [

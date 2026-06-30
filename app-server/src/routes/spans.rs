@@ -13,10 +13,7 @@ use crate::{
     quickwit::client::QuickwitClient,
     routes::ResponseResult,
     search::snippets::SearchSpanHit,
-    traces::{
-        OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, prompt_hash::structural_skeleton_hash,
-        spans::SpanAttributes,
-    },
+    traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, spans::SpanAttributes},
 };
 
 #[derive(Deserialize)]
@@ -157,27 +154,4 @@ pub async fn search_spans(
     .await?;
 
     Ok(HttpResponse::Ok().json(results))
-}
-
-#[derive(Deserialize)]
-pub struct SkeletonHashRequest {
-    pub texts: Vec<String>,
-}
-
-#[post("skeleton-hashes")]
-pub async fn get_skeleton_hashes(
-    _project_id: web::Path<Uuid>,
-    request: web::Json<SkeletonHashRequest>,
-) -> ResponseResult {
-    let texts = &request.texts;
-
-    if texts.is_empty() || texts.len() > 200 {
-        return Ok(HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "texts must contain between 1 and 200 items"
-        })));
-    }
-
-    let hashes: Vec<String> = texts.iter().map(|t| structural_skeleton_hash(t)).collect();
-
-    Ok(HttpResponse::Ok().json(hashes))
 }

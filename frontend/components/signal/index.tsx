@@ -9,15 +9,20 @@ import { type ManageSignalForm, ManageSignalPanel } from "@/components/signals/c
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
 import Header from "@/components/ui/header.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useProjectContext } from "@/contexts/project-context";
 import { track } from "@/lib/posthog";
 
-function SignalContent() {
+interface SignalProps {
+  traceId?: string;
+  slackClientId?: string;
+  slackRedirectUri?: string;
+  slackBrokerEnabled?: boolean;
+}
+
+function SignalContent({ slackClientId, slackRedirectUri, slackBrokerEnabled }: Omit<SignalProps, "traceId">) {
   const pathName = usePathname();
   const params = useParams<{ projectId: string }>();
   const { push } = useRouter();
   const searchParams = useSearchParams();
-  const { workspace } = useProjectContext();
 
   const activeTab = searchParams.get("tab") || "events";
 
@@ -32,8 +37,6 @@ function SignalContent() {
     setTraceId: state.setTraceId,
     setSpanId: state.setSpanId,
   }));
-
-  const isFreeTier = workspace?.tierName.toLowerCase().trim() === "free";
 
   const handleSuccess = useCallback(
     async (form: ManageSignalForm) => {
@@ -62,33 +65,31 @@ function SignalContent() {
   return (
     <>
       <Header path={[{ name: "signals", href: `/project/${params.projectId}/signals` }, { name: signal.name }]} />
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col gap-4 overflow-hidden">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col gap-6 overflow-hidden">
         <div className="px-4">
           <TabsList className="h-8">
             <TabsTrigger className="text-xs" value="events">
               Events
             </TabsTrigger>
-            {!isFreeTier && (
-              <TabsTrigger className="text-xs" value="settings">
-                Settings
-              </TabsTrigger>
-            )}
+            <TabsTrigger className="text-xs" value="settings">
+              Settings
+            </TabsTrigger>
           </TabsList>
         </div>
 
         <TabsContent value="events" className="flex flex-col overflow-hidden">
           <EventsTable />
         </TabsContent>
-        {!isFreeTier && (
-          <TabsContent value="settings" className="flex flex-col overflow-hidden">
-            <ManageSignalPanel
-              key={signal.id}
-              defaultValues={signal}
-              onSuccess={handleSuccess}
-              scrollAreaClassName="max-w-[900px] mx-auto pt-[36px]"
-            />
-          </TabsContent>
-        )}
+        <TabsContent value="settings" className="flex flex-col overflow-hidden">
+          <ManageSignalPanel
+            key={signal.id}
+            defaultValues={signal}
+            onSuccess={handleSuccess}
+            slackClientId={slackClientId}
+            slackRedirectUri={slackRedirectUri}
+            slackBrokerEnabled={slackBrokerEnabled}
+          />
+        </TabsContent>
       </Tabs>
 
       {traceId && (
@@ -99,6 +100,7 @@ function SignalContent() {
             const params = new URLSearchParams(searchParams);
             params.delete("traceId");
             params.delete("spanId");
+            params.delete("eventId");
             push(`${pathName}?${params.toString()}`);
             setTraceId(null);
             setSpanId(null);
@@ -112,7 +114,7 @@ function SignalContent() {
   );
 }
 
-export default function Signal({ traceId }: { traceId?: string }) {
+export default function Signal({ traceId, slackClientId, slackRedirectUri, slackBrokerEnabled }: SignalProps) {
   const { setTraceId } = useSignalStoreContext((state) => ({
     setTraceId: state.setTraceId,
   }));
@@ -121,5 +123,11 @@ export default function Signal({ traceId }: { traceId?: string }) {
     setTraceId(traceId ?? null);
   }, [setTraceId, traceId]);
 
-  return <SignalContent />;
+  return (
+    <SignalContent
+      slackClientId={slackClientId}
+      slackRedirectUri={slackRedirectUri}
+      slackBrokerEnabled={slackBrokerEnabled}
+    />
+  );
 }

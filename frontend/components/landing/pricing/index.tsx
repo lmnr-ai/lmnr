@@ -27,14 +27,14 @@ export default function Pricing() {
         "Data usage is the total text and image bytes Laminar stores for you across traces, evaluations, and datasets. Billing applies to bytes beyond your tier's included allowance. You are never charged for your agent's own span volume, only for the data you send us to store. The pricing calculator approximates data from token counts (roughly 3 bytes per token) and does not account for stored images, so treat the estimate as a lower bound.",
     },
     {
-      id: "signals-step",
-      question: "What is a Signals step?",
+      id: "signals-pricing",
+      question: "How is Signals usage priced?",
       answer: (
         <>
-          A Signals step is one LLM call inside a trace that a Signal reads when it evaluates that trace. Each Signal is
-          a plain-language prompt plus a structured output schema; when it runs on a trace, Laminar re-reads the
-          underlying LLM calls (steps) to produce a structured event. You pay for the steps processed by Signals, not
-          for the spans your agent emits. Read more in the{" "}
+          Signals are billed by the tokens the agent spends to read a trace and generate a structured event: $0.50 per
+          1M input tokens and $3 per 1M output tokens. Each plan includes a dollar amount of Signals usage ($5 Free, $15
+          Hobby, $50 Pro); usage past that is billed at the same per-token rates. You pay for what a Signal reads and
+          writes, not for the spans your agent emits. Read more in the{" "}
           <a
             href="https://laminar.sh/docs/signals/introduction"
             target="_blank"
@@ -48,16 +48,22 @@ export default function Pricing() {
       ),
     },
     {
-      id: "signals-step-consumption",
-      question: "When are Signals steps consumed?",
+      id: "signals-not-one-to-one",
+      question: "Is this 1-to-1 with my agent's token usage?",
       answer:
-        "Signals run in two modes. Triggers run a Signal automatically on new traces that match your filters, which is useful for live dashboards and alerts. Jobs run a Signal across a historical slice of traces, which is useful to backfill a new Signal or re-evaluate a changed prompt. Both modes consume Signals steps from your plan at the same rate. Trigger filters are AND-combined, so you can narrow down which traces a Signal reads and only spend steps on the traces you care about.",
+        "No. Signals don't re-read your raw trace token-for-token. Laminar heavily compresses each trace and feeds a Signal only the parts it needs to produce its structured output, so the tokens you're billed for are a small fraction of the tokens your agent originally spent. The pricing calculator reflects this: move the trace-tokens slider and watch the much smaller Signals cost it produces.",
+    },
+    {
+      id: "signals-consumption",
+      question: "When is Signals usage consumed?",
+      answer:
+        "Signals run in two modes. Triggers run a Signal automatically on new traces that match your filters, which is useful for live dashboards and alerts. Jobs run a Signal across a historical slice of traces, which is useful to backfill a new Signal or re-evaluate a changed prompt. Both modes are billed by the same per-token rates. Trigger filters are AND-combined, so you can narrow which traces a Signal reads and only spend on the traces you care about.",
     },
     {
       id: "overage",
       question: "What happens if I exceed my plan's included usage?",
       answer:
-        "Paid tiers keep working past their included allowance and bill overage at the per-GB and per-Signals-step rates listed on each plan. The Free tier has no overage; once you hit its data or Signals-step cap, you'll need to upgrade to keep ingesting. Enterprise has custom limits and rates negotiated per contract.",
+        "Paid tiers keep working past their included allowance and bill overage at the per-GB data rate and the per-token Signals rates listed on each plan. The Free tier has no overage; once you hit its data cap or spend your included Signals budget, you'll need to upgrade to keep going. Enterprise has custom limits and rates negotiated per contract.",
     },
   ];
 

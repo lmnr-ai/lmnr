@@ -15,7 +15,7 @@ const InitializationTabsSection = dynamic(
   }
 );
 
-export function ManualTab() {
+export function ManualTab({ projectId }: { projectId?: string }) {
   return (
     <div className="flex flex-col gap-12 ">
       <div className="flex flex-col gap-3 items-start">
@@ -23,7 +23,7 @@ export function ManualTab() {
         <InstallTabsSection />
       </div>
 
-      <ApiKeyGenerator context="traces" titleClassName="text-base" />
+      <ApiKeyGenerator context="traces" titleClassName="text-base" projectId={projectId} />
 
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">

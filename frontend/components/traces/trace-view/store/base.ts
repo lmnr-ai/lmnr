@@ -122,6 +122,7 @@ export type TraceViewTrace = {
   outputTokens: number;
   totalTokens: number;
   cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
   reasoningTokens?: number;
   inputCost: number;
   outputCost: number;
@@ -129,6 +130,8 @@ export type TraceViewTrace = {
   metadata: string;
   status: string;
   traceType: string;
+  topSpanName?: string | null;
+  topSpanType?: SpanType | null;
   visibility: "public" | "private";
   hasBrowserSession: boolean;
   sessionId?: string;
@@ -141,13 +144,25 @@ export type TraceSignalClusterNode = {
   level: number;
 };
 
+// Client-safe mirror of the server-only TraceSignalEvent in lib/actions/signals/trace.ts;
+// kept in sync manually since that module can't be imported into client code.
+export type TraceSignalEvent = {
+  id: string;
+  signalId: string;
+  traceId: string;
+  payload: string;
+  timestamp: string;
+  severity: number;
+  leafCluster: TraceSignalClusterNode | null;
+};
+
 export type TraceSignal = {
   signalId: string;
   signalName: string;
   prompt: string;
   leafCluster: TraceSignalClusterNode | null;
   schemaFields: Array<{ name: string; type: string; description?: string }>;
-  events: Array<Record<string, any>>;
+  events: TraceSignalEvent[];
 };
 
 export interface BaseTraceViewState {

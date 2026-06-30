@@ -235,13 +235,25 @@ export const cache = new CacheManager();
 export const PROJECT_API_KEY_CACHE_KEY = "project_api_key";
 // Must stay in sync with `PROJECT_CACHE_KEY` in `app-server/src/cache/keys.rs`
 // — the frontend invalidates entries the Rust app-server fills, so a drift
-// would orphan Postgres writes from cache reads.
+// would orphan Postgres writes from cache reads. The cached struct dropped its
+// old `signalStepsLimit` keys for the LAM-1757 cost fields without a serde
+// default, so any stale pre-rename entry fails to deserialize on the Rust side
+// and is repopulated from a fresh DB query — no key bump needed.
 export const PROJECT_CACHE_KEY = "project";
 export const WORKSPACE_BYTES_USAGE_CACHE_KEY = "workspace_bytes_usage";
-export const WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY = "workspace_signal_runs_usage";
+// Signal usage is cached as raw accumulated token counts (input, cache-read,
+// and output kept in separate keys because each is priced at a different
+// per-token rate); cost in micro-USD is derived at read time so a rate change
+// re-prices the hot cache too. These keys are brand new (the old step-count key
+// was `workspace_signal_runs_usage`), so no version suffix is needed.
+// Must stay in sync with the Rust constants in `app-server/src/cache/keys.rs`.
+export const WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY = "workspace_signal_runs_usage_input_tokens";
+export const WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY = "workspace_signal_runs_usage_cache_read_tokens";
+export const WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY = "workspace_signal_runs_usage_output_tokens";
 export const TRACE_CHATS_CACHE_KEY = "trace_chats";
 export const TRACE_SUMMARIES_CACHE_KEY = "trace_summaries";
 export const SIGNAL_TRIGGERS_CACHE_KEY = "signal_triggers";
+export const ALERT_FILTERS_CACHE_KEY = "alert_filters";
 export const SUMMARY_TRIGGER_SPANS_CACHE_KEY = "summary_trigger_spans";
 export const WORKSPACE_DEPLOYMENTS_CACHE_KEY = "workspace_deployment_config";
 export const WORKSPACE_DEPLOYMENTS_BY_WORKSPACE_CACHE_KEY = "workspace_deployment_config_by_ws";

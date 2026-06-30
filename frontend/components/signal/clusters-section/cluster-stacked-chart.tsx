@@ -1,5 +1,6 @@
 "use client";
 
+import { Circle } from "lucide-react";
 import { useMemo } from "react";
 
 import TimeSeriesChart from "@/components/charts/time-series-chart";
@@ -8,12 +9,17 @@ import ClusterIcon, { type IconVariant } from "@/components/signal/clusters-sect
 import { type ClusterStatsDataPoint, type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { UNCLUSTERED_COLOR, withOpacity } from "@/lib/clusters/colors";
 
+const RUN_TOTAL_KEY = "__runTotal";
+const OVERLAY_LABEL = "Signal runs";
+const OVERLAY_COLOR = "var(--color-surface-300)";
+
 interface ClusterStackedChartProps {
   clusters: EventCluster[];
   statsData: ClusterStatsDataPoint[];
   containerWidth: number | null;
   colorMap: Map<string, string>;
   showTooltip?: boolean;
+  runTotals?: { timestamp: string; count: number }[];
 }
 
 export default function ClusterStackedChart({
@@ -22,10 +28,22 @@ export default function ClusterStackedChart({
   containerWidth,
   colorMap,
   showTooltip,
+  runTotals,
 }: ClusterStackedChartProps) {
+  const hasOverlay = !!runTotals && runTotals.length > 0;
+
   const { data, chartConfig, fields } = useMemo(() => {
     const config: TimeSeriesChartConfig = {};
     const fieldKeys: string[] = [];
+
+    const runTotalByTs = new Map<string, number>();
+    if (runTotals) for (const t of runTotals) runTotalByTs.set(t.timestamp, t.count);
+    if (hasOverlay)
+      config[RUN_TOTAL_KEY] = {
+        label: OVERLAY_LABEL,
+        color: OVERLAY_COLOR,
+        icon: () => <Circle className="size-2.5 text-muted-foreground" />,
+      };
 
     clusters.forEach((cluster) => {
       const key = cluster.id;
@@ -42,29 +60,24 @@ export default function ClusterStackedChart({
       fieldKeys.push(key);
     });
 
-    // Group stats by timestamp
     const timestampMap = new Map<string, Record<string, number>>();
     for (const row of statsData) {
-      if (!timestampMap.has(row.timestamp)) {
-        timestampMap.set(row.timestamp, {});
-      }
+      if (!timestampMap.has(row.timestamp)) timestampMap.set(row.timestamp, {});
       const entry = timestampMap.get(row.timestamp)!;
       entry[row.cluster_id] = typeof row.count === "number" ? row.count : parseInt(String(row.count), 10);
     }
 
-    // Build chart data points
     const chartData: TimeSeriesDataPoint[] = Array.from(timestampMap.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([timestamp, counts]) => {
         const point: TimeSeriesDataPoint = { timestamp } as TimeSeriesDataPoint;
-        for (const key of fieldKeys) {
-          (point as Record<string, unknown>)[key] = counts[key] || 0;
-        }
+        for (const key of fieldKeys) (point as Record<string, unknown>)[key] = counts[key] || 0;
+        if (hasOverlay) (point as Record<string, unknown>)[RUN_TOTAL_KEY] = runTotalByTs.get(timestamp) ?? 0;
         return point;
       });
 
     return { data: chartData, chartConfig: config, fields: fieldKeys };
-  }, [clusters, statsData, colorMap]);
+  }, [clusters, statsData, colorMap, runTotals, hasOverlay]);
 
   if (data.length === 0) {
     return (
@@ -83,6 +96,8 @@ export default function ClusterStackedChart({
       showTotal={false}
       showTooltip={showTooltip}
       hideZeroValues
+      overlayField={hasOverlay ? RUN_TOTAL_KEY : undefined}
+      overlayColor={OVERLAY_COLOR}
       className="!h-full"
     />
   );

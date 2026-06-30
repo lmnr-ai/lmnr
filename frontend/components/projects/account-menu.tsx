@@ -13,6 +13,7 @@ import { deleteLastProjectIdCookie } from "@/lib/actions/project/cookies";
 import { deleteLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies";
 import { signOut } from "@/lib/auth-client";
 import { Feature } from "@/lib/features/features";
+import { withBasePath } from "@/lib/utils";
 import { WorkspaceTier } from "@/lib/workspaces/types";
 
 // Account section at the bottom of the project picker dropdown (user row + upgrade + log out).
@@ -31,7 +32,7 @@ const AccountMenu = () => {
       await deleteLastProjectIdCookie();
       await signOut();
       broadcastLogout();
-      window.location.href = "/";
+      window.location.href = withBasePath("/");
     } catch (e) {
       console.error(e);
     }
