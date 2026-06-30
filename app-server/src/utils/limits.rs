@@ -140,9 +140,9 @@ pub async fn get_workspace_bytes_limit_exceeded(
     // Enforcement also notifies: if a workspace is already over the cap (e.g. a
     // custom limit was lowered below current usage), no further ingestion batch
     // reaches the update path, so this gate is the only place the owner email
-    // can fire. check_hard_limit dedups per billing cycle via the DB
+    // can fire. check_notify_hard_limit dedups per billing cycle via the DB
     // last_notified_at, so calling it here as well as from the update path is safe.
-    check_hard_limit(
+    check_notify_hard_limit(
         db,
         queue,
         workspace_id,
@@ -217,7 +217,7 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
 
     // See get_workspace_bytes_limit_exceeded: enforcement is the only path that
     // notifies when usage is already over the cap. Dedup via the DB last_notified_at.
-    check_hard_limit(
+    check_notify_hard_limit(
         db,
         queue,
         workspace_id,
@@ -426,7 +426,7 @@ pub async fn update_workspace_bytes_ingested(
     )
     .await;
 
-    check_hard_limit(
+    check_notify_hard_limit(
         db,
         queue,
         workspace_id,
@@ -637,7 +637,7 @@ pub async fn update_workspace_signal_tokens(
     )
     .await;
 
-    check_hard_limit(
+    check_notify_hard_limit(
         db,
         queue,
         workspace_id,
@@ -799,7 +799,7 @@ async fn send_soft_limit_notification(
 /// timestamp (in `workspace_hard_limit_notifications`) is compared against the
 /// billing-period start, so we email once per crossing per cycle rather than on
 /// every blocked batch.
-async fn check_hard_limit(
+async fn check_notify_hard_limit(
     db: Arc<DB>,
     queue: Arc<MessageQueue>,
     workspace_id: Uuid,
