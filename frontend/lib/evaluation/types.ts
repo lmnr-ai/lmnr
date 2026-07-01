@@ -11,6 +11,11 @@ export type Evaluation = {
 
 export type EvaluationScoreStatistics = {
   averageValue: number;
+  minValue: number;
+  maxValue: number;
+  stdDeviation: number;
+  medianValue: number;
+  count: number;
 };
 
 export type EvaluationScoreDistributionBucket = {

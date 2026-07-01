@@ -16,14 +16,35 @@ export function calculateScoreStatistics(
     })
     .filter((score): score is number => typeof score === "number" && !isNaN(score));
 
+  const empty: EvaluationScoreStatistics = {
+    averageValue: 0,
+    minValue: 0,
+    maxValue: 0,
+    stdDeviation: 0,
+    medianValue: 0,
+    count: 0,
+  };
+
   if (scores.length === 0) {
-    return { averageValue: 0 };
+    return empty;
   }
 
+  const count = scores.length;
   const sum = scores.reduce((acc, score) => acc + score, 0);
-  const averageValue = sum / scores.length;
+  const averageValue = sum / count;
+  const minValue = Math.min(...scores);
+  const maxValue = Math.max(...scores);
 
-  return { averageValue };
+  // Population standard deviation
+  const squaredDiffs = scores.reduce((acc, score) => acc + (score - averageValue) ** 2, 0);
+  const stdDeviation = Math.sqrt(squaredDiffs / count);
+
+  // Median via sorted copy
+  const sorted = [...scores].sort((a, b) => a - b);
+  const mid = Math.floor(count / 2);
+  const medianValue = count % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+
+  return { averageValue, minValue, maxValue, stdDeviation, medianValue, count };
 }
 
 // Helper function to calculate score distribution
