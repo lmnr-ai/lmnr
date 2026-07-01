@@ -1101,18 +1101,39 @@ fn deparen(expr: &Expr) -> &Expr {
 fn expr_references_column(expr: &Expr) -> bool {
     struct ColScanner {
         found: bool,
+        // Depth of enclosing `{name:Type}` placeholder dictionaries. Their inner
+        // `Type` identifier is not a column reference, so identifiers found while
+        // this is non-zero are ignored.
+        placeholder_depth: usize,
     }
     impl Visitor for ColScanner {
         type Break = ();
         fn pre_visit_expr(&mut self, expr: &Expr) -> ControlFlow<()> {
-            if matches!(expr, Expr::Identifier(_) | Expr::CompoundIdentifier(_)) {
-                self.found = true;
-                return ControlFlow::Break(());
+            match expr {
+                // A `{name:Type}` bind placeholder parses as a Dictionary; it is a
+                // scalar evaluated once at the call site, not a per-row column.
+                Expr::Dictionary(_) => self.placeholder_depth += 1,
+                Expr::Identifier(_) | Expr::CompoundIdentifier(_)
+                    if self.placeholder_depth == 0 =>
+                {
+                    self.found = true;
+                    return ControlFlow::Break(());
+                }
+                _ => {}
+            }
+            ControlFlow::Continue(())
+        }
+        fn post_visit_expr(&mut self, expr: &Expr) -> ControlFlow<()> {
+            if matches!(expr, Expr::Dictionary(_)) {
+                self.placeholder_depth -= 1;
             }
             ControlFlow::Continue(())
         }
     }
-    let mut s = ColScanner { found: false };
+    let mut s = ColScanner {
+        found: false,
+        placeholder_depth: 0,
+    };
     let _ = expr.visit(&mut s);
     s.found
 }

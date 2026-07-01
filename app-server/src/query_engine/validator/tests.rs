@@ -1199,6 +1199,61 @@ fn assert_default_max(bounds: &str) {
 }
 
 #[test]
+fn test_bounds_relative_now_with_interval_placeholder() {
+    // Query A: `start_time >= now() - INTERVAL {pastHours: UInt32} HOUR`. The
+    // `{pastHours:UInt32}` placeholder is a scalar bind value, not a column, so
+    // the comparison must still yield a lower bound (padded ±3h). No upper bound
+    // is present, so max stays at the broad default.
+    let b = traces_bounds(
+        "SELECT id, user_id AS userId FROM traces \
+         WHERE start_time >= now() - INTERVAL {pastHours: UInt32} HOUR \
+         AND trace_type = {traceType: String} \
+         ORDER BY start_time DESC LIMIT {limit: UInt32} OFFSET {offset: UInt32}",
+    );
+    assert!(
+        b.contains(
+            "min_start_time = toDateTime64(now() - INTERVAL {pastHours: UInt32} HOUR, 9) - INTERVAL 3 HOUR"
+        ),
+        "got: {b}"
+    );
+    assert_default_max(&b);
+}
+
+#[test]
+fn test_bounds_parameterized_time_bounds() {
+    // Query B: parameterized `start_time >= {startTime: String}` and
+    // `start_time <= {endTime: String}`. Both placeholders are scalar binds, so
+    // both bounds must be derived (padded ±3h) rather than falling back to the
+    // broad defaults.
+    let b = traces_bounds(
+        "SELECT id, user_id AS userId FROM traces \
+         WHERE start_time >= {startTime: String} \
+         AND start_time <= {endTime: String} \
+         AND trace_type = {traceType: String} \
+         ORDER BY start_time DESC LIMIT {limit: UInt32} OFFSET {offset: UInt32}",
+    );
+    assert!(
+        b.contains("min_start_time = toDateTime64({startTime: String}, 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+    assert!(
+        b.contains("max_start_time = toDateTime64({endTime: String}, 9) + INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_parameterized_value_lower_only() {
+    // A single parameterized lower bound derives a min and leaves max default.
+    let b = traces_bounds("SELECT id FROM traces WHERE start_time >= {startTime: String}");
+    assert!(
+        b.contains("min_start_time = toDateTime64({startTime: String}, 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+    assert_default_max(&b);
+}
+
+#[test]
 fn test_bounds_no_filter_uses_broad_defaults() {
     let b = traces_bounds("SELECT id FROM traces");
     assert_default_min(&b);
