@@ -44,7 +44,10 @@ const sendHeartbeat = async (): Promise<void> => {
       // exists, so PostHog persons read as real organizations. The opaque
       // instance UUID remains the fallback (no users / freemail-only) and is
       // always attached as a property so two deployments sharing a domain
-      // stay distinguishable.
+      // stay distinguishable. Known trade-off: such deployments (e.g. a
+      // company's staging + prod) merge into one PostHog person whose $set
+      // snapshot is last-writer-wins; per-event properties keyed by
+      // instance_id remain accurate for both.
       distinctId: snapshot.primaryDomain ?? instanceId,
       event: EVENT,
       properties: {

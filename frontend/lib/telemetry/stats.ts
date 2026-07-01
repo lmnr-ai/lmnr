@@ -171,8 +171,7 @@ export const collectSnapshot = async (): Promise<TelemetrySnapshot> => {
 
   const version = process.env.NEXT_PUBLIC_APP_VERSION || process.env.npm_package_version || "unknown";
   const environment = process.env.ENVIRONMENT || "unknown";
-  // Optional operator-set consent label. Lets known accounts opt in to being
-  // identifiable; absent by default so telemetry stays anonymous.
+  // Optional operator-set label for known accounts; absent by default.
   const label = process.env.LAMINAR_TELEMETRY_LABEL;
 
   const common = {
