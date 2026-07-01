@@ -1,4 +1,3 @@
-import { type ToolResultPart } from "ai";
 import { Bolt, Image as IconImage, Paperclip, X } from "lucide-react";
 import React, { type ChangeEvent, useCallback, useRef } from "react";
 import { Controller, type FieldArrayWithId, type UseFieldArrayRemove, useFormContext } from "react-hook-form";
@@ -11,7 +10,7 @@ import { IconMessage } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
-import { type PlaygroundForm } from "@/lib/playground/types";
+import { type PlaygroundForm, type ToolResultPart } from "@/lib/playground/types";
 import { cn } from "@/lib/utils";
 
 const buttonClassName = "size-fit p-px transition-all duration-200 opacity-0 group-hover:opacity-100";
