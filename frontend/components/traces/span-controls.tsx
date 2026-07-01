@@ -85,7 +85,7 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
               passHref
               onClick={() => track("playgrounds", "experiment_clicked", { source: "span_view" })}
             >
-              <Button variant="outlinePrimary" className="px-1.5 text-xs h-6 font-mono bg-primary/10">
+              <Button variant="outlinePrimary" className="px-1.5 text-xs h-6 bg-primary/10">
                 <PlayCircle className="mr-1" size={14} />
                 Experiment in playground
               </Button>

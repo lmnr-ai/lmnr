@@ -136,7 +136,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent
-                className="w-(--radix-dropdown-menu-trigger-width) min-w-64 rounded-lg text-xs bg-surface-600 p-0"
+                className="w-(--radix-dropdown-menu-trigger-width) min-w-64 rounded-lg text-xs p-0"
                 align="start"
                 sideOffset={4}
                 side={isMobile ? "bottom" : "right"}

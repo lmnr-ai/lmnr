@@ -222,11 +222,8 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
             <span className={HEADER_ITEM_CLS}>
               <Button
                 onClick={() => setSignalsPanelOpen(!signalsPanelOpen)}
-                variant="outline"
-                className={cn(
-                  "h-6 text-xs px-1.5",
-                  signalsPanelOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
-                )}
+                variant={signalsPanelOpen ? "outlinePrimary" : "outline"}
+                className={cn("h-6 text-xs px-1.5")}
               >
                 <Radio size={14} className="mr-1" />
                 Signals ({signalCount})

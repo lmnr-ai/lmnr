@@ -116,7 +116,7 @@ const ProjectSidebarContent = ({ details }: { details: ProjectDetails }) => {
               <SidebarMenuItem className="h-7" key={option.name}>
                 <SidebarMenuButton asChild isActive={pathname.startsWith(option.href)} tooltip={option.name}>
                   <Link href={option.href}>
-                    <option.icon />
+                    <option.icon strokeWidth="1.5" />
                     <span>{option.name}</span>
                   </Link>
                 </SidebarMenuButton>
