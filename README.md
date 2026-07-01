@@ -102,9 +102,9 @@ rather than the shared `drizzle` schema. Note that running Laminar alongside
 another Drizzle-managed service in the same database may still require manual
 intervention, since Drizzle's migration journal is versioned per-schema.
 
-## Anonymous usage telemetry
+## Usage telemetry
 
-Self-hosted deployments collect anonymized usage telemetry. To opt out, set `LAMINAR_TELEMETRY_DISABLED=true` in your `.env`.
+Self-hosted deployments collect usage telemetry (row counts, enabled features, and the email domains of registered users — never emails, names, or trace content). To opt out, set `LAMINAR_TELEMETRY_DISABLED=true` in your `.env`.
 
 ## Contributing
 
