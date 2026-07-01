@@ -30,13 +30,12 @@ use super::spans::{SpanAttributes, SpanUsage};
 static SKIP_SPAN_NAME_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^Runnable[A-Z][A-Za-z]*(?:<[A-Za-z_,]+>)*\.task$").unwrap());
 
-/// Calculate token/cost usage for a span.
+/// Calculate token/cost usage for an LLM span from its `gen_ai.usage.*` attributes.
 ///
-/// Only LLM spans carry usage: a non-LLM span may still have stray `gen_ai.usage.*`
-/// attributes (some auto-instrumentations set them on Default/Tool spans), so counting
-/// them would inflate the per-span token/cost columns and the trace totals (LAM-1873).
-/// For a non-LLM span we return `SpanUsage::default()` (all zeros) — the raw attributes are
-/// left untouched in the span's `attributes` blob, so nothing the user sent is lost.
+/// Call this only for LLM spans. A non-LLM span may still carry stray `gen_ai.usage.*`
+/// attributes (some auto-instrumentations set them on Default/Tool spans); counting those
+/// would inflate the per-span token/cost columns and the trace totals (LAM-1873), so callers
+/// use `SpanUsage::default()` (all zeros) for non-LLM spans instead.
 pub async fn get_llm_usage_for_span(
     // mut because input and output tokens are updated to new convention
     attributes: &mut SpanAttributes,
@@ -44,12 +43,7 @@ pub async fn get_llm_usage_for_span(
     cache: Arc<Cache>,
     span_name: &str,
     project_id: &Uuid,
-    is_llm_span: bool,
 ) -> SpanUsage {
-    if !is_llm_span {
-        return SpanUsage::default();
-    }
-
     let input_tokens = attributes.input_tokens();
     let output_tokens = attributes.output_tokens();
     let total_tokens = input_tokens.total() + output_tokens;
