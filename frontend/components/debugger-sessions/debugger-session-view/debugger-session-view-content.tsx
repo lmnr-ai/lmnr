@@ -175,7 +175,7 @@ export default function DebuggerSessionViewContent({
           <div className="flex grow-1 justify-center shrink-0 basis-0 min-w-fit">
             {!spanPanelOpen && (
               <div className="sticky top-0 hidden h-[calc(100vh-80px)] w-[220px] flex-none shrink-0 self-start pb-16 pt-[180px] lg:flex">
-                <SessionOutline className="max-h-full w-full" />
+                <SessionOutline className="max-h-full w-full" evaluations={evaluations} />
               </div>
             )}
           </div>
@@ -203,7 +203,15 @@ export default function DebuggerSessionViewContent({
                 <Skeleton className="h-10 w-full" />
               </div>
             ) : traces.length === 0 ? (
-              <div className="flex justify-center py-16 text-sm text-muted-foreground">No runs in this session yet</div>
+              // Runs (traces) are a separate source from evals — a session can
+              // have linked evals but no recorded runs. Only show the stark
+              // empty state when there's genuinely nothing (no evals either),
+              // otherwise the eval cards above already carry the session.
+              evaluations.length === 0 ? (
+                <div className="flex justify-center py-16 text-sm text-muted-foreground">
+                  No runs in this session yet
+                </div>
+              ) : null
             ) : (
               <DebuggerTraceList scrollEl={scrollEl} projectId={projectId} sessionId={sessionId} />
             )}

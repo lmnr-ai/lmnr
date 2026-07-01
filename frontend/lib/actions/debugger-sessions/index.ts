@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { type TraceViewTrace } from "@/components/traces/trace-view/store";
@@ -259,7 +259,9 @@ export async function getSessionEvaluations(
         sql`${evaluations.metadata}->>${SESSION_ID_METADATA_KEY} = ${sessionId}`
       )
     )
-    .orderBy(desc(evaluations.createdAt));
+    // Chronological (earliest first) so the session reads top-to-bottom and each
+    // card can show its score delta against the previous eval in the sequence.
+    .orderBy(asc(evaluations.createdAt));
 
   if (rows.length === 0) return [];
 

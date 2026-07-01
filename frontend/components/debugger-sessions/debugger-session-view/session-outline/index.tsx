@@ -1,21 +1,27 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { FlaskConical } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
+import { type SessionEvaluation } from "@/lib/actions/debugger-sessions";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 import { spanTagsToLinks } from "../note-markdown";
 import { type DebuggerSessionViewStore, useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "../store";
-import { headingAnchorId, parseNoteHeadings } from "./utils";
+import { evalAnchorId, headingAnchorId, parseNoteHeadings } from "./utils";
 
-// One outline row per markdown heading pulled from the runs' notes — the
-// outline is a pure note TOC; traces themselves get no row.
-type OutlineRow = { key: string; anchor: string; level: number; text: string };
+// Outline rows: linked evaluations first (one row each, `kind: "eval"`), then a
+// row per markdown heading pulled from the runs' notes (`kind: "note"`).
+type OutlineRow = { key: string; anchor: string; level: number; text: string; kind: "eval" | "note" };
 
-const buildRows = (state: DebuggerSessionViewStore): OutlineRow[] => {
+const buildRows = (state: DebuggerSessionViewStore, evaluations: SessionEvaluation[]): OutlineRow[] => {
   const rows: OutlineRow[] = [];
+  evaluations.forEach((evaluation) => {
+    const a = evalAnchorId(evaluation.id);
+    rows.push({ key: a, anchor: a, level: 1, text: evaluation.name, kind: "eval" });
+  });
   state.traces.forEach((trace: TraceRow) => {
     const note = state.noteForTrace(trace.id);
     if (!note) return;
@@ -23,7 +29,7 @@ const buildRows = (state: DebuggerSessionViewStore): OutlineRow[] => {
     // order and slugs line up exactly with the ids it stamps.
     for (const h of parseNoteHeadings(spanTagsToLinks(note, trace.id))) {
       const a = headingAnchorId(trace.id, h.slug);
-      rows.push({ key: a, anchor: a, level: h.level, text: h.text });
+      rows.push({ key: a, anchor: a, level: h.level, text: h.text, kind: "note" });
     }
   });
   return rows;
@@ -31,6 +37,8 @@ const buildRows = (state: DebuggerSessionViewStore): OutlineRow[] => {
 
 interface SessionOutlineProps {
   className?: string;
+  // Evaluations linked to this session — rendered as the top rows of the outline.
+  evaluations?: SessionEvaluation[];
 }
 
 /**
@@ -39,7 +47,7 @@ interface SessionOutlineProps {
  * headings from each run's note (a pure note TOC — no per-trace rows). Active
  * state is tracked with an IntersectionObserver rooted at the browser viewport.
  */
-export default function SessionOutline({ className }: SessionOutlineProps) {
+export default function SessionOutline({ className, evaluations = [] }: SessionOutlineProps) {
   const storeApi = useDebuggerSessionViewStoreRaw();
   const navRef = useRef<HTMLElement>(null);
 
@@ -60,9 +68,11 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
   const signature = useDebuggerSessionViewStore((s) =>
     s.traces.map((t) => `${t.id}${t.startTime}${s.noteForTrace(t.id) ?? ""}`).join("")
   );
-  // `signature` is the change-trigger; the rows are read from the store snapshot.
+  const evalSignature = evaluations.map((e) => `${e.id}${e.name}`).join("");
+  // `signature`/`evalSignature` are the change-triggers; the trace rows are read
+  // from the store snapshot, the eval rows from the (stable) prop.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const rows = useMemo(() => buildRows(storeApi.getState()), [signature]);
+  const rows = useMemo(() => buildRows(storeApi.getState(), evaluations), [signature, evalSignature]);
 
   const [activeAnchor, setActiveAnchor] = useState<string | null>(null);
   const rowRefs = useRef<Map<string, HTMLAnchorElement>>(new Map());
@@ -183,13 +193,21 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
                 }}
                 href={`#${row.anchor}`}
                 onClick={() => selectOnClick(row.anchor)}
-                className="flex h-[30px] items-center pl-4 text-left no-underline"
+                className="group flex h-[30px] items-center pl-4 text-left no-underline"
               >
+                {row.kind === "eval" && (
+                  <FlaskConical
+                    className={cn(
+                      "mr-1.5 size-3 shrink-0 transition-colors",
+                      isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                    )}
+                  />
+                )}
                 <span
                   className={cn(
                     "truncate text-sm transition-colors",
-                    row.level === 2 && "pl-3",
-                    row.level >= 3 && "pl-6",
+                    row.kind === "note" && row.level === 2 && "pl-3",
+                    row.kind === "note" && row.level >= 3 && "pl-6",
                     isActive ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
