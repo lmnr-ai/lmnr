@@ -23,6 +23,6 @@ Run
 
 `pnpm test`
 
-## Anonymous usage telemetry
+## Usage telemetry
 
-Self-hosted deployments collect anonymized usage telemetry. To opt out, set `LAMINAR_TELEMETRY_DISABLED=true` in your `.env`.
+Self-hosted deployments collect usage telemetry (row counts, enabled features, and the email domains of registered users — never emails, names, or trace content). To opt out, set `LAMINAR_TELEMETRY_DISABLED=true` in your `.env`.

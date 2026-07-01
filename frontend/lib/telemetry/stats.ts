@@ -1,4 +1,7 @@
+import { sql } from "drizzle-orm";
+
 import { clickhouseClient } from "@/lib/clickhouse/client";
+import { db } from "@/lib/db/drizzle";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 // Each ClickHouse `_v0` view Laminar exposes is a project-parameterized view
@@ -54,6 +57,81 @@ export const collectViewCounts = async (): Promise<Record<string, number>> => {
   return counts;
 };
 
+// Common personal-email providers. A deployment whose users are all on these
+// has no meaningful "company domain", so we fall back to the instance UUID as
+// the PostHog identity rather than collapsing every gmail-only install into one.
+const FREE_EMAIL_DOMAINS = new Set([
+  "gmail.com",
+  "googlemail.com",
+  "yahoo.com",
+  "hotmail.com",
+  "outlook.com",
+  "live.com",
+  "msn.com",
+  "icloud.com",
+  "me.com",
+  "mac.com",
+  "aol.com",
+  "proton.me",
+  "protonmail.com",
+  "pm.me",
+  "gmx.com",
+  "gmx.de",
+  "mail.ru",
+  "yandex.ru",
+  "yandex.com",
+  "qq.com",
+  "163.com",
+  "126.com",
+  "hey.com",
+  "zoho.com",
+  "fastmail.com",
+  "tutanota.com",
+  // Placeholder domains common in dev installs.
+  "example.com",
+  "example.org",
+  "test.com",
+  "localhost",
+]);
+
+export interface UserDomainStats {
+  // domain -> number of users, sorted by count descending.
+  domains: Record<string, number>;
+  // Most common non-freemail domain, or null when every user is on a personal
+  // provider (or there are no users yet).
+  primaryDomain: string | null;
+  userCount: number;
+}
+
+export const collectUserDomains = async (): Promise<UserDomainStats> => {
+  const rows = await db.execute<{ domain: string; count: string | number }>(
+    sql`
+      SELECT lower(split_part(email, '@', 2)) AS domain, count(*) AS count
+      FROM users
+      WHERE position('@' in email) > 0
+      GROUP BY 1
+      ORDER BY count(*) DESC, 1
+    `
+  );
+
+  const domains: Record<string, number> = {};
+  let userCount = 0;
+  let primaryDomain: string | null = null;
+  for (const row of rows) {
+    if (!row.domain) {
+      continue;
+    }
+    const count = Number(row.count);
+    domains[row.domain] = count;
+    userCount += count;
+    if (primaryDomain === null && !FREE_EMAIL_DOMAINS.has(row.domain)) {
+      primaryDomain = row.domain;
+    }
+  }
+
+  return { domains, primaryDomain, userCount };
+};
+
 // Snapshot of which optional features the deployment has turned on. Booleans
 // only — no values, endpoints, or credentials.
 export const collectFeatureFlags = (): Record<string, boolean> => {
@@ -76,6 +154,10 @@ export const collectFeatureFlags = (): Record<string, boolean> => {
 export interface TelemetrySnapshot {
   properties: Record<string, unknown>;
   setProperties: Record<string, unknown>;
+  // Most common non-freemail email domain across the deployment's users; used
+  // as the PostHog distinctId so a self-hosted install is identified by the
+  // company running it instead of an opaque UUID.
+  primaryDomain: string | null;
 }
 
 export const collectSnapshot = async (): Promise<TelemetrySnapshot> => {
@@ -85,15 +167,19 @@ export const collectSnapshot = async (): Promise<TelemetrySnapshot> => {
   const features = collectFeatureFlags();
   const featureProps = Object.fromEntries(Object.entries(features).map(([f, on]) => [`feature_${f}`, on]));
 
+  const { domains, primaryDomain, userCount } = await collectUserDomains();
+
   const version = process.env.NEXT_PUBLIC_APP_VERSION || process.env.npm_package_version || "unknown";
   const environment = process.env.ENVIRONMENT || "unknown";
-  // Optional operator-set consent label. Lets known accounts opt in to being
-  // identifiable; absent by default so telemetry stays anonymous.
+  // Optional operator-set label for known accounts; absent by default.
   const label = process.env.LAMINAR_TELEMETRY_LABEL;
 
   const common = {
     version,
     environment,
+    user_count: userCount,
+    user_domains: domains,
+    ...(primaryDomain ? { primary_domain: primaryDomain } : {}),
     ...countProps,
     ...featureProps,
     ...(label ? { label } : {}),
@@ -104,5 +190,6 @@ export const collectSnapshot = async (): Promise<TelemetrySnapshot> => {
     // Mirror onto person properties so the latest snapshot is queryable on the
     // PostHog person without scanning events.
     setProperties: common,
+    primaryDomain,
   };
 };
