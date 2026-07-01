@@ -20,6 +20,10 @@ fn severity_circle(severity: u8) -> &'static str {
 /// per-signal stat line, the AI summary, and a horizontal `carousel` of cards
 /// (one per noteworthy event). The carousel is capped at 10 cards (Slack's max);
 /// overflow is surfaced as a "+N more" link to the signals page.
+///
+/// The whole message is capped at Slack's 50-block `chat.postMessage` limit:
+/// projects are rendered until the budget is hit, then a "+N more projects"
+/// notice is appended (a large multi-project workspace fits ~8 projects).
 pub(super) fn format_report_blocks(title: &str, report: &ReportData) -> serde_json::Value {
     let base = frontend_url_slack();
     let project_count = report.projects.len();
@@ -55,16 +59,28 @@ pub(super) fn format_report_blocks(title: &str, report: &ReportData) -> serde_js
         }),
     ];
 
+    // Slack `chat.postMessage` rejects a message with more than 50 blocks, so a
+    // multi-project report must stay under that cap or the whole report fails to
+    // deliver. Build each project's blocks into a scratch Vec, and only commit it
+    // if it fits — reserving one block for the "+N more projects" notice whenever
+    // more projects remain. A single project always fits (its blocks + the 2 header
+    // blocks are well under 50).
+    const MAX_BLOCKS: usize = 50;
+    let total_projects = report.projects.len();
+    let mut rendered = 0usize;
+
     for project in &report.projects {
-        blocks.push(json!({"type": "divider"}));
-        blocks.push(json!({
-            "type": "header",
-            "text": {
-                "type": "plain_text",
-                "text": truncate_chars(&project.project_name, HEADER_MAX),
-                "emoji": true
-            }
-        }));
+        let mut pb: Vec<serde_json::Value> = vec![
+            json!({"type": "divider"}),
+            json!({
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": truncate_chars(&project.project_name, HEADER_MAX),
+                    "emoji": true
+                }
+            }),
+        ];
 
         // Stat line: per-signal counts, e.g. "*Failure Detector* 21 events · *Latency Spike* 7 events".
         let stat_line = project
@@ -81,14 +97,14 @@ pub(super) fn format_report_blocks(title: &str, report: &ReportData) -> serde_js
             .collect::<Vec<_>>()
             .join(" · ");
         if !stat_line.is_empty() {
-            blocks.push(json!({
+            pb.push(json!({
                 "type": "context",
                 "elements": [{ "type": "mrkdwn", "text": stat_line }]
             }));
         }
 
         if !project.ai_summary.is_empty() {
-            blocks.push(json!({
+            pb.push(json!({
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
@@ -98,7 +114,7 @@ pub(super) fn format_report_blocks(title: &str, report: &ReportData) -> serde_js
         }
 
         if !project.noteworthy_events.is_empty() {
-            blocks.push(json!({
+            pb.push(json!({
                 "type": "section",
                 "text": { "type": "mrkdwn", "text": "*Noteworthy events*" }
             }));
@@ -133,7 +149,7 @@ pub(super) fn format_report_blocks(title: &str, report: &ReportData) -> serde_js
                     })
                 })
                 .collect();
-            blocks.push(json!({ "type": "carousel", "elements": cards }));
+            pb.push(json!({ "type": "carousel", "elements": cards }));
 
             if project.noteworthy_events.len() > MAX_CARDS {
                 let more = project.noteworthy_events.len() - MAX_CARDS;
@@ -143,7 +159,7 @@ pub(super) fn format_report_blocks(title: &str, report: &ReportData) -> serde_js
                     "signals_report",
                     "more_events",
                 );
-                blocks.push(json!({
+                pb.push(json!({
                     "type": "context",
                     "elements": [{
                         "type": "mrkdwn",
@@ -152,6 +168,29 @@ pub(super) fn format_report_blocks(title: &str, report: &ReportData) -> serde_js
                 }));
             }
         }
+
+        // Reserve a block for the truncation notice while projects remain.
+        let reserve = if total_projects - rendered > 1 { 1 } else { 0 };
+        if blocks.len() + pb.len() + reserve > MAX_BLOCKS {
+            break;
+        }
+        blocks.extend(pb);
+        rendered += 1;
+    }
+
+    if rendered < total_projects {
+        let omitted = total_projects - rendered;
+        blocks.push(json!({
+            "type": "context",
+            "elements": [{
+                "type": "mrkdwn",
+                "text": format!(
+                    "_+{} more project{} not shown (a Slack message is capped at 50 blocks)._",
+                    omitted,
+                    if omitted == 1 { "" } else { "s" }
+                )
+            }]
+        }));
     }
 
     json!(blocks)

@@ -36,14 +36,28 @@ export async function GET(req: NextRequest) {
     })
   );
 
-  const png = await sharp(Buffer.from(svg)).png().toBuffer();
-
-  return new Response(new Uint8Array(png), {
-    headers: {
-      "Content-Type": "image/png",
-      // Stable per (clusterId, variant); a HASH_SALT bump is the only thing that
-      // changes the color, and that's a deliberate, rare global reskin.
-      "Cache-Control": "public, max-age=86400, immutable",
-    },
-  });
+  try {
+    const png = await sharp(Buffer.from(svg)).png().toBuffer();
+    return new Response(new Uint8Array(png), {
+      headers: {
+        "Content-Type": "image/png",
+        // Stable per (clusterId, variant). No `immutable`: a HASH_SALT bump changes
+        // the color for the same URL, so allow CDNs to revalidate after max-age
+        // rather than pinning the old color for a full day.
+        "Cache-Control": "public, max-age=86400",
+      },
+    });
+  } catch (error) {
+    // sharp/librsvg can throw (missing lib, unparseable SVG, OOM). A 500 makes Slack
+    // render a broken-image icon for the whole notification; instead degrade to a 1x1
+    // transparent PNG (200) with no caching so it recovers on the next fetch.
+    console.error("[cluster-swatch] sharp render failed:", error);
+    const blank = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "base64"
+    );
+    return new Response(new Uint8Array(blank), {
+      headers: { "Content-Type": "image/png", "Cache-Control": "no-store" },
+    });
+  }
 }
