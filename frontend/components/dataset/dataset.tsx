@@ -6,6 +6,7 @@ import { Resizable } from "re-resizable";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
+import AdvancedSearch, { type AdvancedSearchValue } from "@/components/common/advanced-search";
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import { Button } from "@/components/ui/button.tsx";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
@@ -13,7 +14,6 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableConfigStore, useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { type Datapoint, type Dataset as DatasetType } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -47,6 +47,13 @@ const columns: ColumnDef<Datapoint>[] = [
     id: "index",
   },
   {
+    id: "id",
+    accessorKey: "id",
+    header: "ID",
+    size: 300,
+    cell: (row) => <span className="font-mono text-xs truncate">{String(row.getValue())}</span>,
+  },
+  {
     id: "createdAt",
     accessorKey: "createdAt",
     header: "Updated",
@@ -76,7 +83,7 @@ const columns: ColumnDef<Datapoint>[] = [
   },
 ];
 
-const defaultDatasetColumnOrder = ["__row_selection", "index", "createdAt", "data", "target", "metadata"];
+const defaultDatasetColumnOrder = ["__row_selection", "index", "id", "createdAt", "data", "target", "metadata"];
 const RESOURCE = "dataset";
 
 const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: DatasetProps) => {
@@ -90,6 +97,14 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
 
   const { effective, setFilters } = useTableView();
   const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
+
+  // Filters-only: the free-text `search` half of AdvancedSearch is intentionally
+  // dropped (datasets have no full-text search), so only filter tags drive the query.
+  const searchValue = useMemo<AdvancedSearchValue>(
+    () => ({ filters: effective.filters, search: "" }),
+    [effective.filters]
+  );
+  const handleSearchChange = useCallback((next: AdvancedSearchValue) => setFilters(next.filters), [setFilters]);
 
   const { customColumns, removeCustomColumn } = useTableConfigStore(
     (s) => ({
@@ -367,9 +382,18 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
             )}
           >
             <div className="flex flex-1 w-full space-x-2">
-              <DataTableFilter columns={allFilters} filters={effective.filters} onFiltersChange={setFilters} />
               <DatasetColumnsMenu columnLabels={columnLabels} columnDefs={columnDefs} />
               <ViewsToolbar projectId={String(projectId)} resource={RESOURCE} />
+            </div>
+            <div className="w-full px-px">
+              <AdvancedSearch
+                filters={allFilters}
+                value={searchValue}
+                onChange={handleSearchChange}
+                storageKey={`dataset-${dataset.id}`}
+                placeholder="Filter by id, metadata, data, target..."
+                className="w-full flex-1"
+              />
             </div>
           </InfiniteDataTable>
         </div>

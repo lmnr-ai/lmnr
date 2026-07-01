@@ -2,21 +2,22 @@ import { type ColumnDef } from "@tanstack/react-table";
 
 import { type CustomColumn } from "@/components/ui/columns-menu";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+// Reuse the server-side wire contract (mirrors evaluation's EvalQueryColumn) so the
+// payload shape lives in one place.
+import { type CustomColumn as DatapointQueryColumn } from "@/lib/actions/datapoints/utils";
 import { type Datapoint } from "@/lib/dataset/types";
-
-export interface DatapointQueryColumn {
-  id: string;
-  sql: string;
-  filterSql?: string;
-  dbType?: string;
-}
 
 interface RawUrlParams {
   filter: string[];
   searchQuery?: string | null;
 }
 
-export const datasetFilters: ColumnFilter[] = [{ name: "Metadata", key: "metadata", dataType: "json" }];
+export const datasetFilters: ColumnFilter[] = [
+  { name: "ID", key: "id", dataType: "string" },
+  { name: "Metadata", key: "metadata", dataType: "json" },
+  { name: "Data", key: "data", dataType: "json" },
+  { name: "Target", key: "target", dataType: "json" },
+];
 
 export function toColumnsPayload(columnDefs: ColumnDef<Datapoint>[]): DatapointQueryColumn[] {
   return columnDefs

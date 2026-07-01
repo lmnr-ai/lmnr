@@ -32,33 +32,54 @@ const datapointSelectColumnsWithSubstring = [
   "metadata",
 ];
 
+// The datapoints query always runs through the query-engine rewrite, which turns
+// `FROM dataset_datapoints` into `dataset_datapoints_v0(project_id=…) AS dataset_datapoints`.
+const DATAPOINTS_TABLE = "dataset_datapoints";
+
+/**
+ * key=value JSON filter over a datapoint column. The column is referenced
+ * table-qualified (`dataset_datapoints.<col>`) so the WHERE clause reads the FULL
+ * physical column — `data`/`target` are projected as `substring(<col>,1,1000) AS <col>`,
+ * and that SELECT alias would otherwise shadow a bare `<col>` here and only match the
+ * first 1000 chars. The qualifier resolves because the rewrite aliases the view back to
+ * `dataset_datapoints`. (`metadata` is not truncated, but qualifying it too is harmless.)
+ */
+const jsonKeyValueFilter = (column: string): ColumnFilterProcessor =>
+  createCustomFilter(
+    (filter, paramKey) => {
+      const [key, val] = String(filter.value).split("=", 2);
+      if (key && val) {
+        return (
+          `(simpleJSONExtractString(${DATAPOINTS_TABLE}.${column}, {${paramKey}_key:String}) = {${paramKey}_val:String}` +
+          ` OR simpleJSONExtractRaw(${DATAPOINTS_TABLE}.${column}, {${paramKey}_key:String}) = {${paramKey}_val:String})`
+        );
+      }
+      return "";
+    },
+    (filter, paramKey) => {
+      const [key, val] = String(filter.value).split("=", 2);
+      if (key && val) {
+        return {
+          [`${paramKey}_key`]: key,
+          [`${paramKey}_val`]: `${val}`,
+        };
+      }
+      return {};
+    }
+  );
+
+// `id` is a UUID column, so compare via toString to avoid "illegal types UUID and String".
+const idFilter: ColumnFilterProcessor = (filter, paramKey) => ({
+  condition: `toString(${DATAPOINTS_TABLE}.id) ${OperatorLabelMap[filter.operator]} {${paramKey}:String}`,
+  params: { [paramKey]: String(filter.value) },
+});
+
 export const datapointsColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
-    [
-      "metadata",
-      createCustomFilter(
-        (filter, paramKey) => {
-          const [key, val] = String(filter.value).split("=", 2);
-          if (key && val) {
-            return (
-              `(simpleJSONExtractString(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String}` +
-              ` OR simpleJSONExtractRaw(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String})`
-            );
-          }
-          return "";
-        },
-        (filter, paramKey) => {
-          const [key, val] = String(filter.value).split("=", 2);
-          if (key && val) {
-            return {
-              [`${paramKey}_key`]: key,
-              [`${paramKey}_val`]: `${val}`,
-            };
-          }
-          return {};
-        }
-      ),
-    ],
+    ["id", idFilter],
+    ["metadata", jsonKeyValueFilter("metadata")],
+    ["data", jsonKeyValueFilter("data")],
+    ["target", jsonKeyValueFilter("target")],
   ]),
 };
 
