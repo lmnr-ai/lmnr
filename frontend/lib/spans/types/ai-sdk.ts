@@ -27,10 +27,15 @@ const AiSdkTextPartSchema = z.object({
   text: z.string(),
 });
 
-const AiSdkReasoningPartSchema = z.object({
-  type: z.literal("reasoning"),
-  text: z.string(),
-});
+// `.loose()` keeps provider metadata (e.g. `providerOptions`,
+// `providerExecuted`) that real v7 payloads carry; the generic renderer
+// surfaces it for tool-call/tool-result, so stripping it would lose data.
+const AiSdkReasoningPartSchema = z
+  .object({
+    type: z.literal("reasoning"),
+    text: z.string(),
+  })
+  .loose();
 
 const AiSdkImagePartSchema = z.object({
   type: z.literal("image"),
@@ -45,19 +50,23 @@ const AiSdkFilePartSchema = z.object({
   filename: z.string().optional(),
 });
 
-const AiSdkToolCallPartSchema = z.object({
-  type: z.literal("tool-call"),
-  toolCallId: z.string().optional(),
-  toolName: z.string().optional(),
-  input: z.unknown().optional(),
-});
+const AiSdkToolCallPartSchema = z
+  .object({
+    type: z.literal("tool-call"),
+    toolCallId: z.string().optional(),
+    toolName: z.string().optional(),
+    input: z.unknown().optional(),
+  })
+  .loose();
 
-const AiSdkToolResultPartSchema = z.object({
-  type: z.literal("tool-result"),
-  toolCallId: z.string().optional(),
-  toolName: z.string().optional(),
-  output: z.unknown().optional(),
-});
+const AiSdkToolResultPartSchema = z
+  .object({
+    type: z.literal("tool-result"),
+    toolCallId: z.string().optional(),
+    toolName: z.string().optional(),
+    output: z.unknown().optional(),
+  })
+  .loose();
 
 const AiSdkPartSchema = z.union([
   AiSdkTextPartSchema,
@@ -144,7 +153,7 @@ const convertOne = (
       }
       case "reasoning": {
         const text = (part as { text?: string }).text ?? "";
-        if (text.length > 0) content.push({ type: "reasoning", text });
+        if (text.length > 0) content.push({ ...part, type: "reasoning", text });
         break;
       }
       case "image": {
@@ -167,6 +176,7 @@ const convertOne = (
       case "tool-call": {
         const tc = part as z.infer<typeof AiSdkToolCallPartSchema>;
         content.push({
+          ...tc,
           type: "tool-call",
           toolCallId: tc.toolCallId ?? "",
           toolName: tc.toolName ?? "",
@@ -177,6 +187,7 @@ const convertOne = (
       case "tool-result": {
         const tr = part as z.infer<typeof AiSdkToolResultPartSchema>;
         content.push({
+          ...tr,
           type: "tool-result",
           toolCallId: tr.toolCallId ?? "",
           toolName: tr.toolName ?? "",

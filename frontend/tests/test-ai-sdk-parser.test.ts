@@ -71,6 +71,49 @@ describe("parseAiSdkMessages", () => {
     assert.deepStrictEqual(content[0].output, { type: "json", value: JSON.stringify({ temp: 65 }) });
   });
 
+  it("preserves provider metadata on tool-call/tool-result/reasoning parts", () => {
+    // Real v7 parts carry extra keys (providerOptions, providerExecuted) that
+    // the generic renderer surfaces via omit(part, "type") — they must not be
+    // stripped by Zod's default key-stripping nor by the field-by-field rebuild.
+    const input = [
+      {
+        role: "assistant",
+        content: [
+          { type: "reasoning", text: "hmm", providerOptions: { anthropic: { signature: "sig" } } },
+          {
+            type: "tool-call",
+            toolCallId: "c1",
+            toolName: "t",
+            input: {},
+            providerExecuted: true,
+            providerOptions: { openai: { foo: 1 } },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            toolCallId: "c1",
+            toolName: "t",
+            output: { type: "json", value: "{}" },
+            providerOptions: { openai: { bar: 2 } },
+          },
+        ],
+      },
+    ];
+
+    const result = parseAiSdkMessages(input);
+    assert.ok(result);
+    const assistant = result[0].content as any[];
+    assert.deepStrictEqual(assistant[0].providerOptions, { anthropic: { signature: "sig" } });
+    assert.strictEqual(assistant[1].providerExecuted, true);
+    assert.deepStrictEqual(assistant[1].providerOptions, { openai: { foo: 1 } });
+    const tool = result[1].content as any[];
+    assert.deepStrictEqual(tool[0].providerOptions, { openai: { bar: 2 } });
+  });
+
   it("skips empty text/reasoning parts", () => {
     const input = [
       {
