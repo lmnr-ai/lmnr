@@ -4,8 +4,9 @@ import { CircleDollarSign, Clock3, Coins } from "lucide-react";
 import { memo, useMemo } from "react";
 
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
+import { UnpricedModelWarning } from "@/components/traces/unpriced-model-warning";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { type Span, type TraceRow } from "@/lib/traces/types.ts";
+import { type Span, SpanType, type TraceRow } from "@/lib/traces/types.ts";
 import { cn, getDurationString } from "@/lib/utils";
 
 import { Label } from "../ui/label";
@@ -180,9 +181,12 @@ interface StatsShieldsProps {
   className?: string;
   variant?: "filled" | "outline";
   labelPrefix?: string;
+  /** Model name. When set with zero cost but non-zero tokens, an unpriced-model warning replaces the cost. */
+  model?: string | null;
 }
 
-export function StatsShields({ stats, className, variant = "filled", labelPrefix }: StatsShieldsProps) {
+export function StatsShields({ stats, className, variant = "filled", labelPrefix, model }: StatsShieldsProps) {
+  const hasTokens = !!stats.inputTokens || !!stats.outputTokens;
   const label = (text: string) =>
     labelPrefix ? `${labelPrefix} ${text}` : text.charAt(0).toUpperCase() + text.slice(1);
   const durationContent = (
@@ -280,7 +284,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
     >
       {durationContent}
       {tokensContent}
-      {costContent}
+      {stats.totalCost === 0 && hasTokens && model ? <UnpricedModelWarning model={model} /> : costContent}
     </div>
   );
 }
@@ -336,6 +340,7 @@ const SpanStatsShields = ({ span, className, variant }: SpanStatsShieldsProps) =
     ])}
     className={className}
     variant={variant}
+    model={span.spanType === SpanType.LLM || span.spanType === SpanType.CACHED ? span.model : undefined}
   />
 );
 
