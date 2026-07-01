@@ -12,8 +12,7 @@ import { spanTagsToLinks } from "../note-markdown";
 import { type DebuggerSessionViewStore, useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "../store";
 import { evalAnchorId, headingAnchorId, parseNoteHeadings } from "./utils";
 
-// Outline rows: linked evaluations first (one row each, `kind: "eval"`), then a
-// row per markdown heading pulled from the runs' notes (`kind: "note"`).
+// Linked evals first, then a row per markdown heading from the runs' notes.
 type OutlineRow = { key: string; anchor: string; level: number; text: string; kind: "eval" | "note" };
 
 const buildRows = (state: DebuggerSessionViewStore, evaluations: SessionEvaluation[]): OutlineRow[] => {
@@ -37,7 +36,6 @@ const buildRows = (state: DebuggerSessionViewStore, evaluations: SessionEvaluati
 
 interface SessionOutlineProps {
   className?: string;
-  // Evaluations linked to this session — rendered as the top rows of the outline.
   evaluations?: SessionEvaluation[];
 }
 
@@ -69,8 +67,6 @@ export default function SessionOutline({ className, evaluations = [] }: SessionO
     s.traces.map((t) => `${t.id}${t.startTime}${s.noteForTrace(t.id) ?? ""}`).join("")
   );
   const evalSignature = evaluations.map((e) => `${e.id}${e.name}`).join("");
-  // `signature`/`evalSignature` are the change-triggers; the trace rows are read
-  // from the store snapshot, the eval rows from the (stable) prop.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const rows = useMemo(() => buildRows(storeApi.getState(), evaluations), [signature, evalSignature]);
 

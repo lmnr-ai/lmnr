@@ -24,6 +24,8 @@ export type DebuggerSession = {
   lastActivity: string | null;
   // Number of traces grouped to this session (from ClickHouse).
   traceCount: number;
+  // Number of evals linked via the `rollout.session_id` metadata key.
+  evalCount: number;
 };
 
 const GetDebuggerSessionSchema = z.object({
@@ -49,19 +51,54 @@ export const getDebuggerSessions = async (input: z.infer<typeof GetDebuggerSessi
     .limit(limit)
     .offset(offset);
 
-  const statsById = await getStatsBySessionIds(
-    projectId,
-    rows.map((r) => r.id)
-  );
+  const sessionIds = rows.map((r) => r.id);
+  const [statsById, evalCountsById] = await Promise.all([
+    getStatsBySessionIds(projectId, sessionIds),
+    getEvalCountsBySessionIds(projectId, sessionIds),
+  ]);
 
   const items: DebuggerSession[] = rows.map((row) => ({
     ...row,
     lastActivity: statsById.get(row.id)?.lastActivity ?? null,
     traceCount: statsById.get(row.id)?.traceCount ?? 0,
+    evalCount: evalCountsById.get(row.id) ?? 0,
   }));
 
   return { items };
 };
+
+// Per-session eval counts via the `rollout.session_id` metadata key.
+// Best-effort — a query error returns an empty map.
+async function getEvalCountsBySessionIds(projectId: string, sessionIds: string[]): Promise<Map<string, number>> {
+  if (sessionIds.length === 0) return new Map();
+
+  try {
+    // `metadata->>key IN (...)` — `inArray` over a computed JSON expression
+    // doesn't build correctly here.
+    const inList = sql.join(
+      sessionIds.map((id) => sql`${id}`),
+      sql`, `
+    );
+    const rows = await db
+      .select({ sessionId: sql<string>`${evaluations.metadata} ->> ${SESSION_ID_METADATA_KEY}` })
+      .from(evaluations)
+      .where(
+        and(
+          eq(evaluations.projectId, projectId),
+          sql`${evaluations.metadata} ->> ${SESSION_ID_METADATA_KEY} IN (${inList})`
+        )
+      );
+
+    const counts = new Map<string, number>();
+    for (const row of rows) {
+      if (!row.sessionId) continue;
+      counts.set(row.sessionId, (counts.get(row.sessionId) ?? 0) + 1);
+    }
+    return counts;
+  } catch {
+    return new Map();
+  }
+}
 
 type SessionStats = { lastActivity: string; traceCount: number };
 
@@ -259,8 +296,7 @@ export async function getSessionEvaluations(
         sql`${evaluations.metadata}->>${SESSION_ID_METADATA_KEY} = ${sessionId}`
       )
     )
-    // Chronological (earliest first) so the session reads top-to-bottom and each
-    // card can show its score delta against the previous eval in the sequence.
+    // Earliest first, so each card can show its score delta vs the previous eval.
     .orderBy(asc(evaluations.createdAt));
 
   if (rows.length === 0) return [];

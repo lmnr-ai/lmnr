@@ -16,13 +16,9 @@ interface SessionEvaluationsProps {
   evaluations: SessionEvaluation[];
 }
 
-// A score paired with its change vs. the same-named score on the previous
-// evaluation in the (chronological) sequence. `delta` is undefined when there's
-// no prior eval carrying that score.
+// A score with its change vs the same-named score on the previous eval.
 type ScoreWithDelta = { name: string; value: number; delta?: number };
 
-// Walk the evals in order, mapping each to its scores annotated with the delta
-// against the previous eval that reported the same score name.
 const withScoreDeltas = (evaluations: SessionEvaluation[]): ScoreWithDelta[][] => {
   const prev = new Map<string, number>();
   return evaluations.map((evaluation) => {
@@ -34,20 +30,15 @@ const withScoreDeltas = (evaluations: SessionEvaluation[]): ScoreWithDelta[][] =
         delta: before === undefined ? undefined : score.averageValue - before,
       };
     });
-    // Only update the baseline AFTER computing this eval's deltas, so each row
-    // compares to the eval immediately before it.
+    // Update the baseline after computing this row's deltas.
     for (const score of evaluation.scores) prev.set(score.name, score.averageValue);
     return scores;
   });
 };
 
-/**
- * Cards for the evaluations linked to a debugger session (same
- * `rollout.session_id` the runs share), ordered earliest → latest. Each card
- * shows the eval's note (`rollout.note`, markdown) and its per-score-name
- * averages with the change vs. the previous eval. Renders nothing when the
- * session has no linked evals.
- */
+// Cards for the evals linked to a session (via `rollout.session_id`), earliest
+// first. Each shows the eval's note and score averages with the delta vs the
+// previous eval.
 export default function SessionEvaluations({ projectId, evaluations }: SessionEvaluationsProps) {
   if (evaluations.length === 0) return null;
 

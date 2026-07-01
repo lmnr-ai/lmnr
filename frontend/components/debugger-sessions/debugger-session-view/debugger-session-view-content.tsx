@@ -203,10 +203,7 @@ export default function DebuggerSessionViewContent({
                 <Skeleton className="h-10 w-full" />
               </div>
             ) : traces.length === 0 ? (
-              // Runs (traces) are a separate source from evals — a session can
-              // have linked evals but no recorded runs. Only show the stark
-              // empty state when there's genuinely nothing (no evals either),
-              // otherwise the eval cards above already carry the session.
+              // Skip the empty state when evals exist — they already fill the view.
               evaluations.length === 0 ? (
                 <div className="flex justify-center py-16 text-sm text-muted-foreground">
                   No runs in this session yet
