@@ -14,7 +14,6 @@ pub(super) fn format_new_cluster_blocks(
     cluster_name: &str,
     num_signal_events: u32,
     num_child_clusters: usize,
-    alert_name: &str,
 ) -> serde_json::Value {
     let base = frontend_url_slack();
 
@@ -71,9 +70,6 @@ pub(super) fn format_new_cluster_blocks(
     const MAX_NAME_CHARS: usize = 120;
     let display_signal = truncate_chars(signal_name, MAX_NAME_CHARS);
     let header_text = format!("{} - New cluster", display_signal);
-
-    // `alert_name` no longer renders inline (the Manage Alert button replaces the context link).
-    let _ = alert_name;
 
     json!([
         {

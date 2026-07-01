@@ -13,7 +13,6 @@ pub(super) fn format_event_identification_blocks(
     event_id: Option<&Uuid>,
     signal_name: &str,
     extracted_information: Option<serde_json::Value>,
-    alert_name: &str,
     severity: &u8,
 ) -> serde_json::Value {
     let base = frontend_url_slack();
@@ -152,9 +151,6 @@ pub(super) fn format_event_identification_blocks(
         ]
     }));
     blocks.push(json!({"type": "divider"}));
-
-    // `alert_name` no longer renders inline (the Manage Alert button replaces the context link).
-    let _ = alert_name;
 
     json!(blocks)
 }

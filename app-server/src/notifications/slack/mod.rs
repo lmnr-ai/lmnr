@@ -75,7 +75,6 @@ pub fn format_message_blocks_batch(
             event_id,
             event_name,
             extracted_information,
-            alert_name,
             severity,
             signal_id,
             ..
@@ -86,7 +85,6 @@ pub fn format_message_blocks_batch(
             event_id.as_ref(),
             event_name,
             extracted_information.clone(),
-            alert_name,
             severity,
         ),
         NotificationKind::NewCluster {
@@ -97,7 +95,7 @@ pub fn format_message_blocks_batch(
             cluster_name,
             num_signal_events,
             num_child_clusters,
-            alert_name,
+            ..
         } => format_new_cluster_blocks(
             project_id,
             signal_id,
@@ -106,7 +104,6 @@ pub fn format_message_blocks_batch(
             cluster_name,
             *num_signal_events,
             *num_child_clusters,
-            alert_name,
         ),
         NotificationKind::SignalsReport { .. } => {
             let (title, report_data) = build_report_data_from_batch(notifications, workspace_id)
@@ -397,7 +394,6 @@ mod tests {
             Some(&eid),
             "Failure Detector",
             Some(info),
-            "Alert",
             &2u8,
         );
         let blocks = blocks_of(&v);
@@ -430,16 +426,8 @@ mod tests {
         let sid = Uuid::nil();
         let cid = Uuid::nil();
         // leaf (no children) -> variant=box
-        let leaf = format_new_cluster_blocks(
-            &pid,
-            &sid,
-            "Failure Detector",
-            &cid,
-            "Bad args",
-            3,
-            0,
-            "Alert",
-        );
+        let leaf =
+            format_new_cluster_blocks(&pid, &sid, "Failure Detector", &cid, "Bad args", 3, 0);
         let lb = blocks_of(&leaf);
         let header = lb.iter().find(|b| b["type"] == "header").unwrap();
         assert_eq!(header["text"]["text"], "Failure Detector - New cluster");
@@ -448,7 +436,7 @@ mod tests {
         assert!(cube.contains("variant=box"));
         assert!(!cube.contains("variant=boxes"));
         // non-leaf -> variant=boxes
-        let parent = format_new_cluster_blocks(&pid, &sid, "Sig", &cid, "Group", 9, 4, "Alert");
+        let parent = format_new_cluster_blocks(&pid, &sid, "Sig", &cid, "Group", 9, 4);
         let cube2 = blocks_of(&parent)[1]["elements"][0]["image_url"]
             .as_str()
             .unwrap();
@@ -521,6 +509,47 @@ mod tests {
                 && b["elements"][0]["text"]
                     .as_str()
                     .map(|t| t.contains("+2 more"))
+                    .unwrap_or(false)
+        }));
+    }
+
+    #[test]
+    fn report_stays_under_slack_block_limit_and_truncates() {
+        // Many projects (each ~6 blocks) would blow past Slack's 50-block cap;
+        // the formatter must truncate and stay <= 50.
+        let mut counts = BTreeMap::new();
+        counts.insert("Failure Detector".to_string(), 5u64);
+        let projects: Vec<ProjectReportData> = (0..20)
+            .map(|i| ProjectReportData {
+                project_name: format!("project-{}", i),
+                project_id: Uuid::nil(),
+                signal_event_counts: counts.clone(),
+                ai_summary: "summary text".to_string(),
+                noteworthy_events: vec![event(2), event(1)],
+            })
+            .collect();
+        let report = ReportData {
+            workspace_id: Uuid::nil(),
+            workspace_name: "WS".to_string(),
+            period_label: "Weekly".to_string(),
+            period_start: "Jun 1".to_string(),
+            period_end: "Jun 7".to_string(),
+            total_events: 100,
+            projects,
+        };
+        let v = format_report_blocks("Weekly report", &report);
+        let blocks = blocks_of(&v);
+        assert!(
+            blocks.len() <= 50,
+            "expected <= 50 blocks, got {}",
+            blocks.len()
+        );
+        // a "+N more projects" truncation notice is present
+        assert!(blocks.iter().any(|b| {
+            b["type"] == "context"
+                && b["elements"][0]["text"]
+                    .as_str()
+                    .map(|t| t.contains("more project"))
                     .unwrap_or(false)
         }));
     }
