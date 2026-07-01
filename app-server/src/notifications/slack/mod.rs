@@ -12,10 +12,7 @@ use sodiumoxide::{
 use uuid::Uuid;
 
 use super::NotificationKind;
-use super::utils::{
-    build_report_data_from_batch, frontend_url_slack, inject_utm_into_links, with_utm,
-};
-use crate::reports::email_template::ReportData;
+use super::utils::build_report_data_from_batch;
 
 const SLACK_API_BASE: &str = "https://slack.com/api";
 
@@ -121,7 +118,9 @@ pub fn format_message_blocks_batch(
             usage_label,
             formatted_limit,
             ..
-        } => format_usage_warning_blocks(workspace_name, usage_label, formatted_limit),
+        } => {
+            format_usage_warning_blocks(workspace_id, workspace_name, usage_label, formatted_limit)
+        }
     }
 }
 
@@ -148,333 +147,15 @@ pub(crate) fn truncate_to_slack_section_limit(text: &str) -> String {
     out
 }
 
-// Format Slack message blocks for an event identification notification.
-fn format_event_identification_blocks(
-    project_id: &str,
-    signal_id: &str,
-    trace_id: &str,
-    event_id: Option<&Uuid>,
-    signal_name: &str,
-    extracted_information: Option<serde_json::Value>,
-    alert_name: &str,
-    severity: &u8,
-) -> serde_json::Value {
-    let base = frontend_url_slack();
-    let trace_link = with_utm(
-        &format!(
-            "{}/project/{}/traces/{}?chat=true",
-            base, project_id, trace_id
-        ),
-        "slack",
-        "signal_alert",
-        "view_trace",
-    );
+mod event_identification;
+mod new_cluster;
+mod report;
+mod usage_warning;
 
-    let severity_label = match severity {
-        0 => ":large_green_circle: Info",
-        1 => ":large_orange_circle: Warning",
-        2 => ":red_circle: Critical",
-        _ => "Unknown",
-    };
-
-    let info_entries: Vec<String> = if let Some(info) = extracted_information {
-        if let Some(obj) = info.as_object() {
-            obj.iter()
-                .map(|(key, value)| {
-                    let formatted_value = match value {
-                        serde_json::Value::String(s) => md_links_to_slack(&inject_utm_into_links(
-                            s,
-                            "slack",
-                            "signal_alert",
-                            "event_description",
-                        )),
-                        serde_json::Value::Number(n) => n.to_string(),
-                        serde_json::Value::Bool(b) => b.to_string(),
-                        serde_json::Value::Null => String::new(),
-                        _ => inject_utm_into_links(
-                            &serde_json::to_string_pretty(value).unwrap_or_default(),
-                            "slack",
-                            "signal_alert",
-                            "event_description",
-                        ),
-                    };
-                    format!("_{}_:\n{}", key, formatted_value)
-                })
-                .collect()
-        } else {
-            vec![serde_json::to_string_pretty(&info).unwrap_or_default()]
-        }
-    } else {
-        vec![]
-    };
-
-    let mut blocks = vec![json!({
-        "type": "section",
-        "text": {
-            "type": "mrkdwn",
-            "text": format!("`{}`: New Event", signal_name)
-        }
-    })];
-
-    if !info_entries.is_empty() {
-        let combined = info_entries.join("\n\n");
-        let truncated = truncate_to_slack_section_limit(&combined);
-        blocks.push(json!({
-            "type": "section",
-            "text": { "type": "mrkdwn", "text": truncated }
-        }));
-    }
-
-    blocks.push(json!({
-        "type": "actions",
-        "elements": [
-            {
-                "type": "button",
-                "text": {
-                    "type": "plain_text",
-                    "text": "View Trace",
-                    "emoji": true
-                },
-                "url": trace_link,
-                "action_id": "view_trace"
-            }
-        ]
-    }));
-    let signal_link = with_utm(
-        &format!("{}/project/{}/signals/{}", base, project_id, signal_id),
-        "slack",
-        "signal_alert",
-        "view_signal",
-    );
-    let alert_link = with_utm(
-        &format!("{}/project/{}/settings?tab=alerts", base, project_id),
-        "slack",
-        "signal_alert",
-        "manage_alert",
-    );
-    let mut context_elements = vec![
-        json!({
-            "type": "mrkdwn",
-            "text": format!("Severity: {}", severity_label)
-        }),
-        json!({
-            "type": "mrkdwn",
-            "text": format!("Signal: <{}|{}>", signal_link, signal_name)
-        }),
-        json!({
-            "type": "mrkdwn",
-            "text": format!("Alert: <{}|{}>", alert_link, alert_name)
-        }),
-    ];
-    if let Some(eid) = event_id {
-        let similar_link = with_utm(
-            &format!(
-                "{}/project/{}/signals/{}?eventCluster={}",
-                base, project_id, signal_id, eid,
-            ),
-            "slack",
-            "signal_alert",
-            "similar_events",
-        );
-        context_elements.push(json!({
-            "type": "mrkdwn",
-            "text": format!("Similar Events: <{}|View>", similar_link)
-        }));
-    }
-    blocks.push(json!({
-        "type": "context",
-        "elements": context_elements
-    }));
-    blocks.push(json!({"type": "divider"}));
-
-    json!(blocks)
-}
-
-// Format Slack message blocks for a new-cluster notification.
-#[allow(clippy::too_many_arguments)]
-fn format_new_cluster_blocks(
-    project_id: &Uuid,
-    signal_id: &Uuid,
-    signal_name: &str,
-    cluster_id: &Uuid,
-    cluster_name: &str,
-    num_signal_events: u32,
-    num_child_clusters: usize,
-    alert_name: &str,
-) -> serde_json::Value {
-    let base = frontend_url_slack();
-    let cluster_link = with_utm(
-        &format!(
-            "{}/project/{}/signals/{}?clusterId={}",
-            base, project_id, signal_id, cluster_id
-        ),
-        "slack",
-        "new_cluster_alert",
-        "view_cluster",
-    );
-    let signal_link = with_utm(
-        &format!("{}/project/{}/signals/{}", base, project_id, signal_id),
-        "slack",
-        "new_cluster_alert",
-        "view_signal",
-    );
-    let alert_link = with_utm(
-        &format!("{}/project/{}/settings?tab=alerts", base, project_id),
-        "slack",
-        "new_cluster_alert",
-        "manage_alert",
-    );
-
-    let details_text = format!(
-        "*Cluster:* {}\n*Events:* {}\n*Child clusters:* {}",
-        cluster_name, num_signal_events, num_child_clusters
-    );
-
-    json!([
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": format!("`{}`: New Cluster", signal_name)
-            }
-        },
-        {
-            "type": "section",
-            "text": { "type": "mrkdwn", "text": details_text }
-        },
-        {
-            "type": "actions",
-            "elements": [
-                {
-                    "type": "button",
-                    "text": {
-                        "type": "plain_text",
-                        "text": "View Cluster",
-                        "emoji": true
-                    },
-                    "url": cluster_link,
-                    "action_id": "view_cluster"
-                }
-            ]
-        },
-        {
-            "type": "context",
-            "elements": [
-                {
-                    "type": "mrkdwn",
-                    "text": format!("Signal: <{}|{}>", signal_link, signal_name)
-                },
-                {
-                    "type": "mrkdwn",
-                    "text": format!("Alert: <{}|{}>", alert_link, alert_name)
-                }
-            ]
-        },
-        {"type": "divider"}
-    ])
-}
-
-/// Format Slack message blocks for a signals report notification.
-fn format_report_blocks(title: &str, report: &ReportData) -> serde_json::Value {
-    let project_count = report.projects.len();
-
-    let overview = format!(
-        "{} – {}\n{} event{} across {} project{}",
-        report.period_start,
-        report.period_end,
-        report.total_events,
-        if report.total_events == 1 { "" } else { "s" },
-        project_count,
-        if project_count == 1 { "" } else { "s" },
-    );
-
-    let mut blocks = vec![
-        json!({
-            "type": "section",
-            "text": { "type": "mrkdwn", "text": format!(":bar_chart: *{}*", title) }
-        }),
-        json!({
-            "type": "section",
-            "text": { "type": "mrkdwn", "text": overview }
-        }),
-    ];
-
-    const MAX_SECTION_TEXT_LEN: usize = 3000;
-    let base = frontend_url_slack();
-
-    for project in &report.projects {
-        let mut text = String::new();
-
-        let project_total: u64 = project.signal_event_counts.values().sum();
-        text.push_str(&format!("\nTotal events: *{}*\n", project_total));
-        for (name, count) in &project.signal_event_counts {
-            text.push_str(&format!("• {}: *{}*\n", name, count));
-        }
-
-        if !project.ai_summary.is_empty() {
-            text.push_str(&format!("\n\nSummary: _{}_\n", project.ai_summary));
-        }
-
-        if !project.noteworthy_events.is_empty() {
-            text.push_str("\nNoteworthy Events:\n");
-            for event in &project.noteworthy_events {
-                let trace_link = with_utm(
-                    &format!(
-                        "{}/project/{}/traces/{}?chat=true",
-                        base, project.project_id, event.trace_id,
-                    ),
-                    "slack",
-                    "signals_report",
-                    "view_trace",
-                );
-                let entry = format!(
-                    "• `{}` – {} ({}) <{}|View trace>\n",
-                    event.signal_name, event.summary, event.timestamp, trace_link,
-                );
-                if text.len() + entry.len() > MAX_SECTION_TEXT_LEN {
-                    break;
-                }
-                text.push_str(&entry);
-            }
-        }
-
-        blocks.push(json!({"type": "divider"}));
-        blocks.push(json!({
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": format!(":small_orange_diamond: *{}*", project.project_name)
-            }
-        }));
-        blocks.push(json!({
-            "type": "section",
-            "text": { "type": "mrkdwn", "text": text }
-        }));
-    }
-
-    json!(blocks)
-}
-
-/// Format Slack message blocks for a usage warning notification.
-fn format_usage_warning_blocks(
-    workspace_name: &str,
-    usage_label: &str,
-    formatted_limit: &str,
-) -> serde_json::Value {
-    json!([
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": format!(
-                    ":warning: *Usage Warning*\n{} has reached *{}* of {}.",
-                    workspace_name, formatted_limit, usage_label
-                )
-            }
-        },
-        {"type": "divider"}
-    ])
-}
+use event_identification::format_event_identification_blocks;
+use new_cluster::format_new_cluster_blocks;
+use report::format_report_blocks;
+use usage_warning::format_usage_warning_blocks;
 
 pub async fn send_message(
     slack_client: &Client,
@@ -681,5 +362,166 @@ mod tests {
         let out = truncate_to_slack_section_limit(&input);
         assert_eq!(out.chars().count(), 3000);
         assert!(out.ends_with("..."));
+    }
+
+    use crate::reports::email_template::{NoteworthyEvent, ProjectReportData, ReportData};
+    use std::collections::BTreeMap;
+
+    fn blocks_of(v: &serde_json::Value) -> &Vec<serde_json::Value> {
+        v.as_array().expect("blocks array")
+    }
+
+    #[test]
+    fn usage_warning_has_manage_billing_button() {
+        let wid = Uuid::nil();
+        let v = format_usage_warning_blocks(wid, "Acme Inc", "the monthly signal allowance", "85%");
+        let first = &blocks_of(&v)[0];
+        assert_eq!(first["accessory"]["action_id"], "manage_billing");
+        let url = first["accessory"]["url"].as_str().unwrap();
+        assert!(url.contains("/checkout/portal?workspaceId="));
+        assert!(url.contains(&wid.to_string()));
+        assert!(first["text"]["text"].as_str().unwrap().contains("85%"));
+    }
+
+    #[test]
+    fn event_identification_routes_short_to_grid_long_to_section() {
+        let eid = Uuid::nil();
+        let info = json!({
+            "error_code": "INVALID_ORDER_ID",
+            "description": "x".repeat(120),
+        });
+        let v = format_event_identification_blocks(
+            "pid",
+            "sid",
+            "tid",
+            Some(&eid),
+            "Failure Detector",
+            Some(info),
+            "Alert",
+            &2u8,
+        );
+        let blocks = blocks_of(&v);
+        // header carries the severity
+        let header = blocks.iter().find(|b| b["type"] == "header").unwrap();
+        let ht = header["text"]["text"].as_str().unwrap();
+        assert!(ht.contains("Failure Detector"));
+        assert!(ht.contains("Critical"));
+        // short scalar -> a fields grid; long value -> a plain section
+        assert!(
+            blocks
+                .iter()
+                .any(|b| b["type"] == "section" && b.get("fields").is_some())
+        );
+        assert!(
+            blocks
+                .iter()
+                .any(|b| b["type"] == "section" && b.get("text").is_some())
+        );
+        // "Open in Signals" carries trace + cluster
+        let btn = blocks.iter().find(|b| b["type"] == "actions").unwrap()["elements"][0].clone();
+        let url = btn["url"].as_str().unwrap();
+        assert!(url.contains("eventCluster="));
+        assert!(url.contains("traceId="));
+    }
+
+    #[test]
+    fn new_cluster_header_and_cube_variant() {
+        let pid = Uuid::nil();
+        let sid = Uuid::nil();
+        let cid = Uuid::nil();
+        // leaf (no children) -> variant=box
+        let leaf = format_new_cluster_blocks(
+            &pid,
+            &sid,
+            "Failure Detector",
+            &cid,
+            "Bad args",
+            3,
+            0,
+            "Alert",
+        );
+        let lb = blocks_of(&leaf);
+        let header = lb.iter().find(|b| b["type"] == "header").unwrap();
+        assert_eq!(header["text"]["text"], "Failure Detector - New cluster");
+        let cube = lb[1]["elements"][0]["image_url"].as_str().unwrap();
+        assert!(cube.contains("/api/cluster-swatch?clusterId="));
+        assert!(cube.contains("variant=box"));
+        assert!(!cube.contains("variant=boxes"));
+        // non-leaf -> variant=boxes
+        let parent = format_new_cluster_blocks(&pid, &sid, "Sig", &cid, "Group", 9, 4, "Alert");
+        let cube2 = blocks_of(&parent)[1]["elements"][0]["image_url"]
+            .as_str()
+            .unwrap();
+        assert!(cube2.contains("variant=boxes"));
+    }
+
+    fn report_with(noteworthy: Vec<NoteworthyEvent>) -> ReportData {
+        let mut counts = BTreeMap::new();
+        counts.insert("Failure Detector".to_string(), 93u64);
+        ReportData {
+            workspace_id: Uuid::nil(),
+            workspace_name: "WS".to_string(),
+            period_label: "Weekly".to_string(),
+            period_start: "Jun 1".to_string(),
+            period_end: "Jun 7".to_string(),
+            total_events: 93,
+            projects: vec![ProjectReportData {
+                project_name: "background-agent".to_string(),
+                project_id: Uuid::nil(),
+                signal_event_counts: counts,
+                ai_summary: "Summary text".to_string(),
+                noteworthy_events: noteworthy,
+            }],
+        }
+    }
+
+    fn event(sev: u8) -> NoteworthyEvent {
+        NoteworthyEvent {
+            signal_name: "Failure Detector".to_string(),
+            summary: "Something broke".to_string(),
+            timestamp: "Jun 7".to_string(),
+            trace_id: Uuid::nil().to_string(),
+            severity: sev,
+        }
+    }
+
+    #[test]
+    fn report_builds_carousel_with_severity_subtitle() {
+        let v = format_report_blocks("Weekly report – WS", &report_with(vec![event(2)]));
+        let blocks = blocks_of(&v);
+        assert_eq!(blocks[0]["type"], "header");
+        assert!(
+            blocks[0]["text"]["text"]
+                .as_str()
+                .unwrap()
+                .contains(":bar_chart:")
+        );
+        let carousel = blocks.iter().find(|b| b["type"] == "carousel").unwrap();
+        let card = &carousel["elements"][0];
+        assert_eq!(card["type"], "card");
+        assert_eq!(card["title"]["text"], "Failure Detector");
+        assert!(
+            card["subtitle"]["text"]
+                .as_str()
+                .unwrap()
+                .contains("Critical")
+        );
+    }
+
+    #[test]
+    fn report_carousel_caps_at_ten_with_overflow_note() {
+        let events: Vec<NoteworthyEvent> = (0..12).map(|_| event(1)).collect();
+        let v = format_report_blocks("R", &report_with(events));
+        let blocks = blocks_of(&v);
+        let carousel = blocks.iter().find(|b| b["type"] == "carousel").unwrap();
+        assert_eq!(carousel["elements"].as_array().unwrap().len(), 10);
+        // overflow surfaced as a "+N more" context with a signals link
+        assert!(blocks.iter().any(|b| {
+            b["type"] == "context"
+                && b["elements"][0]["text"]
+                    .as_str()
+                    .map(|t| t.contains("+2 more"))
+                    .unwrap_or(false)
+        }));
     }
 }
