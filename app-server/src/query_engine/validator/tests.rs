@@ -1263,6 +1263,18 @@ fn test_bounds_end_time_lower_ignored() {
 }
 
 #[test]
+fn test_bounds_end_time_eq_upper_only() {
+    // end_time = X ⇒ start_time <= X (end_time >= start_time). Lower unbounded —
+    // equality on end_time yields only an upper bound on start_time.
+    let b = traces_bounds("SELECT id FROM traces WHERE end_time = '2026-06-02 00:00:00'");
+    assert_default_min(&b);
+    assert!(
+        b.contains("max_start_time = toDateTime64('2026-06-02 00:00:00', 9) + INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
 fn test_bounds_start_and_end_range() {
     let b = traces_bounds(
         "SELECT id FROM traces WHERE start_time >= '2026-06-01 00:00:00' AND end_time <= '2026-06-02 00:00:00'",

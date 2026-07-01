@@ -1050,7 +1050,10 @@ impl VisitorMut for ViewRewriter<'_> {
             // from the enclosing WHERE so the PREWHERE narrows the scan before
             // FINAL. Columns are matched against this relation's alias (or the
             // bare table name) so a joined table's `start_time` is not confused
-            // for the traces one.
+            // for the traces one. `where_stack` only ever carries the enclosing
+            // SELECT's WHERE (see `pre_visit_select`), so post-aggregation HAVING
+            // predicates are intentionally excluded — they can't be pushed to a
+            // pre-scan PREWHERE anyway.
             if table_name == TRACES_TABLE {
                 let where_clause = self.where_stack.last().and_then(|w| w.as_ref());
                 let (min_expr, max_expr) = traces_time_bound_args(where_clause, &alias_ident.value);
