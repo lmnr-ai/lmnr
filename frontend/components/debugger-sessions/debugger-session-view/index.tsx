@@ -4,6 +4,7 @@ import { type ComponentProps, useEffect } from "react";
 
 import { type TraceViewTrace } from "@/components/traces/trace-view/store";
 import Header from "@/components/ui/header";
+import { type SessionEvaluation } from "@/lib/actions/debugger-sessions";
 import { track } from "@/lib/posthog";
 import { type TraceRow } from "@/lib/traces/types";
 
@@ -21,6 +22,9 @@ interface DebuggerSessionViewProps {
   // raw name so it can show a "Set session name" placeholder vs. the breadcrumb,
   // which falls back to the id.
   initialName?: string | null;
+  // Evaluations linked to this session (via `rollout.session_id`), rendered as
+  // cards above the run list. Empty for the /alpha single-trace harness.
+  evaluations?: SessionEvaluation[];
 }
 
 // Last breadcrumb segment is the session/trace title rendered in the header.
@@ -71,7 +75,13 @@ function LiveSessionBreadcrumb({ path }: { path: ComponentProps<typeof Header>["
   return <Header path={livePath} />;
 }
 
-export default function DebuggerSessionView({ trace, headerPath, sessionId, initialName }: DebuggerSessionViewProps) {
+export default function DebuggerSessionView({
+  trace,
+  headerPath,
+  sessionId,
+  initialName,
+  evaluations,
+}: DebuggerSessionViewProps) {
   // Multi-trace session view (not the /alpha single-trace harness) is a viewed session.
   useEffect(() => {
     if (sessionId) track("debugger_sessions", "session_viewed");
@@ -90,7 +100,7 @@ export default function DebuggerSessionView({ trace, headerPath, sessionId, init
     >
       <LiveSessionBreadcrumb path={path} />
       <div className="flex-none border-t" />
-      <DebuggerSessionViewContent sessionId={sessionId} />
+      <DebuggerSessionViewContent sessionId={sessionId} evaluations={evaluations} />
     </DebuggerSessionViewStoreProvider>
   );
 }

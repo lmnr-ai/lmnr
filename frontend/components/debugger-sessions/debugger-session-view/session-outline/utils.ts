@@ -28,6 +28,7 @@ export const slugify = (text: string): string =>
 
 export const traceAnchorId = (traceId: string): string => `outline-trace-${traceId}`;
 export const headingAnchorId = (traceId: string, slug: string): string => `outline-h-${traceId}-${slug}`;
+export const evalAnchorId = (evaluationId: string): string => `outline-eval-${evaluationId}`;
 
 const FENCE_RE = /^\s*(```|~~~)/;
 const HEADING_RE = /^(#{1,6})\s+(.*\S)\s*$/;
