@@ -1,10 +1,10 @@
 import {
-  generateObject,
   generateText,
   type GenerateTextResult,
   jsonSchema,
   type LanguageModelUsage,
   modelMessageSchema,
+  Output,
   type ToolSet,
 } from "ai";
 import { and, eq } from "drizzle-orm";
@@ -124,7 +124,7 @@ export async function generateChatResponse(
   let result: any;
 
   if (structuredOutput) {
-    const objectResult = await generateObject({
+    const objectResult = await generateText({
       abortSignal,
       model: getModel(model as `${Provider}:${string}`, decodedKey),
       messages,
@@ -133,18 +133,12 @@ export async function generateChatResponse(
       topK,
       topP,
       providerOptions,
-      schema: jsonSchema(structuredOutput),
+      output: Output.object({ schema: jsonSchema(structuredOutput) }),
     });
 
     result = {
       ...objectResult,
-      text: JSON.stringify(objectResult.object, null, 2),
-      reasoning: [],
-      toolCalls: [],
-      content: [],
-      files: [],
-      sources: [],
-      reasoningText: "",
+      text: JSON.stringify(objectResult.output, null, 2),
     };
   } else {
     result = await generateText({

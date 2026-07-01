@@ -1,4 +1,4 @@
-import { generateObject } from "ai";
+import { generateText, Output } from "ai";
 import { z } from "zod";
 
 import { getLanguageModel } from "@/lib/ai/model";
@@ -132,17 +132,17 @@ const RegexResultSchema = z.object({
 
 export async function generateExtractionRegex(userMessage: string): Promise<string | null> {
   try {
-    const { object } = await generateObject({
+    const { output } = await generateText({
       model: getLanguageModel("small"),
       system: SYSTEM_PROMPT,
       prompt: userMessage,
-      schema: RegexResultSchema,
+      output: Output.object({ schema: RegexResultSchema }),
       maxRetries: 0,
       temperature: 0,
       abortSignal: AbortSignal.timeout(5000),
     });
 
-    return object.regex?.trim() || null;
+    return output.regex?.trim() || null;
   } catch (error) {
     console.error("[traces:generate-extraction-regex] LLM call failed:", error);
     return null;

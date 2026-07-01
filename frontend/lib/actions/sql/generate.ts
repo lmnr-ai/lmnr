@@ -1,5 +1,5 @@
 import { observe } from "@lmnr-ai/lmnr";
-import { generateObject } from "ai";
+import { generateText, Output } from "ai";
 import { z } from "zod";
 
 import { getLanguageModel } from "@/lib/ai/model";
@@ -24,20 +24,20 @@ export async function generateSql(input: z.infer<typeof GenerateSchema>): Promis
   const { projectId, prompt, mode, currentQuery } = GenerateSchema.parse(input);
   const prompts = getGenerationPrompts(mode, currentQuery);
 
-  const { object } = await observe(
+  const { output } = await observe(
     { name: "generateSql", input: { projectId, mode } },
     async () =>
-      await generateObject({
+      await generateText({
         model: getLanguageModel("medium"),
-        schema: GenerationResultSchema,
+        output: Output.object({ schema: GenerationResultSchema }),
         system: prompts.system,
         prompt: prompts.user(prompt),
       })
   );
 
-  if (object.success && object.result) {
-    return { success: true, result: object.result };
+  if (output.success && output.result) {
+    return { success: true, result: output.result };
   }
 
-  return { success: false, error: object.error || "Failed to generate SQL" };
+  return { success: false, error: output.error || "Failed to generate SQL" };
 }
