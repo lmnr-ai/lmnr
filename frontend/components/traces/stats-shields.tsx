@@ -66,6 +66,11 @@ function computeSpanStats(
     if (start < minStart) minStart = start;
     if (end > maxEnd) maxEnd = end;
 
+    // Token/cost totals count LLM (and cached-LLM) spans only. Non-LLM spans can carry
+    // stray `gen_ai.usage.*` values on their own row; summing them would double-count into
+    // the trace/selection total (LAM-1873). Duration still spans every selected span.
+    if (span.spanType !== "LLM" && span.spanType !== "CACHED") continue;
+
     inputTokens += span.inputTokens || 0;
     outputTokens += span.outputTokens || 0;
     totalTokens += span.totalTokens || 0;
