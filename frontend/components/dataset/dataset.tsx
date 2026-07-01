@@ -155,6 +155,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
       })
       .catch((e) => {
         console.error("Error fetching dataset count:", e);
+        setTotalCount(0);
       });
   }, [fetchCount]);
 
