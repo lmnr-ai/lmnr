@@ -1,9 +1,12 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
+import { getWorkspaceUsage } from "@/lib/actions/workspace";
 import { cache, PROJECT_CACHE_KEY, WORKSPACE_USAGE_WARNINGS_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
-import { projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
+import { projects, subscriptionTiers, workspaceHardLimitNotifications, workspaces } from "@/lib/db/migrations/schema";
 import { getHasClusteringAccess } from "@/lib/features/clustering";
+
+import type { UsageLimitType } from "./custom-usage-limits";
 
 export const isFreeTierWorkspace = async (workspaceId: string): Promise<boolean> => {
   const result = await db
@@ -47,5 +50,70 @@ export const invalidateUsageWarningsCacheForWorkspace = async (workspaceId: stri
     await cache.remove(`${WORKSPACE_USAGE_WARNINGS_CACHE_KEY}:${workspaceId}`);
   } catch (e) {
     console.error("Error clearing usage warnings cache", e);
+  }
+};
+
+// Drop the once-per-cycle hard-limit dedup row so a later, legitimately distinct
+// hard-limit notification isn't suppressed by a stale `last_notified_at`. There's
+// no FK cascade from `workspace_usage_limits` (free tiers have no limit row at all),
+// so cleanup is explicit. Called whenever the underlying hard limit is removed.
+export const deleteHardLimitNotification = async (workspaceId: string, usageItem: UsageLimitType): Promise<void> => {
+  await db
+    .delete(workspaceHardLimitNotifications)
+    .where(
+      and(
+        eq(workspaceHardLimitNotifications.workspaceId, workspaceId),
+        eq(workspaceHardLimitNotifications.usageItem, usageItem)
+      )
+    );
+};
+
+// When a hard limit is *raised*, only clear the dedup row if the workspace was
+// already notified this billing cycle AND the new limit sits above current usage —
+// i.e. the workspace is back below its (higher) cap and a future breach is a fresh
+// event worth notifying about. If usage already exceeds the new limit, the existing
+// stamp correctly continues to suppress duplicate notifications.
+//
+// Current usage comes from `getWorkspaceUsage` (cache → ClickHouse), NOT the
+// `workspace_usage` table: those columns are only written on checkout/reset and are
+// not kept in sync with the enforcement caches, and `signal_cost` there isn't stored
+// in micro-USD. `getWorkspaceUsage` returns `totalSignalCostMicroUsd`, matching the
+// micro-USD unit of `signal_cost` limits, and `totalBytesIngested` for bytes limits.
+export const clearHardLimitNotificationOnIncrease = async (
+  workspaceId: string,
+  usageItem: UsageLimitType,
+  newLimitValue: number
+): Promise<void> => {
+  const rows = await db
+    .select({ lastNotifiedAt: workspaceHardLimitNotifications.lastNotifiedAt })
+    .from(workspaceHardLimitNotifications)
+    .where(
+      and(
+        eq(workspaceHardLimitNotifications.workspaceId, workspaceId),
+        eq(workspaceHardLimitNotifications.usageItem, usageItem)
+      )
+    )
+    .limit(1);
+
+  if (rows.length === 0) {
+    return;
+  }
+
+  const { lastNotifiedAt } = rows[0];
+  if (!lastNotifiedAt) {
+    return;
+  }
+
+  // getWorkspaceUsage recomputes the billing-cycle start from resetTime internally,
+  // so compare lastNotifiedAt against that same cycle start.
+  const usage = await getWorkspaceUsage(workspaceId);
+  const notifiedThisCycle = new Date(lastNotifiedAt) >= usage.resetTime;
+  if (!notifiedThisCycle) {
+    return;
+  }
+
+  const currentUsage = usageItem === "bytes" ? usage.totalBytesIngested : usage.totalSignalCostMicroUsd;
+  if (newLimitValue > currentUsage) {
+    await deleteHardLimitNotification(workspaceId, usageItem);
   }
 };

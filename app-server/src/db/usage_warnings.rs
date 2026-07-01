@@ -100,6 +100,51 @@ pub async fn mark_warning_as_notified(pool: &PgPool, warning_id: Uuid) -> Result
     Ok(())
 }
 
+/// Fetch the hard-limit notification timestamp for a `(workspace_id, usage_item)`
+/// pair, or `None` if the workspace has never been notified for this item. Hard
+/// limits dedup per billing cycle via this timestamp (mirroring usage warnings),
+/// stored in a dedicated table because `workspace_usage_limits` has no row for
+/// free-tier workspaces, which still enforce the tier's included allowance.
+pub async fn get_hard_limit_last_notified_at(
+    pool: &PgPool,
+    workspace_id: Uuid,
+    usage_item: &UsageItem,
+) -> Result<Option<DateTime<Utc>>> {
+    let last_notified_at = sqlx::query_scalar::<_, Option<DateTime<Utc>>>(
+        "SELECT last_notified_at
+         FROM workspace_hard_limit_notifications
+         WHERE workspace_id = $1 AND usage_item = $2",
+    )
+    .bind(workspace_id)
+    .bind(usage_item.to_string())
+    .fetch_optional(pool)
+    .await?
+    .flatten();
+
+    Ok(last_notified_at)
+}
+
+/// Mark the hard limit for `(workspace_id, usage_item)` as notified now. Upserts
+/// the dedup row so the first crossing in a billing cycle inserts it and later
+/// cycles update it.
+pub async fn mark_hard_limit_as_notified(
+    pool: &PgPool,
+    workspace_id: Uuid,
+    usage_item: &UsageItem,
+) -> Result<()> {
+    sqlx::query(
+        "INSERT INTO workspace_hard_limit_notifications (workspace_id, usage_item, last_notified_at)
+         VALUES ($1, $2, NOW())
+         ON CONFLICT (workspace_id, usage_item)
+         DO UPDATE SET last_notified_at = NOW()",
+    )
+    .bind(workspace_id)
+    .bind(usage_item.to_string())
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 /// Get owner email(s) for a workspace.
 pub async fn get_workspace_owner_emails(pool: &PgPool, workspace_id: Uuid) -> Result<Vec<String>> {
     let rows = sqlx::query_scalar::<_, String>(

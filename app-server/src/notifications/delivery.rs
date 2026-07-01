@@ -120,6 +120,7 @@ impl MessageHandler for NotificationDeliveryHandler {
                         NotificationKind::NewCluster { project_id, .. } => *project_id,
                         NotificationKind::SignalsReport { project_id, .. } => *project_id,
                         NotificationKind::UsageWarning { .. } => Uuid::nil(),
+                        NotificationKind::UsageHardLimit { .. } => Uuid::nil(),
                     };
                     CHNotificationDelivery {
                         workspace_id: message.workspace_id,

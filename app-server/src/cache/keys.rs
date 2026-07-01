@@ -38,6 +38,11 @@ pub const REPORT_SCHEDULER_LAST_CHECK_CACHE_KEY: &str = "report_scheduler_last_c
 pub const SAMPLING_FACTORS_CACHE_KEY: &str = "sampling_factors";
 pub const WORKSPACE_USAGE_WARNINGS_CACHE_KEY: &str = "workspace_usage_warnings";
 pub const USAGE_WARNING_SEND_LOCK_KEY: &str = "usage_warning_send_lock";
+/// Race guard mirroring `USAGE_WARNING_SEND_LOCK_KEY` for hard-limit
+/// notifications. Hard-limit messages share `definition_id` (= workspace_id)
+/// across usage items, so the lock is keyed `…:{workspace_id}:{usage_item}` to
+/// avoid a bytes notification suppressing a concurrent signal-cost one.
+pub const HARD_LIMIT_SEND_LOCK_KEY: &str = "hard_limit_send_lock";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SYS_PROMPT_SUMMARY_CACHE_KEY: &str = "sys_prompt_summary_v2";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]

@@ -61,6 +61,7 @@ pub async fn create_spans(
             db.clone(),
             clickhouse.into_inner().as_ref().clone(),
             cache.clone(),
+            spans_message_queue.as_ref().clone(),
             project_id,
         )
         .await

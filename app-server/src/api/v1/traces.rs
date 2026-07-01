@@ -76,6 +76,7 @@ pub async fn process_traces(
             db.clone(),
             clickhouse.into_inner().as_ref().clone(),
             cache.clone(),
+            spans_message_queue.clone(),
             project_api_key.project_id,
         )
         .await

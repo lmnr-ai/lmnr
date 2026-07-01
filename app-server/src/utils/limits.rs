@@ -79,6 +79,7 @@ pub async fn get_workspace_bytes_limit_exceeded(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
+    queue: Arc<MessageQueue>,
     project_id: Uuid,
 ) -> Result<bool> {
     let project_info =
@@ -136,6 +137,22 @@ pub async fn get_workspace_bytes_limit_exceeded(
         }
     };
 
+    // Enforcement also notifies: if a workspace is already over the cap (e.g. a
+    // custom limit was lowered below current usage), no further ingestion batch
+    // reaches the update path, so this gate is the only place the owner email
+    // can fire. check_notify_hard_limit dedups per billing cycle via the DB
+    // last_notified_at, so calling it here as well as from the update path is safe.
+    check_notify_hard_limit(
+        db,
+        queue,
+        workspace_id,
+        project_info.reset_time,
+        UsageItem::Bytes,
+        bytes_ingested,
+        Some(effective_limit),
+    )
+    .await;
+
     Ok(bytes_ingested >= effective_limit)
 }
 
@@ -144,6 +161,7 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
+    queue: Arc<MessageQueue>,
     project_id: Uuid,
 ) -> Result<bool> {
     let project_info = match get_workspace_info_for_project_id(
@@ -196,6 +214,19 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
         signal_cost,
         effective_limit
     );
+
+    // See get_workspace_bytes_limit_exceeded: enforcement is the only path that
+    // notifies when usage is already over the cap. Dedup via the DB last_notified_at.
+    check_notify_hard_limit(
+        db,
+        queue,
+        workspace_id,
+        project_info.reset_time,
+        UsageItem::SignalCost,
+        signal_cost,
+        Some(effective_limit),
+    )
+    .await;
 
     Ok(signal_cost >= effective_limit)
 }
@@ -330,6 +361,8 @@ pub async fn update_workspace_bytes_ingested(
         };
 
     let workspace_id = project_info.workspace_id;
+    // Capture before `workspace_project_ids` is moved into the ClickHouse query below.
+    let effective_bytes_limit = get_effective_bytes_limit(&project_info);
 
     let cache_key = format!("{WORKSPACE_BYTES_USAGE_CACHE_KEY}:{workspace_id}");
 
@@ -384,12 +417,23 @@ pub async fn update_workspace_bytes_ingested(
     check_soft_limits(
         db.clone(),
         cache.clone(),
-        queue,
+        queue.clone(),
         workspace_id,
         project_info.reset_time,
         UsageItem::Bytes,
         current_value,
         &project_info.tier_name,
+    )
+    .await;
+
+    check_notify_hard_limit(
+        db,
+        queue,
+        workspace_id,
+        project_info.reset_time,
+        UsageItem::Bytes,
+        current_value,
+        effective_bytes_limit,
     )
     .await;
 
@@ -443,6 +487,8 @@ pub async fn update_workspace_signal_tokens(
     };
 
     let workspace_id = project_info.workspace_id;
+    // Capture before `workspace_project_ids` is moved into the ClickHouse query below.
+    let effective_signal_cost_limit = get_effective_signal_cost_limit_micro_usd(&project_info);
 
     let input_key = format!("{WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY}:{workspace_id}");
     let cache_read_key =
@@ -582,12 +628,23 @@ pub async fn update_workspace_signal_tokens(
     check_soft_limits(
         db.clone(),
         cache.clone(),
-        queue,
+        queue.clone(),
         workspace_id,
         project_info.reset_time,
         UsageItem::SignalCost,
         current_cost,
         &project_info.tier_name,
+    )
+    .await;
+
+    check_notify_hard_limit(
+        db,
+        queue,
+        workspace_id,
+        project_info.reset_time,
+        UsageItem::SignalCost,
+        current_cost,
+        effective_signal_cost_limit,
     )
     .await;
 
@@ -727,6 +784,105 @@ async fn send_soft_limit_notification(
             if let Err(e) = cache.remove(&cache_key).await {
                 log::warn!(
                     "Failed to evict warnings cache for workspace [{}]: {:?}",
+                    workspace_id,
+                    e
+                );
+            }
+        }
+    }
+}
+
+/// Check the hard limit against the current usage value and, the first time the
+/// workspace crosses it this billing cycle, enqueue a notification telling owners
+/// that the metered activity (data ingestion / signal runs) is now blocked until
+/// the cycle resets. Dedup mirrors soft warnings exactly: a `last_notified_at`
+/// timestamp (in `workspace_hard_limit_notifications`) is compared against the
+/// billing-period start, so we email once per crossing per cycle rather than on
+/// every blocked batch.
+async fn check_notify_hard_limit(
+    db: Arc<DB>,
+    queue: Arc<MessageQueue>,
+    workspace_id: Uuid,
+    reset_time: DateTime<Utc>,
+    usage_item: UsageItem,
+    current_value: i64,
+    effective_limit: Option<i64>,
+) {
+    let limit = match effective_limit {
+        Some(l) => l,
+        None => return,
+    };
+    if current_value < limit {
+        return;
+    }
+
+    let billing_start = current_billing_period_start(reset_time);
+
+    match usage_warnings::get_hard_limit_last_notified_at(&db.pool, workspace_id, &usage_item).await
+    {
+        Ok(Some(t)) if t >= billing_start => return, // already notified this billing cycle
+        Ok(_) => {}
+        Err(e) => {
+            // Don't risk emailing on every batch if the lookup is unhealthy.
+            log::warn!(
+                "Failed to read hard-limit last_notified_at for workspace [{}]: {:?}",
+                workspace_id,
+                e
+            );
+            return;
+        }
+    }
+
+    let workspace_name = match usage_warnings::get_workspace_name(&db.pool, workspace_id).await {
+        Ok(name) => name,
+        Err(e) => {
+            log::warn!(
+                "Failed to get workspace name for [{}]: {:?}",
+                workspace_id,
+                e
+            );
+            "Your workspace".to_string()
+        }
+    };
+
+    let (usage_label, formatted_limit) = format_usage_item(&usage_item, limit);
+
+    let notification_message = NotificationMessage {
+        definition_type: NotificationDefinitionType::UsageHardLimit,
+        definition_id: workspace_id,
+        workspace_id,
+        project_id: None,
+        notifications: vec![NotificationKind::UsageHardLimit {
+            workspace_name,
+            usage_label,
+            formatted_limit,
+            usage_item: usage_item.to_string(),
+        }],
+    };
+
+    match notifications::push_to_notification_queue(notification_message, queue).await {
+        Err(e) => {
+            log::error!(
+                "Failed to push hard limit notification for workspace [{}]: {:?}",
+                workspace_id,
+                e
+            );
+        }
+        Ok(()) => {
+            log::info!(
+                "Pushed hard limit notification for workspace [{}], item={}, limit={}",
+                workspace_id,
+                usage_item,
+                limit
+            );
+            // Message is now durably queued. Eagerly stamp last_notified_at so
+            // ingestion workers don't re-enqueue for the same billing cycle.
+            if let Err(e) =
+                usage_warnings::mark_hard_limit_as_notified(&db.pool, workspace_id, &usage_item)
+                    .await
+            {
+                log::error!(
+                    "Failed to update hard-limit last_notified_at for workspace [{}]: {:?}",
                     workspace_id,
                     e
                 );
