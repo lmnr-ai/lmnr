@@ -179,31 +179,16 @@ pub async fn process_span_messages(
     let mut span_usage_vec = Vec::with_capacity(messages.len());
 
     for m in &mut messages {
-        let mut span_usage = get_llm_usage_for_span(
+        let is_llm_span = m.span.is_llm_span();
+        let span_usage = get_llm_usage_for_span(
             &mut m.span.attributes,
             db.clone(),
             cache.clone(),
             &m.span.name,
             &m.span.project_id,
+            is_llm_span,
         )
         .await;
-
-        // `get_llm_usage_for_span` reads `gen_ai.usage.*` unconditionally, so a non-LLM span
-        // that carries those attributes gets a populated `SpanUsage`. Zero the numeric usage
-        // for non-LLM spans so the recorded per-span token/cost columns and the trace totals
-        // both reflect LLM spans only (LAM-1873). The raw attributes still hold whatever the
-        // user sent, so nothing is lost for SQL over the `attributes` blob.
-        if !m.span.is_llm_span() {
-            span_usage.input_tokens = 0;
-            span_usage.output_tokens = 0;
-            span_usage.total_tokens = 0;
-            span_usage.cache_read_input_tokens = 0;
-            span_usage.cache_creation_input_tokens = 0;
-            span_usage.reasoning_tokens = 0;
-            span_usage.input_cost = 0.0;
-            span_usage.output_cost = 0.0;
-            span_usage.total_cost = 0.0;
-        }
 
         prepare_span_for_recording(&mut m.span, &span_usage);
         if !m.pre_processed {
