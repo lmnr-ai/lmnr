@@ -15,6 +15,7 @@ import OpenAIResponsesContentParts from "@/components/traces/span-view/openai-re
 import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
 import { Button } from "@/components/ui/button";
 import { convertToMessages } from "@/lib/spans/types";
+import { parseAiSdkMessages } from "@/lib/spans/types/ai-sdk";
 import { type AnthropicMessagesSchema, parseAnthropicInput, parseAnthropicOutput } from "@/lib/spans/types/anthropic";
 import { type GeminiContentsSchema, parseGeminiContents } from "@/lib/spans/types/gemini";
 import { parseGenAIMessages } from "@/lib/spans/types/gen-ai";
@@ -171,6 +172,17 @@ export function processMessages(data: unknown): ProcessedMessages {
   const geminiContents = parseGeminiContents(data);
   if (geminiContents) {
     return { messages: geminiContents, type: "gemini" };
+  }
+
+  // Native Vercel AI SDK v7 `ModelMessage[]` (dash-style `tool-call` /
+  // `tool-result` / `reasoning` parts). Runs LAST, right before the lossy
+  // generic `convertToMessages` fallback: its detection requires a
+  // distinctive AI-SDK part discriminator, so it only claims payloads the
+  // other detectors already declined, and it preserves parts the generic
+  // converter would otherwise stringify into raw JSON.
+  const aiSdkMessages = parseAiSdkMessages(data);
+  if (aiSdkMessages) {
+    return { messages: aiSdkMessages, type: "generic" };
   }
 
   return {
