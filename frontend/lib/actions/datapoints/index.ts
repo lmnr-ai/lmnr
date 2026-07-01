@@ -1,10 +1,14 @@
+import { compact } from "lodash";
 import { z } from "zod/v4";
 
+import { type Filter } from "@/lib/actions/common/filters";
+import { FiltersSchema } from "@/lib/actions/common/types";
 import {
   buildAllDatapointsQueryWithParams,
   buildDatapointCountQueryWithParams,
   buildDatapointsByIdsQueryWithParams,
   buildDatapointsQueryWithParams,
+  parseCustomColumnsJson,
 } from "@/lib/actions/datapoints/utils";
 import { pushQueueItems } from "@/lib/actions/queue";
 import { executeQuery } from "@/lib/actions/sql";
@@ -16,10 +20,13 @@ import {
 import { generateSequentialUuidsV7 } from "@/lib/utils";
 
 export const ListDatapointsSchema = z.object({
+  ...FiltersSchema.shape,
   projectId: z.guid(),
   datasetId: z.guid(),
-  pageNumber: z.number().default(0),
-  pageSize: z.number().default(50),
+  pageNumber: z.coerce.number().default(0),
+  pageSize: z.coerce.number().default(50),
+  searchQuery: z.string().optional(),
+  customColumns: z.string().optional(),
 });
 
 export const CreateDatapointsSchema = z.object({
@@ -55,16 +62,25 @@ export const PushDatapointsToQueueSchema = z.object({
 });
 
 export const CountDatapointsSchema = z.object({
+  ...FiltersSchema.shape,
   projectId: z.guid(),
   datasetId: z.guid(),
+  searchQuery: z.string().optional(),
+  customColumns: z.string().optional(),
 });
 
 export async function countDatapoints(input: z.infer<typeof CountDatapointsSchema>) {
-  const { projectId, datasetId } = CountDatapointsSchema.parse(input);
+  const { projectId, datasetId, searchQuery, filter: inputFilters, customColumns: customColumnsJson } = input;
+
+  const filters: Filter[] = compact(inputFilters);
+  const customColumns = parseCustomColumnsJson(customColumnsJson);
 
   // Get total count for pagination
   const { query: countQuery, parameters: countParams } = buildDatapointCountQueryWithParams({
     datasetId,
+    searchQuery,
+    filters,
+    customColumns,
   });
 
   const countResult = await executeQuery<{ count: number }>({
@@ -80,15 +96,29 @@ export async function countDatapoints(input: z.infer<typeof CountDatapointsSchem
   };
 }
 export async function getDatapoints(input: z.infer<typeof ListDatapointsSchema>) {
-  const { projectId, datasetId, pageNumber, pageSize } = ListDatapointsSchema.parse(input);
+  const {
+    projectId,
+    datasetId,
+    pageNumber,
+    pageSize,
+    searchQuery,
+    filter: inputFilters,
+    customColumns: customColumnsJson,
+  } = input;
 
   const offset = Math.max(0, pageNumber * pageSize);
+
+  const filters: Filter[] = compact(inputFilters);
+  const customColumns = parseCustomColumnsJson(customColumnsJson);
 
   // Get datapoints using SQL endpoint
   const { query: datapointsQuery, parameters: datapointsParams } = buildDatapointsQueryWithParams({
     datasetId,
     pageSize,
     offset,
+    searchQuery,
+    filters,
+    customColumns,
   });
 
   const datapointsData = (await executeQuery<Record<string, unknown>>({
