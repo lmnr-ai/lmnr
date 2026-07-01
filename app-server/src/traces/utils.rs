@@ -30,7 +30,12 @@ use super::spans::{SpanAttributes, SpanUsage};
 static SKIP_SPAN_NAME_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^Runnable[A-Z][A-Za-z]*(?:<[A-Za-z_,]+>)*\.task$").unwrap());
 
-/// Calculate usage for both default and LLM spans
+/// Calculate token/cost usage for an LLM span from its `gen_ai.usage.*` attributes.
+///
+/// Call this only for LLM spans. A non-LLM span may still carry stray `gen_ai.usage.*`
+/// attributes (some auto-instrumentations set them on Default/Tool spans); counting those
+/// would inflate the per-span token/cost columns and the trace totals (LAM-1873), so callers
+/// use `SpanUsage::default()` (all zeros) for non-LLM spans instead.
 pub async fn get_llm_usage_for_span(
     // mut because input and output tokens are updated to new convention
     attributes: &mut SpanAttributes,
