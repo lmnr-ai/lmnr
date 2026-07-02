@@ -21,7 +21,7 @@ pub mod extract;
 pub mod queue;
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -66,6 +66,23 @@ pub const USER_TASK_METADATA_KEY: &str = "lmnr_user_task";
 pub const USER_TASK_NOT_FOUND_METADATA_KEY: &str = "lmnr_user_task_not_found";
 
 const REGEX_CACHE_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
+
+/// Whether the shared `LlmClient` actually initialized. Set from `main.rs`
+/// after client construction. `Feature::UserTaskExtraction` only mirrors
+/// the credential env vars, but `LlmClient::new` can still fail (bad
+/// `LLM_DEFAULT_HEADERS_JSON`, HTTP client build error, ...) — and when it
+/// does, the extraction workers are never spawned, so enqueueing would
+/// strand messages on the queue unconsumed. Defaults to false so paths
+/// that never call `set_llm_client_available` (tests) don't enqueue.
+static LLM_CLIENT_AVAILABLE: OnceLock<bool> = OnceLock::new();
+
+pub fn set_llm_client_available(available: bool) {
+    let _ = LLM_CLIENT_AVAILABLE.set(available);
+}
+
+fn llm_client_available() -> bool {
+    LLM_CLIENT_AVAILABLE.get().copied().unwrap_or(false)
+}
 
 // ---------------------------------------------------------------------------
 // Last-turn extraction
@@ -407,7 +424,10 @@ pub async fn process_user_task_candidates(
     db: Arc<DB>,
     cache: Arc<Cache>,
 ) {
-    if candidates.is_empty() || !is_feature_enabled(Feature::UserTaskExtraction) {
+    if candidates.is_empty()
+        || !is_feature_enabled(Feature::UserTaskExtraction)
+        || !llm_client_available()
+    {
         return;
     }
 

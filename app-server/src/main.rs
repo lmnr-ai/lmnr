@@ -1061,6 +1061,10 @@ fn main() -> anyhow::Result<()> {
         log::info!("Signals feature disabled - skipping LLM client initialization");
         None
     };
+    // The user-task producer hook must not enqueue extraction work when the
+    // client failed to construct — the extraction workers would never spawn
+    // and the messages would sit on the queue unconsumed.
+    traces::user_task::set_llm_client_available(llm_provider_client.is_some());
     let llm_provider_client_for_http = llm_provider_client.clone();
 
     if enable_consumer() {
