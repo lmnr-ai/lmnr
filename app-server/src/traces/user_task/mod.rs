@@ -337,14 +337,7 @@ pub async fn generate_and_apply_regex(
     key: &str,
     signposted_text: &str,
 ) -> anyhow::Result<ApplyRegexResult> {
-    let (generated, call) = generate_extraction_regex(llm_client, signposted_text).await;
-    let Some(generated) = generated else {
-        anyhow::bail!(
-            "user-task regex generation failed: {}",
-            call.error
-                .unwrap_or("provider returned no regex".to_string())
-        );
-    };
+    let generated = generate_extraction_regex(llm_client, signposted_text).await?;
     let result = apply_regex(&generated, signposted_text);
     if !matches!(result, ApplyRegexResult::NoMatch) {
         let _ = cache
