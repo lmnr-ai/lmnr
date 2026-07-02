@@ -185,15 +185,22 @@ pub async fn publish_span_messages(
 
     // Runs after the batch is on the wire so attribute mutation inside the
     // hook can't affect the published payload. Never fails ingestion.
-    crate::traces::user_task::process_user_task_candidates(
-        user_task_candidates,
-        &mut messages,
-        project_id,
-        queue,
-        db,
-        cache,
-    )
-    .await;
+    // Contexts are built here — moving attributes out of the (now dead)
+    // messages — so queue-shaped messages never leave this module.
+    let contexts = user_task_candidates
+        .into_iter()
+        .filter_map(|(idx, candidate)| {
+            let msg = messages.get_mut(idx)?;
+            Some(crate::traces::user_task::UserTaskSpanContext {
+                trace_id: msg.span.trace_id,
+                span_name: msg.span.name.clone(),
+                attributes: std::mem::take(&mut msg.span.attributes),
+                candidate,
+            })
+        })
+        .collect();
+    crate::traces::user_task::process_user_task_candidates(contexts, project_id, queue, db, cache)
+        .await;
 
     Ok(0)
 }

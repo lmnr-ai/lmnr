@@ -351,6 +351,18 @@ pub struct UserTaskCandidate {
     pub prompt_hash: Option<String>,
 }
 
+/// Everything the producer hook needs from a candidate's span, copied or
+/// moved out of the queue message before the hook runs. Keeps
+/// `RabbitMqSpanMessage` confined to code that directly operates on the
+/// queue — the hook mutates `attributes` (path extension, usage
+/// enrichment) on this owned copy, never on the published payload.
+pub struct UserTaskSpanContext {
+    pub trace_id: Uuid,
+    pub span_name: String,
+    pub attributes: SpanAttributes,
+    pub candidate: UserTaskCandidate,
+}
+
 pub fn capture_user_task_candidate(span: &Span) -> Option<UserTaskCandidate> {
     if !span.is_llm_span() {
         return None;
@@ -389,8 +401,7 @@ fn span_depth(attributes: &mut SpanAttributes, span_name: &str) -> usize {
 /// block or fail span ingestion.
 #[instrument(skip_all)]
 pub async fn process_user_task_candidates(
-    candidates: Vec<(usize, UserTaskCandidate)>,
-    messages: &mut [crate::api::v1::traces::RabbitMqSpanMessage],
+    candidates: Vec<UserTaskSpanContext>,
     project_id: Uuid,
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
@@ -400,20 +411,15 @@ pub async fn process_user_task_candidates(
         return;
     }
 
-    for (idx, candidate) in candidates {
-        let Some(msg) = messages.get_mut(idx) else {
-            continue;
-        };
-        let trace_id = msg.span.trace_id;
-        let span_name = msg.span.name.clone();
-        let depth = span_depth(&mut msg.span.attributes, &span_name);
-        // Safe to mutate attributes here: the batch was serialized and
-        // published before this hook runs, so the wire payload is fixed.
+    for mut ctx in candidates {
+        let trace_id = ctx.trace_id;
+        let candidate = ctx.candidate;
+        let depth = span_depth(&mut ctx.attributes, &ctx.span_name);
         let usage = get_llm_usage_for_span(
-            &mut msg.span.attributes,
+            &mut ctx.attributes,
             db.clone(),
             cache.clone(),
-            &span_name,
+            &ctx.span_name,
             &project_id,
         )
         .await;
