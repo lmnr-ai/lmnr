@@ -75,7 +75,9 @@ const ManageTemplateDialog = ({ mode, scope = "span", onCancel, onSaved }: Props
 
         // Preserve testData — the API response only carries {id, name, code, ...}.
         const result = (await res.json()) as Template;
-        await mutate(`/api/projects/${projectId}/render-templates?scope=${data.scope ?? scope}`);
+        // Revalidate every render-templates list key: the scoped picker lists
+        // (?scope=span / ?scope=trace) and the unscoped settings-page list.
+        await mutate((key) => typeof key === "string" && key.startsWith(`/api/projects/${projectId}/render-templates`));
         reset({ ...result, testData: data.testData });
         toast({ title: `Template ${isUpdate ? "updated" : "created"}` });
         onSaved();
