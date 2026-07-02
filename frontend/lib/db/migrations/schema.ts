@@ -62,6 +62,27 @@ export const datasetParquets = pgTable(
   ]
 );
 
+export const workspaceHardLimitNotifications = pgTable(
+  "workspace_hard_limit_notifications",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    usageItem: text("usage_item").notNull(),
+    lastNotifiedAt: timestamp("last_notified_at", { withTimezone: true, mode: "string" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "workspace_hard_limit_notifications_workspace_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    unique("workspace_hard_limit_notif_workspace_id_usage_item_unique").on(table.workspaceId, table.usageItem),
+  ]
+);
+
 export const workspaceUsageLimits = pgTable(
   "workspace_usage_limits",
   {

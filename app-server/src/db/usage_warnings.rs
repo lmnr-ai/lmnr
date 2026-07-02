@@ -1,10 +1,21 @@
-use std::fmt::Display;
+use std::{fmt::Display, time::Duration};
 
 use anyhow::Result;
+use backoff::ExponentialBackoffBuilder;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
+
+/// Retry a dedup-stamp write with exponential backoff. Losing this write means
+/// the next ingestion batch re-enqueues the same notification, so it's worth a
+/// few retries before giving up.
+fn notified_stamp_backoff() -> backoff::ExponentialBackoff {
+    ExponentialBackoffBuilder::new()
+        .with_initial_interval(Duration::from_millis(200))
+        .with_max_elapsed_time(Some(Duration::from_secs(5)))
+        .build()
+}
 
 #[derive(FromRow, Debug, Clone, Serialize, Deserialize)]
 pub struct UsageWarningDbRow {
@@ -93,10 +104,63 @@ pub async fn get_usage_warnings_for_workspace(
 /// Mark a usage warning as notified now. Called by the notification worker after
 /// successfully delivering the notification.
 pub async fn mark_warning_as_notified(pool: &PgPool, warning_id: Uuid) -> Result<()> {
-    sqlx::query("UPDATE workspace_usage_warnings SET last_notified_at = NOW() WHERE id = $1")
-        .bind(warning_id)
+    backoff::future::retry(notified_stamp_backoff(), || async {
+        sqlx::query("UPDATE workspace_usage_warnings SET last_notified_at = NOW() WHERE id = $1")
+            .bind(warning_id)
+            .execute(pool)
+            .await
+            .map_err(|e| backoff::Error::transient(anyhow::Error::from(e)))
+    })
+    .await?;
+    Ok(())
+}
+
+/// Fetch the hard-limit notification timestamp for a `(workspace_id, usage_item)`
+/// pair, or `None` if the workspace has never been notified for this item. Hard
+/// limits dedup per billing cycle via this timestamp (mirroring usage warnings),
+/// stored in a dedicated table because `workspace_usage_limits` has no row for
+/// free-tier workspaces, which still enforce the tier's included allowance.
+pub async fn get_hard_limit_last_notified_at(
+    pool: &PgPool,
+    workspace_id: Uuid,
+    usage_item: &UsageItem,
+) -> Result<Option<DateTime<Utc>>> {
+    let last_notified_at = sqlx::query_scalar::<_, Option<DateTime<Utc>>>(
+        "SELECT last_notified_at
+         FROM workspace_hard_limit_notifications
+         WHERE workspace_id = $1 AND usage_item = $2",
+    )
+    .bind(workspace_id)
+    .bind(usage_item.to_string())
+    .fetch_optional(pool)
+    .await?
+    .flatten();
+
+    Ok(last_notified_at)
+}
+
+/// Mark the hard limit for `(workspace_id, usage_item)` as notified now. Upserts
+/// the dedup row so the first crossing in a billing cycle inserts it and later
+/// cycles update it.
+pub async fn mark_hard_limit_as_notified(
+    pool: &PgPool,
+    workspace_id: Uuid,
+    usage_item: &UsageItem,
+) -> Result<()> {
+    backoff::future::retry(notified_stamp_backoff(), || async {
+        sqlx::query(
+            "INSERT INTO workspace_hard_limit_notifications (workspace_id, usage_item, last_notified_at)
+             VALUES ($1, $2, NOW())
+             ON CONFLICT (workspace_id, usage_item)
+             DO UPDATE SET last_notified_at = NOW()",
+        )
+        .bind(workspace_id)
+        .bind(usage_item.to_string())
         .execute(pool)
-        .await?;
+        .await
+        .map_err(|e| backoff::Error::transient(anyhow::Error::from(e)))
+    })
+    .await?;
     Ok(())
 }
 

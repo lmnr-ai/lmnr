@@ -37,6 +37,7 @@ pub async fn process_logs(
             db,
             clickhouse.as_ref().clone(),
             cache,
+            logs_message_queue.clone(),
             project_api_key.project_id,
         )
         .await
