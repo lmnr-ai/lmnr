@@ -1,60 +1,9 @@
-use std::sync::LazyLock;
-
-use regex::Regex;
 use serde_json::json;
 use uuid::Uuid;
 
+use super::rich_text::{text_cell, value_cell};
 use crate::notifications::utils::{frontend_url_slack, inject_utm_into_links, with_utm};
 use crate::utils::truncate_chars;
-
-// Matches markdown link syntax `[text](url)` inside a value so it can be rebuilt as a
-// Slack `rich_text` `link` element (table cells are rich_text, which does NOT render
-// mrkdwn `<url|text>` syntax — the link must be a structured element).
-static MARKDOWN_LINK_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\[([^\]]+)\]\(([^)\s]+)\)").unwrap());
-
-/// Build the `elements` of a `rich_text_section` from a value string, converting any
-/// markdown `[text](url)` links into `link` elements so they stay clickable inside a
-/// table cell. Non-link runs become plain `text` elements.
-fn rich_text_run_elements(text: &str) -> Vec<serde_json::Value> {
-    let mut elements = Vec::new();
-    let mut last = 0usize;
-    for caps in MARKDOWN_LINK_RE.captures_iter(text) {
-        let m = caps.get(0).unwrap();
-        if m.start() > last {
-            elements.push(json!({ "type": "text", "text": &text[last..m.start()] }));
-        }
-        elements.push(json!({ "type": "link", "url": &caps[2], "text": &caps[1] }));
-        last = m.end();
-    }
-    if last < text.len() {
-        elements.push(json!({ "type": "text", "text": &text[last..] }));
-    }
-    if elements.is_empty() {
-        elements.push(json!({ "type": "text", "text": "" }));
-    }
-    elements
-}
-
-/// A `rich_text` table cell whose (optionally bold) single run is plain text.
-fn text_cell(text: &str, bold: bool) -> serde_json::Value {
-    let mut run = json!({ "type": "text", "text": text });
-    if bold {
-        run["style"] = json!({ "bold": true });
-    }
-    json!({
-        "type": "rich_text",
-        "elements": [{ "type": "rich_text_section", "elements": [run] }]
-    })
-}
-
-/// A `rich_text` table cell that may carry markdown links (rebuilt as `link` elements).
-fn value_cell(text: &str) -> serde_json::Value {
-    json!({
-        "type": "rich_text",
-        "elements": [{ "type": "rich_text_section", "elements": rich_text_run_elements(text) }]
-    })
-}
 
 // Format Slack message blocks for an event identification notification.
 //
@@ -144,20 +93,25 @@ pub(super) fn format_event_identification_blocks(
     };
 
     // Header row (Slack styles the first table row as a header regardless, so label it).
-    let mut rows: Vec<serde_json::Value> =
-        vec![json!([text_cell("Field", true), text_cell("Value", true)])];
+    let mut rows: Vec<serde_json::Value> = vec![json!([
+        text_cell("Field", true, false),
+        text_cell("Value", true, false)
+    ])];
     if let Some(info) = extracted_information {
         if let Some(obj) = info.as_object() {
             for (key, value) in obj.iter().take(MAX_FIELDS) {
                 let formatted = truncate_chars(&format_value(value), MAX_VALUE_CHARS);
-                rows.push(json!([text_cell(key, true), value_cell(&formatted)]));
+                rows.push(json!([text_cell(key, true, false), value_cell(&formatted)]));
             }
         } else {
             let formatted = truncate_chars(
                 &serde_json::to_string_pretty(&info).unwrap_or_default(),
                 MAX_VALUE_CHARS,
             );
-            rows.push(json!([text_cell("Details", true), value_cell(&formatted)]));
+            rows.push(json!([
+                text_cell("Details", true, false),
+                value_cell(&formatted)
+            ]));
         }
     }
 

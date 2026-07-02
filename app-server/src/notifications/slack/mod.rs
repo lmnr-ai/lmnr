@@ -143,6 +143,7 @@ pub(crate) fn truncate_to_slack_section_limit(text: &str) -> String {
 mod event_identification;
 mod new_cluster;
 mod report;
+mod rich_text;
 
 use event_identification::format_event_identification_blocks;
 use new_cluster::format_new_cluster_blocks;
@@ -550,35 +551,46 @@ mod tests {
     }
 
     #[test]
-    fn report_builds_carousel_with_severity_subtitle() {
+    fn report_builds_noteworthy_table() {
         let v = format_report_blocks("Weekly report – WS", &report_with(vec![event(2)]));
         let blocks = blocks_of(&v);
-        assert_eq!(blocks[0]["type"], "header");
+        // title is an H1 markdown block
+        assert_eq!(blocks[0]["type"], "markdown");
+        assert!(blocks[0]["text"].as_str().unwrap().starts_with("# 📊"));
+        // project name is an H2 markdown block
+        assert!(blocks.iter().any(
+            |b| b["type"] == "markdown" && b["text"].as_str().unwrap() == "## background-agent"
+        ));
+        // noteworthy events render as a table: Signal / Summary header + one data row
+        let table = blocks.iter().find(|b| b["type"] == "table").unwrap();
+        let rows = table["rows"].as_array().unwrap();
+        assert_eq!(rows.len(), 2, "header row + 1 event");
+        assert_eq!(table["column_settings"][1]["is_wrapped"], true);
+        // signal cell: severity emoji (Critical 🔴) + bold signal name
+        let sig_runs = rows[1][0]["elements"][0]["elements"].as_array().unwrap();
+        assert!(sig_runs[0]["text"].as_str().unwrap().contains("🔴"));
+        assert_eq!(sig_runs[1]["text"], "Failure Detector");
+        assert_eq!(sig_runs[1]["style"]["bold"], true);
+        // summary cell ends with an italic timestamp + a "View trace" link
+        let sum_runs = rows[1][1]["elements"][0]["elements"].as_array().unwrap();
         assert!(
-            blocks[0]["text"]["text"]
-                .as_str()
-                .unwrap()
-                .contains(":bar_chart:")
+            sum_runs.iter().any(|r| r["type"] == "text"
+                && r["style"]["italic"] == true
+                && r["text"] == "Jun 7")
         );
-        let carousel = blocks.iter().find(|b| b["type"] == "carousel").unwrap();
-        let card = &carousel["elements"][0];
-        assert_eq!(card["type"], "card");
-        assert_eq!(card["title"]["text"], "Failure Detector");
-        assert!(
-            card["subtitle"]["text"]
-                .as_str()
-                .unwrap()
-                .contains("Critical")
-        );
+        let link = sum_runs.iter().find(|r| r["type"] == "link").unwrap();
+        assert_eq!(link["text"], "View trace");
+        assert!(link["url"].as_str().unwrap().contains("/traces/"));
     }
 
     #[test]
-    fn report_carousel_caps_at_ten_with_overflow_note() {
+    fn report_table_caps_at_max_events_with_overflow_note() {
         let events: Vec<NoteworthyEvent> = (0..12).map(|_| event(1)).collect();
         let v = format_report_blocks("R", &report_with(events));
         let blocks = blocks_of(&v);
-        let carousel = blocks.iter().find(|b| b["type"] == "carousel").unwrap();
-        assert_eq!(carousel["elements"].as_array().unwrap().len(), 10);
+        let table = blocks.iter().find(|b| b["type"] == "table").unwrap();
+        // header row + 10 events (MAX_EVENTS)
+        assert_eq!(table["rows"].as_array().unwrap().len(), 11);
         // overflow surfaced as a "+N more" context with a signals link
         assert!(blocks.iter().any(|b| {
             b["type"] == "context"
