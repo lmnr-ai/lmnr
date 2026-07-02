@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use actix_web::{HttpResponse, patch, post, web};
+use actix_web::{HttpResponse, get, patch, post, web};
 use uuid::Uuid;
 
 use crate::{
-    api::v1::rollouts::RegisterSessionRequest,
+    api::v1::rollouts::{RegisterSessionRequest, handle_list_blocks},
     auth::cli_user::CliProjectAuth,
     db::{
         DB,
@@ -34,6 +34,17 @@ pub async fn register_session(
         create_or_update_debugger_session(&db.pool, &session_id, &project_id, name).await?;
 
     Ok(HttpResponse::Ok().json(session))
+}
+
+/// `GET /v1/cli/rollouts/{session_id}/blocks` — CLI twin of
+/// `/v1/rollouts/{session_id}/blocks`; differs only in auth.
+#[get("rollouts/{session_id}/blocks")]
+pub async fn list_blocks(
+    path: web::Path<Uuid>,
+    auth: CliProjectAuth,
+    db: web::Data<DB>,
+) -> ResponseResult {
+    handle_list_blocks(auth.project_id, path.into_inner(), &db).await
 }
 
 #[derive(serde::Deserialize)]

@@ -1,4 +1,6 @@
 use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::Serialize;
 use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -47,6 +49,36 @@ pub async fn upsert_block(
     .await?;
 
     Ok(())
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct DebuggerSessionBlock {
+    pub id: Uuid,
+    pub created_at: DateTime<Utc>,
+    #[serde(rename = "type")]
+    #[sqlx(rename = "type")]
+    pub block_type: String,
+    pub content: Value,
+}
+
+pub async fn get_blocks_for_session(
+    pool: &PgPool,
+    project_id: &Uuid,
+    session_id: &Uuid,
+) -> Result<Vec<DebuggerSessionBlock>> {
+    let blocks = sqlx::query_as::<_, DebuggerSessionBlock>(
+        "SELECT id, created_at, type, content
+        FROM debugger_session_blocks
+        WHERE project_id = $1 AND session_id = $2
+        ORDER BY created_at ASC",
+    )
+    .bind(project_id)
+    .bind(session_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(blocks)
 }
 
 fn session_id_from_metadata(metadata: Option<&Value>) -> Option<Uuid> {
