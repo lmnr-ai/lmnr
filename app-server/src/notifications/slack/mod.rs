@@ -410,6 +410,51 @@ mod tests {
     }
 
     #[test]
+    fn event_identification_real_payload_renders_all_links() {
+        // A real production signal-event payload (background-agent project) with 3 embedded
+        // markdown trace links inside the `description` value — the exact shape the enterprise
+        // producer feeds into `extracted_information`.
+        let raw = r#"{"category":"api_error","description":"The initial LLM call [llm](https://lmnr.ai/project/c11e9ede-a637-460d-a28a-64b2922c7893/traces/1962d484-9e66-9d93-8cb8-54fa1a7ea52b?spanId=00000000-0000-0000-5eb2-129537392e3e&chat=true) failed with a 400 Bad Request error because the harness attempted to use an unsupported configuration ('thinking.type.enabled'). While the agent recovered in the next step, this represents a configuration mismatch in the underlying SDK/harness. Furthermore, the LLM call at [llm](https://lmnr.ai/project/c11e9ede-a637-460d-a28a-64b2922c7893/traces/1962d484-9e66-9d93-8cb8-54fa1a7ea52b?spanId=00000000-0000-0000-c950-143ca3d08d57&chat=true) returned a malformed response containing only internal metadata structure (a JSON array with thinking signatures) instead of a functional assistant message, resulting in a wasted turn and unnecessary cost. Finally, the LLM call at [llm](https://lmnr.ai/project/c11e9ede-a637-460d-a28a-64b2922c7893/traces/1962d484-9e66-9d93-8cb8-54fa1a7ea52b?spanId=00000000-0000-0000-1fcb-a83e5ec5231a&chat=true) exhibited abnormally high latency (136.7s) for a single code edit task."}"#;
+        let info: serde_json::Value = serde_json::from_str(raw).unwrap();
+        let eid = Uuid::parse_str("f4a7bf35-513c-40c8-8896-96c1623792bf").unwrap();
+        let v = format_event_identification_blocks(
+            "c8abcdea-81c0-4ce2-a345-70889198892a",
+            "7c250934-b112-47cd-8d79-8ea1b99b52a2",
+            "59b353d9-7636-7ff8-52ba-2efade7f7ff5",
+            Some(&eid),
+            "Background Agent Failure Detector",
+            "background-agent",
+            Some(info),
+            &2u8,
+            "Jul 2, 2026 at 2:32 PM UTC",
+        );
+
+        // The description value cell must carry 3 clickable `link` elements (UTM-injected).
+        let table = blocks_of(&v).iter().find(|b| b["type"] == "table").unwrap();
+        let desc_row = table["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r[0]["elements"][0]["elements"][0]["text"] == "description")
+            .expect("description row");
+        let value_els = desc_row[1]["elements"][0]["elements"].as_array().unwrap();
+        let links: Vec<_> = value_els.iter().filter(|e| e["type"] == "link").collect();
+        assert_eq!(
+            links.len(),
+            3,
+            "3 markdown links -> 3 rich_text link elements"
+        );
+        assert!(
+            links
+                .iter()
+                .all(|l| l["url"].as_str().unwrap().contains("utm_source=slack"))
+        );
+        // link labels preserved, prose kept as interleaved text runs
+        assert!(links.iter().all(|l| l["text"] == "llm"));
+        assert!(value_els.iter().any(|e| e["type"] == "text"));
+    }
+
+    #[test]
     fn event_identification_renders_table_and_statline() {
         let eid = Uuid::nil();
         let info = json!({
