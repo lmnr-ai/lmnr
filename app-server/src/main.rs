@@ -70,6 +70,10 @@ use traces::{
     OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, SPANS_DATA_PLANE_EXCHANGE,
     SPANS_DATA_PLANE_QUEUE, SPANS_DATA_PLANE_ROUTING_KEY, consumer::SpanHandler,
     data_plane_consumer::DataPlaneSpanHandler, grpc_service::ProcessTracesService,
+    user_task::{
+        consumer::InputExtractionHandler,
+        queue::{INPUT_EXTRACTION_EXCHANGE, INPUT_EXTRACTION_QUEUE, INPUT_EXTRACTION_ROUTING_KEY},
+    },
 };
 
 use cache::{
@@ -455,6 +459,32 @@ fn main() -> anyhow::Result<()> {
                     .unwrap();
             }
 
+            // ==== 3.5b Input extraction message queue ====
+            channel
+                .exchange_declare(
+                    INPUT_EXTRACTION_EXCHANGE.into(),
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    INPUT_EXTRACTION_QUEUE.into(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
             // ==== 3.6 Notifications message queue ====
             channel
                 .exchange_declare(
@@ -789,6 +819,8 @@ fn main() -> anyhow::Result<()> {
         // ==== 3.5 Signals event message queue ====
         #[cfg(feature = "signals")]
         queue.register_queue(SIGNALS_EXCHANGE, SIGNALS_QUEUE);
+        // ==== 3.5b Input extraction message queue ====
+        queue.register_queue(INPUT_EXTRACTION_EXCHANGE, INPUT_EXTRACTION_QUEUE);
         // ==== 3.6 Notifications message queue ====
         queue.register_queue(NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE);
         // ==== 3.6b Notification Deliveries message queue ====
@@ -1013,22 +1045,31 @@ fn main() -> anyhow::Result<()> {
     }
 
     // == LLM Client ==
-    let llm_provider_client: Option<Arc<llm::LlmClient>> = if is_feature_enabled(Feature::Signals) {
+    // Shared by every LLM-backed feature — gate on the union of their flags,
+    // not on any single feature, so the flags' conditions can diverge later
+    // without silently killing the others' client.
+    let llm_client_needed = is_feature_enabled(Feature::Signals)
+        || is_feature_enabled(Feature::UserTaskExtraction);
+    let llm_provider_client: Option<Arc<llm::LlmClient>> = if llm_client_needed {
         log::info!("Initializing LLM client");
         match runtime_handle.block_on(llm::LlmClient::new()) {
             Ok(client) => Some(Arc::new(client)),
             Err(e) => {
                 log::warn!(
-                    "Failed to create LLM client (signals will be disabled): {:?}",
+                    "Failed to create LLM client (LLM-backed features will be disabled): {:?}",
                     e
                 );
                 None
             }
         }
     } else {
-        log::info!("Signals feature disabled - skipping LLM client initialization");
+        log::info!("No LLM-backed feature enabled - skipping LLM client initialization");
         None
     };
+    // The user-task producer hook must not enqueue extraction work when the
+    // client failed to construct — the extraction workers would never spawn
+    // and the messages would sit on the queue unconsumed.
+    traces::user_task::set_llm_client_available(llm_provider_client.is_some());
     let llm_provider_client_for_http = llm_provider_client.clone();
 
     if enable_consumer() {
@@ -1522,6 +1563,33 @@ fn main() -> anyhow::Result<()> {
                         );
                     } else {
                         log::warn!("LLM provider not available - skipping realtime workers");
+                    }
+
+                    // Spawn input extraction workers (ingestion-time user-task regex)
+                    if let Some(llm_client) = llm_provider_client.as_ref() {
+                        let db = db_for_consumer.clone();
+                        let cache = cache_for_consumer.clone();
+                        let queue = mq_for_consumer.clone();
+                        let llm_client_clone = llm_client.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::InputExtraction,
+                            env::workers::NUM_INPUT_EXTRACTION.get() as usize,
+                            move || InputExtractionHandler {
+                                db: db.clone(),
+                                cache: cache.clone(),
+                                queue: queue.clone(),
+                                llm_client: llm_client_clone.clone(),
+                            },
+                            QueueConfig::new(
+                                INPUT_EXTRACTION_QUEUE,
+                                INPUT_EXTRACTION_EXCHANGE,
+                                INPUT_EXTRACTION_ROUTING_KEY,
+                            ),
+                        );
+                    } else {
+                        log::warn!(
+                            "LLM provider not available - skipping input extraction workers"
+                        );
                     }
 
                     // Spawn logs workers
