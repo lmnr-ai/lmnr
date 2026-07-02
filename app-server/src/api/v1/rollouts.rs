@@ -1,13 +1,15 @@
-use actix_web::{HttpResponse, delete, post, web};
+use actix_web::{HttpResponse, delete, get, post, web};
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
-    db::project_api_keys::ProjectApiKey,
     cache::Cache,
+    db::project_api_keys::ProjectApiKey,
     db::{
-        DB,
-        debugger_sessions::{create_or_update_debugger_session, delete_debugger_session},
+        DB, debugger_session_blocks,
+        debugger_sessions::{
+            create_or_update_debugger_session, debugger_session_exists, delete_debugger_session,
+        },
     },
     debugger,
     pubsub::PubSub,
@@ -84,6 +86,34 @@ pub async fn lookup_cache(
     .await;
 
     Ok(HttpResponse::Ok().json(outcome))
+}
+
+/// `GET /v1/rollouts/{session_id}/blocks` — list a session's blocks, oldest
+/// first. Unknown or cross-project session → 404; a registered session with no
+/// blocks yet → 200 with an empty list.
+#[get("rollouts/{session_id}/blocks")]
+pub async fn list_blocks(
+    path: web::Path<Uuid>,
+    project_api_key: ProjectApiKey,
+    db: web::Data<DB>,
+) -> ResponseResult {
+    handle_list_blocks(project_api_key.project_id, path.into_inner(), &db).await
+}
+
+/// Handler body for the blocks list, shared with the CLI twin.
+pub async fn handle_list_blocks(
+    project_id: Uuid,
+    session_id: Uuid,
+    db: &web::Data<DB>,
+) -> ResponseResult {
+    if !debugger_session_exists(&db.pool, &session_id, &project_id).await? {
+        return Ok(HttpResponse::NotFound().json("Session not found"));
+    }
+
+    let blocks =
+        debugger_session_blocks::get_blocks_for_session(&db.pool, &project_id, &session_id).await?;
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "blocks": blocks })))
 }
 
 #[delete("rollouts/{session_id}")]
