@@ -86,6 +86,7 @@ SELECT
     ) AS metadata,
     t.session_id AS session_id,
     t.user_id AS user_id,
+    -- status_seen = 0 (no status-bearing spans) resolves to 'success', matching traces_v0's two-value contract
     if(bitAnd(t.status_seen, 2) != 0, 'error', 'success') AS status,
     t.top_span_id AS top_span_id,
     substring(t.top_span_name, 2) AS top_span_name,
