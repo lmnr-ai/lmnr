@@ -389,6 +389,31 @@ export async function getSessionTraces(input: z.infer<typeof GetSessionTracesSch
   });
 }
 
+export type SessionTextBlock = {
+  id: string;
+  createdAt: string;
+  note: string;
+};
+
+const GetSessionTextBlocksSchema = z.object({
+  projectId: z.guid(),
+  sessionId: z.guid(),
+});
+
+// Standalone `text` blocks (markdown cells), oldest first. Blocks without a
+// string `note` are skipped.
+export async function getSessionTextBlocks(
+  input: z.infer<typeof GetSessionTextBlocksSchema>
+): Promise<SessionTextBlock[]> {
+  const { projectId, sessionId } = GetSessionTextBlocksSchema.parse(input);
+
+  const blocks = await getSessionBlocks(projectId, sessionId, TEXT_BLOCK_TYPE);
+  return blocks.flatMap((block) => {
+    const note = blockNote(block);
+    return note ? [{ id: block.id, createdAt: block.createdAt, note }] : [];
+  });
+}
+
 export type SessionEvaluationScore = {
   name: string;
   averageValue: number;

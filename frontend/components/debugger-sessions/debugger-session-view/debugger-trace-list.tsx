@@ -3,11 +3,15 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
+import { Response } from "@/components/ai-elements/response";
 import { useSessionSpanPreviews } from "@/components/traces/session-view/session-panel/use-session-span-previews";
 import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
 import { useBatchedTraceIO } from "@/components/traces/sessions-table/use-batched-trace-io";
-import { formatDuration } from "@/lib/utils";
+import { type SessionTextBlock } from "@/lib/actions/debugger-sessions";
+import { type TraceRow } from "@/lib/traces/types";
+import { cn, formatDuration } from "@/lib/utils";
 
+import { noteMarkdownComponents, noteProseClassName } from "./note-markdown";
 import TraceSegment from "./trace-segment";
 
 interface DebuggerTraceListProps {
@@ -16,9 +20,34 @@ interface DebuggerTraceListProps {
   projectId?: string;
   // Debug session id — interpolated into the LLM-span "Copy prompt" payload.
   sessionId?: string;
+  // Standalone `text` blocks, interleaved with the runs by time.
+  textBlocks?: SessionTextBlock[];
 }
 
-export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: DebuggerTraceListProps) {
+// Runs and standalone text cells merged into one timeline (traces by
+// startTime, text blocks by createdAt), oldest first.
+type TimelineItem =
+  | { kind: "trace"; trace: TraceRow; ms: number; traceIndex: number }
+  | { kind: "text"; block: SessionTextBlock; ms: number };
+
+const buildTimeline = (traces: TraceRow[], textBlocks: SessionTextBlock[]): TimelineItem[] => {
+  const items: TimelineItem[] = [
+    ...traces.map<TimelineItem>((trace) => ({
+      kind: "trace",
+      trace,
+      ms: new Date(trace.startTime).getTime(),
+      traceIndex: 0,
+    })),
+    ...textBlocks.map<TimelineItem>((block) => ({ kind: "text", block, ms: new Date(block.createdAt).getTime() })),
+  ].sort((a, b) => a.ms - b.ms);
+  let traceIndex = 0;
+  for (const item of items) {
+    if (item.kind === "trace") item.traceIndex = ++traceIndex;
+  }
+  return items;
+};
+
+export default function DebuggerTraceList({ scrollEl, projectId, sessionId, textBlocks = [] }: DebuggerTraceListProps) {
   const { traces, traceSpans } = useSessionViewBaseStore(
     (s) => ({ traces: s.traces, traceSpans: s.traceSpans }),
     shallow
@@ -96,16 +125,32 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
   const traceIds = useMemo(() => traces.map((t) => t.id), [traces]);
   const { previews: traceIO } = useBatchedTraceIO(projectId, traceIds);
 
+  const timeline = useMemo(() => buildTimeline(traces, textBlocks), [traces, textBlocks]);
+
   return (
     <div ref={columnRef} className="w-full">
-      {traces.map((trace, i) => {
-        const next = traces[i + 1];
-        const gapMs = next ? new Date(next.startTime).getTime() - new Date(trace.endTime).getTime() : undefined;
+      {timeline.map((item, i) => {
+        if (item.kind === "text") {
+          return (
+            <div key={item.block.id} className="px-1 py-5">
+              <Response className={cn(noteProseClassName)} components={noteMarkdownComponents}>
+                {item.block.note}
+              </Response>
+            </div>
+          );
+        }
+        const { trace } = item;
+        const next = timeline[i + 1];
+        // Gap divider only between two adjacent runs — text cells break the timeline visually already.
+        const gapMs =
+          next?.kind === "trace"
+            ? new Date(next.trace.startTime).getTime() - new Date(trace.endTime).getTime()
+            : undefined;
         return (
           <Fragment key={trace.id}>
             <TraceSegment
               trace={trace}
-              traceIndex={i + 1}
+              traceIndex={item.traceIndex}
               totalTraces={traces.length}
               scrollEl={scrollEl}
               sessionId={sessionId}
@@ -116,7 +161,7 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
               agentNames={agentNames}
               traceIO={traceIO[trace.id]}
             />
-            {next && (
+            {next?.kind === "trace" && (
               <div className="px-2 flex h-20 items-center justify-center">
                 <div className="w-full border-b" />
                 {formatDuration(gapMs) && (

@@ -108,6 +108,9 @@ fn thinking_level_to_effort(level: &ProviderThinkingLevel) -> Option<&'static st
         ProviderThinkingLevel::Low => Some("low"),
         ProviderThinkingLevel::Medium => Some("medium"),
         ProviderThinkingLevel::High => Some("high"),
+        // `xhigh` is OpenAI's tier above `high` (gpt-5.2+/codex-max+); models
+        // without it reject the value, same pre-existing risk as `minimal`.
+        ProviderThinkingLevel::XHigh => Some("xhigh"),
     }
 }
 

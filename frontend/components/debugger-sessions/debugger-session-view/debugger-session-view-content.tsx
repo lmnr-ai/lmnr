@@ -8,7 +8,7 @@ import { shallow } from "zustand/shallow";
 import SessionSpanPanel from "@/components/traces/session-view/session-span-panel";
 import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
 import { Skeleton } from "@/components/ui/skeleton";
-import { type SessionEvaluation } from "@/lib/actions/debugger-sessions";
+import { type SessionEvaluation, type SessionTextBlock } from "@/lib/actions/debugger-sessions";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type RealtimeSpan } from "@/lib/traces/types";
@@ -42,9 +42,11 @@ const minMaxFromTraces = (traces: { startTime: string; endTime: string }[]) => {
 export default function DebuggerSessionViewContent({
   sessionId,
   evaluations = [],
+  textBlocks = [],
 }: {
   sessionId?: string;
   evaluations?: SessionEvaluation[];
+  textBlocks?: SessionTextBlock[];
 }) {
   const { projectId } = useParams<{ projectId: string }>();
   const router = useRouter();
@@ -202,7 +204,7 @@ export default function DebuggerSessionViewContent({
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
               </div>
-            ) : traces.length === 0 ? (
+            ) : traces.length === 0 && textBlocks.length === 0 ? (
               // Skip the empty state when evals exist — they already fill the view.
               evaluations.length === 0 ? (
                 <div className="flex justify-center py-16 text-sm text-muted-foreground">
@@ -210,7 +212,12 @@ export default function DebuggerSessionViewContent({
                 </div>
               ) : null
             ) : (
-              <DebuggerTraceList scrollEl={scrollEl} projectId={projectId} sessionId={sessionId} />
+              <DebuggerTraceList
+                scrollEl={scrollEl}
+                projectId={projectId}
+                sessionId={sessionId}
+                textBlocks={textBlocks}
+              />
             )}
           </div>
           <div className="flex flex-1" />
