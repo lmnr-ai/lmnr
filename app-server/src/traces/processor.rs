@@ -17,7 +17,7 @@ use crate::{
         traces::{CHTrace, TraceAggregation},
     },
     db::{
-        DB, debugger_session_blocks,
+        DB,
         spans::Span,
         trace::{
             Trace, TraceMetadataPatch, merge_trace_metadata_batch, upsert_trace_statistics_batch,
@@ -511,8 +511,6 @@ pub async fn process_span_messages(
                     e
                 );
             }
-
-            debugger_session_blocks::upsert_blocks_for_traces(&db.pool, &updated_traces).await;
 
             dispatch_trace_realtime_updates(&updated_traces, cache.clone(), &pubsub).await;
         }

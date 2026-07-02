@@ -4,7 +4,7 @@ use actix_web::{HttpResponse, patch, post, web};
 use uuid::Uuid;
 
 use crate::{
-    api::v1::rollouts::RegisterSessionRequest,
+    api::v1::rollouts::{RegisterSessionRequest, UpsertBlockRequest, handle_upsert_block},
     auth::cli_user::CliProjectAuth,
     db::{
         DB,
@@ -34,6 +34,18 @@ pub async fn register_session(
         create_or_update_debugger_session(&db.pool, &session_id, &project_id, name).await?;
 
     Ok(HttpResponse::Ok().json(session))
+}
+
+/// `POST /v1/cli/rollouts/{session_id}/blocks` — CLI twin of
+/// `/v1/rollouts/{session_id}/blocks`; differs only in auth.
+#[post("rollouts/{session_id}/blocks")]
+pub async fn upsert_block(
+    path: web::Path<Uuid>,
+    body: web::Json<UpsertBlockRequest>,
+    auth: CliProjectAuth,
+    db: web::Data<DB>,
+) -> ResponseResult {
+    handle_upsert_block(&db, auth.project_id, path.into_inner(), body.into_inner()).await
 }
 
 #[derive(serde::Deserialize)]

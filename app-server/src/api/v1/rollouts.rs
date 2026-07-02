@@ -1,13 +1,14 @@
 use actix_web::{HttpResponse, delete, post, web};
+use serde_json::Value;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
-    db::project_api_keys::ProjectApiKey,
     cache::Cache,
     db::{
-        DB,
+        DB, debugger_session_blocks,
         debugger_sessions::{create_or_update_debugger_session, delete_debugger_session},
+        project_api_keys::ProjectApiKey,
     },
     debugger,
     pubsub::PubSub,
@@ -42,6 +43,91 @@ pub async fn register_session(
         create_or_update_debugger_session(&db.pool, &session_id, &project_id, name).await?;
 
     Ok(HttpResponse::Ok().json(session))
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpsertBlockRequest {
+    /// Explicit block id. When omitted, the id is derived deterministically
+    /// from the referenced entity (`content.traceId` / `content.evaluationId`)
+    /// so client retries collapse into one row; text blocks without an id get
+    /// a random one.
+    #[serde(default)]
+    pub id: Option<Uuid>,
+    #[serde(rename = "type")]
+    pub block_type: String,
+    #[serde(default)]
+    pub content: Option<Value>,
+}
+
+fn entity_id_from_content(content: &Value) -> Option<Uuid> {
+    ["traceId", "evaluationId"]
+        .iter()
+        .find_map(|key| content.get(key))
+        .and_then(|v| v.as_str())
+        .and_then(|s| Uuid::parse_str(s).ok())
+}
+
+pub async fn handle_upsert_block(
+    db: &DB,
+    project_id: Uuid,
+    session_id: Uuid,
+    req: UpsertBlockRequest,
+) -> ResponseResult {
+    if !debugger_session_blocks::ALLOWED_BLOCK_TYPES.contains(&req.block_type.as_str()) {
+        return Ok(HttpResponse::BadRequest().json(format!(
+            "Invalid block type. Allowed types: {}",
+            debugger_session_blocks::ALLOWED_BLOCK_TYPES.join(", ")
+        )));
+    }
+
+    let content = req.content.unwrap_or(Value::Object(Default::default()));
+    let block_id = req
+        .id
+        .or(entity_id_from_content(&content).map(|entity_id| {
+            debugger_session_blocks::deterministic_block_id(
+                &session_id,
+                &req.block_type,
+                &entity_id,
+            )
+        }))
+        .unwrap_or(Uuid::new_v4());
+
+    let upserted = debugger_session_blocks::upsert_block(
+        &db.pool,
+        &project_id,
+        &session_id,
+        &block_id,
+        &req.block_type,
+        &content,
+    )
+    .await?;
+
+    if !upserted {
+        return Ok(HttpResponse::NotFound().json("Session not found"));
+    }
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "id": block_id })))
+}
+
+/// Upsert a block (cell) into a debugger session. Blocks are written
+/// explicitly by the SDK/CLI — never implicitly at trace ingest. The session
+/// must be registered first (`POST rollouts/{session_id}`); an unknown session
+/// id is a 404.
+#[post("rollouts/{session_id}/blocks")]
+pub async fn upsert_block(
+    path: web::Path<Uuid>,
+    project_api_key: ProjectApiKey,
+    body: web::Json<UpsertBlockRequest>,
+    db: web::Data<DB>,
+) -> ResponseResult {
+    handle_upsert_block(
+        &db,
+        project_api_key.project_id,
+        path.into_inner(),
+        body.into_inner(),
+    )
+    .await
 }
 
 #[derive(serde::Deserialize)]
