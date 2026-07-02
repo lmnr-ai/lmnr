@@ -444,6 +444,11 @@ mod tests {
             rows[0][0]["elements"][0]["elements"][0]["style"]["bold"],
             true
         );
+        // data-row keys are bold too (label column emphasized)
+        assert_eq!(
+            rows[1][0]["elements"][0]["elements"][0]["style"]["bold"],
+            true
+        );
         // value column wraps, label column does not
         assert_eq!(table["column_settings"][0]["is_wrapped"], false);
         assert_eq!(table["column_settings"][1]["is_wrapped"], true);

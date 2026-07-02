@@ -143,14 +143,14 @@ pub(super) fn format_event_identification_blocks(
         if let Some(obj) = info.as_object() {
             for (key, value) in obj.iter().take(MAX_FIELDS) {
                 let formatted = truncate_chars(&format_value(value), MAX_VALUE_CHARS);
-                rows.push(json!([text_cell(key, false), value_cell(&formatted)]));
+                rows.push(json!([text_cell(key, true), value_cell(&formatted)]));
             }
         } else {
             let formatted = truncate_chars(
                 &serde_json::to_string_pretty(&info).unwrap_or_default(),
                 MAX_VALUE_CHARS,
             );
-            rows.push(json!([text_cell("Details", false), value_cell(&formatted)]));
+            rows.push(json!([text_cell("Details", true), value_cell(&formatted)]));
         }
     }
 
