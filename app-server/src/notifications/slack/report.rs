@@ -69,7 +69,7 @@ pub(super) fn format_report_blocks(title: &str, report: &ReportData) -> serde_js
     let total_projects = report.projects.len();
     let mut rendered = 0usize;
 
-    for project in &report.projects {
+    for (pidx, project) in report.projects.iter().enumerate() {
         let mut pb: Vec<serde_json::Value> = vec![
             json!({"type": "divider"}),
             json!({
@@ -99,7 +99,9 @@ pub(super) fn format_report_blocks(title: &str, report: &ReportData) -> serde_js
         if !stat_line.is_empty() {
             pb.push(json!({
                 "type": "context",
-                "elements": [{ "type": "mrkdwn", "text": stat_line }]
+                // Cap the concatenated per-signal counts — a project with many signals could
+                // otherwise overflow Slack's context text limit and fail the whole postMessage.
+                "elements": [{ "type": "mrkdwn", "text": truncate_to_slack_section_limit(&stat_line) }]
             }));
         }
 
@@ -143,7 +145,9 @@ pub(super) fn format_report_blocks(title: &str, report: &ReportData) -> serde_js
                             "type": "button",
                             "text": { "type": "plain_text", "text": "View trace", "emoji": true },
                             "url": trace_link,
-                            "action_id": format!("view_trace_{}", i),
+                            // Globally unique across the message (project index + card index) —
+                            // Slack scopes action_id uniqueness per block, but this is belt-and-suspenders.
+                            "action_id": format!("view_trace_{}_{}", pidx, i),
                             "style": "primary"
                         }]
                     })
