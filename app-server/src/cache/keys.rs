@@ -45,10 +45,10 @@ pub const USAGE_WARNING_SEND_LOCK_KEY: &str = "usage_warning_send_lock";
 pub const HARD_LIMIT_SEND_LOCK_KEY: &str = "hard_limit_send_lock";
 /// Short-lived cache of `workspace_hard_limit_notifications.last_notified_at`
 /// per `(workspace_id, usage_item)`, so over-limit workspaces don't hit
-/// Postgres on every blocked ingestion request. Deliberately short TTL (no
-/// frontend invalidation): the frontend deletes the underlying dedup row when
-/// a hard limit is removed/raised, and this cache must age out quickly so that
-/// cleanup takes effect.
+/// Postgres on every blocked ingestion request. The frontend evicts this key
+/// when it deletes the underlying dedup row (limit removed/raised); the short
+/// TTL is a backstop for a failed eviction. Must stay in sync with the
+/// frontend constant in `frontend/lib/cache.ts`.
 pub const HARD_LIMIT_NOTIFIED_CACHE_KEY: &str = "hard_limit_notified";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SYS_PROMPT_SUMMARY_CACHE_KEY: &str = "sys_prompt_summary_v2";

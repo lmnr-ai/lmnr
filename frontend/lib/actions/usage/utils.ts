@@ -1,7 +1,12 @@
 import { and, eq } from "drizzle-orm";
 
 import { getWorkspaceUsage } from "@/lib/actions/workspace";
-import { cache, PROJECT_CACHE_KEY, WORKSPACE_USAGE_WARNINGS_CACHE_KEY } from "@/lib/cache";
+import {
+  cache,
+  HARD_LIMIT_NOTIFIED_CACHE_KEY,
+  PROJECT_CACHE_KEY,
+  WORKSPACE_USAGE_WARNINGS_CACHE_KEY,
+} from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
 import { projects, subscriptionTiers, workspaceHardLimitNotifications, workspaces } from "@/lib/db/migrations/schema";
 import { getHasClusteringAccess } from "@/lib/features/clustering";
@@ -66,6 +71,16 @@ export const deleteHardLimitNotification = async (workspaceId: string, usageItem
         eq(workspaceHardLimitNotifications.usageItem, usageItem)
       )
     );
+
+  // The app-server fronts the dedup-row read with a short-TTL cache of the
+  // suppressing state; evict it so the cleared row takes effect immediately
+  // instead of after the TTL. Best-effort: on failure the TTL still bounds
+  // the staleness.
+  try {
+    await cache.remove(`${HARD_LIMIT_NOTIFIED_CACHE_KEY}:${workspaceId}:${usageItem}`);
+  } catch (e) {
+    console.error("Error clearing hard-limit notified cache", e);
+  }
 };
 
 // When a hard limit is *raised*, only clear the dedup row if the workspace was

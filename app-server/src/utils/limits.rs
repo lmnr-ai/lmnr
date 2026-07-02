@@ -41,10 +41,9 @@ const USAGE_WARNINGS_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24 * 7; // 7 days
 const PROJECT_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24 * 7; // 7 days
 
 /// TTL for the cached hard-limit `last_notified_at` per `(workspace, usage_item)`.
-/// Unlike the warnings cache, the frontend does NOT invalidate this key (it deletes
-/// the underlying DB dedup row on limit removal/raise), so the TTL must stay short:
-/// it bounds how long a deleted dedup row can keep suppressing the Postgres
-/// re-check on blocked requests.
+/// The frontend evicts this key whenever it deletes the underlying DB dedup row
+/// (limit removal/raise), so the short TTL is just a backstop bounding how long
+/// a failed eviction can keep suppressing the Postgres re-check.
 const HARD_LIMIT_NOTIFIED_CACHE_TTL_SECONDS: u64 = 60 * 5; // 5 minutes
 
 /// Returns the effective bytes hard limit for a workspace, or None if no limit should be enforced.
