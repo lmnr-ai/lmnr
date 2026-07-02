@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS default.traces_agg
     `cache_read_input_tokens` SimpleAggregateFunction(sum, UInt64),
     `cache_creation_input_tokens` SimpleAggregateFunction(sum, UInt64),
     `reasoning_tokens` SimpleAggregateFunction(sum, UInt64),
+    -- debug-only: insert wall-clock, folds to first-seen; not exposed in the view
+    `created_at` SimpleAggregateFunction(min, DateTime64(9, 'UTC')) DEFAULT now64(9),
     PROJECTION p_start_time
     (
         SELECT *
