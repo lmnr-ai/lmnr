@@ -449,8 +449,14 @@ const upsertDefaultTierUsageLimits = async ({
       .returning({ id: workspaceUsageLimits.id });
     // Mirror the user-facing delete path: clearing the default hard limit must also
     // drop the dedup stamp so a re-applied limit on a future upgrade starts fresh.
+    // Best-effort: the limit delete already committed, and a throw here would skip
+    // the warnings sync + cache invalidations in the caller's try block.
     if (deleted.length > 0) {
-      await deleteHardLimitNotification(workspaceId, "signal_cost");
+      try {
+        await deleteHardLimitNotification(workspaceId, "signal_cost");
+      } catch (e) {
+        console.error("Failed to clear hard-limit dedup row on Hobby default limit delete, continuing", e);
+      }
     }
   }
 
@@ -466,8 +472,13 @@ const upsertDefaultTierUsageLimits = async ({
       .returning({ id: workspaceUsageLimits.id });
     // A freshly inserted default is a brand-new limit; drop any leftover dedup stamp
     // (e.g. from a prior Hobby stint) so the first breach under the new limit notifies.
+    // Best-effort, same as the delete path above.
     if (inserted.length > 0) {
-      await deleteHardLimitNotification(workspaceId, "signal_cost");
+      try {
+        await deleteHardLimitNotification(workspaceId, "signal_cost");
+      } catch (e) {
+        console.error("Failed to clear hard-limit dedup row on Hobby default limit insert, continuing", e);
+      }
     }
   }
 };
