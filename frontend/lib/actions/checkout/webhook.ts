@@ -97,14 +97,14 @@ export const manageWorkspaceSubscriptionEvent = async ({
       .values({
         workspaceId: workspace.id,
         bytes: 0,
-        signalSteps: 0,
+        signalCost: 0,
         lastReportedDate: sql`date_trunc('day', now())`,
       })
       .onConflictDoUpdate({
         target: workspaceUsage.workspaceId,
         set: {
           bytes: 0,
-          signalSteps: 0,
+          signalCost: 0,
           lastReportedDate: sql`date_trunc('day', now())`,
         },
       });
@@ -298,7 +298,7 @@ export const handleInvoiceFinalized = async (
     .values({
       workspaceId: workspaceId,
       bytes: 0,
-      signalSteps: 0,
+      signalCost: 0,
       lastReportedDate: sql`date_trunc('day', ${resetDate})`,
     })
     .onConflictDoUpdate({
@@ -306,7 +306,7 @@ export const handleInvoiceFinalized = async (
       set: {
         lastReportedDate: sql`date_trunc('day', ${resetDate})`,
         ...(hasBytes ? { bytes: 0 } : {}),
-        ...(hasSignalRuns ? { signalSteps: 0 } : {}),
+        ...(hasSignalRuns ? { signalCost: 0 } : {}),
       },
     });
   await db
@@ -318,7 +318,7 @@ export const handleInvoiceFinalized = async (
 
 // Extra overage warnings fired on Hobby only, above the included allowance, so users
 // accumulating a large overage bill are nudged before it grows further. The signal
-// threshold is in micro-USD (1e-6 USD): $100, similar to prev value of 15k signal steps
+// threshold is in micro-USD (1e-6 USD): $100
 const HOBBY_OVERAGE_WARNING_SIGNAL_COST_MICRO_USD = 100_000_000;
 const HOBBY_OVERAGE_WARNING_BYTES = 40 * 1024 ** 3; // 40 GiB
 
@@ -352,7 +352,7 @@ const insertNewTierUsageWarnings = async ({
       .where(
         and(
           eq(workspaceUsageWarnings.workspaceId, workspaceId),
-          inArray(workspaceUsageWarnings.usageItem, ["signal_cost", "signal_steps_processed"]),
+          eq(workspaceUsageWarnings.usageItem, "signal_cost"),
           eq(workspaceUsageWarnings.limitValue, currentTierConfig.includedSignalCostMicroUsd)
         )
       );
@@ -396,7 +396,7 @@ const clearHobbyOverageWarnings = async (workspaceId: string) => {
     .where(
       and(
         eq(workspaceUsageWarnings.workspaceId, workspaceId),
-        inArray(workspaceUsageWarnings.usageItem, ["signal_cost", "signal_steps_processed"]),
+        eq(workspaceUsageWarnings.usageItem, "signal_cost"),
         eq(workspaceUsageWarnings.limitValue, HOBBY_OVERAGE_WARNING_SIGNAL_COST_MICRO_USD)
       )
     );
@@ -411,7 +411,7 @@ const clearHobbyOverageWarnings = async (workspaceId: string) => {
     );
 };
 
-// Hobby gets a default hard cap on signal steps processed so cheaper-than-Pro customers
+// Hobby gets a default hard cap on signal cost so cheaper-than-Pro customers
 // don't silently accrue overage charges; Pro intentionally has no default cap. `newTierName`
 // is undefined when the workspace moves to Free (cancellation), which must still trigger the
 // Hobby cleanup — otherwise a canceled Hobby leaves a default row that would silently re-apply

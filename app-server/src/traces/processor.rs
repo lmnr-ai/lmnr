@@ -39,6 +39,7 @@ use crate::{
             RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_trace,
             send_span_updates, send_trace_updates,
         },
+        spans::SpanUsage,
         tool_dedup::{ToolDedup, resolve_tool_dedup},
         utils::{get_llm_usage_for_span, prepare_span_for_recording},
     },
@@ -179,14 +180,21 @@ pub async fn process_span_messages(
     let mut span_usage_vec = Vec::with_capacity(messages.len());
 
     for m in &mut messages {
-        let span_usage = get_llm_usage_for_span(
-            &mut m.span.attributes,
-            db.clone(),
-            cache.clone(),
-            &m.span.name,
-            &m.span.project_id,
-        )
-        .await;
+        // Only LLM spans get token/cost usage. A non-LLM span may still carry stray
+        // `gen_ai.usage.*` attributes (some auto-instrumentations set them on Default/Tool
+        // spans); counting those would inflate the per-span columns and trace totals (LAM-1873).
+        let span_usage = if m.span.is_llm_span() {
+            get_llm_usage_for_span(
+                &mut m.span.attributes,
+                db.clone(),
+                cache.clone(),
+                &m.span.name,
+                &m.span.project_id,
+            )
+            .await
+        } else {
+            SpanUsage::default()
+        };
 
         prepare_span_for_recording(&mut m.span, &span_usage);
         if !m.pre_processed {

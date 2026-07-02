@@ -1,6 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { createDatapoints, CreateDatapointsSchema, deleteDatapoints, getDatapoints } from "@/lib/actions/datapoints";
+import { parseUrlParams } from "@/lib/actions/common/utils";
+import {
+  createDatapoints,
+  CreateDatapointsSchema,
+  deleteDatapoints,
+  getDatapoints,
+  ListDatapointsSchema,
+} from "@/lib/actions/datapoints";
 
 export async function GET(
   req: NextRequest,
@@ -9,14 +16,19 @@ export async function GET(
   const params = await props.params;
 
   try {
-    const pageNumber = parseInt(req.nextUrl.searchParams.get("pageNumber") ?? "0") || 0;
-    const pageSize = parseInt(req.nextUrl.searchParams.get("pageSize") ?? "50") || 50;
+    const parseResult = parseUrlParams(
+      req.nextUrl.searchParams,
+      ListDatapointsSchema.omit({ projectId: true, datasetId: true })
+    );
+
+    if (!parseResult.success) {
+      return NextResponse.json({ items: [] });
+    }
 
     const datapointsData = await getDatapoints({
+      ...parseResult.data,
       projectId: params.projectId,
       datasetId: params.datasetId,
-      pageNumber,
-      pageSize,
     });
 
     return NextResponse.json(datapointsData);

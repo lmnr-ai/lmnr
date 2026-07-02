@@ -42,7 +42,7 @@ export default function LimitsSettings({
       <SettingsSectionHeader
         size="sm"
         title="Hard limits"
-        description="When a limit is reached, new data ingestion or signal runs will be rejected until the next billing cycle."
+        description="When a limit is reached, new data ingestion or signal usage will be rejected until the next billing cycle."
       />
       <div className="flex flex-col sm:flex-row gap-3">
         <LimitRow

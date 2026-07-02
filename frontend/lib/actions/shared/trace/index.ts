@@ -42,6 +42,8 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
         metadata,
         status,
         trace_type as traceType,
+        top_span_name as topSpanName,
+        top_span_type as topSpanType,
         has_browser_session as hasBrowserSession,
         user_id as userId
       FROM traces

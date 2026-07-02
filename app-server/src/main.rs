@@ -1784,7 +1784,9 @@ fn main() -> anyhow::Result<()> {
                         let cli_scope = cli_scope
                             .service(web::scope("/agent").service(api::v1::cli::agent::agent_chat));
 
-                        app
+                        // Bound (not returned) so the signals-gated Slack scope can be appended before
+                        // the probes below.
+                        let app = app
                             // Ingestion endpoints allow both default and ingest-only keys
                             .service(
                                 web::scope("/v1/browser-sessions").service(
@@ -1879,8 +1881,16 @@ fn main() -> anyhow::Result<()> {
                                     .service(crate::signals::private::routes::test_signal)
                                     .service(crate::agent::routes::post_agent_chat);
                                 scope
-                            })
-                            .service(routes::probes::check_health)
+                            });
+                        // Internal Slack-event receiver — the frontend verifies the Slack signature
+                        // and forwards verified events here. No HTTP auth (cluster-internal), same as
+                        // agent/chat. Signals-gated: it drives the agent.
+                        #[cfg(feature = "signals")]
+                        let app = app.service(
+                            web::scope("/api/v1/slack")
+                                .service(crate::agent::slack_events::slack_process),
+                        );
+                        app.service(routes::probes::check_health)
                             .service(routes::probes::check_ready)
                     })
                     .bind(("0.0.0.0", port))?

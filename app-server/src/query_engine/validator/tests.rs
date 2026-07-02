@@ -91,11 +91,14 @@ fn test_validate_basic_spans_select() {
 
 #[test]
 fn test_validate_basic_traces_select() {
+    // No time filter ⇒ broad epoch defaults on both bounds.
     let result = validate_ok("SELECT trace_id, start_time FROM traces");
     assert!(
         contains_ws(
             &result,
-            &format!("FROM traces_v0(project_id = '{SAMPLE_PROJECT_ID}') AS traces")
+            &format!(
+                "FROM traces_v0(project_id = '{SAMPLE_PROJECT_ID}', min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS traces"
+            )
         ),
         "got: {result}"
     );
@@ -301,7 +304,9 @@ fn test_join_with_allowed_tables() {
     assert!(
         contains_ws(
             &result,
-            &format!("JOIN traces_v0(project_id = '{SAMPLE_PROJECT_ID}') AS t")
+            &format!(
+                "JOIN traces_v0(project_id = '{SAMPLE_PROJECT_ID}', min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS t"
+            )
         ),
         "got: {result}"
     );
@@ -417,15 +422,27 @@ fn test_spans_time_range_query() {
 
 #[test]
 fn test_traces_time_range_query() {
+    // start_time >= lower bound; end_time <= upper bound (end_time upper is also
+    // a start_time upper because end_time >= start_time). Both padded ±3h. The
+    // original WHERE stays intact on the query.
     let result = validate_ok(
         "SELECT trace_id, duration FROM traces WHERE start_time >= '2024-01-01' AND end_time <= '2024-01-02'",
     );
     assert!(
         contains_ws(
             &result,
-            &format!("traces_v0(project_id = '{SAMPLE_PROJECT_ID}') AS traces")
+            &format!(
+                "traces_v0(project_id = '{SAMPLE_PROJECT_ID}', min_start_time = toDateTime64('2024-01-01', 9) - INTERVAL 3 HOUR, max_start_time = toDateTime64('2024-01-02', 9) + INTERVAL 3 HOUR) AS traces"
+            )
         ),
         "got: {result}"
+    );
+    assert!(
+        contains_ws(
+            &result,
+            "WHERE start_time >= '2024-01-01' AND end_time <= '2024-01-02'"
+        ),
+        "original WHERE dropped: {result}"
     );
 }
 
@@ -437,7 +454,9 @@ fn test_traces_time_range_query_between() {
     assert!(
         contains_ws(
             &result,
-            &format!("traces_v0(project_id = '{SAMPLE_PROJECT_ID}') AS traces")
+            &format!(
+                "traces_v0(project_id = '{SAMPLE_PROJECT_ID}', min_start_time = toDateTime64('2024-01-01', 9) - INTERVAL 3 HOUR, max_start_time = toDateTime64('2024-01-02', 9) + INTERVAL 3 HOUR) AS traces"
+            )
         ),
         "got: {result}"
     );
@@ -462,7 +481,9 @@ fn test_multiple_tables_in_join() {
     assert!(
         contains_ws(
             &result,
-            &format!("traces_v0(project_id = '{SAMPLE_PROJECT_ID}') AS t")
+            &format!(
+                "traces_v0(project_id = '{SAMPLE_PROJECT_ID}', min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS t"
+            )
         ),
         "got: {result}"
     );
@@ -575,10 +596,15 @@ LEFT JOIN spans_pivot USING (user_id)
 "#;
     let result = validate_ok(query);
 
+    // The traces CTE's WHERE (`start_time >= .. AND start_time < ..`) is pushed
+    // into the view bounds, padded ±3h; the `<` upper bound has no bucket so it's
+    // used as-is.
     assert!(
         contains_ws(
             &result,
-            &format!("FROM traces_v0(project_id = '{SAMPLE_PROJECT_ID}') AS traces")
+            &format!(
+                "FROM traces_v0(project_id = '{SAMPLE_PROJECT_ID}', min_start_time = toDateTime64(toDateTime('2025-08-06 00:00:00'), 9) - INTERVAL 3 HOUR, max_start_time = toDateTime64(toDateTime('2025-08-09 00:00:00'), 9) + INTERVAL 3 HOUR) AS traces"
+            )
         ),
         "got: {result}"
     );
@@ -803,6 +829,87 @@ fn test_not_in_with_array_placeholder() {
 }
 
 #[test]
+fn test_in_with_bare_scalar_literal() {
+    // ClickHouse accepts a bare single value after IN (it wraps it in a tuple).
+    let result = validate_ok("SELECT span_id FROM spans WHERE input_tokens IN 5");
+    assert!(contains_ws(&result, "input_tokens IN (5)"), "got: {result}");
+}
+
+#[test]
+fn test_in_with_bare_string_literal() {
+    let result = validate_ok("SELECT span_id FROM spans WHERE span_type IN 'TOOL'");
+    assert!(
+        contains_ws(&result, "span_type IN ('TOOL')"),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_in_with_bare_function_call() {
+    // `IN power(2, 3)` — the RHS is a full expression, not a parenthesized list.
+    let result = validate_ok("SELECT span_id FROM spans WHERE input_tokens IN power(2, 3)");
+    assert!(
+        contains_ws(&result, "input_tokens IN (power(2, 3))"),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_in_with_bare_column_ref_not_rewritten() {
+    // A bare identifier RHS is a column reference, NOT a relation — it must not
+    // be rewritten to a `_v0` view function.
+    let result = validate_ok("SELECT span_id FROM spans WHERE span_id IN parent_span_id");
+    assert!(
+        contains_ws(&result, "span_id IN (parent_span_id)"),
+        "got: {result}"
+    );
+    assert!(!result.contains("parent_span_id_v0"), "got: {result}");
+}
+
+#[test]
+fn test_not_in_with_bare_function_call() {
+    let result = validate_ok("SELECT span_id FROM spans WHERE input_tokens NOT IN power(2, 3)");
+    assert!(
+        contains_ws(&result, "input_tokens NOT IN (power(2, 3))"),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_in_with_interval_rhs_cross_feature() {
+    // Exercises BOTH the optional-interval-qualifier dialect AND the bare-IN
+    // expression parse together: `toIntervalDay(1) IN INTERVAL 1 day`.
+    let result =
+        validate_ok("SELECT span_id FROM spans WHERE toIntervalDay(1) IN INTERVAL 1 day LIMIT 1");
+    assert!(
+        contains_ws(&result, "toIntervalDay(1) IN (INTERVAL 1 DAY)"),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_in_bare_rhs_does_not_swallow_trailing_and() {
+    // The bare RHS is parsed at BETWEEN precedence, so a following `AND` is a
+    // separate predicate — not absorbed into the IN operand.
+    let result =
+        validate_ok("SELECT span_id FROM spans WHERE input_tokens IN 5 AND span_type = 'LLM'");
+    assert!(contains_ws(&result, "input_tokens IN (5)"), "got: {result}");
+    assert!(contains_ws(&result, "span_type = 'LLM'"), "got: {result}");
+}
+
+#[test]
+fn test_in_with_blocked_function_rhs_still_rejected() {
+    // The parse_infix override only changes parsing; the validator still scans
+    // the parsed InList RHS, so a blocked function there is rejected.
+    let err = validate("SELECT span_id FROM spans WHERE span_id IN url('http://evil')")
+        .expect_err("blocked function in IN RHS must be rejected");
+    assert!(
+        err.to_lowercase().contains("url") || err.contains("blocked"),
+        "got: {err}"
+    );
+}
+
+#[test]
 fn test_array_join_column_not_rewritten() {
     // `ARRAY JOIN clusters AS cluster_id` unnests the `clusters` ARRAY column of
     // signal_events — `clusters` here is a column, NOT the `clusters` table, so
@@ -921,4 +1028,496 @@ fn test_full_clusters_emerging_query() {
     );
     // Only the outer clusters TABLE is rewritten; the array-join column is not.
     assert_eq!(result.matches("clusters_v0").count(), 1, "got: {result}");
+}
+
+#[test]
+fn test_interval_with_unit_inside_string_literal() {
+    // LAM-1854: ClickHouse (and Postgres) accept the unit inside the string
+    // literal, e.g. `interval '1 day'`. sqlparser's stock ClickHouseDialect
+    // rejects it ("INTERVAL requires a unit after the literal value"); our
+    // optional-qualifier dialect must parse it and round-trip it verbatim.
+    let result = validate_ok(
+        "SELECT span_id FROM spans WHERE start_time > now() - interval '1 day' LIMIT 1",
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+        ),
+        "got: {result}"
+    );
+    // The unit must NOT be hoisted out of the literal into a trailing qualifier
+    // (that would corrupt the SQL sent to ClickHouse).
+    assert!(
+        contains_ws(&result, "start_time > now() - INTERVAL '1 day'"),
+        "interval literal not preserved verbatim in: {result}"
+    );
+    assert!(!contains_ws(&result, "'1 day' SECOND"), "got: {result}");
+}
+
+#[test]
+fn test_interval_with_unit_outside_string_literal() {
+    let result = validate_ok(
+        "SELECT span_id FROM spans WHERE start_time > now() - interval '1' day LIMIT 1",
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+        ),
+        "got: {result}"
+    );
+    assert!(
+        contains_ws(&result, "start_time > now() - INTERVAL '1' DAY"),
+        "interval literal not parsed with string amount: {result}"
+    );
+}
+
+#[test]
+fn test_interval_with_explicit_unit_still_parses() {
+    // The classic `INTERVAL 1 HOUR` form must keep working after the dialect
+    // swap.
+    let result =
+        validate_ok("SELECT span_id FROM spans WHERE start_time > now() - INTERVAL 1 HOUR LIMIT 1");
+    assert!(
+        contains_ws(&result, "start_time > now() - INTERVAL 1 HOUR"),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_interval_various_units_inside_string_literal() {
+    for unit in ["1 hour", "30 minute", "2 week", "3 month", "1 year"] {
+        let query = format!(
+            "SELECT span_id FROM spans WHERE start_time > now() - interval '{unit}' LIMIT 1"
+        );
+        let result = validate_ok(&query);
+        assert!(
+            contains_ws(&result, &format!("INTERVAL '{unit}'")),
+            "unit '{unit}' not preserved in: {result}"
+        );
+    }
+}
+
+#[test]
+fn test_string_literal_resembling_interval_not_misparsed() {
+    // A plain string literal that merely contains the words is NOT an INTERVAL
+    // and must survive untouched.
+    let result = validate_ok("SELECT span_id FROM spans WHERE name = '1 day ago' LIMIT 1");
+    assert!(contains_ws(&result, "name = '1 day ago'"), "got: {result}");
+}
+
+#[test]
+fn test_mixed_type_intervals_with_range_qualifier() {
+    // https://clickhouse.com/docs/sql-reference/data-types/special-data-types/interval#mixed-type-intervals
+    // Fairly new for ClickHouse (~26.4 or 26.5), but have been there in some
+    // other dialects for quite a while.
+    for lit in [
+        "INTERVAL '2-6' YEAR TO MONTH",
+        "INTERVAL '5 12' DAY TO HOUR",
+        "INTERVAL '5 12:30' DAY TO MINUTE",
+        "INTERVAL '5 12:30:45' DAY TO SECOND",
+        "INTERVAL '1:30' HOUR TO MINUTE",
+        "INTERVAL '1:30:45' HOUR TO SECOND",
+        "INTERVAL '5:30' MINUTE TO SECOND",
+    ] {
+        let query = format!("SELECT span_id FROM spans WHERE start_time > now() - {lit} LIMIT 1");
+        let result = validate_ok(&query);
+        assert!(
+            contains_ws(
+                &result,
+                &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+            ),
+            "table not rewritten for {lit}: {result}"
+        );
+        assert!(
+            contains_ws(&result, &format!("start_time > now() - {lit}")),
+            "mixed-type interval not preserved verbatim for {lit}: {result}"
+        );
+    }
+}
+
+#[test]
+fn test_backtick_quoted_identifiers_still_parse() {
+    // ClickHouseDialect does NOT override is_delimited_identifier_start; the
+    // trait default accepts backticks. ClickHouseOptionalIntervalDialect must
+    // tokenize backtick-quoted identifiers identically to the bare dialect.
+    let result = validate_ok("SELECT `span_id` FROM spans WHERE `name` = 'x' LIMIT 1");
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+        ),
+        "got: {result}"
+    );
+    assert!(contains_ws(&result, "`span_id`"), "got: {result}");
+    assert!(contains_ws(&result, "`name` = 'x'"), "got: {result}");
+}
+
+// ----------------------------------------------------------------------------
+// traces_v0 start_time bound extraction (LAM-1876)
+// ----------------------------------------------------------------------------
+
+/// Extract the `min_start_time = ..., max_start_time = ...` fragment of the
+/// first `traces_v0(...)` call in the rewritten SQL, whitespace-normalized.
+fn traces_bounds(query: &str) -> String {
+    let sql = validate_ok(query);
+    let n = norm(&sql);
+    let start = n.find("traces_v0(").expect("no traces_v0 in output");
+    // Find the matching close paren for the view-arg list.
+    let after = &n[start + "traces_v0(".len()..];
+    let mut depth = 1usize;
+    let mut end = 0usize;
+    for (i, c) in after.char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    end = i;
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    after[..end].to_string()
+}
+
+fn assert_default_min(bounds: &str) {
+    assert!(
+        bounds.contains("min_start_time = toDateTime64('1970-01-01 00:00:00', 9)"),
+        "expected default min, got: {bounds}"
+    );
+}
+
+fn assert_default_max(bounds: &str) {
+    assert!(
+        bounds.contains("max_start_time = toDateTime64('2099-12-31 00:00:00', 9)"),
+        "expected default max, got: {bounds}"
+    );
+}
+
+#[test]
+fn test_bounds_relative_now_with_interval_placeholder() {
+    // Query A: `start_time >= now() - INTERVAL {pastHours: UInt32} HOUR`. The
+    // `{pastHours:UInt32}` placeholder is a scalar bind value, not a column, so
+    // the comparison must still yield a lower bound (padded ±3h). No upper bound
+    // is present, so max stays at the broad default.
+    let b = traces_bounds(
+        "SELECT id, user_id AS userId FROM traces \
+         WHERE start_time >= now() - INTERVAL {pastHours: UInt32} HOUR \
+         AND trace_type = {traceType: String} \
+         ORDER BY start_time DESC LIMIT {limit: UInt32} OFFSET {offset: UInt32}",
+    );
+    assert!(
+        b.contains(
+            "min_start_time = toDateTime64(now() - INTERVAL {pastHours: UInt32} HOUR, 9) - INTERVAL 3 HOUR"
+        ),
+        "got: {b}"
+    );
+    assert_default_max(&b);
+}
+
+#[test]
+fn test_bounds_parameterized_time_bounds() {
+    // Query B: parameterized `start_time >= {startTime: String}` and
+    // `start_time <= {endTime: String}`. Both placeholders are scalar binds, so
+    // both bounds must be derived (padded ±3h) rather than falling back to the
+    // broad defaults.
+    let b = traces_bounds(
+        "SELECT id, user_id AS userId FROM traces \
+         WHERE start_time >= {startTime: String} \
+         AND start_time <= {endTime: String} \
+         AND trace_type = {traceType: String} \
+         ORDER BY start_time DESC LIMIT {limit: UInt32} OFFSET {offset: UInt32}",
+    );
+    assert!(
+        b.contains("min_start_time = toDateTime64({startTime: String}, 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+    assert!(
+        b.contains("max_start_time = toDateTime64({endTime: String}, 9) + INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_parameterized_value_lower_only() {
+    // A single parameterized lower bound derives a min and leaves max default.
+    let b = traces_bounds("SELECT id FROM traces WHERE start_time >= {startTime: String}");
+    assert!(
+        b.contains("min_start_time = toDateTime64({startTime: String}, 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+    assert_default_max(&b);
+}
+
+#[test]
+fn test_bounds_no_filter_uses_broad_defaults() {
+    let b = traces_bounds("SELECT id FROM traces");
+    assert_default_min(&b);
+    assert_default_max(&b);
+}
+
+#[test]
+fn test_bounds_bare_start_time_gt() {
+    let b = traces_bounds("SELECT id FROM traces WHERE start_time > '2026-06-01 00:00:00'");
+    assert!(
+        b.contains("min_start_time = toDateTime64('2026-06-01 00:00:00', 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+    assert_default_max(&b);
+}
+
+#[test]
+fn test_bounds_bare_start_time_gte() {
+    let b = traces_bounds("SELECT id FROM traces WHERE start_time >= '2026-06-01 00:00:00'");
+    assert!(
+        b.contains("min_start_time = toDateTime64('2026-06-01 00:00:00', 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_bare_start_time_lt() {
+    let b = traces_bounds("SELECT id FROM traces WHERE start_time < '2026-06-02 00:00:00'");
+    assert_default_min(&b);
+    assert!(
+        b.contains("max_start_time = toDateTime64('2026-06-02 00:00:00', 9) + INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_bare_start_time_lte() {
+    let b = traces_bounds("SELECT id FROM traces WHERE start_time <= '2026-06-02 00:00:00'");
+    assert!(
+        b.contains("max_start_time = toDateTime64('2026-06-02 00:00:00', 9) + INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_end_time_upper_only() {
+    // end_time <= X ⇒ start_time <= X (end_time >= start_time). Lower unbounded.
+    let b = traces_bounds("SELECT id FROM traces WHERE end_time < '2026-06-02 00:00:00'");
+    assert_default_min(&b);
+    assert!(
+        b.contains("max_start_time = toDateTime64('2026-06-02 00:00:00', 9) + INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_end_time_lower_ignored() {
+    // A LOWER bound on end_time says nothing about start_time → no min bound.
+    let b = traces_bounds("SELECT id FROM traces WHERE end_time > '2026-06-01 00:00:00'");
+    assert_default_min(&b);
+    assert_default_max(&b);
+}
+
+#[test]
+fn test_bounds_end_time_eq_upper_only() {
+    // end_time = X ⇒ start_time <= X (end_time >= start_time). Lower unbounded —
+    // equality on end_time yields only an upper bound on start_time.
+    let b = traces_bounds("SELECT id FROM traces WHERE end_time = '2026-06-02 00:00:00'");
+    assert_default_min(&b);
+    assert!(
+        b.contains("max_start_time = toDateTime64('2026-06-02 00:00:00', 9) + INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_start_and_end_range() {
+    let b = traces_bounds(
+        "SELECT id FROM traces WHERE start_time >= '2026-06-01 00:00:00' AND end_time <= '2026-06-02 00:00:00'",
+    );
+    assert!(
+        b.contains("min_start_time = toDateTime64('2026-06-01 00:00:00', 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+    assert!(
+        b.contains("max_start_time = toDateTime64('2026-06-02 00:00:00', 9) + INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_between_start_time() {
+    let b = traces_bounds(
+        "SELECT id FROM traces WHERE start_time BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 00:00:00'",
+    );
+    assert!(
+        b.contains("min_start_time = toDateTime64('2026-06-01 00:00:00', 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+    assert!(
+        b.contains("max_start_time = toDateTime64('2026-06-02 00:00:00', 9) + INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_between_end_time_upper_only() {
+    let b = traces_bounds(
+        "SELECT id FROM traces WHERE end_time BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 00:00:00'",
+    );
+    assert_default_min(&b);
+    assert!(
+        b.contains("max_start_time = toDateTime64('2026-06-02 00:00:00', 9) + INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_todate_equality_widens_by_day() {
+    let b = traces_bounds("SELECT id FROM traces WHERE toDate(start_time) = '2026-06-01'");
+    assert!(
+        b.contains("min_start_time = toDateTime64('2026-06-01', 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+    assert!(
+        b.contains(
+            "max_start_time = (toDateTime64('2026-06-01', 9) + INTERVAL 1 DAY) + INTERVAL 3 HOUR"
+        ),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_tostartofhour_equality_widens_by_hour() {
+    let b = traces_bounds(
+        "SELECT id FROM traces WHERE toStartOfHour(start_time) = '2026-06-01 13:00:00'",
+    );
+    assert!(
+        b.contains("min_start_time = toDateTime64('2026-06-01 13:00:00', 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+    assert!(
+        b.contains(
+            "max_start_time = (toDateTime64('2026-06-01 13:00:00', 9) + INTERVAL 1 HOUR) + INTERVAL 3 HOUR"
+        ),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_tomonday_equality_widens_by_week() {
+    let b = traces_bounds("SELECT id FROM traces WHERE toMonday(start_time) = '2026-06-01'");
+    assert!(
+        b.contains(
+            "max_start_time = (toDateTime64('2026-06-01', 9) + INTERVAL 7 DAY) + INTERVAL 3 HOUR"
+        ),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_tostartofmonth_gte_lower_no_widen() {
+    // A `>=` on a truncation is a lower bound; buckets only widen the UPPER edge,
+    // so the lower is the value as-is (minus pad).
+    let b = traces_bounds("SELECT id FROM traces WHERE toStartOfMonth(start_time) >= '2026-06-01'");
+    assert!(
+        b.contains("min_start_time = toDateTime64('2026-06-01', 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+    assert_default_max(&b);
+}
+
+#[test]
+fn test_bounds_column_on_right_flips_operator() {
+    let b = traces_bounds("SELECT id FROM traces WHERE '2026-06-01 00:00:00' < start_time");
+    // '...' < start_time  ⇔  start_time > '...'  ⇒ lower bound.
+    assert!(
+        b.contains("min_start_time = toDateTime64('2026-06-01 00:00:00', 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+    assert_default_max(&b);
+}
+
+#[test]
+fn test_bounds_or_both_branches_bound_upper() {
+    // (start_time < A) OR (end_time < B): both branches give an upper bound, so
+    // the OR keeps the LOOSER (greatest) upper; lower stays unbounded.
+    let b = traces_bounds(
+        "SELECT id FROM traces WHERE start_time < '2026-06-01 00:00:00' OR end_time < '2026-06-05 00:00:00'",
+    );
+    assert_default_min(&b);
+    assert!(
+        b.contains("greatest("),
+        "expected greatest() for OR upper, got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_or_unbounded_branch_drops_bound() {
+    // start_time > X OR name = 'y': the second branch bounds nothing, so the OR
+    // must NOT constrain start_time — both bounds fall back to defaults.
+    let b = traces_bounds(
+        "SELECT id FROM traces WHERE start_time > '2026-06-01 00:00:00' OR name = 'y'",
+    );
+    assert_default_min(&b);
+    assert_default_max(&b);
+}
+
+#[test]
+fn test_bounds_and_multiple_lowers_takes_tightest() {
+    // Two lower bounds under AND ⇒ greatest() (the tightest lower).
+    let b = traces_bounds(
+        "SELECT id FROM traces WHERE start_time > '2026-06-01 00:00:00' AND start_time > '2026-06-03 00:00:00'",
+    );
+    assert!(
+        b.contains("min_start_time = greatest("),
+        "expected greatest() for AND lower, got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_value_referencing_column_skipped() {
+    // start_time > end_time : the value side is a column, not a constant, so it
+    // can't be a view-fn argument → no bound.
+    let b = traces_bounds("SELECT id FROM traces WHERE start_time > end_time");
+    assert_default_min(&b);
+    assert_default_max(&b);
+}
+
+#[test]
+fn test_bounds_from_alias_qualified_filter() {
+    let b = traces_bounds("SELECT t.id FROM traces t WHERE t.start_time >= '2026-06-01 00:00:00'");
+    assert!(
+        b.contains("min_start_time = toDateTime64('2026-06-01 00:00:00', 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_other_relation_qualifier_ignored() {
+    // In a join, a filter on the SPANS alias's start_time must not become a
+    // traces bound.
+    let b = traces_bounds(
+        "SELECT t.id FROM traces t JOIN spans s ON s.trace_id = t.id WHERE s.start_time >= '2026-06-01 00:00:00'",
+    );
+    assert_default_min(&b);
+    assert_default_max(&b);
+}
+
+#[test]
+fn test_bounds_in_subquery_from_traces() {
+    // Filter lives on the traces subquery's own WHERE.
+    let query = "SELECT * FROM (SELECT id, start_time FROM traces WHERE start_time >= '2026-06-01 00:00:00') sub";
+    let b = traces_bounds(query);
+    assert!(
+        b.contains("min_start_time = toDateTime64('2026-06-01 00:00:00', 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_unsupported_function_falls_back_to_default() {
+    // addDays(start_time, 1) is not a truncation we parse → broad defaults.
+    let b = traces_bounds("SELECT id FROM traces WHERE addDays(start_time, 1) > '2026-06-01'");
+    assert_default_min(&b);
+    assert_default_max(&b);
 }

@@ -16,7 +16,7 @@ use crate::worker::{HandlerError, MessageHandler};
 
 pub mod delivery;
 mod email;
-mod slack;
+pub mod slack;
 mod utils;
 
 use delivery::{DeliveryTarget, NotificationDeliveryMessage, push_to_deliveries_queue};
@@ -116,6 +116,8 @@ impl std::fmt::Display for AlertType {
 pub enum NotificationKind {
     EventIdentification {
         project_id: Uuid,
+        #[serde(default)]
+        project_name: String,
         #[serde(default)]
         signal_id: Uuid,
         trace_id: Uuid,

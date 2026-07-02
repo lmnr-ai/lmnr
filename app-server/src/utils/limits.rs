@@ -677,10 +677,7 @@ async fn send_soft_limit_notification(
 
     let tier_included = match usage_item {
         UsageItem::Bytes => tier_name.included_bytes(),
-        #[allow(deprecated)]
-        UsageItem::SignalCost | UsageItem::SignalStepsProcessed => {
-            tier_name.included_signal_cost_micro_usd()
-        }
+        UsageItem::SignalCost => tier_name.included_signal_cost_micro_usd(),
     };
     let at_tier_included_allowance = tier_included == Some(limit_value);
     let overage_billable = matches!(tier_name, WorkspaceTierName::Hobby | WorkspaceTierName::Pro);
@@ -749,8 +746,7 @@ fn format_usage_item(usage_item: &UsageItem, limit_value: i64) -> (String, Strin
             };
             ("Data ingestion".to_string(), formatted)
         }
-        #[allow(deprecated)]
-        UsageItem::SignalCost | UsageItem::SignalStepsProcessed => {
+        UsageItem::SignalCost => {
             // limit_value is in micro-USD (1e-6 USD); render as dollars.
             let dollars = limit_value as f64 / 1_000_000.0;
             ("Signals cost".to_string(), format!("${:.2}", dollars))

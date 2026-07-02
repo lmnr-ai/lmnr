@@ -167,9 +167,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       // Filter: must contain a line for a signal or data overage price.
       // We match on the lookup-key shape ("signal" / "bytes" substrings) rather
       // than an exact TIER_CONFIG allowlist so that subscriptions still billing
-      // a previous overage price (e.g. the legacy
-      // `*_overage_signal_steps_processed` keys, which Stripe does not migrate
-      // on a lookup-key rename) are still recognised and reset. An exact-match
+      // a previous overage price are still recognised and reset. An exact-match
       // gate would silently skip those cycles' billing reset + cache
       // invalidation. This excludes addon-only and other unrelated invoices.
       let hasBytesOverage = false;
