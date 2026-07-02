@@ -12,6 +12,8 @@ export async function GET(request: NextRequest, props: { params: Promise<{ proje
       .select({
         groupId: evaluations.groupId,
         lastEvaluationCreatedAt: sql<Date>`MAX(${evaluations.createdAt})`.as("lastEvaluationCreatedAt"),
+        firstEvaluationCreatedAt: sql<Date>`MIN(${evaluations.createdAt})`.as("firstEvaluationCreatedAt"),
+        runCount: sql<number>`COUNT(*)::int`.as("runCount"),
       })
       .from(evaluations)
       .where(eq(evaluations.projectId, projectId))
@@ -22,6 +24,8 @@ export async function GET(request: NextRequest, props: { params: Promise<{ proje
     .select({
       groupId: groupedEvaluations.groupId,
       lastEvaluationCreatedAt: groupedEvaluations.lastEvaluationCreatedAt,
+      firstEvaluationCreatedAt: groupedEvaluations.firstEvaluationCreatedAt,
+      runCount: groupedEvaluations.runCount,
     })
     .from(groupedEvaluations)
     .orderBy(desc(groupedEvaluations.lastEvaluationCreatedAt));

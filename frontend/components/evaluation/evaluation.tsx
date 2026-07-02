@@ -7,12 +7,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { shallow } from "zustand/shallow";
 
-import Chart from "@/components/evaluation/chart";
-import CompareChart from "@/components/evaluation/compare-chart";
 import DatapointRunsChart from "@/components/evaluation/datapoint-runs-chart";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
-import ScoreCard from "@/components/evaluation/score-card";
+import MetricsPanel from "@/components/evaluation/metrics-panel";
+import { isBinaryDistribution } from "@/components/evaluation/metrics-panel/utils";
 import {
   buildColumnDefs,
   buildFetchParams,
@@ -30,7 +29,6 @@ import {
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableConfigStore, useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import { Skeleton } from "@/components/ui/skeleton";
 import { type EvalRow, type Evaluation as EvaluationType, type EvaluationResultsInfo } from "@/lib/evaluation/types";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { swrFetcher } from "@/lib/utils";
@@ -77,6 +75,8 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
   const isShared = useEvalStore((s) => s.isShared);
   const heatmapEnabled = useEvalStore((s) => s.heatmapEnabled);
   const setHeatmapEnabled = useEvalStore((s) => s.setHeatmapEnabled);
+  const heatmapVariant = useEvalStore((s) => s.heatmapVariant);
+  const setHeatmapVariant = useEvalStore((s) => s.setHeatmapVariant);
   const addScoreName = useEvalStore((s) => s.addScoreName);
 
   const isComparison = !!targetId;
@@ -291,6 +291,12 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
     [columnDefs, isComparison]
   );
 
+  const hasNonBinary = useMemo(() => {
+    const dists = statsData?.allDistributions;
+    if (!dists) return true;
+    return scoreNames.some((name) => !isBinaryDistribution(dists[name] ?? null));
+  }, [scoreNames, statsData?.allDistributions]);
+
   const onDeleteCustomColumn = useCallback(
     (columnId: string) => removeCustomColumn(columnId.replace("custom:", "")),
     [removeCustomColumn]
@@ -310,48 +316,24 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
         ]}
       />
       <div className="flex-1 flex gap-2 flex-col relative overflow-hidden">
-        <EvaluationHeader name={statsData?.evaluation?.name} urlKey={statsUrl} evaluations={evaluations} />
+        <EvaluationHeader
+          name={statsData?.evaluation?.name}
+          urlKey={statsUrl}
+          evaluations={evaluations}
+          hasNonBinary={hasNonBinary}
+        />
         <div className="flex flex-col gap-2 flex-1 overflow-hidden px-4 pb-4">
-          <div className="flex flex-row space-x-4 p-4 border rounded bg-secondary">
-            {isStatsLoading ? (
-              <>
-                <Skeleton className="w-72 h-48" />
-                <Skeleton className="w-full h-48" />
-              </>
-            ) : (
-              <>
-                <div className="flex-none w-72">
-                  <ScoreCard
-                    scores={scoreNames}
-                    selectedScore={selectedScore}
-                    setSelectedScore={setSelectedScore}
-                    statistics={selectedScore ? (statsData?.allStatistics?.[selectedScore] ?? null) : null}
-                    comparedStatistics={
-                      selectedScore ? (targetStatsData?.allStatistics?.[selectedScore] ?? null) : null
-                    }
-                    isLoading={isStatsLoading}
-                  />
-                </div>
-                <div className="grow">
-                  {targetId ? (
-                    <CompareChart
-                      distribution={selectedScore ? (statsData?.allDistributions?.[selectedScore] ?? null) : null}
-                      comparedDistribution={
-                        selectedScore ? (targetStatsData?.allDistributions?.[selectedScore] ?? null) : null
-                      }
-                      isLoading={isStatsLoading}
-                    />
-                  ) : (
-                    <Chart
-                      scoreName={selectedScore}
-                      distribution={selectedScore ? (statsData?.allDistributions?.[selectedScore] ?? null) : null}
-                      isLoading={isStatsLoading}
-                    />
-                  )}
-                </div>
-              </>
-            )}
-          </div>
+          <MetricsPanel
+            scoreNames={scoreNames}
+            selectedScore={selectedScore}
+            setSelectedScore={setSelectedScore}
+            allStatistics={statsData?.allStatistics}
+            allDistributions={statsData?.allDistributions}
+            comparedAllStatistics={targetStatsData?.allStatistics}
+            comparedAllDistributions={targetStatsData?.allDistributions}
+            isComparison={!!targetId}
+            isLoading={isStatsLoading}
+          />
           <EvaluationDatapointsTable
             data={allDatapoints}
             isLoading={isStatsLoading || isLoadingDatapoints || isViewLoading}
@@ -370,6 +352,8 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
             onSort={handleSort}
             heatmapEnabled={heatmapEnabled}
             onHeatmapEnabledChange={setHeatmapEnabled}
+            heatmapVariant={heatmapVariant}
+            onHeatmapVariantChange={setHeatmapVariant}
             onDeleteCustomColumn={onDeleteCustomColumn}
             searchValue={searchValue}
             onSearchChange={setSearchAndFilters}

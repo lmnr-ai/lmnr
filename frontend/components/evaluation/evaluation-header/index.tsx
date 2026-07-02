@@ -4,6 +4,7 @@ import React, { memo } from "react";
 
 import DeleteEvaluationDialog from "@/components/evaluation/delete-evaluation-dialog";
 import ShareEvalButton from "@/components/evaluation/evaluation-header/share-eval-button";
+import { AggregationSelect } from "@/components/evaluation/metrics-panel/aggregation-select";
 import RenameEvaluationDialog from "@/components/evaluation/rename-evaluation-dialog";
 import { Button } from "@/components/ui/button";
 import DownloadButton from "@/components/ui/download-button";
@@ -21,9 +22,10 @@ interface EvaluationHeader {
   evaluations: EvaluationType[];
   name?: string;
   urlKey: string;
+  hasNonBinary?: boolean;
 }
 
-const EvaluationHeader = ({ evaluations, name, urlKey }: EvaluationHeader) => {
+const EvaluationHeader = ({ evaluations, name, urlKey, hasNonBinary }: EvaluationHeader) => {
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const { projectId, evaluationId } = useParams();
@@ -97,13 +99,12 @@ const EvaluationHeader = ({ evaluations, name, urlKey }: EvaluationHeader) => {
         )}
       </div>
       <div className="flex items-center gap-2">
-        {!targetId && (
-          <DownloadButton
-            uri={`/api/projects/${projectId}/evaluations/${evaluationId}/download`}
-            filenameFallback={`evaluation-results-${evaluationId}`}
-            supportedFormats={["csv", "json"]}
-          />
-        )}
+        <AggregationSelect hidden={!hasNonBinary} />
+        <DownloadButton
+          uri={`/api/projects/${projectId}/evaluations/${evaluationId}/download`}
+          filenameFallback={`evaluation-results-${evaluationId}`}
+          supportedFormats={["csv", "json"]}
+        />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="secondary" className="h-7 w-7 p-0">

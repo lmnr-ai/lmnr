@@ -78,7 +78,7 @@ export function InfiniteTableHead<TData extends RowData>({
           isControllable ? "cursor-grab active:cursor-grabbing" : "cursor-default"
         )}
       >
-        <div className="text-ellipsis overflow-hidden whitespace-nowrap text-secondary-foreground">
+        <div className="flex-1 min-w-0 text-ellipsis overflow-hidden whitespace-nowrap text-secondary-foreground">
           {flexRender(header.column.columnDef.header, header.getContext())}
         </div>
         <div
