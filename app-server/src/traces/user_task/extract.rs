@@ -295,8 +295,13 @@ Call the `submit_extraction_regex` tool with the regex pattern itself (starts wi
 </output_format>"#;
 
 /// Lite-LLM call to generate one extraction regex from one (or more)
-/// sample inputs. Errors on timeout / provider error / no usable regex
-/// so the consumer can requeue as transient.
+/// sample inputs. Errors only on timeout / provider error — the
+/// genuinely transient failures the consumer may requeue. A response
+/// that carries no usable regex (the model submitted an empty string,
+/// its "no valid regex can be produced" verdict per the prompt, or no
+/// tool call at all) is `Ok(None)`: a terminal decision, not a
+/// transport failure — retrying it would loop the consumer through an
+/// LLM call per cycle with no exit.
 ///
 /// We force structured output via a one-tool function call rather than
 /// asking for a JSON-shaped string — this avoids per-provider quirks
@@ -304,7 +309,7 @@ Call the `submit_extraction_regex` tool with the regex pattern itself (starts wi
 pub async fn generate_extraction_regex(
     llm_client: &Arc<LlmClient>,
     sample_input: &str,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<Option<String>> {
     let request = ProviderRequest {
         contents: vec![ProviderContent {
             role: Some("user".to_string()),
@@ -359,8 +364,7 @@ pub async fn generate_extraction_regex(
             })?
             .map_err(|e| anyhow::anyhow!("regex generation failed: {e}"))?;
 
-    extract_regex_from_response(&response)
-        .ok_or_else(|| anyhow::anyhow!("provider returned no regex"))
+    Ok(extract_regex_from_response(&response))
 }
 
 /// Walk a response's candidates → content → parts looking for the
