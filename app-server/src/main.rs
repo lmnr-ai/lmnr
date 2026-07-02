@@ -1774,10 +1774,6 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::datasets::get_datasets)
                             .service(api::v1::cli::datasets::get_datapoints)
                             .service(api::v1::cli::datasets::create_datapoints)
-                            .service(
-                                web::scope("/traces")
-                                    .service(api::v1::cli::traces::update_trace_metadata),
-                            )
                             .service(api::v1::cli::rollouts::update_name)
                             .service(api::v1::cli::rollouts::register_session);
                         #[cfg(feature = "signals")]
