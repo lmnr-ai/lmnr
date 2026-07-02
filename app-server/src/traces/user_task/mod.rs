@@ -465,6 +465,25 @@ pub async fn process_user_task_candidates(
         .await
         {
             Some(result) => {
+                // Re-read the winner lock before the inline publish: a
+                // concurrent batch's FULL cycle (gate read, publish, lock
+                // write) can complete inside the window since the gate
+                // read above (one regex-cache round-trip), and publishing
+                // anyway would overwrite the newer winner's metadata.
+                // Order-aware (`supersedes`) like the consumer's
+                // pre-publish check; absent lock / cache error fails
+                // open. The tighter interleaving — both batches publish
+                // before either writes its lock — is not closable with
+                // get-then-set; this catches the dominant completed-cycle
+                // race.
+                let rechecked: Option<UserTaskLockState> =
+                    cache.get(&lock_key).await.ok().flatten();
+                if rechecked.is_some_and(|c| c.supersedes(&state)) {
+                    log::debug!(
+                        "user-task: dropping superseded inline extraction for trace [{trace_id}]"
+                    );
+                    continue;
+                }
                 let patch = build_metadata_patch(&result);
                 match publish_trace_metadata_patch(
                     trace_id,
