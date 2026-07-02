@@ -1156,6 +1156,37 @@ export const debuggerSessions = pgTable(
   ]
 );
 
+export const debuggerSessionBlocks = pgTable(
+  "debugger_session_blocks",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    projectId: uuid("project_id").notNull(),
+    sessionId: uuid("session_id").notNull(),
+    type: text().notNull(),
+    content: jsonb()
+      .default(sql`'{}'::jsonb`)
+      .notNull(),
+  },
+  (table) => [
+    index("debugger_session_blocks_session_id_idx").using("btree", table.sessionId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "debugger_session_blocks_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    foreignKey({
+      columns: [table.sessionId],
+      foreignColumns: [debuggerSessions.id],
+      name: "debugger_session_blocks_session_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
 export const workspaceUsage = pgTable(
   "workspace_usage",
   {

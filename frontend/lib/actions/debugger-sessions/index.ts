@@ -1,12 +1,14 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { PaginationSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
+import { tracesSelectColumns } from "@/lib/actions/traces/utils";
 import { db } from "@/lib/db/drizzle";
-import { debuggerSessions, evaluations, sharedTraces } from "@/lib/db/migrations/schema";
+import { debuggerSessionBlocks, debuggerSessions, evaluations, sharedTraces } from "@/lib/db/migrations/schema";
 import { NotFoundError } from "@/lib/errors";
+import { type TraceRow } from "@/lib/traces/types";
 
 // Metadata keys evals share with this view's traces: the session link and the
 // agent-authored note (markdown). Same `rollout.*` convention the trace notes
@@ -67,8 +69,9 @@ export const getDebuggerSessions = async (input: z.infer<typeof GetDebuggerSessi
   return { items };
 };
 
-// Per-session eval counts via the `rollout.session_id` metadata key.
-// Best-effort — a query error returns an empty map.
+// Per-session eval counts: `evaluation` blocks first, legacy
+// `rollout.session_id` metadata for sessions without blocks. Best-effort — a
+// query error returns an empty map.
 async function getEvalCountsBySessionIds(projectId: string, sessionIds: string[]): Promise<Map<string, number>> {
   if (sessionIds.length === 0) return new Map();
 
@@ -79,20 +82,40 @@ async function getEvalCountsBySessionIds(projectId: string, sessionIds: string[]
       sessionIds.map((id) => sql`${id}`),
       sql`, `
     );
-    const rows = await db
-      .select({ sessionId: sql<string>`${evaluations.metadata} ->> ${SESSION_ID_METADATA_KEY}` })
-      .from(evaluations)
-      .where(
-        and(
-          eq(evaluations.projectId, projectId),
-          sql`${evaluations.metadata} ->> ${SESSION_ID_METADATA_KEY} IN (${inList})`
+    const [blockRows, metadataRows] = await Promise.all([
+      db
+        .select({
+          sessionId: debuggerSessionBlocks.sessionId,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(debuggerSessionBlocks)
+        .where(
+          and(
+            eq(debuggerSessionBlocks.projectId, projectId),
+            eq(debuggerSessionBlocks.type, EVALUATION_BLOCK_TYPE),
+            inArray(debuggerSessionBlocks.sessionId, sessionIds)
+          )
         )
-      );
+        .groupBy(debuggerSessionBlocks.sessionId),
+      db
+        .select({ sessionId: sql<string>`${evaluations.metadata} ->> ${SESSION_ID_METADATA_KEY}` })
+        .from(evaluations)
+        .where(
+          and(
+            eq(evaluations.projectId, projectId),
+            sql`${evaluations.metadata} ->> ${SESSION_ID_METADATA_KEY} IN (${inList})`
+          )
+        ),
+    ]);
 
     const counts = new Map<string, number>();
-    for (const row of rows) {
+    for (const row of metadataRows) {
       if (!row.sessionId) continue;
       counts.set(row.sessionId, (counts.get(row.sessionId) ?? 0) + 1);
+    }
+    // Blocks are authoritative when present.
+    for (const row of blockRows) {
+      counts.set(row.sessionId, row.count);
     }
     return counts;
   } catch {
@@ -254,6 +277,118 @@ export async function getLatestTraceBySessionId(
   };
 }
 
+export const TRACE_BLOCK_TYPE = "trace";
+export const EVALUATION_BLOCK_TYPE = "evaluation";
+export const TEXT_BLOCK_TYPE = "text";
+
+// A cell in a debugger session. `content` is jsonb: trace blocks carry
+// `{ traceId, note? }`, evaluation blocks `{ evaluationId, note? }`, text
+// blocks hold the note directly (`{ note }`).
+export type SessionBlock = {
+  id: string;
+  createdAt: string;
+  type: string;
+  content: Record<string, unknown>;
+};
+
+async function getSessionBlocks(projectId: string, sessionId: string, type?: string): Promise<SessionBlock[]> {
+  const rows = await db
+    .select({
+      id: debuggerSessionBlocks.id,
+      createdAt: debuggerSessionBlocks.createdAt,
+      type: debuggerSessionBlocks.type,
+      content: debuggerSessionBlocks.content,
+    })
+    .from(debuggerSessionBlocks)
+    .where(
+      and(
+        eq(debuggerSessionBlocks.projectId, projectId),
+        eq(debuggerSessionBlocks.sessionId, sessionId),
+        ...(type ? [eq(debuggerSessionBlocks.type, type)] : [])
+      )
+    )
+    .orderBy(asc(debuggerSessionBlocks.createdAt));
+
+  return rows.map((row) => ({ ...row, content: (row.content ?? {}) as Record<string, unknown> }));
+}
+
+const blockNote = (block: SessionBlock): string | null =>
+  typeof block.content.note === "string" ? block.content.note : null;
+
+const GetSessionTracesSchema = z.object({
+  projectId: z.guid(),
+  sessionId: z.guid(),
+});
+
+// Legacy cap, mirrors the previous metadata-filtered fetch in the session view.
+const MAX_SESSION_TRACES = 200;
+
+/**
+ * Traces for a debugger session, driven by its `trace` blocks. Sessions
+ * created before blocks existed have no block rows, so they fall back to the
+ * old `rollout.session_id` trace-metadata query. Block notes are folded into
+ * the trace metadata (`rollout.note`) so the existing note rendering keeps
+ * working unchanged.
+ */
+export async function getSessionTraces(input: z.infer<typeof GetSessionTracesSchema>): Promise<TraceRow[]> {
+  const { projectId, sessionId } = GetSessionTracesSchema.parse(input);
+
+  const blocks = await getSessionBlocks(projectId, sessionId, TRACE_BLOCK_TYPE);
+  const noteByTraceId = new Map<string, string>();
+  const traceIds: string[] = [];
+  for (const block of blocks) {
+    const traceId = block.content.traceId;
+    if (typeof traceId !== "string" || !z.guid().safeParse(traceId).success) continue;
+    traceIds.push(traceId);
+    const note = blockNote(block);
+    if (note) noteByTraceId.set(traceId, note);
+  }
+
+  if (blocks.length === 0) {
+    return await executeQuery<TraceRow>({
+      query: `
+        SELECT ${tracesSelectColumns.join(", ")}
+        FROM traces
+        WHERE trace_type = 'DEFAULT'
+          AND simpleJSONExtractString(metadata, 'rollout.session_id') = {sessionId: String}
+        ORDER BY start_time DESC
+        LIMIT ${MAX_SESSION_TRACES}
+      `,
+      projectId,
+      parameters: { sessionId },
+    });
+  }
+
+  if (traceIds.length === 0) return [];
+
+  const items = await executeQuery<TraceRow>({
+    query: `
+      SELECT ${tracesSelectColumns.join(", ")}
+      FROM traces
+      WHERE trace_type = 'DEFAULT'
+        AND id IN ({traceIds: Array(UUID)})
+      ORDER BY start_time DESC
+      LIMIT ${MAX_SESSION_TRACES}
+    `,
+    projectId,
+    parameters: { traceIds },
+  });
+
+  return items.map((item) => {
+    const note = noteByTraceId.get(item.id);
+    if (!note) return item;
+    let metadata: Record<string, unknown> = {};
+    try {
+      const parsed = typeof item.metadata === "string" ? JSON.parse(item.metadata) : item.metadata;
+      if (parsed && typeof parsed === "object") metadata = parsed as Record<string, unknown>;
+    } catch {
+      metadata = {};
+    }
+    if (typeof metadata[NOTE_METADATA_KEY] === "string") return item;
+    return { ...item, metadata: { ...metadata, [NOTE_METADATA_KEY]: note } as TraceRow["metadata"] };
+  });
+}
+
 export type SessionEvaluationScore = {
   name: string;
   averageValue: number;
@@ -276,16 +411,31 @@ const GetSessionEvaluationsSchema = z.object({
 });
 
 /**
- * Evaluations linked to a debugger session via
- * `evaluations.metadata['rollout.session_id']`. Each row carries its note
- * (`metadata['rollout.note']`) and per-score-name averages computed from the
- * ClickHouse `evaluation_datapoints.scores` map. The scores query is
- * best-effort: a CH error yields empty scores so the cards still render.
+ * Evaluations linked to a debugger session, driven by its `evaluation`
+ * blocks. Sessions with no `evaluation` blocks fall back to the legacy
+ * `evaluations.metadata['rollout.session_id']` query. Each row carries its
+ * note (block content first, then `metadata['rollout.note']`) and
+ * per-score-name averages computed from the ClickHouse
+ * `evaluation_datapoints.scores` map. The scores query is best-effort: a CH
+ * error yields empty scores so the cards still render.
  */
 export async function getSessionEvaluations(
   input: z.infer<typeof GetSessionEvaluationsSchema>
 ): Promise<SessionEvaluation[]> {
   const { projectId, sessionId } = GetSessionEvaluationsSchema.parse(input);
+
+  const blocks = await getSessionBlocks(projectId, sessionId, EVALUATION_BLOCK_TYPE);
+  const noteByEvalId = new Map<string, string>();
+  const evaluationIds: string[] = [];
+  for (const block of blocks) {
+    const evaluationId = block.content.evaluationId;
+    if (typeof evaluationId !== "string" || !z.guid().safeParse(evaluationId).success) continue;
+    evaluationIds.push(evaluationId);
+    const note = blockNote(block);
+    if (note) noteByEvalId.set(evaluationId, note);
+  }
+
+  if (blocks.length > 0 && evaluationIds.length === 0) return [];
 
   const rows = await db
     .select()
@@ -293,7 +443,9 @@ export async function getSessionEvaluations(
     .where(
       and(
         eq(evaluations.projectId, projectId),
-        sql`${evaluations.metadata}->>${SESSION_ID_METADATA_KEY} = ${sessionId}`
+        blocks.length > 0
+          ? inArray(evaluations.id, evaluationIds)
+          : sql`${evaluations.metadata}->>${SESSION_ID_METADATA_KEY} = ${sessionId}`
       )
     )
     // Earliest first, so each card can show its score delta vs the previous eval.
@@ -307,13 +459,13 @@ export async function getSessionEvaluations(
   );
 
   return rows.map((row) => {
-    const note = (row.metadata as Record<string, unknown> | null)?.[NOTE_METADATA_KEY];
+    const metadataNote = (row.metadata as Record<string, unknown> | null)?.[NOTE_METADATA_KEY];
     return {
       id: row.id,
       name: row.name,
       createdAt: row.createdAt,
       groupId: row.groupId,
-      note: typeof note === "string" ? note : null,
+      note: noteByEvalId.get(row.id) ?? (typeof metadataNote === "string" ? metadataNote : null),
       scores: scoresById.get(row.id) ?? [],
     };
   });

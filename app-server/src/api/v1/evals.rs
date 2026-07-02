@@ -4,11 +4,8 @@ use crate::{
     cache::Cache,
     db::{self, DB, project_api_keys::ProjectApiKey},
     evaluations::{
-        EvaluationDatapointResult, UpdatedDatapointStrings,
-        insert_evaluation_datapoints,
-        realtime::{
-            RealtimeDatapoint, cache_inserted_datapoint_trace_ids, send_datapoint_updates,
-        },
+        EvaluationDatapointResult, UpdatedDatapointStrings, insert_evaluation_datapoints,
+        realtime::{RealtimeDatapoint, cache_inserted_datapoint_trace_ids, send_datapoint_updates},
         update_evaluation_datapoint,
     },
     names::NameGenerator,
@@ -53,6 +50,14 @@ pub async fn init_eval(
         db::evaluations::create_evaluation(&db.pool, &name, project_id, &group_name, &metadata)
             .await?;
 
+    db::debugger_session_blocks::upsert_block_for_evaluation(
+        &db.pool,
+        &project_id,
+        &evaluation.id,
+        metadata.as_ref(),
+    )
+    .await;
+
     Ok(HttpResponse::Ok().json(evaluation))
 }
 
@@ -92,8 +97,10 @@ pub async fn save_eval_datapoints(
 
     cache_inserted_datapoint_trace_ids(cache.into_inner(), &project_id, &eval_id, &ch_rows).await;
 
-    let realtime_points: Vec<RealtimeDatapoint<'_>> =
-        ch_rows.iter().map(RealtimeDatapoint::from_ch_insert).collect();
+    let realtime_points: Vec<RealtimeDatapoint<'_>> = ch_rows
+        .iter()
+        .map(RealtimeDatapoint::from_ch_insert)
+        .collect();
 
     send_datapoint_updates(
         pubsub.get_ref().as_ref(),

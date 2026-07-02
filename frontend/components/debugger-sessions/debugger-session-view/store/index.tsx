@@ -16,9 +16,6 @@ import { type RealtimeSpan, type SpanType, type TraceRow } from "@/lib/traces/ty
 // Trace-metadata key the agent writes its run note to (markdown string).
 export const NOTE_METADATA_KEY = "rollout.note";
 
-// Max runs fetched per session (mirrors the previous multi-trace-view cap).
-const MAX_RUNS = 200;
-
 // Normalize metadata (object OR JSON string) into TraceRow's Record<string,string>.
 const normalizeMetadata = (metadata: unknown): Record<string, string> => {
   if (!metadata) return {};
@@ -148,7 +145,7 @@ interface DebuggerSessionViewActions {
   // base slice's shape-based guard would skip the fetch once any SSE span landed.
   fetchTraceSpans: (trace: TraceRow) => Promise<void>;
 
-  // Fetch the session's runs via the `rollout.session_id` metadata filter.
+  // Fetch the session's runs from its `trace` blocks (legacy metadata fallback server-side).
   fetchSessionTraces: (sessionId: string) => Promise<void>;
 
   // Realtime: upsert a streamed span.
@@ -262,18 +259,9 @@ export const createDebuggerSessionViewStore = (options?: {
             get().setIsTracesLoading(true);
             get().setTracesError(undefined);
             try {
-              const params = new URLSearchParams();
-              params.set("pageNumber", "0");
-              params.set("pageSize", String(MAX_RUNS));
-              // DESC so a session with > MAX_RUNS runs keeps the NEWEST window;
-              // the display sort below restores oldest-first within it.
-              params.set("sortDirection", "DESC");
-              params.append(
-                "filter",
-                JSON.stringify({ column: "metadata", operator: "eq", value: `rollout.session_id=${sessionId}` })
-              );
-
-              const res = await fetch(`/api/projects/${projectId}/traces?${params.toString()}`);
+              // Blocks-driven: the session's `trace` blocks decide which runs
+              // belong here (legacy sessions without blocks fall back server-side).
+              const res = await fetch(`/api/projects/${projectId}/debugger-sessions/${sessionId}/traces`);
               if (!res.ok) {
                 const err = (await res.json().catch(() => ({ error: "Unknown error" }))) as { error?: string };
                 get().setTracesError(err.error || "Failed to load session traces");
