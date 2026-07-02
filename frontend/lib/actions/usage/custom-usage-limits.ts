@@ -125,8 +125,14 @@ export async function removeUsageLimit(input: z.infer<typeof RemoveUsageLimitSch
     .where(and(eq(workspaceUsageLimits.workspaceId, workspaceId), eq(workspaceUsageLimits.limitType, limitType)));
 
   // Removing the limit means a re-created one is a fresh start — drop the dedup
-  // stamp so it can't suppress the next notification.
-  await deleteHardLimitNotification(workspaceId, limitType);
+  // stamp so it can't suppress the next notification. Best-effort: the limit row
+  // is already deleted, so a failure here must not skip the cache invalidation
+  // below or the app-server would keep enforcing the removed limit until TTL.
+  try {
+    await deleteHardLimitNotification(workspaceId, limitType);
+  } catch (e) {
+    console.error("Failed to clear hard limit notification on limit removal, continuing", e);
+  }
 
   await invalidateProjectCacheForWorkspace(workspaceId);
 }
