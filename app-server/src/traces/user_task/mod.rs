@@ -138,6 +138,24 @@ pub fn fingerprint_user_parts(parts: &[String]) -> String {
     fps.join("|")
 }
 
+/// Sort parts into a canonical order: by structural fingerprint, then
+/// by content. Because the regex cache key is order-insensitive
+/// (sorted fingerprints) while the regex itself is layout-sensitive
+/// (leading vs trailing scaffolding), the text the regex is generated
+/// from and applied to must be order-insensitive too. Without this, a
+/// regex generated from one arrival order can match a permuted order
+/// with an EMPTY capture (`NoUserRequest`, not `NoMatch`), mis-marking
+/// the trace `lmnr_user_task_not_found` and sliding the stale cache
+/// entry's TTL instead of evicting it.
+pub fn canonicalize_user_parts(parts: Vec<String>) -> Vec<String> {
+    let mut keyed: Vec<(String, String)> = parts
+        .into_iter()
+        .map(|p| (fingerprint_user_message(&p), p))
+        .collect();
+    keyed.sort();
+    keyed.into_iter().map(|(_, p)| p).collect()
+}
+
 // ---------------------------------------------------------------------------
 // Prepared input
 // ---------------------------------------------------------------------------
@@ -154,7 +172,7 @@ pub struct UserTaskInput {
 }
 
 pub fn prepare_user_task_input(input: &Value) -> Option<UserTaskInput> {
-    let parts = extract_last_turn_user_parts(input)?;
+    let parts = canonicalize_user_parts(extract_last_turn_user_parts(input)?);
     let signposted = join_parts_signposted(&parts)?;
     Some(UserTaskInput {
         signposted_text: truncate_for_regex(&signposted),
@@ -611,6 +629,34 @@ mod tests {
             "<context>c</context>\n\n== lmnr_part_separator ==\n\nthe task"
         );
         assert_eq!(prepared.fingerprint, "context,/context|plain");
+    }
+
+    #[test]
+    fn prepare_is_order_insensitive_across_part_permutations() {
+        // Both derived values must be permutation-invariant: the cache
+        // key (fingerprint) already is, so the regex target text has to
+        // be too — a layout-sensitive regex generated from one arrival
+        // order would otherwise capture empty on a permuted order and
+        // mis-mark the trace as "no user request".
+        let a = json!([
+            {"role": "user", "content": [
+                {"type": "text", "text": "<env>x</env>"},
+                {"type": "text", "text": "do the thing"}
+            ]}
+        ]);
+        let b = json!([
+            {"role": "user", "content": [
+                {"type": "text", "text": "do the thing"},
+                {"type": "text", "text": "<env>x</env>"}
+            ]}
+        ]);
+        let pa = prepare_user_task_input(&a).unwrap();
+        let pb = prepare_user_task_input(&b).unwrap();
+        assert_eq!(pa, pb);
+        assert_eq!(
+            pa.signposted_text,
+            "<env>x</env>\n\n== lmnr_part_separator ==\n\ndo the thing"
+        );
     }
 
     // ---- cache keys --------------------------------------------------------
