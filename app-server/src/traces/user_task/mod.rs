@@ -76,6 +76,9 @@ const REGEX_CACHE_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
 /// that never call `set_llm_client_available` (tests) don't enqueue.
 static LLM_CLIENT_AVAILABLE: OnceLock<bool> = OnceLock::new();
 
+/// Called once from `main.rs` right after `LlmClient` construction.
+/// First call wins (`OnceLock`); until then the producer hook treats the
+/// client as unavailable and never enqueues.
 pub fn set_llm_client_available(available: bool) {
     let _ = LLM_CLIENT_AVAILABLE.set(available);
 }

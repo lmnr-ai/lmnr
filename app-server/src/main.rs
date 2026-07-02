@@ -1066,9 +1066,10 @@ fn main() -> anyhow::Result<()> {
         log::info!("No LLM-backed feature enabled - skipping LLM client initialization");
         None
     };
-    // The user-task producer hook must not enqueue extraction work when the
-    // client failed to construct — the extraction workers would never spawn
-    // and the messages would sit on the queue unconsumed.
+    // Record whether the LLM client actually constructed (OnceLock, first
+    // call wins) — the user-task producer hook must not enqueue extraction
+    // work when the client failed to construct, since the extraction workers
+    // would never spawn and the messages would sit on the queue unconsumed.
     traces::user_task::set_llm_client_available(llm_provider_client.is_some());
     let llm_provider_client_for_http = llm_provider_client.clone();
 
