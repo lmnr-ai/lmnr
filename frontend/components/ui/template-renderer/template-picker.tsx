@@ -83,8 +83,17 @@ export const TemplatePickerProvider = ({
     resolver: zodResolver(manageTemplateSchema),
     defaultValues: defaultTemplateValues,
   });
-  const { reset, getValues, control } = methods;
+  const { reset, getValues, setValue, control } = methods;
   const form = useWatch({ control });
+
+  // Keep the form's testData in sync with the live payload. In the trace view
+  // the data arrives async (and refetches when the WHERE filter changes), so a
+  // reset at select/hydration time captures a stale/empty value otherwise.
+  useEffect(() => {
+    if (getValues("testData") !== testData) {
+      setValue("testData", testData, { shouldDirty: false });
+    }
+  }, [testData, getValues, setValue]);
 
   const [manageMode, setManageMode] = useState<ManageTemplateMode>(null);
   const [backup, setBackup] = useState<ManageTemplateForm | null>(null);
