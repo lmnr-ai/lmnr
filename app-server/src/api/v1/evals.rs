@@ -50,6 +50,14 @@ pub async fn init_eval(
         db::evaluations::create_evaluation(&db.pool, &name, project_id, &group_name, &metadata)
             .await?;
 
+    db::debugger_session_blocks::upsert_block_for_evaluation(
+        &db.pool,
+        &project_id,
+        &evaluation.id,
+        metadata.as_ref(),
+    )
+    .await;
+
     Ok(HttpResponse::Ok().json(evaluation))
 }
 
