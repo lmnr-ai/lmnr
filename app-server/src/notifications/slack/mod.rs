@@ -56,8 +56,8 @@ pub fn decode_slack_token(
 ///
 /// All notifications in the batch are expected to be of the same kind.
 /// Reports are rendered by combining per-project data into a single message.
-/// Alerts use the first (and only) notification. Usage warnings are email-only
-/// and never reach the Slack formatter.
+/// Alerts use the first (and only) notification. Usage warnings and hard limits
+/// are email-only and never reach the Slack formatter.
 pub fn format_message_blocks_batch(
     notifications: &[NotificationKind],
     workspace_id: Uuid,
@@ -115,20 +115,11 @@ pub fn format_message_blocks_batch(
                 .expect("SignalsReport batch must contain at least one report");
             format_report_blocks(&title, &report_data)
         }
-        // Usage warnings are delivered by email only (fetch_targets never resolves a
-        // Slack target for them), so this arm is unreachable in practice.
-        NotificationKind::UsageWarning { .. } => json!([]),
-        NotificationKind::UsageHardLimit {
-            workspace_name,
-            usage_label,
-            formatted_limit,
-            usage_item,
-        } => format_usage_hard_limit_blocks(
-            workspace_name,
-            usage_label,
-            formatted_limit,
-            usage_item,
-        ),
+        // Usage warnings and hard limits are delivered by email only (fetch_targets never
+        // resolves a Slack target for either), so these arms are unreachable in practice.
+        NotificationKind::UsageWarning { .. } | NotificationKind::UsageHardLimit { .. } => {
+            json!([])
+        }
     }
 }
 
@@ -156,44 +147,6 @@ mod report;
 use event_identification::format_event_identification_blocks;
 use new_cluster::format_new_cluster_blocks;
 use report::format_report_blocks;
-
-/// Format Slack message blocks for a usage hard-limit notification. Conveys that
-/// the metered activity is now blocked until the billing cycle resets.
-fn format_usage_hard_limit_blocks(
-    workspace_name: &str,
-    usage_label: &str,
-    formatted_limit: &str,
-    usage_item: &str,
-) -> serde_json::Value {
-    let blocked_activity = match usage_item {
-        "bytes" => "data ingestion",
-        "signal_cost" => "signal runs",
-        _ => "usage",
-    };
-
-    json!([
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": format!(
-                    ":octagonal_sign: *Usage Limit Reached*\n{} has reached its hard limit of *{}* of {}. {} will stop until the billing cycle resets.",
-                    workspace_name, formatted_limit, usage_label, capitalize_first(blocked_activity)
-                )
-            }
-        },
-        {"type": "divider"}
-    ])
-}
-
-/// Capitalize the first character of a lowercase ASCII phrase for sentence start.
-fn capitalize_first(s: &str) -> String {
-    let mut chars = s.chars();
-    match chars.next() {
-        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-        None => String::new(),
-    }
-}
 
 pub async fn send_message(
     slack_client: &Client,
