@@ -171,6 +171,21 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         name: "claude-opus-4-6",
         label: "Claude 4.6 Opus",
       },
+      {
+        id: "anthropic:claude-opus-4-7",
+        name: "claude-opus-4-7",
+        label: "Claude 4.7 Opus",
+      },
+      {
+        id: "anthropic:claude-opus-4-8",
+        name: "claude-opus-4-8",
+        label: "Claude 4.8 Opus",
+      },
+      {
+        id: "anthropic:claude-fable-5",
+        name: "claude-fable-5",
+        label: "Claude Fable 5",
+      },
     ],
   },
   {

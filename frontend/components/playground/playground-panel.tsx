@@ -1,5 +1,4 @@
 "use client";
-import { type GenerateTextResult, type ToolSet } from "ai";
 import { isEmpty } from "lodash";
 import { Bolt, ChevronRight, Loader, Square } from "lucide-react";
 import { useParams } from "next/navigation";
@@ -23,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { type PlaygroundChatResult } from "@/lib/actions/chat";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type PlaygroundForm } from "@/lib/playground/types";
 import { parseSystemMessages } from "@/lib/playground/utils";
@@ -111,11 +111,11 @@ export default function PlaygroundPanel({
           return;
         }
 
-        const result = (await response.json()) as GenerateTextResult<ToolSet, Record<string, never>, never>;
+        const result = (await response.json()) as PlaygroundChatResult;
 
         setText(result.text);
         setToolCalls(result.toolCalls);
-        setReasoning(result.reasoning.map((r) => ("text" in r ? r.text : "")).join(""));
+        setReasoning(result.reasoningText);
         setUsage(result.usage);
       } catch (e) {
         if (e instanceof Error && e.name !== "AbortError") {
