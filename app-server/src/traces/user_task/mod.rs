@@ -32,7 +32,7 @@ use tracing::instrument;
 
 use crate::cache::keys::{USER_TASK_LOCK_CACHE_KEY, USER_TASK_REGEX_CACHE_KEY};
 use crate::cache::{Cache, CacheTrait};
-use crate::db::{DB, spans::Span};
+use crate::db::{DB, spans::Span, trace::trace_exists};
 use crate::env::user_task::USER_TASK_LOCK_TTL_SECONDS;
 use crate::features::{Feature, is_feature_enabled};
 use crate::llm::LlmClient;
@@ -471,39 +471,65 @@ pub async fn process_user_task_candidates(
             candidate.prompt_hash.as_deref(),
             &candidate.fingerprint,
         );
-        // Whether the candidate's effect (metadata publish on cache hit,
-        // extraction enqueue on miss) actually landed. The winner lock is
-        // written only on success — writing it eagerly would leave a stale
-        // winner after a swallowed failure, gating equal-or-lower-cost
-        // retries for the whole lock TTL and possibly never writing
-        // `lmnr_user_task` at all.
-        let effect_landed = match try_apply_cached_regex(
-            &cache,
-            &regex_key,
-            &candidate.signposted_text,
-        )
-        .await
-        {
-            Some(result) => {
-                // Re-read the winner lock before the inline publish: a
-                // concurrent batch's FULL cycle (gate read, publish, lock
-                // write) can complete inside the window since the gate
-                // read above (one regex-cache round-trip), and publishing
-                // anyway would overwrite the newer winner's metadata.
-                // Order-aware (`supersedes`) like the consumer's
-                // pre-publish check; absent lock / cache error fails
-                // open. The tighter interleaving — both batches publish
-                // before either writes its lock — is not closable with
-                // get-then-set; this catches the dominant completed-cycle
-                // race.
-                let rechecked: Option<UserTaskLockState> =
-                    cache.get(&lock_key).await.ok().flatten();
-                if rechecked.is_some_and(|c| c.supersedes(&state)) {
-                    log::debug!(
-                        "user-task: dropping superseded inline extraction for trace [{trace_id}]"
+        let mut inline_result =
+            try_apply_cached_regex(&cache, &regex_key, &candidate.signposted_text).await;
+
+        if inline_result.is_some() {
+            // Re-read the winner lock before the inline publish: a
+            // concurrent batch's FULL cycle (gate read, publish, lock
+            // write) can complete inside the window since the gate
+            // read above (one regex-cache round-trip), and publishing
+            // anyway would overwrite the newer winner's metadata.
+            // Order-aware (`supersedes`) like the consumer's
+            // pre-publish check; absent lock / cache error fails
+            // open. The tighter interleaving — both batches publish
+            // before either writes its lock — is not closable with
+            // get-then-set; this catches the dominant completed-cycle
+            // race.
+            let rechecked: Option<UserTaskLockState> = cache.get(&lock_key).await.ok().flatten();
+            if rechecked.is_some_and(|c| c.supersedes(&state)) {
+                log::debug!(
+                    "user-task: dropping superseded inline extraction for trace [{trace_id}]"
+                );
+                continue;
+            }
+
+            // The metadata patch rides the same observations queue as the
+            // span batch but as a SEPARATE message: with multiple batch
+            // workers it can be flushed while the trace row does not exist
+            // yet, and `merge_trace_metadata_batch` silently skips missing
+            // traces (it must never create stub rows). Publishing inline
+            // would then ack a no-op while the winner lock written below
+            // gates equal-state retries for the whole TTL. When the row
+            // isn't there yet, demote to the extraction queue — the
+            // consumer re-hits the regex cache and waits for the row with
+            // bounded re-enqueues. Existence-check errors fail open
+            // (publish inline): a possibly-early patch beats a guaranteed
+            // queue hop on every DB blip.
+            let row_exists = trace_exists(&db.pool, project_id, trace_id)
+                .await
+                .unwrap_or_else(|e| {
+                    log::error!(
+                        "user-task: trace existence check failed for trace [{trace_id}]: {e:?}"
                     );
-                    continue;
-                }
+                    true
+                });
+            if !row_exists {
+                log::debug!(
+                    "user-task: trace row [{trace_id}] not created yet, deferring inline extraction to queue"
+                );
+                inline_result = None;
+            }
+        }
+
+        // Whether the candidate's effect (metadata publish on cache hit,
+        // extraction enqueue on miss or missing-row demotion) actually
+        // landed. The winner lock is written only on success — writing it
+        // eagerly would leave a stale winner after a swallowed failure,
+        // gating equal-or-lower-cost retries for the whole lock TTL and
+        // possibly never writing `lmnr_user_task` at all.
+        let effect_landed = match inline_result {
+            Some(result) => {
                 let patch = build_metadata_patch(&result);
                 match publish_trace_metadata_patch(
                     trace_id,
@@ -532,6 +558,7 @@ pub async fn process_user_task_candidates(
                     signposted_text: candidate.signposted_text,
                     fingerprint: candidate.fingerprint,
                     winner_state: Some(state.clone()),
+                    trace_wait_retries: 0,
                 };
                 match push_to_input_extraction_queue(message, queue.clone()).await {
                     Ok(enqueued) => enqueued,

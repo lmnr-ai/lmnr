@@ -5,22 +5,32 @@
 //! Acks only after the metadata publish succeeds (ack-after-write).
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 
 use super::{
     UserTaskLockState, build_metadata_patch, generate_and_apply_regex, lock_cache_key,
-    queue::InputExtractionMessage, regex_cache_key, try_apply_cached_regex,
+    queue::{InputExtractionMessage, push_to_input_extraction_queue},
+    regex_cache_key, try_apply_cached_regex,
 };
 use crate::{
     cache::{Cache, CacheTrait},
-    db::DB,
+    db::{DB, trace::trace_exists},
     env::user_task::USER_TASK_LOCK_TTL_SECONDS,
     llm::LlmClient,
     mq::MessageQueue,
     traces::metadata::publish_trace_metadata_patch,
     worker::{HandlerError, MessageHandler},
 };
+
+/// The metadata patch silently no-ops against a trace row that doesn't
+/// exist yet (`merge_trace_metadata_batch` must never create stub rows),
+/// so the consumer waits for the row with delayed re-enqueues before
+/// publishing. Bounded: a trace that never materializes (deleted, or its
+/// span batch was rejected) must not circulate forever.
+const MAX_TRACE_WAIT_RETRIES: u32 = 5;
+const TRACE_WAIT_DELAY: Duration = Duration::from_secs(1);
 
 pub struct InputExtractionHandler {
     pub db: Arc<DB>,
@@ -74,6 +84,54 @@ impl MessageHandler for InputExtractionHandler {
                     message.trace_id
                 );
                 return Ok(());
+            }
+        }
+
+        // Wait for the trace row before publishing: the patch is applied by
+        // `merge_trace_metadata_batch` which silently skips missing traces,
+        // so publishing early acks a no-op and the winner lock then gates
+        // equal-state retries for the whole TTL. Runs AFTER regex
+        // generation on purpose — the generated regex is cached per shape,
+        // so the work isn't lost across re-enqueues (or even across
+        // traces). Existence-check errors fail open (publish): a
+        // possibly-early patch beats dropping the extraction.
+        let row_exists = trace_exists(&self.db.pool, message.project_id, message.trace_id)
+            .await
+            .unwrap_or_else(|e| {
+                log::error!(
+                    "user-task: trace existence check failed for trace [{}]: {e:?}",
+                    message.trace_id
+                );
+                true
+            });
+        if !row_exists {
+            if message.trace_wait_retries >= MAX_TRACE_WAIT_RETRIES {
+                // The trace never materialized (deleted, or its span batch
+                // was rejected) — nothing to patch. Drop (ack); the winner
+                // lock expires with its TTL.
+                log::warn!(
+                    "user-task: trace row [{}] still missing after {} retries, dropping extraction",
+                    message.trace_id,
+                    message.trace_wait_retries
+                );
+                return Ok(());
+            }
+            tokio::time::sleep(TRACE_WAIT_DELAY).await;
+            let requeued = InputExtractionMessage {
+                trace_wait_retries: message.trace_wait_retries + 1,
+                ..message
+            };
+            match push_to_input_extraction_queue(requeued, self.queue.clone()).await {
+                // Ok(false) (oversize drop) is unreachable here — the
+                // message already fit on this queue and only grew by a
+                // counter — but treat it like an enqueue error anyway.
+                Ok(true) => return Ok(()),
+                Ok(false) | Err(_) => {
+                    return Err(HandlerError::transient(anyhow::anyhow!(
+                        "trace row [{}] not created yet and re-enqueue failed",
+                        message.trace_id
+                    )));
+                }
             }
         }
 

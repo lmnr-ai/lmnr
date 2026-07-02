@@ -34,6 +34,11 @@ pub struct InputExtractionMessage {
     /// superseded this candidate).
     #[serde(default)]
     pub winner_state: Option<UserTaskLockState>,
+    /// How many times the consumer re-enqueued this message because the
+    /// trace row didn't exist yet (the metadata patch would silently
+    /// no-op against a missing row). Bounded — see the consumer.
+    #[serde(default)]
+    pub trace_wait_retries: u32,
 }
 
 /// Returns `Ok(true)` when the message was enqueued, `Ok(false)` when it
