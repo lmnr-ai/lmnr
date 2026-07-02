@@ -243,10 +243,13 @@ impl UserTaskLockState {
 // ---------------------------------------------------------------------------
 
 /// Map an extraction outcome onto the trace-metadata patch. Extracted
-/// text is signpost-split and re-joined; no-result outcomes write only
-/// the boolean marker key (never a raw-text fallback). Trace metadata
-/// merges with JSONB `||` (additive — keys are never removed), so a
-/// success must overwrite a possibly earlier `true` marker to `false`.
+/// text is signpost-split and re-joined; no-result outcomes never fall
+/// back to raw text. Trace metadata merges with JSONB `||` (additive —
+/// keys are overwritten but never removed), so each arm must overwrite
+/// BOTH keys: a success resets a possibly earlier `true` marker to
+/// `false`, and a no-result nulls out task text a superseded earlier
+/// winner may have published — otherwise the trace would carry stale
+/// `lmnr_user_task` text alongside `lmnr_user_task_not_found: true`.
 pub fn build_metadata_patch(result: &ApplyRegexResult) -> HashMap<String, Value> {
     match result {
         ApplyRegexResult::Extracted(text) => HashMap::from([
@@ -259,10 +262,13 @@ pub fn build_metadata_patch(result: &ApplyRegexResult) -> HashMap<String, Value>
                 Value::Bool(false),
             ),
         ]),
-        ApplyRegexResult::NoUserRequest | ApplyRegexResult::NoMatch => HashMap::from([(
-            USER_TASK_NOT_FOUND_METADATA_KEY.to_string(),
-            Value::Bool(true),
-        )]),
+        ApplyRegexResult::NoUserRequest | ApplyRegexResult::NoMatch => HashMap::from([
+            (USER_TASK_METADATA_KEY.to_string(), Value::Null),
+            (
+                USER_TASK_NOT_FOUND_METADATA_KEY.to_string(),
+                Value::Bool(true),
+            ),
+        ]),
     }
 }
 
@@ -777,14 +783,17 @@ mod tests {
     }
 
     #[test]
-    fn no_result_outcomes_write_only_marker_key() {
+    fn no_result_outcomes_null_out_task_and_set_marker() {
         for result in [ApplyRegexResult::NoUserRequest, ApplyRegexResult::NoMatch] {
             let patch = build_metadata_patch(&result);
             assert_eq!(
                 patch.get(USER_TASK_NOT_FOUND_METADATA_KEY),
                 Some(&Value::Bool(true))
             );
-            assert!(!patch.contains_key(USER_TASK_METADATA_KEY));
+            // A superseding winner whose extraction fails must not leave a
+            // previously published task string behind — JSONB || can only
+            // overwrite, so null is the strongest available "remove".
+            assert_eq!(patch.get(USER_TASK_METADATA_KEY), Some(&Value::Null));
         }
     }
 }
