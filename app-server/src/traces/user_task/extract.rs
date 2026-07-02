@@ -53,11 +53,14 @@ pub enum Role {
 /// `human`→User, `ai`/`model`→Assistant, `developer`→System.
 pub fn normalize_role(msg: &Value) -> Role {
     match msg.get("role").and_then(Value::as_str) {
-        Some("user") | Some("human") => Role::User,
-        Some("assistant") | Some("ai") | Some("model") => Role::Assistant,
-        Some("system") | Some("developer") => Role::System,
-        Some("tool") => Role::Tool,
-        _ => Role::Other,
+        None => Role::Other,
+        Some(s) => match s.to_lowercase().as_str() {
+            "user" | "human" => Role::User,
+            "assistant" | "ai" | "model" => Role::Assistant,
+            "system" | "developer" => Role::System,
+            "tool" => Role::Tool,
+            _ => Role::Other,
+        },
     }
 }
 
@@ -121,7 +124,7 @@ fn render_part(part: &Value) -> Option<String> {
             match kind {
                 None | Some("text") => obj
                     .get("text")
-                    .or_else(|| obj.get("content"))
+                    .or(obj.get("content"))
                     .and_then(Value::as_str)
                     .map(String::from),
                 Some("input_text") | Some("output_text") => {

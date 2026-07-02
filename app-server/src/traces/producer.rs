@@ -185,8 +185,6 @@ pub async fn publish_span_messages(
 
     // Runs after the batch is on the wire so attribute mutation inside the
     // hook can't affect the published payload. Never fails ingestion.
-    // Contexts are built here — moving attributes out of the (now dead)
-    // messages — so queue-shaped messages never leave this module.
     let contexts = user_task_candidates
         .into_iter()
         .filter_map(|(idx, candidate)| {

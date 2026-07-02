@@ -369,10 +369,7 @@ pub struct UserTaskCandidate {
 }
 
 /// Everything the producer hook needs from a candidate's span, copied or
-/// moved out of the queue message before the hook runs. Keeps
-/// `RabbitMqSpanMessage` confined to code that directly operates on the
-/// queue — the hook mutates `attributes` (path extension, usage
-/// enrichment) on this owned copy, never on the published payload.
+/// moved out of the queue message before the hook runs.
 pub struct UserTaskSpanContext {
     pub trace_id: Uuid,
     pub span_name: String,
@@ -460,9 +457,7 @@ pub async fn process_user_task_candidates(
                 None
             }
         };
-        if let Some(current) = &current
-            && !current.should_override(&state)
-        {
+        if current.is_some_and(|c| !c.should_override(&state)) {
             continue;
         }
 
@@ -480,12 +475,6 @@ pub async fn process_user_task_candidates(
             // write) can complete inside the window since the gate
             // read above (one regex-cache round-trip), and publishing
             // anyway would overwrite the newer winner's metadata.
-            // Order-aware (`supersedes`) like the consumer's
-            // pre-publish check; absent lock / cache error fails
-            // open. The tighter interleaving — both batches publish
-            // before either writes its lock — is not closable with
-            // get-then-set; this catches the dominant completed-cycle
-            // race.
             let rechecked: Option<UserTaskLockState> = cache.get(&lock_key).await.ok().flatten();
             if rechecked.is_some_and(|c| c.supersedes(&state)) {
                 log::debug!(
@@ -572,12 +561,13 @@ pub async fn process_user_task_candidates(
             }
         };
 
-        if effect_landed
-            && let Err(e) = cache
+        if effect_landed {
+            if let Err(e) = cache
                 .insert_with_ttl(&lock_key, &state, USER_TASK_LOCK_TTL_SECONDS.get())
                 .await
-        {
-            log::error!("user-task: lock state write failed for trace [{trace_id}]: {e:?}");
+            {
+                log::error!("user-task: lock state write failed for trace [{trace_id}]: {e:?}");
+            }
         }
     }
 }
