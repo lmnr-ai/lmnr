@@ -42,6 +42,9 @@ interface TemplatePickerContextValue {
   templates: TemplateInfo[] | undefined;
   selectedTemplate: Template | null;
   isLoadingTemplate: boolean;
+  /** True while the manage dialog is open — selectedTemplate then reflects
+   *  unsaved draft form values, so consumers should hold off side effects. */
+  isManaging: boolean;
   selectTemplate: (templateId: string) => Promise<void>;
   openCreate: () => void;
   openEdit: () => void;
@@ -195,11 +198,12 @@ export const TemplatePickerProvider = ({
       templates,
       selectedTemplate,
       isLoadingTemplate,
+      isManaging: manageMode !== null,
       selectTemplate,
       openCreate,
       openEdit,
     }),
-    [templates, selectedTemplate, isLoadingTemplate, selectTemplate, openCreate, openEdit]
+    [templates, selectedTemplate, isLoadingTemplate, manageMode, selectTemplate, openCreate, openEdit]
   );
 
   return (

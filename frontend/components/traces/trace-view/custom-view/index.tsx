@@ -73,7 +73,7 @@ const CustomViewContent = ({
   setRenderData: (data: string) => void;
 }) => {
   const { projectId } = useParams();
-  const { selectedTemplate } = useTemplatePicker();
+  const { selectedTemplate, isManaging } = useTemplatePicker();
 
   const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,6 +82,9 @@ const CustomViewContent = ({
   const whereClause = selectedTemplate?.whereClause ?? null;
 
   useEffect(() => {
+    // While the manage dialog is open, whereClause tracks unsaved keystrokes —
+    // don't fetch drafts. The effect re-runs on close with the final value.
+    if (isManaging) return;
     if (!templateId) {
       setError(null);
       return;
@@ -119,7 +122,7 @@ const CustomViewContent = ({
 
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, traceId, templateId, whereClause]);
+  }, [projectId, traceId, templateId, whereClause, isManaging]);
 
   return (
     <div className="flex flex-1 flex-col min-h-0 w-full overflow-hidden">
