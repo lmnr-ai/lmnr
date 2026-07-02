@@ -407,7 +407,7 @@ pub async fn process_user_task_candidates(
     db: Arc<DB>,
     cache: Arc<Cache>,
 ) {
-    if candidates.is_empty() || !is_feature_enabled(Feature::Signals) {
+    if candidates.is_empty() || !is_feature_enabled(Feature::UserTaskExtraction) {
         return;
     }
 

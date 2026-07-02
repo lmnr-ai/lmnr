@@ -21,6 +21,10 @@ pub enum Feature {
     /// on `ENABLE_TRACING` so it works without a Sentry DSN.
     InternalTracing,
     Signals,
+    /// Ingestion-time user-task extraction (LAM-1880). Shares the
+    /// LLM-provider condition with `Signals` but stays a separate flag —
+    /// features are fine-grained so gating can diverge later.
+    UserTaskExtraction,
     Reports,
     RateLimiter,
     GrpcRateLimiter,
@@ -62,25 +66,8 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
             // extend backend gating later without renaming the variant.
             is_feature_enabled(Feature::Signals)
         }
-        Feature::Signals => {
-            // Mirrors the credential checks in `LlmClient::new` so this flag
-            // is true exactly when the signal worker would actually start.
-            let provider = std::env::var(env::llm::PROVIDER)
-                .ok()
-                .map(|s| s.trim().to_lowercase())
-                .unwrap_or_default();
-            let has_llm_api_key = std::env::var(env::llm::API_KEY).is_ok_and(|s| !s.is_empty());
-            let has_aws = std::env::var(env::secrets::AWS_ACCESS_KEY_ID)
-                .is_ok_and(|s| !s.is_empty())
-                && std::env::var(env::secrets::AWS_SECRET_ACCESS_KEY).is_ok_and(|s| !s.is_empty())
-                && std::env::var(env::secrets::AWS_REGION).is_ok_and(|s| !s.is_empty());
-            match provider.as_str() {
-                "gemini" | "openai" => has_llm_api_key,
-                "bedrock" => has_aws,
-                "mock" => true,
-                _ => false,
-            }
-        }
+        Feature::Signals => has_llm_provider(),
+        Feature::UserTaskExtraction => has_llm_provider(),
         Feature::Reports => {
             std::env::var(env::observability::ENABLE_REPORTS).is_ok_and(|s| s == "true")
                 && std::env::var(env::secrets::RESEND_API_KEY).is_ok_and(|s| !s.is_empty())
@@ -98,6 +85,25 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::PiiRedaction => {
             std::env::var(env::connections::PII_REDACTOR_URL).is_ok_and(|s| !s.is_empty())
         }
+    }
+}
+
+/// Mirrors the credential checks in `LlmClient::new` so LLM-backed
+/// feature flags are true exactly when the client would construct.
+fn has_llm_provider() -> bool {
+    let provider = std::env::var(env::llm::PROVIDER)
+        .ok()
+        .map(|s| s.trim().to_lowercase())
+        .unwrap_or_default();
+    let has_llm_api_key = std::env::var(env::llm::API_KEY).is_ok_and(|s| !s.is_empty());
+    let has_aws = std::env::var(env::secrets::AWS_ACCESS_KEY_ID).is_ok_and(|s| !s.is_empty())
+        && std::env::var(env::secrets::AWS_SECRET_ACCESS_KEY).is_ok_and(|s| !s.is_empty())
+        && std::env::var(env::secrets::AWS_REGION).is_ok_and(|s| !s.is_empty());
+    match provider.as_str() {
+        "gemini" | "openai" => has_llm_api_key,
+        "bedrock" => has_aws,
+        "mock" => true,
+        _ => false,
     }
 }
 
