@@ -72,6 +72,7 @@ pub enum ProviderThinkingLevel {
     Low,
     Medium,
     High,
+    XHigh,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
