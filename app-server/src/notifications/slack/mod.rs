@@ -472,11 +472,21 @@ mod tests {
             "markdown link should become a rich_text link element"
         );
 
+        // three buttons: Open trace, View similar events, Manage alerts
+        let actions = blocks.iter().find(|b| b["type"] == "actions").unwrap();
+        let btns = actions["elements"].as_array().unwrap();
+        assert_eq!(btns.len(), 3);
         // "Open trace" carries trace + cluster
-        let btn = blocks.iter().find(|b| b["type"] == "actions").unwrap()["elements"][0].clone();
-        let url = btn["url"].as_str().unwrap();
-        assert!(url.contains("eventCluster="));
-        assert!(url.contains("traceId="));
+        assert_eq!(btns[0]["text"]["text"], "Open trace");
+        let open_url = btns[0]["url"].as_str().unwrap();
+        assert!(open_url.contains("eventCluster="));
+        assert!(open_url.contains("traceId="));
+        // "View similar events" selects the cluster but does NOT open the trace
+        assert_eq!(btns[1]["text"]["text"], "View similar events");
+        let similar_url = btns[1]["url"].as_str().unwrap();
+        assert!(similar_url.contains("eventCluster="));
+        assert!(!similar_url.contains("traceId="));
+        assert_eq!(btns[2]["text"]["text"], "Manage alerts");
 
         // statline sits at the very bottom: "*Project* · <time>"
         let last = blocks.last().unwrap();

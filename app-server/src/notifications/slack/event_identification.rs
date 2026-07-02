@@ -77,7 +77,7 @@ pub(super) fn format_event_identification_blocks(
     // "Open trace" — opens the signals page with the trace selected and, when an event id is
     // known, the event's cluster resolved and selected (the `eventCluster` param redirects to the
     // resolved `clusterId`/`emergingClusterId` while preserving `traceId`/`chat`).
-    let open_in_signals_url = match event_id {
+    let open_trace_url = match event_id {
         Some(eid) => format!(
             "{}/project/{}/signals/{}?eventCluster={}&traceId={}&chat=true",
             base, project_id, signal_id, eid, trace_id
@@ -87,12 +87,19 @@ pub(super) fn format_event_identification_blocks(
             base, project_id, signal_id, trace_id
         ),
     };
-    let open_in_signals_link = with_utm(
-        &open_in_signals_url,
-        "slack",
-        "signal_alert",
-        "open_in_signals",
-    );
+    let open_trace_link = with_utm(&open_trace_url, "slack", "signal_alert", "open_trace");
+
+    // "View similar events" — same as Open trace but does NOT open the trace: it passes only
+    // `eventCluster` so the page selects the event's cluster (the group of similar events).
+    let view_similar_url = match event_id {
+        Some(eid) => format!(
+            "{}/project/{}/signals/{}?eventCluster={}",
+            base, project_id, signal_id, eid
+        ),
+        None => format!("{}/project/{}/signals/{}", base, project_id, signal_id),
+    };
+    let view_similar_link = with_utm(&view_similar_url, "slack", "signal_alert", "view_similar");
+
     let alert_link = with_utm(
         &format!("{}/project/{}/settings?tab=alerts", base, project_id),
         "slack",
@@ -174,13 +181,19 @@ pub(super) fn format_event_identification_blocks(
             {
                 "type": "button",
                 "text": { "type": "plain_text", "text": "Open trace", "emoji": true },
-                "url": open_in_signals_link,
-                "action_id": "open_in_signals",
+                "url": open_trace_link,
+                "action_id": "open_trace",
                 "style": "primary"
             },
             {
                 "type": "button",
-                "text": { "type": "plain_text", "text": "Manage Alert", "emoji": true },
+                "text": { "type": "plain_text", "text": "View similar events", "emoji": true },
+                "url": view_similar_link,
+                "action_id": "view_similar_events"
+            },
+            {
+                "type": "button",
+                "text": { "type": "plain_text", "text": "Manage alerts", "emoji": true },
                 "url": alert_link,
                 "action_id": "manage_alert"
             }
