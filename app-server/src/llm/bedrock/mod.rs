@@ -459,10 +459,11 @@ fn thinking_level_to_budget(level: &super::models::ProviderThinkingLevel) -> u64
 fn thinking_level_to_adaptive_effort(level: &super::models::ProviderThinkingLevel) -> &'static str {
     use super::models::ProviderThinkingLevel;
     match level {
-        ProviderThinkingLevel::ThinkingLevelUnspecified => "high",
         ProviderThinkingLevel::Minimal | ProviderThinkingLevel::Low => "low",
         ProviderThinkingLevel::Medium => "medium",
-        ProviderThinkingLevel::High => "high",
+        // Unspecified is unreachable in practice (the call site filters it out
+        // before mapping); fold it into the provider default, "high".
+        ProviderThinkingLevel::ThinkingLevelUnspecified | ProviderThinkingLevel::High => "high",
         // Bedrock's adaptive effort scale tops out at "max" (Anthropic naming),
         // not "xhigh" (OpenAI naming) — "xhigh" is a ValidationException.
         ProviderThinkingLevel::XHigh => "max",
