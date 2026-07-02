@@ -9,7 +9,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::UserTaskLockState;
+use super::lock::UserTaskLockState;
 use crate::mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload};
 
 pub const INPUT_EXTRACTION_QUEUE: &str = "input_extraction_queue";

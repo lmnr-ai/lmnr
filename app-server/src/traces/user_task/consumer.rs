@@ -10,9 +10,10 @@ use std::time::Duration;
 use async_trait::async_trait;
 
 use super::{
-    UserTaskLockState, build_metadata_patch, generate_and_apply_regex, lock_cache_key,
+    lock::{UserTaskLockState, lock_cache_key},
+    metadata::build_metadata_patch,
     queue::{InputExtractionMessage, push_to_input_extraction_queue},
-    regex_cache_key, try_apply_cached_regex,
+    regex::{generate_and_apply_regex, regex_cache_key, try_apply_cached_regex},
 };
 use crate::{
     cache::{Cache, CacheTrait},
