@@ -1,7 +1,7 @@
 import { type ColumnDef } from "@tanstack/react-table";
 import { useParams } from "next/navigation";
 import { parseAsString, useQueryState } from "nuqs";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
@@ -45,9 +45,13 @@ function EvaluationsGroupsBarContent() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
 
-  useEffect(() => {
+  // Layout effect so the initial width is measured before first paint —
+  // a plain effect leaves containerWidth at 0 for one frame, snapping the
+  // group column to its minimum width before the observer fires.
+  useLayoutEffect(() => {
     const element = containerRef.current;
     if (!element) return;
+    setContainerWidth(element.getBoundingClientRect().width);
     const observer = new ResizeObserver((entries) => {
       setContainerWidth(entries[0]?.contentRect.width ?? 0);
     });

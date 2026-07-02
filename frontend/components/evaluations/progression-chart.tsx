@@ -141,21 +141,19 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
                   />
                 }
               />
-              {[...Array.from(keys), ADDITIONAL_NAME]
-                .filter((key) => scores.includes(key))
-                .map((key) => (
-                  <Line
-                    dot={{
-                      stroke: chartConfig[key].color,
-                      strokeWidth: 4,
-                      r: 2,
-                    }}
-                    dataKey={key}
-                    stroke={chartConfig[key].color}
-                    key={key}
-                    isAnimationActive={false}
-                  />
-                ))}
+              {scores.map((key) => (
+                <Line
+                  dot={{
+                    stroke: chartConfig[key].color,
+                    strokeWidth: 4,
+                    r: 2,
+                  }}
+                  dataKey={key}
+                  stroke={chartConfig[key].color}
+                  key={key}
+                  isAnimationActive={false}
+                />
+              ))}
             </LineChart>
           </ChartContainer>
           <div className="flex flex-wrap flex-row justify-center w-full mt-2 gap-2 items-center">
