@@ -1,0 +1,712 @@
+//! Ingestion-time user-task extraction (LAM-1880).
+//!
+//! Extracts the user's task from a trace's winning LLM span at ingestion
+//! time and stores it as trace metadata (`lmnr_user_task`). Key design
+//! points:
+//!   - operates on the whole last TURN (every user message after the
+//!     latest assistant message), not just the last user message;
+//!   - joins parts with a signpost separator both when generating and
+//!     when applying the regex, then re-joins the extraction on a plain
+//!     user-facing separator;
+//!   - fingerprints parts order-insensitively (multi-part messages
+//!     arrive in unknown order);
+//!   - never falls back to raw text — a no-result run writes a boolean
+//!     marker metadata key instead;
+//!   - caches generated regexes per project + prompt hash + fingerprint
+//!     (`USER_TASK_REGEX_CACHE_KEY`) so traces with the same scaffolding
+//!     shape share one LLM call.
+
+pub mod consumer;
+pub mod extract;
+pub mod queue;
+
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use sha3::{Digest, Sha3_256};
+use uuid::Uuid;
+
+use tracing::instrument;
+
+use crate::cache::keys::{USER_TASK_LOCK_CACHE_KEY, USER_TASK_REGEX_CACHE_KEY};
+use crate::cache::{Cache, CacheTrait};
+use crate::db::{DB, spans::Span};
+use crate::env::user_task::USER_TASK_LOCK_TTL_SECONDS;
+use crate::features::{Feature, is_feature_enabled};
+use crate::llm::LlmClient;
+use crate::mq::MessageQueue;
+use crate::traces::metadata::publish_trace_metadata_patch;
+use crate::traces::span_attributes::SPAN_PROMPT_HASH;
+use crate::traces::spans::SpanAttributes;
+use crate::traces::utils::get_llm_usage_for_span;
+
+use self::extract::{
+    ApplyRegexResult, Role, apply_regex, collect_message_parts, find_messages_array,
+    fingerprint_user_message, generate_extraction_regex, is_task_anchor_message, normalize_role,
+    truncate_for_regex,
+};
+use self::queue::{InputExtractionMessage, push_to_input_extraction_queue};
+
+/// Separator inserted between user-message parts before the regex is
+/// generated AND applied. Deliberately number-free so part order/count
+/// doesn't fork regexes for the same shape.
+pub const PART_SEPARATOR: &str = "\n\n== lmnr_part_separator ==\n\n";
+/// Core signpost token — split on this (whitespace-insensitive at the
+/// boundaries) when re-joining the extracted text.
+const PART_SEPARATOR_CORE: &str = "== lmnr_part_separator ==";
+/// Separator used when re-joining the extracted parts for storage.
+pub const USER_FACING_SEPARATOR: &str = "\n\n";
+
+pub const USER_TASK_METADATA_KEY: &str = "lmnr_user_task";
+/// Written instead of `lmnr_user_task` when extraction ran but found no
+/// user request (regex says scaffolding-only, or didn't match) —
+/// distinguishes "ran and found nothing" from "never ran".
+pub const USER_TASK_NOT_FOUND_METADATA_KEY: &str = "lmnr_user_task_not_found";
+
+const REGEX_CACHE_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
+
+// ---------------------------------------------------------------------------
+// Last-turn extraction
+// ---------------------------------------------------------------------------
+
+/// Collect the text parts of the last TURN's user messages: every
+/// `role: user` message after the latest assistant message, or — when
+/// the input carries no assistant message — every user message in it.
+///
+/// Anchoring on the whole turn rather than the single last user message
+/// matters: a turn can span several user messages (tool results
+/// interleaved, multi-part injections) and any of them may carry the
+/// task.
+pub fn extract_last_turn_user_parts(input: &Value) -> Option<Vec<String>> {
+    let messages = find_messages_array(input)?;
+    let last_assistant = messages
+        .iter()
+        .rposition(|m| normalize_role(m) == Role::Assistant);
+    let start = last_assistant.map(|i| i + 1).unwrap_or(0);
+    let parts: Vec<String> = messages[start..]
+        .iter()
+        .filter(|m| is_task_anchor_message(m))
+        .flat_map(collect_message_parts)
+        .filter(|p| !p.trim().is_empty())
+        .collect();
+    if parts.is_empty() { None } else { Some(parts) }
+}
+
+// ---------------------------------------------------------------------------
+// Signpost join / split
+// ---------------------------------------------------------------------------
+
+/// Join parts with the signpost separator. This exact text is what the
+/// regex is generated from and applied to — never conflate it with the
+/// user-facing joined form.
+pub fn join_parts_signposted(parts: &[String]) -> Option<String> {
+    let non_empty: Vec<&str> = parts
+        .iter()
+        .map(|p| p.trim())
+        .filter(|p| !p.is_empty())
+        .collect();
+    if non_empty.is_empty() {
+        return None;
+    }
+    Some(non_empty.join(PART_SEPARATOR))
+}
+
+/// Split extracted text on the signpost token and re-join with the
+/// plain user-facing separator. Signposts must never leak into stored
+/// metadata.
+pub fn split_signposts_and_rejoin(extracted: &str) -> String {
+    extracted
+        .split(PART_SEPARATOR_CORE)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join(USER_FACING_SEPARATOR)
+}
+
+// ---------------------------------------------------------------------------
+// Fingerprinting (order-insensitive across parts)
+// ---------------------------------------------------------------------------
+
+/// Order-insensitive user naive signature: fingerprint each part,
+/// sort, join. Multi-part messages arrive with unknown part order, so
+/// two permutations of the same parts must share one regex cache entry.
+pub fn fingerprint_user_parts(parts: &[String]) -> String {
+    let mut fps: Vec<String> = parts.iter().map(|p| fingerprint_user_message(p)).collect();
+    fps.sort();
+    fps.join("|")
+}
+
+// ---------------------------------------------------------------------------
+// Prepared input
+// ---------------------------------------------------------------------------
+
+/// The two derived values every pipeline stage needs. Producer computes
+/// once and threads both through the queue so the consumer applies the
+/// regex to byte-identical text.
+#[derive(Debug, Clone, PartialEq)]
+pub struct UserTaskInput {
+    /// Signpost-joined, truncated last-turn text — the regex target.
+    pub signposted_text: String,
+    /// Order-insensitive user naive signature (part of the regex cache key).
+    pub fingerprint: String,
+}
+
+pub fn prepare_user_task_input(input: &Value) -> Option<UserTaskInput> {
+    let parts = extract_last_turn_user_parts(input)?;
+    let signposted = join_parts_signposted(&parts)?;
+    Some(UserTaskInput {
+        signposted_text: truncate_for_regex(&signposted),
+        fingerprint: fingerprint_user_parts(&parts),
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Cache keys
+// ---------------------------------------------------------------------------
+
+/// Regex cache key: project + prompt hash + fingerprint digest.
+/// Deliberately distinct from the frontend extraction cache
+/// (`frontend/lib/actions/sessions/extract-input.ts`) — the signposted
+/// sample format here diverges from the frontend's plain-joined
+/// samples, so the two caches must never share entries.
+pub fn regex_cache_key(project_id: Uuid, prompt_hash: Option<&str>, fingerprint: &str) -> String {
+    let h = prompt_hash.unwrap_or("none");
+    let digest = Sha3_256::digest(fingerprint.as_bytes());
+    let fp_hash = &format!("{:x}", digest)[..16];
+    format!("{USER_TASK_REGEX_CACHE_KEY}:{project_id}:{h}:{fp_hash}")
+}
+
+pub fn lock_cache_key(project_id: Uuid, trace_id: Uuid) -> String {
+    format!("{USER_TASK_LOCK_CACHE_KEY}:{project_id}:{trace_id}")
+}
+
+// ---------------------------------------------------------------------------
+// Winning-span state (per-trace idempotency / override record)
+// ---------------------------------------------------------------------------
+
+/// Stats of the span whose input currently owns the trace's user task.
+/// Stored as short-key JSON in the lock cache under
+/// `lock_cache_key(project_id, trace_id)`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UserTaskLockState {
+    /// Input cost of the winning span.
+    #[serde(rename = "c")]
+    pub input_cost: f64,
+    /// Span path depth of the winning span.
+    #[serde(rename = "d")]
+    pub depth: usize,
+    /// Order-insensitive user naive signature of the winning span.
+    #[serde(rename = "s")]
+    pub user_sig: String,
+}
+
+impl UserTaskLockState {
+    /// A strictly shallower candidate always overrides — it is closer to
+    /// the main agent than the current winner (a deeper subagent span
+    /// whose batch merely arrived first must not hold the lock against
+    /// the main conversation). At equal depth, only the same (sub)agent
+    /// — same user signature — with strictly higher input cost overrides
+    /// (a longer context on the same conversation supersedes the earlier
+    /// snapshot).
+    pub fn should_override(&self, candidate: &Self) -> bool {
+        if candidate.depth < self.depth {
+            return true;
+        }
+        candidate.depth == self.depth
+            && candidate.user_sig == self.user_sig
+            && candidate.input_cost > self.input_cost
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Outcome → metadata patch (Q6: no raw fallback)
+// ---------------------------------------------------------------------------
+
+/// Map an extraction outcome onto the trace-metadata patch. Extracted
+/// text is signpost-split and re-joined; no-result outcomes write only
+/// the boolean marker key (never a raw-text fallback). Trace metadata
+/// merges with JSONB `||` (additive — keys are never removed), so a
+/// success must overwrite a possibly earlier `true` marker to `false`.
+pub fn build_metadata_patch(result: &ApplyRegexResult) -> HashMap<String, Value> {
+    match result {
+        ApplyRegexResult::Extracted(text) => HashMap::from([
+            (
+                USER_TASK_METADATA_KEY.to_string(),
+                Value::String(split_signposts_and_rejoin(text)),
+            ),
+            (
+                USER_TASK_NOT_FOUND_METADATA_KEY.to_string(),
+                Value::Bool(false),
+            ),
+        ]),
+        ApplyRegexResult::NoUserRequest | ApplyRegexResult::NoMatch => HashMap::from([(
+            USER_TASK_NOT_FOUND_METADATA_KEY.to_string(),
+            Value::Bool(true),
+        )]),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Cache-driven regex application
+// ---------------------------------------------------------------------------
+
+/// Consult the regex cache and apply on hit. `None` means "no
+/// usable cached regex" — either a true miss or a stale entry that no
+/// longer matches (removed so the consumer regenerates).
+pub async fn try_apply_cached_regex(
+    cache: &Arc<Cache>,
+    key: &str,
+    signposted_text: &str,
+) -> Option<ApplyRegexResult> {
+    let cached = cache.get::<String>(key).await.ok().flatten()?;
+    match apply_regex(&cached, signposted_text) {
+        ApplyRegexResult::NoMatch => {
+            let _ = cache.remove(key).await;
+            None
+        }
+        result => {
+            let _ = cache.set_ttl(key, REGEX_CACHE_TTL_SECONDS).await;
+            Some(result)
+        }
+    }
+}
+
+/// Generate a fresh regex from the signposted text, apply it, and
+/// persist it unless the result was `NoMatch` (a regex wrong for its
+/// own sample is not worth caching). Errors on LLM failure so the
+/// consumer can requeue as transient.
+pub async fn generate_and_apply_regex(
+    cache: &Arc<Cache>,
+    llm_client: &Arc<LlmClient>,
+    key: &str,
+    signposted_text: &str,
+) -> anyhow::Result<ApplyRegexResult> {
+    let (generated, call) = generate_extraction_regex(llm_client, signposted_text).await;
+    let Some(generated) = generated else {
+        anyhow::bail!(
+            "user-task regex generation failed: {}",
+            call.error
+                .unwrap_or("provider returned no regex".to_string())
+        );
+    };
+    let result = apply_regex(&generated, signposted_text);
+    if !matches!(result, ApplyRegexResult::NoMatch) {
+        let _ = cache
+            .insert_with_ttl(key, generated, REGEX_CACHE_TTL_SECONDS)
+            .await;
+    }
+    Ok(result)
+}
+
+// ---------------------------------------------------------------------------
+// Producer hook (called from `publish_span_messages`)
+// ---------------------------------------------------------------------------
+
+/// Per-span candidate captured inside `preprocess_for_queue`, BEFORE the
+/// dedup strip removes `span.input` — the only point where the full
+/// input is guaranteed present.
+#[derive(Debug, Clone)]
+pub struct UserTaskCandidate {
+    pub signposted_text: String,
+    pub fingerprint: String,
+    pub prompt_hash: Option<String>,
+}
+
+pub fn capture_user_task_candidate(span: &Span) -> Option<UserTaskCandidate> {
+    if !span.is_llm_span() {
+        return None;
+    }
+    let prepared = prepare_user_task_input(span.input.as_ref()?)?;
+    let prompt_hash = span
+        .attributes
+        .raw_attributes
+        .get(SPAN_PROMPT_HASH)
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    Some(UserTaskCandidate {
+        signposted_text: prepared.signposted_text,
+        fingerprint: prepared.fingerprint,
+        prompt_hash,
+    })
+}
+
+fn span_depth(attributes: &SpanAttributes) -> usize {
+    attributes.path().map(|p| p.len()).unwrap_or(0)
+}
+
+/// Producer-side user-task pipeline, run after the batch is published.
+/// Per candidate: winner-state gate (per-trace idempotency), cached-regex
+/// application on hit, enqueue for LLM regex generation on miss. All
+/// failures are logged and swallowed — user-task extraction must never
+/// block or fail span ingestion.
+#[instrument(skip_all)]
+pub async fn process_user_task_candidates(
+    candidates: Vec<(usize, UserTaskCandidate)>,
+    messages: &mut [crate::api::v1::traces::RabbitMqSpanMessage],
+    project_id: Uuid,
+    queue: Arc<MessageQueue>,
+    db: Arc<DB>,
+    cache: Arc<Cache>,
+) {
+    if candidates.is_empty() || !is_feature_enabled(Feature::Signals) {
+        return;
+    }
+
+    for (idx, candidate) in candidates {
+        let Some(msg) = messages.get_mut(idx) else {
+            continue;
+        };
+        let trace_id = msg.span.trace_id;
+        let depth = span_depth(&msg.span.attributes);
+        let span_name = msg.span.name.clone();
+        // Safe to mutate attributes here: the batch was serialized and
+        // published before this hook runs, so the wire payload is fixed.
+        let usage = get_llm_usage_for_span(
+            &mut msg.span.attributes,
+            db.clone(),
+            cache.clone(),
+            &span_name,
+            &project_id,
+        )
+        .await;
+
+        let state = UserTaskLockState {
+            input_cost: usage.input_cost,
+            depth,
+            user_sig: candidate.fingerprint.clone(),
+        };
+
+        let lock_key = lock_cache_key(project_id, trace_id);
+        // Fail open on cache errors: treat as first-seen so a cache blip
+        // degrades to a redundant extraction, not a missing one.
+        let current: Option<UserTaskLockState> = match cache.get(&lock_key).await {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("user-task: lock state read failed for trace [{trace_id}]: {e:?}");
+                None
+            }
+        };
+        if let Some(current) = &current
+            && !current.should_override(&state)
+        {
+            continue;
+        }
+
+        let regex_key = regex_cache_key(
+            project_id,
+            candidate.prompt_hash.as_deref(),
+            &candidate.fingerprint,
+        );
+        // Whether the candidate's effect (metadata publish on cache hit,
+        // extraction enqueue on miss) actually landed. The winner lock is
+        // written only on success — writing it eagerly would leave a stale
+        // winner after a swallowed failure, gating equal-or-lower-cost
+        // retries for the whole lock TTL and possibly never writing
+        // `lmnr_user_task` at all.
+        let effect_landed = match try_apply_cached_regex(
+            &cache,
+            &regex_key,
+            &candidate.signposted_text,
+        )
+        .await
+        {
+            Some(result) => {
+                let patch = build_metadata_patch(&result);
+                match publish_trace_metadata_patch(
+                    trace_id,
+                    project_id,
+                    patch,
+                    queue.clone(),
+                    db.clone(),
+                    cache.clone(),
+                )
+                .await
+                {
+                    Ok(()) => true,
+                    Err(e) => {
+                        log::error!(
+                            "user-task: failed to publish metadata patch for trace [{trace_id}]: {e:?}"
+                        );
+                        false
+                    }
+                }
+            }
+            None => {
+                let message = InputExtractionMessage {
+                    trace_id,
+                    project_id,
+                    prompt_hash: candidate.prompt_hash,
+                    signposted_text: candidate.signposted_text,
+                    fingerprint: candidate.fingerprint,
+                    winner_state: Some(state.clone()),
+                };
+                match push_to_input_extraction_queue(message, queue.clone()).await {
+                    Ok(enqueued) => enqueued,
+                    Err(e) => {
+                        log::error!(
+                            "user-task: failed to enqueue extraction for trace [{trace_id}]: {e:?}"
+                        );
+                        false
+                    }
+                }
+            }
+        };
+
+        if effect_landed
+            && let Err(e) = cache
+                .insert_with_ttl(&lock_key, &state, USER_TASK_LOCK_TTL_SECONDS.get())
+                .await
+        {
+            log::error!("user-task: lock state write failed for trace [{trace_id}]: {e:?}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    // ---- extract_last_turn_user_parts ------------------------------------
+
+    #[test]
+    fn last_turn_takes_all_user_messages_after_latest_assistant() {
+        let v = json!([
+            {"role": "user", "content": "old task"},
+            {"role": "assistant", "content": "done"},
+            {"role": "user", "content": "part one"},
+            {"role": "tool", "content": "tool result"},
+            {"role": "user", "content": "part two"}
+        ]);
+        assert_eq!(
+            extract_last_turn_user_parts(&v),
+            Some(vec!["part one".to_string(), "part two".to_string()])
+        );
+    }
+
+    #[test]
+    fn last_turn_without_assistant_takes_all_user_messages() {
+        let v = json!([
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "first"},
+            {"role": "user", "content": "second"}
+        ]);
+        assert_eq!(
+            extract_last_turn_user_parts(&v),
+            Some(vec!["first".to_string(), "second".to_string()])
+        );
+    }
+
+    #[test]
+    fn last_turn_none_when_no_user_after_last_assistant() {
+        let v = json!([
+            {"role": "user", "content": "task"},
+            {"role": "assistant", "content": "answer"}
+        ]);
+        assert_eq!(extract_last_turn_user_parts(&v), None);
+    }
+
+    #[test]
+    fn last_turn_flattens_multipart_messages() {
+        let v = json!([
+            {"role": "ai", "content": "prev"},
+            {"role": "human", "content": [
+                {"type": "text", "text": "<env>x</env>"},
+                {"type": "text", "text": "real ask"}
+            ]}
+        ]);
+        assert_eq!(
+            extract_last_turn_user_parts(&v),
+            Some(vec!["<env>x</env>".to_string(), "real ask".to_string()])
+        );
+    }
+
+    #[test]
+    fn last_turn_gemini_contents_shape() {
+        let v = json!({
+            "contents": [
+                {"role": "model", "parts": [{"text": "prev"}]},
+                {"role": "user", "parts": [{"text": "Hello"}, {"text": "world"}]}
+            ]
+        });
+        assert_eq!(
+            extract_last_turn_user_parts(&v),
+            Some(vec!["Hello".to_string(), "world".to_string()])
+        );
+    }
+
+    #[test]
+    fn last_turn_none_for_non_message_input() {
+        assert_eq!(extract_last_turn_user_parts(&json!({"foo": "bar"})), None);
+        assert_eq!(extract_last_turn_user_parts(&json!("just a string")), None);
+    }
+
+    // ---- signpost join / split -------------------------------------------
+
+    #[test]
+    fn signpost_join_and_rejoin_round_trip() {
+        let parts = vec!["first part".to_string(), "second part".to_string()];
+        let joined = join_parts_signposted(&parts).unwrap();
+        assert_eq!(
+            joined,
+            "first part\n\n== lmnr_part_separator ==\n\nsecond part"
+        );
+        assert_eq!(
+            split_signposts_and_rejoin(&joined),
+            "first part\n\nsecond part"
+        );
+    }
+
+    #[test]
+    fn signpost_join_skips_empty_parts() {
+        let parts = vec!["  ".to_string(), "task".to_string(), "".to_string()];
+        assert_eq!(join_parts_signposted(&parts), Some("task".to_string()));
+        assert_eq!(join_parts_signposted(&["  ".to_string()]), None);
+    }
+
+    #[test]
+    fn rejoin_handles_partial_separator_whitespace() {
+        // A regex capture may clip the separator's surrounding newlines;
+        // splitting on the core token still cleans it up.
+        let extracted = "kept one== lmnr_part_separator ==kept two";
+        assert_eq!(
+            split_signposts_and_rejoin(extracted),
+            "kept one\n\nkept two"
+        );
+    }
+
+    // ---- fingerprint_user_parts ------------------------------------------
+
+    #[test]
+    fn fingerprint_is_order_insensitive() {
+        let a = vec!["<env>x</env>".to_string(), "do the thing".to_string()];
+        let b = vec!["do the thing".to_string(), "<env>y</env>".to_string()];
+        assert_eq!(fingerprint_user_parts(&a), fingerprint_user_parts(&b));
+        assert_eq!(fingerprint_user_parts(&a), "env,/env|plain");
+    }
+
+    #[test]
+    fn fingerprint_differs_for_different_shapes() {
+        let a = vec!["<env>x</env>".to_string()];
+        let b = vec!["plain text".to_string()];
+        assert_ne!(fingerprint_user_parts(&a), fingerprint_user_parts(&b));
+    }
+
+    // ---- prepare_user_task_input -----------------------------------------
+
+    #[test]
+    fn prepare_builds_signposted_text_and_fingerprint() {
+        let v = json!([
+            {"role": "assistant", "content": "prev"},
+            {"role": "user", "content": [
+                {"type": "text", "text": "<context>c</context>"},
+                {"type": "text", "text": "the task"}
+            ]}
+        ]);
+        let prepared = prepare_user_task_input(&v).unwrap();
+        assert_eq!(
+            prepared.signposted_text,
+            "<context>c</context>\n\n== lmnr_part_separator ==\n\nthe task"
+        );
+        assert_eq!(prepared.fingerprint, "context,/context|plain");
+    }
+
+    // ---- cache keys --------------------------------------------------------
+
+    #[test]
+    fn regex_cache_key_uses_dedicated_prefix() {
+        let pid = Uuid::nil();
+        let key = regex_cache_key(pid, Some("abc"), "plain");
+        assert!(key.starts_with("user_task_regex:"));
+        assert!(key.contains(":abc:"));
+        // Same fingerprint → same key; different → different.
+        assert_eq!(key, regex_cache_key(pid, Some("abc"), "plain"));
+        assert_ne!(key, regex_cache_key(pid, Some("abc"), "env,/env"));
+    }
+
+    #[test]
+    fn lock_key_scopes_by_project_and_trace() {
+        let p = Uuid::new_v4();
+        let t = Uuid::new_v4();
+        assert_eq!(lock_cache_key(p, t), format!("user_task_lock:{p}:{t}"));
+    }
+
+    // ---- UserTaskLockState::should_override --------------------------------
+
+    fn state(cost: f64, depth: usize, sig: &str) -> UserTaskLockState {
+        UserTaskLockState {
+            input_cost: cost,
+            depth,
+            user_sig: sig.to_string(),
+        }
+    }
+
+    #[test]
+    fn equal_depth_override_requires_same_sig_higher_cost() {
+        let prev = state(1.0, 2, "plain");
+        assert!(prev.should_override(&state(2.0, 2, "plain")));
+        // Deeper path — a subagent, not the main conversation.
+        assert!(!prev.should_override(&state(2.0, 3, "plain")));
+        // Different user signature — different (sub)agent shape.
+        assert!(!prev.should_override(&state(2.0, 2, "env,/env")));
+        // Not strictly higher cost — nothing new in the context.
+        assert!(!prev.should_override(&state(1.0, 2, "plain")));
+        assert!(!prev.should_override(&state(0.5, 2, "plain")));
+    }
+
+    #[test]
+    fn shallower_candidate_overrides_regardless_of_sig_and_cost() {
+        // A first-arriving deeper subagent must not hold the lock
+        // against the shallower main agent, whose fingerprint differs.
+        let subagent = state(5.0, 3, "env,/env");
+        assert!(subagent.should_override(&state(1.0, 2, "plain")));
+        // Same sig, shallower — closer to the main agent wins even at
+        // lower cost.
+        assert!(subagent.should_override(&state(1.0, 2, "env,/env")));
+        // Deeper never overrides, regardless of sig or cost.
+        assert!(!subagent.should_override(&state(50.0, 4, "env,/env")));
+    }
+
+    #[test]
+    fn lock_state_serializes_with_short_keys() {
+        let s = state(1.5, 3, "plain");
+        let json = serde_json::to_string(&s).unwrap();
+        assert_eq!(json, r#"{"c":1.5,"d":3,"s":"plain"}"#);
+        let back: UserTaskLockState = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, s);
+    }
+
+    // ---- build_metadata_patch ----------------------------------------------
+
+    #[test]
+    fn extracted_outcome_writes_user_task_with_rejoined_text() {
+        let result = ApplyRegexResult::Extracted(
+            "part a\n\n== lmnr_part_separator ==\n\npart b".to_string(),
+        );
+        let patch = build_metadata_patch(&result);
+        assert_eq!(
+            patch.get(USER_TASK_METADATA_KEY),
+            Some(&Value::String("part a\n\npart b".to_string()))
+        );
+        // JSONB || merge never removes keys — success must reset an
+        // earlier not-found marker.
+        assert_eq!(
+            patch.get(USER_TASK_NOT_FOUND_METADATA_KEY),
+            Some(&Value::Bool(false))
+        );
+    }
+
+    #[test]
+    fn no_result_outcomes_write_only_marker_key() {
+        for result in [ApplyRegexResult::NoUserRequest, ApplyRegexResult::NoMatch] {
+            let patch = build_metadata_patch(&result);
+            assert_eq!(
+                patch.get(USER_TASK_NOT_FOUND_METADATA_KEY),
+                Some(&Value::Bool(true))
+            );
+            assert!(!patch.contains_key(USER_TASK_METADATA_KEY));
+        }
+    }
+}

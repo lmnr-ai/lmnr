@@ -15,6 +15,7 @@ pub mod sampling;
 pub mod span_attributes;
 pub mod spans;
 pub mod tool_dedup;
+pub mod user_task;
 pub mod utils;
 
 pub const OBSERVATIONS_QUEUE: &str = "observations_queue";

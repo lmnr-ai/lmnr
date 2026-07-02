@@ -44,6 +44,7 @@ struct DedupVerdicts {
     input: Option<MessageDedup>,
     output: Option<MessageDedup>,
     tools: Option<ToolDedup>,
+    user_task: Option<crate::traces::user_task::UserTaskCandidate>,
 }
 
 /// Run the producer-side preprocessing pipeline that the consumer would
@@ -73,6 +74,10 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
             );
         }
     }
+
+    // Capture the user-task candidate while `span.input` is still populated
+    // (the dedup strip below may null it).
+    let user_task = crate::traces::user_task::capture_user_task_candidate(span);
 
     // Tool dedup runs first so its source attributes are stripped before
     // anything else looks at `raw_attributes`.
@@ -104,6 +109,7 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
         input,
         output,
         tools,
+        user_task,
     }
 }
 
@@ -123,7 +129,8 @@ pub async fn publish_span_messages(
     // Producer-side preprocessing: per-span, sequential rather than parallel
     // because each Redis check is cheap and we don't want to flood Redis with
     // a thundering herd on large batches. Most ingest calls carry 1-N spans.
-    for msg in &mut messages {
+    let mut user_task_candidates = Vec::new();
+    for (idx, msg) in messages.iter_mut().enumerate() {
         if msg.pre_processed {
             continue;
         }
@@ -132,6 +139,9 @@ pub async fn publish_span_messages(
         msg.input_dedup = verdicts.input;
         msg.output_dedup = verdicts.output;
         msg.tool_dedup = verdicts.tools;
+        if let Some(candidate) = verdicts.user_task {
+            user_task_candidates.push((idx, candidate));
+        }
     }
 
     let mq_message = serde_json::to_vec(&messages).unwrap();
@@ -172,6 +182,18 @@ pub async fn publish_span_messages(
                 .await?;
         }
     }
+
+    // Runs after the batch is on the wire so attribute mutation inside the
+    // hook can't affect the published payload. Never fails ingestion.
+    crate::traces::user_task::process_user_task_candidates(
+        user_task_candidates,
+        &mut messages,
+        project_id,
+        queue,
+        db,
+        cache,
+    )
+    .await;
 
     Ok(0)
 }
