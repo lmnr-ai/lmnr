@@ -1,7 +1,4 @@
-use std::sync::LazyLock;
-
 use anyhow::Result;
-use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -59,7 +56,8 @@ pub fn decode_slack_token(
 ///
 /// All notifications in the batch are expected to be of the same kind.
 /// Reports are rendered by combining per-project data into a single message.
-/// Alerts and usage warnings use the first (and only) notification.
+/// Alerts use the first (and only) notification. Usage warnings are email-only
+/// and never reach the Slack formatter.
 pub fn format_message_blocks_batch(
     notifications: &[NotificationKind],
     workspace_id: Uuid,
@@ -71,6 +69,7 @@ pub fn format_message_blocks_batch(
     match first {
         NotificationKind::EventIdentification {
             project_id,
+            project_name,
             trace_id,
             event_id,
             event_name,
@@ -84,8 +83,14 @@ pub fn format_message_blocks_batch(
             &trace_id.to_string(),
             event_id.as_ref(),
             event_name,
+            project_name,
             extracted_information.clone(),
             severity,
+            // Notification render time (~event detection time) — the payload carries no
+            // event timestamp, and delivery follows detection within seconds.
+            &chrono::Utc::now()
+                .format("%b %-d, %Y at %-I:%M %p UTC")
+                .to_string(),
         ),
         NotificationKind::NewCluster {
             project_id,
@@ -110,14 +115,9 @@ pub fn format_message_blocks_batch(
                 .expect("SignalsReport batch must contain at least one report");
             format_report_blocks(&title, &report_data)
         }
-        NotificationKind::UsageWarning {
-            workspace_name,
-            usage_label,
-            formatted_limit,
-            ..
-        } => {
-            format_usage_warning_blocks(workspace_id, workspace_name, usage_label, formatted_limit)
-        }
+        // Usage warnings are delivered by email only (fetch_targets never resolves a
+        // Slack target for them), so this arm is unreachable in practice.
+        NotificationKind::UsageWarning { .. } => json!([]),
         NotificationKind::UsageHardLimit {
             workspace_name,
             usage_label,
@@ -130,12 +130,6 @@ pub fn format_message_blocks_batch(
             usage_item,
         ),
     }
-}
-
-/// Convert standard markdown links `[text](url)` to Slack mrkdwn `<url|text>`.
-fn md_links_to_slack(text: &str) -> String {
-    static RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\[([^\]]+)\]\(([^)]+)\)").unwrap());
-    RE.replace_all(text, "<$2|$1>").into_owned()
 }
 
 /// Slack section block `text` fields are capped at 3000 chars. If the input
@@ -158,12 +152,10 @@ pub(crate) fn truncate_to_slack_section_limit(text: &str) -> String {
 mod event_identification;
 mod new_cluster;
 mod report;
-mod usage_warning;
 
 use event_identification::format_event_identification_blocks;
 use new_cluster::format_new_cluster_blocks;
 use report::format_report_blocks;
-use usage_warning::format_usage_warning_blocks;
 
 /// Format Slack message blocks for a usage hard-limit notification. Conveys that
 /// the metered activity is now blocked until the billing cycle resets.
@@ -418,23 +410,12 @@ mod tests {
     }
 
     #[test]
-    fn usage_warning_has_manage_billing_button() {
-        let wid = Uuid::nil();
-        let v = format_usage_warning_blocks(wid, "Acme Inc", "the monthly signal allowance", "85%");
-        let first = &blocks_of(&v)[0];
-        assert_eq!(first["accessory"]["action_id"], "manage_billing");
-        let url = first["accessory"]["url"].as_str().unwrap();
-        assert!(url.contains("/checkout/portal?workspaceId="));
-        assert!(url.contains(&wid.to_string()));
-        assert!(first["text"]["text"].as_str().unwrap().contains("85%"));
-    }
-
-    #[test]
-    fn event_identification_routes_short_to_grid_long_to_section() {
+    fn event_identification_renders_table_and_statline() {
         let eid = Uuid::nil();
         let info = json!({
             "error_code": "INVALID_ORDER_ID",
             "description": "x".repeat(120),
+            "trace": "see [trace](https://laminar.sh/project/p/traces/t)",
         });
         let v = format_event_identification_blocks(
             "pid",
@@ -442,8 +423,10 @@ mod tests {
             "tid",
             Some(&eid),
             "Failure Detector",
+            "Travel Agent",
             Some(info),
             &2u8,
+            "Jul 2, 2026 at 2:32 PM UTC",
         );
         let blocks = blocks_of(&v);
         // header carries the severity
@@ -451,22 +434,53 @@ mod tests {
         let ht = header["text"]["text"].as_str().unwrap();
         assert!(ht.contains("Failure Detector"));
         assert!(ht.contains("Critical"));
-        // short scalar -> a fields grid; long value -> a plain section
-        assert!(
-            blocks
-                .iter()
-                .any(|b| b["type"] == "section" && b.get("fields").is_some())
+
+        // every field lives in a single `table` block: a bold Field/Value header row + 3 data rows.
+        let table = blocks.iter().find(|b| b["type"] == "table").unwrap();
+        let rows = table["rows"].as_array().unwrap();
+        assert_eq!(rows.len(), 4, "header row + 3 fields");
+        assert_eq!(rows[0][0]["elements"][0]["elements"][0]["text"], "Field");
+        assert_eq!(
+            rows[0][0]["elements"][0]["elements"][0]["style"]["bold"],
+            true
         );
+        // value column wraps, label column does not
+        assert_eq!(table["column_settings"][0]["is_wrapped"], false);
+        assert_eq!(table["column_settings"][1]["is_wrapped"], true);
+
+        // a markdown link inside a value is rebuilt as a rich_text `link` element (stays clickable),
+        // with UTM params injected.
+        let has_link = rows.iter().any(|r| {
+            r[1]["elements"][0]["elements"]
+                .as_array()
+                .map(|els| {
+                    els.iter().any(|e| {
+                        e["type"] == "link"
+                            && e["url"]
+                                .as_str()
+                                .map(|u| u.contains("utm_source=slack"))
+                                .unwrap_or(false)
+                    })
+                })
+                .unwrap_or(false)
+        });
         assert!(
-            blocks
-                .iter()
-                .any(|b| b["type"] == "section" && b.get("text").is_some())
+            has_link,
+            "markdown link should become a rich_text link element"
         );
+
         // "Open in Signals" carries trace + cluster
         let btn = blocks.iter().find(|b| b["type"] == "actions").unwrap()["elements"][0].clone();
         let url = btn["url"].as_str().unwrap();
         assert!(url.contains("eventCluster="));
         assert!(url.contains("traceId="));
+
+        // statline sits at the very bottom: "*Project* · <time>"
+        let last = blocks.last().unwrap();
+        assert_eq!(last["type"], "context");
+        let stat = last["elements"][0]["text"].as_str().unwrap();
+        assert!(stat.contains("Travel Agent"));
+        assert!(stat.contains("2:32 PM UTC"));
     }
 
     #[test]
