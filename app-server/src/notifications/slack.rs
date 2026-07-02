@@ -122,6 +122,14 @@ pub fn format_message_blocks_batch(
             formatted_limit,
             ..
         } => format_usage_warning_blocks(workspace_name, usage_label, formatted_limit),
+        NotificationKind::UsageHardLimit {
+            workspace_name,
+            usage_label,
+            formatted_limit,
+            usage_item,
+        } => {
+            format_usage_hard_limit_blocks(workspace_name, usage_label, formatted_limit, usage_item)
+        }
     }
 }
 
@@ -474,6 +482,44 @@ fn format_usage_warning_blocks(
         },
         {"type": "divider"}
     ])
+}
+
+/// Format Slack message blocks for a usage hard-limit notification. Conveys that
+/// the metered activity is now blocked until the billing cycle resets.
+fn format_usage_hard_limit_blocks(
+    workspace_name: &str,
+    usage_label: &str,
+    formatted_limit: &str,
+    usage_item: &str,
+) -> serde_json::Value {
+    let blocked_activity = match usage_item {
+        "bytes" => "data ingestion",
+        "signal_cost" => "signal runs",
+        _ => "usage",
+    };
+
+    json!([
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": format!(
+                    ":octagonal_sign: *Usage Limit Reached*\n{} has reached its hard limit of *{}* of {}. {} will stop until the billing cycle resets.",
+                    workspace_name, formatted_limit, usage_label, capitalize_first(blocked_activity)
+                )
+            }
+        },
+        {"type": "divider"}
+    ])
+}
+
+/// Capitalize the first character of a lowercase ASCII phrase for sentence start.
+fn capitalize_first(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        None => String::new(),
+    }
 }
 
 pub async fn send_message(

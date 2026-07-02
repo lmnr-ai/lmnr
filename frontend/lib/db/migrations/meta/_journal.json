@@ -698,8 +698,15 @@
     {
       "idx": 99,
       "version": "7",
+      "when": 1782837381312,
+      "tag": "0099_lam_1845_hard_limit_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
       "when": 1782997824496,
-      "tag": "0099_debugger_session_blocks",
+      "tag": "0100_debugger_session_blocks",
       "breakpoints": true
     }
   ]
