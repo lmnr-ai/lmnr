@@ -20,10 +20,13 @@ fn block_id(session_id: &Uuid, block_type: &str, entity_id: &Uuid) -> Uuid {
     Uuid::new_v5(session_id, format!("{block_type}:{entity_id}").as_bytes())
 }
 
-/// Upsert a block into a debugger session. The insert is gated on the session
-/// existing in the same project (sessions are registered explicitly), so an
-/// unregistered or cross-project session id is a silent no-op instead of an FK
-/// error. On conflict only `content` is refreshed (e.g. a live note update).
+/// Upsert a block into a debugger session. `created_at` comes from the source
+/// entity (trace start_time / evaluation created_at) so blocks order by when
+/// the entity happened, not when ingestion ran. The insert is gated on the
+/// session existing in the same project (sessions are registered explicitly),
+/// so an unregistered or cross-project session id is a silent no-op instead of
+/// an FK error. On conflict `content` and `created_at` are refreshed (e.g. a
+/// live note update, or a trace start_time moving earlier as spans arrive).
 pub async fn upsert_block(
     pool: &PgPool,
     project_id: &Uuid,
@@ -31,13 +34,15 @@ pub async fn upsert_block(
     block_type: &str,
     entity_id: &Uuid,
     content: &Value,
+    created_at: &DateTime<Utc>,
 ) -> Result<()> {
     sqlx::query(
-        "INSERT INTO debugger_session_blocks (id, project_id, session_id, type, content)
-        SELECT $1, $2, $3, $4, $5
+        "INSERT INTO debugger_session_blocks (id, project_id, session_id, type, content, created_at)
+        SELECT $1, $2, $3, $4, $5, $6
         WHERE EXISTS (SELECT 1 FROM debugger_sessions WHERE id = $3 AND project_id = $2)
         ON CONFLICT (id) DO UPDATE
-            SET content = EXCLUDED.content
+            SET content = EXCLUDED.content,
+                created_at = EXCLUDED.created_at
             WHERE debugger_session_blocks.project_id = $2",
     )
     .bind(block_id(session_id, block_type, entity_id))
@@ -45,6 +50,7 @@ pub async fn upsert_block(
     .bind(session_id)
     .bind(block_type)
     .bind(content)
+    .bind(created_at)
     .execute(pool)
     .await?;
 
@@ -115,6 +121,7 @@ pub async fn upsert_blocks_for_traces(pool: &PgPool, traces: &[Trace]) {
             TRACE_BLOCK_TYPE,
             &trace.id(),
             &Value::Object(content),
+            &trace.start_time().unwrap_or(Utc::now()),
         )
         .await
         {
@@ -135,6 +142,7 @@ pub async fn upsert_block_for_evaluation(
     project_id: &Uuid,
     evaluation_id: &Uuid,
     metadata: Option<&Value>,
+    created_at: &DateTime<Utc>,
 ) {
     let Some(session_id) = session_id_from_metadata(metadata) else {
         return;
@@ -156,6 +164,7 @@ pub async fn upsert_block_for_evaluation(
         EVALUATION_BLOCK_TYPE,
         evaluation_id,
         &Value::Object(content),
+        created_at,
     )
     .await
     {

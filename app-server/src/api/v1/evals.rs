@@ -55,6 +55,7 @@ pub async fn init_eval(
         &project_id,
         &evaluation.id,
         metadata.as_ref(),
+        &evaluation.created_at,
     )
     .await;
 
