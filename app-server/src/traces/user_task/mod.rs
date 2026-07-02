@@ -236,6 +236,19 @@ impl UserTaskLockState {
             && candidate.user_sig == self.user_sig
             && candidate.input_cost > self.input_cost
     }
+
+    /// Consumer-side supersession check: does the current lock (`self`)
+    /// supersede a queued candidate's `snapshot`? Bare inequality is not
+    /// enough — the producer writes the lock only after the enqueue
+    /// lands, so a failed lock write can leave an OLDER state in the
+    /// lock. `should_override` is antisymmetric (a candidate that beat
+    /// the lock can never be beaten back by it), so a differing lock the
+    /// snapshot CAN override is necessarily such a stale older state:
+    /// the snapshot is still the strongest known candidate and must
+    /// publish, not drop.
+    pub fn supersedes(&self, snapshot: &Self) -> bool {
+        self != snapshot && !self.should_override(snapshot)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -728,6 +741,20 @@ mod tests {
         assert!(subagent.should_override(&state(1.0, 2, "env,/env")));
         // Deeper never overrides, regardless of sig or cost.
         assert!(!subagent.should_override(&state(50.0, 4, "env,/env")));
+    }
+
+    #[test]
+    fn supersedes_is_order_aware_not_bare_inequality() {
+        let snapshot = state(2.0, 2, "plain");
+        // Identical lock — the snapshot IS the current winner: publish.
+        assert!(!state(2.0, 2, "plain").supersedes(&snapshot));
+        // Newer winner (shallower, or same-sig higher cost): drop.
+        assert!(state(1.0, 1, "other").supersedes(&snapshot));
+        assert!(state(3.0, 2, "plain").supersedes(&snapshot));
+        // Stale OLDER lock left behind by a failed producer lock write
+        // (the snapshot overrode it to get enqueued): must NOT drop.
+        assert!(!state(1.0, 2, "plain").supersedes(&snapshot));
+        assert!(!state(5.0, 3, "env,/env").supersedes(&snapshot));
     }
 
     // ---- span_depth ---------------------------------------------------------

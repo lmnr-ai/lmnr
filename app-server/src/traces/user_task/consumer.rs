@@ -15,6 +15,7 @@ use super::{
 use crate::{
     cache::{Cache, CacheTrait},
     db::DB,
+    env::user_task::USER_TASK_LOCK_TTL_SECONDS,
     llm::LlmClient,
     mq::MessageQueue,
     traces::metadata::publish_trace_metadata_patch,
@@ -57,13 +58,16 @@ impl MessageHandler for InputExtractionHandler {
         // A later batch may have superseded this candidate (published its
         // own metadata inline and rewritten the winner lock) while this
         // message sat in the queue. Publishing anyway would overwrite the
-        // newer winner's `lmnr_user_task`, so drop (ack) instead. Absent
-        // lock or cache error fails open — a redundant publish beats a
-        // missing one.
+        // newer winner's `lmnr_user_task`, so drop (ack) instead. The
+        // check is order-aware (`supersedes`), not bare inequality: the
+        // producer writes the lock only after the enqueue lands, so a
+        // failed lock write can leave an OLDER state behind — a lock this
+        // snapshot can override must not drop it. Absent lock or cache
+        // error fails open — a redundant publish beats a missing one.
         if let Some(snapshot) = &message.winner_state {
             let lock_key = lock_cache_key(message.project_id, message.trace_id);
             if let Ok(Some(current)) = self.cache.get::<UserTaskLockState>(&lock_key).await
-                && current != *snapshot
+                && current.supersedes(snapshot)
             {
                 log::debug!(
                     "user-task: dropping superseded extraction for trace [{}]",
@@ -84,6 +88,29 @@ impl MessageHandler for InputExtractionHandler {
         )
         .await
         .map_err(HandlerError::transient)?;
+
+        // Re-assert the winner lock for the state whose extraction just
+        // published — retries the producer lock write that may have
+        // failed after the enqueue, so future arbitration compares
+        // against the actual metadata owner. Guarded by a re-read: a
+        // genuinely newer lock written while this message was in flight
+        // must not be clobbered with the older snapshot. Best-effort
+        // like every lock write.
+        if let Some(snapshot) = &message.winner_state {
+            let lock_key = lock_cache_key(message.project_id, message.trace_id);
+            let current: Option<UserTaskLockState> = self.cache.get(&lock_key).await.ok().flatten();
+            if !current.is_some_and(|c| c.supersedes(snapshot))
+                && let Err(e) = self
+                    .cache
+                    .insert_with_ttl(&lock_key, snapshot, USER_TASK_LOCK_TTL_SECONDS.get())
+                    .await
+            {
+                log::error!(
+                    "user-task: lock state write failed for trace [{}]: {e:?}",
+                    message.trace_id
+                );
+            }
+        }
 
         Ok(())
     }
