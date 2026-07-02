@@ -473,10 +473,13 @@ fn thinking_level_to_adaptive_effort(level: &super::models::ProviderThinkingLeve
 /// the adaptive-thinking shape `{type: "adaptive"[, effort: ...]}`,
 /// rejecting the legacy `{type: "enabled", budget_tokens: N}` payload.
 ///
-/// Scoped to `claude-opus-4-7` and `claude-opus-4-8` — both hard-reject
+/// Scoped to `claude-opus-4-7`, `claude-opus-4-8`, and the Claude 5.x
+/// generation (e.g. `claude-sonnet-5`) — all hard-reject
 /// `thinking.type.enabled`.
 fn requires_adaptive_thinking(model: &str) -> bool {
-    model.contains("claude-opus-4-7") || model.contains("claude-opus-4-8")
+    model.contains("claude-opus-4-7")
+        || model.contains("claude-opus-4-8")
+        || model.contains("claude-sonnet-5")
 }
 
 #[cfg(test)]
@@ -496,6 +499,16 @@ mod tests {
         // 4.8 hard-rejects `thinking.type.enabled` just like 4.7.
         assert!(requires_adaptive_thinking("us.anthropic.claude-opus-4-8"));
         assert!(requires_adaptive_thinking("claude-opus-4-8"));
+    }
+
+    #[test]
+    fn sonnet_5_under_any_bedrock_prefix_requires_adaptive() {
+        // Claude 5.x is adaptive-only; `thinking.type.enabled` is a 400.
+        assert!(requires_adaptive_thinking("us.anthropic.claude-sonnet-5"));
+        assert!(requires_adaptive_thinking(
+            "global.anthropic.claude-sonnet-5"
+        ));
+        assert!(requires_adaptive_thinking("claude-sonnet-5"));
     }
 
     #[test]
