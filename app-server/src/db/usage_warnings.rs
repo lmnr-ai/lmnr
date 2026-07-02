@@ -1,10 +1,21 @@
-use std::fmt::Display;
+use std::{fmt::Display, time::Duration};
 
 use anyhow::Result;
+use backoff::ExponentialBackoffBuilder;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
+
+/// Retry a dedup-stamp write with exponential backoff. Losing this write means
+/// the next ingestion batch re-enqueues the same notification, so it's worth a
+/// few retries before giving up.
+fn notified_stamp_backoff() -> backoff::ExponentialBackoff {
+    ExponentialBackoffBuilder::new()
+        .with_initial_interval(Duration::from_millis(200))
+        .with_max_elapsed_time(Some(Duration::from_secs(5)))
+        .build()
+}
 
 #[derive(FromRow, Debug, Clone, Serialize, Deserialize)]
 pub struct UsageWarningDbRow {
@@ -93,10 +104,14 @@ pub async fn get_usage_warnings_for_workspace(
 /// Mark a usage warning as notified now. Called by the notification worker after
 /// successfully delivering the notification.
 pub async fn mark_warning_as_notified(pool: &PgPool, warning_id: Uuid) -> Result<()> {
-    sqlx::query("UPDATE workspace_usage_warnings SET last_notified_at = NOW() WHERE id = $1")
-        .bind(warning_id)
-        .execute(pool)
-        .await?;
+    backoff::future::retry(notified_stamp_backoff(), || async {
+        sqlx::query("UPDATE workspace_usage_warnings SET last_notified_at = NOW() WHERE id = $1")
+            .bind(warning_id)
+            .execute(pool)
+            .await
+            .map_err(|e| backoff::Error::transient(anyhow::Error::from(e)))
+    })
+    .await?;
     Ok(())
 }
 
@@ -132,15 +147,19 @@ pub async fn mark_hard_limit_as_notified(
     workspace_id: Uuid,
     usage_item: &UsageItem,
 ) -> Result<()> {
-    sqlx::query(
-        "INSERT INTO workspace_hard_limit_notifications (workspace_id, usage_item, last_notified_at)
-         VALUES ($1, $2, NOW())
-         ON CONFLICT (workspace_id, usage_item)
-         DO UPDATE SET last_notified_at = NOW()",
-    )
-    .bind(workspace_id)
-    .bind(usage_item.to_string())
-    .execute(pool)
+    backoff::future::retry(notified_stamp_backoff(), || async {
+        sqlx::query(
+            "INSERT INTO workspace_hard_limit_notifications (workspace_id, usage_item, last_notified_at)
+             VALUES ($1, $2, NOW())
+             ON CONFLICT (workspace_id, usage_item)
+             DO UPDATE SET last_notified_at = NOW()",
+        )
+        .bind(workspace_id)
+        .bind(usage_item.to_string())
+        .execute(pool)
+        .await
+        .map_err(|e| backoff::Error::transient(anyhow::Error::from(e)))
+    })
     .await?;
     Ok(())
 }

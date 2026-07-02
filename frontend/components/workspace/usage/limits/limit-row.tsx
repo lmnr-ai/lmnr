@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, X } from "lucide-react";
+import { Info, Loader2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ interface LimitRowProps {
   currentValue: number | null;
   unit: string;
   includedLabel: string;
+  includedRawValue: number;
   toDisplayValue: (raw: number) => number;
   toRawValue: (display: number) => number;
   onUpdate: () => void;
@@ -26,6 +27,7 @@ export default function LimitRow({
   currentValue,
   unit,
   includedLabel,
+  includedRawValue,
   toDisplayValue,
   toRawValue,
   onUpdate,
@@ -44,6 +46,11 @@ export default function LimitRow({
   const parsedInput = parseFloat(inputText);
   const isValidInput = !isNaN(parsedInput) && parsedInput > 0;
   const hasChanged = isValidInput && parsedInput !== displayValue;
+
+  // The limit caps total usage from zero, not overage on top of the included
+  // allowance — remind (gently) when it sits below what the tier already covers.
+  const effectiveRawValue = hasChanged ? toRawValue(parsedInput) : currentValue;
+  const isBelowIncluded = effectiveRawValue !== null && effectiveRawValue < includedRawValue;
 
   const handleSave = async () => {
     if (!isValidInput) return;
@@ -165,6 +172,15 @@ export default function LimitRow({
           </Button>
         ) : null}
       </div>
+      {isBelowIncluded && (
+        <div className="flex items-start gap-1.5 text-xs text-amber-500/80">
+          <Info className="h-3.5 w-3.5 shrink-0 mt-px" />
+          <span>
+            This limit is below the {includedLabel} already included in your plan. Hard limits cap total usage from
+            zero, so usage your plan covers will be blocked once the limit is reached.
+          </span>
+        </div>
+      )}
     </div>
   );
 }
