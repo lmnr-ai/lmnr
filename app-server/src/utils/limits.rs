@@ -8,7 +8,7 @@ use crate::{
     cache::{
         Cache, CacheTrait,
         keys::{
-            PROJECT_CACHE_KEY, WORKSPACE_BYTES_USAGE_CACHE_KEY,
+            HARD_LIMIT_NOTIFIED_CACHE_KEY, PROJECT_CACHE_KEY, WORKSPACE_BYTES_USAGE_CACHE_KEY,
             WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY,
             WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY,
             WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY, WORKSPACE_USAGE_WARNINGS_CACHE_KEY,
@@ -39,6 +39,13 @@ const USAGE_WARNINGS_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24 * 7; // 7 days
 /// limit edit, project create/delete), so the TTL is just a backstop against an
 /// entry that was never invalidated.
 const PROJECT_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24 * 7; // 7 days
+
+/// TTL for the cached hard-limit `last_notified_at` per `(workspace, usage_item)`.
+/// Unlike the warnings cache, the frontend does NOT invalidate this key (it deletes
+/// the underlying DB dedup row on limit removal/raise), so the TTL must stay short:
+/// it bounds how long a deleted dedup row can keep suppressing the Postgres
+/// re-check on blocked requests.
+const HARD_LIMIT_NOTIFIED_CACHE_TTL_SECONDS: u64 = 60 * 5; // 5 minutes
 
 /// Returns the effective bytes hard limit for a workspace, or None if no limit should be enforced.
 ///
@@ -144,6 +151,7 @@ pub async fn get_workspace_bytes_limit_exceeded(
     // last_notified_at, so calling it here as well as from the update path is safe.
     check_notify_hard_limit(
         db,
+        cache,
         queue,
         workspace_id,
         project_info.reset_time,
@@ -219,6 +227,7 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     // notifies when usage is already over the cap. Dedup via the DB last_notified_at.
     check_notify_hard_limit(
         db,
+        cache,
         queue,
         workspace_id,
         project_info.reset_time,
@@ -428,6 +437,7 @@ pub async fn update_workspace_bytes_ingested(
 
     check_notify_hard_limit(
         db,
+        cache,
         queue,
         workspace_id,
         project_info.reset_time,
@@ -639,6 +649,7 @@ pub async fn update_workspace_signal_tokens(
 
     check_notify_hard_limit(
         db,
+        cache,
         queue,
         workspace_id,
         project_info.reset_time,
@@ -801,6 +812,7 @@ async fn send_soft_limit_notification(
 /// every blocked batch.
 async fn check_notify_hard_limit(
     db: Arc<DB>,
+    cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
     workspace_id: Uuid,
     reset_time: DateTime<Utc>,
@@ -817,10 +829,36 @@ async fn check_notify_hard_limit(
     }
 
     let billing_start = current_billing_period_start(reset_time);
+    let cache_key = format!("{HARD_LIMIT_NOTIFIED_CACHE_KEY}:{workspace_id}:{usage_item}");
+
+    // Hot path: an over-limit workspace runs this on every blocked request, so
+    // short-circuit on a cached last_notified_at before touching Postgres. Only
+    // the suppressing state ("already notified this cycle") is ever cached —
+    // caching "not notified" would widen the duplicate-enqueue race window from
+    // milliseconds to the cache TTL, past what the consumer-side send lock covers.
+    if let Ok(Some(t)) = cache.get::<DateTime<Utc>>(&cache_key).await {
+        if t >= billing_start {
+            return;
+        }
+    }
 
     match usage_warnings::get_hard_limit_last_notified_at(&db.pool, workspace_id, &usage_item).await
     {
-        Ok(Some(t)) if t >= billing_start => return, // already notified this billing cycle
+        Ok(Some(t)) if t >= billing_start => {
+            // Already notified this billing cycle; seed the cache so subsequent
+            // blocked requests skip the DB read.
+            if let Err(e) = cache
+                .insert_with_ttl(&cache_key, t, HARD_LIMIT_NOTIFIED_CACHE_TTL_SECONDS)
+                .await
+            {
+                log::warn!(
+                    "Failed to cache hard-limit last_notified_at for workspace [{}]: {:?}",
+                    workspace_id,
+                    e
+                );
+            }
+            return;
+        }
         Ok(_) => {}
         Err(e) => {
             // Don't risk emailing on every batch if the lookup is unhealthy.
@@ -883,6 +921,19 @@ async fn check_notify_hard_limit(
             {
                 log::error!(
                     "Failed to update hard-limit last_notified_at for workspace [{}]: {:?}",
+                    workspace_id,
+                    e
+                );
+            } else if let Err(e) = cache
+                .insert_with_ttl(
+                    &cache_key,
+                    Utc::now(),
+                    HARD_LIMIT_NOTIFIED_CACHE_TTL_SECONDS,
+                )
+                .await
+            {
+                log::warn!(
+                    "Failed to cache hard-limit last_notified_at for workspace [{}]: {:?}",
                     workspace_id,
                     e
                 );
