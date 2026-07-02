@@ -93,8 +93,15 @@ export async function setUsageLimit(input: z.infer<typeof SetUsageLimitSchema>):
   // is a fresh event — clear the dedup stamp if it was already notified this cycle and
   // usage now sits under the new limit. Reductions never clear it (the prior breach,
   // if any, still stands). A brand-new limit (no prior row) has no stamp to clear.
+  // Best-effort: this reads usage from ClickHouse and must not block the cache
+  // invalidation below — the limit upsert already committed, and skipping the
+  // invalidation would keep the app-server enforcing the old (lower) limit.
   if (priorLimit && limitValue > priorLimit.limitValue) {
-    await clearHardLimitNotificationOnIncrease(workspaceId, limitType, limitValue);
+    try {
+      await clearHardLimitNotificationOnIncrease(workspaceId, limitType, limitValue);
+    } catch (e) {
+      console.error("Failed to clear hard limit notification on limit increase, continuing", e);
+    }
   }
 
   // Invalidate project cache entries for all projects in this workspace
