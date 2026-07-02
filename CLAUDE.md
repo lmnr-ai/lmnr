@@ -325,6 +325,7 @@ Route groups: `(auth)/layout.tsx` requires a session (redirects to `/sign-in`); 
 - **The view's `min_start_time`/`max_start_time` params are load-bearing for correctness, not just pruning.** An outer WHERE on aggregated `min(start_time)` cannot be pushed through the GROUP BY (measured: 122/122 granules read vs 4/80 with in-view params), and pushing it down would be unsound anyway — clipping some partials of a trace silently corrupts its sums. Callers must pad the bounds by more than the max trace duration and re-apply exact bounds in their own WHERE (same contract as `traces_v0`).
 - Status/trace-type precedence lives ONLY in the view (`status_seen`/`trace_type_seen` are `groupBitOr` bitmasks, bit N = enum value N observed), so reordering precedence (e.g. playground over evaluation) is a view-only change with no data migration.
 - Metadata is per-key LWW: values stored as `<20-digit zero-padded version_ns>|<raw JSON value>` so `maxMap` keeps the highest version per key; the view decodes with `substring(v, 22)` and re-emits a stringified JSON object (the existing consumer contract).
+- Read-path cutover TODO: `traces_agg_v0` (like `traces_v0`) omits `num_spans`; if a cutover consumer needs it, add `sum(num_spans) AS num_spans` to the view (view-only change, the table column already folds correctly).
 
 ## Advanced Search filter tags
 
