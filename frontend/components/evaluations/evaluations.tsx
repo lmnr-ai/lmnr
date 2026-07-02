@@ -1,13 +1,16 @@
 "use client";
 
 import { type ColumnDef } from "@tanstack/react-table";
+import { Eye, EyeOff } from "lucide-react";
 import { useParams } from "next/navigation";
 import { parseAsString, useQueryState } from "nuqs";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { type LayoutStorage, useDefaultLayout } from "react-resizable-panels";
 import useSWR from "swr";
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import ProgressionChart from "@/components/evaluations/progression-chart";
+import { Button } from "@/components/ui/button";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
@@ -18,6 +21,7 @@ import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-fil
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar.tsx";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
+import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
 import { type Evaluation } from "@/lib/evaluation/types";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -31,7 +35,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resi
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import EvaluationsGroupsBar from "./evaluations-groups-bar";
 
-const columns: ColumnDef<Evaluation>[] = [
+const dataColumns: ColumnDef<Evaluation>[] = [
   {
     accessorKey: "id",
     cell: (row) => <Mono>{String(row.getValue())}</Mono>,
@@ -67,6 +71,7 @@ const columns: ColumnDef<Evaluation>[] = [
 
 export const defaultEvaluationsColumnOrder = [
   "__row_selection",
+  "__chart_visibility",
   "id",
   "name",
   "dataPointsCount",
@@ -100,12 +105,29 @@ const filters: ColumnFilter[] = [
 const FETCH_SIZE = 50;
 const RESOURCE = "evaluations";
 
+const EMPTY_HIDDEN_IDS: string[] = [];
+
+// useDefaultLayout's default storage dereferences `localStorage` at call time,
+// which throws during SSR — guard it behind a window check.
+const layoutStorage: LayoutStorage = {
+  getItem: (key) => (typeof window === "undefined" ? null : localStorage.getItem(key)),
+  setItem: (key, value) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(key, value);
+    }
+  },
+};
+
+const emptySubscribe = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
+
 export default function Evaluations() {
   const { projectId } = useParams<{ projectId: string }>();
   return (
     <InfiniteDataTableProvider
       defaults={{ columnOrder: defaultEvaluationsColumnOrder }}
-      lockedColumns={["__row_selection"]}
+      lockedColumns={["__row_selection", "__chart_visibility"]}
       views={{ projectId, resource: RESOURCE }}
     >
       <EvaluationsContent />
@@ -137,6 +159,61 @@ function EvaluationsContent() {
   }, []);
 
   const [aggregationFunction, setAggregationFunction] = useState<AggregationFunction>(AggregationFunction.AVG);
+
+  const [hiddenEvaluationIds, setHiddenEvaluationIds] = useLocalStorage<string[]>(
+    `evaluations-chart-hidden:${params?.projectId}:${groupId ?? ""}`,
+    EMPTY_HIDDEN_IDS
+  );
+
+  const toggleEvaluationVisibility = useCallback(
+    (evaluationId: string) => {
+      setHiddenEvaluationIds((prev) =>
+        prev.includes(evaluationId) ? prev.filter((id) => id !== evaluationId) : [...prev, evaluationId]
+      );
+    },
+    [setHiddenEvaluationIds]
+  );
+
+  const columns = useMemo<ColumnDef<Evaluation>[]>(
+    () => [
+      {
+        id: "__chart_visibility",
+        enableResizing: false,
+        // Cells render with px-4 padding inside an overflow-hidden wrapper,
+        // so the 28px icon button needs at least 28 + 32 = 60px of column width.
+        size: 64,
+        header: () => <Eye className="size-3.5" />,
+        cell: ({ row }) => {
+          const hidden = hiddenEvaluationIds.includes(row.original.id);
+          return (
+            <Button
+              variant="ghost"
+              size="icon"
+              className={hidden ? "text-muted-foreground" : ""}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleEvaluationVisibility(row.original.id);
+              }}
+              title={hidden ? "Show evaluation in chart" : "Hide evaluation from chart"}
+            >
+              {hidden ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+            </Button>
+          );
+        },
+      },
+      ...dataColumns,
+    ],
+    [hiddenEvaluationIds, toggleEvaluationVisibility]
+  );
+
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: "evaluations-sidebar-layout",
+    storage: layoutStorage,
+  });
+
+  // Mount the panel group only on the client so the persisted layout is
+  // available at Group registration time (same pattern as queue-content.tsx).
+  const isClient = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
 
   const fetchEvaluations = useCallback(
     async (pageNumber: number) => {
@@ -228,12 +305,25 @@ function EvaluationsContent() {
     }
   };
 
+  if (!isClient) {
+    return <Header path="evaluations" />;
+  }
+
   return (
     <>
       <Header path="evaluations" />
-      <div className="flex flex-1 overflow-hidden pb-4 px-4 gap-4">
-        <EvaluationsGroupsBar />
-        <div className="flex flex-col w-full gap-2 overflow-hidden">
+      <ResizablePanelGroup
+        id="evaluations-sidebar-panels"
+        orientation="horizontal"
+        className="flex flex-1 overflow-hidden pb-4 px-4"
+        defaultLayout={defaultLayout}
+        onLayoutChanged={onLayoutChanged}
+      >
+        <ResizablePanel id="evaluations-groups-panel" defaultSize="320px" minSize="160px" maxSize="50%">
+          <EvaluationsGroupsBar />
+        </ResizablePanel>
+        <ResizableHandle withHandle className="z-30 mx-2 bg-transparent transition-colors duration-200" />
+        <ResizablePanel id="evaluations-main-panel" className="flex flex-col w-full gap-2 overflow-hidden">
           <div className="flex gap-4 items-center">
             <div className="font-medium text-lg">{groupId}</div>
             <Select
@@ -255,7 +345,9 @@ function EvaluationsContent() {
           <ResizablePanelGroup id="evaluations-panels" className="overflow-hidden" orientation="vertical">
             <ResizablePanel className="px-2 border rounded bg-secondary" minSize={20} defaultSize={20}>
               <ProgressionChart
-                evaluations={evaluations.map(({ id, name }) => ({ id, name }))}
+                evaluations={evaluations
+                  .filter(({ id }) => !hiddenEvaluationIds.includes(id))
+                  .map(({ id, name }) => ({ id, name }))}
                 className="h-full px-2 py-4"
                 aggregationFunction={aggregationFunction}
               />
@@ -288,7 +380,7 @@ function EvaluationsContent() {
                 <div className="flex flex-1 w-full space-x-2">
                   <DataTableFilter columns={filters} filters={effective.filters} onFiltersChange={setFilters} />
                   <ColumnsMenu
-                    columnLabels={columns.map((column) => ({
+                    columnLabels={dataColumns.map((column) => ({
                       id: column.id!,
                       label: typeof column.header === "string" ? column.header : column.id!,
                     }))}
@@ -308,8 +400,8 @@ function EvaluationsContent() {
               </InfiniteDataTable>
             </ResizablePanel>
           </ResizablePanelGroup>
-        </div>
-      </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </>
   );
 }

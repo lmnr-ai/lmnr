@@ -1,7 +1,7 @@
 import { type ColumnDef } from "@tanstack/react-table";
 import { useParams } from "next/navigation";
 import { parseAsString, useQueryState } from "nuqs";
-import { useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
@@ -22,6 +22,9 @@ export default function EvaluationsGroupsBar() {
   );
 }
 
+const LAST_EVALUATION_COLUMN_SIZE = 160;
+const MIN_GROUP_COLUMN_SIZE = 160;
+
 function EvaluationsGroupsBarContent() {
   const { projectId } = useParams();
 
@@ -38,24 +41,41 @@ function EvaluationsGroupsBarContent() {
     }
   }, [groups, groupId, setGroupId]);
 
-  const columns: ColumnDef<EvaluationGroup>[] = [
-    {
-      id: "groupId",
-      header: "Group",
-      accessorFn: (row) => row.groupId,
-      size: 160,
-    },
-    {
-      id: "lastEvaluationCreatedAt",
-      header: "Last Evaluation",
-      accessorFn: (row) => row.lastEvaluationCreatedAt,
-      cell: ({ row }) => <ClientTimestampFormatter timestamp={row.original.lastEvaluationCreatedAt} />,
-      size: 160,
-    },
-  ];
+  // Grow the group-name column with the (resizable) panel so long names stay visible.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver((entries) => {
+      setContainerWidth(entries[0]?.contentRect.width ?? 0);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  const columns: ColumnDef<EvaluationGroup>[] = useMemo(
+    () => [
+      {
+        id: "groupId",
+        header: "Group",
+        accessorFn: (row) => row.groupId,
+        size: Math.max(containerWidth - LAST_EVALUATION_COLUMN_SIZE, MIN_GROUP_COLUMN_SIZE),
+      },
+      {
+        id: "lastEvaluationCreatedAt",
+        header: "Last Evaluation",
+        accessorFn: (row) => row.lastEvaluationCreatedAt,
+        cell: ({ row }) => <ClientTimestampFormatter timestamp={row.original.lastEvaluationCreatedAt} />,
+        size: LAST_EVALUATION_COLUMN_SIZE,
+      },
+    ],
+    [containerWidth]
+  );
 
   return (
-    <div className="max-w-80 flex flex-1 flex-col gap-2">
+    <div ref={containerRef} className="flex h-full w-full flex-col gap-2">
       <div className="flex overflow-hidden">
         <InfiniteDataTable<EvaluationGroup>
           className="w-full"

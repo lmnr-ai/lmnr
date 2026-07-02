@@ -1,8 +1,9 @@
 import { useParams, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import useSWR from "swr";
 
+import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { type AggregationFunction } from "@/lib/clickhouse/types";
 import { type EvaluationTimeProgression } from "@/lib/evaluation/types";
 import { formatTimestamp } from "@/lib/utils";
@@ -34,11 +35,18 @@ interface ProgressionChartProps {
   evaluations: { id: string; name: string }[];
 }
 
+const DEFAULT_HIDDEN_SCORES: string[] = [ADDITIONAL_NAME];
+
 export default function ProgressionChart({ className, aggregationFunction, evaluations }: ProgressionChartProps) {
-  const [scores, setScores] = useState<string[]>([]);
   const searchParams = useSearchParams();
   const groupId = searchParams.get("groupId");
   const params = useParams();
+
+  // Persist deselected scores (not selected) so newly-appearing scores default to visible.
+  const [hiddenScores, setHiddenScores] = useLocalStorage<string[]>(
+    `evaluations-chart-hidden-scores:${params?.projectId}:${groupId ?? ""}`,
+    DEFAULT_HIDDEN_SCORES
+  );
 
   const requestBody = useMemo(
     () => ({ ids: evaluations.map(({ id }) => id), aggregate: aggregationFunction }),
@@ -55,9 +63,10 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
 
   const keys = useMemo(() => new Set(data?.flatMap(({ names }) => names) ?? []), [data]);
 
-  useEffect(() => {
-    setScores(Array.from(keys));
-  }, [keys]);
+  const scores = useMemo(
+    () => [...Array.from(keys), ADDITIONAL_NAME].filter((key) => !hiddenScores.includes(key)),
+    [keys, hiddenScores]
+  );
 
   const convertedScores = useMemo(() => {
     const map: Record<string, string> = evaluations.reduce((acc, curr) => ({ ...acc, [curr.id]: curr.name }), {});
@@ -92,11 +101,12 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
 
   const horizontalPadding = Math.max(10 - (data?.length ?? 0), 0) * 50;
 
-  const handleClick = useCallback((key: string) => {
-    setScores((prevScores) =>
-      prevScores.includes(key) ? prevScores.filter((score) => score !== key) : [...prevScores, key]
-    );
-  }, []);
+  const handleClick = useCallback(
+    (key: string) => {
+      setHiddenScores((prev) => (prev.includes(key) ? prev.filter((score) => score !== key) : [...prev, key]));
+    },
+    [setHiddenScores]
+  );
 
   return (
     <div className={className}>
