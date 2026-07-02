@@ -350,7 +350,16 @@ pub fn capture_user_task_candidate(span: &Span) -> Option<UserTaskCandidate> {
     })
 }
 
-fn span_depth(attributes: &SpanAttributes) -> usize {
+/// Depth as the ingest pipeline will record it. This hook runs BEFORE the
+/// consumer's `prepare_span_for_recording` extends `lmnr.span.path` with
+/// the span's own name, and only auto-instrumented spans lack that final
+/// segment — so comparing raw lengths would let an auto-instrumented
+/// subagent span (true depth N+1, raw length N) tie with an SDK-created
+/// main-agent span (depth N) and hold the winner lock against it. Run the
+/// same extension here for exact parity; extending is idempotent and the
+/// consumer re-derives the path on its own copy.
+fn span_depth(attributes: &mut SpanAttributes, span_name: &str) -> usize {
+    attributes.extend_span_path(span_name);
     attributes.path().map(|p| p.len()).unwrap_or(0)
 }
 
@@ -377,8 +386,8 @@ pub async fn process_user_task_candidates(
             continue;
         };
         let trace_id = msg.span.trace_id;
-        let depth = span_depth(&msg.span.attributes);
         let span_name = msg.span.name.clone();
+        let depth = span_depth(&mut msg.span.attributes, &span_name);
         // Safe to mutate attributes here: the batch was serialized and
         // published before this hook runs, so the wire payload is fixed.
         let usage = get_llm_usage_for_span(
@@ -713,6 +722,29 @@ mod tests {
         assert!(subagent.should_override(&state(1.0, 2, "env,/env")));
         // Deeper never overrides, regardless of sig or cost.
         assert!(!subagent.should_override(&state(50.0, 4, "env,/env")));
+    }
+
+    // ---- span_depth ---------------------------------------------------------
+
+    #[test]
+    fn span_depth_matches_ingest_extended_path() {
+        use crate::traces::span_attributes::SPAN_PATH;
+        // Auto-instrumented span: path lacks its own name — the extension
+        // appends it, so depth matches what ingest records.
+        let mut attrs = SpanAttributes::new(HashMap::from([(
+            SPAN_PATH.to_string(),
+            json!(["agent", "subagent"]),
+        )]));
+        assert_eq!(span_depth(&mut attrs, "llm_call"), 3);
+        // SDK span whose path already ends with its own name: idempotent.
+        let mut attrs = SpanAttributes::new(HashMap::from([(
+            SPAN_PATH.to_string(),
+            json!(["agent", "llm_call"]),
+        )]));
+        assert_eq!(span_depth(&mut attrs, "llm_call"), 2);
+        // Missing path attribute: seeded as a 1-element array.
+        let mut attrs = SpanAttributes::new(HashMap::new());
+        assert_eq!(span_depth(&mut attrs, "llm_call"), 1);
     }
 
     #[test]
