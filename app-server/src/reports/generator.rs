@@ -497,6 +497,7 @@ fn build_noteworthy_events(
                 summary: event.summary.clone(),
                 timestamp: timestamp_str,
                 trace_id: event.trace_id.to_string(),
+                severity: event.severity,
             });
         }
     }

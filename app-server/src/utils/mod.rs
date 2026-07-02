@@ -90,6 +90,16 @@ pub fn is_url(data: &str) -> bool {
     data.starts_with("http://") || data.starts_with("https://") || data.starts_with("data:")
 }
 
+/// Truncate `s` to at most `max` characters total (char-boundary safe). When cut,
+/// the last kept char is replaced by `…`, so the result never exceeds `max` — safe
+/// for hard limits like Slack's 150-char header / 200-char card body.
+pub fn truncate_chars(s: &str, max: usize) -> String {
+    if s.chars().count() <= max {
+        return s.to_string();
+    }
+    s.chars().take(max.saturating_sub(1)).collect::<String>() + "…"
+}
+
 pub fn infer_image_type(base64: &str) -> &str {
     if base64.starts_with("/9j/") {
         "image/jpeg"
