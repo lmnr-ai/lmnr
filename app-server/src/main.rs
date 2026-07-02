@@ -1045,20 +1045,25 @@ fn main() -> anyhow::Result<()> {
     }
 
     // == LLM Client ==
-    let llm_provider_client: Option<Arc<llm::LlmClient>> = if is_feature_enabled(Feature::Signals) {
+    // Shared by every LLM-backed feature — gate on the union of their flags,
+    // not on any single feature, so the flags' conditions can diverge later
+    // without silently killing the others' client.
+    let llm_client_needed = is_feature_enabled(Feature::Signals)
+        || is_feature_enabled(Feature::UserTaskExtraction);
+    let llm_provider_client: Option<Arc<llm::LlmClient>> = if llm_client_needed {
         log::info!("Initializing LLM client");
         match runtime_handle.block_on(llm::LlmClient::new()) {
             Ok(client) => Some(Arc::new(client)),
             Err(e) => {
                 log::warn!(
-                    "Failed to create LLM client (signals will be disabled): {:?}",
+                    "Failed to create LLM client (LLM-backed features will be disabled): {:?}",
                     e
                 );
                 None
             }
         }
     } else {
-        log::info!("Signals feature disabled - skipping LLM client initialization");
+        log::info!("No LLM-backed feature enabled - skipping LLM client initialization");
         None
     };
     // The user-task producer hook must not enqueue extraction work when the
