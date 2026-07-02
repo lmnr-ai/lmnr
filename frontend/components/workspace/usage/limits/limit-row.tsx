@@ -173,7 +173,7 @@ export default function LimitRow({
         ) : null}
       </div>
       {isBelowIncluded && (
-        <div className="flex items-start gap-1.5 text-xs text-amber-500/80">
+        <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
           <Info className="h-3.5 w-3.5 shrink-0 mt-px" />
           <span>
             This limit is below the {includedLabel} already included in your plan. Hard limits cap total usage from
