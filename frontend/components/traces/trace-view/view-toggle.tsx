@@ -1,4 +1,4 @@
-import { ChevronDown, Eye, EyeOff, List, ListTree, type LucideIcon } from "lucide-react";
+import { ChevronDown, Eye, EyeOff, LayoutTemplate, List, ListTree, type LucideIcon } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -8,26 +8,37 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils.ts";
 
-export type ViewTab = "tree" | "transcript";
+export type ViewTab = "tree" | "transcript" | "custom";
 
 const viewOptions: Record<ViewTab, { icon: LucideIcon; label: string }> = {
   tree: { icon: ListTree, label: "Tree" },
   transcript: { icon: List, label: "Transcript" },
+  custom: { icon: LayoutTemplate, label: "Custom" },
 };
 
-const viewTabs: ViewTab[] = ["tree", "transcript"];
+const defaultViewTabs: ViewTab[] = ["tree", "transcript"];
 
 interface ViewToggleProps {
   tab: ViewTab;
   onTabChange: (tab: ViewTab) => void;
   showContent: boolean;
   onToggleContent: () => void;
+  /** Tabs offered in the dropdown. Session surfaces keep the tree/transcript
+   *  default; the trace view adds "custom" (template-rendered trace). */
+  tabs?: ViewTab[];
 }
 
 /** Presentational Tree/Transcript dropdown + Content eye-toggle. Fully
  *  controlled — no store, no analytics. `ViewDropdown` wires it to the
  *  trace-view store; the session control bar wires it to per-trace state. */
-export default function ViewToggle({ tab, onTabChange, showContent, onToggleContent }: ViewToggleProps) {
+export default function ViewToggle({
+  tab,
+  onTabChange,
+  showContent,
+  onToggleContent,
+  tabs = defaultViewTabs,
+}: ViewToggleProps) {
+  const viewTabs = tabs;
   const isValidTab = viewTabs.includes(tab);
   const displayTab: ViewTab = isValidTab ? tab : "transcript";
   const currentView = viewOptions[displayTab];

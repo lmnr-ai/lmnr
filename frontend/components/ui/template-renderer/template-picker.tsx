@@ -21,7 +21,14 @@ import ManageTemplateDialog from "@/components/ui/template-renderer/manage-templ
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, swrFetcher } from "@/lib/utils";
 
-import { defaultTemplateValues, type ManageTemplateForm, manageTemplateSchema, type Template } from "./index";
+import {
+  defaultTemplateValues,
+  defaultTraceTemplateCode,
+  type ManageTemplateForm,
+  manageTemplateSchema,
+  type Template,
+  type TemplateScope,
+} from "./index";
 import { useTemplateRenderer } from "./template-renderer-store";
 
 export type ManageTemplateMode = "create" | "edit" | null;
@@ -51,17 +58,24 @@ export const useTemplatePicker = () => {
 interface TemplatePickerProviderProps {
   presetKey: string | null;
   testData: string;
+  /** Which templates to list/create. "span" (default) renders single-span data;
+   *  "trace" templates carry a SQL WHERE filter and render spans of a trace. */
+  scope?: TemplateScope;
 }
 
 export const TemplatePickerProvider = ({
   presetKey,
   testData,
+  scope = "span",
   children,
 }: PropsWithChildren<TemplatePickerProviderProps>) => {
   const { projectId } = useParams();
   const { toast } = useToast();
 
-  const { data: templates } = useSWR<TemplateInfo[]>(`/api/projects/${projectId}/render-templates`, swrFetcher);
+  const { data: templates } = useSWR<TemplateInfo[]>(
+    `/api/projects/${projectId}/render-templates?scope=${scope}`,
+    swrFetcher
+  );
 
   const { setPresetTemplate, getPresetTemplate } = useTemplateRenderer();
 
@@ -135,9 +149,14 @@ export const TemplatePickerProvider = ({
 
   const openCreate = useCallback(() => {
     setBackup(getValues());
-    reset({ ...defaultTemplateValues, testData });
+    reset({
+      ...defaultTemplateValues,
+      ...(scope === "trace" && { code: defaultTraceTemplateCode }),
+      scope,
+      testData,
+    });
     setManageMode("create");
-  }, [getValues, reset, testData]);
+  }, [getValues, reset, scope, testData]);
 
   const openEdit = useCallback(() => {
     const current = getValues();
@@ -159,8 +178,8 @@ export const TemplatePickerProvider = ({
 
   const selectedTemplate = useMemo<Template | null>(() => {
     if (!form?.id || !form?.name || !form?.code) return null;
-    return { id: form.id, name: form.name, code: form.code };
-  }, [form?.id, form?.name, form?.code]);
+    return { id: form.id, name: form.name, code: form.code, scope: form.scope, whereClause: form.whereClause };
+  }, [form?.id, form?.name, form?.code, form?.scope, form?.whereClause]);
 
   const contextValue = useMemo<TemplatePickerContextValue>(
     () => ({
@@ -178,7 +197,7 @@ export const TemplatePickerProvider = ({
     <FormProvider {...methods}>
       <TemplatePickerContext.Provider value={contextValue}>
         {children}
-        <ManageTemplateDialog mode={manageMode} onCancel={cancelManage} onSaved={completeSave} />
+        <ManageTemplateDialog mode={manageMode} scope={scope} onCancel={cancelManage} onSaved={completeSave} />
       </TemplatePickerContext.Provider>
     </FormProvider>
   );

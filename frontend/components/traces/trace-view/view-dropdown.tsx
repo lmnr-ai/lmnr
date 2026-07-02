@@ -10,7 +10,6 @@ export default function ViewDropdown() {
     setShowTreeContent: state.setShowTreeContent,
   }));
 
-  const displayTab: ViewTab = tab === "tree" ? "tree" : "transcript";
   const contentVisible = showTreeContent ?? true;
 
   const handleTabChange = (next: ViewTab) => {
@@ -22,10 +21,11 @@ export default function ViewDropdown() {
 
   return (
     <ViewToggle
-      tab={displayTab}
+      tab={tab}
       onTabChange={handleTabChange}
       showContent={contentVisible}
       onToggleContent={() => setShowTreeContent(!contentVisible)}
+      tabs={["tree", "transcript", "custom"]}
     />
   );
 }

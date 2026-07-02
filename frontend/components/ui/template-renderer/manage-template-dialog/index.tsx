@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { buildRenderTemplatePrompt } from "@/lib/actions/render-template/prompts";
 import { useToast } from "@/lib/hooks/use-toast";
 
-import { type ManageTemplateForm, type Template } from "../index";
+import { type ManageTemplateForm, type Template, type TemplateScope } from "../index";
 import JsxRenderer from "../jsx-renderer";
 import { type ManageTemplateMode } from "../template-picker";
 import CodeEditor from "./code-editor";
@@ -21,11 +21,12 @@ import DataPanel from "./data-panel";
 
 interface Props {
   mode: ManageTemplateMode;
+  scope?: TemplateScope;
   onCancel: () => void;
   onSaved: () => void;
 }
 
-const ManageTemplateDialog = ({ mode, onCancel, onSaved }: Props) => {
+const ManageTemplateDialog = ({ mode, scope = "span", onCancel, onSaved }: Props) => {
   const { projectId } = useParams();
   const { toast } = useToast();
   const { mutate } = useSWRConfig();
@@ -51,7 +52,12 @@ const ManageTemplateDialog = ({ mode, onCancel, onSaved }: Props) => {
         const res = await fetch(url, {
           method: isUpdate ? "PUT" : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: data.name, code: data.code }),
+          body: JSON.stringify({
+            name: data.name,
+            code: data.code,
+            scope: data.scope ?? scope,
+            whereClause: data.whereClause ?? null,
+          }),
         });
 
         if (!res.ok) {
@@ -69,7 +75,7 @@ const ManageTemplateDialog = ({ mode, onCancel, onSaved }: Props) => {
 
         // Preserve testData — the API response only carries {id, name, code, ...}.
         const result = (await res.json()) as Template;
-        await mutate(`/api/projects/${projectId}/render-templates`);
+        await mutate(`/api/projects/${projectId}/render-templates?scope=${data.scope ?? scope}`);
         reset({ ...result, testData: data.testData });
         toast({ title: `Template ${isUpdate ? "updated" : "created"}` });
         onSaved();
@@ -83,8 +89,10 @@ const ManageTemplateDialog = ({ mode, onCancel, onSaved }: Props) => {
         setIsSaving(false);
       }
     },
-    [projectId, mutate, toast, reset, onSaved]
+    [projectId, mutate, toast, reset, onSaved, scope]
   );
+
+  const effectiveScope = watch("scope") ?? scope;
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
@@ -164,6 +172,33 @@ const ManageTemplateDialog = ({ mode, onCancel, onSaved }: Props) => {
                 </div>
                 {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name.message}</p>}
               </div>
+
+              {effectiveScope === "trace" && (
+                <div>
+                  <Label htmlFor="template-where-clause" className="text-xs tracking-wide text-muted-foreground">
+                    Span filter (SQL WHERE)
+                  </Label>
+                  <Controller
+                    name="whereClause"
+                    control={control}
+                    render={({ field }) => (
+                      <Input
+                        id="template-where-clause"
+                        className="mt-1 h-8 font-mono text-xs"
+                        placeholder="e.g. span_type = 'LLM' AND name LIKE 'agent%'"
+                        {...field}
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(e.target.value)}
+                      />
+                    )}
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Appended to{" "}
+                    <code className="font-mono">SELECT * FROM spans WHERE trace_id = &lt;trace&gt; AND (...)</code>.
+                    Leave empty to include all spans.
+                  </p>
+                </div>
+              )}
 
               <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card">
                 <div className="flex items-center justify-between gap-2 border-b px-3 py-2">

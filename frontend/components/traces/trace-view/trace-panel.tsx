@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/resizable";
 import SessionPlayer from "../session-player";
 import CondensedTimeline from "./condensed-timeline";
+import CustomView from "./custom-view";
 import Header from "./header";
 import Transcript from "./transcript";
 import Tree from "./tree";
@@ -152,6 +153,11 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
             {tab === "tree" && (
               <div className="flex flex-1 h-full overflow-hidden relative">
                 <Tree onSpanSelect={handleSpanSelect} />
+              </div>
+            )}
+            {tab === "custom" && (
+              <div className="flex flex-1 h-full overflow-hidden relative">
+                <CustomView traceId={traceId} />
               </div>
             )}
           </ResizablePanel>
