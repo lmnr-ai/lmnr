@@ -524,7 +524,13 @@ pub async fn process_span_messages(
         // every sum on each batch. Gated on `aggregation_ok` so traces_agg
         // never runs ahead of traces_replacing while both are written.
         // Metadata patches get identity partials built from the PG-merged
-        // row: the full metadata map re-stamped at `now_ns` wins per-key LWW.
+        // row: the full metadata map re-stamped at `now_ns + 1` wins per-key
+        // LWW. The +1 matters when one flush touches the same trace via BOTH
+        // span aggregation AND a patch: with equal versions, maxMap would
+        // break the tie lexicographically on the encoded JSON value, letting
+        // span metadata beat the patch. Stamping the patch strictly higher
+        // mirrors the PG path, where the patch UPDATE runs after the
+        // aggregation upsert.
         let mut traces_agg_rows: Vec<CHTraceAgg> =
             Vec::with_capacity(trace_aggregations.len() + patched_traces.len());
         let now_ns = chrono_to_nanoseconds(chrono::Utc::now());
@@ -538,7 +544,7 @@ pub async fn process_span_messages(
         traces_agg_rows.extend(
             patched_traces
                 .iter()
-                .map(|trace| CHTraceAgg::from_patched_trace(trace, now_ns)),
+                .map(|trace| CHTraceAgg::from_patched_trace(trace, now_ns + 1)),
         );
         if !traces_agg_rows.is_empty() {
             if let Err(e) = ch.insert_batch(&traces_agg_rows, config).await {
