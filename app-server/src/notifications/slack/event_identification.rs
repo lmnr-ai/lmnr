@@ -74,7 +74,7 @@ pub(super) fn format_event_identification_blocks(
 ) -> serde_json::Value {
     let base = frontend_url_slack();
 
-    // "Open in Signals" — opens the signals page with the trace selected and, when an event id is
+    // "Open trace" — opens the signals page with the trace selected and, when an event id is
     // known, the event's cluster resolved and selected (the `eventCluster` param redirects to the
     // resolved `clusterId`/`emergingClusterId` while preserving `traceId`/`chat`).
     let open_in_signals_url = match event_id {
@@ -173,7 +173,7 @@ pub(super) fn format_event_identification_blocks(
         "elements": [
             {
                 "type": "button",
-                "text": { "type": "plain_text", "text": "Open in Signals", "emoji": true },
+                "text": { "type": "plain_text", "text": "Open trace", "emoji": true },
                 "url": open_in_signals_link,
                 "action_id": "open_in_signals",
                 "style": "primary"

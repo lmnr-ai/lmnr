@@ -472,7 +472,7 @@ mod tests {
             "markdown link should become a rich_text link element"
         );
 
-        // "Open in Signals" carries trace + cluster
+        // "Open trace" carries trace + cluster
         let btn = blocks.iter().find(|b| b["type"] == "actions").unwrap()["elements"][0].clone();
         let url = btn["url"].as_str().unwrap();
         assert!(url.contains("eventCluster="));
