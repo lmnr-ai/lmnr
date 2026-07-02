@@ -355,7 +355,7 @@ mod tests {
         assert!(out.ends_with("..."));
     }
 
-    use crate::reports::email_template::{NoteworthyEvent, ProjectReportData, ReportData};
+    use crate::reports::{NoteworthyEvent, ProjectReportData, ReportData};
     use std::collections::BTreeMap;
 
     fn blocks_of(v: &serde_json::Value) -> &Vec<serde_json::Value> {

@@ -13,23 +13,21 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use super::ReportTriggerMessage;
-use super::email_template::{NoteworthyEvent, ProjectReportData};
+use super::report_data::{NoteworthyEvent, ProjectReportData};
 use crate::ch::signal_events::{get_signal_event_counts, get_signal_events_for_summary};
 use crate::db::DB;
 use crate::db::projects::get_projects_for_workspace;
 use crate::db::reports::get_signals_for_workspace;
 use crate::db::workspaces::get_workspace;
+use crate::llm::models::{ProviderFunctionDeclaration, ProviderGenerationConfig, ProviderTool};
+use crate::llm::{
+    LlmClient, ProviderContent, ProviderPart, ProviderRequest, ProviderThinkingConfig,
+    ProviderThinkingLevel,
+};
 use crate::mq::MessageQueue;
 use crate::mq::utils::mq_max_payload;
 use crate::notifications::{
     NotificationDefinitionType, NotificationKind, NotificationMessage, push_to_notification_queue,
-};
-use crate::llm::models::{
-    ProviderFunctionDeclaration, ProviderGenerationConfig, ProviderTool,
-};
-use crate::llm::{
-    LlmClient, ProviderContent, ProviderPart, ProviderRequest, ProviderThinkingConfig,
-    ProviderThinkingLevel,
 };
 use crate::worker::{HandlerError, MessageHandler};
 

@@ -2,7 +2,7 @@ use serde_json::json;
 
 use super::truncate_to_slack_section_limit;
 use crate::notifications::utils::{frontend_url_slack, with_utm};
-use crate::reports::email_template::ReportData;
+use crate::reports::ReportData;
 use crate::utils::truncate_chars;
 
 fn severity_circle(severity: u8) -> &'static str {

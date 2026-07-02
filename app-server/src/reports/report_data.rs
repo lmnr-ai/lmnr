@@ -1,3 +1,7 @@
+//! Shared report data model. Built by `reports::generator` and rendered by both
+//! the email templates (`notifications::email`) and the Slack report formatter
+//! (`notifications::slack::report`), so it lives here rather than in either renderer.
+
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
