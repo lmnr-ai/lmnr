@@ -65,6 +65,20 @@ fn encode_metadata(metadata: Option<&Value>, version_ns: i64) -> Vec<(String, St
         .collect()
 }
 
+/// `top_span_name` carries a 1-byte priority prefix: '2' when the batch saw
+/// the real root span, '1' when the name is the path-derived fallback (set
+/// without top_span_id, see `TraceAggregation::from_spans`). Under the table's
+/// `max(String)` any root-derived name then beats any fallback, keeping the
+/// name consistent with `top_span_id`/`top_span_type` (which only the root
+/// sets) and matching the PG upsert where a later batch carrying the root
+/// overwrites the fallback. The view strips the prefix with substring(_, 2).
+fn encode_top_span_name(name: Option<&str>, saw_root_span: bool) -> String {
+    match name {
+        Some(name) => format!("{}{}", if saw_root_span { '2' } else { '1' }, name),
+        None => String::new(),
+    }
+}
+
 fn status_bits(status: Option<&str>) -> u64 {
     match status {
         Some("error") => STATUS_BIT_ERROR,
@@ -97,7 +111,10 @@ impl CHTraceAgg {
             user_id: agg.user_id.clone().unwrap_or_default(),
             status_seen: status_bits(agg.status.as_deref()),
             top_span_id: agg.top_span_id.unwrap_or(Uuid::nil()),
-            top_span_name: agg.top_span_name.clone().unwrap_or_default(),
+            top_span_name: encode_top_span_name(
+                agg.top_span_name.as_deref(),
+                agg.top_span_id.is_some(),
+            ),
             top_span_type: agg.top_span_type,
             trace_type_seen: 1u64 << agg.trace_type,
             tags: agg.tags.iter().cloned().collect(),
@@ -198,6 +215,17 @@ mod tests {
         // Higher version sorts lexicographically above regardless of value.
         let newer = encode_metadata(Some(&json!({"a": 0})), 1_700_000_000_000_000_001);
         assert!(newer[0].1 > a.1);
+    }
+
+    #[test]
+    fn top_span_name_root_beats_path_fallback_under_max() {
+        let fallback = encode_top_span_name(Some("zzz_outer_path"), false);
+        let root = encode_top_span_name(Some("agent"), true);
+        // Real root name must win max(String) even when lexicographically smaller.
+        assert!(root > fallback);
+        assert_eq!(&root[1..], "agent");
+        assert_eq!(&fallback[1..], "zzz_outer_path");
+        assert_eq!(encode_top_span_name(None, false), "");
     }
 
     #[test]

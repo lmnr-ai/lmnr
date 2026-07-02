@@ -5,6 +5,10 @@
 -- `<20-digit zero-padded version_ns>|<raw JSON value>` so maxMap yields
 -- per-key last-write-wins. `status_seen` / `trace_type_seen` are groupBitOr
 -- bitmasks (bit N = value N observed); precedence lives only in the view.
+-- `top_span_name` carries a 1-byte priority prefix ('2' = real root span,
+-- '1' = path-derived fallback set by a batch without the root) so max(String)
+-- always prefers the root-derived name regardless of arrival order; the view
+-- strips it with substring(_, 2).
 CREATE TABLE IF NOT EXISTS default.traces_agg
 (
     `id` UUID,
@@ -84,7 +88,7 @@ SELECT
     t.user_id AS user_id,
     if(bitAnd(t.status_seen, 2) != 0, 'error', 'success') AS status,
     t.top_span_id AS top_span_id,
-    t.top_span_name AS top_span_name,
+    substring(t.top_span_name, 2) AS top_span_name,
     CASE
         WHEN t.top_span_type = 0 THEN 'DEFAULT'
         WHEN t.top_span_type = 1 THEN 'LLM'
