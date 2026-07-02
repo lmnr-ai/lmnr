@@ -175,7 +175,7 @@ pub fn prepare_user_task_input(input: &Value) -> Option<UserTaskInput> {
     let parts = canonicalize_user_parts(extract_last_turn_user_parts(input)?);
     let signposted = join_parts_signposted(&parts)?;
     Some(UserTaskInput {
-        signposted_text: truncate_for_regex(&signposted),
+        signposted_text: truncate_for_regex(signposted),
         fingerprint: fingerprint_user_parts(&parts),
     })
 }

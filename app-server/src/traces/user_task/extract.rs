@@ -155,17 +155,11 @@ pub(super) fn is_task_anchor_message(msg: &Value) -> bool {
             .any(|p| !p.trim().is_empty())
 }
 
-pub(super) fn truncate_for_regex(text: &str) -> String {
-    let mut out = String::new();
-    let mut count = 0usize;
-    for c in text.chars() {
-        if count >= REGEX_INPUT_CAP_CHARS {
-            break;
-        }
-        out.push(c);
-        count += 1;
+pub(super) fn truncate_for_regex(mut text: String) -> String {
+    if let Some((byte_pos, _)) = text.char_indices().nth(REGEX_INPUT_CAP_CHARS) {
+        text.truncate(byte_pos);
     }
-    out
+    text
 }
 
 // ---------------------------------------------------------------------------
