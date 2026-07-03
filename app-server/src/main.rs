@@ -1127,8 +1127,10 @@ fn main() -> anyhow::Result<()> {
 
         let num_checkpoints_workers = env::workers::NUM_CHECKPOINTS.get();
 
+        let num_input_extraction_workers = env::workers::NUM_INPUT_EXTRACTION.get();
+
         log::info!(
-            "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Signals workers: {}, Notification workers: {}, Notification delivery workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}, Reports workers: {}",
+            "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Signals workers: {}, Notification workers: {}, Notification delivery workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}, Reports workers: {}, Input extraction workers: {}",
             num_spans_workers,
             num_data_plane_spans_workers,
             num_spans_indexer_workers,
@@ -1141,7 +1143,8 @@ fn main() -> anyhow::Result<()> {
             num_signal_job_submission_batch_workers,
             num_signal_job_pending_batch_workers,
             num_logs_workers,
-            num_reports_workers
+            num_reports_workers,
+            num_input_extraction_workers,
         );
 
         let queue_for_health = mq_for_http.clone();
@@ -1178,7 +1181,7 @@ fn main() -> anyhow::Result<()> {
 
                         batch_worker_pool_clone.spawn(
                             BatchWorkerType::Spans,
-                            num_spans_workers as usize,
+                            num_spans_workers,
                             move || SpanHandler {
                                 db: db.clone(),
                                 cache: cache.clone(),
@@ -1221,7 +1224,7 @@ fn main() -> anyhow::Result<()> {
 
                         batch_worker_pool_clone.spawn(
                             BatchWorkerType::DataPlaneSpans,
-                            num_data_plane_spans_workers as usize,
+                            num_data_plane_spans_workers,
                             move || DataPlaneSpanHandler {
                                 db: db.clone(),
                                 cache: cache.clone(),
@@ -1249,7 +1252,7 @@ fn main() -> anyhow::Result<()> {
                         let quickwit = quickwit_client_for_indexer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::SpansIndexer,
-                            num_spans_indexer_workers as usize,
+                            num_spans_indexer_workers,
                             move || QuickwitIndexerHandler {
                                 quickwit_client: quickwit.clone(),
                             },
@@ -1276,7 +1279,7 @@ fn main() -> anyhow::Result<()> {
                         let queue = mq_for_consumer.clone();
                         batch_worker_pool_clone.spawn(
                             BatchWorkerType::BrowserEvents,
-                            num_browser_events_workers as usize,
+                            num_browser_events_workers,
                             move || BrowserEventHandler {
                                 db: db.clone(),
                                 clickhouse: clickhouse.clone(),
@@ -1307,7 +1310,7 @@ fn main() -> anyhow::Result<()> {
                         let queue = mq_for_consumer.clone();
                         batch_worker_pool_clone.spawn(
                             BatchWorkerType::SignalsBatching,
-                            num_signals_workers as usize,
+                            num_signals_workers,
                             move || {
                                 SignalBatchingHandler::new(
                                     queue.clone(),
@@ -1339,7 +1342,7 @@ fn main() -> anyhow::Result<()> {
 
                         worker_pool_clone.spawn(
                             WorkerType::Notifications,
-                            num_notification_workers as usize,
+                            num_notification_workers,
                             move || {
                                 NotificationHandler::new(
                                     db.clone(),
@@ -1370,7 +1373,7 @@ fn main() -> anyhow::Result<()> {
 
                         worker_pool_clone.spawn(
                             WorkerType::NotificationDeliveries,
-                            num_notification_delivery_workers as usize,
+                            num_notification_delivery_workers,
                             move || {
                                 NotificationDeliveryHandler::new(
                                     db.clone(),
@@ -1419,7 +1422,7 @@ fn main() -> anyhow::Result<()> {
                                     let queue: Arc<MessageQueue> = mq_for_consumer.clone();
                                     batch_worker_pool_clone.spawn(
                                         BatchWorkerType::ClusteringBatching,
-                                        num_clustering_batching_workers as usize,
+                                        num_clustering_batching_workers,
                                         move || {
                                             ClusteringEventBatchingHandler::new(
                                                 queue.clone(),
@@ -1443,7 +1446,7 @@ fn main() -> anyhow::Result<()> {
                                 let queue = mq_for_consumer.clone();
                                 worker_pool_clone.spawn(
                                     WorkerType::Clustering,
-                                    num_clustering_workers as usize,
+                                    num_clustering_workers,
                                     move || {
                                         ClusteringHandler::new(
                                             cache.clone(),
@@ -1481,7 +1484,7 @@ fn main() -> anyhow::Result<()> {
                         let config = Arc::new(SignalWorkerConfig::from_env());
                         worker_pool_clone.spawn(
                             WorkerType::SignalJobSubmissionBatch,
-                            num_signal_job_submission_batch_workers as usize,
+                            num_signal_job_submission_batch_workers,
                             move || {
                                 SignalJobSubmissionBatchHandler::new(
                                     db.clone(),
@@ -1515,7 +1518,7 @@ fn main() -> anyhow::Result<()> {
                         let config = Arc::new(SignalWorkerConfig::from_env());
                         worker_pool_clone.spawn(
                             WorkerType::SignalJobPendingBatch,
-                            num_signal_job_pending_batch_workers as usize,
+                            num_signal_job_pending_batch_workers,
                             move || {
                                 SignalJobPendingBatchHandler::new(
                                     db.clone(),
@@ -1576,7 +1579,7 @@ fn main() -> anyhow::Result<()> {
                         let llm_client_clone = llm_client.clone();
                         worker_pool_clone.spawn(
                             WorkerType::InputExtraction,
-                            env::workers::NUM_INPUT_EXTRACTION.get() as usize,
+                            num_input_extraction_workers,
                             move || InputExtractionHandler {
                                 db: db.clone(),
                                 cache: cache.clone(),
@@ -1603,7 +1606,7 @@ fn main() -> anyhow::Result<()> {
                         let queue = mq_for_consumer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Logs,
-                            num_logs_workers as usize,
+                            num_logs_workers,
                             move || LogsHandler {
                                 db: db.clone(),
                                 cache: cache.clone(),
@@ -1622,7 +1625,7 @@ fn main() -> anyhow::Result<()> {
                         let llm_client = llm_provider_client.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Reports,
-                            num_reports_workers as usize,
+                            num_reports_workers,
                             move || ReportsGenerator {
                                 db: db.clone(),
                                 clickhouse: clickhouse.clone(),
@@ -1646,7 +1649,7 @@ fn main() -> anyhow::Result<()> {
                         let queue = mq_for_consumer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Checkpoints,
-                            num_checkpoints_workers as usize,
+                            num_checkpoints_workers,
                             move || CheckpointsHandler {
                                 db: db.clone(),
                                 cache: cache.clone(),
