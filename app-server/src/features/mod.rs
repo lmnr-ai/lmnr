@@ -24,7 +24,7 @@ pub enum Feature {
     /// Ingestion-time user-task extraction (LAM-1880). Shares the
     /// LLM-provider condition with `Signals` but stays a separate flag —
     /// features are fine-grained so gating can diverge later.
-    UserTaskExtraction,
+    InputExtraction,
     Reports,
     RateLimiter,
     GrpcRateLimiter,
@@ -67,7 +67,7 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
             is_feature_enabled(Feature::Signals)
         }
         Feature::Signals => has_llm_provider(),
-        Feature::UserTaskExtraction => has_llm_provider(),
+        Feature::InputExtraction => has_llm_provider(),
         Feature::Reports => {
             std::env::var(env::observability::ENABLE_REPORTS).is_ok_and(|s| s == "true")
                 && std::env::var(env::secrets::RESEND_API_KEY).is_ok_and(|s| !s.is_empty())

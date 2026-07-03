@@ -106,7 +106,7 @@ pub async fn process_user_task_candidates(
     cache: Arc<Cache>,
 ) {
     if candidates.is_empty()
-        || !is_feature_enabled(Feature::UserTaskExtraction)
+        || !is_feature_enabled(Feature::InputExtraction)
         || !llm_client_available()
     {
         return;

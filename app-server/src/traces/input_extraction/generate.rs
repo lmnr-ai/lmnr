@@ -59,18 +59,13 @@ Follow these steps in order.
 Call the `submit_extraction_regex` tool with the regex pattern itself (starts with "(?s)", no surrounding quotes, no fences). Use an empty string only if no valid regex can be produced — when in doubt, submit the passthrough instead.
 </output_format>"#;
 
-/// Lite-LLM call to generate one extraction regex from one (or more)
+/// LLM call to generate one extraction regex from one (or more)
 /// sample inputs. Errors only on timeout / provider error — the
 /// genuinely transient failures the consumer may requeue. A response
 /// that carries no usable regex (the model submitted an empty string,
 /// its "no valid regex can be produced" verdict per the prompt, or no
 /// tool call at all) is `Ok(None)`: a terminal decision, not a
-/// transport failure — retrying it would loop the consumer through an
-/// LLM call per cycle with no exit.
-///
-/// We force structured output via a one-tool function call rather than
-/// asking for a JSON-shaped string — this avoids per-provider quirks
-/// around code fences / explanation prefixes / trailing commas.
+/// transport failure.
 pub async fn generate_extraction_regex(
     llm_client: &Arc<LlmClient>,
     sample_input: &str,

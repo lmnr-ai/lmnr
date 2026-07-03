@@ -68,9 +68,11 @@ use signals::private::{
 use tonic::transport::Server;
 use traces::{
     OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, SPANS_DATA_PLANE_EXCHANGE,
-    SPANS_DATA_PLANE_QUEUE, SPANS_DATA_PLANE_ROUTING_KEY, consumer::SpanHandler,
-    data_plane_consumer::DataPlaneSpanHandler, grpc_service::ProcessTracesService,
-    user_task::{
+    SPANS_DATA_PLANE_QUEUE, SPANS_DATA_PLANE_ROUTING_KEY,
+    consumer::SpanHandler,
+    data_plane_consumer::DataPlaneSpanHandler,
+    grpc_service::ProcessTracesService,
+    input_extraction::{
         consumer::InputExtractionHandler,
         queue::{INPUT_EXTRACTION_EXCHANGE, INPUT_EXTRACTION_QUEUE, INPUT_EXTRACTION_ROUTING_KEY},
     },
@@ -1048,8 +1050,8 @@ fn main() -> anyhow::Result<()> {
     // Shared by every LLM-backed feature — gate on the union of their flags,
     // not on any single feature, so the flags' conditions can diverge later
     // without silently killing the others' client.
-    let llm_client_needed = is_feature_enabled(Feature::Signals)
-        || is_feature_enabled(Feature::UserTaskExtraction);
+    let llm_client_needed =
+        is_feature_enabled(Feature::Signals) || is_feature_enabled(Feature::InputExtraction);
     let llm_provider_client: Option<Arc<llm::LlmClient>> = if llm_client_needed {
         log::info!("Initializing LLM client");
         match runtime_handle.block_on(llm::LlmClient::new()) {
@@ -1070,7 +1072,7 @@ fn main() -> anyhow::Result<()> {
     // call wins) — the user-task producer hook must not enqueue extraction
     // work when the client failed to construct, since the extraction workers
     // would never spawn and the messages would sit on the queue unconsumed.
-    traces::user_task::set_llm_client_available(llm_provider_client.is_some());
+    traces::input_extraction::set_llm_client_available(llm_provider_client.is_some());
     let llm_provider_client_for_http = llm_provider_client.clone();
 
     if enable_consumer() {

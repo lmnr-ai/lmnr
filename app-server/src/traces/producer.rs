@@ -44,7 +44,7 @@ struct DedupVerdicts {
     input: Option<MessageDedup>,
     output: Option<MessageDedup>,
     tools: Option<ToolDedup>,
-    user_task: Option<crate::traces::user_task::UserTaskCandidate>,
+    user_task: Option<crate::traces::input_extraction::UserTaskCandidate>,
 }
 
 /// Run the producer-side preprocessing pipeline that the consumer would
@@ -77,7 +77,7 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
 
     // Capture the user-task candidate while `span.input` is still populated
     // (the dedup strip below may null it).
-    let user_task = crate::traces::user_task::capture_user_task_candidate(span);
+    let user_task = crate::traces::input_extraction::capture_user_task_candidate(span);
 
     // Tool dedup runs first so its source attributes are stripped before
     // anything else looks at `raw_attributes`.
@@ -189,7 +189,7 @@ pub async fn publish_span_messages(
         .into_iter()
         .filter_map(|(idx, candidate)| {
             let msg = messages.get_mut(idx)?;
-            Some(crate::traces::user_task::UserTaskSpanContext {
+            Some(crate::traces::input_extraction::UserTaskSpanContext {
                 trace_id: msg.span.trace_id,
                 span_name: msg.span.name.clone(),
                 attributes: std::mem::take(&mut msg.span.attributes),
@@ -197,8 +197,10 @@ pub async fn publish_span_messages(
             })
         })
         .collect();
-    crate::traces::user_task::process_user_task_candidates(contexts, project_id, queue, db, cache)
-        .await;
+    crate::traces::input_extraction::process_user_task_candidates(
+        contexts, project_id, queue, db, cache,
+    )
+    .await;
 
     Ok(0)
 }
