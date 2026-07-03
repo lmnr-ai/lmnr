@@ -23,6 +23,12 @@ fn block_id(session_id: &Uuid, block_type: &str, entity_id: &Uuid) -> Uuid {
     Uuid::new_v5(session_id, format!("{block_type}:{entity_id}").as_bytes())
 }
 
+/// Deterministic id of an evaluation block, for realtime payloads to match the
+/// row `get_blocks_for_session` returns.
+pub fn evaluation_block_id(session_id: &Uuid, evaluation_id: &Uuid) -> Uuid {
+    block_id(session_id, EVALUATION_BLOCK_TYPE, evaluation_id)
+}
+
 /// Upsert a block into a debugger session. `created_at` comes from the source
 /// entity (trace start_time / evaluation created_at) so blocks order by when
 /// the entity happened, not when ingestion ran. The insert is gated on the
@@ -75,7 +81,7 @@ pub async fn insert_block(
     session_id: &Uuid,
     block_type: &str,
     content: &Value,
-) -> Result<Option<Uuid>> {
+) -> Result<Option<(Uuid, DateTime<Utc>)>> {
     let entity_id = Uuid::now_v7();
     let id = block_id(session_id, block_type, &entity_id);
     let created_at = Utc::now();
@@ -94,7 +100,7 @@ pub async fn insert_block(
     .execute(pool)
     .await?;
 
-    Ok((result.rows_affected() > 0).then_some(id))
+    Ok((result.rows_affected() > 0).then_some((id, created_at)))
 }
 
 #[derive(Serialize, sqlx::FromRow)]

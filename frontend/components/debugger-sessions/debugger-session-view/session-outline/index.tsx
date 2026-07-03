@@ -1,19 +1,24 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { FileText, FlaskConical } from "lucide-react";
+import { FileText, FlaskConical, Rows4 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
 import { spanTagsToLinks } from "../note-markdown";
 import { type SessionBlockView, useDebuggerSessionViewStore } from "../store";
-import { evalAnchorId, headingAnchorId, parseNoteHeadings, textAnchorId } from "./utils";
+import { evalAnchorId, headingAnchorId, parseNoteHeadings, textAnchorId, traceAnchorId } from "./utils";
 
-// A row per eval, per standalone text block, and per markdown heading from the
-// runs' notes, in the same order as the timeline (blocks are ordered by
-// created_at).
-type OutlineRow = { key: string; anchor: string; level: number; text: string; kind: "eval" | "note" | "text" };
+// A row per block (trace / eval / text) plus a nested row per markdown heading in
+// a run's note, in timeline order (blocks are ordered by created_at).
+type OutlineRow = {
+  key: string;
+  anchor: string;
+  level: number;
+  text: string;
+  kind: "trace" | "eval" | "note" | "text";
+};
 
 // A short label for a standalone text block: the first N characters of its
 // content (whitespace collapsed), truncated with an ellipsis.
@@ -25,6 +30,7 @@ const textBlockTitle = (text: string): string => {
 
 const buildRows = (blocks: SessionBlockView[]): OutlineRow[] => {
   const rows: OutlineRow[] = [];
+  let traceIndex = 0;
   for (const block of blocks) {
     if (block.type === "evaluation") {
       const a = evalAnchorId(block.evaluation.id);
@@ -36,12 +42,19 @@ const buildRows = (blocks: SessionBlockView[]): OutlineRow[] => {
       rows.push({ key: a, anchor: a, level: 1, text: textBlockTitle(block.text), kind: "text" });
       continue;
     }
-    if (block.type !== "trace" || !block.note) continue;
-    // Parse the SAME span-tag-transformed string RunComment renders, so heading
-    // order and slugs line up exactly with the ids it stamps.
-    for (const h of parseNoteHeadings(spanTagsToLinks(block.note, block.traceId))) {
-      const a = headingAnchorId(block.traceId, h.slug);
-      rows.push({ key: a, anchor: a, level: h.level, text: h.text, kind: "note" });
+    if (block.type !== "trace") continue;
+
+    traceIndex += 1;
+    const traceAnchor = traceAnchorId(block.traceId);
+    rows.push({ key: traceAnchor, anchor: traceAnchor, level: 1, text: `Trace ${traceIndex}`, kind: "trace" });
+
+    // Nest the note's headings under the run. Parse the SAME span-tag-transformed
+    // string RunComment renders, so heading order and slugs line up with its ids.
+    if (block.note) {
+      for (const h of parseNoteHeadings(spanTagsToLinks(block.note, block.traceId))) {
+        const a = headingAnchorId(block.traceId, h.slug);
+        rows.push({ key: a, anchor: a, level: h.level, text: h.text, kind: "note" });
+      }
     }
   }
   return rows;
@@ -208,6 +221,14 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
                 onClick={() => selectOnClick(row.anchor)}
                 className="group flex h-[30px] items-center pl-4 text-left no-underline"
               >
+                {row.kind === "trace" && (
+                  <Rows4
+                    className={cn(
+                      "mr-1.5 size-3 shrink-0 transition-colors",
+                      isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                    )}
+                  />
+                )}
                 {row.kind === "eval" && (
                   <FlaskConical
                     className={cn(
@@ -227,8 +248,8 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
                 <span
                   className={cn(
                     "truncate text-sm transition-colors",
-                    row.kind === "note" && row.level === 2 && "pl-3",
-                    row.kind === "note" && row.level >= 3 && "pl-6",
+                    // Note headings nest under their run.
+                    row.kind === "note" && (row.level >= 2 ? "pl-6" : "pl-3"),
                     isActive ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"
                   )}
                 >

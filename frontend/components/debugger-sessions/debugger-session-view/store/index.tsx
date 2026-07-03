@@ -183,6 +183,10 @@ interface DebuggerSessionViewActions {
   // Batch entry point for a trace_update payload.
   applyTraceUpdates: (traces: { traceId: string; metadata?: unknown; hasBrowserSession?: boolean }[]) => void;
 
+  // Realtime: upsert a pushed note / eval block (by id). Traces are ignored here
+  // (they arrive via trace_update).
+  applyBlockUpdate: (block: SessionBlock) => void;
+
   // One-shot catch-up for a realtime-added run: real row stats + pre-subscribe
   // spans (trace_update payloads carry neither).
   hydrateTraceRow: (traceId: string) => Promise<void>;
@@ -424,6 +428,24 @@ export const createDebuggerSessionViewStore = (options?: {
 
           applyTraceUpdates: (traces) => {
             for (const t of traces) get().applyTraceUpdate(t);
+          },
+
+          applyBlockUpdate: (block) => {
+            if (block.type === "trace") return;
+            const view: SessionBlockView =
+              block.type === "evaluation"
+                ? {
+                    id: block.id,
+                    type: "evaluation",
+                    createdAt: block.createdAt,
+                    note: block.note,
+                    evaluation: block.evaluation,
+                  }
+                : { id: block.id, type: "text", createdAt: block.createdAt, text: block.text };
+            set((s) => {
+              const rest = s.blocks.filter((b) => b.id !== view.id);
+              return { blocks: sortBlocks([...rest, view]) } as Partial<DebuggerSessionViewStore>;
+            });
           },
 
           hydrateTraceRow: async (traceId) => {

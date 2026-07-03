@@ -8,6 +8,7 @@ import { shallow } from "zustand/shallow";
 import SessionSpanPanel from "@/components/traces/session-view/session-span-panel";
 import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
 import { Skeleton } from "@/components/ui/skeleton";
+import { type SessionBlock } from "@/lib/actions/debugger-sessions";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type RealtimeSpan } from "@/lib/traces/types";
@@ -69,6 +70,22 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
   const scrollToBottom = useCallback(() => {
     scrollEl?.scrollTo({ top: scrollEl.scrollHeight, behavior: "smooth" });
   }, [scrollEl]);
+
+  // Eval blocks are pushed at creation with empty scores. When a later block
+  // arrives, backfill any still-scoreless eval by refetching once (the eval has
+  // usually finished by then). Guarded on isTracesLoading so it can't stack.
+  const backfillPendingEvalScores = useCallback(
+    (arrivedBlockId?: string) => {
+      if (!sessionId) return;
+      const state = storeApi.getState();
+      if (state.isTracesLoading) return;
+      const pending = state.blocks.some(
+        (b) => b.type === "evaluation" && b.evaluation.scores.length === 0 && b.id !== arrivedBlockId
+      );
+      if (pending) void state.fetchSessionBlocks(sessionId);
+    },
+    [sessionId, storeApi]
+  );
 
   // Stick-to-bottom decisions only start once the initial runs fetch has
   // settled: during loading the page is trivially short, so an "at the bottom"
@@ -133,6 +150,14 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
         storeApi
           .getState()
           .applyTraceUpdates(payload.traces as { traceId: string; metadata?: unknown; hasBrowserSession?: boolean }[]);
+        backfillPendingEvalScores();
+      },
+      // Note / eval block pushed → upsert it into the timeline.
+      block_update: (event: MessageEvent) => {
+        const payload = JSON.parse(event.data) as { sessionId?: string; block?: SessionBlock };
+        if (!sessionId || payload.sessionId !== sessionId || !payload.block) return;
+        storeApi.getState().applyBlockUpdate(payload.block);
+        backfillPendingEvalScores(payload.block.id);
       },
       // Session renamed (PATCH /v1/.../rollouts/{id}/name) → update the title live.
       // Payload is `{sessionId, name}` (camelCase, see app-server rollouts.rs::update_name).
@@ -151,7 +176,7 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
         router.push(`/project/${projectId}/debugger-sessions`);
       },
     }),
-    [storeApi, sessionId, projectId, router, toast]
+    [storeApi, sessionId, projectId, router, toast, backfillPendingEvalScores]
   );
 
   useRealtime({

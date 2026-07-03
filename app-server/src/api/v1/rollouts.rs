@@ -15,6 +15,7 @@ use crate::{
     pubsub::PubSub,
     realtime::{SseMessage, send_to_key},
     routes::types::ResponseResult,
+    traces::realtime::send_block_update,
 };
 
 #[derive(serde::Deserialize, Default)]
@@ -134,12 +135,14 @@ pub async fn add_block(
     project_api_key: ProjectApiKey,
     body: web::Json<AddBlockRequest>,
     db: web::Data<DB>,
+    pubsub: web::Data<Arc<PubSub>>,
 ) -> ResponseResult {
     handle_add_block(
         project_api_key.project_id,
         path.into_inner(),
         body.into_inner(),
         &db,
+        pubsub.get_ref().as_ref(),
     )
     .await
 }
@@ -150,6 +153,7 @@ pub async fn handle_add_block(
     session_id: Uuid,
     body: AddBlockRequest,
     db: &web::Data<DB>,
+    pubsub: &PubSub,
 ) -> ResponseResult {
     match debugger_session_blocks::insert_block(
         &db.pool,
@@ -160,7 +164,23 @@ pub async fn handle_add_block(
     )
     .await?
     {
-        Some(id) => Ok(HttpResponse::Ok().json(serde_json::json!({ "id": id }))),
+        Some((id, created_at)) => {
+            if let Some(text) = body
+                .content
+                .get("text")
+                .or_else(|| body.content.get("note"))
+                .and_then(|v| v.as_str())
+            {
+                let block = serde_json::json!({
+                    "id": id,
+                    "type": "text",
+                    "createdAt": created_at,
+                    "text": text,
+                });
+                send_block_update(pubsub, &project_id, &session_id, block).await;
+            }
+            Ok(HttpResponse::Ok().json(serde_json::json!({ "id": id })))
+        }
         None => Ok(HttpResponse::NotFound().json("Session not found")),
     }
 }

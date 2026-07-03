@@ -58,8 +58,16 @@ pub async fn add_block(
     body: web::Json<AddBlockRequest>,
     auth: CliProjectAuth,
     db: web::Data<DB>,
+    pubsub: web::Data<Arc<PubSub>>,
 ) -> ResponseResult {
-    handle_add_block(auth.project_id, path.into_inner(), body.into_inner(), &db).await
+    handle_add_block(
+        auth.project_id,
+        path.into_inner(),
+        body.into_inner(),
+        &db,
+        pubsub.get_ref().as_ref(),
+    )
+    .await
 }
 
 #[derive(serde::Deserialize)]

@@ -156,6 +156,17 @@ pub async fn send_trace_updates<T: Serialize>(
     send_to_key(pubsub, project_id, channel_key, message).await;
 }
 
+/// Push a resolved note / eval block to a debugger session (traces have their
+/// own path). `block` mirrors the frontend `SessionBlock` shape.
+pub async fn send_block_update(pubsub: &PubSub, project_id: &Uuid, session_id: &Uuid, block: Value) {
+    let message = SseMessage {
+        event_type: "block_update".to_string(),
+        data: serde_json::json!({ "sessionId": session_id, "block": block }),
+    };
+    let key = format!("rollout_session_{}", session_id);
+    send_to_key(pubsub, project_id, &key, message).await;
+}
+
 #[derive(Debug, Clone)]
 pub enum TraceChannel {
     Project,
