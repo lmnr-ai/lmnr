@@ -62,6 +62,15 @@ pub const AGENT_VERSION_HASH_CACHE_KEY: &str = "agent_version_hash";
 pub const AGENT_STABLE_PROMPT_REGEX_CACHE_KEY: &str = "agent_stable_prompt_regex";
 pub const AGENT_CLASSIFY_LOCK_CACHE_KEY: &str = "agent_classify_lock";
 
+// Static system-prompt extraction (LAM-1899). All three are namespaced by
+// `(project_id, prompt_hash)` — the naive signature — see `static_prompt/mod.rs`.
+/// `naive_signature → Vec<regex>` whose matches are the prompt's dynamic parts.
+pub const STATIC_PROMPT_REGEX_CACHE_KEY: &str = "static_prompt_regex";
+/// `naive_signature → Vec<system_prompt>` samples awaiting extraction.
+pub const STATIC_PROMPT_ACCUMULATOR_CACHE_KEY: &str = "static_prompt_accumulator";
+/// Per-signature lock so the extraction agent runs once per signature.
+pub const STATIC_PROMPT_LOCK_CACHE_KEY: &str = "static_prompt_lock";
+
 // Debugger replay cache (LAM-1715). Concrete Redis keys are namespaced by
 // `(project_id, replay_trace_id)` — see `traces/debug_cache.rs`.
 pub const DEBUGGER_CACHE_KEY: &str = "debugger_replay_cache";

@@ -86,6 +86,10 @@ use quickwit::{
 };
 use realtime::SseConnectionMap;
 use sodiumoxide;
+use static_prompt::{
+    STATIC_PROMPT_EXCHANGE, STATIC_PROMPT_QUEUE, STATIC_PROMPT_ROUTING_KEY,
+    consumer::StaticPromptHandler,
+};
 use std::{
     borrow::Cow,
     io::{self, Error},
@@ -140,6 +144,7 @@ mod runtime;
 mod search;
 mod signals;
 mod sql;
+mod static_prompt;
 mod storage;
 mod traces;
 mod utils;
@@ -764,6 +769,32 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.14 Static prompt message queue ====
+            channel
+                .exchange_declare(
+                    STATIC_PROMPT_EXCHANGE.into(),
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    STATIC_PROMPT_QUEUE.into(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
             let max_channel_pool_size = env::mq::MAX_CHANNEL_POOL_SIZE.get();
 
             log::info!("RabbitMQ channels: {}", max_channel_pool_size);
@@ -832,6 +863,8 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(REPORT_TRIGGERS_EXCHANGE, REPORT_TRIGGERS_QUEUE);
         // ==== 3.13 Checkpoints message queue ====
         queue.register_queue(CHECKPOINTS_EXCHANGE, CHECKPOINTS_QUEUE);
+        // ==== 3.14 Static prompt message queue ====
+        queue.register_queue(STATIC_PROMPT_EXCHANGE, STATIC_PROMPT_QUEUE);
         log::info!("Using tokio mpsc queue");
         Arc::new(queue.into())
     };
@@ -1082,6 +1115,8 @@ fn main() -> anyhow::Result<()> {
         let num_reports_workers = env::workers::NUM_REPORTS.get();
 
         let num_checkpoints_workers = env::workers::NUM_CHECKPOINTS.get();
+
+        let num_static_prompt_workers = env::workers::NUM_STATIC_PROMPT.get();
 
         log::info!(
             "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Signals workers: {}, Notification workers: {}, Notification delivery workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}, Reports workers: {}",
@@ -1587,6 +1622,23 @@ fn main() -> anyhow::Result<()> {
                                 CHECKPOINTS_QUEUE,
                                 CHECKPOINTS_EXCHANGE,
                                 CHECKPOINTS_ROUTING_KEY,
+                            ),
+                        );
+                    }
+
+                    // Spawn static prompt workers
+                    {
+                        let cache = cache_for_consumer.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::StaticPrompt,
+                            num_static_prompt_workers as usize,
+                            move || StaticPromptHandler {
+                                cache: cache.clone(),
+                            },
+                            QueueConfig::new(
+                                STATIC_PROMPT_QUEUE,
+                                STATIC_PROMPT_EXCHANGE,
+                                STATIC_PROMPT_ROUTING_KEY,
                             ),
                         );
                     }

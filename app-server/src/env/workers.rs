@@ -11,6 +11,7 @@ pub const NUM_BROWSER_EVENTS: NumEnv<u8> = NumEnv::new("NUM_BROWSER_EVENTS_WORKE
 pub const NUM_LOGS: NumEnv<u8> = NumEnv::new("NUM_LOGS_WORKERS", 4);
 pub const NUM_REPORTS: NumEnv<u8> = NumEnv::new("NUM_REPORTS_WORKERS", 2);
 pub const NUM_CHECKPOINTS: NumEnv<u8> = NumEnv::new("NUM_CHECKPOINTS_WORKERS", 2);
+pub const NUM_STATIC_PROMPT: NumEnv<u8> = NumEnv::new("NUM_STATIC_PROMPT_WORKERS", 2);
 
 pub const NUM_NOTIFICATION: NumEnv<u8> = NumEnv::new("NUM_NOTIFICATION_WORKERS", 2);
 pub const NUM_NOTIFICATION_DELIVERY: NumEnv<u8> =

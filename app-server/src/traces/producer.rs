@@ -31,6 +31,7 @@ use crate::{
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::{
         ExportTracePartialSuccess, ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
+    static_prompt::producer::{StaticPromptCandidate, publish_static_prompt_candidates},
     traces::{
         prompt_hash::{extract_system_message, structural_skeleton_hash},
         span_attributes::SPAN_PROMPT_HASH,
@@ -44,6 +45,9 @@ struct DedupVerdicts {
     input: Option<MessageDedup>,
     output: Option<MessageDedup>,
     tools: Option<ToolDedup>,
+    /// `(naive_signature, system_prompt)` when the span carries a system
+    /// message — feeds static-part regex extraction (LAM-1899).
+    system_prompt: Option<(String, String)>,
 }
 
 /// Run the producer-side preprocessing pipeline that the consumer would
@@ -64,13 +68,16 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
     span.parse_and_enrich_attributes();
     convert_span_to_provider_format(span);
 
+    let mut system_prompt = None;
     if span.is_llm_span() {
         if let Some((system_text, _)) = span.input.as_ref().and_then(|v| extract_system_message(v))
         {
+            let prompt_hash = structural_skeleton_hash(&system_text);
             span.attributes.raw_attributes.insert(
                 SPAN_PROMPT_HASH.to_string(),
-                serde_json::Value::String(structural_skeleton_hash(&system_text)),
+                serde_json::Value::String(prompt_hash.clone()),
             );
+            system_prompt = Some((prompt_hash, system_text));
         }
     }
 
@@ -104,6 +111,7 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
         input,
         output,
         tools,
+        system_prompt,
     }
 }
 
@@ -123,6 +131,7 @@ pub async fn publish_span_messages(
     // Producer-side preprocessing: per-span, sequential rather than parallel
     // because each Redis check is cheap and we don't want to flood Redis with
     // a thundering herd on large batches. Most ingest calls carry 1-N spans.
+    let mut static_prompt_candidates: Vec<StaticPromptCandidate> = Vec::new();
     for msg in &mut messages {
         if msg.pre_processed {
             continue;
@@ -132,6 +141,13 @@ pub async fn publish_span_messages(
         msg.input_dedup = verdicts.input;
         msg.output_dedup = verdicts.output;
         msg.tool_dedup = verdicts.tools;
+        if let Some((prompt_hash, system_prompt)) = verdicts.system_prompt {
+            static_prompt_candidates.push(StaticPromptCandidate {
+                project_id,
+                prompt_hash,
+                system_prompt,
+            });
+        }
     }
 
     let mq_message = serde_json::to_vec(&messages).unwrap();
@@ -172,6 +188,11 @@ pub async fn publish_span_messages(
                 .await?;
         }
     }
+
+    // Static-prompt extraction candidates ride a separate queue and are
+    // best-effort — only after the span publish succeeded, so a rejected
+    // batch doesn't feed the accumulator with spans that were never stored.
+    publish_static_prompt_candidates(static_prompt_candidates, cache, queue).await;
 
     Ok(0)
 }
