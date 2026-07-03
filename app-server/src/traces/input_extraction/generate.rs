@@ -1,19 +1,32 @@
-//! The lite-LLM call that generates an extraction regex from sample
-//! input, plus the prompt it runs on.
+//! The agentic lite-LLM pipeline that generates an extraction regex from
+//! sample input, plus the prompt it runs on.
+//!
+//! The model gets two tools: `try_extraction_regex` probes a candidate
+//! pattern (we apply it to the ORIGINAL sample input and return the final
+//! user-visible result), `submit_extraction_regex` ends the pipeline. The
+//! model may probe as many times as it wants within the call budget.
 
 use std::sync::Arc;
 
 use tracing::Instrument;
 
+use super::regex::{apply_regex, apply_result_to_json};
 use super::self_tracing::{self, SpanBuilder, SpanScope};
 use crate::llm::models::{
-    ModelSize, ProviderContent, ProviderFunctionDeclaration, ProviderGenerationConfig,
-    ProviderPart, ProviderRequest, ProviderResponse, ProviderThinkingConfig, ProviderThinkingLevel,
-    ProviderTool,
+    ModelSize, ProviderContent, ProviderFunctionDeclaration, ProviderFunctionResponse,
+    ProviderGenerationConfig, ProviderPart, ProviderRequest, ProviderResponse,
+    ProviderThinkingConfig, ProviderThinkingLevel, ProviderTool,
 };
 use crate::llm::{LlmClient, parsing_provider, request_to_span_input, request_to_tools_attr};
 
 const REGEX_LLM_TIMEOUT_SECS: u64 = 120;
+/// Total LLM-call budget per pipeline (initial call + probe round-trips).
+/// The prompt tells the model probing is unlimited; this cap only bounds
+/// a runaway loop — hitting it is treated as "no regex produced".
+const MAX_LLM_CALLS: usize = 6;
+
+const TRY_TOOL_NAME: &str = "try_extraction_regex";
+const SUBMIT_TOOL_NAME: &str = "submit_extraction_regex";
 
 const REGEX_GENERATION_SYSTEM_PROMPT: &str = r#"<role>
 You write regexes that strip scaffolding wrappers from AI agent conversation messages, leaving the instruction the agent was asked to act on. Agent harnesses wrap each turn's real instruction in XML-like tags (e.g. <system-reminder>, <context>, <env>, <tool_list>, <skills>, <metadata>, or similar). Remove the wrapper; keep everything else. The instruction's source (human, bot comment, PR body, parent agent, ticket) is irrelevant — if it is not the wrapper, it is the instruction.
@@ -44,8 +57,13 @@ Follow these steps in order.
    - ALL SCAFFOLDING: entire input is balanced wrapper tags with only whitespace outside → (?s)()
    - MIXED or unclear (scaffolding on both sides, layouts differ across samples) → (?s)(.*)
 
-4. Mentally run the regex against the sample, including one where the anchor tag appears at least twice. An empty capture on an input that starts with the wrapper means you picked TRAILING by mistake — switch to LEADING. A capture that drops meaningful prose means you anchored on a content tag — go back to step 1.
+4. Verify the pattern with try_extraction_regex before submitting whenever you are not fully certain (unusual layout, repeated anchor tags, an input where the anchor tag appears more than once). An empty capture on an input that starts with the wrapper means you picked TRAILING by mistake — switch to LEADING. A result that drops meaningful prose means you anchored on a content tag — go back to step 1. A single confident passthrough may be submitted without probing.
 </procedure>
+
+<tools>
+- try_extraction_regex: probes a candidate pattern. The pattern is applied to the ORIGINAL input (the full text in the first user message, structure markers included) and you get back the FINAL user-visible result: capture group 1 with the "== lmnr_… ==" markers already stripped and the parts re-joined. This is exactly what the user will see — judge it as the end product, and do NOT expect the markers in it. Every regex — probed or submitted — always runs against the original input; never write a regex against a probe's result text.
+- submit_extraction_regex: submits the final pattern and ends the pipeline. You may probe as many times as you want, but submitting is the only way to finish.
+</tools>
 
 <rules>
 - Exactly one capture group. Always prefix with (?s).
@@ -59,26 +77,134 @@ Follow these steps in order.
 Call the `submit_extraction_regex` tool with the regex pattern itself (starts with "(?s)", no surrounding quotes, no fences). Use an empty string only if no valid regex can be produced — when in doubt, submit the passthrough instead.
 </output_format>"#;
 
-/// LLM call to generate one extraction regex from one (or more)
-/// sample inputs. Errors only on timeout / provider error — the
-/// genuinely transient failures the consumer may requeue. A response
-/// that carries no usable regex (the model submitted an empty string,
-/// its "no valid regex can be produced" verdict per the prompt, or no
-/// tool call at all) is `Ok(None)`: a terminal decision, not a
-/// transport failure.
+/// Agentic LLM pipeline generating one extraction regex from one (or
+/// more) sample inputs: the model probes candidate patterns with
+/// `try_extraction_regex` (applied here, result returned to it) and
+/// finishes with `submit_extraction_regex`. Errors only on timeout /
+/// provider error — the genuinely transient failures the consumer may
+/// requeue. A terminal no-regex verdict (empty-string submit, a response
+/// with no tool call, or an exhausted call budget) is `Ok(None)`: a
+/// decision, not a transport failure.
 pub async fn generate_extraction_regex(
     llm_client: &Arc<LlmClient>,
     sample_input: &str,
     tracing: Option<&SpanScope>,
 ) -> anyhow::Result<Option<String>> {
-    let request = ProviderRequest {
-        contents: vec![ProviderContent {
-            role: Some("user".to_string()),
-            parts: Some(vec![ProviderPart {
-                text: Some(sample_input.to_string()),
+    let mut contents = vec![ProviderContent {
+        role: Some("user".to_string()),
+        parts: Some(vec![ProviderPart {
+            text: Some(sample_input.to_string()),
+            ..Default::default()
+        }]),
+    }];
+
+    for _ in 0..MAX_LLM_CALLS {
+        let request = build_request(contents.clone());
+        let response = call_llm(llm_client, &request, tracing).await?;
+
+        let model_content = response
+            .candidates
+            .as_ref()
+            .and_then(|c| c.first())
+            .and_then(|c| c.content.as_ref());
+        let parts: &[ProviderPart] = model_content
+            .and_then(|c| c.parts.as_deref())
+            .unwrap_or_default();
+
+        // Submit ends the pipeline even when probe calls ride the same
+        // response — the model already committed to a final answer.
+        for part in parts {
+            if let Some(fc) = &part.function_call
+                && fc.name == SUBMIT_TOOL_NAME
+            {
+                let submitted = fc
+                    .args
+                    .as_ref()
+                    .and_then(|a| a.get("regex"))
+                    .and_then(|v| v.as_str())
+                    .map(str::trim)
+                    .unwrap_or("");
+                return Ok((!submitted.is_empty()).then(|| submitted.to_string()));
+            }
+        }
+
+        let mut probe_responses: Vec<ProviderPart> = Vec::new();
+        for part in parts {
+            let Some(fc) = &part.function_call else {
+                continue;
+            };
+            if fc.name != TRY_TOOL_NAME {
+                continue;
+            }
+            let pattern = fc
+                .args
+                .as_ref()
+                .and_then(|a| a.get("regex"))
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .unwrap_or("");
+            // Always against the ORIGINAL sample input — the prompt
+            // promises probes never chain off each other's results.
+            let probe = probe_extraction_regex(pattern, sample_input, tracing);
+            probe_responses.push(ProviderPart {
+                function_response: Some(ProviderFunctionResponse {
+                    id: fc.id.clone(),
+                    name: TRY_TOOL_NAME.to_string(),
+                    response: probe,
+                }),
                 ..Default::default()
-            }]),
-        }],
+            });
+        }
+
+        // No submit and no probe: the model produced no usable tool call
+        // (its "no valid regex" verdict, or an empty/blocked response).
+        if probe_responses.is_empty() {
+            return Ok(None);
+        }
+
+        // Append the model turn VERBATIM (keeps thoughts / signatures the
+        // provider needs echoed back), then the probe results.
+        contents.push(model_content.cloned().unwrap_or(ProviderContent {
+            role: Some("model".to_string()),
+            parts: None,
+        }));
+        contents.push(ProviderContent {
+            role: Some("user".to_string()),
+            parts: Some(probe_responses),
+        });
+    }
+
+    log::warn!(
+        "user-task: regex generation exhausted its {MAX_LLM_CALLS}-call budget without a submit"
+    );
+    Ok(None)
+}
+
+/// Apply a probed pattern to the original sample input and package the
+/// FINAL user-visible outcome for the model, tracing the application as
+/// a tool span. The extracted text is signpost-stripped exactly like the
+/// stored metadata, so the model judges the end product.
+fn probe_extraction_regex(
+    pattern: &str,
+    sample_input: &str,
+    tracing: Option<&SpanScope>,
+) -> serde_json::Value {
+    let span = tracing.map(|scope| {
+        SpanBuilder::tool(scope, TRY_TOOL_NAME)
+            .input(&serde_json::json!({ "regex": pattern }))
+            .build()
+    });
+    let result = apply_regex(pattern, sample_input);
+    let response = apply_result_to_json(&result);
+    if let Some(span) = span.as_ref() {
+        self_tracing::set_output(span, &response);
+    }
+    response
+}
+
+fn build_request(contents: Vec<ProviderContent>) -> ProviderRequest {
+    ProviderRequest {
+        contents,
         system_instruction: Some(ProviderContent {
             role: None,
             parts: Some(vec![ProviderPart {
@@ -87,20 +213,36 @@ pub async fn generate_extraction_regex(
             }]),
         }),
         tools: Some(vec![ProviderTool {
-            function_declarations: vec![ProviderFunctionDeclaration {
-                name: "submit_extraction_regex".to_string(),
-                description: "Submit the chosen regex pattern, or an empty string when no valid pattern can be produced.".to_string(),
-                parameters: serde_json::json!({
-                    "type": "object",
-                    "properties": {
-                        "regex": {
-                            "type": "string",
-                            "description": "A regex pattern starting with (?s) with exactly one capture group. Empty string for null."
-                        }
-                    },
-                    "required": ["regex"]
-                }),
-            }],
+            function_declarations: vec![
+                ProviderFunctionDeclaration {
+                    name: TRY_TOOL_NAME.to_string(),
+                    description: "Probe a candidate regex: it is applied to the ORIGINAL input and the final user-visible extraction result is returned. Call as many times as needed before submitting.".to_string(),
+                    parameters: serde_json::json!({
+                        "type": "object",
+                        "properties": {
+                            "regex": {
+                                "type": "string",
+                                "description": "A regex pattern starting with (?s) with exactly one capture group."
+                            }
+                        },
+                        "required": ["regex"]
+                    }),
+                },
+                ProviderFunctionDeclaration {
+                    name: SUBMIT_TOOL_NAME.to_string(),
+                    description: "Submit the chosen regex pattern and end the pipeline, or an empty string when no valid pattern can be produced.".to_string(),
+                    parameters: serde_json::json!({
+                        "type": "object",
+                        "properties": {
+                            "regex": {
+                                "type": "string",
+                                "description": "A regex pattern starting with (?s) with exactly one capture group. Empty string for null."
+                            }
+                        },
+                        "required": ["regex"]
+                    }),
+                },
+            ],
         }]),
         generation_config: Some(ProviderGenerationConfig {
             temperature: Some(1.0),
@@ -114,13 +256,21 @@ pub async fn generate_extraction_regex(
         service_tier: None,
         provider: parsing_provider(),
         model_size: Some(ModelSize::Medium),
-    };
+    }
+}
 
+/// One traced provider call with a timeout. Errors (timeout / provider)
+/// are the transient failures the consumer may requeue.
+async fn call_llm(
+    llm_client: &Arc<LlmClient>,
+    request: &ProviderRequest,
+    tracing: Option<&SpanScope>,
+) -> anyhow::Result<ProviderResponse> {
     // Build the span before the call — spans can't be backdated, so a
     // span built after the call returns would record ~zero duration.
-    let (model, provider) = llm_client.resolve_model_provider(&request);
-    let span_input = request_to_span_input(&request);
-    let span_tools = request_to_tools_attr(&request);
+    let (model, provider) = llm_client.resolve_model_provider(request);
+    let span_input = request_to_span_input(request);
+    let span_tools = request_to_tools_attr(request);
     let span = tracing.map(|scope| {
         SpanBuilder::llm(scope, "generate_extraction_regex")
             .input(&span_input)
@@ -129,7 +279,7 @@ pub async fn generate_extraction_regex(
             .build()
     });
 
-    let call = llm_client.generate_content(&request);
+    let call = llm_client.generate_content(request);
     let timed = tokio::time::timeout(std::time::Duration::from_secs(REGEX_LLM_TIMEOUT_SECS), call);
     let result = match span.as_ref() {
         Some(s) => timed.instrument(s.clone()).await,
@@ -164,39 +314,8 @@ pub async fn generate_extraction_regex(
     }
 
     match (response, error) {
-        (Some(response), _) => Ok(extract_regex_from_response(&response)),
+        (Some(response), _) => Ok(response),
         (None, Some(error)) => Err(anyhow::anyhow!(error)),
         (None, None) => unreachable!(),
     }
-}
-
-/// Walk a response's candidates → content → parts looking for the
-/// `submit_extraction_regex` tool call's `regex` argument. Returns
-/// `None` when no candidate / no matching tool call / empty regex.
-fn extract_regex_from_response(response: &ProviderResponse) -> Option<String> {
-    let parts = response
-        .candidates
-        .as_ref()
-        .and_then(|c| c.first())
-        .and_then(|c| c.content.as_ref())
-        .and_then(|c| c.parts.as_ref())?;
-
-    for part in parts {
-        let Some(fc) = &part.function_call else {
-            continue;
-        };
-        if fc.name != "submit_extraction_regex" {
-            continue;
-        }
-        let Some(args) = &fc.args else {
-            continue;
-        };
-        let raw = args.get("regex").and_then(|v| v.as_str())?;
-        let trimmed = raw.trim();
-        if trimmed.is_empty() {
-            return None;
-        }
-        return Some(trimmed.to_string());
-    }
-    None
 }

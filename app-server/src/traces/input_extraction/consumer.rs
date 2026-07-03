@@ -66,27 +66,24 @@ impl MessageHandler for InputExtractionHandler {
         );
 
         // Another worker may have populated the cache since this message
-        // was enqueued.
-        let result = match try_apply_cached_regex(&self.cache, &key, &message.signposted_text).await
-        {
-            Some(result) => {
-                self_tracing::emit_cache_hit(
-                    &scope,
-                    &serde_json::Value::String(message.signposted_text.clone()),
-                    &serde_json::json!(format!("{result:?}")),
-                );
-                result
-            }
-            None => generate_and_apply_regex(
-                &self.cache,
-                &self.llm_client,
-                &key,
-                &message.signposted_text,
-                Some(&scope),
-            )
-            .await
-            .map_err(HandlerError::transient)?,
-        };
+        // was enqueued. Either way the application itself is traced as an
+        // `apply_regex` tool span (with a `regex_cached` marker) inside
+        // the regex module.
+        let result =
+            match try_apply_cached_regex(&self.cache, &key, &message.signposted_text, Some(&scope))
+                .await
+            {
+                Some(result) => result,
+                None => generate_and_apply_regex(
+                    &self.cache,
+                    &self.llm_client,
+                    &key,
+                    &message.signposted_text,
+                    Some(&scope),
+                )
+                .await
+                .map_err(HandlerError::transient)?,
+            };
         self_tracing::set_output(&root, &serde_json::json!(format!("{result:?}")));
 
         // Wait for the trace row before publishing: the patch is applied by

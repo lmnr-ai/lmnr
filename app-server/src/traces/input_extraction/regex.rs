@@ -13,7 +13,8 @@ use sha3::{Digest, Sha3_256};
 use uuid::Uuid;
 
 use super::generate::generate_extraction_regex;
-use super::self_tracing::SpanScope;
+use super::input::split_signposts_and_rejoin;
+use super::self_tracing::{self, SpanBuilder, SpanScope};
 use crate::cache::keys::USER_TASK_REGEX_CACHE_KEY;
 use crate::cache::{Cache, CacheTrait};
 use crate::llm::LlmClient;
@@ -68,6 +69,57 @@ pub fn apply_regex(pattern: &str, text: &str) -> ApplyRegexResult {
     }
 }
 
+/// Render an application result as the FINAL user-visible outcome: the
+/// extracted text is signpost-stripped exactly like the stored metadata
+/// (`build_metadata_patch` applies the same strip). Serves both as the
+/// probe-tool response shown to the generation model and as the tool-span
+/// output, so what the model judges is what the user gets.
+pub fn apply_result_to_json(result: &ApplyRegexResult) -> serde_json::Value {
+    match result {
+        ApplyRegexResult::Extracted(text) => serde_json::json!({
+            "result": "extracted",
+            "user_task": split_signposts_and_rejoin(text),
+        }),
+        ApplyRegexResult::NoUserRequest => serde_json::json!({
+            "result": "no_user_request",
+            "detail": "the regex matched but capture group 1 is empty/whitespace-only",
+        }),
+        ApplyRegexResult::NoMatch => serde_json::json!({
+            "result": "no_match",
+            "detail": "the regex did not compile, did not match, or had no capture group 1",
+        }),
+    }
+}
+
+/// Apply a pattern and trace the application as an `apply_regex` tool
+/// span — the one authoritative application whose result becomes the
+/// metadata patch, whether the regex came from the cache or was freshly
+/// generated (the generation loop's probe applications are traced under
+/// the probe tool name instead). `cached` is stamped on the span so the
+/// two sources stay distinguishable.
+fn apply_regex_traced(
+    pattern: &str,
+    text: &str,
+    cached: bool,
+    tracing: Option<&SpanScope>,
+) -> ApplyRegexResult {
+    let span = tracing.map(|scope| {
+        SpanBuilder::tool(scope, "apply_regex")
+            .input(&serde_json::json!({ "regex": pattern }))
+            .build()
+    });
+    let result = apply_regex(pattern, text);
+    if let Some(span) = span.as_ref() {
+        self_tracing::set_attr_str(
+            span,
+            "user_task.regex_cached",
+            if cached { "true" } else { "false" },
+        );
+        self_tracing::set_output(span, &apply_result_to_json(&result));
+    }
+    result
+}
+
 // ---------------------------------------------------------------------------
 // Regex cache
 // ---------------------------------------------------------------------------
@@ -86,14 +138,16 @@ pub fn regex_cache_key(project_id: Uuid, prompt_hash: Option<&str>, fingerprint:
 
 /// Consult the regex cache and apply on hit. `None` means "no
 /// usable cached regex" — either a true miss or a stale entry that no
-/// longer matches (removed so the consumer regenerates).
+/// longer matches (removed so the consumer regenerates). `tracing` must
+/// stay `None` on the producer (ingest) path — see `self_tracing`.
 pub async fn try_apply_cached_regex(
     cache: &Arc<Cache>,
     key: &str,
     signposted_text: &str,
+    tracing: Option<&SpanScope>,
 ) -> Option<ApplyRegexResult> {
     let cached = cache.get::<String>(key).await.ok().flatten()?;
-    match apply_regex(&cached, signposted_text) {
+    match apply_regex_traced(&cached, signposted_text, true, tracing) {
         ApplyRegexResult::NoMatch => {
             let _ = cache.remove(key).await;
             None
@@ -125,7 +179,7 @@ pub async fn generate_and_apply_regex(
     else {
         return Ok(ApplyRegexResult::NoUserRequest);
     };
-    let result = apply_regex(&generated, signposted_text);
+    let result = apply_regex_traced(&generated, signposted_text, false, tracing);
     if !matches!(result, ApplyRegexResult::NoMatch) {
         let _ = cache
             .insert_with_ttl(key, generated, REGEX_CACHE_TTL_SECONDS)
