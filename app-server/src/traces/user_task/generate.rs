@@ -3,13 +3,15 @@
 
 use std::sync::Arc;
 
-use crate::llm::LlmClient;
+use tracing::Instrument;
+
+use super::self_tracing::{self, SpanBuilder, SpanScope};
 use crate::llm::models::{
     ModelSize, ProviderContent, ProviderFunctionDeclaration, ProviderGenerationConfig,
     ProviderPart, ProviderRequest, ProviderResponse, ProviderThinkingConfig, ProviderThinkingLevel,
     ProviderTool,
 };
-use crate::llm::parsing_provider;
+use crate::llm::{LlmClient, parsing_provider, request_to_span_input, request_to_tools_attr};
 
 const REGEX_LLM_TIMEOUT_SECS: u64 = 120;
 
@@ -70,6 +72,7 @@ Call the `submit_extraction_regex` tool with the regex pattern itself (starts wi
 pub async fn generate_extraction_regex(
     llm_client: &Arc<LlmClient>,
     sample_input: &str,
+    tracing: Option<&SpanScope>,
 ) -> anyhow::Result<Option<String>> {
     let request = ProviderRequest {
         contents: vec![ProviderContent {
@@ -116,16 +119,58 @@ pub async fn generate_extraction_regex(
         model_size: Some(ModelSize::Medium),
     };
 
-    let call = llm_client.generate_content(&request);
-    let response =
-        tokio::time::timeout(std::time::Duration::from_secs(REGEX_LLM_TIMEOUT_SECS), call)
-            .await
-            .map_err(|_| {
-                anyhow::anyhow!("regex generation timed out after {REGEX_LLM_TIMEOUT_SECS}s")
-            })?
-            .map_err(|e| anyhow::anyhow!("regex generation failed: {e}"))?;
+    // Build the span before the call — spans can't be backdated, so a
+    // span built after the call returns would record ~zero duration.
+    let (model, provider) = llm_client.resolve_model_provider(&request);
+    let span_input = request_to_span_input(&request);
+    let span_tools = request_to_tools_attr(&request);
+    let span = tracing.map(|scope| {
+        SpanBuilder::llm(scope, "generate_extraction_regex")
+            .input(&span_input)
+            .model(&provider, &model)
+            .tools(span_tools.as_ref())
+            .build()
+    });
 
-    Ok(extract_regex_from_response(&response))
+    let call = llm_client.generate_content(&request);
+    let timed = tokio::time::timeout(std::time::Duration::from_secs(REGEX_LLM_TIMEOUT_SECS), call);
+    let result = match span.as_ref() {
+        Some(s) => timed.instrument(s.clone()).await,
+        None => timed.await,
+    };
+
+    let (response, error) = match result {
+        Ok(Ok(response)) => (Some(response), None),
+        Ok(Err(e)) => (None, Some(format!("regex generation failed: {e}"))),
+        Err(_) => (
+            None,
+            Some(format!(
+                "regex generation timed out after {REGEX_LLM_TIMEOUT_SECS}s"
+            )),
+        ),
+    };
+
+    if let Some(span) = span.as_ref() {
+        if let Some(response) = response.as_ref() {
+            self_tracing::set_output(span, &serde_json::json!(response.candidates));
+            let usage = response.usage_metadata.as_ref();
+            self_tracing::set_usage(
+                span,
+                usage.and_then(|u| u.prompt_token_count),
+                usage.and_then(|u| u.cache_read_input_tokens),
+                usage.and_then(|u| u.candidates_token_count),
+            );
+        }
+        if let Some(error) = error.clone() {
+            self_tracing::record_error(span, error);
+        }
+    }
+
+    match (response, error) {
+        (Some(response), _) => Ok(extract_regex_from_response(&response)),
+        (None, Some(error)) => Err(anyhow::anyhow!(error)),
+        (None, None) => unreachable!(),
+    }
 }
 
 /// Walk a response's candidates → content → parts looking for the

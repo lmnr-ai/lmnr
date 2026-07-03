@@ -27,7 +27,8 @@
 //!   - `metadata` — extraction outcome → trace-metadata patch;
 //!   - `producer` — the ingestion-side hook (candidate capture, winner
 //!     gate, inline apply, enqueue on miss);
-//!   - `queue` / `consumer` — the regex-generation queue and its worker.
+//!   - `queue` / `consumer` — the regex-generation queue and its worker;
+//!   - `self_tracing` — internal OTEL spans for the consumer's LLM work.
 
 pub mod consumer;
 pub mod fingerprint;
@@ -39,6 +40,7 @@ pub mod metadata;
 pub mod producer;
 pub mod queue;
 pub mod regex;
+pub mod self_tracing;
 
 pub use producer::{
     UserTaskCandidate, UserTaskSpanContext, capture_user_task_candidate,

@@ -13,6 +13,7 @@ use sha3::{Digest, Sha3_256};
 use uuid::Uuid;
 
 use super::generate::generate_extraction_regex;
+use super::self_tracing::SpanScope;
 use crate::cache::keys::USER_TASK_REGEX_CACHE_KEY;
 use crate::cache::{Cache, CacheTrait};
 use crate::llm::LlmClient;
@@ -118,8 +119,10 @@ pub async fn generate_and_apply_regex(
     llm_client: &Arc<LlmClient>,
     key: &str,
     signposted_text: &str,
+    tracing: Option<&SpanScope>,
 ) -> anyhow::Result<ApplyRegexResult> {
-    let Some(generated) = generate_extraction_regex(llm_client, signposted_text).await? else {
+    let Some(generated) = generate_extraction_regex(llm_client, signposted_text, tracing).await?
+    else {
         return Ok(ApplyRegexResult::NoUserRequest);
     };
     let result = apply_regex(&generated, signposted_text);

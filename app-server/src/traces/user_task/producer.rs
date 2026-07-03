@@ -246,9 +246,17 @@ pub async fn process_user_task_candidates(
         };
 
         if effect_landed {
-            if let Err(e) = cache
-                .insert_with_ttl(&lock_key, &state, USER_TASK_LOCK_TTL_SECONDS.get())
-                .await
+            // Guarded re-read before the write (mirrors the consumer's
+            // re-assert): a newer winner can take the lock while this
+            // candidate waits on `trace_exists`/publish, and blindly
+            // writing would roll the lock back to this older state — the
+            // queued consumer's supersession check would then match the
+            // stale snapshot and publish over the newer winner's metadata.
+            let current: Option<UserTaskLockState> = cache.get(&lock_key).await.ok().flatten();
+            if !current.is_some_and(|c| c.supersedes(&state))
+                && let Err(e) = cache
+                    .insert_with_ttl(&lock_key, &state, USER_TASK_LOCK_TTL_SECONDS.get())
+                    .await
             {
                 log::error!("user-task: lock state write failed for trace [{trace_id}]: {e:?}");
             }

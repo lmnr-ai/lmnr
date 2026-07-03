@@ -14,6 +14,7 @@ use super::{
     metadata::build_metadata_patch,
     queue::{InputExtractionMessage, push_to_input_extraction_queue},
     regex::{generate_and_apply_regex, regex_cache_key, try_apply_cached_regex},
+    self_tracing::{self, SpanBuilder, SpanContextCarrier, SpanScope},
 };
 use crate::{
     cache::{Cache, CacheTrait},
@@ -45,6 +46,19 @@ impl MessageHandler for InputExtractionHandler {
     type Message = InputExtractionMessage;
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
+        // Internal self-tracing root for this message. Safe here (and only
+        // here): the consumer is off the ingest path, so exported spans
+        // can't recurse through `push_spans_to_queue`.
+        let scope = SpanScope::new(message.trace_id);
+        let root = SpanBuilder::root(&scope)
+            .input(&serde_json::Value::String(message.signposted_text.clone()))
+            .build();
+        self_tracing::set_attr_str(&root, "user_task.fingerprint", &message.fingerprint);
+        if let Some(hash) = message.prompt_hash.as_deref() {
+            self_tracing::set_attr_str(&root, "user_task.prompt_hash", hash);
+        }
+        let scope = scope.with_parent(SpanContextCarrier::from_span(&root));
+
         let key = regex_cache_key(
             message.project_id,
             message.prompt_hash.as_deref(),
@@ -55,16 +69,25 @@ impl MessageHandler for InputExtractionHandler {
         // was enqueued.
         let result = match try_apply_cached_regex(&self.cache, &key, &message.signposted_text).await
         {
-            Some(result) => result,
+            Some(result) => {
+                self_tracing::emit_cache_hit(
+                    &scope,
+                    &serde_json::Value::String(message.signposted_text.clone()),
+                    &serde_json::json!(format!("{result:?}")),
+                );
+                result
+            }
             None => generate_and_apply_regex(
                 &self.cache,
                 &self.llm_client,
                 &key,
                 &message.signposted_text,
+                Some(&scope),
             )
             .await
             .map_err(HandlerError::transient)?,
         };
+        self_tracing::set_output(&root, &serde_json::json!(format!("{result:?}")));
 
         // A later batch may have superseded this candidate (published its
         // own metadata inline and rewritten the winner lock) while this
