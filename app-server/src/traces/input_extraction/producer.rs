@@ -105,6 +105,13 @@ pub async fn process_user_task_candidates(
     db: Arc<DB>,
     cache: Arc<Cache>,
 ) {
+    // Do not run on self-tracing project to avoid infinite looping
+    if std::env::var(crate::env::user_task::USER_TASK_INTERNAL_PROJECT_ID)
+        .is_ok_and(|internal_project_id_str| internal_project_id_str == project_id.to_string())
+    {
+        return;
+    }
+
     if candidates.is_empty()
         || !is_feature_enabled(Feature::InputExtraction)
         || !llm_client_available()
