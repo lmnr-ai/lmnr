@@ -47,10 +47,30 @@ pub fn fingerprint_user_message(input: &str) -> String {
         deduped.push(p);
     }
 
-    if deduped.is_empty() {
+    // Collect tag names (ignoring "plain") into a sorted, deduplicated
+    // list, keeping opening/closing as a pair.  Tag order in the message
+    // doesn't affect the cache key; "context,/context" and
+    // "/context,context" are both normalised to "context,/context".
+    let has_plain = deduped.iter().any(|s| s == "plain");
+    let mut tag_names: Vec<String> = deduped
+        .into_iter()
+        .filter(|s| s != "plain" && !s.starts_with('/'))
+        .collect();
+    tag_names.sort();
+    tag_names.dedup();
+
+    let mut result: Vec<String> = tag_names
+        .iter()
+        .flat_map(|name| [name.clone(), format!("/{name}")])
+        .collect();
+    if has_plain {
+        result.push("plain".to_string());
+    }
+
+    if result.is_empty() {
         "plain".to_string()
     } else {
-        deduped.join(",")
+        result.join(",")
     }
 }
 
@@ -67,14 +87,28 @@ mod tests {
     #[test]
     fn fingerprint_tag_sequences() {
         assert_eq!(fingerprint_user_message("<env>x</env>"), "env,/env");
+        // Tags are sorted alphabetically; "plain" moves to the end.
         assert_eq!(
             fingerprint_user_message("<env>x</env>do this<ctx>y</ctx>"),
-            "env,/env,plain,ctx,/ctx"
+            "ctx,/ctx,env,/env,plain"
         );
         assert_eq!(
             fingerprint_user_message("before <reminder a=\"1\">r</reminder> after"),
-            "plain,reminder,/reminder,plain"
+            "reminder,/reminder,plain"
         );
+    }
+
+    #[test]
+    fn fingerprint_order_independent() {
+        // Same tags in different order must produce the same fingerprint.
+        let a = fingerprint_user_message(
+            "<context>c</context><user_instructions>u</user_instructions><final_instruction>f</final_instruction>",
+        );
+        let b = fingerprint_user_message(
+            "<user_instructions>u</user_instructions><final_instruction>f</final_instruction><context>c</context>",
+        );
+        assert_eq!(a, b);
+        assert_eq!(a, "context,/context,final_instruction,/final_instruction,user_instructions,/user_instructions");
     }
 
     #[test]

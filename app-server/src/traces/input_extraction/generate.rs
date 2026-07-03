@@ -29,16 +29,12 @@ const TRY_TOOL_NAME: &str = "try_extraction_regex";
 const SUBMIT_TOOL_NAME: &str = "submit_extraction_regex";
 
 const REGEX_GENERATION_SYSTEM_PROMPT: &str = r#"<role>
-You write regexes that strip scaffolding wrappers from AI agent conversation messages, leaving the instruction the agent was asked to act on. Agent harnesses wrap each turn's real instruction in semi-structured markup — XML-like tags (e.g. <system-reminder>, <context>, <env>), delimiter lines (e.g. "=== ENVIRONMENT ===", "--- context ---"), bracketed or labeled section headers, or similar markers. Remove the wrapper; keep everything else. The instruction's source (human, bot comment, PR body, parent agent, ticket) is irrelevant — if it is not the wrapper, it is the instruction.
+You write regexes that strip scaffolding wrappers from AI agent conversation messages, leaving the instruction the agent was asked to act on. Agent harnesses wrap each turn's real instruction in semi-structured markup — XML-like tags (e.g. <system-reminder>, <context>, <env>), delimiter lines (e.g. "=== ENVIRONMENT ===", "--- context ---"), bracketed or labeled section headers, or similar markers. Remove the wrapper; keep everything else. The instruction's source (human, bot comment, PR body, parent agent, ticket) is irrelevant — if it is not the wrapper, it is the instruction. The instruction may be wrapped in some wrapper tag, e.g. <user_input>, ### Your task, or be at start or end of the message provided, in which case you can strip by last separator presence.
 </role>
 
 <generalization>
 You see ONE input, but the regex you submit is cached and applied to FUTURE inputs that share this input's structural shape while carrying DIFFERENT content — a different instruction, different prose, different data inside the wrappers. It is crucial to anchor the pattern exclusively on the STATIC scaffolding markers that will recur verbatim across those inputs (wrapper tag names, delimiter lines), never on this particular input's variable content.
 </generalization>
-
-<core_principle>
-DEFAULT IS PASSTHROUGH. You need POSITIVE evidence (a real harness wrapper marker) before choosing any non-passthrough pattern. When in any doubt, submit (?s)(.*). Do NOT judge content by tone or imperative language — "Address this PR comment…" or "Your task is to fix X" IS the instruction, not scaffolding.
-</core_principle>
 
 <procedure>
 Follow these steps in order.
@@ -46,11 +42,9 @@ Follow these steps in order.
 1. List every wrapper-like marker in the input and classify each:
    - HARNESS WRAPPER (may anchor on these): structured, self-contained system-injected blocks sitting at the top or bottom of the message, not mid-paragraph. XML-like examples: system-reminder, context, env, environment, tools, tool_list, instructions, skills, reminder, metadata, session, and close relatives. Non-XML markers (delimiter lines, labeled section headers) qualify too when they play the same role.
    - CONTENT (never anchor on these, even if they repeat): HTML/markdown rendering tags (h1-h6, p, br, a, div, span, code, pre, details, summary, table, img, ul, ol, li, …), HTML comments (<!-- … --> — treat them as prose, never as anchors), markdown headings/fences inside prose, and any markup inside a bot comment / PR review / issue body / markdown body.
-   The input may carry "== lmnr_part_separator ==" markers separating sibling user-message parts; they are present when the regex runs but are stripped from the captured text afterwards. Treat them as layout hints only: never anchor on one, and a capture may span it.
+   The input may carry "== lmnr_part_separator ==" markers separating sibling user-message parts; they are present when the regex runs but are stripped from the captured text afterwards.
 
-2. If no HARNESS WRAPPER marker survives → (?s)(.*). Stop. Never fall back to a content marker.
-
-3. Otherwise pick the layout and its pattern. The patterns are written for an XML-like wrapper tag; for a non-XML marker use the same layout with the marker's static text, verbatim, in place of the tag:
+2. Otherwise pick the layout and its pattern. Example pattern shapes (non-exhaustive):
    - LEADING: input STARTS with the wrapper; instruction follows the LAST closing marker → (?s).*</tag>\s*(.*)
      The leading .* is mandatory — it makes the greedy engine anchor on the LAST closing marker, not the first.
    - TRAILING: instruction first, wrapper later → (?s)^(.*?)<tag>
@@ -58,6 +52,8 @@ Follow these steps in order.
    - WRAPPED: instruction sits inside a request-like wrapper (<user_request>, <task>, <query>, …) → (?s)<tag>\s*(.*?)\s*</tag>
    - ALL SCAFFOLDING: entire input is wrapper blocks with only whitespace outside → (?s)()
    - MIXED or unclear (scaffolding on both sides, no consistent layout) → (?s)(.*)
+
+3. Make the pattern narrow. For example if after the last separator, the result is a json {"context": "...", "task": "..."}, and the context is clearly not the content of the task, make your regex extract the task, not just the last separator.
 
 4. Verify the pattern with try_extraction_regex before submitting whenever you are not fully certain (unusual layout, an anchor marker that appears more than once). If the probe result is wrong, rethink your marker classification and layout choice. A single confident passthrough may be submitted without probing.
 </procedure>
@@ -71,12 +67,12 @@ Follow these steps in order.
 - Exactly one capture group. Always prefix with (?s).
 - The anchor marker must appear VERBATIM in the input. Never invent marker names and never copy them from this prompt.
 - Never anchor on an HTML comment marker (<!-- or -->).
-- Keep the pattern simple and cheap to run: literals, character classes, .* / .*? and \s* are all you normally need. Backreferences and lookarounds are supported but almost never necessary — use them only when nothing simpler works, and never nest quantifiers (no (a+)+-style patterns).
+- Never nest quantifiers (no (a+)+-style patterns).
 - The regex must match this input — and, because it anchors only on static scaffolding, future inputs of the same shape with different content.
 </rules>
 
 <output_format>
-Call the `submit_extraction_regex` tool with the regex pattern itself (starts with "(?s)", no surrounding quotes, no fences). Use an empty string only if no valid regex can be produced — when in doubt, submit the passthrough instead.
+Call the `submit_extraction_regex` tool with the regex pattern itself (starts with "(?s)", no surrounding quotes).
 </output_format>"#;
 
 /// Agentic LLM pipeline generating one extraction regex from a single
