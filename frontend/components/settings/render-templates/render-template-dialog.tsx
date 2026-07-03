@@ -10,6 +10,7 @@ import {
   type ManageTemplateForm,
   manageTemplateSchema,
   type Template,
+  type TemplateScope,
 } from "@/components/ui/template-renderer";
 import ManageTemplateDialog from "@/components/ui/template-renderer/manage-template-dialog";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -18,9 +19,10 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   templateId: string | null;
+  scope?: TemplateScope;
 }
 
-export default function RenderTemplateDialog({ open, onOpenChange, templateId }: Props) {
+export default function RenderTemplateDialog({ open, onOpenChange, templateId, scope = "span" }: Props) {
   const { projectId } = useParams();
   const { toast } = useToast();
   const methods = useForm<ManageTemplateForm>({
@@ -34,13 +36,14 @@ export default function RenderTemplateDialog({ open, onOpenChange, templateId }:
       return;
     }
     if (!templateId) {
-      methods.reset(defaultTemplateValues);
+      methods.reset({ ...defaultTemplateValues, scope });
       return;
     }
     const controller = new AbortController();
     const load = async () => {
       try {
-        const res = await fetch(`/api/projects/${projectId}/render-templates/${templateId}`, {
+        const base = scope === "trace" ? "trace-render-templates" : "render-templates";
+        const res = await fetch(`/api/projects/${projectId}/${base}/${templateId}`, {
           signal: controller.signal,
         });
         if (!res.ok) {
@@ -48,7 +51,8 @@ export default function RenderTemplateDialog({ open, onOpenChange, templateId }:
           throw new Error(err?.error ?? "Failed to load template");
         }
         const template = (await res.json()) as Template;
-        methods.reset({ ...template, testData: "" });
+        // API rows carry no scope column (separate tables) — set it from the prop.
+        methods.reset({ ...template, scope, testData: "" });
       } catch (e) {
         if (controller.signal.aborted) return;
         toast({
@@ -61,14 +65,14 @@ export default function RenderTemplateDialog({ open, onOpenChange, templateId }:
     };
     load();
     return () => controller.abort();
-  }, [open, templateId, projectId, methods, toast, onOpenChange]);
+  }, [open, templateId, projectId, scope, methods, toast, onOpenChange]);
 
   const mode = open ? (templateId ? "edit" : "create") : null;
   const close = () => onOpenChange(false);
 
   return (
     <FormProvider {...methods}>
-      <ManageTemplateDialog mode={mode} onCancel={close} onSaved={close} />
+      <ManageTemplateDialog mode={mode} scope={scope} onCancel={close} onSaved={close} />
     </FormProvider>
   );
 }

@@ -2,7 +2,7 @@ import { Loader2, Sparkles, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import { Controller, useFormContext } from "react-hook-form";
-import { useSWRConfig } from "swr";
+import useSWR, { useSWRConfig } from "swr";
 
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
@@ -10,8 +10,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { buildRenderTemplatePrompt } from "@/lib/actions/render-template/prompts";
+import { buildRenderTemplatePrompt, buildTraceRenderTemplatePrompt } from "@/lib/actions/render-template/prompts";
 import { useToast } from "@/lib/hooks/use-toast";
+import { swrFetcher } from "@/lib/utils";
 
 import { type ManageTemplateForm, type Template, type TemplateScope } from "../index";
 import JsxRenderer from "../jsx-renderer";
@@ -22,14 +23,21 @@ import DataPanel from "./data-panel";
 interface Props {
   mode: ManageTemplateMode;
   scope?: TemplateScope;
+  /** Trace whose span outline enriches the copied AI prompt (trace scope only). */
+  traceId?: string;
   onCancel: () => void;
   onSaved: () => void;
 }
 
-const ManageTemplateDialog = ({ mode, scope = "span", onCancel, onSaved }: Props) => {
+const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved }: Props) => {
   const { projectId } = useParams();
   const { toast } = useToast();
   const { mutate } = useSWRConfig();
+
+  const { data: spanOutline } = useSWR<unknown[]>(
+    mode !== null && scope === "trace" && traceId ? `/api/projects/${projectId}/traces/${traceId}/span-outline` : null,
+    swrFetcher
+  );
 
   const {
     control,
@@ -44,19 +52,18 @@ const ManageTemplateDialog = ({ mode, scope = "span", onCancel, onSaved }: Props
   const submit = useCallback(
     async (data: ManageTemplateForm) => {
       const isUpdate = !!data.id;
+      const dataScope = data.scope ?? scope;
+      // Span and trace templates live in separate tables behind separate endpoints.
+      const baseUrl = `/api/projects/${projectId}/${dataScope === "trace" ? "trace-render-templates" : "render-templates"}`;
       try {
         setIsSaving(true);
-        const url = isUpdate
-          ? `/api/projects/${projectId}/render-templates/${data.id}`
-          : `/api/projects/${projectId}/render-templates`;
-        const res = await fetch(url, {
+        const res = await fetch(isUpdate ? `${baseUrl}/${data.id}` : baseUrl, {
           method: isUpdate ? "PUT" : "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: data.name,
             code: data.code,
-            scope: data.scope ?? scope,
-            whereClause: data.whereClause ?? null,
+            ...(dataScope === "trace" && { whereClause: data.whereClause ?? null }),
           }),
         });
 
@@ -75,10 +82,9 @@ const ManageTemplateDialog = ({ mode, scope = "span", onCancel, onSaved }: Props
 
         // Preserve testData — the API response only carries {id, name, code, ...}.
         const result = (await res.json()) as Template;
-        // Revalidate every render-templates list key: the scoped picker lists
-        // (?scope=span / ?scope=trace) and the unscoped settings-page list.
-        await mutate((key) => typeof key === "string" && key.startsWith(`/api/projects/${projectId}/render-templates`));
-        reset({ ...result, testData: data.testData });
+        await mutate((key) => typeof key === "string" && key.startsWith(baseUrl));
+        // API rows carry no scope column (separate tables) — keep the form's.
+        reset({ ...result, scope: dataScope, testData: data.testData });
         toast({ title: `Template ${isUpdate ? "updated" : "created"}` });
         onSaved();
       } catch (e) {
@@ -208,13 +214,23 @@ const ManageTemplateDialog = ({ mode, scope = "span", onCancel, onSaved }: Props
                     <Sparkles className="size-3.5 shrink-0 text-primary" />
                     <span className="truncate">
                       Generate with your AI tool - prompt includes Laminar style guide
-                      {watch("testData")?.trim() ? " + your test data" : ""}
+                      {effectiveScope === "trace"
+                        ? spanOutline
+                          ? " + this trace's outline"
+                          : ""
+                        : watch("testData")?.trim()
+                          ? " + your test data"
+                          : ""}
                     </span>
                   </div>
                   <CopyButton
                     type="button"
                     variant="secondaryLight"
-                    text={buildRenderTemplatePrompt(watch("testData"))}
+                    text={
+                      effectiveScope === "trace"
+                        ? buildTraceRenderTemplatePrompt(spanOutline ? JSON.stringify(spanOutline, null, 2) : undefined)
+                        : buildRenderTemplatePrompt(watch("testData"))
+                    }
                     className="shrink-0 text-xs"
                     iconClassName="size-3"
                   >

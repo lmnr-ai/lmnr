@@ -64,21 +64,24 @@ interface TemplatePickerProviderProps {
   /** Which templates to list/create. "span" (default) renders single-span data;
    *  "trace" templates carry a SQL WHERE filter and render spans of a trace. */
   scope?: TemplateScope;
+  /** Trace whose span outline enriches the copied AI prompt (trace scope only). */
+  traceId?: string;
 }
 
 export const TemplatePickerProvider = ({
   presetKey,
   testData,
   scope = "span",
+  traceId,
   children,
 }: PropsWithChildren<TemplatePickerProviderProps>) => {
   const { projectId } = useParams();
   const { toast } = useToast();
 
-  const { data: templates } = useSWR<TemplateInfo[]>(
-    `/api/projects/${projectId}/render-templates?scope=${scope}`,
-    swrFetcher
-  );
+  // Span and trace templates live in separate tables behind separate endpoints.
+  const templatesUrl = `/api/projects/${projectId}/${scope === "trace" ? "trace-render-templates" : "render-templates"}`;
+
+  const { data: templates } = useSWR<TemplateInfo[]>(templatesUrl, swrFetcher);
 
   const { setPresetTemplate, getPresetTemplate } = useTemplateRenderer();
 
@@ -105,7 +108,7 @@ export const TemplatePickerProvider = ({
   const fetchTemplate = useCallback(
     async (templateId: string): Promise<Template | null> => {
       try {
-        const res = await fetch(`/api/projects/${projectId}/render-templates/${templateId}`);
+        const res = await fetch(`${templatesUrl}/${templateId}`);
         if (!res.ok) {
           const err = await res.json().catch(() => null);
           throw new Error(err?.error ?? "Failed to fetch template");
@@ -120,7 +123,7 @@ export const TemplatePickerProvider = ({
         return null;
       }
     },
-    [projectId, toast]
+    [templatesUrl, toast]
   );
 
   // Hydrate from persisted preset once templates load. `testData` omitted intentionally —
@@ -134,7 +137,8 @@ export const TemplatePickerProvider = ({
       setIsLoadingTemplate(true);
       try {
         const full = await fetchTemplate(storedId);
-        if (full) reset({ ...full, testData });
+        // API rows carry no scope column (separate tables) — set it from the provider.
+        if (full) reset({ ...full, scope, testData });
       } finally {
         setIsLoadingTemplate(false);
       }
@@ -151,12 +155,12 @@ export const TemplatePickerProvider = ({
       setIsLoadingTemplate(true);
       try {
         const full = await fetchTemplate(templateId);
-        if (full) reset({ ...full, testData });
+        if (full) reset({ ...full, scope, testData });
       } finally {
         setIsLoadingTemplate(false);
       }
     },
-    [templates, presetKey, setPresetTemplate, fetchTemplate, reset, testData]
+    [templates, presetKey, setPresetTemplate, fetchTemplate, reset, scope, testData]
   );
 
   const openCreate = useCallback(() => {
@@ -210,7 +214,13 @@ export const TemplatePickerProvider = ({
     <FormProvider {...methods}>
       <TemplatePickerContext.Provider value={contextValue}>
         {children}
-        <ManageTemplateDialog mode={manageMode} scope={scope} onCancel={cancelManage} onSaved={completeSave} />
+        <ManageTemplateDialog
+          mode={manageMode}
+          scope={scope}
+          traceId={traceId}
+          onCancel={cancelManage}
+          onSaved={completeSave}
+        />
       </TemplatePickerContext.Provider>
     </FormProvider>
   );

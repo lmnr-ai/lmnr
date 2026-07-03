@@ -152,7 +152,7 @@ export default function CustomView({ traceId }: { traceId: string }) {
   const [renderData, setRenderData] = useState<string>("");
 
   return (
-    <TemplatePickerProvider presetKey="trace-view" testData={renderData} scope="trace">
+    <TemplatePickerProvider presetKey="trace-view" testData={renderData} scope="trace" traceId={traceId}>
       <CustomViewContent traceId={traceId} renderData={renderData} setRenderData={setRenderData} />
     </TemplatePickerProvider>
   );

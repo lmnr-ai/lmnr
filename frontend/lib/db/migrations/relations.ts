@@ -15,6 +15,7 @@ import {
   workspaceInvitations,
   agents,
   renderTemplates,
+  traceRenderTemplates,
   tracesAgentChats,
   sharedEvals,
   users,
@@ -86,6 +87,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   evaluatorScores: many(evaluatorScores),
   agents: many(agents),
   renderTemplates: many(renderTemplates),
+  traceRenderTemplates: many(traceRenderTemplates),
   tracesAgentChats: many(tracesAgentChats),
   sharedEvals: many(sharedEvals),
   labelingQueues: many(labelingQueues),
@@ -219,6 +221,13 @@ export const agentsRelations = relations(agents, ({ one, many }) => ({
 export const renderTemplatesRelations = relations(renderTemplates, ({ one }) => ({
   project: one(projects, {
     fields: [renderTemplates.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const traceRenderTemplatesRelations = relations(traceRenderTemplates, ({ one }) => ({
+  project: one(projects, {
+    fields: [traceRenderTemplates.projectId],
     references: [projects.id],
   }),
 }));

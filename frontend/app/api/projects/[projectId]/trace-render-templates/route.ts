@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { createRenderTemplate } from "@/lib/actions/render-template";
-import { getRenderTemplates } from "@/lib/actions/render-templates";
+import { createTraceRenderTemplate, getTraceRenderTemplates } from "@/lib/actions/trace-render-templates";
 
 export async function GET(_req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   try {
     const params = await props.params;
     const { projectId } = params;
 
-    const templates = await getRenderTemplates({ projectId });
+    const templates = await getTraceRenderTemplates({ projectId });
 
     return NextResponse.json(templates);
   } catch (error) {
@@ -30,10 +29,11 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
     const { projectId } = params;
     const body = await req.json();
 
-    const result = await createRenderTemplate({
+    const result = await createTraceRenderTemplate({
       projectId,
       name: body.name,
       code: body.code,
+      whereClause: body.whereClause,
     });
 
     return NextResponse.json(result);

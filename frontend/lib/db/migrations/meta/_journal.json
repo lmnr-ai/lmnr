@@ -706,7 +706,7 @@
       "idx": 100,
       "version": "7",
       "when": 1782837381313,
-      "tag": "0100_render_templates_trace_scope",
+      "tag": "0100_trace_render_templates",
       "breakpoints": true
     }
   ]

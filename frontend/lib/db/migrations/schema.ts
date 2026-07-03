@@ -313,14 +313,33 @@ export const renderTemplates = pgTable(
     projectId: uuid("project_id").defaultRandom().notNull(),
     code: text().notNull(),
     name: text().notNull(),
-    scope: text().default("span").notNull(),
-    whereClause: text("where_clause"),
   },
   (table) => [
     foreignKey({
       columns: [table.projectId],
       foreignColumns: [projects.id],
       name: "render_templates_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
+export const traceRenderTemplates = pgTable(
+  "trace_render_templates",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    projectId: uuid("project_id").defaultRandom().notNull(),
+    code: text().notNull(),
+    name: text().notNull(),
+    whereClause: text("where_clause"),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "trace_render_templates_project_id_fkey",
     })
       .onUpdate("cascade")
       .onDelete("cascade"),

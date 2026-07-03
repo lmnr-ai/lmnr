@@ -10,11 +10,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { type TemplateScope } from "@/components/ui/template-renderer";
 import { useToast } from "@/lib/hooks/use-toast";
 
 interface TemplateInfo {
   id: string;
   name: string;
+  scope: TemplateScope;
 }
 
 interface Props {
@@ -33,7 +35,8 @@ export default function DeleteRenderTemplateDialog({ template, onClose, onDelete
 
     setIsDeleting(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/render-templates/${template.id}`, {
+      const base = template.scope === "trace" ? "trace-render-templates" : "render-templates";
+      const res = await fetch(`/api/projects/${projectId}/${base}/${template.id}`, {
         method: "DELETE",
       });
 

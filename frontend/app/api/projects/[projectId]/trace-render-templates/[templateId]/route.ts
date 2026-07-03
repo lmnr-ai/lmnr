@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { deleteRenderTemplate, getRenderTemplate, updateRenderTemplate } from "@/lib/actions/render-template";
+import {
+  deleteTraceRenderTemplate,
+  getTraceRenderTemplate,
+  updateTraceRenderTemplate,
+} from "@/lib/actions/trace-render-templates";
 
 export async function GET(
   _request: Request,
@@ -13,7 +17,7 @@ export async function GET(
     const params = await props.params;
     const { projectId, templateId } = params;
 
-    const template = await getRenderTemplate({ projectId, templateId });
+    const template = await getTraceRenderTemplate({ projectId, templateId });
 
     return NextResponse.json(template);
   } catch (error) {
@@ -34,11 +38,12 @@ export async function PUT(request: Request, props: { params: Promise<{ projectId
     const { projectId, templateId } = params;
     const body = await request.json();
 
-    const result = await updateRenderTemplate({
+    const result = await updateTraceRenderTemplate({
       projectId,
       templateId,
       name: body.name,
       code: body.code,
+      whereClause: body.whereClause,
     });
 
     return NextResponse.json(result);
@@ -59,7 +64,7 @@ export async function DELETE(_request: Request, props: { params: Promise<{ proje
     const params = await props.params;
     const { projectId, templateId } = params;
 
-    const result = await deleteRenderTemplate({ projectId, templateId });
+    const result = await deleteTraceRenderTemplate({ projectId, templateId });
 
     return NextResponse.json(result);
   } catch (error) {
