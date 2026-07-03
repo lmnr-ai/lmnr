@@ -17,7 +17,7 @@ use crate::llm::models::{
     ProviderGenerationConfig, ProviderPart, ProviderRequest, ProviderResponse,
     ProviderThinkingConfig, ProviderThinkingLevel, ProviderTool,
 };
-use crate::llm::{LlmClient, parsing_provider, request_to_span_input, request_to_tools_attr};
+use crate::llm::{LlmClient, request_to_span_input, request_to_tools_attr};
 
 const REGEX_LLM_TIMEOUT_SECS: u64 = 120;
 /// Total LLM-call budget per pipeline (initial call + probe round-trips).
@@ -28,52 +28,53 @@ const MAX_LLM_CALLS: usize = 6;
 const TRY_TOOL_NAME: &str = "try_extraction_regex";
 const SUBMIT_TOOL_NAME: &str = "submit_extraction_regex";
 
-const REGEX_GENERATION_SYSTEM_PROMPT: &str = r#"<role>
-You write regexes that strip scaffolding wrappers from AI agent conversation messages, leaving the instruction the agent was asked to act on. Agent harnesses wrap each turn's real instruction in semi-structured markup — XML-like tags (e.g. <system-reminder>, <context>, <env>), delimiter lines (e.g. "=== ENVIRONMENT ===", "--- context ---"), bracketed or labeled section headers, or similar markers. Remove the wrapper; keep everything else. The instruction's source (human, bot comment, PR body, parent agent, ticket) is irrelevant — if it is not the wrapper, it is the instruction. The instruction may be wrapped in some wrapper tag, e.g. <user_input>, ### Your task, or be at start or end of the message provided, in which case you can strip by last separator presence.
-</role>
+const REGEX_GENERATION_SYSTEM_PROMPT: &str = r#"# Task
 
-<generalization>
-You see ONE input, but the regex you submit is cached and applied to FUTURE inputs that share this input's structural shape while carrying DIFFERENT content — a different instruction, different prose, different data inside the wrappers. It is crucial to anchor the pattern exclusively on the STATIC scaffolding markers that will recur verbatim across those inputs (wrapper tag names, delimiter lines), never on this particular input's variable content.
-</generalization>
+You are shown ONE message that was sent as input to an AI agent. Write a regex that extracts the instruction the agent was asked to carry out and discards everything the harness injected around it.
 
-<procedure>
-Follow these steps in order.
+# The template model
 
-1. List every wrapper-like marker in the input and classify each:
-   - HARNESS WRAPPER (may anchor on these): structured, self-contained system-injected blocks sitting at the top or bottom of the message, not mid-paragraph. XML-like examples: system-reminder, context, env, environment, tools, tool_list, instructions, skills, reminder, metadata, session, and close relatives. Non-XML markers (delimiter lines, labeled section headers) qualify too when they play the same role.
-   - CONTENT (never anchor on these, even if they repeat): HTML/markdown rendering tags (h1-h6, p, br, a, div, span, code, pre, details, summary, table, img, ul, ol, li, …), HTML comments (<!-- … --> — treat them as prose, never as anchors), markdown headings/fences inside prose, and any markup inside a bot comment / PR review / issue body / markdown body.
-   The input may carry "== lmnr_part_separator ==" markers separating sibling user-message parts; they are present when the regex runs but are stripped from the captured text afterwards.
+Messages like this one are produced by templates. A harness takes an instruction (written by a person, a parent agent, a ticket, a bot) and assembles the final message by inserting it — together with injected material such as environment info, file contents, tool inventories, reminders, and metadata — into a fixed layout.
 
-2. Otherwise pick the layout and its pattern. Example pattern shapes (non-exhaustive):
-   - LEADING: input STARTS with the wrapper; instruction follows the LAST closing marker → (?s).*</tag>\s*(.*)
-     The leading .* is mandatory — it makes the greedy engine anchor on the LAST closing marker, not the first.
-   - TRAILING: instruction first, wrapper later → (?s)^(.*?)<tag>
-     The ^ and LAZY (.*?) are mandatory — anchor on the FIRST opening marker. Only valid when non-trivial prose sits BEFORE the first marker; if the input starts with the wrapper, the layout is LEADING, never TRAILING.
-   - WRAPPED: instruction sits inside a request-like wrapper (<user_request>, <task>, <query>, …) → (?s)<tag>\s*(.*?)\s*</tag>
-   - ALL SCAFFOLDING: entire input is wrapper blocks with only whitespace outside → (?s)()
-   - MIXED or unclear (scaffolding on both sides, no consistent layout) → (?s)(.*)
+Every piece of the message is one of two kinds of text:
+- STATIC text comes from the template and recurs verbatim in every message built from it: section delimiters, tag names, labels, headers, boilerplate sentences.
+- VARIABLE text differs per message: the instruction itself, and the injected data.
 
-3. Make the pattern narrow. For example if after the last separator, the result is a json {"context": "...", "task": "..."}, and the context is clearly not the content of the task, make your regex extract the task, not just the last separator.
+Your regex will be cached and re-applied to future messages from the same template. Those messages share the static text but carry entirely different variable text, so the pattern must anchor ONLY on static text and capture the instruction. Anchoring on any of this message's variable text (its specific words, names, data) makes the pattern fail or mis-extract on the very next message.
 
-4. Verify the pattern with try_extraction_regex before submitting whenever you are not fully certain (unusual layout, an anchor marker that appears more than once). If the probe result is wrong, rethink your marker classification and layout choice. A single confident passthrough may be submitted without probing.
-</procedure>
+# What scaffolding looks like
 
-<tools>
-- try_extraction_regex: probes a candidate pattern. The pattern is applied to the ORIGINAL input (the full text in the first user message, structure markers included) and you get back the FINAL user-visible result: capture group 1 with the "== lmnr_part_separator ==" markers already stripped and the parts re-joined. This is exactly what the user will see — judge it as the end product, and do NOT expect the markers in it. Every regex — probed or submitted — always runs against the original input; never write a regex against a probe's result text.
-- submit_extraction_regex: submits the final pattern and ends the pipeline. You may probe as many times as you want, but submitting is the only way to finish.
-</tools>
+Injected blocks are delimited in whatever syntax the harness happened to pick, and the syntax itself carries no meaning. XML-like tags, delimiter lines ("=== ENVIRONMENT ==="), markdown headings, ALL-CAPS labels, bracketed section headers, and JSON envelopes all play the same role. Classify every marker by its FUNCTION — does it delimit injected material, or the instruction? — never by its syntax.
 
-<rules>
+Beware markup living INSIDE variable text: HTML or markdown inside a quoted PR body, bot comment, or pasted document is part of the instruction's content, not scaffolding, even when it looks tag-like. HTML comments (<!-- … -->) are never anchors. The instruction's source is irrelevant — if a block is not harness-injected, it is the instruction.
+
+The message may carry "== lmnr_part_separator ==" lines separating sibling message parts. They are present when your regex runs and are stripped from the captured text afterwards.
+
+# Procedure
+
+1. Segment the message: which blocks are harness-injected, and which block is the instruction — the request, question, or task description someone actually wrote for this specific message?
+2. Pick anchor material: the static text nearest the instruction on each side. Confirm each anchor would appear unchanged in a different message from this harness; if it is this message's content, it cannot anchor.
+3. Write the pattern with exactly one capture group around the instruction. Recurring layouts:
+   - Scaffolding first, instruction last → (?s).*STATIC_END\s*(.*) — the leading greedy .* is mandatory: it anchors on the LAST occurrence of STATIC_END, not the first.
+   - Instruction first, scaffolding after → (?s)^(.*?)STATIC_START — the ^ plus LAZY (.*?) are mandatory: they anchor on the FIRST occurrence of STATIC_START. Only valid when the message does not begin with scaffolding.
+   - Instruction inside its own envelope → (?s)ENVELOPE_START\s*(.*?)\s*ENVELOPE_END.
+   - Entire message is scaffolding, no instruction anywhere → (?s)() — empty capture.
+   - No scaffolding, or no reliable static anchor → (?s)(.*) — passthrough. When unsure, prefer passthrough: capturing too much is recoverable, silently dropping the instruction is not.
+4. Narrow when the structure supports it: if the instruction region is itself structured (say, a JSON object where one field is the task), capture just that field, anchoring on its static field name.
+5. Probe with try_extraction_regex whenever you are not fully certain — unusual layout, an anchor occurring more than once, any narrowing. If the probe result is wrong, rethink your segmentation and anchors. A single confident passthrough may be submitted without probing.
+6. Finish with submit_extraction_regex — submitting is the only way to finish. Submit an empty string only when no valid pattern can be produced at all; an uncertain case should be a passthrough, not an empty submit.
+
+# Tools
+
+- try_extraction_regex: probes a candidate pattern. It is applied to the ORIGINAL message (full text, separator lines included) and you get back the FINAL user-visible result: capture group 1 with the "== lmnr_part_separator ==" lines already stripped and the parts re-joined. Judge it as the end product and do not expect the separator lines in it. Every pattern — probed or submitted — always runs against the original message; never write a pattern against a probe's result text.
+- submit_extraction_regex: submits the final pattern (starts with "(?s)", no surrounding quotes) and ends the pipeline. You may probe as many times as you want first.
+
+# Rules
+
 - Exactly one capture group. Always prefix with (?s).
-- The anchor marker must appear VERBATIM in the input. Never invent marker names and never copy them from this prompt.
-- Never anchor on an HTML comment marker (<!-- or -->).
+- Anchor text must appear VERBATIM in the message. Never invent markers and never copy marker names from these instructions.
 - Never nest quantifiers (no (a+)+-style patterns).
-- The regex must match this input — and, because it anchors only on static scaffolding, future inputs of the same shape with different content.
-</rules>
-
-<output_format>
-Call the `submit_extraction_regex` tool with the regex pattern itself (starts with "(?s)", no surrounding quotes).
-</output_format>"#;
+- The pattern must match this message — and, because it anchors only on static text, every future message from the same template."#;
 
 /// Agentic LLM pipeline generating one extraction regex from a single
 /// sample input: the model probes candidate patterns with
@@ -252,7 +253,10 @@ fn build_request(contents: Vec<ProviderContent>) -> ProviderRequest {
             ..Default::default()
         }),
         service_tier: None,
-        provider: parsing_provider(),
+        // Pinned to bedrock (medium → Sonnet 5). Deployments without a
+        // registered bedrock client fall back to the default provider
+        // inside `LlmClient::resolve`.
+        provider: Some("bedrock".to_string()),
         model_size: Some(ModelSize::Medium),
     }
 }
