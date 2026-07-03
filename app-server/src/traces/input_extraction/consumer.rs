@@ -124,13 +124,30 @@ impl MessageHandler for InputExtractionHandler {
                 ..message
             };
             match push_to_input_extraction_queue(requeued, self.queue.clone()).await {
-                // Ok(false) (oversize drop) is unreachable here — the
-                // message already fit on this queue and only grew by a
-                // counter — but treat it like an enqueue error anyway.
                 Ok(true) => return Ok(()),
-                Ok(false) | Err(_) => {
+                // Oversize drop. Rare but NOT unreachable: the payload
+                // limit is env config and can differ between the
+                // enqueueing and consuming instance (mid-rollout), and
+                // re-serialization can grow a message that skated under
+                // the limit (`#[serde(default)]` fields absent on the
+                // wire come back as explicit nulls). The condition is
+                // permanent for this message — a transient error would
+                // redeliver the ORIGINAL message (the retry-count
+                // progress lives only in the dropped copy), hit the same
+                // oversize drop, and loop forever — so drop (ack); the
+                // winner lock expires with its TTL, like the retry-cap
+                // arm above.
+                Ok(false) => {
+                    log::warn!(
+                        "user-task: re-enqueue for trace [{}] exceeded the MQ payload limit, dropping extraction",
+                        message.trace_id
+                    );
+                    return Ok(());
+                }
+                // Real broker error — worth a redelivery retry.
+                Err(e) => {
                     return Err(HandlerError::transient(anyhow::anyhow!(
-                        "trace row [{}] not created yet and re-enqueue failed",
+                        "trace row [{}] not created yet and re-enqueue failed: {e:?}",
                         message.trace_id
                     )));
                 }
