@@ -237,7 +237,7 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
                           value={field.value ?? ""}
                           onChange={(e) => field.onChange(e.target.value)}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter" && traceId) {
+                            if (e.key === "Enter" && traceId && !isTesting) {
                               e.preventDefault();
                               void testWhereClause();
                             }
