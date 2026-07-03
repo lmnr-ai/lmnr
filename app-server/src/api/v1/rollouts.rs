@@ -116,6 +116,55 @@ pub async fn handle_list_blocks(
     Ok(HttpResponse::Ok().json(serde_json::json!({ "blocks": blocks })))
 }
 
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AddBlockRequest {
+    #[serde(rename = "type")]
+    pub block_type: String,
+    pub content: serde_json::Value,
+}
+
+/// `POST /v1/rollouts/{session_id}/blocks` — append a block to a session,
+/// returning the new block id. Unknown or cross-project session → 404 (the
+/// insert is gated on the session existing in the project). Used by the CLI
+/// (`debug session add-note`) to attach standalone `text` notes.
+#[post("rollouts/{session_id}/blocks")]
+pub async fn add_block(
+    path: web::Path<Uuid>,
+    project_api_key: ProjectApiKey,
+    body: web::Json<AddBlockRequest>,
+    db: web::Data<DB>,
+) -> ResponseResult {
+    handle_add_block(
+        project_api_key.project_id,
+        path.into_inner(),
+        body.into_inner(),
+        &db,
+    )
+    .await
+}
+
+/// Handler body for appending a block, shared with the CLI twin.
+pub async fn handle_add_block(
+    project_id: Uuid,
+    session_id: Uuid,
+    body: AddBlockRequest,
+    db: &web::Data<DB>,
+) -> ResponseResult {
+    match debugger_session_blocks::insert_block(
+        &db.pool,
+        &project_id,
+        &session_id,
+        &body.block_type,
+        &body.content,
+    )
+    .await?
+    {
+        Some(id) => Ok(HttpResponse::Ok().json(serde_json::json!({ "id": id }))),
+        None => Ok(HttpResponse::NotFound().json("Session not found")),
+    }
+}
+
 #[delete("rollouts/{session_id}")]
 pub async fn delete(
     path: web::Path<String>,

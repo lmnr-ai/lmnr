@@ -4,7 +4,9 @@ use actix_web::{HttpResponse, get, patch, post, web};
 use uuid::Uuid;
 
 use crate::{
-    api::v1::rollouts::{RegisterSessionRequest, handle_list_blocks},
+    api::v1::rollouts::{
+        AddBlockRequest, RegisterSessionRequest, handle_add_block, handle_list_blocks,
+    },
     auth::cli_user::CliProjectAuth,
     db::{
         DB,
@@ -45,6 +47,19 @@ pub async fn list_blocks(
     db: web::Data<DB>,
 ) -> ResponseResult {
     handle_list_blocks(auth.project_id, path.into_inner(), &db).await
+}
+
+/// `POST /v1/cli/rollouts/{session_id}/blocks` — CLI twin of
+/// `/v1/rollouts/{session_id}/blocks`; differs only in auth. Backs
+/// `lmnr-cli debug session add-note`.
+#[post("rollouts/{session_id}/blocks")]
+pub async fn add_block(
+    path: web::Path<Uuid>,
+    body: web::Json<AddBlockRequest>,
+    auth: CliProjectAuth,
+    db: web::Data<DB>,
+) -> ResponseResult {
+    handle_add_block(auth.project_id, path.into_inner(), body.into_inner(), &db).await
 }
 
 #[derive(serde::Deserialize)]

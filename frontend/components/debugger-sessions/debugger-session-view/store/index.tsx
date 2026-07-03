@@ -10,11 +10,29 @@ import {
 } from "@/components/traces/session-view/store/base";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
+import { type SessionBlock, type SessionEvaluationRef } from "@/lib/actions/debugger-sessions";
 import { toast } from "@/lib/hooks/use-toast";
 import { type RealtimeSpan, type SpanType, type TraceRow } from "@/lib/traces/types";
 
-// Trace-metadata key the agent writes its run note to (markdown string).
+// Trace-metadata key the agent writes its run note to (markdown string). Used
+// only to seed the note for the /alpha single-trace harness (which has no block)
+// and to read live note updates off a `trace_update` realtime payload.
 export const NOTE_METADATA_KEY = "rollout.note";
+
+/**
+ * Client view of a session block. Same shape as the server `SessionBlock`
+ * EXCEPT trace blocks reference their trace by id — the trace row itself lives
+ * in the base store's `traces` (so span streaming / expand machinery is shared
+ * with the regular session view). Blocks are the single ordered source for the
+ * timeline; ordering is `createdAt` (entity time, frozen at ingest).
+ */
+export type SessionBlockView =
+  | { id: string; type: "trace"; createdAt: string; note: string | null; traceId: string }
+  | { id: string; type: "evaluation"; createdAt: string; note: string | null; evaluation: SessionEvaluationRef }
+  | { id: string; type: "text"; createdAt: string; text: string };
+
+const sortBlocks = (blocks: SessionBlockView[]): SessionBlockView[] =>
+  [...blocks].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
 // Normalize metadata (object OR JSON string) into TraceRow's Record<string,string>.
 const normalizeMetadata = (metadata: unknown): Record<string, string> => {
@@ -117,6 +135,10 @@ const minimalTraceRow = (traceId: string, metadata: Record<string, string> = {})
 });
 
 interface DebuggerSessionViewState {
+  // The ordered timeline: trace / evaluation / text blocks. Single source of
+  // truth for what renders and in what order (by block `createdAt`).
+  blocks: SessionBlockView[];
+
   // Per-trace span fetch in flight: dedupes concurrent fetches, drives the
   // skeleton. Expand always refetches, so a failed fetch heals on re-expand.
   traceSpansFetching: Record<string, boolean>;
@@ -145,8 +167,9 @@ interface DebuggerSessionViewActions {
   // base slice's shape-based guard would skip the fetch once any SSE span landed.
   fetchTraceSpans: (trace: TraceRow) => Promise<void>;
 
-  // Fetch the session's runs from its `trace` blocks (legacy metadata fallback server-side).
-  fetchSessionTraces: (sessionId: string) => Promise<void>;
+  // Fetch the session's ordered blocks (traces + evals + text), resolving
+  // referenced entities server-side. Seeds `blocks` + base `traces`.
+  fetchSessionBlocks: (sessionId: string) => Promise<void>;
 
   // Realtime: upsert a streamed span.
   applyRealtimeSpan: (span: RealtimeSpan) => void;
@@ -154,7 +177,7 @@ interface DebuggerSessionViewActions {
   // Batch entry point for a span_update payload.
   applyRealtimeSpans: (spans: RealtimeSpan[]) => void;
 
-  // Realtime: merge a trace_update into the run list (add + auto-expand if new).
+  // Realtime: merge a trace_update into the block list (add + auto-expand if new).
   applyTraceUpdate: (t: { traceId: string; metadata?: unknown; hasBrowserSession?: boolean }) => void;
 
   // Batch entry point for a trace_update payload.
@@ -170,13 +193,28 @@ interface DebuggerSessionViewActions {
   // Hide the "New trace" pill (pill click or its X).
   dismissNewTraceNotice: () => void;
 
-  // Agent-authored note (`rollout.note`) off a run's metadata.
+  // Note for a trace, from its `trace` block.
   noteForTrace: (traceId: string) => string | undefined;
   // Span type for a loaded span (drives the span-ref chip icon).
   getSpanType: (traceId: string, spanId: string) => SpanType | undefined;
 }
 
 export type DebuggerSessionViewStore = BaseSessionViewStore & DebuggerSessionViewState & DebuggerSessionViewActions;
+
+// Seed a single trace block for the /alpha single-trace harness (no session, so
+// no blocks come from the server). Note is read off the trace's own metadata.
+const seedBlocksFromTrace = (trace: TraceRow): SessionBlockView[] => {
+  const note = trace.metadata?.[NOTE_METADATA_KEY];
+  return [
+    {
+      id: `trace:${trace.id}`,
+      type: "trace",
+      createdAt: trace.startTime,
+      note: typeof note === "string" ? note : null,
+      traceId: trace.id,
+    },
+  ];
+};
 
 export const createDebuggerSessionViewStore = (options?: {
   initialTraceRow?: TraceRow;
@@ -196,8 +234,9 @@ export const createDebuggerSessionViewStore = (options?: {
           // Seeded at creation (static per page) — no URL-param sync effect.
           projectId: options?.projectId,
 
-          // Seed base `traces` with the single /alpha trace when provided.
+          // Seed base `traces` + a single trace block with the /alpha trace when provided.
           traces: options?.initialTraceRow ? [options.initialTraceRow] : [],
+          blocks: options?.initialTraceRow ? seedBlocksFromTrace(options.initialTraceRow) : [],
 
           sessionName: options?.initialSessionName ?? "Session",
           sessionNameRaw: options?.initialSessionNameRaw ?? null,
@@ -252,54 +291,59 @@ export const createDebuggerSessionViewStore = (options?: {
             }
           },
 
-          fetchSessionTraces: async (sessionId) => {
+          fetchSessionBlocks: async (sessionId) => {
             const { projectId } = get();
             if (!projectId) return;
 
             get().setIsTracesLoading(true);
             get().setTracesError(undefined);
             try {
-              // Blocks-driven: the session's `trace` blocks decide which runs
-              // belong here (legacy sessions without blocks fall back server-side).
-              const res = await fetch(`/api/projects/${projectId}/debugger-sessions/${sessionId}/traces`);
+              const res = await fetch(`/api/projects/${projectId}/debugger-sessions/${sessionId}/blocks`);
               if (!res.ok) {
                 const err = (await res.json().catch(() => ({ error: "Unknown error" }))) as { error?: string };
-                get().setTracesError(err.error || "Failed to load session traces");
+                get().setTracesError(err.error || "Failed to load session blocks");
                 return;
               }
-              const body = (await res.json()) as { items: TraceRow[] };
-              // /traces returns `metadata` as a raw JSON string; normalize or notes
-              // and outline headings never render.
-              const normalized = (body.items ?? []).map((item) => ({
-                ...item,
-                metadata: normalizeMetadata(item.metadata),
-              }));
-              // API returned newest-first; display order is oldest-first.
-              const sorted = normalized.sort(
-                (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
-              );
+              const body = (await res.json()) as { blocks: SessionBlock[] };
+              const fetched = body.blocks ?? [];
+
+              // Split server blocks into client blocks (trace refs) + trace rows.
+              const fetchedTraceRows: TraceRow[] = [];
+              const fetchedBlocks: SessionBlockView[] = fetched.map((b) => {
+                if (b.type === "trace") {
+                  fetchedTraceRows.push({ ...b.trace, metadata: normalizeMetadata(b.trace.metadata) });
+                  return { id: b.id, type: "trace", createdAt: b.createdAt, note: b.note, traceId: b.trace.id };
+                }
+                return b;
+              });
+
               // MERGE, don't replace: a run added live mid-fetch is absent from the
-              // CH-lagged response — wholesale replace would wipe it.
-              get().setTraces((prev) => {
-                const prevById = new Map(prev.map((t) => [t.id, t]));
-                const merged = sorted.map((fetched) => {
-                  const live = prevById.get(fetched.id);
-                  if (!live) return fetched;
-                  const liveEndAhead = new Date(live.endTime).getTime() > new Date(fetched.endTime).getTime();
-                  return {
-                    ...fetched,
-                    metadata: { ...fetched.metadata, ...live.metadata },
-                    endTime: liveEndAhead ? live.endTime : fetched.endTime,
-                  };
-                });
-                const fetchedIds = new Set(sorted.map((t) => t.id));
-                const realtimeOnly = prev.filter((t) => !fetchedIds.has(t.id));
-                return [...merged, ...realtimeOnly].sort(
-                  (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+              // CH-lagged response — wholesale replace would wipe it. Keep any
+              // realtime-only trace blocks + rows and re-sort by createdAt.
+              const fetchedTraceIds = new Set(fetchedTraceRows.map((t) => t.id));
+              set((s) => {
+                const realtimeOnlyBlocks = s.blocks.filter(
+                  (b) => b.type === "trace" && !fetchedTraceIds.has(b.traceId)
                 );
+                const realtimeOnlyIds = new Set(
+                  realtimeOnlyBlocks.map((b) => (b.type === "trace" ? b.traceId : "")).filter(Boolean)
+                );
+                const prevById = new Map(s.traces.map((t) => [t.id, t]));
+                const mergedTraces = fetchedTraceRows.map((f) => {
+                  const live = prevById.get(f.id);
+                  if (!live) return f;
+                  // Keep a realtime-bumped endTime that's ahead of the CH snapshot.
+                  const liveEndAhead = new Date(live.endTime).getTime() > new Date(f.endTime).getTime();
+                  return { ...f, endTime: liveEndAhead ? live.endTime : f.endTime };
+                });
+                const realtimeOnlyTraces = s.traces.filter((t) => realtimeOnlyIds.has(t.id));
+                return {
+                  blocks: sortBlocks([...fetchedBlocks, ...realtimeOnlyBlocks]),
+                  traces: [...mergedTraces, ...realtimeOnlyTraces],
+                } as Partial<DebuggerSessionViewStore>;
               });
             } catch (e) {
-              get().setTracesError(e instanceof Error ? e.message : "Failed to load session traces");
+              get().setTracesError(e instanceof Error ? e.message : "Failed to load session blocks");
             } finally {
               get().setIsTracesLoading(false);
               // Even on error, so a failed initial fetch can't suppress the pill forever.
@@ -331,12 +375,28 @@ export const createDebuggerSessionViewStore = (options?: {
           applyTraceUpdate: (t) => {
             if (!t.traceId) return;
             const metadata = normalizeMetadata(t.metadata);
-            const existing = get().traces.find((row) => row.id === t.traceId);
+            const note = metadata[NOTE_METADATA_KEY];
+            const existingBlock = get().blocks.find((b) => b.type === "trace" && b.traceId === t.traceId);
 
-            if (!existing) {
-              // Unknown run → add a placeholder row; any spans that raced ahead are
-              // already in `traceSpans`.
+            if (!existingBlock) {
+              // Unknown run → add a placeholder row + trace block; any spans that
+              // raced ahead are already in `traceSpans`.
               get().setTraces((traces) => [...traces, minimalTraceRow(t.traceId, metadata)]);
+              set(
+                (s) =>
+                  ({
+                    blocks: sortBlocks([
+                      ...s.blocks,
+                      {
+                        id: `trace:${t.traceId}`,
+                        type: "trace",
+                        createdAt: new Date().toISOString(),
+                        note: typeof note === "string" ? note : null,
+                        traceId: t.traceId,
+                      },
+                    ]),
+                  }) as Partial<DebuggerSessionViewStore>
+              );
               // Hydrate FIRST: its sync prefix marks fetching, so the auto-expand's
               // fetchTraceSpans dedupes — one fetch per new run.
               void get().hydrateTraceRow(t.traceId);
@@ -346,21 +406,20 @@ export const createDebuggerSessionViewStore = (options?: {
               return;
             }
 
-            // Known run → merge metadata (live note updates) + hasBrowserSession.
-            const hasMetadata = Object.keys(metadata).length > 0;
-            const hasBrowserSession = typeof t.hasBrowserSession === "boolean";
-            if (!hasMetadata && !hasBrowserSession) return;
-            get().setTraces((traces) =>
-              traces.map((row) =>
-                row.id === t.traceId
-                  ? {
-                      ...row,
-                      ...(hasMetadata && { metadata: { ...row.metadata, ...metadata } }),
-                      ...(hasBrowserSession && { hasBrowserSession: t.hasBrowserSession }),
-                    }
-                  : row
-              )
-            );
+            // Known run → update the block's note + the row's hasBrowserSession.
+            if (typeof note === "string") {
+              set(
+                (s) =>
+                  ({
+                    blocks: s.blocks.map((b) => (b.type === "trace" && b.traceId === t.traceId ? { ...b, note } : b)),
+                  }) as Partial<DebuggerSessionViewStore>
+              );
+            }
+            if (typeof t.hasBrowserSession === "boolean") {
+              get().setTraces((traces) =>
+                traces.map((row) => (row.id === t.traceId ? { ...row, hasBrowserSession: t.hasBrowserSession } : row))
+              );
+            }
           },
 
           applyTraceUpdates: (traces) => {
@@ -390,17 +449,16 @@ export const createDebuggerSessionViewStore = (options?: {
               const body = (await res.json()) as { items: TraceRow[] };
               const fetched = body.items?.[0];
               if (!fetched) return;
-              const normalizedMeta = normalizeMetadata(fetched.metadata);
 
               get().setTraces((traces) =>
                 traces.map((row) => {
                   if (row.id !== traceId) return row;
-                  // Keep live-merged metadata + a realtime-bumped endTime that's ahead
-                  // of the (possibly lagging) fetched snapshot.
+                  // Keep a realtime-bumped endTime that's ahead of the (possibly
+                  // lagging) fetched snapshot.
                   const liveEndAhead = new Date(row.endTime).getTime() > new Date(fetched.endTime).getTime();
                   return {
                     ...fetched,
-                    metadata: { ...normalizedMeta, ...row.metadata },
+                    metadata: normalizeMetadata(fetched.metadata),
                     endTime: liveEndAhead ? row.endTime : fetched.endTime,
                   };
                 })
@@ -448,9 +506,8 @@ export const createDebuggerSessionViewStore = (options?: {
           dismissNewTraceNotice: () => set({ newTraceNotice: false } as Partial<DebuggerSessionViewStore>),
 
           noteForTrace: (traceId) => {
-            const row = get().traces.find((t) => t.id === traceId);
-            const note = row?.metadata?.[NOTE_METADATA_KEY];
-            return typeof note === "string" ? note : undefined;
+            const block = get().blocks.find((b) => b.type === "trace" && b.traceId === traceId);
+            return block?.type === "trace" ? (block.note ?? undefined) : undefined;
           },
 
           getSpanType: (traceId, spanId) => get().traceSpans[traceId]?.find((s) => s.spanId === spanId)?.spanType,

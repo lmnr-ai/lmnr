@@ -1,42 +1,54 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { FlaskConical } from "lucide-react";
+import { FileText, FlaskConical } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { type SessionEvaluation } from "@/lib/actions/debugger-sessions";
-import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 import { spanTagsToLinks } from "../note-markdown";
-import { type DebuggerSessionViewStore, useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "../store";
-import { evalAnchorId, headingAnchorId, parseNoteHeadings } from "./utils";
+import { type SessionBlockView, useDebuggerSessionViewStore } from "../store";
+import { evalAnchorId, headingAnchorId, parseNoteHeadings, textAnchorId } from "./utils";
 
-// Linked evals first, then a row per markdown heading from the runs' notes.
-type OutlineRow = { key: string; anchor: string; level: number; text: string; kind: "eval" | "note" };
+// A row per eval, per standalone text block, and per markdown heading from the
+// runs' notes, in the same order as the timeline (blocks are ordered by
+// created_at).
+type OutlineRow = { key: string; anchor: string; level: number; text: string; kind: "eval" | "note" | "text" };
 
-const buildRows = (state: DebuggerSessionViewStore, evaluations: SessionEvaluation[]): OutlineRow[] => {
+// A short label for a standalone text block: the first N characters of its
+// content (whitespace collapsed), truncated with an ellipsis.
+const TEXT_BLOCK_TITLE_LEN = 40;
+const textBlockTitle = (text: string): string => {
+  const oneLine = text.replace(/\s+/g, " ").trim();
+  return oneLine.length > TEXT_BLOCK_TITLE_LEN ? `${oneLine.slice(0, TEXT_BLOCK_TITLE_LEN)}…` : oneLine || "Note";
+};
+
+const buildRows = (blocks: SessionBlockView[]): OutlineRow[] => {
   const rows: OutlineRow[] = [];
-  evaluations.forEach((evaluation) => {
-    const a = evalAnchorId(evaluation.id);
-    rows.push({ key: a, anchor: a, level: 1, text: evaluation.name, kind: "eval" });
-  });
-  state.traces.forEach((trace: TraceRow) => {
-    const note = state.noteForTrace(trace.id);
-    if (!note) return;
+  for (const block of blocks) {
+    if (block.type === "evaluation") {
+      const a = evalAnchorId(block.evaluation.id);
+      rows.push({ key: a, anchor: a, level: 1, text: block.evaluation.name, kind: "eval" });
+      continue;
+    }
+    if (block.type === "text") {
+      const a = textAnchorId(block.id);
+      rows.push({ key: a, anchor: a, level: 1, text: textBlockTitle(block.text), kind: "text" });
+      continue;
+    }
+    if (block.type !== "trace" || !block.note) continue;
     // Parse the SAME span-tag-transformed string RunComment renders, so heading
     // order and slugs line up exactly with the ids it stamps.
-    for (const h of parseNoteHeadings(spanTagsToLinks(note, trace.id))) {
-      const a = headingAnchorId(trace.id, h.slug);
+    for (const h of parseNoteHeadings(spanTagsToLinks(block.note, block.traceId))) {
+      const a = headingAnchorId(block.traceId, h.slug);
       rows.push({ key: a, anchor: a, level: h.level, text: h.text, kind: "note" });
     }
-  });
+  }
   return rows;
 };
 
 interface SessionOutlineProps {
   className?: string;
-  evaluations?: SessionEvaluation[];
 }
 
 /**
@@ -45,8 +57,8 @@ interface SessionOutlineProps {
  * headings from each run's note (a pure note TOC — no per-trace rows). Active
  * state is tracked with an IntersectionObserver rooted at the browser viewport.
  */
-export default function SessionOutline({ className, evaluations = [] }: SessionOutlineProps) {
-  const storeApi = useDebuggerSessionViewStoreRaw();
+export default function SessionOutline({ className }: SessionOutlineProps) {
+  const blocks = useDebuggerSessionViewStore((s) => s.blocks);
   const navRef = useRef<HTMLElement>(null);
 
   // Edge state for the fade gradients: hide the top fade at the very top and
@@ -61,14 +73,19 @@ export default function SessionOutline({ className, evaluations = [] }: SessionO
     setEdges((prev) => (prev.atTop === atTop && prev.atBottom === atBottom ? prev : { atTop, atBottom }));
   }, []);
 
-  // Primitive signature: rebuild rows only when order / start-time / note text
-  // actually changes (not on every streamed span that mutates traceSpans).
-  const signature = useDebuggerSessionViewStore((s) =>
-    s.traces.map((t) => `${t.id}${t.startTime}${s.noteForTrace(t.id) ?? ""}`).join("")
-  );
-  const evalSignature = evaluations.map((e) => `${e.id}${e.name}`).join("");
+  // Rebuild rows only when block order / notes / eval names actually change
+  // (not on every streamed span that mutates traceSpans).
+  const signature = blocks
+    .map((b) =>
+      b.type === "trace"
+        ? `t${b.traceId}${b.note ?? ""}`
+        : b.type === "evaluation"
+          ? `e${b.evaluation.id}${b.evaluation.name}`
+          : `x${b.id}`
+    )
+    .join("");
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const rows = useMemo(() => buildRows(storeApi.getState(), evaluations), [signature, evalSignature]);
+  const rows = useMemo(() => buildRows(blocks), [signature]);
 
   const [activeAnchor, setActiveAnchor] = useState<string | null>(null);
   const rowRefs = useRef<Map<string, HTMLAnchorElement>>(new Map());
@@ -193,6 +210,14 @@ export default function SessionOutline({ className, evaluations = [] }: SessionO
               >
                 {row.kind === "eval" && (
                   <FlaskConical
+                    className={cn(
+                      "mr-1.5 size-3 shrink-0 transition-colors",
+                      isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                    )}
+                  />
+                )}
+                {row.kind === "text" && (
+                  <FileText
                     className={cn(
                       "mr-1.5 size-3 shrink-0 transition-colors",
                       isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
