@@ -89,28 +89,6 @@ impl MessageHandler for InputExtractionHandler {
         };
         self_tracing::set_output(&root, &serde_json::json!(format!("{result:?}")));
 
-        // A later batch may have superseded this candidate (published its
-        // own metadata inline and rewritten the winner lock) while this
-        // message sat in the queue. Publishing anyway would overwrite the
-        // newer winner's `lmnr_user_task`, so drop (ack) instead. The
-        // check is order-aware (`supersedes`), not bare inequality: the
-        // producer writes the lock only after the enqueue lands, so a
-        // failed lock write can leave an OLDER state behind — a lock this
-        // snapshot can override must not drop it. Absent lock or cache
-        // error fails open — a redundant publish beats a missing one.
-        if let Some(snapshot) = &message.winner_state {
-            let lock_key = lock_cache_key(message.project_id, message.trace_id);
-            if let Ok(Some(current)) = self.cache.get::<UserTaskLockState>(&lock_key).await
-                && current.supersedes(snapshot)
-            {
-                log::debug!(
-                    "user-task: dropping superseded extraction for trace [{}]",
-                    message.trace_id
-                );
-                return Ok(());
-            }
-        }
-
         // Wait for the trace row before publishing: the patch is applied by
         // `merge_trace_metadata_batch` which silently skips missing traces,
         // so publishing early acks a no-op and the winner lock then gates
@@ -156,6 +134,35 @@ impl MessageHandler for InputExtractionHandler {
                         message.trace_id
                     )));
                 }
+            }
+        }
+
+        // Supersession check AFTER the trace-row wait, immediately before
+        // the publish: a later batch may have superseded this candidate
+        // (published its own metadata inline and rewritten the winner
+        // lock) while this message sat in the queue OR during the
+        // `trace_exists` round-trip just above — checking any earlier
+        // leaves that window open and this older extraction would
+        // overwrite the newer winner's `lmnr_user_task`. (Re-enqueue
+        // iterations re-enter here, so the check also re-runs after every
+        // wait hop.) Runs after regex generation on purpose: the regex is
+        // cached per shape, so the work is kept even when this candidate
+        // is dropped. The check is order-aware (`supersedes`), not bare
+        // inequality: the producer writes the lock only after the enqueue
+        // lands, so a failed lock write can leave an OLDER state behind —
+        // a lock this snapshot can override must not drop it. Absent lock
+        // or cache error fails open — a redundant publish beats a missing
+        // one.
+        if let Some(snapshot) = &message.winner_state {
+            let lock_key = lock_cache_key(message.project_id, message.trace_id);
+            if let Ok(Some(current)) = self.cache.get::<UserTaskLockState>(&lock_key).await
+                && current.supersedes(snapshot)
+            {
+                log::debug!(
+                    "user-task: dropping superseded extraction for trace [{}]",
+                    message.trace_id
+                );
+                return Ok(());
             }
         }
 
