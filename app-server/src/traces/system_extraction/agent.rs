@@ -117,7 +117,15 @@ async fn run_episode(
                 .filter_map(|part| part.text.as_deref())
                 .collect::<Vec<_>>()
                 .join("");
-            return Ok(parse_final_answer(&text));
+            let regexes = parse_final_answer(&text);
+            // The model is instructed to only return a tool-verified list, but
+            // that isn't guaranteed — re-verify harness-side and discard
+            // answers that don't compile or don't collapse all examples
+            // (escalates the temperature ladder).
+            if !regexes.is_empty() && !verify_regexes(&regexes, examples) {
+                return Ok(Vec::new());
+            }
+            return Ok(regexes);
         }
 
         contents.push(ProviderContent {
@@ -157,6 +165,14 @@ async fn run_episode(
     }
 
     Ok(Vec::new())
+}
+
+/// Final-answer gate: all patterns compile and run, and every example
+/// collapses to the same residual.
+fn verify_regexes(regexes: &[String], examples: &[String]) -> bool {
+    let result = run_regex_tool(regexes, examples);
+    result["isValid"] == Value::Bool(true)
+        && result["isResultInAllIdenticalOutput"] == Value::Bool(true)
 }
 
 fn text_content(role: &str, text: &str) -> ProviderContent {
@@ -220,6 +236,20 @@ mod tests {
     fn parses_fenced_json_array() {
         let parsed = parse_final_answer("```json\n[\"a\", \"b\"]\n```");
         assert_eq!(parsed, vec!["a", "b"]);
+    }
+
+    #[test]
+    fn verify_regexes_gates_final_answer() {
+        let examples = vec![
+            "static\ndate: 2026-01-01\ntail".to_string(),
+            "static\ndate: 2026-01-02\ntail".to_string(),
+        ];
+        // Collapses all examples to the same residual.
+        assert!(verify_regexes(&["^date: .*\\n?".to_string()], &examples));
+        // Valid patterns, but residuals still differ.
+        assert!(!verify_regexes(&["tail".to_string()], &examples));
+        // Non-compiling pattern.
+        assert!(!verify_regexes(&["(unclosed".to_string()], &examples));
     }
 
     #[test]
