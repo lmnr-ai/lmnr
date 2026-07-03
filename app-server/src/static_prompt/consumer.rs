@@ -21,6 +21,12 @@ use crate::{
 /// dynamic fragments reliably.
 const MIN_PROMPT_SAMPLES: usize = 5;
 
+/// Cap on accumulated samples. When the agent fails persistently, the lock
+/// TTL rate-limits extraction while messages keep arriving — without a cap
+/// the sample list (large system prompts) would grow the cache value
+/// unboundedly.
+const MAX_PROMPT_SAMPLES: usize = 20;
+
 /// TTL on the per-signature extraction lock: long enough for the agent to
 /// produce a regex list, short enough that a failed run frees the signature
 /// promptly for a retry.
@@ -95,15 +101,26 @@ impl StaticPromptHandler {
             return Ok(());
         }
 
-        // On failure the lock is deliberately NOT released: it expires after
-        // TTL, which both rate-limits retries against a failing agent and
-        // guarantees the signature eventually unblocks.
+        // On agent failure the lock is deliberately NOT released: it expires
+        // after TTL, which both rate-limits retries against a failing agent
+        // and guarantees the signature eventually unblocks.
         let regexes = agent::generate_static_part_regexes(&samples).await?;
 
-        self.cache
+        if let Err(e) = self
+            .cache
             .insert_with_ttl(&regex_key, &regexes, STATIC_REGEX_TTL_SECONDS)
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to write regex cache {regex_key}: {e:?}"))?;
+        {
+            // The agent already succeeded — release the lock so a later
+            // message can retry the write without burning a wasted agent call
+            // waiting out the TTL.
+            if let Err(e) = self.cache.release_lock(&lock_key).await {
+                log::warn!("[STATIC_PROMPT] Failed to release lock {lock_key}: {e:?}");
+            }
+            return Err(anyhow::anyhow!(
+                "Failed to write regex cache {regex_key}: {e:?}"
+            ));
+        }
 
         // Raw samples are no longer needed once the regex list exists.
         let accumulator_key = accumulator_cache_key(message.project_id, &message.prompt_hash);
@@ -131,6 +148,10 @@ impl StaticPromptHandler {
             .await
             .map_err(|e| anyhow::anyhow!("Failed to read accumulator {key}: {e:?}"))?
             .unwrap_or_default();
+
+        if samples.len() >= MAX_PROMPT_SAMPLES {
+            return Ok(samples);
+        }
 
         samples.push(message.system_prompt.clone());
 
@@ -214,6 +235,39 @@ mod tests {
             .unwrap();
 
         assert!(!handler.cache.exists(&accumulator_key).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn accumulator_is_capped() {
+        let handler = make_handler();
+        let project_id = Uuid::new_v4();
+        let accumulator_key = accumulator_cache_key(project_id, "abcd1234");
+        let lock_key = extraction_lock_cache_key(project_id, "abcd1234");
+
+        // Simulate a persistently failing extraction: hold the lock so
+        // process_prompt never runs the agent / clears the accumulator.
+        assert!(
+            handler
+                .cache
+                .try_acquire_lock(&lock_key, EXTRACTION_LOCK_TTL_SECONDS)
+                .await
+                .unwrap()
+        );
+
+        for i in 0..MAX_PROMPT_SAMPLES + 5 {
+            handler
+                .process_prompt(&make_message(project_id, &format!("prompt {i}")))
+                .await
+                .unwrap();
+        }
+
+        let samples = handler
+            .cache
+            .get::<Vec<String>>(&accumulator_key)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(samples.len(), MAX_PROMPT_SAMPLES);
     }
 
     #[tokio::test]
