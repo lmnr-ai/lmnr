@@ -155,9 +155,10 @@ fn cap(s: &str, cap: usize) -> String {
     if chars.len() <= cap {
         return s.to_string();
     }
-    let head: String = chars[..cap - 120].iter().collect();
+    let head_len = cap.saturating_sub(120);
+    let head: String = chars[..head_len].iter().collect();
     let tail: String = chars[chars.len() - 80..].iter().collect();
-    let overflow = chars.len() - (cap - 120) - 80;
+    let overflow = chars.len() - head_len - 80;
     format!("{head}\n…[{overflow} chars omitted]…\n{tail}")
 }
 
