@@ -67,7 +67,7 @@ pub(super) fn collect_message_parts(msg: &Value) -> Vec<String> {
     parts_from_body(body)
 }
 
-pub(super) fn parts_from_body(body: &Value) -> Vec<String> {
+fn parts_from_body(body: &Value) -> Vec<String> {
     match body {
         Value::String(s) => vec![s.clone()],
         Value::Array(arr) => arr
