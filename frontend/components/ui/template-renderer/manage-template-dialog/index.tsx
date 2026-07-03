@@ -1,6 +1,6 @@
 import { Loader2, Play, Sparkles, X } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 import useSWR, { useSWRConfig } from "swr";
 
@@ -54,6 +54,11 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
   const [testResult, setTestResult] = useState<
     { ok: true; count: number; truncated: boolean } | { ok: false; error: string } | null
   >(null);
+
+  // The dialog stays mounted across open/close — drop the previous session's result.
+  useEffect(() => {
+    setTestResult(null);
+  }, [mode]);
 
   const testWhereClause = useCallback(async () => {
     if (!traceId) return;
