@@ -33,11 +33,17 @@ interface ProgressionChartProps {
   className?: string;
   aggregationFunction: AggregationFunction;
   evaluations: { id: string; name: string }[];
+  hiddenEvaluationIds?: string[];
 }
 
 const DEFAULT_HIDDEN_SCORES: string[] = [ADDITIONAL_NAME];
 
-export default function ProgressionChart({ className, aggregationFunction, evaluations }: ProgressionChartProps) {
+export default function ProgressionChart({
+  className,
+  aggregationFunction,
+  evaluations,
+  hiddenEvaluationIds = [],
+}: ProgressionChartProps) {
   const searchParams = useSearchParams();
   const groupId = searchParams.get("groupId");
   const params = useParams();
@@ -53,12 +59,18 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
     [evaluations, aggregationFunction]
   );
 
-  const { data, isLoading } = useSWR<EvaluationTimeProgression[]>(
+  const { data: allData, isLoading } = useSWR<EvaluationTimeProgression[]>(
     [
       `/api/projects/${params?.projectId}/evaluation-groups/${encodeURIComponent(groupId ?? "")}/progression`,
       requestBody,
     ],
     postFetcher
+  );
+
+  // Eye-toggling an evaluation filters already-fetched data client-side — no refetch.
+  const data = useMemo(
+    () => allData?.filter(({ evaluationId }) => !hiddenEvaluationIds.includes(evaluationId)),
+    [allData, hiddenEvaluationIds]
   );
 
   const keys = useMemo(() => new Set(data?.flatMap(({ names }) => names) ?? []), [data]);

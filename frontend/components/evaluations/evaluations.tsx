@@ -182,14 +182,14 @@ function EvaluationsContent() {
         // Cells render with px-4 padding inside an overflow-hidden wrapper,
         // so the 28px icon button needs at least 28 + 32 = 60px of column width.
         size: 64,
-        header: () => <Eye className="size-3.5" />,
+        header: () => null,
         cell: ({ row }) => {
           const hidden = hiddenEvaluationIds.includes(row.original.id);
           return (
             <Button
               variant="ghost"
               size="icon"
-              className={hidden ? "text-muted-foreground" : ""}
+              className={hidden ? "text-muted-foreground/50" : "text-muted-foreground"}
               onClick={(e) => {
                 e.stopPropagation();
                 toggleEvaluationVisibility(row.original.id);
@@ -345,9 +345,8 @@ function EvaluationsContent() {
           <ResizablePanelGroup id="evaluations-panels" className="overflow-hidden" orientation="vertical">
             <ResizablePanel className="px-2 border rounded bg-secondary" minSize={20} defaultSize={20}>
               <ProgressionChart
-                evaluations={evaluations
-                  .filter(({ id }) => !hiddenEvaluationIds.includes(id))
-                  .map(({ id, name }) => ({ id, name }))}
+                evaluations={evaluations.map(({ id, name }) => ({ id, name }))}
+                hiddenEvaluationIds={hiddenEvaluationIds}
                 className="h-full px-2 py-4"
                 aggregationFunction={aggregationFunction}
               />

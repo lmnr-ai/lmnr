@@ -49,8 +49,13 @@ function EvaluationsGroupsBarContent() {
   // a plain effect leaves containerWidth at 0 for one frame, snapping the
   // group column to its minimum width before the observer fires.
   useLayoutEffect(() => {
-    const element = containerRef.current;
+    // Measure the resizable panel, not our own wrapper: the wrapper sits in a
+    // min-width:auto flex chain that grows with the table's intrinsic width,
+    // so measuring it feeds the column size back into itself and ratchets the
+    // table wider until the second column is pushed out of view.
+    const element = containerRef.current?.closest('[data-slot="resizable-panel"]') ?? containerRef.current;
     if (!element) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional pre-paint DOM measurement
     setContainerWidth(element.getBoundingClientRect().width);
     const observer = new ResizeObserver((entries) => {
       setContainerWidth(entries[0]?.contentRect.width ?? 0);
