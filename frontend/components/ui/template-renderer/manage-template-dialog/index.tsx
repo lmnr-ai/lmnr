@@ -1,4 +1,4 @@
-import { Loader2, Sparkles, X } from "lucide-react";
+import { Loader2, Play, Sparkles, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import { Controller, useFormContext } from "react-hook-form";
@@ -44,10 +44,48 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
     handleSubmit,
     watch,
     reset,
+    getValues,
+    setValue,
     formState: { errors },
   } = useFormContext<ManageTemplateForm>();
 
   const [isSaving, setIsSaving] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<
+    { ok: true; count: number; truncated: boolean } | { ok: false; error: string } | null
+  >(null);
+
+  const testWhereClause = useCallback(async () => {
+    if (!traceId) return;
+    setIsTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/traces/${traceId}/render-data`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ whereClause: getValues("whereClause") ?? null }),
+      });
+      if (!res.ok) {
+        const errMessage = await res
+          .json()
+          .then((d) => d?.error)
+          .catch(() => null);
+        setTestResult({ ok: false, error: errMessage ?? "Failed to run the filter" });
+        return;
+      }
+      const data = await res.json();
+      setValue("testData", JSON.stringify(data, null, 2), { shouldDirty: false });
+      setTestResult({
+        ok: true,
+        count: Array.isArray(data?.spans) ? data.spans.length : 0,
+        truncated: !!data?.truncated,
+      });
+    } catch {
+      setTestResult({ ok: false, error: "Failed to run the filter" });
+    } finally {
+      setIsTesting(false);
+    }
+  }, [projectId, traceId, getValues, setValue]);
 
   const submit = useCallback(
     async (data: ManageTemplateForm) => {
@@ -186,24 +224,57 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
                   <Label htmlFor="template-where-clause" className="text-xs tracking-wide text-muted-foreground">
                     Span filter (SQL WHERE)
                   </Label>
-                  <Controller
-                    name="whereClause"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        id="template-where-clause"
-                        className="mt-1 h-8 font-mono text-xs"
-                        placeholder="e.g. span_type = 'LLM' AND name LIKE 'agent%'"
-                        {...field}
-                        value={field.value ?? ""}
-                        onChange={(e) => field.onChange(e.target.value)}
-                      />
+                  <div className="mt-1 flex items-center gap-2">
+                    <Controller
+                      name="whereClause"
+                      control={control}
+                      render={({ field }) => (
+                        <Input
+                          id="template-where-clause"
+                          className="h-8 flex-1 font-mono text-xs"
+                          placeholder="e.g. span_type = 'LLM' AND name LIKE 'agent%'"
+                          {...field}
+                          value={field.value ?? ""}
+                          onChange={(e) => field.onChange(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && traceId) {
+                              e.preventDefault();
+                              void testWhereClause();
+                            }
+                          }}
+                        />
+                      )}
+                    />
+                    {traceId && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="h-8 shrink-0 text-xs"
+                        disabled={isTesting}
+                        onClick={testWhereClause}
+                      >
+                        {isTesting ? (
+                          <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                        ) : (
+                          <Play className="mr-1.5 size-3.5" />
+                        )}
+                        Test
+                      </Button>
                     )}
-                  />
+                  </div>
+                  {testResult &&
+                    (testResult.ok ? (
+                      <p className="mt-1 text-xs text-success">
+                        Matched {testResult.count} {testResult.count === 1 ? "span" : "spans"}
+                        {testResult.truncated ? " (truncated to 256)" : ""} — preview and data updated.
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-xs text-destructive">{testResult.error}</p>
+                    ))}
                   <p className="mt-1 text-xs text-muted-foreground">
                     Appended to{" "}
                     <code className="font-mono">SELECT * FROM spans WHERE trace_id = &lt;trace&gt; AND (...)</code>.
-                    Leave empty to include all spans.
+                    Leave empty to include all spans.{traceId ? " Test runs it against this trace." : ""}
                   </p>
                 </div>
               )}
