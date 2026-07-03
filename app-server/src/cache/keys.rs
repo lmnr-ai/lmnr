@@ -55,8 +55,6 @@ pub const SYS_PROMPT_SUMMARY_CACHE_KEY: &str = "sys_prompt_summary_v2";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SPAN_KEEP_DEFAULT_RULES_CACHE_KEY: &str = "signals_span_keep_default_rules";
 pub const TRACE_EVALUATION_ID_CACHE_KEY: &str = "trace_evaluation_id";
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub const TRACE_INPUT_REGEX_CACHE_KEY: &str = "signals_trace_input_regex";
 
 pub const INGESTION_RATE_LIMIT_PROJECT_ID_CACHE_KEY: &str = "ingestion_rate_limit_project_id";
 pub const PROJECT_MEMBERSHIP_CACHE_KEY: &str = "project_membership";
