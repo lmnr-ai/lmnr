@@ -29,7 +29,9 @@ Follow these steps in order.
 1. List every XML/HTML-like tag in the input and classify each:
    - HARNESS WRAPPER (may anchor on these): system-reminder, context, env, environment, tools, tool_list, instructions, skills, reminder, metadata, session, and close relatives — structured, self-contained system-injected blocks sitting at the top or bottom of the message, not mid-paragraph.
    - CONTENT (never anchor on these, even if they repeat): HTML/markdown rendering tags (h1-h6, p, br, a, div, span, code, pre, details, summary, table, img, ul, ol, li, …), HTML comments (<!-- … --> — treat them as prose, never as anchors), and any tag inside a bot comment / PR review / issue body / markdown body.
-   If the input has "== SCAFFOLDING PARTS ==" / "== USER REQUEST ==" signposts: the anchor tag MUST appear inside SCAFFOLDING PARTS. A tag that only appears in USER REQUEST is payload. The "== … ==" headers are stripped before the regex runs — never reference them.
+   The input may carry "== lmnr_… ==" structure markers; they are present when the regex runs but are stripped from the captured text afterwards, so treat them as layout hints, never as harness wrapper tags:
+   - "== lmnr_end_of_system_prompt ==": everything BEFORE it is the system prompt — scaffolding by default; classify tags there as HARNESS WRAPPER only. If the system section is present, the capture should normally start after this marker; anchoring the pattern on the marker text itself (e.g. `(?s).*== lmnr_end_of_system_prompt ==\s*(.*)`) is allowed and is the right LEADING anchor when no wrapper tag follows it. Only when the actual user request clearly lives INSIDE the system prompt (usually delimited by a request-like tag) may the capture come from before the marker — then use the WRAPPED pattern on that tag.
+   - "== lmnr_part_separator ==": separates sibling user-message parts. Never anchor on it; a capture may span it (it is removed later).
 
 2. If no HARNESS WRAPPER tag survives → (?s)(.*). Stop. Never fall back to a content tag.
 

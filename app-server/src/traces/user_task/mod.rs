@@ -8,6 +8,10 @@
 //!   - joins parts with a signpost separator both when generating and
 //!     when applying the regex, then re-joins the extraction on a plain
 //!     user-facing separator;
+//!   - prepends the system prompt (behind a boundary signpost) for
+//!     additional safety — the rare task-in-system-prompt case — while
+//!     keeping the fingerprint user-only (`prompt_hash` already keys
+//!     system identity in the regex cache);
 //!   - fingerprints parts order-insensitively (multi-part messages
 //!     arrive in unknown order);
 //!   - never falls back to raw text — a no-result run writes a boolean
