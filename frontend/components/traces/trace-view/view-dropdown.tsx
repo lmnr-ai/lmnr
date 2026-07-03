@@ -1,4 +1,5 @@
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
+import TemplateViewToggle from "@/components/traces/trace-view/template-view-toggle";
 import ViewToggle, { type ViewTab } from "@/components/traces/trace-view/view-toggle";
 import { track } from "@/lib/posthog";
 
@@ -24,6 +25,20 @@ export default function ViewDropdown({ tabs = ["tree", "transcript", "custom"] }
     }
     setTab(next);
   };
+
+  // The custom tab folds render templates into the dropdown, which needs a
+  // TemplatePickerProvider above (absent on the shared trace page).
+  if (tabs.includes("custom")) {
+    return (
+      <TemplateViewToggle
+        tab={tab}
+        onTabChange={handleTabChange}
+        showContent={contentVisible}
+        onToggleContent={() => setShowTreeContent(!contentVisible)}
+        viewTabs={tabs.filter((t) => t !== "custom")}
+      />
+    );
+  }
 
   return (
     <ViewToggle

@@ -1,69 +1,14 @@
-import { Check, ChevronDown, Loader2, PencilIcon, Plus } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  TemplatePickerPreview,
-  TemplatePickerProvider,
-  useTemplatePicker,
-} from "@/components/ui/template-renderer/template-picker";
-import { cn } from "@/lib/utils";
+import { TemplatePickerPreview, useTemplatePicker } from "@/components/ui/template-renderer/template-picker";
 
-const TemplateSelector = () => {
-  const { templates, selectedTemplate, selectTemplate, openCreate, openEdit } = useTemplatePicker();
-
-  return (
-    <div className="flex items-center gap-1">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button size="sm" variant="outline" className="h-6 gap-1 px-1.5 text-xs">
-            <span className="truncate max-w-[200px]">{selectedTemplate?.name ?? "Select template"}</span>
-            <ChevronDown size={14} className="shrink-0 opacity-60" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          {(templates ?? []).map((t) => (
-            <DropdownMenuItem
-              key={t.id}
-              onClick={() => void selectTemplate(t.id)}
-              className={cn("text-xs", selectedTemplate?.id === t.id && "bg-accent")}
-            >
-              <span className="flex-1 truncate">{t.name}</span>
-              {selectedTemplate?.id === t.id && <Check className="ml-2 size-3.5 shrink-0" />}
-            </DropdownMenuItem>
-          ))}
-          {(templates?.length ?? 0) > 0 && <DropdownMenuSeparator />}
-          <DropdownMenuItem onClick={openCreate} className="text-xs text-muted-foreground">
-            <Plus className="size-3.5" />
-            New template
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      {selectedTemplate && (
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-6 gap-1 px-1.5 text-xs text-muted-foreground"
-          onClick={openEdit}
-          title="Edit template"
-        >
-          <PencilIcon className="size-3.5" />
-          Edit
-        </Button>
-      )}
-    </div>
-  );
-};
-
-const CustomViewContent = ({
+/** Renders the selected trace template. Template selection lives in the trace
+ *  view's main view dropdown; the `TemplatePickerProvider` is mounted in
+ *  `TracePanel` (with `renderData` lifted so the manage dialog's test data is
+ *  the real fetched trace payload). */
+export default function CustomView({
   traceId,
   renderData,
   setRenderData,
@@ -71,7 +16,7 @@ const CustomViewContent = ({
   traceId: string;
   renderData: string;
   setRenderData: (data: string) => void;
-}) => {
+}) {
   const { projectId } = useParams();
   const { selectedTemplate, isManaging } = useTemplatePicker();
 
@@ -126,9 +71,6 @@ const CustomViewContent = ({
 
   return (
     <div className="flex flex-1 flex-col min-h-0 w-full overflow-hidden">
-      <div className="flex items-center gap-2 border-b px-2 py-1.5">
-        <TemplateSelector />
-      </div>
       {isPending ? (
         <div className="flex flex-1 items-center justify-center text-muted-foreground">
           <Loader2 className="size-5 animate-spin" />
@@ -143,17 +85,5 @@ const CustomViewContent = ({
         </div>
       )}
     </div>
-  );
-};
-
-export default function CustomView({ traceId }: { traceId: string }) {
-  // Lifted above the provider so the manage-template dialog's test data is the
-  // real fetched trace payload.
-  const [renderData, setRenderData] = useState<string>("");
-
-  return (
-    <TemplatePickerProvider presetKey="trace-view" testData={renderData} scope="trace" traceId={traceId}>
-      <CustomViewContent traceId={traceId} renderData={renderData} setRenderData={setRenderData} />
-    </TemplatePickerProvider>
   );
 }
