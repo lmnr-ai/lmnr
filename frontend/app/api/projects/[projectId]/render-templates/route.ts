@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { createRenderTemplate } from "@/lib/actions/render-template";
+import { createRenderTemplate, RenderTemplateScopeSchema } from "@/lib/actions/render-template";
 import { getRenderTemplates } from "@/lib/actions/render-templates";
 
 export async function GET(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   try {
     const params = await props.params;
     const { projectId } = params;
-    const scope = new URL(req.url).searchParams.get("scope") ?? undefined;
+    const scope = RenderTemplateScopeSchema.optional().parse(new URL(req.url).searchParams.get("scope") ?? undefined);
 
-    const templates = await getRenderTemplates({ projectId, scope: scope as "span" | "trace" | undefined });
+    const templates = await getRenderTemplates({ projectId, scope });
 
     return NextResponse.json(templates);
   } catch (error) {

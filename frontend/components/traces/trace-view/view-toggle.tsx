@@ -38,8 +38,7 @@ export default function ViewToggle({
   onToggleContent,
   tabs = defaultViewTabs,
 }: ViewToggleProps) {
-  const viewTabs = tabs;
-  const isValidTab = viewTabs.includes(tab);
+  const isValidTab = tabs.includes(tab);
   const displayTab: ViewTab = isValidTab ? tab : "transcript";
   const currentView = viewOptions[displayTab];
   const CurrentIcon = currentView.icon;
@@ -61,7 +60,7 @@ export default function ViewToggle({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
-          {viewTabs.map((option) => {
+          {tabs.map((option) => {
             const view = viewOptions[option];
             const OptionIcon = view.icon;
             return (
