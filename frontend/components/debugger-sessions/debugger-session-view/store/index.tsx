@@ -24,7 +24,7 @@ import { type RealtimeSpan, type SpanType, type TraceRow } from "@/lib/traces/ty
  */
 export type SessionBlockView =
   | { id: string; type: "trace"; createdAt: string; traceId: string }
-  | { id: string; type: "evaluation"; createdAt: string; note: string | null; evaluation: SessionEvaluationRef }
+  | { id: string; type: "evaluation"; createdAt: string; evaluation: SessionEvaluationRef }
   | { id: string; type: "text"; createdAt: string; text: string };
 
 const sortBlocks = (blocks: SessionBlockView[]): SessionBlockView[] =>
@@ -313,9 +313,13 @@ export const createDebuggerSessionViewStore = (options?: {
               // CH-lagged response — wholesale replace would wipe it. Keep any
               // realtime-only trace blocks + rows and re-sort by createdAt.
               const fetchedTraceIds = new Set(fetchedTraceRows.map((t) => t.id));
+              const fetchedBlockIds = new Set(fetchedBlocks.map((b) => b.id));
               set((s) => {
-                const realtimeOnlyBlocks = s.blocks.filter(
-                  (b) => b.type === "trace" && !fetchedTraceIds.has(b.traceId)
+                // Preserve blocks added by realtime while the fetch was in flight
+                // (server snapshot predates them). Traces dedupe by traceId (their
+                // id differs across sources); eval/text by id (shared deterministic id).
+                const realtimeOnlyBlocks = s.blocks.filter((b) =>
+                  b.type === "trace" ? !fetchedTraceIds.has(b.traceId) : !fetchedBlockIds.has(b.id)
                 );
                 const realtimeOnlyIds = new Set(
                   realtimeOnlyBlocks.map((b) => (b.type === "trace" ? b.traceId : "")).filter(Boolean)
@@ -412,13 +416,7 @@ export const createDebuggerSessionViewStore = (options?: {
             if (block.type === "trace") return;
             const view: SessionBlockView =
               block.type === "evaluation"
-                ? {
-                    id: block.id,
-                    type: "evaluation",
-                    createdAt: block.createdAt,
-                    note: block.note,
-                    evaluation: block.evaluation,
-                  }
+                ? { id: block.id, type: "evaluation", createdAt: block.createdAt, evaluation: block.evaluation }
                 : { id: block.id, type: "text", createdAt: block.createdAt, text: block.text };
             set((s) => {
               const rest = s.blocks.filter((b) => b.id !== view.id);

@@ -4,9 +4,8 @@ use actix_web::{HttpResponse, get, patch, post, web};
 use uuid::Uuid;
 
 use crate::{
-    api::v1::rollouts::{
-        AddBlockRequest, RegisterSessionRequest, handle_add_block, handle_list_blocks,
-    },
+    api::v1::debugger::{AddBlockRequest, handle_add_block, handle_list_blocks},
+    api::v1::rollouts::RegisterSessionRequest,
     auth::cli_user::CliProjectAuth,
     db::{
         DB,

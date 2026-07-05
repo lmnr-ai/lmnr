@@ -7,7 +7,6 @@ import { formatScoreValue } from "@/components/evaluation/utils";
 import { type SessionEvaluationRef } from "@/lib/actions/debugger-sessions";
 import { cn } from "@/lib/utils";
 
-import NoteContent from "./note-content";
 import { evalAnchorId } from "./session-outline/utils";
 
 // A score with its change vs the same-named score on the previous eval, plus
@@ -45,16 +44,14 @@ export const computeScoreDeltas = (evaluations: SessionEvaluationRef[]): Map<str
 
 // One evaluation card, rendered inline in the session timeline (interleaved with
 // runs and text notes by block `created_at`). Sets the `evalAnchorId` id so the
-// outline's anchor navigation keeps working. `note` is the block's note.
+// outline's anchor navigation keeps working.
 export const EvaluationCard = ({
   projectId,
   evaluation,
-  note,
   scores,
 }: {
   projectId: string;
   evaluation: SessionEvaluationRef;
-  note: string | null;
   scores: ScoreWithDelta[];
 }) => (
   <div
@@ -81,12 +78,6 @@ export const EvaluationCard = ({
         </div>
       )}
     </div>
-
-    {note && (
-      <div className="border-t px-4 py-3">
-        <NoteContent content={note} />
-      </div>
-    )}
   </div>
 );
 

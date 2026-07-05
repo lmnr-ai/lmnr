@@ -2,20 +2,18 @@ use actix_web::{HttpResponse, delete, get, post, web};
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::debugger::{AddBlockRequest, handle_add_block, handle_list_blocks};
 use crate::{
     cache::Cache,
     db::project_api_keys::ProjectApiKey,
     db::{
-        DB, debugger_session_blocks,
-        debugger_sessions::{
-            create_or_update_debugger_session, debugger_session_exists, delete_debugger_session,
-        },
+        DB,
+        debugger_sessions::{create_or_update_debugger_session, delete_debugger_session},
     },
     debugger,
     pubsub::PubSub,
     realtime::{SseMessage, send_to_key},
     routes::types::ResponseResult,
-    traces::realtime::send_block_update,
 };
 
 #[derive(serde::Deserialize, Default)]
@@ -101,30 +99,6 @@ pub async fn list_blocks(
     handle_list_blocks(project_api_key.project_id, path.into_inner(), &db).await
 }
 
-/// Handler body for the blocks list, shared with the CLI twin.
-pub async fn handle_list_blocks(
-    project_id: Uuid,
-    session_id: Uuid,
-    db: &web::Data<DB>,
-) -> ResponseResult {
-    if !debugger_session_exists(&db.pool, &session_id, &project_id).await? {
-        return Ok(HttpResponse::NotFound().json("Session not found"));
-    }
-
-    let blocks =
-        debugger_session_blocks::get_blocks_for_session(&db.pool, &project_id, &session_id).await?;
-
-    Ok(HttpResponse::Ok().json(serde_json::json!({ "blocks": blocks })))
-}
-
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AddBlockRequest {
-    #[serde(rename = "type")]
-    pub block_type: String,
-    pub content: serde_json::Value,
-}
-
 /// `POST /v1/rollouts/{session_id}/blocks` — append a block to a session,
 /// returning the new block id. Unknown or cross-project session → 404 (the
 /// insert is gated on the session existing in the project). Used by the CLI
@@ -145,44 +119,6 @@ pub async fn add_block(
         pubsub.get_ref().as_ref(),
     )
     .await
-}
-
-/// Handler body for appending a block, shared with the CLI twin.
-pub async fn handle_add_block(
-    project_id: Uuid,
-    session_id: Uuid,
-    body: AddBlockRequest,
-    db: &web::Data<DB>,
-    pubsub: &PubSub,
-) -> ResponseResult {
-    match debugger_session_blocks::insert_block(
-        &db.pool,
-        &project_id,
-        &session_id,
-        &body.block_type,
-        &body.content,
-    )
-    .await?
-    {
-        Some((id, created_at)) => {
-            if let Some(text) = body
-                .content
-                .get("text")
-                .or_else(|| body.content.get("note"))
-                .and_then(|v| v.as_str())
-            {
-                let block = serde_json::json!({
-                    "id": id,
-                    "type": "text",
-                    "createdAt": created_at,
-                    "text": text,
-                });
-                send_block_update(pubsub, &project_id, &session_id, block).await;
-            }
-            Ok(HttpResponse::Ok().json(serde_json::json!({ "id": id })))
-        }
-        None => Ok(HttpResponse::NotFound().json("Session not found")),
-    }
 }
 
 #[delete("rollouts/{session_id}")]

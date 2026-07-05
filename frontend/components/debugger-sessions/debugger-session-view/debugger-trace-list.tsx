@@ -138,7 +138,6 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
               <EvaluationCard
                 projectId={projectId ?? ""}
                 evaluation={block.evaluation}
-                note={block.note}
                 scores={scoreDeltasById.get(block.evaluation.id) ?? []}
               />
             </div>

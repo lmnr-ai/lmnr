@@ -11,7 +11,6 @@ pub const TRACE_BLOCK_TYPE: &str = "trace";
 pub const EVALUATION_BLOCK_TYPE: &str = "evaluation";
 
 const SESSION_ID_METADATA_KEY: &str = "rollout.session_id";
-const NOTE_METADATA_KEY: &str = "rollout.note";
 
 // `traces.type` DEFAULT (see `Into<u8> for TraceType` in `ch/spans.rs`).
 const DEFAULT_TRACE_TYPE: i16 = 0;
@@ -53,7 +52,8 @@ pub async fn upsert_block(
         WHERE EXISTS (SELECT 1 FROM debugger_sessions WHERE id = $3 AND project_id = $2)
         ON CONFLICT (id) DO UPDATE
             SET content = EXCLUDED.content
-            WHERE debugger_session_blocks.project_id = $2",
+            WHERE debugger_session_blocks.project_id = $2
+                AND debugger_session_blocks.session_id = $3",
     )
     .bind(block_id(session_id, block_type, entity_id))
     .bind(project_id)
@@ -140,12 +140,6 @@ fn session_id_from_metadata(metadata: Option<&Value>) -> Option<Uuid> {
         .and_then(|s| Uuid::parse_str(s).ok())
 }
 
-fn note_from_metadata(metadata: Option<&Value>) -> Option<&str> {
-    metadata
-        .and_then(|m| m.get(NOTE_METADATA_KEY))
-        .and_then(|v| v.as_str())
-}
-
 /// Upsert a `trace` block for every trace carrying the `rollout.session_id`
 /// metadata key. Best-effort: a failed upsert is logged and never fails ingest.
 pub async fn upsert_blocks_for_traces(pool: &PgPool, traces: &[Trace]) {
@@ -197,14 +191,8 @@ pub async fn upsert_block_for_evaluation(
         return;
     };
 
-    let mut content = serde_json::Map::new();
-    content.insert(
-        "evaluationId".to_string(),
-        Value::String(evaluation_id.to_string()),
-    );
-    if let Some(note) = note_from_metadata(metadata) {
-        content.insert("note".to_string(), Value::String(note.to_string()));
-    }
+    // Eval blocks are pure references — notes live only in standalone text blocks.
+    let content = serde_json::json!({ "evaluationId": evaluation_id.to_string() });
 
     if let Err(e) = upsert_block(
         pool,
@@ -212,7 +200,7 @@ pub async fn upsert_block_for_evaluation(
         &session_id,
         EVALUATION_BLOCK_TYPE,
         evaluation_id,
-        &Value::Object(content),
+        &content,
         created_at,
     )
     .await

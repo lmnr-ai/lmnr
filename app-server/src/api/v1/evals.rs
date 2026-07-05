@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use super::debugger;
 use crate::{
     cache::Cache,
     db::{self, DB, project_api_keys::ProjectApiKey},
@@ -11,7 +12,6 @@ use crate::{
     names::NameGenerator,
     pubsub::PubSub,
     routes::types::ResponseResult,
-    traces::realtime::send_block_update,
 };
 use actix_web::{
     HttpResponse, post,
@@ -62,35 +62,12 @@ pub async fn init_eval(
     .await;
 
     // Push the eval block to the session live (scores fill in on next load).
-    if let Some(session_id) = session_id_from_metadata(metadata.as_ref()) {
-        let note = metadata
-            .as_ref()
-            .and_then(|m| m.get("rollout.note"))
-            .and_then(|v| v.as_str());
-        let block = serde_json::json!({
-            "id": db::debugger_session_blocks::evaluation_block_id(&session_id, &evaluation.id),
-            "type": "evaluation",
-            "createdAt": evaluation.created_at,
-            "note": note,
-            "evaluation": {
-                "id": evaluation.id,
-                "name": evaluation.name,
-                "groupId": evaluation.group_id,
-                "scores": [],
-            },
-        });
-        send_block_update(pubsub.get_ref().as_ref(), &project_id, &session_id, block).await;
+    if let Some(session_id) = debugger::session_id_from_metadata(metadata.as_ref()) {
+        debugger::push_evaluation_block(pubsub.get_ref().as_ref(), &project_id, &session_id, &evaluation)
+            .await;
     }
 
     Ok(HttpResponse::Ok().json(evaluation))
-}
-
-/// `rollout.session_id` off the eval's metadata (set when the eval runs in a session).
-fn session_id_from_metadata(metadata: Option<&Value>) -> Option<Uuid> {
-    metadata
-        .and_then(|m| m.get("rollout.session_id"))
-        .and_then(|v| v.as_str())
-        .and_then(|s| Uuid::parse_str(s).ok())
 }
 
 #[derive(Deserialize)]
