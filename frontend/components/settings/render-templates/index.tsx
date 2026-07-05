@@ -17,33 +17,21 @@ import RenderTemplateDialog from "./render-template-dialog";
 interface TemplateInfo {
   id: string;
   name: string;
+  type: TemplateScope;
   createdAt: string;
 }
 
-export interface ScopedTemplateInfo extends TemplateInfo {
+export interface ScopedTemplateInfo extends Omit<TemplateInfo, "type"> {
   scope: TemplateScope;
 }
 
 export default function RenderTemplates() {
   const { projectId } = useParams();
-  const {
-    data: spanTemplates,
-    isLoading: isLoadingSpan,
-    mutate: mutateSpan,
-  } = useSWR<TemplateInfo[]>(`/api/projects/${projectId}/render-templates`, swrFetcher);
-  const {
-    data: traceTemplates,
-    isLoading: isLoadingTrace,
-    mutate: mutateTrace,
-  } = useSWR<TemplateInfo[]>(`/api/projects/${projectId}/trace-render-templates`, swrFetcher);
+  const { data, isLoading, mutate } = useSWR<TemplateInfo[]>(`/api/projects/${projectId}/render-templates`, swrFetcher);
 
   const templates = useMemo<ScopedTemplateInfo[]>(
-    () =>
-      [
-        ...(spanTemplates?.map((t) => ({ ...t, scope: "span" as const })) ?? []),
-        ...(traceTemplates?.map((t) => ({ ...t, scope: "trace" as const })) ?? []),
-      ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    [spanTemplates, traceTemplates]
+    () => (data ?? []).map(({ type, ...t }) => ({ ...t, scope: type })),
+    [data]
   );
 
   const [editingTemplate, setEditingTemplate] = useState<{ id: string | null; scope: TemplateScope } | null>(null);
@@ -63,7 +51,7 @@ export default function RenderTemplates() {
         New template
       </Button>
       <SettingsTable
-        isLoading={isLoadingSpan || isLoadingTrace}
+        isLoading={isLoading}
         isEmpty={isEmpty(templates)}
         emptyMessage="No render templates yet."
         headers={["Name", "Scope", "Created", ""]}
@@ -112,7 +100,7 @@ export default function RenderTemplates() {
       <DeleteRenderTemplateDialog
         template={templateToDelete}
         onClose={() => setTemplateToDelete(null)}
-        onDeleted={() => (templateToDelete?.scope === "trace" ? mutateTrace() : mutateSpan())}
+        onDeleted={() => mutate()}
       />
     </SettingsSection>
   );

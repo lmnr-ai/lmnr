@@ -1,15 +1,16 @@
 import { NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { createRenderTemplate } from "@/lib/actions/render-template";
-import { getRenderTemplates } from "@/lib/actions/render-templates";
+import { createRenderTemplate, getRenderTemplates } from "@/lib/actions/render-template";
 
-export async function GET(_req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+export async function GET(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   try {
     const params = await props.params;
     const { projectId } = params;
+    const type = new URL(req.url).searchParams.get("type") ?? undefined;
 
-    const templates = await getRenderTemplates({ projectId });
+    // zod parse inside the action validates the raw query value
+    const templates = await getRenderTemplates({ projectId, type: type as "span" | "trace" | undefined });
 
     return NextResponse.json(templates);
   } catch (error) {
@@ -34,6 +35,8 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
       projectId,
       name: body.name,
       code: body.code,
+      type: body.type,
+      whereClause: body.whereClause,
     });
 
     return NextResponse.json(result);

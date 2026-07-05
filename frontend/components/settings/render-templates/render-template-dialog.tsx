@@ -42,8 +42,7 @@ export default function RenderTemplateDialog({ open, onOpenChange, templateId, s
     const controller = new AbortController();
     const load = async () => {
       try {
-        const base = scope === "trace" ? "trace-render-templates" : "render-templates";
-        const res = await fetch(`/api/projects/${projectId}/${base}/${templateId}`, {
+        const res = await fetch(`/api/projects/${projectId}/render-templates/${templateId}`, {
           signal: controller.signal,
         });
         if (!res.ok) {
@@ -51,8 +50,7 @@ export default function RenderTemplateDialog({ open, onOpenChange, templateId, s
           throw new Error(err?.error ?? "Failed to load template");
         }
         const template = (await res.json()) as Template;
-        // API rows carry no scope column (separate tables) — set it from the prop.
-        methods.reset({ ...template, scope, testData: "" });
+        methods.reset({ ...template, scope: template.type ?? scope, testData: "" });
       } catch (e) {
         if (controller.signal.aborted) return;
         toast({

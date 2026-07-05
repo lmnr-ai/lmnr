@@ -35,8 +35,7 @@ export default function DeleteRenderTemplateDialog({ template, onClose, onDelete
 
     setIsDeleting(true);
     try {
-      const base = template.scope === "trace" ? "trace-render-templates" : "render-templates";
-      const res = await fetch(`/api/projects/${projectId}/${base}/${template.id}`, {
+      const res = await fetch(`/api/projects/${projectId}/render-templates/${template.id}`, {
         method: "DELETE",
       });
 

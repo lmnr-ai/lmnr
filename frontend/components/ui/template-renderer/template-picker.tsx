@@ -78,10 +78,9 @@ export const TemplatePickerProvider = ({
   const { projectId } = useParams();
   const { toast } = useToast();
 
-  // Span and trace templates live in separate tables behind separate endpoints.
-  const templatesUrl = `/api/projects/${projectId}/${scope === "trace" ? "trace-render-templates" : "render-templates"}`;
+  const templatesBaseUrl = `/api/projects/${projectId}/render-templates`;
 
-  const { data: templates } = useSWR<TemplateInfo[]>(templatesUrl, swrFetcher);
+  const { data: templates } = useSWR<TemplateInfo[]>(`${templatesBaseUrl}?type=${scope}`, swrFetcher);
 
   const { setPresetTemplate, getPresetTemplate } = useTemplateRenderer();
 
@@ -108,7 +107,7 @@ export const TemplatePickerProvider = ({
   const fetchTemplate = useCallback(
     async (templateId: string): Promise<Template | null> => {
       try {
-        const res = await fetch(`${templatesUrl}/${templateId}`);
+        const res = await fetch(`${templatesBaseUrl}/${templateId}`);
         if (!res.ok) {
           const err = await res.json().catch(() => null);
           throw new Error(err?.error ?? "Failed to fetch template");
@@ -123,7 +122,7 @@ export const TemplatePickerProvider = ({
         return null;
       }
     },
-    [templatesUrl, toast]
+    [templatesBaseUrl, toast]
   );
 
   // Hydrate from persisted preset once templates load. `testData` omitted intentionally —
@@ -137,7 +136,6 @@ export const TemplatePickerProvider = ({
       setIsLoadingTemplate(true);
       try {
         const full = await fetchTemplate(storedId);
-        // API rows carry no scope column (separate tables) — set it from the provider.
         if (full) reset({ ...full, scope, testData });
       } finally {
         setIsLoadingTemplate(false);

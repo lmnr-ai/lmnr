@@ -6,6 +6,9 @@ export interface Template {
   id: string;
   name: string;
   code: string;
+  /** DB column carried by API rows. */
+  type?: TemplateScope;
+  /** Client-side form concept, mapped from `type`. */
   scope?: TemplateScope;
   whereClause?: string | null;
 }

@@ -96,8 +96,7 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
     async (data: ManageTemplateForm) => {
       const isUpdate = !!data.id;
       const dataScope = data.scope ?? scope;
-      // Span and trace templates live in separate tables behind separate endpoints.
-      const baseUrl = `/api/projects/${projectId}/${dataScope === "trace" ? "trace-render-templates" : "render-templates"}`;
+      const baseUrl = `/api/projects/${projectId}/render-templates`;
       try {
         setIsSaving(true);
         const res = await fetch(isUpdate ? `${baseUrl}/${data.id}` : baseUrl, {
@@ -106,6 +105,7 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
           body: JSON.stringify({
             name: data.name,
             code: data.code,
+            ...(!isUpdate && { type: dataScope }),
             ...(dataScope === "trace" && { whereClause: data.whereClause ?? null }),
           }),
         });
@@ -126,7 +126,6 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
         // Preserve testData — the API response only carries {id, name, code, ...}.
         const result = (await res.json()) as Template;
         await mutate((key) => typeof key === "string" && key.startsWith(baseUrl));
-        // API rows carry no scope column (separate tables) — keep the form's.
         reset({ ...result, scope: dataScope, testData: data.testData });
         toast({ title: `Template ${isUpdate ? "updated" : "created"}` });
         onSaved();

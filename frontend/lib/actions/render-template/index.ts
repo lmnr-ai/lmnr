@@ -1,13 +1,22 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
 import { renderTemplates } from "@/lib/db/migrations/schema";
 
+const TemplateTypeSchema = z.enum(["span", "trace"]);
+
+export const GetRenderTemplatesSchema = z.object({
+  projectId: z.guid(),
+  type: TemplateTypeSchema.optional(),
+});
+
 export const CreateRenderTemplateSchema = z.object({
   projectId: z.guid(),
   name: z.string().min(1, "Template name is required"),
   code: z.string().min(1, "Template code is required"),
+  type: TemplateTypeSchema.default("span"),
+  whereClause: z.string().nullish(),
 });
 
 export const GetRenderTemplateSchema = z.object({
@@ -20,14 +29,31 @@ export const UpdateRenderTemplateSchema = z.object({
   templateId: z.guid(),
   name: z.string().min(1, "Template name is required"),
   code: z.string().min(1, "Template code is required"),
+  whereClause: z.string().nullish(),
 });
 
 export const DeleteRenderTemplateSchema = z.object({
   projectId: z.guid(),
   templateId: z.guid(),
 });
+
+export async function getRenderTemplates(input: z.infer<typeof GetRenderTemplatesSchema>) {
+  const { projectId, type } = GetRenderTemplatesSchema.parse(input);
+
+  return await db.query.renderTemplates.findMany({
+    where: and(eq(renderTemplates.projectId, projectId), type ? eq(renderTemplates.type, type) : undefined),
+    columns: {
+      id: true,
+      name: true,
+      type: true,
+      createdAt: true,
+    },
+    orderBy: desc(renderTemplates.createdAt),
+  });
+}
+
 export async function createRenderTemplate(input: z.infer<typeof CreateRenderTemplateSchema>) {
-  const { projectId, name, code } = CreateRenderTemplateSchema.parse(input);
+  const { projectId, name, code, type, whereClause } = CreateRenderTemplateSchema.parse(input);
 
   const [result] = await db
     .insert(renderTemplates)
@@ -35,6 +61,8 @@ export async function createRenderTemplate(input: z.infer<typeof CreateRenderTem
       projectId,
       name,
       code,
+      type,
+      whereClause: whereClause ?? null,
     })
     .returning();
 
@@ -60,13 +88,14 @@ export async function getRenderTemplate(input: z.infer<typeof GetRenderTemplateS
 }
 
 export async function updateRenderTemplate(input: z.infer<typeof UpdateRenderTemplateSchema>) {
-  const { projectId, templateId, name, code } = UpdateRenderTemplateSchema.parse(input);
+  const { projectId, templateId, name, code, whereClause } = UpdateRenderTemplateSchema.parse(input);
 
   const [result] = await db
     .update(renderTemplates)
     .set({
       name,
       code,
+      whereClause: whereClause ?? null,
     })
     .where(and(eq(renderTemplates.id, templateId), eq(renderTemplates.projectId, projectId)))
     .returning();
