@@ -18,7 +18,8 @@
 //! ```
 
 pub mod internal_exporter;
-// Shared internal-span builder. `allow(dead_code)`: today's only consumer is `signals`-gated.
+// Shared internal-span builder. `allow(dead_code)`: OSS producers (system_extraction) use part of
+// the surface; the rest is only consumed by the `signals`-gated enterprise producers.
 #[allow(dead_code)]
 pub mod spans;
 

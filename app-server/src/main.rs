@@ -1874,7 +1874,8 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::sql::json_to_sql)
                                     .service(routes::spans::search_spans)
                                     .service(routes::signal_events::search_signal_events)
-                                    .service(routes::rollouts::update_session_name);
+                                    .service(routes::rollouts::update_session_name)
+                                    .service(routes::system_extraction::extract_system_prompt);
                                 #[cfg(feature = "signals")]
                                 let scope = scope
                                     .service(crate::signals::private::routes::submit_signal_job)

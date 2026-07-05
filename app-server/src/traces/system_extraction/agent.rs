@@ -7,13 +7,16 @@
 //! temperatures re-runs the whole episode only when the final answer parses
 //! to an empty list.
 
-use serde_json::Value;
+use serde_json::{Value, json};
+use tracing::{Instrument, info_span};
+use uuid::Uuid;
 
 use super::prompt::{SYSTEM_INSTRUCTIONS, build_user_message};
 use super::tool::{REGEX_TOOL_NAME, RegexToolInput, regex_tool, run_regex_tool};
+use crate::instrumentation::spans::{self, InternalSpan, SpanContextCarrier, SpanType};
 use crate::llm::models::ModelSize;
 use crate::llm::{
-    LlmClient, ProviderContent, ProviderError, ProviderGenerationConfig, ProviderPart,
+    self, LlmClient, ProviderContent, ProviderError, ProviderGenerationConfig, ProviderPart,
     ProviderRequest,
 };
 
@@ -47,6 +50,18 @@ impl Default for ExtractionConfig {
     }
 }
 
+/// Internal self-tracing routing for an extraction run. With `project_id: None`
+/// (the `Default`) every span is unroutable and the exporter drops it, so
+/// tracing is effectively off.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ExtractionTracing {
+    /// Destination project for the run's internal spans.
+    pub project_id: Option<Uuid>,
+    /// Re-root the run under an out-of-process caller's span; `None` starts
+    /// a fresh trace.
+    pub parent: Option<SpanContextCarrier>,
+}
+
 /// Extract the static-template removal regexes for a family of system
 /// prompts. Returns the ordered regex list; empty when every temperature
 /// episode failed to produce a non-empty parseable answer.
@@ -54,19 +69,46 @@ pub async fn extract_static_regexes(
     llm_client: &LlmClient,
     examples: &[String],
     config: &ExtractionConfig,
+    tracing_ctx: &ExtractionTracing,
 ) -> Result<Vec<String>, ProviderError> {
     if examples.is_empty() {
         return Ok(Vec::new());
     }
 
+    let root_span = info_span!(target: "lmnr::internal", parent: None, "system_extraction");
+    let root_span = InternalSpan::wrap(root_span, SpanType::Default)
+        .parent(tracing_ctx.parent)
+        .project(tracing_ctx.project_id)
+        .span_path_root("system_extraction")
+        .input(&json!({ "examples": examples }))
+        .build();
+
     let user_message = build_user_message(examples, config.include_diff);
-    for &temperature in &config.temperatures {
-        let regexes = run_episode(llm_client, examples, &user_message, temperature, config).await?;
-        if !regexes.is_empty() {
-            return Ok(regexes);
+    let result: Result<Vec<String>, ProviderError> = async {
+        for &temperature in &config.temperatures {
+            let regexes = run_episode(
+                llm_client,
+                examples,
+                &user_message,
+                temperature,
+                config,
+                tracing_ctx,
+            )
+            .await?;
+            if !regexes.is_empty() {
+                return Ok(regexes);
+            }
         }
+        Ok(Vec::new())
     }
-    Ok(Vec::new())
+    .instrument(root_span.clone())
+    .await;
+
+    match &result {
+        Ok(regexes) => spans::set_output(&root_span, &json!(regexes)),
+        Err(e) => spans::record_error(&root_span, e.to_string()),
+    }
+    result
 }
 
 /// One agent-loop episode at a fixed temperature. Returns an empty list when
@@ -77,10 +119,43 @@ async fn run_episode(
     user_message: &str,
     temperature: f32,
     config: &ExtractionConfig,
+    tracing_ctx: &ExtractionTracing,
+) -> Result<Vec<String>, ProviderError> {
+    let episode_span = info_span!(target: "lmnr::internal", "episode");
+    let episode_span = InternalSpan::wrap(episode_span, SpanType::Default)
+        .project(tracing_ctx.project_id)
+        .build();
+    spans::set_attr_str(&episode_span, "temperature", &temperature.to_string());
+
+    let result = run_episode_inner(
+        llm_client,
+        examples,
+        user_message,
+        temperature,
+        config,
+        tracing_ctx,
+    )
+    .instrument(episode_span.clone())
+    .await;
+
+    match &result {
+        Ok(regexes) => spans::set_output(&episode_span, &json!(regexes)),
+        Err(e) => spans::record_error(&episode_span, e.to_string()),
+    }
+    result
+}
+
+async fn run_episode_inner(
+    llm_client: &LlmClient,
+    examples: &[String],
+    user_message: &str,
+    temperature: f32,
+    config: &ExtractionConfig,
+    tracing_ctx: &ExtractionTracing,
 ) -> Result<Vec<String>, ProviderError> {
     let mut contents = vec![text_content("user", user_message)];
 
-    for _ in 0..config.max_steps {
+    for step in 0..config.max_steps {
         let request = ProviderRequest {
             contents: contents.clone(),
             system_instruction: Some(text_content_no_role(SYSTEM_INSTRUCTIONS)),
@@ -94,7 +169,39 @@ async fn run_episode(
             model_size: config.model_size,
         };
 
-        let response = llm_client.generate_content(&request).await?;
+        let (model, provider) = llm_client.resolve_model_provider(&request);
+        let llm_span = info_span!(target: "lmnr::internal", "llm_call");
+        let llm_span = InternalSpan::wrap(llm_span, SpanType::LLM)
+            .project(tracing_ctx.project_id)
+            .input(&llm::request_to_span_input(&request))
+            .tools(llm::request_to_tools_attr(&request).as_ref())
+            .model(&provider, &model)
+            .step(step)
+            .build();
+
+        let response = llm_client
+            .generate_content(&request)
+            .instrument(llm_span.clone())
+            .await;
+        let response = match response {
+            Ok(response) => response,
+            Err(e) => {
+                spans::record_error(&llm_span, e.to_string());
+                return Err(e);
+            }
+        };
+
+        if let Some(model_version) = &response.model_version {
+            spans::set_model(&llm_span, &provider, model_version);
+        }
+        if let Some(usage) = &response.usage_metadata {
+            spans::set_usage(
+                &llm_span,
+                usage.prompt_token_count,
+                usage.cache_read_input_tokens,
+                usage.candidates_token_count,
+            );
+        }
 
         let Some(content) = response
             .candidates
@@ -104,6 +211,14 @@ async fn run_episode(
             return Ok(Vec::new());
         };
         let parts = content.parts.clone().unwrap_or_default();
+        spans::set_output(
+            &llm_span,
+            &json!(ProviderContent {
+                role: Some("model".to_string()),
+                parts: Some(parts.clone()),
+            }),
+        );
+        drop(llm_span);
 
         let function_calls: Vec<_> = parts
             .iter()
@@ -136,7 +251,13 @@ async fn run_episode(
         let response_parts: Vec<ProviderPart> = function_calls
             .into_iter()
             .map(|fc| {
-                let output = match fc.name.as_str() {
+                let tool_span = info_span!(target: "lmnr::internal", "tool_call");
+                let tool_span = InternalSpan::wrap(tool_span, SpanType::Tool)
+                    .project(tracing_ctx.project_id)
+                    .input(&json!({ "name": fc.name, "args": fc.args }))
+                    .step(step)
+                    .build();
+                let output = tool_span.in_scope(|| match fc.name.as_str() {
                     REGEX_TOOL_NAME => match serde_json::from_value::<RegexToolInput>(
                         fc.args.clone().unwrap_or(Value::Null),
                     ) {
@@ -146,7 +267,8 @@ async fn run_episode(
                         }
                     },
                     other => serde_json::json!({ "error": format!("Unknown tool: {other}") }),
-                };
+                });
+                spans::set_output(&tool_span, &output);
                 ProviderPart {
                     function_response: Some(crate::llm::models::ProviderFunctionResponse {
                         id: fc.id,
