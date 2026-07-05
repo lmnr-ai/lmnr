@@ -116,6 +116,11 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
 
   const items = useMemo(() => withTraceIndex(blocks), [blocks]);
 
+  // Denominator MUST match `traceIndex`'s source (trace blocks), not `traces.length`
+  // (loaded rows) — a block whose row isn't loaded still consumes an index, so
+  // mixing the two sources produces "run 3 of 2".
+  const totalTraces = useMemo(() => blocks.reduce((n, b) => n + (b.type === "trace" ? 1 : 0), 0), [blocks]);
+
   // Score deltas across evaluation blocks in timeline order, keyed by eval id.
   const scoreDeltasById = useMemo(
     () => computeScoreDeltas(blocks.flatMap((b) => (b.type === "evaluation" ? [b.evaluation] : []))),
@@ -156,7 +161,7 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
             <TraceSegment
               trace={trace}
               traceIndex={traceIndex}
-              totalTraces={traces.length}
+              totalTraces={totalTraces}
               scrollEl={scrollEl}
               sessionId={sessionId}
               layoutVersion={layoutVersion}

@@ -356,6 +356,7 @@ async function getTracesByIds(projectId: string, traceIds: string[]): Promise<Ma
       SELECT ${tracesSelectColumns.join(", ")}
       FROM traces
       WHERE trace_type = 'DEFAULT' AND id IN ({traceIds: Array(UUID)})
+      ORDER BY start_time ASC
       LIMIT ${MAX_SESSION_TRACES}
     `,
     projectId,
