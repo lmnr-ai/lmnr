@@ -8,6 +8,10 @@ import { useSessionViewBaseStore } from "@/components/traces/session-view/store"
 import { useBatchedTraceIO } from "@/components/traces/sessions-table/use-batched-trace-io";
 import { formatDuration } from "@/lib/utils";
 
+import NoteContent from "./note-content";
+import { computeScoreDeltas, EvaluationCard } from "./session-evaluations";
+import { textAnchorId } from "./session-outline/utils";
+import { type SessionBlockView, useDebuggerSessionViewStore } from "./store";
 import TraceSegment from "./trace-segment";
 
 interface DebuggerTraceListProps {
@@ -18,11 +22,25 @@ interface DebuggerTraceListProps {
   sessionId?: string;
 }
 
+// A block paired with the running trace index (1-based, trace blocks only) so
+// each TraceSegment can render its "run N of M" chrome.
+type TimelineItem = { block: SessionBlockView; traceIndex: number };
+
+const withTraceIndex = (blocks: SessionBlockView[]): TimelineItem[] => {
+  let traceIndex = 0;
+  return blocks.map((block) => ({ block, traceIndex: block.type === "trace" ? ++traceIndex : 0 }));
+};
+
 export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: DebuggerTraceListProps) {
+  // Blocks are the ordered timeline; traces/traceSpans hold the per-run data
+  // that streams over realtime and feeds preview / IO batching.
+  const blocks = useDebuggerSessionViewStore((s) => s.blocks);
   const { traces, traceSpans } = useSessionViewBaseStore(
     (s) => ({ traces: s.traces, traceSpans: s.traceSpans }),
     shallow
   );
+
+  const tracesById = useMemo(() => new Map(traces.map((t) => [t.id, t])), [traces]);
 
   // --- Layout version: bumped whenever the column's height changes (expand,
   // collapse, streaming, measurement settle) so every segment re-measures its
@@ -96,17 +114,54 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
   const traceIds = useMemo(() => traces.map((t) => t.id), [traces]);
   const { previews: traceIO } = useBatchedTraceIO(projectId, traceIds);
 
+  const items = useMemo(() => withTraceIndex(blocks), [blocks]);
+
+  // Denominator MUST match `traceIndex`'s source (trace blocks), not `traces.length`
+  // (loaded rows) — a block whose row isn't loaded still consumes an index, so
+  // mixing the two sources produces "run 3 of 2".
+  const totalTraces = useMemo(() => blocks.reduce((n, b) => n + (b.type === "trace" ? 1 : 0), 0), [blocks]);
+
+  // Score deltas across evaluation blocks in timeline order, keyed by eval id.
+  const scoreDeltasById = useMemo(
+    () => computeScoreDeltas(blocks.flatMap((b) => (b.type === "evaluation" ? [b.evaluation] : []))),
+    [blocks]
+  );
+
   return (
     <div ref={columnRef} className="w-full">
-      {traces.map((trace, i) => {
-        const next = traces[i + 1];
-        const gapMs = next ? new Date(next.startTime).getTime() - new Date(trace.endTime).getTime() : undefined;
+      {items.map(({ block, traceIndex }, i) => {
+        if (block.type === "text") {
+          return (
+            <div key={block.id} id={textAnchorId(block.id)} className="scroll-mt-4 px-1 py-5">
+              <NoteContent content={block.text} />
+            </div>
+          );
+        }
+        if (block.type === "evaluation") {
+          return (
+            <div key={block.id} className="py-5">
+              <EvaluationCard
+                projectId={projectId ?? ""}
+                evaluation={block.evaluation}
+                scores={scoreDeltasById.get(block.evaluation.id) ?? []}
+              />
+            </div>
+          );
+        }
+        const trace = tracesById.get(block.traceId);
+        if (!trace) return null;
+        const nextBlock = items[i + 1]?.block;
+        const nextTrace = nextBlock?.type === "trace" ? tracesById.get(nextBlock.traceId) : undefined;
+        // Gap divider only between two adjacent runs — other cells break the timeline visually already.
+        const gapMs = nextTrace
+          ? new Date(nextTrace.startTime).getTime() - new Date(trace.endTime).getTime()
+          : undefined;
         return (
-          <Fragment key={trace.id}>
+          <Fragment key={block.id}>
             <TraceSegment
               trace={trace}
-              traceIndex={i + 1}
-              totalTraces={traces.length}
+              traceIndex={traceIndex}
+              totalTraces={totalTraces}
               scrollEl={scrollEl}
               sessionId={sessionId}
               layoutVersion={layoutVersion}
@@ -116,7 +171,7 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
               agentNames={agentNames}
               traceIO={traceIO[trace.id]}
             />
-            {next && (
+            {nextTrace && (
               <div className="px-2 flex h-20 items-center justify-center">
                 <div className="w-full border-b" />
                 {formatDuration(gapMs) && (

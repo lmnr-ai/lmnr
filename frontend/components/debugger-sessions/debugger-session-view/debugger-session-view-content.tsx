@@ -8,6 +8,7 @@ import { shallow } from "zustand/shallow";
 import SessionSpanPanel from "@/components/traces/session-view/session-span-panel";
 import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
 import { Skeleton } from "@/components/ui/skeleton";
+import { type SessionBlock } from "@/lib/actions/debugger-sessions";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type RealtimeSpan } from "@/lib/traces/types";
@@ -16,23 +17,30 @@ import DebuggerTraceList from "./debugger-trace-list";
 import NewTracePill from "./new-trace-pill";
 import SessionHeader from "./session-header";
 import SessionOutline from "./session-outline";
-import { useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "./store";
+import { type SessionBlockView, useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "./store";
 
 // "Pinned" slack for stick-to-bottom. Must exceed the article's 160px bottom
 // padding (stopping at the last trace counts) yet let a scroll-up unpin.
 const PIN_SLACK_PX = 200;
 
-// Earliest run start / latest run end across loaded traces (epoch ms).
-const minMaxFromTraces = (traces: { startTime: string; endTime: string }[]) => {
-  let min: number | undefined;
-  let max: number | undefined;
-  for (const t of traces) {
-    const s = new Date(t.startTime).getTime();
-    const e = new Date(t.endTime).getTime();
-    if (!Number.isNaN(s)) min = min === undefined ? s : Math.min(min, s);
-    if (!Number.isNaN(e)) max = max === undefined ? e : Math.max(max, e);
+// Session-level meta derived from the timeline blocks: created = earliest block
+// created_at, updated = latest block created_at (blocks are ordered, but min/max
+// is robust to a realtime insert landing before a re-sort). Counts are per type.
+const summarizeBlocks = (blocks: SessionBlockView[]) => {
+  let createdMs: number | undefined;
+  let updatedMs: number | undefined;
+  let traceCount = 0;
+  let evalCount = 0;
+  for (const block of blocks) {
+    const ms = new Date(block.createdAt).getTime();
+    if (!Number.isNaN(ms)) {
+      createdMs = createdMs === undefined ? ms : Math.min(createdMs, ms);
+      updatedMs = updatedMs === undefined ? ms : Math.max(updatedMs, ms);
+    }
+    if (block.type === "trace") traceCount += 1;
+    else if (block.type === "evaluation") evalCount += 1;
   }
-  return { createdMs: min, lastActivityMs: max };
+  return { createdMs, updatedMs, traceCount, evalCount };
 };
 
 // Page scroll container with a sticky left outline, a 720px article column, and
@@ -43,9 +51,8 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
   const { toast } = useToast();
   const storeApi = useDebuggerSessionViewStoreRaw();
 
-  const { traces, spanPanelOpen, isTracesLoading, tracesError } = useSessionViewBaseStore(
+  const { spanPanelOpen, isTracesLoading, tracesError } = useSessionViewBaseStore(
     (s) => ({
-      traces: s.traces,
       spanPanelOpen: s.spanPanelOpen,
       isTracesLoading: s.isTracesLoading,
       tracesError: s.tracesError,
@@ -54,6 +61,7 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
   );
 
   const sessionName = useDebuggerSessionViewStore((s) => s.sessionName);
+  const blocks = useDebuggerSessionViewStore((s) => s.blocks);
 
   // The page-owned scroll container — the virtualizer (DebuggerTraceList) binds
   // to it and the outline shares the same scroll context.
@@ -62,6 +70,22 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
   const scrollToBottom = useCallback(() => {
     scrollEl?.scrollTo({ top: scrollEl.scrollHeight, behavior: "smooth" });
   }, [scrollEl]);
+
+  // Eval blocks are pushed at creation with empty scores. When a later block
+  // arrives, backfill any still-scoreless eval by refetching once (the eval has
+  // usually finished by then). Guarded on isTracesLoading so it can't stack.
+  const backfillPendingEvalScores = useCallback(
+    (arrivedBlockId?: string) => {
+      if (!sessionId) return;
+      const state = storeApi.getState();
+      if (state.isTracesLoading) return;
+      const pending = state.blocks.some(
+        (b) => b.type === "evaluation" && b.evaluation.scores.length === 0 && b.id !== arrivedBlockId
+      );
+      if (pending) void state.fetchSessionBlocks(sessionId);
+    },
+    [sessionId, storeApi]
+  );
 
   // Stick-to-bottom decisions only start once the initial runs fetch has
   // settled: during loading the page is trivially short, so an "at the bottom"
@@ -76,7 +100,7 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
     if (!sessionId) return;
     void storeApi
       .getState()
-      .fetchSessionTraces(sessionId)
+      .fetchSessionBlocks(sessionId)
       .finally(() => setScrollSettled(true));
   }, [sessionId, storeApi]);
 
@@ -110,7 +134,7 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
     return () => observer.disconnect();
   }, [scrollSettled, scrollEl]);
 
-  const { createdMs, lastActivityMs } = useMemo(() => minMaxFromTraces(traces), [traces]);
+  const { createdMs, updatedMs, traceCount, evalCount } = useMemo(() => summarizeBlocks(blocks), [blocks]);
 
   // Realtime: stream spans + new-run/note updates over the session's SSE channel.
   const eventHandlers = useMemo(
@@ -126,6 +150,14 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
         storeApi
           .getState()
           .applyTraceUpdates(payload.traces as { traceId: string; metadata?: unknown; hasBrowserSession?: boolean }[]);
+        backfillPendingEvalScores();
+      },
+      // Note / eval block pushed → upsert it into the timeline.
+      block_update: (event: MessageEvent) => {
+        const payload = JSON.parse(event.data) as { sessionId?: string; block?: SessionBlock };
+        if (!sessionId || payload.sessionId !== sessionId || !payload.block) return;
+        storeApi.getState().applyBlockUpdate(payload.block);
+        backfillPendingEvalScores(payload.block.id);
       },
       // Session renamed (PATCH /v1/.../rollouts/{id}/name) → update the title live.
       // Payload is `{sessionId, name}` (camelCase, see app-server rollouts.rs::update_name).
@@ -144,7 +176,7 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
         router.push(`/project/${projectId}/debugger-sessions`);
       },
     }),
-    [storeApi, sessionId, projectId, router, toast]
+    [storeApi, sessionId, projectId, router, toast, backfillPendingEvalScores]
   );
 
   useRealtime({
@@ -175,28 +207,31 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
             <SessionHeader
               title={sessionName}
               createdMs={createdMs}
-              lastActivityMs={lastActivityMs}
-              runCount={traces.length}
+              updatedMs={updatedMs}
+              traceCount={traceCount}
+              evalCount={evalCount}
               sessionId={sessionId ?? ""}
             />
-            {/* Same error → loading → content branching as the regular session
-                view (session-panel/index.tsx); fetchSessionTraces owns the flags. */}
+            {/* One interleaved timeline of trace / evaluation / text blocks,
+                ordered by block created_at, fetched via fetchSessionBlocks and
+                streamed live over realtime. Fall back to the skeleton only while
+                blocks are still loading into an otherwise-empty session. */}
             {tracesError ? (
               <div className="flex flex-col items-center p-8 text-center">
                 <AlertTriangle className="mx-auto mb-4 h-12 w-12 text-destructive" />
                 <h3 className="mb-2 text-lg font-semibold text-destructive">Error Loading Session</h3>
                 <p className="text-sm text-muted-foreground">{tracesError}</p>
               </div>
-            ) : isTracesLoading && traces.length === 0 ? (
+            ) : blocks.length > 0 ? (
+              <DebuggerTraceList scrollEl={scrollEl} projectId={projectId} sessionId={sessionId} />
+            ) : isTracesLoading ? (
               <div className="flex flex-col gap-2 py-3">
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
               </div>
-            ) : traces.length === 0 ? (
-              <div className="flex justify-center py-16 text-sm text-muted-foreground">No runs in this session yet</div>
             ) : (
-              <DebuggerTraceList scrollEl={scrollEl} projectId={projectId} sessionId={sessionId} />
+              <div className="flex justify-center py-16 text-sm text-muted-foreground">No runs in this session yet</div>
             )}
           </div>
           <div className="flex flex-1" />

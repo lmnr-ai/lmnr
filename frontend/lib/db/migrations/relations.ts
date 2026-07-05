@@ -46,6 +46,7 @@ import {
   dashboardCharts,
   sharedPayloads,
   debuggerSessions,
+  debuggerSessionBlocks,
   workspaceUsage,
   signalTriggers,
   chatMessages,
@@ -111,6 +112,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   dashboardCharts: many(dashboardCharts),
   sharedPayloads: many(sharedPayloads),
   debuggerSessions: many(debuggerSessions),
+  debuggerSessionBlocks: many(debuggerSessionBlocks),
   signalTriggers: many(signalTriggers),
   chatMessages: many(chatMessages),
   chatSessions: many(chatSessions),
@@ -465,10 +467,22 @@ export const sharedPayloadsRelations = relations(sharedPayloads, ({ one }) => ({
   }),
 }));
 
-export const debuggerSessionsRelations = relations(debuggerSessions, ({ one }) => ({
+export const debuggerSessionsRelations = relations(debuggerSessions, ({ one, many }) => ({
   project: one(projects, {
     fields: [debuggerSessions.projectId],
     references: [projects.id],
+  }),
+  debuggerSessionBlocks: many(debuggerSessionBlocks),
+}));
+
+export const debuggerSessionBlocksRelations = relations(debuggerSessionBlocks, ({ one }) => ({
+  project: one(projects, {
+    fields: [debuggerSessionBlocks.projectId],
+    references: [projects.id],
+  }),
+  debuggerSession: one(debuggerSessions, {
+    fields: [debuggerSessionBlocks.sessionId],
+    references: [debuggerSessions.id],
   }),
 }));
 

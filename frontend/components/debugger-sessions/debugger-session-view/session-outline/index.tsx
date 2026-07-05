@@ -1,31 +1,47 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { FileText, FlaskConical, Rows4 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
-import { spanTagsToLinks } from "../note-markdown";
-import { type DebuggerSessionViewStore, useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "../store";
-import { headingAnchorId, parseNoteHeadings } from "./utils";
+import { type SessionBlockView, useDebuggerSessionViewStore } from "../store";
+import { evalAnchorId, textAnchorId, traceAnchorId } from "./utils";
 
-// One outline row per markdown heading pulled from the runs' notes — the
-// outline is a pure note TOC; traces themselves get no row.
-type OutlineRow = { key: string; anchor: string; level: number; text: string };
+// A row per block (trace / eval / text), in timeline order (blocks are ordered
+// by created_at).
+type OutlineRow = {
+  key: string;
+  anchor: string;
+  text: string;
+  kind: "trace" | "eval" | "text";
+};
 
-const buildRows = (state: DebuggerSessionViewStore): OutlineRow[] => {
+// A short label for a standalone text block: the first N characters of its
+// content (whitespace collapsed), truncated with an ellipsis.
+const TEXT_BLOCK_TITLE_LEN = 40;
+const textBlockTitle = (text: string): string => {
+  const oneLine = text.replace(/\s+/g, " ").trim();
+  return oneLine.length > TEXT_BLOCK_TITLE_LEN ? `${oneLine.slice(0, TEXT_BLOCK_TITLE_LEN)}…` : oneLine || "Note";
+};
+
+const buildRows = (blocks: SessionBlockView[]): OutlineRow[] => {
   const rows: OutlineRow[] = [];
-  state.traces.forEach((trace: TraceRow) => {
-    const note = state.noteForTrace(trace.id);
-    if (!note) return;
-    // Parse the SAME span-tag-transformed string RunComment renders, so heading
-    // order and slugs line up exactly with the ids it stamps.
-    for (const h of parseNoteHeadings(spanTagsToLinks(note, trace.id))) {
-      const a = headingAnchorId(trace.id, h.slug);
-      rows.push({ key: a, anchor: a, level: h.level, text: h.text });
+  let traceIndex = 0;
+  for (const block of blocks) {
+    if (block.type === "evaluation") {
+      const a = evalAnchorId(block.evaluation.id);
+      rows.push({ key: a, anchor: a, text: block.evaluation.name, kind: "eval" });
+    } else if (block.type === "text") {
+      const a = textAnchorId(block.id);
+      rows.push({ key: a, anchor: a, text: textBlockTitle(block.text), kind: "text" });
+    } else if (block.type === "trace") {
+      traceIndex += 1;
+      const a = traceAnchorId(block.traceId);
+      rows.push({ key: a, anchor: a, text: `Trace ${traceIndex}`, kind: "trace" });
     }
-  });
+  }
   return rows;
 };
 
@@ -35,12 +51,12 @@ interface SessionOutlineProps {
 
 /**
  * Left-rail session outline: a continuous left track with a single
- * framer-motion indicator that slides to the active row. Rows are the markdown
- * headings from each run's note (a pure note TOC — no per-trace rows). Active
- * state is tracked with an IntersectionObserver rooted at the browser viewport.
+ * framer-motion indicator that slides to the active row. One row per block
+ * (trace / eval / text). Active state is tracked with an IntersectionObserver
+ * rooted at the browser viewport.
  */
 export default function SessionOutline({ className }: SessionOutlineProps) {
-  const storeApi = useDebuggerSessionViewStoreRaw();
+  const blocks = useDebuggerSessionViewStore((s) => s.blocks);
   const navRef = useRef<HTMLElement>(null);
 
   // Edge state for the fade gradients: hide the top fade at the very top and
@@ -55,14 +71,19 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
     setEdges((prev) => (prev.atTop === atTop && prev.atBottom === atBottom ? prev : { atTop, atBottom }));
   }, []);
 
-  // Primitive signature: rebuild rows only when order / start-time / note text
-  // actually changes (not on every streamed span that mutates traceSpans).
-  const signature = useDebuggerSessionViewStore((s) =>
-    s.traces.map((t) => `${t.id}${t.startTime}${s.noteForTrace(t.id) ?? ""}`).join("")
-  );
-  // `signature` is the change-trigger; the rows are read from the store snapshot.
+  // Rebuild rows only when block order / eval names actually change (not on
+  // every streamed span that mutates traceSpans).
+  const signature = blocks
+    .map((b) =>
+      b.type === "trace"
+        ? `t${b.traceId}`
+        : b.type === "evaluation"
+          ? `e${b.evaluation.id}${b.evaluation.name}`
+          : `x${b.id}`
+    )
+    .join("");
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const rows = useMemo(() => buildRows(storeApi.getState()), [signature]);
+  const rows = useMemo(() => buildRows(blocks), [signature]);
 
   const [activeAnchor, setActiveAnchor] = useState<string | null>(null);
   const rowRefs = useRef<Map<string, HTMLAnchorElement>>(new Map());
@@ -92,8 +113,7 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
 
   // Active-row detection. Root is the browser viewport (root: null) — works
   // regardless of WHICH element scrolls. Active = crossed into the top 15%.
-  // Setup is deferred one frame: heading ids are stamped by RunComment's
-  // post-render effect, which can flush after this one in the same commit.
+  // Deferred one frame so anchor targets are mounted before we observe them.
   useEffect(() => {
     if (rows.length === 0) return;
     const observer = new IntersectionObserver(
@@ -183,13 +203,35 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
                 }}
                 href={`#${row.anchor}`}
                 onClick={() => selectOnClick(row.anchor)}
-                className="flex h-[30px] items-center pl-4 text-left no-underline"
+                className="group flex h-[30px] items-center pl-4 text-left no-underline"
               >
+                {row.kind === "trace" && (
+                  <Rows4
+                    className={cn(
+                      "mr-1.5 size-3 shrink-0 transition-colors",
+                      isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                    )}
+                  />
+                )}
+                {row.kind === "eval" && (
+                  <FlaskConical
+                    className={cn(
+                      "mr-1.5 size-3 shrink-0 transition-colors",
+                      isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                    )}
+                  />
+                )}
+                {row.kind === "text" && (
+                  <FileText
+                    className={cn(
+                      "mr-1.5 size-3 shrink-0 transition-colors",
+                      isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                    )}
+                  />
+                )}
                 <span
                   className={cn(
                     "truncate text-sm transition-colors",
-                    row.level === 2 && "pl-3",
-                    row.level >= 3 && "pl-6",
                     isActive ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"
                   )}
                 >

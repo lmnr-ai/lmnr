@@ -1,6 +1,7 @@
 pub mod browser_sessions;
 pub mod cli;
 pub mod datasets;
+pub mod debugger;
 pub mod evals;
 pub mod labeling_queues;
 pub mod logs;

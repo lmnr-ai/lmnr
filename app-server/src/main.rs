@@ -1848,12 +1848,10 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::datasets::get_datasets)
                             .service(api::v1::cli::datasets::get_datapoints)
                             .service(api::v1::cli::datasets::create_datapoints)
-                            .service(
-                                web::scope("/traces")
-                                    .service(api::v1::cli::traces::update_trace_metadata),
-                            )
                             .service(api::v1::cli::rollouts::update_name)
-                            .service(api::v1::cli::rollouts::register_session);
+                            .service(api::v1::cli::rollouts::register_session)
+                            .service(api::v1::cli::rollouts::list_blocks)
+                            .service(api::v1::cli::rollouts::add_block);
                         #[cfg(feature = "signals")]
                         let cli_scope = cli_scope
                             .service(web::scope("/agent").service(api::v1::cli::agent::agent_chat));
@@ -1936,6 +1934,8 @@ fn main() -> anyhow::Result<()> {
                                     // so it lives under /v1/cli, not here.
                                     .service(api::v1::rollouts::register_session)
                                     .service(api::v1::rollouts::lookup_cache)
+                                    .service(api::v1::rollouts::list_blocks)
+                                    .service(api::v1::rollouts::add_block)
                                     .service(api::v1::rollouts::delete),
                             )
                             .service({
