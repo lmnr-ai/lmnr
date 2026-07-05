@@ -20,9 +20,15 @@ export const useSessionSync = () => {
 
     channel.addEventListener("message", async (event) => {
       if (event.data.type === LOGOUT_EVENT) {
-        await signOut();
-        reset();
-        window.location.href = withBasePath("/");
+        try {
+          await signOut();
+        } finally {
+          // The originating tab already revoked the session server-side, so
+          // even if this tab's signOut call rejects, detach the posthog
+          // identity and leave the page.
+          reset();
+          window.location.href = withBasePath("/");
+        }
       }
     });
 
