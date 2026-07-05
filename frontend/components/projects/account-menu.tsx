@@ -13,6 +13,7 @@ import { deleteLastProjectIdCookie } from "@/lib/actions/project/cookies";
 import { deleteLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies";
 import { signOut } from "@/lib/auth-client";
 import { Feature } from "@/lib/features/features";
+import { reset } from "@/lib/posthog";
 import { withBasePath } from "@/lib/utils";
 import { WorkspaceTier } from "@/lib/workspaces/types";
 
@@ -31,6 +32,9 @@ const AccountMenu = () => {
       await deleteLastWorkspaceIdCookie();
       await deleteLastProjectIdCookie();
       await signOut();
+      // Detach the posthog identity so post-logout browsing (and a future
+      // sign-in as a different user) isn't attributed to this account.
+      reset();
       broadcastLogout();
       window.location.href = withBasePath("/");
     } catch (e) {

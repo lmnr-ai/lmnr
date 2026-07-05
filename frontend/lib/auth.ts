@@ -80,6 +80,9 @@ const trackUserCreated = (email: string): void => {
         },
       },
     });
+    // The client is per-call; flush it or the event rides an abandoned batch
+    // queue. Not awaited — sign-up must not stall on PostHog latency.
+    client.shutdown().catch(() => {});
   } catch {
     // Analytics failures must never break login.
   }

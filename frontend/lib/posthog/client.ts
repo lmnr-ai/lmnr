@@ -36,7 +36,7 @@ export type Feature =
   | "advanced_search";
 
 export const init = (telemetryEnabled: boolean) => {
-  if (!telemetryEnabled) return;
+  if (!telemetryEnabled || typeof window === "undefined" || posthog.__loaded) return;
   posthog.init(POSTHOG_KEY, {
     api_host: POSTHOG_HOST,
     person_profiles: "identified_only",
@@ -57,7 +57,10 @@ export const group = (type: string, id: string, traits?: Record<string, unknown>
 };
 
 export const reset = () => {
-  posthog.reset();
+  // Calling reset on an uninitialized instance (telemetry disabled) only logs a warning.
+  if (posthog.__loaded) {
+    posthog.reset();
+  }
 };
 
 interface TrackOptions {
