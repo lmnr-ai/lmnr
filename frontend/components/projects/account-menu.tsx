@@ -32,13 +32,15 @@ const AccountMenu = () => {
       await deleteLastWorkspaceIdCookie();
       await deleteLastProjectIdCookie();
       await signOut();
-      // Detach the posthog identity so post-logout browsing (and a future
-      // sign-in as a different user) isn't attributed to this account.
+    } catch (e) {
+      console.error(e);
+    } finally {
+      // The user's intent is to log out, so even if signOut rejects (session
+      // already invalidated, network failure) detach the posthog identity,
+      // tell other tabs, and leave the page.
       reset();
       broadcastLogout();
       window.location.href = withBasePath("/");
-    } catch (e) {
-      console.error(e);
     }
   };
 
