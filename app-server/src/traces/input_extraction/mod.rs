@@ -12,17 +12,18 @@
 //!     arrive in unknown order);
 //!   - never falls back to raw text — a no-result run writes a boolean
 //!     marker metadata key instead;
-//!   - caches generated regexes per project + prompt hash + fingerprint
-//!     (`USER_TASK_REGEX_CACHE_KEY`) so traces with the same scaffolding
-//!     shape share one LLM call.
+//!   - caches generated extraction specs per project + prompt hash +
+//!     fingerprint (`USER_TASK_REGEX_CACHE_KEY`) so traces with the same
+//!     scaffolding shape share one LLM call.
 //!
 //! Module layout:
 //!   - `messages` — permissive parsing of LLM-span input messages;
 //!   - `fingerprint` — structural fingerprinting of user messages;
 //!   - `input` — last-turn collection, signpost join/split, prepared
 //!     input (`UserTaskInput`);
-//!   - `regex` — regex application (`fancy-regex`) and the regex cache;
-//!   - `generate` — the LLM call that generates an extraction regex;
+//!   - `regex` — spec application (`fancy-regex`) and the spec cache;
+//!   - `generate` — the agentic LLM loop that generates an extraction
+//!     spec (keep one capture / remove all matches);
 //!   - `lock` — per-trace winner arbitration (`UserTaskLockState`);
 //!   - `metadata` — extraction outcome → trace-metadata patch;
 //!   - `producer` — the ingestion-side hook (candidate capture, winner
