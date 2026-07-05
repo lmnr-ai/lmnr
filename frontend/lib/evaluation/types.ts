@@ -7,6 +7,7 @@ export type Evaluation = {
   name: string;
   projectId: string;
   metadata: Record<string, unknown> | null;
+  averageScores?: Record<string, number> | null;
 };
 
 export type EvaluationScoreStatistics = {
