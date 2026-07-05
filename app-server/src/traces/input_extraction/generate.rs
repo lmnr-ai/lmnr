@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use tracing::Instrument;
 
-use super::regex::{apply_regex, apply_result_to_json};
+use super::regex::{ApplyRegexResult, apply_regex, apply_result_to_json};
 use super::self_tracing::{self, SpanBuilder, SpanScope};
 use crate::llm::models::{
     ModelSize, ProviderContent, ProviderFunctionDeclaration, ProviderFunctionResponse,
@@ -67,7 +67,7 @@ The message may carry "== lmnr_part_separator ==" lines separating sibling messa
 # Tools
 
 - try_extraction_regex: probes a candidate pattern. It is applied to the ORIGINAL message (full text, separator lines included) and you get back the FINAL user-visible result: capture group 1 with the "== lmnr_part_separator ==" lines already stripped and the parts re-joined. Judge it as the end product and do not expect the separator lines in it. Every pattern — probed or submitted — always runs against the original message; never write a pattern against a probe's result text.
-- submit_extraction_regex: submits the final pattern (starts with "(?s)", no surrounding quotes) and ends the pipeline. You may probe as many times as you want first.
+- submit_extraction_regex: submits the final pattern (starts with "(?s)", no surrounding quotes) and ends the pipeline. You may probe as many times as you want first. A submitted pattern that does not match this message is rejected and returned to you — probe, fix the pattern, and submit again.
 
 # Rules
 
@@ -81,8 +81,11 @@ The message may carry "== lmnr_part_separator ==" lines separating sibling messa
 /// `try_extraction_regex` (applied here, result returned to it) and
 /// finishes with `submit_extraction_regex`. Errors only on timeout /
 /// provider error — the genuinely transient failures the consumer may
-/// requeue. A terminal no-regex verdict (empty-string submit, a response
-/// with no tool call, or an exhausted call budget) is `Ok(None)`: a
+/// requeue. Recoverable slips — a response with no tool call, or a
+/// submitted pattern that doesn't match the sample — are pushed back to
+/// the model (a nudge / a rejection tool response) and retried within
+/// the call budget. Only an explicit empty-string submit (the model's
+/// deliberate no-regex verdict) or an exhausted budget is `Ok(None)`: a
 /// decision, not a transport failure.
 pub async fn generate_extraction_regex(
     llm_client: &Arc<LlmClient>,
@@ -110,8 +113,13 @@ pub async fn generate_extraction_regex(
             .and_then(|c| c.parts.as_deref())
             .unwrap_or_default();
 
-        // Submit ends the pipeline even when probe calls ride the same
-        // response — the model already committed to a final answer.
+        // An ACCEPTED submit ends the pipeline even when probe calls ride
+        // the same response — the model already committed to a final
+        // answer. Accepted means: empty string (the deliberate no-regex
+        // verdict — terminal) or a pattern that matches the sample
+        // (`Extracted` or `NoUserRequest`). A non-matching submit is NOT
+        // accepted — it falls through to the rejection path below and the
+        // model gets another attempt within the call budget.
         for part in parts {
             if let Some(fc) = &part.function_call
                 && fc.name == SUBMIT_TOOL_NAME
@@ -123,53 +131,88 @@ pub async fn generate_extraction_regex(
                     .and_then(|v| v.as_str())
                     .map(str::trim)
                     .unwrap_or("");
-                return Ok((!submitted.is_empty()).then(|| submitted.to_string()));
+                if submitted.is_empty() {
+                    return Ok(None);
+                }
+                if !matches!(
+                    apply_regex(submitted, sample_input),
+                    ApplyRegexResult::NoMatch
+                ) {
+                    return Ok(Some(submitted.to_string()));
+                }
             }
         }
 
-        let mut probe_responses: Vec<ProviderPart> = Vec::new();
+        // No accepted submit: answer EVERY tool call in the turn (providers
+        // require a response per call) — probes get probe results, rejected
+        // submits get a correction the model can act on.
+        let mut tool_responses: Vec<ProviderPart> = Vec::new();
         for part in parts {
             let Some(fc) = &part.function_call else {
                 continue;
             };
-            if fc.name != TRY_TOOL_NAME {
-                continue;
-            }
-            let pattern = fc
-                .args
-                .as_ref()
-                .and_then(|a| a.get("regex"))
-                .and_then(|v| v.as_str())
-                .map(str::trim)
-                .unwrap_or("");
-            // Always against the ORIGINAL sample input — the prompt
-            // promises probes never chain off each other's results.
-            let probe = probe_extraction_regex(pattern, sample_input, tracing);
-            probe_responses.push(ProviderPart {
+            let response = match fc.name.as_str() {
+                TRY_TOOL_NAME => {
+                    let pattern = fc
+                        .args
+                        .as_ref()
+                        .and_then(|a| a.get("regex"))
+                        .and_then(|v| v.as_str())
+                        .map(str::trim)
+                        .unwrap_or("");
+                    // Always against the ORIGINAL sample input — the prompt
+                    // promises probes never chain off each other's results.
+                    probe_extraction_regex(pattern, sample_input, tracing)
+                }
+                SUBMIT_TOOL_NAME => serde_json::json!({
+                    "result": "rejected",
+                    "detail": "the submitted pattern does not match the message (no match, \
+                               invalid pattern, or no capture group 1), so it was not \
+                               accepted; probe with try_extraction_regex, then submit a \
+                               pattern that matches",
+                }),
+                other => serde_json::json!({
+                    "result": "error",
+                    "detail": format!(
+                        "unknown tool `{other}`; the only tools are \
+                         try_extraction_regex and submit_extraction_regex"
+                    ),
+                }),
+            };
+            tool_responses.push(ProviderPart {
                 function_response: Some(ProviderFunctionResponse {
                     id: fc.id.clone(),
-                    name: TRY_TOOL_NAME.to_string(),
-                    response: probe,
+                    name: fc.name.clone(),
+                    response,
                 }),
                 ..Default::default()
             });
         }
 
-        // No submit and no probe: the model produced no usable tool call
-        // (its "no valid regex" verdict, or an empty/blocked response).
-        if probe_responses.is_empty() {
-            return Ok(None);
-        }
-
         // Append the model turn VERBATIM (keeps thoughts / signatures the
-        // provider needs echoed back), then the probe results.
+        // provider needs echoed back), then this turn's tool responses —
+        // or, when the model produced no tool call at all, a plain-text
+        // nudge. Either way the loop continues: only an accepted submit,
+        // an explicit empty-string submit, or budget exhaustion ends it.
         contents.push(model_content.cloned().unwrap_or(ProviderContent {
             role: Some("model".to_string()),
             parts: None,
         }));
         contents.push(ProviderContent {
             role: Some("user".to_string()),
-            parts: Some(probe_responses),
+            parts: Some(if tool_responses.is_empty() {
+                vec![ProviderPart {
+                    text: Some(
+                        "Respond with a tool call: probe a candidate pattern with \
+                         try_extraction_regex, or finish with submit_extraction_regex. \
+                         Submit an empty string only if no valid pattern can be produced."
+                            .to_string(),
+                    ),
+                    ..Default::default()
+                }]
+            } else {
+                tool_responses
+            }),
         });
     }
 
