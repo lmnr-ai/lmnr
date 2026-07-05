@@ -253,12 +253,22 @@ fn build_request(contents: Vec<ProviderContent>) -> ProviderRequest {
             ..Default::default()
         }),
         service_tier: None,
-        // Pinned to bedrock (medium → Sonnet 5). Deployments without a
-        // registered bedrock client fall back to the default provider
-        // inside `LlmClient::resolve`.
-        provider: Some("bedrock".to_string()),
+        provider: Some(extraction_provider()),
         model_size: Some(ModelSize::Medium),
     }
+}
+
+/// Provider for the regex-generation calls: `INPUT_EXTRACTION_LLM_PROVIDER`,
+/// defaulting to bedrock (medium → Sonnet 5). Either way, a provider without
+/// a registered client (missing credentials) silently falls back to the
+/// `LLM_PROVIDER` default inside `LlmClient::resolve`.
+fn extraction_provider() -> String {
+    // `mod env` shadows `std::env`, hence the fully-qualified read.
+    std::env::var(crate::env::user_task::INPUT_EXTRACTION_LLM_PROVIDER)
+        .ok()
+        .map(|v| v.trim().to_lowercase())
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| "bedrock".to_string())
 }
 
 /// One traced provider call with a timeout. Errors (timeout / provider)

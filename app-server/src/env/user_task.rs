@@ -13,3 +13,9 @@ pub const USER_TASK_LOCK_TTL_SECONDS: NumEnv<u64> =
 /// Deliberately distinct from other internal-tracing project ids (e.g.
 /// `TRACE_CHAT_INTERNAL_PROJECT_ID`) so each feature routes to its own project.
 pub const USER_TASK_INTERNAL_PROJECT_ID: &str = "USER_TASK_INTERNAL_PROJECT_ID";
+
+/// Provider for the regex-generation LLM calls. Unset/empty ⇒ bedrock.
+/// Either way, a provider that isn't registered (missing credentials)
+/// silently falls back to the `LLM_PROVIDER` default inside
+/// `LlmClient::resolve`.
+pub const INPUT_EXTRACTION_LLM_PROVIDER: &str = "INPUT_EXTRACTION_LLM_PROVIDER";
