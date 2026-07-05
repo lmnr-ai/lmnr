@@ -3,12 +3,11 @@
 import { ArrowUpRight, FlaskConical } from "lucide-react";
 import Link from "next/link";
 
-import { Response } from "@/components/ai-elements/response";
 import { formatScoreValue } from "@/components/evaluation/utils";
 import { type SessionEvaluationRef } from "@/lib/actions/debugger-sessions";
 import { cn } from "@/lib/utils";
 
-import { noteMarkdownComponents, noteProseClassName } from "./note-markdown";
+import NoteContent from "./note-content";
 import { evalAnchorId } from "./session-outline/utils";
 
 // A score with its change vs the same-named score on the previous eval, plus
@@ -85,9 +84,7 @@ export const EvaluationCard = ({
 
     {note && (
       <div className="border-t px-4 py-3">
-        <Response className={cn(noteProseClassName)} components={noteMarkdownComponents}>
-          {note}
-        </Response>
+        <NoteContent content={note} />
       </div>
     )}
   </div>

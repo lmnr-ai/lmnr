@@ -6,18 +6,16 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 
 import { cn } from "@/lib/utils";
 
-import { spanTagsToLinks } from "../note-markdown";
 import { type SessionBlockView, useDebuggerSessionViewStore } from "../store";
-import { evalAnchorId, headingAnchorId, parseNoteHeadings, textAnchorId, traceAnchorId } from "./utils";
+import { evalAnchorId, textAnchorId, traceAnchorId } from "./utils";
 
-// A row per block (trace / eval / text) plus a nested row per markdown heading in
-// a run's note, in timeline order (blocks are ordered by created_at).
+// A row per block (trace / eval / text), in timeline order (blocks are ordered
+// by created_at).
 type OutlineRow = {
   key: string;
   anchor: string;
-  level: number;
   text: string;
-  kind: "trace" | "eval" | "note" | "text";
+  kind: "trace" | "eval" | "text";
 };
 
 // A short label for a standalone text block: the first N characters of its
@@ -34,27 +32,14 @@ const buildRows = (blocks: SessionBlockView[]): OutlineRow[] => {
   for (const block of blocks) {
     if (block.type === "evaluation") {
       const a = evalAnchorId(block.evaluation.id);
-      rows.push({ key: a, anchor: a, level: 1, text: block.evaluation.name, kind: "eval" });
-      continue;
-    }
-    if (block.type === "text") {
+      rows.push({ key: a, anchor: a, text: block.evaluation.name, kind: "eval" });
+    } else if (block.type === "text") {
       const a = textAnchorId(block.id);
-      rows.push({ key: a, anchor: a, level: 1, text: textBlockTitle(block.text), kind: "text" });
-      continue;
-    }
-    if (block.type !== "trace") continue;
-
-    traceIndex += 1;
-    const traceAnchor = traceAnchorId(block.traceId);
-    rows.push({ key: traceAnchor, anchor: traceAnchor, level: 1, text: `Trace ${traceIndex}`, kind: "trace" });
-
-    // Nest the note's headings under the run. Parse the SAME span-tag-transformed
-    // string RunComment renders, so heading order and slugs line up with its ids.
-    if (block.note) {
-      for (const h of parseNoteHeadings(spanTagsToLinks(block.note, block.traceId))) {
-        const a = headingAnchorId(block.traceId, h.slug);
-        rows.push({ key: a, anchor: a, level: h.level, text: h.text, kind: "note" });
-      }
+      rows.push({ key: a, anchor: a, text: textBlockTitle(block.text), kind: "text" });
+    } else if (block.type === "trace") {
+      traceIndex += 1;
+      const a = traceAnchorId(block.traceId);
+      rows.push({ key: a, anchor: a, text: `Trace ${traceIndex}`, kind: "trace" });
     }
   }
   return rows;
@@ -66,9 +51,9 @@ interface SessionOutlineProps {
 
 /**
  * Left-rail session outline: a continuous left track with a single
- * framer-motion indicator that slides to the active row. Rows are the markdown
- * headings from each run's note (a pure note TOC — no per-trace rows). Active
- * state is tracked with an IntersectionObserver rooted at the browser viewport.
+ * framer-motion indicator that slides to the active row. One row per block
+ * (trace / eval / text). Active state is tracked with an IntersectionObserver
+ * rooted at the browser viewport.
  */
 export default function SessionOutline({ className }: SessionOutlineProps) {
   const blocks = useDebuggerSessionViewStore((s) => s.blocks);
@@ -86,12 +71,12 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
     setEdges((prev) => (prev.atTop === atTop && prev.atBottom === atBottom ? prev : { atTop, atBottom }));
   }, []);
 
-  // Rebuild rows only when block order / notes / eval names actually change
-  // (not on every streamed span that mutates traceSpans).
+  // Rebuild rows only when block order / eval names actually change (not on
+  // every streamed span that mutates traceSpans).
   const signature = blocks
     .map((b) =>
       b.type === "trace"
-        ? `t${b.traceId}${b.note ?? ""}`
+        ? `t${b.traceId}`
         : b.type === "evaluation"
           ? `e${b.evaluation.id}${b.evaluation.name}`
           : `x${b.id}`
@@ -128,8 +113,7 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
 
   // Active-row detection. Root is the browser viewport (root: null) — works
   // regardless of WHICH element scrolls. Active = crossed into the top 15%.
-  // Setup is deferred one frame: heading ids are stamped by RunComment's
-  // post-render effect, which can flush after this one in the same commit.
+  // Deferred one frame so anchor targets are mounted before we observe them.
   useEffect(() => {
     if (rows.length === 0) return;
     const observer = new IntersectionObserver(
@@ -248,8 +232,6 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
                 <span
                   className={cn(
                     "truncate text-sm transition-colors",
-                    // Note headings nest under their run.
-                    row.kind === "note" && (row.level >= 2 ? "pl-6" : "pl-3"),
                     isActive ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"
                   )}
                 >

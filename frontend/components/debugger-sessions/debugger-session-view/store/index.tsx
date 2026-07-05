@@ -14,20 +14,16 @@ import { type SessionBlock, type SessionEvaluationRef } from "@/lib/actions/debu
 import { toast } from "@/lib/hooks/use-toast";
 import { type RealtimeSpan, type SpanType, type TraceRow } from "@/lib/traces/types";
 
-// Trace-metadata key the agent writes its run note to (markdown string). Used
-// only to seed the note for the /alpha single-trace harness (which has no block)
-// and to read live note updates off a `trace_update` realtime payload.
-export const NOTE_METADATA_KEY = "rollout.note";
-
 /**
  * Client view of a session block. Same shape as the server `SessionBlock`
  * EXCEPT trace blocks reference their trace by id — the trace row itself lives
  * in the base store's `traces` (so span streaming / expand machinery is shared
  * with the regular session view). Blocks are the single ordered source for the
- * timeline; ordering is `createdAt` (entity time, frozen at ingest).
+ * timeline; ordering is `createdAt` (entity time, frozen at ingest). Notes are
+ * standalone `text` blocks only — trace blocks carry none.
  */
 export type SessionBlockView =
-  | { id: string; type: "trace"; createdAt: string; note: string | null; traceId: string }
+  | { id: string; type: "trace"; createdAt: string; traceId: string }
   | { id: string; type: "evaluation"; createdAt: string; note: string | null; evaluation: SessionEvaluationRef }
   | { id: string; type: "text"; createdAt: string; text: string };
 
@@ -197,28 +193,20 @@ interface DebuggerSessionViewActions {
   // Hide the "New trace" pill (pill click or its X).
   dismissNewTraceNotice: () => void;
 
-  // Note for a trace, from its `trace` block.
-  noteForTrace: (traceId: string) => string | undefined;
   // Span type for a loaded span (drives the span-ref chip icon).
   getSpanType: (traceId: string, spanId: string) => SpanType | undefined;
+  // Which loaded trace contains a span — resolves note span-references (text
+  // blocks aren't tied to one trace) to a (traceId, spanId) the panel can open.
+  findTraceIdForSpan: (spanId: string) => string | undefined;
 }
 
 export type DebuggerSessionViewStore = BaseSessionViewStore & DebuggerSessionViewState & DebuggerSessionViewActions;
 
 // Seed a single trace block for the /alpha single-trace harness (no session, so
-// no blocks come from the server). Note is read off the trace's own metadata.
-const seedBlocksFromTrace = (trace: TraceRow): SessionBlockView[] => {
-  const note = trace.metadata?.[NOTE_METADATA_KEY];
-  return [
-    {
-      id: `trace:${trace.id}`,
-      type: "trace",
-      createdAt: trace.startTime,
-      note: typeof note === "string" ? note : null,
-      traceId: trace.id,
-    },
-  ];
-};
+// no blocks come from the server).
+const seedBlocksFromTrace = (trace: TraceRow): SessionBlockView[] => [
+  { id: `trace:${trace.id}`, type: "trace", createdAt: trace.startTime, traceId: trace.id },
+];
 
 export const createDebuggerSessionViewStore = (options?: {
   initialTraceRow?: TraceRow;
@@ -316,7 +304,7 @@ export const createDebuggerSessionViewStore = (options?: {
               const fetchedBlocks: SessionBlockView[] = fetched.map((b) => {
                 if (b.type === "trace") {
                   fetchedTraceRows.push({ ...b.trace, metadata: normalizeMetadata(b.trace.metadata) });
-                  return { id: b.id, type: "trace", createdAt: b.createdAt, note: b.note, traceId: b.trace.id };
+                  return { id: b.id, type: "trace", createdAt: b.createdAt, traceId: b.trace.id };
                 }
                 return b;
               });
@@ -379,7 +367,6 @@ export const createDebuggerSessionViewStore = (options?: {
           applyTraceUpdate: (t) => {
             if (!t.traceId) return;
             const metadata = normalizeMetadata(t.metadata);
-            const note = metadata[NOTE_METADATA_KEY];
             const existingBlock = get().blocks.find((b) => b.type === "trace" && b.traceId === t.traceId);
 
             if (!existingBlock) {
@@ -395,7 +382,6 @@ export const createDebuggerSessionViewStore = (options?: {
                         id: `trace:${t.traceId}`,
                         type: "trace",
                         createdAt: new Date().toISOString(),
-                        note: typeof note === "string" ? note : null,
                         traceId: t.traceId,
                       },
                     ]),
@@ -410,15 +396,7 @@ export const createDebuggerSessionViewStore = (options?: {
               return;
             }
 
-            // Known run → update the block's note + the row's hasBrowserSession.
-            if (typeof note === "string") {
-              set(
-                (s) =>
-                  ({
-                    blocks: s.blocks.map((b) => (b.type === "trace" && b.traceId === t.traceId ? { ...b, note } : b)),
-                  }) as Partial<DebuggerSessionViewStore>
-              );
-            }
+            // Known run → update the row's hasBrowserSession.
             if (typeof t.hasBrowserSession === "boolean") {
               get().setTraces((traces) =>
                 traces.map((row) => (row.id === t.traceId ? { ...row, hasBrowserSession: t.hasBrowserSession } : row))
@@ -527,12 +505,14 @@ export const createDebuggerSessionViewStore = (options?: {
 
           dismissNewTraceNotice: () => set({ newTraceNotice: false } as Partial<DebuggerSessionViewStore>),
 
-          noteForTrace: (traceId) => {
-            const block = get().blocks.find((b) => b.type === "trace" && b.traceId === traceId);
-            return block?.type === "trace" ? (block.note ?? undefined) : undefined;
-          },
-
           getSpanType: (traceId, spanId) => get().traceSpans[traceId]?.find((s) => s.spanId === spanId)?.spanType,
+
+          findTraceIdForSpan: (spanId) => {
+            for (const [traceId, spans] of Object.entries(get().traceSpans)) {
+              if (spans.some((s) => s.spanId === spanId)) return traceId;
+            }
+            return undefined;
+          },
         };
       },
       {

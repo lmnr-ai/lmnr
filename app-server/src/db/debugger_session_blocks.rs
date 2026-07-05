@@ -159,11 +159,9 @@ pub async fn upsert_blocks_for_traces(pool: &PgPool, traces: &[Trace]) {
             continue;
         };
 
-        let mut content = serde_json::Map::new();
-        content.insert("traceId".to_string(), Value::String(trace.id().to_string()));
-        if let Some(note) = note_from_metadata(trace.metadata()) {
-            content.insert("note".to_string(), Value::String(note.to_string()));
-        }
+        // Trace blocks are pure references — notes live only in standalone text
+        // blocks, not folded from trace `rollout.note` metadata.
+        let content = serde_json::json!({ "traceId": trace.id().to_string() });
 
         if let Err(e) = upsert_block(
             pool,
@@ -171,7 +169,7 @@ pub async fn upsert_blocks_for_traces(pool: &PgPool, traces: &[Trace]) {
             &session_id,
             TRACE_BLOCK_TYPE,
             &trace.id(),
-            &Value::Object(content),
+            &content,
             &trace.start_time().unwrap_or(Utc::now()),
         )
         .await

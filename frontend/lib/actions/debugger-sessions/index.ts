@@ -347,12 +347,12 @@ export type SessionEvaluationRef = {
  * a `trace` block resolves to a full trace row (spans stream in over realtime),
  * an `evaluation` block to its identity + score averages, a `text` block just
  * carries markdown. Every block exposes its own `createdAt` — the entity's time
- * (trace `start_time` / eval `created_at`), frozen at first ingest — which is
- * the single ordering key for the whole timeline. `note` is the agent-authored
- * markdown stored on the block (never smuggled through trace metadata).
+ * (trace `start_time` / eval `created_at`), frozen at first ingest — the single
+ * ordering key for the whole timeline. Notes are standalone `text` blocks only;
+ * trace blocks carry no note.
  */
 export type SessionBlock =
-  | { id: string; type: "trace"; createdAt: string; note: string | null; trace: TraceRow }
+  | { id: string; type: "trace"; createdAt: string; trace: TraceRow }
   | { id: string; type: "evaluation"; createdAt: string; note: string | null; evaluation: SessionEvaluationRef }
   | { id: string; type: "text"; createdAt: string; text: string };
 
@@ -412,8 +412,7 @@ export async function getSessionBlocks(input: z.infer<typeof GetSessionBlocksSch
   for (const block of blocks) {
     if (block.type === TRACE_BLOCK_TYPE) {
       const trace = isGuid(block.content.traceId) ? tracesById.get(block.content.traceId) : undefined;
-      if (trace)
-        resolved.push({ id: block.id, type: "trace", createdAt: block.createdAt, note: blockNote(block), trace });
+      if (trace) resolved.push({ id: block.id, type: "trace", createdAt: block.createdAt, trace });
     } else if (block.type === EVALUATION_BLOCK_TYPE) {
       const evaluation = isGuid(block.content.evaluationId)
         ? evaluationsById.get(block.content.evaluationId)
@@ -517,7 +516,6 @@ async function getLegacySessionBlocks(projectId: string, sessionId: string): Pro
       id: `trace:${trace.id}`,
       type: "trace",
       createdAt: trace.startTime,
-      note: noteFromMetadata(trace.metadata),
       trace,
     })),
     ...evaluationRows.map<SessionBlock>((row) => ({

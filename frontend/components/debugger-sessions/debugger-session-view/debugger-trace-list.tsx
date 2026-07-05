@@ -3,13 +3,12 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
-import { Response } from "@/components/ai-elements/response";
 import { useSessionSpanPreviews } from "@/components/traces/session-view/session-panel/use-session-span-previews";
 import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
 import { useBatchedTraceIO } from "@/components/traces/sessions-table/use-batched-trace-io";
-import { cn, formatDuration } from "@/lib/utils";
+import { formatDuration } from "@/lib/utils";
 
-import { noteMarkdownComponents, noteProseClassName } from "./note-markdown";
+import NoteContent from "./note-content";
 import { computeScoreDeltas, EvaluationCard } from "./session-evaluations";
 import { textAnchorId } from "./session-outline/utils";
 import { type SessionBlockView, useDebuggerSessionViewStore } from "./store";
@@ -129,9 +128,7 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
         if (block.type === "text") {
           return (
             <div key={block.id} id={textAnchorId(block.id)} className="scroll-mt-4 px-1 py-5">
-              <Response className={cn(noteProseClassName)} components={noteMarkdownComponents}>
-                {block.text}
-              </Response>
+              <NoteContent content={block.text} />
             </div>
           );
         }
