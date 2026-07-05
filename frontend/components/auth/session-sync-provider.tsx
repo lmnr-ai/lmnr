@@ -20,9 +20,17 @@ export const useSessionSync = () => {
 
     channel.addEventListener("message", async (event) => {
       if (event.data.type === LOGOUT_EVENT) {
-        await signOut();
-        reset();
-        window.location.href = withBasePath("/");
+        // The originating tab already signed out, so the session is gone
+        // regardless of whether this tab's signOut() call succeeds — always
+        // reset PostHog and redirect.
+        try {
+          await signOut();
+        } catch (e) {
+          console.error(e);
+        } finally {
+          reset();
+          window.location.href = withBasePath("/");
+        }
       }
     });
 
