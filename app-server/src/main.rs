@@ -76,6 +76,10 @@ use traces::{
         consumer::InputExtractionHandler,
         queue::{INPUT_EXTRACTION_EXCHANGE, INPUT_EXTRACTION_QUEUE, INPUT_EXTRACTION_ROUTING_KEY},
     },
+    system_extraction::{
+        STATIC_PROMPT_EXCHANGE, STATIC_PROMPT_QUEUE, STATIC_PROMPT_ROUTING_KEY,
+        consumer::StaticPromptHandler,
+    },
 };
 
 use cache::{
@@ -92,10 +96,6 @@ use quickwit::{
 };
 use realtime::SseConnectionMap;
 use sodiumoxide;
-use static_prompt::{
-    STATIC_PROMPT_EXCHANGE, STATIC_PROMPT_QUEUE, STATIC_PROMPT_ROUTING_KEY,
-    consumer::StaticPromptHandler,
-};
 use std::{
     borrow::Cow,
     io::{self, Error},
@@ -150,7 +150,6 @@ mod runtime;
 mod search;
 mod signals;
 mod sql;
-mod static_prompt;
 mod storage;
 mod traces;
 mod utils;

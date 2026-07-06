@@ -10,11 +10,13 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{accumulator_cache_key, extraction_lock_cache_key, static_regex_cache_key};
+use super::{
+    ExtractionConfig, ExtractionTracing, accumulator_cache_key, extract_static_regexes,
+    extraction_lock_cache_key, static_regex_cache_key,
+};
 use crate::{
     cache::{Cache, CacheTrait},
     llm::LlmClient,
-    traces::system_extraction::{ExtractionConfig, ExtractionTracing, extract_static_regexes},
     worker::{HandlerError, MessageHandler},
 };
 

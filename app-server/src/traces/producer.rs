@@ -31,10 +31,10 @@ use crate::{
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::{
         ExportTracePartialSuccess, ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
-    static_prompt::producer::{StaticPromptCandidate, publish_static_prompt_candidates},
     traces::{
         prompt_hash::{extract_system_message, structural_skeleton_hash},
         span_attributes::SPAN_PROMPT_HASH,
+        system_extraction::producer::{StaticPromptCandidate, publish_static_prompt_candidates},
     },
 };
 
