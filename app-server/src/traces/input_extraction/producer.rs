@@ -157,10 +157,8 @@ pub async fn process_user_task_candidates(
             candidate.prompt_hash.as_deref(),
             &candidate.fingerprint,
         );
-        // `None` tracing: the producer sits on the ingest path where
-        // self-tracing spans would recurse through `push_spans_to_queue`.
         let mut inline_result =
-            try_apply_cached_regex(&cache, &regex_key, &candidate.signposted_text, None).await;
+            try_apply_cached_regex(&cache, &regex_key, &candidate.signposted_text).await;
 
         if inline_result.is_some() {
             // Re-read the winner lock before the inline publish: a
@@ -211,8 +209,8 @@ pub async fn process_user_task_candidates(
         // gating equal-or-lower-cost retries for the whole lock TTL and
         // possibly never writing `lmnr_user_task` at all.
         let effect_landed = match inline_result {
-            Some(outcome) => {
-                let patch = build_metadata_patch(&outcome.result);
+            Some(result) => {
+                let patch = build_metadata_patch(&result);
                 match publish_trace_metadata_patch(
                     trace_id,
                     project_id,

@@ -69,16 +69,14 @@ pub fn apply_regex(pattern: &str, text: &str) -> ApplyRegexResult {
     }
 }
 
-/// Final per-message extraction outcome plus the tracing facts the
-/// consumer stamps as trace-level metadata flags on its root span.
+/// Final outcome of a generation run plus the facts the consumer stamps
+/// as trace-level metadata flags on its root span.
 pub struct ExtractionOutcome {
     pub result: ApplyRegexResult,
     /// The pattern whose application produced `result`; `None` when the
     /// generation pipeline produced no regex at all (deliberate empty
     /// submit or exhausted call budget).
     pub pattern: Option<String>,
-    /// True when the applied regex came from the cache (no LLM call).
-    pub cache_hit: bool,
 }
 
 /// Whether a pattern is the capture-everything passthrough the prompt
@@ -114,32 +112,17 @@ pub fn apply_result_to_json(result: &ApplyRegexResult) -> serde_json::Value {
     }
 }
 
-/// Apply a pattern and trace the application as an `apply_regex` tool
-/// span — the one authoritative application whose result becomes the
-/// metadata patch, whether the regex came from the cache or was freshly
-/// generated (the generation loop's probe applications are traced under
-/// the probe tool name instead). `cached` is stamped on the span so the
-/// two sources stay distinguishable.
-fn apply_regex_traced(
-    pattern: &str,
-    text: &str,
-    cached: bool,
-    tracing: Option<&SpanScope>,
-) -> ApplyRegexResult {
-    let span = tracing.map(|scope| {
-        SpanBuilder::tool(scope, "apply_regex")
-            .input(&serde_json::json!({ "regex": pattern }))
-            .build()
-    });
+/// Apply a freshly generated pattern and trace the application as an
+/// `apply_regex` tool span — the one authoritative application whose
+/// result becomes the metadata patch (the generation loop's probe
+/// applications are traced under the probe tool name instead). Cached
+/// regexes are applied untraced via [`try_apply_cached_regex`].
+fn apply_regex_traced(pattern: &str, text: &str, scope: &SpanScope) -> ApplyRegexResult {
+    let span = SpanBuilder::tool(scope, "apply_regex")
+        .input(&serde_json::json!({ "regex": pattern }))
+        .build();
     let result = apply_regex(pattern, text);
-    if let Some(span) = span.as_ref() {
-        self_tracing::set_attr_str(
-            span,
-            "user_task.regex_cached",
-            if cached { "true" } else { "false" },
-        );
-        self_tracing::set_output(span, &apply_result_to_json(&result));
-    }
+    self_tracing::set_output(&span, &apply_result_to_json(&result));
     result
 }
 
@@ -161,27 +144,23 @@ pub fn regex_cache_key(project_id: Uuid, prompt_hash: Option<&str>, fingerprint:
 
 /// Consult the regex cache and apply on hit. `None` means "no
 /// usable cached regex" — either a true miss or a stale entry that no
-/// longer matches (removed so the consumer regenerates). `tracing` must
-/// stay `None` on the producer (ingest) path — see `self_tracing`.
+/// longer matches (removed so the consumer regenerates). Deliberately
+/// untraced: a cache hit is pure regex application, and self-tracing
+/// only follows actual LLM generation runs.
 pub async fn try_apply_cached_regex(
     cache: &Arc<Cache>,
     key: &str,
     signposted_text: &str,
-    tracing: Option<&SpanScope>,
-) -> Option<ExtractionOutcome> {
+) -> Option<ApplyRegexResult> {
     let cached = cache.get::<String>(key).await.ok().flatten()?;
-    match apply_regex_traced(&cached, signposted_text, true, tracing) {
+    match apply_regex(&cached, signposted_text) {
         ApplyRegexResult::NoMatch => {
             let _ = cache.remove(key).await;
             None
         }
         result => {
             let _ = cache.set_ttl(key, REGEX_CACHE_TTL_SECONDS).await;
-            Some(ExtractionOutcome {
-                result,
-                pattern: Some(cached),
-                cache_hit: true,
-            })
+            Some(result)
         }
     }
 }
@@ -200,17 +179,16 @@ pub async fn generate_and_apply_regex(
     llm_client: &Arc<LlmClient>,
     key: &str,
     signposted_text: &str,
-    tracing: Option<&SpanScope>,
+    scope: &SpanScope,
 ) -> anyhow::Result<ExtractionOutcome> {
-    let Some(generated) = generate_extraction_regex(llm_client, signposted_text, tracing).await?
+    let Some(generated) = generate_extraction_regex(llm_client, signposted_text, scope).await?
     else {
         return Ok(ExtractionOutcome {
             result: ApplyRegexResult::NoUserRequest,
             pattern: None,
-            cache_hit: false,
         });
     };
-    let result = apply_regex_traced(&generated, signposted_text, false, tracing);
+    let result = apply_regex_traced(&generated, signposted_text, scope);
     if !matches!(result, ApplyRegexResult::NoMatch) {
         let _ = cache
             .insert_with_ttl(key, &generated, REGEX_CACHE_TTL_SECONDS)
@@ -219,7 +197,6 @@ pub async fn generate_and_apply_regex(
     Ok(ExtractionOutcome {
         result,
         pattern: Some(generated),
-        cache_hit: false,
     })
 }
 

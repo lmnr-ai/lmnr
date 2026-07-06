@@ -16,11 +16,11 @@ pub const USER_TASK_NOT_FOUND_METADATA_KEY: &str = "lmnr_user_task_not_found";
 /// Map an extraction outcome onto the trace-metadata patch. Extracted
 /// text is signpost-split and re-joined; no-result outcomes never fall
 /// back to raw text. Trace metadata merges with JSONB `||` (additive —
-/// keys are overwritten but never removed), so each arm must overwrite
-/// BOTH keys: a success resets a possibly earlier `true` marker to
-/// `false`, and a no-result nulls out task text a superseded earlier
-/// winner may have published — otherwise the trace would carry stale
-/// `lmnr_user_task` text alongside `lmnr_user_task_not_found: true`.
+/// keys are overwritten but never removed), so a success nulls out a
+/// possibly earlier `true` marker, and a no-result nulls out task text
+/// a superseded earlier winner may have published — otherwise the trace
+/// would carry stale `lmnr_user_task` text alongside
+/// `lmnr_user_task_not_found: true` (or vice versa).
 pub fn build_metadata_patch(result: &ApplyRegexResult) -> HashMap<String, Value> {
     match result {
         ApplyRegexResult::Extracted(text) => HashMap::from([
@@ -28,10 +28,7 @@ pub fn build_metadata_patch(result: &ApplyRegexResult) -> HashMap<String, Value>
                 USER_TASK_METADATA_KEY.to_string(),
                 Value::String(split_signposts_and_rejoin(text)),
             ),
-            (
-                USER_TASK_NOT_FOUND_METADATA_KEY.to_string(),
-                Value::Bool(false),
-            ),
+            (USER_TASK_NOT_FOUND_METADATA_KEY.to_string(), Value::Null),
         ]),
         ApplyRegexResult::NoUserRequest | ApplyRegexResult::NoMatch => HashMap::from([
             (USER_TASK_METADATA_KEY.to_string(), Value::Null),
@@ -57,11 +54,11 @@ mod tests {
             patch.get(USER_TASK_METADATA_KEY),
             Some(&Value::String("part a\n\npart b".to_string()))
         );
-        // JSONB || merge never removes keys — success must reset an
-        // earlier not-found marker.
+        // JSONB || merge never removes keys — success must null out an
+        // earlier not-found marker instead of leaving it true.
         assert_eq!(
             patch.get(USER_TASK_NOT_FOUND_METADATA_KEY),
-            Some(&Value::Bool(false))
+            Some(&Value::Null)
         );
     }
 
