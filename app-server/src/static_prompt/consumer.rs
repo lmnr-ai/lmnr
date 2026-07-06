@@ -30,10 +30,10 @@ const MIN_PROMPT_SAMPLES: usize = 5;
 const MAX_PROMPT_SAMPLES: usize = 10;
 
 /// TTL on the per-signature extraction lock: long enough for the agent to
-/// produce a regex list (the temperature-ladder retries can take a while on
-/// large prompt families), short enough that a failed run frees the
-/// signature reasonably promptly for a retry.
-const EXTRACTION_LOCK_TTL_SECONDS: u64 = 15 * 60;
+/// produce a regex list (normally under 10 min; the per-step upper bounds
+/// are high just in case, so leave generous headroom), short enough that a
+/// failed run frees the signature reasonably promptly for a retry.
+const EXTRACTION_LOCK_TTL_SECONDS: u64 = 30 * 60;
 
 /// TTL on the accumulated raw prompts, so signatures that never reach
 /// `MIN_PROMPT_SAMPLES` don't hold onto prompt bodies forever.
