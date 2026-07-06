@@ -6,19 +6,12 @@ import { useCallback, useMemo } from "react";
 import AdvancedSearch, { type AdvancedSearchValue } from "@/components/common/advanced-search";
 import EvalColumnsMenu from "@/components/evaluation/eval-columns-menu";
 import { useEvalStore } from "@/components/evaluation/store";
-import {
-  DEFAULT_HEATMAP_VARIANT,
-  HEATMAP_VARIANT_OPTIONS,
-  type HeatmapVariant,
-  type ScoreRanges,
-} from "@/components/evaluation/utils";
+import { type ScoreRanges } from "@/components/evaluation/utils";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -47,6 +40,8 @@ interface EvaluationDatapointsTableProps {
   isComparison: boolean;
   /** Min/max per score, derived from data. Used by the heatmap renderer. */
   scoreRanges: ScoreRanges;
+  /** Sticky-left columns (position: sticky during horizontal scroll). Opt-in, passes through to InfiniteDataTable. */
+  pinnedLeftColumnIds?: string[];
 
   datapointId?: string;
   handleRowClick: (row: Row<EvalRow>) => void;
@@ -59,8 +54,6 @@ interface EvaluationDatapointsTableProps {
   /** Heatmap toggle is non-shared only; omit to hide the settings dropdown. */
   heatmapEnabled?: boolean;
   onHeatmapEnabledChange?: (enabled: boolean) => void;
-  heatmapVariant?: HeatmapVariant;
-  onHeatmapVariantChange?: (variant: HeatmapVariant) => void;
   onDeleteCustomColumn?: (columnId: string) => void;
 
   /** Controlled search/filter value. Parent owns the source (view layer or URL params). */
@@ -94,6 +87,7 @@ const EvaluationDatapointsTable = ({
   visibleColumnDefs,
   isComparison,
   scoreRanges,
+  pinnedLeftColumnIds,
   datapointId,
   handleRowClick,
   getRowHref,
@@ -102,8 +96,6 @@ const EvaluationDatapointsTable = ({
   onSort,
   heatmapEnabled,
   onHeatmapEnabledChange,
-  heatmapVariant,
-  onHeatmapVariantChange,
   onDeleteCustomColumn,
   searchValue,
   onSearchChange,
@@ -118,11 +110,10 @@ const EvaluationDatapointsTable = ({
         isComparison,
         isShared,
         heatmapEnabled: heatmapEnabled ?? false,
-        heatmapVariant: heatmapVariant ?? DEFAULT_HEATMAP_VARIANT,
         scoreRanges,
       },
     }),
-    [isComparison, isShared, heatmapEnabled, heatmapVariant, scoreRanges]
+    [isComparison, isShared, heatmapEnabled, scoreRanges]
   );
 
   const columnFilters = useMemo(() => buildColumnFilters(columnDefs), [columnDefs]);
@@ -149,6 +140,7 @@ const EvaluationDatapointsTable = ({
         focusedRowId={datapointId}
         onRowClick={handleRowClick}
         getRowHref={getRowHref}
+        pinnedLeftColumnIds={pinnedLeftColumnIds}
         className="flex-1"
         sortBy={sortBy}
         sortDirection={sortDirection}
@@ -185,24 +177,6 @@ const EvaluationDatapointsTable = ({
                   </div>
                   <Switch checked={heatmapEnabled ?? false} onCheckedChange={onHeatmapEnabledChange} />
                 </div>
-                {heatmapEnabled && onHeatmapVariantChange && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                      Style
-                    </DropdownMenuLabel>
-                    <DropdownMenuRadioGroup
-                      value={heatmapVariant ?? DEFAULT_HEATMAP_VARIANT}
-                      onValueChange={(v) => onHeatmapVariantChange(v as HeatmapVariant)}
-                    >
-                      {HEATMAP_VARIANT_OPTIONS.map((opt) => (
-                        <DropdownMenuRadioItem key={opt.value} value={opt.value} className="text-xs">
-                          {opt.label}
-                        </DropdownMenuRadioItem>
-                      ))}
-                    </DropdownMenuRadioGroup>
-                  </>
-                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}

@@ -1,4 +1,5 @@
 import { ArrowRight, Edit, Ellipsis, Trash } from "lucide-react";
+import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { memo } from "react";
 
@@ -15,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { type Evaluation as EvaluationType } from "@/lib/evaluation/types";
 import { formatTimestamp } from "@/lib/utils";
 
@@ -43,8 +45,16 @@ const EvaluationHeader = ({ evaluations, name, urlKey, hasNonBinary }: Evaluatio
   };
 
   return (
-    <div className="flex-none flex gap-2 px-4 items-center justify-between w-full">
+    <div className="font-medium flex-none flex gap-2 items-center justify-between w-full h-12 pl-2.5 pr-4">
       <div className="flex items-center gap-2">
+        <SidebarTrigger className="hover:bg-secondary size-7" />
+        <Link
+          href={`/project/${projectId}/evaluations`}
+          className="hover:bg-muted rounded-lg px-2 p-0.5 text-secondary-foreground"
+        >
+          evaluations
+        </Link>
+        <div className="text-secondary-foreground/40">/</div>
         <div>
           <Select key={targetId} value={targetId ?? undefined} onValueChange={handleChange}>
             <SelectTrigger disabled={evaluations.length <= 1} className="flex font-medium truncate">

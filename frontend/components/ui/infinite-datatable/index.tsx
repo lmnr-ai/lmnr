@@ -54,6 +54,7 @@ export function InfiniteDataTable<TData extends RowData>({
   focusedRowId,
   selectionPanel,
   pinnedColumns,
+  pinnedLeftColumnIds,
 
   // Styling
   className,
@@ -116,9 +117,15 @@ export function InfiniteDataTable<TData extends RowData>({
     setDraggingColumnId: state.setDraggingColumnId,
   }));
 
+  // Sticky-left columns must also render first, or their `getStart('left')`
+  // offset (computed assuming they're the leading columns) would be wrong.
+  const orderPins = useMemo(
+    () => [...(pinnedColumns ?? []), ...(pinnedLeftColumnIds ?? [])],
+    [pinnedColumns, pinnedLeftColumnIds]
+  );
   const effectiveColumnOrder = useMemo(
-    () => computeEffectiveOrder(columnOrder, availableIds, pinnedColumns ?? (EMPTY_ARRAY as string[])),
-    [columnOrder, availableIds, pinnedColumns]
+    () => computeEffectiveOrder(columnOrder, availableIds, orderPins.length ? orderPins : (EMPTY_ARRAY as string[])),
+    [columnOrder, availableIds, orderPins]
   );
 
   // Handle drag start
@@ -198,7 +205,15 @@ export function InfiniteDataTable<TData extends RowData>({
     enableRowSelection,
     enableMultiRowSelection: tableOptions.enableMultiRowSelection ?? true,
     onRowSelectionChange,
-    state: { ...state, columnVisibility, columnOrder: effectiveColumnOrder, columnSizing, sorting },
+    enableColumnPinning: !!pinnedLeftColumnIds?.length,
+    state: {
+      ...state,
+      columnVisibility,
+      columnOrder: effectiveColumnOrder,
+      columnSizing,
+      sorting,
+      columnPinning: { left: pinnedLeftColumnIds ?? [] },
+    },
     onColumnSizingChange: (updater) => {
       const next = typeof updater === "function" ? updater(columnSizing) : updater;
       setColumnSizing(next);

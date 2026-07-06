@@ -1,6 +1,6 @@
 import { flow, get, isNumber, mean, round } from "lodash";
 
-import { getOptimalTextColor, interpolateColor, normalizeValue, type RGBColor, type ScoreRange } from "@/lib/colors";
+import { interpolateColor, normalizeValue, type RGBColor, type ScoreRange } from "@/lib/colors";
 import {
   type EvalRow,
   type Evaluation,
@@ -188,46 +188,10 @@ export const mergeTraceUpdateIntoRows = (
   return next;
 };
 
-export const createHeatmapStyle = (value: number, { min, max }: ScoreRange) => {
-  if (!shouldShowHeatmap({ min, max })) {
-    return {
-      background: "transparent",
-      color: "inherit",
-    };
-  }
-
-  const bgColor = getScoreBackgroundColor(min, max, value);
-
-  return {
-    background: `rgb(${bgColor.join(", ")})`,
-    color: getOptimalTextColor(bgColor),
-  };
-};
-
-export type HeatmapVariant = "pill" | "square" | "bar" | "text" | "progress";
-
-export const DEFAULT_HEATMAP_VARIANT: HeatmapVariant = "square";
-
-export const HEATMAP_VARIANT_OPTIONS: { value: HeatmapVariant; label: string }[] = [
-  { value: "pill", label: "Pill" },
-  { value: "square", label: "Square" },
-  { value: "bar", label: "Bar" },
-  { value: "text", label: "Text" },
-  { value: "progress", label: "Progress" },
-];
-
 // rgb(...) string for the heatmap color, or null when the range is too narrow
-// to be meaningful (mirrors createHeatmapStyle's `background: "transparent"`
-// branch — callers treat null as "render the plain number").
+// to be meaningful — callers treat null as "render the plain number".
 export const getHeatmapColor = (value: number, { min, max }: ScoreRange): string | null => {
   if (!shouldShowHeatmap({ min, max })) return null;
   const [r, g, b] = getScoreBackgroundColor(min, max, value);
   return `rgb(${r}, ${g}, ${b})`;
-};
-
-// Position of `value` inside [min, max], clamped to [0, 1]. Falls back to 0 when
-// range collapses (createHeatmapStyle would have already returned transparent).
-export const getHeatmapPosition = (value: number, { min, max }: ScoreRange): number => {
-  if (max === min) return 0;
-  return Math.min(1, Math.max(0, (value - min) / (max - min)));
 };

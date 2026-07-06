@@ -58,6 +58,7 @@ export function InfiniteDatatableRow<TData extends RowData>({
       )}
       key={row.id}
       data-state={row.getIsSelected() && "selected"}
+      data-focused={focusedRowId === row.id || undefined}
       onClick={handleOnClick}
       onAuxClick={handleAuxClick}
       onMouseEnter={onHoveredRowChange ? () => onHoveredRowChange(row) : undefined}

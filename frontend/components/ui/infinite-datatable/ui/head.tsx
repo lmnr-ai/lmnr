@@ -38,6 +38,7 @@ export function InfiniteTableHead<TData extends RowData>({
   });
 
   const isOtherDragging = draggingColumnId && draggingColumnId !== columnId;
+  const isPinned = header.column.getIsPinned() === "left";
 
   const transformValue = CSS.Translate.toString(transform);
   const scaleValue = isDragging ? "scale(1.02)" : "";
@@ -46,7 +47,8 @@ export function InfiniteTableHead<TData extends RowData>({
 
   const style: CSSProperties = {
     opacity: isDragging ? 0.4 : isOtherDragging ? 0.9 : 1,
-    position: "relative",
+    position: isPinned ? "sticky" : "relative",
+    left: isPinned ? header.column.getStart("left") : undefined,
     transform: combinedTransform,
     transition:
       transition ||
@@ -55,7 +57,7 @@ export function InfiniteTableHead<TData extends RowData>({
         : "transform 0.2s ease-out, opacity 0.2s ease-out"),
     whiteSpace: "nowrap",
     width: header.column.getSize(),
-    zIndex: isDragging ? 50 : isOtherDragging ? 1 : 0,
+    zIndex: isDragging ? 50 : isOtherDragging ? 1 : isPinned ? 30 : 0,
   };
   return (
     <TableHead
@@ -67,7 +69,11 @@ export function InfiniteTableHead<TData extends RowData>({
         minWidth: header.getSize(),
         display: "flex",
       }}
-      className={cn("m-0 relative text-secondary-foreground truncate hover:bg-transparent", isDragging && "shadow-lg")}
+      className={cn(
+        "m-0 relative text-secondary-foreground truncate hover:bg-transparent",
+        isDragging && "shadow-lg",
+        isPinned && "bg-secondary border-r shadow-[2px_0_6px_-2px_rgba(0,0,0,0.35)]"
+      )}
       key={header.id}
       ref={setNodeRef}
     >

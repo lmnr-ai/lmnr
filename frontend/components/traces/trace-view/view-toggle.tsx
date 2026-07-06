@@ -1,4 +1,4 @@
-import { ChevronDown, Eye, EyeOff, List, ListTree, type LucideIcon } from "lucide-react";
+import { ChevronDown, Eye, EyeOff, LayoutTemplate, List, ListTree, type LucideIcon } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -8,27 +8,36 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils.ts";
 
-export type ViewTab = "tree" | "transcript";
+export type ViewTab = "tree" | "transcript" | "custom";
 
 const viewOptions: Record<ViewTab, { icon: LucideIcon; label: string }> = {
   tree: { icon: ListTree, label: "Tree" },
   transcript: { icon: List, label: "Transcript" },
+  custom: { icon: LayoutTemplate, label: "Custom" },
 };
 
-const viewTabs: ViewTab[] = ["tree", "transcript"];
+const viewTabs: ViewTab[] = ["tree", "transcript", "custom"];
 
 interface ViewToggleProps {
   tab: ViewTab;
   onTabChange: (tab: ViewTab) => void;
   showContent: boolean;
   onToggleContent: () => void;
+  /** Which tabs to offer. Defaults to all; the session bar restricts to tree/transcript. */
+  tabs?: ViewTab[];
 }
 
-/** Presentational Tree/Transcript dropdown + Content eye-toggle. Fully
+/** Presentational Tree/Transcript/Custom dropdown + Content eye-toggle. Fully
  *  controlled — no store, no analytics. `ViewDropdown` wires it to the
  *  trace-view store; the session control bar wires it to per-trace state. */
-export default function ViewToggle({ tab, onTabChange, showContent, onToggleContent }: ViewToggleProps) {
-  const isValidTab = viewTabs.includes(tab);
+export default function ViewToggle({
+  tab,
+  onTabChange,
+  showContent,
+  onToggleContent,
+  tabs = viewTabs,
+}: ViewToggleProps) {
+  const isValidTab = tabs.includes(tab);
   const displayTab: ViewTab = isValidTab ? tab : "transcript";
   const currentView = viewOptions[displayTab];
   const CurrentIcon = currentView.icon;
@@ -50,7 +59,7 @@ export default function ViewToggle({ tab, onTabChange, showContent, onToggleCont
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
-          {viewTabs.map((option) => {
+          {tabs.map((option) => {
             const view = viewOptions[option];
             const OptionIcon = view.icon;
             return (

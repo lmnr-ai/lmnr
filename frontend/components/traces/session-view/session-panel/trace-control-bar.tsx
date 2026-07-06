@@ -52,6 +52,9 @@ export default function TraceControlBar({ trace, analyticsFeature = "sessions" }
   };
 
   const handleTabChange = (next: ViewTab) => {
+    // The session view only supports tree/transcript (its flat virtualizer has no
+    // custom-template row); the toggle below is restricted to those two anyway.
+    if (next === "custom") return;
     if (next !== mode) {
       track(analyticsFeature, "view_switched", { from: mode, to: next, traceId: trace.id });
     }
@@ -68,6 +71,7 @@ export default function TraceControlBar({ trace, analyticsFeature = "sessions" }
           onTabChange={handleTabChange}
           showContent={showContent}
           onToggleContent={() => toggleTraceShowTreeContent(trace.id)}
+          tabs={["tree", "transcript"]}
         />
         <Metadata metadata={metaString} />
       </div>

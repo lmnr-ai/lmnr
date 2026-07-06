@@ -4,10 +4,8 @@ import { ArrowRight } from "lucide-react";
 import HeatmapValue from "@/components/evaluation/heatmap-value";
 import {
   calculatePercentageChange,
-  DEFAULT_HEATMAP_VARIANT,
   type DisplayValue,
   formatScoreValue,
-  type HeatmapVariant,
   isValidScore,
   type ScoreValue,
   shouldShowHeatmap,
@@ -17,7 +15,7 @@ import { type EvalRow } from "@/lib/evaluation/types";
 
 import { ChangeIndicator, shouldShowComparisonIndicator } from "./comparison-cell";
 
-const ScoreDisplay = ({ range, value, variant }: { range: ScoreRange; value: ScoreValue; variant: HeatmapVariant }) => {
+const ScoreDisplay = ({ range, value }: { range: ScoreRange; value: ScoreValue }) => {
   if (!isValidScore(value)) {
     return <span className="text-gray-500">-</span>;
   }
@@ -26,7 +24,6 @@ const ScoreDisplay = ({ range, value, variant }: { range: ScoreRange; value: Sco
     <HeatmapValue
       value={value}
       range={range}
-      variant={variant}
       text={
         <span className="text-current" title={value.toString()}>
           {formatScoreValue(value)}
@@ -36,32 +33,18 @@ const ScoreDisplay = ({ range, value, variant }: { range: ScoreRange; value: Sco
   );
 };
 
-const HeatmapScoreCell = ({
-  value,
-  range,
-  variant,
-}: {
-  value: ScoreValue;
-  range: ScoreRange;
-  variant: HeatmapVariant;
-}) => <ScoreDisplay range={range} value={value} variant={variant} />;
+const HeatmapScoreCell = ({ value, range }: { value: ScoreValue; range: ScoreRange }) => (
+  <ScoreDisplay range={range} value={value} />
+);
 
 // -- Comparison sub-components (absorbed from comparison-score-cell.tsx) --
 
-const ComparisonScoreValue = ({
-  value,
-  range,
-  variant,
-}: {
-  value: ScoreValue;
-  range: ScoreRange;
-  variant: HeatmapVariant;
-}) => {
+const ComparisonScoreValue = ({ value, range }: { value: ScoreValue; range: ScoreRange }) => {
   if (!isValidScore(value)) {
     return <span className="text-gray-500 text-center block text-xs">-</span>;
   }
 
-  return <ScoreDisplay range={range} value={value} variant={variant} />;
+  return <ScoreDisplay range={range} value={value} />;
 };
 
 const HeatmapComparisonCell = ({
@@ -70,14 +53,12 @@ const HeatmapComparisonCell = ({
   originalValue,
   comparisonValue,
   range,
-  variant,
 }: {
   original: DisplayValue;
   comparison: DisplayValue;
   originalValue?: number;
   comparisonValue?: number;
   range: ScoreRange;
-  variant: HeatmapVariant;
 }) => {
   const showComparison = shouldShowComparisonIndicator(originalValue, comparisonValue);
   const showHeatmap = shouldShowHeatmap(range);
@@ -101,11 +82,11 @@ const HeatmapComparisonCell = ({
   return (
     <div className="flex items-center space-x-1 w-full min-w-0">
       <div className="flex-1 min-w-fit">
-        <ComparisonScoreValue value={comparisonValue} range={range} variant={variant} />
+        <ComparisonScoreValue value={comparisonValue} range={range} />
       </div>
       <ArrowRight className="font-bold text-gray-400 shrink-0" size={8} />
       <div className="flex-1 min-w-fit">
-        <ComparisonScoreValue value={originalValue} range={range} variant={variant} />
+        <ComparisonScoreValue value={originalValue} range={range} />
       </div>
       {showComparison && isValidScore(originalValue) && isValidScore(comparisonValue) && (
         <ChangeIndicator originalValue={originalValue} comparisonValue={comparisonValue} />
@@ -139,12 +120,7 @@ const StandardScoreComparison = ({ original, comparison }: { original: ScoreValu
 
 export const createScoreColumnCell = (scoreName: string) => {
   const ScoreColumnCell = ({ row, table }: CellContext<EvalRow, unknown>) => {
-    const {
-      isComparison = false,
-      heatmapEnabled = false,
-      heatmapVariant = DEFAULT_HEATMAP_VARIANT,
-      scoreRanges = {},
-    } = table.options.meta?.evalCellMeta ?? {};
+    const { isComparison = false, heatmapEnabled = false, scoreRanges = {} } = table.options.meta?.evalCellMeta ?? {};
     const value = row.original[`score:${scoreName}`] as number | undefined;
     const range = scoreRanges[scoreName];
 
@@ -159,7 +135,6 @@ export const createScoreColumnCell = (scoreName: string) => {
             originalValue={value}
             comparisonValue={comparison}
             range={range}
-            variant={heatmapVariant}
           />
         );
       }
@@ -168,10 +143,10 @@ export const createScoreColumnCell = (scoreName: string) => {
     }
 
     if (heatmapEnabled && range) {
-      return <HeatmapScoreCell value={value} range={range} variant={heatmapVariant} />;
+      return <HeatmapScoreCell value={value} range={range} />;
     }
 
-    return value ?? "-";
+    return isValidScore(value) ? formatScoreValue(value) : "-";
   };
 
   ScoreColumnCell.displayName = `ScoreColumnCell_${scoreName}`;

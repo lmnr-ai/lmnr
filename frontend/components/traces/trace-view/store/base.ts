@@ -177,7 +177,7 @@ export interface BaseTraceViewState {
   langGraph: boolean;
   sessionTime?: number;
   sessionStartTime?: number;
-  tab: "tree" | "transcript";
+  tab: "tree" | "transcript" | "custom";
   hasBrowserSession: boolean;
   showTreeContent: boolean;
   condensedTimelineEnabled: boolean;

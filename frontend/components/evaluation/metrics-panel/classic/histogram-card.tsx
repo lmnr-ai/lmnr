@@ -23,6 +23,9 @@ interface HistogramCardProps {
 
 const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
+// Recovered from git HEAD (classic/pre-session layout): 156px card, graph fills
+// the remaining height below the label+value block. v0's mini card lives in
+// the parent metrics-panel/ dir and is untouched by this recovery.
 export default function HistogramCard({
   name,
   statistics,
@@ -52,13 +55,12 @@ export default function HistogramCard({
         }
       }}
       className={cn(
-        "group flex items-stretch h-[82px] w-full cursor-pointer transition-colors overflow-hidden",
-        "rounded-[4px] border border-border bg-secondary hover:bg-muted/40"
+        "group h-[156px] w-full cursor-pointer transition-colors rounded-[4px] border border-border bg-secondary hover:bg-muted/40",
+        "flex flex-col gap-4"
       )}
     >
-      {/* Label column: fits its contents (never shrinks/truncates); the graph flexes. */}
-      <div className="flex flex-col justify-center gap-2 p-2 shrink-0">
-        <p className="text-xs leading-4 text-muted-foreground whitespace-nowrap">{name}</p>
+      <div className="flex flex-col gap-2 pt-4 px-5">
+        <p className="text-xs leading-4 text-muted-foreground truncate">{name}</p>
         <div className="flex items-baseline gap-2">
           <div className="flex items-center gap-1 tabular-nums">
             {validC && (
@@ -86,8 +88,7 @@ export default function HistogramCard({
           )}
         </div>
       </div>
-      {/* Graph: fills remaining width, full card height, small pt/pr so the axis labels clear the edges. */}
-      <div className="flex-1 min-w-0 self-stretch pt-2 pr-2">
+      <div className="flex-1 min-h-0 min-w-0 pr-5 pl-0 pb-0">
         <SmartViz
           distribution={distribution}
           comparedDistribution={isComparison ? comparedDistribution : null}

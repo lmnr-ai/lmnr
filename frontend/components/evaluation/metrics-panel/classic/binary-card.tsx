@@ -14,6 +14,8 @@ interface BinaryCardProps {
 
 const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
+// Recovered from git HEAD: 74px card (two stack to 156px, matching HistogramCard,
+// via the gravity-packing in classic/column-strip.tsx).
 export default function BinaryCard({
   name,
   statistics,
@@ -32,7 +34,7 @@ export default function BinaryCard({
   const improved = change !== null && change >= 0;
 
   return (
-    <div className="flex items-end gap-6 h-[82px] w-full px-5 py-4 border border-border rounded-[4px] bg-secondary">
+    <div className="flex items-end gap-6 h-[74px] w-full px-5 py-4 border border-border rounded-[4px] bg-secondary">
       <div className="flex flex-col gap-2 shrink-0 min-w-[120px]">
         <p className="text-xs leading-4 text-muted-foreground truncate">{name}</p>
         <div className="flex items-baseline gap-2">
