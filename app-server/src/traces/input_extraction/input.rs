@@ -30,6 +30,19 @@ const REGEX_INPUT_CAP_CHARS: usize = 200_000;
 /// better extraction quality.
 pub const HAS_HISTORY_FINGERPRINT_PREFIX: &str = "has_history|";
 
+/// The winner-lock `user_sig` for a fingerprint: the history prefix
+/// stripped. The prefix forks the REGEX cache key only — for lock
+/// arbitration, turn 1 (`plain`) and turn 2 (`has_history|plain`) of a
+/// conversation are the SAME agent, and equal-depth override requires an
+/// exact sig match, so keeping the prefix would block every follow-up
+/// turn from overriding the first prompt's lock and freeze
+/// `lmnr_user_task` on it for the lock TTL.
+pub fn lock_user_sig(fingerprint: &str) -> &str {
+    fingerprint
+        .strip_prefix(HAS_HISTORY_FINGERPRINT_PREFIX)
+        .unwrap_or(fingerprint)
+}
+
 // ---------------------------------------------------------------------------
 // Last-turn extraction
 // ---------------------------------------------------------------------------
@@ -373,6 +386,20 @@ mod tests {
         assert_eq!(p_first.fingerprint, "plain");
         assert_eq!(p_followup.fingerprint, "has_history|plain");
         assert_eq!(p_first.signposted_text, p_followup.signposted_text);
+    }
+
+    #[test]
+    fn lock_user_sig_strips_history_prefix() {
+        // First-turn and follow-up fingerprints of the same conversation
+        // must map to one lock sig, or equal-depth override (exact sig
+        // match required) would freeze `lmnr_user_task` on the first
+        // prompt for the whole lock TTL.
+        assert_eq!(lock_user_sig("plain"), "plain");
+        assert_eq!(lock_user_sig("has_history|plain"), "plain");
+        assert_eq!(
+            lock_user_sig("has_history|context,/context|plain"),
+            "context,/context|plain"
+        );
     }
 
     #[test]

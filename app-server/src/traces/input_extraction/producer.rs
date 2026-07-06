@@ -7,7 +7,7 @@ use std::sync::{Arc, OnceLock};
 use tracing::instrument;
 use uuid::Uuid;
 
-use super::input::prepare_user_task_input;
+use super::input::{lock_user_sig, prepare_user_task_input};
 use super::lock::{UserTaskLockState, lock_cache_key};
 use super::metadata::build_metadata_patch;
 use super::queue::{InputExtractionMessage, push_to_input_extraction_queue};
@@ -132,10 +132,14 @@ pub async fn process_user_task_candidates(
         )
         .await;
 
+        // `user_sig` strips the `has_history|` prefix: the prefix forks the
+        // regex cache key, but turn 1 and turn 2 of the same conversation
+        // must share a sig or the equal-depth override rule would block
+        // every follow-up turn from reclaiming the lock.
         let state = UserTaskLockState {
             input_cost: usage.input_cost,
             depth,
-            user_sig: candidate.fingerprint.clone(),
+            user_sig: lock_user_sig(&candidate.fingerprint).to_string(),
         };
 
         let lock_key = lock_cache_key(project_id, trace_id);
