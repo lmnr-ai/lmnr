@@ -106,6 +106,36 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         name: "gpt-5-nano",
         label: "GPT-5-nano",
       },
+      {
+        id: "openai:gpt-5.1",
+        name: "gpt-5.1",
+        label: "GPT-5.1",
+      },
+      {
+        id: "openai:gpt-5.2",
+        name: "gpt-5.2",
+        label: "GPT-5.2",
+      },
+      {
+        id: "openai:gpt-5.4",
+        name: "gpt-5.4",
+        label: "GPT-5.4",
+      },
+      {
+        id: "openai:gpt-5.4-mini",
+        name: "gpt-5.4-mini",
+        label: "GPT-5.4 mini",
+      },
+      {
+        id: "openai:gpt-5.4-nano",
+        name: "gpt-5.4-nano",
+        label: "GPT-5.4 nano",
+      },
+      {
+        id: "openai:gpt-5.5",
+        name: "gpt-5.5",
+        label: "GPT-5.5",
+      },
     ],
   },
   {
@@ -171,6 +201,21 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         name: "claude-opus-4-6",
         label: "Claude 4.6 Opus",
       },
+      {
+        id: "anthropic:claude-opus-4-7",
+        name: "claude-opus-4-7",
+        label: "Claude 4.7 Opus",
+      },
+      {
+        id: "anthropic:claude-opus-4-8",
+        name: "claude-opus-4-8",
+        label: "Claude 4.8 Opus",
+      },
+      {
+        id: "anthropic:claude-fable-5",
+        name: "claude-fable-5",
+        label: "Claude Fable 5",
+      },
     ],
   },
   {
@@ -220,6 +265,11 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         id: "gemini:gemini-3.1-pro-preview",
         name: "gemini-3.1-pro-preview",
         label: "Gemini 3.1 Pro Preview",
+      },
+      {
+        id: "gemini:gemini-3.5-flash",
+        name: "gemini-3.5-flash",
+        label: "Gemini 3.5 Flash",
       },
     ],
   },
