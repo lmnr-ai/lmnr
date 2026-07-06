@@ -26,11 +26,22 @@ use crate::llm::{
 /// answer parses to an empty regex list or the episode errors.
 const TEMPERATURE_LADDER: [f32; 3] = [0.0, 0.4, 0.7];
 /// Agent-loop cap per episode (one step = one LLM call, which may contain
-/// tool calls).
-const MAX_STEPS: usize = 12;
+/// tool calls). Large example families need more refinement iterations —
+/// episodes were hitting the cap ending on a tool call (no final answer),
+/// falling back to the last tool-verified regex list instead of a converged one.
+const MAX_STEPS: usize = 20;
 /// Per-LLM-call timeout; a hung provider call aborts the episode and the
-/// temperature ladder advances.
-const STEP_TIMEOUT: Duration = Duration::from_millis(180_000);
+/// temperature ladder advances. Large example families (100k+ input tokens)
+/// with a reasoning model can legitimately run past 3 min, so this is
+/// generous.
+const STEP_TIMEOUT: Duration = Duration::from_millis(300_000);
+/// Cap on output tokens per LLM call. Must be large enough that a reasoning
+/// model (e.g. Claude Sonnet-5 adaptive thinking) can finish its thinking AND
+/// still emit the tool call / final answer in one response. The provider
+/// default (4096) truncated mid-thinking on large inputs — the model spent the
+/// whole budget reasoning and never emitted a `tool_use` block, so the agent
+/// saw zero function calls and every retry produced an empty answer.
+const MAX_OUTPUT_TOKENS: i32 = 32_000;
 
 #[derive(Debug, Clone)]
 pub struct ExtractionConfig {
@@ -211,17 +222,18 @@ async fn run_episode_inner(
     config: &ExtractionConfig,
     tracing_ctx: &ExtractionTracing,
 ) -> Result<EpisodeOutcome, ProviderError> {
-    let mut contents = vec![text_content("user", user_message)];
+    let mut contents = vec![text_content(Some("user"), user_message)];
     let mut tool_calls = 0;
     let mut tool_verified: Option<Vec<String>> = None;
 
     for step in 0..config.max_steps {
         let request = ProviderRequest {
             contents: contents.clone(),
-            system_instruction: Some(text_content_no_role(SYSTEM_INSTRUCTIONS)),
+            system_instruction: Some(text_content(None, SYSTEM_INSTRUCTIONS)),
             tools: Some(vec![regex_tool()]),
             generation_config: Some(ProviderGenerationConfig {
                 temperature: Some(temperature),
+                max_output_tokens: Some(MAX_OUTPUT_TOKENS),
                 ..Default::default()
             }),
             service_tier: None,
@@ -376,19 +388,9 @@ fn collapses_shown(regexes: &[String], examples: &[String]) -> bool {
         && result["isResultInAllIdenticalOutput"] == Value::Bool(true)
 }
 
-fn text_content(role: &str, text: &str) -> ProviderContent {
+fn text_content(role: Option<&str>, text: &str) -> ProviderContent {
     ProviderContent {
-        role: Some(role.to_string()),
-        parts: Some(vec![ProviderPart {
-            text: Some(text.to_string()),
-            ..Default::default()
-        }]),
-    }
-}
-
-fn text_content_no_role(text: &str) -> ProviderContent {
-    ProviderContent {
-        role: None,
+        role: role.map(str::to_string),
         parts: Some(vec![ProviderPart {
             text: Some(text.to_string()),
             ..Default::default()

@@ -7,9 +7,13 @@ use crate::llm::{
         ProviderPart, ProviderRequest, ProviderResponse, ProviderStreamChunk,
     },
 };
+use crate::env;
 use aws_sdk_bedrockruntime::Client as AwsBedrockClient;
+use aws_sdk_bedrockruntime::config::retry::RetryConfig;
+use aws_sdk_bedrockruntime::config::timeout::TimeoutConfig;
 use aws_sdk_bedrockruntime::primitives::Blob;
 use serde_json::Value;
+use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 
 mod accumulator;
@@ -39,9 +43,21 @@ pub struct BedrockClient {
 
 impl BedrockClient {
     pub async fn new() -> ProviderResult<Self> {
-        let config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
+        let sdk_config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
+        // Mirror the reqwest-based clients (openai/gemini): a single attempt bounded
+        // by the shared LLM_HTTP_TIMEOUT_SECS request timeout plus a 10s connect
+        // timeout. SDK auto-retries are disabled so all providers behave the same —
+        // the only retry layer is the agent's temperature ladder.
+        let timeout_config = TimeoutConfig::builder()
+            .operation_attempt_timeout(Duration::from_secs(env::llm::HTTP_TIMEOUT_SECS.get()))
+            .connect_timeout(Duration::from_secs(10))
+            .build();
+        let config = aws_sdk_bedrockruntime::config::Builder::from(&sdk_config)
+            .timeout_config(timeout_config)
+            .retry_config(RetryConfig::disabled())
+            .build();
         Ok(Self {
-            client: AwsBedrockClient::new(&config),
+            client: AwsBedrockClient::from_conf(config),
         })
     }
 }
@@ -206,7 +222,10 @@ fn build_request_body(model: &str, request: &ProviderRequest) -> ProviderResult<
             body["tools"] = Value::Array(tools);
         }
 
-        if !thinking_enabled {
+        // Claude 5.x / Opus 4.7+ hard-reject `temperature`/`top_p`
+        // ("`temperature` is deprecated for this model" ValidationException),
+        // so only forward the sampling knobs for models that still accept them.
+        if !thinking_enabled && supports_sampling_params(model) {
             if let Some(temp) = request
                 .generation_config
                 .as_ref()
@@ -482,6 +501,15 @@ fn requires_adaptive_thinking(model: &str) -> bool {
         || model.contains("claude-sonnet-5")
 }
 
+/// False for models that deprecated the `temperature`/`top_p` sampling knobs
+/// and 400 when they're present ("`temperature` is deprecated for this model").
+/// Same generation as `requires_adaptive_thinking` (Claude 5.x / Opus 4.7+).
+fn supports_sampling_params(model: &str) -> bool {
+    !(model.contains("claude-opus-4-7")
+        || model.contains("claude-opus-4-8")
+        || model.contains("claude-sonnet-5"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -553,6 +581,48 @@ mod tests {
         // effort is a sibling under output_config, never nested in `thinking`.
         assert_eq!(body["output_config"]["effort"], "max");
         assert!(body["thinking"].get("effort").is_none());
+    }
+
+    #[test]
+    fn sonnet_5_omits_deprecated_temperature() {
+        use super::super::models::ProviderGenerationConfig;
+        let request = ProviderRequest {
+            contents: vec![],
+            system_instruction: None,
+            tools: None,
+            generation_config: Some(ProviderGenerationConfig {
+                temperature: Some(0.4),
+                top_p: Some(0.9),
+                ..Default::default()
+            }),
+            service_tier: None,
+            provider: None,
+            model_size: None,
+        };
+        let body = build_request_body("us.anthropic.claude-sonnet-5", &request).unwrap();
+        assert!(body.get("temperature").is_none());
+        assert!(body.get("top_p").is_none());
+    }
+
+    #[test]
+    fn sonnet_4_keeps_temperature() {
+        use super::super::models::ProviderGenerationConfig;
+        let request = ProviderRequest {
+            contents: vec![],
+            system_instruction: None,
+            tools: None,
+            generation_config: Some(ProviderGenerationConfig {
+                temperature: Some(0.4),
+                top_p: Some(0.9),
+                ..Default::default()
+            }),
+            service_tier: None,
+            provider: None,
+            model_size: None,
+        };
+        let body = build_request_body("us.anthropic.claude-sonnet-4-6", &request).unwrap();
+        assert!(body["temperature"].is_number());
+        assert!(body["top_p"].is_number());
     }
 
     #[test]
