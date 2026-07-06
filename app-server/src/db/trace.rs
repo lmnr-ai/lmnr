@@ -427,12 +427,15 @@ pub struct TraceMetadataPatch {
 ///
 /// A patch that arrives before the trace's span batch creates a virtual row
 /// (metadata + zeroed stats); the later `upsert_trace_statistics_batch` fills
-/// the stats in on conflict. Known caveat: if the spans never arrive (span
-/// batch permanently rejected, or the trace was deleted between request and
-/// consumption), a metadata-only stub row remains. Accepted deliberately —
-/// checking row existence per patch is a heavy PG read on the hot ingest
-/// path, and spans not arriving at all is a catastrophic failure where an
-/// empty trace body is the least of the problems.
+/// the stats in on conflict. Such stub rows have NULL start/end times — the
+/// processor keeps them out of the ClickHouse / realtime fan-out (`CHTrace`
+/// would map the missing times to epoch 0) until the span batch fills them
+/// in. Known caveat: if the spans never arrive (span batch permanently
+/// rejected, or the trace was deleted between request and consumption), a
+/// metadata-only stub row remains. Accepted deliberately — checking row
+/// existence per patch is a heavy PG read on the hot ingest path, and spans
+/// not arriving at all is a catastrophic failure where an empty trace body
+/// is the least of the problems.
 #[instrument(skip(pool, patches))]
 pub async fn merge_trace_metadata_batch(
     pool: &PgPool,

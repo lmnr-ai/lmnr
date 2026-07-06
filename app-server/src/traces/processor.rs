@@ -470,6 +470,13 @@ pub async fn process_span_messages(
                 }
             }
         }
+        // Keep stub rows (patch beat the span batch: no timing yet) PG-only.
+        // `CHTrace::from_db_trace` maps missing times to epoch 0, so shipping
+        // them would surface epoch-timed traces in CH and realtime until the
+        // span batch lands. The aggregation upsert that later fills the stub
+        // in RETURNs the merged row (patched metadata included) with real
+        // times and a strictly higher `num_spans` version, and ships that.
+        patched_traces.retain(|t| t.start_time().is_some());
 
         // Build the CH / realtime payload as the deduped union, keeping the
         // LATEST occurrence per `(project_id, id)`. When a single flush
