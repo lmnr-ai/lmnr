@@ -313,6 +313,8 @@ export const renderTemplates = pgTable(
     projectId: uuid("project_id").defaultRandom().notNull(),
     code: text().notNull(),
     name: text().notNull(),
+    type: text().default("span").notNull(),
+    whereClause: text("where_clause"),
   },
   (table) => [
     foreignKey({

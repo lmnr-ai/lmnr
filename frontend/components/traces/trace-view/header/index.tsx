@@ -1,4 +1,4 @@
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUpRight, ChevronsRight, Layers, Maximize, Radio, Sparkles, User } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
@@ -48,6 +48,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
 
   const {
     trace,
+    tab,
     condensedTimelineEnabled,
     setCondensedTimelineEnabled,
     tracesAgentOpen,
@@ -63,6 +64,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   } = useTraceViewStore(
     (state) => ({
       trace: state.trace,
+      tab: state.tab,
       condensedTimelineEnabled: state.condensedTimelineEnabled,
       setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
       tracesAgentOpen: state.tracesAgentOpen,
@@ -310,14 +312,25 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           />
         )}
       </AnimatePresence>
-      <div className="flex items-center gap-2 mt-2">
-        <TraceViewSearch
-          spans={spans}
-          onSubmit={onSearch}
-          className="flex-1"
-          initialSearch={initialSearch || undefined}
-        />
-      </div>
+      {/* Search targets the tree/transcript span list — hide it in custom render view. */}
+      <AnimatePresence initial={false}>
+        {tab !== "custom" && (
+          <motion.div
+            className="flex items-center gap-2 overflow-hidden"
+            initial={{ height: 0, opacity: 0, marginTop: 0 }}
+            animate={{ height: "auto", opacity: 1, marginTop: 8 }}
+            exit={{ height: 0, opacity: 0, marginTop: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+          >
+            <TraceViewSearch
+              spans={spans}
+              onSubmit={onSearch}
+              className="flex-1"
+              initialSearch={initialSearch || undefined}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
       {spans.length > 0 && (
         <CondensedTimelineControls enabled={condensedTimelineEnabled} setEnabled={setCondensedTimelineEnabled} />
       )}
