@@ -1,30 +1,23 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
 import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-
-import { cn } from "@/lib/utils";
 
 const MIN_TABLE = 320;
 const MIN_TRACE = 360;
 const DEFAULT_TABLE = 420;
 const GAP = 8; // seam between the table and trace column
-const enterExit = { duration: 0.25, ease: "easeOut" } as const;
-const instant = { duration: 0 } as const;
 
 interface EvalTraceLayoutProps {
   table: ReactNode;
   traceColumn: ReactNode;
-  showTrace: boolean;
 }
 
-// Animated table | trace-column split: each panel's outer motion.div animates
-// width while inner content is pinned to a fixed px width, so it reflows once at the target rather than tweening.
-export default function EvalTraceLayout({ table, traceColumn, showTrace }: EvalTraceLayoutProps) {
+// Static, resizable table | trace-column split. The trace panel is always open
+// (auto-selected first datapoint), so there is no open/close animation.
+export default function EvalTraceLayout({ table, traceColumn }: EvalTraceLayoutProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [maxWidth, setMaxWidth] = useState(0);
   const [tableWidth, setTableWidth] = useState(DEFAULT_TABLE);
-  const [isResizing, setIsResizing] = useState(false);
 
   useLayoutEffect(() => {
     const el = containerRef.current;
@@ -39,7 +32,6 @@ export default function EvalTraceLayout({ table, traceColumn, showTrace }: EvalT
   // Clamp so both panels keep their minimums as the viewport changes.
   const clampedTable = Math.max(MIN_TABLE, Math.min(tableWidth, Math.max(MIN_TABLE, maxWidth - MIN_TRACE)));
   const traceWidth = Math.max(0, maxWidth - clampedTable - GAP);
-  const transition = isResizing ? instant : enterExit;
 
   // Tracks the in-flight drag's listeners so an unmount mid-drag can tear them down.
   const dragAbortRef = useRef<AbortController | null>(null);
@@ -52,7 +44,6 @@ export default function EvalTraceLayout({ table, traceColumn, showTrace }: EvalT
       const controller = new AbortController();
       dragAbortRef.current = controller;
       const { signal } = controller;
-      setIsResizing(true);
       const onMove = (ev: MouseEvent) => {
         const next = startWidth + (ev.clientX - startX);
         setTableWidth(Math.max(MIN_TABLE, Math.min(next, Math.max(MIN_TABLE, maxWidth - MIN_TRACE))));
@@ -60,7 +51,6 @@ export default function EvalTraceLayout({ table, traceColumn, showTrace }: EvalT
       const onUp = () => {
         controller.abort();
         dragAbortRef.current = null;
-        setIsResizing(false);
       };
       window.addEventListener("mousemove", onMove, { signal });
       window.addEventListener("mouseup", onUp, { signal });
@@ -73,49 +63,16 @@ export default function EvalTraceLayout({ table, traceColumn, showTrace }: EvalT
 
   return (
     <div ref={containerRef} className="relative flex h-full w-full flex-1 overflow-hidden">
-      {/* Table — width flips between full (no trace) and clampedTable; inner is
-          pinned at the target so the reflow is instant, not tweened. */}
-      <motion.div
-        className="relative h-full flex-shrink-0 overflow-hidden"
-        // Hard floor so the table can never be dragged to nothing, independent
-        // of the width math (matches fill-width-layout's minSize guarantee).
-        style={{ minWidth: showTrace ? MIN_TABLE : undefined }}
-        initial={false}
-        animate={{ width: showTrace ? clampedTable : maxWidth }}
-        transition={transition}
-      >
-        <div
-          // Right padding only when the table owns the full row — with a trace
-          // open the seam handles the gap and the table is flush on the right.
-          className={cn("absolute inset-y-0 left-0 flex overflow-hidden", !showTrace && "pr-4")}
-          style={{ width: showTrace ? clampedTable : maxWidth }}
-        >
-          {table}
-        </div>
-      </motion.div>
+      <div className="h-full flex-shrink-0 overflow-hidden" style={{ width: clampedTable }}>
+        {table}
+      </div>
 
-      <AnimatePresence initial={false}>
-        {showTrace && maxWidth > 0 && (
-          <motion.div
-            key="trace-col"
-            className="relative h-full flex-shrink-0 overflow-hidden"
-            style={{ marginLeft: GAP }}
-            initial={{ width: 0 }}
-            animate={{ width: traceWidth }}
-            exit={{ width: 0 }}
-            transition={transition}
-          >
-            <div className="absolute inset-y-0 left-0 h-full" style={{ width: traceWidth }}>
-              {traceColumn}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <div className="h-full flex-shrink-0 overflow-hidden" style={{ width: traceWidth, marginLeft: GAP }}>
+        {traceColumn}
+      </div>
 
-      {/* Invisible resize strip at the table|trace boundary. Lives in the
-          un-clipped root (a strip inside the overflow-hidden trace column would
-          be clipped) and straddles the seam. */}
-      {showTrace && maxWidth > 0 && (
+      {/* Invisible resize strip straddling the table|trace seam. */}
+      {maxWidth > 0 && (
         <div
           onMouseDown={startResize}
           style={{ left: clampedTable + GAP / 2 }}

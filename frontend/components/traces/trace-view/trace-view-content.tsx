@@ -31,7 +31,8 @@ export interface TraceViewContentProps {
   traceId: string;
   spanId?: string;
   propsTrace?: TraceViewTrace;
-  onClose: () => void;
+  // Omit to hide the close button entirely (e.g. an always-open panel).
+  onClose?: () => void;
   isAlwaysSelectSpan?: boolean;
   showChatInitial?: boolean;
   // Presence controls the layout type
@@ -253,7 +254,7 @@ export default function TraceViewContent({
     const params = new URLSearchParams(searchParams);
     params.delete("spanId");
     router.push(`${pathName}?${params.toString()}`);
-    onClose();
+    onClose?.();
   }, [onClose, pathName, router, searchParams]);
 
   const handleSpanPanelClose = useCallback(() => {
@@ -325,7 +326,8 @@ export default function TraceViewContent({
   const tracePanel = (
     <TracePanel
       traceId={traceId}
-      handleClose={handleClose}
+      // No onClose ⇒ no close button (always-open panels).
+      handleClose={onClose ? handleClose : undefined}
       handleSpanSelect={handleSpanSelect}
       fetchSpans={fetchSpans}
       isLoading={isLoading}

@@ -32,7 +32,8 @@ const HEADER_ITEM_CLS = "flex items-center h-7";
 const FREE_TIER_RETENTION_DAYS = 7;
 
 interface HeaderProps {
-  handleClose: () => void;
+  // Undefined ⇒ the close button is hidden (always-open panel).
+  handleClose?: () => void;
   spans: TraceViewSpan[];
   onSearch: (filters: Filter[], search: string) => void;
   traceId: string;
@@ -197,9 +198,11 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
         <div className="flex items-center gap-1 flex-1 min-w-0">
           {!params?.traceId && (
             <span className={cn(HEADER_ITEM_CLS, "gap-0.5")}>
-              <Button variant="ghost" className="h-7 px-0.5" onClick={handleClose}>
-                <ChevronsRight className="w-5 h-5" />
-              </Button>
+              {handleClose && (
+                <Button variant="ghost" className="h-7 px-0.5" onClick={handleClose}>
+                  <ChevronsRight className="w-5 h-5" />
+                </Button>
+              )}
               {trace && (
                 <NextLink passHref href={`/project/${projectId}/traces/${trace?.id}?${fullScreenParams.toString()}`}>
                   <Button variant="ghost" className="h-7 px-0.5">

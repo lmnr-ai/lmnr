@@ -2,7 +2,7 @@
 
 import { type Row } from "@tanstack/react-table";
 import { debounce } from "lodash";
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { shallow } from "zustand/shallow";
@@ -53,7 +53,6 @@ const RESOURCE = "evaluation-v1.1";
 const DEFAULT_HIDDEN_COLUMNS = ["output", "duration", "cost"];
 
 function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
-  const { push } = useRouter();
   const pathName = usePathname();
   const searchParams = useSearchParams();
   const params = useParams<{ projectId: string }>();
@@ -241,6 +240,14 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
     setDisplayTraceId(traceId);
   }
 
+  // Always-open: auto-select the first datapoint when nothing is selected. The
+  // trace panel has no close button, so this only fires on initial load.
+  const firstRow = allDatapoints?.[0] as EvalRow | undefined;
+  if (!traceId && firstRow) {
+    setTraceId(firstRow["traceId"] as string);
+    setDatapointId(firstRow["id"] as string);
+  }
+
   const handleRowClick = useCallback((row: Row<EvalRow>) => {
     setTraceId(row.original["traceId"] as string);
     setDatapointId(row.original["id"] as string);
@@ -262,14 +269,6 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
     },
     [setSort]
   );
-
-  const onClose = useCallback(() => {
-    setTraceId(undefined);
-    const next = new URLSearchParams(searchParams.toString());
-    next.delete("traceId");
-    next.delete("spanId");
-    push(`${pathName}?${next}`);
-  }, [searchParams, pathName, push]);
 
   const visibleColumnDefs = useMemo(
     () => selectVisibleColumnDefs(columnDefs, isComparison),
@@ -348,7 +347,6 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
               border and one rounded top-left corner. Left-column right-padding
               is applied in EvalTraceLayout, only when it owns the full row. */}
           <EvalTraceLayout
-            showTrace={!!traceId}
             table={
               <div className="flex h-full w-full flex-col gap-2 overflow-hidden">
                 {traceId ? (
@@ -386,7 +384,8 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
                   />
                 </div>
                 <div className="flex min-h-0 flex-1 overflow-hidden">
-                  {displayTraceId && <TraceView key={displayTraceId} traceId={displayTraceId} onClose={onClose} />}
+                  {/* No onClose ⇒ always-open: the trace header shows no close button. */}
+                  {displayTraceId && <TraceView key={displayTraceId} traceId={displayTraceId} />}
                 </div>
               </div>
             }
