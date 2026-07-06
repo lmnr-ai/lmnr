@@ -18,7 +18,6 @@ import IssuesRail from "@/components/evaluation/poc/issues/issues-rail";
 import { assignMockClusters } from "@/components/evaluation/poc/issues/mock-issues";
 import TopArea from "@/components/evaluation/poc/issues/top-area";
 import MorphLayout from "@/components/evaluation/poc/morph-layout";
-import ScoreHoverChips from "@/components/evaluation/poc/score-hover-chips";
 import TraceFirstLayout from "@/components/evaluation/poc/trace-first-layout";
 import { useLabelField } from "@/components/evaluation/poc/use-label-field";
 import { usePocTop } from "@/components/evaluation/poc/use-poc-top";
@@ -230,12 +229,13 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
     return map;
   }, [allDatapoints, labelFieldPath]);
 
-  // Round 6 mock issue clusters — compact-v1, non-comparison only (scope
-  // guard: other layout variants and comparison mode ignore pocTop/pocIssue).
+  // Round 6 mock issue clusters — compact-v1 only (other layout variants
+  // ignore pocTop/pocIssue). Index-keyed and score-independent, so they work
+  // in comparison mode too.
   const { topMode, issueId: selectedIssueId, toggleIssue } = usePocTop();
   const issueClusters = useMemo(
-    () => (isCompactV1 && !isComparison ? assignMockClusters(labeledDatapoints ?? []) : []),
-    [isCompactV1, isComparison, labeledDatapoints]
+    () => (isCompactV1 ? assignMockClusters(labeledDatapoints ?? []) : []),
+    [isCompactV1, labeledDatapoints]
   );
   const selectedCluster = useMemo(
     () => issueClusters.find((c) => c.id === selectedIssueId) ?? null,
@@ -529,18 +529,6 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
                 isLoading={isStatsLoading}
                 cardStyle="mini"
               />
-            ) : isComparison ? (
-              <ScoreHoverChips
-                scoreNames={scoreNames}
-                selectedScore={selectedScore}
-                onSelectScore={setSelectedScore}
-                allStatistics={statsData?.allStatistics}
-                allDistributions={statsData?.allDistributions}
-                comparedAllStatistics={targetStatsData?.allStatistics}
-                comparedAllDistributions={targetStatsData?.allDistributions}
-                isComparison
-                isLoading={isStatsLoading}
-              />
             ) : (
               <TopArea
                 scoreNames={scoreNames}
@@ -548,6 +536,9 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
                 setSelectedScore={setSelectedScore}
                 allStatistics={statsData?.allStatistics}
                 allDistributions={statsData?.allDistributions}
+                comparedAllStatistics={targetStatsData?.allStatistics}
+                comparedAllDistributions={targetStatsData?.allDistributions}
+                isComparison={isComparison}
                 isLoading={isStatsLoading}
                 topMode={topMode}
                 clusters={issueClusters}
@@ -555,14 +546,14 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
                 onToggleIssue={toggleIssue}
               />
             )}
-            {isCompactV1 && !isComparison && selectedCluster && (
+            {isCompactV1 && selectedCluster && (
               <IssueFilterStrip
                 cluster={selectedCluster}
                 totalRows={labeledDatapoints?.length ?? 0}
                 onClear={() => toggleIssue(selectedCluster.id)}
               />
             )}
-            {isCompactV1 && !isComparison && topMode === "rail" ? (
+            {isCompactV1 && topMode === "rail" ? (
               <div className="flex flex-1 gap-2 overflow-hidden">
                 <div className="flex flex-1 overflow-hidden">{compactTableRegion}</div>
                 <IssuesRail clusters={issueClusters} selectedId={selectedIssueId} onToggle={toggleIssue} />

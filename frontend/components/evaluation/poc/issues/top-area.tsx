@@ -18,6 +18,9 @@ interface TopAreaProps {
   setSelectedScore: (s: string) => void;
   allStatistics?: Record<string, EvaluationScoreStatistics>;
   allDistributions?: Record<string, EvaluationScoreDistributionBucket[]>;
+  comparedAllStatistics?: Record<string, EvaluationScoreStatistics>;
+  comparedAllDistributions?: Record<string, EvaluationScoreDistributionBucket[]>;
+  isComparison?: boolean;
   isLoading?: boolean;
   topMode: PocTopMode;
   clusters: AssignedIssueCluster[];
@@ -27,10 +30,11 @@ interface TopAreaProps {
 
 /**
  * Composes the resting score-chips row with the selected issues top mode
- * (Round 6). Only called from the compact-v1, non-comparison branch —
- * comparison mode and other layout variants render their own score UI.
- * `rail` mode intentionally renders nothing extra here: the rail sits beside
- * the table, not above it, and is placed directly by evaluation.tsx.
+ * (Round 6). Compact-v1 only; clusters are index-keyed and score-independent,
+ * so the issues modes work in comparison mode too — silently no-op-ing there
+ * made the top-area switcher look broken. `rail` mode intentionally renders
+ * nothing extra here: the rail sits beside the table, not above it, and is
+ * placed directly by evaluation.tsx.
  */
 export default function TopArea({
   scoreNames,
@@ -38,6 +42,9 @@ export default function TopArea({
   setSelectedScore,
   allStatistics,
   allDistributions,
+  comparedAllStatistics,
+  comparedAllDistributions,
+  isComparison,
   isLoading,
   topMode,
   clusters,
@@ -53,6 +60,9 @@ export default function TopArea({
       onSelectScore={setSelectedScore}
       allStatistics={allStatistics}
       allDistributions={allDistributions}
+      comparedAllStatistics={comparedAllStatistics}
+      comparedAllDistributions={comparedAllDistributions}
+      isComparison={isComparison}
       isLoading={isLoading}
     />
   );
