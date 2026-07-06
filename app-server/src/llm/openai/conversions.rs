@@ -16,7 +16,14 @@ use crate::llm::models::{
     ProviderCandidate, ProviderContent, ProviderFinishReason, ProviderFunctionCall, ProviderPart,
     ProviderRequest, ProviderResponse, ProviderThinkingLevel, ProviderUsageMetadata,
 };
-use serde_json::{Value, json};
+use serde_json::{json, Value};
+use std::collections::VecDeque;
+
+#[derive(Debug, Clone)]
+struct PendingToolCall {
+    id: String,
+    name: String,
+}
 
 /// Build the OpenAI Chat Completions request body from a `ProviderRequest`.
 pub fn provider_request_to_openai_body(model: &str, request: &ProviderRequest) -> Value {
@@ -32,8 +39,9 @@ pub fn provider_request_to_openai_body(model: &str, request: &ProviderRequest) -
         }
     }
 
+    let mut pending_tool_call_ids = VecDeque::new();
     for content in &request.contents {
-        append_content_as_messages(content, &mut messages);
+        append_content_as_messages(content, &mut messages, &mut pending_tool_call_ids);
     }
 
     let mut body = json!({
@@ -133,7 +141,11 @@ fn concat_text_parts(content: &ProviderContent) -> String {
 /// emit them as a single assistant message with both `content` and `tool_calls`.
 /// Any `function_response` parts in the same content (regardless of role) are
 /// flushed as separate `role: "tool"` messages keyed by `tool_call_id`.
-fn append_content_as_messages(content: &ProviderContent, out: &mut Vec<Value>) {
+fn append_content_as_messages(
+    content: &ProviderContent,
+    out: &mut Vec<Value>,
+    pending_tool_calls: &mut VecDeque<PendingToolCall>,
+) {
     let raw_role = content.role.as_deref().unwrap_or("user");
     let role = match raw_role {
         "assistant" | "model" => "assistant",
@@ -154,7 +166,10 @@ fn append_content_as_messages(content: &ProviderContent, out: &mut Vec<Value>) {
             continue;
         }
         if let Some(fr) = part.function_response {
-            let tool_call_id = fr.id.unwrap_or_default();
+            let Some(tool_call_id) = resolve_tool_call_id(fr.id, &fr.name, pending_tool_calls)
+            else {
+                continue;
+            };
             let content_str =
                 serde_json::to_string(&fr.response).unwrap_or_else(|_| "".to_string());
             tool_results.push(json!({
@@ -166,6 +181,10 @@ fn append_content_as_messages(content: &ProviderContent, out: &mut Vec<Value>) {
         }
         if let Some(fc) = part.function_call {
             let id = fc.id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+            pending_tool_calls.push_back(PendingToolCall {
+                id: id.clone(),
+                name: fc.name.clone(),
+            });
             let args = fc.args.unwrap_or(Value::Object(Default::default()));
             let arguments_str = serde_json::to_string(&args).unwrap_or_else(|_| "{}".to_string());
             tool_calls.push(json!({
@@ -202,6 +221,32 @@ fn append_content_as_messages(content: &ProviderContent, out: &mut Vec<Value>) {
     }
 
     out.extend(tool_results);
+}
+
+fn resolve_tool_call_id(
+    explicit_id: Option<String>,
+    response_name: &str,
+    pending_tool_calls: &mut VecDeque<PendingToolCall>,
+) -> Option<String> {
+    if let Some(id) = explicit_id {
+        if let Some(pos) = pending_tool_calls
+            .iter()
+            .position(|pending| pending.id == id)
+        {
+            pending_tool_calls.remove(pos);
+            return Some(id);
+        }
+        return None;
+    }
+
+    if let Some(pos) = pending_tool_calls
+        .iter()
+        .position(|pending| pending.name == response_name)
+    {
+        return pending_tool_calls.remove(pos).map(|pending| pending.id);
+    }
+
+    None
 }
 
 /// Parse an OpenAI Chat Completions response JSON into a `ProviderResponse`.
@@ -472,6 +517,190 @@ mod tests {
         // uuid v4 is 36 chars with 4 hyphens.
         assert_eq!(id.len(), 36);
         assert_eq!(id.chars().filter(|c| *c == '-').count(), 4);
+    }
+
+    #[test]
+    fn missing_tool_response_id_uses_pending_tool_call_id() {
+        let req = ProviderRequest {
+            contents: vec![
+                assistant_with_tool_call(Some("call_1"), "get_weather", json!({"city": "SF"})),
+                tool_response(None, "get_weather", json!({"temp": 60})),
+            ],
+            system_instruction: None,
+            tools: None,
+            generation_config: None,
+            service_tier: None,
+            provider: None,
+            model_size: None,
+        };
+
+        let body = provider_request_to_openai_body("gpt-5", &req);
+        let messages = body["messages"].as_array().unwrap();
+        assert_eq!(messages[0]["tool_calls"][0]["id"], "call_1");
+        assert_eq!(messages[1]["role"], "tool");
+        assert_eq!(messages[1]["tool_call_id"], "call_1");
+    }
+
+    #[test]
+    fn generated_tool_call_id_is_reused_for_missing_tool_response_id() {
+        let req = ProviderRequest {
+            contents: vec![
+                assistant_with_tool_call(None, "get_weather", json!({"city": "SF"})),
+                tool_response(None, "get_weather", json!({"temp": 60})),
+            ],
+            system_instruction: None,
+            tools: None,
+            generation_config: None,
+            service_tier: None,
+            provider: None,
+            model_size: None,
+        };
+
+        let body = provider_request_to_openai_body("gpt-5", &req);
+        let messages = body["messages"].as_array().unwrap();
+        let generated_id = messages[0]["tool_calls"][0]["id"].as_str().unwrap();
+        assert!(!generated_id.is_empty());
+        assert_eq!(messages[1]["role"], "tool");
+        assert_eq!(messages[1]["tool_call_id"], generated_id);
+    }
+
+    #[test]
+    fn missing_tool_response_id_before_tool_call_is_skipped() {
+        let req = ProviderRequest {
+            contents: vec![
+                tool_response(None, "get_weather", json!({"temp": 60})),
+                assistant_with_tool_call(Some("call_1"), "get_weather", json!({"city": "SF"})),
+            ],
+            system_instruction: None,
+            tools: None,
+            generation_config: None,
+            service_tier: None,
+            provider: None,
+            model_size: None,
+        };
+
+        let body = provider_request_to_openai_body("gpt-5", &req);
+        let messages = body["messages"].as_array().unwrap();
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0]["role"], "assistant");
+        assert_eq!(messages[0]["tool_calls"][0]["id"], "call_1");
+    }
+
+    #[test]
+    fn explicit_tool_response_id_does_not_mispair_later_missing_id() {
+        let req = ProviderRequest {
+            contents: vec![
+                assistant_with_tool_call(Some("call_a"), "first_tool", json!({})),
+                assistant_with_tool_call(Some("call_b"), "second_tool", json!({})),
+                assistant_with_tool_call(Some("call_c"), "third_tool", json!({})),
+                tool_response(Some("call_c"), "third_tool", json!({"ok": true})),
+                tool_response(None, "second_tool", json!({"ok": true})),
+            ],
+            system_instruction: None,
+            tools: None,
+            generation_config: None,
+            service_tier: None,
+            provider: None,
+            model_size: None,
+        };
+
+        let body = provider_request_to_openai_body("gpt-5", &req);
+        let messages = body["messages"].as_array().unwrap();
+        assert_eq!(messages[3]["tool_call_id"], "call_c");
+        assert_eq!(messages[4]["tool_call_id"], "call_b");
+    }
+
+    #[test]
+    fn same_name_missing_tool_response_ids_are_paired_fifo() {
+        let req = ProviderRequest {
+            contents: vec![
+                assistant_with_tool_call(Some("call_a"), "same_tool", json!({})),
+                assistant_with_tool_call(Some("call_b"), "same_tool", json!({})),
+                tool_response(None, "same_tool", json!({"ok": true})),
+                tool_response(None, "same_tool", json!({"ok": true})),
+            ],
+            system_instruction: None,
+            tools: None,
+            generation_config: None,
+            service_tier: None,
+            provider: None,
+            model_size: None,
+        };
+
+        let body = provider_request_to_openai_body("gpt-5", &req);
+        let messages = body["messages"].as_array().unwrap();
+        assert_eq!(messages[2]["tool_call_id"], "call_a");
+        assert_eq!(messages[3]["tool_call_id"], "call_b");
+    }
+
+    #[test]
+    fn missing_tool_response_id_uses_first_matching_tool_name() {
+        let req = ProviderRequest {
+            contents: vec![
+                assistant_with_tool_call(Some("call_a"), "first_tool", json!({})),
+                assistant_with_tool_call(Some("call_b"), "same_tool", json!({})),
+                assistant_with_tool_call(Some("call_c"), "same_tool", json!({})),
+                tool_response(None, "same_tool", json!({"ok": true})),
+            ],
+            system_instruction: None,
+            tools: None,
+            generation_config: None,
+            service_tier: None,
+            provider: None,
+            model_size: None,
+        };
+
+        let body = provider_request_to_openai_body("gpt-5", &req);
+        let messages = body["messages"].as_array().unwrap();
+        assert_eq!(messages[3]["role"], "tool");
+        assert_eq!(messages[3]["tool_call_id"], "call_b");
+    }
+
+    #[test]
+    fn sole_pending_tool_response_id_mismatch_is_skipped() {
+        let req = ProviderRequest {
+            contents: vec![
+                assistant_with_tool_call(Some("call_weather"), "get_weather", json!({})),
+                tool_response(None, "send_email", json!({"ok": true})),
+            ],
+            system_instruction: None,
+            tools: None,
+            generation_config: None,
+            service_tier: None,
+            provider: None,
+            model_size: None,
+        };
+
+        let body = provider_request_to_openai_body("gpt-5", &req);
+        let messages = body["messages"].as_array().unwrap();
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0]["tool_calls"][0]["id"], "call_weather");
+    }
+
+    #[test]
+    fn early_explicit_tool_response_does_not_leave_stale_pending_call() {
+        let req = ProviderRequest {
+            contents: vec![
+                tool_response(Some("call_weather"), "get_weather", json!({"temp": 60})),
+                assistant_with_tool_call(Some("call_weather"), "get_weather", json!({})),
+                tool_response(None, "get_weather", json!({"temp": 61})),
+            ],
+            system_instruction: None,
+            tools: None,
+            generation_config: None,
+            service_tier: None,
+            provider: None,
+            model_size: None,
+        };
+
+        let body = provider_request_to_openai_body("gpt-5", &req);
+        let messages = body["messages"].as_array().unwrap();
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[0]["role"], "assistant");
+        assert_eq!(messages[0]["tool_calls"][0]["id"], "call_weather");
+        assert_eq!(messages[1]["role"], "tool");
+        assert_eq!(messages[1]["tool_call_id"], "call_weather");
+        assert_eq!(messages[1]["content"], "{\"temp\":61}");
     }
 
     #[test]
