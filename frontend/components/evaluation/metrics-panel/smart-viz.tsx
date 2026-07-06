@@ -10,6 +10,8 @@ interface SmartVizProps {
   isComparison?: boolean;
   isLoading?: boolean;
   className?: string;
+  /** Bucket to spotlight (others dim). Single-distribution chart only. */
+  highlightIndex?: number | null;
 }
 
 export default function SmartViz({
@@ -19,6 +21,7 @@ export default function SmartViz({
   isComparison,
   isLoading,
   className,
+  highlightIndex,
 }: SmartVizProps) {
   if (isComparison) {
     return (
@@ -37,6 +40,7 @@ export default function SmartViz({
       distribution={distribution}
       isLoading={isLoading}
       className={cn("w-full", className)}
+      highlightIndex={highlightIndex}
     />
   );
 }

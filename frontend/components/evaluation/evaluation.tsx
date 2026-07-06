@@ -13,14 +13,11 @@ import MetricsPanel from "@/components/evaluation/metrics-panel";
 import { isBinaryDistribution } from "@/components/evaluation/metrics-panel/utils";
 import BottomDockLayout from "@/components/evaluation/poc/bottom-dock-layout";
 import HoverNavLayout, { type HoverNavMode } from "@/components/evaluation/poc/hover-nav-layout";
-import IssueFilterStrip from "@/components/evaluation/poc/issues/issue-filter-strip";
-import IssuesRail from "@/components/evaluation/poc/issues/issues-rail";
-import { assignMockClusters } from "@/components/evaluation/poc/issues/mock-issues";
-import TopArea from "@/components/evaluation/poc/issues/top-area";
 import MorphLayout from "@/components/evaluation/poc/morph-layout";
+import RowScoreChips from "@/components/evaluation/poc/row-score-chips";
+import ScoreHoverChips from "@/components/evaluation/poc/score-hover-chips";
 import TraceFirstLayout from "@/components/evaluation/poc/trace-first-layout";
 import { useLabelField } from "@/components/evaluation/poc/use-label-field";
-import { usePocTop } from "@/components/evaluation/poc/use-poc-top";
 import { usePocVariant } from "@/components/evaluation/poc/use-poc-variant";
 import VariantControlPanel from "@/components/evaluation/poc/variant-control-panel";
 import {
@@ -229,26 +226,6 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
     return map;
   }, [allDatapoints, labelFieldPath]);
 
-  // Round 6 mock issue clusters — compact-v1 only (other layout variants
-  // ignore pocTop/pocIssue). Index-keyed and score-independent, so they work
-  // in comparison mode too.
-  const { topMode, issueId: selectedIssueId, toggleIssue } = usePocTop();
-  const issueClusters = useMemo(
-    () => (isCompactV1 ? assignMockClusters(labeledDatapoints ?? []) : []),
-    [isCompactV1, labeledDatapoints]
-  );
-  const selectedCluster = useMemo(
-    () => issueClusters.find((c) => c.id === selectedIssueId) ?? null,
-    [issueClusters, selectedIssueId]
-  );
-  // Client-side filter over already-loaded pages — fine for a mock. A real
-  // impl would push `index IN (...)` server-side instead of filtering here.
-  const filteredDatapoints = useMemo(() => {
-    if (!selectedCluster || !labeledDatapoints) return labeledDatapoints;
-    const indexSet = new Set(selectedCluster.indices);
-    return labeledDatapoints.filter((row) => indexSet.has(row["index"] as number));
-  }, [labeledDatapoints, selectedCluster]);
-
   // Realtime — only on the live (non-comparison) eval page.
   const debouncedRevalidateStats = useMemo(
     () => debounce(() => mutateStats(), 1000, { leading: false, trailing: true }),
@@ -375,7 +352,7 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
   const renderTable = useCallback(
     (overrides?: { visibleColumnDefs?: ColumnDef<EvalRow>[]; pinnedLeftColumnIds?: string[] }) => (
       <EvaluationDatapointsTable
-        data={filteredDatapoints}
+        data={labeledDatapoints}
         isLoading={isStatsLoading || isLoadingDatapoints || isViewLoading}
         isFetching={isFetching}
         hasMore={hasMore}
@@ -400,7 +377,7 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
       />
     ),
     [
-      filteredDatapoints,
+      labeledDatapoints,
       isStatsLoading,
       isLoadingDatapoints,
       isViewLoading,
@@ -426,11 +403,17 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
     ]
   );
 
+  // The selected datapoint — drives the per-row score chips above the trace.
+  const selectedRow = useMemo(
+    () => (datapointId ? labeledDatapoints?.find((row) => row["id"] === datapointId) : undefined),
+    [labeledDatapoints, datapointId]
+  );
+
   // Split view: when a trace is open, the datapoints table sits on the left
-  // (~420px, resizable) and the trace view fills the right. Both panels mount
+  // (~420px, resizable) and the right column stacks the selected row's scores
+  // above the trace view (v1; v0 renders no row chips). Both panels mount
   // together so the pixel `defaultSize` on the left is honored; when no trace
-  // is open the table renders full-width on its own. Shared by compact/v1 and
-  // the rail top mode (which additionally places the rail beside this).
+  // is open the table renders full-width on its own.
   const compactTableRegion = traceId ? (
     <ResizablePanelGroup orientation="horizontal" className="flex-1 overflow-hidden">
       <ResizablePanel id="eval-table" defaultSize={420} minSize={320} className="flex overflow-hidden">
@@ -438,9 +421,19 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
       </ResizablePanel>
       <ResizableHandle withHandle className="z-30 bg-transparent mx-1.5" />
       <ResizablePanel id="eval-trace" minSize="30%" className="overflow-hidden">
-        <div className="flex flex-col h-full overflow-hidden border rounded-md bg-background">
-          <div className="flex-1 min-h-0 flex overflow-hidden">
-            <TraceView key={traceId} traceId={traceId} onClose={onClose} />
+        <div className="flex h-full flex-col gap-2 overflow-hidden">
+          {isCompactV1 && (
+            <RowScoreChips
+              scoreNames={scoreNames}
+              row={selectedRow}
+              allStatistics={statsData?.allStatistics}
+              allDistributions={statsData?.allDistributions}
+            />
+          )}
+          <div className="flex flex-col flex-1 min-h-0 overflow-hidden border rounded-md bg-background">
+            <div className="flex-1 min-h-0 flex overflow-hidden">
+              <TraceView key={traceId} traceId={traceId} onClose={onClose} />
+            </div>
           </div>
         </div>
       </ResizablePanel>
@@ -512,10 +505,10 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
           />
         ) : variant === "compact" || isCompactV1 ? (
           <div className="flex flex-col gap-2 flex-1 overflow-hidden px-4 pb-4">
-            {/* Score rows stay full-width on top, above the split view. v0 keeps the
-              classic MetricsPanel (mini cards); v1's resting state is the hover-chips
-              row (Round 6 addendum) — plain in comparison mode, composed with the
-              issues top mode via TopArea otherwise. */}
+            {/* v0 keeps the classic MetricsPanel (mini cards) on top always. v1's
+              aggregate chips row shows only while no trace is open — with a trace
+              open, the selected row's scores render inside the right column
+              instead (see compactTableRegion). */}
             {variant === "compact" ? (
               <MetricsPanel
                 scoreNames={scoreNames}
@@ -529,38 +522,20 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
                 isLoading={isStatsLoading}
                 cardStyle="mini"
               />
-            ) : (
-              <TopArea
+            ) : !traceId ? (
+              <ScoreHoverChips
                 scoreNames={scoreNames}
                 selectedScore={selectedScore}
-                setSelectedScore={setSelectedScore}
+                onSelectScore={setSelectedScore}
                 allStatistics={statsData?.allStatistics}
                 allDistributions={statsData?.allDistributions}
                 comparedAllStatistics={targetStatsData?.allStatistics}
                 comparedAllDistributions={targetStatsData?.allDistributions}
                 isComparison={isComparison}
                 isLoading={isStatsLoading}
-                topMode={topMode}
-                clusters={issueClusters}
-                selectedIssueId={selectedIssueId}
-                onToggleIssue={toggleIssue}
               />
-            )}
-            {isCompactV1 && selectedCluster && (
-              <IssueFilterStrip
-                cluster={selectedCluster}
-                totalRows={labeledDatapoints?.length ?? 0}
-                onClear={() => toggleIssue(selectedCluster.id)}
-              />
-            )}
-            {isCompactV1 && topMode === "rail" ? (
-              <div className="flex flex-1 gap-2 overflow-hidden">
-                <div className="flex flex-1 overflow-hidden">{compactTableRegion}</div>
-                <IssuesRail clusters={issueClusters} selectedId={selectedIssueId} onToggle={toggleIssue} />
-              </div>
-            ) : (
-              compactTableRegion
-            )}
+            ) : null}
+            {compactTableRegion}
           </div>
         ) : (
           <TraceFirstLayout

@@ -19,9 +19,20 @@ interface HistogramCardProps {
   isComparison?: boolean;
   aggregation?: AggregationKind;
   onClick?: () => void;
+  /** A single datapoint's value: its bucket renders full-opacity, the rest dim to 40%. */
+  highlightValue?: number;
 }
 
 const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+
+// Upper bound is exclusive except for the last bucket (a max-value score must land somewhere).
+export function bucketIndexForValue(distribution: EvaluationScoreDistributionBucket[] | null, value: number): number {
+  if (!distribution?.length || !Number.isFinite(value)) return -1;
+  return distribution.findIndex(
+    (b, i) =>
+      value >= b.lowerBound && (value < b.upperBound || (i === distribution.length - 1 && value <= b.upperBound))
+  );
+}
 
 // Recovered from git HEAD (classic/pre-session layout): 156px card, graph fills
 // the remaining height below the label+value block. v0's mini card lives in
@@ -35,7 +46,9 @@ export default function HistogramCard({
   isComparison,
   aggregation = DEFAULT_AGGREGATION,
   onClick,
+  highlightValue,
 }: HistogramCardProps) {
+  const highlightIndex = highlightValue !== undefined ? bucketIndexForValue(distribution, highlightValue) : -1;
   const cur = aggregateScalar(aggregation, statistics, distribution);
   const cmp = aggregateScalar(aggregation, comparedStatistics, comparedDistribution);
   const validAvg = isValidNumber(cur);
@@ -94,6 +107,7 @@ export default function HistogramCard({
           comparedDistribution={isComparison ? comparedDistribution : null}
           isComparison={isComparison}
           className="h-full w-full"
+          highlightIndex={highlightIndex >= 0 ? highlightIndex : null}
         />
       </div>
     </div>

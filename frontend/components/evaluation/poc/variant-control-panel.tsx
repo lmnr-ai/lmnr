@@ -3,7 +3,6 @@
 import { Check, FlaskConical, X } from "lucide-react";
 import { useState } from "react";
 
-import { POC_TOP_MODES, TOP_MODE_LABELS, usePocTop } from "@/components/evaluation/poc/use-poc-top";
 import { POC_VARIANTS, usePocVariant, VARIANT_INFO } from "@/components/evaluation/poc/use-poc-variant";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -15,7 +14,6 @@ import { cn } from "@/lib/utils";
  */
 export default function VariantControlPanel() {
   const { variant, setVariant } = usePocVariant();
-  const { topMode, setTopMode } = usePocTop();
   const [open, setOpen] = useState(false);
 
   if (!open) {
@@ -61,24 +59,6 @@ export default function VariantControlPanel() {
           </button>
         ))}
       </div>
-      {variant === "compact-v1" && (
-        <div className="flex flex-col gap-1.5 border-t p-1.5">
-          <span className="px-1 text-[0.7rem] font-medium text-muted-foreground">Top area</span>
-          {POC_TOP_MODES.map((m) => (
-            <button
-              key={m}
-              onClick={() => setTopMode(m)}
-              className={cn(
-                "flex items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-muted",
-                m === topMode && "bg-muted"
-              )}
-            >
-              <Check className={cn("size-3.5 shrink-0", m === topMode ? "opacity-100" : "opacity-0")} />
-              <span className="text-xs">{TOP_MODE_LABELS[m]}</span>
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

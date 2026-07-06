@@ -1,4 +1,4 @@
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts";
 
 import { renderTick } from "@/components/evaluation/graphs-utils";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -11,6 +11,8 @@ interface ChartProps {
   scoreName?: string;
   distribution: EvaluationScoreDistributionBucket[] | null;
   isLoading?: boolean;
+  /** When set, this bucket renders at full opacity and every other bar dims to 40%. */
+  highlightIndex?: number | null;
 }
 
 const newChartConfig = {
@@ -19,7 +21,7 @@ const newChartConfig = {
   },
 };
 
-export default function Chart({ className, scoreName, distribution, isLoading = false }: ChartProps) {
+export default function Chart({ className, scoreName, distribution, isLoading = false, highlightIndex }: ChartProps) {
   const chartData = distribution
     ? distribution.map((bucket, index) => ({
         index,
@@ -44,7 +46,10 @@ export default function Chart({ className, scoreName, distribution, isLoading = 
             />
             <YAxis tickLine={false} axisLine={false} tickMargin={8} tickCount={3} />
             <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
-            <Bar key={scoreName} dataKey="height" fill="hsl(var(--chart-1))" radius={4} name={scoreName} />
+            <Bar key={scoreName} dataKey="height" fill="hsl(var(--chart-1))" radius={4} name={scoreName}>
+              {highlightIndex != null &&
+                chartData.map((d) => <Cell key={d.index} fillOpacity={d.index === highlightIndex ? 1 : 0.4} />)}
+            </Bar>
           </BarChart>
         </ChartContainer>
       )}
