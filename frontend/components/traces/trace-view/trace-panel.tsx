@@ -23,7 +23,8 @@ import Tree from "./tree";
 
 interface TracePanelProps {
   traceId: string;
-  handleClose: () => void;
+  // Undefined ⇒ header hides the close button.
+  handleClose?: () => void;
   handleSpanSelect: (span?: TraceViewSpan) => void;
   fetchSpans: (search: string, filters: Filter[]) => void;
   isLoading: boolean;

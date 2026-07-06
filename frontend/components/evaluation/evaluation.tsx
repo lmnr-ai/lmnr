@@ -2,7 +2,7 @@
 
 import { type Row } from "@tanstack/react-table";
 import { debounce } from "lodash";
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { shallow } from "zustand/shallow";
@@ -56,7 +56,6 @@ const RESOURCE = "evaluation-v1.1";
 const DEFAULT_HIDDEN_COLUMNS = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
 
 function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
-  const { push } = useRouter();
   const pathName = usePathname();
   const searchParams = useSearchParams();
   const params = useParams<{ projectId: string }>();
@@ -265,6 +264,18 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
     setDatapointId(row.original["id"] as string);
   }, []);
 
+  // Always keep the trace panel open: auto-select the first datapoint whenever
+  // nothing is selected and rows are loaded. Also re-opens to the first row if
+  // the selection is ever cleared (e.g. the close button) — intended for this
+  // experiment. Adjust during render (like displayTraceId above) rather than in
+  // an effect, matching this file's idiom and avoiding a cascading commit; the
+  // `!traceId` guard makes it fire at most once per cleared selection.
+  const firstRow = labeledDatapoints?.[0] as EvalRow | undefined;
+  if (!traceId && firstRow) {
+    setTraceId(firstRow["traceId"] as string);
+    setDatapointId(firstRow["id"] as string);
+  }
+
   const getRowHref = useCallback(
     (row: Row<EvalRow>) => {
       const next = new URLSearchParams(searchParams.toString());
@@ -281,14 +292,6 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
     },
     [setSort]
   );
-
-  const onClose = useCallback(() => {
-    setTraceId(undefined);
-    const next = new URLSearchParams(searchParams.toString());
-    next.delete("traceId");
-    next.delete("spanId");
-    push(`${pathName}?${next}`);
-  }, [searchParams, pathName, push]);
 
   const visibleColumnDefs = useMemo(
     () => selectVisibleColumnDefs(columnDefs, isComparison),
@@ -358,17 +361,9 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
             need them (the table's right padding in EvalTraceLayout) rather than
             the wrapper. */}
         <div className="flex flex-col gap-2 flex-1 overflow-hidden pl-4 pt-2">
-          {/* Split view.
-              LEFT = the whole run (aggregate), above the table: a horizontal
-              strip of per-score cards while no trace is open, collapsing to one
-              aggregate card with a score picker once a row is selected.
-              RIGHT = the single selected datapoint: its score pills (hover shows
-              that row's value across previous runs) above the trace view, in a
-              panel that runs flush to the right + bottom edges with a top+left
-              border and one rounded top-left corner. Left-column right-padding
-              is applied in EvalTraceLayout, only when it owns the full row. */}
+          {/* Static split (trace always open). LEFT = run aggregate card + table;
+              RIGHT = the selected datapoint's score pills above its trace view. */}
           <EvalTraceLayout
-            showTrace={!!traceId}
             table={
               <div className="flex h-full w-full flex-col gap-2 overflow-hidden">
                 {traceId ? (
@@ -406,7 +401,8 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
                   />
                 </div>
                 <div className="flex min-h-0 flex-1 overflow-hidden">
-                  {displayTraceId && <TraceView key={displayTraceId} traceId={displayTraceId} onClose={onClose} />}
+                  {/* No onClose ⇒ always-open: the trace header shows no close button. */}
+                  {displayTraceId && <TraceView key={displayTraceId} traceId={displayTraceId} />}
                 </div>
               </div>
             }
