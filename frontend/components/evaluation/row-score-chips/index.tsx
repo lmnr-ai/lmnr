@@ -34,35 +34,48 @@ export default function RowScoreChips({
   scoreNames,
   row,
 }: RowScoreChipsProps) {
-  const index = typeof row?.["index"] === "number" ? (row["index"] as number) : undefined;
+  // `index` (Int64) comes back as a JSON string from ClickHouse, so coerce.
+  const index = useMemo(() => {
+    const raw = row?.["index"];
+    if (raw == null) return undefined;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : undefined;
+  }, [row]);
+
+  // Newest MAX_RUNS runs (cap keeps the URL under the 414 limit), but always
+  // include the run being viewed even when it's older than that window —
+  // otherwise its point + isCurrent highlight go missing from the history.
+  const windowedEvals = useMemo(() => {
+    const byCreatedAt = (a: EvaluationType, b: EvaluationType) =>
+      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    const sorted = [...evaluations].sort(byCreatedAt);
+    const newest = sorted.slice(-MAX_RUNS);
+    if (currentEvaluationId && !newest.some((e) => e.id === currentEvaluationId)) {
+      const current = sorted.find((e) => e.id === currentEvaluationId);
+      if (current) return [...newest, current].sort(byCreatedAt);
+    }
+    return newest;
+  }, [evaluations, currentEvaluationId]);
 
   const url = useMemo(() => {
-    if (index === undefined) return null;
-    // Only the newest MAX_RUNS are shown, so cap the ids here too — a group with
-    // hundreds of runs would otherwise blow past the URL length limit (414).
-    const ids = [...evaluations]
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-      .slice(-MAX_RUNS)
-      .map((e) => e.id)
-      .join(",");
+    if (index === undefined || windowedEvals.length === 0) return null;
+    const ids = windowedEvals.map((e) => e.id).join(",");
     return `/api/projects/${projectId}/evaluations/datapoint-comparison?evaluationIds=${ids}&index=${index}`;
-  }, [projectId, evaluations, index]);
+  }, [projectId, windowedEvals, index]);
 
   const { data } = useSWR<{ rows: EvaluationDatapointComparisonRow[] }>(url, swrFetcher, {
     revalidateOnFocus: false,
   });
 
-  // Runs in group order (oldest first), deduped by evaluationId (RMT pre-merge
-  // duplicates; keep last seen), capped to the most recent MAX_RUNS.
+  // Order fetched rows by the windowed run order (oldest first); drop runs that
+  // don't contain this datapoint index. Dedup by evaluationId (RMT pre-merge).
   const runs = useMemo(() => {
-    const evalById = new Map(evaluations.map((e) => [e.id, e]));
     const byEval = new Map<string, EvaluationDatapointComparisonRow>();
     (data?.rows ?? []).forEach((r) => byEval.set(r.evaluationId, r));
-    return Array.from(byEval.values())
-      .map((r) => ({ row: r, ev: evalById.get(r.evaluationId) }))
-      .sort((a, b) => new Date(a.ev?.createdAt ?? 0).getTime() - new Date(b.ev?.createdAt ?? 0).getTime())
-      .slice(-MAX_RUNS);
-  }, [data, evaluations]);
+    return windowedEvals
+      .map((ev) => ({ ev, row: byEval.get(ev.id) }))
+      .filter((x): x is { ev: EvaluationType; row: EvaluationDatapointComparisonRow } => !!x.row);
+  }, [data, windowedEvals]);
 
   const pointsByScore = useMemo(() => {
     const map: Record<string, RunPoint[]> = {};
