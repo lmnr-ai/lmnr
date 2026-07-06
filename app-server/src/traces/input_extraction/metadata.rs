@@ -7,37 +7,23 @@ use serde_json::Value;
 use super::input::split_signposts_and_rejoin;
 use super::regex::ApplyRegexResult;
 
+/// The extracted user task string, or `false` when extraction ran and
+/// found no user request (regex says scaffolding-only, or didn't match)
+/// — distinguishes "ran and found nothing" from "never ran" (key absent).
 pub const USER_TASK_METADATA_KEY: &str = "lmnr_user_task";
-/// Written instead of `lmnr_user_task` when extraction ran but found no
-/// user request (regex says scaffolding-only, or didn't match) —
-/// distinguishes "ran and found nothing" from "never ran".
-pub const USER_TASK_NOT_FOUND_METADATA_KEY: &str = "lmnr_user_task_not_found";
 
 /// Map an extraction outcome onto the trace-metadata patch. Extracted
 /// text is signpost-split and re-joined; no-result outcomes never fall
-/// back to raw text. Trace metadata merges with JSONB `||` (additive —
-/// keys are overwritten but never removed), so a success nulls out a
-/// possibly earlier `true` marker, and a no-result nulls out task text
-/// a superseded earlier winner may have published — otherwise the trace
-/// would carry stale `lmnr_user_task` text alongside
-/// `lmnr_user_task_not_found: true` (or vice versa).
+/// back to raw text — they write `false`. Trace metadata merges with
+/// JSONB `||` (additive — keys are overwritten but never removed);
+/// because every outcome writes the SAME key, a later winner always
+/// overwrites a superseded earlier winner's value, string or `false`.
 pub fn build_metadata_patch(result: &ApplyRegexResult) -> HashMap<String, Value> {
-    match result {
-        ApplyRegexResult::Extracted(text) => HashMap::from([
-            (
-                USER_TASK_METADATA_KEY.to_string(),
-                Value::String(split_signposts_and_rejoin(text)),
-            ),
-            (USER_TASK_NOT_FOUND_METADATA_KEY.to_string(), Value::Null),
-        ]),
-        ApplyRegexResult::NoUserRequest | ApplyRegexResult::NoMatch => HashMap::from([
-            (USER_TASK_METADATA_KEY.to_string(), Value::Null),
-            (
-                USER_TASK_NOT_FOUND_METADATA_KEY.to_string(),
-                Value::Bool(true),
-            ),
-        ]),
-    }
+    let value = match result {
+        ApplyRegexResult::Extracted(text) => Value::String(split_signposts_and_rejoin(text)),
+        ApplyRegexResult::NoUserRequest | ApplyRegexResult::NoMatch => Value::Bool(false),
+    };
+    HashMap::from([(USER_TASK_METADATA_KEY.to_string(), value)])
 }
 
 #[cfg(test)]
@@ -54,26 +40,18 @@ mod tests {
             patch.get(USER_TASK_METADATA_KEY),
             Some(&Value::String("part a\n\npart b".to_string()))
         );
-        // JSONB || merge never removes keys — success must null out an
-        // earlier not-found marker instead of leaving it true.
-        assert_eq!(
-            patch.get(USER_TASK_NOT_FOUND_METADATA_KEY),
-            Some(&Value::Null)
-        );
+        assert_eq!(patch.len(), 1);
     }
 
     #[test]
-    fn no_result_outcomes_null_out_task_and_set_marker() {
+    fn no_result_outcomes_write_false() {
         for result in [ApplyRegexResult::NoUserRequest, ApplyRegexResult::NoMatch] {
             let patch = build_metadata_patch(&result);
-            assert_eq!(
-                patch.get(USER_TASK_NOT_FOUND_METADATA_KEY),
-                Some(&Value::Bool(true))
-            );
-            // A superseding winner whose extraction fails must not leave a
-            // previously published task string behind — JSONB || can only
-            // overwrite, so null is the strongest available "remove".
-            assert_eq!(patch.get(USER_TASK_METADATA_KEY), Some(&Value::Null));
+            // Same key as success — JSONB || can only overwrite, so a
+            // superseding winner's `false` replaces an earlier task string
+            // (and vice versa) without null tricks.
+            assert_eq!(patch.get(USER_TASK_METADATA_KEY), Some(&Value::Bool(false)));
+            assert_eq!(patch.len(), 1);
         }
     }
 }

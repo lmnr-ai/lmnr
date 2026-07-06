@@ -171,7 +171,7 @@ pub async fn try_apply_cached_regex(
 /// (timeout / provider error) so the consumer can requeue as transient.
 /// A deliberate empty-regex verdict from the model ("no valid regex can
 /// be produced") is terminal, not retryable: it maps to `NoUserRequest`
-/// (→ not-found patch) so the message finishes instead of looping
+/// (→ `lmnr_user_task: false` patch) so the message finishes instead of looping
 /// through an LLM call per requeue. Nothing is cached for it — a later
 /// trace of the same shape gets a fresh chance at a real regex.
 pub async fn generate_and_apply_regex(

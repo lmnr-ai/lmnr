@@ -101,7 +101,7 @@ pub fn fingerprint_user_parts(parts: &[String]) -> String {
 /// from and applied to must be order-insensitive too. Without this, a
 /// regex generated from one arrival order can match a permuted order
 /// with an EMPTY capture (`NoUserRequest`, not `NoMatch`), mis-marking
-/// the trace `lmnr_user_task_not_found` and sliding the stale cache
+/// the trace's `lmnr_user_task` as `false` and sliding the stale cache
 /// entry's TTL instead of evicting it.
 pub fn canonicalize_user_parts(parts: Vec<String>) -> Vec<String> {
     let mut keyed: Vec<(String, String)> = parts

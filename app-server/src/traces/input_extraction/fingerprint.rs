@@ -108,7 +108,10 @@ mod tests {
             "<user_instructions>u</user_instructions><final_instruction>f</final_instruction><context>c</context>",
         );
         assert_eq!(a, b);
-        assert_eq!(a, "context,/context,final_instruction,/final_instruction,user_instructions,/user_instructions");
+        assert_eq!(
+            a,
+            "context,/context,final_instruction,/final_instruction,user_instructions,/user_instructions"
+        );
     }
 
     #[test]

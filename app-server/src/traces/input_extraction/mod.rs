@@ -10,8 +10,8 @@
 //!     user-facing separator;
 //!   - fingerprints parts order-insensitively (multi-part messages
 //!     arrive in unknown order);
-//!   - never falls back to raw text — a no-result run writes a boolean
-//!     marker metadata key instead;
+//!   - never falls back to raw text — a no-result run writes `false` to
+//!     the same key instead;
 //!   - caches generated regexes per project + prompt hash + fingerprint
 //!     (`USER_TASK_REGEX_CACHE_KEY`) so traces with the same scaffolding
 //!     shape share one LLM call.
