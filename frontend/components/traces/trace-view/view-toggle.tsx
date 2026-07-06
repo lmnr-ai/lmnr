@@ -28,7 +28,7 @@ interface ViewToggleProps {
   tabs?: ViewTab[];
 }
 
-/** Presentational Tree/Transcript dropdown + Content eye-toggle. Fully
+/** Presentational Tree/Transcript/Custom dropdown + Content eye-toggle. Fully
  *  controlled — no store, no analytics. `ViewDropdown` wires it to the
  *  trace-view store; the session control bar wires it to per-trace state. */
 export default function ViewToggle({

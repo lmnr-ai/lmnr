@@ -9,10 +9,12 @@ import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { type CustomColumn } from "@/components/ui/columns-menu";
 import { type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
+import { labelPathToSql } from "@/lib/evaluation/label-path";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 import { DataCell } from "./columns/data-cell";
 import { createScoreColumnDef, STATIC_COLUMNS } from "./columns/index";
+import { createLabelColumnDef } from "./columns/label-cell";
 
 interface RawUrlParams {
   search: string | null;
@@ -61,10 +63,16 @@ export function buildColumnDefs({
   scoreNames,
   customColumns,
   isShared,
+  includeLabel = false,
+  labelFieldPath = null,
 }: {
   scoreNames: string[];
   customColumns: CustomColumn[];
   isShared: boolean;
+  /** Compact-v1 only (LAM Round 4) — keeps the label column out of v0/other variants. */
+  includeLabel?: boolean;
+  /** LLM-extracted field path; when set, the label column resolves server-side (untruncated). */
+  labelFieldPath?: string | null;
 }): ColumnDef<EvalRow>[] {
   const scoreCols = scoreNames.map((name) => createScoreColumnDef(name));
 
@@ -86,7 +94,9 @@ export function buildColumnDefs({
           isCustom: true,
         },
       }));
-  return [...STATIC_COLUMNS, ...scoreCols, ...customCols];
+  const labelSql = labelFieldPath ? (labelPathToSql(labelFieldPath) ?? undefined) : undefined;
+  const labelCol = includeLabel ? [createLabelColumnDef(labelSql)] : [];
+  return [...STATIC_COLUMNS, ...scoreCols, ...customCols, ...labelCol];
 }
 
 /**
@@ -179,7 +189,7 @@ function createEvalStore({ initialScoreNames, isShared = false }: EvalStoreInit)
   return createStore<EvalStoreState>()(
     persist(
       (set, get) => ({
-        heatmapEnabled: false,
+        heatmapEnabled: true,
         isShared,
         scoreNames: initialScoreNames,
 
@@ -192,7 +202,9 @@ function createEvalStore({ initialScoreNames, isShared = false }: EvalStoreInit)
         },
       }),
       {
-        name: "evaluation-store",
+        // Bumped from "evaluation-store" so the new heatmap-on-by-default reaches
+        // existing users whose old persisted value was the previous false default.
+        name: "evaluation-store-v2",
         partialize: (state) => ({
           heatmapEnabled: state.heatmapEnabled,
         }),
