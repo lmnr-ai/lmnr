@@ -18,7 +18,7 @@
 //! ```
 
 pub mod internal_exporter;
-// Shared internal-span builder. `allow(dead_code)`: OSS consumers (`traces::user_task`) use only a
+// Shared internal-span builder. `allow(dead_code)`: OSS consumers use only a
 // subset of the helpers; the rest are consumed by `signals`-gated code.
 #[allow(dead_code)]
 pub mod spans;

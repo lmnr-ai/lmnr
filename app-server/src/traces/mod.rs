@@ -15,6 +15,7 @@ pub mod realtime;
 pub mod sampling;
 pub mod span_attributes;
 pub mod spans;
+pub mod system_extraction;
 pub mod tool_dedup;
 pub mod utils;
 

@@ -32,3 +32,11 @@ pub const ALWAYS_USE_REALTIME: BoolEnv = BoolEnv::new("SIGNALS_ALWAYS_USE_REALTI
 /// timeout. Lives here (not under signals) because the gemini client applies it
 /// whenever a request carries the flex service tier, regardless of feature flags.
 pub const FLEX_LLM_TIMEOUT_SECS: NumEnv<u64> = NumEnv::new("SIGNALS_FLEX_LLM_TIMEOUT_SECS", 900);
+
+/// Shared per-request HTTP timeout (seconds) for all LLM providers — the reqwest
+/// clients (openai/gemini) apply it as the request timeout, and the bedrock AWS
+/// SDK client as its per-attempt operation timeout. Large-input agent calls (e.g.
+/// system-extraction over 100k+ token example families) can run past the old 120s
+/// default, so it's raised and made configurable. Gemini flex-tier requests
+/// override this per-request with `FLEX_LLM_TIMEOUT_SECS`.
+pub const HTTP_TIMEOUT_SECS: NumEnv<u64> = NumEnv::new("LLM_HTTP_TIMEOUT_SECS", 300);
