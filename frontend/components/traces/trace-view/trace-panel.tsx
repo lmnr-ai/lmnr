@@ -9,7 +9,7 @@ import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TemplatePickerActions, TemplatePickerProvider } from "@/components/ui/template-renderer/template-picker";
+import { TemplatePickerProvider } from "@/components/ui/template-renderer/template-picker";
 import { type Filter } from "@/lib/actions/common/filters";
 import { cn } from "@/lib/utils";
 
@@ -125,7 +125,6 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
                 <div className="flex items-center justify-between gap-2 w-full min-w-0">
                   <div className="flex items-center gap-2 min-w-0 overflow-hidden">
                     <ViewDropdown />
-                    {tab === "custom" && <TemplatePickerActions />}
                     {trace && (
                       <TraceStatsShields
                         className="min-w-0 overflow-hidden"

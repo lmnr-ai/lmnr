@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 import useSWR, { useSWRConfig } from "swr";
 
+import SQLEditor from "@/components/sql/sql-editor";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -225,30 +226,22 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
 
               {effectiveScope === "trace" && (
                 <div>
-                  <Label htmlFor="template-where-clause" className="text-xs tracking-wide text-muted-foreground">
-                    Span filter (SQL WHERE)
-                  </Label>
-                  <div className="mt-1 flex items-center gap-2">
-                    <Controller
-                      name="whereClause"
-                      control={control}
-                      render={({ field }) => (
-                        <Input
-                          id="template-where-clause"
-                          className="h-8 flex-1 font-mono text-xs"
-                          placeholder="e.g. span_type = 'LLM' AND name LIKE 'agent%'"
-                          {...field}
-                          value={field.value ?? ""}
-                          onChange={(e) => field.onChange(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && traceId && !isTesting) {
-                              e.preventDefault();
-                              void testWhereClause();
-                            }
-                          }}
-                        />
-                      )}
-                    />
+                  <Label className="text-xs tracking-wide text-muted-foreground">Span filter (SQL WHERE)</Label>
+                  <div className="mt-1 flex items-start gap-2">
+                    <div className="h-16 min-w-0 flex-1 overflow-hidden rounded-md border">
+                      <Controller
+                        name="whereClause"
+                        control={control}
+                        render={({ field }) => (
+                          <SQLEditor
+                            value={field.value ?? ""}
+                            onChange={field.onChange}
+                            placeholder="e.g. span_type = 'LLM' AND name LIKE 'agent%'"
+                            schema={{ tables: ["spans"] }}
+                          />
+                        )}
+                      />
+                    </div>
                     {traceId && (
                       <Button
                         type="button"
