@@ -189,4 +189,90 @@ describe("parseAiSdkMessages", () => {
     ];
     assert.strictEqual(parseAiSdkMessages(openaiStyle), null);
   });
+
+  it("rejects messages whose role is not a canonical ModelMessage role", () => {
+    // The role-discriminated union only knows system/user/assistant/tool. A
+    // `human`/`ai`-style role (LangChain) must fall through even when it carries
+    // an otherwise-AI-SDK-looking part.
+    const input = [{ role: "human", content: [{ type: "tool-call", toolCallId: "c1", toolName: "t", input: {} }] }];
+    assert.strictEqual(parseAiSdkMessages(input), null);
+  });
+
+  it("rejects a tool message carrying a non-tool part (strict tool content)", () => {
+    // `tool` content is strict — only tool-result / tool-approval-response. A
+    // tool-call under a tool role is malformed AI-SDK and must fall through
+    // rather than be claimed via the escape hatch.
+    const input = [{ role: "tool", content: [{ type: "tool-call", toolCallId: "c1", toolName: "t", input: {} }] }];
+    assert.strictEqual(parseAiSdkMessages(input), null);
+  });
+
+  it("rejects a system message with array content (system content must be a string)", () => {
+    const input = [{ role: "system", content: [{ type: "text", text: "you are helpful" }] }];
+    assert.strictEqual(parseAiSdkMessages(input), null);
+  });
+
+  it("double-parses a JSON-stringified assistant content array (SDK double-encoding)", () => {
+    // The lmnr SDK stringifies assistant `content`, so the parts array arrives
+    // as a string; it must be decoded back to an array before rendering.
+    const input = [
+      {
+        role: "assistant",
+        content: JSON.stringify([
+          { type: "reasoning", text: "thinking" },
+          { type: "text", text: "here you go" },
+          { type: "tool-call", toolCallId: "c1", toolName: "get_weather", input: { city: "SF" } },
+        ]),
+      },
+    ];
+
+    const result = parseAiSdkMessages(input);
+    assert.ok(result, "expected the decoded parts array to be claimed");
+    const content = result[0].content as any[];
+    assert.ok(Array.isArray(content));
+    assert.strictEqual(content[0].type, "reasoning");
+    assert.strictEqual(content[1].type, "text");
+    assert.deepStrictEqual(content[2], {
+      type: "tool-call",
+      toolCallId: "c1",
+      toolName: "get_weather",
+      input: { city: "SF" },
+    });
+  });
+
+  it("does not mangle assistant text content that merely starts with '['", () => {
+    // A plain-text assistant message whose text starts with `[` must NOT be
+    // coerced into a parts array — it isn't valid JSON, so it stays a string.
+    const input = [
+      { role: "assistant", content: "[draft] here is my answer" },
+      {
+        role: "tool",
+        content: [{ type: "tool-result", toolCallId: "c1", toolName: "t", output: { type: "text", value: "ok" } }],
+      },
+    ];
+
+    const result = parseAiSdkMessages(input);
+    assert.ok(result, "expected the tool-result to claim this payload");
+    assert.strictEqual(result[0].content, "[draft] here is my answer");
+  });
+
+  it("claims via a distinctive part and preserves an unmodeled future part verbatim", () => {
+    // The single escape hatch: a well-formed part with a string `type` we don't
+    // model yet rides through untouched (the generic renderer JSON-dumps it),
+    // provided the message is claimed via a genuinely distinctive part.
+    const input = [
+      {
+        role: "assistant",
+        content: [
+          { type: "reasoning", text: "thinking" },
+          { type: "tool-poll", pollId: "p1", detail: { nested: true } },
+        ],
+      },
+    ];
+
+    const result = parseAiSdkMessages(input);
+    assert.ok(result, "expected the distinctive reasoning part to claim this payload");
+    const content = result[0].content as any[];
+    assert.strictEqual(content[0].type, "reasoning");
+    assert.deepStrictEqual(content[1], { type: "tool-poll", pollId: "p1", detail: { nested: true } });
+  });
 });

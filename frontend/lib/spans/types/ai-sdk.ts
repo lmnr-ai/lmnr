@@ -1,141 +1,195 @@
 import { type ModelMessage } from "ai";
 import { z } from "zod/v4";
 
-/**
- * Native Vercel AI SDK v7 `ModelMessage` shape.
- *
- * The `@lmnr-ai/lmnr` AI-SDK-v7 instrumentation serializes the request prompt
- * (`ai.prompt.messages` / `lmnr.span.input`) as a raw `ModelMessage[]` — an
- * array of `{ role, content }` where `content` is a string or an array of
- * content parts using AI SDK's *dash-style* discriminators (`tool-call`,
- * `tool-result`, `reasoning`, ...). None of the provider-native detectors
- * (OpenAI/Anthropic/Gemini/LangChain/GenAI) recognise this shape, so it would
- * otherwise fall through to the lossy generic `convertToMessages`, which only
- * knows the underscore-style `tool_call` and stringifies `tool-call` /
- * `reasoning` parts into raw JSON text.
- *
- * This detector claims native AI-SDK arrays and maps them onto the generic
- * `ModelMessage` shape the `ContentParts` renderer already handles. Exotic v7
- * parts (`custom`, `reasoning-file`, `tool-approval-request/response`) pass
- * through verbatim so the generic renderer's JSON fallback surfaces them.
- *
- * Spec: https://ai-sdk.dev/docs/reference/ai-sdk-core/model-message
- */
+// Native Vercel AI SDK v7 `ModelMessage[]` (dash-style parts). Structure is
+// strict (role literals + modeled parts); media/arg payloads stay opaque. Not
+// reused from the SDK's schemas — those require URL/Uint8Array instances that
+// don't survive JSON. Spec: https://ai-sdk.dev/docs/reference/ai-sdk-core/model-message
 
-const AiSdkTextPartSchema = z.object({
+// Declared explicitly (not via `.loose()`) so it survives the strict parse.
+const ProviderOptionsSchema = z.record(z.string(), z.unknown());
+
+const TextPartSchema = z.object({
   type: z.literal("text"),
   text: z.string(),
+  providerOptions: ProviderOptionsSchema.optional(),
 });
 
-// `.loose()` keeps provider metadata (e.g. `providerOptions`,
-// `providerExecuted`) that real v7 payloads carry; the generic renderer
-// surfaces it for tool-call/tool-result, so stripping it would lose data.
-const AiSdkReasoningPartSchema = z
-  .object({
-    type: z.literal("reasoning"),
-    text: z.string(),
-  })
-  .loose();
+const ReasoningPartSchema = z.object({
+  type: z.literal("reasoning"),
+  text: z.string(),
+  providerOptions: ProviderOptionsSchema.optional(),
+});
 
-const AiSdkImagePartSchema = z.object({
+// `image` is polymorphic JSON; kept opaque and normalized to a string at convert time.
+const ImagePartSchema = z.object({
   type: z.literal("image"),
   image: z.unknown(),
   mediaType: z.string().optional(),
+  providerOptions: ProviderOptionsSchema.optional(),
 });
 
-const AiSdkFilePartSchema = z.object({
+// `mediaType` optional (SDK requires it) — serialized telemetry often omits it.
+const FilePartSchema = z.object({
   type: z.literal("file"),
   data: z.unknown(),
   mediaType: z.string().optional(),
   filename: z.string().optional(),
+  providerOptions: ProviderOptionsSchema.optional(),
 });
 
-const AiSdkToolCallPartSchema = z
-  .object({
-    type: z.literal("tool-call"),
-    toolCallId: z.string().optional(),
-    toolName: z.string().optional(),
-    input: z.unknown().optional(),
-  })
-  .loose();
+const ToolCallPartSchema = z.object({
+  type: z.literal("tool-call"),
+  toolCallId: z.string(),
+  toolName: z.string(),
+  input: z.unknown(),
+  providerExecuted: z.boolean().optional(),
+  providerOptions: ProviderOptionsSchema.optional(),
+});
 
-const AiSdkToolResultPartSchema = z
-  .object({
-    type: z.literal("tool-result"),
-    toolCallId: z.string().optional(),
-    toolName: z.string().optional(),
-    output: z.unknown().optional(),
-  })
-  .loose();
+const ToolResultPartSchema = z.object({
+  type: z.literal("tool-result"),
+  toolCallId: z.string(),
+  toolName: z.string(),
+  // Kept opaque: renderer shows it verbatim and pinning the union would break on future variants.
+  output: z.unknown(),
+  providerOptions: ProviderOptionsSchema.optional(),
+});
 
-const AiSdkPartSchema = z.union([
-  AiSdkTextPartSchema,
-  AiSdkReasoningPartSchema,
-  AiSdkImagePartSchema,
-  AiSdkFilePartSchema,
-  AiSdkToolCallPartSchema,
-  AiSdkToolResultPartSchema,
-  // Exotic v7 parts (custom, reasoning-file, tool-approval-*) and any future
-  // additions pass through as raw objects; the generic renderer's JSON
-  // fallback surfaces them so nothing is lost.
-  z.record(z.string(), z.unknown()),
+const CustomPartSchema = z.object({
+  type: z.literal("custom"),
+  kind: z.string(),
+  providerOptions: ProviderOptionsSchema.optional(),
+});
+
+const ReasoningFilePartSchema = z.object({
+  type: z.literal("reasoning-file"),
+  data: z.unknown(),
+  mediaType: z.string().optional(),
+  providerOptions: ProviderOptionsSchema.optional(),
+});
+
+const ToolApprovalRequestPartSchema = z.object({
+  type: z.literal("tool-approval-request"),
+  approvalId: z.string(),
+  toolCallId: z.string(),
+  providerOptions: ProviderOptionsSchema.optional(),
+});
+
+const ToolApprovalResponsePartSchema = z.object({
+  type: z.literal("tool-approval-response"),
+  approvalId: z.string(),
+  approved: z.boolean(),
+  reason: z.string().optional(),
+  providerOptions: ProviderOptionsSchema.optional(),
+});
+
+// Forward-compat escape hatch for future v7 parts; placed LAST so modeled parts match first.
+const UnknownPartSchema = z.object({ type: z.string() }).loose();
+
+const UserContentPartSchema = z.union([TextPartSchema, ImagePartSchema, FilePartSchema, UnknownPartSchema]);
+
+const AssistantContentPartSchema = z.union([
+  TextPartSchema,
+  ReasoningPartSchema,
+  FilePartSchema,
+  CustomPartSchema,
+  ReasoningFilePartSchema,
+  ToolCallPartSchema,
+  ToolResultPartSchema,
+  ToolApprovalRequestPartSchema,
+  UnknownPartSchema,
 ]);
 
-const AiSdkMessageSchema = z.object({
-  role: z.string(),
-  content: z.union([z.string(), z.array(AiSdkPartSchema)]),
+// Strict, no escape hatch — a tool message with anything else is malformed and must fall through.
+const ToolContentPartSchema = z.union([ToolResultPartSchema, ToolApprovalResponsePartSchema]);
+
+const isPartLike = (value: unknown): boolean =>
+  typeof value === "object" && value !== null && typeof (value as { type?: unknown }).type === "string";
+
+// SDK JSON-stringifies assistant `content`; decode it back, but only when it's genuinely a parts array.
+const maybeParseStringifiedParts = (value: unknown): unknown => {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("[")) return value;
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed) && parsed.length > 0 && parsed.every(isPartLike)) return parsed;
+  } catch {
+    // Not JSON — genuine text content, leave as-is.
+  }
+  return value;
+};
+
+const SystemMessageSchema = z.object({
+  role: z.literal("system"),
+  content: z.string(),
+  providerOptions: ProviderOptionsSchema.optional(),
 });
+
+const UserMessageSchema = z.object({
+  role: z.literal("user"),
+  content: z.union([z.string(), z.array(UserContentPartSchema)]),
+  providerOptions: ProviderOptionsSchema.optional(),
+});
+
+const AssistantMessageSchema = z.object({
+  role: z.literal("assistant"),
+  // `content` may arrive JSON-stringified (SDK double-encoding); decode before validation.
+  content: z.preprocess(maybeParseStringifiedParts, z.union([z.string(), z.array(AssistantContentPartSchema)])),
+  providerOptions: ProviderOptionsSchema.optional(),
+});
+
+const ToolMessageSchema = z.object({
+  role: z.literal("tool"),
+  content: z.array(ToolContentPartSchema),
+  providerOptions: ProviderOptionsSchema.optional(),
+});
+
+// Role-discriminated: an unknown role or role/content mismatch fails and falls through.
+const AiSdkMessageSchema = z.discriminatedUnion("role", [
+  SystemMessageSchema,
+  UserMessageSchema,
+  AssistantMessageSchema,
+  ToolMessageSchema,
+]);
 
 const AiSdkMessagesSchema = z.array(AiSdkMessageSchema);
 
-// Discriminators unique to AI SDK's native part shape. `reasoning` overlaps
-// with the OpenAI Responses *item* type, but that lives at message level, not
-// nested inside a `content` array, so there's no collision here.
-const AI_SDK_PART_TYPES = new Set([
-  "tool-call",
-  "tool-result",
+type ParsedMessage = z.infer<typeof AiSdkMessageSchema>;
+
+// Claim only when a message carries one of these; text/image/file are too generic.
+const DISTINCTIVE_PART_TYPES = new Set([
   "reasoning",
   "reasoning-file",
+  "tool-call",
+  "tool-result",
+  "custom",
   "tool-approval-request",
   "tool-approval-response",
 ]);
 
-const looksLikeAiSdkPart = (part: unknown): boolean => {
-  if (typeof part !== "object" || part === null) return false;
-  const type = (part as { type?: unknown }).type;
-  return typeof type === "string" && AI_SDK_PART_TYPES.has(type);
-};
+const hasDistinctivePart = (messages: ParsedMessage[]): boolean =>
+  messages.some(
+    (m) =>
+      Array.isArray(m.content) &&
+      m.content.some((part) => DISTINCTIVE_PART_TYPES.has((part as { type?: string }).type ?? ""))
+  );
 
-/**
- * Narrow detection: require at least one message whose `content` is an array
- * carrying a distinctive AI-SDK part discriminator. Plain text/image-only
- * conversations without these markers are ambiguous with other formats, so we
- * let them fall through rather than over-claim.
- */
-export const looksLikeAiSdkMessages = (data: unknown): boolean => {
-  if (!Array.isArray(data) || data.length === 0) return false;
-  return data.some((msg) => {
-    if (typeof msg !== "object" || msg === null) return false;
-    const content = (msg as { content?: unknown }).content;
-    if (!Array.isArray(content) || content.length === 0) return false;
-    return content.some(looksLikeAiSdkPart);
-  });
-};
-
-const stringifyFileData = (data: unknown): string | undefined => {
+// Extract a renderable string from polymorphic media data (renderer only shows strings).
+const normalizeMediaData = (data: unknown): string | undefined => {
   if (typeof data === "string") return data;
   if (data && typeof data === "object") {
-    const tagged = data as { url?: unknown; data?: unknown };
+    const tagged = data as { url?: unknown; data?: unknown; text?: unknown };
     if (typeof tagged.url === "string") return tagged.url;
     if (typeof tagged.data === "string") return tagged.data;
+    if (typeof tagged.text === "string") return tagged.text;
   }
-  if (data instanceof URL) return data.toString();
   return undefined;
 };
 
-const convertOne = (
-  message: z.infer<typeof AiSdkMessageSchema>
-): Omit<ModelMessage, "role"> & { role?: ModelMessage["role"] } => {
+// Nearly identity: drop empty text/reasoning, normalize media to a string, pass the rest through.
+const convertOne = (message: ParsedMessage): Omit<ModelMessage, "role"> & { role?: ModelMessage["role"] } => {
   const role = message.role as ModelMessage["role"];
 
   if (typeof message.content === "string") {
@@ -144,77 +198,38 @@ const convertOne = (
 
   const content: any[] = [];
   for (const part of message.content) {
-    const type = (part as { type?: string }).type;
-    switch (type) {
-      case "text": {
-        const text = (part as { text?: string }).text ?? "";
-        if (text.length > 0) content.push({ type: "text", text });
-        break;
-      }
+    const p = part as { type?: string; text?: unknown; image?: unknown; data?: unknown };
+    switch (p.type) {
+      case "text":
       case "reasoning": {
-        const text = (part as { text?: string }).text ?? "";
-        if (text.length > 0) content.push({ ...part, type: "reasoning", text });
+        if (typeof p.text === "string" && p.text.length > 0) content.push(part);
         break;
       }
       case "image": {
-        const img = (part as { image?: unknown }).image;
-        content.push({ type: "image", image: img instanceof URL ? img.toString() : img });
+        content.push({ ...part, image: normalizeMediaData(p.image) ?? p.image });
         break;
       }
       case "file": {
-        const f = part as { data?: unknown; mediaType?: string; filename?: string };
-        const data = stringifyFileData(f.data);
-        // Only the string-data shape renders; otherwise fall back to JSON so
-        // the payload isn't silently dropped.
-        if (data !== undefined) {
-          content.push({ type: "file", data, mediaType: f.mediaType, filename: f.filename });
-        } else {
-          content.push({ type: "text", text: JSON.stringify(part) });
-        }
+        const data = normalizeMediaData(p.data);
+        if (data !== undefined) content.push({ ...part, data });
+        // Non-string data can't render as a file; surface the JSON so it isn't lost.
+        else content.push({ type: "text", text: JSON.stringify(part) });
         break;
       }
-      case "tool-call": {
-        const tc = part as z.infer<typeof AiSdkToolCallPartSchema>;
-        content.push({
-          ...tc,
-          type: "tool-call",
-          toolCallId: tc.toolCallId ?? "",
-          toolName: tc.toolName ?? "",
-          input: tc.input,
-        });
-        break;
-      }
-      case "tool-result": {
-        const tr = part as z.infer<typeof AiSdkToolResultPartSchema>;
-        content.push({
-          ...tr,
-          type: "tool-result",
-          toolCallId: tr.toolCallId ?? "",
-          toolName: tr.toolName ?? "",
-          output: tr.output,
-        });
-        break;
-      }
-      default: {
-        // Exotic / unknown parts pass through verbatim for the generic
-        // renderer's JSON fallback.
+      default:
         content.push(part);
-      }
     }
   }
 
   return { role, content };
 };
 
-/**
- * Try to parse `data` as a native AI-SDK `ModelMessage[]`. Returns null on
- * mismatch so the caller can fall back to other detectors.
- */
+// Returns null when the schema rejects it or no distinctive part is present, so callers fall through.
 export const parseAiSdkMessages = (
   data: unknown
 ): (Omit<ModelMessage, "role"> & { role?: ModelMessage["role"] })[] | null => {
-  if (!looksLikeAiSdkMessages(data)) return null;
   const result = AiSdkMessagesSchema.safeParse(data);
   if (!result.success) return null;
+  if (!hasDistinctivePart(result.data)) return null;
   return result.data.map(convertOne);
 };

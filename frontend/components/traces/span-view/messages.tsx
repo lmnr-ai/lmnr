@@ -14,7 +14,7 @@ import OpenAIContentParts from "@/components/traces/span-view/openai-parts";
 import OpenAIResponsesContentParts from "@/components/traces/span-view/openai-responses-parts";
 import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
 import { Button } from "@/components/ui/button";
-import { convertToMessages } from "@/lib/spans/types";
+import { convertToMessages, normalizeToMessages } from "@/lib/spans/types";
 import { parseAiSdkMessages } from "@/lib/spans/types/ai-sdk";
 import { type AnthropicMessagesSchema, parseAnthropicInput, parseAnthropicOutput } from "@/lib/spans/types/anthropic";
 import { type GeminiContentsSchema, parseGeminiContents } from "@/lib/spans/types/gemini";
@@ -92,7 +92,10 @@ export type ProcessedMessages =
   | { type: "gemini"; messages: z.infer<typeof GeminiContentsSchema> }
   | { type: "generic"; messages: (Omit<ModelMessage, "role"> & { role?: ModelMessage["role"] })[] };
 
-export function processMessages(data: unknown): ProcessedMessages {
+export function processMessages(rawData: unknown): ProcessedMessages {
+  // Wrap loose shapes (single message object / bare parts array) so detectors can claim them.
+  const data = normalizeToMessages(rawData);
+
   if (hasAnthropicSignals(data)) {
     const anthropicOutput = parseAnthropicOutput(data);
     if (anthropicOutput) {
@@ -340,6 +343,8 @@ interface MessagesProps {
   hideScrollToBottom?: boolean;
   maxHeight?: number;
   labels?: MessageLabel[];
+  // Pre-detected messages; when set, detection is skipped (used by the Overview).
+  processed?: ProcessedMessages;
 }
 
 type VirtualItem =
@@ -369,12 +374,19 @@ function updateOverlay(
   labelEl.textContent = role.charAt(0).toUpperCase() + role.slice(1);
 }
 
-function PureMessages({ messages, presetKey, hideScrollToBottom = false, maxHeight, labels }: MessagesProps) {
+function PureMessages({
+  messages,
+  presetKey,
+  hideScrollToBottom = false,
+  maxHeight,
+  labels,
+  processed,
+}: MessagesProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLSpanElement>(null);
 
-  const processedResult = useMemo(() => processMessages(messages), [messages]);
+  const processedResult = useMemo(() => processed ?? processMessages(messages), [processed, messages]);
   const toolNameMap = useMemo(() => buildToolNameMap(processedResult), [processedResult]);
 
   const searchState = useSpanSearchState();
@@ -560,6 +572,7 @@ function PureMessages({ messages, presetKey, hideScrollToBottom = false, maxHeig
   );
 }
 const Messages = memo(PureMessages, (prevProps, nextProps) => {
+  if (prevProps.processed !== nextProps.processed) return false;
   if (!isEqual(prevProps.labels, nextProps.labels)) return false;
   if (isNil(prevProps.messages) && isNil(nextProps.messages)) return true;
   if (isNil(prevProps.messages) || isNil(nextProps.messages)) return false;
