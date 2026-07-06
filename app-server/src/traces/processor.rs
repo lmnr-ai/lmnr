@@ -143,7 +143,8 @@ pub async fn process_span_messages(
     // Split metadata-only virtual spans (POST /v1/traces/metadata) out before
     // the regular pipeline. They don't contribute span / token / time stats,
     // they aren't recorded to ClickHouse, and their PG path is a metadata
-    // merge against an existing trace row — never an insert.
+    // merge upsert against the trace row (creating a virtual row when the
+    // span batch hasn't landed yet).
     let metadata_patches: Vec<TraceMetadataPatch> = messages
         .iter()
         .filter(|m| m.span.attributes.is_metadata_only())
@@ -457,8 +458,9 @@ pub async fn process_span_messages(
             true
         };
 
-        // Patches are skipped (no row created) when the trace doesn't exist
-        // — the route handler validates existence up front.
+        // Patches that beat the trace's span batch create a virtual row that
+        // the aggregation upsert later fills in — see
+        // `merge_trace_metadata_batch` for the known stub-row caveat.
         let mut patched_traces: Vec<Trace> = Vec::new();
         if !metadata_patches.is_empty() {
             match merge_trace_metadata_batch(&db.pool, &metadata_patches).await {
