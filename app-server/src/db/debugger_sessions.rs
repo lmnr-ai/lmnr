@@ -58,6 +58,22 @@ pub async fn delete_debugger_session(
     Ok(())
 }
 
+pub async fn debugger_session_exists(
+    pool: &PgPool,
+    session_id: &Uuid,
+    project_id: &Uuid,
+) -> Result<bool> {
+    let exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM debugger_sessions WHERE id = $1 AND project_id = $2)",
+    )
+    .bind(session_id)
+    .bind(project_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(exists)
+}
+
 /// Rename an existing session. Update-only (no upsert): returns `false` when no
 /// row matches `(id, project_id)` so the caller can 404 instead of silently
 /// creating a ghost session for a mistyped id.

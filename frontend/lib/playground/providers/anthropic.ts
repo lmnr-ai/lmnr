@@ -21,6 +21,9 @@ export const anthropicThinkingModels = [
   "anthropic:claude-sonnet-4-5-20250929",
   "anthropic:claude-sonnet-4-6",
   "anthropic:claude-opus-4-6",
+  "anthropic:claude-opus-4-7",
+  "anthropic:claude-opus-4-8",
+  "anthropic:claude-fable-5",
 ] as const;
 
 export const anthropicProviderOptionsSettings: Record<
@@ -49,6 +52,15 @@ export const anthropicProviderOptionsSettings: Record<
     thinking: { type: "effort", levels: ["low", "medium", "high"] },
   },
   "anthropic:claude-opus-4-6": {
+    thinking: { type: "effort", levels: ["low", "medium", "high", "max"] },
+  },
+  "anthropic:claude-opus-4-7": {
+    thinking: { type: "effort", levels: ["low", "medium", "high", "max"] },
+  },
+  "anthropic:claude-opus-4-8": {
+    thinking: { type: "effort", levels: ["low", "medium", "high", "max"] },
+  },
+  "anthropic:claude-fable-5": {
     thinking: { type: "effort", levels: ["low", "medium", "high", "max"] },
   },
 };

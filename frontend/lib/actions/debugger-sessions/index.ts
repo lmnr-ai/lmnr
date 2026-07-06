@@ -1,23 +1,29 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { PaginationSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
+import { tracesSelectColumns } from "@/lib/actions/traces/utils";
 import { db } from "@/lib/db/drizzle";
-import { debuggerSessions, sharedTraces } from "@/lib/db/migrations/schema";
+import { debuggerSessionBlocks, debuggerSessions, evaluations, sharedTraces } from "@/lib/db/migrations/schema";
 import { NotFoundError } from "@/lib/errors";
+import { type TraceRow } from "@/lib/traces/types";
+
+// Session link metadata key (legacy fallback for pre-blocks sessions).
+const SESSION_ID_METADATA_KEY = "rollout.session_id";
 
 export type DebuggerSession = {
   id: string;
   createdAt: string;
   name: string | null;
   projectId: string;
-  // Last time a trace finished for this session (max trace end_time, from
-  // ClickHouse). Null when the session has no traces yet.
+  // Latest block created_at for this session (entity time). Null when empty.
   lastActivity: string | null;
-  // Number of traces grouped to this session (from ClickHouse).
+  // Number of `trace` blocks in this session.
   traceCount: number;
+  // Number of `evaluation` blocks in this session.
+  evalCount: number;
 };
 
 const GetDebuggerSessionSchema = z.object({
@@ -43,46 +49,53 @@ export const getDebuggerSessions = async (input: z.infer<typeof GetDebuggerSessi
     .limit(limit)
     .offset(offset);
 
-  const statsById = await getStatsBySessionIds(
-    projectId,
-    rows.map((r) => r.id)
-  );
+  const sessionIds = rows.map((r) => r.id);
+  const statsById = await getBlockStatsBySessionIds(projectId, sessionIds);
 
   const items: DebuggerSession[] = rows.map((row) => ({
     ...row,
     lastActivity: statsById.get(row.id)?.lastActivity ?? null,
     traceCount: statsById.get(row.id)?.traceCount ?? 0,
+    evalCount: statsById.get(row.id)?.evalCount ?? 0,
   }));
 
   return { items };
 };
 
-type SessionStats = { lastActivity: string; traceCount: number };
+type SessionStats = { lastActivity: string | null; traceCount: number; evalCount: number };
 
 /**
- * Per-session trace stats from ClickHouse: max(end_time) and trace count,
- * grouped by the `rollout.session_id` trace-metadata key, scoped to the given
- * session ids. Best-effort — a CH error returns an empty map so the sessions
- * list still renders (just without "last activity" / trace counts).
+ * Per-session stats from Postgres `debugger_session_blocks`: `trace` / `evaluation`
+ * block counts and last activity (latest block created_at — entity time). One
+ * grouped query; best-effort (a query error yields an empty map so the list
+ * still renders).
  */
-async function getStatsBySessionIds(projectId: string, sessionIds: string[]): Promise<Map<string, SessionStats>> {
+async function getBlockStatsBySessionIds(projectId: string, sessionIds: string[]): Promise<Map<string, SessionStats>> {
   if (sessionIds.length === 0) return new Map();
 
   try {
-    const rows = await executeQuery<{ sessionId: string; lastActivity: string; traceCount: string }>({
-      query: `
-        SELECT
-          simpleJSONExtractString(metadata, 'rollout.session_id') AS sessionId,
-          formatDateTime(max(end_time), '%Y-%m-%dT%H:%i:%S.%fZ') AS lastActivity,
-          count(DISTINCT id) AS traceCount
-        FROM traces
-        WHERE simpleJSONExtractString(metadata, 'rollout.session_id') IN ({sessionIds: Array(String)})
-        GROUP BY sessionId
-      `,
-      projectId,
-      parameters: { sessionIds },
-    });
-    return new Map(rows.map((r) => [r.sessionId, { lastActivity: r.lastActivity, traceCount: Number(r.traceCount) }]));
+    const rows = await db
+      .select({
+        sessionId: debuggerSessionBlocks.sessionId,
+        traceCount: sql<number>`count(*) filter (where ${debuggerSessionBlocks.type} = ${TRACE_BLOCK_TYPE})::int`,
+        evalCount: sql<number>`count(*) filter (where ${debuggerSessionBlocks.type} = ${EVALUATION_BLOCK_TYPE})::int`,
+        lastActivity: sql<string | Date | null>`max(${debuggerSessionBlocks.createdAt})`,
+      })
+      .from(debuggerSessionBlocks)
+      .where(and(eq(debuggerSessionBlocks.projectId, projectId), inArray(debuggerSessionBlocks.sessionId, sessionIds)))
+      .groupBy(debuggerSessionBlocks.sessionId);
+
+    return new Map(
+      rows.map((r) => [
+        r.sessionId,
+        {
+          // Normalize to an ISO string (raw max() returns a driver Date).
+          lastActivity: r.lastActivity ? new Date(r.lastActivity).toISOString() : null,
+          traceCount: r.traceCount,
+          evalCount: r.evalCount,
+        },
+      ])
+    );
   } catch {
     return new Map();
   }
@@ -209,4 +222,288 @@ export async function getLatestTraceBySessionId(
     ...trace,
     visibility: sharedTrace ? "public" : "private",
   };
+}
+
+export const TRACE_BLOCK_TYPE = "trace";
+export const EVALUATION_BLOCK_TYPE = "evaluation";
+export const TEXT_BLOCK_TYPE = "text";
+
+// Raw `debugger_session_blocks` row. `content` is jsonb: trace blocks carry
+// `{ traceId, note? }`, evaluation blocks `{ evaluationId, note? }`, text
+// blocks carry the note under `text` (`{ text }`) — matching the shared
+// `TextBlockContent` contract the CLI writes via `add-note`.
+type SessionBlockRow = {
+  id: string;
+  createdAt: string;
+  type: string;
+  content: Record<string, unknown>;
+};
+
+async function fetchSessionBlockRows(projectId: string, sessionId: string): Promise<SessionBlockRow[]> {
+  const rows = await db
+    .select({
+      id: debuggerSessionBlocks.id,
+      createdAt: debuggerSessionBlocks.createdAt,
+      type: debuggerSessionBlocks.type,
+      content: debuggerSessionBlocks.content,
+    })
+    .from(debuggerSessionBlocks)
+    .where(and(eq(debuggerSessionBlocks.projectId, projectId), eq(debuggerSessionBlocks.sessionId, sessionId)))
+    .orderBy(asc(debuggerSessionBlocks.createdAt));
+
+  return rows.map((row) => ({ ...row, content: (row.content ?? {}) as Record<string, unknown> }));
+}
+
+// Body of a standalone `text` block. The CLI (`add-note`) writes it under
+// `text` per the shared `TextBlockContent` contract; `note` is accepted as a
+// defensive fallback for any legacy rows.
+const blockText = (block: SessionBlockRow): string | null => {
+  if (typeof block.content.text === "string") return block.content.text;
+  if (typeof block.content.note === "string") return block.content.note;
+  return null;
+};
+
+// Legacy cap, mirrors the previous metadata-filtered fetch in the session view.
+const MAX_SESSION_TRACES = 200;
+
+export type SessionEvaluationScore = {
+  name: string;
+  averageValue: number;
+};
+
+// Evaluation referenced by an `evaluation` block: identity + per-score-name
+// averages from ClickHouse.
+export type SessionEvaluationRef = {
+  id: string;
+  name: string;
+  groupId: string;
+  scores: SessionEvaluationScore[];
+};
+
+/**
+ * One cell in a debugger session's timeline. Blocks are references to entities:
+ * a `trace` block resolves to a full trace row (spans stream in over realtime),
+ * an `evaluation` block to its identity + score averages, a `text` block just
+ * carries markdown. Every block exposes its own `createdAt` — the entity's time
+ * (trace `start_time` / eval `created_at`), frozen at first ingest — the single
+ * ordering key for the whole timeline. Notes are standalone `text` blocks only;
+ * trace blocks carry no note.
+ */
+export type SessionBlock =
+  | { id: string; type: "trace"; createdAt: string; trace: TraceRow }
+  | { id: string; type: "evaluation"; createdAt: string; evaluation: SessionEvaluationRef }
+  | { id: string; type: "text"; createdAt: string; text: string };
+
+const GetSessionBlocksSchema = z.object({
+  projectId: z.guid(),
+  sessionId: z.guid(),
+});
+
+const isGuid = (value: unknown): value is string => typeof value === "string" && z.guid().safeParse(value).success;
+
+/**
+ * A debugger session's `debugger_session_blocks` resolved to their referenced
+ * entities, oldest-first by block `created_at`. Trace/eval entities are
+ * batch-fetched (one CH query for traces, one PG + one CH query for evals).
+ * Blocks whose entity no longer exists (deleted, or a trace not yet flushed to
+ * ClickHouse) are dropped — realtime fills the latter in on the client.
+ * Sessions predating blocks have no rows, so we fall back to the legacy
+ * `rollout.session_id` metadata reconstruction.
+ */
+export async function getSessionBlocks(input: z.infer<typeof GetSessionBlocksSchema>): Promise<SessionBlock[]> {
+  const { projectId, sessionId } = GetSessionBlocksSchema.parse(input);
+
+  const blocks = await fetchSessionBlockRows(projectId, sessionId);
+  if (blocks.length === 0) return getLegacySessionBlocks(projectId, sessionId);
+
+  const traceIds: string[] = [];
+  const evaluationIds: string[] = [];
+  for (const block of blocks) {
+    if (block.type === TRACE_BLOCK_TYPE && isGuid(block.content.traceId)) traceIds.push(block.content.traceId);
+    else if (block.type === EVALUATION_BLOCK_TYPE && isGuid(block.content.evaluationId))
+      evaluationIds.push(block.content.evaluationId);
+  }
+
+  const [tracesById, evaluationsById] = await Promise.all([
+    getTracesByIds(projectId, traceIds),
+    getEvaluationsByIds(projectId, evaluationIds),
+  ]);
+
+  const resolved: SessionBlock[] = [];
+  for (const block of blocks) {
+    if (block.type === TRACE_BLOCK_TYPE) {
+      const trace = isGuid(block.content.traceId) ? tracesById.get(block.content.traceId) : undefined;
+      if (trace) resolved.push({ id: block.id, type: "trace", createdAt: block.createdAt, trace });
+    } else if (block.type === EVALUATION_BLOCK_TYPE) {
+      const evaluation = isGuid(block.content.evaluationId)
+        ? evaluationsById.get(block.content.evaluationId)
+        : undefined;
+      if (evaluation) resolved.push({ id: block.id, type: "evaluation", createdAt: block.createdAt, evaluation });
+    } else if (block.type === TEXT_BLOCK_TYPE) {
+      const text = blockText(block);
+      if (text) resolved.push({ id: block.id, type: "text", createdAt: block.createdAt, text });
+    }
+  }
+  return resolved;
+}
+
+// Batch-resolve `trace` block references. DEFAULT traces only (eval traces are
+// surfaced via eval blocks). Returns a map so the timeline can drop misses.
+async function getTracesByIds(projectId: string, traceIds: string[]): Promise<Map<string, TraceRow>> {
+  if (traceIds.length === 0) return new Map();
+  const items = await executeQuery<TraceRow>({
+    query: `
+      SELECT ${tracesSelectColumns.join(", ")}
+      FROM traces
+      WHERE trace_type = 'DEFAULT' AND id IN ({traceIds: Array(UUID)})
+      ORDER BY start_time ASC
+      LIMIT ${MAX_SESSION_TRACES}
+    `,
+    projectId,
+    parameters: { traceIds },
+  });
+  return new Map(items.map((t) => [t.id, t]));
+}
+
+// Batch-resolve `evaluation` block references: identity from Postgres + per-name
+// score averages from ClickHouse (best-effort, empty on CH error).
+async function getEvaluationsByIds(
+  projectId: string,
+  evaluationIds: string[]
+): Promise<Map<string, SessionEvaluationRef>> {
+  if (evaluationIds.length === 0) return new Map();
+  const rows = await db
+    .select()
+    .from(evaluations)
+    .where(and(eq(evaluations.projectId, projectId), inArray(evaluations.id, evaluationIds)));
+  if (rows.length === 0) return new Map();
+
+  const scoresById = await getScoreAveragesByEvaluationIds(
+    projectId,
+    rows.map((r) => r.id)
+  );
+  return new Map(
+    rows.map((row) => [
+      row.id,
+      { id: row.id, name: row.name, groupId: row.groupId, scores: scoresById.get(row.id) ?? [] },
+    ])
+  );
+}
+
+// Sessions created before `debugger_session_blocks` existed: reconstruct the
+// timeline from the `rollout.session_id` metadata on traces + evals. Trace
+// blocks order by `start_time`, eval blocks by `created_at`; notes come from
+// each entity's `rollout.note` metadata. No text blocks exist for legacy
+// sessions (those are only ever written as real blocks).
+async function getLegacySessionBlocks(projectId: string, sessionId: string): Promise<SessionBlock[]> {
+  const [traces, evaluationRows] = await Promise.all([
+    executeQuery<TraceRow>({
+      query: `
+        SELECT ${tracesSelectColumns.join(", ")}
+        FROM traces
+        WHERE trace_type = 'DEFAULT'
+          AND simpleJSONExtractString(metadata, 'rollout.session_id') = {sessionId: String}
+        ORDER BY start_time DESC
+        LIMIT ${MAX_SESSION_TRACES}
+      `,
+      projectId,
+      parameters: { sessionId },
+    }),
+    db
+      .select()
+      .from(evaluations)
+      .where(
+        and(
+          eq(evaluations.projectId, projectId),
+          sql`${evaluations.metadata}->>${SESSION_ID_METADATA_KEY} = ${sessionId}`
+        )
+      )
+      .orderBy(asc(evaluations.createdAt)),
+  ]);
+
+  const scoresById = await getScoreAveragesByEvaluationIds(
+    projectId,
+    evaluationRows.map((r) => r.id)
+  );
+
+  return [
+    ...traces.map<SessionBlock>((trace) => ({
+      id: `trace:${trace.id}`,
+      type: "trace",
+      createdAt: trace.startTime,
+      trace,
+    })),
+    ...evaluationRows.map<SessionBlock>((row) => ({
+      id: `evaluation:${row.id}`,
+      type: "evaluation",
+      createdAt: row.createdAt,
+      evaluation: { id: row.id, name: row.name, groupId: row.groupId, scores: scoresById.get(row.id) ?? [] },
+    })),
+  ].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+}
+
+/**
+ * Per-evaluation, per-score-name averages from ClickHouse. `scores` is a
+ * JSON-string map on `evaluation_datapoints` (a ReplacingMergeTree, hence
+ * FINAL); we fetch the raw maps and average the numeric values per
+ * (evaluation_id, name) in memory — same shape as `getEvaluationTimeProgression`
+ * (the validator rejects the tuple `ARRAY JOIN` aggregate). Best-effort: a CH
+ * error yields an empty map so the cards still render.
+ */
+async function getScoreAveragesByEvaluationIds(
+  projectId: string,
+  evaluationIds: string[]
+): Promise<Map<string, SessionEvaluationScore[]>> {
+  if (evaluationIds.length === 0) return new Map();
+
+  try {
+    const rows = await executeQuery<{ evaluationId: string; scores: string }>({
+      query: `
+        SELECT
+          evaluation_id AS evaluationId,
+          scores
+        FROM evaluation_datapoints FINAL
+        WHERE evaluation_id IN {evaluationIds: Array(UUID)}
+      `,
+      projectId,
+      parameters: { evaluationIds },
+    });
+
+    // evaluation_id -> score name -> running sum/count for averaging.
+    const acc = new Map<string, Map<string, { sum: number; count: number }>>();
+    for (const row of rows) {
+      // Per-row parse guard: one malformed `scores` blob must not wipe out the
+      // averages for every other eval in the session. `JSON.parse("null")`
+      // returns `null` without throwing, so reject any non-object result too —
+      // otherwise `Object.entries(null)` below would throw and hit the outer
+      // catch, discarding scores for the whole session.
+      let scores: Record<string, number | null>;
+      try {
+        scores = (row.scores ? JSON.parse(row.scores) : {}) as Record<string, number | null>;
+      } catch {
+        continue;
+      }
+      if (scores === null || typeof scores !== "object") continue;
+      const byName = acc.get(row.evaluationId) ?? new Map<string, { sum: number; count: number }>();
+      for (const [name, value] of Object.entries(scores)) {
+        if (typeof value !== "number" || Number.isNaN(value)) continue;
+        const agg = byName.get(name) ?? { sum: 0, count: 0 };
+        agg.sum += value;
+        agg.count += 1;
+        byName.set(name, agg);
+      }
+      acc.set(row.evaluationId, byName);
+    }
+
+    const byId = new Map<string, SessionEvaluationScore[]>();
+    for (const [evaluationId, byName] of acc) {
+      const scores = [...byName.entries()]
+        .map(([name, { sum, count }]) => ({ name, averageValue: sum / count }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      byId.set(evaluationId, scores);
+    }
+    return byId;
+  } catch {
+    return new Map();
+  }
 }
