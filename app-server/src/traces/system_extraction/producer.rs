@@ -31,10 +31,21 @@ pub async fn publish_static_prompt_candidates(
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
 ) {
+    // Spans emitted by our own extraction self-tracing land in this project;
+    // feeding them back into extraction would loop indefinitely.
+    let internal_project_id =
+        std::env::var(crate::env::connections::STATIC_PROMPT_INTERNAL_PROJECT_ID)
+            .ok()
+            .and_then(|s| Uuid::parse_str(&s).ok());
+
     let mut seen: HashSet<(Uuid, String)> = HashSet::new();
     let mut messages: Vec<StaticPromptQueueMessage> = Vec::new();
 
     for candidate in candidates {
+        if internal_project_id == Some(candidate.project_id) {
+            continue;
+        }
+
         if !seen.insert((candidate.project_id, candidate.prompt_hash.clone())) {
             continue;
         }

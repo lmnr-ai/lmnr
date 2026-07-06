@@ -81,6 +81,16 @@ impl StaticPromptHandler {
         self.llm_client.is_some()
     }
 
+    /// Destination project for the extraction run's internal self-tracing
+    /// spans. Unset/unparsable ⇒ `None` ⇒ the spans are dropped by the
+    /// internal exporter (tracing effectively off). `mod env` shadows
+    /// `std::env`, hence the fully-qualified read.
+    fn internal_project_id() -> Option<Uuid> {
+        std::env::var(crate::env::connections::STATIC_PROMPT_INTERNAL_PROJECT_ID)
+            .ok()
+            .and_then(|s| s.parse().ok())
+    }
+
     /// Run the extraction agent on the accumulated samples. The agent itself
     /// never errors — an empty regex list means every attempt failed, which
     /// is surfaced as an error so the caller keeps the extraction lock held
@@ -101,7 +111,10 @@ impl StaticPromptHandler {
             llm_client,
             samples,
             &ExtractionConfig::default(),
-            &ExtractionTracing::default(),
+            &ExtractionTracing {
+                project_id: Self::internal_project_id(),
+                parent: None,
+            },
         )
         .await;
         if result.regexes.is_empty() {
