@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { z } from "zod/v4";
 
-import { deleteSlackIntegration } from "@/lib/actions/slack/index.ts";
+import { addEyesReaction, deleteSlackIntegration } from "@/lib/actions/slack/index.ts";
 import { SlackEventSchema } from "@/lib/actions/slack/types.ts";
 
 const VerifySlackRequestSchema = z.object({
@@ -44,13 +44,23 @@ export function verifySlackRequest(input: z.infer<typeof VerifySlackRequestSchem
   }
 }
 
+// Pull channel + ts off an app_mention event for the :eyes: ack — the union narrowing on the loose
+// event schema widens extra props to `{}`, so re-parse the fields we need.
+const AppMentionAckSchema = z.object({
+  channel: z.string().optional(),
+  ts: z.string().optional(),
+});
+
 const ProcessSlackEventSchema = z.object({
   event: SlackEventSchema,
   teamId: z.string(),
+  // The exact raw request body (already signature-verified). Forwarded byte-for-byte to app-server
+  // for `app_mention`; never re-stringified from the parsed event.
+  rawBody: z.string(),
 });
 
 export async function processSlackEvent(input: z.infer<typeof ProcessSlackEventSchema>): Promise<void> {
-  const { event, teamId } = ProcessSlackEventSchema.parse(input);
+  const { event, teamId, rawBody } = ProcessSlackEventSchema.parse(input);
 
   switch (event.type) {
     case "app_uninstalled":
@@ -61,7 +71,35 @@ export async function processSlackEvent(input: z.infer<typeof ProcessSlackEventS
       await deleteSlackIntegration({ teamId });
       break;
 
+    case "app_mention": {
+      // React with :eyes: immediately (before the slow agent run) so the user sees an ack.
+      // addEyesReaction is best-effort and never throws.
+      const { channel, ts } = AppMentionAckSchema.parse(event);
+      if (channel && ts) {
+        await addEyesReaction({ teamId, channel, ts });
+      }
+      await forwardSlackEventToBackend(rawBody);
+      break;
+    }
+
     default:
       console.log(`Unhandled Slack event type: ${event.type}`);
+  }
+}
+
+/**
+ * Forward a signature-verified Slack event to app-server's internal `/api/v1/slack/process`. Body is
+ * the RAW verified bytes (never re-encoded). No auth header — app-server is cluster-internal.
+ */
+async function forwardSlackEventToBackend(rawBody: string): Promise<void> {
+  const res = await fetch(`${process.env.BACKEND_URL}/api/v1/slack/process`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: rawBody,
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw new Error(`Forwarding Slack event to app-server failed: ${res.status}`);
   }
 }

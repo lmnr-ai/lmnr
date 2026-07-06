@@ -22,6 +22,7 @@ import ValueInput from "../inputs";
 import { useAdvancedSearchContext, useAdvancedSearchNavigation, useAdvancedSearchRefsContext } from "../store";
 import {
   type AdvancedSearchResource,
+  type ColumnFilter,
   type FilterTag as FilterTagType,
   type FilterTagRef,
   type FocusableRef,
@@ -60,8 +61,15 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
 
   const focusState = getTagFocusState(tag.id);
 
-  const columnFilter = getColumnFilter(filters, tag.field);
-  const dataType = columnFilter?.dataType || "string";
+  // A filter coming from a shared URL may reference a column the current user
+  // hasn't configured (e.g. someone else's `custom:*` column). Synthesize a
+  // fallback so the tag stays visible and removable instead of silently vanishing.
+  const columnFilter: ColumnFilter = getColumnFilter(filters, tag.field) ?? {
+    name: tag.field,
+    key: tag.field,
+    dataType: tag.dataType ?? "string",
+  };
+  const dataType = columnFilter.dataType;
 
   const focusMainInput = useCallback(() => {
     mainInputRef.current?.focus();
@@ -216,8 +224,6 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
       tag.id,
     ]
   );
-
-  if (!columnFilter) return null;
 
   const removeButtonClassName = cn(
     "h-5.5 w-6 p-0 rounded-l-none rounded-r-[0.29rem] transition-colors outline-none border-0",

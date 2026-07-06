@@ -2,6 +2,7 @@
 
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { Loader2, X } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -67,15 +68,24 @@ export default function PanelBody({ traceId, onClose }: Props) {
       shallow
     );
 
+  const searchParams = useSearchParams();
+  const highlightedEventId = searchParams.get("eventId");
+
   const effectiveTabId = useMemo(() => {
     if (activeSignalTabId && traceSignals.some((s) => s.signalId === activeSignalTabId)) {
       return activeSignalTabId;
+    }
+    // A deep link with eventId points at one specific finding — surface the
+    // signal tab that owns it so the highlighted card is visible on open.
+    if (highlightedEventId) {
+      const owner = traceSignals.find((s) => s.events.some((e) => e.id === highlightedEventId));
+      if (owner) return owner.signalId;
     }
     if (initialSignalId && traceSignals.some((s) => s.signalId === initialSignalId)) {
       return initialSignalId;
     }
     return traceSignals[0]?.signalId ?? "";
-  }, [activeSignalTabId, initialSignalId, traceSignals]);
+  }, [activeSignalTabId, highlightedEventId, initialSignalId, traceSignals]);
 
   const isSingleSignal = traceSignals.length === 1;
   const activeSignal = traceSignals.find((s) => s.signalId === effectiveTabId);

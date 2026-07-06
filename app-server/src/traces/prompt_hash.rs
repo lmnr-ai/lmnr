@@ -82,17 +82,15 @@ pub fn structural_skeleton_hash(text: &str) -> String {
     format!("{:x}", digest)[..8].to_string()
 }
 
-/// Extract the system message from a parsed LLM input message array.
-/// Returns `(system_text, remaining_messages)` if a `role: "system"` message is found.
-pub fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
-    let messages = parsed.as_array()?;
-    let sys_idx = messages.iter().position(|m| {
-        m.get("role")
-            .and_then(|r| r.as_str())
-            .is_some_and(|r| r == "system")
-    })?;
-    let sys_msg = &messages[sys_idx];
-    let content_val = sys_msg.get("content");
+/// Extract the text of a single `role: "system"` message across the content
+/// shapes we ingest. Returns `None` if the message is not a system message or
+/// carries no extractable text. Shared by [`extract_system_message`] (array
+/// scan) and per-message callers that already hold a single message.
+pub fn extract_system_text(msg: &Value) -> Option<String> {
+    if msg.get("role").and_then(|r| r.as_str()) != Some("system") {
+        return None;
+    }
+    let content_val = msg.get("content");
     let sys_text = content_val
         // "content": "plain string" (OpenAI format)
         .and_then(|c| c.as_str().map(|s| s.to_string()))
@@ -114,8 +112,7 @@ pub fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
         //   - OTel GenAI: {"type": "text", "content": "..."}
         //     (emitted by pydantic_ai; see https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/)
         .or_else(|| {
-            sys_msg
-                .get("parts")
+            msg.get("parts")
                 .and_then(|p| p.as_array())
                 .and_then(|arr| arr.first())
                 .and_then(|first| first.get("text").or_else(|| first.get("content")))
@@ -123,9 +120,19 @@ pub fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
                 .map(|s| s.to_string())
         })
         .unwrap_or_default();
-    if sys_text.is_empty() {
-        return None;
-    }
+    (!sys_text.is_empty()).then_some(sys_text)
+}
+
+/// Extract the system message from a parsed LLM input message array.
+/// Returns `(system_text, remaining_messages)` if a `role: "system"` message is found.
+pub fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
+    let messages = parsed.as_array()?;
+    let sys_idx = messages.iter().position(|m| {
+        m.get("role")
+            .and_then(|r| r.as_str())
+            .is_some_and(|r| r == "system")
+    })?;
+    let sys_text = extract_system_text(&messages[sys_idx])?;
     let remaining: Vec<Value> = messages
         .iter()
         .enumerate()

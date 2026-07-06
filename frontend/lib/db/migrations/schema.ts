@@ -62,6 +62,27 @@ export const datasetParquets = pgTable(
   ]
 );
 
+export const workspaceHardLimitNotifications = pgTable(
+  "workspace_hard_limit_notifications",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    usageItem: text("usage_item").notNull(),
+    lastNotifiedAt: timestamp("last_notified_at", { withTimezone: true, mode: "string" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "workspace_hard_limit_notifications_workspace_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    unique("workspace_hard_limit_notif_workspace_id_usage_item_unique").on(table.workspaceId, table.usageItem),
+  ]
+);
+
 export const workspaceUsageLimits = pgTable(
   "workspace_usage_limits",
   {
@@ -1156,6 +1177,37 @@ export const debuggerSessions = pgTable(
   ]
 );
 
+export const debuggerSessionBlocks = pgTable(
+  "debugger_session_blocks",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    projectId: uuid("project_id").notNull(),
+    sessionId: uuid("session_id").notNull(),
+    type: text().notNull(),
+    content: jsonb()
+      .default(sql`'{}'::jsonb`)
+      .notNull(),
+  },
+  (table) => [
+    index("debugger_session_blocks_session_id_idx").using("btree", table.sessionId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "debugger_session_blocks_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    foreignKey({
+      columns: [table.sessionId],
+      foreignColumns: [debuggerSessions.id],
+      name: "debugger_session_blocks_session_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
 export const workspaceUsage = pgTable(
   "workspace_usage",
   {
@@ -1215,6 +1267,9 @@ export const chatMessages = pgTable(
     parts: jsonb().notNull(),
     chatId: uuid("chat_id").notNull(),
     projectId: uuid("project_id").notNull(),
+    // Source-surface dedup key (currently the Slack message ts). Null for live UI/CLI/MCP turns and
+    // the Slack mention echo / assistant reply; set only on backfilled Slack thread messages.
+    externalId: text("external_id"),
   },
   (table) => [
     foreignKey({
@@ -1224,6 +1279,49 @@ export const chatMessages = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
+    // Upsert target for Slack thread backfill. Partial so live rows (external_id NULL) are exempt.
+    uniqueIndex("chat_messages_chat_external_key")
+      .on(table.chatId, table.externalId)
+      .where(sql`${table.externalId} is not null`),
+  ]
+);
+
+// Maps a Slack channel to the Laminar project an inbound @mention should route to. Set by an admin
+// in workspace integration settings; the app-server resolves it on each app_mention event.
+export const slackChannelProjects = pgTable(
+  "slack_channel_projects",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    // Slack channel id (e.g. "C0ABCDE12"); the conversations.list value, not the display name.
+    channelId: text("channel_id").notNull(),
+    // Cached display name for the settings UI; the channel id is the source of truth for routing.
+    channelName: text("channel_name"),
+    projectId: uuid("project_id").notNull(),
+    integrationId: uuid("integration_id").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "slack_channel_projects_workspace_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "slack_channel_projects_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.integrationId],
+      foreignColumns: [slackIntegrations.id],
+      name: "slack_channel_projects_integration_id_fkey",
+    }).onDelete("cascade"),
+    // One project per channel within a workspace; lets a binding be upserted by (workspace, channel).
+    uniqueIndex("slack_channel_projects_workspace_channel_idx").on(table.workspaceId, table.channelId),
+    // A Slack channel routes to at most one project across the whole instance, so an inbound @mention
+    // never resolves to >1 binding (the app-server router relies on this).
+    uniqueIndex("slack_channel_projects_channel_id_idx").on(table.channelId),
   ]
 );
 

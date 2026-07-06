@@ -12,7 +12,7 @@ use super::utils::{
     build_report_data_from_batch, frontend_url_email, inject_utm_into_links,
     md_links_to_html_escaped, with_utm,
 };
-use crate::reports::email_template::ReportData;
+use crate::reports::ReportData;
 
 const REPORT_FROM_EMAIL: &str = "Laminar <reports@mail.lmnr.ai>";
 const ALERT_FROM_EMAIL: &str = "Laminar <alerts@mail.lmnr.ai>";
@@ -42,6 +42,7 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
     match first {
         NotificationKind::EventIdentification {
             project_id,
+            project_name,
             signal_id,
             trace_id,
             event_name,
@@ -65,11 +66,20 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 .clone()
                 .unwrap_or(serde_json::Value::Object(Default::default()));
             let severity_label = severity_label(*severity);
+            let subject = if project_name.is_empty() {
+                format!("{}: {} event", event_name, severity_label)
+            } else {
+                format!(
+                    "[{}] {}: {} event",
+                    project_name, event_name, severity_label
+                )
+            };
             EmailContent {
                 from: ALERT_FROM_EMAIL.to_string(),
-                subject: format!("{}: {} event", event_name, severity_label),
+                subject,
                 html: render_alert_email(
                     event_name,
+                    project_name,
                     &attributes,
                     &trace_link,
                     project_id,
@@ -137,6 +147,25 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 *overage_billable,
             ),
         },
+        NotificationKind::UsageHardLimit {
+            workspace_name,
+            usage_label,
+            formatted_limit,
+            usage_item,
+        } => EmailContent {
+            from: USAGE_WARNING_FROM_EMAIL.to_string(),
+            subject: format!(
+                "Usage limit reached: {} \u{2013} {}",
+                usage_label, workspace_name
+            ),
+            html: render_usage_hard_limit_email(
+                workspace_name,
+                *workspace_id,
+                usage_item,
+                formatted_limit,
+                usage_label,
+            ),
+        },
     }
 }
 
@@ -165,6 +194,7 @@ fn severity_color(severity: u8) -> &'static str {
 /// Render an HTML email for an alert notification.
 fn render_alert_email(
     event_name: &str,
+    project_name: &str,
     attributes: &serde_json::Value,
     trace_link: &str,
     project_id: &Uuid,
@@ -272,6 +302,12 @@ fn render_alert_email(
         "manage_preferences",
     );
 
+    let eyebrow = if project_name.is_empty() {
+        "New event for signal".to_string()
+    } else {
+        format!("New event for signal · {}", html_escape(project_name))
+    };
+
     format!(
         r##"<!DOCTYPE html>
 <html lang="en">
@@ -283,9 +319,9 @@ fn render_alert_email(
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
 <div style="max-width:640px;margin:0 auto;padding:24px 16px;">
 
-  <div style="background:#0A0A0A;border-radius:10px;padding:28px 24px;margin-bottom:20px;">
-    <img src="cid:laminar-logo" alt="Laminar" width="120" height="21" style="display:block;margin-bottom:16px;" />
-    <p style="margin:0 0 6px;font-size:13px;color:#9ca3af;">New event for signal</p>
+  <div style="background:#0A0A0A;border-radius:10px;padding:24px 28px 16px;margin-bottom:20px;">
+    <img src="cid:laminar-logo" alt="Laminar" width="120" height="21" style="display:block;margin-bottom:24px;" />
+    <p style="margin:0 0 6px;font-size:13px;color:#9ca3af;">{eyebrow}</p>
     <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">{event_name}</h1>
   </div>
 
@@ -308,6 +344,7 @@ fn render_alert_email(
 </html>"##,
         event_name = html_escape(event_name),
         severity_label = severity_label,
+        eyebrow = eyebrow,
         attributes_html = attributes_html,
         trace_link = trace_link,
         manage_prefs_link = manage_prefs_link,
@@ -437,8 +474,8 @@ fn render_usage_warning_email(
     overage_billable: bool,
 ) -> String {
     let meter_description = match usage_item {
-        "bytes" => "data ingested",
-        "signal_cost" | "signal_runs" | "signal_steps_processed" => "signals cost",
+        "bytes" => "data ingestion",
+        "signal_cost" => "Signals usage",
         _ => "usage",
     };
 
@@ -457,26 +494,27 @@ fn render_usage_warning_email(
     );
 
     // When the threshold being hit is exactly the included allowance of the
-    // workspace's tier, append a sentence telling the customer they've
-    // exhausted their included free allowance for the cycle. If the tier bills
-    // overage (Hobby / Pro) we additionally tell them they'll now be billed
-    // pay-as-you-go.
+    // workspace's tier, tell the customer they've used up the allowance bundled
+    // into their plan's flat rate. If the tier bills overage (Hobby / Pro) we
+    // additionally make the "from now on it's billable" message explicit.
     let tier_message_html = if at_tier_included_allowance {
+        // Space-prefixed tier name, or empty when the tier display name is
+        // unknown (legacy emails) so the surrounding copy stays grammatical.
         let tier_label = if tier_display_name.is_empty() {
-            "your".to_string()
+            String::new()
         } else {
-            html_escape(tier_display_name)
+            format!(" {}", html_escape(tier_display_name))
         };
         let billing_sentence = if overage_billable {
             format!(
-                " From now until the next billing cycle, additional {meter_description} will be billed in a pay-as-you-go manner at the overage rate for the {tier_label} tier."
+                " <strong>From now until the next billing cycle, any further {meter_description} is billable.</strong> It is charged pay-as-you-go at the{tier_label} tier's overage rate, on top of your flat monthly rate."
             )
         } else {
             String::new()
         };
         format!(
             r#"<p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
-      This threshold matches the {tier_label} tier's included allowance, so you have now used up the free {meter_description} included in your current plan.{billing_sentence}
+      This threshold equals the {meter_description} already included in your{tier_label} plan's flat monthly rate, so you have now used up everything bundled into your plan for this cycle.{billing_sentence}
     </p>"#
         )
     } else {
@@ -539,6 +577,88 @@ fn render_usage_warning_email(
         secondary_message_html = secondary_message_html,
         view_usage_link = view_usage_link,
         manage_thresholds_link = manage_thresholds_link,
+    )
+}
+
+/// Render an HTML email for a usage hard-limit notification. Unlike the soft
+/// warning, this tells the owner that the metered activity is now BLOCKED until
+/// the billing cycle resets.
+fn render_usage_hard_limit_email(
+    workspace_name: &str,
+    workspace_id: Uuid,
+    usage_item: &str,
+    formatted_limit: &str,
+    usage_label: &str,
+) -> String {
+    // What is now blocked, and the noun used in the running-cost copy.
+    let (blocked_activity, meter_description) = match usage_item {
+        "bytes" => ("data ingestion", "data ingested"),
+        "signal_cost" => ("signal runs", "signals cost"),
+        _ => ("usage", "usage"),
+    };
+
+    let base = frontend_url_email();
+    let view_usage_link = with_utm(
+        &format!("{}/workspace/{}?tab=usage", base, workspace_id),
+        "email",
+        "usage_hard_limit",
+        "view_usage",
+    );
+    let manage_limits_link = with_utm(
+        &format!("{}/workspace/{}?tab=usage", base, workspace_id),
+        "email",
+        "usage_hard_limit",
+        "manage_limits",
+    );
+
+    format!(
+        r##"<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Usage Limit Reached – {workspace_name}</title>
+</head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+<div style="max-width:640px;margin:0 auto;padding:24px 16px;">
+
+  <!-- Header -->
+  <div style="background:#0A0A0A;border-radius:10px;padding:28px 24px;margin-bottom:20px;">
+    <img src="cid:laminar-logo" alt="Laminar" width="120" height="21" style="display:block;margin-bottom:16px;" />
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#ffffff;">Usage Limit Reached</h1>
+    <p style="margin:0;font-size:16px;color:#ef4444;">{usage_label} hard limit hit &middot; {blocked_activity} paused</p>
+  </div>
+
+  <!-- Content -->
+  <div style="background:#ffffff;border-radius:10px;border:1px solid #e5e7eb;padding:24px;margin-bottom:20px;">
+    <p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
+      Your workspace <strong>{workspace_name}</strong> has reached its hard limit of <strong>{formatted_limit}</strong> of {meter_description} for the current billing cycle.
+    </p>
+    <p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
+      <strong>From now on, {blocked_activity} will stop until your billing cycle resets.</strong> To resume sooner, raise or remove this limit from your workspace usage settings.
+    </p>
+    <div style="text-align:center;padding-top:8px;">
+      <a href="{view_usage_link}" style="display:inline-block;background:#D0754E;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:600;">View Usage</a>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div style="text-align:center;padding:16px 0;">
+    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">This notification was generated automatically by <a href="https://www.lmnr.ai" style="color:#D0754E;text-decoration:none;">Laminar</a>.</p>
+    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">You are receiving this because you are the owner of the {workspace_name} workspace.</p>
+    <p style="margin:0;font-size:12px;color:#9ca3af;"><a href="{manage_limits_link}" style="color:#D0754E;text-decoration:none;">Manage usage limits</a></p>
+  </div>
+
+</div>
+</body>
+</html>"##,
+        workspace_name = html_escape(workspace_name),
+        usage_label = html_escape(usage_label),
+        formatted_limit = html_escape(formatted_limit),
+        blocked_activity = blocked_activity,
+        meter_description = meter_description,
+        view_usage_link = view_usage_link,
+        manage_limits_link = manage_limits_link,
     )
 }
 

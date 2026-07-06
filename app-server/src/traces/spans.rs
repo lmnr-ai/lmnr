@@ -1272,6 +1272,7 @@ pub fn should_keep_attribute(attribute: &str) -> bool {
     true
 }
 
+#[derive(Default)]
 pub struct SpanUsage {
     pub input_tokens: i64,
     pub output_tokens: i64,
