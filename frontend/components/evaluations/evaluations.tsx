@@ -302,7 +302,7 @@ function EvaluationsContent() {
     ? `/api/projects/${params?.projectId}/evaluation-groups/${encodeURIComponent(groupId)}/progression`
     : null;
   const progressionBody = useMemo(() => ({ aggregate: aggregationFunction }), [aggregationFunction]);
-  const { data: progression } = useSWR<EvaluationTimeProgression[]>(
+  const { data: progression, isLoading: isProgressionLoading } = useSWR<EvaluationTimeProgression[]>(
     progressionUrl ? [progressionUrl, progressionBody] : null,
     async ([url, body]: [string, object]) => {
       const res = await fetch(url, {
@@ -497,10 +497,11 @@ function EvaluationsContent() {
           <ResizablePanelGroup id="evaluations-panels" className="overflow-hidden" orientation="vertical">
             <ResizablePanel className="min-w-0" minSize={20} defaultSize={20}>
               <ProgressionChart
+                data={progression}
+                isLoading={isProgressionLoading}
                 evaluations={evaluations.map(({ id, name }) => ({ id, name }))}
                 hiddenEvaluationIds={hiddenEvaluationIds}
                 className="h-full"
-                aggregationFunction={aggregationFunction}
                 baselineEvaluationId={selectedEvaluationId}
                 hoveredEvaluationId={hoveredEvaluationId}
                 onPointClick={(id) => router.push(`/project/${params?.projectId}/evaluations/${id}`)}

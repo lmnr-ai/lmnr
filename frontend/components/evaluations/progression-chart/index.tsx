@@ -1,9 +1,7 @@
 import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
-import useSWR from "swr";
 
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
-import { type AggregationFunction } from "@/lib/clickhouse/types";
 import { type EvaluationTimeProgression } from "@/lib/evaluation/types";
 import { cn } from "@/lib/utils";
 
@@ -13,25 +11,12 @@ import CombinedChart from "./combined-chart";
 import CombinedLegend from "./combined-legend";
 import { type ProgressionPoint } from "./shared";
 
-const postFetcher = async ([url, body]: [string, object]) => {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    const errorText = (await res.json()) as { error: string };
-    throw new Error(errorText.error);
-  }
-
-  return res.json();
-};
-
 interface ProgressionChartProps {
   className?: string;
-  aggregationFunction: AggregationFunction;
-  /** Loaded runs, used only to label points (names); the data itself is fetched group-scoped. */
+  /** Whole-group progression, fetched once by the parent (single source). */
+  data?: EvaluationTimeProgression[];
+  isLoading?: boolean;
+  /** Loaded runs, used only to label points (names). */
   evaluations: { id: string; name: string }[];
   /** Runs hidden from the chart. Render-only — they stay in the data so a hidden baseline still subtracts. */
   hiddenEvaluationIds?: string[];
@@ -44,7 +29,8 @@ const EMPTY_IDS: string[] = [];
 
 export default function ProgressionChart({
   className,
-  aggregationFunction,
+  data,
+  isLoading,
   evaluations,
   hiddenEvaluationIds = EMPTY_IDS,
   baselineEvaluationId,
@@ -60,18 +46,6 @@ export default function ProgressionChart({
   const [hiddenScores, setHiddenScores] = useLocalStorage<string[]>(
     `evaluations-chart-hidden-scores:${params?.projectId}:${groupId ?? ""}`,
     EMPTY_IDS
-  );
-
-  // Group-scoped: no `ids` ⇒ the whole group's runs. Dedups with the table's
-  // progression fetch (same key), and keeps hidden/baseline runs in the data.
-  const requestBody = useMemo(() => ({ aggregate: aggregationFunction }), [aggregationFunction]);
-
-  const { data, isLoading } = useSWR<EvaluationTimeProgression[]>(
-    [
-      `/api/projects/${params?.projectId}/evaluation-groups/${encodeURIComponent(groupId ?? "")}/progression`,
-      requestBody,
-    ],
-    postFetcher
   );
 
   const scoreKeys = useMemo(() => Array.from(new Set(data?.flatMap(({ names }) => names) ?? [])), [data]);
