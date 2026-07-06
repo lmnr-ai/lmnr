@@ -45,7 +45,7 @@ export default function RenderTemplates() {
     <SettingsSection>
       <SettingsSectionHeader
         title="Render templates"
-        description="JSX templates used to visualize data in a custom way."
+        description="Custom JSX views for span data or entire traces. Templates appear in the view picker on spans and traces."
       />
       <Button variant="outline" icon="plus" className="w-fit" onClick={openCreate}>
         New template
