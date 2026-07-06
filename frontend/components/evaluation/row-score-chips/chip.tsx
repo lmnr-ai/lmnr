@@ -3,8 +3,8 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { createPortal } from "react-dom";
 
-import HistoryCard, { type RunPoint } from "@/components/evaluation/poc/row-score-chips/history-card";
-import { useHoverGrowCard } from "@/components/evaluation/poc/score-hover-chips/use-hover-grow-card";
+import HistoryCard, { type RunPoint } from "@/components/evaluation/row-score-chips/history-card";
+import { useHoverGrowCard } from "@/components/evaluation/row-score-chips/use-hover-grow-card";
 import { isValidNumber } from "@/lib/utils";
 
 interface RowScoreChipProps {

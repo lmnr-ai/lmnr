@@ -12,8 +12,7 @@ import EvalTraceLayout from "@/components/evaluation/eval-trace-layout";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import { isBinaryDistribution } from "@/components/evaluation/metrics-panel/utils";
-import RowScoreChips from "@/components/evaluation/poc/row-score-chips";
-import { useLabelField } from "@/components/evaluation/poc/use-label-field";
+import RowScoreChips from "@/components/evaluation/row-score-chips";
 import RunScoreCard from "@/components/evaluation/run-score-card";
 import {
   buildColumnDefs,
@@ -23,6 +22,7 @@ import {
   selectVisibleColumnDefs,
   useEvalStore,
 } from "@/components/evaluation/store";
+import { useLabelField } from "@/components/evaluation/use-label-field";
 import {
   type EvaluationStatsPayload,
   flattenScores,
@@ -51,9 +51,9 @@ const BASE_COLUMN_ORDER = ["label", "status", "index", "data", "target", "metada
 // Forked from the pre-refresh "evaluation" resource so old persisted table
 // config never fights the new defaults.
 const RESOURCE = "evaluation-v1.1";
-// Default visibility: label + data + target + metadata + score:*. Status and
-// index stay hidden — the label column inlines both.
-const DEFAULT_HIDDEN_COLUMNS = ["status", "index", "output", "duration", "cost"];
+// Default visibility: label + score:*. The label column stands in for
+// data/target/metadata, so those (plus status/index/output/duration/cost) start hidden.
+const DEFAULT_HIDDEN_COLUMNS = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
 
 function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
   const { push } = useRouter();
@@ -92,7 +92,7 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
 
   const isComparison = !!targetId;
   const columnDefs = useMemo(
-    () => buildColumnDefs({ scoreNames, customColumns, isShared, includeLabel: true, labelFieldPath }),
+    () => buildColumnDefs({ scoreNames, customColumns, isShared, labelFieldPath }),
     [scoreNames, customColumns, isShared, labelFieldPath]
   );
 

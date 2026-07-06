@@ -63,14 +63,11 @@ export function buildColumnDefs({
   scoreNames,
   customColumns,
   isShared,
-  includeLabel = false,
   labelFieldPath = null,
 }: {
   scoreNames: string[];
   customColumns: CustomColumn[];
   isShared: boolean;
-  /** Compact-v1 only (LAM Round 4) — keeps the label column out of v0/other variants. */
-  includeLabel?: boolean;
   /** LLM-extracted field path; when set, the label column resolves server-side (untruncated). */
   labelFieldPath?: string | null;
 }): ColumnDef<EvalRow>[] {
@@ -95,8 +92,8 @@ export function buildColumnDefs({
         },
       }));
   const labelSql = labelFieldPath ? (labelPathToSql(labelFieldPath) ?? undefined) : undefined;
-  const labelCol = includeLabel ? [createLabelColumnDef(labelSql)] : [];
-  return [...STATIC_COLUMNS, ...scoreCols, ...customCols, ...labelCol];
+  const labelCol = createLabelColumnDef(labelSql);
+  return [...STATIC_COLUMNS, ...scoreCols, ...customCols, labelCol];
 }
 
 /**
@@ -202,9 +199,7 @@ function createEvalStore({ initialScoreNames, isShared = false }: EvalStoreInit)
         },
       }),
       {
-        // Bumped from "evaluation-store" so the new heatmap-on-by-default reaches
-        // existing users whose old persisted value was the previous false default.
-        name: "evaluation-store-v2",
+        name: "evaluation-store",
         partialize: (state) => ({
           heatmapEnabled: state.heatmapEnabled,
         }),

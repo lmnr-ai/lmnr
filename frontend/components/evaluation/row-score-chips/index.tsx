@@ -3,8 +3,8 @@
 import { useMemo } from "react";
 import useSWR from "swr";
 
-import RowScoreChip from "@/components/evaluation/poc/row-score-chips/chip";
-import { type RunPoint } from "@/components/evaluation/poc/row-score-chips/history-card";
+import RowScoreChip from "@/components/evaluation/row-score-chips/chip";
+import { type RunPoint } from "@/components/evaluation/row-score-chips/history-card";
 import { type EvaluationDatapointComparisonRow } from "@/lib/actions/evaluation";
 import { type EvalRow, type Evaluation as EvaluationType } from "@/lib/evaluation/types";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";

@@ -169,13 +169,8 @@
   }
 }
 
-/* scroll-fade-* — edge fade masks driven by scroll position (no JS).
-   Each edge's fade size is multiplied by a 0→1 scale that a scroll-driven
-   animation ramps near the scroll extremes, so a fade only shows when there
-   is more content beyond that edge. Inactive timeline (container doesn't
-   scroll) or no browser support ⇒ scales stay 0 ⇒ mask is a no-op.
-   Inline gradients are physical left→right (app is LTR-only), so -s/-e
-   behave like -l/-r here. */
+/* scroll-fade-* — edge fade masks driven by scroll position (no JS): a
+   scroll-driven 0→1 scale ramps each edge's fade only when content overflows it. */
 
 @property --scroll-fade-t-scale {
   syntax: "<number>";

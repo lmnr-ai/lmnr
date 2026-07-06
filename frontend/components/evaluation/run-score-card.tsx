@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 
-import BinaryCard from "@/components/evaluation/metrics-panel/classic/binary-card";
-import HistogramCard from "@/components/evaluation/metrics-panel/classic/histogram-card";
+import { useAggregation } from "@/components/evaluation/metrics-panel/aggregation-select";
+import BinaryCard from "@/components/evaluation/metrics-panel/binary-card";
+import HistogramCard from "@/components/evaluation/metrics-panel/histogram-card";
 import { isBinaryDistribution } from "@/components/evaluation/metrics-panel/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { type EvaluationScoreDistributionBucket, type EvaluationScoreStatistics } from "@/lib/evaluation/types";
@@ -17,13 +18,8 @@ interface RunScoreCardProps {
   isComparison?: boolean;
 }
 
-/**
- * The whole-run aggregate for ONE score, shown above the table when a trace is
- * open (the horizontal strip collapses to this once space is tight). A score
- * picker replaces the card's name label; the body reuses the same distribution
- * card as the strip — BinaryCard (pass-rate bar) for boolean, HistogramCard for
- * numeric — so the aggregate reads identically, just scoped to the picked score.
- */
+// Whole-run aggregate for ONE picked score, shown above the table when a trace is open.
+// A score picker replaces the name label; body reuses the strip's BinaryCard/HistogramCard.
 export default function RunScoreCard({
   scoreNames,
   allStatistics,
@@ -33,6 +29,7 @@ export default function RunScoreCard({
   isComparison,
 }: RunScoreCardProps) {
   const [selected, setSelected] = useState<string>(scoreNames[0]);
+  const [aggregation] = useAggregation();
   const active = selected && scoreNames.includes(selected) ? selected : scoreNames[0];
 
   const dropdown = (
@@ -68,7 +65,7 @@ export default function RunScoreCard({
       {isBinaryDistribution(distribution) ? (
         <BinaryCard {...common} />
       ) : (
-        <HistogramCard {...common} comparedStatistics={comparedAllStatistics?.[active] ?? null} />
+        <HistogramCard {...common} aggregation={aggregation} comparedStatistics={comparedAllStatistics?.[active] ?? null} />
       )}
     </div>
   );

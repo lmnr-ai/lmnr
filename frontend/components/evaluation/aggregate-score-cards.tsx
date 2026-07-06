@@ -1,7 +1,8 @@
 "use client";
 
-import BinaryCard from "@/components/evaluation/metrics-panel/classic/binary-card";
-import HistogramCard from "@/components/evaluation/metrics-panel/classic/histogram-card";
+import { useAggregation } from "@/components/evaluation/metrics-panel/aggregation-select";
+import BinaryCard from "@/components/evaluation/metrics-panel/binary-card";
+import HistogramCard from "@/components/evaluation/metrics-panel/histogram-card";
 import { isBinaryDistribution } from "@/components/evaluation/metrics-panel/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type EvaluationScoreDistributionBucket, type EvaluationScoreStatistics } from "@/lib/evaluation/types";
@@ -31,6 +32,8 @@ export default function AggregateScoreCards({
   isComparison,
   isLoading,
 }: AggregateScoreCardsProps) {
+  const [aggregation] = useAggregation();
+
   if (isLoading) {
     return <Skeleton className="h-[156px] w-full rounded-[4px]" />;
   }
@@ -56,7 +59,7 @@ export default function AggregateScoreCards({
               {isBinaryDistribution(distribution) ? (
                 <BinaryCard {...common} />
               ) : (
-                <HistogramCard {...common} comparedStatistics={comparedAllStatistics?.[name] ?? null} />
+                <HistogramCard {...common} aggregation={aggregation} comparedStatistics={comparedAllStatistics?.[name] ?? null} />
               )}
             </div>
           );

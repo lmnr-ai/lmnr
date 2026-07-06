@@ -25,9 +25,7 @@ interface HistogramCardProps {
 
 const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
-// Recovered from git HEAD (classic/pre-session layout): 156px card, graph fills
-// the remaining height below the label+value block. v0's mini card lives in
-// the parent metrics-panel/ dir and is untouched by this recovery.
+// 156px card, graph fills the remaining height below the label+value block.
 export default function HistogramCard({
   name,
   statistics,

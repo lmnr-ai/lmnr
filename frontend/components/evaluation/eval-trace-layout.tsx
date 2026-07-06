@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { type ReactNode, useCallback, useLayoutEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -18,16 +18,8 @@ interface EvalTraceLayoutProps {
   showTrace: boolean;
 }
 
-/**
- * Animated table | trace-column split. Mirrors trace-view's
- * dynamic-width-layout wrapper trick: each panel's OUTER motion.div animates
- * `width` (clipping via overflow-hidden) while the INNER content is pinned at a
- * fixed px width in an absolute layer, so content never tweens its own width —
- * it reflows once at the target and the container reveals/hides it. The trace
- * column slides in from the right on open; the table stays mounted across the
- * transition (no remount / refetch). Resize is an invisible col-resize strip at
- * the boundary.
- */
+// Animated table | trace-column split: each panel's outer motion.div animates
+// width while inner content is pinned to a fixed px width, so it reflows once at the target rather than tweening.
 export default function EvalTraceLayout({ table, traceColumn, showTrace }: EvalTraceLayoutProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [maxWidth, setMaxWidth] = useState(0);
@@ -49,26 +41,35 @@ export default function EvalTraceLayout({ table, traceColumn, showTrace }: EvalT
   const traceWidth = Math.max(0, maxWidth - clampedTable - GAP);
   const transition = isResizing ? instant : enterExit;
 
+  // Tracks the in-flight drag's listeners so an unmount mid-drag can tear them down.
+  const dragAbortRef = useRef<AbortController | null>(null);
+
   const startResize = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
       const startX = e.clientX;
       const startWidth = clampedTable;
+      const controller = new AbortController();
+      dragAbortRef.current = controller;
+      const { signal } = controller;
       setIsResizing(true);
       const onMove = (ev: MouseEvent) => {
         const next = startWidth + (ev.clientX - startX);
         setTableWidth(Math.max(MIN_TABLE, Math.min(next, Math.max(MIN_TABLE, maxWidth - MIN_TRACE))));
       };
       const onUp = () => {
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mouseup", onUp);
+        controller.abort();
+        dragAbortRef.current = null;
         setIsResizing(false);
       };
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
+      window.addEventListener("mousemove", onMove, { signal });
+      window.addEventListener("mouseup", onUp, { signal });
     },
     [clampedTable, maxWidth]
   );
+
+  // Drop any listeners still attached if we unmount mid-drag.
+  useEffect(() => () => dragAbortRef.current?.abort(), []);
 
   return (
     <div ref={containerRef} className="relative flex h-full w-full flex-1 overflow-hidden">
