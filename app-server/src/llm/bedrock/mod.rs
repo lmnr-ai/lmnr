@@ -1,5 +1,6 @@
 #![cfg_attr(not(feature = "signals"), allow(dead_code))]
 
+use crate::env;
 use crate::llm::{
     LanguageModelClient, ProviderError, ProviderResult, ProviderUsageMetadata,
     models::{
@@ -7,7 +8,6 @@ use crate::llm::{
         ProviderPart, ProviderRequest, ProviderResponse, ProviderStreamChunk,
     },
 };
-use crate::env;
 use aws_sdk_bedrockruntime::Client as AwsBedrockClient;
 use aws_sdk_bedrockruntime::config::retry::RetryConfig;
 use aws_sdk_bedrockruntime::config::timeout::TimeoutConfig;
@@ -47,7 +47,7 @@ impl BedrockClient {
         // Mirror the reqwest-based clients (openai/gemini): a single attempt bounded
         // by the shared LLM_HTTP_TIMEOUT_SECS request timeout plus a 10s connect
         // timeout. SDK auto-retries are disabled so all providers behave the same —
-        // the only retry layer is the agent's temperature ladder.
+        // the retry layer is owned by the caller.
         let timeout_config = TimeoutConfig::builder()
             .operation_attempt_timeout(Duration::from_secs(env::llm::HTTP_TIMEOUT_SECS.get()))
             .connect_timeout(Duration::from_secs(10))
