@@ -1629,12 +1629,11 @@ fn main() -> anyhow::Result<()> {
                     // Spawn static prompt workers
                     {
                         let cache = cache_for_consumer.clone();
+                        let llm_client = llm_provider_client.clone();
                         worker_pool_clone.spawn(
                             WorkerType::StaticPrompt,
                             num_static_prompt_workers as usize,
-                            move || StaticPromptHandler {
-                                cache: cache.clone(),
-                            },
+                            move || StaticPromptHandler::new(cache.clone(), llm_client.clone()),
                             QueueConfig::new(
                                 STATIC_PROMPT_QUEUE,
                                 STATIC_PROMPT_EXCHANGE,

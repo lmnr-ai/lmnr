@@ -10,9 +10,11 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{accumulator_cache_key, agent, extraction_lock_cache_key, static_regex_cache_key};
+use super::{accumulator_cache_key, extraction_lock_cache_key, static_regex_cache_key};
 use crate::{
     cache::{Cache, CacheTrait},
+    llm::LlmClient,
+    traces::system_extraction::{ExtractionConfig, ExtractionTracing, extract_static_regexes},
     worker::{HandlerError, MessageHandler},
 };
 
@@ -25,12 +27,13 @@ const MIN_PROMPT_SAMPLES: usize = 5;
 /// TTL rate-limits extraction while messages keep arriving — without a cap
 /// the sample list (large system prompts) would grow the cache value
 /// unboundedly.
-const MAX_PROMPT_SAMPLES: usize = 20;
+const MAX_PROMPT_SAMPLES: usize = 10;
 
 /// TTL on the per-signature extraction lock: long enough for the agent to
-/// produce a regex list, short enough that a failed run frees the signature
-/// promptly for a retry.
-const EXTRACTION_LOCK_TTL_SECONDS: u64 = 5 * 60;
+/// produce a regex list (the temperature-ladder retries can take a while on
+/// large prompt families), short enough that a failed run frees the
+/// signature reasonably promptly for a retry.
+const EXTRACTION_LOCK_TTL_SECONDS: u64 = 15 * 60;
 
 /// TTL on the accumulated raw prompts, so signatures that never reach
 /// `MIN_PROMPT_SAMPLES` don't hold onto prompt bodies forever.
@@ -49,6 +52,64 @@ pub struct StaticPromptQueueMessage {
 
 pub struct StaticPromptHandler {
     pub cache: Arc<Cache>,
+    /// `None` when the Signals feature is disabled or LLM initialization
+    /// failed; the handler then drains the queue without extracting.
+    pub llm_client: Option<Arc<LlmClient>>,
+    /// Test seam replacing the extraction agent: `Some(regexes)` is returned
+    /// as the agent's answer (empty = simulated agent failure).
+    #[cfg(test)]
+    pub test_regexes: Option<Vec<String>>,
+}
+
+impl StaticPromptHandler {
+    pub fn new(cache: Arc<Cache>, llm_client: Option<Arc<LlmClient>>) -> Self {
+        Self {
+            cache,
+            llm_client,
+            #[cfg(test)]
+            test_regexes: None,
+        }
+    }
+
+    fn extraction_available(&self) -> bool {
+        #[cfg(test)]
+        if self.test_regexes.is_some() {
+            return true;
+        }
+        self.llm_client.is_some()
+    }
+
+    /// Run the extraction agent on the accumulated samples. The agent itself
+    /// never errors — an empty regex list means every attempt failed, which
+    /// is surfaced as an error so the caller keeps the extraction lock held
+    /// (its TTL then rate-limits retries).
+    async fn run_extraction(&self, samples: &[String]) -> anyhow::Result<Vec<String>> {
+        #[cfg(test)]
+        if let Some(regexes) = &self.test_regexes {
+            if regexes.is_empty() {
+                anyhow::bail!("Simulated extraction failure");
+            }
+            return Ok(regexes.clone());
+        }
+
+        let Some(llm_client) = &self.llm_client else {
+            anyhow::bail!("LLM client not configured");
+        };
+        let result = extract_static_regexes(
+            llm_client,
+            samples,
+            &ExtractionConfig::default(),
+            &ExtractionTracing::default(),
+        )
+        .await;
+        if result.regexes.is_empty() {
+            anyhow::bail!(
+                "Extraction agent produced no regexes after {} tool calls",
+                result.tool_calls
+            );
+        }
+        Ok(result.regexes)
+    }
 }
 
 #[async_trait]
@@ -72,6 +133,12 @@ impl MessageHandler for StaticPromptHandler {
 
 impl StaticPromptHandler {
     async fn process_prompt(&self, message: &StaticPromptQueueMessage) -> anyhow::Result<()> {
+        // Without an LLM client extraction can never run — drain the queue
+        // without accumulating prompt bodies.
+        if !self.extraction_available() {
+            return Ok(());
+        }
+
         let regex_key = static_regex_cache_key(message.project_id, &message.prompt_hash);
 
         // The producer checked too, but the regex may have landed while this
@@ -104,7 +171,7 @@ impl StaticPromptHandler {
         // On agent failure the lock is deliberately NOT released: it expires
         // after TTL, which both rate-limits retries against a failing agent
         // and guarantees the signature eventually unblocks.
-        let regexes = agent::generate_static_part_regexes(&samples).await?;
+        let regexes = self.run_extraction(&samples).await?;
 
         if let Err(e) = self
             .cache
@@ -172,6 +239,8 @@ mod tests {
     fn make_handler() -> StaticPromptHandler {
         StaticPromptHandler {
             cache: Arc::new(Cache::InMemory(InMemoryCache::new(None))),
+            llm_client: None,
+            test_regexes: Some(vec![r"\d+".to_string()]),
         }
     }
 
@@ -268,6 +337,56 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(samples.len(), MAX_PROMPT_SAMPLES);
+    }
+
+    #[tokio::test]
+    async fn drains_without_accumulating_when_no_llm_client() {
+        let mut handler = make_handler();
+        handler.test_regexes = None;
+        let project_id = Uuid::new_v4();
+        let accumulator_key = accumulator_cache_key(project_id, "abcd1234");
+
+        handler
+            .process_prompt(&make_message(project_id, "prompt"))
+            .await
+            .unwrap();
+
+        assert!(!handler.cache.exists(&accumulator_key).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn failed_extraction_keeps_lock_and_accumulator() {
+        let mut handler = make_handler();
+        // Empty test regexes simulate the agent exhausting its temperature
+        // ladder without an answer.
+        handler.test_regexes = Some(Vec::new());
+        let project_id = Uuid::new_v4();
+        let regex_key = static_regex_cache_key(project_id, "abcd1234");
+        let accumulator_key = accumulator_cache_key(project_id, "abcd1234");
+        let lock_key = extraction_lock_cache_key(project_id, "abcd1234");
+
+        for i in 0..MIN_PROMPT_SAMPLES - 1 {
+            handler
+                .process_prompt(&make_message(project_id, &format!("prompt {i}")))
+                .await
+                .unwrap();
+        }
+        let result = handler
+            .process_prompt(&make_message(project_id, "prompt 4"))
+            .await;
+
+        assert!(result.is_err());
+        assert!(!handler.cache.exists(&regex_key).await.unwrap());
+        // Samples are kept for the retry after the lock TTL expires.
+        assert!(handler.cache.exists(&accumulator_key).await.unwrap());
+        // Lock is deliberately left held so its TTL rate-limits retries.
+        assert!(
+            !handler
+                .cache
+                .try_acquire_lock(&lock_key, EXTRACTION_LOCK_TTL_SECONDS)
+                .await
+                .unwrap()
+        );
     }
 
     #[tokio::test]

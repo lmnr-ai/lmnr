@@ -9,7 +9,8 @@
 //! Flow: the ingest producer checks the static-regex cache for the span's
 //! signature; on a miss it publishes the system prompt to the static-prompt
 //! queue. The consumer accumulates prompts per signature and, once enough
-//! samples exist, runs the extraction agent (mocked for now) under a
+//! samples exist, runs the extraction agent
+//! (`traces::system_extraction::extract_static_regexes`) under a
 //! per-signature lock and caches the resulting regex list.
 
 use uuid::Uuid;
@@ -19,7 +20,6 @@ use crate::cache::keys::{
     STATIC_PROMPT_REGEX_CACHE_KEY,
 };
 
-pub mod agent;
 pub mod consumer;
 pub mod producer;
 
