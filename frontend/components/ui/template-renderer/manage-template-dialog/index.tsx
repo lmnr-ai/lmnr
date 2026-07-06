@@ -7,7 +7,7 @@ import useSWR, { useSWRConfig } from "swr";
 import SQLEditor from "@/components/sql/sql-editor";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -145,6 +145,16 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
 
   const effectiveScope = watch("scope") ?? scope;
 
+  const promptHintSuffix =
+    effectiveScope === "trace"
+      ? spanOutline
+        ? " + this trace's outline"
+        : ""
+      : watch("testData")?.trim()
+        ? " + your test data"
+        : "";
+  const promptHint = `Generate with your AI tool - prompt includes Laminar style guide${promptHintSuffix}`;
+
   const handleOpenChange = useCallback(
     (next: boolean) => {
       if (!next) onCancel();
@@ -175,52 +185,26 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
             </button>
           </DialogHeader>
 
-          <div className="grid flex-1 grid-cols-[minmax(0,1.4fr)_minmax(360px,1fr)] gap-4 overflow-hidden">
-            <div className="flex min-h-0 min-w-0 flex-col pl-4 pb-4 pt-6">
-              <Tabs
-                defaultValue="preview"
-                className="flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden rounded-lg border bg-muted/30"
-              >
-                <TabsList className="m-2 self-start">
-                  <TabsTrigger value="preview">Preview</TabsTrigger>
-                  <TabsTrigger value="data">Data</TabsTrigger>
-                </TabsList>
-                <TabsContent value="preview" className="flex min-h-0 min-w-0 flex-col border-t outline-none">
-                  <div className="min-h-0 min-w-0 flex-1 overflow-hidden bg-background">
-                    <JsxRenderer code={watch("code")} data={watch("testData")} />
-                  </div>
-                </TabsContent>
-                <TabsContent value="data" className="flex min-h-0 min-w-0 flex-col border-t outline-none">
-                  <DataPanel />
-                </TabsContent>
-              </Tabs>
-            </div>
-
-            <div className="flex min-h-0 min-w-0 flex-col gap-3 pr-4 py-4">
+          <div className="grid flex-1 grid-cols-[minmax(360px,1fr)_minmax(0,1.4fr)] gap-4 overflow-hidden">
+            <div className="flex min-h-0 min-w-0 flex-col gap-3 pl-4 py-4">
               <div>
                 <Label htmlFor="template-name" className="text-xs tracking-wide text-muted-foreground">
                   Name
                 </Label>
-                <div className="mt-1 flex items-center gap-2">
-                  <Controller
-                    rules={{ required: "Template name is required" }}
-                    name="name"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        id="template-name"
-                        className="h-8 flex-1"
-                        placeholder="e.g. Trace summary card"
-                        autoFocus
-                        {...field}
-                      />
-                    )}
-                  />
-                  <Button type="submit" disabled={isSaving}>
-                    {isSaving && <Loader2 className="mr-2 size-4 animate-spin" />}
-                    {mode === "edit" ? "Save" : "Create"}
-                  </Button>
-                </div>
+                <Controller
+                  rules={{ required: "Template name is required" }}
+                  name="name"
+                  control={control}
+                  render={({ field }) => (
+                    <Input
+                      id="template-name"
+                      className="mt-1 h-8 w-full"
+                      placeholder="e.g. Trace summary card"
+                      autoFocus
+                      {...field}
+                    />
+                  )}
+                />
                 {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name.message}</p>}
               </div>
 
@@ -277,19 +261,10 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
               )}
 
               <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card">
-                <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
-                  <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                    <Sparkles className="size-3.5 shrink-0 text-primary" />
-                    <span className="truncate">
-                      Generate with your AI tool - prompt includes Laminar style guide
-                      {effectiveScope === "trace"
-                        ? spanOutline
-                          ? " + this trace's outline"
-                          : ""
-                        : watch("testData")?.trim()
-                          ? " + your test data"
-                          : ""}
-                    </span>
+                <div className="flex items-start justify-between gap-2 border-b px-3 py-2">
+                  <div className="flex min-w-0 items-start gap-1.5 text-xs text-muted-foreground">
+                    <Sparkles className="mt-0.5 size-3.5 shrink-0 text-primary" />
+                    <span title={promptHint}>{promptHint}</span>
                   </div>
                   <CopyButton
                     type="button"
@@ -310,7 +285,37 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
                 </div>
               </div>
             </div>
+
+            <div className="flex min-h-0 min-w-0 flex-col pr-4 py-4">
+              <Tabs
+                defaultValue="preview"
+                className="flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden rounded-lg border bg-muted/30"
+              >
+                <TabsList className="m-2 self-start">
+                  <TabsTrigger value="preview">Preview</TabsTrigger>
+                  <TabsTrigger value="data">Data</TabsTrigger>
+                </TabsList>
+                <TabsContent value="preview" className="flex min-h-0 min-w-0 flex-col border-t outline-none">
+                  <div className="min-h-0 min-w-0 flex-1 overflow-hidden bg-background">
+                    <JsxRenderer code={watch("code")} data={watch("testData")} />
+                  </div>
+                </TabsContent>
+                <TabsContent value="data" className="flex min-h-0 min-w-0 flex-col border-t outline-none">
+                  <DataPanel />
+                </TabsContent>
+              </Tabs>
+            </div>
           </div>
+
+          <DialogFooter className="border-t px-5 py-3">
+            <Button type="button" variant="secondary" onClick={onCancel} disabled={isSaving}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSaving}>
+              {isSaving && <Loader2 className="mr-2 size-4 animate-spin" />}
+              {mode === "edit" ? "Save" : "Create"}
+            </Button>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
