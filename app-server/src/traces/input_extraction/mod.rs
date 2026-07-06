@@ -10,8 +10,11 @@
 //!     user-facing separator;
 //!   - fingerprints parts order-insensitively (multi-part messages
 //!     arrive in unknown order);
-//!   - never falls back to raw text — a no-result run writes `false` to
-//!     the same key instead;
+//!   - a generation run that produces no usable pattern (call budget or
+//!     LLM retries exhausted) falls back to the passthrough regex
+//!     `(?s)(.*)` — the full reconstructed input beats a wrong `false`;
+//!     `false` is written only when an applied regex says the input is
+//!     scaffolding-only (or a cached regex stops extracting);
 //!   - caches generated regexes per project + prompt hash + fingerprint
 //!     (`USER_TASK_REGEX_CACHE_KEY`) so traces with the same scaffolding
 //!     shape share one LLM call.
