@@ -178,6 +178,42 @@ const processMessageContent = (
   return JSON.stringify(content);
 };
 
+const isMessageObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "role" in value &&
+  ("content" in value || "parts" in value);
+
+// A headerless content part: has a string `type` but no message-level keys.
+const isContentPart = (value: unknown): boolean =>
+  typeof value === "object" &&
+  value !== null &&
+  typeof (value as { type?: unknown }).type === "string" &&
+  !("role" in value) &&
+  !("content" in value) &&
+  !("parts" in value);
+
+const ASSISTANT_PART_TYPES = new Set(["reasoning", "thinking", "tool-call", "tool_call", "tool-approval-request"]);
+const TOOL_PART_TYPES = new Set(["tool-result", "tool_call_response", "tool-approval-response"]);
+
+// A bare parts array carries no role; infer one from the parts it holds.
+const inferRoleFromParts = (parts: unknown[]): string => {
+  const types = new Set(parts.map((p) => (p as { type?: string })?.type ?? ""));
+  if ([...TOOL_PART_TYPES].some((t) => types.has(t))) return "tool";
+  if ([...ASSISTANT_PART_TYPES].some((t) => types.has(t))) return "assistant";
+  return "user";
+};
+
+// Wrap a single message object or a bare parts array into a message array; no-op otherwise.
+export const normalizeToMessages = (data: unknown): unknown => {
+  if (isMessageObject(data)) return [data];
+  if (Array.isArray(data) && data.length > 0 && data.every(isContentPart)) {
+    return [{ role: inferRoleFromParts(data), content: data }];
+  }
+  return data;
+};
+
 export const convertToMessages = (
   messages: ChatMessage[] | Record<string, unknown> | string | undefined
 ): (Omit<ModelMessage, "role"> & { role?: ModelMessage["role"] })[] => {
