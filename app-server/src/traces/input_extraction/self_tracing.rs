@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::env::user_task::USER_TASK_INTERNAL_PROJECT_ID;
 use crate::instrumentation::spans::{InternalSpan, SpanType};
 pub(crate) use crate::instrumentation::spans::{
-    SpanContextCarrier, record_error, set_attr_str, set_output, set_usage,
+    SpanContextCarrier, record_error, set_attr_str, set_metadata_bool, set_output, set_usage,
 };
 use tracing::info_span;
 
@@ -29,6 +29,9 @@ pub(crate) const EXTRACT_ROOT_SPAN_NAME: &str = "user_task.extract";
 #[derive(Debug, Clone)]
 pub struct SpanScope {
     pub project_id: Option<Uuid>,
+    /// The project owning the trace under extraction (NOT the internal routing target above).
+    /// Stamped as `metadata.project_id` on every span, like `trace_id` below.
+    pub source_project_id: Uuid,
     /// The trace under extraction. Stamped as `metadata.trace_id` on every span so it survives
     /// trace-metadata aggregation (ingest takes only one span's metadata per export batch).
     pub trace_id: Uuid,
@@ -37,9 +40,10 @@ pub struct SpanScope {
 }
 
 impl SpanScope {
-    pub fn new(trace_id: Uuid) -> Self {
+    pub fn new(source_project_id: Uuid, trace_id: Uuid) -> Self {
         Self {
             project_id: internal_project_id(),
+            source_project_id,
             trace_id,
             parent: None,
         }
@@ -67,6 +71,7 @@ impl SpanBuilder {
     fn base(span: InternalSpan, scope: &SpanScope) -> InternalSpan {
         span.project(scope.project_id)
             .span_path_root(EXTRACT_ROOT_SPAN_NAME)
+            .metadata_str("project_id", &scope.source_project_id.to_string())
             .metadata_str("trace_id", &scope.trace_id.to_string())
     }
 

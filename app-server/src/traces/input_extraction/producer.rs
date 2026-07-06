@@ -157,10 +157,8 @@ pub async fn process_user_task_candidates(
             candidate.prompt_hash.as_deref(),
             &candidate.fingerprint,
         );
-        // `None` tracing: the producer sits on the ingest path where
-        // self-tracing spans would recurse through `push_spans_to_queue`.
         let mut inline_result =
-            try_apply_cached_regex(&cache, &regex_key, &candidate.signposted_text, None).await;
+            try_apply_cached_regex(&cache, &regex_key, &candidate.signposted_text).await;
 
         if inline_result.is_some() {
             // Re-read the winner lock before the inline publish: a

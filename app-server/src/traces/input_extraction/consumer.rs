@@ -13,7 +13,10 @@ use super::{
     lock::{UserTaskLockState, lock_cache_key},
     metadata::build_metadata_patch,
     queue::{InputExtractionMessage, push_to_input_extraction_queue},
-    regex::{generate_and_apply_regex, regex_cache_key, try_apply_cached_regex},
+    regex::{
+        ApplyRegexResult, generate_and_apply_regex, is_passthrough_regex, regex_cache_key,
+        try_apply_cached_regex,
+    },
     self_tracing::{self, SpanBuilder, SpanContextCarrier, SpanScope},
 };
 use crate::{
@@ -46,19 +49,6 @@ impl MessageHandler for InputExtractionHandler {
     type Message = InputExtractionMessage;
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
-        // Internal self-tracing root for this message. Safe here (and only
-        // here): the consumer is off the ingest path, so exported spans
-        // can't recurse through `push_spans_to_queue`.
-        let scope = SpanScope::new(message.trace_id);
-        let root = SpanBuilder::root(&scope)
-            .input(&serde_json::Value::String(message.signposted_text.clone()))
-            .build();
-        self_tracing::set_attr_str(&root, "user_task.fingerprint", &message.fingerprint);
-        if let Some(hash) = message.prompt_hash.as_deref() {
-            self_tracing::set_attr_str(&root, "user_task.prompt_hash", hash);
-        }
-        let scope = scope.with_parent(SpanContextCarrier::from_span(&root));
-
         let key = regex_cache_key(
             message.project_id,
             message.prompt_hash.as_deref(),
@@ -66,25 +56,53 @@ impl MessageHandler for InputExtractionHandler {
         );
 
         // Another worker may have populated the cache since this message
-        // was enqueued. Either way the application itself is traced as an
-        // `apply_regex` tool span (with a `regex_cached` marker) inside
-        // the regex module.
-        let result =
-            match try_apply_cached_regex(&self.cache, &key, &message.signposted_text, Some(&scope))
-                .await
-            {
-                Some(result) => result,
-                None => generate_and_apply_regex(
+        // was enqueued — a hit is pure regex application and emits no
+        // self-tracing. Only a real generation run is traced: the root
+        // span is created here (and only here — the consumer is off the
+        // ingest path, so exported spans can't recurse through
+        // `push_spans_to_queue`).
+        let result = match try_apply_cached_regex(&self.cache, &key, &message.signposted_text).await
+        {
+            Some(result) => result,
+            None => {
+                let scope = SpanScope::new(message.project_id, message.trace_id);
+                let root = SpanBuilder::root(&scope)
+                    .input(&serde_json::Value::String(message.signposted_text.clone()))
+                    .build();
+                self_tracing::set_attr_str(&root, "user_task.fingerprint", &message.fingerprint);
+                if let Some(hash) = message.prompt_hash.as_deref() {
+                    self_tracing::set_attr_str(&root, "user_task.prompt_hash", hash);
+                }
+                let scope = scope.with_parent(SpanContextCarrier::from_span(&root));
+
+                let outcome = generate_and_apply_regex(
                     &self.cache,
                     &self.llm_client,
                     &key,
                     &message.signposted_text,
-                    Some(&scope),
+                    &scope,
                 )
                 .await
-                .map_err(HandlerError::transient)?,
-            };
-        self_tracing::set_output(&root, &serde_json::json!(format!("{result:?}")));
+                .map_err(HandlerError::transient)?;
+
+                self_tracing::set_metadata_bool(
+                    &root,
+                    "passthrough_regex",
+                    outcome.pattern.as_deref().is_some_and(is_passthrough_regex),
+                );
+                // "Failed": no pattern was produced at all, or the generated
+                // pattern failed to compile / match / capture.
+                self_tracing::set_metadata_bool(
+                    &root,
+                    "regex_failed",
+                    outcome.pattern.is_none()
+                        || matches!(outcome.result, ApplyRegexResult::NoMatch),
+                );
+                let result = outcome.result;
+                self_tracing::set_output(&root, &serde_json::json!(format!("{result:?}")));
+                result
+            }
+        };
 
         // Wait for the trace row before publishing: the patch is applied by
         // `merge_trace_metadata_batch` which silently skips missing traces,

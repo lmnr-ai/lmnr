@@ -90,7 +90,7 @@ The message may carry "== lmnr_part_separator ==" lines separating sibling messa
 pub async fn generate_extraction_regex(
     llm_client: &Arc<LlmClient>,
     sample_input: &str,
-    tracing: Option<&SpanScope>,
+    scope: &SpanScope,
 ) -> anyhow::Result<Option<String>> {
     let mut contents = vec![ProviderContent {
         role: Some("user".to_string()),
@@ -102,7 +102,7 @@ pub async fn generate_extraction_regex(
 
     for _ in 0..MAX_LLM_CALLS {
         let request = build_request(contents.clone());
-        let response = call_llm(llm_client, &request, tracing).await?;
+        let response = call_llm(llm_client, &request, scope).await?;
 
         let model_content = response
             .candidates
@@ -162,7 +162,7 @@ pub async fn generate_extraction_regex(
                         .unwrap_or("");
                     // Always against the ORIGINAL sample input — the prompt
                     // promises probes never chain off each other's results.
-                    probe_extraction_regex(pattern, sample_input, tracing)
+                    probe_extraction_regex(pattern, sample_input, scope)
                 }
                 SUBMIT_TOOL_NAME => serde_json::json!({
                     "result": "rejected",
@@ -229,18 +229,14 @@ pub async fn generate_extraction_regex(
 fn probe_extraction_regex(
     pattern: &str,
     sample_input: &str,
-    tracing: Option<&SpanScope>,
+    scope: &SpanScope,
 ) -> serde_json::Value {
-    let span = tracing.map(|scope| {
-        SpanBuilder::tool(scope, TRY_TOOL_NAME)
-            .input(&serde_json::json!({ "regex": pattern }))
-            .build()
-    });
+    let span = SpanBuilder::tool(scope, TRY_TOOL_NAME)
+        .input(&serde_json::json!({ "regex": pattern }))
+        .build();
     let result = apply_regex(pattern, sample_input);
     let response = apply_result_to_json(&result);
-    if let Some(span) = span.as_ref() {
-        self_tracing::set_output(span, &response);
-    }
+    self_tracing::set_output(&span, &response);
     response
 }
 
@@ -319,27 +315,22 @@ fn extraction_provider() -> String {
 async fn call_llm(
     llm_client: &Arc<LlmClient>,
     request: &ProviderRequest,
-    tracing: Option<&SpanScope>,
+    scope: &SpanScope,
 ) -> anyhow::Result<ProviderResponse> {
     // Build the span before the call — spans can't be backdated, so a
     // span built after the call returns would record ~zero duration.
     let (model, provider) = llm_client.resolve_model_provider(request);
     let span_input = request_to_span_input(request);
     let span_tools = request_to_tools_attr(request);
-    let span = tracing.map(|scope| {
-        SpanBuilder::llm(scope, "generate_extraction_regex")
-            .input(&span_input)
-            .model(&provider, &model)
-            .tools(span_tools.as_ref())
-            .build()
-    });
+    let span = SpanBuilder::llm(scope, "generate_extraction_regex")
+        .input(&span_input)
+        .model(&provider, &model)
+        .tools(span_tools.as_ref())
+        .build();
 
     let call = llm_client.generate_content(request);
     let timed = tokio::time::timeout(std::time::Duration::from_secs(REGEX_LLM_TIMEOUT_SECS), call);
-    let result = match span.as_ref() {
-        Some(s) => timed.instrument(s.clone()).await,
-        None => timed.await,
-    };
+    let result = timed.instrument(span.clone()).await;
 
     let (response, error) = match result {
         Ok(Ok(response)) => (Some(response), None),
@@ -352,20 +343,18 @@ async fn call_llm(
         ),
     };
 
-    if let Some(span) = span.as_ref() {
-        if let Some(response) = response.as_ref() {
-            self_tracing::set_output(span, &serde_json::json!(response.candidates));
-            let usage = response.usage_metadata.as_ref();
-            self_tracing::set_usage(
-                span,
-                usage.and_then(|u| u.prompt_token_count),
-                usage.and_then(|u| u.cache_read_input_tokens),
-                usage.and_then(|u| u.candidates_token_count),
-            );
-        }
-        if let Some(error) = error.clone() {
-            self_tracing::record_error(span, error);
-        }
+    if let Some(response) = response.as_ref() {
+        self_tracing::set_output(&span, &serde_json::json!(response.candidates));
+        let usage = response.usage_metadata.as_ref();
+        self_tracing::set_usage(
+            &span,
+            usage.and_then(|u| u.prompt_token_count),
+            usage.and_then(|u| u.cache_read_input_tokens),
+            usage.and_then(|u| u.candidates_token_count),
+        );
+    }
+    if let Some(error) = error.clone() {
+        self_tracing::record_error(&span, error);
     }
 
     match (response, error) {
