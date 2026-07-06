@@ -1,16 +1,20 @@
 //! Line-level diff of two example prompts, rendered into the agent's user
-//! message so the model sees what varies dynamically between examples.
+//! message so the model sees what varies dynamically between examples. The
+//! diff is advisory only — the `regex` tool always re-verifies against the
+//! raw examples.
 
 use similar::{ChangeTag, TextDiff};
 
-/// Unchanged runs longer than this many lines are collapsed.
-const MAX_UNCHANGED_RUN: usize = 7;
 /// Context lines kept on each side of a collapsed unchanged run.
 const CONTEXT_LINES: usize = 3;
+/// Unchanged runs longer than this many lines are collapsed.
+const MAX_UNCHANGED_RUN: usize = 2 * CONTEXT_LINES + 1;
 
 /// Render a line-level diff with `- ` / `+ ` / `  ` prefixes. Unchanged runs
 /// longer than [`MAX_UNCHANGED_RUN`] lines are collapsed to
-/// [`CONTEXT_LINES`] context lines on each side plus an omission marker.
+/// [`CONTEXT_LINES`] context lines on each side plus an omission marker; the
+/// leading context is dropped when the run opens the diff and the trailing
+/// context when it closes it.
 pub fn line_diff(old: &str, new: &str) -> String {
     let diff = TextDiff::from_lines(old, new);
 
@@ -35,16 +39,19 @@ pub fn line_diff(old: &str, new: &str) -> String {
         }
     }
 
+    let last_index = entries.len().saturating_sub(1);
     let mut out: Vec<String> = Vec::new();
-    for entry in entries {
+    for (i, entry) in entries.into_iter().enumerate() {
         match entry {
             Entry::Changed(line) => out.push(line),
             Entry::Unchanged(run) => {
                 if run.len() > MAX_UNCHANGED_RUN {
-                    let omitted = run.len() - 2 * CONTEXT_LINES;
-                    out.extend_from_slice(&run[..CONTEXT_LINES]);
-                    out.push(format!("  … ({omitted} unchanged lines omitted) …"));
-                    out.extend_from_slice(&run[run.len() - CONTEXT_LINES..]);
+                    let head = if i == 0 { 0 } else { CONTEXT_LINES };
+                    let tail = if i == last_index { 0 } else { CONTEXT_LINES };
+                    let hidden = run.len() - head - tail;
+                    out.extend_from_slice(&run[..head]);
+                    out.push(format!("… ({hidden} unchanged lines omitted) …"));
+                    out.extend_from_slice(&run[run.len() - tail..]);
                 } else {
                     out.extend(run);
                 }
@@ -71,14 +78,38 @@ mod tests {
     #[test]
     fn collapses_long_unchanged_runs() {
         let common: Vec<String> = (0..10).map(|i| format!("line {i}")).collect();
+        let old = format!("A\n{}\nC", common.join("\n"));
+        let new = format!("B\n{}\nD", common.join("\n"));
+        let diff = line_diff(&old, &new);
+        assert!(diff.starts_with("- A\n+ B\n"));
+        assert!(diff.contains("  line 0\n  line 1\n  line 2\n"));
+        assert!(diff.contains("… (4 unchanged lines omitted) …"));
+        assert!(diff.contains("  line 7\n  line 8\n  line 9\n"));
+        assert!(diff.ends_with("- C\n+ D"));
+        assert!(!diff.contains("line 4"));
+    }
+
+    #[test]
+    fn skips_leading_context_when_run_opens_the_diff() {
+        let common: Vec<String> = (0..10).map(|i| format!("line {i}")).collect();
+        let old = format!("{}\nA", common.join("\n"));
+        let new = format!("{}\nB", common.join("\n"));
+        let diff = line_diff(&old, &new);
+        assert!(diff.starts_with("… (7 unchanged lines omitted) …\n"));
+        assert!(diff.contains("  line 7\n  line 8\n  line 9\n"));
+        assert!(diff.ends_with("- A\n+ B"));
+    }
+
+    #[test]
+    fn skips_trailing_context_when_run_closes_the_diff() {
+        let common: Vec<String> = (0..10).map(|i| format!("line {i}")).collect();
         let old = format!("A\n{}", common.join("\n"));
         let new = format!("B\n{}", common.join("\n"));
         let diff = line_diff(&old, &new);
         assert!(diff.starts_with("- A\n+ B\n"));
         assert!(diff.contains("  line 0\n  line 1\n  line 2\n"));
-        assert!(diff.contains("  … (4 unchanged lines omitted) …"));
-        assert!(diff.ends_with("  line 7\n  line 8\n  line 9"));
-        assert!(!diff.contains("line 4"));
+        assert!(diff.ends_with("… (7 unchanged lines omitted) …"));
+        assert!(!diff.contains("line 7"));
     }
 
     #[test]

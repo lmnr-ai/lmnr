@@ -11,9 +11,9 @@ use uuid::Uuid;
 
 use crate::instrumentation::spans::SpanContextCarrier;
 use crate::llm::{LlmClient, models::ModelSize};
-use crate::routes::{ResponseResult, error::Error};
+use crate::routes::ResponseResult;
 use crate::traces::system_extraction::{
-    ExtractionConfig, ExtractionTracing, extract_static_regexes,
+    ExtractionConfig, ExtractionResult, ExtractionTracing, extract_static_regexes,
 };
 
 #[derive(Deserialize)]
@@ -36,6 +36,8 @@ pub struct ExtractSystemPromptRequest {
 #[serde(rename_all = "camelCase")]
 pub struct ExtractSystemPromptResponse {
     pub regexes: Vec<String>,
+    /// Total `regex`-tool invocations across all retry attempts.
+    pub tool_calls: usize,
 }
 
 #[post("system-extraction")]
@@ -71,9 +73,13 @@ pub async fn extract_system_prompt(
             .and_then(SpanContextCarrier::from_w3c_traceparent),
     };
 
-    let regexes = extract_static_regexes(llm_client, &request.examples, &config, &tracing_ctx)
-        .await
-        .map_err(|e| Error::InternalAnyhowError(anyhow::anyhow!(e)))?;
+    let ExtractionResult {
+        regexes,
+        tool_calls,
+    } = extract_static_regexes(llm_client, &request.examples, &config, &tracing_ctx).await;
 
-    Ok(HttpResponse::Ok().json(ExtractSystemPromptResponse { regexes }))
+    Ok(HttpResponse::Ok().json(ExtractSystemPromptResponse {
+        regexes,
+        tool_calls,
+    }))
 }

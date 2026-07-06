@@ -4,8 +4,10 @@
 //! removal regexes, tests them with the harness-side `regex` tool (the raw
 //! examples never travel through the model), and finishes by answering with a
 //! JSON array of the final ordered regex patterns. A retry ladder over
-//! temperatures re-runs the whole episode only when the final answer parses
-//! to an empty list.
+//! temperatures re-runs the whole episode when the final answer parses to an
+//! empty list or the episode errors (provider failure or step timeout).
+
+use std::time::Duration;
 
 use serde_json::{Value, json};
 use tracing::{Instrument, info_span};
@@ -20,12 +22,15 @@ use crate::llm::{
     ProviderRequest,
 };
 
-/// Retry ladder: the next temperature is tried ONLY if the episode's final
-/// answer parses to an empty regex list.
+/// Retry ladder: the next temperature is tried only if the episode's final
+/// answer parses to an empty regex list or the episode errors.
 const TEMPERATURE_LADDER: [f32; 3] = [0.0, 0.4, 0.7];
 /// Agent-loop cap per episode (one step = one LLM call, which may contain
 /// tool calls).
 const MAX_STEPS: usize = 12;
+/// Per-LLM-call timeout; a hung provider call aborts the episode and the
+/// temperature ladder advances.
+const STEP_TIMEOUT: Duration = Duration::from_millis(180_000);
 
 #[derive(Debug, Clone)]
 pub struct ExtractionConfig {
@@ -62,17 +67,39 @@ pub struct ExtractionTracing {
     pub parent: Option<SpanContextCarrier>,
 }
 
+#[derive(Debug)]
+pub struct ExtractionResult {
+    /// Ordered removal regexes; empty when every temperature episode failed
+    /// to produce a usable answer.
+    pub regexes: Vec<String>,
+    /// Total `regex`-tool invocations across all retry attempts.
+    pub tool_calls: usize,
+}
+
+/// What one temperature episode produced.
+struct EpisodeOutcome {
+    /// Parsed final answer; empty escalates the temperature ladder.
+    regexes: Vec<String>,
+    tool_calls: usize,
+    /// Latest tool-call input whose RESULT had `isValid` and
+    /// `isResultInAllIdenticalOutput` — the fallback candidate.
+    tool_verified: Option<Vec<String>>,
+}
+
 /// Extract the static-template removal regexes for a family of system
-/// prompts. Returns the ordered regex list; empty when every temperature
-/// episode failed to produce a non-empty parseable answer.
+/// prompts. Episode errors (provider failure, step timeout) are logged and
+/// escalate the temperature ladder instead of aborting the run.
 pub async fn extract_static_regexes(
     llm_client: &LlmClient,
     examples: &[String],
     config: &ExtractionConfig,
     tracing_ctx: &ExtractionTracing,
-) -> Result<Vec<String>, ProviderError> {
+) -> ExtractionResult {
     if examples.is_empty() {
-        return Ok(Vec::new());
+        return ExtractionResult {
+            regexes: Vec::new(),
+            tool_calls: 0,
+        };
     }
 
     let root_span = info_span!(target: "lmnr::internal", parent: None, "system_extraction");
@@ -84,9 +111,13 @@ pub async fn extract_static_regexes(
         .build();
 
     let user_message = build_user_message(examples, config.include_diff);
-    let result: Result<Vec<String>, ProviderError> = async {
+    let result = async {
+        let mut regexes: Vec<String> = Vec::new();
+        let mut tool_calls = 0;
+        let mut tool_verified: Option<Vec<String>> = None;
+
         for &temperature in &config.temperatures {
-            let regexes = run_episode(
+            match run_episode(
                 llm_client,
                 examples,
                 &user_message,
@@ -94,25 +125,52 @@ pub async fn extract_static_regexes(
                 config,
                 tracing_ctx,
             )
-            .await?;
-            if !regexes.is_empty() {
-                return Ok(regexes);
+            .await
+            {
+                Ok(outcome) => {
+                    tool_calls += outcome.tool_calls;
+                    if outcome.tool_verified.is_some() {
+                        tool_verified = outcome.tool_verified;
+                    }
+                    if !outcome.regexes.is_empty() {
+                        regexes = outcome.regexes;
+                        break;
+                    }
+                }
+                Err(e) => {
+                    log::warn!(
+                        "system_extraction episode at temperature {temperature} failed: {e}"
+                    );
+                }
             }
         }
-        Ok(Vec::new())
+
+        // Fallback: models sometimes "improve" a pattern AFTER its last
+        // successful test, or make transcription typos like `(??<=`. Trust
+        // the tool over the transcript.
+        if !collapses_shown(&regexes, examples)
+            && let Some(verified) = &tool_verified
+            && collapses_shown(verified, examples)
+        {
+            regexes = verified.clone();
+        }
+
+        ExtractionResult {
+            regexes,
+            tool_calls,
+        }
     }
     .instrument(root_span.clone())
     .await;
 
-    match &result {
-        Ok(regexes) => spans::set_output(&root_span, &json!(regexes)),
-        Err(e) => spans::record_error(&root_span, e.to_string()),
-    }
+    spans::set_output(
+        &root_span,
+        &json!({ "regexes": result.regexes, "toolCalls": result.tool_calls }),
+    );
     result
 }
 
-/// One agent-loop episode at a fixed temperature. Returns an empty list when
-/// the loop exhausts `max_steps` or the final answer doesn't parse.
+/// One agent-loop episode at a fixed temperature.
 async fn run_episode(
     llm_client: &LlmClient,
     examples: &[String],
@@ -120,7 +178,7 @@ async fn run_episode(
     temperature: f32,
     config: &ExtractionConfig,
     tracing_ctx: &ExtractionTracing,
-) -> Result<Vec<String>, ProviderError> {
+) -> Result<EpisodeOutcome, ProviderError> {
     let episode_span = info_span!(target: "lmnr::internal", "episode");
     let episode_span = InternalSpan::wrap(episode_span, SpanType::Default)
         .project(tracing_ctx.project_id)
@@ -139,7 +197,7 @@ async fn run_episode(
     .await;
 
     match &result {
-        Ok(regexes) => spans::set_output(&episode_span, &json!(regexes)),
+        Ok(outcome) => spans::set_output(&episode_span, &json!(outcome.regexes)),
         Err(e) => spans::record_error(&episode_span, e.to_string()),
     }
     result
@@ -152,8 +210,10 @@ async fn run_episode_inner(
     temperature: f32,
     config: &ExtractionConfig,
     tracing_ctx: &ExtractionTracing,
-) -> Result<Vec<String>, ProviderError> {
+) -> Result<EpisodeOutcome, ProviderError> {
     let mut contents = vec![text_content("user", user_message)];
+    let mut tool_calls = 0;
+    let mut tool_verified: Option<Vec<String>> = None;
 
     for step in 0..config.max_steps {
         let request = ProviderRequest {
@@ -179,10 +239,13 @@ async fn run_episode_inner(
             .step(step)
             .build();
 
-        let response = llm_client
-            .generate_content(&request)
+        let response = tokio::time::timeout(STEP_TIMEOUT, llm_client.generate_content(&request))
             .instrument(llm_span.clone())
-            .await;
+            .await
+            .unwrap_or(Err(ProviderError::RequestError(format!(
+                "LLM call timed out after {}ms",
+                STEP_TIMEOUT.as_millis()
+            ))));
         let response = match response {
             Ok(response) => response,
             Err(e) => {
@@ -208,7 +271,11 @@ async fn run_episode_inner(
             .and_then(|candidates| candidates.into_iter().next())
             .and_then(|candidate| candidate.content)
         else {
-            return Ok(Vec::new());
+            return Ok(EpisodeOutcome {
+                regexes: Vec::new(),
+                tool_calls,
+                tool_verified,
+            });
         };
         let parts = content.parts.clone().unwrap_or_default();
         spans::set_output(
@@ -232,15 +299,11 @@ async fn run_episode_inner(
                 .filter_map(|part| part.text.as_deref())
                 .collect::<Vec<_>>()
                 .join("");
-            let regexes = parse_final_answer(&text);
-            // The model is instructed to only return a tool-verified list, but
-            // that isn't guaranteed — re-verify harness-side and discard
-            // answers that don't compile or don't collapse all examples
-            // (escalates the temperature ladder).
-            if !regexes.is_empty() && !verify_regexes(&regexes, examples) {
-                return Ok(Vec::new());
-            }
-            return Ok(regexes);
+            return Ok(EpisodeOutcome {
+                regexes: parse_final_answer(&text),
+                tool_calls,
+                tool_verified,
+            });
         }
 
         contents.push(ProviderContent {
@@ -248,37 +311,46 @@ async fn run_episode_inner(
             parts: Some(parts.clone()),
         });
 
-        let response_parts: Vec<ProviderPart> = function_calls
-            .into_iter()
-            .map(|fc| {
-                let tool_span = info_span!(target: "lmnr::internal", "tool_call");
-                let tool_span = InternalSpan::wrap(tool_span, SpanType::Tool)
-                    .project(tracing_ctx.project_id)
-                    .input(&json!({ "name": fc.name, "args": fc.args }))
-                    .step(step)
-                    .build();
-                let output = tool_span.in_scope(|| match fc.name.as_str() {
-                    REGEX_TOOL_NAME => match serde_json::from_value::<RegexToolInput>(
+        let mut response_parts: Vec<ProviderPart> = Vec::with_capacity(function_calls.len());
+        for fc in function_calls {
+            let tool_span = info_span!(target: "lmnr::internal", "tool_call");
+            let tool_span = InternalSpan::wrap(tool_span, SpanType::Tool)
+                .project(tracing_ctx.project_id)
+                .input(&json!({ "name": fc.name, "args": fc.args }))
+                .step(step)
+                .build();
+            let output = tool_span.in_scope(|| match fc.name.as_str() {
+                REGEX_TOOL_NAME => {
+                    tool_calls += 1;
+                    match serde_json::from_value::<RegexToolInput>(
                         fc.args.clone().unwrap_or(Value::Null),
                     ) {
-                        Ok(input) => run_regex_tool(&input.regexes, examples),
+                        Ok(input) => {
+                            let output = run_regex_tool(&input.regexes, examples);
+                            if output["isValid"] == Value::Bool(true)
+                                && output["isResultInAllIdenticalOutput"] == Value::Bool(true)
+                            {
+                                tool_verified = Some(input.regexes);
+                            }
+                            output
+                        }
                         Err(e) => {
                             serde_json::json!({ "error": format!("Invalid tool input: {e}") })
                         }
-                    },
-                    other => serde_json::json!({ "error": format!("Unknown tool: {other}") }),
-                });
-                spans::set_output(&tool_span, &output);
-                ProviderPart {
-                    function_response: Some(crate::llm::models::ProviderFunctionResponse {
-                        id: fc.id,
-                        name: fc.name,
-                        response: output,
-                    }),
-                    ..Default::default()
+                    }
                 }
-            })
-            .collect();
+                other => serde_json::json!({ "error": format!("Unknown tool: {other}") }),
+            });
+            spans::set_output(&tool_span, &output);
+            response_parts.push(ProviderPart {
+                function_response: Some(crate::llm::models::ProviderFunctionResponse {
+                    id: fc.id,
+                    name: fc.name,
+                    response: output,
+                }),
+                ..Default::default()
+            });
+        }
 
         contents.push(ProviderContent {
             role: Some("user".to_string()),
@@ -286,12 +358,19 @@ async fn run_episode_inner(
         });
     }
 
-    Ok(Vec::new())
+    Ok(EpisodeOutcome {
+        regexes: Vec::new(),
+        tool_calls,
+        tool_verified,
+    })
 }
 
-/// Final-answer gate: all patterns compile and run, and every example
-/// collapses to the same residual.
-fn verify_regexes(regexes: &[String], examples: &[String]) -> bool {
+/// True iff `regexes` is non-empty, every pattern compiles and runs, and
+/// every shown example collapses to the same residual.
+fn collapses_shown(regexes: &[String], examples: &[String]) -> bool {
+    if regexes.is_empty() {
+        return false;
+    }
     let result = run_regex_tool(regexes, examples);
     result["isValid"] == Value::Bool(true)
         && result["isResultInAllIdenticalOutput"] == Value::Bool(true)
@@ -317,31 +396,46 @@ fn text_content_no_role(text: &str) -> ProviderContent {
     }
 }
 
-/// Parse the model's final answer into an ordered regex list. Tolerates
-/// markdown code fences despite the instructions; anything unparseable
-/// yields an empty list (which escalates the temperature ladder).
+/// Parse the model's final answer into an ordered regex list. Defensive, in
+/// order: bare JSON array → first fenced block (optional `json` tag) → first
+/// `[`…`]` span. Anything unparseable yields an empty list, which escalates
+/// the temperature ladder.
 fn parse_final_answer(text: &str) -> Vec<String> {
     let trimmed = text.trim();
-    let trimmed = trimmed
-        .strip_prefix("```json")
-        .or_else(|| trimmed.strip_prefix("```"))
-        .map(|s| s.strip_suffix("```").unwrap_or(s))
-        .unwrap_or(trimmed)
-        .trim();
-
-    let Ok(Value::Array(items)) = serde_json::from_str::<Value>(trimmed) else {
-        return Vec::new();
-    };
-    let regexes: Vec<String> = items
-        .iter()
-        .filter_map(|v| v.as_str())
-        .map(str::to_string)
-        .collect();
-    // A mixed-type array is malformed, not a partial answer.
-    if regexes.len() != items.len() {
-        return Vec::new();
+    if let Some(regexes) = parse_string_array(trimmed) {
+        return regexes;
     }
-    regexes
+    if let Some(fenced) = extract_fenced_block(trimmed)
+        && let Some(regexes) = parse_string_array(fenced.trim())
+    {
+        return regexes;
+    }
+    if let (Some(start), Some(end)) = (trimmed.find('['), trimmed.rfind(']'))
+        && start < end
+        && let Some(regexes) = parse_string_array(&trimmed[start..=end])
+    {
+        return regexes;
+    }
+    Vec::new()
+}
+
+/// `Some` only when `text` is a JSON array of strings.
+fn parse_string_array(text: &str) -> Option<Vec<String>> {
+    let Ok(Value::Array(items)) = serde_json::from_str::<Value>(text) else {
+        return None;
+    };
+    items
+        .iter()
+        .map(|v| v.as_str().map(str::to_string))
+        .collect()
+}
+
+/// Contents of the first triple-backtick-fenced block, tolerating an
+/// optional `json` language tag.
+fn extract_fenced_block(text: &str) -> Option<&str> {
+    let after_open = &text[text.find("```")? + 3..];
+    let after_open = after_open.strip_prefix("json").unwrap_or(after_open);
+    Some(&after_open[..after_open.find("```")?])
 }
 
 #[cfg(test)]
@@ -361,24 +455,32 @@ mod tests {
     }
 
     #[test]
-    fn verify_regexes_gates_final_answer() {
+    fn parses_bracket_span_inside_prose() {
+        let parsed = parse_final_answer("Here are your regexes: [\"a\", \"b\"] — done!");
+        assert_eq!(parsed, vec!["a", "b"]);
+    }
+
+    #[test]
+    fn collapses_shown_gates_regex_lists() {
         let examples = vec![
             "static\ndate: 2026-01-01\ntail".to_string(),
             "static\ndate: 2026-01-02\ntail".to_string(),
         ];
         // Collapses all examples to the same residual.
-        assert!(verify_regexes(&["^date: .*\\n?".to_string()], &examples));
+        assert!(collapses_shown(&["^date: .*\\n?".to_string()], &examples));
         // Valid patterns, but residuals still differ.
-        assert!(!verify_regexes(&["tail".to_string()], &examples));
+        assert!(!collapses_shown(&["tail".to_string()], &examples));
         // Non-compiling pattern.
-        assert!(!verify_regexes(&["(unclosed".to_string()], &examples));
+        assert!(!collapses_shown(&["(unclosed".to_string()], &examples));
+        // Empty list never counts as collapsing.
+        assert!(!collapses_shown(&[], &examples));
     }
 
     #[test]
-    fn rejects_prose_and_mixed_arrays() {
-        assert!(parse_final_answer("Here are your regexes: [\"a\"]").is_empty());
+    fn rejects_mixed_arrays_and_garbage() {
         assert!(parse_final_answer(r#"["a", 42]"#).is_empty());
         assert!(parse_final_answer("").is_empty());
         assert!(parse_final_answer("[]").is_empty());
+        assert!(parse_final_answer("no brackets at all").is_empty());
     }
 }

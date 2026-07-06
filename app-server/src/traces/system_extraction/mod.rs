@@ -11,4 +11,4 @@ pub mod diff;
 pub mod prompt;
 pub mod tool;
 
-pub use agent::{ExtractionConfig, ExtractionTracing, extract_static_regexes};
+pub use agent::{ExtractionConfig, ExtractionResult, ExtractionTracing, extract_static_regexes};

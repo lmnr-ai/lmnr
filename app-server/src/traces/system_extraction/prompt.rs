@@ -16,13 +16,15 @@ pub fn build_user_message(examples: &[String], include_diff: bool) -> String {
     );
 
     message.push_str(
-        "MANDATORY HARDENING PASS before you finish: once the tool reports \
-         isResultInAllIdenticalOutput: true, re-read every final regex and widen it so it still \
-         works on UNSEEN prompts from the same family that may contain (a) optional sections in a \
-         different ORDER or of types you never saw, (b) state lines rendered differently than in \
-         these examples, (c) values outside the observed set. Replace instance-specific anchors \
-         and observed-value alternations with zone sweeps and wide value patterns, then re-verify \
-         with the tool.\n\n",
+        "MANDATORY HARDENING PASS before you finish: you are scored on UNSEEN prompts from this \
+         family, which WILL contain (a) optional sections in a different ORDER or of types you \
+         never saw, (b) state lines rendered differently (a populated list where your examples \
+         show 'none yet'/empty, and state-dependent header wording), and (c) values outside the \
+         observed set. Once your regexes collapse the shown examples, re-read EACH regex and ask \
+         which of (a)-(c) would break it. Rewrite brittle ones — zone sweeps between \
+         pure-template landmarks instead of per-section removals or state-dependent anchors, \
+         wide character classes instead of observed-value ranges — then re-verify with the \
+         tool.\n\n",
     );
 
     message.push_str(
@@ -66,7 +68,9 @@ mod tests {
         ];
         let message = build_user_message(&examples, true);
         assert!(message.starts_with("Here are 2 example system prompts"));
-        assert!(message.contains("MANDATORY HARDENING PASS"));
+        assert!(message.contains(
+            "MANDATORY HARDENING PASS before you finish: you are scored on UNSEEN prompts"
+        ));
         assert!(message.contains("respond with ONLY a JSON array"));
         assert!(message.contains(
             "Example 1 of 2:\n<system_prompt>\nstatic\ndate: 2026-01-01\n</system_prompt>"
