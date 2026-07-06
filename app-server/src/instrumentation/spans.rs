@@ -249,6 +249,10 @@ pub fn set_metadata_i64(span: &tracing::Span, key: &str, value: i64) {
     span.set_attribute(format!("lmnr.association.properties.metadata.{key}"), value);
 }
 
+pub fn set_metadata_bool(span: &tracing::Span, key: &str, value: bool) {
+    span.set_attribute(format!("lmnr.association.properties.metadata.{key}"), value);
+}
+
 /// Set a raw, span-specific attribute (NOT `metadata.*`). Use for values that vary span-to-span
 /// (cache keys, fingerprints, hashes) — trace metadata must be uniform across the trace, so those
 /// belong here instead. Stored verbatim in the ingested span's attributes.

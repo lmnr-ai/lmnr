@@ -69,6 +69,29 @@ pub fn apply_regex(pattern: &str, text: &str) -> ApplyRegexResult {
     }
 }
 
+/// Final per-message extraction outcome plus the tracing facts the
+/// consumer stamps as trace-level metadata flags on its root span.
+pub struct ExtractionOutcome {
+    pub result: ApplyRegexResult,
+    /// The pattern whose application produced `result`; `None` when the
+    /// generation pipeline produced no regex at all (deliberate empty
+    /// submit or exhausted call budget).
+    pub pattern: Option<String>,
+    /// True when the applied regex came from the cache (no LLM call).
+    pub cache_hit: bool,
+}
+
+/// Whether a pattern is the capture-everything passthrough the prompt
+/// prescribes when no reliable static anchor exists (`(?s)(.*)`, modulo
+/// optional `^`/`$` anchors).
+pub fn is_passthrough_regex(pattern: &str) -> bool {
+    let p = pattern.trim();
+    let p = p.strip_prefix("(?s)").unwrap_or(p);
+    let p = p.strip_prefix('^').unwrap_or(p);
+    let p = p.strip_suffix('$').unwrap_or(p);
+    p == "(.*)"
+}
+
 /// Render an application result as the FINAL user-visible outcome: the
 /// extracted text is signpost-stripped exactly like the stored metadata
 /// (`build_metadata_patch` applies the same strip). Serves both as the
@@ -145,7 +168,7 @@ pub async fn try_apply_cached_regex(
     key: &str,
     signposted_text: &str,
     tracing: Option<&SpanScope>,
-) -> Option<ApplyRegexResult> {
+) -> Option<ExtractionOutcome> {
     let cached = cache.get::<String>(key).await.ok().flatten()?;
     match apply_regex_traced(&cached, signposted_text, true, tracing) {
         ApplyRegexResult::NoMatch => {
@@ -154,7 +177,11 @@ pub async fn try_apply_cached_regex(
         }
         result => {
             let _ = cache.set_ttl(key, REGEX_CACHE_TTL_SECONDS).await;
-            Some(result)
+            Some(ExtractionOutcome {
+                result,
+                pattern: Some(cached),
+                cache_hit: true,
+            })
         }
     }
 }
@@ -174,18 +201,26 @@ pub async fn generate_and_apply_regex(
     key: &str,
     signposted_text: &str,
     tracing: Option<&SpanScope>,
-) -> anyhow::Result<ApplyRegexResult> {
+) -> anyhow::Result<ExtractionOutcome> {
     let Some(generated) = generate_extraction_regex(llm_client, signposted_text, tracing).await?
     else {
-        return Ok(ApplyRegexResult::NoUserRequest);
+        return Ok(ExtractionOutcome {
+            result: ApplyRegexResult::NoUserRequest,
+            pattern: None,
+            cache_hit: false,
+        });
     };
     let result = apply_regex_traced(&generated, signposted_text, false, tracing);
     if !matches!(result, ApplyRegexResult::NoMatch) {
         let _ = cache
-            .insert_with_ttl(key, generated, REGEX_CACHE_TTL_SECONDS)
+            .insert_with_ttl(key, &generated, REGEX_CACHE_TTL_SECONDS)
             .await;
     }
-    Ok(result)
+    Ok(ExtractionOutcome {
+        result,
+        pattern: Some(generated),
+        cache_hit: false,
+    })
 }
 
 #[cfg(test)]
@@ -257,6 +292,19 @@ mod tests {
             apply_regex(r"(?s)^(?:a+)+b(.*)", &text),
             ApplyRegexResult::NoMatch
         );
+    }
+
+    // ---- is_passthrough_regex -------------------------------------------------
+
+    #[test]
+    fn passthrough_regex_detection() {
+        assert!(is_passthrough_regex("(?s)(.*)"));
+        assert!(is_passthrough_regex("(?s)^(.*)$"));
+        assert!(is_passthrough_regex("(.*)"));
+        assert!(is_passthrough_regex("  (?s)(.*)  "));
+        assert!(!is_passthrough_regex(r"(?s).*</env>\s*(.*)"));
+        assert!(!is_passthrough_regex("(?s)(.*?)"));
+        assert!(!is_passthrough_regex("(?s)()"));
     }
 
     // ---- regex_cache_key ------------------------------------------------------

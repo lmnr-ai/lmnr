@@ -211,8 +211,8 @@ pub async fn process_user_task_candidates(
         // gating equal-or-lower-cost retries for the whole lock TTL and
         // possibly never writing `lmnr_user_task` at all.
         let effect_landed = match inline_result {
-            Some(result) => {
-                let patch = build_metadata_patch(&result);
+            Some(outcome) => {
+                let patch = build_metadata_patch(&outcome.result);
                 match publish_trace_metadata_patch(
                     trace_id,
                     project_id,
