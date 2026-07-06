@@ -28,7 +28,7 @@ const MAX_LLM_CALLS: usize = 6;
 /// thinking on Sonnet shares the cap), so it must be generous: at 1024 the
 /// model's turn routinely truncated mid-thinking or mid-tool-call, mangling
 /// submit args and burning the whole call budget on nudge cycles.
-const MAX_OUTPUT_TOKENS: i32 = 8192;
+const MAX_OUTPUT_TOKENS: i32 = 16384;
 
 const TRY_TOOL_NAME: &str = "try_extraction_regex";
 const SUBMIT_TOOL_NAME: &str = "submit_extraction_regex";
