@@ -1,3 +1,7 @@
+//! Shared report data model. Built by `reports::generator` and rendered by both
+//! the email templates (`notifications::email`) and the Slack report formatter
+//! (`notifications::slack::report`), so it lives here rather than in either renderer.
+
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
@@ -10,6 +14,10 @@ pub struct NoteworthyEvent {
     pub summary: String,
     pub timestamp: String,
     pub trace_id: String,
+    /// 0 = Info, 1 = Warning, 2 = Critical. `serde(default)` so report messages
+    /// queued before this field existed still deserialize (default 0 = Info).
+    #[serde(default)]
+    pub severity: u8,
 }
 
 /// Data for a single project section in the report

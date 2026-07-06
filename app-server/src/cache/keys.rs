@@ -38,13 +38,25 @@ pub const REPORT_SCHEDULER_LAST_CHECK_CACHE_KEY: &str = "report_scheduler_last_c
 pub const SAMPLING_FACTORS_CACHE_KEY: &str = "sampling_factors";
 pub const WORKSPACE_USAGE_WARNINGS_CACHE_KEY: &str = "workspace_usage_warnings";
 pub const USAGE_WARNING_SEND_LOCK_KEY: &str = "usage_warning_send_lock";
+/// Race guard mirroring `USAGE_WARNING_SEND_LOCK_KEY` for hard-limit
+/// notifications. Hard-limit messages share `definition_id` (= workspace_id)
+/// across usage items, so the lock is keyed `…:{workspace_id}:{usage_item}` to
+/// avoid a bytes notification suppressing a concurrent signal-cost one.
+pub const HARD_LIMIT_SEND_LOCK_KEY: &str = "hard_limit_send_lock";
+/// Short-lived cache of `workspace_hard_limit_notifications.last_notified_at`
+/// per `(workspace_id, usage_item)`, so over-limit workspaces don't hit
+/// Postgres on every blocked ingestion request. The frontend evicts this key
+/// when it deletes the underlying dedup row (limit removed/raised); the short
+/// TTL is a backstop for a failed eviction. Must stay in sync with the
+/// frontend constant in `frontend/lib/cache.ts`.
+pub const HARD_LIMIT_NOTIFIED_CACHE_KEY: &str = "hard_limit_notified";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SYS_PROMPT_SUMMARY_CACHE_KEY: &str = "sys_prompt_summary_v2";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SPAN_KEEP_DEFAULT_RULES_CACHE_KEY: &str = "signals_span_keep_default_rules";
 pub const TRACE_EVALUATION_ID_CACHE_KEY: &str = "trace_evaluation_id";
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub const TRACE_INPUT_REGEX_CACHE_KEY: &str = "signals_trace_input_regex";
+pub const USER_TASK_REGEX_CACHE_KEY: &str = "user_task_regex";
+pub const USER_TASK_LOCK_CACHE_KEY: &str = "user_task_lock";
 
 pub const INGESTION_RATE_LIMIT_PROJECT_ID_CACHE_KEY: &str = "ingestion_rate_limit_project_id";
 pub const PROJECT_MEMBERSHIP_CACHE_KEY: &str = "project_membership";

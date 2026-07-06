@@ -4,7 +4,7 @@ use regex::Regex;
 use uuid::Uuid;
 
 use super::NotificationKind;
-use crate::reports::email_template::{ProjectReportData, ReportData};
+use crate::reports::{ProjectReportData, ReportData};
 
 /// Public-facing base URL used to construct user-clickable links in notifications.
 /// Reads `NEXT_PUBLIC_URL` (the frontend's public URL) so self-hosted deployments

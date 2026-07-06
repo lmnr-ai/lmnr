@@ -275,6 +275,10 @@ pub enum ThinkingLevel {
     Minimal,
     Low,
     Medium,
+    // Gemini has no tier above HIGH. The provider→Gemini conversion is a serde
+    // round-trip, so accept the provider enum's `XHigh` ("X_HIGH") here
+    // and collapse it to HIGH (re-serialized as "HIGH" on the wire to Google).
+    #[serde(alias = "X_HIGH")]
     High,
 }
 
