@@ -30,6 +30,16 @@ const LLM_RETRY_INITIAL_BACKOFF_SECS: u64 = 2;
 /// The prompt tells the model probing is unlimited; this cap only bounds
 /// a runaway loop — hitting it is [`GenerationVerdict::Exhausted`].
 const MAX_LLM_CALLS: usize = 6;
+/// Wall-clock deadline for one whole generation pipeline (all agent turns
+/// including their per-call retries). The per-call bounds alone don't cap
+/// the pipeline: a flapping provider that fails [`LLM_MAX_ATTEMPTS`] - 1
+/// timeouts and then recovers, every turn, stretches a single pipeline to
+/// ~[`MAX_LLM_CALLS`] × [`LLM_MAX_ATTEMPTS`] × [`REGEX_LLM_TIMEOUT_SECS`]
+/// (~48 min) — blocking one of the few extraction workers and holding the
+/// queue delivery unacked past broker redelivery timeouts (RabbitMQ acks
+/// time out at 30 min by default). Hitting the deadline is an error — the
+/// caller falls back to the passthrough regex.
+const GENERATION_DEADLINE_SECS: u64 = 600;
 /// Per-call output budget. Thinking tokens count against it (adaptive
 /// thinking on Sonnet shares the cap), so it must be generous: at 1024 the
 /// model's turn routinely truncated mid-thinking or mid-tool-call, mangling
@@ -104,14 +114,32 @@ The message may carry "== lmnr_part_separator ==" lines separating sibling messa
 /// finishes with `submit_extraction_regex`. Errors only when a call
 /// exhausts its transient-retry budget (timeout / provider error) — each
 /// call is retried [`LLM_MAX_ATTEMPTS`] times with exponential backoff
-/// first. Recoverable slips — a response with no tool call, or a
-/// submitted pattern that doesn't extract non-empty text from the
-/// sample (empty string, no compile, no match, empty capture) — are
-/// pushed back to the model (a nudge / a rejection tool response) and
+/// first — or when the whole pipeline overruns
+/// [`GENERATION_DEADLINE_SECS`]. Recoverable slips — a response with no
+/// tool call, or a submitted pattern that doesn't extract non-empty text
+/// from the sample (empty string, no compile, no match, empty capture) —
+/// are pushed back to the model (a nudge / a rejection tool response) and
 /// retried within the call budget. The only non-error terminal outcomes
 /// are an accepted pattern ([`GenerationVerdict::Pattern`]) and an
 /// exhausted budget ([`GenerationVerdict::Exhausted`]).
 pub async fn generate_extraction_regex(
+    llm_client: &Arc<LlmClient>,
+    sample_input: &str,
+    scope: &SpanScope,
+) -> anyhow::Result<GenerationVerdict> {
+    tokio::time::timeout(
+        std::time::Duration::from_secs(GENERATION_DEADLINE_SECS),
+        run_generation_pipeline(llm_client, sample_input, scope),
+    )
+    .await
+    .unwrap_or_else(|_| {
+        Err(anyhow::anyhow!(
+            "regex generation exceeded its {GENERATION_DEADLINE_SECS}s deadline"
+        ))
+    })
+}
+
+async fn run_generation_pipeline(
     llm_client: &Arc<LlmClient>,
     sample_input: &str,
     scope: &SpanScope,
