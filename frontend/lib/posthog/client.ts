@@ -37,6 +37,8 @@ export type Feature =
 
 export const init = (telemetryEnabled: boolean) => {
   if (!telemetryEnabled) return;
+  // Idempotent so React StrictMode double-invocation can't re-init.
+  if (posthog.__loaded) return;
   posthog.init(POSTHOG_KEY, {
     api_host: POSTHOG_HOST,
     person_profiles: "identified_only",
@@ -49,6 +51,14 @@ export const init = (telemetryEnabled: boolean) => {
 };
 
 export const identify = (userId: string, traits?: Record<string, unknown>) => {
+  if (!posthog.__loaded) return;
+  // If this browser is still identified as a DIFFERENT user (logout without
+  // reset, account switch), posthog-js silently skips the $identify event and
+  // never merges the anonymous history into the new user. Reset first so
+  // identify() takes the anonymous→identified merge path.
+  if (posthog._isIdentified() && posthog.get_distinct_id() !== userId) {
+    posthog.reset();
+  }
   posthog.identify(userId, traits);
 };
 
@@ -57,6 +67,8 @@ export const group = (type: string, id: string, traits?: Record<string, unknown>
 };
 
 export const reset = () => {
+  // no-op when PostHog is disabled (self-hosted) instead of warning to console
+  if (!posthog.__loaded) return;
   posthog.reset();
 };
 

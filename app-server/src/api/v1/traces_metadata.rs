@@ -41,10 +41,8 @@ pub async fn update_trace_metadata(
     handle_trace_metadata(project_api_key.project_id, req, spans_message_queue, db, cache).await
 }
 
-/// Shared handler body for `/v1/traces/metadata` and its CLI twin
-/// `/v1/cli/traces/metadata`. Both surfaces differ only in auth (project API key
-/// vs `CliProjectAuth` user token) and how they resolve `project_id`; the
-/// empty-check, existence check, and patch publish live here so they can't drift.
+/// Handler body for `/v1/traces/metadata`: empty-check, existence check, and
+/// patch publish.
 pub async fn handle_trace_metadata(
     project_id: Uuid,
     req: web::Json<UpdateTraceMetadataRequest>,

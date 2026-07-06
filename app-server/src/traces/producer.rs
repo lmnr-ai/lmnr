@@ -48,6 +48,7 @@ struct DedupVerdicts {
     /// `(naive_signature, system_prompt)` when the span carries a system
     /// message — feeds static-part regex extraction (LAM-1899).
     system_prompt: Option<(String, String)>,
+    user_task: Option<crate::traces::input_extraction::UserTaskCandidate>,
 }
 
 /// Run the producer-side preprocessing pipeline that the consumer would
@@ -81,6 +82,10 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
         }
     }
 
+    // Capture the user-task candidate while `span.input` is still populated
+    // (the dedup strip below may null it).
+    let user_task = crate::traces::input_extraction::capture_user_task_candidate(span);
+
     // Tool dedup runs first so its source attributes are stripped before
     // anything else looks at `raw_attributes`.
     let tools = build_tool_dedup(span, cache.clone()).await;
@@ -112,6 +117,7 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
         output,
         tools,
         system_prompt,
+        user_task,
     }
 }
 
@@ -132,7 +138,8 @@ pub async fn publish_span_messages(
     // because each Redis check is cheap and we don't want to flood Redis with
     // a thundering herd on large batches. Most ingest calls carry 1-N spans.
     let mut static_prompt_candidates: Vec<StaticPromptCandidate> = Vec::new();
-    for msg in &mut messages {
+    let mut user_task_candidates = Vec::new();
+    for (idx, msg) in messages.iter_mut().enumerate() {
         if msg.pre_processed {
             continue;
         }
@@ -147,6 +154,9 @@ pub async fn publish_span_messages(
                 prompt_hash,
                 system_prompt,
             });
+        }
+        if let Some(candidate) = verdicts.user_task {
+            user_task_candidates.push((idx, candidate));
         }
     }
 
@@ -192,7 +202,26 @@ pub async fn publish_span_messages(
     // Static-prompt extraction candidates ride a separate queue and are
     // best-effort — only after the span publish succeeded, so a rejected
     // batch doesn't feed the accumulator with spans that were never stored.
-    publish_static_prompt_candidates(static_prompt_candidates, cache, queue).await;
+    publish_static_prompt_candidates(static_prompt_candidates, cache.clone(), queue.clone()).await;
+
+    // Runs after the batch is on the wire so attribute mutation inside the
+    // hook can't affect the published payload. Never fails ingestion.
+    let contexts = user_task_candidates
+        .into_iter()
+        .filter_map(|(idx, candidate)| {
+            let msg = messages.get_mut(idx)?;
+            Some(crate::traces::input_extraction::UserTaskSpanContext {
+                trace_id: msg.span.trace_id,
+                span_name: msg.span.name.clone(),
+                attributes: std::mem::take(&mut msg.span.attributes),
+                candidate,
+            })
+        })
+        .collect();
+    crate::traces::input_extraction::process_user_task_candidates(
+        contexts, project_id, queue, db, cache,
+    )
+    .await;
 
     Ok(0)
 }

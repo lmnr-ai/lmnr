@@ -120,6 +120,7 @@ pub enum WorkerType {
     SignalJobPendingBatch,
     #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     SignalJobRealtime,
+    InputExtraction,
     Logs,
     Reports,
     Checkpoints,
@@ -137,6 +138,7 @@ impl std::fmt::Display for WorkerType {
             }
             WorkerType::SignalJobPendingBatch => write!(f, "signal_job_pending_batch"),
             WorkerType::SignalJobRealtime => write!(f, "signal_job_realtime"),
+            WorkerType::InputExtraction => write!(f, "input_extraction"),
             WorkerType::Logs => write!(f, "logs"),
             WorkerType::Reports => write!(f, "reports"),
             WorkerType::Checkpoints => write!(f, "checkpoints"),

@@ -97,6 +97,28 @@ const GenericToolResultContentPart = ({ part, presetKey }: { part: ToolResultPar
   />
 );
 
+// v7 broadened the ModelMessage union with parts that have no dedicated UI
+// (`custom`, `reasoning-file`, `tool-approval-request`, `tool-approval-response`).
+// Surface them as a labeled JSON block so nothing is silently dropped.
+const GenericUnknownContentPart = ({
+  part,
+  presetKey,
+  messageIndex,
+  contentPartIndex,
+}: {
+  part: { type?: string };
+  presetKey: string;
+  messageIndex?: number;
+  contentPartIndex?: number;
+}) => (
+  <TextContentPart
+    content={JSON.stringify(part, null, 2)}
+    presetKey={presetKey}
+    messageIndex={messageIndex}
+    contentPartIndex={contentPartIndex}
+  />
+);
+
 const PureContentParts = ({
   message,
   presetKey,
@@ -161,8 +183,18 @@ const PureContentParts = ({
         );
       case "file":
         return <GenericFileContentPart key={`${part.type}-${index}`} part={part} />;
-      default:
-        return;
+      default: {
+        const unknownPart = part as { type?: string };
+        return (
+          <GenericUnknownContentPart
+            key={`${unknownPart.type ?? "unknown"}-${index}`}
+            part={unknownPart}
+            presetKey={`${parentIndex}-${unknownPart.type ?? "unknown"}-${index}-${presetKey}`}
+            messageIndex={parentIndex}
+            contentPartIndex={index}
+          />
+        );
+      }
     }
   });
 };
