@@ -12,7 +12,7 @@ use fancy_regex::RegexBuilder;
 use sha3::{Digest, Sha3_256};
 use uuid::Uuid;
 
-use super::generate::generate_extraction_regex;
+use super::generate::{GenerationVerdict, generate_extraction_regex};
 use super::input::split_signposts_and_rejoin;
 use super::self_tracing::{self, SpanBuilder, SpanScope};
 use crate::cache::keys::USER_TASK_REGEX_CACHE_KEY;
@@ -75,13 +75,20 @@ pub struct ExtractionOutcome {
     pub result: ApplyRegexResult,
     /// The pattern whose application produced `result`; `None` when the
     /// generation pipeline produced no regex at all (deliberate empty
-    /// submit or exhausted call budget).
+    /// submit).
     pub pattern: Option<String>,
+    /// The generation loop exhausted its call budget without a verdict
+    /// and `result` came from the passthrough fallback.
+    pub budget_exhausted: bool,
 }
 
-/// Whether a pattern is the capture-everything passthrough the prompt
-/// prescribes when no reliable static anchor exists (`(?s)(.*)`, modulo
-/// optional `^`/`$` anchors).
+/// The capture-everything passthrough the prompt prescribes when no
+/// reliable static anchor exists. Also the fallback applied when the
+/// generation loop exhausts its call budget without a verdict.
+pub const PASSTHROUGH_REGEX: &str = "(?s)(.*)";
+
+/// Whether a pattern is the capture-everything passthrough (`(?s)(.*)`,
+/// modulo optional `^`/`$` anchors).
 pub fn is_passthrough_regex(pattern: &str) -> bool {
     let p = pattern.trim();
     let p = p.strip_prefix("(?s)").unwrap_or(p);
@@ -169,11 +176,19 @@ pub async fn try_apply_cached_regex(
 /// persist it unless the result was `NoMatch` (a regex wrong for its
 /// own sample is not worth caching). Errors only on transport failure
 /// (timeout / provider error) so the consumer can requeue as transient.
-/// A deliberate empty-regex verdict from the model ("no valid regex can
-/// be produced") is terminal, not retryable: it maps to `NoUserRequest`
-/// (→ `lmnr_user_task: false` patch) so the message finishes instead of looping
-/// through an LLM call per requeue. Nothing is cached for it — a later
-/// trace of the same shape gets a fresh chance at a real regex.
+/// The two no-pattern verdicts are terminal, not retryable (the message
+/// finishes instead of looping through an LLM call per requeue), but
+/// they map differently:
+/// - a deliberate empty-regex verdict ("no valid regex can be produced")
+///   is the model saying the message is all scaffolding → `NoUserRequest`
+///   (→ `lmnr_user_task: false` patch);
+/// - an exhausted call budget is NOT a verdict — the model never decided,
+///   so falling to `false` would mis-mark a trace that plainly has user
+///   input. Fall back to the passthrough regex instead: the full
+///   reconstructed input beats a wrong `false`.
+///
+/// Neither no-pattern verdict caches anything — a later trace of the
+/// same shape gets a fresh chance at a real regex.
 pub async fn generate_and_apply_regex(
     cache: &Arc<Cache>,
     llm_client: &Arc<LlmClient>,
@@ -181,12 +196,22 @@ pub async fn generate_and_apply_regex(
     signposted_text: &str,
     scope: &SpanScope,
 ) -> anyhow::Result<ExtractionOutcome> {
-    let Some(generated) = generate_extraction_regex(llm_client, signposted_text, scope).await?
-    else {
-        return Ok(ExtractionOutcome {
-            result: ApplyRegexResult::NoUserRequest,
-            pattern: None,
-        });
+    let generated = match generate_extraction_regex(llm_client, signposted_text, scope).await? {
+        GenerationVerdict::Pattern(pattern) => pattern,
+        GenerationVerdict::NoRegexPossible => {
+            return Ok(ExtractionOutcome {
+                result: ApplyRegexResult::NoUserRequest,
+                pattern: None,
+                budget_exhausted: false,
+            });
+        }
+        GenerationVerdict::Exhausted => {
+            return Ok(ExtractionOutcome {
+                result: apply_regex_traced(PASSTHROUGH_REGEX, signposted_text, scope),
+                pattern: Some(PASSTHROUGH_REGEX.to_string()),
+                budget_exhausted: true,
+            });
+        }
     };
     let result = apply_regex_traced(&generated, signposted_text, scope);
     if !matches!(result, ApplyRegexResult::NoMatch) {
@@ -197,6 +222,7 @@ pub async fn generate_and_apply_regex(
     Ok(ExtractionOutcome {
         result,
         pattern: Some(generated),
+        budget_exhausted: false,
     })
 }
 

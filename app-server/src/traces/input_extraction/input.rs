@@ -23,6 +23,26 @@ pub const USER_FACING_SEPARATOR: &str = "\n\n";
 /// regex-generation LLM call — keeps pathological inputs bounded.
 const REGEX_INPUT_CAP_CHARS: usize = 200_000;
 
+/// Fingerprint prefix for last turns preceded by assistant/model history.
+/// First prompts of a conversation usually have a different shape than
+/// follow-ups, and the tag-based fingerprint alone doesn't always capture
+/// that — forking the cache key on history over-generates regexes for
+/// better extraction quality.
+pub const HAS_HISTORY_FINGERPRINT_PREFIX: &str = "has_history|";
+
+/// The winner-lock `user_sig` for a fingerprint: the history prefix
+/// stripped. The prefix forks the REGEX cache key only — for lock
+/// arbitration, turn 1 (`plain`) and turn 2 (`has_history|plain`) of a
+/// conversation are the SAME agent, and equal-depth override requires an
+/// exact sig match, so keeping the prefix would block every follow-up
+/// turn from overriding the first prompt's lock and freeze
+/// `lmnr_user_task` on it for the lock TTL.
+pub fn lock_user_sig(fingerprint: &str) -> &str {
+    fingerprint
+        .strip_prefix(HAS_HISTORY_FINGERPRINT_PREFIX)
+        .unwrap_or(fingerprint)
+}
+
 // ---------------------------------------------------------------------------
 // Last-turn extraction
 // ---------------------------------------------------------------------------
@@ -131,16 +151,32 @@ pub struct UserTaskInput {
     /// The regex target: the signpost-joined last-turn user parts.
     /// Truncated.
     pub signposted_text: String,
-    /// Order-insensitive user naive signature (part of the regex cache key).
+    /// Order-insensitive user naive signature (part of the regex cache
+    /// key), prefixed with [`HAS_HISTORY_FINGERPRINT_PREFIX`] when the
+    /// last turn follows assistant/model history.
     pub fingerprint: String,
 }
 
 pub fn prepare_user_task_input(input: &Value) -> Option<UserTaskInput> {
     let parts = canonicalize_user_parts(extract_last_turn_user_parts(input)?);
     let user_text = join_parts_signposted(&parts)?;
+    let mut fingerprint = fingerprint_user_parts(&parts);
+    // The last turn's parts come after the LAST assistant message, so any
+    // assistant/model message in the input is prior history.
+    if has_prior_assistant(input) {
+        fingerprint = format!("{HAS_HISTORY_FINGERPRINT_PREFIX}{fingerprint}");
+    }
     Some(UserTaskInput {
         signposted_text: truncate_for_regex(user_text),
-        fingerprint: fingerprint_user_parts(&parts),
+        fingerprint,
+    })
+}
+
+fn has_prior_assistant(input: &Value) -> bool {
+    find_messages_array(input).is_some_and(|messages| {
+        messages
+            .iter()
+            .any(|m| normalize_role(m) == Role::Assistant)
     })
 }
 
@@ -290,7 +326,7 @@ mod tests {
             prepared.signposted_text,
             "<context>c</context>\n\n== lmnr_part_separator ==\n\nthe task"
         );
-        assert_eq!(prepared.fingerprint, "context,/context|plain");
+        assert_eq!(prepared.fingerprint, "has_history|context,/context|plain");
     }
 
     #[test]
@@ -330,6 +366,52 @@ mod tests {
         ]);
         let prepared = prepare_user_task_input(&v).unwrap();
         assert_eq!(prepared.signposted_text, "the task");
-        assert_eq!(prepared.fingerprint, "plain");
+        assert_eq!(prepared.fingerprint, "has_history|plain");
+    }
+
+    #[test]
+    fn prepare_forks_fingerprint_on_history() {
+        // Same last-turn shape, but a first prompt and a follow-up must
+        // not share a regex cache entry.
+        let first = json!([
+            {"role": "user", "content": "the task"}
+        ]);
+        let followup = json!([
+            {"role": "user", "content": "old task"},
+            {"role": "assistant", "content": "done"},
+            {"role": "user", "content": "the task"}
+        ]);
+        let p_first = prepare_user_task_input(&first).unwrap();
+        let p_followup = prepare_user_task_input(&followup).unwrap();
+        assert_eq!(p_first.fingerprint, "plain");
+        assert_eq!(p_followup.fingerprint, "has_history|plain");
+        assert_eq!(p_first.signposted_text, p_followup.signposted_text);
+    }
+
+    #[test]
+    fn lock_user_sig_strips_history_prefix() {
+        // First-turn and follow-up fingerprints of the same conversation
+        // must map to one lock sig, or equal-depth override (exact sig
+        // match required) would freeze `lmnr_user_task` on the first
+        // prompt for the whole lock TTL.
+        assert_eq!(lock_user_sig("plain"), "plain");
+        assert_eq!(lock_user_sig("has_history|plain"), "plain");
+        assert_eq!(
+            lock_user_sig("has_history|context,/context|plain"),
+            "context,/context|plain"
+        );
+    }
+
+    #[test]
+    fn prepare_detects_history_for_model_role() {
+        // Gemini-style `model` role counts as assistant history.
+        let v = json!({
+            "contents": [
+                {"role": "model", "parts": [{"text": "prev"}]},
+                {"role": "user", "parts": [{"text": "the task"}]}
+            ]
+        });
+        let prepared = prepare_user_task_input(&v).unwrap();
+        assert_eq!(prepared.fingerprint, "has_history|plain");
     }
 }

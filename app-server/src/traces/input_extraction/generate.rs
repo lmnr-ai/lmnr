@@ -22,11 +22,31 @@ use crate::llm::{LlmClient, request_to_span_input, request_to_tools_attr};
 const REGEX_LLM_TIMEOUT_SECS: u64 = 120;
 /// Total LLM-call budget per pipeline (initial call + probe round-trips).
 /// The prompt tells the model probing is unlimited; this cap only bounds
-/// a runaway loop — hitting it is treated as "no regex produced".
+/// a runaway loop — hitting it is [`GenerationVerdict::Exhausted`].
 const MAX_LLM_CALLS: usize = 6;
+/// Per-call output budget. Thinking tokens count against it (adaptive
+/// thinking on Sonnet shares the cap), so it must be generous: at 1024 the
+/// model's turn routinely truncated mid-thinking or mid-tool-call, mangling
+/// submit args and burning the whole call budget on nudge cycles.
+const MAX_OUTPUT_TOKENS: i32 = 16384;
 
 const TRY_TOOL_NAME: &str = "try_extraction_regex";
 const SUBMIT_TOOL_NAME: &str = "submit_extraction_regex";
+
+/// How a generation pipeline ended.
+pub enum GenerationVerdict {
+    /// Accepted submit: a pattern that matches the sample.
+    Pattern(String),
+    /// The model's deliberate empty-string submit — "the message is all
+    /// scaffolding, no valid regex can be produced". Maps to
+    /// `lmnr_user_task: false`.
+    NoRegexPossible,
+    /// The call budget ran out without an accepted submit. Distinct from
+    /// [`GenerationVerdict::NoRegexPossible`] — the model never delivered
+    /// a verdict, so the caller falls back to the passthrough regex
+    /// instead of marking the trace as having no user task.
+    Exhausted,
+}
 
 const REGEX_GENERATION_SYSTEM_PROMPT: &str = r#"# Task
 
@@ -84,14 +104,15 @@ The message may carry "== lmnr_part_separator ==" lines separating sibling messa
 /// requeue. Recoverable slips — a response with no tool call, or a
 /// submitted pattern that doesn't match the sample — are pushed back to
 /// the model (a nudge / a rejection tool response) and retried within
-/// the call budget. Only an explicit empty-string submit (the model's
-/// deliberate no-regex verdict) or an exhausted budget is `Ok(None)`: a
-/// decision, not a transport failure.
+/// the call budget. Non-error terminal outcomes are decisions, not
+/// transport failures: an explicit empty-string submit is
+/// [`GenerationVerdict::NoRegexPossible`], an exhausted budget is
+/// [`GenerationVerdict::Exhausted`].
 pub async fn generate_extraction_regex(
     llm_client: &Arc<LlmClient>,
     sample_input: &str,
     scope: &SpanScope,
-) -> anyhow::Result<Option<String>> {
+) -> anyhow::Result<GenerationVerdict> {
     let mut contents = vec![ProviderContent {
         role: Some("user".to_string()),
         parts: Some(vec![ProviderPart {
@@ -115,11 +136,15 @@ pub async fn generate_extraction_regex(
 
         // An ACCEPTED submit ends the pipeline even when probe calls ride
         // the same response — the model already committed to a final
-        // answer. Accepted means: empty string (the deliberate no-regex
-        // verdict — terminal) or a pattern that matches the sample
-        // (`Extracted` or `NoUserRequest`). A non-matching submit is NOT
-        // accepted — it falls through to the rejection path below and the
-        // model gets another attempt within the call budget.
+        // answer. Accepted means: an explicit empty string (the deliberate
+        // no-regex verdict — terminal) or a pattern that matches the
+        // sample (`Extracted` or `NoUserRequest`). A submit with a
+        // MISSING/unparseable `regex` arg (a truncated or mangled tool
+        // call) is NOT the empty-string verdict — treating it as such
+        // silently wrote `lmnr_user_task: false` for traces whose model
+        // had actually settled on a pattern. It falls through to the
+        // rejection path below, like a non-matching submit, and the model
+        // gets another attempt within the call budget.
         for part in parts {
             if let Some(fc) = &part.function_call
                 && fc.name == SUBMIT_TOOL_NAME
@@ -129,16 +154,18 @@ pub async fn generate_extraction_regex(
                     .as_ref()
                     .and_then(|a| a.get("regex"))
                     .and_then(|v| v.as_str())
-                    .map(str::trim)
-                    .unwrap_or("");
-                if submitted.is_empty() {
-                    return Ok(None);
-                }
-                if !matches!(
-                    apply_regex(submitted, sample_input),
-                    ApplyRegexResult::NoMatch
-                ) {
-                    return Ok(Some(submitted.to_string()));
+                    .map(str::trim);
+                match submitted {
+                    Some("") => return Ok(GenerationVerdict::NoRegexPossible),
+                    Some(pattern)
+                        if !matches!(
+                            apply_regex(pattern, sample_input),
+                            ApplyRegexResult::NoMatch
+                        ) =>
+                    {
+                        return Ok(GenerationVerdict::Pattern(pattern.to_string()));
+                    }
+                    _ => {}
                 }
             }
         }
@@ -219,7 +246,7 @@ pub async fn generate_extraction_regex(
     log::warn!(
         "user-task: regex generation exhausted its {MAX_LLM_CALLS}-call budget without a submit"
     );
-    Ok(None)
+    Ok(GenerationVerdict::Exhausted)
 }
 
 /// Apply a probed pattern to the original sample input and package the
@@ -284,7 +311,7 @@ fn build_request(contents: Vec<ProviderContent>) -> ProviderRequest {
         }]),
         generation_config: Some(ProviderGenerationConfig {
             temperature: Some(1.0),
-            max_output_tokens: Some(1024),
+            max_output_tokens: Some(MAX_OUTPUT_TOKENS),
             thinking_config: Some(ProviderThinkingConfig {
                 include_thoughts: Some(true),
                 thinking_level: Some(ProviderThinkingLevel::Medium),
