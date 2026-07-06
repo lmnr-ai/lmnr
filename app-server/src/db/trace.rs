@@ -427,15 +427,18 @@ pub struct TraceMetadataPatch {
 ///
 /// A patch that arrives before the trace's span batch creates a virtual row
 /// (metadata + zeroed stats); the later `upsert_trace_statistics_batch` fills
-/// the stats in on conflict. Such stub rows have NULL start/end times — the
-/// processor keeps them out of the ClickHouse / realtime fan-out (`CHTrace`
-/// would map the missing times to epoch 0) until the span batch fills them
-/// in. Known caveat: if the spans never arrive (span batch permanently
-/// rejected, or the trace was deleted between request and consumption), a
-/// metadata-only stub row remains. Accepted deliberately — checking row
-/// existence per patch is a heavy PG read on the hot ingest path, and spans
-/// not arriving at all is a catastrophic failure where an empty trace body
-/// is the least of the problems.
+/// the stats in on conflict. Stub rows get `now()` start/end times (never
+/// NULL — `CHTrace` maps missing times to epoch 0, which would land the row
+/// in ClickHouse's epoch partition where the later real-month row can't
+/// replace it). The conflict arm only backfills NULL times, so a real row's
+/// times are never touched, and the aggregation upsert's `LEAST`/`GREATEST`
+/// pulls a stub's placeholder times toward the real span range when the
+/// batch arrives. Known caveat: if the spans never arrive (span batch
+/// permanently rejected, or the trace was deleted between request and
+/// consumption), a metadata-only stub row remains. Accepted deliberately —
+/// checking row existence per patch is a heavy PG read on the hot ingest
+/// path, and spans not arriving at all is a catastrophic failure where an
+/// empty trace body is the least of the problems.
 #[instrument(skip(pool, patches))]
 pub async fn merge_trace_metadata_batch(
     pool: &PgPool,
@@ -453,6 +456,8 @@ pub async fn merge_trace_metadata_batch(
                 id,
                 project_id,
                 metadata,
+                start_time,
+                end_time,
                 type,
                 input_token_count,
                 output_token_count,
@@ -463,10 +468,13 @@ pub async fn merge_trace_metadata_batch(
                 tags,
                 num_spans
             )
-            VALUES ($1, $2, $3, 0, 0, 0, 0, 0, 0, 0, '{}', 1)
+            VALUES ($1, $2, $3, now(), now(), 0, 0, 0, 0, 0, 0, 0, '{}', 1)
             ON CONFLICT (project_id, id) DO UPDATE SET
                 metadata = COALESCE(traces.metadata || EXCLUDED.metadata, EXCLUDED.metadata, traces.metadata),
-                num_spans = COALESCE(traces.num_spans, 0) + 1
+                num_spans = COALESCE(traces.num_spans, 0) + 1,
+                -- backfill only: an existing row's times are never overwritten
+                start_time = COALESCE(traces.start_time, EXCLUDED.start_time),
+                end_time = COALESCE(traces.end_time, EXCLUDED.end_time)
             RETURNING
                 id,
                 project_id,
