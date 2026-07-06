@@ -57,15 +57,18 @@ export default function RunScoreCard({
     titleNode: dropdown,
   };
 
-  // h-[156px]: same height as the aggregate strip cards (aggregate-score-cards.tsx)
-  // so toggling boolean/numeric via the dropdown never changes the card size,
-  // and tall enough that the histogram's axes leave room for the bars.
+  // h-[156px]: fixed so toggling boolean/numeric via the dropdown never changes
+  // the card size, and tall enough that the histogram's axes leave room for the bars.
   return (
     <div className="h-[156px]">
       {isBinaryDistribution(distribution) ? (
         <BinaryCard {...common} />
       ) : (
-        <HistogramCard {...common} aggregation={aggregation} comparedStatistics={comparedAllStatistics?.[active] ?? null} />
+        <HistogramCard
+          {...common}
+          aggregation={aggregation}
+          comparedStatistics={comparedAllStatistics?.[active] ?? null}
+        />
       )}
     </div>
   );

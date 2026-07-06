@@ -7,7 +7,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { shallow } from "zustand/shallow";
 
-import AggregateScoreCards from "@/components/evaluation/aggregate-score-cards";
 import EvalTraceLayout from "@/components/evaluation/eval-trace-layout";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
@@ -232,14 +231,6 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
     () => searchParams.get("datapointId") ?? undefined
   );
 
-  // Retain the last opened trace so its content stays mounted while the column
-  // animates out (onClose clears traceId immediately). Adjust during render
-  // rather than in an effect to avoid a cascading commit.
-  const [displayTraceId, setDisplayTraceId] = useState<string | undefined>(traceId);
-  if (traceId && traceId !== displayTraceId) {
-    setDisplayTraceId(traceId);
-  }
-
   // Always-open: auto-select the first datapoint when nothing is selected. The
   // trace panel has no close button, so this only fires on initial load.
   const firstRow = allDatapoints?.[0] as EvalRow | undefined;
@@ -337,38 +328,20 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
             need them (the table's right padding in EvalTraceLayout) rather than
             the wrapper. */}
         <div className="flex flex-col gap-2 flex-1 overflow-hidden pl-4 pt-2">
-          {/* Split view.
-              LEFT = the whole run (aggregate), above the table: a horizontal
-              strip of per-score cards while no trace is open, collapsing to one
-              aggregate card with a score picker once a row is selected.
-              RIGHT = the single selected datapoint: its score pills (hover shows
-              that row's value across previous runs) above the trace view, in a
-              panel that runs flush to the right + bottom edges with a top+left
-              border and one rounded top-left corner. Left-column right-padding
-              is applied in EvalTraceLayout, only when it owns the full row. */}
+          {/* Split view. LEFT = run aggregate card (score picker) above the table.
+              RIGHT = the selected datapoint's score pills above its always-open
+              trace view, flush to the right + bottom edges with a rounded top-left. */}
           <EvalTraceLayout
             table={
               <div className="flex h-full w-full flex-col gap-2 overflow-hidden">
-                {traceId ? (
-                  <RunScoreCard
-                    scoreNames={scoreNames}
-                    allStatistics={statsData?.allStatistics}
-                    allDistributions={statsData?.allDistributions}
-                    comparedAllStatistics={targetStatsData?.allStatistics}
-                    comparedAllDistributions={targetStatsData?.allDistributions}
-                    isComparison={isComparison}
-                  />
-                ) : (
-                  <AggregateScoreCards
-                    scoreNames={scoreNames}
-                    allStatistics={statsData?.allStatistics}
-                    allDistributions={statsData?.allDistributions}
-                    comparedAllStatistics={targetStatsData?.allStatistics}
-                    comparedAllDistributions={targetStatsData?.allDistributions}
-                    isComparison={isComparison}
-                    isLoading={isStatsLoading}
-                  />
-                )}
+                <RunScoreCard
+                  scoreNames={scoreNames}
+                  allStatistics={statsData?.allStatistics}
+                  allDistributions={statsData?.allDistributions}
+                  comparedAllStatistics={targetStatsData?.allStatistics}
+                  comparedAllDistributions={targetStatsData?.allDistributions}
+                  isComparison={isComparison}
+                />
                 <div className="flex min-h-0 flex-1 overflow-hidden">{table}</div>
               </div>
             }
@@ -385,7 +358,7 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
                 </div>
                 <div className="flex min-h-0 flex-1 overflow-hidden">
                   {/* No onClose ⇒ always-open: the trace header shows no close button. */}
-                  {displayTraceId && <TraceView key={displayTraceId} traceId={displayTraceId} />}
+                  {traceId && <TraceView key={traceId} traceId={traceId} />}
                 </div>
               </div>
             }
