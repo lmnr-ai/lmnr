@@ -22,7 +22,6 @@ import {
   selectVisibleColumnDefs,
   useEvalStore,
 } from "@/components/evaluation/store";
-import { useLabelField } from "@/components/evaluation/use-label-field";
 import {
   type EvaluationStatsPayload,
   flattenScores,
@@ -32,7 +31,6 @@ import {
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableConfigStore, useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import { resolveLabelPath } from "@/lib/evaluation/label-path";
 import { type EvalRow, type Evaluation as EvaluationType, type EvaluationResultsInfo } from "@/lib/evaluation/types";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { swrFetcher } from "@/lib/utils";
@@ -47,13 +45,12 @@ interface EvaluationProps {
 }
 
 const PAGE_SIZE = 50;
-const BASE_COLUMN_ORDER = ["label", "status", "index", "data", "target", "metadata", "output", "duration", "cost"];
+const BASE_COLUMN_ORDER = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
 // Forked from the pre-refresh "evaluation" resource so old persisted table
 // config never fights the new defaults.
 const RESOURCE = "evaluation-v1.1";
-// Default visibility: label + score:*. The label column stands in for
-// data/target/metadata, so those (plus status/index/output/duration/cost) start hidden.
-const DEFAULT_HIDDEN_COLUMNS = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
+// Default visibility: status + index + data + target + metadata + score:*.
+const DEFAULT_HIDDEN_COLUMNS = ["output", "duration", "cost"];
 
 function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
   const { push } = useRouter();
@@ -85,15 +82,10 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
   const setHeatmapEnabled = useEvalStore((s) => s.setHeatmapEnabled);
   const addScoreName = useEvalStore((s) => s.addScoreName);
 
-  // LLM picks the label field ONCE per evaluation; the server samples
-  // untruncated rows itself. When a path lands, the label column gains a
-  // compiled SQL expression and the table refetches with it.
-  const { fieldPath: labelFieldPath } = useLabelField(params.projectId, evaluationId);
-
   const isComparison = !!targetId;
   const columnDefs = useMemo(
-    () => buildColumnDefs({ scoreNames, customColumns, isShared, labelFieldPath }),
-    [scoreNames, customColumns, isShared, labelFieldPath]
+    () => buildColumnDefs({ scoreNames, customColumns, isShared }),
+    [scoreNames, customColumns, isShared]
   );
 
   // Stats SWR — drives the score chips + charts.
@@ -190,17 +182,6 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
       {} as Record<string, { min: number; max: number }>
     );
   }, [allDatapoints, scoreNames, targetId]);
-
-  // Rows fetched with the label query column carry `label` already; the
-  // client-side resolve only covers the gap window (rows fetched before the
-  // path landed, realtime upserts) — it can miss on truncated data/target.
-  const labeledDatapoints = useMemo(() => {
-    if (!labelFieldPath || !allDatapoints) return allDatapoints;
-    return allDatapoints.map((row) => ({
-      ...row,
-      label: (row["label"] as string | undefined) || resolveLabelPath(row, labelFieldPath),
-    }));
-  }, [allDatapoints, labelFieldPath]);
 
   // Realtime — only on the live (non-comparison) eval page.
   const debouncedRevalidateStats = useMemo(
@@ -313,7 +294,7 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
 
   const table = (
     <EvaluationDatapointsTable
-      data={labeledDatapoints}
+      data={allDatapoints}
       isLoading={isStatsLoading || isLoadingDatapoints || isViewLoading}
       isFetching={isFetching}
       hasMore={hasMore}
@@ -322,7 +303,6 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
       visibleColumnDefs={visibleColumnDefs}
       isComparison={isComparison}
       scoreRanges={scoreRanges}
-      pinnedLeftColumnIds={["label"]}
       datapointId={datapointId}
       handleRowClick={handleRowClick}
       getRowHref={getRowHref}
@@ -340,8 +320,8 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
 
   // The selected datapoint — drives the per-row score chips above the trace.
   const selectedRow = useMemo(
-    () => (datapointId ? labeledDatapoints?.find((row) => row["id"] === datapointId) : undefined),
-    [labeledDatapoints, datapointId]
+    () => (datapointId ? allDatapoints?.find((row) => row["id"] === datapointId) : undefined),
+    [allDatapoints, datapointId]
   );
 
   return (

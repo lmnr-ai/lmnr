@@ -9,12 +9,10 @@ import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { type CustomColumn } from "@/components/ui/columns-menu";
 import { type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
-import { labelPathToSql } from "@/lib/evaluation/label-path";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 import { DataCell } from "./columns/data-cell";
 import { createScoreColumnDef, STATIC_COLUMNS } from "./columns/index";
-import { createLabelColumnDef } from "./columns/label-cell";
 
 interface RawUrlParams {
   search: string | null;
@@ -63,13 +61,10 @@ export function buildColumnDefs({
   scoreNames,
   customColumns,
   isShared,
-  labelFieldPath = null,
 }: {
   scoreNames: string[];
   customColumns: CustomColumn[];
   isShared: boolean;
-  /** LLM-extracted field path; when set, the label column resolves server-side (untruncated). */
-  labelFieldPath?: string | null;
 }): ColumnDef<EvalRow>[] {
   const scoreCols = scoreNames.map((name) => createScoreColumnDef(name));
 
@@ -91,9 +86,7 @@ export function buildColumnDefs({
           isCustom: true,
         },
       }));
-  const labelSql = labelFieldPath ? (labelPathToSql(labelFieldPath) ?? undefined) : undefined;
-  const labelCol = createLabelColumnDef(labelSql);
-  return [...STATIC_COLUMNS, ...scoreCols, ...customCols, labelCol];
+  return [...STATIC_COLUMNS, ...scoreCols, ...customCols];
 }
 
 /**

@@ -271,7 +271,3 @@ export const AUTOCOMPLETE_CACHE_KEY = (resource: string, projectId: string, fiel
 
 export const SPAN_RENDERING_KEY_CACHE_KEY = (projectId: string, schemaFingerprint: string): string =>
   `span_rendering_key:${projectId}:${schemaFingerprint}`;
-
-// LLM-picked label field per evaluation (Compact v1 POC), mirrors SPAN_RENDERING_KEY_CACHE_KEY.
-export const EVAL_LABEL_FIELD_CACHE_KEY = (projectId: string, evaluationId: string): string =>
-  `eval_label_field:${projectId}:${evaluationId}`;
