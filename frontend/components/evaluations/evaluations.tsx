@@ -295,16 +295,13 @@ function EvaluationsContent() {
     return ids.length > 0 ? ids[0] : undefined;
   }, [rowSelection]);
 
-  // Same progression endpoint the chart hits — SWR dedups so this doesn't fire twice.
-  // We use the result to add per-score columns to the table.
-  const progressionUrl =
-    groupId && evaluations.length > 0
-      ? `/api/projects/${params?.projectId}/evaluation-groups/${encodeURIComponent(groupId)}/progression`
-      : null;
-  const progressionBody = useMemo(
-    () => ({ ids: evaluations.map((e) => e.id), aggregate: aggregationFunction }),
-    [evaluations, aggregationFunction]
-  );
+  // Same group-scoped progression the chart hits (no `ids` ⇒ every run in the
+  // group) — SWR dedups so this doesn't fire twice. Drives the table's per-score
+  // columns AND the full run set for the chart's Hide-all / visibility.
+  const progressionUrl = groupId
+    ? `/api/projects/${params?.projectId}/evaluation-groups/${encodeURIComponent(groupId)}/progression`
+    : null;
+  const progressionBody = useMemo(() => ({ aggregate: aggregationFunction }), [aggregationFunction]);
   const { data: progression } = useSWR<EvaluationTimeProgression[]>(
     progressionUrl ? [progressionUrl, progressionBody] : null,
     async ([url, body]: [string, object]) => {
@@ -340,6 +337,10 @@ function EvaluationsContent() {
     return { scoreNames: names, scoresByEvalId: byEvalId };
   }, [progression]);
 
+  // Every run in the group (from the group-scoped progression), not just the
+  // loaded table page — so "Hide all" and the chart cover the whole group.
+  const allRunIds = useMemo(() => progression?.map((p) => p.evaluationId) ?? [], [progression]);
+
   // Per-score min/max across the currently-loaded evals. The detail page derives
   // the same range from its currently-loaded datapoints — both shift as infinite
   // scroll brings in more rows, which is intentional.
@@ -369,7 +370,7 @@ function EvaluationsContent() {
         // so the 28px icon button needs at least 28 + 32 = 60px of column width.
         size: 64,
         header: () => {
-          const allHidden = evaluations.length > 0 && evaluations.every(({ id }) => hiddenEvaluationIds.includes(id));
+          const allHidden = allRunIds.length > 0 && allRunIds.every((id) => hiddenEvaluationIds.includes(id));
           return (
             // pr-4 mirrors the cell's symmetric px-4 (the header wrapper only has
             // left padding), so the header icon centers over the cell icons.
@@ -381,7 +382,7 @@ function EvaluationsContent() {
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setHiddenEvaluationIds(allHidden ? [] : evaluations.map(({ id }) => id));
+                  setHiddenEvaluationIds(allHidden ? [] : allRunIds);
                 }}
                 title={allHidden ? "Show all" : "Hide all"}
               >
@@ -421,7 +422,7 @@ function EvaluationsContent() {
       hiddenEvaluationIds,
       toggleEvaluationVisibility,
       setHiddenEvaluationIds,
-      evaluations,
+      allRunIds,
     ]
   );
 
@@ -496,9 +497,8 @@ function EvaluationsContent() {
           <ResizablePanelGroup id="evaluations-panels" className="overflow-hidden" orientation="vertical">
             <ResizablePanel className="min-w-0" minSize={20} defaultSize={20}>
               <ProgressionChart
-                evaluations={evaluations
-                  .filter(({ id }) => !hiddenEvaluationIds.includes(id))
-                  .map(({ id, name }) => ({ id, name }))}
+                evaluations={evaluations.map(({ id, name }) => ({ id, name }))}
+                hiddenEvaluationIds={hiddenEvaluationIds}
                 className="h-full"
                 aggregationFunction={aggregationFunction}
                 baselineEvaluationId={selectedEvaluationId}

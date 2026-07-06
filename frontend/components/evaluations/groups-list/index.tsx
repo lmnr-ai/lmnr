@@ -25,9 +25,12 @@ export default function GroupsList() {
 
   useEffect(() => {
     if (groups && groups.length > 0 && !groupId) {
-      router.replace(`/project/${projectId}/evaluations?groupId=${groups[0].groupId}`);
+      // Merge (don't clobber) existing query params — filters/search/view state.
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("groupId", groups[0].groupId);
+      router.replace(`/project/${projectId}/evaluations?${params.toString()}`);
     }
-  }, [groups, groupId, router, projectId]);
+  }, [groups, groupId, router, projectId, searchParams]);
 
   const onSelect = useCallback(
     (selectedGroupId: string) => {

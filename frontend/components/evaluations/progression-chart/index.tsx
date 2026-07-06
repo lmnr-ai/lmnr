@@ -31,18 +31,22 @@ const postFetcher = async ([url, body]: [string, object]) => {
 interface ProgressionChartProps {
   className?: string;
   aggregationFunction: AggregationFunction;
+  /** Loaded runs, used only to label points (names); the data itself is fetched group-scoped. */
   evaluations: { id: string; name: string }[];
+  /** Runs hidden from the chart. Render-only — they stay in the data so a hidden baseline still subtracts. */
+  hiddenEvaluationIds?: string[];
   baselineEvaluationId?: string;
   hoveredEvaluationId?: string;
   onPointClick?: (evaluationId: string) => void;
 }
 
-const EMPTY_HIDDEN_SCORES: string[] = [];
+const EMPTY_IDS: string[] = [];
 
 export default function ProgressionChart({
   className,
   aggregationFunction,
   evaluations,
+  hiddenEvaluationIds = EMPTY_IDS,
   baselineEvaluationId,
   hoveredEvaluationId,
   onPointClick,
@@ -55,13 +59,12 @@ export default function ProgressionChart({
   // Persist deselected scores (not selected) so newly-appearing scores default to visible.
   const [hiddenScores, setHiddenScores] = useLocalStorage<string[]>(
     `evaluations-chart-hidden-scores:${params?.projectId}:${groupId ?? ""}`,
-    EMPTY_HIDDEN_SCORES
+    EMPTY_IDS
   );
 
-  const requestBody = useMemo(
-    () => ({ ids: evaluations.map(({ id }) => id), aggregate: aggregationFunction }),
-    [evaluations, aggregationFunction]
-  );
+  // Group-scoped: no `ids` ⇒ the whole group's runs. Dedups with the table's
+  // progression fetch (same key), and keeps hidden/baseline runs in the data.
+  const requestBody = useMemo(() => ({ aggregate: aggregationFunction }), [aggregationFunction]);
 
   const { data, isLoading } = useSWR<EvaluationTimeProgression[]>(
     [
@@ -112,6 +115,13 @@ export default function ProgressionChart({
     });
   }, [data, evaluations, scoreKeys, baselineEvaluationId]);
 
+  // Baseline subtraction above runs over the full group (so a hidden baseline
+  // still zeroes the others); hidden runs are dropped only from what's drawn.
+  const visiblePoints = useMemo(
+    () => points.filter((p) => !hiddenEvaluationIds.includes(p.evaluationId)),
+    [points, hiddenEvaluationIds]
+  );
+
   const chartConfig = useMemo<ChartConfig>(
     () =>
       Object.fromEntries(
@@ -154,7 +164,7 @@ export default function ProgressionChart({
         />
         <div className="min-w-0 flex-1">
           <CombinedChart
-            data={points}
+            data={visiblePoints}
             scores={scoreKeys}
             visibleScores={scores}
             chartConfig={chartConfig}
