@@ -231,12 +231,15 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
     () => searchParams.get("datapointId") ?? undefined
   );
 
-  // Always-open: auto-select the first datapoint when nothing is selected. The
-  // trace panel has no close button, so this only fires on initial load.
+  // Always-open: with no trace selected, honor a URL-linked datapoint if present,
+  // else default to the first row. Render-time (only fires when traceId is unset).
   const firstRow = allDatapoints?.[0] as EvalRow | undefined;
-  if (!traceId && firstRow) {
-    setTraceId(firstRow["traceId"] as string);
-    setDatapointId(firstRow["id"] as string);
+  if (!traceId) {
+    const target = datapointId ? allDatapoints?.find((r) => r["id"] === datapointId) : firstRow;
+    if (target) {
+      setTraceId(target["traceId"] as string);
+      if (target["id"] !== datapointId) setDatapointId(target["id"] as string);
+    }
   }
 
   const handleRowClick = useCallback((row: Row<EvalRow>) => {
