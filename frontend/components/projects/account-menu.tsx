@@ -13,6 +13,7 @@ import { deleteLastProjectIdCookie } from "@/lib/actions/project/cookies";
 import { deleteLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies";
 import { signOut } from "@/lib/auth-client";
 import { Feature } from "@/lib/features/features";
+import { reset } from "@/lib/posthog";
 import { withBasePath } from "@/lib/utils";
 import { WorkspaceTier } from "@/lib/workspaces/types";
 
@@ -31,6 +32,10 @@ const AccountMenu = () => {
       await deleteLastWorkspaceIdCookie();
       await deleteLastProjectIdCookie();
       await signOut();
+      // Unlink this device from the user so a subsequent sign-in (possibly a
+      // different account) starts from a fresh anonymous id — PostHog's
+      // recommended logout practice; prevents cross-account event merging.
+      reset();
       broadcastLogout();
       window.location.href = withBasePath("/");
     } catch (e) {

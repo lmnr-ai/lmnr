@@ -1,6 +1,8 @@
-pub mod email_template;
 pub mod generator;
+pub mod report_data;
 pub mod scheduler;
+
+pub use report_data::{NoteworthyEvent, ProjectReportData, ReportData};
 
 use std::sync::Arc;
 

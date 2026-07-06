@@ -14,7 +14,7 @@ use crate::ch::service::ClickhouseService;
 use crate::db::DB;
 use crate::mq::utils::mq_max_payload;
 use crate::mq::{MessageQueue, MessageQueueTrait};
-use crate::reports::email_template::NoteworthyEvent;
+use crate::reports::NoteworthyEvent;
 use crate::worker::{HandlerError, MessageHandler};
 
 pub mod delivery;

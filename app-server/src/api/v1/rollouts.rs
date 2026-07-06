@@ -1,10 +1,11 @@
-use actix_web::{HttpResponse, delete, post, web};
+use actix_web::{HttpResponse, delete, get, post, web};
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::debugger::{AddBlockRequest, handle_add_block, handle_list_blocks};
 use crate::{
-    db::project_api_keys::ProjectApiKey,
     cache::Cache,
+    db::project_api_keys::ProjectApiKey,
     db::{
         DB,
         debugger_sessions::{create_or_update_debugger_session, delete_debugger_session},
@@ -84,6 +85,40 @@ pub async fn lookup_cache(
     .await;
 
     Ok(HttpResponse::Ok().json(outcome))
+}
+
+/// `GET /v1/rollouts/{session_id}/blocks` — list a session's blocks, oldest
+/// first. Unknown or cross-project session → 404; a registered session with no
+/// blocks yet → 200 with an empty list.
+#[get("rollouts/{session_id}/blocks")]
+pub async fn list_blocks(
+    path: web::Path<Uuid>,
+    project_api_key: ProjectApiKey,
+    db: web::Data<DB>,
+) -> ResponseResult {
+    handle_list_blocks(project_api_key.project_id, path.into_inner(), &db).await
+}
+
+/// `POST /v1/rollouts/{session_id}/blocks` — append a block to a session,
+/// returning the new block id. Unknown or cross-project session → 404 (the
+/// insert is gated on the session existing in the project). Used by the CLI
+/// (`debug session add-note`) to attach standalone `text` notes.
+#[post("rollouts/{session_id}/blocks")]
+pub async fn add_block(
+    path: web::Path<Uuid>,
+    project_api_key: ProjectApiKey,
+    body: web::Json<AddBlockRequest>,
+    db: web::Data<DB>,
+    pubsub: web::Data<Arc<PubSub>>,
+) -> ResponseResult {
+    handle_add_block(
+        project_api_key.project_id,
+        path.into_inner(),
+        body.into_inner(),
+        &db,
+        pubsub.get_ref().as_ref(),
+    )
+    .await
 }
 
 #[delete("rollouts/{session_id}")]

@@ -8,7 +8,6 @@ pub mod agent;
 pub mod datasets;
 pub mod rollouts;
 pub mod sql;
-pub mod traces;
 
 use actix_web::{HttpResponse, get, post, web};
 use serde_json::json;
