@@ -1,6 +1,6 @@
 import { isNil, takeRight } from "lodash";
 
-import { type MessageLabel, type ProcessedMessages,processMessages } from "@/components/traces/span-view/messages";
+import { type MessageLabel, type ProcessedMessages, processMessages } from "@/components/traces/span-view/messages";
 import { convertToMessages, normalizeToMessages } from "@/lib/spans/types";
 import { parseOpenAIOutput } from "@/lib/spans/types/openai";
 
@@ -72,7 +72,7 @@ const combineMessages = (
 // Raw payload (last 2 input messages + output) for the JSON/YAML/TEXT modes.
 const buildRawValue = (input: unknown, output: unknown): string => {
   const openAIOutput = parseOpenAIOutput(output);
-  const inputTail = Array.isArray(input) ? takeRight(input, 2) : [];
+  const inputTail = Array.isArray(input) ? takeRight(input, 2) : isNil(input) ? [] : [input];
   const outputTail = openAIOutput ?? (isNil(output) ? [] : Array.isArray(output) ? output : [output]);
   return JSON.stringify([...inputTail, ...outputTail]);
 };
