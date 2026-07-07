@@ -116,6 +116,18 @@ impl std::fmt::Display for AlertType {
 
 // ── Notification kind: the core event data ──
 
+/// A representative signal event included in a new-cluster notification.
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct ClusterExampleEvent {
+    pub name: String,
+    #[serde(default)]
+    pub summary: Option<String>,
+    pub severity: u8,
+    pub trace_id: Uuid,
+    /// Pre-formatted display timestamp (e.g. "Jul 05, 2026 14:02 UTC").
+    pub timestamp: String,
+}
+
 /// Core notification data produced by various subsystems.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum NotificationKind {
@@ -141,8 +153,19 @@ pub enum NotificationKind {
         cluster_id: Uuid,
         cluster_name: String,
         num_signal_events: u32,
-        num_child_clusters: usize,
         alert_name: String,
+        /// Pre-formatted first/last event timestamps; `None` when the cluster
+        /// has no linked events. `#[serde(default)]` keeps already-queued
+        /// legacy messages deserializable.
+        #[serde(default)]
+        first_seen: Option<String>,
+        #[serde(default)]
+        last_seen: Option<String>,
+        /// Event counts by severity: [info, warning, critical].
+        #[serde(default)]
+        severity_counts: [u64; 3],
+        #[serde(default)]
+        example_events: Vec<ClusterExampleEvent>,
     },
     SignalsReport {
         workspace_name: String,

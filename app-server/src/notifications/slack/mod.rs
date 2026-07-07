@@ -92,24 +92,14 @@ pub fn format_message_blocks_batch(
                 .format("%b %-d, %Y at %-I:%M %p UTC")
                 .to_string(),
         ),
-        NotificationKind::NewCluster {
-            project_id,
-            signal_id,
-            signal_name,
-            cluster_id,
-            cluster_name,
-            num_signal_events,
-            num_child_clusters,
-            ..
-        } => format_new_cluster_blocks(
-            project_id,
-            signal_id,
-            signal_name,
-            cluster_id,
-            cluster_name,
-            *num_signal_events,
-            *num_child_clusters,
-        ),
+        NotificationKind::NewCluster { .. } => {
+            // All clusters in the batch are rendered as one digest message.
+            let clusters: Vec<&NotificationKind> = notifications
+                .iter()
+                .filter(|n| matches!(n, NotificationKind::NewCluster { .. }))
+                .collect();
+            format_new_cluster_blocks(&clusters)
+        }
         NotificationKind::SignalsReport { .. } => {
             let (title, report_data) = build_report_data_from_batch(notifications, workspace_id)
                 .expect("SignalsReport batch must contain at least one report");
@@ -497,27 +487,80 @@ mod tests {
         assert!(stat.contains("2:32 PM UTC"));
     }
 
+    fn new_cluster_kind(cluster_name: &str, num_signal_events: u32) -> NotificationKind {
+        NotificationKind::NewCluster {
+            project_id: Uuid::nil(),
+            signal_id: Uuid::nil(),
+            signal_name: "Failure Detector".to_string(),
+            cluster_id: Uuid::new_v4(),
+            cluster_name: cluster_name.to_string(),
+            num_signal_events,
+            alert_name: "New cluster alert".to_string(),
+            first_seen: Some("Jul 1, 2026".to_string()),
+            last_seen: Some("Jul 6, 2026".to_string()),
+            severity_counts: [1, 0, 2],
+            example_events: vec![],
+        }
+    }
+
     #[test]
-    fn new_cluster_header_and_cube_variant() {
-        let pid = Uuid::nil();
-        let sid = Uuid::nil();
-        let cid = Uuid::nil();
-        // leaf (no children) -> variant=box
-        let leaf =
-            format_new_cluster_blocks(&pid, &sid, "Failure Detector", &cid, "Bad args", 3, 0);
-        let lb = blocks_of(&leaf);
-        let header = lb.iter().find(|b| b["type"] == "header").unwrap();
-        assert_eq!(header["text"]["text"], "Failure Detector - New cluster");
-        let cube = lb[1]["elements"][0]["image_url"].as_str().unwrap();
-        assert!(cube.contains("/api/cluster-swatch?clusterId="));
-        assert!(cube.contains("variant=box"));
-        assert!(!cube.contains("variant=boxes"));
-        // non-leaf -> variant=boxes
-        let parent = format_new_cluster_blocks(&pid, &sid, "Sig", &cid, "Group", 9, 4);
-        let cube2 = blocks_of(&parent)[1]["elements"][0]["image_url"]
-            .as_str()
-            .unwrap();
-        assert!(cube2.contains("variant=boxes"));
+    fn new_cluster_digest_single_cluster() {
+        let kind = new_cluster_kind("Bad args", 3);
+        let v = format_new_cluster_blocks(&[&kind]);
+        let blocks = blocks_of(&v);
+        // header names the signal, singular form
+        assert_eq!(
+            blocks[0]["text"]["text"],
+            "`Failure Detector`: New Cluster"
+        );
+        // one cluster section with name, event count, seen dates, severity line
+        let section = blocks[1]["text"]["text"].as_str().unwrap();
+        assert!(section.contains("Bad args"));
+        assert!(section.contains("*Events:* 3"));
+        assert!(section.contains("*First seen:* Jul 1, 2026"));
+        assert!(section.contains("*Last seen:* Jul 6, 2026"));
+        assert!(section.contains("2 Critical"));
+        assert!(section.contains("1 Info"));
+        assert!(!section.contains("Warning"));
+        // per-cluster actions block with a View Cluster button
+        assert_eq!(blocks[2]["type"], "actions");
+        assert_eq!(
+            blocks[2]["elements"][0]["text"]["text"],
+            "View Cluster"
+        );
+        // trailing context (signal + alert links) and divider
+        let context = &blocks[blocks.len() - 2];
+        assert_eq!(context["type"], "context");
+        assert!(
+            context["elements"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("Failure Detector")
+        );
+        assert_eq!(blocks.last().unwrap()["type"], "divider");
+    }
+
+    #[test]
+    fn new_cluster_digest_multiple_clusters() {
+        let a = new_cluster_kind("Bad args", 3);
+        let b = new_cluster_kind("Timeouts", 9);
+        let v = format_new_cluster_blocks(&[&a, &b]);
+        let blocks = blocks_of(&v);
+        // header uses the plural count
+        assert_eq!(
+            blocks[0]["text"]["text"],
+            "`Failure Detector`: 2 New Clusters"
+        );
+        // each cluster contributes a section + actions pair
+        let sections: Vec<&str> = blocks
+            .iter()
+            .filter(|b| b["type"] == "section")
+            .filter_map(|b| b["text"]["text"].as_str())
+            .collect();
+        assert!(sections.iter().any(|s| s.contains("Bad args")));
+        assert!(sections.iter().any(|s| s.contains("Timeouts")));
+        let actions = blocks.iter().filter(|b| b["type"] == "actions").count();
+        assert_eq!(actions, 2);
     }
 
     fn report_with(noteworthy: Vec<NoteworthyEvent>) -> ReportData {
