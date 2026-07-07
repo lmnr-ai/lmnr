@@ -7,26 +7,21 @@ import { shallow } from "zustand/shallow";
 import { useSessionSpanPreviews } from "@/components/traces/session-view/session-panel/use-session-span-previews";
 import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
 import { useBatchedTraceIO } from "@/components/traces/sessions-table/use-batched-trace-io";
-import { Skeleton } from "@/components/ui/skeleton";
-import { type TraceRow } from "@/lib/traces/types";
-import { formatDuration } from "@/lib/utils";
 
 import NoteContent from "./note-content";
 import { computeScoreDeltas, EvaluationCard } from "./session-evaluations";
 import { textAnchorId } from "./session-outline/utils";
 import { type SessionBlockView, useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "./store";
-import TraceSegment, { type TraceSegmentProps } from "./trace-segment";
+import TraceBlockCell from "./trace-block-cell";
+import { useBlockScrollSync } from "./use-block-scroll-sync";
 
 interface DebuggerTraceListProps {
-  // The page-owned scroll container (shared with the outline and all segments).
   scrollEl: HTMLElement | null;
   projectId?: string;
-  // Debug session id — interpolated into the LLM-span "Copy prompt" payload.
   sessionId?: string;
 }
 
-// A block paired with the running trace index (1-based, trace blocks only) so
-// each TraceSegment can render its "run N of M" chrome.
+// A block paired with its 1-based trace index (trace blocks only) for "run N of M".
 type TimelineItem = { block: SessionBlockView; traceIndex: number };
 
 const withTraceIndex = (blocks: SessionBlockView[]): TimelineItem[] => {
@@ -34,16 +29,10 @@ const withTraceIndex = (blocks: SessionBlockView[]): TimelineItem[] => {
   return blocks.map((block) => ({ block, traceIndex: block.type === "trace" ? ++traceIndex : 0 }));
 };
 
-// Generous overscan (user-requested): keeps sticky headers / lazy rows warm
-// well beyond the viewport so fast scrolls rarely hit skeletons.
+// Generous overscan keeps sticky headers / lazy rows warm beyond the viewport.
 const BLOCK_OVERSCAN = 8;
-// The "active" block (outline highlight) is the last block whose top sits above
-// this fraction of the viewport height from the top.
-const ACTIVE_BAND_RATIO = 0.15;
 
 export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: DebuggerTraceListProps) {
-  // Blocks are the ordered timeline; traces/traceSpans hold the per-run data
-  // that streams over realtime and feeds preview / IO batching.
   const blocks = useDebuggerSessionViewStore((s) => s.blocks);
   const traceRowStates = useDebuggerSessionViewStore((s) => s.traceRowStates);
   const storeApi = useDebuggerSessionViewStoreRaw();
@@ -54,12 +43,7 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
 
   const tracesById = useMemo(() => new Map(traces.map((t) => [t.id, t])), [traces]);
 
-  // --- Layout version: bumped whenever the column's height changes (expand,
-  // collapse, streaming, measurement settle) so every segment re-measures its
-  // scrollMargin. Segments guard with a ±1px compare, so this converges.
-  // ResizeObserver-driven scrollMargin re-measure is TanStack's documented
-  // approach for multiple virtualizers in one scrolling element:
-  // https://tanstack.com/virtual/latest/docs/api/virtualizer#scrollmargin ---
+  // Bump on any column height change so each segment re-measures its scrollMargin.
   const columnRef = useRef<HTMLDivElement>(null);
   const [layoutVersion, setLayoutVersion] = useState(0);
   useEffect(() => {
@@ -70,8 +54,7 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
     return () => observer.disconnect();
   }, []);
 
-  // --- Preview fetching: segments report their visible span ids; we aggregate
-  // and feed the same batched fetchers the flat list used. ---
+  // Segments report visible span ids; aggregate them for the batched preview fetch.
   const [visibleAgg, setVisibleAgg] = useState<Record<string, { visible: string[]; inputs: string[] }>>({});
   const reportVisibleSpans = useCallback((traceId: string, visible: string[], inputs: string[]) => {
     setVisibleAgg((prev) => {
@@ -82,13 +65,8 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
     });
   }, []);
 
-  // Live trace-id set. A wholesale `setTraces` replace can drop ids while leaving a
-  // stale visibleAgg entry behind, which would keep fetching previews for a
-  // no-longer-displayed run (finding #5). Filter the CONSUMED maps by live ids
-  // rather than pruning state in an effect (avoids a setState-in-effect cascade);
-  // visibleAgg re-fills when an id returns.
+  // Filter consumed maps by live ids so a dropped run doesn't keep fetching previews.
   const liveTraceIds = useMemo(() => new Set(traces.map((t) => t.id)), [traces]);
-
   const { visibleSpanIdsByTrace, inputSpanIdsByTrace } = useMemo(() => {
     const visible: Record<string, string[]> = {};
     const inputs: Record<string, string[]> = {};
@@ -123,25 +101,20 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
     spanTypesByTrace,
   });
 
-  // Only LOADED rows (lazy) — IO batching is naturally bounded by the window.
   const traceIds = useMemo(() => traces.map((t) => t.id), [traces]);
   const { previews: traceIO } = useBatchedTraceIO(projectId, traceIds);
 
   const items = useMemo(() => withTraceIndex(blocks), [blocks]);
 
-  // Denominator MUST match `traceIndex`'s source (trace blocks), not `traces.length`
-  // (loaded rows) — a block whose row isn't loaded still consumes an index, so
-  // mixing the two sources produces "run 3 of 2".
+  // Denominator must match traceIndex's source (blocks, not loaded rows).
   const totalTraces = useMemo(() => blocks.reduce((n, b) => n + (b.type === "trace" ? 1 : 0), 0), [blocks]);
 
-  // Score deltas across evaluation blocks in timeline order, keyed by eval id.
   const scoreDeltasById = useMemo(
     () => computeScoreDeltas(blocks.flatMap((b) => (b.type === "evaluation" ? [b.evaluation] : []))),
     [blocks]
   );
 
-  // --- Outer block virtualizer, offset into the shared scroll element (same
-  // scrollMargin pattern as the inner per-trace span virtualizers). ---
+  // Outer block virtualizer, offset into the shared scroll element via scrollMargin.
   const [scrollMargin, setScrollMargin] = useState(0);
   useLayoutEffect(() => {
     const el = columnRef.current;
@@ -158,8 +131,7 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
     if (!block) return 220;
     if (block.type === "text") return 90;
     if (block.type === "evaluation") return 140;
-    // Collapsed trace card + gap divider; expanded traces self-measure anyway.
-    return 300;
+    return 300; // collapsed trace card; expanded traces self-measure.
   }, []);
 
   const virtualizer = useVirtualizer({
@@ -169,17 +141,15 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
     overscan: BLOCK_OVERSCAN,
     scrollMargin,
     getItemKey: (index) => itemsRef.current[index]?.block.id ?? index,
-    // On attach, virtual-core scrolls the element to initialOffset (default 0).
-    // The scroll element is shared and may already be scrolled when this
-    // virtualizer (re)attaches — never yank it back to the top.
+    // Shared scroll element may already be scrolled on attach — don't yank to top.
     initialOffset: () => scrollEl?.scrollTop ?? 0,
   });
 
   const virtualItems = virtualizer.getVirtualItems();
 
-  // --- Lazy row loading: request trace rows for blocks in the virtual window
-  // (incl. overscan). Store dedupes + debounces + chunks; signature-guarded
-  // against effect loops (new items array identity every render). ---
+  useBlockScrollSync({ scrollEl, columnRef, virtualizer, items, storeApi });
+
+  // Lazily load trace rows for blocks in the virtual window (store dedupes/batches).
   const windowSignature = virtualItems.map((vi) => vi.index).join(",");
   useEffect(() => {
     const ids: string[] = [];
@@ -192,129 +162,7 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [windowSignature, items, storeApi]);
 
-  // --- Active block tracking (drives the outline highlight). Store-driven
-  // because virtualized-out rows unmount, so IntersectionObserver can't work.
-  // rAF-throttled scroll listener; the band is a fraction of the viewport from
-  // the top, and the active block is the last one starting above it. ---
-  const virtualizerRef = useRef(virtualizer);
-  virtualizerRef.current = virtualizer;
-  useEffect(() => {
-    if (!scrollEl) return;
-    let rafId: number | null = null;
-    const update = () => {
-      rafId = null;
-      const band = scrollEl.scrollTop + scrollEl.clientHeight * ACTIVE_BAND_RATIO;
-      let active: string | null = null;
-      // measurementsCache covers ALL indexes (measured or estimated), in order.
-      for (const m of virtualizerRef.current.measurementsCache) {
-        if (m.start > band) break;
-        active = String(m.key);
-      }
-      storeApi.getState().setActiveBlockId(active);
-    };
-    const onScroll = () => {
-      if (rafId === null) rafId = requestAnimationFrame(update);
-    };
-    scrollEl.addEventListener("scroll", onScroll, { passive: true });
-    update();
-    return () => {
-      scrollEl.removeEventListener("scroll", onScroll);
-      if (rafId !== null) cancelAnimationFrame(rafId);
-    };
-  }, [scrollEl, storeApi]);
-
-  // --- Outline navigation: scroll to a requested block. Runs off a store
-  // subscription (NOT render state): consuming the request mutates the store,
-  // and if the loop lived in an effect keyed on scrollToBlockId, that state
-  // flip would re-run the effect and its cleanup would kill the loop it just
-  // started. The subscription's deps are stable, so consume can't self-cancel.
-  //
-  // The loop drives scrollTop directly — TanStack's scrollToIndex retry loop
-  // gives up ("Failed to scroll to index N after 10 attempts") under dynamic
-  // measurement. Offsets above the target are estimates until rows mount, so
-  // once the target cell is in the DOM we correct by its REAL bounding-rect
-  // delta each frame until it holds at the top for a few consecutive frames.
-  // Stability doesn't count while any trace row is still "loading": the
-  // debounced lazy batch fetch lands hundreds of ms after the jump and swaps
-  // skeletons for taller real cards, shifting everything. User wheel/touch
-  // input aborts immediately — never fight a manual scroll. ---
-  useEffect(() => {
-    if (!scrollEl) return;
-    let stopActive: (() => void) | null = null;
-
-    const startLoop = (blockId: string) => {
-      const idx = itemsRef.current.findIndex(({ block }) => block.id === blockId);
-      if (idx === -1) return null;
-      const prevBehavior = scrollEl.style.scrollBehavior;
-      scrollEl.style.scrollBehavior = "auto";
-      const MAX_FRAMES = 180;
-      const STABLE_FRAMES = 5;
-      let frames = 0;
-      let stable = 0;
-      let rafId: number | null = null;
-      let done = false;
-      const stop = () => {
-        if (done) return;
-        done = true;
-        if (rafId !== null) cancelAnimationFrame(rafId);
-        rafId = null;
-        scrollEl.removeEventListener("wheel", stop);
-        scrollEl.removeEventListener("touchmove", stop);
-        scrollEl.style.scrollBehavior = prevBehavior;
-      };
-      const jumpToEstimate = () => {
-        const offset = virtualizerRef.current.getOffsetForIndex(idx, "start")?.[0];
-        if (offset != null) scrollEl.scrollTop = offset;
-      };
-      const step = () => {
-        // :scope > — the inner span virtualizers stamp data-index too.
-        const cell = columnRef.current?.querySelector(`:scope > [data-index="${idx}"]`);
-        let atTarget = false;
-        if (cell) {
-          const delta = Math.round(cell.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top);
-          // A bottom-clamped scroll can't bring the cell to the top — done.
-          const clamped = delta > 1 && scrollEl.scrollTop >= scrollEl.scrollHeight - scrollEl.clientHeight - 1;
-          if (Math.abs(delta) > 1 && !clamped) scrollEl.scrollTop += delta;
-          atTarget = Math.abs(delta) <= 1 || clamped;
-        } else {
-          jumpToEstimate();
-        }
-        const rowsLoading = Object.values(storeApi.getState().traceRowStates).some((s) => s === "loading");
-        stable = atTarget && !rowsLoading ? stable + 1 : 0;
-        frames += 1;
-        if (stable >= STABLE_FRAMES || frames >= MAX_FRAMES) {
-          stop();
-          return;
-        }
-        rafId = requestAnimationFrame(step);
-      };
-      scrollEl.addEventListener("wheel", stop, { passive: true });
-      scrollEl.addEventListener("touchmove", stop, { passive: true });
-      jumpToEstimate();
-      rafId = requestAnimationFrame(step);
-      return stop;
-    };
-
-    const handle = (blockId: string) => {
-      stopActive?.();
-      storeApi.getState().consumeScrollToBlock();
-      stopActive = startLoop(blockId);
-    };
-
-    const unsub = storeApi.subscribe((s, prev) => {
-      if (s.scrollToBlockId && s.scrollToBlockId !== prev.scrollToBlockId) handle(s.scrollToBlockId);
-    });
-    const pending = storeApi.getState().scrollToBlockId;
-    if (pending) handle(pending);
-    return () => {
-      unsub();
-      stopActive?.();
-    };
-  }, [scrollEl, storeApi]);
-
-  // NORMAL-FLOW spacers instead of absolute+transform: TraceSegment's sticky
-  // header breaks inside a transformed ancestor, and the inner virtualizers'
-  // scrollMargin math assumes cells sit in document flow.
+  // Normal-flow spacers, not absolute+transform: sticky headers break under transform.
   const paddingTop = virtualItems.length > 0 ? virtualItems[0].start - scrollMargin : 0;
   const paddingBottom =
     virtualItems.length > 0
@@ -367,52 +215,3 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
     </div>
   );
 }
-
-type TraceBlockCellProps = Omit<TraceSegmentProps, "trace"> & {
-  trace: TraceRow | undefined;
-  rowState: "loading" | "loaded" | "missing" | undefined;
-  nextBlock: SessionBlockView | undefined;
-  tracesById: Map<string, TraceRow>;
-};
-
-/**
- * One trace block's cell: skeleton while its row is lazily loading, nothing
- * when the row turned out missing (deleted / not yet in CH — realtime fills
- * the latter in), else the full TraceSegment. The gap divider to the NEXT run
- * lives inside this measured cell; its presence is keyed off the next BLOCK's
- * type (stable from the index) — not the next row's load state — so it can't
- * pop in later and shift measured heights under the scroll position.
- */
-const TraceBlockCell = ({ trace, rowState, nextBlock, tracesById, ...segmentProps }: TraceBlockCellProps) => {
-  const showDivider = nextBlock?.type === "trace";
-  const nextTrace = showDivider ? tracesById.get(nextBlock.traceId) : undefined;
-
-  if (!trace) {
-    if (rowState === "missing") return null;
-    return (
-      <div className="flex flex-col gap-2 py-2">
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-24 w-full" />
-      </div>
-    );
-  }
-
-  // Gap duration needs both rows; render the divider without it until the next
-  // row loads (divider presence itself never changes).
-  const gapMs = nextTrace ? new Date(nextTrace.startTime).getTime() - new Date(trace.endTime).getTime() : undefined;
-
-  return (
-    <>
-      <TraceSegment trace={trace} {...segmentProps} />
-      {showDivider && (
-        <div className="px-2 flex h-20 items-center justify-center">
-          <div className="w-full border-b" />
-          {formatDuration(gapMs) && (
-            <span className="shrink-0 px-2 text-xs text-muted-foreground">{formatDuration(gapMs)}</span>
-          )}
-          <div className="w-full border-b" />
-        </div>
-      )}
-    </>
-  );
-};

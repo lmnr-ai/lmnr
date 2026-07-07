@@ -151,6 +151,9 @@ interface DebuggerSessionViewState {
   // row (replaces the IntersectionObserver, which can't see unmounted rows).
   activeBlockId: string | null;
 
+  // True while scrolling to a clicked block — the scroll tracker defers so it stays active.
+  isNavigatingToBlock: boolean;
+
   // Per-trace span fetch in flight: dedupes concurrent fetches, drives the
   // skeleton. Expand always refetches, so a failed fetch heals on re-expand.
   traceSpansFetching: Record<string, boolean>;
@@ -194,6 +197,9 @@ interface DebuggerSessionViewActions {
 
   // Timeline reports the topmost visible block (drives the outline).
   setActiveBlockId: (blockId: string | null) => void;
+
+  // Set by the timeline around its scroll-to-block animation.
+  setNavigatingToBlock: (navigating: boolean) => void;
 
   // Realtime: upsert a streamed span.
   applyRealtimeSpan: (span: RealtimeSpan) => void;
@@ -322,6 +328,7 @@ export const createDebuggerSessionViewStore = (options?: {
           traceRowStates: options?.initialTraceRow ? { [options.initialTraceRow.id]: "loaded" as const } : {},
           scrollToBlockId: null,
           activeBlockId: null,
+          isNavigatingToBlock: false,
 
           sessionName: options?.initialSessionName ?? "Session",
           sessionNameRaw: options?.initialSessionNameRaw ?? null,
@@ -434,13 +441,20 @@ export const createDebuggerSessionViewStore = (options?: {
             rowFetchTimer = setTimeout(() => void flushRowFetches(), ROW_FETCH_DEBOUNCE_MS);
           },
 
-          requestScrollToBlock: (blockId) => set({ scrollToBlockId: blockId } as Partial<DebuggerSessionViewStore>),
+          // Also set activeBlockId so the outline lights up on click (survives the scroll).
+          requestScrollToBlock: (blockId) =>
+            set({ scrollToBlockId: blockId, activeBlockId: blockId } as Partial<DebuggerSessionViewStore>),
           consumeScrollToBlock: () => {
             if (get().scrollToBlockId !== null) set({ scrollToBlockId: null } as Partial<DebuggerSessionViewStore>);
           },
           setActiveBlockId: (blockId) => {
             if (get().activeBlockId !== blockId) {
               set({ activeBlockId: blockId } as Partial<DebuggerSessionViewStore>);
+            }
+          },
+          setNavigatingToBlock: (navigating) => {
+            if (get().isNavigatingToBlock !== navigating) {
+              set({ isNavigatingToBlock: navigating } as Partial<DebuggerSessionViewStore>);
             }
           },
 

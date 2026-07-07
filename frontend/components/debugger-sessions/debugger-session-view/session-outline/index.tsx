@@ -85,28 +85,13 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const rows = useMemo(() => buildRows(blocks), [signature]);
 
-  // After a click we optimistically highlight the clicked row and ignore the
-  // store's tracking briefly, so a row that can't be scrolled high enough to
-  // enter the top band still lights up.
-  const [clickedBlockId, setClickedBlockId] = useState<string | null>(null);
-  const suppressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const selectOnClick = (blockId: string) => {
-    setClickedBlockId(blockId);
-    requestScrollToBlock(blockId);
-    if (suppressTimer.current) clearTimeout(suppressTimer.current);
-    suppressTimer.current = setTimeout(() => setClickedBlockId(null), 700);
-  };
-  useEffect(() => () => (suppressTimer.current ? clearTimeout(suppressTimer.current) : undefined), []);
-
   const rowRefs = useRef<Map<string, HTMLAnchorElement>>(new Map());
   const [indicator, setIndicator] = useState<{ top: number; height: number } | null>(null);
 
-  // Derive (don't store) the effective active row: click override first, then
-  // the store's tracked block, falling back to the first row.
-  const storeActive = clickedBlockId ?? activeBlockId;
+  // `requestScrollToBlock` sets `activeBlockId` on click; fall back to the first row.
   const active = useMemo(
-    () => (storeActive && rows.some((r) => r.blockId === storeActive) ? storeActive : (rows[0]?.blockId ?? null)),
-    [storeActive, rows]
+    () => (activeBlockId && rows.some((r) => r.blockId === activeBlockId) ? activeBlockId : (rows[0]?.blockId ?? null)),
+    [activeBlockId, rows]
   );
 
   // Re-derive the edge state when rows change (content height moved without a
@@ -178,7 +163,7 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
                   // Not an anchor jump — the target row may be virtualized out
                   // (unmounted); the list scrolls via the virtualizer instead.
                   e.preventDefault();
-                  selectOnClick(row.blockId);
+                  requestScrollToBlock(row.blockId);
                 }}
                 className="group flex h-[30px] items-center pl-4 text-left no-underline"
               >
