@@ -715,6 +715,13 @@
       "when": 1782997824497,
       "tag": "0101_trace_render_templates",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1782997824498,
+      "tag": "0102_signals_metadata",
+      "breakpoints": true
     }
   ]
 }

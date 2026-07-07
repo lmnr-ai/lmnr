@@ -1,9 +1,10 @@
-import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 import { renderTick } from "@/components/evaluation/graphs-utils";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type EvaluationScoreDistributionBucket } from "@/lib/evaluation/types";
+import { cn } from "@/lib/utils";
 
 interface CompareChartProps {
   className?: string;
@@ -24,7 +25,6 @@ export default function CompareChart({
   comparedDistribution,
   isLoading = false,
 }: CompareChartProps) {
-  // Convert distribution data to the format expected by the chart
   const chartData = distribution
     ? distribution.map((bucket, index) => ({
         index,
@@ -34,11 +34,11 @@ export default function CompareChart({
     : [];
 
   return (
-    <div className={className}>
+    <div className={cn("w-full h-full", className)}>
       {isLoading ? (
-        <Skeleton className="h-48 w-full" />
+        <Skeleton className="h-full w-full" />
       ) : (
-        <ChartContainer config={chartConfig} className="h-48 w-full">
+        <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
           <BarChart accessibilityLayer data={chartData} barSize="4%">
             <CartesianGrid vertical={false} />
             <XAxis
@@ -46,8 +46,9 @@ export default function CompareChart({
               tickLine={false}
               axisLine={true}
               padding={{ left: 0, right: 0 }}
-              tick={renderTick as any}
+              tick={renderTick as never}
             />
+            <YAxis tickLine={false} axisLine={false} tickMargin={8} tickCount={3} />
             <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
             <Bar dataKey="comparedHeight" fill="hsl(var(--chart-2))" radius={4} name="Compared" />
             <Bar dataKey="height" fill="hsl(var(--chart-1))" radius={4} name="Current" />

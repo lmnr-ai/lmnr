@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import Landing from "@/components/landing";
 import { getServerSession } from "@/lib/auth-session";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
-import { description,ogImage, title } from "@/lib/metadata";
+import { description, ogImage, title } from "@/lib/metadata";
 
 export const metadata: Metadata = {
   title: { absolute: title },

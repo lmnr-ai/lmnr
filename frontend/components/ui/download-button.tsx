@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { Button, type ButtonProps } from "./button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./dropdown-menu";
 
-const downloadFile = async (uri: string, filenameFallback: string, fileFormat?: string) => {
+export const downloadFile = async (uri: string, filenameFallback: string, fileFormat?: string) => {
   try {
     const response = await fetch(uri);
 

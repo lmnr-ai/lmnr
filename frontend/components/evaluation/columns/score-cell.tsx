@@ -1,11 +1,12 @@
 import { type CellContext } from "@tanstack/react-table";
 import { ArrowRight } from "lucide-react";
 
+import HeatmapValue from "@/components/evaluation/heatmap-value";
 import {
   calculatePercentageChange,
-  createHeatmapStyle,
   type DisplayValue,
   formatScoreValue,
+  getHeatmapColor,
   isValidScore,
   type ScoreValue,
   shouldShowHeatmap,
@@ -13,47 +14,37 @@ import {
 import { type ScoreRange } from "@/lib/colors";
 import { type EvalRow } from "@/lib/evaluation/types";
 
-import { ChangeIndicator, shouldShowComparisonIndicator } from "./comparison-cell";
+import { shouldShowComparisonIndicator } from "./comparison-cell";
 
-const ScoreDisplay = (range: ScoreRange, value: ScoreValue) => {
+const ScoreDisplay = ({ range, value }: { range: ScoreRange; value: ScoreValue }) => {
   if (!isValidScore(value)) {
     return <span className="text-gray-500">-</span>;
   }
 
-  const style = createHeatmapStyle(value, range);
-  const formattedValue = formatScoreValue(value);
-
-  if (style.background === "transparent") {
-    return (
-      <span className="text-current" title={value.toString()}>
-        {formattedValue}
-      </span>
-    );
-  }
-
   return (
-    <div
-      className="px-1 py-0.5 min-w-5 rounded text-center transition-all duration-200 whitespace-nowrap text-xs"
-      style={style}
-      title={value.toString()}
-    >
-      {formattedValue}
-    </div>
+    <HeatmapValue
+      value={value}
+      range={range}
+      text={
+        <span className="text-current" title={value.toString()}>
+          {formatScoreValue(value)}
+        </span>
+      }
+    />
   );
 };
 
-const HeatmapScoreCell = ({ value, range }: { value: ScoreValue; range: ScoreRange }) => ScoreDisplay(range, value);
+const HeatmapScoreCell = ({ value, range }: { value: ScoreValue; range: ScoreRange }) => (
+  <ScoreDisplay range={range} value={value} />
+);
 
 // -- Comparison sub-components (absorbed from comparison-score-cell.tsx) --
 
-const ComparisonScoreValue = ({ value, range }: { value: ScoreValue; range: ScoreRange }) => {
-  if (!isValidScore(value)) {
-    return <span className="text-gray-500 text-center block text-xs">-</span>;
-  }
-
-  return ScoreDisplay(range, value);
-};
-
+// One color block for the RELATIVE change (original - compared), not two blocks
+// of absolute values: the question in comparison mode is "did this row get
+// better or worse", so the delta is colored on a symmetric scale centered at
+// zero (span taken from the score's absolute range). No delta or zero span =
+// no block.
 const HeatmapComparisonCell = ({
   original,
   comparison,
@@ -68,37 +59,36 @@ const HeatmapComparisonCell = ({
   range: ScoreRange;
 }) => {
   const showComparison = shouldShowComparisonIndicator(originalValue, comparisonValue);
-  const showHeatmap = shouldShowHeatmap(range);
+  const span = range.max - range.min;
+  // Zero delta gets NO block (not the gradient midpoint) so actual movement pops.
+  const deltaColor =
+    shouldShowHeatmap(range) &&
+    isValidScore(originalValue) &&
+    isValidScore(comparisonValue) &&
+    originalValue !== comparisonValue
+      ? getHeatmapColor(originalValue - comparisonValue, { min: -span, max: span })
+      : null;
 
-  if (!showHeatmap) {
-    return (
-      <div className="flex items-center space-x-2">
-        <span className="text-current">{comparison ?? "-"}</span>
-        <ArrowRight className="font-bold min-w-3 text-gray-400" size={12} />
-        <span className="text-current">{original ?? "-"}</span>
-        {showComparison && isValidScore(originalValue) && isValidScore(comparisonValue) && (
-          <span className="text-secondary-foreground">
-            {originalValue >= comparisonValue ? "\u25B2" : "\u25BC"} (
-            {calculatePercentageChange(originalValue, comparisonValue)}
-            %)
-          </span>
-        )}
-      </div>
-    );
-  }
+  const content = (
+    <div className="flex items-center space-x-2 min-w-0">
+      <span className="text-current">{comparison ?? "-"}</span>
+      <ArrowRight className="font-bold min-w-3 text-gray-400" size={12} />
+      <span className="text-current">{original ?? "-"}</span>
+      {showComparison && isValidScore(originalValue) && isValidScore(comparisonValue) && (
+        <span className="text-secondary-foreground">
+          {originalValue >= comparisonValue ? "▲" : "▼"} ({calculatePercentageChange(originalValue, comparisonValue)}
+          %)
+        </span>
+      )}
+    </div>
+  );
+
+  if (!deltaColor) return content;
 
   return (
-    <div className="flex items-center space-x-1 w-full min-w-0">
-      <div className="flex-1 min-w-fit">
-        <ComparisonScoreValue value={comparisonValue} range={range} />
-      </div>
-      <ArrowRight className="font-bold text-gray-400 shrink-0" size={8} />
-      <div className="flex-1 min-w-fit">
-        <ComparisonScoreValue value={originalValue} range={range} />
-      </div>
-      {showComparison && isValidScore(originalValue) && isValidScore(comparisonValue) && (
-        <ChangeIndicator originalValue={originalValue} comparisonValue={comparisonValue} />
-      )}
+    <div className="flex h-full items-stretch gap-2 min-w-0">
+      <span className="w-1 shrink-0 self-stretch rounded-sm" style={{ background: deltaColor }} />
+      <span className="flex items-center min-w-0">{content}</span>
     </div>
   );
 };
@@ -117,7 +107,7 @@ const StandardScoreComparison = ({ original, comparison }: { original: ScoreValu
       </div>
       {showComparison && isValidScore(original) && isValidScore(comparison) && (
         <span className="text-secondary-foreground">
-          {original >= comparison ? "\u25B2" : "\u25BC"} ({calculatePercentageChange(original, comparison)}%)
+          {original >= comparison ? "▲" : "▼"} ({calculatePercentageChange(original, comparison)}%)
         </span>
       )}
     </div>
@@ -154,7 +144,7 @@ export const createScoreColumnCell = (scoreName: string) => {
       return <HeatmapScoreCell value={value} range={range} />;
     }
 
-    return value ?? "-";
+    return isValidScore(value) ? formatScoreValue(value) : "-";
   };
 
   ScoreColumnCell.displayName = `ScoreColumnCell_${scoreName}`;

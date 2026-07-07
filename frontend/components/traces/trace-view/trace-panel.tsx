@@ -23,7 +23,8 @@ import Tree from "./tree";
 
 interface TracePanelProps {
   traceId: string;
-  handleClose: () => void;
+  // Undefined ⇒ header hides the close button.
+  handleClose?: () => void;
   handleSpanSelect: (span?: TraceViewSpan) => void;
   fetchSpans: (search: string, filters: Filter[]) => void;
   isLoading: boolean;
@@ -44,6 +45,8 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
     hasBrowserSession,
     condensedTimelineEnabled,
     condensedTimelineVisibleSpanIds,
+    isResizing,
+    setIsResizing,
   } = useTraceViewStore(
     (state) => ({
       trace: state.trace,
@@ -59,6 +62,8 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
       hasBrowserSession: state.hasBrowserSession,
       condensedTimelineEnabled: state.condensedTimelineEnabled,
       condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
+      isResizing: state.isResizing,
+      setIsResizing: state.setIsResizing,
     }),
     shallow
   );
@@ -104,7 +109,16 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
             <p className="text-xs text-muted-foreground">{spansError}</p>
           </div>
         ) : (
-          <ResizablePanelGroup id="trace-view-panels" orientation="vertical" className="flex-1 min-h-0">
+          <ResizablePanelGroup
+            id="trace-view-panels"
+            orientation="vertical"
+            // While any panel handle is dragged, drop pointer events on the whole
+            // group so iframes inside (custom renderer, rrweb session player) can't
+            // swallow the drag's pointer stream. Safe mid-drag: react-resizable-panels
+            // tracks the drag on document, so disabling handle hit-testing only blocks
+            // STARTING a drag, not continuing one.
+            className={cn("flex-1 min-h-0", isResizing && "pointer-events-none")}
+          >
             {condensedTimelineEnabled && (
               <>
                 <ResizablePanel defaultSize={120} minSize={80}>
@@ -112,7 +126,10 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
                     <CondensedTimeline />
                   </div>
                 </ResizablePanel>
-                <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
+                <ResizableHandle
+                  onDragChange={setIsResizing}
+                  className="hover:bg-blue-400 z-10 transition-colors hover:scale-200"
+                />
               </>
             )}
             <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
@@ -169,7 +186,10 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
             </ResizablePanel>
             {browserSession && hasBrowserSession && (
               <>
-                <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
+                <ResizableHandle
+                  onDragChange={setIsResizing}
+                  className="hover:bg-blue-400 z-10 transition-colors hover:scale-200"
+                />
                 <ResizablePanel>
                   {!isLoading && <SessionPlayer onClose={() => setBrowserSession(false)} traceId={traceId} />}
                 </ResizablePanel>

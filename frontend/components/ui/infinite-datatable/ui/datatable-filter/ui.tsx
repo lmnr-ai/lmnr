@@ -80,6 +80,9 @@ const FilterPopover = ({
       if (!filters.some((f) => isEqual(f, filterToAdd))) {
         onAddFilter(filterToAdd);
       }
+      // Clear the value so reopening the popover doesn't re-apply stale input;
+      // keep column/operator so adding several filters on one column (e.g. metadata keys) stays quick.
+      setFilter((prev) => ({ ...prev, value: "" }));
     },
     [columns, filters, onAddFilter]
   );

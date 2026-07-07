@@ -12,7 +12,7 @@ import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations, workspaces } from "@/lib/db/migrations/schema";
 
-const INVITATION_EXPIRY_MINUTES = 2880;
+const INVITATION_EXPIRY_MINUTES = 10080; // 7 days
 
 const verifyToken = (token: string): JwtPayload => {
   try {

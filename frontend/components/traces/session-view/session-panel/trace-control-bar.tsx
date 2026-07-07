@@ -70,6 +70,7 @@ export default function TraceControlBar({ trace, analyticsFeature = "sessions" }
           onTabChange={handleTabChange}
           showContent={showContent}
           onToggleContent={() => toggleTraceShowTreeContent(trace.id)}
+          tabs={["tree", "transcript"]}
         />
         <Metadata metadata={metaString} />
       </div>

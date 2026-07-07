@@ -179,7 +179,7 @@ function createEvalStore({ initialScoreNames, isShared = false }: EvalStoreInit)
   return createStore<EvalStoreState>()(
     persist(
       (set, get) => ({
-        heatmapEnabled: false,
+        heatmapEnabled: true,
         isShared,
         scoreNames: initialScoreNames,
 
