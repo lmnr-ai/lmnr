@@ -341,20 +341,14 @@ export const getEvaluationDatapointComparison = async (
   const filteredIds = owned.map((e) => e.id);
   if (filteredIds.length === 0) return [];
 
-  // Aliases must NOT shadow a column used in WHERE: ClickHouse resolves the WHERE
-  // reference to the SELECT alias, so `toString(evaluation_id) AS evaluation_id`
-  // would turn `WHERE evaluation_id IN (...)` into a String-vs-UUID compare that
-  // matches nothing. Use distinct alias names (`eval_id` / `tid`) instead.
-  // `index` is inlined (Zod-validated non-negative int) rather than a bound param.
-  // `scores` may come back as a string or an object depending on the driver.
   const rows = await executeQuery<{
-    eval_id: string;
-    idx: number | string;
+    evaluationId: string;
+    index: number | string;
     scores: string | Record<string, unknown>;
-    tid: string;
+    traceId: string;
   }>({
     query: `
-      SELECT toString(evaluation_id) AS eval_id, \`index\` AS idx, scores, toString(trace_id) AS tid
+      SELECT evaluation_id evaluationId, \`index\`, scores, trace_id traceId
       FROM evaluation_datapoints
       WHERE evaluation_id IN ({evaluationIds:Array(UUID)})
         AND \`index\` = ${index}
@@ -382,7 +376,7 @@ export const getEvaluationDatapointComparison = async (
           )
         )
       : {};
-    return { evaluationId: r.eval_id, index: Number(r.idx), scores, traceId: r.tid };
+    return { evaluationId: r.evaluationId, index: Number(r.index), scores, traceId: r.traceId };
   });
 };
 
