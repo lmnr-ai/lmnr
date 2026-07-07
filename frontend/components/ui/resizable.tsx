@@ -23,13 +23,31 @@ function ResizablePanel({ ...props }: React.ComponentProps<typeof ResizablePrimi
 function ResizableHandle({
   withHandle,
   className,
+  onDragChange,
+  onPointerDown,
   ...props
 }: React.ComponentProps<typeof ResizablePrimitive.Separator> & {
   withHandle?: boolean;
+  // Fires true on drag-start, false on drag-end. react-resizable-panels v4
+  // dropped its onDragging callback, so we re-derive it from pointer events:
+  // press starts the drag, the next window pointerup/cancel ends it.
+  onDragChange?: (dragging: boolean) => void;
 }) {
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    onDragChange!(true);
+    const end = () => {
+      onDragChange!(false);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+    };
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+    onPointerDown?.(e);
+  };
   return (
     <ResizablePrimitive.Separator
       data-slot="resizable-handle"
+      onPointerDown={onDragChange ? handlePointerDown : onPointerDown}
       className={cn(
         "relative flex items-center justify-center bg-border",
         "focus-visible:ring-0 focus-visible:outline-none",

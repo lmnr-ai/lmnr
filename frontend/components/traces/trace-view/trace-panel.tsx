@@ -45,6 +45,7 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
     hasBrowserSession,
     condensedTimelineEnabled,
     condensedTimelineVisibleSpanIds,
+    setIsResizing,
   } = useTraceViewStore(
     (state) => ({
       trace: state.trace,
@@ -60,6 +61,7 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
       hasBrowserSession: state.hasBrowserSession,
       condensedTimelineEnabled: state.condensedTimelineEnabled,
       condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
+      setIsResizing: state.setIsResizing,
     }),
     shallow
   );
@@ -113,7 +115,10 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
                     <CondensedTimeline />
                   </div>
                 </ResizablePanel>
-                <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
+                <ResizableHandle
+                  onDragChange={setIsResizing}
+                  className="hover:bg-blue-400 z-10 transition-colors hover:scale-200"
+                />
               </>
             )}
             <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
@@ -170,7 +175,10 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
             </ResizablePanel>
             {browserSession && hasBrowserSession && (
               <>
-                <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
+                <ResizableHandle
+                  onDragChange={setIsResizing}
+                  className="hover:bg-blue-400 z-10 transition-colors hover:scale-200"
+                />
                 <ResizablePanel>
                   {!isLoading && <SessionPlayer onClose={() => setBrowserSession(false)} traceId={traceId} />}
                 </ResizablePanel>

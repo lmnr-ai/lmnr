@@ -42,15 +42,20 @@ export default function EvalTraceLayout({ table, traceColumn }: EvalTraceLayoutP
   const dragAbortRef = useRef<AbortController | null>(null);
 
   const startResize = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.PointerEvent<HTMLDivElement>) => {
       e.preventDefault();
+      const handle = e.currentTarget;
       const startX = e.clientX;
       const startWidth = clampedTable;
+      // Capture the pointer so move/up keep firing on the handle even when the
+      // cursor crosses the trace column's iframe (custom renderer) — a plain
+      // window listener would go silent over the iframe and freeze the drag.
+      handle.setPointerCapture(e.pointerId);
       const controller = new AbortController();
       dragAbortRef.current = controller;
       const { signal } = controller;
       setIsResizing(true);
-      const onMove = (ev: MouseEvent) => {
+      const onMove = (ev: PointerEvent) => {
         const next = startWidth + (ev.clientX - startX);
         setTableWidth(Math.max(MIN_TABLE, Math.min(next, Math.max(MIN_TABLE, maxWidth - MIN_TRACE))));
       };
@@ -59,8 +64,9 @@ export default function EvalTraceLayout({ table, traceColumn }: EvalTraceLayoutP
         controller.abort();
         dragAbortRef.current = null;
       };
-      window.addEventListener("mousemove", onMove, { signal });
-      window.addEventListener("mouseup", onUp, { signal });
+      handle.addEventListener("pointermove", onMove, { signal });
+      handle.addEventListener("pointerup", onUp, { signal });
+      handle.addEventListener("pointercancel", onUp, { signal });
     },
     [clampedTable, maxWidth]
   );
@@ -84,7 +90,7 @@ export default function EvalTraceLayout({ table, traceColumn }: EvalTraceLayoutP
           border (same affordance as the trace view's LeftEdgeResizeHandle). */}
       {maxWidth > 0 && (
         <div
-          onMouseDown={startResize}
+          onPointerDown={startResize}
           style={{ left: clampedTable + GAP }}
           className="group absolute inset-y-0 z-40 w-2 -translate-x-1/2 cursor-col-resize"
           role="separator"
