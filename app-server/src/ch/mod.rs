@@ -9,9 +9,10 @@ pub mod limits;
 pub mod logs;
 pub mod notification_deliveries;
 pub mod notifications;
+#[cfg(feature = "signals")]
+pub mod private;
 pub mod service;
 pub mod signal_events;
-pub mod signal_run_messages;
 pub mod spans;
 pub mod traces;
 pub mod utils;
