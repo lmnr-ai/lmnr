@@ -381,6 +381,8 @@ impl TryInto<Option<LangChainChatMessageContentPart>> for ChatMessageContentPart
             // LangChain CAN accept tool calls inside content parts, but we put them
             // in the tool_calls field instead, similar to OpenAI, so we skip them here.
             ChatMessageContentPart::ToolCall(_) => Ok(None),
+            // Unknown part types (reasoning, custom, ...) have no LangChain equivalent.
+            ChatMessageContentPart::Raw(_) => Ok(None),
         }
     }
 }

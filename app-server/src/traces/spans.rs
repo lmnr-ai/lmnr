@@ -4521,4 +4521,141 @@ mod tests {
         assert_eq!(metadata.get("score"), Some(&json!(0.85)));
         assert_eq!(metadata.get("reviewer"), Some(&json!("alice")));
     }
+
+    #[test]
+    fn test_input_messages_preserve_unknown_part_types() {
+        // LAM-1912: AI SDK v7 thinking models put `reasoning` (and possibly
+        // `custom`, `tool-approval-*`) parts on assistant history turns. One
+        // unknown part type must NOT collapse the whole content array into a
+        // stringified text blob — known parts stay structured and unknown
+        // parts are preserved verbatim.
+        let attributes = HashMap::from([
+            ("gen_ai.system".to_string(), json!("anthropic")),
+            (
+                "ai.prompt.messages".to_string(),
+                Value::String(
+                    json!([
+                        {"role":"user","content":[{"type":"text","text":"uppercase then reverse"}]},
+                        {"role":"assistant","content":[
+                            {"type":"reasoning","text":"I should call the uppercase tool first.","providerOptions":{"anthropic":{"signature":"sig-1"}}},
+                            {"type":"text","text":"Calling uppercase."},
+                            {"type":"tool-call","toolCallId":"tc-1","toolName":"uppercase","input":{"text":"hello world"}}
+                        ]},
+                        {"role":"tool","content":[
+                            {"type":"tool-result","toolCallId":"tc-1","toolName":"uppercase","output":"HELLO WORLD"}
+                        ]}
+                    ])
+                    .to_string(),
+                ),
+            ),
+        ]);
+
+        let mut span = Span {
+            span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            trace_id: Uuid::new_v4(),
+            parent_span_id: None,
+            name: "ai.generateText.doGenerate".to_string(),
+            attributes: SpanAttributes::new(attributes),
+            input: None,
+            output: None,
+            span_type: SpanType::LLM,
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            events: vec![],
+            status: None,
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        };
+
+        span.parse_and_enrich_attributes();
+
+        let input = span.input.as_ref().unwrap();
+        let messages: Vec<ChatMessage> = serde_json::from_value(input.clone()).unwrap();
+        assert_eq!(messages.len(), 3);
+
+        let assistant_parts = match &messages[1].content {
+            ChatMessageContent::ContentPartList(parts) => parts,
+            _ => panic!("Expected content part list, not a stringified text blob"),
+        };
+        assert_eq!(assistant_parts.len(), 3);
+
+        match &assistant_parts[0] {
+            ChatMessageContentPart::Raw(raw) => {
+                assert_eq!(raw.part_type, "reasoning");
+                assert_eq!(
+                    raw.fields.get("text"),
+                    Some(&json!("I should call the uppercase tool first."))
+                );
+                assert_eq!(
+                    raw.fields.get("providerOptions"),
+                    Some(&json!({"anthropic":{"signature":"sig-1"}}))
+                );
+            }
+            _ => panic!("Expected raw part for reasoning"),
+        }
+        match &assistant_parts[1] {
+            ChatMessageContentPart::Text(text) => assert_eq!(text.text, "Calling uppercase."),
+            _ => panic!("Expected text part"),
+        }
+        match &assistant_parts[2] {
+            ChatMessageContentPart::ToolCall(tool_call) => {
+                assert_eq!(tool_call.name, "uppercase");
+            }
+            _ => panic!("Expected tool call part"),
+        }
+
+        // The Raw part round-trips with `type` restored at its original spot.
+        let serialized = serde_json::to_value(&assistant_parts[0]).unwrap();
+        assert_eq!(serialized.get("type"), Some(&json!("reasoning")));
+    }
+
+    #[test]
+    fn test_input_messages_text_fallback_for_untyped_parts() {
+        // Content arrays whose elements carry no string `type` are genuinely
+        // unstructured — they must keep falling back to the text blob.
+        let messages_json = json!([
+            {"role":"user","content":[{"foo":"bar"}, "loose string"]}
+        ]);
+        let attributes = HashMap::from([
+            ("gen_ai.system".to_string(), json!("anthropic")),
+            (
+                "ai.prompt.messages".to_string(),
+                Value::String(messages_json.to_string()),
+            ),
+        ]);
+
+        let mut span = Span {
+            span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            trace_id: Uuid::new_v4(),
+            parent_span_id: None,
+            name: "ai.generateText.doGenerate".to_string(),
+            attributes: SpanAttributes::new(attributes),
+            input: None,
+            output: None,
+            span_type: SpanType::LLM,
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            events: vec![],
+            status: None,
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        };
+
+        span.parse_and_enrich_attributes();
+
+        let input = span.input.as_ref().unwrap();
+        let messages: Vec<ChatMessage> = serde_json::from_value(input.clone()).unwrap();
+        match &messages[0].content {
+            ChatMessageContent::Text(text) => {
+                assert_eq!(text, &json!([{"foo":"bar"}, "loose string"]).to_string());
+            }
+            _ => panic!("Expected text blob fallback for untyped parts"),
+        }
+    }
 }

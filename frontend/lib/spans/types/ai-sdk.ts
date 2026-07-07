@@ -84,6 +84,18 @@ const ToolApprovalResponsePartSchema = z.object({
   providerOptions: ProviderOptionsSchema.optional(),
 });
 
+// Server-reshaped AI SDK tool call: app-server stores instrumentation `tool-call`
+// parts as `{type: "tool_call", name, id, arguments}`. With unknown parts (e.g.
+// `reasoning`) now preserved verbatim server-side (LAM-1912), a stored assistant
+// turn mixes dash-style raw parts with this snake-case shape; converted back to a
+// dash-style `tool-call` at convert time.
+const ServerToolCallPartSchema = z.object({
+  type: z.literal("tool_call"),
+  name: z.string(),
+  id: z.string().nullable().optional(),
+  arguments: z.unknown(),
+});
+
 // Forward-compat escape hatch for future v7 parts; placed LAST so modeled parts match first.
 const UnknownPartSchema = z.object({ type: z.string() }).loose();
 
@@ -98,6 +110,7 @@ const AssistantContentPartSchema = z.union([
   ToolCallPartSchema,
   ToolResultPartSchema,
   ToolApprovalRequestPartSchema,
+  ServerToolCallPartSchema,
   UnknownPartSchema,
 ]);
 
@@ -214,6 +227,16 @@ const convertOne = (message: ParsedMessage): Omit<ModelMessage, "role"> & { role
         if (data !== undefined) content.push({ ...part, data });
         // Non-string data can't render as a file; surface the JSON so it isn't lost.
         else content.push({ type: "text", text: JSON.stringify(part) });
+        break;
+      }
+      case "tool_call": {
+        const tc = part as z.infer<typeof ServerToolCallPartSchema>;
+        content.push({
+          type: "tool-call",
+          toolCallId: tc.id ?? "",
+          toolName: tc.name,
+          input: tc.arguments,
+        });
         break;
       }
       default:

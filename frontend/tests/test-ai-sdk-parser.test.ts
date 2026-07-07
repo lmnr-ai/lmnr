@@ -255,6 +255,50 @@ describe("parseAiSdkMessages", () => {
     assert.strictEqual(result[0].content, "[draft] here is my answer");
   });
 
+  it("converts server-reshaped tool_call parts mixed with preserved raw parts", () => {
+    // App-server stores instrumentation tool calls as snake-case
+    // {type: "tool_call", name, id, arguments} while preserving unknown parts
+    // (reasoning) verbatim — a stored assistant turn mixes both shapes.
+    const input = [
+      {
+        role: "assistant",
+        content: [
+          { type: "reasoning", text: "I should call the tool.", providerOptions: { anthropic: { signature: "s" } } },
+          { type: "text", text: "Calling." },
+          { type: "tool_call", name: "get_weather", id: "call_1", arguments: { city: "SF" } },
+        ],
+      },
+    ];
+
+    const result = parseAiSdkMessages(input);
+    assert.ok(result, "expected the reasoning part to claim this payload");
+    const content = result[0].content as any[];
+    assert.strictEqual(content[0].type, "reasoning");
+    assert.deepStrictEqual(content[2], {
+      type: "tool-call",
+      toolCallId: "call_1",
+      toolName: "get_weather",
+      input: { city: "SF" },
+    });
+  });
+
+  it("converts server-reshaped tool_call with a null id to an empty toolCallId", () => {
+    const input = [
+      {
+        role: "assistant",
+        content: [
+          { type: "reasoning", text: "hmm" },
+          { type: "tool_call", name: "t", id: null, arguments: {} },
+        ],
+      },
+    ];
+
+    const result = parseAiSdkMessages(input);
+    assert.ok(result);
+    const content = result[0].content as any[];
+    assert.deepStrictEqual(content[1], { type: "tool-call", toolCallId: "", toolName: "t", input: {} });
+  });
+
   it("claims via a distinctive part and preserves an unmodeled future part verbatim", () => {
     // The single escape hatch: a well-formed part with a string `type` we don't
     // model yet rides through untouched (the generic renderer JSON-dumps it),

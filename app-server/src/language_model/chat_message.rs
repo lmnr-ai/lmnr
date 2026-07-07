@@ -146,6 +146,17 @@ pub struct ChatMessageAISDKToolResult {
     pub tool_name: String,
 }
 
+/// Catch-all for content-part types the enums don't model (AI SDK v7
+/// `reasoning`, `custom`, `tool-approval-*`, ...). Preserved verbatim so one
+/// unknown part doesn't collapse a whole content array to a text blob (LAM-1912).
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RawContentPart {
+    #[serde(rename = "type")]
+    pub part_type: String,
+    #[serde(flatten)]
+    pub fields: serde_json::Map<String, serde_json::Value>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "type")]
@@ -158,6 +169,9 @@ pub enum ChatMessageContentPart {
     ToolCall(ChatMessageToolCall),
     #[serde(rename = "tool-result")]
     AISDKToolResult(ChatMessageAISDKToolResult),
+    // Must stay the last variant: untagged is only tried after every tag fails.
+    #[serde(untagged)]
+    Raw(RawContentPart),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -271,6 +285,11 @@ pub enum InstrumentationChatMessageContentPart {
     AISDKToolCall(InstrumentationChatMessageAISDKToolCall),
     #[serde(alias = "tool-result")]
     AISDKToolResult(InstrumentationChatMessageAISDKToolResult),
+    // Must stay the last variant: untagged is only tried after every tag fails.
+    // Objects without a string `type` still fail, keeping the text-blob fallback
+    // for genuinely unstructured content.
+    #[serde(untagged)]
+    Raw(RawContentPart),
 }
 
 impl ChatMessageContentPart {
@@ -410,6 +429,7 @@ impl ChatMessageContentPart {
                     tool_name: tool_result.tool_name.clone(),
                 })
             }
+            InstrumentationChatMessageContentPart::Raw(raw) => ChatMessageContentPart::Raw(raw),
         }
     }
 }
