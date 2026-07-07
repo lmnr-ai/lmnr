@@ -294,8 +294,13 @@ pub async fn upsert_trace_statistics_batch(
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
             ON CONFLICT (project_id, id) DO UPDATE SET
-                start_time = LEAST(traces.start_time, EXCLUDED.start_time),
-                end_time = GREATEST(traces.end_time, EXCLUDED.end_time),
+                -- A metadata-patch stub row (span_names still NULL — every
+                -- span batch sets it) carries now() placeholder times; the
+                -- CASE nulls them out (LEAST/GREATEST ignore NULLs) so the
+                -- first real span batch fully owns the trace's time range
+                -- instead of GREATEST keeping the later placeholder end.
+                start_time = LEAST(CASE WHEN traces.span_names IS NOT NULL THEN traces.start_time END, EXCLUDED.start_time),
+                end_time = GREATEST(CASE WHEN traces.span_names IS NOT NULL THEN traces.end_time END, EXCLUDED.end_time),
                 type = CASE WHEN COALESCE(traces.type, 0) = 0 THEN EXCLUDED.type ELSE traces.type END,
                 top_span_id = COALESCE(EXCLUDED.top_span_id, traces.top_span_id),
                 top_span_name = COALESCE(EXCLUDED.top_span_name, traces.top_span_name),
@@ -401,7 +406,7 @@ pub async fn trace_exists(pool: &PgPool, project_id: Uuid, trace_id: Uuid) -> Re
     Ok(exists)
 }
 
-/// A post-factum metadata patch applied to an existing trace by the
+/// A post-factum metadata patch applied to a trace by the
 /// `POST /v1/traces/metadata` endpoint via a virtual metadata-only span.
 #[derive(Debug, Clone)]
 pub struct TraceMetadataPatch {
@@ -410,10 +415,11 @@ pub struct TraceMetadataPatch {
     pub metadata: Value,
 }
 
-/// Merge metadata into existing traces. Each patch is `traces.metadata || patch`
-/// shallow-merged under the row lock that PG takes on the matching `(project_id, id)`,
-/// so concurrent ingestion of the same trace (which goes through the same row via
-/// `upsert_trace_statistics_batch`) serialises against this update.
+/// Merge metadata into traces, creating a virtual row when the trace doesn't
+/// exist yet. Each patch is `traces.metadata || patch` shallow-merged under the
+/// row lock that PG takes on the matching `(project_id, id)`, so concurrent
+/// ingestion of the same trace (which goes through the same row via
+/// `upsert_trace_statistics_batch`) serialises against this upsert.
 ///
 /// Also bumps `num_spans` by 1. ClickHouse `traces_replacing` is
 /// `ReplacingMergeTree(num_spans)` — without a version bump, a patched row in
@@ -424,10 +430,22 @@ pub struct TraceMetadataPatch {
 /// strictly higher version than the row written by the same-batch upsert
 /// (which only summed over real spans).
 ///
-/// Traces that don't exist are silently skipped — no rows are created here. The
-/// HTTP handler validates existence up front, but a race (e.g. trace deleted
-/// between request and consumption) must not produce a stub trace row with
-/// metadata only and every other column NULL/0.
+/// A patch that arrives before the trace's span batch creates a virtual row
+/// (metadata + zeroed stats); the later `upsert_trace_statistics_batch` fills
+/// the stats in on conflict. Stub rows get `now()` start/end times (never
+/// NULL — `CHTrace` maps missing times to epoch 0, which would land the row
+/// in ClickHouse's epoch partition where the later real-month row can't
+/// replace it). The conflict arm only backfills NULL times, so a real row's
+/// times are never touched; conversely, the aggregation upsert DISCARDS a
+/// stub's placeholder times (recognized by `span_names IS NULL` — every span
+/// batch sets it, this upsert never does) so the first real span batch fully
+/// owns the trace's time range instead of `GREATEST` keeping the later
+/// placeholder end. Known caveat: if the spans never arrive (span batch
+/// permanently rejected, or the trace was deleted between request and
+/// consumption), a metadata-only stub row remains. Accepted deliberately —
+/// checking row existence per patch is a heavy PG read on the hot ingest
+/// path, and spans not arriving at all is a catastrophic failure where an
+/// empty trace body is the least of the problems.
 #[instrument(skip(pool, patches))]
 pub async fn merge_trace_metadata_batch(
     pool: &PgPool,
@@ -441,10 +459,29 @@ pub async fn merge_trace_metadata_batch(
     for patch in patches {
         let updated = sqlx::query_as::<_, Trace>(
             r#"
-            UPDATE traces
-            SET metadata = COALESCE(traces.metadata || $1, $1, traces.metadata),
-                num_spans = COALESCE(traces.num_spans, 0) + 1
-            WHERE id = $2 AND project_id = $3
+            INSERT INTO traces (
+                id,
+                project_id,
+                metadata,
+                start_time,
+                end_time,
+                type,
+                input_token_count,
+                output_token_count,
+                total_token_count,
+                input_cost,
+                output_cost,
+                cost,
+                tags,
+                num_spans
+            )
+            VALUES ($1, $2, $3, now(), now(), 0, 0, 0, 0, 0, 0, 0, '{}', 1)
+            ON CONFLICT (project_id, id) DO UPDATE SET
+                metadata = COALESCE(traces.metadata || EXCLUDED.metadata, EXCLUDED.metadata, traces.metadata),
+                num_spans = COALESCE(traces.num_spans, 0) + 1,
+                -- backfill only: an existing row's times are never overwritten
+                start_time = COALESCE(traces.start_time, EXCLUDED.start_time),
+                end_time = COALESCE(traces.end_time, EXCLUDED.end_time)
             RETURNING
                 id,
                 project_id,
@@ -475,15 +512,13 @@ pub async fn merge_trace_metadata_batch(
                 cache_creation_input_tokens
             "#,
         )
-        .bind(&patch.metadata)
         .bind(patch.trace_id)
         .bind(patch.project_id)
-        .fetch_optional(pool)
+        .bind(&patch.metadata)
+        .fetch_one(pool)
         .await?;
 
-        if let Some(trace) = updated {
-            traces.push(trace);
-        }
+        traces.push(updated);
     }
 
     Ok(traces)

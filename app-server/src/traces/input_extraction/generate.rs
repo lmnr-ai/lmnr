@@ -8,6 +8,7 @@
 
 use std::sync::Arc;
 
+use backoff::ExponentialBackoffBuilder;
 use tracing::Instrument;
 
 use super::regex::{ApplyRegexResult, apply_regex, apply_result_to_json};
@@ -20,13 +21,34 @@ use crate::llm::models::{
 use crate::llm::{LlmClient, request_to_span_input, request_to_tools_attr};
 
 const REGEX_LLM_TIMEOUT_SECS: u64 = 120;
+/// Initial backoff before the first LLM retry (grows exponentially).
+const LLM_RETRY_INITIAL_BACKOFF_SECS: u64 = 2;
+/// Stop retrying transient LLM failures once this much wall-clock time
+/// has elapsed (the attempts themselves included).
+const LLM_RETRY_MAX_ELAPSED_SECS: u64 = 300;
 /// Total LLM-call budget per pipeline (initial call + probe round-trips).
 /// The prompt tells the model probing is unlimited; this cap only bounds
-/// a runaway loop — hitting it is treated as "no regex produced".
+/// a runaway loop — hitting it is [`GenerationVerdict::Exhausted`].
 const MAX_LLM_CALLS: usize = 6;
+/// Per-call output budget. Thinking tokens count against it (adaptive
+/// thinking on Sonnet shares the cap), so it must be generous: at 1024 the
+/// model's turn routinely truncated mid-thinking or mid-tool-call, mangling
+/// submit args and burning the whole call budget on nudge cycles.
+const MAX_OUTPUT_TOKENS: i32 = 16384;
 
 const TRY_TOOL_NAME: &str = "try_extraction_regex";
 const SUBMIT_TOOL_NAME: &str = "submit_extraction_regex";
+
+/// How a generation pipeline ended.
+pub enum GenerationVerdict {
+    /// Accepted submit: a pattern that extracts non-empty text from the
+    /// sample.
+    Pattern(String),
+    /// The call budget ran out without an accepted submit. The model
+    /// never delivered a usable pattern, so the caller falls back to the
+    /// passthrough regex.
+    Exhausted,
+}
 
 const REGEX_GENERATION_SYSTEM_PROMPT: &str = r#"# Task
 
@@ -58,16 +80,16 @@ The message may carry "== lmnr_part_separator ==" lines separating sibling messa
    - Scaffolding first, instruction last → (?s).*STATIC_END\s*(.*) — the leading greedy .* is mandatory: it anchors on the LAST occurrence of STATIC_END, not the first.
    - Instruction first, scaffolding after → (?s)^(.*?)STATIC_START — the ^ plus LAZY (.*?) are mandatory: they anchor on the FIRST occurrence of STATIC_START. Only valid when the message does not begin with scaffolding.
    - Instruction inside its own envelope → (?s)ENVELOPE_START\s*(.*?)\s*ENVELOPE_END.
-   - Entire message is scaffolding, no instruction anywhere → (?s)() — empty capture.
    - No scaffolding, or no reliable static anchor → (?s)(.*) — passthrough. When unsure, prefer passthrough: capturing too much is recoverable, silently dropping the instruction is not.
+   The message was sent to an agent, so it carries an instruction — a pattern that captures nothing is always wrong. If the message looks like pure scaffolding, the instruction is hiding inside one of the blocks: find it, or fall back to passthrough.
 4. Narrow when the structure supports it: if the instruction region is itself structured (say, a JSON object where one field is the task), capture just that field, anchoring on its static field name.
 5. Probe with try_extraction_regex whenever you are not fully certain — unusual layout, an anchor occurring more than once, any narrowing. If the probe result is wrong, rethink your segmentation and anchors. A single confident passthrough may be submitted without probing.
-6. Finish with submit_extraction_regex — submitting is the only way to finish. Submit an empty string only when no valid pattern can be produced at all; an uncertain case should be a passthrough, not an empty submit.
+6. Finish with submit_extraction_regex — submitting is the only way to finish. The submitted pattern must extract non-empty text from this message; when no reliable pattern can be produced, submit the passthrough.
 
 # Tools
 
 - try_extraction_regex: probes a candidate pattern. It is applied to the ORIGINAL message (full text, separator lines included) and you get back the FINAL user-visible result: capture group 1 with the "== lmnr_part_separator ==" lines already stripped and the parts re-joined. Judge it as the end product and do not expect the separator lines in it. Every pattern — probed or submitted — always runs against the original message; never write a pattern against a probe's result text.
-- submit_extraction_regex: submits the final pattern (starts with "(?s)", no surrounding quotes) and ends the pipeline. You may probe as many times as you want first. A submitted pattern that does not match this message is rejected and returned to you — probe, fix the pattern, and submit again.
+- submit_extraction_regex: submits the final pattern (starts with "(?s)", no surrounding quotes) and ends the pipeline. You may probe as many times as you want first. A submitted pattern that does not extract non-empty text from this message is rejected and returned to you — probe, fix the pattern, and submit again.
 
 # Rules
 
@@ -79,19 +101,22 @@ The message may carry "== lmnr_part_separator ==" lines separating sibling messa
 /// Agentic LLM pipeline generating one extraction regex from a single
 /// sample input: the model probes candidate patterns with
 /// `try_extraction_regex` (applied here, result returned to it) and
-/// finishes with `submit_extraction_regex`. Errors only on timeout /
-/// provider error — the genuinely transient failures the consumer may
-/// requeue. Recoverable slips — a response with no tool call, or a
-/// submitted pattern that doesn't match the sample — are pushed back to
-/// the model (a nudge / a rejection tool response) and retried within
-/// the call budget. Only an explicit empty-string submit (the model's
-/// deliberate no-regex verdict) or an exhausted budget is `Ok(None)`: a
-/// decision, not a transport failure.
+/// finishes with `submit_extraction_regex`. Errors only when a call
+/// exhausts its transient-retry budget (timeout / provider error) — each
+/// call is retried with exponential backoff (up to
+/// [`LLM_RETRY_MAX_ELAPSED_SECS`] elapsed) first. Recoverable slips — a
+/// response with no tool call, or a submitted pattern that doesn't
+/// extract non-empty text from the sample (empty string, no compile, no
+/// match, empty capture) — are pushed back to the model (a nudge / a
+/// rejection tool response) and retried within the call budget. The only
+/// non-error terminal outcomes are an accepted pattern
+/// ([`GenerationVerdict::Pattern`]) and an exhausted budget
+/// ([`GenerationVerdict::Exhausted`]).
 pub async fn generate_extraction_regex(
     llm_client: &Arc<LlmClient>,
     sample_input: &str,
     scope: &SpanScope,
-) -> anyhow::Result<Option<String>> {
+) -> anyhow::Result<GenerationVerdict> {
     let mut contents = vec![ProviderContent {
         role: Some("user".to_string()),
         parts: Some(vec![ProviderPart {
@@ -115,11 +140,15 @@ pub async fn generate_extraction_regex(
 
         // An ACCEPTED submit ends the pipeline even when probe calls ride
         // the same response — the model already committed to a final
-        // answer. Accepted means: empty string (the deliberate no-regex
-        // verdict — terminal) or a pattern that matches the sample
-        // (`Extracted` or `NoUserRequest`). A non-matching submit is NOT
-        // accepted — it falls through to the rejection path below and the
-        // model gets another attempt within the call budget.
+        // answer. Accepted means exactly one thing: a pattern whose
+        // application to the sample yields `Extracted` (non-empty capture).
+        // Everything else — an empty string, a missing/unparseable `regex`
+        // arg (truncated or mangled tool call), a pattern that doesn't
+        // compile or match, or one whose capture is empty (`(?s)()`-style
+        // "no user task" verdicts) — falls through to the rejection path
+        // below and the model gets another attempt within the call budget.
+        // The message was sent to an agent, so it virtually always carries
+        // an instruction; a capture-nothing verdict is almost never right.
         for part in parts {
             if let Some(fc) = &part.function_call
                 && fc.name == SUBMIT_TOOL_NAME
@@ -129,16 +158,14 @@ pub async fn generate_extraction_regex(
                     .as_ref()
                     .and_then(|a| a.get("regex"))
                     .and_then(|v| v.as_str())
-                    .map(str::trim)
-                    .unwrap_or("");
-                if submitted.is_empty() {
-                    return Ok(None);
-                }
-                if !matches!(
-                    apply_regex(submitted, sample_input),
-                    ApplyRegexResult::NoMatch
-                ) {
-                    return Ok(Some(submitted.to_string()));
+                    .map(str::trim);
+                if let Some(pattern) = submitted
+                    && matches!(
+                        apply_regex(pattern, sample_input),
+                        ApplyRegexResult::Extracted(_)
+                    )
+                {
+                    return Ok(GenerationVerdict::Pattern(pattern.to_string()));
                 }
             }
         }
@@ -164,13 +191,16 @@ pub async fn generate_extraction_regex(
                     // promises probes never chain off each other's results.
                     probe_extraction_regex(pattern, sample_input, scope)
                 }
-                SUBMIT_TOOL_NAME => serde_json::json!({
-                    "result": "rejected",
-                    "detail": "the submitted pattern does not match the message (no match, \
-                               invalid pattern, or no capture group 1), so it was not \
-                               accepted; probe with try_extraction_regex, then submit a \
-                               pattern that matches",
-                }),
+                SUBMIT_TOOL_NAME => {
+                    let pattern = fc
+                        .args
+                        .as_ref()
+                        .and_then(|a| a.get("regex"))
+                        .and_then(|v| v.as_str())
+                        .map(str::trim)
+                        .unwrap_or("");
+                    reject_submission(pattern, sample_input)
+                }
                 other => serde_json::json!({
                     "result": "error",
                     "detail": format!(
@@ -205,7 +235,9 @@ pub async fn generate_extraction_regex(
                     text: Some(
                         "Respond with a tool call: probe a candidate pattern with \
                          try_extraction_regex, or finish with submit_extraction_regex. \
-                         Submit an empty string only if no valid pattern can be produced."
+                         The submitted pattern must extract non-empty text from the \
+                         message; when no reliable pattern can be produced, submit the \
+                         passthrough (?s)(.*)."
                             .to_string(),
                     ),
                     ..Default::default()
@@ -219,7 +251,33 @@ pub async fn generate_extraction_regex(
     log::warn!(
         "user-task: regex generation exhausted its {MAX_LLM_CALLS}-call budget without a submit"
     );
-    Ok(None)
+    Ok(GenerationVerdict::Exhausted)
+}
+
+/// Rejection tool response for a submit that wasn't accepted, telling
+/// the model exactly why so its next attempt can fix the right thing.
+fn reject_submission(pattern: &str, sample_input: &str) -> serde_json::Value {
+    let detail = if pattern.is_empty() {
+        "the `regex` argument is missing or empty; an empty submit is never accepted — \
+         the message was sent to an agent, so it carries an instruction; probe with \
+         try_extraction_regex, then submit a pattern that extracts it (or the \
+         passthrough (?s)(.*) when no reliable anchor exists)"
+    } else {
+        match apply_regex(pattern, sample_input) {
+            ApplyRegexResult::NoUserRequest => {
+                "the submitted pattern matches but capture group 1 is empty/whitespace-only; \
+                 a pattern that captures nothing is never accepted — the message was sent \
+                 to an agent, so it carries an instruction; find it, or submit the \
+                 passthrough (?s)(.*)"
+            }
+            _ => {
+                "the submitted pattern does not match the message (no match, invalid \
+                 pattern, or no capture group 1), so it was not accepted; probe with \
+                 try_extraction_regex, then submit a pattern that extracts non-empty text"
+            }
+        }
+    };
+    serde_json::json!({ "result": "rejected", "detail": detail })
 }
 
 /// Apply a probed pattern to the original sample input and package the
@@ -268,13 +326,13 @@ fn build_request(contents: Vec<ProviderContent>) -> ProviderRequest {
                 },
                 ProviderFunctionDeclaration {
                     name: SUBMIT_TOOL_NAME.to_string(),
-                    description: "Submit the chosen regex pattern and end the pipeline, or an empty string when no valid pattern can be produced.".to_string(),
+                    description: "Submit the chosen regex pattern and end the pipeline. The pattern must extract non-empty text from the message.".to_string(),
                     parameters: serde_json::json!({
                         "type": "object",
                         "properties": {
                             "regex": {
                                 "type": "string",
-                                "description": "A regex pattern starting with (?s) with exactly one capture group. Empty string for null."
+                                "description": "A regex pattern starting with (?s) with exactly one capture group."
                             }
                         },
                         "required": ["regex"]
@@ -284,7 +342,7 @@ fn build_request(contents: Vec<ProviderContent>) -> ProviderRequest {
         }]),
         generation_config: Some(ProviderGenerationConfig {
             temperature: Some(1.0),
-            max_output_tokens: Some(1024),
+            max_output_tokens: Some(MAX_OUTPUT_TOKENS),
             thinking_config: Some(ProviderThinkingConfig {
                 include_thoughts: Some(true),
                 thinking_level: Some(ProviderThinkingLevel::Medium),
@@ -310,13 +368,53 @@ fn extraction_provider() -> String {
         .unwrap_or_else(|| "bedrock".to_string())
 }
 
-/// One traced provider call with a timeout. Errors (timeout / provider)
-/// are the transient failures the consumer may requeue.
+/// A failed provider call: the message plus whether the failure is worth
+/// retrying (timeouts and retryable provider errors are; config errors
+/// and non-retryable API errors are not).
+struct LlmCallError {
+    message: String,
+    retryable: bool,
+}
+
+/// One LLM call with conventional exponential-backoff retries for
+/// transient failures (`backoff` crate, like the worker connect loop).
+/// Each attempt is its own traced provider call. Errors only when the
+/// retry window is exhausted or the failure is non-retryable.
 async fn call_llm(
     llm_client: &Arc<LlmClient>,
     request: &ProviderRequest,
     scope: &SpanScope,
 ) -> anyhow::Result<ProviderResponse> {
+    let backoff = ExponentialBackoffBuilder::new()
+        .with_initial_interval(std::time::Duration::from_secs(
+            LLM_RETRY_INITIAL_BACKOFF_SECS,
+        ))
+        .with_max_elapsed_time(Some(std::time::Duration::from_secs(
+            LLM_RETRY_MAX_ELAPSED_SECS,
+        )))
+        .build();
+
+    backoff::future::retry(backoff, || async {
+        call_llm_once(llm_client, request, scope)
+            .await
+            .map_err(|e| {
+                if e.retryable {
+                    log::warn!("user-task: LLM call failed, will retry: {}", e.message);
+                    backoff::Error::transient(anyhow::anyhow!(e.message))
+                } else {
+                    backoff::Error::permanent(anyhow::anyhow!(e.message))
+                }
+            })
+    })
+    .await
+}
+
+/// One traced provider call with a timeout.
+async fn call_llm_once(
+    llm_client: &Arc<LlmClient>,
+    request: &ProviderRequest,
+    scope: &SpanScope,
+) -> Result<ProviderResponse, LlmCallError> {
     // Build the span before the call — spans can't be backdated, so a
     // span built after the call returns would record ~zero duration.
     let (model, provider) = llm_client.resolve_model_provider(request);
@@ -334,12 +432,19 @@ async fn call_llm(
 
     let (response, error) = match result {
         Ok(Ok(response)) => (Some(response), None),
-        Ok(Err(e)) => (None, Some(format!("regex generation failed: {e}"))),
+        Ok(Err(e)) => (
+            None,
+            Some(LlmCallError {
+                message: format!("regex generation failed: {e}"),
+                retryable: e.is_retryable(),
+            }),
+        ),
         Err(_) => (
             None,
-            Some(format!(
-                "regex generation timed out after {REGEX_LLM_TIMEOUT_SECS}s"
-            )),
+            Some(LlmCallError {
+                message: format!("regex generation timed out after {REGEX_LLM_TIMEOUT_SECS}s"),
+                retryable: true,
+            }),
         ),
     };
 
@@ -353,13 +458,94 @@ async fn call_llm(
             usage.and_then(|u| u.candidates_token_count),
         );
     }
-    if let Some(error) = error.clone() {
-        self_tracing::record_error(&span, error);
+    if let Some(error) = error.as_ref() {
+        self_tracing::record_error(&span, error.message.clone());
     }
 
     match (response, error) {
         (Some(response), _) => Ok(response),
-        (None, Some(error)) => Err(anyhow::anyhow!(error)),
+        (None, Some(error)) => Err(error),
         (None, None) => unreachable!(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use uuid::Uuid;
+
+    use super::*;
+    use crate::llm::ProviderClient;
+    use crate::llm::mock::{GenerateFailureMode, MockProviderClient};
+
+    fn mock_llm_client(mock: MockProviderClient) -> Arc<LlmClient> {
+        Arc::new(LlmClient::from_provider("mock", ProviderClient::Mock(mock)))
+    }
+
+    fn test_scope() -> SpanScope {
+        SpanScope::new(Uuid::new_v4(), Uuid::new_v4())
+    }
+
+    // ---- call_llm retries ---------------------------------------------------
+    //
+    // The retry budget is time-based (`max_elapsed_time`), which the
+    // `backoff` crate measures on the real clock, so there is no
+    // "gives up after N attempts" test — a fail-forever run would need
+    // real minutes to exhaust the window.
+
+    #[tokio::test(start_paused = true)]
+    async fn call_llm_retries_transient_failures_until_success() {
+        let mock = MockProviderClient::with_generate_failure(2, GenerateFailureMode::Retryable429);
+        let counter = mock.clone();
+        let client = mock_llm_client(mock);
+        let request = build_request(vec![]);
+
+        let result = call_llm(&client, &request, &test_scope()).await;
+        assert!(result.is_ok());
+        assert_eq!(counter.generate_call_count(), 3);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn call_llm_does_not_retry_non_retryable_failures() {
+        let mock = MockProviderClient::with_generate_failure(
+            usize::MAX,
+            GenerateFailureMode::NonRetryable,
+        );
+        let counter = mock.clone();
+        let client = mock_llm_client(mock);
+        let request = build_request(vec![]);
+
+        let result = call_llm(&client, &request, &test_scope()).await;
+        assert!(result.is_err());
+        assert_eq!(counter.generate_call_count(), 1);
+    }
+
+    // ---- reject_submission --------------------------------------------------
+
+    fn rejection_detail(pattern: &str, sample: &str) -> String {
+        let response = reject_submission(pattern, sample);
+        assert_eq!(response["result"], "rejected");
+        response["detail"].as_str().unwrap().to_string()
+    }
+
+    #[test]
+    fn reject_submission_explains_empty_submit() {
+        let detail = rejection_detail("", "some message");
+        assert!(detail.contains("missing or empty"));
+        assert!(detail.contains("(?s)(.*)"));
+    }
+
+    #[test]
+    fn reject_submission_explains_empty_capture() {
+        // Matches, but capture group 1 is empty — the old "no user task"
+        // verdict, no longer accepted.
+        let detail = rejection_detail(r"(?s)()", "some message");
+        assert!(detail.contains("captures nothing"));
+        assert!(detail.contains("(?s)(.*)"));
+    }
+
+    #[test]
+    fn reject_submission_explains_no_match() {
+        let detail = rejection_detail(r"(?s)<nope>(.*)", "some message");
+        assert!(detail.contains("does not match"));
     }
 }

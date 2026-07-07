@@ -1,4 +1,4 @@
-//! Static system prompt extraction (LAM-1898 / LAM-1899).
+//! Static system prompt extraction.
 //!
 //! Given N example system prompts from the same template family, an LLM agent
 //! hypothesizes and verifies (via the harness-side `regex` tool) an ordered

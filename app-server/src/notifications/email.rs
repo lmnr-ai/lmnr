@@ -90,29 +90,23 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 ),
             }
         }
-        NotificationKind::NewCluster {
-            project_id,
-            signal_id,
-            signal_name,
-            cluster_id,
-            cluster_name,
-            num_signal_events,
-            num_child_clusters,
-            alert_name,
-        } => EmailContent {
-            from: ALERT_FROM_EMAIL.to_string(),
-            subject: format!("{}: New cluster", signal_name),
-            html: render_new_cluster_email(
-                project_id,
-                signal_id,
-                signal_name,
-                cluster_id,
-                cluster_name,
-                *num_signal_events,
-                *num_child_clusters,
-                alert_name,
-            ),
-        },
+        NotificationKind::NewCluster { signal_name, .. } => {
+            // All clusters in the batch are rendered as one digest email.
+            let clusters: Vec<&NotificationKind> = notifications
+                .iter()
+                .filter(|n| matches!(n, NotificationKind::NewCluster { .. }))
+                .collect();
+            let subject = if clusters.len() > 1 {
+                format!("{}: {} new clusters", signal_name, clusters.len())
+            } else {
+                format!("{}: New cluster", signal_name)
+            };
+            EmailContent {
+                from: ALERT_FROM_EMAIL.to_string(),
+                subject,
+                html: render_new_cluster_email(&clusters),
+            }
+        }
         NotificationKind::SignalsReport { .. } => {
             let (title, report_data) = build_report_data_from_batch(notifications, *workspace_id)
                 .expect("SignalsReport batch must contain at least one report");
@@ -352,19 +346,24 @@ fn render_alert_email(
     )
 }
 
-/// Render an HTML email for a new-cluster notification.
-#[allow(clippy::too_many_arguments)]
-fn render_new_cluster_email(
-    project_id: &Uuid,
-    signal_id: &Uuid,
-    signal_name: &str,
-    cluster_id: &Uuid,
-    cluster_name: &str,
-    num_signal_events: u32,
-    num_child_clusters: usize,
-    alert_name: &str,
-) -> String {
-    let base = frontend_url_email();
+/// Render one cluster's section inside the new-cluster digest email.
+fn render_new_cluster_section(kind: &NotificationKind, base: &str) -> String {
+    let NotificationKind::NewCluster {
+        project_id,
+        signal_id,
+        cluster_id,
+        cluster_name,
+        num_signal_events,
+        first_seen,
+        last_seen,
+        severity_counts,
+        example_events,
+        ..
+    } = kind
+    else {
+        return String::new();
+    };
+
     let cluster_link = with_utm(
         &format!(
             "{}/project/{}/signals/{}?clusterId={}",
@@ -374,6 +373,120 @@ fn render_new_cluster_email(
         "new_cluster_alert",
         "view_cluster",
     );
+
+    let mut meta_parts: Vec<String> = vec![format!(
+        "{} event{}",
+        num_signal_events,
+        if *num_signal_events == 1 { "" } else { "s" }
+    )];
+    if let Some(first_seen) = first_seen {
+        meta_parts.push(format!("First seen: {}", html_escape(first_seen)));
+    }
+    if let Some(last_seen) = last_seen {
+        meta_parts.push(format!("Last seen: {}", html_escape(last_seen)));
+    }
+    let meta_html = format!(
+        r#"<div style="margin:4px 0 0;font-size:12px;color:#6b7280;">{}</div>"#,
+        meta_parts.join(" &middot; ")
+    );
+
+    let severity_parts: Vec<String> = severity_counts
+        .iter()
+        .enumerate()
+        .filter(|(_, count)| **count > 0)
+        .map(|(i, count)| {
+            format!(
+                r#"<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:{color};margin-right:4px;vertical-align:middle;"></span><span style="vertical-align:middle;">{count} {label}</span>"#,
+                color = severity_color(i as u8),
+                count = count,
+                label = severity_label(i as u8),
+            )
+        })
+        .collect();
+    let severity_html = if severity_parts.is_empty() {
+        String::new()
+    } else {
+        format!(
+            r#"<div style="margin:6px 0 0;font-size:12px;color:#6b7280;">{}</div>"#,
+            severity_parts.join("&nbsp;&nbsp;")
+        )
+    };
+
+    let examples_html = if example_events.is_empty() {
+        String::new()
+    } else {
+        let cards: Vec<String> = example_events
+            .iter()
+            .map(|event| {
+                let trace_link = with_utm(
+                    &format!(
+                        "{}/project/{}/traces/{}?chat=true",
+                        base, project_id, event.trace_id
+                    ),
+                    "email",
+                    "new_cluster_alert",
+                    "view_trace",
+                );
+                let summary_part = if let Some(summary) = &event.summary {
+                    format!(
+                        r#"<div style="margin-top:4px;color:#374151;font-size:13px;">{}</div>"#,
+                        html_escape(summary)
+                    )
+                } else {
+                    String::new()
+                };
+                format!(
+                    r##"<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:12px;margin-bottom:8px;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+    <td style="font-size:12px;color:#6b7280;" align="left"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:{severity_color};margin-right:5px;vertical-align:middle;"></span><span style="vertical-align:middle;">{name} &middot; {timestamp}</span></td>
+    <td style="font-size:12px;" align="right"><a href="{trace_link}" style="color:{primary};text-decoration:none;">View trace &rarr;</a></td>
+  </tr></table>{summary}
+</div>"##,
+                    severity_color = severity_color(event.severity),
+                    name = html_escape(&event.name),
+                    timestamp = html_escape(&event.timestamp),
+                    trace_link = trace_link,
+                    summary = summary_part,
+                    primary = PRIMARY,
+                )
+            })
+            .collect();
+        format!(
+            r#"<div style="margin-top:12px;">{}</div>"#,
+            cards.join("\n")
+        )
+    };
+
+    format!(
+        r##"<div>
+  <h2 style="margin:0;font-size:16px;font-weight:600;"><a href="{cluster_link}" style="color:#111827;text-decoration:none;">{cluster_name}</a></h2>
+  {meta_html}
+  {severity_html}
+  {examples_html}
+  <div style="margin-top:10px;font-size:13px;"><a href="{cluster_link}" style="color:{primary};text-decoration:none;">View cluster &rarr;</a></div>
+</div>"##,
+        cluster_link = cluster_link,
+        cluster_name = html_escape(cluster_name),
+        meta_html = meta_html,
+        severity_html = severity_html,
+        examples_html = examples_html,
+        primary = PRIMARY,
+    )
+}
+
+/// Render an HTML digest email covering every new cluster in the batch.
+fn render_new_cluster_email(clusters: &[&NotificationKind]) -> String {
+    let Some(NotificationKind::NewCluster {
+        project_id,
+        signal_name,
+        alert_name,
+        ..
+    }) = clusters.first()
+    else {
+        return String::new();
+    };
+
+    let base = frontend_url_email();
     let alert_link = with_utm(
         &format!("{}/project/{}/settings?tab=alerts", base, project_id),
         "email",
@@ -387,31 +500,20 @@ fn render_new_cluster_email(
         "manage_preferences",
     );
 
-    let details_html = format!(
-        r#"<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:20px;">
-  <h3 style="margin:0 0 12px;font-size:14px;font-weight:600;color:#6b7280;">Details</h3>
-  <table width="100%" cellpadding="0" cellspacing="0" border="0">
-    <tr>
-      <td style="padding:6px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6;vertical-align:top;">Cluster</td>
-      <td style="padding:6px 0 6px 12px;font-size:13px;color:#111827;border-bottom:1px solid #f3f4f6;">{cluster_name}</td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6;vertical-align:top;">Events</td>
-      <td style="padding:6px 0 6px 12px;font-size:13px;color:#111827;border-bottom:1px solid #f3f4f6;">{num_signal_events}</td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;font-size:13px;color:#6b7280;vertical-align:top;">Child clusters</td>
-      <td style="padding:6px 0 6px 12px;font-size:13px;color:#111827;">{num_child_clusters}</td>
-    </tr>
-  </table>
-</div>"#,
-        cluster_name = html_escape(cluster_name),
-        num_signal_events = num_signal_events,
-        num_child_clusters = num_child_clusters,
-    );
+    let eyebrow = if clusters.len() > 1 {
+        format!("{} new clusters", clusters.len())
+    } else {
+        "New cluster".to_string()
+    };
+
+    let sections = clusters
+        .iter()
+        .map(|c| render_new_cluster_section(c, &base))
+        .collect::<Vec<String>>()
+        .join(r#"<div style="border-top:1px solid #e5e7eb;margin:20px 0;"></div>"#);
 
     let context_html = format!(
-        r##"<div style="text-align:center;margin-top:14px;font-size:12px;color:#9ca3af;line-height:1.6;">
+        r##"<div style="text-align:center;margin-top:18px;font-size:12px;color:#9ca3af;line-height:1.6;">
   <span style="vertical-align:middle;">Alert: <a href="{alert_link}" style="color:{primary};text-decoration:none;">{alert_name}</a></span>
 </div>"##,
         alert_link = alert_link,
@@ -432,15 +534,12 @@ fn render_new_cluster_email(
 
   <div style="background:#0A0A0A;border-radius:10px;padding:28px 24px;margin-bottom:20px;">
     <img src="cid:laminar-logo" alt="Laminar" width="120" height="21" style="display:block;margin-bottom:16px;" />
-    <p style="margin:0 0 6px;font-size:13px;color:#9ca3af;">New cluster</p>
+    <p style="margin:0 0 6px;font-size:13px;color:#9ca3af;">{eyebrow}</p>
     <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">{signal_name}</h1>
   </div>
 
   <div style="background:#ffffff;border-radius:10px;border:1px solid #e5e7eb;padding:24px;margin-bottom:20px;">
-    {details_html}
-    <div style="text-align:center;padding-top:8px;">
-      <a href="{cluster_link}" style="display:inline-block;background:#D0754E;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:600;">View Cluster</a>
-    </div>
+    {sections}
     {context_html}
   </div>
 
@@ -454,8 +553,8 @@ fn render_new_cluster_email(
 </body>
 </html>"##,
         signal_name = html_escape(signal_name),
-        details_html = details_html,
-        cluster_link = cluster_link,
+        eyebrow = eyebrow,
+        sections = sections,
         context_html = context_html,
         manage_prefs_link = manage_prefs_link,
     )

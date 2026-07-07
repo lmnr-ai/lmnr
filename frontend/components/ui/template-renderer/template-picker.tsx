@@ -21,7 +21,14 @@ import ManageTemplateDialog from "@/components/ui/template-renderer/manage-templ
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, swrFetcher } from "@/lib/utils";
 
-import { defaultTemplateValues, type ManageTemplateForm, manageTemplateSchema, type Template } from "./index";
+import {
+  defaultTemplateValues,
+  defaultTraceTemplateCode,
+  type ManageTemplateForm,
+  manageTemplateSchema,
+  type Template,
+  type TemplateScope,
+} from "./index";
 import { useTemplateRenderer } from "./template-renderer-store";
 
 export type ManageTemplateMode = "create" | "edit" | null;
@@ -35,6 +42,9 @@ interface TemplatePickerContextValue {
   templates: TemplateInfo[] | undefined;
   selectedTemplate: Template | null;
   isLoadingTemplate: boolean;
+  /** True while the manage dialog is open — selectedTemplate then reflects
+   *  unsaved draft form values, so consumers should hold off side effects. */
+  isManaging: boolean;
   selectTemplate: (templateId: string) => Promise<void>;
   openCreate: () => void;
   openEdit: () => void;
@@ -51,17 +61,26 @@ export const useTemplatePicker = () => {
 interface TemplatePickerProviderProps {
   presetKey: string | null;
   testData: string;
+  /** Which templates to list/create. "span" (default) renders single-span data;
+   *  "trace" templates carry a SQL WHERE filter and render spans of a trace. */
+  scope?: TemplateScope;
+  /** Trace whose span outline enriches the copied AI prompt (trace scope only). */
+  traceId?: string;
 }
 
 export const TemplatePickerProvider = ({
   presetKey,
   testData,
+  scope = "span",
+  traceId,
   children,
 }: PropsWithChildren<TemplatePickerProviderProps>) => {
   const { projectId } = useParams();
   const { toast } = useToast();
 
-  const { data: templates } = useSWR<TemplateInfo[]>(`/api/projects/${projectId}/render-templates`, swrFetcher);
+  const templatesBaseUrl = `/api/projects/${projectId}/render-templates`;
+
+  const { data: templates } = useSWR<TemplateInfo[]>(`${templatesBaseUrl}?type=${scope}`, swrFetcher);
 
   const { setPresetTemplate, getPresetTemplate } = useTemplateRenderer();
 
@@ -69,8 +88,17 @@ export const TemplatePickerProvider = ({
     resolver: zodResolver(manageTemplateSchema),
     defaultValues: defaultTemplateValues,
   });
-  const { reset, getValues, control } = methods;
+  const { reset, getValues, setValue, control } = methods;
   const form = useWatch({ control });
+
+  // Keep the form's testData in sync with the live payload. In the trace view
+  // the data arrives async (and refetches when the WHERE filter changes), so a
+  // reset at select/hydration time captures a stale/empty value otherwise.
+  useEffect(() => {
+    if (getValues("testData") !== testData) {
+      setValue("testData", testData, { shouldDirty: false });
+    }
+  }, [testData, getValues, setValue]);
 
   const [manageMode, setManageMode] = useState<ManageTemplateMode>(null);
   const [backup, setBackup] = useState<ManageTemplateForm | null>(null);
@@ -79,7 +107,7 @@ export const TemplatePickerProvider = ({
   const fetchTemplate = useCallback(
     async (templateId: string): Promise<Template | null> => {
       try {
-        const res = await fetch(`/api/projects/${projectId}/render-templates/${templateId}`);
+        const res = await fetch(`${templatesBaseUrl}/${templateId}`);
         if (!res.ok) {
           const err = await res.json().catch(() => null);
           throw new Error(err?.error ?? "Failed to fetch template");
@@ -94,7 +122,7 @@ export const TemplatePickerProvider = ({
         return null;
       }
     },
-    [projectId, toast]
+    [templatesBaseUrl, toast]
   );
 
   // Hydrate from persisted preset once templates load. `testData` omitted intentionally —
@@ -108,7 +136,7 @@ export const TemplatePickerProvider = ({
       setIsLoadingTemplate(true);
       try {
         const full = await fetchTemplate(storedId);
-        if (full) reset({ ...full, testData });
+        if (full) reset({ ...full, scope, testData });
       } finally {
         setIsLoadingTemplate(false);
       }
@@ -125,19 +153,24 @@ export const TemplatePickerProvider = ({
       setIsLoadingTemplate(true);
       try {
         const full = await fetchTemplate(templateId);
-        if (full) reset({ ...full, testData });
+        if (full) reset({ ...full, scope, testData });
       } finally {
         setIsLoadingTemplate(false);
       }
     },
-    [templates, presetKey, setPresetTemplate, fetchTemplate, reset, testData]
+    [templates, presetKey, setPresetTemplate, fetchTemplate, reset, scope, testData]
   );
 
   const openCreate = useCallback(() => {
     setBackup(getValues());
-    reset({ ...defaultTemplateValues, testData });
+    reset({
+      ...defaultTemplateValues,
+      ...(scope === "trace" && { code: defaultTraceTemplateCode }),
+      scope,
+      testData,
+    });
     setManageMode("create");
-  }, [getValues, reset, testData]);
+  }, [getValues, reset, scope, testData]);
 
   const openEdit = useCallback(() => {
     const current = getValues();
@@ -159,26 +192,33 @@ export const TemplatePickerProvider = ({
 
   const selectedTemplate = useMemo<Template | null>(() => {
     if (!form?.id || !form?.name || !form?.code) return null;
-    return { id: form.id, name: form.name, code: form.code };
-  }, [form?.id, form?.name, form?.code]);
+    return { id: form.id, name: form.name, code: form.code, scope: form.scope, whereClause: form.whereClause };
+  }, [form?.id, form?.name, form?.code, form?.scope, form?.whereClause]);
 
   const contextValue = useMemo<TemplatePickerContextValue>(
     () => ({
       templates,
       selectedTemplate,
       isLoadingTemplate,
+      isManaging: manageMode !== null,
       selectTemplate,
       openCreate,
       openEdit,
     }),
-    [templates, selectedTemplate, isLoadingTemplate, selectTemplate, openCreate, openEdit]
+    [templates, selectedTemplate, isLoadingTemplate, manageMode, selectTemplate, openCreate, openEdit]
   );
 
   return (
     <FormProvider {...methods}>
       <TemplatePickerContext.Provider value={contextValue}>
         {children}
-        <ManageTemplateDialog mode={manageMode} onCancel={cancelManage} onSaved={completeSave} />
+        <ManageTemplateDialog
+          mode={manageMode}
+          scope={scope}
+          traceId={traceId}
+          onCancel={cancelManage}
+          onSaved={completeSave}
+        />
       </TemplatePickerContext.Provider>
     </FormProvider>
   );

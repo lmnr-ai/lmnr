@@ -147,7 +147,7 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
               >
                 <div className="flex items-center justify-between w-full">
                   <div className="flex items-center gap-2">
-                    <ViewDropdown />
+                    <ViewDropdown tabs={["tree", "transcript"]} />
                     <TraceStatsShields
                       className="min-w-0 overflow-hidden"
                       trace={trace}
@@ -171,12 +171,13 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
                   </div>
                 </div>
               </div>
-              {tab === "tree" && (
+              {tab === "tree" ? (
                 <div className="flex flex-1 h-full overflow-hidden relative">
                   <Tree onSpanSelect={handleSpanSelect} isShared />
                 </div>
-              )}
-              {tab === "transcript" && (
+              ) : (
+                // Falls back to transcript for any other persisted tab value
+                // ("custom" is not available on the shared page).
                 <div className="flex flex-1 h-full overflow-hidden relative">
                   <Transcript onSpanSelect={handleSpanSelect} isShared />
                 </div>

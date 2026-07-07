@@ -5,14 +5,13 @@
 //! Acks only after the metadata publish succeeds (ack-after-write).
 
 use std::sync::Arc;
-use std::time::Duration;
 
 use async_trait::async_trait;
 
 use super::{
     lock::{UserTaskLockState, lock_cache_key},
     metadata::build_metadata_patch,
-    queue::{InputExtractionMessage, push_to_input_extraction_queue},
+    queue::InputExtractionMessage,
     regex::{
         ApplyRegexResult, generate_and_apply_regex, is_passthrough_regex, regex_cache_key,
         try_apply_cached_regex,
@@ -21,21 +20,13 @@ use super::{
 };
 use crate::{
     cache::{Cache, CacheTrait},
-    db::{DB, trace::trace_exists},
+    db::DB,
     env::user_task::USER_TASK_LOCK_TTL_SECONDS,
     llm::LlmClient,
     mq::MessageQueue,
     traces::metadata::publish_trace_metadata_patch,
     worker::{HandlerError, MessageHandler},
 };
-
-/// The metadata patch silently no-ops against a trace row that doesn't
-/// exist yet (`merge_trace_metadata_batch` must never create stub rows),
-/// so the consumer waits for the row with delayed re-enqueues before
-/// publishing. Bounded: a trace that never materializes (deleted, or its
-/// span batch was rejected) must not circulate forever.
-const MAX_TRACE_WAIT_RETRIES: u32 = 5;
-const TRACE_WAIT_DELAY: Duration = Duration::from_secs(1);
 
 pub struct InputExtractionHandler {
     pub db: Arc<DB>,
@@ -82,103 +73,44 @@ impl MessageHandler for InputExtractionHandler {
                     &message.signposted_text,
                     &scope,
                 )
-                .await
-                .map_err(HandlerError::transient)?;
+                .await;
 
                 self_tracing::set_metadata_bool(
                     &root,
                     "passthrough_regex",
-                    outcome.pattern.as_deref().is_some_and(is_passthrough_regex),
+                    is_passthrough_regex(&outcome.pattern),
                 );
-                // "Failed": no pattern was produced at all, or the generated
-                // pattern failed to compile / match / capture.
+                // "Failed": the generated pattern failed to compile /
+                // match / capture.
                 self_tracing::set_metadata_bool(
                     &root,
                     "regex_failed",
-                    outcome.pattern.is_none()
-                        || matches!(outcome.result, ApplyRegexResult::NoMatch),
+                    matches!(outcome.result, ApplyRegexResult::NoMatch),
                 );
+                // Call budget ran out without an accepted submit; the
+                // result came from the passthrough fallback.
+                self_tracing::set_metadata_bool(
+                    &root,
+                    "budget_exhausted",
+                    outcome.budget_exhausted,
+                );
+                // LLM generation failed (retries exhausted / non-retryable
+                // error); the result came from the passthrough fallback.
+                self_tracing::set_metadata_bool(&root, "llm_failed", outcome.llm_failed);
                 let result = outcome.result;
                 self_tracing::set_output(&root, &serde_json::json!(format!("{result:?}")));
                 result
             }
         };
 
-        // Wait for the trace row before publishing: the patch is applied by
-        // `merge_trace_metadata_batch` which silently skips missing traces,
-        // so publishing early acks a no-op and the winner lock then gates
-        // equal-state retries for the whole TTL. Runs AFTER regex
-        // generation on purpose — the generated regex is cached per shape,
-        // so the work isn't lost across re-enqueues (or even across
-        // traces). Existence-check errors fail open (publish): a
-        // possibly-early patch beats dropping the extraction.
-        let row_exists = trace_exists(&self.db.pool, message.project_id, message.trace_id)
-            .await
-            .unwrap_or_else(|e| {
-                log::error!(
-                    "user-task: trace existence check failed for trace [{}]: {e:?}",
-                    message.trace_id
-                );
-                true
-            });
-        if !row_exists {
-            if message.trace_wait_retries >= MAX_TRACE_WAIT_RETRIES {
-                // The trace never materialized (deleted, or its span batch
-                // was rejected) — nothing to patch. Drop (ack); the winner
-                // lock expires with its TTL.
-                log::warn!(
-                    "user-task: trace row [{}] still missing after {} retries, dropping extraction",
-                    message.trace_id,
-                    message.trace_wait_retries
-                );
-                return Ok(());
-            }
-            tokio::time::sleep(TRACE_WAIT_DELAY).await;
-            let requeued = InputExtractionMessage {
-                trace_wait_retries: message.trace_wait_retries + 1,
-                ..message
-            };
-            match push_to_input_extraction_queue(requeued, self.queue.clone()).await {
-                Ok(true) => return Ok(()),
-                // Oversize drop. Rare but NOT unreachable: the payload
-                // limit is env config and can differ between the
-                // enqueueing and consuming instance (mid-rollout), and
-                // re-serialization can grow a message that skated under
-                // the limit (`#[serde(default)]` fields absent on the
-                // wire come back as explicit nulls). The condition is
-                // permanent for this message — a transient error would
-                // redeliver the ORIGINAL message (the retry-count
-                // progress lives only in the dropped copy), hit the same
-                // oversize drop, and loop forever — so drop (ack); the
-                // winner lock expires with its TTL, like the retry-cap
-                // arm above.
-                Ok(false) => {
-                    log::warn!(
-                        "user-task: re-enqueue for trace [{}] exceeded the MQ payload limit, dropping extraction",
-                        message.trace_id
-                    );
-                    return Ok(());
-                }
-                // Real broker error — worth a redelivery retry.
-                Err(e) => {
-                    return Err(HandlerError::transient(anyhow::anyhow!(
-                        "trace row [{}] not created yet and re-enqueue failed: {e:?}",
-                        message.trace_id
-                    )));
-                }
-            }
-        }
-
-        // Supersession check AFTER the trace-row wait, immediately before
-        // the publish: a later batch may have superseded this candidate
-        // (published its own metadata inline and rewritten the winner
-        // lock) while this message sat in the queue OR during the
-        // `trace_exists` round-trip just above — checking any earlier
+        // Supersession check immediately before the publish: a later batch
+        // may have superseded this candidate (published its own metadata
+        // inline and rewritten the winner lock) while this message sat in
+        // the queue or during regex generation — checking any earlier
         // leaves that window open and this older extraction would
-        // overwrite the newer winner's `lmnr_user_task`. (Re-enqueue
-        // iterations re-enter here, so the check also re-runs after every
-        // wait hop.) Runs after regex generation on purpose: the regex is
-        // cached per shape, so the work is kept even when this candidate
+        // overwrite the newer winner's `lmnr_user_task`. Runs after regex
+        // generation on purpose: the regex is cached per shape, so the
+        // work is kept even when this candidate
         // is dropped. The check is order-aware (`supersedes`), not bare
         // inequality: the producer writes the lock only after the enqueue
         // lands, so a failed lock write can leave an OLDER state behind —

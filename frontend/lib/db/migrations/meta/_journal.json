@@ -708,6 +708,13 @@
       "when": 1782997824496,
       "tag": "0100_debugger_session_blocks",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1782997824497,
+      "tag": "0101_trace_render_templates",
+      "breakpoints": true
     }
   ]
 }
