@@ -48,7 +48,11 @@ pub async fn publish_static_prompt_candidates(
         .ok()
         .and_then(|s| Uuid::parse_str(&s).ok());
 
-    let mut seen: HashSet<(Uuid, String)> = HashSet::new();
+    // Collapse only same-trace repeats of a signature within this batch (an
+    // agent making many LLM calls in one trace). Distinct traces sharing a
+    // signature are kept — they're the cross-trace variance the accumulator
+    // wants; the consumer does the final (trace_id + content) dedup.
+    let mut seen: HashSet<(Uuid, Uuid, String)> = HashSet::new();
     let mut messages: Vec<StaticPromptQueueMessage> = Vec::new();
 
     for candidate in candidates {
@@ -56,7 +60,11 @@ pub async fn publish_static_prompt_candidates(
             continue;
         }
 
-        if !seen.insert((candidate.project_id, candidate.prompt_hash.clone())) {
+        if !seen.insert((
+            candidate.project_id,
+            candidate.trace_id,
+            candidate.prompt_hash.clone(),
+        )) {
             continue;
         }
 
