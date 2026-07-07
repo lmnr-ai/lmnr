@@ -17,7 +17,7 @@ const GenerationResultSchema = z.object({
     .string()
     .optional()
     .describe(
-      "Trace scope only: the full SQL WHERE fragment selecting the spans to render; empty string renders all spans"
+      "Trace scope only: the full SQL WHERE fragment selecting the spans to render; empty string renders all spans; omit to keep the current filter unchanged"
     ),
   error: z.string().optional().describe("Brief explanation of why the request was refused (when success is false)"),
 });
@@ -80,7 +80,10 @@ export async function generateRenderTemplate(
     return {
       success: true,
       code: output.code,
-      ...(scope === "trace" && { whereClause: output.whereClause ?? "" }),
+      // Omitted (vs. empty-string) whereClause means "leave the current filter
+      // unchanged" — coercing it to "" would clear a working filter on
+      // JSX-only follow-ups. Empty string is the explicit "all spans" signal.
+      ...(scope === "trace" && typeof output.whereClause === "string" && { whereClause: output.whereClause }),
     };
   }
 
