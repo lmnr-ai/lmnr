@@ -523,43 +523,41 @@ mod tests {
     }
 
     #[test]
-    fn collapses_shown_rejects_over_broad_sweeps() {
+    fn collapses_shown_accepts_over_broad_sweeps() {
         let footer = "## Rules\nAlways answer politely and cite every source you used in the end.";
         let examples = vec![
             format!("intro\nDATA: a1\n{footer}"),
             format!("intro\nDATA: b2\n{footer}"),
         ];
-        // Collapses, but eats the static footer — non-empty `sharedRemoved`
-        // means over-removal, not success.
-        assert!(!collapses_shown(
-            &["DATA: [\\s\\S]*".to_string()],
-            &examples
-        ));
-        // Bounded sweep removes only the dynamic value.
+        // The `sharedRemoved` acceptance gate was intentionally dropped from
+        // `tool_output_verified` (too strict — it often rejected every
+        // candidate, yielding no regex). An over-broad sweep that collapses all
+        // examples to the same residual now counts as collapsing, even though
+        // it eats the static footer. Don't re-add the gate here.
+        assert!(collapses_shown(&["DATA: [\\s\\S]*".to_string()], &examples));
+        // A bounded sweep collapses too.
         assert!(collapses_shown(&["(?<=DATA: )\\S+".to_string()], &examples));
     }
 
     #[test]
-    fn over_broad_final_answer_falls_back_to_verified_candidate() {
-        // Mirrors the selection logic in `extract_static_regexes`: an
-        // over-broad final answer (collapses but sweeps the static footer)
-        // must not be returned when a fully-verified candidate exists.
-        let footer = "## Rules\nAlways answer politely and cite every source you used in the end.";
+    fn non_collapsing_final_answer_falls_back_to_verified_candidate() {
+        // Mirrors the selection logic in `extract_static_regexes`: a final
+        // answer that does NOT collapse the examples must not be returned when
+        // a fully-verified candidate exists.
         let examples = vec![
-            format!("intro\nDATA: a1\n{footer}"),
-            format!("intro\nDATA: b2\n{footer}"),
+            "static\ndate: 2026-01-01\ntail".to_string(),
+            "static\ndate: 2026-01-02\ntail".to_string(),
         ];
-        let over_broad = vec!["DATA: [\\s\\S]*".to_string()];
-        let verified = vec!["(?<=DATA: )\\S+".to_string()];
+        // Valid pattern, but residuals still differ (the date line survives).
+        let non_collapsing = vec!["tail".to_string()];
+        let verified = vec!["^date: .*\\n?".to_string()];
 
-        assert!(!collapses_shown(&over_broad, &examples));
+        assert!(!collapses_shown(&non_collapsing, &examples));
         assert!(collapses_shown(&verified, &examples));
 
-        // Simulate the final selection: the over-broad list is rejected by the
-        // ladder-break gate, so the fallback swaps in the verified candidate.
         let mut regexes: Vec<String> = Vec::new();
-        if collapses_shown(&over_broad, &examples) {
-            regexes = over_broad.clone();
+        if collapses_shown(&non_collapsing, &examples) {
+            regexes = non_collapsing.clone();
         }
         if regexes.is_empty() && collapses_shown(&verified, &examples) {
             regexes = verified.clone();
@@ -568,20 +566,19 @@ mod tests {
     }
 
     #[test]
-    fn over_broad_final_answer_with_no_fallback_returns_empty() {
-        let footer = "## Rules\nAlways answer politely and cite every source you used in the end.";
+    fn non_collapsing_final_answer_with_no_fallback_returns_empty() {
         let examples = vec![
-            format!("intro\nDATA: a1\n{footer}"),
-            format!("intro\nDATA: b2\n{footer}"),
+            "static\ndate: 2026-01-01\ntail".to_string(),
+            "static\ndate: 2026-01-02\ntail".to_string(),
         ];
-        let over_broad = vec!["DATA: [\\s\\S]*".to_string()];
+        let non_collapsing = vec!["tail".to_string()];
 
         // No verified fallback available → the run yields an empty list, which
-        // the consumer treats as a failure instead of caching an over-broad
+        // the consumer treats as a failure instead of caching a non-collapsing
         // pattern.
         let mut regexes: Vec<String> = Vec::new();
-        if collapses_shown(&over_broad, &examples) {
-            regexes = over_broad.clone();
+        if collapses_shown(&non_collapsing, &examples) {
+            regexes = non_collapsing.clone();
         }
         let tool_verified: Option<Vec<String>> = None;
         if regexes.is_empty()
