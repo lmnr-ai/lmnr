@@ -19,7 +19,7 @@ use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 
 /// Per-request HTTP timeout applied only to flex-tier requests (the shared client
-/// timeout is `LLM_HTTP_TIMEOUT_SECS`, default 300s). Flex responses can take
+/// timeout is `LLM_TIMEOUT_SECS`, default 300s). Flex responses can take
 /// minutes. Reads `SIGNALS_FLEX_LLM_TIMEOUT_SECS` (default 900).
 static FLEX_REQUEST_TIMEOUT: LazyLock<Duration> =
     LazyLock::new(|| Duration::from_secs(env::llm::FLEX_LLM_TIMEOUT_SECS.get()));
