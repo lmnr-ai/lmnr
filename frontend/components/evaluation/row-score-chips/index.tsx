@@ -7,9 +7,7 @@ import RowScoreChip from "@/components/evaluation/row-score-chips/chip";
 import { type RunPoint } from "@/components/evaluation/row-score-chips/history-card";
 import { type EvaluationDatapointComparisonRow } from "@/lib/actions/evaluation";
 import { type EvalRow, type Evaluation as EvaluationType } from "@/lib/evaluation/types";
-import { formatTimestamp, swrFetcher } from "@/lib/utils";
-
-const MAX_RUNS = 30;
+import { formatTimestamp } from "@/lib/utils";
 
 interface RowScoreChipsProps {
   projectId: string;
@@ -42,40 +40,47 @@ export default function RowScoreChips({
     return Number.isFinite(n) ? n : undefined;
   }, [row]);
 
-  // Newest MAX_RUNS runs (cap keeps the URL under the 414 limit), but always
-  // include the run being viewed even when it's older than that window —
-  // otherwise its point + isCurrent highlight go missing from the history.
-  const windowedEvals = useMemo(() => {
-    const byCreatedAt = (a: EvaluationType, b: EvaluationType) =>
-      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-    const sorted = [...evaluations].sort(byCreatedAt);
-    const newest = sorted.slice(-MAX_RUNS);
-    if (currentEvaluationId && !newest.some((e) => e.id === currentEvaluationId)) {
-      const current = sorted.find((e) => e.id === currentEvaluationId);
-      if (current) return [...newest, current].sort(byCreatedAt);
-    }
-    return newest;
-  }, [evaluations, currentEvaluationId]);
+  // Every run in the group, oldest first — the full history line, no cap. The
+  // current run is always present (it's part of the group), so no special-casing.
+  const sortedEvals = useMemo(
+    () => [...evaluations].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
+    [evaluations]
+  );
 
-  const url = useMemo(() => {
-    if (index === undefined || windowedEvals.length === 0) return null;
-    const ids = windowedEvals.map((e) => e.id).join(",");
-    return `/api/projects/${projectId}/evaluations/datapoint-comparison?evaluationIds=${ids}&index=${index}`;
-  }, [projectId, windowedEvals, index]);
+  // Stable SWR key: the id list is part of the key so a group change refetches,
+  // but the ids ride the POST body (see route — unbounded, so no URL cap).
+  const idsKey = useMemo(() => sortedEvals.map((e) => e.id).join(","), [sortedEvals]);
+  const swrKey =
+    index !== undefined && idsKey.length > 0
+      ? ([`/api/projects/${projectId}/evaluations/datapoint-comparison`, idsKey, index] as const)
+      : null;
 
-  const { data } = useSWR<{ rows: EvaluationDatapointComparisonRow[] }>(url, swrFetcher, {
-    revalidateOnFocus: false,
-  });
+  const { data } = useSWR<{ rows: EvaluationDatapointComparisonRow[] }>(
+    swrKey,
+    async ([url, ids, idx]: readonly [string, string, number]) => {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ evaluationIds: ids.split(","), index: idx }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error ?? "Failed to load datapoint comparison.");
+      }
+      return res.json();
+    },
+    { revalidateOnFocus: false }
+  );
 
-  // Order fetched rows by the windowed run order (oldest first); drop runs that
-  // don't contain this datapoint index. Dedup by evaluationId (RMT pre-merge).
+  // Order fetched rows by run order (oldest first); drop runs that don't contain
+  // this datapoint index. Dedup by evaluationId (RMT pre-merge).
   const runs = useMemo(() => {
     const byEval = new Map<string, EvaluationDatapointComparisonRow>();
     (data?.rows ?? []).forEach((r) => byEval.set(r.evaluationId, r));
-    return windowedEvals
+    return sortedEvals
       .map((ev) => ({ ev, row: byEval.get(ev.id) }))
       .filter((x): x is { ev: EvaluationType; row: EvaluationDatapointComparisonRow } => !!x.row);
-  }, [data, windowedEvals]);
+  }, [data, sortedEvals]);
 
   const pointsByScore = useMemo(() => {
     const map: Record<string, RunPoint[]> = {};

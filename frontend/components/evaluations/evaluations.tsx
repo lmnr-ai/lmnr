@@ -3,7 +3,7 @@
 import { type ColumnDef } from "@tanstack/react-table";
 import { Eye, EyeOff, Settings as SettingsIcon } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { type LayoutStorage, useDefaultLayout } from "react-resizable-panels";
 import useSWR from "swr";
 
@@ -34,7 +34,7 @@ import { Switch } from "@/components/ui/switch";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
 import { type ScoreRange } from "@/lib/colors";
-import { type Evaluation, type EvaluationTimeProgression } from "@/lib/evaluation/types";
+import { type Evaluation } from "@/lib/evaluation/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { swrFetcher } from "@/lib/utils";
@@ -45,6 +45,7 @@ import Mono from "../ui/mono";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import GroupsList from "./groups-list";
+import { useEvaluationsProgression } from "./use-evaluations-progression";
 
 const baseColumns: ColumnDef<Evaluation>[] = [
   {
@@ -295,71 +296,17 @@ function EvaluationsContent() {
     return ids.length > 0 ? ids[0] : undefined;
   }, [rowSelection]);
 
-  // Same group-scoped progression the chart hits (no `ids` ⇒ every run in the
-  // group) — SWR dedups so this doesn't fire twice. Drives the table's per-score
-  // columns AND the full run set for the chart's Hide-all / visibility.
-  const progressionUrl = groupId
-    ? `/api/projects/${params?.projectId}/evaluation-groups/${encodeURIComponent(groupId)}/progression`
-    : null;
-  const progressionBody = useMemo(() => ({ aggregate: aggregationFunction }), [aggregationFunction]);
-  const { data: progression, isLoading: isProgressionLoading } = useSWR<EvaluationTimeProgression[]>(
-    progressionUrl ? [progressionUrl, progressionBody] : null,
-    async ([url, body]: [string, object]) => {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const err = (await res.json()) as { error: string };
-        throw new Error(err.error);
-      }
-      return res.json();
-    }
-  );
-
-  const { scoreNames, scoresByEvalId } = useMemo(() => {
-    const names = Array.from(new Set(progression?.flatMap((p) => p.names) ?? [])).sort();
-    const byEvalId: Record<string, Record<string, number | null>> = {};
-    for (const point of progression ?? []) {
-      const map: Record<string, number | null> = {};
-      for (const name of names) {
-        const idx = point.names.indexOf(name);
-        if (idx === -1) {
-          map[name] = null;
-        } else {
-          const v = Number(point.values[idx]);
-          map[name] = isNaN(v) ? null : v;
-        }
-      }
-      byEvalId[point.evaluationId] = map;
-    }
-    return { scoreNames: names, scoresByEvalId: byEvalId };
-  }, [progression]);
-
-  // Every run in the group (from the group-scoped progression), not just the
-  // loaded table page — so "Hide all" and the chart cover the whole group.
-  const allRunIds = useMemo(() => progression?.map((p) => p.evaluationId) ?? [], [progression]);
-
-  // Per-score min/max across the currently-loaded evals. The detail page derives
-  // the same range from its currently-loaded datapoints — both shift as infinite
-  // scroll brings in more rows, which is intentional.
-  const scoreRanges = useMemo<Record<string, ScoreRange>>(() => {
-    const out: Record<string, ScoreRange> = {};
-    for (const name of scoreNames) {
-      let min = Infinity;
-      let max = -Infinity;
-      for (const evalId of Object.keys(scoresByEvalId)) {
-        const v = scoresByEvalId[evalId]?.[name];
-        if (typeof v === "number" && !isNaN(v)) {
-          if (v < min) min = v;
-          if (v > max) max = v;
-        }
-      }
-      if (min !== Infinity) out[name] = { min, max };
-    }
-    return out;
-  }, [scoreNames, scoresByEvalId]);
+  // Single source for the group-scoped progression (no `ids` ⇒ every run in the
+  // group). Drives the table's per-score columns, the heatmap ranges, and the
+  // full run set for the chart's Hide-all / visibility — all parsed once.
+  const {
+    progression,
+    isLoading: isProgressionLoading,
+    scoreNames,
+    scoresByEvalId,
+    scoreRanges,
+    allRunIds,
+  } = useEvaluationsProgression(params?.projectId, groupId, aggregationFunction);
 
   const columns = useMemo<ColumnDef<Evaluation>[]>(
     () => [

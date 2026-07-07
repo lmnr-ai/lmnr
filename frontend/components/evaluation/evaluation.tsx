@@ -3,7 +3,8 @@
 import { type Row } from "@tanstack/react-table";
 import { debounce } from "lodash";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { parseAsString, useQueryState } from "nuqs";
+import { useCallback, useEffect, useMemo } from "react";
 import useSWR from "swr";
 import { shallow } from "zustand/shallow";
 
@@ -225,27 +226,31 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
     eventHandlers: realtimeHandlers,
   });
 
-  // Side-panel + selected-row state for trace view.
-  const [traceId, setTraceId] = useState<string | undefined>(() => searchParams.get("traceId") ?? undefined);
-  const [datapointId, setDatapointId] = useState<string | undefined>(
-    () => searchParams.get("datapointId") ?? undefined
-  );
+  // Selection is DERIVED from the URL, not stored — so a deep link whose
+  // datapoint hasn't loaded yet, a filter that drops the selected row, or a
+  // back/forward nav can never leave the always-open panel blank or stale.
+  // `datapointId` is the source of truth; `traceId` follows the resolved row.
+  const [datapointId, setDatapointId] = useQueryState("datapointId", parseAsString);
+  const [traceIdParam, setTraceIdParam] = useQueryState("traceId", parseAsString);
 
-  // Always-open: with no trace selected, honor a URL-linked datapoint if present,
-  // else default to the first row. Render-time (only fires when traceId is unset).
   const firstRow = allDatapoints?.[0] as EvalRow | undefined;
-  if (!traceId) {
-    const target = datapointId ? allDatapoints?.find((r) => r["id"] === datapointId) : firstRow;
-    if (target) {
-      setTraceId(target["traceId"] as string);
-      if (target["id"] !== datapointId) setDatapointId(target["id"] as string);
-    }
-  }
+  // The open datapoint: the URL-linked row if it's loaded, else the first row.
+  const selectedRow = useMemo(() => {
+    const byId = datapointId ? allDatapoints?.find((r) => r["id"] === datapointId) : undefined;
+    return byId ?? firstRow;
+  }, [allDatapoints, datapointId, firstRow]);
 
-  const handleRowClick = useCallback((row: Row<EvalRow>) => {
-    setTraceId(row.original["traceId"] as string);
-    setDatapointId(row.original["id"] as string);
-  }, []);
+  // Prefer the resolved row's trace; fall back to a bare `?traceId` link (older
+  // shared links carried traceId without datapointId).
+  const traceId = (selectedRow?.["traceId"] as string | undefined) ?? traceIdParam ?? undefined;
+
+  const handleRowClick = useCallback(
+    (row: Row<EvalRow>) => {
+      setDatapointId(row.original["id"] as string);
+      setTraceIdParam(row.original["traceId"] as string);
+    },
+    [setDatapointId, setTraceIdParam]
+  );
 
   const getRowHref = useCallback(
     (row: Row<EvalRow>) => {
@@ -296,7 +301,7 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
       visibleColumnDefs={visibleColumnDefs}
       isComparison={isComparison}
       scoreRanges={scoreRanges}
-      datapointId={datapointId}
+      datapointId={(selectedRow?.["id"] as string | undefined) ?? undefined}
       handleRowClick={handleRowClick}
       getRowHref={getRowHref}
       sortBy={sortBy}
@@ -309,12 +314,6 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
       onSearchChange={setSearchAndFilters}
       viewsResource={RESOURCE}
     />
-  );
-
-  // The selected datapoint — drives the per-row score chips above the trace.
-  const selectedRow = useMemo(
-    () => (datapointId ? allDatapoints?.find((row) => row["id"] === datapointId) : undefined),
-    [allDatapoints, datapointId]
   );
 
   return (
