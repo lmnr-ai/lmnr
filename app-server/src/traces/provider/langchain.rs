@@ -381,8 +381,13 @@ impl TryInto<Option<LangChainChatMessageContentPart>> for ChatMessageContentPart
             // LangChain CAN accept tool calls inside content parts, but we put them
             // in the tool_calls field instead, similar to OpenAI, so we skip them here.
             ChatMessageContentPart::ToolCall(_) => Ok(None),
-            // Unknown part types (reasoning, custom, ...) have no LangChain equivalent.
-            ChatMessageContentPart::Raw(_) => Ok(None),
+            // Unknown part types (reasoning, custom, ...) have no LangChain equivalent,
+            // so stringify them into a text part to avoid losing the data.
+            ChatMessageContentPart::Raw(raw) => Ok(Some(LangChainChatMessageContentPart::Text(
+                LangChainChatMessageContentPartText {
+                    text: serde_json::to_string(&raw)?,
+                },
+            ))),
         }
     }
 }
@@ -904,6 +909,36 @@ mod tests {
         assert_eq!(serialized["type"], "file");
         assert_eq!(serialized["source_type"], "url");
         assert_eq!(serialized["url"], "https://example.com/doc.pdf");
+    }
+
+    #[test]
+    fn test_raw_only_content_part_list_is_stringified_not_dropped() {
+        let raw_part: ChatMessageContentPart = serde_json::from_value(json!({
+            "type": "reasoning",
+            "text": "thinking...",
+            "providerOptions": {"anthropic": {"signature": "abc123"}}
+        }))
+        .unwrap();
+        assert!(matches!(raw_part, ChatMessageContentPart::Raw(_)));
+
+        let message = ChatMessage {
+            role: "assistant".to_string(),
+            content: ChatMessageContent::ContentPartList(vec![raw_part]),
+            tool_call_id: None,
+        };
+        let langchain_message = message_to_langchain_format(message).unwrap();
+
+        let content_array = langchain_message["content"].as_array().unwrap();
+        assert_eq!(content_array.len(), 1);
+        assert_eq!(content_array[0]["type"], "text");
+        let text = content_array[0]["text"].as_str().unwrap();
+        let round_tripped: Value = serde_json::from_str(text).unwrap();
+        assert_eq!(round_tripped["type"], "reasoning");
+        assert_eq!(round_tripped["text"], "thinking...");
+        assert_eq!(
+            round_tripped["providerOptions"]["anthropic"]["signature"],
+            "abc123"
+        );
     }
 
     #[test]
