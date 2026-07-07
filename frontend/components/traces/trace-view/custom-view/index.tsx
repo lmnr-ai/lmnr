@@ -2,9 +2,7 @@ import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { TemplatePickerPreview, useTemplatePicker } from "@/components/ui/template-renderer/template-picker";
-import { cn } from "@/lib/utils";
 
 /** Renders the selected trace template. Template selection lives in the trace
  *  view's main view dropdown; the `TemplatePickerProvider` is mounted in
@@ -21,9 +19,6 @@ export default function CustomView({
 }) {
   const { projectId } = useParams();
   const { selectedTemplate, isManaging } = useTemplatePicker();
-  // While a panel handle is dragged, drop pointer events on the iframe subtree so
-  // the sandboxed renderer can't swallow the resize's pointer stream.
-  const isResizing = useTraceViewStore((s) => s.isResizing);
 
   // Outcome keyed by fetch inputs. Effects run after paint, so a keyed result
   // (rather than bare isFetching/error flags) prevents one paint from showing
@@ -85,7 +80,7 @@ export default function CustomView({
           {current.error}
         </div>
       ) : (
-        <div className={cn("flex flex-1 min-h-0 flex-col overflow-y-auto", isResizing && "pointer-events-none")}>
+        <div className="flex flex-1 min-h-0 flex-col overflow-y-auto">
           <TemplatePickerPreview data={renderData} />
         </div>
       )}

@@ -45,6 +45,7 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
     hasBrowserSession,
     condensedTimelineEnabled,
     condensedTimelineVisibleSpanIds,
+    isResizing,
     setIsResizing,
   } = useTraceViewStore(
     (state) => ({
@@ -61,6 +62,7 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
       hasBrowserSession: state.hasBrowserSession,
       condensedTimelineEnabled: state.condensedTimelineEnabled,
       condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
+      isResizing: state.isResizing,
       setIsResizing: state.setIsResizing,
     }),
     shallow
@@ -107,7 +109,16 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
             <p className="text-xs text-muted-foreground">{spansError}</p>
           </div>
         ) : (
-          <ResizablePanelGroup id="trace-view-panels" orientation="vertical" className="flex-1 min-h-0">
+          <ResizablePanelGroup
+            id="trace-view-panels"
+            orientation="vertical"
+            // While any panel handle is dragged, drop pointer events on the whole
+            // group so iframes inside (custom renderer, rrweb session player) can't
+            // swallow the drag's pointer stream. Safe mid-drag: react-resizable-panels
+            // tracks the drag on document, so disabling handle hit-testing only blocks
+            // STARTING a drag, not continuing one.
+            className={cn("flex-1 min-h-0", isResizing && "pointer-events-none")}
+          >
             {condensedTimelineEnabled && (
               <>
                 <ResizablePanel defaultSize={120} minSize={80}>

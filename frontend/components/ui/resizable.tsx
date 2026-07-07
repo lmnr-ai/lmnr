@@ -34,8 +34,12 @@ function ResizableHandle({
   onDragChange?: (dragging: boolean) => void;
 }) {
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const pointerId = e.pointerId;
     onDragChange!(true);
-    const end = () => {
+    const end = (ev: PointerEvent) => {
+      // Only this drag's own pointer ends it — a second (touch) pointer releasing
+      // elsewhere must not clear the flag mid-drag.
+      if (ev.pointerId !== pointerId) return;
       onDragChange!(false);
       window.removeEventListener("pointerup", end);
       window.removeEventListener("pointercancel", end);
