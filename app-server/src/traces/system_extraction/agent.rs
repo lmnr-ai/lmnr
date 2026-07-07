@@ -92,9 +92,22 @@ struct EpisodeOutcome {
     /// Parsed final answer; empty escalates the temperature ladder.
     regexes: Vec<String>,
     tool_calls: usize,
-    /// Latest tool-call input whose RESULT had `isValid` and
-    /// `isResultInAllIdenticalOutput` — the fallback candidate.
+    /// Latest tool-call input whose RESULT met the tool's full success
+    /// criteria (valid, collapsed, no shared removed text) — the fallback
+    /// candidate.
     tool_verified: Option<Vec<String>>,
+}
+
+/// The tool's full success criteria: every pattern compiled and ran, all
+/// examples collapsed to one residual, AND nothing identical was deleted from
+/// every example — per the tool description, collapse with a non-empty
+/// `sharedRemoved` is over-removal (static template text swept), not success.
+fn tool_output_verified(output: &Value) -> bool {
+    output["isValid"] == Value::Bool(true)
+        && output["isResultInAllIdenticalOutput"] == Value::Bool(true)
+        && output["sharedRemoved"]
+            .as_array()
+            .is_some_and(|shared| shared.is_empty())
 }
 
 /// Extract the static-template removal regexes for a family of system
@@ -339,9 +352,7 @@ async fn run_episode_inner(
                     ) {
                         Ok(input) => {
                             let output = run_regex_tool(&input.regexes, examples);
-                            if output["isValid"] == Value::Bool(true)
-                                && output["isResultInAllIdenticalOutput"] == Value::Bool(true)
-                            {
+                            if tool_output_verified(&output) {
                                 tool_verified = Some(input.regexes);
                             }
                             output
@@ -377,15 +388,13 @@ async fn run_episode_inner(
     })
 }
 
-/// True iff `regexes` is non-empty, every pattern compiles and runs, and
-/// every shown example collapses to the same residual.
+/// True iff `regexes` is non-empty and meets the tool's full success
+/// criteria against the shown examples ([`tool_output_verified`]).
 fn collapses_shown(regexes: &[String], examples: &[String]) -> bool {
     if regexes.is_empty() {
         return false;
     }
-    let result = run_regex_tool(regexes, examples);
-    result["isValid"] == Value::Bool(true)
-        && result["isResultInAllIdenticalOutput"] == Value::Bool(true)
+    tool_output_verified(&run_regex_tool(regexes, examples))
 }
 
 fn text_content(role: Option<&str>, text: &str) -> ProviderContent {
@@ -476,6 +485,23 @@ mod tests {
         assert!(!collapses_shown(&["(unclosed".to_string()], &examples));
         // Empty list never counts as collapsing.
         assert!(!collapses_shown(&[], &examples));
+    }
+
+    #[test]
+    fn collapses_shown_rejects_over_broad_sweeps() {
+        let footer = "## Rules\nAlways answer politely and cite every source you used in the end.";
+        let examples = vec![
+            format!("intro\nDATA: a1\n{footer}"),
+            format!("intro\nDATA: b2\n{footer}"),
+        ];
+        // Collapses, but eats the static footer — non-empty `sharedRemoved`
+        // means over-removal, not success.
+        assert!(!collapses_shown(
+            &["DATA: [\\s\\S]*".to_string()],
+            &examples
+        ));
+        // Bounded sweep removes only the dynamic value.
+        assert!(collapses_shown(&["(?<=DATA: )\\S+".to_string()], &examples));
     }
 
     #[test]
