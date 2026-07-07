@@ -73,13 +73,15 @@ pub fn apply_regex(pattern: &str, text: &str) -> ApplyRegexResult {
 /// as trace-level metadata flags on its root span.
 pub struct ExtractionOutcome {
     pub result: ApplyRegexResult,
-    /// The pattern whose application produced `result`; `None` when the
-    /// generation pipeline produced no regex at all (deliberate empty
-    /// submit).
-    pub pattern: Option<String>,
-    /// The generation loop exhausted its call budget without a verdict
-    /// and `result` came from the passthrough fallback.
+    /// The pattern whose application produced `result`.
+    pub pattern: String,
+    /// The generation loop exhausted its call budget without an accepted
+    /// submit and `result` came from the passthrough fallback.
     pub budget_exhausted: bool,
+    /// LLM generation failed outright (transient-retry budget exhausted
+    /// or a non-retryable provider error) and `result` came from the
+    /// passthrough fallback.
+    pub llm_failed: bool,
 }
 
 /// The capture-everything passthrough the prompt prescribes when no
@@ -174,43 +176,42 @@ pub async fn try_apply_cached_regex(
 
 /// Generate a fresh regex from the signposted text, apply it, and
 /// persist it unless the result was `NoMatch` (a regex wrong for its
-/// own sample is not worth caching). Errors only on transport failure
-/// (timeout / provider error) so the consumer can requeue as transient.
-/// The two no-pattern verdicts are terminal, not retryable (the message
-/// finishes instead of looping through an LLM call per requeue), but
-/// they map differently:
-/// - a deliberate empty-regex verdict ("no valid regex can be produced")
-///   is the model saying the message is all scaffolding → `NoUserRequest`
-///   (→ `lmnr_user_task: false` patch);
-/// - an exhausted call budget is NOT a verdict — the model never decided,
-///   so falling to `false` would mis-mark a trace that plainly has user
-///   input. Fall back to the passthrough regex instead: the full
-///   reconstructed input beats a wrong `false`.
+/// own sample is not worth caching). Infallible by design: the message
+/// finishes on the first pass instead of looping through an LLM call
+/// per requeue. Every no-pattern ending falls back to the passthrough
+/// regex — the full reconstructed input beats a wrong `false`:
+/// - an exhausted call budget means the model never delivered an
+///   accepted submit;
+/// - an LLM failure (per-call retry budget exhausted or a non-retryable
+///   provider error) means generation never finished.
 ///
-/// Neither no-pattern verdict caches anything — a later trace of the
-/// same shape gets a fresh chance at a real regex.
+/// Neither fallback caches anything — a later trace of the same shape
+/// gets a fresh chance at a real regex.
 pub async fn generate_and_apply_regex(
     cache: &Arc<Cache>,
     llm_client: &Arc<LlmClient>,
     key: &str,
     signposted_text: &str,
     scope: &SpanScope,
-) -> anyhow::Result<ExtractionOutcome> {
-    let generated = match generate_extraction_regex(llm_client, signposted_text, scope).await? {
-        GenerationVerdict::Pattern(pattern) => pattern,
-        GenerationVerdict::NoRegexPossible => {
-            return Ok(ExtractionOutcome {
-                result: ApplyRegexResult::NoUserRequest,
-                pattern: None,
-                budget_exhausted: false,
-            });
-        }
-        GenerationVerdict::Exhausted => {
-            return Ok(ExtractionOutcome {
+) -> ExtractionOutcome {
+    let generated = match generate_extraction_regex(llm_client, signposted_text, scope).await {
+        Ok(GenerationVerdict::Pattern(pattern)) => pattern,
+        Ok(GenerationVerdict::Exhausted) => {
+            return ExtractionOutcome {
                 result: apply_regex_traced(PASSTHROUGH_REGEX, signposted_text, scope),
-                pattern: Some(PASSTHROUGH_REGEX.to_string()),
+                pattern: PASSTHROUGH_REGEX.to_string(),
                 budget_exhausted: true,
-            });
+                llm_failed: false,
+            };
+        }
+        Err(e) => {
+            log::error!("user-task: regex generation failed, falling back to passthrough: {e:?}");
+            return ExtractionOutcome {
+                result: apply_regex_traced(PASSTHROUGH_REGEX, signposted_text, scope),
+                pattern: PASSTHROUGH_REGEX.to_string(),
+                budget_exhausted: false,
+                llm_failed: true,
+            };
         }
     };
     let result = apply_regex_traced(&generated, signposted_text, scope);
@@ -219,11 +220,12 @@ pub async fn generate_and_apply_regex(
             .insert_with_ttl(key, &generated, REGEX_CACHE_TTL_SECONDS)
             .await;
     }
-    Ok(ExtractionOutcome {
+    ExtractionOutcome {
         result,
-        pattern: Some(generated),
+        pattern: generated,
         budget_exhausted: false,
-    })
+        llm_failed: false,
+    }
 }
 
 #[cfg(test)]

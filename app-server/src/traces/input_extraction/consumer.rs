@@ -73,29 +73,30 @@ impl MessageHandler for InputExtractionHandler {
                     &message.signposted_text,
                     &scope,
                 )
-                .await
-                .map_err(HandlerError::transient)?;
+                .await;
 
                 self_tracing::set_metadata_bool(
                     &root,
                     "passthrough_regex",
-                    outcome.pattern.as_deref().is_some_and(is_passthrough_regex),
+                    is_passthrough_regex(&outcome.pattern),
                 );
-                // "Failed": no pattern was produced at all, or the generated
-                // pattern failed to compile / match / capture.
+                // "Failed": the generated pattern failed to compile /
+                // match / capture.
                 self_tracing::set_metadata_bool(
                     &root,
                     "regex_failed",
-                    outcome.pattern.is_none()
-                        || matches!(outcome.result, ApplyRegexResult::NoMatch),
+                    matches!(outcome.result, ApplyRegexResult::NoMatch),
                 );
-                // Call budget ran out without a verdict; the result came
-                // from the passthrough fallback.
+                // Call budget ran out without an accepted submit; the
+                // result came from the passthrough fallback.
                 self_tracing::set_metadata_bool(
                     &root,
                     "budget_exhausted",
                     outcome.budget_exhausted,
                 );
+                // LLM generation failed (retries exhausted / non-retryable
+                // error); the result came from the passthrough fallback.
+                self_tracing::set_metadata_bool(&root, "llm_failed", outcome.llm_failed);
                 let result = outcome.result;
                 self_tracing::set_output(&root, &serde_json::json!(format!("{result:?}")));
                 result
