@@ -39,8 +39,9 @@ interface NewClusterPayload {
   cluster_id: string;
   cluster_name: string;
   num_signal_events: number;
-  num_child_clusters: number;
   alert_name: string;
+  first_seen?: string | null;
+  last_seen?: string | null;
 }
 
 interface BaseNotification {
@@ -74,8 +75,13 @@ const formatNewClusterPayload = (cluster: NewClusterPayload): NewClusterNotifica
   const details: [string, string][] = [
     ["Name", cluster.cluster_name],
     ["Events", String(cluster.num_signal_events)],
-    ["Child clusters", String(cluster.num_child_clusters)],
   ];
+  if (cluster.first_seen) {
+    details.push(["First seen", cluster.first_seen]);
+  }
+  if (cluster.last_seen) {
+    details.push(["Last seen", cluster.last_seen]);
+  }
 
   return {
     kind: "cluster",
