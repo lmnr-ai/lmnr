@@ -44,6 +44,7 @@ pub mod secrets;
 pub mod server;
 pub mod sql;
 pub mod storage;
+pub mod system_extraction;
 pub mod user_task;
 pub mod workers;
 

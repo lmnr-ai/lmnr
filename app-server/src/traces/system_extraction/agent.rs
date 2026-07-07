@@ -47,7 +47,8 @@ const MAX_OUTPUT_TOKENS: i32 = 32_000;
 #[derive(Debug, Clone)]
 pub struct ExtractionConfig {
     /// Provider override on the request (e.g. `"bedrock"`, `"gemini"`);
-    /// `None` uses the default `LLM_PROVIDER`.
+    /// `None` uses the default `LLM_PROVIDER`. Defaults from
+    /// `SYSTEM_EXTRACTION_LLM_PROVIDER` (see `ExtractionConfig::default`).
     pub provider: Option<String>,
     pub model_size: Option<ModelSize>,
     pub temperatures: Vec<f32>,
@@ -58,13 +59,23 @@ pub struct ExtractionConfig {
 impl Default for ExtractionConfig {
     fn default() -> Self {
         Self {
-            provider: None,
+            provider: extraction_provider(),
             model_size: Some(ModelSize::Medium),
             temperatures: TEMPERATURE_LADDER.to_vec(),
             max_steps: MAX_STEPS,
             include_diff: true,
         }
     }
+}
+
+/// Provider override from `SYSTEM_EXTRACTION_LLM_PROVIDER`. Unset/empty ⇒
+/// `None` (uses the default `LLM_PROVIDER`).
+fn extraction_provider() -> Option<String> {
+    // `mod env` shadows `std::env`, hence the fully-qualified read.
+    std::env::var(crate::env::system_extraction::SP_EXTRACTION_LLM_PROVIDER)
+        .ok()
+        .map(|v| v.trim().to_lowercase())
+        .filter(|v| !v.is_empty())
 }
 
 /// Internal self-tracing routing for an extraction run. With `project_id: None`
