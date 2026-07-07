@@ -191,10 +191,17 @@ impl StaticPromptHandler {
             return Ok(());
         }
 
-        // On agent failure the lock is deliberately NOT released: it expires
-        // after TTL, which both rate-limits retries against a failing agent
-        // and guarantees the signature eventually unblocks.
-        let regexes = self.run_extraction(&samples).await?;
+        // Release the lock on agent failure so a later message can retry
+        // immediately
+        let regexes = match self.run_extraction(&samples).await {
+            Ok(regexes) => regexes,
+            Err(e) => {
+                if let Err(e) = self.cache.release_lock(&lock_key).await {
+                    log::warn!("[STATIC_PROMPT] Failed to release lock {lock_key}: {e:?}");
+                }
+                return Err(e);
+            }
+        };
 
         if let Err(e) = self
             .cache
