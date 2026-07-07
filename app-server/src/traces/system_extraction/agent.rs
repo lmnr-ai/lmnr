@@ -4,8 +4,9 @@
 //! removal regexes, tests them with the harness-side `regex` tool (the raw
 //! examples never travel through the model), and finishes by answering with a
 //! JSON array of the final ordered regex patterns. A retry ladder over
-//! temperatures re-runs the whole episode when the final answer parses to an
-//! empty list or the episode errors (provider failure or step timeout).
+//! temperatures re-runs the whole episode when the final answer fails to
+//! collapse the shown examples (empty, non-collapsing, or over-broad) or the
+//! episode errors (provider failure or step timeout).
 
 use std::time::Duration;
 
@@ -24,7 +25,8 @@ use crate::llm::{
 };
 
 /// Retry ladder: the next temperature is tried only if the episode's final
-/// answer parses to an empty regex list or the episode errors.
+/// answer fails the collapse check (empty, non-collapsing, or over-broad) or
+/// the episode errors.
 const TEMPERATURE_LADDER: [f32; 3] = [0.0, 0.4, 0.7];
 /// Agent-loop cap per episode (one step = one LLM call, which may contain
 /// tool calls). Large example families need more refinement iterations —
@@ -101,7 +103,8 @@ pub struct ExtractionResult {
 
 /// What one temperature episode produced.
 struct EpisodeOutcome {
-    /// Parsed final answer; empty escalates the temperature ladder.
+    /// Parsed final answer; anything that doesn't collapse the shown examples
+    /// (empty, non-collapsing, or over-broad) escalates the temperature ladder.
     regexes: Vec<String>,
     tool_calls: usize,
     /// Latest tool-call input whose RESULT met the tool's full success
@@ -168,7 +171,13 @@ pub async fn extract_static_regexes(
                     if outcome.tool_verified.is_some() {
                         tool_verified = outcome.tool_verified;
                     }
-                    if !outcome.regexes.is_empty() {
+                    // Only accept a final answer that actually collapses the
+                    // shown examples without deleting shared static text. A
+                    // merely-non-empty answer can be over-broad or
+                    // non-collapsing; keep the ladder going so a higher
+                    // temperature can produce a clean list instead of caching
+                    // a bad one for 7 days.
+                    if collapses_shown(&outcome.regexes, examples) {
                         regexes = outcome.regexes;
                         break;
                     }
@@ -181,10 +190,13 @@ pub async fn extract_static_regexes(
             }
         }
 
-        // Fallback: models sometimes "improve" a pattern AFTER its last
-        // successful test, or make transcription typos like `(??<=`. Trust
-        // the tool over the transcript.
-        if !collapses_shown(&regexes, examples)
+        // Fallback: no temperature produced a collapsing final answer (models
+        // sometimes "improve" a pattern AFTER its last successful test, or make
+        // transcription typos like `(??<=`). Trust the tool over the transcript
+        // and use the latest fully-verified candidate when we have one. If
+        // there's none, `regexes` stays empty and the consumer treats the run
+        // as a failure (retry after the lock TTL) rather than caching garbage.
+        if regexes.is_empty()
             && let Some(verified) = &tool_verified
             && collapses_shown(verified, examples)
         {
@@ -514,6 +526,60 @@ mod tests {
         ));
         // Bounded sweep removes only the dynamic value.
         assert!(collapses_shown(&["(?<=DATA: )\\S+".to_string()], &examples));
+    }
+
+    #[test]
+    fn over_broad_final_answer_falls_back_to_verified_candidate() {
+        // Mirrors the selection logic in `extract_static_regexes`: an
+        // over-broad final answer (collapses but sweeps the static footer)
+        // must not be returned when a fully-verified candidate exists.
+        let footer = "## Rules\nAlways answer politely and cite every source you used in the end.";
+        let examples = vec![
+            format!("intro\nDATA: a1\n{footer}"),
+            format!("intro\nDATA: b2\n{footer}"),
+        ];
+        let over_broad = vec!["DATA: [\\s\\S]*".to_string()];
+        let verified = vec!["(?<=DATA: )\\S+".to_string()];
+
+        assert!(!collapses_shown(&over_broad, &examples));
+        assert!(collapses_shown(&verified, &examples));
+
+        // Simulate the final selection: the over-broad list is rejected by the
+        // ladder-break gate, so the fallback swaps in the verified candidate.
+        let mut regexes: Vec<String> = Vec::new();
+        if collapses_shown(&over_broad, &examples) {
+            regexes = over_broad.clone();
+        }
+        if regexes.is_empty() && collapses_shown(&verified, &examples) {
+            regexes = verified.clone();
+        }
+        assert_eq!(regexes, verified);
+    }
+
+    #[test]
+    fn over_broad_final_answer_with_no_fallback_returns_empty() {
+        let footer = "## Rules\nAlways answer politely and cite every source you used in the end.";
+        let examples = vec![
+            format!("intro\nDATA: a1\n{footer}"),
+            format!("intro\nDATA: b2\n{footer}"),
+        ];
+        let over_broad = vec!["DATA: [\\s\\S]*".to_string()];
+
+        // No verified fallback available → the run yields an empty list, which
+        // the consumer treats as a failure instead of caching an over-broad
+        // pattern.
+        let mut regexes: Vec<String> = Vec::new();
+        if collapses_shown(&over_broad, &examples) {
+            regexes = over_broad.clone();
+        }
+        let tool_verified: Option<Vec<String>> = None;
+        if regexes.is_empty()
+            && let Some(verified) = &tool_verified
+            && collapses_shown(verified, &examples)
+        {
+            regexes = verified.clone();
+        }
+        assert!(regexes.is_empty());
     }
 
     #[test]
