@@ -120,7 +120,10 @@ const ToolContentPartSchema = z.union([ToolResultPartSchema, ToolApprovalRespons
 const isPartLike = (value: unknown): boolean =>
   typeof value === "object" && value !== null && typeof (value as { type?: unknown }).type === "string";
 
-// SDK JSON-stringifies assistant `content`; decode it back, but only when it's genuinely a parts array.
+// App-server pasing used to JSON-stringify assistant `content`;
+// decode it back, but only when it's genuinely a parts array.
+// This code exists for backward-compatibility and can be removed
+// at some point, once improperly shaped data are old enough.
 const maybeParseStringifiedParts = (value: unknown): unknown => {
   if (typeof value !== "string") return value;
   const trimmed = value.trim();
