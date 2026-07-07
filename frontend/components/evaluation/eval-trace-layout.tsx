@@ -4,7 +4,7 @@ import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useSta
 
 import { cn } from "@/lib/utils";
 
-const MIN_TABLE = 320;
+const MIN_TABLE = 353; // magic number to match the width of buttons (add filter, columns, etc.) on the table header
 const MIN_TRACE = 360;
 const DEFAULT_TABLE = 420;
 const GAP = 16; // seam between the table and trace column
