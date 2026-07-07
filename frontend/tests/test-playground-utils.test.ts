@@ -58,6 +58,21 @@ describe("parseSystemMessages", () => {
     const result = parseSystemMessages(messages);
     assert.deepStrictEqual(result[0], messages[0]);
   });
+
+  it("preserves message-level providerOptions on rebuilt system/tool messages", () => {
+    const providerOptions = { anthropic: { cacheControl: { type: "ephemeral" } } };
+    const messages: Message[] = [
+      { role: "system", content: [{ type: "text", text: "You are helpful." }], providerOptions },
+      {
+        role: "user",
+        content: [{ type: "tool-result", toolCallId: "c1", toolName: "f", output: { type: "text", value: "x" } }],
+        providerOptions,
+      },
+    ];
+    const result = parseSystemMessages(messages);
+    assert.deepStrictEqual((result[0] as any).providerOptions, providerOptions);
+    assert.deepStrictEqual((result[1] as any).providerOptions, providerOptions);
+  });
 });
 
 // ─── transformFromLegacy ───────────────────────────────────────────────────

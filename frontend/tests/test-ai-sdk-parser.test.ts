@@ -415,6 +415,28 @@ describe("convertAiSdkToPlaygroundMessages", () => {
     assert.deepStrictEqual(toolCallPart.providerOptions, { openai: { foo: 1 } });
   });
 
+  it("preserves message-level providerOptions", async () => {
+    const messages = matchAiSdkMessages([
+      {
+        role: "system",
+        content: "be helpful",
+        providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
+      },
+      {
+        role: "user",
+        content: [{ type: "text", text: "hi" }],
+        providerOptions: { openai: { foo: 1 } },
+      },
+    ]);
+    assert.ok(messages);
+
+    const result = await convertAiSdkToPlaygroundMessages(messages);
+    assert.deepStrictEqual((result[0] as any).providerOptions, {
+      anthropic: { cacheControl: { type: "ephemeral" } },
+    });
+    assert.deepStrictEqual((result[1] as any).providerOptions, { openai: { foo: 1 } });
+  });
+
   it("surfaces opaque image data as JSON instead of dropping the part", async () => {
     const messages = matchAiSdkMessages([
       {

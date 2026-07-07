@@ -381,10 +381,17 @@ export const convertAiSdkToPlaygroundMessages = async (messages: AiSdkMessage[])
   Promise.all(
     messages.map(async (message): Promise<Message> => {
       const content: Message["content"] = [];
+      // Message-level providerOptions (e.g. Anthropic cacheControl) flow back
+      // to generateText on rerun; providerMetadata is response-side and has no
+      // meaning on resend.
+      const messageOptions =
+        message.providerOptions !== undefined
+          ? { providerOptions: message.providerOptions as Record<string, Record<string, unknown>> }
+          : {};
 
       if (typeof message.content === "string") {
         content.push({ type: "text", text: message.content });
-        return { role: message.role, content };
+        return { role: message.role, content, ...messageOptions };
       }
 
       for (const part of message.content) {
@@ -472,6 +479,6 @@ export const convertAiSdkToPlaygroundMessages = async (messages: AiSdkMessage[])
         }
       }
 
-      return { role: message.role, content };
+      return { role: message.role, content, ...messageOptions };
     })
   );
