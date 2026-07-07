@@ -247,6 +247,11 @@ export default function TraceSegment({
     overscan: 10,
     scrollMargin,
     getItemKey,
+    // On attach, virtual-core scrolls its element to getScrollOffset(), which
+    // falls back to initialOffset (default 0). Segments mount mid-scroll under
+    // block virtualization, so a 0 default would yank the SHARED container
+    // back to the top every time a segment scrolls into view.
+    initialOffset: () => scrollEl?.scrollTop ?? 0,
   });
 
   const items = virtualizer.getVirtualItems();

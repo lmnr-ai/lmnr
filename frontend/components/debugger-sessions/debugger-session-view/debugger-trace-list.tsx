@@ -169,6 +169,10 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
     overscan: BLOCK_OVERSCAN,
     scrollMargin,
     getItemKey: (index) => itemsRef.current[index]?.block.id ?? index,
+    // On attach, virtual-core scrolls the element to initialOffset (default 0).
+    // The scroll element is shared and may already be scrolled when this
+    // virtualizer (re)attaches — never yank it back to the top.
+    initialOffset: () => scrollEl?.scrollTop ?? 0,
   });
 
   const virtualItems = virtualizer.getVirtualItems();
@@ -219,65 +223,94 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
     };
   }, [scrollEl, storeApi]);
 
-  // --- Outline navigation: scroll to a requested block. Landing rows mount and
-  // re-measure (estimates → real heights), shifting the target's offset — so we
-  // re-issue scrollToIndex each frame until the offset holds steady for a few
-  // consecutive frames. Stability doesn't count while any trace row is still
-  // "loading": the debounced lazy batch fetch lands hundreds of ms after the
-  // jump and swaps skeletons for taller real cards, shifting every offset below.
-  // The frame budget covers that whole window; user wheel/touch input aborts
-  // immediately — never fight a manual scroll. ---
-  const scrollToBlockId = useDebuggerSessionViewStore((s) => s.scrollToBlockId);
+  // --- Outline navigation: scroll to a requested block. Runs off a store
+  // subscription (NOT render state): consuming the request mutates the store,
+  // and if the loop lived in an effect keyed on scrollToBlockId, that state
+  // flip would re-run the effect and its cleanup would kill the loop it just
+  // started. The subscription's deps are stable, so consume can't self-cancel.
+  //
+  // The loop drives scrollTop directly — TanStack's scrollToIndex retry loop
+  // gives up ("Failed to scroll to index N after 10 attempts") under dynamic
+  // measurement. Offsets above the target are estimates until rows mount, so
+  // once the target cell is in the DOM we correct by its REAL bounding-rect
+  // delta each frame until it holds at the top for a few consecutive frames.
+  // Stability doesn't count while any trace row is still "loading": the
+  // debounced lazy batch fetch lands hundreds of ms after the jump and swaps
+  // skeletons for taller real cards, shifting everything. User wheel/touch
+  // input aborts immediately — never fight a manual scroll. ---
   useEffect(() => {
-    if (!scrollToBlockId || !scrollEl) return;
-    const idx = items.findIndex(({ block }) => block.id === scrollToBlockId);
-    if (idx === -1) {
-      storeApi.getState().consumeScrollToBlock();
-      return;
-    }
-    const prevBehavior = scrollEl.style.scrollBehavior;
-    scrollEl.style.scrollBehavior = "auto";
-    const MAX_FRAMES = 180;
-    const STABLE_FRAMES = 5;
-    let frames = 0;
-    let stable = 0;
-    let lastOffset: number | null = null;
-    let rafId: number | null = null;
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      if (rafId !== null) cancelAnimationFrame(rafId);
-      rafId = null;
-      scrollEl.removeEventListener("wheel", finish);
-      scrollEl.removeEventListener("touchmove", finish);
-      scrollEl.style.scrollBehavior = prevBehavior;
-      storeApi.getState().consumeScrollToBlock();
-    };
-    const step = () => {
-      const v = virtualizerRef.current;
-      const offset = v.getOffsetForIndex(idx, "start")?.[0] ?? null;
-      if (offset !== null && offset === lastOffset) {
+    if (!scrollEl) return;
+    let stopActive: (() => void) | null = null;
+
+    const startLoop = (blockId: string) => {
+      const idx = itemsRef.current.findIndex(({ block }) => block.id === blockId);
+      if (idx === -1) return null;
+      const prevBehavior = scrollEl.style.scrollBehavior;
+      scrollEl.style.scrollBehavior = "auto";
+      const MAX_FRAMES = 180;
+      const STABLE_FRAMES = 5;
+      let frames = 0;
+      let stable = 0;
+      let rafId: number | null = null;
+      let done = false;
+      const stop = () => {
+        if (done) return;
+        done = true;
+        if (rafId !== null) cancelAnimationFrame(rafId);
+        rafId = null;
+        scrollEl.removeEventListener("wheel", stop);
+        scrollEl.removeEventListener("touchmove", stop);
+        scrollEl.style.scrollBehavior = prevBehavior;
+      };
+      const jumpToEstimate = () => {
+        const offset = virtualizerRef.current.getOffsetForIndex(idx, "start")?.[0];
+        if (offset != null) scrollEl.scrollTop = offset;
+      };
+      const step = () => {
+        // :scope > — the inner span virtualizers stamp data-index too.
+        const cell = columnRef.current?.querySelector(`:scope > [data-index="${idx}"]`);
+        let atTarget = false;
+        if (cell) {
+          const delta = Math.round(cell.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top);
+          // A bottom-clamped scroll can't bring the cell to the top — done.
+          const clamped = delta > 1 && scrollEl.scrollTop >= scrollEl.scrollHeight - scrollEl.clientHeight - 1;
+          if (Math.abs(delta) > 1 && !clamped) scrollEl.scrollTop += delta;
+          atTarget = Math.abs(delta) <= 1 || clamped;
+        } else {
+          jumpToEstimate();
+        }
         const rowsLoading = Object.values(storeApi.getState().traceRowStates).some((s) => s === "loading");
-        stable = rowsLoading ? 0 : stable + 1;
-      } else {
-        stable = 0;
-        if (offset !== null) v.scrollToIndex(idx, { align: "start" });
-      }
-      lastOffset = offset;
-      frames += 1;
-      if (stable >= STABLE_FRAMES || frames >= MAX_FRAMES) {
-        finish();
-        return;
-      }
+        stable = atTarget && !rowsLoading ? stable + 1 : 0;
+        frames += 1;
+        if (stable >= STABLE_FRAMES || frames >= MAX_FRAMES) {
+          stop();
+          return;
+        }
+        rafId = requestAnimationFrame(step);
+      };
+      scrollEl.addEventListener("wheel", stop, { passive: true });
+      scrollEl.addEventListener("touchmove", stop, { passive: true });
+      jumpToEstimate();
       rafId = requestAnimationFrame(step);
+      return stop;
     };
-    scrollEl.addEventListener("wheel", finish, { passive: true });
-    scrollEl.addEventListener("touchmove", finish, { passive: true });
-    virtualizerRef.current.scrollToIndex(idx, { align: "start" });
-    rafId = requestAnimationFrame(step);
-    return finish;
-  }, [scrollToBlockId, items, scrollEl, storeApi]);
+
+    const handle = (blockId: string) => {
+      stopActive?.();
+      storeApi.getState().consumeScrollToBlock();
+      stopActive = startLoop(blockId);
+    };
+
+    const unsub = storeApi.subscribe((s, prev) => {
+      if (s.scrollToBlockId && s.scrollToBlockId !== prev.scrollToBlockId) handle(s.scrollToBlockId);
+    });
+    const pending = storeApi.getState().scrollToBlockId;
+    if (pending) handle(pending);
+    return () => {
+      unsub();
+      stopActive?.();
+    };
+  }, [scrollEl, storeApi]);
 
   // NORMAL-FLOW spacers instead of absolute+transform: TraceSegment's sticky
   // header breaks inside a transformed ancestor, and the inner virtualizers'
