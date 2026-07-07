@@ -7,8 +7,11 @@ export const getEvaluationTimeProgression = async (
   projectId: string,
   groupId: string,
   aggregationFunction: AggregationFunction,
-  ids: string[]
+  // Omit/empty ⇒ every run in the group (the chart shows the whole group's
+  // trend, not just the table's loaded page). Scoped by id only when provided.
+  ids?: string[]
 ): Promise<EvaluationTimeProgression[]> => {
+  const scopeById = !!ids && ids.length > 0;
   // Query all datapoints with their scores for the given evaluations
   const datapoints = await executeQuery<{
     evaluation_id: string;
@@ -23,21 +26,24 @@ export const getEvaluationTimeProgression = async (
         scores
       FROM evaluation_datapoints FINAL
       WHERE group_id = {groupId: String}
-        AND evaluation_id IN {ids: Array(UUID)}
+        ${scopeById ? "AND evaluation_id IN {ids: Array(UUID)}" : ""}
       ORDER BY created_at ASC
     `,
     parameters: {
       projectId,
       groupId,
-      ids,
+      ...(scopeById ? { ids } : {}),
     },
   });
 
   // Group by evaluation_id and aggregate scores in memory
-  const evaluationMap = new Map<string, {
-    timestamp: string;
-    scoresByName: Map<string, number[]>;
-  }>();
+  const evaluationMap = new Map<
+    string,
+    {
+      timestamp: string;
+      scoresByName: Map<string, number[]>;
+    }
+  >();
 
   for (const dp of datapoints) {
     const scores = (dp.scores ? JSON.parse(dp.scores) : {}) as Record<string, number | null>;
@@ -90,9 +96,7 @@ export const getEvaluationTimeProgression = async (
           {
             const sorted = [...scoreValues].sort((a, b) => a - b);
             const mid = Math.floor(sorted.length / 2);
-            aggregatedValue = sorted.length % 2 === 0
-              ? (sorted[mid - 1] + sorted[mid]) / 2
-              : sorted[mid];
+            aggregatedValue = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
           }
           break;
         case "p90":

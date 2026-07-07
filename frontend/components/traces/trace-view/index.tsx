@@ -17,7 +17,8 @@ interface TraceViewProps {
   traceId: string;
   spanId?: string;
   propsTrace?: TraceViewTrace;
-  onClose: () => void;
+  // Omit to hide the close button entirely (e.g. an always-open panel).
+  onClose?: () => void;
   isFillWidth?: boolean;
   isAlwaysSelectSpan?: boolean;
   initialSignalId?: string;

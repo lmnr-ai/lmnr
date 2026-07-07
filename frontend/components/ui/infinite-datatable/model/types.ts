@@ -31,7 +31,16 @@ export interface InfiniteDataTableProps<TData extends RowData> extends Omit<
   /** Optional ids forced to the front of the column order at render time. */
   pinnedColumns?: string[];
 
+  /**
+   * Opt-in sticky-left columns: visually anchored during horizontal scroll
+   * (position: sticky, opaque bg, border-r + shadow). Implies `pinnedColumns`
+   * ordering for these ids too — a sticky column only computes a correct
+   * `getStart('left')` offset if it also renders first.
+   */
+  pinnedLeftColumnIds?: string[];
+
   onRowClick?: (row: Row<TData>) => void;
+  onHoveredRowChange?: (row: Row<TData> | null) => void;
   focusedRowId?: string | null;
 
   selectionPanel?: (selectedRowIds: string[]) => ReactNode;
@@ -60,6 +69,7 @@ export interface InfiniteDataTableBodyProps<TData extends RowData> {
   isFetching: boolean;
   hasMore: boolean;
   onRowClick?: (row: Row<TData>) => void;
+  onHoveredRowChange?: (row: Row<TData> | null) => void;
   focusedRowId?: string | null;
   loadMoreRef: RefObject<HTMLTableRowElement | null>;
   emptyRow?: ReactNode;
@@ -74,6 +84,7 @@ export interface InfiniteDataTableRowProps<TData extends RowData> {
   row: Row<TData>;
   rowVirtualizer: Virtualizer<HTMLDivElement, Element>;
   onRowClick?: (row: Row<TData>) => void;
+  onHoveredRowChange?: (row: Row<TData> | null) => void;
   href?: string;
   focusedRowId?: string | null;
 }

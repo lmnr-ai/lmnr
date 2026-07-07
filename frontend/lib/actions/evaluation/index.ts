@@ -306,6 +306,14 @@ export const getEvaluationCellValue = async (input: z.infer<typeof GetEvaluation
   return results[0][col.id] ?? null;
 };
 
+/**
+ * Fetch the scores JSON for a single datapoint index across a set of evaluations.
+ * Used by the datapoint-comparison overview: pivot a single datapoint position
+ * across every run in its group.
+ *
+ * Returns one row per (evaluationId, index) found — evaluations that don't
+ * contain this index are simply omitted.
+ */
 export const GetEvaluationDatapointComparisonSchema = z.object({
   projectId: z.guid(),
   evaluationIds: z.array(z.guid()).min(1),
@@ -333,20 +341,14 @@ export const getEvaluationDatapointComparison = async (
   const filteredIds = owned.map((e) => e.id);
   if (filteredIds.length === 0) return [];
 
-  // Aliases must NOT shadow a column used in WHERE: ClickHouse resolves the WHERE
-  // reference to the SELECT alias, so `toString(evaluation_id) AS evaluation_id`
-  // would turn `WHERE evaluation_id IN (...)` into a String-vs-UUID compare that
-  // matches nothing. Use distinct alias names (`eval_id` / `tid`) instead.
-  // `index` is inlined (Zod-validated non-negative int) rather than a bound param.
-  // `scores` may come back as a string or an object depending on the driver.
   const rows = await executeQuery<{
     evaluationId: string;
-    idx: number | string;
+    index: number | string;
     scores: string | Record<string, unknown>;
     traceId: string;
   }>({
     query: `
-      SELECT evaluation_id AS evaluationId, \`index\` AS idx, scores, trace_id AS traceId
+      SELECT evaluation_id evaluationId, \`index\`, scores, trace_id traceId
       FROM evaluation_datapoints
       WHERE evaluation_id IN ({evaluationIds:Array(UUID)})
         AND \`index\` = ${index}
@@ -374,7 +376,7 @@ export const getEvaluationDatapointComparison = async (
           )
         )
       : {};
-    return { evaluationId: r.evaluationId, index: Number(r.idx), scores, traceId: r.traceId };
+    return { evaluationId: r.evaluationId, index: Number(r.index), scores, traceId: r.traceId };
   });
 };
 
