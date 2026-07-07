@@ -26,15 +26,9 @@ export type ManageTemplateForm = z.infer<typeof manageTemplateSchema>;
 
 export const defaultTemplateValues: ManageTemplateForm = {
   name: "",
-  code: `function({ data }) {
-  // This template uses HTML syntax for data rendering
-
-  return (
-    <div>
-      Data {JSON.stringify(data)}
-    </div>
-  );
-}`,
+  // Empty by default — create starts with no code; the user either generates or
+  // pastes their own. The disabled-when-no-code CTA guards submit.
+  code: "",
   scope: "span",
   whereClause: null,
   testData: "",

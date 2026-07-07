@@ -23,7 +23,6 @@ import { cn, swrFetcher } from "@/lib/utils";
 
 import {
   defaultTemplateValues,
-  defaultTraceTemplateCode,
   type ManageTemplateForm,
   manageTemplateSchema,
   type Template,
@@ -165,7 +164,6 @@ export const TemplatePickerProvider = ({
     setBackup(getValues());
     reset({
       ...defaultTemplateValues,
-      ...(scope === "trace" && { code: defaultTraceTemplateCode }),
       scope,
       testData,
     });

@@ -1,7 +1,9 @@
+import { Eye } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
+import { normalizeTemplateCode } from "./normalize";
 import { LAMINAR_IFRAME_THEME, laminarIframeThemeJson } from "./theme";
 
 const MESSAGE_TYPE = "__TEMPLATE_DATA_UPDATE__";
@@ -221,21 +223,6 @@ const createErrorContent = (message: string): string => `
 </body>
 </html>`;
 
-const normalizeTemplateCode = (code: string): string => {
-  const trimmedCode = code.trim();
-
-  const functionMatch = trimmedCode.match(/^function\s*\((.*?)\)\s*{([\s\S]*)}$/);
-  if (functionMatch) {
-    return `(${functionMatch[1]}) => {${functionMatch[2]}}`;
-  }
-
-  if (!trimmedCode.startsWith("(") && !trimmedCode.startsWith("function")) {
-    return `({ data }) => {${trimmedCode}}`;
-  }
-
-  return trimmedCode;
-};
-
 const parseData = (data: any): any => {
   try {
     return typeof data === "string" ? JSON.parse(data) : data;
@@ -334,6 +321,19 @@ const JsxRenderer = ({ code, data, className, autoHeight = false }: JsxRendererP
       observer?.disconnect();
     };
   }, [autoHeight]);
+
+  // Nothing generated / written yet — show an empty state instead of a blank iframe.
+  if (!code?.trim()) {
+    return (
+      <div className={cn("flex h-full w-full flex-col items-center justify-center gap-2 p-6 text-center", className)}>
+        <Eye className="size-6 text-muted-foreground" />
+        <h3 className="text-sm font-medium text-secondary-foreground">Nothing to preview yet</h3>
+        <p className="max-w-xs text-xs text-muted-foreground">
+          Generate a template or write your own in the Code tab to see a live preview.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <iframe

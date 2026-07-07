@@ -43,7 +43,7 @@ const DataPanel = () => {
   };
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col gap-2 p-3">
+    <div className="flex h-full min-h-0 min-w-0 flex-col gap-2">
       <span className="text-xs text-muted-foreground">
         Sample data passed to the template as <code className="font-mono">data</code>.
       </span>
