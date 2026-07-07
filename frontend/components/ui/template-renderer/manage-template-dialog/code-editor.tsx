@@ -6,7 +6,7 @@ import { theme } from "@/components/ui/content-renderer/utils";
 
 import { type ManageTemplateForm } from "../index";
 
-const CodeEditor = () => {
+const CodeEditor = ({ readOnly = false }: { readOnly?: boolean }) => {
   const {
     control,
     formState: { errors },
@@ -22,6 +22,7 @@ const CodeEditor = () => {
             <CodeMirror
               value={field.value}
               onChange={field.onChange}
+              readOnly={readOnly}
               extensions={[javascript({ jsx: true }), EditorView.lineWrapping]}
               theme={theme}
               className="h-full text-xs"

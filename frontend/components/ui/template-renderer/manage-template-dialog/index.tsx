@@ -284,6 +284,7 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
                           <SQLEditor
                             value={field.value ?? ""}
                             onChange={field.onChange}
+                            editable={!isGenerating}
                             placeholder="e.g. span_type = 'LLM' AND name LIKE 'agent%'"
                             schema={{ tables: ["spans"] }}
                           />
@@ -365,7 +366,9 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
                   </Button>
                 </div>
                 <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-                  <CodeEditor />
+                  {/* Read-only while generating: the request carries a snapshot of the
+                      code, so edits made mid-flight would be silently replaced. */}
+                  <CodeEditor readOnly={isGenerating} />
                   {isGenerating && (
                     <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60">
                       <div className="flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground">
