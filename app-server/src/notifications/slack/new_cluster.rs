@@ -49,6 +49,8 @@ pub(super) fn format_new_cluster_blocks(clusters: &[&NotificationKind]) -> serde
 
     for kind in clusters.iter().take(MAX_CLUSTERS_PER_DIGEST) {
         let NotificationKind::NewCluster {
+            project_id,
+            signal_id,
             cluster_id,
             cluster_name,
             num_signal_events,
