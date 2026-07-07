@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { parseAiSdkMessages } from "@/lib/spans/types/ai-sdk";
+import { convertAiSdkToPlaygroundMessages, matchAiSdkMessages, parseAiSdkMessages } from "@/lib/spans/types/ai-sdk";
 
 describe("parseAiSdkMessages", () => {
   it("returns null for payloads that aren't native AI-SDK-shaped", () => {
@@ -380,5 +380,57 @@ describe("parseAiSdkMessages", () => {
     const content = result[0].content as any[];
     assert.strictEqual(content[0].type, "reasoning");
     assert.deepStrictEqual(content[1], { type: "tool-poll", pollId: "p1", detail: { nested: true } });
+  });
+});
+
+describe("convertAiSdkToPlaygroundMessages", () => {
+  it("preserves part-level providerOptions on text and tool-call parts", async () => {
+    const messages = matchAiSdkMessages([
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "hello", providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } } },
+        ],
+      },
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: "c1",
+            toolName: "t",
+            input: {},
+            providerOptions: { openai: { foo: 1 } },
+          },
+        ],
+      },
+    ]);
+    assert.ok(messages);
+
+    const result = await convertAiSdkToPlaygroundMessages(messages);
+    const userPart = result[0].content[0] as any;
+    assert.deepStrictEqual(userPart.providerOptions, { anthropic: { cacheControl: { type: "ephemeral" } } });
+    const toolCallPart = result[1].content[0] as any;
+    assert.strictEqual(toolCallPart.type, "tool-call");
+    assert.deepStrictEqual(toolCallPart.providerOptions, { openai: { foo: 1 } });
+  });
+
+  it("surfaces opaque image data as JSON instead of dropping the part", async () => {
+    const messages = matchAiSdkMessages([
+      {
+        role: "user",
+        content: [
+          { type: "image", image: { bytes: [1, 2, 3] }, providerOptions: { openai: { foo: 1 } } },
+          { type: "tool-call", toolCallId: "c1", toolName: "t", input: {} },
+        ],
+      },
+    ]);
+    assert.ok(messages);
+
+    const result = await convertAiSdkToPlaygroundMessages(messages);
+    const content = result[0].content as any[];
+    assert.strictEqual(content.length, 2);
+    assert.strictEqual(content[0].type, "text");
+    assert.ok(content[0].text.includes('"bytes"'), "expected the opaque image payload to survive as JSON");
   });
 });

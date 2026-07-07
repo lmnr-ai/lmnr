@@ -402,16 +402,32 @@ export const convertAiSdkToPlaygroundMessages = async (messages: AiSdkMessage[])
           name?: string;
           id?: string | null;
           arguments?: unknown;
+          providerOptions?: unknown;
         };
+        // Part-level providerOptions survive where the playground type carries
+        // them (text / tool-call); providerMetadata is response-side and has no
+        // playground slot.
+        const partOptions =
+          p.providerOptions !== undefined
+            ? { providerOptions: p.providerOptions as Record<string, Record<string, unknown>> }
+            : {};
         switch (p.type) {
-          case "text":
+          case "text": {
+            if (typeof p.text === "string" && p.text.length > 0)
+              content.push({ type: "text", text: p.text, ...partOptions });
+            break;
+          }
           case "reasoning": {
+            // Reasoning renders as plain text; its providerOptions (e.g.
+            // thinking signatures) don't apply to a text part, so drop them.
             if (typeof p.text === "string" && p.text.length > 0) content.push({ type: "text", text: p.text });
             break;
           }
           case "image": {
             const source = normalizeMediaData(p.image);
             if (source !== undefined) content.push({ type: "image", image: await toPlaygroundImage(source) });
+            // Non-string image data can't render; surface the JSON so it isn't lost.
+            else content.push({ type: "text", text: JSON.stringify(part) });
             break;
           }
           case "file": {
@@ -429,6 +445,7 @@ export const convertAiSdkToPlaygroundMessages = async (messages: AiSdkMessage[])
               toolCallId: p.toolCallId ?? "",
               toolName: p.toolName ?? "",
               input: p.input,
+              ...partOptions,
             });
             break;
           }
