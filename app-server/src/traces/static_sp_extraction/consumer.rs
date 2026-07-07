@@ -31,18 +31,28 @@ const PROMPT_SAMPLES: usize = 5;
 const EXTRACTION_LOCK_TTL_SECONDS: u64 = 60 * 60;
 
 /// TTL on the accumulated raw prompts, so signatures that never reach
-/// `MIN_PROMPT_SAMPLES` don't hold onto prompt bodies forever.
-const ACCUMULATOR_TTL_SECONDS: u64 = 24 * 3600;
+/// `PROMPT_SAMPLES` don't hold onto prompt bodies forever.
+const ACCUMULATOR_TTL_SECONDS: u64 = 3600;
 
 const STATIC_REGEX_TTL_SECONDS: u64 = 7 * 24 * 3600;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StaticPromptQueueMessage {
     pub project_id: Uuid,
+    /// Source trace of this prompt — the accumulator dedups on it.
+    pub trace_id: Uuid,
     /// Naive signature (`lmnr.span.prompt_hash`) shared by all runs of the
     /// same agent.
     pub prompt_hash: String,
     pub system_prompt: String,
+}
+
+/// One accumulated sample for a signature. `trace_id` is retained only to
+/// enforce one-sample-per-trace (16 bytes vs the multi-KB prompt).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct AccumulatedSample {
+    trace_id: Uuid,
+    prompt: String,
 }
 
 pub struct StaticPromptHandler {
@@ -162,6 +172,7 @@ impl StaticPromptHandler {
         if samples.len() < PROMPT_SAMPLES {
             return Ok(());
         }
+        let prompts: Vec<String> = samples.into_iter().map(|s| s.prompt).collect();
 
         // One extraction per signature: whoever holds the lock runs the agent;
         // everyone else drops their span — the regex for this signature is
@@ -192,7 +203,7 @@ impl StaticPromptHandler {
 
         // Release the lock on agent failure so a later message can retry
         // immediately
-        let regexes = match self.run_extraction(&samples).await {
+        let regexes = match self.run_extraction(&prompts).await {
             Ok(regexes) => regexes,
             Err(e) => {
                 if let Err(e) = self.cache.release_lock(&lock_key).await {
@@ -232,15 +243,18 @@ impl StaticPromptHandler {
     }
 
     /// Append the prompt to the signature's sample list and return the
-    /// updated list.
+    /// updated list. Deduplicates so the agent gets varied samples, not
+    /// repeats: at most one sample per trace (the first 5 spans of a signature
+    /// usually come from the same trace and would be identical), and no two
+    /// byte-identical prompts (zero added variance, wasted memory).
     async fn accumulate_prompt(
         &self,
         message: &StaticPromptQueueMessage,
-    ) -> anyhow::Result<Vec<String>> {
+    ) -> anyhow::Result<Vec<AccumulatedSample>> {
         let key = accumulator_cache_key(message.project_id, &message.prompt_hash);
         let mut samples = self
             .cache
-            .get::<Vec<String>>(&key)
+            .get::<Vec<AccumulatedSample>>(&key)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to read accumulator {key}: {e:?}"))?
             .unwrap_or_default();
@@ -249,7 +263,19 @@ impl StaticPromptHandler {
             return Ok(samples);
         }
 
-        samples.push(message.system_prompt.clone());
+        // Drop same-trace resamples and byte-identical prompts without
+        // touching the cache — they add no variance for the extractor.
+        let is_duplicate = samples
+            .iter()
+            .any(|s| s.trace_id == message.trace_id || s.prompt == message.system_prompt);
+        if is_duplicate {
+            return Ok(samples);
+        }
+
+        samples.push(AccumulatedSample {
+            trace_id: message.trace_id,
+            prompt: message.system_prompt.clone(),
+        });
 
         self.cache
             .insert_with_ttl(&key, &samples, ACCUMULATOR_TTL_SECONDS)
@@ -273,9 +299,20 @@ mod tests {
         }
     }
 
+    /// Each call gets a fresh trace_id so distinct-prompt samples accumulate
+    /// (the accumulator dedups on trace_id).
     fn make_message(project_id: Uuid, prompt: &str) -> StaticPromptQueueMessage {
+        make_message_with_trace(project_id, Uuid::new_v4(), prompt)
+    }
+
+    fn make_message_with_trace(
+        project_id: Uuid,
+        trace_id: Uuid,
+        prompt: &str,
+    ) -> StaticPromptQueueMessage {
         StaticPromptQueueMessage {
             project_id,
+            trace_id,
             prompt_hash: "abcd1234".to_string(),
             system_prompt: prompt.to_string(),
         }
@@ -298,7 +335,7 @@ mod tests {
 
         let samples = handler
             .cache
-            .get::<Vec<String>>(&accumulator_key)
+            .get::<Vec<AccumulatedSample>>(&accumulator_key)
             .await
             .unwrap()
             .unwrap();
@@ -361,7 +398,7 @@ mod tests {
 
         let samples = handler
             .cache
-            .get::<Vec<String>>(&accumulator_key)
+            .get::<Vec<AccumulatedSample>>(&accumulator_key)
             .await
             .unwrap()
             .unwrap();
@@ -384,7 +421,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn failed_extraction_keeps_lock_and_accumulator() {
+    async fn failed_extraction_releases_lock_keeps_accumulator() {
         let mut handler = make_handler();
         // Empty test regexes simulate the agent exhausting its temperature
         // ladder without an answer.
@@ -406,16 +443,73 @@ mod tests {
 
         assert!(result.is_err());
         assert!(!handler.cache.exists(&regex_key).await.unwrap());
-        // Samples are kept for the retry after the lock TTL expires.
+        // Samples are kept so a later retry doesn't re-accumulate from scratch.
         assert!(handler.cache.exists(&accumulator_key).await.unwrap());
-        // Lock is deliberately left held so its TTL rate-limits retries.
+        // Lock is released on failure so a later message can retry immediately.
         assert!(
-            !handler
+            handler
                 .cache
                 .try_acquire_lock(&lock_key, EXTRACTION_LOCK_TTL_SECONDS)
                 .await
                 .unwrap()
         );
+    }
+
+    #[tokio::test]
+    async fn dedups_same_trace_resamples() {
+        let handler = make_handler();
+        let project_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+        let accumulator_key = accumulator_cache_key(project_id, "abcd1234");
+
+        // Same trace, different prompt bodies (a self-editing agent across
+        // turns): only the first is kept.
+        for i in 0..PROMPT_SAMPLES + 2 {
+            handler
+                .process_prompt(&make_message_with_trace(
+                    project_id,
+                    trace_id,
+                    &format!("prompt {i}"),
+                ))
+                .await
+                .unwrap();
+        }
+
+        let samples = handler
+            .cache
+            .get::<Vec<AccumulatedSample>>(&accumulator_key)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(samples.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn dedups_byte_identical_prompts_across_traces() {
+        let handler = make_handler();
+        let project_id = Uuid::new_v4();
+        let accumulator_key = accumulator_cache_key(project_id, "abcd1234");
+
+        // Distinct traces, but byte-identical prompt (fully-static template):
+        // only one sample is stored and the threshold is never reached.
+        for _ in 0..PROMPT_SAMPLES + 2 {
+            handler
+                .process_prompt(&make_message_with_trace(
+                    project_id,
+                    Uuid::new_v4(),
+                    "identical prompt",
+                ))
+                .await
+                .unwrap();
+        }
+
+        let samples = handler
+            .cache
+            .get::<Vec<AccumulatedSample>>(&accumulator_key)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(samples.len(), 1);
     }
 
     #[tokio::test]

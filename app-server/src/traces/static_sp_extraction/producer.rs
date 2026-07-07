@@ -20,6 +20,9 @@ use crate::{
 /// (`lmnr.span.prompt_hash`), collected on the ingest producer.
 pub struct StaticPromptCandidate {
     pub project_id: Uuid,
+    /// Source trace — the accumulator keeps at most one sample per trace so
+    /// extraction sees cross-trace variance, not repeats of one run.
+    pub trace_id: Uuid,
     pub prompt_hash: String,
     pub system_prompt: String,
 }
@@ -70,6 +73,7 @@ pub async fn publish_static_prompt_candidates(
 
         messages.push(StaticPromptQueueMessage {
             project_id: candidate.project_id,
+            trace_id: candidate.trace_id,
             prompt_hash: candidate.prompt_hash,
             system_prompt: candidate.system_prompt,
         });

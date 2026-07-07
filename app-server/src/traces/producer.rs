@@ -151,6 +151,7 @@ pub async fn publish_span_messages(
         if let Some((prompt_hash, system_prompt)) = verdicts.system_prompt {
             static_prompt_candidates.push(StaticPromptCandidate {
                 project_id,
+                trace_id: msg.span.trace_id,
                 prompt_hash,
                 system_prompt,
             });
