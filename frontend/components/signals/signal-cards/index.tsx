@@ -38,8 +38,8 @@ export default function SignalCards({
     [selectedIds, onSelectionChange]
   );
 
-  const enabledSignals = signals.filter((s) => s.enabled);
-  const disabledSignals = signals.filter((s) => !s.enabled);
+  const activeSignals = signals.filter((s) => !s.disabled);
+  const disabledSignals = signals.filter((s) => s.disabled);
 
   const renderGrid = (items: SignalRow[]) => (
     <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -64,17 +64,17 @@ export default function SignalCards({
   );
 
   if (disabledSignals.length === 0) {
-    return renderGrid(enabledSignals);
+    return renderGrid(activeSignals);
   }
 
   return (
     <div className="flex flex-col gap-6">
-      {enabledSignals.length > 0 && (
+      {activeSignals.length > 0 && (
         <div className="flex flex-col gap-3">
           <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Active ({enabledSignals.length})
+            Active ({activeSignals.length})
           </h3>
-          {renderGrid(enabledSignals)}
+          {renderGrid(activeSignals)}
         </div>
       )}
       <div className="flex flex-col gap-3">

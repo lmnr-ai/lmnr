@@ -47,7 +47,7 @@ function SignalContent({ slackClientId, slackRedirectUri, slackBrokerEnabled }: 
         schemaFields: form.schemaFields,
         triggers: form.triggers,
         sampleRate: form.sampleRate,
-        enabled: form.enabled,
+        disabled: form.disabled,
       });
     },
     [signal, setSignal]

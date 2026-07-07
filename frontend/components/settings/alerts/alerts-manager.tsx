@@ -66,13 +66,13 @@ export default function AlertsManager({ projectId, workspaceId, userEmail, fixed
     [alertsList, fixedSignalId]
   );
 
-  const handleToggleEnabled = async (alert: AlertWithDetails, enabled: boolean) => {
+  const handleToggleDisabled = async (alert: AlertWithDetails, disabled: boolean) => {
     if (togglingIds.has(alert.id)) return;
 
-    // Absence of `enabled` means active; enabling drops the key, disabling sets it false.
+    // Absence of `disabled` means active; disabling sets it true, enabling drops the key.
     const nextMetadata = { ...alert.metadata };
-    if (enabled) delete nextMetadata.enabled;
-    else nextMetadata.enabled = false;
+    if (disabled) nextMetadata.disabled = true;
+    else delete nextMetadata.disabled;
 
     const applyToggle = (list?: AlertWithDetails[]) =>
       (list ?? []).map((a) => (a.id === alert.id ? { ...a, metadata: nextMetadata } : a));
@@ -84,7 +84,7 @@ export default function AlertsManager({ projectId, workspaceId, userEmail, fixed
           const res = await fetch(`/api/projects/${projectId}/alerts/${alert.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "toggleEnabled", enabled }),
+            body: JSON.stringify({ action: "toggleDisabled", disabled }),
           });
           if (!res.ok) {
             const errMessage = await res
@@ -98,8 +98,8 @@ export default function AlertsManager({ projectId, workspaceId, userEmail, fixed
         { optimisticData: applyToggle, rollbackOnError: true, revalidate: false }
       );
       toast({
-        title: enabled ? "Alert enabled" : "Alert disabled",
-        description: `"${alert.name}" will ${enabled ? "now send" : "no longer send"} notifications.`,
+        title: disabled ? "Alert disabled" : "Alert enabled",
+        description: `"${alert.name}" will ${disabled ? "no longer send" : "now send"} notifications.`,
         duration: 1500,
       });
     } catch (error) {
@@ -153,7 +153,7 @@ export default function AlertsManager({ projectId, workspaceId, userEmail, fixed
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {alerts?.map((alert) => {
               const visibleTargets = alert.targets.filter((t) => t.type !== "EMAIL" || t.email === userEmail);
-              const isDisabled = alert.metadata?.enabled === false;
+              const isDisabled = alert.metadata?.disabled === true;
               const isToggling = togglingIds.has(alert.id);
               return (
                 <div
@@ -220,7 +220,7 @@ export default function AlertsManager({ projectId, workspaceId, userEmail, fixed
                             <Switch
                               checked={!isDisabled}
                               disabled={isToggling}
-                              onCheckedChange={(checked) => handleToggleEnabled(alert, checked)}
+                              onCheckedChange={(checked) => handleToggleDisabled(alert, !checked)}
                               aria-label={isDisabled ? "Enable alert" : "Disable alert"}
                             />
                           </div>

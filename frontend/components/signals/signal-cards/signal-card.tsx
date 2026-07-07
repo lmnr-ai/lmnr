@@ -42,7 +42,7 @@ export default function SignalCard({
       <Card
         className={cn(
           "hover:border-primary/40 transition-colors h-full",
-          !signal.enabled && "border-dashed bg-muted/30"
+          signal.disabled && "border-dashed bg-muted/30"
         )}
       >
         <CardHeader className="px-3 pt-3 pb-1">
@@ -57,18 +57,18 @@ export default function SignalCard({
               >
                 <Checkbox checked={isSelected} aria-label={`Select ${signal.name}`} />
               </div>
-              <h3 className={cn("font-medium text-sm truncate", !signal.enabled && "text-muted-foreground")}>
+              <h3 className={cn("font-medium text-sm truncate", signal.disabled && "text-muted-foreground")}>
                 {signal.name}
               </h3>
             </div>
-            {!signal.enabled && (
+            {signal.disabled && (
               <Badge variant="outline" className="text-[10px] text-muted-foreground shrink-0">
                 Disabled
               </Badge>
             )}
           </div>
         </CardHeader>
-        <CardContent className={cn("px-3 pt-0 pb-2 space-y-2", !signal.enabled && "opacity-60")}>
+        <CardContent className={cn("px-3 pt-0 pb-2 space-y-2", signal.disabled && "opacity-60")}>
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>

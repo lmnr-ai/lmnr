@@ -144,7 +144,7 @@ export default function useSubmitHandler({
           prompt: data.prompt,
           structuredOutput,
           sampleRate: data.sampleRate ?? null,
-          enabled: data.enabled ?? true,
+          disabled: data.disabled ?? false,
         };
         const isUpdate = !!data.id;
         const url = isUpdate ? `/api/projects/${projectId}/signals/${data.id}` : `/api/projects/${projectId}/signals`;

@@ -5,19 +5,20 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 /// User-controlled signal settings stored in the `metadata` jsonb column.
+/// `disabled` is only persisted when true; absence means enabled (active).
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct SignalMetadata {
     #[serde(default)]
-    pub enabled: Option<bool>,
+    pub disabled: Option<bool>,
     #[serde(default)]
     pub sample_rate: Option<i16>,
 }
 
 impl SignalMetadata {
-    /// Enabled by default when the key is absent (historical signals).
-    pub fn enabled(&self) -> bool {
-        self.enabled.unwrap_or(true)
+    /// Enabled by default when the `disabled` key is absent (historical signals).
+    pub fn disabled(&self) -> bool {
+        self.disabled.unwrap_or(false)
     }
 }
 

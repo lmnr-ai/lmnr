@@ -72,10 +72,10 @@ export default function SignalFormFields({
     >
       {Boolean(getValues("id")) && (
         <Controller
-          name="enabled"
+          name="disabled"
           control={control}
           render={({ field }) => {
-            const isActive = field.value ?? true;
+            const isActive = !(field.value ?? false);
             return (
               <div
                 className={cn(
@@ -101,7 +101,11 @@ export default function SignalFormFields({
                     </p>
                   </div>
                 </div>
-                <Switch id="signal-enabled" checked={isActive} onCheckedChange={(checked) => field.onChange(checked)} />
+                <Switch
+                  id="signal-enabled"
+                  checked={isActive}
+                  onCheckedChange={(checked) => field.onChange(!checked)}
+                />
               </div>
             );
           }}

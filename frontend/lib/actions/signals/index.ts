@@ -15,10 +15,10 @@ import { alerts, alertTargets, signals, signalTriggers } from "@/lib/db/migratio
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 // User-controlled signal settings stored in the `metadata` jsonb column.
-// `enabled` defaults to true when absent (historical signals).
+// `disabled` is only persisted when true; absence means enabled (active).
 export type SignalMetadata = {
   sampleRate?: number | null;
-  enabled?: boolean;
+  disabled?: boolean;
 };
 
 export type SignalRow = {
@@ -27,7 +27,7 @@ export type SignalRow = {
   prompt: string;
   createdAt: string;
   projectId: string;
-  enabled: boolean;
+  disabled: boolean;
   eventsCount: number;
   clustersCount: number;
   lastEventAt: string | null;
@@ -41,7 +41,7 @@ export type Signal = {
   prompt: string;
   structuredOutput: Record<string, unknown>;
   sampleRate: number | null;
-  enabled: boolean;
+  disabled: boolean;
 };
 
 export const GetSignalsSchema = PaginationFiltersSchema.extend({
@@ -61,7 +61,7 @@ const CreateSignalSchema = z.object({
   prompt: z.string(),
   structuredOutput: z.record(z.string(), z.unknown()),
   sampleRate: z.number().int().min(1).max(95).nullable().optional(),
-  enabled: z.boolean().optional(),
+  disabled: z.boolean().optional(),
   // When provided, the creator is auto-subscribed via EMAIL alert targets on
   // every alert created for this signal.
   subscriberEmail: z.email().optional(),
@@ -73,7 +73,7 @@ const UpdateSignalSchema = z.object({
   prompt: z.string(),
   structuredOutput: z.record(z.string(), z.unknown()),
   sampleRate: z.number().int().min(1).max(95).nullable().optional(),
-  enabled: z.boolean().optional(),
+  disabled: z.boolean().optional(),
 });
 
 export const DeleteSignalSchema = z.object({
@@ -348,7 +348,7 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
 
   const items: SignalRow[] = results.map(({ metadata, ...signal }) => ({
     ...signal,
-    enabled: (metadata as SignalMetadata)?.enabled ?? true,
+    disabled: (metadata as SignalMetadata)?.disabled ?? false,
     eventsCount: eventCountBySignal[signal.id] || 0,
     clustersCount: clusterCountBySignal[signal.id] || 0,
     lastEventAt: lastEventBySignal[signal.id] || null,
@@ -393,7 +393,7 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
     ...result,
     structuredOutput: result.structuredOutputSchema,
     sampleRate: metadata.sampleRate ?? null,
-    enabled: metadata.enabled ?? true,
+    disabled: metadata.disabled ?? false,
     triggers: triggerRows.map((row) => ({
       id: row.id,
       filters: row.value,
@@ -404,12 +404,13 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
 }
 
 export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
-  const { projectId, name, prompt, structuredOutput, sampleRate, enabled, subscriberEmail } =
+  const { projectId, name, prompt, structuredOutput, sampleRate, disabled, subscriberEmail } =
     CreateSignalSchema.parse(input);
 
   const metadata: SignalMetadata = {};
   if (sampleRate != null) metadata.sampleRate = sampleRate;
-  if (enabled === false) metadata.enabled = false;
+  // Only persist `disabled` when deactivated; absence means active.
+  if (disabled === true) metadata.disabled = true;
 
   const result = await db.transaction(async (tx) => {
     const [signal] = await tx
@@ -470,7 +471,7 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
 }
 
 export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
-  const { projectId, id, prompt, structuredOutput, sampleRate, enabled } = UpdateSignalSchema.parse(input);
+  const { projectId, id, prompt, structuredOutput, sampleRate, disabled } = UpdateSignalSchema.parse(input);
 
   const [existing] = await db
     .select({ metadata: signals.metadata })
@@ -478,10 +479,14 @@ export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
     .where(and(eq(signals.projectId, projectId), eq(signals.id, id)));
 
   // Merge over stored metadata so omitted fields keep their values — a PUT
-  // without `enabled` must not silently re-enable a deactivated signal.
+  // without `disabled` must not silently re-enable a deactivated signal.
   const metadata: SignalMetadata = { ...((existing?.metadata ?? {}) as SignalMetadata) };
   if (sampleRate !== undefined) metadata.sampleRate = sampleRate;
-  if (enabled !== undefined) metadata.enabled = enabled;
+  // Only persist `disabled` when deactivated; absence means active.
+  if (disabled !== undefined) {
+    if (disabled) metadata.disabled = true;
+    else delete metadata.disabled;
+  }
 
   const result = await db
     .update(signals)

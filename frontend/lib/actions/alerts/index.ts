@@ -18,10 +18,10 @@ const TargetSchema = z.object({
 const SignalEventMetadataSchema = z.object({
   severities: z.array(z.number().int().min(0).max(2)).nonempty(),
   skipSimilar: z.boolean().optional(),
-  enabled: z.boolean().optional(),
+  disabled: z.boolean().optional(),
 });
 
-const NewClusterMetadataSchema = z.object({ enabled: z.boolean().optional() }).strict();
+const NewClusterMetadataSchema = z.object({ disabled: z.boolean().optional() }).strict();
 
 // NEW_CLUSTER alerts ignore metadata; SIGNAL_EVENT alerts require severities + optional skipSimilar.
 const buildMetadataValidator = (type: "SIGNAL_EVENT" | "NEW_CLUSTER", metadata: unknown) => {
@@ -58,10 +58,10 @@ const DeleteAlertSchema = z.object({
   projectId: z.guid(),
 });
 
-const SetAlertEnabledSchema = z.object({
+const SetAlertDisabledSchema = z.object({
   alertId: z.guid(),
   projectId: z.guid(),
-  enabled: z.boolean(),
+  disabled: z.boolean(),
 });
 
 export async function getAlerts(projectId: string, userEmail?: string): Promise<AlertWithDetails[]> {
@@ -226,8 +226,8 @@ export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
   return result;
 }
 
-export async function setAlertEnabled(input: z.infer<typeof SetAlertEnabledSchema>) {
-  const { alertId, projectId, enabled } = SetAlertEnabledSchema.parse(input);
+export async function setAlertDisabled(input: z.infer<typeof SetAlertDisabledSchema>) {
+  const { alertId, projectId, disabled } = SetAlertDisabledSchema.parse(input);
 
   const [existing] = await db
     .select({ metadata: alerts.metadata })
@@ -238,10 +238,10 @@ export async function setAlertEnabled(input: z.infer<typeof SetAlertEnabledSchem
   if (!existing) throw new Error("Alert not found.");
 
   const nextMetadata: AlertMetadata = { ...((existing.metadata as AlertMetadata) ?? {}) };
-  if (enabled) {
-    delete nextMetadata.enabled;
+  if (disabled) {
+    nextMetadata.disabled = true;
   } else {
-    nextMetadata.enabled = false;
+    delete nextMetadata.disabled;
   }
 
   await db
@@ -251,7 +251,7 @@ export async function setAlertEnabled(input: z.infer<typeof SetAlertEnabledSchem
 
   await cache.remove(`${ALERT_FILTERS_CACHE_KEY}:${projectId}:${alertId}`);
 
-  return { id: alertId, enabled };
+  return { id: alertId, disabled };
 }
 
 export class AlertEmailTargetError extends Error {
@@ -271,8 +271,8 @@ export async function patchAlert(input: {
   const { projectId, alertId, userEmail, body } = input;
 
   switch (body?.action ?? "update") {
-    case "toggleEnabled":
-      return setAlertEnabled({ alertId, projectId, enabled: body.enabled });
+    case "toggleDisabled":
+      return setAlertDisabled({ alertId, projectId, disabled: body.disabled });
     case "update": {
       const emailTargets = (body.targets ?? []).filter((t: { type: string; email?: string }) => t.type === "EMAIL");
       if (userEmail && emailTargets.some((t: { email?: string }) => t.email && t.email !== userEmail)) {

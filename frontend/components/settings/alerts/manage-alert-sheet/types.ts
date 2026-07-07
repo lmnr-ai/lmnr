@@ -11,7 +11,7 @@ export interface AlertFormValues {
   emailEnabled: boolean;
   severities: SeverityLevel[];
   skipSimilar: boolean;
-  enabled: boolean;
+  disabled: boolean;
   alertFilters: AlertFilterFormItem[];
 }
 
@@ -27,7 +27,7 @@ export const DEFAULT_VALUES: AlertFormValues = {
   emailEnabled: false,
   severities: [SEVERITY_LEVEL.CRITICAL],
   skipSimilar: true,
-  enabled: true,
+  disabled: false,
   alertFilters: [],
 };
 

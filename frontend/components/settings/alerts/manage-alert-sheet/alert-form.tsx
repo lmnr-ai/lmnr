@@ -303,17 +303,17 @@ export function AlertForm({
         const url = isEditMode ? `/api/projects/${projectId}/alerts/${alert.id}` : `/api/projects/${projectId}/alerts`;
         const method = isEditMode ? "PATCH" : "POST";
 
-        // Only persist `enabled` when deactivated; absence means active.
-        const enabledMeta = data.enabled ? {} : { enabled: false };
+        // Only persist `disabled` when deactivated; absence means active.
+        const disabledMeta = data.disabled ? { disabled: true } : {};
         const metadata =
           data.type === ALERT_TYPE.SIGNAL_EVENT
             ? {
                 severities: Array.from(new Set(data.severities)).sort((a, b) => a - b),
                 // Force skipSimilar off without clustering so a stale form value can't leak through.
                 skipSimilar: clusteringEnabled ? data.skipSimilar : false,
-                ...enabledMeta,
+                ...disabledMeta,
               }
-            : { ...enabledMeta };
+            : { ...disabledMeta };
 
         const res = await fetch(url, {
           method,
@@ -456,10 +456,10 @@ export function AlertForm({
           <div className="flex flex-col gap-8 p-4 pb-24">
             {isEditMode && (
               <Controller
-                name="enabled"
+                name="disabled"
                 control={control}
                 render={({ field }) => {
-                  const isActive = field.value;
+                  const isActive = !field.value;
                   return (
                     <div
                       className={cn(
@@ -485,7 +485,11 @@ export function AlertForm({
                           </p>
                         </div>
                       </div>
-                      <Switch id="alert-enabled" checked={isActive} onCheckedChange={field.onChange} />
+                      <Switch
+                        id="alert-enabled"
+                        checked={isActive}
+                        onCheckedChange={(checked) => field.onChange(!checked)}
+                      />
                     </div>
                   );
                 }}
