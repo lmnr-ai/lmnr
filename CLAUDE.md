@@ -30,6 +30,8 @@ pnpm test                       # Run tests (tsx --test tests/**/*.test.ts)
 pnpm build                      # Production build
 ```
 
+- In a fresh checkout, `pnpm type-check` (and the husky pre-commit hook, which runs it) fails with dozens of `TS2307: Cannot find module '@/assets/...svg'` errors — `next-env.d.ts` is gitignored and carries the image-module declarations. Fix: `npx next typegen` (or any `next dev`/`next build` run) regenerates it.
+
 ### Backend (Rust)
 
 ```bash
