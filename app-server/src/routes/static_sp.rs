@@ -12,7 +12,7 @@ use uuid::Uuid;
 use crate::instrumentation::spans::SpanContextCarrier;
 use crate::llm::{LlmClient, models::ModelSize};
 use crate::routes::ResponseResult;
-use crate::traces::system_extraction::{
+use crate::traces::static_sp_extraction::{
     ExtractionConfig, ExtractionResult, ExtractionTracing, extract_static_regexes,
 };
 

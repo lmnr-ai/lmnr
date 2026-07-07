@@ -34,7 +34,7 @@ use crate::{
     traces::{
         prompt_hash::{extract_system_message, structural_skeleton_hash},
         span_attributes::SPAN_PROMPT_HASH,
-        system_extraction::producer::{StaticPromptCandidate, publish_static_prompt_candidates},
+        static_sp_extraction::producer::{StaticPromptCandidate, publish_static_prompt_candidates},
     },
 };
 

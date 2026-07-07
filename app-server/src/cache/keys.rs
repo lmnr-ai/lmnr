@@ -68,11 +68,11 @@ pub const AGENT_CLASSIFY_LOCK_CACHE_KEY: &str = "agent_classify_lock";
 // `(project_id, prompt_hash)` — the naive signature — see
 // `traces/system_extraction/mod.rs`.
 /// `naive_signature → Vec<regex>` whose matches are the prompt's dynamic parts.
-pub const STATIC_PROMPT_REGEX_CACHE_KEY: &str = "static_sp_regex";
+pub const STATIC_SP_REGEX_CACHE_KEY: &str = "static_sp_regex";
 /// `naive_signature → Vec<system_prompt>` samples awaiting extraction.
-pub const STATIC_PROMPT_ACCUMULATOR_CACHE_KEY: &str = "static_sp_accumulator";
+pub const STATIC_SP_ACCUMULATOR_CACHE_KEY: &str = "static_sp_accumulator";
 /// Per-signature lock so the extraction agent runs once per signature.
-pub const STATIC_PROMPT_LOCK_CACHE_KEY: &str = "static_sp_lock";
+pub const STATIC_SP_LOCK_CACHE_KEY: &str = "static_sp_lock";
 
 // Debugger replay cache (LAM-1715). Concrete Redis keys are namespaced by
 // `(project_id, replay_trace_id)` — see `traces/debug_cache.rs`.

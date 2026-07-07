@@ -76,7 +76,7 @@ use traces::{
         consumer::InputExtractionHandler,
         queue::{INPUT_EXTRACTION_EXCHANGE, INPUT_EXTRACTION_QUEUE, INPUT_EXTRACTION_ROUTING_KEY},
     },
-    system_extraction::{
+    static_sp_extraction::{
         STATIC_PROMPT_EXCHANGE, STATIC_PROMPT_QUEUE, STATIC_PROMPT_ROUTING_KEY,
         consumer::StaticPromptHandler,
     },
@@ -1159,7 +1159,7 @@ fn main() -> anyhow::Result<()> {
 
         let num_checkpoints_workers = env::workers::NUM_CHECKPOINTS.get();
 
-        let num_static_prompt_workers = env::workers::NUM_STATIC_PROMPT.get();
+        let num_static_prompt_workers = env::workers::NUM_STATIC_SP.get();
 
         let num_input_extraction_workers = env::workers::NUM_INPUT_EXTRACTION.get();
 
@@ -2008,7 +2008,7 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::spans::search_spans)
                                     .service(routes::signal_events::search_signal_events)
                                     .service(routes::rollouts::update_session_name)
-                                    .service(routes::system_extraction::extract_system_prompt);
+                                    .service(routes::static_sp::extract_system_prompt);
                                 #[cfg(feature = "signals")]
                                 let scope = scope
                                     .service(crate::signals::private::routes::submit_signal_job)

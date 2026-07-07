@@ -18,8 +18,7 @@
 use uuid::Uuid;
 
 use crate::cache::keys::{
-    STATIC_PROMPT_ACCUMULATOR_CACHE_KEY, STATIC_PROMPT_LOCK_CACHE_KEY,
-    STATIC_PROMPT_REGEX_CACHE_KEY,
+    STATIC_SP_ACCUMULATOR_CACHE_KEY, STATIC_SP_LOCK_CACHE_KEY, STATIC_SP_REGEX_CACHE_KEY,
 };
 
 pub mod agent;
@@ -37,15 +36,15 @@ pub const STATIC_PROMPT_ROUTING_KEY: &str = "static_prompt_routing_key";
 
 /// `naive_signature → Vec<regex>` for static-part extraction.
 pub fn static_regex_cache_key(project_id: Uuid, prompt_hash: &str) -> String {
-    format!("{STATIC_PROMPT_REGEX_CACHE_KEY}:{project_id}:{prompt_hash}")
+    format!("{STATIC_SP_REGEX_CACHE_KEY}:{project_id}:{prompt_hash}")
 }
 
 /// `naive_signature → Vec<system_prompt>` samples awaiting extraction.
 pub fn accumulator_cache_key(project_id: Uuid, prompt_hash: &str) -> String {
-    format!("{STATIC_PROMPT_ACCUMULATOR_CACHE_KEY}:{project_id}:{prompt_hash}")
+    format!("{STATIC_SP_ACCUMULATOR_CACHE_KEY}:{project_id}:{prompt_hash}")
 }
 
 /// Per-signature lock serializing the extraction-agent trigger.
 pub fn extraction_lock_cache_key(project_id: Uuid, prompt_hash: &str) -> String {
-    format!("{STATIC_PROMPT_LOCK_CACHE_KEY}:{project_id}:{prompt_hash}")
+    format!("{STATIC_SP_LOCK_CACHE_KEY}:{project_id}:{prompt_hash}")
 }

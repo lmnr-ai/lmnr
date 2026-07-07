@@ -23,13 +23,7 @@ use crate::{
 /// Number of same-signature system prompts to accumulate before triggering
 /// the extraction agent. More samples let the agent tell static text from
 /// dynamic fragments reliably.
-const MIN_PROMPT_SAMPLES: usize = 5;
-
-/// Cap on accumulated samples. When the agent fails persistently, the lock
-/// TTL rate-limits extraction while messages keep arriving — without a cap
-/// the sample list (large system prompts) would grow the cache value
-/// unboundedly.
-const MAX_PROMPT_SAMPLES: usize = 10;
+const PROMPT_SAMPLES: usize = 5;
 
 /// TTL on the per-signature extraction lock: long enough for the agent to
 /// produce a regex list (normally under 10 min; the per-step upper bounds
@@ -166,7 +160,7 @@ impl StaticPromptHandler {
         }
 
         let samples = self.accumulate_prompt(message).await?;
-        if samples.len() < MIN_PROMPT_SAMPLES {
+        if samples.len() < PROMPT_SAMPLES {
             return Ok(());
         }
 
@@ -245,7 +239,7 @@ impl StaticPromptHandler {
             .map_err(|e| anyhow::anyhow!("Failed to read accumulator {key}: {e:?}"))?
             .unwrap_or_default();
 
-        if samples.len() >= MAX_PROMPT_SAMPLES {
+        if samples.len() >= PROMPT_SAMPLES {
             return Ok(samples);
         }
 
@@ -288,7 +282,7 @@ mod tests {
         let regex_key = static_regex_cache_key(project_id, "abcd1234");
         let accumulator_key = accumulator_cache_key(project_id, "abcd1234");
 
-        for i in 0..MIN_PROMPT_SAMPLES - 1 {
+        for i in 0..PROMPT_SAMPLES - 1 {
             handler
                 .process_prompt(&make_message(project_id, &format!("prompt {i}")))
                 .await
@@ -302,7 +296,7 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(samples.len(), MIN_PROMPT_SAMPLES - 1);
+        assert_eq!(samples.len(), PROMPT_SAMPLES - 1);
 
         handler
             .process_prompt(&make_message(project_id, "prompt 4"))
@@ -352,7 +346,7 @@ mod tests {
                 .unwrap()
         );
 
-        for i in 0..MAX_PROMPT_SAMPLES + 5 {
+        for i in 0..PROMPT_SAMPLES + 5 {
             handler
                 .process_prompt(&make_message(project_id, &format!("prompt {i}")))
                 .await
@@ -365,7 +359,7 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(samples.len(), MAX_PROMPT_SAMPLES);
+        assert_eq!(samples.len(), PROMPT_SAMPLES);
     }
 
     #[tokio::test]
@@ -394,7 +388,7 @@ mod tests {
         let accumulator_key = accumulator_cache_key(project_id, "abcd1234");
         let lock_key = extraction_lock_cache_key(project_id, "abcd1234");
 
-        for i in 0..MIN_PROMPT_SAMPLES - 1 {
+        for i in 0..PROMPT_SAMPLES - 1 {
             handler
                 .process_prompt(&make_message(project_id, &format!("prompt {i}")))
                 .await
@@ -425,7 +419,7 @@ mod tests {
         let regex_key = static_regex_cache_key(project_id, "abcd1234");
         let lock_key = extraction_lock_cache_key(project_id, "abcd1234");
 
-        for i in 0..MIN_PROMPT_SAMPLES - 1 {
+        for i in 0..PROMPT_SAMPLES - 1 {
             handler
                 .process_prompt(&make_message(project_id, &format!("prompt {i}")))
                 .await

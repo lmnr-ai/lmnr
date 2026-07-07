@@ -4,9 +4,8 @@
 //! removal regexes, tests them with the harness-side `regex` tool (the raw
 //! examples never travel through the model), and finishes by answering with a
 //! JSON array of the final ordered regex patterns. A retry ladder over
-//! temperatures re-runs the whole episode when the final answer fails to
-//! collapse the shown examples (empty, non-collapsing, or over-broad) or the
-//! episode errors (provider failure or step timeout).
+//! temperatures re-runs the whole episode when the final answer parses to an
+//! empty list or the episode errors (provider failure or step timeout).
 
 use std::time::Duration;
 
@@ -74,7 +73,7 @@ impl Default for ExtractionConfig {
 /// `None` (uses the default `LLM_PROVIDER`).
 fn extraction_provider() -> Option<String> {
     // `mod env` shadows `std::env`, hence the fully-qualified read.
-    std::env::var(crate::env::system_extraction::SP_EXTRACTION_LLM_PROVIDER)
+    std::env::var(crate::env::static_sp::SP_EXTRACTION_LLM_PROVIDER)
         .ok()
         .map(|v| v.trim().to_lowercase())
         .filter(|v| !v.is_empty())
@@ -103,26 +102,19 @@ pub struct ExtractionResult {
 
 /// What one temperature episode produced.
 struct EpisodeOutcome {
-    /// Parsed final answer; anything that doesn't collapse the shown examples
-    /// (empty, non-collapsing, or over-broad) escalates the temperature ladder.
+    /// Parsed final answer; empty escalates the temperature ladder.
     regexes: Vec<String>,
     tool_calls: usize,
-    /// Latest tool-call input whose RESULT met the tool's full success
-    /// criteria (valid, collapsed, no shared removed text) — the fallback
-    /// candidate.
+    /// Latest tool-call input whose RESULT had `isValid` and
+    /// `isResultInAllIdenticalOutput` — the fallback candidate.
     tool_verified: Option<Vec<String>>,
 }
 
 /// The tool's full success criteria: every pattern compiled and ran, all
-/// examples collapsed to one residual, AND nothing identical was deleted from
-/// every example — per the tool description, collapse with a non-empty
-/// `sharedRemoved` is over-removal (static template text swept), not success.
+/// examples collapsed to one residual
 fn tool_output_verified(output: &Value) -> bool {
     output["isValid"] == Value::Bool(true)
         && output["isResultInAllIdenticalOutput"] == Value::Bool(true)
-        && output["sharedRemoved"]
-            .as_array()
-            .is_some_and(|shared| shared.is_empty())
 }
 
 /// Extract the static-template removal regexes for a family of system
@@ -412,8 +404,8 @@ async fn run_episode_inner(
     })
 }
 
-/// True iff `regexes` is non-empty and meets the tool's full success
-/// criteria against the shown examples ([`tool_output_verified`]).
+/// True iff `regexes` is non-empty, every pattern compiles and runs, and
+/// every shown example collapses to the same residual.
 fn collapses_shown(regexes: &[String], examples: &[String]) -> bool {
     if regexes.is_empty() {
         return false;
