@@ -208,6 +208,94 @@ pub async fn get_signal_events_by_ids(
     Ok(rows)
 }
 
+/// Aggregate stats for a cluster's linked events.
+#[derive(Row, Serialize, Deserialize, Debug, Default)]
+pub struct ClusterEventStats {
+    /// Nanoseconds since epoch; 0 when the cluster has no events.
+    pub first_seen: i64,
+    pub last_seen: i64,
+    pub info_count: u64,
+    pub warning_count: u64,
+    pub critical_count: u64,
+}
+
+/// Get first/last seen timestamps and severity counts for a cluster's events.
+pub async fn get_cluster_event_stats(
+    clickhouse: &clickhouse::Client,
+    project_id: &Uuid,
+    signal_id: &Uuid,
+    cluster_id: &Uuid,
+) -> Result<ClusterEventStats> {
+    let query_str = "SELECT
+            min(timestamp) as first_seen,
+            max(timestamp) as last_seen,
+            countIf(severity = 0) as info_count,
+            countIf(severity = 1) as warning_count,
+            countIf(severity = 2) as critical_count
+         FROM signal_events
+         WHERE project_id = ?
+           AND signal_id = ?
+           AND id IN (
+             SELECT event_id FROM events_to_clusters FINAL
+             WHERE project_id = ? AND cluster_id = ?
+           )";
+
+    let stats = clickhouse
+        .query(query_str)
+        .bind(project_id)
+        .bind(signal_id)
+        .bind(project_id)
+        .bind(cluster_id)
+        .fetch_one::<ClusterEventStats>()
+        .await?;
+
+    Ok(stats)
+}
+
+/// A representative signal event for a cluster notification.
+#[derive(Row, Serialize, Deserialize, Debug)]
+pub struct ClusterEventSample {
+    pub name: String,
+    pub summary: String,
+    pub severity: u8,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub trace_id: Uuid,
+    /// Nanoseconds since epoch.
+    pub timestamp: i64,
+}
+
+/// Get up to `limit` representative events for a cluster, most severe and recent first.
+pub async fn get_cluster_event_samples(
+    clickhouse: &clickhouse::Client,
+    project_id: &Uuid,
+    signal_id: &Uuid,
+    cluster_id: &Uuid,
+    limit: u32,
+) -> Result<Vec<ClusterEventSample>> {
+    let query_str = "SELECT name, summary, severity, trace_id, timestamp
+         FROM signal_events
+         WHERE project_id = ?
+           AND signal_id = ?
+           AND id IN (
+             SELECT event_id FROM events_to_clusters FINAL
+             WHERE project_id = ? AND cluster_id = ?
+           )
+         ORDER BY severity DESC, timestamp DESC
+         LIMIT ?";
+
+    let rows = clickhouse
+        .query(query_str)
+        .bind(project_id)
+        .bind(signal_id)
+        .bind(project_id)
+        .bind(cluster_id)
+        .bind(limit)
+        .fetch_all::<ClusterEventSample>()
+        .await?;
+
+    Ok(rows)
+}
+
 /// Insert signal events into ClickHouse
 pub async fn insert_signal_events(
     clickhouse: clickhouse::Client,
