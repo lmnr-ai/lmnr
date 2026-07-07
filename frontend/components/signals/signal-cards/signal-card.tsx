@@ -5,13 +5,14 @@ import { isNil } from "lodash";
 import Link from "next/link";
 
 import SignalSparkline from "@/components/signals/signal-sparkline.tsx";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SignalSparklineData } from "@/lib/actions/signals/stats";
 import { track } from "@/lib/posthog";
-import { formatRelativeTime, formatShortDate } from "@/lib/utils.ts";
+import { cn, formatRelativeTime, formatShortDate } from "@/lib/utils.ts";
 
 export default function SignalCard({
   signal,
@@ -38,7 +39,12 @@ export default function SignalCard({
       className="block h-full"
       onClick={() => track("signals", "events_viewed", { event_count: signal.eventsCount })}
     >
-      <Card className="hover:border-primary/40 transition-colors h-full">
+      <Card
+        className={cn(
+          "hover:border-primary/40 transition-colors h-full",
+          !signal.enabled && "border-dashed bg-muted/30"
+        )}
+      >
         <CardHeader className="px-3 pt-3 pb-1">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 min-w-0">
@@ -51,11 +57,18 @@ export default function SignalCard({
               >
                 <Checkbox checked={isSelected} aria-label={`Select ${signal.name}`} />
               </div>
-              <h3 className="font-medium text-sm truncate">{signal.name}</h3>
+              <h3 className={cn("font-medium text-sm truncate", !signal.enabled && "text-muted-foreground")}>
+                {signal.name}
+              </h3>
             </div>
+            {!signal.enabled && (
+              <Badge variant="outline" className="text-[10px] text-muted-foreground shrink-0">
+                Disabled
+              </Badge>
+            )}
           </div>
         </CardHeader>
-        <CardContent className="px-3 pt-0 pb-2 space-y-2">
+        <CardContent className={cn("px-3 pt-0 pb-2 space-y-2", !signal.enabled && "opacity-60")}>
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>

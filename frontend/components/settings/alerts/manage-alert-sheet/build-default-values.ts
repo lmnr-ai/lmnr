@@ -52,6 +52,7 @@ export function buildDefaultValues({
         ? signalEventMeta.severities
         : [SEVERITY_LEVEL.CRITICAL],
     skipSimilar: signalEventMeta?.skipSimilar ?? false,
+    enabled: alert.metadata?.enabled ?? true,
     alertFilters: existingFilters?.items ?? [],
   };
 }

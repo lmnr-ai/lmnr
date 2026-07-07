@@ -32,6 +32,7 @@ export const SEVERITY_LABELS: Record<SeverityLevel, string> = {
 export interface SignalEventAlertMetadata {
   severities?: SeverityLevel[];
   skipSimilar?: boolean;
+  enabled?: boolean;
 }
 
 export type AlertMetadata = Record<string, any>;
