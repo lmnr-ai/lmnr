@@ -141,7 +141,7 @@ export const signals = pgTable(
     prompt: text().notNull(),
     structuredOutputSchema: jsonb("structured_output_schema").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    sampleRate: smallint("sample_rate"),
+    metadata: jsonb().default({}).notNull(),
   },
   (table) => [
     foreignKey({

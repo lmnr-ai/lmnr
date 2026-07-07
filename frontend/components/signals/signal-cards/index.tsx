@@ -38,9 +38,12 @@ export default function SignalCards({
     [selectedIds, onSelectionChange]
   );
 
-  return (
+  const activeSignals = signals.filter((s) => !s.disabled);
+  const disabledSignals = signals.filter((s) => s.disabled);
+
+  const renderGrid = (items: SignalRow[]) => (
     <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {signals.map((signal, index) => (
+      {items.map((signal, index) => (
         <motion.div
           key={signal.id}
           initial={{ opacity: 0 }}
@@ -57,6 +60,29 @@ export default function SignalCards({
           />
         </motion.div>
       ))}
+    </div>
+  );
+
+  if (disabledSignals.length === 0) {
+    return renderGrid(activeSignals);
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {activeSignals.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Active ({activeSignals.length})
+          </h3>
+          {renderGrid(activeSignals)}
+        </div>
+      )}
+      <div className="flex flex-col gap-3">
+        <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Disabled ({disabledSignals.length})
+        </h3>
+        {renderGrid(disabledSignals)}
+      </div>
     </div>
   );
 }
