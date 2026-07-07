@@ -73,13 +73,17 @@ fn extraction_provider() -> Option<String> {
 /// Internal self-tracing routing for an extraction run. With `project_id: None`
 /// (the `Default`) every span is unroutable and the exporter drops it, so
 /// tracing is effectively off.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ExtractionTracing {
     /// Destination project for the run's internal spans.
     pub project_id: Option<Uuid>,
     /// Re-root the run under an out-of-process caller's span; `None` starts
     /// a fresh trace.
     pub parent: Option<SpanContextCarrier>,
+    /// Naive signature (`lmnr.span.prompt_hash`) of the prompt family, stamped
+    /// as trace metadata on the root span. `None` on the ad-hoc route (no
+    /// signature there).
+    pub prompt_hash: Option<String>,
 }
 
 #[derive(Debug)]
@@ -131,6 +135,9 @@ pub async fn extract_static_regexes(
         .span_path_root("system_extraction")
         .input(&json!({ "examples": examples }))
         .build();
+    if let Some(prompt_hash) = &tracing_ctx.prompt_hash {
+        spans::set_metadata_str(&root_span, "prompt_hash", prompt_hash);
+    }
 
     let user_message = build_user_message(examples, config.include_diff);
     let result = async {

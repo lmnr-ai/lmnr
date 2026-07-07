@@ -100,7 +100,11 @@ impl StaticPromptHandler {
     /// never errors — an empty regex list means every attempt failed, which
     /// is surfaced as an error so the caller keeps the extraction lock held
     /// (its TTL then rate-limits retries).
-    async fn run_extraction(&self, samples: &[String]) -> anyhow::Result<Vec<String>> {
+    async fn run_extraction(
+        &self,
+        samples: &[String],
+        prompt_hash: &str,
+    ) -> anyhow::Result<Vec<String>> {
         #[cfg(test)]
         if let Some(regexes) = &self.test_regexes {
             if regexes.is_empty() {
@@ -119,6 +123,7 @@ impl StaticPromptHandler {
             &ExtractionTracing {
                 project_id: Self::internal_project_id(),
                 parent: None,
+                prompt_hash: Some(prompt_hash.to_string()),
             },
         )
         .await;
@@ -203,7 +208,7 @@ impl StaticPromptHandler {
 
         // Release the lock on agent failure so a later message can retry
         // immediately
-        let regexes = match self.run_extraction(&prompts).await {
+        let regexes = match self.run_extraction(&prompts, &message.prompt_hash).await {
             Ok(regexes) => regexes,
             Err(e) => {
                 if let Err(e) = self.cache.release_lock(&lock_key).await {

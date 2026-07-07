@@ -76,6 +76,7 @@ pub async fn extract_system_prompt(
             .parent_traceparent
             .as_deref()
             .and_then(SpanContextCarrier::from_w3c_traceparent),
+        prompt_hash: None,
     };
 
     let ExtractionResult {
