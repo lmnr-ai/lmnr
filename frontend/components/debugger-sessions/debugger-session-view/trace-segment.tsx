@@ -278,6 +278,15 @@ export default function TraceSegment({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleSignature, rows, traceId, reportVisibleSpans]);
 
+  // Clear this segment's aggregation entry on unmount — virtualized-out
+  // segments must not keep their spans in the batched preview fetch set.
+  useEffect(
+    () => () => {
+      reportVisibleSpans(traceId, [], []);
+    },
+    [traceId, reportVisibleSpans]
+  );
+
   // Scroll selected span (in this trace) to center, once per selection.
   const lastScrolledSpanIdRef = useRef<string | null>(null);
   useEffect(() => {

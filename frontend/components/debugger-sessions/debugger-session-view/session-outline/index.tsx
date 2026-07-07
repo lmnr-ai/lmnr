@@ -7,13 +7,12 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { cn } from "@/lib/utils";
 
 import { type SessionBlockView, useDebuggerSessionViewStore } from "../store";
-import { evalAnchorId, textAnchorId, traceAnchorId } from "./utils";
 
 // A row per block (trace / eval / text), in timeline order (blocks are ordered
-// by created_at).
+// by created_at). Keyed by block id — the same key the virtualized list tracks
+// as `activeBlockId` and accepts in scroll requests.
 type OutlineRow = {
-  key: string;
-  anchor: string;
+  blockId: string;
   text: string;
   kind: "trace" | "eval" | "text";
 };
@@ -31,15 +30,12 @@ const buildRows = (blocks: SessionBlockView[]): OutlineRow[] => {
   let traceIndex = 0;
   for (const block of blocks) {
     if (block.type === "evaluation") {
-      const a = evalAnchorId(block.evaluation.id);
-      rows.push({ key: a, anchor: a, text: block.evaluation.name, kind: "eval" });
+      rows.push({ blockId: block.id, text: block.evaluation.name, kind: "eval" });
     } else if (block.type === "text") {
-      const a = textAnchorId(block.id);
-      rows.push({ key: a, anchor: a, text: textBlockTitle(block.text), kind: "text" });
+      rows.push({ blockId: block.id, text: textBlockTitle(block.text), kind: "text" });
     } else if (block.type === "trace") {
       traceIndex += 1;
-      const a = traceAnchorId(block.traceId);
-      rows.push({ key: a, anchor: a, text: `Trace ${traceIndex}`, kind: "trace" });
+      rows.push({ blockId: block.id, text: `Trace ${traceIndex}`, kind: "trace" });
     }
   }
   return rows;
@@ -52,11 +48,15 @@ interface SessionOutlineProps {
 /**
  * Left-rail session outline: a continuous left track with a single
  * framer-motion indicator that slides to the active row. One row per block
- * (trace / eval / text). Active state is tracked with an IntersectionObserver
- * rooted at the browser viewport.
+ * (trace / eval / text). Active state comes from the store (`activeBlockId`,
+ * written by the virtualized list's scroll tracking) — IntersectionObserver
+ * can't work here because offscreen virtual rows unmount. Clicks route through
+ * `requestScrollToBlock` so the list can scroll to not-yet-mounted blocks.
  */
 export default function SessionOutline({ className }: SessionOutlineProps) {
   const blocks = useDebuggerSessionViewStore((s) => s.blocks);
+  const activeBlockId = useDebuggerSessionViewStore((s) => s.activeBlockId);
+  const requestScrollToBlock = useDebuggerSessionViewStore((s) => s.requestScrollToBlock);
   const navRef = useRef<HTMLElement>(null);
 
   // Edge state for the fade gradients: hide the top fade at the very top and
@@ -85,57 +85,29 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const rows = useMemo(() => buildRows(blocks), [signature]);
 
-  const [activeAnchor, setActiveAnchor] = useState<string | null>(null);
-  const rowRefs = useRef<Map<string, HTMLAnchorElement>>(new Map());
-  const [indicator, setIndicator] = useState<{ top: number; height: number } | null>(null);
-
-  // Derive (don't store) the effective active row, falling back to the first row
-  // when the stored anchor no longer exists — avoids a reset effect.
-  const active = useMemo(
-    () => (activeAnchor && rows.some((r) => r.anchor === activeAnchor) ? activeAnchor : (rows[0]?.anchor ?? null)),
-    [activeAnchor, rows]
-  );
-
   // After a click we optimistically highlight the clicked row and ignore the
-  // observer briefly, so a row that can't be scrolled high enough to enter the
-  // top band still lights up.
-  const suppressRef = useRef(false);
+  // store's tracking briefly, so a row that can't be scrolled high enough to
+  // enter the top band still lights up.
+  const [clickedBlockId, setClickedBlockId] = useState<string | null>(null);
   const suppressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const selectOnClick = (anchor: string) => {
-    setActiveAnchor(anchor);
-    suppressRef.current = true;
+  const selectOnClick = (blockId: string) => {
+    setClickedBlockId(blockId);
+    requestScrollToBlock(blockId);
     if (suppressTimer.current) clearTimeout(suppressTimer.current);
-    suppressTimer.current = setTimeout(() => {
-      suppressRef.current = false;
-    }, 700);
+    suppressTimer.current = setTimeout(() => setClickedBlockId(null), 700);
   };
   useEffect(() => () => (suppressTimer.current ? clearTimeout(suppressTimer.current) : undefined), []);
 
-  // Active-row detection. Root is the browser viewport (root: null) — works
-  // regardless of WHICH element scrolls. Active = crossed into the top 15%.
-  // Deferred one frame so anchor targets are mounted before we observe them.
-  useEffect(() => {
-    if (rows.length === 0) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (suppressRef.current) return;
-        entries.forEach((e) => {
-          if (e.isIntersecting) setActiveAnchor(e.target.id);
-        });
-      },
-      { rootMargin: "0px 0px -85% 0px" }
-    );
-    const rafId = requestAnimationFrame(() => {
-      rows
-        .map((r) => document.getElementById(r.anchor))
-        .filter((el): el is HTMLElement => el !== null)
-        .forEach((t) => observer.observe(t));
-    });
-    return () => {
-      cancelAnimationFrame(rafId);
-      observer.disconnect();
-    };
-  }, [rows]);
+  const rowRefs = useRef<Map<string, HTMLAnchorElement>>(new Map());
+  const [indicator, setIndicator] = useState<{ top: number; height: number } | null>(null);
+
+  // Derive (don't store) the effective active row: click override first, then
+  // the store's tracked block, falling back to the first row.
+  const storeActive = clickedBlockId ?? activeBlockId;
+  const active = useMemo(
+    () => (storeActive && rows.some((r) => r.blockId === storeActive) ? storeActive : (rows[0]?.blockId ?? null)),
+    [storeActive, rows]
+  );
 
   // Re-derive the edge state when rows change (content height moved without a
   // scroll event) and when the nav resizes. Keyed on `rows` so the observer
@@ -193,16 +165,21 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
           )}
 
           {rows.map((row) => {
-            const isActive = active === row.anchor;
+            const isActive = active === row.blockId;
             return (
               <a
-                key={row.key}
+                key={row.blockId}
                 ref={(el) => {
-                  if (el) rowRefs.current.set(row.anchor, el);
-                  else rowRefs.current.delete(row.anchor);
+                  if (el) rowRefs.current.set(row.blockId, el);
+                  else rowRefs.current.delete(row.blockId);
                 }}
-                href={`#${row.anchor}`}
-                onClick={() => selectOnClick(row.anchor)}
+                href="#"
+                onClick={(e) => {
+                  // Not an anchor jump — the target row may be virtualized out
+                  // (unmounted); the list scrolls via the virtualizer instead.
+                  e.preventDefault();
+                  selectOnClick(row.blockId);
+                }}
                 className="group flex h-[30px] items-center pl-4 text-left no-underline"
               >
                 {row.kind === "trace" && (
