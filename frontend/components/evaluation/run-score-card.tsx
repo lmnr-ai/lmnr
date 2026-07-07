@@ -1,13 +1,18 @@
 "use client";
 
+import { ArrowRight } from "lucide-react";
 import { useState } from "react";
 
-import { useAggregation } from "@/components/evaluation/metrics-panel/aggregation-select";
-import BinaryCard from "@/components/evaluation/metrics-panel/binary-card";
-import HistogramCard from "@/components/evaluation/metrics-panel/histogram-card";
-import { isBinaryDistribution } from "@/components/evaluation/metrics-panel/utils";
+import { AggregationSelect, useAggregation } from "@/components/evaluation/metrics-panel/aggregation-select";
+import {
+  aggregateScalar,
+  binaryCounts,
+  isBinaryDistribution,
+  pctChange,
+} from "@/components/evaluation/metrics-panel/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { type EvaluationScoreDistributionBucket, type EvaluationScoreStatistics } from "@/lib/evaluation/types";
+import { cn, isValidNumber } from "@/lib/utils";
 
 interface RunScoreCardProps {
   scoreNames: string[];
@@ -18,8 +23,26 @@ interface RunScoreCardProps {
   isComparison?: boolean;
 }
 
-// Whole-run aggregate for ONE picked score, shown above the table when a trace is open.
-// A score picker replaces the name label; body reuses the strip's BinaryCard/HistogramCard.
+const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+
+// Binary (pass/fail) scores read as a positive rate; the aggregation picker
+// doesn't apply to them.
+function scalarFor(
+  isBinary: boolean,
+  aggregation: Parameters<typeof aggregateScalar>[0],
+  statistics: EvaluationScoreStatistics | null,
+  distribution: EvaluationScoreDistributionBucket[] | null
+): number | undefined {
+  if (isBinary) {
+    const counts = binaryCounts(distribution);
+    return counts.total > 0 ? counts.positive / counts.total : statistics?.averageValue;
+  }
+  return aggregateScalar(aggregation, statistics, distribution);
+}
+
+// Whole-run aggregate for ONE picked score, shown above the table: a score
+// picker, the big aggregate number, and the aggregation picker that controls
+// it — on a clean background (no card, no distribution viz).
 export default function RunScoreCard({
   scoreNames,
   allStatistics,
@@ -32,44 +55,78 @@ export default function RunScoreCard({
   const [aggregation] = useAggregation();
   const active = selected && scoreNames.includes(selected) ? selected : scoreNames[0];
 
-  const dropdown = (
-    <Select value={active} onValueChange={setSelected}>
-      <SelectTrigger className="h-7 w-fit gap-1 bg-secondary text-xs font-medium text-secondary-foreground">
-        <SelectValue placeholder="Select score" />
-      </SelectTrigger>
-      <SelectContent>
-        {scoreNames.map((s) => (
-          <SelectItem key={s} value={s} className="text-xs">
-            {s}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-
   const distribution = allDistributions?.[active] ?? null;
-  const common = {
-    name: active,
-    statistics: allStatistics?.[active] ?? null,
-    distribution,
-    comparedDistribution: comparedAllDistributions?.[active] ?? null,
-    isComparison,
-    titleNode: dropdown,
-  };
+  const comparedDistribution = comparedAllDistributions?.[active] ?? null;
+  const isBinary = isBinaryDistribution(distribution);
 
-  // h-[156px]: fixed so toggling boolean/numeric via the dropdown never changes
-  // the card size, and tall enough that the histogram's axes leave room for the bars.
+  const cur = scalarFor(isBinary, aggregation, allStatistics?.[active] ?? null, distribution);
+  const cmp = isComparison
+    ? scalarFor(isBinary, aggregation, comparedAllStatistics?.[active] ?? null, comparedDistribution)
+    : undefined;
+
+  const validCur = isValidNumber(cur);
+  const validCmp = isComparison && isValidNumber(cmp);
+  const change = validCur && validCmp ? pctChange(cur!, cmp!) : null;
+  const improved = change !== null && change >= 0;
+
   return (
-    <div className="h-[156px]">
-      {isBinaryDistribution(distribution) ? (
-        <BinaryCard {...common} />
-      ) : (
-        <HistogramCard
-          {...common}
-          aggregation={aggregation}
-          comparedStatistics={comparedAllStatistics?.[active] ?? null}
-        />
-      )}
+    <div className="flex flex-col gap-1.5 pr-2">
+      <div className="flex items-center gap-1.5">
+        <Select value={active} onValueChange={setSelected}>
+          <SelectTrigger className="h-7 w-fit gap-1 bg-secondary text-xs font-medium text-secondary-foreground">
+            <SelectValue placeholder="Select score" />
+          </SelectTrigger>
+          <SelectContent>
+            {scoreNames.map((s) => (
+              <SelectItem key={s} value={s} className="text-xs">
+                {s}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {!isBinary && <AggregationSelect />}
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="flex items-baseline gap-2 text-6xl py-8">
+          <div className="flex items-center gap-1 tabular-nums">
+            {validCmp && (
+              <>
+                <span className="font-medium leading-9 tracking-[-0.4px] text-muted-foreground">{fmt(cmp!)}</span>
+                <ArrowRight className="size-4 text-muted-foreground shrink-0" />
+              </>
+            )}
+            <span className="font-medium leading-9 tracking-[-0.4px] text-foreground">
+              {validCur ? fmt(cur!) : "—"}
+            </span>
+          </div>
+          {change !== null && (
+            <span
+              className={cn(
+                "text-[12px] leading-[10px] tabular-nums whitespace-nowrap",
+                improved ? "text-success-bright" : "text-destructive"
+              )}
+            >
+              <DeltaTriangle direction={improved ? "up" : "down"} />
+              {Math.abs(change).toFixed(1)}%
+            </span>
+          )}
+        </div>
+      </div>
     </div>
+  );
+}
+
+function DeltaTriangle({ direction }: { direction: "up" | "down" }) {
+  const points = direction === "up" ? "4,0 8,7 0,7" : "0,0 8,0 4,7";
+  return (
+    <svg
+      width="8"
+      height="7"
+      viewBox="0 0 8 7"
+      className="fill-current inline-block align-baseline mr-1"
+      aria-hidden="true"
+    >
+      <polygon points={points} />
+    </svg>
   );
 }

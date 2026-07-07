@@ -11,7 +11,6 @@ import { shallow } from "zustand/shallow";
 import EvalTraceLayout from "@/components/evaluation/eval-trace-layout";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
-import { isBinaryDistribution } from "@/components/evaluation/metrics-panel/utils";
 import RowScoreChips from "@/components/evaluation/row-score-chips";
 import RunScoreCard from "@/components/evaluation/run-score-card";
 import {
@@ -49,8 +48,8 @@ const BASE_COLUMN_ORDER = ["status", "index", "data", "target", "metadata", "out
 // Forked from the pre-refresh "evaluation" resource so old persisted table
 // config never fights the new defaults.
 const RESOURCE = "evaluation-v1.1";
-// Default visibility: status + index + data + target + metadata + score:*.
-const DEFAULT_HIDDEN_COLUMNS = ["output", "duration", "cost"];
+// Default visibility: status + index + data + score:*.
+const DEFAULT_HIDDEN_COLUMNS = ["target", "metadata", "output", "duration", "cost"];
 
 function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
   const pathName = usePathname();
@@ -274,12 +273,6 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
     [columnDefs, isComparison]
   );
 
-  const hasNonBinary = useMemo(() => {
-    const dists = statsData?.allDistributions;
-    if (!dists) return true;
-    return scoreNames.some((name) => !isBinaryDistribution(dists[name] ?? null));
-  }, [scoreNames, statsData?.allDistributions]);
-
   const onDeleteCustomColumn = useCallback(
     (columnId: string) => removeCustomColumn(columnId.replace("custom:", "")),
     [removeCustomColumn]
@@ -318,12 +311,7 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
 
   return (
     <>
-      <EvaluationHeader
-        name={statsData?.evaluation?.name}
-        urlKey={statsUrl}
-        evaluations={evaluations}
-        hasNonBinary={hasNonBinary}
-      />
+      <EvaluationHeader name={statsData?.evaluation?.name} urlKey={statsUrl} evaluations={evaluations} />
       <div className="flex-1 flex gap-2 flex-col relative overflow-hidden">
         {/* Left + top padding only: the trace panel must run flush to the right
             and bottom edges when open, so those paddings live on the pieces that
@@ -335,7 +323,7 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
               trace view, flush to the right + bottom edges with a rounded top-left. */}
           <EvalTraceLayout
             table={
-              <div className="flex h-full w-full flex-col gap-2 overflow-hidden">
+              <div className="flex h-full w-full flex-col gap-2 overflow-hidden pb-4">
                 <RunScoreCard
                   scoreNames={scoreNames}
                   allStatistics={statsData?.allStatistics}

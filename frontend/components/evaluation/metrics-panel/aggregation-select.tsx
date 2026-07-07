@@ -15,16 +15,11 @@ export function useAggregation() {
   return useQueryState("agg", parseAsStringEnum<AggregationKind>(AGG_VALUES).withDefault(DEFAULT_AGGREGATION));
 }
 
-interface AggregationSelectProps {
-  hidden?: boolean;
-}
-
-export function AggregationSelect({ hidden }: AggregationSelectProps) {
+export function AggregationSelect() {
   const [aggregation, setAggregation] = useAggregation();
-  if (hidden) return null;
   return (
     <Select value={aggregation} onValueChange={(v) => setAggregation(v as AggregationKind)}>
-      <SelectTrigger className="h-7 w-[120px] text-xs bg-secondary">
+      <SelectTrigger className="h-7 w-fit gap-1 text-xs bg-secondary text-secondary-foreground">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
