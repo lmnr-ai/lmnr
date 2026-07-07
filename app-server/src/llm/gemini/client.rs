@@ -64,7 +64,7 @@ impl GeminiClient {
 
         let client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(10))
-            .timeout(Duration::from_secs(env::llm::LLM_HTTP_TIMEOUT_SECS.get()))
+            .timeout(Duration::from_secs(env::llm::HTTP_TIMEOUT_SECS.get()))
             .default_headers(default_headers)
             .build()
             .map_err(|e| GeminiError::config(format!("Failed to build HTTP client: {}", e)))?;
