@@ -1,19 +1,16 @@
-import { Loader2, Play, Sparkles, X } from "lucide-react";
+import { ArrowUp, Loader2, Play, Sparkles, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Controller, useFormContext } from "react-hook-form";
-import useSWR, { useSWRConfig } from "swr";
+import { useSWRConfig } from "swr";
 
 import SQLEditor from "@/components/sql/sql-editor";
 import { Button } from "@/components/ui/button";
-import { CopyButton } from "@/components/ui/copy-button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { buildRenderTemplatePrompt, buildTraceRenderTemplatePrompt } from "@/lib/actions/render-template/prompts";
 import { useToast } from "@/lib/hooks/use-toast";
-import { swrFetcher } from "@/lib/utils";
 
 import { type ManageTemplateForm, type Template, type TemplateScope } from "../index";
 import JsxRenderer from "../jsx-renderer";
@@ -24,21 +21,21 @@ import DataPanel from "./data-panel";
 interface Props {
   mode: ManageTemplateMode;
   scope?: TemplateScope;
-  /** Trace whose span outline enriches the copied AI prompt (trace scope only). */
+  /** Trace whose span outline enriches the AI generation context (trace scope only). */
   traceId?: string;
   onCancel: () => void;
   onSaved: () => void;
+}
+
+interface GenerationMessage {
+  role: "user" | "assistant";
+  content: string;
 }
 
 const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved }: Props) => {
   const { projectId } = useParams();
   const { toast } = useToast();
   const { mutate } = useSWRConfig();
-
-  const { data: spanOutline } = useSWR<unknown[]>(
-    mode !== null && scope === "trace" && traceId ? `/api/projects/${projectId}/traces/${traceId}/span-outline` : null,
-    swrFetcher
-  );
 
   const {
     control,
@@ -56,9 +53,18 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
     { ok: true; count: number; truncated: boolean } | { ok: false; error: string } | null
   >(null);
 
-  // The dialog stays mounted across open/close — drop the previous session's result.
+  const [aiInput, setAiInput] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  // Session-scoped chat history sent with every generation request. Only the
+  // latest user message is typed by the user; the rest rides along behind the
+  // single input so follow-ups ("make the headers smaller") work.
+  const [aiHistory, setAiHistory] = useState<GenerationMessage[]>([]);
+
+  // The dialog stays mounted across open/close — drop the previous session's state.
   useEffect(() => {
     setTestResult(null);
+    setAiInput("");
+    setAiHistory([]);
   }, [mode]);
 
   const testWhereClause = useCallback(async () => {
@@ -92,6 +98,61 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
       setIsTesting(false);
     }
   }, [projectId, traceId, getValues, setValue]);
+
+  const generateTemplate = useCallback(async () => {
+    const prompt = aiInput.trim();
+    if (!prompt || isGenerating) return;
+
+    const dataScope = getValues("scope") ?? scope;
+    const messages: GenerationMessage[] = [...aiHistory, { role: "user", content: prompt }];
+
+    setAiInput("");
+    setIsGenerating(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/render-templates/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scope: dataScope,
+          messages,
+          currentCode: getValues("code"),
+          ...(dataScope === "trace" && { currentWhereClause: getValues("whereClause") ?? null, traceId }),
+          ...(dataScope === "span" && { testData: getValues("testData") }),
+        }),
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.code) {
+        const errMessage = data?.error ?? "Failed to generate the template";
+        // Keep the refusal in history so follow-ups have context.
+        setAiHistory([...messages, { role: "assistant", content: `Request refused: ${errMessage}` }]);
+        toast({ variant: "destructive", title: "Generation failed", description: errMessage });
+        return;
+      }
+
+      setValue("code", data.code, { shouldDirty: true });
+      let appliedFilter = false;
+      if (dataScope === "trace" && typeof data.whereClause === "string") {
+        appliedFilter = data.whereClause !== (getValues("whereClause") ?? "");
+        setValue("whereClause", data.whereClause, { shouldDirty: true });
+      }
+      // The full template rides in the system prompt's <current_template> on the
+      // next turn — a short marker here keeps history tokens flat.
+      setAiHistory([...messages, { role: "assistant", content: "Done — updated the template code in the editor." }]);
+      // Refresh the preview data when the generated filter changed the span selection.
+      if (appliedFilter && traceId) void testWhereClause();
+    } catch (e) {
+      // Transient failure — restore the input so the user can retry without retyping.
+      setAiInput(prompt);
+      toast({
+        variant: "destructive",
+        title: "Generation failed",
+        description: e instanceof Error ? e.message : "Failed to generate the template",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [aiInput, isGenerating, aiHistory, projectId, scope, traceId, getValues, setValue, toast, testWhereClause]);
 
   const submit = useCallback(
     async (data: ManageTemplateForm) => {
@@ -145,16 +206,6 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
 
   const effectiveScope = watch("scope") ?? scope;
 
-  const promptHintSuffix =
-    effectiveScope === "trace"
-      ? spanOutline
-        ? " + this trace's outline"
-        : ""
-      : watch("testData")?.trim()
-        ? " + your test data"
-        : "";
-  const promptHint = `Generate with your AI tool - prompt includes Laminar style guide${promptHintSuffix}`;
-
   const handleOpenChange = useCallback(
     (next: boolean) => {
       if (!next) onCancel();
@@ -173,7 +224,7 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
           <DialogHeader className="relative space-y-0.5 border-b px-5 py-3 pr-12">
             <DialogTitle className="text-base">Render template</DialogTitle>
             <p className="text-xs text-muted-foreground">
-              Write JSX that renders your data, or copy the AI prompt for a head start.
+              Write JSX that renders your data, or describe it and let AI generate the template.
             </p>
             <button
               type="button"
@@ -261,27 +312,55 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
               )}
 
               <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card">
-                <div className="flex items-start justify-between gap-2 border-b px-3 py-2">
-                  <div className="flex min-w-0 items-start gap-1.5 text-xs text-muted-foreground">
-                    <Sparkles className="mt-0.5 size-3.5 shrink-0 text-primary" />
-                    <span title={promptHint}>{promptHint}</span>
-                  </div>
-                  <CopyButton
-                    type="button"
-                    variant="secondaryLight"
-                    text={
-                      effectiveScope === "trace"
-                        ? buildTraceRenderTemplatePrompt(spanOutline ? JSON.stringify(spanOutline, null, 2) : undefined)
-                        : buildRenderTemplatePrompt(watch("testData"))
+                <div className="flex items-center gap-2 border-b px-3 py-2">
+                  {isGenerating ? (
+                    <Loader2 className="size-3.5 shrink-0 animate-spin text-primary" />
+                  ) : (
+                    <Sparkles className="size-3.5 shrink-0 text-primary" />
+                  )}
+                  <Input
+                    value={aiInput}
+                    onChange={(e) => setAiInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        void generateTemplate();
+                      }
+                    }}
+                    placeholder={
+                      isGenerating
+                        ? "Generating template…"
+                        : aiHistory.length > 0
+                          ? "Ask for changes, e.g. make the headers smaller"
+                          : effectiveScope === "trace"
+                            ? "Describe what to render, e.g. LLM spans as a chat conversation"
+                            : "Describe what to render, e.g. the messages array as a chat"
                     }
-                    className="shrink-0 text-xs"
-                    iconClassName="size-3"
+                    disabled={isGenerating}
+                    className="h-7 flex-1 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0"
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="secondaryLight"
+                    className="size-6 shrink-0 rounded-full"
+                    disabled={isGenerating || !aiInput.trim()}
+                    onClick={generateTemplate}
+                    title="Generate with AI"
                   >
-                    Copy prompt
-                  </CopyButton>
+                    <ArrowUp className="size-3.5" />
+                  </Button>
                 </div>
-                <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+                <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
                   <CodeEditor />
+                  {isGenerating && (
+                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60">
+                      <div className="flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground">
+                        <Loader2 className="size-3.5 animate-spin text-primary" />
+                        Generating template…
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
