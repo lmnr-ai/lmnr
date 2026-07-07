@@ -9,6 +9,7 @@
 
 use std::time::Duration;
 
+use backoff::ExponentialBackoffBuilder;
 use serde_json::{Value, json};
 use tracing::{Instrument, info_span};
 
@@ -32,11 +33,9 @@ const TEMPERATURE_LADDER: [f32; 3] = [0.0, 0.4, 0.7];
 /// episodes were hitting the cap ending on a tool call (no final answer),
 /// falling back to the last tool-verified regex list instead of a converged one.
 const MAX_STEPS: usize = 20;
-/// Per-LLM-call timeout; a hung provider call aborts the episode and the
-/// temperature ladder advances. Large example families (100k+ input tokens)
-/// with a reasoning model can legitimately run past 3 min, so this is
-/// generous.
-const STEP_TIMEOUT: Duration = Duration::from_millis(300_000);
+/// Exponential-backoff bounds for retrying a transient LLM failure
+const LLM_RETRY_INITIAL_BACKOFF: Duration = Duration::from_secs(2);
+const LLM_RETRY_MAX_ELAPSED: Duration = Duration::from_secs(120);
 /// Cap on output tokens per LLM call. Must be large enough that a reasoning
 /// model (e.g. Claude Sonnet-5 adaptive thinking) can finish its thinking AND
 /// still emit the tool call / final answer in one response. The provider
@@ -59,10 +58,18 @@ pub struct ExtractionConfig {
 
 impl Default for ExtractionConfig {
     fn default() -> Self {
+        let provider = extraction_provider();
+        // Bedrock ignores the temperature knob, so higher-temperature retries
+        // reproduce the same output — collapse the ladder to a single episode.
+        let temperatures = if provider.as_deref() == Some("bedrock") {
+            vec![0.0]
+        } else {
+            TEMPERATURE_LADDER.to_vec()
+        };
         Self {
-            provider: extraction_provider(),
+            provider,
             model_size: Some(ModelSize::Medium),
-            temperatures: TEMPERATURE_LADDER.to_vec(),
+            temperatures,
             max_steps: MAX_STEPS,
             include_diff: true,
         }
@@ -280,13 +287,25 @@ async fn run_episode_inner(
             .step(step)
             .build();
 
-        let response = tokio::time::timeout(STEP_TIMEOUT, llm_client.generate_content(&request))
-            .instrument(llm_span.clone())
-            .await
-            .unwrap_or(Err(ProviderError::RequestError(format!(
-                "LLM call timed out after {}ms",
-                STEP_TIMEOUT.as_millis()
-            ))));
+        let retry_backoff = ExponentialBackoffBuilder::new()
+            .with_initial_interval(LLM_RETRY_INITIAL_BACKOFF)
+            .with_max_elapsed_time(Some(LLM_RETRY_MAX_ELAPSED))
+            .build();
+        let response = backoff::future::retry(retry_backoff, || async {
+            match llm_client
+                .generate_content(&request)
+                .instrument(llm_span.clone())
+                .await
+            {
+                Ok(response) => Ok(response),
+                Err(e) if e.is_retryable() => {
+                    log::warn!("[STATIC_PROMPT] LLM call failed, will retry: {e}");
+                    Err(backoff::Error::transient(e))
+                }
+                Err(e) => Err(backoff::Error::permanent(e)),
+            }
+        })
+        .await;
         let response = match response {
             Ok(response) => response,
             Err(e) => {
