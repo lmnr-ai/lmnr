@@ -77,12 +77,14 @@ const FilterPopover = ({
       const filterValue = dataType === "array" && typeof filter.value === "string" ? [filter.value] : filter.value;
 
       const filterToAdd = { ...filter, dataType, value: filterValue } as Filter;
-      onAddFilter(filterToAdd);
+      if (!filters.some((f) => isEqual(f, filterToAdd))) {
+        onAddFilter(filterToAdd);
+      }
       // Clear the value so reopening the popover doesn't re-apply stale input;
       // keep column/operator so adding several filters on one column (e.g. metadata keys) stays quick.
       setFilter((prev) => ({ ...prev, value: "" }));
     },
-    [columns, onAddFilter]
+    [columns, filters, onAddFilter]
   );
 
   const handleValueChange = useCallback(

@@ -360,7 +360,7 @@ Route groups: `(auth)/layout.tsx` requires a session (redirects to `/sign-in`); 
 
 ## Add-filter popover (`datatable-filter`)
 
-- `FilterPopover` (`frontend/components/ui/infinite-datatable/ui/datatable-filter/ui.tsx`) must NOT dedup added filters against the active list — duplicate columns are legitimate (multiple `metadata` key=value filters combine with AND server-side; param keys are indexed per filter in `buildColumnFilters`), and the `AdvancedSearch` bar already allows them. The old exact-`isEqual` guard plus popover state that persisted after apply made a re-click silently no-op (LAM-1914). After apply, clear only `filter.value` (keep column/operator) so reopening can't re-submit stale input.
+- `FilterPopover` (`frontend/components/ui/infinite-datatable/ui/datatable-filter/ui.tsx`) dedups only EXACT duplicates (`isEqual` against the active list); duplicate columns with different values are legitimate (multiple `metadata` key=value filters combine with AND server-side; param keys are indexed per filter in `buildColumnFilters`), and the `AdvancedSearch` bar already allows them. After apply, it MUST clear `filter.value` (keeping column/operator) — the LAM-1914 bug was popover state persisting after apply, so a re-click re-submitted the same filter and the dedup made it a silent no-op.
 
 ## Dataset datapoints filters + custom columns
 
