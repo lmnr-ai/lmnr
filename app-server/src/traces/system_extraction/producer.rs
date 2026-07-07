@@ -13,6 +13,7 @@ use super::{
 use crate::{
     cache::{Cache, CacheTrait},
     mq::{MessageQueue, MessageQueueTrait},
+    traces::input_extraction::llm_client_available,
 };
 
 /// An LLM span's system prompt paired with its naive signature
@@ -31,6 +32,13 @@ pub async fn publish_static_prompt_candidates(
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
 ) {
+    // Without the shared LLM client the consumer can only drain the queue —
+    // extraction never runs, the regex cache never fills, and every ingest
+    // batch would re-publish the same signatures forever.
+    if !llm_client_available() {
+        return;
+    }
+
     // Spans emitted by our own extraction self-tracing land in this project;
     // feeding them back into extraction would loop indefinitely.
     let internal_project_id =

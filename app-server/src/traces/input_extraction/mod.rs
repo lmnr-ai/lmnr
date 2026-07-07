@@ -43,6 +43,6 @@ pub mod regex;
 pub mod self_tracing;
 
 pub use producer::{
-    UserTaskCandidate, UserTaskSpanContext, capture_user_task_candidate,
+    UserTaskCandidate, UserTaskSpanContext, capture_user_task_candidate, llm_client_available,
     process_user_task_candidates, set_llm_client_available,
 };

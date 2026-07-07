@@ -38,7 +38,10 @@ pub fn set_llm_client_available(available: bool) {
     let _ = LLM_CLIENT_AVAILABLE.set(available);
 }
 
-fn llm_client_available() -> bool {
+/// Whether the shared `LlmClient` initialized. Public because every
+/// LLM-backed producer hook (user-task extraction, static-prompt
+/// extraction) must gate on the same client.
+pub fn llm_client_available() -> bool {
     LLM_CLIENT_AVAILABLE.get().copied().unwrap_or(false)
 }
 
