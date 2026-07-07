@@ -1,6 +1,6 @@
 import { ArrowUp, Loader2, Play, Sparkles, X } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 import { useSWRConfig } from "swr";
 
@@ -59,9 +59,14 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
   // latest user message is typed by the user; the rest rides along behind the
   // single input so follow-ups ("make the headers smaller") work.
   const [aiHistory, setAiHistory] = useState<GenerationMessage[]>([]);
+  const generationAbortRef = useRef<AbortController | null>(null);
 
-  // The dialog stays mounted across open/close — drop the previous session's state.
+  // The dialog stays mounted across open/close — drop the previous session's
+  // state and abort any in-flight generation so a late response can't write
+  // into the form after cancelManage has reset it.
   useEffect(() => {
+    generationAbortRef.current?.abort();
+    generationAbortRef.current = null;
     setTestResult(null);
     setAiInput("");
     setAiHistory([]);
@@ -106,12 +111,16 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
     const dataScope = getValues("scope") ?? scope;
     const messages: GenerationMessage[] = [...aiHistory, { role: "user", content: prompt }];
 
+    const abortController = new AbortController();
+    generationAbortRef.current = abortController;
+
     setAiInput("");
     setIsGenerating(true);
     try {
       const res = await fetch(`/api/projects/${projectId}/render-templates/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: abortController.signal,
         body: JSON.stringify({
           scope: dataScope,
           messages,
@@ -121,6 +130,7 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
         }),
       });
       const data = await res.json().catch(() => null);
+      if (abortController.signal.aborted) return;
 
       if (!res.ok || !data?.code) {
         const errMessage = data?.error ?? "Failed to generate the template";
@@ -142,6 +152,8 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
       // Refresh the preview data when the generated filter changed the span selection.
       if (appliedFilter && traceId) void testWhereClause();
     } catch (e) {
+      // Aborted because the dialog closed — the session state is already reset.
+      if (abortController.signal.aborted) return;
       // Transient failure — restore the input so the user can retry without retyping.
       setAiInput(prompt);
       toast({
@@ -150,6 +162,7 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
         description: e instanceof Error ? e.message : "Failed to generate the template",
       });
     } finally {
+      if (generationAbortRef.current === abortController) generationAbortRef.current = null;
       setIsGenerating(false);
     }
   }, [aiInput, isGenerating, aiHistory, projectId, scope, traceId, getValues, setValue, toast, testWhereClause]);
