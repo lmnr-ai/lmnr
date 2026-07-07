@@ -48,8 +48,8 @@ const BASE_COLUMN_ORDER = ["status", "index", "data", "target", "metadata", "out
 // Forked from the pre-refresh "evaluation" resource so old persisted table
 // config never fights the new defaults.
 const RESOURCE = "evaluation-v1.1";
-// Default visibility: status + index + data + score:*.
-const DEFAULT_HIDDEN_COLUMNS = ["target", "metadata", "output", "duration", "cost"];
+// Default visibility: status + data + score:*.
+const DEFAULT_HIDDEN_COLUMNS = ["index", "target", "metadata", "output", "duration", "cost"];
 
 function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
   const pathName = usePathname();
