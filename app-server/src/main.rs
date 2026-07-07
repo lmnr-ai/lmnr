@@ -1104,7 +1104,7 @@ fn main() -> anyhow::Result<()> {
     // call wins) — the user-task producer hook must not enqueue extraction
     // work when the client failed to construct, since the extraction workers
     // would never spawn and the messages would sit on the queue unconsumed.
-    traces::input_extraction::set_llm_client_available(llm_provider_client.is_some());
+    llm::set_llm_client_available(llm_provider_client.is_some());
     let llm_provider_client_for_http = llm_provider_client.clone();
 
     if enable_consumer() {

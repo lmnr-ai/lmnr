@@ -2,7 +2,7 @@
 //! capture, winner arbitration, inline cached-regex application, and
 //! enqueueing regex generation on cache miss.
 
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
 use tracing::instrument;
 use uuid::Uuid;
@@ -16,34 +16,12 @@ use crate::cache::{Cache, CacheTrait};
 use crate::db::{DB, spans::Span};
 use crate::env::user_task::USER_TASK_LOCK_TTL_SECONDS;
 use crate::features::{Feature, is_feature_enabled};
+use crate::llm::llm_client_available;
 use crate::mq::MessageQueue;
 use crate::traces::metadata::publish_trace_metadata_patch;
 use crate::traces::span_attributes::SPAN_PROMPT_HASH;
 use crate::traces::spans::SpanAttributes;
 use crate::traces::utils::get_llm_usage_for_span;
-
-/// Whether the shared `LlmClient` actually initialized. Set from `main.rs`
-/// after client construction. `Feature::UserTaskExtraction` only mirrors
-/// the credential env vars, but `LlmClient::new` can still fail (bad
-/// `LLM_DEFAULT_HEADERS_JSON`, HTTP client build error, ...) — and when it
-/// does, the extraction workers are never spawned, so enqueueing would
-/// strand messages on the queue unconsumed. Defaults to false so paths
-/// that never call `set_llm_client_available` (tests) don't enqueue.
-static LLM_CLIENT_AVAILABLE: OnceLock<bool> = OnceLock::new();
-
-/// Called once from `main.rs` right after `LlmClient` construction.
-/// First call wins (`OnceLock`); until then the producer hook treats the
-/// client as unavailable and never enqueues.
-pub fn set_llm_client_available(available: bool) {
-    let _ = LLM_CLIENT_AVAILABLE.set(available);
-}
-
-/// Whether the shared `LlmClient` initialized. Public because every
-/// LLM-backed producer hook (user-task extraction, static-prompt
-/// extraction) must gate on the same client.
-pub fn llm_client_available() -> bool {
-    LLM_CLIENT_AVAILABLE.get().copied().unwrap_or(false)
-}
 
 /// Per-span candidate captured inside `preprocess_for_queue`, BEFORE the
 /// dedup strip removes `span.input` — the only point where the full

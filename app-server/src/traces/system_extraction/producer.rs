@@ -12,8 +12,8 @@ use super::{
 };
 use crate::{
     cache::{Cache, CacheTrait},
+    llm::llm_client_available,
     mq::{MessageQueue, MessageQueueTrait},
-    traces::input_extraction::llm_client_available,
 };
 
 /// An LLM span's system prompt paired with its naive signature
