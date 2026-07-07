@@ -3,6 +3,7 @@ import { pick } from "lodash";
 import { CircleDollarSign, Clock3, Coins } from "lucide-react";
 import { memo, useMemo } from "react";
 
+import { InputTokenBreakdown } from "@/components/traces/token-breakdown";
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type Span, type TraceRow } from "@/lib/traces/types.ts";
@@ -185,9 +186,12 @@ interface StatsShieldsProps {
   className?: string;
   variant?: "filled" | "outline";
   labelPrefix?: string;
+  // When present (single LLM/CACHED span), the tokens tooltip shows an
+  // estimated input-token breakdown bar; trace/session shields omit it.
+  span?: Span;
 }
 
-export function StatsShields({ stats, className, variant = "filled", labelPrefix }: StatsShieldsProps) {
+export function StatsShields({ stats, className, variant = "filled", labelPrefix, span }: StatsShieldsProps) {
   const label = (text: string) =>
     labelPrefix ? `${labelPrefix} ${text}` : text.charAt(0).toUpperCase() + text.slice(1);
   const durationContent = (
@@ -214,27 +218,34 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
           </div>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent side="bottom" className="p-2 border">
-            <div className="flex-col space-y-1">
-              <Label className="flex text-xs gap-1">
-                <span className="text-secondary-foreground">{label("input tokens")}</span>{" "}
-                {numberFormat.format(stats.inputTokens)}
-              </Label>
-              <Label className="flex text-xs gap-1">
-                <span className="text-secondary-foreground">{label("output tokens")}</span>{" "}
-                {numberFormat.format(stats.outputTokens)}
-              </Label>
-              {!!stats.cacheReadInputTokens && (
-                <Label className="flex text-xs gap-1 text-success-bright">
-                  <span>{label("cache input tokens")}</span> {numberFormat.format(stats.cacheReadInputTokens)}
-                </Label>
-              )}
-              {!!stats.reasoningTokens && (
+          <TooltipContent side="bottom" className="p-2 border bg-surface-700">
+            <div className="flex-col space-y-2">
+              {span ? (
+                <InputTokenBreakdown span={span} />
+              ) : (
                 <Label className="flex text-xs gap-1">
-                  <span className="text-secondary-foreground">{label("reasoning tokens")}</span>{" "}
-                  {numberFormat.format(stats.reasoningTokens)}
+                  <span className="text-secondary-foreground">{label("input tokens")}</span>{" "}
+                  {numberFormat.format(stats.inputTokens)}
                 </Label>
               )}
+              <div className="flex-col space-y-1 border-t pt-2">
+                <Label className="flex justify-between text-xs gap-4">
+                  <span className="text-secondary-foreground">{label("output tokens")}</span>
+                  <span>{numberFormat.format(stats.outputTokens)}</span>
+                </Label>
+                {!!stats.reasoningTokens && (
+                  <Label className="flex justify-between text-xs gap-4">
+                    <span className="text-secondary-foreground">{label("reasoning tokens")}</span>
+                    <span>{numberFormat.format(stats.reasoningTokens)}</span>
+                  </Label>
+                )}
+                {!span && !!stats.cacheReadInputTokens && (
+                  <Label className="flex justify-between text-xs gap-4 text-success-bright">
+                    <span>{label("cache input tokens")}</span>
+                    <span>{numberFormat.format(stats.cacheReadInputTokens)}</span>
+                  </Label>
+                )}
+              </div>
             </div>
           </TooltipContent>
         </TooltipPortal>
@@ -254,7 +265,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
           </div>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent side="bottom" className="p-2 border">
+          <TooltipContent side="bottom" className="p-2 border bg-surface-700">
             <div className="flex-col space-y-1">
               <Label className="flex text-xs gap-1">
                 <span className="text-secondary-foreground">{label("total cost")}</span>{" "}
@@ -341,6 +352,7 @@ const SpanStatsShields = ({ span, className, variant }: SpanStatsShieldsProps) =
     ])}
     className={className}
     variant={variant}
+    span={span}
   />
 );
 
