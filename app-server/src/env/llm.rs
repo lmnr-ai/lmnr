@@ -39,4 +39,4 @@ pub const FLEX_LLM_TIMEOUT_SECS: NumEnv<u64> = NumEnv::new("SIGNALS_FLEX_LLM_TIM
 /// system-extraction over 100k+ token example families) can run past the old 120s
 /// default, so it's raised and made configurable. Gemini flex-tier requests
 /// override this per-request with `FLEX_LLM_TIMEOUT_SECS`.
-pub const HTTP_TIMEOUT_SECS: NumEnv<u64> = NumEnv::new("LLM_TIMEOUT_SECS", 300);
+pub const LLM_HTTP_TIMEOUT_SECS: NumEnv<u64> = NumEnv::new("LLM_HTTP_TIMEOUT_SECS", 300);

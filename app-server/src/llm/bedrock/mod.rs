@@ -45,11 +45,11 @@ impl BedrockClient {
     pub async fn new() -> ProviderResult<Self> {
         let sdk_config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
         // Mirror the reqwest-based clients (openai/gemini): a single attempt bounded
-        // by the shared LLM_TIMEOUT_SECS request timeout plus a 10s connect
+        // by the shared LLM_HTTP_TIMEOUT_SECS request timeout plus a 10s connect
         // timeout. SDK auto-retries are disabled so all providers behave the same —
         // the retry layer is owned by the caller.
         let timeout_config = TimeoutConfig::builder()
-            .operation_attempt_timeout(Duration::from_secs(env::llm::HTTP_TIMEOUT_SECS.get()))
+            .operation_attempt_timeout(Duration::from_secs(env::llm::LLM_HTTP_TIMEOUT_SECS.get()))
             .connect_timeout(Duration::from_secs(10))
             .build();
         let config = aws_sdk_bedrockruntime::config::Builder::from(&sdk_config)
