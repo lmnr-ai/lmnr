@@ -109,7 +109,9 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
 
   const generateTemplate = useCallback(async () => {
     const prompt = aiInput.trim();
-    if (!prompt || isGenerating) return;
+    // The ref doubles as a synchronous in-flight guard — `isGenerating` alone
+    // can't stop a re-entrant call issued before React re-renders.
+    if (!prompt || isGenerating || generationAbortRef.current) return;
 
     const dataScope = getValues("scope") ?? scope;
     const messages: GenerationMessage[] = [...aiHistory, { role: "user", content: prompt }];
@@ -165,8 +167,12 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
         description: e instanceof Error ? e.message : "Failed to generate the template",
       });
     } finally {
-      if (generationAbortRef.current === abortController) generationAbortRef.current = null;
-      setIsGenerating(false);
+      // Only the request that still owns the ref may reset the shared state —
+      // a superseded request must not drop a newer session's loading flag.
+      if (generationAbortRef.current === abortController) {
+        generationAbortRef.current = null;
+        setIsGenerating(false);
+      }
     }
   }, [aiInput, isGenerating, aiHistory, projectId, scope, traceId, getValues, setValue, toast, testWhereClause]);
 
