@@ -54,8 +54,10 @@ pub struct StaticPromptQueueMessage {
 
 pub struct StaticPromptHandler {
     pub cache: Arc<Cache>,
-    /// `None` when the Signals feature is disabled or LLM initialization
-    /// failed; the handler then drains the queue without extracting.
+    /// The shared LLM client. In production this handler is only spawned when
+    /// the client is `Some` (a client-less node must NOT consume this queue,
+    /// or it would ack-and-drop work another node enqueued). `None` is
+    /// reachable only via the test seam below.
     pub llm_client: Option<Arc<LlmClient>>,
     /// Test seam replacing the extraction agent: `Some(regexes)` is returned
     /// as the agent's answer (empty = simulated agent failure).
@@ -148,8 +150,9 @@ impl MessageHandler for StaticPromptHandler {
 
 impl StaticPromptHandler {
     async fn process_prompt(&self, message: &StaticPromptQueueMessage) -> anyhow::Result<()> {
-        // Without an LLM client extraction can never run — drain the queue
-        // without accumulating prompt bodies.
+        // Defensive: production no longer spawns this handler without a
+        // client (see main.rs), so this is effectively test-only. A
+        // client-less handler can't extract, so bail without accumulating.
         if !self.extraction_available() {
             return Ok(());
         }

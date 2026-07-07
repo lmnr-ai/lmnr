@@ -1699,20 +1699,29 @@ fn main() -> anyhow::Result<()> {
                         );
                     }
 
-                    // Spawn static prompt workers
-                    {
+                    // Spawn static prompt workers. Gate on the shared LLM
+                    // client exactly like input-extraction: a handler without
+                    // a client can only ack-and-drop messages, so a node that
+                    // failed to build the client must NOT consume this queue —
+                    // otherwise it silently discards work another node enqueued
+                    // instead of leaving it for a consumer that can extract.
+                    if let Some(llm_client) = llm_provider_client.as_ref() {
                         let cache = cache_for_consumer.clone();
-                        let llm_client = llm_provider_client.clone();
+                        let llm_client = llm_client.clone();
                         worker_pool_clone.spawn(
                             WorkerType::StaticPrompt,
                             num_static_prompt_workers,
-                            move || StaticPromptHandler::new(cache.clone(), llm_client.clone()),
+                            move || {
+                                StaticPromptHandler::new(cache.clone(), Some(llm_client.clone()))
+                            },
                             QueueConfig::new(
                                 STATIC_PROMPT_QUEUE,
                                 STATIC_PROMPT_EXCHANGE,
                                 STATIC_PROMPT_ROUTING_KEY,
                             ),
                         );
+                    } else {
+                        log::warn!("LLM provider not available - skipping static prompt workers");
                     }
 
                     HttpServer::new(move || {
