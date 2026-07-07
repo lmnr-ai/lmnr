@@ -3,9 +3,7 @@
 //! Runs a tool-calling conversation against the LLM: the model hypothesizes
 //! removal regexes, tests them with the harness-side `regex` tool (the raw
 //! examples never travel through the model), and finishes by answering with a
-//! JSON array of the final ordered regex patterns. A retry ladder over
-//! temperatures re-runs the whole episode when the final answer parses to an
-//! empty list or the episode errors (provider failure or step timeout).
+//! JSON array of the final ordered regex patterns.
 
 use std::time::Duration;
 
@@ -24,14 +22,10 @@ use crate::llm::{
     ProviderRequest,
 };
 
-/// Retry ladder: the next temperature is tried only if the episode's final
-/// answer fails the collapse check (empty, non-collapsing, or over-broad) or
-/// the episode errors.
-const TEMPERATURE_LADDER: [f32; 3] = [0.0, 0.4, 0.7];
-/// Agent-loop cap per episode (one step = one LLM call, which may contain
-/// tool calls). Large example families need more refinement iterations —
-/// episodes were hitting the cap ending on a tool call (no final answer),
-/// falling back to the last tool-verified regex list instead of a converged one.
+/// Agent-loop step cap (one step = one LLM call, which may contain tool
+/// calls). Large example families need more refinement iterations — the loop
+/// was hitting the cap ending on a tool call (no final answer), falling back
+/// to the last tool-verified regex list instead of a converged one.
 const MAX_STEPS: usize = 20;
 /// Exponential-backoff bounds for retrying a transient LLM failure
 const LLM_RETRY_INITIAL_BACKOFF: Duration = Duration::from_secs(2);
@@ -51,25 +45,15 @@ pub struct ExtractionConfig {
     /// `SYSTEM_EXTRACTION_LLM_PROVIDER` (see `ExtractionConfig::default`).
     pub provider: Option<String>,
     pub model_size: Option<ModelSize>,
-    pub temperatures: Vec<f32>,
     pub max_steps: usize,
     pub include_diff: bool,
 }
 
 impl Default for ExtractionConfig {
     fn default() -> Self {
-        let provider = extraction_provider();
-        // Bedrock ignores the temperature knob, so higher-temperature retries
-        // reproduce the same output — collapse the ladder to a single episode.
-        let temperatures = if provider.as_deref() == Some("bedrock") {
-            vec![0.0]
-        } else {
-            TEMPERATURE_LADDER.to_vec()
-        };
         Self {
-            provider,
+            provider: extraction_provider(),
             model_size: Some(ModelSize::Medium),
-            temperatures,
             max_steps: MAX_STEPS,
             include_diff: true,
         }
@@ -100,16 +84,16 @@ pub struct ExtractionTracing {
 
 #[derive(Debug)]
 pub struct ExtractionResult {
-    /// Ordered removal regexes; empty when every temperature episode failed
-    /// to produce a usable answer.
+    /// Ordered removal regexes; empty when the agent loop failed to produce a
+    /// usable answer.
     pub regexes: Vec<String>,
     /// Total `regex`-tool invocations across all retry attempts.
     pub tool_calls: usize,
 }
 
-/// What one temperature episode produced.
-struct EpisodeOutcome {
-    /// Parsed final answer; empty escalates the temperature ladder.
+/// What the agent loop produced.
+struct AgentOutcome {
+    /// Parsed final answer; empty falls back to the tool-verified candidate.
     regexes: Vec<String>,
     tool_calls: usize,
     /// Latest tool-call input whose RESULT had `isValid` and
@@ -125,8 +109,8 @@ fn tool_output_verified(output: &Value) -> bool {
 }
 
 /// Extract the static-template removal regexes for a family of system
-/// prompts. Episode errors (provider failure, step timeout) are logged and
-/// escalate the temperature ladder instead of aborting the run.
+/// prompts. Agent-loop errors (provider failure, step timeout) are logged and
+/// yield an empty result instead of aborting the run.
 pub async fn extract_static_regexes(
     llm_client: &LlmClient,
     examples: &[String],
@@ -154,42 +138,25 @@ pub async fn extract_static_regexes(
         let mut tool_calls = 0;
         let mut tool_verified: Option<Vec<String>> = None;
 
-        for &temperature in &config.temperatures {
-            match run_episode(
-                llm_client,
-                examples,
-                &user_message,
-                temperature,
-                config,
-                tracing_ctx,
-            )
-            .await
-            {
-                Ok(outcome) => {
-                    tool_calls += outcome.tool_calls;
-                    if outcome.tool_verified.is_some() {
-                        tool_verified = outcome.tool_verified;
-                    }
-                    // Only accept a final answer that actually collapses the
-                    // shown examples without deleting shared static text. A
-                    // merely-non-empty answer can be over-broad or
-                    // non-collapsing; keep the ladder going so a higher
-                    // temperature can produce a clean list instead of caching
-                    // a bad one for 7 days.
-                    if collapses_shown(&outcome.regexes, examples) {
-                        regexes = outcome.regexes;
-                        break;
-                    }
+        match run_agent_loop(llm_client, examples, &user_message, config, tracing_ctx).await {
+            Ok(outcome) => {
+                tool_calls = outcome.tool_calls;
+                tool_verified = outcome.tool_verified;
+                // Only accept a final answer that actually collapses the shown
+                // examples without deleting shared static text. A merely-non-empty
+                // answer can be over-broad or non-collapsing; leave `regexes`
+                // empty so we fall back to the tool-verified candidate rather
+                // than caching a bad one for 7 days.
+                if regexes_collapse_examples(&outcome.regexes, examples) {
+                    regexes = outcome.regexes;
                 }
-                Err(e) => {
-                    log::warn!(
-                        "system_extraction episode at temperature {temperature} failed: {e}"
-                    );
-                }
+            }
+            Err(e) => {
+                log::warn!("system_extraction agent loop failed: {e}");
             }
         }
 
-        // Fallback: no temperature produced a collapsing final answer (models
+        // Fallback: the final answer didn't collapse the examples (models
         // sometimes "improve" a pattern AFTER its last successful test, or make
         // transcription typos like `(??<=`). Trust the tool over the transcript
         // and use the latest fully-verified candidate when we have one. If
@@ -197,7 +164,7 @@ pub async fn extract_static_regexes(
         // as a failure (retry after the lock TTL) rather than caching garbage.
         if regexes.is_empty()
             && let Some(verified) = &tool_verified
-            && collapses_shown(verified, examples)
+            && regexes_collapse_examples(verified, examples)
         {
             regexes = verified.clone();
         }
@@ -217,47 +184,17 @@ pub async fn extract_static_regexes(
     result
 }
 
-/// One agent-loop episode at a fixed temperature.
-async fn run_episode(
+/// Run the tool-calling agent loop: alternately ask the model for regexes and
+/// run the `regex` tool on its calls, until it emits a final answer or hits the
+/// step cap. Child `llm_call` / `tool_call` spans parent contextually to the
+/// enclosing `system_extraction` span.
+async fn run_agent_loop(
     llm_client: &LlmClient,
     examples: &[String],
     user_message: &str,
-    temperature: f32,
     config: &ExtractionConfig,
     tracing_ctx: &ExtractionTracing,
-) -> Result<EpisodeOutcome, ProviderError> {
-    let episode_span = info_span!(target: "lmnr::internal", "episode");
-    let episode_span = InternalSpan::wrap(episode_span, SpanType::Default)
-        .project(tracing_ctx.project_id)
-        .build();
-    spans::set_attr_str(&episode_span, "temperature", &temperature.to_string());
-
-    let result = run_episode_inner(
-        llm_client,
-        examples,
-        user_message,
-        temperature,
-        config,
-        tracing_ctx,
-    )
-    .instrument(episode_span.clone())
-    .await;
-
-    match &result {
-        Ok(outcome) => spans::set_output(&episode_span, &json!(outcome.regexes)),
-        Err(e) => spans::record_error(&episode_span, e.to_string()),
-    }
-    result
-}
-
-async fn run_episode_inner(
-    llm_client: &LlmClient,
-    examples: &[String],
-    user_message: &str,
-    temperature: f32,
-    config: &ExtractionConfig,
-    tracing_ctx: &ExtractionTracing,
-) -> Result<EpisodeOutcome, ProviderError> {
+) -> Result<AgentOutcome, ProviderError> {
     let mut contents = vec![text_content(Some("user"), user_message)];
     let mut tool_calls = 0;
     let mut tool_verified: Option<Vec<String>> = None;
@@ -268,7 +205,6 @@ async fn run_episode_inner(
             system_instruction: Some(text_content(None, SYSTEM_INSTRUCTIONS)),
             tools: Some(vec![regex_tool()]),
             generation_config: Some(ProviderGenerationConfig {
-                temperature: Some(temperature),
                 max_output_tokens: Some(MAX_OUTPUT_TOKENS),
                 ..Default::default()
             }),
@@ -331,7 +267,7 @@ async fn run_episode_inner(
             .and_then(|candidates| candidates.into_iter().next())
             .and_then(|candidate| candidate.content)
         else {
-            return Ok(EpisodeOutcome {
+            return Ok(AgentOutcome {
                 regexes: Vec::new(),
                 tool_calls,
                 tool_verified,
@@ -359,7 +295,7 @@ async fn run_episode_inner(
                 .filter_map(|part| part.text.as_deref())
                 .collect::<Vec<_>>()
                 .join("");
-            return Ok(EpisodeOutcome {
+            return Ok(AgentOutcome {
                 regexes: parse_final_answer(&text),
                 tool_calls,
                 tool_verified,
@@ -416,7 +352,7 @@ async fn run_episode_inner(
         });
     }
 
-    Ok(EpisodeOutcome {
+    Ok(AgentOutcome {
         regexes: Vec::new(),
         tool_calls,
         tool_verified,
@@ -424,8 +360,8 @@ async fn run_episode_inner(
 }
 
 /// True iff `regexes` is non-empty, every pattern compiles and runs, and
-/// every shown example collapses to the same residual.
-fn collapses_shown(regexes: &[String], examples: &[String]) -> bool {
+/// applying them collapses every example to the same residual.
+fn regexes_collapse_examples(regexes: &[String], examples: &[String]) -> bool {
     if regexes.is_empty() {
         return false;
     }
@@ -444,8 +380,8 @@ fn text_content(role: Option<&str>, text: &str) -> ProviderContent {
 
 /// Parse the model's final answer into an ordered regex list. Defensive, in
 /// order: bare JSON array → first fenced block (optional `json` tag) → first
-/// `[`…`]` span. Anything unparseable yields an empty list, which escalates
-/// the temperature ladder.
+/// `[`…`]` span. Anything unparseable yields an empty list, which falls back
+/// to the tool-verified candidate.
 fn parse_final_answer(text: &str) -> Vec<String> {
     let trimmed = text.trim();
     if let Some(regexes) = parse_string_array(trimmed) {
@@ -507,23 +443,29 @@ mod tests {
     }
 
     #[test]
-    fn collapses_shown_gates_regex_lists() {
+    fn regexes_collapse_examples_gates_regex_lists() {
         let examples = vec![
             "static\ndate: 2026-01-01\ntail".to_string(),
             "static\ndate: 2026-01-02\ntail".to_string(),
         ];
         // Collapses all examples to the same residual.
-        assert!(collapses_shown(&["^date: .*\\n?".to_string()], &examples));
+        assert!(regexes_collapse_examples(
+            &["^date: .*\\n?".to_string()],
+            &examples
+        ));
         // Valid patterns, but residuals still differ.
-        assert!(!collapses_shown(&["tail".to_string()], &examples));
+        assert!(!regexes_collapse_examples(&["tail".to_string()], &examples));
         // Non-compiling pattern.
-        assert!(!collapses_shown(&["(unclosed".to_string()], &examples));
+        assert!(!regexes_collapse_examples(
+            &["(unclosed".to_string()],
+            &examples
+        ));
         // Empty list never counts as collapsing.
-        assert!(!collapses_shown(&[], &examples));
+        assert!(!regexes_collapse_examples(&[], &examples));
     }
 
     #[test]
-    fn collapses_shown_accepts_over_broad_sweeps() {
+    fn regexes_collapse_examples_accepts_over_broad_sweeps() {
         let footer = "## Rules\nAlways answer politely and cite every source you used in the end.";
         let examples = vec![
             format!("intro\nDATA: a1\n{footer}"),
@@ -534,9 +476,15 @@ mod tests {
         // candidate, yielding no regex). An over-broad sweep that collapses all
         // examples to the same residual now counts as collapsing, even though
         // it eats the static footer. Don't re-add the gate here.
-        assert!(collapses_shown(&["DATA: [\\s\\S]*".to_string()], &examples));
+        assert!(regexes_collapse_examples(
+            &["DATA: [\\s\\S]*".to_string()],
+            &examples
+        ));
         // A bounded sweep collapses too.
-        assert!(collapses_shown(&["(?<=DATA: )\\S+".to_string()], &examples));
+        assert!(regexes_collapse_examples(
+            &["(?<=DATA: )\\S+".to_string()],
+            &examples
+        ));
     }
 
     #[test]
@@ -552,14 +500,14 @@ mod tests {
         let non_collapsing = vec!["tail".to_string()];
         let verified = vec!["^date: .*\\n?".to_string()];
 
-        assert!(!collapses_shown(&non_collapsing, &examples));
-        assert!(collapses_shown(&verified, &examples));
+        assert!(!regexes_collapse_examples(&non_collapsing, &examples));
+        assert!(regexes_collapse_examples(&verified, &examples));
 
         let mut regexes: Vec<String> = Vec::new();
-        if collapses_shown(&non_collapsing, &examples) {
+        if regexes_collapse_examples(&non_collapsing, &examples) {
             regexes = non_collapsing.clone();
         }
-        if regexes.is_empty() && collapses_shown(&verified, &examples) {
+        if regexes.is_empty() && regexes_collapse_examples(&verified, &examples) {
             regexes = verified.clone();
         }
         assert_eq!(regexes, verified);
@@ -577,13 +525,13 @@ mod tests {
         // the consumer treats as a failure instead of caching a non-collapsing
         // pattern.
         let mut regexes: Vec<String> = Vec::new();
-        if collapses_shown(&non_collapsing, &examples) {
+        if regexes_collapse_examples(&non_collapsing, &examples) {
             regexes = non_collapsing.clone();
         }
         let tool_verified: Option<Vec<String>> = None;
         if regexes.is_empty()
             && let Some(verified) = &tool_verified
-            && collapses_shown(verified, &examples)
+            && regexes_collapse_examples(verified, &examples)
         {
             regexes = verified.clone();
         }

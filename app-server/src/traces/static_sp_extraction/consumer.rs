@@ -423,8 +423,7 @@ mod tests {
     #[tokio::test]
     async fn failed_extraction_releases_lock_keeps_accumulator() {
         let mut handler = make_handler();
-        // Empty test regexes simulate the agent exhausting its temperature
-        // ladder without an answer.
+        // Empty test regexes simulate the agent finishing without an answer.
         handler.test_regexes = Some(Vec::new());
         let project_id = Uuid::new_v4();
         let regex_key = static_regex_cache_key(project_id, "abcd1234");
