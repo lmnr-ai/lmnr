@@ -53,6 +53,8 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
     setHasBrowserSession,
     condensedTimelineEnabled,
     condensedTimelineVisibleSpanIds,
+    isResizing,
+    setIsResizing,
   } = useTraceViewStore((state) => ({
     tab: state.tab,
     setSpans: state.setSpans,
@@ -68,6 +70,8 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
     setHasBrowserSession: state.setHasBrowserSession,
     condensedTimelineEnabled: state.condensedTimelineEnabled,
     condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
+    isResizing: state.isResizing,
+    setIsResizing: state.setIsResizing,
   }));
 
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
@@ -124,7 +128,13 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
       >
         <ResizablePanel id="shared-trace" defaultSize="50%" className="flex flex-col h-full overflow-hidden">
           <Header onClose={onClose} />
-          <ResizablePanelGroup id="shared-trace-panels" orientation="vertical">
+          <ResizablePanelGroup
+            id="shared-trace-panels"
+            orientation="vertical"
+            // Drop pointer events on the group during a resize so the rrweb session
+            // player iframe can't swallow the drag's pointer stream (see trace-panel).
+            className={cn(isResizing && "pointer-events-none")}
+          >
             {condensedTimelineEnabled && (
               <>
                 <ResizablePanel defaultSize={200} minSize={80}>
@@ -132,7 +142,10 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
                     <CondensedTimeline />
                   </div>
                 </ResizablePanel>
-                <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
+                <ResizableHandle
+                  onDragChange={setIsResizing}
+                  className="hover:bg-blue-400 z-10 transition-colors hover:scale-200"
+                />
               </>
             )}
             <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
@@ -185,7 +198,7 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
             </ResizablePanel>
             {browserSession && hasBrowserSession && (
               <>
-                <ResizableHandle className="z-50" withHandle />
+                <ResizableHandle onDragChange={setIsResizing} className="z-50" withHandle />
                 <ResizablePanel>
                   <SessionPlayer onClose={() => setBrowserSession(false)} traceId={trace.id} />
                 </ResizablePanel>
@@ -194,7 +207,10 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
             {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
           </ResizablePanelGroup>
         </ResizablePanel>
-        <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
+        <ResizableHandle
+          onDragChange={setIsResizing}
+          className="hover:bg-blue-400 z-10 transition-colors hover:scale-200"
+        />
         <ResizablePanel id="shared-span" className="flex flex-col h-full overflow-hidden">
           {selectedSpan ? (
             <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={trace.id} />
