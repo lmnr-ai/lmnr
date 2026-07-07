@@ -59,12 +59,17 @@ pub async fn extract_system_prompt(
         })));
     };
 
-    let config = ExtractionConfig {
-        provider: request.provider,
+    let mut config = ExtractionConfig {
         model_size: request.model_size.or(Some(ModelSize::Medium)),
         include_diff: request.include_diff.unwrap_or(true),
         ..Default::default()
     };
+    // `Default` seeds the provider from `SP_EXTRACTION_LLM_PROVIDER`; only a
+    // request-supplied provider overrides it (naming the field unconditionally
+    // would clobber the env default with `None`).
+    if let Some(provider) = request.provider {
+        config.provider = Some(provider);
+    }
     let tracing_ctx = ExtractionTracing {
         project_id: request.internal_project_id,
         parent: request
