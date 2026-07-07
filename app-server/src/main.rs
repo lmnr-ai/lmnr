@@ -76,6 +76,13 @@ use traces::{
         consumer::InputExtractionHandler,
         queue::{INPUT_EXTRACTION_EXCHANGE, INPUT_EXTRACTION_QUEUE, INPUT_EXTRACTION_ROUTING_KEY},
     },
+<<<<<<< Updated upstream
+=======
+    system_extraction::{
+        STATIC_PROMPT_EXCHANGE, STATIC_PROMPT_QUEUE, STATIC_PROMPT_ROUTING_KEY,
+        consumer::StaticPromptHandler,
+    },
+>>>>>>> Stashed changes
 };
 
 use cache::{
@@ -796,6 +803,32 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.14 Static prompt message queue ====
+            channel
+                .exchange_declare(
+                    STATIC_PROMPT_EXCHANGE.into(),
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    STATIC_PROMPT_QUEUE.into(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
             let max_channel_pool_size = env::mq::MAX_CHANNEL_POOL_SIZE.get();
 
             log::info!("RabbitMQ channels: {}", max_channel_pool_size);
@@ -866,6 +899,8 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(REPORT_TRIGGERS_EXCHANGE, REPORT_TRIGGERS_QUEUE);
         // ==== 3.13 Checkpoints message queue ====
         queue.register_queue(CHECKPOINTS_EXCHANGE, CHECKPOINTS_QUEUE);
+        // ==== 3.14 Static prompt message queue ====
+        queue.register_queue(STATIC_PROMPT_EXCHANGE, STATIC_PROMPT_QUEUE);
         log::info!("Using tokio mpsc queue");
         Arc::new(queue.into())
     };
@@ -1127,6 +1162,11 @@ fn main() -> anyhow::Result<()> {
 
         let num_checkpoints_workers = env::workers::NUM_CHECKPOINTS.get();
 
+<<<<<<< Updated upstream
+=======
+        let num_static_prompt_workers = env::workers::NUM_STATIC_PROMPT.get();
+
+>>>>>>> Stashed changes
         let num_input_extraction_workers = env::workers::NUM_INPUT_EXTRACTION.get();
 
         log::info!(
@@ -1661,6 +1701,22 @@ fn main() -> anyhow::Result<()> {
                                 CHECKPOINTS_QUEUE,
                                 CHECKPOINTS_EXCHANGE,
                                 CHECKPOINTS_ROUTING_KEY,
+                            ),
+                        );
+                    }
+
+                    // Spawn static prompt workers
+                    {
+                        let cache = cache_for_consumer.clone();
+                        let llm_client = llm_provider_client.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::StaticPrompt,
+                            num_static_prompt_workers,
+                            move || StaticPromptHandler::new(cache.clone(), llm_client.clone()),
+                            QueueConfig::new(
+                                STATIC_PROMPT_QUEUE,
+                                STATIC_PROMPT_EXCHANGE,
+                                STATIC_PROMPT_ROUTING_KEY,
                             ),
                         );
                     }

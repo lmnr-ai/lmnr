@@ -23,8 +23,12 @@ use crate::{
     },
 };
 
+<<<<<<< Updated upstream
 /// Merge `metadata` onto a trace via a virtual metadata-only span, creating a
 /// virtual trace row when the trace doesn't exist yet. No-op when empty.
+=======
+/// Merge `metadata` onto an existing trace via a virtual metadata-only span. No-op when empty.
+>>>>>>> Stashed changes
 ///
 /// Returns a boxed future: the user-task hook forms an async cycle
 /// (`publish_span_messages` → hook → here → `publish_span_messages`), so the

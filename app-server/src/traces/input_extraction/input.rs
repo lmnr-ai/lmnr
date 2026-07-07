@@ -23,6 +23,7 @@ pub const USER_FACING_SEPARATOR: &str = "\n\n";
 /// regex-generation LLM call — keeps pathological inputs bounded.
 const REGEX_INPUT_CAP_CHARS: usize = 200_000;
 
+<<<<<<< Updated upstream
 /// Fingerprint prefix for last turns preceded by assistant/model history.
 /// First prompts of a conversation usually have a different shape than
 /// follow-ups, and the tag-based fingerprint alone doesn't always capture
@@ -43,6 +44,8 @@ pub fn lock_user_sig(fingerprint: &str) -> &str {
         .unwrap_or(fingerprint)
 }
 
+=======
+>>>>>>> Stashed changes
 // ---------------------------------------------------------------------------
 // Last-turn extraction
 // ---------------------------------------------------------------------------
@@ -151,15 +154,20 @@ pub struct UserTaskInput {
     /// The regex target: the signpost-joined last-turn user parts.
     /// Truncated.
     pub signposted_text: String,
+<<<<<<< Updated upstream
     /// Order-insensitive user naive signature (part of the regex cache
     /// key), prefixed with [`HAS_HISTORY_FINGERPRINT_PREFIX`] when the
     /// last turn follows assistant/model history.
+=======
+    /// Order-insensitive user naive signature (part of the regex cache key).
+>>>>>>> Stashed changes
     pub fingerprint: String,
 }
 
 pub fn prepare_user_task_input(input: &Value) -> Option<UserTaskInput> {
     let parts = canonicalize_user_parts(extract_last_turn_user_parts(input)?);
     let user_text = join_parts_signposted(&parts)?;
+<<<<<<< Updated upstream
     let mut fingerprint = fingerprint_user_parts(&parts);
     // The last turn's parts come after the LAST assistant message, so any
     // assistant/model message in the input is prior history.
@@ -177,6 +185,11 @@ fn has_prior_assistant(input: &Value) -> bool {
         messages
             .iter()
             .any(|m| normalize_role(m) == Role::Assistant)
+=======
+    Some(UserTaskInput {
+        signposted_text: truncate_for_regex(user_text),
+        fingerprint: fingerprint_user_parts(&parts),
+>>>>>>> Stashed changes
     })
 }
 
@@ -326,7 +339,11 @@ mod tests {
             prepared.signposted_text,
             "<context>c</context>\n\n== lmnr_part_separator ==\n\nthe task"
         );
+<<<<<<< Updated upstream
         assert_eq!(prepared.fingerprint, "has_history|context,/context|plain");
+=======
+        assert_eq!(prepared.fingerprint, "context,/context|plain");
+>>>>>>> Stashed changes
     }
 
     #[test]
@@ -366,6 +383,7 @@ mod tests {
         ]);
         let prepared = prepare_user_task_input(&v).unwrap();
         assert_eq!(prepared.signposted_text, "the task");
+<<<<<<< Updated upstream
         assert_eq!(prepared.fingerprint, "has_history|plain");
     }
 
@@ -413,5 +431,8 @@ mod tests {
         });
         let prepared = prepare_user_task_input(&v).unwrap();
         assert_eq!(prepared.fingerprint, "has_history|plain");
+=======
+        assert_eq!(prepared.fingerprint, "plain");
+>>>>>>> Stashed changes
     }
 }

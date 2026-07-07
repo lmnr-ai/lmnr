@@ -92,6 +92,7 @@ pub fn format_message_blocks_batch(
                 .format("%b %-d, %Y at %-I:%M %p UTC")
                 .to_string(),
         ),
+<<<<<<< Updated upstream
         NotificationKind::NewCluster { .. } => {
             // All clusters in the batch are rendered as one digest message.
             let clusters: Vec<&NotificationKind> = notifications
@@ -100,6 +101,26 @@ pub fn format_message_blocks_batch(
                 .collect();
             format_new_cluster_blocks(&clusters)
         }
+=======
+        NotificationKind::NewCluster {
+            project_id,
+            signal_id,
+            signal_name,
+            cluster_id,
+            cluster_name,
+            num_signal_events,
+            num_child_clusters,
+            ..
+        } => format_new_cluster_blocks(
+            project_id,
+            signal_id,
+            signal_name,
+            cluster_id,
+            cluster_name,
+            *num_signal_events,
+            *num_child_clusters,
+        ),
+>>>>>>> Stashed changes
         NotificationKind::SignalsReport { .. } => {
             let (title, report_data) = build_report_data_from_batch(notifications, workspace_id)
                 .expect("SignalsReport batch must contain at least one report");
@@ -487,6 +508,7 @@ mod tests {
         assert!(stat.contains("2:32 PM UTC"));
     }
 
+<<<<<<< Updated upstream
     fn new_cluster_kind(cluster_name: &str, num_signal_events: u32) -> NotificationKind {
         NotificationKind::NewCluster {
             project_id: Uuid::nil(),
@@ -561,6 +583,29 @@ mod tests {
         assert!(sections.iter().any(|s| s.contains("Timeouts")));
         let actions = blocks.iter().filter(|b| b["type"] == "actions").count();
         assert_eq!(actions, 2);
+=======
+    #[test]
+    fn new_cluster_header_and_cube_variant() {
+        let pid = Uuid::nil();
+        let sid = Uuid::nil();
+        let cid = Uuid::nil();
+        // leaf (no children) -> variant=box
+        let leaf =
+            format_new_cluster_blocks(&pid, &sid, "Failure Detector", &cid, "Bad args", 3, 0);
+        let lb = blocks_of(&leaf);
+        let header = lb.iter().find(|b| b["type"] == "header").unwrap();
+        assert_eq!(header["text"]["text"], "Failure Detector - New cluster");
+        let cube = lb[1]["elements"][0]["image_url"].as_str().unwrap();
+        assert!(cube.contains("/api/cluster-swatch?clusterId="));
+        assert!(cube.contains("variant=box"));
+        assert!(!cube.contains("variant=boxes"));
+        // non-leaf -> variant=boxes
+        let parent = format_new_cluster_blocks(&pid, &sid, "Sig", &cid, "Group", 9, 4);
+        let cube2 = blocks_of(&parent)[1]["elements"][0]["image_url"]
+            .as_str()
+            .unwrap();
+        assert!(cube2.contains("variant=boxes"));
+>>>>>>> Stashed changes
     }
 
     fn report_with(noteworthy: Vec<NoteworthyEvent>) -> ReportData {

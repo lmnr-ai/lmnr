@@ -7,13 +7,21 @@ use std::sync::{Arc, OnceLock};
 use tracing::instrument;
 use uuid::Uuid;
 
+<<<<<<< Updated upstream
 use super::input::{lock_user_sig, prepare_user_task_input};
+=======
+use super::input::prepare_user_task_input;
+>>>>>>> Stashed changes
 use super::lock::{UserTaskLockState, lock_cache_key};
 use super::metadata::build_metadata_patch;
 use super::queue::{InputExtractionMessage, push_to_input_extraction_queue};
 use super::regex::{regex_cache_key, try_apply_cached_regex};
 use crate::cache::{Cache, CacheTrait};
+<<<<<<< Updated upstream
 use crate::db::{DB, spans::Span};
+=======
+use crate::db::{DB, spans::Span, trace::trace_exists};
+>>>>>>> Stashed changes
 use crate::env::user_task::USER_TASK_LOCK_TTL_SECONDS;
 use crate::features::{Feature, is_feature_enabled};
 use crate::mq::MessageQueue;
@@ -132,6 +140,7 @@ pub async fn process_user_task_candidates(
         )
         .await;
 
+<<<<<<< Updated upstream
         // `user_sig` strips the `has_history|` prefix: the prefix forks the
         // regex cache key, but turn 1 and turn 2 of the same conversation
         // must share a sig or the equal-depth override rule would block
@@ -140,6 +149,12 @@ pub async fn process_user_task_candidates(
             input_cost: usage.input_cost,
             depth,
             user_sig: lock_user_sig(&candidate.fingerprint).to_string(),
+=======
+        let state = UserTaskLockState {
+            input_cost: usage.input_cost,
+            depth,
+            user_sig: candidate.fingerprint.clone(),
+>>>>>>> Stashed changes
         };
 
         let lock_key = lock_cache_key(project_id, trace_id);
@@ -161,7 +176,11 @@ pub async fn process_user_task_candidates(
             candidate.prompt_hash.as_deref(),
             &candidate.fingerprint,
         );
+<<<<<<< Updated upstream
         let inline_result =
+=======
+        let mut inline_result =
+>>>>>>> Stashed changes
             try_apply_cached_regex(&cache, &regex_key, &candidate.signposted_text).await;
 
         if inline_result.is_some() {
@@ -177,11 +196,46 @@ pub async fn process_user_task_candidates(
                 );
                 continue;
             }
+<<<<<<< Updated upstream
         }
 
         // Whether the candidate's effect (metadata publish on cache hit,
         // extraction enqueue on miss) actually landed. The winner lock is
         // written only on success — writing it
+=======
+
+            // The metadata patch rides the same observations queue as the
+            // span batch but as a SEPARATE message: with multiple batch
+            // workers it can be flushed while the trace row does not exist
+            // yet, and `merge_trace_metadata_batch` silently skips missing
+            // traces (it must never create stub rows). Publishing inline
+            // would then ack a no-op while the winner lock written below
+            // gates equal-state retries for the whole TTL. When the row
+            // isn't there yet, demote to the extraction queue — the
+            // consumer re-hits the regex cache and waits for the row with
+            // bounded re-enqueues. Existence-check errors fail open
+            // (publish inline): a possibly-early patch beats a guaranteed
+            // queue hop on every DB blip.
+            let row_exists = trace_exists(&db.pool, project_id, trace_id)
+                .await
+                .unwrap_or_else(|e| {
+                    log::error!(
+                        "user-task: trace existence check failed for trace [{trace_id}]: {e:?}"
+                    );
+                    true
+                });
+            if !row_exists {
+                log::debug!(
+                    "user-task: trace row [{trace_id}] not created yet, deferring inline extraction to queue"
+                );
+                inline_result = None;
+            }
+        }
+
+        // Whether the candidate's effect (metadata publish on cache hit,
+        // extraction enqueue on miss or missing-row demotion) actually
+        // landed. The winner lock is written only on success — writing it
+>>>>>>> Stashed changes
         // eagerly would leave a stale winner after a swallowed failure,
         // gating equal-or-lower-cost retries for the whole lock TTL and
         // possibly never writing `lmnr_user_task` at all.
@@ -215,6 +269,10 @@ pub async fn process_user_task_candidates(
                     signposted_text: candidate.signposted_text,
                     fingerprint: candidate.fingerprint,
                     winner_state: Some(state.clone()),
+<<<<<<< Updated upstream
+=======
+                    trace_wait_retries: 0,
+>>>>>>> Stashed changes
                 };
                 match push_to_input_extraction_queue(message, queue.clone()).await {
                     Ok(enqueued) => enqueued,
@@ -231,7 +289,11 @@ pub async fn process_user_task_candidates(
         if effect_landed {
             // Guarded re-read before the write (mirrors the consumer's
             // re-assert): a newer winner can take the lock while this
+<<<<<<< Updated upstream
             // candidate awaits the publish/enqueue, and blindly
+=======
+            // candidate waits on `trace_exists`/publish, and blindly
+>>>>>>> Stashed changes
             // writing would roll the lock back to this older state — the
             // queued consumer's supersession check would then match the
             // stale snapshot and publish over the newer winner's metadata.

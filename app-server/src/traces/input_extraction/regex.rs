@@ -12,7 +12,11 @@ use fancy_regex::RegexBuilder;
 use sha3::{Digest, Sha3_256};
 use uuid::Uuid;
 
+<<<<<<< Updated upstream
 use super::generate::{GenerationVerdict, generate_extraction_regex};
+=======
+use super::generate::generate_extraction_regex;
+>>>>>>> Stashed changes
 use super::input::split_signposts_and_rejoin;
 use super::self_tracing::{self, SpanBuilder, SpanScope};
 use crate::cache::keys::USER_TASK_REGEX_CACHE_KEY;
@@ -73,6 +77,7 @@ pub fn apply_regex(pattern: &str, text: &str) -> ApplyRegexResult {
 /// as trace-level metadata flags on its root span.
 pub struct ExtractionOutcome {
     pub result: ApplyRegexResult,
+<<<<<<< Updated upstream
     /// The pattern whose application produced `result`.
     pub pattern: String,
     /// The generation loop exhausted its call budget without an accepted
@@ -91,6 +96,17 @@ pub const PASSTHROUGH_REGEX: &str = "(?s)(.*)";
 
 /// Whether a pattern is the capture-everything passthrough (`(?s)(.*)`,
 /// modulo optional `^`/`$` anchors).
+=======
+    /// The pattern whose application produced `result`; `None` when the
+    /// generation pipeline produced no regex at all (deliberate empty
+    /// submit or exhausted call budget).
+    pub pattern: Option<String>,
+}
+
+/// Whether a pattern is the capture-everything passthrough the prompt
+/// prescribes when no reliable static anchor exists (`(?s)(.*)`, modulo
+/// optional `^`/`$` anchors).
+>>>>>>> Stashed changes
 pub fn is_passthrough_regex(pattern: &str) -> bool {
     let p = pattern.trim();
     let p = p.strip_prefix("(?s)").unwrap_or(p);
@@ -176,6 +192,7 @@ pub async fn try_apply_cached_regex(
 
 /// Generate a fresh regex from the signposted text, apply it, and
 /// persist it unless the result was `NoMatch` (a regex wrong for its
+<<<<<<< Updated upstream
 /// own sample is not worth caching). Infallible by design: the message
 /// finishes on the first pass instead of looping through an LLM call
 /// per requeue. Every no-pattern ending falls back to the passthrough
@@ -187,12 +204,22 @@ pub async fn try_apply_cached_regex(
 ///
 /// Neither fallback caches anything — a later trace of the same shape
 /// gets a fresh chance at a real regex.
+=======
+/// own sample is not worth caching). Errors only on transport failure
+/// (timeout / provider error) so the consumer can requeue as transient.
+/// A deliberate empty-regex verdict from the model ("no valid regex can
+/// be produced") is terminal, not retryable: it maps to `NoUserRequest`
+/// (→ `lmnr_user_task: false` patch) so the message finishes instead of looping
+/// through an LLM call per requeue. Nothing is cached for it — a later
+/// trace of the same shape gets a fresh chance at a real regex.
+>>>>>>> Stashed changes
 pub async fn generate_and_apply_regex(
     cache: &Arc<Cache>,
     llm_client: &Arc<LlmClient>,
     key: &str,
     signposted_text: &str,
     scope: &SpanScope,
+<<<<<<< Updated upstream
 ) -> ExtractionOutcome {
     let generated = match generate_extraction_regex(llm_client, signposted_text, scope).await {
         Ok(GenerationVerdict::Pattern(pattern)) => pattern,
@@ -213,6 +240,15 @@ pub async fn generate_and_apply_regex(
                 llm_failed: true,
             };
         }
+=======
+) -> anyhow::Result<ExtractionOutcome> {
+    let Some(generated) = generate_extraction_regex(llm_client, signposted_text, scope).await?
+    else {
+        return Ok(ExtractionOutcome {
+            result: ApplyRegexResult::NoUserRequest,
+            pattern: None,
+        });
+>>>>>>> Stashed changes
     };
     let result = apply_regex_traced(&generated, signposted_text, scope);
     if !matches!(result, ApplyRegexResult::NoMatch) {
@@ -220,12 +256,19 @@ pub async fn generate_and_apply_regex(
             .insert_with_ttl(key, &generated, REGEX_CACHE_TTL_SECONDS)
             .await;
     }
+<<<<<<< Updated upstream
     ExtractionOutcome {
         result,
         pattern: generated,
         budget_exhausted: false,
         llm_failed: false,
     }
+=======
+    Ok(ExtractionOutcome {
+        result,
+        pattern: Some(generated),
+    })
+>>>>>>> Stashed changes
 }
 
 #[cfg(test)]
