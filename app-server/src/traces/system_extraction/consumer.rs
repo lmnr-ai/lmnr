@@ -183,6 +183,17 @@ impl StaticPromptHandler {
             return Ok(());
         }
 
+        // Double-check under the lock: another worker may have completed
+        // (written the regex and released the lock) between the check above
+        // and the acquisition — don't burn an agent run on a signature that
+        // already has its regex list.
+        if self.cache.exists(&regex_key).await.unwrap_or(false) {
+            if let Err(e) = self.cache.release_lock(&lock_key).await {
+                log::warn!("[STATIC_PROMPT] Failed to release lock {lock_key}: {e:?}");
+            }
+            return Ok(());
+        }
+
         // On agent failure the lock is deliberately NOT released: it expires
         // after TTL, which both rate-limits retries against a failing agent
         // and guarantees the signature eventually unblocks.
