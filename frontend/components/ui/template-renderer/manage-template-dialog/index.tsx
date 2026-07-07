@@ -67,6 +67,9 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
   useEffect(() => {
     generationAbortRef.current?.abort();
     generationAbortRef.current = null;
+    // Don't rely on the aborted request's `finally` — it may not have run yet
+    // when the dialog reopens, which would leave the AI bar and editors locked.
+    setIsGenerating(false);
     setTestResult(null);
     setAiInput("");
     setAiHistory([]);
