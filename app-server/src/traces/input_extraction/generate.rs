@@ -8,6 +8,7 @@
 
 use std::sync::Arc;
 
+use backoff::ExponentialBackoffBuilder;
 use tracing::Instrument;
 
 use super::regex::{ApplyRegexResult, apply_regex, apply_result_to_json};
@@ -20,26 +21,15 @@ use crate::llm::models::{
 use crate::llm::{LlmClient, request_to_span_input, request_to_tools_attr};
 
 const REGEX_LLM_TIMEOUT_SECS: u64 = 120;
-/// Transient-failure budget per LLM call: total attempts, including the
-/// first. Retryable provider errors and timeouts are retried with
-/// exponential backoff; non-retryable errors fail immediately.
-const LLM_MAX_ATTEMPTS: u32 = 4;
-/// Backoff before the first retry; doubles per attempt.
+/// Initial backoff before the first LLM retry (grows exponentially).
 const LLM_RETRY_INITIAL_BACKOFF_SECS: u64 = 2;
+/// Stop retrying transient LLM failures once this much wall-clock time
+/// has elapsed (the attempts themselves included).
+const LLM_RETRY_MAX_ELAPSED_SECS: u64 = 300;
 /// Total LLM-call budget per pipeline (initial call + probe round-trips).
 /// The prompt tells the model probing is unlimited; this cap only bounds
 /// a runaway loop — hitting it is [`GenerationVerdict::Exhausted`].
 const MAX_LLM_CALLS: usize = 6;
-/// Wall-clock deadline for one whole generation pipeline (all agent turns
-/// including their per-call retries). The per-call bounds alone don't cap
-/// the pipeline: a flapping provider that fails [`LLM_MAX_ATTEMPTS`] - 1
-/// timeouts and then recovers, every turn, stretches a single pipeline to
-/// ~[`MAX_LLM_CALLS`] × [`LLM_MAX_ATTEMPTS`] × [`REGEX_LLM_TIMEOUT_SECS`]
-/// (~48 min) — blocking one of the few extraction workers and holding the
-/// queue delivery unacked past broker redelivery timeouts (RabbitMQ acks
-/// time out at 30 min by default). Hitting the deadline is an error — the
-/// caller falls back to the passthrough regex.
-const GENERATION_DEADLINE_SECS: u64 = 600;
 /// Per-call output budget. Thinking tokens count against it (adaptive
 /// thinking on Sonnet shares the cap), so it must be generous: at 1024 the
 /// model's turn routinely truncated mid-thinking or mid-tool-call, mangling
@@ -113,33 +103,16 @@ The message may carry "== lmnr_part_separator ==" lines separating sibling messa
 /// `try_extraction_regex` (applied here, result returned to it) and
 /// finishes with `submit_extraction_regex`. Errors only when a call
 /// exhausts its transient-retry budget (timeout / provider error) — each
-/// call is retried [`LLM_MAX_ATTEMPTS`] times with exponential backoff
-/// first — or when the whole pipeline overruns
-/// [`GENERATION_DEADLINE_SECS`]. Recoverable slips — a response with no
-/// tool call, or a submitted pattern that doesn't extract non-empty text
-/// from the sample (empty string, no compile, no match, empty capture) —
-/// are pushed back to the model (a nudge / a rejection tool response) and
-/// retried within the call budget. The only non-error terminal outcomes
-/// are an accepted pattern ([`GenerationVerdict::Pattern`]) and an
-/// exhausted budget ([`GenerationVerdict::Exhausted`]).
+/// call is retried with exponential backoff (up to
+/// [`LLM_RETRY_MAX_ELAPSED_SECS`] elapsed) first. Recoverable slips — a
+/// response with no tool call, or a submitted pattern that doesn't
+/// extract non-empty text from the sample (empty string, no compile, no
+/// match, empty capture) — are pushed back to the model (a nudge / a
+/// rejection tool response) and retried within the call budget. The only
+/// non-error terminal outcomes are an accepted pattern
+/// ([`GenerationVerdict::Pattern`]) and an exhausted budget
+/// ([`GenerationVerdict::Exhausted`]).
 pub async fn generate_extraction_regex(
-    llm_client: &Arc<LlmClient>,
-    sample_input: &str,
-    scope: &SpanScope,
-) -> anyhow::Result<GenerationVerdict> {
-    tokio::time::timeout(
-        std::time::Duration::from_secs(GENERATION_DEADLINE_SECS),
-        run_generation_pipeline(llm_client, sample_input, scope),
-    )
-    .await
-    .unwrap_or_else(|_| {
-        Err(anyhow::anyhow!(
-            "regex generation exceeded its {GENERATION_DEADLINE_SECS}s deadline"
-        ))
-    })
-}
-
-async fn run_generation_pipeline(
     llm_client: &Arc<LlmClient>,
     sample_input: &str,
     scope: &SpanScope,
@@ -403,32 +376,37 @@ struct LlmCallError {
     retryable: bool,
 }
 
-/// One LLM call with transient-failure retries: up to [`LLM_MAX_ATTEMPTS`]
-/// attempts with exponential backoff. Each attempt is its own traced
-/// provider call. Errors only when the budget is exhausted or the failure
-/// is non-retryable.
+/// One LLM call with conventional exponential-backoff retries for
+/// transient failures (`backoff` crate, like the worker connect loop).
+/// Each attempt is its own traced provider call. Errors only when the
+/// retry window is exhausted or the failure is non-retryable.
 async fn call_llm(
     llm_client: &Arc<LlmClient>,
     request: &ProviderRequest,
     scope: &SpanScope,
 ) -> anyhow::Result<ProviderResponse> {
-    let mut backoff = std::time::Duration::from_secs(LLM_RETRY_INITIAL_BACKOFF_SECS);
-    for attempt in 1..=LLM_MAX_ATTEMPTS {
-        match call_llm_once(llm_client, request, scope).await {
-            Ok(response) => return Ok(response),
-            Err(e) if e.retryable && attempt < LLM_MAX_ATTEMPTS => {
-                log::warn!(
-                    "user-task: LLM call failed (attempt {attempt}/{LLM_MAX_ATTEMPTS}), \
-                     retrying in {backoff:?}: {}",
-                    e.message
-                );
-                tokio::time::sleep(backoff).await;
-                backoff *= 2;
-            }
-            Err(e) => return Err(anyhow::anyhow!(e.message)),
-        }
-    }
-    unreachable!("loop returns on the last attempt")
+    let backoff = ExponentialBackoffBuilder::new()
+        .with_initial_interval(std::time::Duration::from_secs(
+            LLM_RETRY_INITIAL_BACKOFF_SECS,
+        ))
+        .with_max_elapsed_time(Some(std::time::Duration::from_secs(
+            LLM_RETRY_MAX_ELAPSED_SECS,
+        )))
+        .build();
+
+    backoff::future::retry(backoff, || async {
+        call_llm_once(llm_client, request, scope)
+            .await
+            .map_err(|e| {
+                if e.retryable {
+                    log::warn!("user-task: LLM call failed, will retry: {}", e.message);
+                    backoff::Error::transient(anyhow::anyhow!(e.message))
+                } else {
+                    backoff::Error::permanent(anyhow::anyhow!(e.message))
+                }
+            })
+    })
+    .await
 }
 
 /// One traced provider call with a timeout.
@@ -508,6 +486,11 @@ mod tests {
     }
 
     // ---- call_llm retries ---------------------------------------------------
+    //
+    // The retry budget is time-based (`max_elapsed_time`), which the
+    // `backoff` crate measures on the real clock, so there is no
+    // "gives up after N attempts" test — a fail-forever run would need
+    // real minutes to exhaust the window.
 
     #[tokio::test(start_paused = true)]
     async fn call_llm_retries_transient_failures_until_success() {
@@ -519,21 +502,6 @@ mod tests {
         let result = call_llm(&client, &request, &test_scope()).await;
         assert!(result.is_ok());
         assert_eq!(counter.generate_call_count(), 3);
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn call_llm_gives_up_after_max_attempts() {
-        let mock = MockProviderClient::with_generate_failure(
-            usize::MAX,
-            GenerateFailureMode::Retryable429,
-        );
-        let counter = mock.clone();
-        let client = mock_llm_client(mock);
-        let request = build_request(vec![]);
-
-        let result = call_llm(&client, &request, &test_scope()).await;
-        assert!(result.is_err());
-        assert_eq!(counter.generate_call_count(), LLM_MAX_ATTEMPTS as usize);
     }
 
     #[tokio::test(start_paused = true)]
