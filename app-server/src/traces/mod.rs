@@ -12,6 +12,7 @@ pub mod producer;
 pub mod prompt_hash;
 pub mod provider;
 pub mod realtime;
+#[cfg(feature = "signals")]
 pub mod sampling;
 pub mod span_attributes;
 pub mod spans;
