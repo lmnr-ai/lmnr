@@ -71,6 +71,10 @@ pub const AGENT_CLASSIFY_LOCK_CACHE_KEY: &str = "agent_classify_lock";
 pub const STATIC_SP_REGEX_CACHE_KEY: &str = "static_sp_regex";
 /// `naive_signature → Vec<system_prompt>` samples awaiting extraction.
 pub const STATIC_SP_ACCUMULATOR_CACHE_KEY: &str = "static_sp_accumulator";
+/// `naive_signature → total occurrences seen` (a small counter kept separate
+/// from the multi-KB samples blob so bumping it doesn't rewrite the samples).
+/// Drives the static-prompt fallback when unique samples never diversify.
+pub const STATIC_SP_OCCURRENCES_CACHE_KEY: &str = "static_sp_occurrences";
 /// Per-signature lock so the extraction agent runs once per signature.
 pub const STATIC_SP_LOCK_CACHE_KEY: &str = "static_sp_lock";
 

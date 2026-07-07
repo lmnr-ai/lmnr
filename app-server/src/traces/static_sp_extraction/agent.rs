@@ -121,6 +121,10 @@ pub async fn extract_static_regexes(
     config: &ExtractionConfig,
     tracing_ctx: &ExtractionTracing,
 ) -> ExtractionResult {
+    log::debug!(
+        "[STATIC_SP] Extracting static-template removal regexes for {} examples",
+        examples.len()
+    );
     if examples.is_empty() {
         return ExtractionResult {
             regexes: Vec::new(),

@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{
-    ExtractionConfig, ExtractionTracing, accumulator_cache_key, extract_static_regexes,
-    extraction_lock_cache_key, static_regex_cache_key,
+    ExtractionConfig, ExtractionTracing, accumulator_cache_key, accumulator_occurrences_cache_key,
+    extract_static_regexes, extraction_lock_cache_key, static_regex_cache_key,
 };
 use crate::{
     cache::{Cache, CacheTrait},
@@ -24,6 +24,14 @@ use crate::{
 /// the extraction agent. More samples let the agent tell static text from
 /// dynamic fragments reliably.
 const PROMPT_SAMPLES: usize = 5;
+
+/// Fallback trigger: total same-signature occurrences after which we resolve a
+/// signature even though its unique samples never reached `PROMPT_SAMPLES`. A
+/// byte-identical (fully static) prompt collapses to one unique sample forever,
+/// so without this it would never extract and the producer would re-enqueue on
+/// every trace. Set high so we only conclude "no diversity" after a fair chance
+/// at seeing it — at low volume the perpetual-miss cost is negligible anyway.
+const STATIC_PROMPT_OCCURRENCE_THRESHOLD: u64 = 100;
 
 /// TTL on the per-signature extraction lock: long enough for the agent to
 /// produce a regex list (normally under 10 min; the per-step upper bounds
@@ -173,8 +181,21 @@ impl StaticPromptHandler {
             return Ok(());
         }
 
-        let samples = self.accumulate_prompt(message).await?;
-        if samples.len() < PROMPT_SAMPLES {
+        let (occurrences, samples) = self.accumulate_prompt(message).await?;
+        log::debug!(
+            "[STATIC_SP] Accumulated samples: {} (occurrences={}, prompt_hash={})",
+            samples.len(),
+            occurrences,
+            message.prompt_hash
+        );
+
+        // Trigger on enough distinct samples, OR once we've seen enough total
+        // occurrences that further waiting is unlikely to add diversity — a
+        // fully-static prompt collapses to one unique sample forever and would
+        // otherwise never resolve (the producer would re-enqueue every trace).
+        let enough_diversity = samples.len() >= PROMPT_SAMPLES;
+        let waited_long_enough = occurrences >= STATIC_PROMPT_OCCURRENCE_THRESHOLD;
+        if !enough_diversity && !waited_long_enough {
             return Ok(());
         }
         let prompts: Vec<String> = samples.into_iter().map(|s| s.prompt).collect();
@@ -206,15 +227,27 @@ impl StaticPromptHandler {
             return Ok(());
         }
 
-        // Release the lock on agent failure so a later message can retry
-        // immediately
-        let regexes = match self.run_extraction(&prompts, &message.prompt_hash).await {
-            Ok(regexes) => regexes,
-            Err(e) => {
-                if let Err(e) = self.cache.release_lock(&lock_key).await {
-                    log::warn!("[STATIC_PROMPT] Failed to release lock {lock_key}: {e:?}");
+        let regexes = if prompts.len() <= 1 {
+            // A single unique sample can't be diffed — the prompt is effectively
+            // static, nothing to strip. Cache an empty list (a valid result) so
+            // the producer stops re-enqueuing this signature.
+            log::debug!(
+                "[STATIC_SP] Static prompt for {} (1 unique sample); caching empty regex list",
+                message.prompt_hash
+            );
+            Vec::new()
+        } else {
+            // Any agent failure (diverse OR low-diversity) releases the lock so a
+            // later message retries immediately — low diversity is usually easier
+            // to collapse, so retrying is worthwhile.
+            match self.run_extraction(&prompts, &message.prompt_hash).await {
+                Ok(regexes) => regexes,
+                Err(e) => {
+                    if let Err(e) = self.cache.release_lock(&lock_key).await {
+                        log::warn!("[STATIC_PROMPT] Failed to release lock {lock_key}: {e:?}");
+                    }
+                    return Err(e);
                 }
-                return Err(e);
             }
         };
 
@@ -234,10 +267,16 @@ impl StaticPromptHandler {
             ));
         }
 
-        // Raw samples are no longer needed once the regex list exists.
+        // Raw samples (and the occurrence counter) are no longer needed once the
+        // regex list exists.
         let accumulator_key = accumulator_cache_key(message.project_id, &message.prompt_hash);
         if let Err(e) = self.cache.remove(&accumulator_key).await {
             log::warn!("[STATIC_PROMPT] Failed to clear accumulator {accumulator_key}: {e:?}");
+        }
+        let occurrences_key =
+            accumulator_occurrences_cache_key(message.project_id, &message.prompt_hash);
+        if let Err(e) = self.cache.remove(&occurrences_key).await {
+            log::warn!("[STATIC_PROMPT] Failed to clear occurrences {occurrences_key}: {e:?}");
         }
 
         if let Err(e) = self.cache.release_lock(&lock_key).await {
@@ -247,15 +286,19 @@ impl StaticPromptHandler {
         Ok(())
     }
 
-    /// Append the prompt to the signature's sample list and return the
-    /// updated list. Deduplicates so the agent gets varied samples, not
-    /// repeats: at most one sample per trace (the first 5 spans of a signature
-    /// usually come from the same trace and would be identical), and no two
-    /// byte-identical prompts (zero added variance, wasted memory).
+    /// Append the prompt to the signature's sample list and return the total
+    /// occurrences seen plus the updated (deduplicated) sample list.
+    ///
+    /// Deduplicates so the agent gets varied samples, not repeats: at most one
+    /// sample per trace (the first 5 spans of a signature usually come from the
+    /// same trace and would be identical), and no two byte-identical prompts
+    /// (zero added variance, wasted memory). The occurrence counter lives in a
+    /// separate small key so bumping it on every message doesn't rewrite the
+    /// multi-KB samples blob; it drives the static-prompt fallback.
     async fn accumulate_prompt(
         &self,
         message: &StaticPromptQueueMessage,
-    ) -> anyhow::Result<Vec<AccumulatedSample>> {
+    ) -> anyhow::Result<(u64, Vec<AccumulatedSample>)> {
         let key = accumulator_cache_key(message.project_id, &message.prompt_hash);
         let mut samples = self
             .cache
@@ -264,17 +307,40 @@ impl StaticPromptHandler {
             .map_err(|e| anyhow::anyhow!("Failed to read accumulator {key}: {e:?}"))?
             .unwrap_or_default();
 
+        // Enough diversity already accumulated — the trigger fires on sample
+        // count, so the occurrence counter no longer matters here.
         if samples.len() >= PROMPT_SAMPLES {
-            return Ok(samples);
+            return Ok((0, samples));
         }
 
-        // Drop same-trace resamples and byte-identical prompts without
-        // touching the cache — they add no variance for the extractor.
+        // Bump the (small) occurrence counter on every message, deduped or not.
+        // `increment` is atomic (no lost updates when workers race on the same
+        // signature), but INCR leaves the key with no expiry, so refresh the TTL
+        // each time to keep it sliding with the samples blob. Best-effort: a
+        // lost increment only delays the static-prompt fallback.
+        let occurrences_key =
+            accumulator_occurrences_cache_key(message.project_id, &message.prompt_hash);
+        let occurrences = self
+            .cache
+            .increment(&occurrences_key, 1)
+            .await
+            .unwrap_or(1)
+            .max(0) as u64;
+        if let Err(e) = self
+            .cache
+            .set_ttl(&occurrences_key, ACCUMULATOR_TTL_SECONDS)
+            .await
+        {
+            log::warn!("[STATIC_PROMPT] Failed to set TTL on occurrences {occurrences_key}: {e:?}");
+        }
+
+        // Drop same-trace resamples and byte-identical prompts — they add no
+        // variance, so we don't rewrite the samples blob for them.
         let is_duplicate = samples
             .iter()
             .any(|s| s.trace_id == message.trace_id || s.prompt == message.system_prompt);
         if is_duplicate {
-            return Ok(samples);
+            return Ok((occurrences, samples));
         }
 
         samples.push(AccumulatedSample {
@@ -287,7 +353,7 @@ impl StaticPromptHandler {
             .await
             .map_err(|e| anyhow::anyhow!("Failed to write accumulator {key}: {e:?}"))?;
 
-        Ok(samples)
+        Ok((occurrences, samples))
     }
 }
 
@@ -514,6 +580,40 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(samples.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn static_prompt_caches_empty_regex_after_occurrence_threshold() {
+        let handler = make_handler();
+        let project_id = Uuid::new_v4();
+        let regex_key = static_regex_cache_key(project_id, "abcd1234");
+        let accumulator_key = accumulator_cache_key(project_id, "abcd1234");
+        let occurrences_key = accumulator_occurrences_cache_key(project_id, "abcd1234");
+
+        // A fully-static prompt: byte-identical across distinct traces, so it
+        // never reaches PROMPT_SAMPLES uniques. Once occurrences hit the
+        // threshold we resolve it by caching an empty regex list.
+        for _ in 0..STATIC_PROMPT_OCCURRENCE_THRESHOLD {
+            handler
+                .process_prompt(&make_message_with_trace(
+                    project_id,
+                    Uuid::new_v4(),
+                    "identical prompt",
+                ))
+                .await
+                .unwrap();
+        }
+
+        let cached = handler
+            .cache
+            .get::<Vec<String>>(&regex_key)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(cached.is_empty());
+        // Accumulator and counter are cleared, so no further re-enqueuing work.
+        assert!(!handler.cache.exists(&accumulator_key).await.unwrap());
+        assert!(!handler.cache.exists(&occurrences_key).await.unwrap());
     }
 
     #[tokio::test]

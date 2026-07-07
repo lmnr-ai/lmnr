@@ -18,7 +18,8 @@
 use uuid::Uuid;
 
 use crate::cache::keys::{
-    STATIC_SP_ACCUMULATOR_CACHE_KEY, STATIC_SP_LOCK_CACHE_KEY, STATIC_SP_REGEX_CACHE_KEY,
+    STATIC_SP_ACCUMULATOR_CACHE_KEY, STATIC_SP_LOCK_CACHE_KEY, STATIC_SP_OCCURRENCES_CACHE_KEY,
+    STATIC_SP_REGEX_CACHE_KEY,
 };
 
 pub mod agent;
@@ -42,6 +43,12 @@ pub fn static_regex_cache_key(project_id: Uuid, prompt_hash: &str) -> String {
 /// `naive_signature → Vec<system_prompt>` samples awaiting extraction.
 pub fn accumulator_cache_key(project_id: Uuid, prompt_hash: &str) -> String {
     format!("{STATIC_SP_ACCUMULATOR_CACHE_KEY}:{project_id}:{prompt_hash}")
+}
+
+/// `naive_signature → total occurrences seen` (small counter for the
+/// static-prompt fallback; kept separate from the samples blob).
+pub fn accumulator_occurrences_cache_key(project_id: Uuid, prompt_hash: &str) -> String {
+    format!("{STATIC_SP_OCCURRENCES_CACHE_KEY}:{project_id}:{prompt_hash}")
 }
 
 /// Per-signature lock serializing the extraction-agent trigger.
