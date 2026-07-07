@@ -41,10 +41,9 @@ pub async fn publish_static_prompt_candidates(
 
     // Spans emitted by our own extraction self-tracing land in this project;
     // feeding them back into extraction would loop indefinitely.
-    let internal_project_id =
-        std::env::var(crate::env::connections::STATIC_PROMPT_INTERNAL_PROJECT_ID)
-            .ok()
-            .and_then(|s| Uuid::parse_str(&s).ok());
+    let internal_project_id = std::env::var(crate::env::connections::STATIC_SP_INTERNAL_PROJECT_ID)
+        .ok()
+        .and_then(|s| Uuid::parse_str(&s).ok());
 
     let mut seen: HashSet<(Uuid, String)> = HashSet::new();
     let mut messages: Vec<StaticPromptQueueMessage> = Vec::new();

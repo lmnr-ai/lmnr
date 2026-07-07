@@ -9,7 +9,7 @@ pub const PII_REDACTOR_URL: &str = "PII_REDACTOR_URL";
 /// Checkpoints self-tracing destination project id.
 pub const CHECKPOINTS_INTERNAL_PROJECT_ID: &str = "CHECKPOINTS_INTERNAL_PROJECT_ID";
 /// Static-prompt extraction self-tracing destination project id.
-pub const STATIC_PROMPT_INTERNAL_PROJECT_ID: &str = "STATIC_PROMPT_INTERNAL_PROJECT_ID";
+pub const STATIC_SP_INTERNAL_PROJECT_ID: &str = "STATIC_SP_INTERNAL_PROJECT_ID";
 
 /// `producer` | `consumer` | unset (= both). Selects which halves run.
 pub const OPERATION_MODE: &str = "OPERATION_MODE";

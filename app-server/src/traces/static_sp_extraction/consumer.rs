@@ -81,7 +81,7 @@ impl StaticPromptHandler {
     /// internal exporter (tracing effectively off). `mod env` shadows
     /// `std::env`, hence the fully-qualified read.
     fn internal_project_id() -> Option<Uuid> {
-        std::env::var(crate::env::connections::STATIC_PROMPT_INTERNAL_PROJECT_ID)
+        std::env::var(crate::env::connections::STATIC_SP_INTERNAL_PROJECT_ID)
             .ok()
             .and_then(|s| s.parse().ok())
     }
