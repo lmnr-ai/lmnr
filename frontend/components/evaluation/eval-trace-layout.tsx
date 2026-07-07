@@ -29,9 +29,15 @@ export default function EvalTraceLayout({ table, traceColumn }: EvalTraceLayoutP
     return () => observer.disconnect();
   }, []);
 
-  // Clamp so both panels keep their minimums as the viewport changes.
-  const clampedTable = Math.max(MIN_TABLE, Math.min(tableWidth, Math.max(MIN_TABLE, maxWidth - MIN_TRACE)));
-  const traceWidth = Math.max(0, maxWidth - clampedTable - GAP);
+  // Clamp so both panels keep their minimums; when the container is too narrow
+  // to fit both (maxWidth < MIN_TABLE + MIN_TRACE + GAP), split proportionally
+  // so the trace column can't collapse to zero width.
+  const avail = Math.max(0, maxWidth - GAP);
+  const bothFit = avail >= MIN_TABLE + MIN_TRACE;
+  const clampedTable = bothFit
+    ? Math.min(Math.max(tableWidth, MIN_TABLE), avail - MIN_TRACE)
+    : Math.round((avail * MIN_TABLE) / (MIN_TABLE + MIN_TRACE));
+  const traceWidth = Math.max(0, avail - clampedTable);
 
   // Tracks the in-flight drag's listeners so an unmount mid-drag can tear them down.
   const dragAbortRef = useRef<AbortController | null>(null);
@@ -46,7 +52,7 @@ export default function EvalTraceLayout({ table, traceColumn }: EvalTraceLayoutP
       const { signal } = controller;
       const onMove = (ev: MouseEvent) => {
         const next = startWidth + (ev.clientX - startX);
-        setTableWidth(Math.max(MIN_TABLE, Math.min(next, Math.max(MIN_TABLE, maxWidth - MIN_TRACE))));
+        setTableWidth(Math.max(MIN_TABLE, Math.min(next, Math.max(MIN_TABLE, maxWidth - GAP - MIN_TRACE))));
       };
       const onUp = () => {
         controller.abort();
@@ -71,8 +77,9 @@ export default function EvalTraceLayout({ table, traceColumn }: EvalTraceLayoutP
         {traceColumn}
       </div>
 
-      {/* Invisible resize strip straddling the table|trace seam. */}
-      {maxWidth > 0 && (
+      {/* Invisible resize strip straddling the table|trace seam. Hidden when the
+          container is too narrow to fit both minimums (proportional split, nothing to drag). */}
+      {bothFit && (
         <div
           onMouseDown={startResize}
           style={{ left: clampedTable + GAP / 2 }}
