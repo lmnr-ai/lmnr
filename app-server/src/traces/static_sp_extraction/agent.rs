@@ -29,7 +29,7 @@ use crate::llm::{
 const MAX_STEPS: usize = 20;
 /// Exponential-backoff bounds for retrying a transient LLM failure
 const LLM_RETRY_INITIAL_BACKOFF: Duration = Duration::from_secs(2);
-const LLM_RETRY_MAX_ELAPSED: Duration = Duration::from_secs(120);
+const LLM_RETRY_MAX_ELAPSED: Duration = Duration::from_secs(600);
 /// Cap on output tokens per LLM call. Must be large enough that a reasoning
 /// model (e.g. Claude Sonnet-5 adaptive thinking) can finish its thinking AND
 /// still emit the tool call / final answer in one response. The provider

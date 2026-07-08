@@ -179,11 +179,15 @@ fn divergence_window(s: &str, k: usize) -> &str {
     &s[start..end]
 }
 
-/// Line-granular diff of `original` vs `residual`, keeping only the removed
-/// side. Contiguous deleted lines form one block; blocks are split on
-/// surviving (equal) lines.
+/// Character-granular diff of `original` vs `residual`, keeping only the
+/// removed side. Contiguous deleted chars form one block; blocks are split on
+/// surviving (equal) chars. Char- rather than line-granular so an inline
+/// dynamic value (e.g. a date embedded mid-line) is reported as exactly the
+/// deleted substring — a line diff reports the WHOLE line as removed whenever
+/// any part of it changes, which misled the model into thinking a correct
+/// inline-removal regex was over-removing static text.
 fn removed_blocks(original: &str, residual: &str) -> Vec<String> {
-    let diff = TextDiff::from_lines(original, residual);
+    let diff = TextDiff::from_chars(original, residual);
     let mut blocks: Vec<String> = Vec::new();
     let mut current = String::new();
     for change in diff.iter_all_changes() {
@@ -202,7 +206,7 @@ fn removed_blocks(original: &str, residual: &str) -> Vec<String> {
     }
     blocks
         .into_iter()
-        .map(|b| b.strip_suffix('\n').map(str::to_string).unwrap_or(b))
+        .map(|b| b.trim_matches('\n').to_string())
         .collect()
 }
 
@@ -356,7 +360,7 @@ mod tests {
         assert_eq!(out["isValid"], json!(false));
         assert_eq!(out["failingRegex"], json!("(unclosed"));
         // First pattern applied ("hello " deleted), third was not.
-        assert_eq!(out["removed"][0], json!("hello world"));
+        assert_eq!(out["removed"][0], json!("hello "));
     }
 
     #[test]
@@ -409,6 +413,24 @@ mod tests {
         // Both remove the identical "shared bit " — but it's shorter than one gram.
         let out = run_regex_tool(&["shared bit ".to_string()], &examples);
         assert_eq!(out["isResultInAllIdenticalOutput"], json!(false));
+        assert_eq!(out["sharedRemoved"], json!([]));
+    }
+
+    #[test]
+    fn removed_reports_only_inline_deletion_not_whole_line() {
+        // Regression: the dynamic value is embedded mid-line, so a line-granular
+        // diff would report the ENTIRE prompt as removed and `sharedRemoved`
+        // would flag the static prefix as over-removed. Word-granular diffing
+        // reports exactly the deleted date and leaves `sharedRemoved` empty.
+        let examples = vec![
+            "You are a concise assistant. No preamble. <date>2026-07-08</date>".to_string(),
+            "You are a concise assistant. No preamble. <date>2026-07-09</date>".to_string(),
+        ];
+        let out = run_regex_tool(&["(?<=<date>)[0-9-]+(?=</date>)".to_string()], &examples);
+        assert_eq!(out["isValid"], json!(true));
+        assert_eq!(out["isResultInAllIdenticalOutput"], json!(true));
+        assert_eq!(out["removed"][0], json!("2026-07-08"));
+        assert_eq!(out["removed"][1], json!("2026-07-09"));
         assert_eq!(out["sharedRemoved"], json!([]));
     }
 
