@@ -206,6 +206,7 @@ Hard rules for the jsx block:
 - \`Fragment\` is in scope. When rendering siblings in a list, give each iteration a stable \`key\`. Never emit \`<>\`/\`</>\` inside an \`Array.map\`.
 - You may use \`JSON.stringify\`, \`Array.isArray\`, \`Object.entries\`, \`Object.keys\`, \`String\`, \`Number\`, \`Boolean\`.
 - Be defensive: guard every access (\`data?.spans\`, \`Array.isArray(data?.spans) ? data.spans : []\`). Span \`input\`/\`output\`/\`attributes\` may be objects, arrays, strings, or null. The outline below shows TRUNCATED values — real values are longer, so always truncate/wrap long strings in the layout.
+- A \`selectSpan(spanId)\` function is in scope. To make an element select a span in the trace view when clicked, add an onClick handler, e.g. \`onClick={() => selectSpan(span.spanId)}\`. Each span in \`data.spans\` has a \`spanId\`.
 - Do NOT call \`fetch\`, \`XMLHttpRequest\`, \`WebSocket\`, \`EventSource\`, \`navigator.sendBeacon\`, \`window.open\`, \`document.cookie\`, \`localStorage\`, or any other I/O API. They are blocked in the sandbox and will throw.
 - Do NOT reference external URLs, \`<script>\`, \`<iframe>\`, \`<style>\`, \`<link>\`, inline event handlers on strings, or \`dangerouslySetInnerHTML\`.
 - Do NOT use \`import\`, \`require\`, \`eval\`, \`new Function\`, or top-level \`await\`.
@@ -316,6 +317,7 @@ ${AGENT_JSX_SHAPE}
 Hard rules:
 ${AGENT_JSX_HARD_RULES}
 - Span \`input\`/\`output\`/\`attributes\` may be objects, arrays, strings, or null; the outline shows TRUNCATED values, so always truncate/wrap long strings in the layout.
+- A \`selectSpan(spanId)\` function is in scope. To make an element select a span in the trace view when clicked, add an onClick handler, e.g. \`onClick={() => selectSpan(span.spanId)}\`. Each span in \`data.spans\` has a \`spanId\`.
 </template_contract>`;
 
 export const buildGenerateInstructions = (scope: "span" | "trace"): string => {

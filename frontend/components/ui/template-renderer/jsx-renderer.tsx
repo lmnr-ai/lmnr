@@ -7,6 +7,7 @@ import { normalizeTemplateCode } from "./normalize";
 import { LAMINAR_IFRAME_THEME, laminarIframeThemeJson } from "./theme";
 
 const MESSAGE_TYPE = "__TEMPLATE_DATA_UPDATE__";
+const SELECT_SPAN_MESSAGE_TYPE = "__TEMPLATE_SELECT_SPAN__";
 
 const createIframeContent = (templateCode: string): string => {
   const escapedTemplateCode = templateCode
@@ -82,6 +83,9 @@ const createIframeContent = (templateCode: string): string => {
     const parentOrigin = window.origin;
     const LAMINAR_THEME = ${themeJson};
 
+    // Lets templates request a span selection in the parent trace view.
+    const selectSpan = (spanId) => { if (typeof spanId === 'string' && spanId) window.parent.postMessage({ type: '${SELECT_SPAN_MESSAGE_TYPE}', spanId }, parentOrigin); };
+
     class TemplateRenderer {
       constructor() {
         this.root = document.getElementById('root');
@@ -147,9 +151,9 @@ const createIframeContent = (templateCode: string): string => {
         const { useState, useEffect, useMemo, useRef, useCallback, useContext } = preactHooks;
         
         const templateFunction = new Function(
-          'h', 'Fragment', 'useState', 'useEffect', 'useMemo', 'useRef', 'useCallback', 'useContext',
+          'h', 'Fragment', 'useState', 'useEffect', 'useMemo', 'useRef', 'useCallback', 'useContext', 'selectSpan',
           'return ' + this.compiledCode
-        )(h, Fragment, useState, useEffect, useMemo, useRef, useCallback, useContext);
+        )(h, Fragment, useState, useEffect, useMemo, useRef, useCallback, useContext, selectSpan);
         
         if (typeof templateFunction !== 'function') {
           throw new Error('Template must be a function');
@@ -236,21 +240,41 @@ interface JsxRendererProps {
   data: any;
   className?: string;
   autoHeight?: boolean;
+  onSelectSpan?: (spanId: string) => void;
 }
 
-const JsxRenderer = ({ code, data, className, autoHeight = false }: JsxRendererProps) => {
+const JsxRenderer = ({ code, data, className, autoHeight = false, onSelectSpan }: JsxRendererProps) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const pendingDataRef = useRef<any>(null);
   const iframeReadyRef = useRef(false);
+  // Latest data, read by the [code] effect when the iframe (re)initializes so a
+  // freshly-mounted iframe (e.g. after the empty-state → populated transition)
+  // gets queued data even when `data` itself didn't change.
+  const latestDataRef = useRef(data);
+
+  // Keep the latest callback + data available to the [code]-keyed message
+  // listener. Declared before the [code] effect so it runs first on each commit.
+  const onSelectSpanRef = useRef(onSelectSpan);
+  useEffect(() => {
+    onSelectSpanRef.current = onSelectSpan;
+    latestDataRef.current = data;
+  });
 
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe) return;
 
     iframeReadyRef.current = false;
+    // Queue current data for this (re)initialized iframe's READY. The [data]
+    // effect only fires on data change, so it misses the empty→populated mount.
+    pendingDataRef.current = parseData(latestDataRef.current);
 
     const handleReady = (event: MessageEvent) => {
       if (event.source !== iframe.contentWindow) return;
+      if (event.data?.type === SELECT_SPAN_MESSAGE_TYPE && typeof event.data.spanId === "string") {
+        onSelectSpanRef.current?.(event.data.spanId);
+        return;
+      }
       if (event.data?.type !== `${MESSAGE_TYPE}_READY`) return;
       iframeReadyRef.current = true;
 

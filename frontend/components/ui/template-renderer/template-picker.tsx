@@ -377,7 +377,7 @@ export const TemplatePickerView = ({ mode, onModeChange, modes, triggerClassName
                             type="button"
                             aria-label={`Edit ${t.name}`}
                             onClick={(e) => handleEditTemplate(e, t.id)}
-                            className="inline-flex size-5 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+                            className="inline-flex size-5 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 group-aria-selected:opacity-100 focus-visible:opacity-100"
                           >
                             <PencilIcon className="size-3" />
                           </button>
@@ -425,9 +425,10 @@ export const TemplatePickerActions = ({ className }: { className?: string }) => 
 interface TemplatePickerPreviewProps {
   data: string;
   className?: string;
+  onSelectSpan?: (spanId: string) => void;
 }
 
-export const TemplatePickerPreview = ({ data, className }: TemplatePickerPreviewProps) => {
+export const TemplatePickerPreview = ({ data, className, onSelectSpan }: TemplatePickerPreviewProps) => {
   const { selectedTemplate, openCreate, templates, isLoadingTemplate } = useTemplatePicker();
 
   if (isLoadingTemplate) {
@@ -454,5 +455,13 @@ export const TemplatePickerPreview = ({ data, className }: TemplatePickerPreview
     );
   }
 
-  return <JsxRenderer className={cn("rounded-none", className)} code={selectedTemplate.code} data={data} autoHeight />;
+  return (
+    <JsxRenderer
+      className={cn("rounded-none", className)}
+      code={selectedTemplate.code}
+      data={data}
+      autoHeight
+      onSelectSpan={onSelectSpan}
+    />
+  );
 };
