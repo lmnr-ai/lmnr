@@ -26,5 +26,5 @@ Laminar observability plugin for Claude Code. Stop/SessionEnd hooks parse the se
 ## Hook behavior invariants
 
 - Fail-open: the hook must always exit 0; a Laminar outage must never block Claude Code.
-- Per-session state (`~/.claude/state/lmnr_state.json`) stores the transcript byte offset; only advance it AFTER a successful export, so failed exports retry next Stop. A per-turn `emit_turn` exception is different: the turn is skipped (not counted in `turn_count`, no retry) because a malformed turn would fail identically on every retry and poison the session.
+- Per-session state (`~/.claude/state/lmnr_state.json`) stores the transcript byte offset; only advance it AFTER a successful export, so failed exports retry next Stop. A per-turn `emit_turn` exception is different: the turn is skipped (not counted in `turn_count`, no retry) because a malformed turn would fail identically on every retry and poison the session. Delivery is at-least-once by design: if the state write itself fails after a successful export (`save_hook_state` is fail-open and only logs), the next run re-reads and re-exports the same turns as duplicate traces — exports can't be rolled back, and duplicating beats silently losing data.
 - Turns with async agent launches (`toolUseResult.status == "async_launched"`) are deferred until the task-notification row arrives, or flushed at SessionEnd.

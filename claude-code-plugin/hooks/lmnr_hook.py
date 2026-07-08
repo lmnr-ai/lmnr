@@ -302,7 +302,13 @@ def save_hook_state(state: Dict[str, Any]) -> None:
         tmp.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
         os.replace(tmp, STATE_FILE)
     except Exception as e:
-        debug(f"save_hook_state failed: {e}")
+        # Fail-open: never raise. Exports can't be rolled back, so a failed
+        # state write after a successful export means those turns will be
+        # re-emitted as duplicate traces on the next hook run (at-least-once).
+        info(
+            f"save_hook_state failed: {e}; state not persisted — "
+            "already-exported turns may be re-emitted as duplicates on the next hook run"
+        )
 
 def save_session_state(global_state: Dict[str, Any], key: str, session_state: SessionState) -> None:
     update_session_state(global_state, key, session_state)
