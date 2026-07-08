@@ -42,10 +42,11 @@ pub struct ExtractSystemPromptResponse {
 
 #[post("system-extraction")]
 pub async fn extract_system_prompt(
-    _project_id: web::Path<Uuid>,
+    project_id: web::Path<Uuid>,
     request: web::Json<ExtractSystemPromptRequest>,
     llm_client: web::Data<Option<Arc<LlmClient>>>,
 ) -> ResponseResult {
+    let project_id = project_id.into_inner();
     let request = request.into_inner();
 
     if request.examples.iter().all(|e| e.trim().is_empty()) {
@@ -72,6 +73,7 @@ pub async fn extract_system_prompt(
     }
     let tracing_ctx = ExtractionTracing {
         project_id: request.internal_project_id,
+        source_project_id: Some(project_id),
         parent: request
             .parent_traceparent
             .as_deref()

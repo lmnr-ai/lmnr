@@ -115,6 +115,7 @@ impl StaticPromptHandler {
         &self,
         samples: &[String],
         prompt_hash: &str,
+        source_project_id: Uuid,
     ) -> anyhow::Result<Vec<String>> {
         #[cfg(test)]
         if let Some(regexes) = &self.test_regexes {
@@ -133,6 +134,7 @@ impl StaticPromptHandler {
             &ExtractionConfig::default(),
             &ExtractionTracing {
                 project_id: Self::internal_project_id(),
+                source_project_id: Some(source_project_id),
                 parent: None,
                 prompt_hash: Some(prompt_hash.to_string()),
             },
@@ -243,7 +245,10 @@ impl StaticPromptHandler {
             // Any agent failure (diverse OR low-diversity) releases the lock so a
             // later message retries immediately — low diversity is usually easier
             // to collapse, so retrying is worthwhile.
-            match self.run_extraction(&prompts, &message.prompt_hash).await {
+            match self
+                .run_extraction(&prompts, &message.prompt_hash, message.project_id)
+                .await
+            {
                 Ok(regexes) => regexes,
                 Err(e) => {
                     if let Err(e) = self.cache.release_lock(&lock_key).await {

@@ -77,6 +77,9 @@ fn extraction_provider() -> Option<String> {
 pub struct ExtractionTracing {
     /// Destination project for the run's internal spans.
     pub project_id: Option<Uuid>,
+    /// The project the prompts came from (NOT the internal routing target
+    /// above), stamped as trace metadata on the root span for debugging.
+    pub source_project_id: Option<Uuid>,
     /// Re-root the run under an out-of-process caller's span; `None` starts
     /// a fresh trace.
     pub parent: Option<SpanContextCarrier>,
@@ -140,7 +143,14 @@ pub async fn extract_static_regexes(
         .input(&json!({ "examples": examples }))
         .build();
     if let Some(prompt_hash) = &tracing_ctx.prompt_hash {
-        spans::set_metadata_str(&root_span, "prompt_hash", prompt_hash);
+        spans::set_metadata_str(&root_span, "lmnr_prompt_hash", prompt_hash);
+    }
+    if let Some(source_project_id) = &tracing_ctx.source_project_id {
+        spans::set_metadata_str(
+            &root_span,
+            "lmnr_project_id",
+            &source_project_id.to_string(),
+        );
     }
 
     let user_message = build_user_message(examples, config.include_diff);
