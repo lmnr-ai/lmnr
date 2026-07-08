@@ -3,7 +3,6 @@ import { z } from "zod/v4";
 
 import { PaginationSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
-import { tracesSelectColumns } from "@/lib/actions/traces/utils";
 import { db } from "@/lib/db/drizzle";
 import { debuggerSessionBlocks, debuggerSessions, evaluations } from "@/lib/db/migrations/schema";
 import { NotFoundError } from "@/lib/errors";
@@ -206,6 +205,18 @@ const blockText = (block: SessionBlockRow): string | null =>
 // Per-batch ceiling for trace-row fetches.
 const MAX_SESSION_TRACES = 200;
 
+// Only the columns the timeline cards render
+const debuggerTraceSelectColumns = [
+  "id",
+  "formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime",
+  "formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime",
+  "input_tokens as inputTokens",
+  "output_tokens as outputTokens",
+  "cache_read_input_tokens as cacheReadInputTokens",
+  "total_cost as totalCost",
+  "metadata",
+];
+
 export type SessionEvaluationScore = {
   name: string;
   averageValue: number;
@@ -309,7 +320,7 @@ async function getTracesByIds(projectId: string, traceIds: string[]): Promise<Ma
   if (traceIds.length === 0) return new Map();
   const items = await executeQuery<TraceRow>({
     query: `
-      SELECT ${tracesSelectColumns.join(", ")}
+      SELECT ${debuggerTraceSelectColumns.join(", ")}
       FROM traces
       WHERE trace_type = 'DEFAULT' AND id IN ({traceIds: Array(UUID)})
       ORDER BY start_time ASC
