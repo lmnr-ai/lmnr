@@ -68,6 +68,8 @@ export const EvaluationCard = ({
     <Link
       id={evalAnchorId(evaluation.id)}
       href={`/project/${projectId}/evaluations/${evaluation.id}`}
+      target="_blank"
+      rel="noopener noreferrer"
       className="group block scroll-mt-4 overflow-hidden rounded-lg border border-[rgba(232,232,232,0.1)] bg-background no-underline transition-colors hover:border-muted-foreground/30"
     >
       <div className="flex h-[40px] items-center justify-between gap-2 bg-muted/75 pl-2 pr-3 transition-colors group-hover:bg-muted/90">

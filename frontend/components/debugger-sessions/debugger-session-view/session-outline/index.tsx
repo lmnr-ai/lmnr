@@ -17,11 +17,23 @@ type OutlineRow = {
   kind: "trace" | "eval" | "text";
 };
 
-// A short label for a standalone text block: the first N characters of its
-// content (whitespace collapsed), truncated with an ellipsis.
+// Text blocks are markdown, so a raw slice surfaces syntax like "## text…".
+// Strip it down to plain text: drop leading block markers (headings, bullets,
+// blockquotes), unwrap inline emphasis/code, and reduce links to their label.
+const MARKDOWN_RULES: [RegExp, string][] = [
+  [/```[\s\S]*?```/g, " "], // fenced code blocks
+  [/^\s*(?:#{1,6}|>+|[-*+]|\d+\.)\s+/gm, ""], // leading block markers
+  [/!?\[([^\]]*)\]\([^)]*\)/g, "$1"], // links / images -> label
+  [/(\*\*|__|\*|_|~~|`)(.*?)\1/g, "$2"], // bold / italic / strikethrough / inline code
+];
+
+// A short plain-text label for a standalone text block: markdown stripped,
+// whitespace collapsed, truncated with an ellipsis.
 const TEXT_BLOCK_TITLE_LEN = 40;
 const textBlockTitle = (text: string): string => {
-  const oneLine = text.replace(/\s+/g, " ").trim();
+  const oneLine = MARKDOWN_RULES.reduce((s, [re, to]) => s.replace(re, to), text)
+    .replace(/\s+/g, " ")
+    .trim();
   return oneLine.length > TEXT_BLOCK_TITLE_LEN ? `${oneLine.slice(0, TEXT_BLOCK_TITLE_LEN)}…` : oneLine || "Note";
 };
 
