@@ -1,7 +1,6 @@
-import { Loader2, Sparkles, X } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { useFormContext, useWatch } from "react-hook-form";
 
-import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { buildRenderTemplatePrompt, buildTraceRenderTemplatePrompt } from "@/lib/actions/render-template/prompts";
@@ -19,12 +18,9 @@ interface Props {
   spanOutline?: unknown[];
   activeTab: string;
   onTabChange: (tab: string) => void;
-  onCancel: () => void;
-  isSaving: boolean;
-  canSave: boolean;
 }
 
-const RightPanel = ({ scope, traceId, spanOutline, activeTab, onTabChange, onCancel, isSaving, canSave }: Props) => {
+const RightPanel = ({ scope, traceId, spanOutline, activeTab, onTabChange }: Props) => {
   const { control } = useFormContext<ManageTemplateForm>();
   const code = useWatch({ control, name: "code" });
   const testData = useWatch({ control, name: "testData" });
@@ -35,31 +31,28 @@ const RightPanel = ({ scope, traceId, spanOutline, activeTab, onTabChange, onCan
       : buildRenderTemplatePrompt(testData);
 
   return (
-    <div className="flex h-full min-w-0 flex-1 flex-col gap-4 px-6 pb-4 pt-6 ">
+    <div className="flex h-full min-w-0 flex-1 flex-col gap-4 px-5 pb-4 pt-4">
       <Tabs value={activeTab} onValueChange={onTabChange} className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
-        <div className="flex w-full items-start justify-between">
-          <TabsList>
-            <TabsTrigger value="preview">Preview</TabsTrigger>
-            <TabsTrigger value="code">Code</TabsTrigger>
-            {scope === "trace" && <TabsTrigger value="filter">Span filter</TabsTrigger>}
-            <TabsTrigger value="data">Sample data</TabsTrigger>
-          </TabsList>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={onCancel}
-            aria-label="Close"
-            className="size-6 shrink-0 rounded-md p-0 text-muted-foreground hover:text-foreground"
-          >
-            <X className="size-4" />
-          </Button>
-        </div>
+        <TabsList className="self-start">
+          <TabsTrigger value="preview">Preview</TabsTrigger>
+          <TabsTrigger value="data">Sample data</TabsTrigger>
+          <TabsTrigger value="code">Code</TabsTrigger>
+        </TabsList>
 
         <TabsContent
           value="preview"
           className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-background outline-none"
         >
           <JsxRenderer code={code} data={testData} />
+        </TabsContent>
+
+        {/* Sample data owns both the trace-scope span filter (which populates the
+            data) and the JSON editor that the preview renders from. */}
+        <TabsContent value="data" className="flex min-h-0 flex-1 flex-col gap-4 outline-none">
+          {scope === "trace" && <SpanFilter traceId={traceId} />}
+          <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+            <DataPanel />
+          </div>
         </TabsContent>
 
         <TabsContent value="code" className="flex min-h-0 flex-1 flex-col gap-3 outline-none">
@@ -82,26 +75,7 @@ const RightPanel = ({ scope, traceId, spanOutline, activeTab, onTabChange, onCan
             <CodeEditor />
           </div>
         </TabsContent>
-
-        {scope === "trace" && (
-          <TabsContent value="filter" className="flex min-h-0 flex-1 flex-col outline-none">
-            <SpanFilter traceId={traceId} />
-          </TabsContent>
-        )}
-
-        <TabsContent value="data" className="flex min-h-0 flex-1 flex-col outline-none">
-          <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
-            <DataPanel />
-          </div>
-        </TabsContent>
       </Tabs>
-
-      <div className="flex justify-end">
-        <Button type="submit" disabled={isSaving || !canSave} className="h-8 gap-1.5 rounded px-4 text-xs">
-          {isSaving && <Loader2 className="size-3.5 animate-spin" />}
-          Save
-        </Button>
-      </div>
     </div>
   );
 };

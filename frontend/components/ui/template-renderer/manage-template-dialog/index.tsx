@@ -1,14 +1,17 @@
+import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 import useSWR, { useSWRConfig } from "swr";
 
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/lib/hooks/use-toast";
 import { swrFetcher } from "@/lib/utils";
 
 import { type ManageTemplateForm, type Template, type TemplateScope } from "../index";
 import { type ManageTemplateMode } from "../template-picker";
+import { fetchRenderData } from "./fetch-render-data";
 import LeftColumn from "./left-column";
 import RightPanel from "./right-panel";
 
@@ -96,11 +99,25 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
       // Cancelled mid-resolve — the form was already restored; don't clobber it.
       if (controller.signal.aborted) return;
       setValue("code", result.code, { shouldDirty: true });
+      const nextWhereClause =
+        result.whereClause !== undefined ? result.whereClause : (getValues("whereClause") ?? null);
       if (effectiveScope === "trace" && result.whereClause !== undefined) {
         setValue("whereClause", result.whereClause, { shouldDirty: true });
       }
       setDescribeText("");
       setActiveTab("preview");
+      // Auto-fetch the trace's spans against the (possibly new) filter and pipe
+      // them into testData so the preview renders real data immediately. Best-
+      // effort: a failure leaves the prior sample data in place, preview still shows.
+      if (effectiveScope === "trace" && traceId) {
+        try {
+          const renderData = await fetchRenderData(projectId as string, traceId, nextWhereClause, controller.signal);
+          if (controller.signal.aborted) return;
+          setValue("testData", JSON.stringify(renderData, null, 2), { shouldDirty: false });
+        } catch {
+          // Non-fatal — generation succeeded; the data fetch just didn't refresh.
+        }
+      }
     } catch (e) {
       // Aborted by cancel — silent, whoever cancelled owns the next state.
       if (controller.signal.aborted) return;
@@ -116,7 +133,7 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
         setIsGenerating(false);
       }
     }
-  }, [projectId, effectiveScope, describeText, getValues, setValue, spanOutline, toast]);
+  }, [projectId, effectiveScope, traceId, describeText, getValues, setValue, spanOutline, toast]);
 
   // Abort any in-flight generate before delegating to the parent's cancel — used
   // by both close affordances (overlay/escape and the panel's X button).
@@ -187,34 +204,48 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
   return (
     <Dialog open={mode !== null} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="flex h-[600px] w-[960px] max-w-none overflow-hidden rounded-lg border p-0 outline-0"
+        className="flex h-[700px] w-[1000px] max-w-none flex-col overflow-hidden rounded-lg border p-0 outline-0 2xl:h-[840px] 2xl:w-[1280px]"
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
-        {/* Visually-hidden a11y title/description — the visible header lives in LeftColumn. */}
-        <DialogTitle className="sr-only">{title}</DialogTitle>
         <DialogDescription className="sr-only">
           Generate or write custom JSX to render your data however you want.
         </DialogDescription>
 
-        <form onSubmit={handleSubmit(submit)} className="flex h-full w-full overflow-hidden">
-          <LeftColumn
-            title={title}
-            isGenerating={isGenerating}
-            describeText={describeText}
-            onDescribeChange={setDescribeText}
-            onGenerate={handleGenerate}
-          />
-          <RightPanel
-            scope={effectiveScope}
-            traceId={traceId}
-            spanOutline={spanOutline}
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            onCancel={handleCancel}
-            isSaving={isSaving}
-            canSave={!!code?.trim()}
-          />
+        <form onSubmit={handleSubmit(submit)} className="flex h-full w-full flex-col overflow-hidden">
+          <div className="flex h-14 shrink-0 items-center justify-between border-b px-5">
+            <DialogTitle className="text-base font-normal text-foreground">{title}</DialogTitle>
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="outline" size="md" onClick={handleCancel} className="rounded px-4 text-xs">
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="md"
+                disabled={isSaving || !code?.trim()}
+                className="gap-1.5 rounded px-4 text-xs"
+              >
+                {isSaving && <Loader2 className="size-3.5 animate-spin" />}
+                Save
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex min-h-0 flex-1 overflow-hidden">
+            <LeftColumn
+              isGenerating={isGenerating}
+              describeText={describeText}
+              onDescribeChange={setDescribeText}
+              onGenerate={handleGenerate}
+            />
+            <RightPanel
+              scope={effectiveScope}
+              traceId={traceId}
+              spanOutline={spanOutline}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+            />
+          </div>
         </form>
       </DialogContent>
     </Dialog>

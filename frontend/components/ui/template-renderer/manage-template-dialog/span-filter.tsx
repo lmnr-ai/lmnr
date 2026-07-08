@@ -8,6 +8,7 @@ import SQLEditor from "@/components/sql/sql-editor";
 import { Button } from "@/components/ui/button";
 
 import { type ManageTemplateForm } from "../index";
+import { fetchRenderData } from "./fetch-render-data";
 
 interface Props {
   /** Trace whose spans the WHERE clause is tested against. */
@@ -38,28 +39,15 @@ const SpanFilter = ({ traceId }: Props) => {
     setIsTesting(true);
     setTestResult(null);
     try {
-      const res = await fetch(`/api/projects/${projectId}/traces/${traceId}/render-data`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ whereClause: getValues("whereClause") ?? null }),
-      });
-      if (!res.ok) {
-        const errMessage = await res
-          .json()
-          .then((d) => d?.error)
-          .catch(() => null);
-        setTestResult({ ok: false, error: errMessage ?? "Failed to run the filter" });
-        return;
-      }
-      const data = await res.json();
+      const data = await fetchRenderData(projectId as string, traceId, getValues("whereClause") ?? null);
       setValue("testData", JSON.stringify(data, null, 2), { shouldDirty: false });
       setTestResult({
         ok: true,
         count: Array.isArray(data?.spans) ? data.spans.length : 0,
         truncated: !!data?.truncated,
       });
-    } catch {
-      setTestResult({ ok: false, error: "Failed to run the filter" });
+    } catch (e) {
+      setTestResult({ ok: false, error: e instanceof Error ? e.message : "Failed to run the filter" });
     } finally {
       setIsTesting(false);
     }
