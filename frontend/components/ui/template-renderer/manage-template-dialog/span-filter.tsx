@@ -1,8 +1,8 @@
 import { EditorView } from "@uiw/react-codemirror";
 import { Loader2, Play } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
-import { Controller, useFormContext } from "react-hook-form";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Controller, useFormContext, useWatch } from "react-hook-form";
 
 import SQLEditor from "@/components/sql/sql-editor";
 import { Button } from "@/components/ui/button";
@@ -19,11 +19,19 @@ interface Props {
 const SpanFilter = ({ traceId }: Props) => {
   const { projectId } = useParams();
   const { control, getValues, setValue } = useFormContext<ManageTemplateForm>();
+  const whereClause = useWatch({ control, name: "whereClause" });
 
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<
     { ok: true; count: number; truncated: boolean } | { ok: false; error: string } | null
   >(null);
+
+  // Drop a prior "Matched N" / error once the filter is edited — it must never
+  // describe a clause the user has since changed. (Testing reads whereClause but
+  // doesn't mutate it, so this won't clear the result the test just set.)
+  useEffect(() => {
+    setTestResult(null);
+  }, [whereClause]);
 
   const testWhereClause = useCallback(async () => {
     if (!traceId) return;
