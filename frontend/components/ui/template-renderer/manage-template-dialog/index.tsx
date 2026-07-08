@@ -230,7 +230,7 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
               <Button
                 type="submit"
                 size="md"
-                disabled={isSaving || !code?.trim()}
+                disabled={isSaving || isGenerating || !code?.trim()}
                 className="gap-1.5 rounded px-4 text-xs"
               >
                 {isSaving && <Loader2 className="size-3.5 animate-spin" />}

@@ -78,6 +78,7 @@ export async function extractInputsForGroup(
   await observe(
     {
       name: "traces:extract-inputs",
+      metadata: { feature: "input-extraction" },
       input: { projectId, systemHash, fingerprint, traceCount: traces.length, cacheKey },
     },
     async () => {

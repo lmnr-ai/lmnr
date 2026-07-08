@@ -69,7 +69,12 @@ export const generateTemplate = async (input: GenerateTemplateInput): Promise<Ge
   }
 
   await observe(
-    { name: "generateRenderTemplate", sessionId: parsed.sessionId, input: { projectId, scope } },
+    {
+      name: "generateRenderTemplate",
+      sessionId: parsed.sessionId,
+      metadata: { feature: "render-template" },
+      input: { projectId, scope },
+    },
     async () => {
       const agent = new ToolLoopAgent({
         model: getLanguageModel("medium"),
