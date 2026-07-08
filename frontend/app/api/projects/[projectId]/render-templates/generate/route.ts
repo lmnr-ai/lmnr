@@ -16,7 +16,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!userId) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!(await isUserMemberOfProject(projectId, userId))) {
+  // skipCache: a billable LLM run is security-sensitive — force a fresh membership
+  // read so a since-removed user can't ride the 30-day positive-membership cache
+  // (same convention as CLI key-mint in lib/actions/cli-auth).
+  if (!(await isUserMemberOfProject(projectId, userId, { skipCache: true }))) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
