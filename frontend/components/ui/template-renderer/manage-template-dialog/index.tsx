@@ -50,6 +50,11 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
   // form — abort it on close and bail on `aborted`.
   const generateAbortRef = useRef<AbortController | null>(null);
 
+  // Laminar session for grouping generations. Editing uses the template id
+  // (stable across sessions); creating has no id yet, so we mint a per-open
+  // draft id so a create session's iterative "Request changes" runs group.
+  const draftSessionIdRef = useRef<string>("");
+
   // Reset transient UI state each time the dialog opens. Because the component
   // stays mounted across open/close, a stale `activeTab` (e.g. the trace-only
   // "filter" tab) would otherwise leave a span dialog's panel blank.
@@ -58,6 +63,7 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
       setActiveTab("preview");
       setDescribeText("");
       setIsGenerating(false);
+      draftSessionIdRef.current = `render-template-draft:${crypto.randomUUID()}`;
     }
   }, [mode]);
 
@@ -78,6 +84,8 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
         body: JSON.stringify({
           scope: effectiveScope,
           description: describeText,
+          // Group by template id when editing; fall back to the per-open draft id.
+          sessionId: getValues("id") ?? draftSessionIdRef.current,
           currentCode: getValues("code"),
           ...(effectiveScope === "trace"
             ? {

@@ -12,6 +12,9 @@ const GenerateSchema = z.object({
   projectId: z.guid(),
   scope: z.enum(["span", "trace"]),
   description: z.string().min(1, "Description is required"),
+  /** Groups every generation of one template into a single Laminar session.
+   *  Editing → the template id; creating → an ephemeral per-dialog draft id. */
+  sessionId: z.string().optional(),
   /** Existing template code when editing; empty/absent when creating. */
   currentCode: z.string().optional(),
   /** Existing WHERE clause when editing a trace template. */
@@ -65,15 +68,18 @@ export const generateTemplate = async (input: GenerateTemplateInput): Promise<Ge
     allowedPaths.push(FILTER_FILE);
   }
 
-  await observe({ name: "generateRenderTemplate", input: { projectId, scope } }, async () => {
-    const agent = new ToolLoopAgent({
-      model: getLanguageModel("medium"),
-      instructions: buildGenerateInstructions(scope),
-      tools: createVfsTools(vfs, allowedPaths),
-      stopWhen: stepCountIs(MAX_STEPS),
-    });
-    await agent.generate({ prompt: buildUserPrompt(parsed) });
-  });
+  await observe(
+    { name: "generateRenderTemplate", sessionId: parsed.sessionId, input: { projectId, scope } },
+    async () => {
+      const agent = new ToolLoopAgent({
+        model: getLanguageModel("medium"),
+        instructions: buildGenerateInstructions(scope),
+        tools: createVfsTools(vfs, allowedPaths),
+        stopWhen: stepCountIs(MAX_STEPS),
+      });
+      await agent.generate({ prompt: buildUserPrompt(parsed) });
+    }
+  );
 
   const code = (vfs[TEMPLATE_FILE] ?? "").trim();
   if (!code) {
