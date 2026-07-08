@@ -321,13 +321,12 @@ export async function register() {
       console.log("Local DB is not enabled, skipping migrations and initial data");
     }
     if (process.env.LMNR_PROJECT_API_KEY) {
-      const { Laminar, LaminarAiSdkTelemetry } = await import("@lmnr-ai/lmnr");
+      const { LaminarAiSdkTelemetry } = await import("@lmnr-ai/lmnr");
       const { registerTelemetry } = await import("ai");
       console.log("Initializing Laminar");
-      // registerTelemetry alone routes spans through getTracer(), which resolves
-      // to the no-op global provider until Laminar.initialize() installs the
-      // OTLP exporter — without this, generateText/observe spans export nowhere.
-      Laminar.initialize({ projectApiKey: process.env.LMNR_PROJECT_API_KEY });
+      // LaminarAiSdkTelemetry's constructor calls Laminar.initialize() itself
+      // (reading projectApiKey from LMNR_PROJECT_API_KEY), so no explicit init.
+      // The env-var guard stays: without a key that self-init would throw.
       registerTelemetry(new LaminarAiSdkTelemetry());
     }
 
