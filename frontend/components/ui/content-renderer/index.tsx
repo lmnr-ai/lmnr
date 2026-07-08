@@ -8,6 +8,7 @@ import Messages, { type MessageLabel, type ProcessedMessages } from "@/component
 import { useSpanSearchRegistration } from "@/components/traces/span-view/span-search-context.tsx";
 import { Button } from "@/components/ui/button";
 import CodeSheet from "@/components/ui/content-renderer/code-sheet";
+import { getMarkdownSource, MarkdownRenderer } from "@/components/ui/content-renderer/markdown";
 import {
   baseExtensions,
   createImageDecorationPlugin,
@@ -193,7 +194,13 @@ const PureContentRenderer = ({
   }, []);
 
   useEffect(() => {
-    if (searchRegistration && currentViewRef.current && mode !== "custom" && mode !== "messages") {
+    if (
+      searchRegistration &&
+      currentViewRef.current &&
+      mode !== "custom" &&
+      mode !== "messages" &&
+      mode !== "markdown"
+    ) {
       searchRegistration.registerEditor(editorIdRef.current, currentViewRef.current, messageIndex, contentPartIndex);
 
       return () => {
@@ -203,7 +210,7 @@ const PureContentRenderer = ({
   }, [searchRegistration, editorMountKey, messageIndex, contentPartIndex, mode]);
 
   // Settings popover only applies to the CodeMirror branch.
-  const isCodeMode = mode !== "custom" && mode !== "messages";
+  const isCodeMode = mode !== "custom" && mode !== "messages" && mode !== "markdown";
 
   const renderHeaderContent = () => (
     <>
@@ -283,6 +290,10 @@ const PureContentRenderer = ({
         {mode === "custom" ? (
           <div className="flex-1 flex bg-muted/50 overflow-auto w-full min-h-0 border-t">
             <TemplatePickerPreview data={renderedValue} />
+          </div>
+        ) : mode === "markdown" ? (
+          <div className="flex-1 flex w-full min-h-0 overflow-auto">
+            <MarkdownRenderer value={getMarkdownSource(value)} className="p-2" />
           </div>
         ) : mode === "messages" ? (
           <div className="flex-1 flex w-full min-h-0">

@@ -31,6 +31,7 @@ pnpm build                      # Production build
 ```
 
 - In a fresh checkout, `pnpm type-check` (and the husky pre-commit hook, which runs it) fails with dozens of `TS2307: Cannot find module '@/assets/...svg'` errors — `next-env.d.ts` is gitignored and carries the image-module declarations. Fix: `npx next typegen` (or any `next dev`/`next build` run) regenerates it.
+- Like the app-server (see `PORT` env inheritance note below), `next dev` also honors an inherited `PORT` env var over its default 3000 — in a sandbox/agent shell that exports `PORT`, launch with an explicit `PORT=3000 pnpm run dev` or the dev server binds the wrong port (often the agent's own, failing with EADDRINUSE).
 
 ### Backend (Rust)
 
@@ -690,6 +691,12 @@ The frontend uses Husky with lint-staged. Before commits:
 
 - Signal event payloads (generated enterprise-side in `lmnr-private`, the OSS `app-server/src/signals` is just public stubs) embed markdown-formatted trace links (`[Label](https://lmnr.ai/project/<pid>/traces/<tid>?spanId=<sid>&chat=true)` or `laminar.sh` equivalent). Parse them with `parseSpanLinks` from `@/lib/traces/span-link-parsing`. The trace-view's `renderSpanReferences` (`@/components/traces/trace-view/span-reference`) wraps that parser; the signals events table renders payload cells through `renderSpanReferences` from `createPayloadColumnDef` (`frontend/components/signal/events-table/columns.tsx`). When rendering there, open the trace via the signal store (`setTraceId`/`setSpanId`) + `router.replace(...)` instead of full navigation, so the trace drawer slides in over the events table. Stop propagation on the anchor click so the table row click doesn't also fire.
 - **A signal fires MULTIPLE events per trace** (one per distinct finding — LAM-1806; the enterprise `submit_identification` tool emits a `findings` array, each finding → one `signal_events` row). The trace-view signal panel renders ALL of them: `getTraceSignals` (`frontend/lib/actions/signals/trace.ts`) groups events by signal and attaches a **per-event** `leafCluster` (deepest named cluster across THAT event's own `clusters`, via `pickLeafCluster`) — not just one cluster per signal. The signal-level `leafCluster` (the latest/first event's) is retained ONLY for the panel accent color (`getSignalAccentColor` in `signal-events-panel/utils.ts`). `signal-details.tsx` renders one `FindingCard` per event (severity badge + that event's own cluster link + payload fields); do NOT collapse back to `events[0]`. The store type `TraceSignal.events: TraceSignalEvent[]` (`trace-view/store/base.ts`) and the header's fetch-mapping (`trace-view/header/index.tsx`) both carry per-event `leafCluster` through.
+
+## ContentRenderer modes
+
+- `ContentRenderer` (`frontend/components/ui/content-renderer/index.tsx`) mode state is lowercase (`"json"`, `"markdown"`) but the `modes` prop lists are UPPERCASE (`["JSON", "MARKDOWN", ...]`) — `TemplatePickerView` lowercases on selection. Mode persists to localStorage under `formatter-mode-${presetKey}`.
+- Non-CodeMirror modes (`custom`, `messages`, `markdown`) must each be excluded from BOTH the `useSpanSearchRegistration` effect condition and the `isCodeMode` gate (Settings popover); `code-sheet.tsx` (the maximize sheet) needs its own render branch per non-CodeMirror mode.
+- Span payloads arrive JSON-stringified (a markdown string is `"\"# H\\n...\""`), so the markdown branch unwraps via `getMarkdownSource` (`content-renderer/markdown.tsx`) before rendering with Streamdown.
 
 ## Span-view Message Parsing
 

@@ -3,6 +3,7 @@ import { Maximize, Minimize } from "lucide-react";
 import React, { memo, useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
+import { getMarkdownSource, MarkdownRenderer } from "@/components/ui/content-renderer/markdown";
 import { createImageDecorationPlugin, renderText, theme } from "@/components/ui/content-renderer/utils";
 import { CopyButton } from "@/components/ui/copy-button";
 import { DialogTitle } from "@/components/ui/dialog";
@@ -69,6 +70,8 @@ const PureCodeSheet = ({ mode, modes, renderedValue, extensions, onModeChange, p
             <div className="flex flex-col">
               {sheetMode === "custom" ? (
                 <TemplatePickerPreview data={renderedValue} />
+              ) : sheetMode === "markdown" ? (
+                <MarkdownRenderer value={getMarkdownSource(renderedValue)} className="p-3" />
               ) : (
                 <CodeMirror
                   placeholder={placeholder}
