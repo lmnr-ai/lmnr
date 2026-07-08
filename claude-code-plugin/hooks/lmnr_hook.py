@@ -191,19 +191,42 @@ class FileLock:
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         self._fh = open(self.path, "a+", encoding="utf-8")
         self.acquired = False
+        self._unlock = None
         try:
             import fcntl  # Unix only
+
+            def try_lock():
+                fcntl.flock(self._fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+            def unlock():
+                fcntl.flock(self._fh.fileno(), fcntl.LOCK_UN)
         except ImportError:
-            # No fcntl available (e.g. Windows) — proceed without lock.
-            return self
+            try:
+                import msvcrt  # Windows only
+
+                def try_lock():
+                    # msvcrt locks a byte range starting at the current file
+                    # position; "a+" leaves it at EOF, so rewind first.
+                    self._fh.seek(0)
+                    msvcrt.locking(self._fh.fileno(), msvcrt.LK_NBLCK, 1)
+
+                def unlock():
+                    self._fh.seek(0)
+                    msvcrt.locking(self._fh.fileno(), msvcrt.LK_UNLCK, 1)
+            except ImportError:
+                # Neither fcntl nor msvcrt — proceed without lock (fail-open).
+                return self
         deadline = time.time() + self.timeout_s
         try:
             while True:
                 try:
-                    fcntl.flock(self._fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    try_lock()
                     self.acquired = True
+                    self._unlock = unlock
                     return self
-                except BlockingIOError:
+                except OSError:
+                    # flock raises BlockingIOError, msvcrt.locking plain
+                    # OSError when the lock is held elsewhere.
                     if time.time() > deadline:
                         raise TimeoutError(
                             f"could not acquire {self.path} within {self.timeout_s}s"
@@ -220,8 +243,8 @@ class FileLock:
 
     def __exit__(self, exc_type, exc, tb):
         try:
-            import fcntl
-            fcntl.flock(self._fh.fileno(), fcntl.LOCK_UN)
+            if self._unlock is not None:
+                self._unlock()
         except Exception:
             pass
         try:
