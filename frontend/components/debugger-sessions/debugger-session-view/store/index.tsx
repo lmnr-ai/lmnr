@@ -102,21 +102,33 @@ const mergeSpans = (base: TraceViewSpan[], incoming: TraceViewSpan[], incomingWi
   return enrichSpansWithPending(merged);
 };
 
-// Keep whichever endTime is later — a realtime bump can run ahead of a lagging CH snapshot.
-const withLaterEndTime = (prev: TraceRow, next: TraceRow): TraceRow => ({
-  ...next,
-  endTime: new Date(prev.endTime).getTime() > new Date(next.endTime).getTime() ? prev.endTime : next.endTime,
-});
+// Merge an incoming row onto an existing one WITHOUT letting an omitted field
+// clobber a value already present. `getSessionTraceRows` (the batch loader)
+// selects only the timeline columns, so its rows lack fields a fuller row from
+// `hydrateTraceRow` (the /traces API) already wrote — a blind `{ ...next }`
+// spread would regress the fuller row to the slim projection whenever a lagging
+// batch response lands after hydrate. Only defined incoming keys override; the
+// later endTime always wins (a realtime bump can run ahead of a CH snapshot).
+const mergeTraceRow = (prev: TraceRow, next: TraceRow): TraceRow => {
+  const merged: TraceRow = { ...prev };
+  for (const key of Object.keys(next) as (keyof TraceRow)[]) {
+    const value = next[key];
+    if (value !== undefined) (merged as Record<string, unknown>)[key] = value;
+  }
+  merged.endTime = new Date(prev.endTime).getTime() > new Date(next.endTime).getTime() ? prev.endTime : next.endTime;
+  return merged;
+};
 
-// Upsert rows by id: existing rows take the incoming value (preserving a
-// realtime-ahead endTime); unseen incoming rows are appended.
+// Upsert rows by id: existing rows are field-merged with the incoming value
+// (preserving fuller fields + a realtime-ahead endTime); unseen incoming rows
+// are appended.
 const upsertTraceRows = (existing: TraceRow[], incoming: TraceRow[]): TraceRow[] => {
   const incomingById = new Map(incoming.map((t) => [t.id, t]));
   const merged = existing.map((prev) => {
     const next = incomingById.get(prev.id);
     if (!next) return prev;
     incomingById.delete(prev.id);
-    return withLaterEndTime(prev, next);
+    return mergeTraceRow(prev, next);
   });
   return [...merged, ...incomingById.values()];
 };

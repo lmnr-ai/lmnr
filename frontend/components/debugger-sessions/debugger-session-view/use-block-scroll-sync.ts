@@ -121,9 +121,21 @@ export function useBlockScrollSync({ scrollEl, columnRef, virtualizer, items, st
             }
           }
         }
-        // Don't settle while rows load — their taller cards shift the target.
-        const rowsLoading = Object.values(storeApi.getState().traceRowStates).some((s) => s === "loading");
-        stable = atTarget && !rowsLoading ? stable + 1 : 0;
+        // Don't settle while a row AT OR ABOVE the target is still loading — its
+        // taller card shifts the target's top offset. Loads below the target (or
+        // unrelated overscan fetches elsewhere in the session) don't move it, so
+        // they must not reset stability or far targets never settle (MAX_FRAMES).
+        const states = storeApi.getState().traceRowStates;
+        const currentItems = itemsRef.current;
+        let rowAboveLoading = false;
+        for (let i = 0; i <= idx && i < currentItems.length; i++) {
+          const b = currentItems[i].block;
+          if (b.type === "trace" && states[b.traceId] === "loading") {
+            rowAboveLoading = true;
+            break;
+          }
+        }
+        stable = atTarget && !rowAboveLoading ? stable + 1 : 0;
         frames += 1;
         if (stable >= STABLE_FRAMES || frames >= MAX_FRAMES) {
           stop();
