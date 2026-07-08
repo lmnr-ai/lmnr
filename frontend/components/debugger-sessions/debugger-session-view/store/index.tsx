@@ -177,9 +177,6 @@ interface DebuggerSessionViewState {
   // row (replaces the IntersectionObserver, which can't see unmounted rows).
   activeBlockId: string | null;
 
-  // True while scrolling to a clicked block — the scroll tracker defers so it stays active.
-  isNavigatingToBlock: boolean;
-
   // Per-trace span fetch in flight: dedupes concurrent fetches, drives the
   // skeleton. Expand always refetches, so a failed fetch heals on re-expand.
   traceSpansFetching: Record<string, boolean>;
@@ -232,9 +229,6 @@ interface DebuggerSessionViewActions {
 
   // Timeline reports the topmost visible block (drives the outline).
   setActiveBlockId: (blockId: string | null) => void;
-
-  // Set by the timeline around its scroll-to-block animation.
-  setNavigatingToBlock: (navigating: boolean) => void;
 
   // Realtime: upsert a streamed span.
   applyRealtimeSpan: (span: RealtimeSpan) => void;
@@ -292,9 +286,12 @@ export const createDebuggerSessionViewStore = (options: {
           fetchBatch: async (ids) => {
             const { projectId, sessionId } = options;
             if (!projectId) return [];
-            const res = await fetch(
-              `/api/projects/${projectId}/debugger-sessions/${sessionId}/blocks?traceIds=${ids.join(",")}`
-            );
+            // POST (not `?traceIds=`) so a full window of ids can't overflow the URL.
+            const res = await fetch(`/api/projects/${projectId}/debugger-sessions/${sessionId}/blocks`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ traceIds: ids }),
+            });
             if (!res.ok) throw new Error("Failed to load runs");
             const body = (await res.json()) as { traces: TraceRow[] };
             return (body.traces ?? []).map((t) => ({ ...t, metadata: normalizeMetadata(t.metadata) }));
@@ -334,7 +331,6 @@ export const createDebuggerSessionViewStore = (options: {
           traceRowStates: {},
           scrollToBlockId: null,
           activeBlockId: null,
-          isNavigatingToBlock: false,
 
           sessionName: options.initialSessionName ?? "Session",
           sessionNameRaw: options.initialSessionNameRaw ?? null,
@@ -488,11 +484,6 @@ export const createDebuggerSessionViewStore = (options: {
           setActiveBlockId: (blockId) => {
             if (get().activeBlockId !== blockId) {
               set({ activeBlockId: blockId } as Partial<DebuggerSessionViewStore>);
-            }
-          },
-          setNavigatingToBlock: (navigating) => {
-            if (get().isNavigatingToBlock !== navigating) {
-              set({ isNavigatingToBlock: navigating } as Partial<DebuggerSessionViewStore>);
             }
           },
 

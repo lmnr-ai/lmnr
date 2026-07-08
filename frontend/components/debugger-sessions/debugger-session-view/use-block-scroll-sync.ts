@@ -1,54 +1,66 @@
 import { type Virtualizer } from "@tanstack/react-virtual";
-import { type RefObject, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { type StoreApi } from "zustand";
 
-import { type DebuggerSessionViewStore, type SessionBlockView } from "./store";
+import { type DebuggerFlatRow } from "./debugger-list/flat-rows";
+import { type DebuggerSessionViewStore } from "./store";
 
-// Active block = last one starting above this fraction of the viewport height.
+// Active block = last row starting above this fraction of the viewport height.
 const ACTIVE_BAND_RATIO = 0.15;
-const MAX_FRAMES = 180;
-const STABLE_FRAMES = 5;
-// Native-feel ease-in-out over a fixed duration, then a gentle settle for late shifts.
-const SCROLL_DURATION_MS = 450;
-const SETTLE_EASE = 0.2;
-const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 interface BlockScrollSyncArgs {
   scrollEl: HTMLElement | null;
-  columnRef: RefObject<HTMLElement | null>;
   virtualizer: Virtualizer<HTMLElement, Element>;
-  items: readonly { block: SessionBlockView }[];
+  flatRows: readonly DebuggerFlatRow[];
+  // First flat-row index for each block id (the scroll target).
+  blockFirstIndex: Map<string, number>;
   storeApi: StoreApi<DebuggerSessionViewStore>;
 }
 
 /**
- * Two-way sync between the timeline scroll and the outline's active block: a
- * scroll listener reports which block is active, and a click-driven loop scrolls
- * a requested block into view.
+ * Two-way sync between the timeline scroll and the outline's active block.
+ *  - scroll → outline: report the block at the top of the viewport.
+ *  - outline click → scroll: pin the outline to the clicked block and jump it to
+ *    the top. The pin holds until the user scrolls themselves, so the outline
+ *    doesn't flicker through intermediate blocks while the programmatic scroll
+ *    travels there (the virtualizer settles over several frames for lazy targets).
  */
-export function useBlockScrollSync({ scrollEl, columnRef, virtualizer, items, storeApi }: BlockScrollSyncArgs) {
-  // Mirror latest values into refs so the stable-dep effects below read them fresh.
+export function useBlockScrollSync({
+  scrollEl,
+  virtualizer,
+  flatRows,
+  blockFirstIndex,
+  storeApi,
+}: BlockScrollSyncArgs) {
   const virtualizerRef = useRef(virtualizer);
-  const itemsRef = useRef(items);
+  const flatRowsRef = useRef(flatRows);
+  const blockFirstIndexRef = useRef(blockFirstIndex);
   useEffect(() => {
     virtualizerRef.current = virtualizer;
-    itemsRef.current = items;
+    flatRowsRef.current = flatRows;
+    blockFirstIndexRef.current = blockFirstIndex;
   });
 
-  // Report the active block from scroll position (virtualized-out rows unmount, no IO).
+  // While pinned, the scroll tracker is paused so the outline stays on the clicked
+  // block. Released by the next genuine user scroll gesture (wheel / touch).
+  const pinnedRef = useRef(false);
+
+  // scroll → outline. Scan only the visible window (cheap), not the whole
+  // measurements cache (one entry per span, large in long sessions).
   useEffect(() => {
     if (!scrollEl) return;
     let rafId: number | null = null;
     const update = () => {
       rafId = null;
-      // A click-driven scroll owns the active block until it settles.
-      if (storeApi.getState().isNavigatingToBlock) return;
+      if (pinnedRef.current) return;
       const band = scrollEl.scrollTop + scrollEl.clientHeight * ACTIVE_BAND_RATIO;
-      let active: string | null = null;
-      for (const m of virtualizerRef.current.measurementsCache) {
-        if (m.start > band) break;
-        active = String(m.key);
+      const items = virtualizerRef.current.getVirtualItems();
+      let activeIndex = items[0]?.index ?? -1;
+      for (const item of items) {
+        if (item.start > band) break;
+        activeIndex = item.index;
       }
+      const active = activeIndex >= 0 ? (flatRowsRef.current[activeIndex]?.blockId ?? null) : null;
       storeApi.getState().setActiveBlockId(active);
     };
     const onScroll = () => {
@@ -62,98 +74,36 @@ export function useBlockScrollSync({ scrollEl, columnRef, virtualizer, items, st
     };
   }, [scrollEl, storeApi]);
 
-  // Chase a clicked block into view. Runs off a store subscription, not an effect
-  // keyed on scrollToBlockId (whose consume would re-run and self-cancel the loop).
+  // A genuine user scroll gesture releases the pin so the outline follows again.
+  // Programmatic scrolls fire only 'scroll' (not wheel/touch), so they don't release it.
   useEffect(() => {
     if (!scrollEl) return;
-    let stopActive: (() => void) | null = null;
-
-    // Native smooth scroll can't chase: the target offset moves as lazy rows mount
-    // and expanded traces re-measure, so we ease scrollTop toward its live position.
-    const startLoop = (blockId: string) => {
-      const idx = itemsRef.current.findIndex(({ block }) => block.id === blockId);
-      if (idx === -1) return null;
-      const prevBehavior = scrollEl.style.scrollBehavior;
-      scrollEl.style.scrollBehavior = "auto";
-      storeApi.getState().setNavigatingToBlock(true);
-      const startTop = scrollEl.scrollTop;
-      const startTime = performance.now();
-      let frames = 0;
-      let stable = 0;
-      let rafId: number | null = null;
-      let done = false;
-      const stop = () => {
-        if (done) return;
-        done = true;
-        storeApi.getState().setNavigatingToBlock(false);
-        if (rafId !== null) cancelAnimationFrame(rafId);
-        rafId = null;
-        scrollEl.removeEventListener("wheel", stop);
-        scrollEl.removeEventListener("touchmove", stop);
-        scrollEl.style.scrollBehavior = prevBehavior;
-      };
-      // scrollTop that puts the block's top at the viewport top, clamped to range.
-      const targetOffset = (): number | null => {
-        // :scope > — inner span virtualizers stamp data-index too.
-        const cell = columnRef.current?.querySelector(`:scope > [data-index="${idx}"]`);
-        const raw = cell
-          ? scrollEl.scrollTop + (cell.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top)
-          : virtualizerRef.current.getOffsetForIndex(idx, "start")?.[0];
-        if (raw == null) return null;
-        return Math.min(Math.max(raw, 0), scrollEl.scrollHeight - scrollEl.clientHeight);
-      };
-      const step = () => {
-        const target = targetOffset();
-        let atTarget = false;
-        if (target != null) {
-          const elapsed = performance.now() - startTime;
-          if (elapsed < SCROLL_DURATION_MS) {
-            // Ease-in-out from the start toward the live (moving) target.
-            scrollEl.scrollTop = startTop + (target - startTop) * easeInOutCubic(elapsed / SCROLL_DURATION_MS);
-          } else {
-            // Animation done: gently settle any late target shift, then snap.
-            const delta = target - scrollEl.scrollTop;
-            if (Math.abs(delta) <= 1) {
-              scrollEl.scrollTop = target;
-              atTarget = true;
-            } else {
-              scrollEl.scrollTop += delta * SETTLE_EASE;
-            }
-          }
-        }
-        // Don't settle while a row AT OR ABOVE the target is still loading — its
-        // taller card shifts the target's top offset. Loads below the target (or
-        // unrelated overscan fetches elsewhere in the session) don't move it, so
-        // they must not reset stability or far targets never settle (MAX_FRAMES).
-        const states = storeApi.getState().traceRowStates;
-        const currentItems = itemsRef.current;
-        let rowAboveLoading = false;
-        for (let i = 0; i <= idx && i < currentItems.length; i++) {
-          const b = currentItems[i].block;
-          if (b.type === "trace" && states[b.traceId] === "loading") {
-            rowAboveLoading = true;
-            break;
-          }
-        }
-        stable = atTarget && !rowAboveLoading ? stable + 1 : 0;
-        frames += 1;
-        if (stable >= STABLE_FRAMES || frames >= MAX_FRAMES) {
-          stop();
-          return;
-        }
-        rafId = requestAnimationFrame(step);
-      };
-      // A manual wheel/touch aborts — never fight the user's scroll.
-      scrollEl.addEventListener("wheel", stop, { passive: true });
-      scrollEl.addEventListener("touchmove", stop, { passive: true });
-      rafId = requestAnimationFrame(step);
-      return stop;
+    const release = () => {
+      pinnedRef.current = false;
     };
+    scrollEl.addEventListener("wheel", release, { passive: true });
+    scrollEl.addEventListener("touchstart", release, { passive: true });
+    return () => {
+      scrollEl.removeEventListener("wheel", release);
+      scrollEl.removeEventListener("touchstart", release);
+    };
+  }, [scrollEl]);
 
+  // outline click → scroll. `scrollToIndex` is instant (the virtualizer's scrollToFn
+  // writes scrollTop directly); the rAF second pass corrects the offset once the
+  // target's real height is measured. Runs off a store subscription, not an effect
+  // keyed on scrollToBlockId (whose consume would re-run the effect).
+  useEffect(() => {
+    if (!scrollEl) return;
+    let rafId: number | null = null;
     const handle = (blockId: string) => {
-      stopActive?.();
       storeApi.getState().consumeScrollToBlock();
-      stopActive = startLoop(blockId);
+      const idx = blockFirstIndexRef.current.get(blockId);
+      if (idx === undefined) return;
+      pinnedRef.current = true;
+      virtualizerRef.current.scrollToIndex(idx, { align: "start" });
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => virtualizerRef.current.scrollToIndex(idx, { align: "start" }));
     };
     const unsub = storeApi.subscribe((s, prev) => {
       if (s.scrollToBlockId && s.scrollToBlockId !== prev.scrollToBlockId) handle(s.scrollToBlockId);
@@ -162,7 +112,7 @@ export function useBlockScrollSync({ scrollEl, columnRef, virtualizer, items, st
     if (pending) handle(pending);
     return () => {
       unsub();
-      stopActive?.();
+      if (rafId !== null) cancelAnimationFrame(rafId);
     };
-  }, [scrollEl, columnRef, storeApi]);
+  }, [scrollEl, storeApi]);
 }
