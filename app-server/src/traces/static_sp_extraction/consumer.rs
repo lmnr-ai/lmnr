@@ -4,7 +4,7 @@
 //! exist, then runs the extraction agent once (under a per-signature lock)
 //! and caches the produced regex list.
 
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -16,14 +16,20 @@ use super::{
 };
 use crate::{
     cache::{Cache, CacheTrait},
+    env,
     llm::LlmClient,
     worker::{HandlerError, MessageHandler},
 };
 
-/// Number of same-signature system prompts to accumulate before triggering
-/// the extraction agent. More samples let the agent tell static text from
-/// dynamic fragments reliably.
-const PROMPT_SAMPLES: usize = 5;
+/// Number of same-signature system prompts to accumulate before triggering the
+/// extraction agent. More samples let the agent tell static text from dynamic
+/// fragments reliably. Read once — this is on the per-message consumer path.
+static PROMPT_SAMPLES: LazyLock<usize> = LazyLock::new(|| env::static_sp::PROMPT_SAMPLES.get());
+
+/// TTL (seconds) on the accumulated raw prompts, so signatures that never reach
+/// `PROMPT_SAMPLES` don't hold onto prompt bodies forever.
+static ACCUMULATOR_TTL_SECONDS: LazyLock<u64> =
+    LazyLock::new(|| env::static_sp::ACCUMULATOR_TTL_SECONDS.get());
 
 /// Fallback trigger: total same-signature occurrences after which we resolve a
 /// signature even though its unique samples never reached `PROMPT_SAMPLES`. A
@@ -37,10 +43,6 @@ const STATIC_PROMPT_OCCURRENCE_THRESHOLD: u64 = 100;
 /// produce a regex list (normally under 10 min; the per-step upper bounds
 /// are high just in case, so leave generous headroom)
 const EXTRACTION_LOCK_TTL_SECONDS: u64 = 60 * 60;
-
-/// TTL on the accumulated raw prompts, so signatures that never reach
-/// `PROMPT_SAMPLES` don't hold onto prompt bodies forever.
-const ACCUMULATOR_TTL_SECONDS: u64 = 3600;
 
 const STATIC_REGEX_TTL_SECONDS: u64 = 7 * 24 * 3600;
 
@@ -193,7 +195,7 @@ impl StaticPromptHandler {
         // occurrences that further waiting is unlikely to add diversity — a
         // fully-static prompt collapses to one unique sample forever and would
         // otherwise never resolve (the producer would re-enqueue every trace).
-        let enough_diversity = samples.len() >= PROMPT_SAMPLES;
+        let enough_diversity = samples.len() >= *PROMPT_SAMPLES;
         let waited_long_enough = occurrences >= STATIC_PROMPT_OCCURRENCE_THRESHOLD;
         if !enough_diversity && !waited_long_enough {
             return Ok(());
@@ -309,7 +311,7 @@ impl StaticPromptHandler {
 
         // Enough diversity already accumulated — the trigger fires on sample
         // count, so the occurrence counter no longer matters here.
-        if samples.len() >= PROMPT_SAMPLES {
+        if samples.len() >= *PROMPT_SAMPLES {
             return Ok((0, samples));
         }
 
@@ -328,7 +330,7 @@ impl StaticPromptHandler {
             .max(0) as u64;
         if let Err(e) = self
             .cache
-            .set_ttl(&occurrences_key, ACCUMULATOR_TTL_SECONDS)
+            .set_ttl(&occurrences_key, *ACCUMULATOR_TTL_SECONDS)
             .await
         {
             log::warn!("[STATIC_PROMPT] Failed to set TTL on occurrences {occurrences_key}: {e:?}");
@@ -349,7 +351,7 @@ impl StaticPromptHandler {
         });
 
         self.cache
-            .insert_with_ttl(&key, &samples, ACCUMULATOR_TTL_SECONDS)
+            .insert_with_ttl(&key, &samples, *ACCUMULATOR_TTL_SECONDS)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to write accumulator {key}: {e:?}"))?;
 
@@ -396,7 +398,7 @@ mod tests {
         let regex_key = static_regex_cache_key(project_id, "abcd1234");
         let accumulator_key = accumulator_cache_key(project_id, "abcd1234");
 
-        for i in 0..PROMPT_SAMPLES - 1 {
+        for i in 0..*PROMPT_SAMPLES - 1 {
             handler
                 .process_prompt(&make_message(project_id, &format!("prompt {i}")))
                 .await
@@ -410,7 +412,7 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(samples.len(), PROMPT_SAMPLES - 1);
+        assert_eq!(samples.len(), *PROMPT_SAMPLES - 1);
 
         handler
             .process_prompt(&make_message(project_id, "prompt 4"))
@@ -460,7 +462,7 @@ mod tests {
                 .unwrap()
         );
 
-        for i in 0..PROMPT_SAMPLES + 5 {
+        for i in 0..*PROMPT_SAMPLES + 5 {
             handler
                 .process_prompt(&make_message(project_id, &format!("prompt {i}")))
                 .await
@@ -473,7 +475,7 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(samples.len(), PROMPT_SAMPLES);
+        assert_eq!(samples.len(), *PROMPT_SAMPLES);
     }
 
     #[tokio::test]
@@ -501,7 +503,7 @@ mod tests {
         let accumulator_key = accumulator_cache_key(project_id, "abcd1234");
         let lock_key = extraction_lock_cache_key(project_id, "abcd1234");
 
-        for i in 0..PROMPT_SAMPLES - 1 {
+        for i in 0..*PROMPT_SAMPLES - 1 {
             handler
                 .process_prompt(&make_message(project_id, &format!("prompt {i}")))
                 .await
@@ -534,7 +536,7 @@ mod tests {
 
         // Same trace, different prompt bodies (a self-editing agent across
         // turns): only the first is kept.
-        for i in 0..PROMPT_SAMPLES + 2 {
+        for i in 0..*PROMPT_SAMPLES + 2 {
             handler
                 .process_prompt(&make_message_with_trace(
                     project_id,
@@ -562,7 +564,7 @@ mod tests {
 
         // Distinct traces, but byte-identical prompt (fully-static template):
         // only one sample is stored and the threshold is never reached.
-        for _ in 0..PROMPT_SAMPLES + 2 {
+        for _ in 0..*PROMPT_SAMPLES + 2 {
             handler
                 .process_prompt(&make_message_with_trace(
                     project_id,
@@ -623,7 +625,7 @@ mod tests {
         let regex_key = static_regex_cache_key(project_id, "abcd1234");
         let lock_key = extraction_lock_cache_key(project_id, "abcd1234");
 
-        for i in 0..PROMPT_SAMPLES - 1 {
+        for i in 0..*PROMPT_SAMPLES - 1 {
             handler
                 .process_prompt(&make_message(project_id, &format!("prompt {i}")))
                 .await
