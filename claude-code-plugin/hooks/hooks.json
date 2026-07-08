@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script \"${CLAUDE_PLUGIN_ROOT}\"/hooks/lmnr_hook.py; else exec python3 \"${CLAUDE_PLUGIN_ROOT}\"/hooks/lmnr_hook.py; fi"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script \"${CLAUDE_PLUGIN_ROOT}\"/hooks/lmnr_hook.py; else exec python3 \"${CLAUDE_PLUGIN_ROOT}\"/hooks/lmnr_hook.py; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

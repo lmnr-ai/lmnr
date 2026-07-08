@@ -1,0 +1,42 @@
+{
+  "name": "laminar",
+  "version": "0.1.0",
+  "description": "Trace Claude Code sessions in Laminar: conversational turns, LLM calls, tool executions, and subagents.",
+  "author": {
+    "name": "Laminar",
+    "email": "founders@lmnr.ai",
+    "url": "https://www.lmnr.ai"
+  },
+  "homepage": "https://github.com/lmnr-ai/lmnr-claude-code-plugin",
+  "repository": "https://github.com/lmnr-ai/lmnr-claude-code-plugin",
+  "license": "Apache-2.0",
+  "keywords": ["observability", "tracing", "laminar", "opentelemetry"],
+  "userConfig": {
+    "LMNR_PROJECT_API_KEY": {
+      "type": "string",
+      "description": "Laminar project API key (create one in your project settings at https://www.lmnr.ai)",
+      "required": true,
+      "sensitive": true
+    },
+    "LMNR_BASE_URL": {
+      "type": "string",
+      "description": "Laminar base URL. Keep the default for Laminar Cloud; for self-hosted use e.g. http://localhost:8000",
+      "default": "https://api.lmnr.ai"
+    },
+    "CC_LMNR_USER_ID": {
+      "type": "string",
+      "description": "Optional user id to associate with traces",
+      "default": ""
+    },
+    "CC_LMNR_DEBUG": {
+      "type": "string",
+      "description": "Set to 'true' to write debug logs to ~/.claude/state/lmnr_hook.log",
+      "default": "false"
+    },
+    "CC_LMNR_MAX_CHARS": {
+      "type": "string",
+      "description": "Max characters kept per captured text field before truncation",
+      "default": "20000"
+    }
+  }
+}
