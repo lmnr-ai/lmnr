@@ -31,6 +31,7 @@ pub struct UserTaskCandidate {
     pub signposted_text: String,
     pub fingerprint: String,
     pub prompt_hash: Option<String>,
+    pub start_time_ns: i64,
 }
 
 /// Everything the producer hook needs from a candidate's span, copied or
@@ -57,6 +58,9 @@ pub fn capture_user_task_candidate(span: &Span) -> Option<UserTaskCandidate> {
         signposted_text: prepared.signposted_text,
         fingerprint: prepared.fingerprint,
         prompt_hash,
+        // Out-of-range timestamps degrade to "never wins on the time
+        // axis", same as the legacy lock default.
+        start_time_ns: span.start_time.timestamp_nanos_opt().unwrap_or(i64::MAX),
     })
 }
 
@@ -128,6 +132,7 @@ pub async fn process_user_task_candidates(
             input_cost: usage.input_cost,
             depth,
             user_sig: lock_user_sig(&candidate.fingerprint).to_string(),
+            start_time_ns: candidate.start_time_ns,
         };
 
         let lock_key = lock_cache_key(project_id, trace_id);
