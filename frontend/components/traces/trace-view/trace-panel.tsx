@@ -1,4 +1,5 @@
 import { AlertTriangle, CirclePlay } from "lucide-react";
+import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -31,6 +32,7 @@ interface TracePanelProps {
 }
 
 export default function TracePanel({ traceId, handleClose, handleSpanSelect, fetchSpans, isLoading }: TracePanelProps) {
+  const { projectId } = useParams<{ projectId?: string }>();
   const {
     trace,
     spans,
@@ -147,6 +149,7 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
                         className="min-w-0 overflow-hidden"
                         trace={trace}
                         spans={filteredSpansForStats}
+                        projectId={projectId}
                       />
                     )}
                   </div>

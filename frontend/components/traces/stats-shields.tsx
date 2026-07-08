@@ -3,7 +3,7 @@ import { pick } from "lodash";
 import { CircleDollarSign, Clock3, Coins } from "lucide-react";
 import { memo, useMemo } from "react";
 
-import { InputTokenBreakdown } from "@/components/traces/token-breakdown";
+import { InputTokenBreakdown, TraceInputTokenBreakdown } from "@/components/traces/token-breakdown";
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type Span, type TraceRow } from "@/lib/traces/types.ts";
@@ -189,9 +189,19 @@ interface StatsShieldsProps {
   // When present (single LLM/CACHED span), the tokens tooltip shows an
   // estimated input-token breakdown bar; trace/session shields omit it.
   span?: Span;
+  // When present (whole-trace shield inside a project), the tokens tooltip
+  // fetches a server-side estimated breakdown over all the trace's LLM spans.
+  traceBreakdown?: { projectId: string; traceId: string };
 }
 
-export function StatsShields({ stats, className, variant = "filled", labelPrefix, span }: StatsShieldsProps) {
+export function StatsShields({
+  stats,
+  className,
+  variant = "filled",
+  labelPrefix,
+  span,
+  traceBreakdown,
+}: StatsShieldsProps) {
   const label = (text: string) =>
     labelPrefix ? `${labelPrefix} ${text}` : text.charAt(0).toUpperCase() + text.slice(1);
   const durationContent = (
@@ -222,6 +232,13 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
             <div className="flex-col space-y-2">
               {span ? (
                 <InputTokenBreakdown span={span} />
+              ) : traceBreakdown ? (
+                <TraceInputTokenBreakdown
+                  projectId={traceBreakdown.projectId}
+                  traceId={traceBreakdown.traceId}
+                  inputTokens={stats.inputTokens}
+                  cacheReadInputTokens={stats.cacheReadInputTokens ?? 0}
+                />
               ) : (
                 <Label className="flex text-xs gap-1">
                   <span className="text-secondary-foreground">{label("input tokens")}</span>{" "}
@@ -239,7 +256,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
                     <span>{numberFormat.format(stats.reasoningTokens)}</span>
                   </Label>
                 )}
-                {!span && !!stats.cacheReadInputTokens && (
+                {!span && !traceBreakdown && !!stats.cacheReadInputTokens && (
                   <Label className="flex justify-between text-xs gap-4 text-success-bright">
                     <span>{label("cache input tokens")}</span>
                     <span>{numberFormat.format(stats.cacheReadInputTokens)}</span>
@@ -305,11 +322,15 @@ interface TraceStatsShieldsProps {
   trace: TraceViewTrace;
   spans?: TraceViewSpan[];
   className?: string;
+  // Set on project-scoped trace views to enable the fetched input-token
+  // breakdown; shared/public views can't reach the authed endpoint.
+  projectId?: string;
 }
 
-const PureTraceStatsShields = ({ trace, spans, className }: TraceStatsShieldsProps) => {
+const PureTraceStatsShields = ({ trace, spans, className, projectId }: TraceStatsShieldsProps) => {
+  const isFiltered = !!spans && spans.length > 0;
   const stats = useMemo(() => {
-    if (spans && spans.length > 0) {
+    if (isFiltered) {
       return computeSpanStats(spans);
     }
 
@@ -325,9 +346,18 @@ const PureTraceStatsShields = ({ trace, spans, className }: TraceStatsShieldsPro
       "outputCost",
       "totalCost",
     ]);
-  }, [trace, spans]);
+  }, [trace, spans, isFiltered]);
 
-  return <StatsShields stats={stats} className={className} labelPrefix="Trace" />;
+  return (
+    <StatsShields
+      stats={stats}
+      className={className}
+      labelPrefix="Trace"
+      // The server aggregate covers the WHOLE trace, so hide it while the
+      // condensed timeline narrows stats to a subset of spans.
+      traceBreakdown={projectId && !isFiltered ? { projectId, traceId: trace.id } : undefined}
+    />
+  );
 };
 
 interface SpanStatsShieldsProps {

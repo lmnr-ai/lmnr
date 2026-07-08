@@ -1,22 +1,28 @@
 import { useMemo } from "react";
+import useSWR from "swr";
 
 import { getRoleColors } from "@/components/traces/span-view/common";
-import { resolveTools } from "@/components/traces/tool-list";
-import { normalizeToMessages } from "@/lib/spans/types";
+import {
+  estimateSpanTokenBuckets,
+  TOKEN_BUCKET_KEYS,
+  type TokenBucketKey,
+  type TokenBuckets,
+  type TraceTokenBreakdownResponse,
+} from "@/lib/spans/token-breakdown";
+import { resolveTools } from "@/lib/spans/tools";
 import { type Span, SpanType } from "@/lib/traces/types";
+import { swrFetcher } from "@/lib/utils";
 
 const numberFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 
-type BucketKey = "system" | "tools" | "user" | "history";
-
-interface Bucket {
-  key: BucketKey;
+interface DisplayBucket {
+  key: string;
   label: string;
   color: string;
   tokens: number;
 }
 
-const BUCKET_META: Record<BucketKey, { label: string; role: string }> = {
+const BUCKET_META: Record<TokenBucketKey, { label: string; role: string }> = {
   // Reuse the span-view role palette so segments match the transcript colors.
   system: { label: "System prompt", role: "system" },
   tools: { label: "Tool definitions", role: "tool" },
@@ -24,118 +30,57 @@ const BUCKET_META: Record<BucketKey, { label: string; role: string }> = {
   history: { label: "History", role: "assistant" },
 };
 
-// Char count of a message's content only (role/keys excluded) — a rough proxy
-// for that message's token weight. Non-string content is stringified.
-const contentChars = (msg: unknown): number => {
-  if (msg == null) return 0;
-  const content =
-    typeof msg === "object" && msg !== null && "content" in msg ? (msg as { content?: unknown }).content : msg;
-  if (content == null) return 0;
-  if (typeof content === "string") return content.length;
-  try {
-    return JSON.stringify(content).length;
-  } catch {
-    return 0;
-  }
-};
+const toDisplayBuckets = (buckets: TokenBuckets): DisplayBucket[] =>
+  TOKEN_BUCKET_KEYS.map((key) => ({
+    key,
+    label: BUCKET_META[key].label,
+    color: getRoleColors(BUCKET_META[key].role).badgeText,
+    tokens: buckets[key],
+  })).filter((b) => b.tokens > 0);
 
-// system → system, user/human → user, everything else (assistant, tool
-// results, model, prior turns) → history.
-const bucketForRole = (role: unknown): Exclude<BucketKey, "tools"> => {
-  const r = typeof role === "string" ? role.toLowerCase() : "";
-  if (r === "system" || r === "developer") return "system";
-  if (r === "user" || r === "human") return "user";
-  return "history";
-};
-
-// Distribute `total` across `weights` proportionally, guaranteeing the parts
-// sum EXACTLY to `total` via the largest-remainder method.
-const distribute = (weights: number[], total: number): number[] => {
-  const sum = weights.reduce((a, b) => a + b, 0);
-  if (sum <= 0 || total <= 0) return weights.map(() => 0);
-  const raw = weights.map((w) => (total * w) / sum);
-  const floored = raw.map(Math.floor);
-  let remainder = total - floored.reduce((a, b) => a + b, 0);
-  const order = raw.map((v, i) => ({ i, frac: v - Math.floor(v) })).sort((a, b) => b.frac - a.frac);
-  for (let k = 0; k < order.length && remainder > 0; k++, remainder--) {
-    floored[order[k].i] += 1;
-  }
-  return floored;
-};
+interface TokenBreakdownPanelProps {
+  label?: string;
+  total: number;
+  cacheRead: number;
+  // Null/empty ⇒ fallback: plain input-tokens + cache rows, no bars.
+  buckets: DisplayBucket[] | null;
+}
 
 /**
- * Estimate how a span's real `inputTokens` split across system prompt, tool
- * definitions, user messages, and history (assistant + tool results + prior
- * turns). We can't run the model's tokenizer, so we weight each category by
- * character count and distribute the ACTUAL input-token total across all of
- * them proportionally — history included, so system/user aren't inflated.
+ * Dumb tooltip panel: input-token total, cached/uncached bar, and the
+ * estimated per-category bar + legend. Data source agnostic — the span
+ * wrapper estimates client-side, the trace wrapper fetches a server-side
+ * aggregate over all the trace's LLM spans.
  */
-export const estimateInputBreakdown = (span: Span): Bucket[] | null => {
-  if (span.spanType !== SpanType.LLM && span.spanType !== SpanType.CACHED) return null;
-  if (!span.inputTokens || span.inputTokens <= 0) return null;
-
-  const normalized = normalizeToMessages(span.input);
-  if (!Array.isArray(normalized)) return null;
-
-  const chars: Record<BucketKey, number> = { system: 0, tools: 0, user: 0, history: 0 };
-  for (const msg of normalized) {
-    chars[bucketForRole((msg as { role?: unknown } | null)?.role)] += contentChars(msg);
-  }
-
-  // Tool definitions ride the `tool_definitions` column (resolveTools prefers
-  // it, falls back to legacy attributes) — NOT the message array.
-  const tools = resolveTools(span);
-  if (tools.length > 0) {
-    chars.tools = JSON.stringify(tools).length;
-  }
-
-  const keys: BucketKey[] = ["system", "tools", "user", "history"];
-  const weights = keys.map((k) => chars[k]);
-  if (weights.every((w) => w === 0)) return null;
-
-  const tokens = distribute(weights, span.inputTokens);
-
-  return keys
-    .map((key, i) => ({
-      key,
-      label: BUCKET_META[key].label,
-      color: getRoleColors(BUCKET_META[key].role).badgeText,
-      tokens: tokens[i],
-    }))
-    .filter((b) => b.tokens > 0);
-};
-
-export const InputTokenBreakdown = ({ span }: { span: Span }) => {
-  const buckets = useMemo(() => estimateInputBreakdown(span), [span]);
-
+export const TokenBreakdownPanel = ({
+  label = "Input tokens",
+  total,
+  cacheRead,
+  buckets,
+}: TokenBreakdownPanelProps) => {
   if (!buckets || buckets.length === 0) {
-    // Estimation fell back (non-array/legacy input) — still surface the cache
-    // line so cached spans don't lose it (the parent hides its own once `span`).
-    const cacheReadFallback = span.cacheReadInputTokens ?? 0;
     return (
       <div className="flex flex-col gap-1 min-w-[220px]">
         <div className="flex justify-between text-xs gap-4">
-          <span className="text-secondary-foreground">Input tokens</span>
-          <span>{numberFormat.format(span.inputTokens || 0)}</span>
+          <span className="text-secondary-foreground">{label}</span>
+          <span>{numberFormat.format(total)}</span>
         </div>
-        {cacheReadFallback > 0 && (
+        {cacheRead > 0 && (
           <div className="flex justify-between text-xs gap-4 text-success-bright">
             <span>Cache input tokens</span>
-            <span>{numberFormat.format(cacheReadFallback)}</span>
+            <span>{numberFormat.format(cacheRead)}</span>
           </div>
         )}
       </div>
     );
   }
 
-  const total = span.inputTokens;
-  const cacheRead = span.cacheReadInputTokens ?? 0;
   const uncached = Math.max(0, total - cacheRead);
 
   return (
     <div className="flex flex-col gap-3 min-w-[220px]">
       <div className="flex justify-between text-xs">
-        <span className="text-secondary-foreground">Input tokens</span>
+        <span className="text-secondary-foreground">{label}</span>
         <span>{numberFormat.format(total)}</span>
       </div>
       {cacheRead > 0 && (
@@ -186,5 +131,65 @@ export const InputTokenBreakdown = ({ span }: { span: Span }) => {
         </div>
       </div>
     </div>
+  );
+};
+
+export const InputTokenBreakdown = ({ span }: { span: Span }) => {
+  const buckets = useMemo(() => {
+    if (span.spanType !== SpanType.LLM && span.spanType !== SpanType.CACHED) return null;
+    const estimated = estimateSpanTokenBuckets(span.input, resolveTools(span), span.inputTokens);
+    return estimated ? toDisplayBuckets(estimated) : null;
+  }, [span]);
+
+  return (
+    <TokenBreakdownPanel total={span.inputTokens || 0} cacheRead={span.cacheReadInputTokens ?? 0} buckets={buckets} />
+  );
+};
+
+interface TraceInputTokenBreakdownProps {
+  projectId: string;
+  traceId: string;
+  inputTokens: number;
+  cacheReadInputTokens: number;
+}
+
+/**
+ * Trace-level breakdown. Payloads never reach the browser — the endpoint runs
+ * the same per-span estimator server-side over the trace's LLM spans and
+ * returns four numbers. Rendered inside a tooltip, so the fetch only fires on
+ * first hover (Radix mounts the content on open) and is SWR-cached after.
+ */
+export const TraceInputTokenBreakdown = ({
+  projectId,
+  traceId,
+  inputTokens,
+  cacheReadInputTokens,
+}: TraceInputTokenBreakdownProps) => {
+  const { data } = useSWR<TraceTokenBreakdownResponse>(
+    `/api/projects/${projectId}/traces/${traceId}/token-breakdown`,
+    swrFetcher,
+    { revalidateOnFocus: false }
+  );
+
+  const buckets = useMemo(() => {
+    if (!data) return null;
+    const display = toDisplayBuckets(data.buckets);
+    if (display.length === 0) return null;
+    // Input tokens the estimator couldn't attribute (unparseable inputs,
+    // spans beyond the server cap) — keeps the bar honest against the total.
+    const other = Math.max(0, inputTokens - data.estimatedInputTokens);
+    if (other > 0) {
+      display.push({ key: "other", label: "Other", color: "hsl(215, 10%, 45%)", tokens: other });
+    }
+    return display;
+  }, [data, inputTokens]);
+
+  return (
+    <TokenBreakdownPanel
+      label="Trace input tokens"
+      total={inputTokens}
+      cacheRead={cacheReadInputTokens}
+      buckets={buckets}
+    />
   );
 };
