@@ -2,8 +2,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { type TraceRow } from "@/lib/traces/types";
 import { formatDuration } from "@/lib/utils";
 
-import { type SessionBlockView } from "./store";
-import TraceSegment, { type TraceSegmentProps } from "./trace-segment";
+import { type SessionBlockView } from "../store";
+import TraceSegment, { type TraceSegmentProps } from "../trace-segment";
 
 type TraceBlockCellProps = Omit<TraceSegmentProps, "trace"> & {
   trace: TraceRow | undefined;

@@ -1,24 +1,25 @@
 "use client";
 
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { useSessionSpanPreviews } from "@/components/traces/session-view/session-panel/use-session-span-previews";
 import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
 import { useBatchedTraceIO } from "@/components/traces/sessions-table/use-batched-trace-io";
 
-import NoteContent from "./note-content";
-import { computeScoreDeltas, EvaluationCard } from "./session-evaluations";
-import { textAnchorId } from "./session-outline/utils";
-import { type SessionBlockView, useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "./store";
+import { computeScoreDeltas } from "../session-evaluations";
+import { type SessionBlockView, useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "../store";
+import { useBlockScrollSync } from "../use-block-scroll-sync";
+import { useScrollMargin } from "../use-scroll-margin";
+import EvaluationBlockItem from "./evaluation-block-item";
+import TextBlockItem from "./text-block-item";
 import TraceBlockCell from "./trace-block-cell";
-import { useBlockScrollSync } from "./use-block-scroll-sync";
 
-interface DebuggerTraceListProps {
+interface DebuggerListProps {
   scrollEl: HTMLElement | null;
   projectId?: string;
-  sessionId?: string;
+  sessionId: string;
 }
 
 // A block paired with its 1-based trace index (trace blocks only) for "run N of M".
@@ -32,7 +33,7 @@ const withTraceIndex = (blocks: SessionBlockView[]): TimelineItem[] => {
 // Generous overscan keeps sticky headers / lazy rows warm beyond the viewport.
 const BLOCK_OVERSCAN = 8;
 
-export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: DebuggerTraceListProps) {
+export default function DebuggerList({ scrollEl, projectId, sessionId }: DebuggerListProps) {
   const blocks = useDebuggerSessionViewStore((s) => s.blocks);
   const traceRowStates = useDebuggerSessionViewStore((s) => s.traceRowStates);
   const storeApi = useDebuggerSessionViewStoreRaw();
@@ -43,16 +44,7 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
 
   const tracesById = useMemo(() => new Map(traces.map((t) => [t.id, t])), [traces]);
 
-  // Bump on any column height change so each segment re-measures its scrollMargin.
   const columnRef = useRef<HTMLDivElement>(null);
-  const [layoutVersion, setLayoutVersion] = useState(0);
-  useEffect(() => {
-    const el = columnRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver(() => setLayoutVersion((v) => v + 1));
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
 
   // Segments report visible span ids; aggregate them for the batched preview fetch.
   const [visibleAgg, setVisibleAgg] = useState<Record<string, { visible: string[]; inputs: string[] }>>({});
@@ -115,24 +107,18 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
   );
 
   // Outer block virtualizer, offset into the shared scroll element via scrollMargin.
-  const [scrollMargin, setScrollMargin] = useState(0);
-  useLayoutEffect(() => {
-    const el = columnRef.current;
-    if (!el || !scrollEl) return;
-    const next = Math.round(el.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top + scrollEl.scrollTop);
-    setScrollMargin((prev) => (Math.abs(prev - next) <= 1 ? prev : next));
-  }, [scrollEl, layoutVersion]);
+  const scrollMargin = useScrollMargin(columnRef, scrollEl);
 
-  const itemsRef = useRef(items);
-  itemsRef.current = items;
-
-  const estimateBlockSize = useCallback((index: number) => {
-    const block = itemsRef.current[index]?.block;
-    if (!block) return 220;
-    if (block.type === "text") return 180;
-    if (block.type === "evaluation") return 200;
-    return 250; // collapsed trace card; expanded traces self-measure.
-  }, []);
+  const estimateBlockSize = useCallback(
+    (index: number) => {
+      const block = items[index]?.block;
+      if (!block) return 220;
+      if (block.type === "text") return 180;
+      if (block.type === "evaluation") return 200;
+      return 250; // collapsed trace card; expanded traces self-measure.
+    },
+    [items]
+  );
 
   const virtualizer = useVirtualizer({
     count: items.length,
@@ -140,7 +126,7 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
     estimateSize: estimateBlockSize,
     overscan: BLOCK_OVERSCAN,
     scrollMargin,
-    getItemKey: (index) => itemsRef.current[index]?.block.id ?? index,
+    getItemKey: (index) => items[index]?.block.id ?? index,
     // Shared scroll element may already be scrolled on attach — don't yank to top.
     initialOffset: () => scrollEl?.scrollTop ?? 0,
   });
@@ -182,18 +168,14 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
         return (
           <div key={virtualRow.key} ref={virtualizer.measureElement} data-index={virtualRow.index}>
             {block.type === "text" ? (
-              <div id={textAnchorId(block.id)} className="scroll-mt-4 px-1 py-5">
-                <NoteContent content={block.text} />
-              </div>
+              <TextBlockItem id={block.id} text={block.text} />
             ) : block.type === "evaluation" ? (
-              <div className="py-5">
-                <EvaluationCard
-                  projectId={projectId ?? ""}
-                  evaluation={block.evaluation}
-                  scores={scoreDeltasById.get(block.evaluation.id) ?? []}
-                  createdAt={block.createdAt}
-                />
-              </div>
+              <EvaluationBlockItem
+                projectId={projectId}
+                evaluation={block.evaluation}
+                scores={scoreDeltasById.get(block.evaluation.id) ?? []}
+                createdAt={block.createdAt}
+              />
             ) : (
               <TraceBlockCell
                 trace={tracesById.get(block.traceId)}
@@ -204,7 +186,6 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
                 totalTraces={totalTraces}
                 scrollEl={scrollEl}
                 sessionId={sessionId}
-                layoutVersion={layoutVersion}
                 reportVisibleSpans={reportVisibleSpans}
                 previews={previews}
                 userInputs={userInputs}

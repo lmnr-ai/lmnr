@@ -1,7 +1,7 @@
 "use client";
 
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
 import TraceCollapsedBody from "@/components/traces/session-view/session-panel/trace-collapsed-body";
@@ -28,6 +28,7 @@ import { SpanType, type TraceRow } from "@/lib/traces/types";
 import CopyFlag from "./copy-flag";
 import { traceAnchorId } from "./session-outline/utils";
 import { useDebuggerSessionViewStore } from "./store";
+import { useScrollMargin } from "./use-scroll-margin";
 
 // Paste-to-agent prompt for "cache and rerun from here"; the SDK resolves
 // LMNR_DEBUG_CACHE_UNTIL from a span id directly.
@@ -107,9 +108,6 @@ export interface TraceSegmentProps {
   totalTraces: number;
   scrollEl: HTMLElement | null;
   sessionId?: string;
-  // Bumped by the list's column ResizeObserver whenever content heights change —
-  // each segment re-measures its scrollMargin (offset within the scroll content).
-  layoutVersion: number;
   // Report this segment's currently-visible span ids for batched preview fetching.
   reportVisibleSpans: (traceId: string, visible: string[], inputs: string[]) => void;
   previews: Record<string, string | null>;
@@ -135,7 +133,6 @@ export default function TraceSegment({
   totalTraces,
   scrollEl,
   sessionId,
-  layoutVersion,
   reportVisibleSpans,
   previews,
   userInputs,
@@ -178,7 +175,9 @@ export default function TraceSegment({
   // --- Per-trace virtualizer, offset into the shared scroll element. ---
   const viewportRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
-  const [scrollMargin, setScrollMargin] = useState(0);
+  // Offset within the shared scroll content; re-measured on content resize AND
+  // when this segment's own layout changes (expand / row count).
+  const scrollMargin = useScrollMargin(viewportRef, scrollEl, [expanded, rows.length]);
 
   // On collapse, bring this trace's header into view only if it's out of view.
   // Keyed on `expanded` so it runs after the collapse rebuilds segment height.
@@ -198,15 +197,6 @@ export default function TraceSegment({
     }
     consumeScrollToTrace();
   }, [scrollToTraceId, traceId, expanded, scrollEl, consumeScrollToTrace]);
-
-  // Measure this viewport's offset in the scroll content; re-measured on column
-  // height changes (layoutVersion). The ±1px guard keeps it convergent.
-  useLayoutEffect(() => {
-    const el = viewportRef.current;
-    if (!el || !scrollEl) return;
-    const next = Math.round(el.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top + scrollEl.scrollTop);
-    setScrollMargin((prev) => (Math.abs(prev - next) <= 1 ? prev : next));
-  }, [scrollEl, layoutVersion, expanded, rows.length]);
 
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
