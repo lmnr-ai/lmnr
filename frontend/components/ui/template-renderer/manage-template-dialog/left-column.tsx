@@ -34,14 +34,17 @@ const LeftColumn = ({ title, isGenerating, describeText, onDescribeChange, onGen
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-3">
-          <Controller
-            rules={{ required: "Template name is required" }}
-            name="name"
-            control={control}
-            render={({ field }) => (
-              <Input size="sm" className="rounded border-border" placeholder="Template name" autoFocus {...field} />
-            )}
-          />
+          <div className="flex flex-col gap-1">
+            <Controller
+              rules={{ required: "Template name is required" }}
+              name="name"
+              control={control}
+              render={({ field }) => (
+                <Input size="sm" className="rounded border-border" placeholder="Template name" autoFocus {...field} />
+              )}
+            />
+            {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
+          </div>
 
           <Textarea
             value={describeText}
@@ -52,7 +55,6 @@ const LeftColumn = ({ title, isGenerating, describeText, onDescribeChange, onGen
               code?.trim() ? "Describe changes to your custom render template" : "Describe your custom render template"
             }
           />
-          {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
         </div>
       </div>
 
