@@ -25,7 +25,7 @@ export async function generateSql(input: z.infer<typeof GenerateSchema>): Promis
   const prompts = getGenerationPrompts(mode, currentQuery);
 
   const { output } = await observe(
-    { name: "generateSql", input: { projectId, mode } },
+    { name: "generateSql", metadata: { feature: "sql-generation" }, input: { projectId, mode } },
     async () =>
       await generateText({
         model: getLanguageModel("medium"),

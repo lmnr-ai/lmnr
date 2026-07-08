@@ -1,5 +1,16 @@
-import { Check, ChevronDown, Eye, EyeOff, LayoutTemplate, List, ListTree, type LucideIcon, Plus } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import {
+  Check,
+  ChevronDown,
+  Eye,
+  EyeOff,
+  LayoutTemplate,
+  List,
+  ListTree,
+  type LucideIcon,
+  PencilIcon,
+  Plus,
+} from "lucide-react";
+import { type MouseEvent, useCallback, useMemo, useState } from "react";
 
 import { type ViewTab } from "@/components/traces/trace-view/view-toggle";
 import {
@@ -44,7 +55,7 @@ export default function TemplateViewToggle({
   onToggleContent,
   viewTabs,
 }: TemplateViewToggleProps) {
-  const { templates, selectedTemplate, selectTemplate, openCreate } = useTemplatePicker();
+  const { templates, selectedTemplate, selectTemplate, openCreate, openEdit } = useTemplatePicker();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -88,6 +99,20 @@ export default function TemplateViewToggle({
     openCreate();
     setOpen(false);
   }, [openCreate]);
+
+  // Editing loads the template into the shared form first (the manage dialog
+  // reads it via useFormContext), so edit implies selecting it. Don't open edit
+  // on a failed load — fetchTemplate already toasted.
+  const handleEditTemplate = useCallback(
+    async (e: MouseEvent, id: string) => {
+      e.stopPropagation();
+      e.preventDefault();
+      setOpen(false);
+      if (selectedTemplate?.id !== id && !(await selectTemplate(id))) return;
+      openEdit();
+    },
+    [selectedTemplate, selectTemplate, openEdit]
+  );
 
   return (
     <div className="flex items-center min-w-0">
@@ -147,10 +172,20 @@ export default function TemplateViewToggle({
                           key={t.id}
                           value={`template:${t.id}`}
                           onSelect={() => handlePickTemplate(t.id)}
-                          className="text-xs"
+                          className="group text-xs"
                         >
                           <span className="flex-1 truncate">{t.name}</span>
-                          {active && <Check className="ml-2 size-3.5 shrink-0" />}
+                          <div className="ml-2 flex shrink-0 items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              aria-label={`Edit ${t.name}`}
+                              onClick={(e) => handleEditTemplate(e, t.id)}
+                              className="inline-flex size-5 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 group-aria-selected:opacity-100 focus-visible:opacity-100"
+                            >
+                              <PencilIcon className="size-2.5" />
+                            </button>
+                            {active && <Check className="size-3.5" />}
+                          </div>
                         </CommandItem>
                       );
                     })

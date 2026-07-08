@@ -324,6 +324,9 @@ export async function register() {
       const { LaminarAiSdkTelemetry } = await import("@lmnr-ai/lmnr");
       const { registerTelemetry } = await import("ai");
       console.log("Initializing Laminar");
+      // LaminarAiSdkTelemetry's constructor calls Laminar.initialize() itself
+      // (reading projectApiKey from LMNR_PROJECT_API_KEY), so no explicit init.
+      // The env-var guard stays: without a key that self-init would throw.
       registerTelemetry(new LaminarAiSdkTelemetry());
     }
 
