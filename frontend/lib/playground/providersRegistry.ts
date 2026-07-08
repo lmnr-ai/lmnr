@@ -15,6 +15,7 @@ const providersInstanceMap = {
   anthropic: createAnthropic,
   groq: createGroq,
   bedrock: createAmazonBedrock,
+  minimax: createOpenAI,
   ["openai-azure"]: createAzure,
 };
 
@@ -32,7 +33,8 @@ export const getModel = <P extends Provider, K extends string>(key: `${P}:${K}`,
   }
 
   try {
-    const providerInstance = createProvider({ apiKey });
+    const providerConfig = provider === "minimax" ? { apiKey, baseURL: "https://api.minimax.io/v1" } : { apiKey };
+    const providerInstance = createProvider(providerConfig);
     return providerInstance(model);
   } catch (error) {
     throw new Error(`Failed to initialize model ${key}`, {

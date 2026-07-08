@@ -4,6 +4,7 @@ export enum EnvVars {
   GROQ_API_KEY = "GROQ_API_KEY",
   ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY",
   MISTRAL_API_KEY = "MISTRAL_API_KEY",
+  MINIMAX_API_KEY = "MINIMAX_API_KEY",
   OPENAI_AZURE_API_KEY = "AZURE_API_KEY",
   OPENAI_AZUURE_DEPLOYMENT_NAME = "OPENAI_AZURE_DEPLOYMENT_NAME",
   OPENAI_AZUURE_RESOURCE_ID = "OPENAI_AZURE_RESOURCE_ID",
@@ -20,6 +21,7 @@ export enum LLMModelProviders {
   GROQ = "groq",
   ANTHROPIC = "anthropic",
   MISTRAL = "mistral",
+  MINIMAX = "minimax",
   OPENAI_AZURE = "openai-azure",
   BEDROCK = "bedrock",
 }
@@ -31,6 +33,7 @@ export const MODEL_PROVIDER_TO_API_KEYS: Record<string, string[]> = {
   [LLMModelProviders.GROQ]: [EnvVars.GROQ_API_KEY],
   [LLMModelProviders.ANTHROPIC]: [EnvVars.ANTHROPIC_API_KEY],
   [LLMModelProviders.MISTRAL]: [EnvVars.MISTRAL_API_KEY],
+  [LLMModelProviders.MINIMAX]: [EnvVars.MINIMAX_API_KEY],
   [LLMModelProviders.OPENAI_AZURE]: [
     EnvVars.OPENAI_AZURE_API_KEY,
     EnvVars.OPENAI_AZUURE_DEPLOYMENT_NAME,
@@ -44,6 +47,7 @@ export const ENV_VAR_TO_ISSUER_URL: Record<string, string> = {
   [EnvVars.GROQ_API_KEY]: "https://console.groq.com/keys",
   [EnvVars.ANTHROPIC_API_KEY]: "https://console.anthropic.com/settings/keys",
   [EnvVars.MISTRAL_API_KEY]: "https://console.mistral.ai/api-keys/",
+  [EnvVars.MINIMAX_API_KEY]: "https://platform.minimax.io/user-center/basic-information/interface-key",
   [EnvVars.GOOGLE_SEARCH_ENGINE_ID]: "https://developers.google.com/custom-search/v1/overview",
   [EnvVars.GOOGLE_SEARCH_API_KEY]: "https://developers.google.com/custom-search/v1/overview",
 };
