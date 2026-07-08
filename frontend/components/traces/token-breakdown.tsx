@@ -2,7 +2,6 @@ import { useMemo } from "react";
 
 import { getRoleColors } from "@/components/traces/span-view/common";
 import { resolveTools } from "@/components/traces/tool-list";
-import { Label } from "@/components/ui/label";
 import { normalizeToMessages } from "@/lib/spans/types";
 import { type Span, SpanType } from "@/lib/traces/types";
 
@@ -110,10 +109,22 @@ export const InputTokenBreakdown = ({ span }: { span: Span }) => {
   const buckets = useMemo(() => estimateInputBreakdown(span), [span]);
 
   if (!buckets || buckets.length === 0) {
+    // Estimation fell back (non-array/legacy input) — still surface the cache
+    // line so cached spans don't lose it (the parent hides its own once `span`).
+    const cacheReadFallback = span.cacheReadInputTokens ?? 0;
     return (
-      <Label className="flex text-xs gap-1">
-        <span className="text-secondary-foreground">Input tokens</span> {numberFormat.format(span.inputTokens || 0)}
-      </Label>
+      <div className="flex flex-col gap-1 min-w-[220px]">
+        <div className="flex justify-between text-xs gap-4">
+          <span className="text-secondary-foreground">Input tokens</span>
+          <span>{numberFormat.format(span.inputTokens || 0)}</span>
+        </div>
+        {cacheReadFallback > 0 && (
+          <div className="flex justify-between text-xs gap-4 text-success-bright">
+            <span>Cache input tokens</span>
+            <span>{numberFormat.format(cacheReadFallback)}</span>
+          </div>
+        )}
+      </div>
     );
   }
 
