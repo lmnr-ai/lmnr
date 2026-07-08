@@ -37,7 +37,8 @@ static ACCUMULATOR_TTL_SECONDS: LazyLock<u64> =
 /// so without this it would never extract and the producer would re-enqueue on
 /// every trace. Set high so we only conclude "no diversity" after a fair chance
 /// at seeing it — at low volume the perpetual-miss cost is negligible anyway.
-const STATIC_PROMPT_OCCURRENCE_THRESHOLD: u64 = 100;
+static STATIC_PROMPT_OCCURRENCE_THRESHOLD: LazyLock<u64> =
+    LazyLock::new(|| env::static_sp::OCCURRENCE_THRESHOLD.get());
 
 /// TTL on the per-signature extraction lock: long enough for the agent to
 /// produce a regex list (normally under 10 min; the per-step upper bounds
@@ -196,7 +197,7 @@ impl StaticPromptHandler {
         // fully-static prompt collapses to one unique sample forever and would
         // otherwise never resolve (the producer would re-enqueue every trace).
         let enough_diversity = samples.len() >= *PROMPT_SAMPLES;
-        let waited_long_enough = occurrences >= STATIC_PROMPT_OCCURRENCE_THRESHOLD;
+        let waited_long_enough = occurrences >= *STATIC_PROMPT_OCCURRENCE_THRESHOLD;
         if !enough_diversity && !waited_long_enough {
             return Ok(());
         }
@@ -595,7 +596,7 @@ mod tests {
         // A fully-static prompt: byte-identical across distinct traces, so it
         // never reaches PROMPT_SAMPLES uniques. Once occurrences hit the
         // threshold we resolve it by caching an empty regex list.
-        for _ in 0..STATIC_PROMPT_OCCURRENCE_THRESHOLD {
+        for _ in 0..*STATIC_PROMPT_OCCURRENCE_THRESHOLD {
             handler
                 .process_prompt(&make_message_with_trace(
                     project_id,

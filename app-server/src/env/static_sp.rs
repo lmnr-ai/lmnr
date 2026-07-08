@@ -15,3 +15,10 @@ pub const PROMPT_SAMPLES: NumEnv<usize> = NumEnv::new("SP_EXTRACTION_PROMPT_SAMP
 /// `PROMPT_SAMPLES` don't hold onto prompt bodies forever.
 pub const ACCUMULATOR_TTL_SECONDS: NumEnv<u64> =
     NumEnv::new("SP_EXTRACTION_ACCUMULATOR_TTL_SECONDS", 3600);
+
+/// Fallback trigger: total same-signature occurrences after which we resolve a
+/// signature even though its unique samples never reached `PROMPT_SAMPLES` (a
+/// byte-identical prompt collapses to one unique sample forever, so it would
+/// otherwise never extract and the producer would re-enqueue on every trace).
+pub const OCCURRENCE_THRESHOLD: NumEnv<u64> =
+    NumEnv::new("SP_EXTRACTION_OCCURRENCE_THRESHOLD", 100);
