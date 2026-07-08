@@ -129,9 +129,9 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
   const estimateBlockSize = useCallback((index: number) => {
     const block = itemsRef.current[index]?.block;
     if (!block) return 220;
-    if (block.type === "text") return 90;
-    if (block.type === "evaluation") return 140;
-    return 300; // collapsed trace card; expanded traces self-measure.
+    if (block.type === "text") return 180;
+    if (block.type === "evaluation") return 200;
+    return 250; // collapsed trace card; expanded traces self-measure.
   }, []);
 
   const virtualizer = useVirtualizer({
@@ -149,7 +149,9 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
 
   useBlockScrollSync({ scrollEl, columnRef, virtualizer, items, storeApi });
 
-  // Lazily load trace rows for blocks in the virtual window (store dedupes/batches).
+  // Lazily load trace rows for blocks in the virtual window (store dedupes/batches),
+  // and bound in-memory span bodies: the visible trace ids are "protected" from
+  // eviction so an on-screen trace is never dropped.
   const windowSignature = virtualItems.map((vi) => vi.index).join(",");
   useEffect(() => {
     const ids: string[] = [];
@@ -158,6 +160,7 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
       if (block?.type === "trace") ids.push(block.traceId);
     }
     if (ids.length > 0) storeApi.getState().ensureTraceRows(ids);
+    storeApi.getState().enforceLoadedTraceBound(new Set(ids));
     // windowSignature stands in for `virtualItems`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [windowSignature, items, storeApi]);
@@ -188,6 +191,7 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
                   projectId={projectId ?? ""}
                   evaluation={block.evaluation}
                   scores={scoreDeltasById.get(block.evaluation.id) ?? []}
+                  createdAt={block.createdAt}
                 />
               </div>
             ) : (

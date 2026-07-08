@@ -28,6 +28,8 @@ export type SessionBlockView = SessionBlock;
 const sortBlocks = (blocks: SessionBlockView[]): SessionBlockView[] =>
   [...blocks].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
+const MAX_LOADED_TRACE_SPANS = 10;
+
 // Normalize metadata (object OR JSON string) into TraceRow's Record<string,string>.
 const normalizeMetadata = (metadata: unknown): Record<string, string> => {
   if (!metadata) return {};
@@ -190,6 +192,13 @@ interface DebuggerSessionViewActions {
   // batched (one request per ≤100 ids); already loaded/loading ids are
   // skipped, so calling with every visible id on each scroll is cheap.
   ensureTraceRows: (traceIds: string[]) => void;
+
+  // Bound the number of traces holding span bodies to MAX_LOADED_TRACE_SPANS,
+  // evicting the oldest-loaded traces whose block is NOT currently in the
+  // window (`protectedIds`). Evicted traces drop their spans and collapse;
+  // re-expanding refetches. Called by the list on every window change; cheap
+  // no-op while under the cap.
+  enforceLoadedTraceBound: (protectedIds: Set<string>) => void;
 
   // Outline click → scroll the virtualized timeline to this block.
   requestScrollToBlock: (blockId: string) => void;
@@ -439,6 +448,41 @@ export const createDebuggerSessionViewStore = (options?: {
             for (const id of missing) pendingRowIds.add(id);
             if (rowFetchTimer) clearTimeout(rowFetchTimer);
             rowFetchTimer = setTimeout(() => void flushRowFetches(), ROW_FETCH_DEBOUNCE_MS);
+          },
+
+          enforceLoadedTraceBound: (protectedIds) => {
+            const keys = Object.keys(get().traceSpans);
+            const overflow = keys.length - MAX_LOADED_TRACE_SPANS;
+            if (overflow <= 0) return;
+            // Oldest-first (Record insertion order = recency); never touch a
+            // trace whose block is on screen.
+            const victims: string[] = [];
+            for (const key of keys) {
+              if (victims.length >= overflow) break;
+              if (!protectedIds.has(key)) victims.push(key);
+            }
+            if (victims.length === 0) return;
+            set((s) => {
+              const traceSpans = { ...s.traceSpans };
+              const traceSpansError = { ...s.traceSpansError };
+              const traceSpansFetching = { ...s.traceSpansFetching };
+              let expandedTraceIds: Set<string> | null = null;
+              for (const id of victims) {
+                delete traceSpans[id];
+                delete traceSpansError[id];
+                delete traceSpansFetching[id];
+                if (s.expandedTraceIds.has(id)) {
+                  if (!expandedTraceIds) expandedTraceIds = new Set(s.expandedTraceIds);
+                  expandedTraceIds.delete(id);
+                }
+              }
+              return {
+                traceSpans,
+                traceSpansError,
+                traceSpansFetching,
+                ...(expandedTraceIds ? { expandedTraceIds } : {}),
+              } as Partial<DebuggerSessionViewStore>;
+            });
           },
 
           // Also set activeBlockId so the outline lights up on click (survives the scroll).

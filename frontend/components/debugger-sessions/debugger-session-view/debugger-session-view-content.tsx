@@ -1,5 +1,6 @@
 "use client";
 
+import { values } from "lodash";
 import { AlertTriangle } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -51,15 +52,17 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
   const { toast } = useToast();
   const storeApi = useDebuggerSessionViewStoreRaw();
 
-  const { spanPanelOpen, isTracesLoading, tracesError } = useSessionViewBaseStore(
+  const { spanPanelOpen, isTracesLoading, tracesError, traceSpans } = useSessionViewBaseStore(
     (s) => ({
       spanPanelOpen: s.spanPanelOpen,
       isTracesLoading: s.isTracesLoading,
       tracesError: s.tracesError,
+      traceSpans: s.traceSpans,
     }),
     shallow
   );
 
+  console.log(values(traceSpans).length);
   const sessionName = useDebuggerSessionViewStore((s) => s.sessionName);
   const blocks = useDebuggerSessionViewStore((s) => s.blocks);
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { FileText, FlaskConical, Rows4 } from "lucide-react";
+import { FileText, FlaskConical, MessageCircle } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
@@ -168,10 +168,10 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
                 className="group flex h-[30px] items-center pl-4 text-left no-underline"
               >
                 {row.kind === "trace" && (
-                  <Rows4
+                  <MessageCircle
                     className={cn(
                       "mr-1.5 size-3 shrink-0 transition-colors",
-                      isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                      isActive ? "text-llm" : "text-llm/70 group-hover:text-llm"
                     )}
                   />
                 )}
@@ -179,7 +179,7 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
                   <FlaskConical
                     className={cn(
                       "mr-1.5 size-3 shrink-0 transition-colors",
-                      isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                      isActive ? "text-emerald-500" : "text-emerald-500/70 group-hover:text-emerald-500"
                     )}
                   />
                 )}
