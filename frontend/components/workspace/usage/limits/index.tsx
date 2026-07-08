@@ -13,7 +13,7 @@ import LimitRow from "./limit-row";
 interface LimitsSettingsProps {
   workspaceId: string;
   tierIncludedDataGB: number;
-  tierIncludedSignalSteps: number;
+  tierIncludedSignalCostMicroUsd: number;
 }
 
 const GB_IN_BYTES = 1024 * 1024 * 1024;
@@ -21,7 +21,7 @@ const GB_IN_BYTES = 1024 * 1024 * 1024;
 export default function LimitsSettings({
   workspaceId,
   tierIncludedDataGB,
-  tierIncludedSignalSteps,
+  tierIncludedSignalCostMicroUsd,
 }: LimitsSettingsProps) {
   const router = useRouter();
   const { data: limits = [], mutate } = useSWR<WorkspaceUsageLimit[]>(
@@ -35,14 +35,14 @@ export default function LimitsSettings({
   }, [mutate, router]);
 
   const bytesLimit = limits.find((l) => l.limitType === "bytes");
-  const signalStepsLimit = limits.find((l) => l.limitType === "signal_steps_processed");
+  const signalCostLimit = limits.find((l) => l.limitType === "signal_cost");
 
   return (
     <SettingsSection>
       <SettingsSectionHeader
         size="sm"
         title="Hard limits"
-        description="When a limit is reached, new data ingestion or signal runs will be rejected until the next billing cycle."
+        description="When a limit is reached, new data ingestion or signal usage will be rejected until the next billing cycle."
       />
       <div className="flex flex-col sm:flex-row gap-3">
         <LimitRow
@@ -52,19 +52,21 @@ export default function LimitsSettings({
           currentValue={bytesLimit?.limitValue ?? null}
           unit="GB"
           includedLabel={`${tierIncludedDataGB} GB`}
+          includedRawValue={tierIncludedDataGB * GB_IN_BYTES}
           toDisplayValue={(raw) => Math.round((raw / GB_IN_BYTES) * 100) / 100}
           toRawValue={(display) => Math.round(display * GB_IN_BYTES)}
           onUpdate={handleUpdate}
         />
         <LimitRow
           workspaceId={workspaceId}
-          limitType="signal_steps_processed"
-          label="Signal steps processed"
-          currentValue={signalStepsLimit?.limitValue ?? null}
-          unit="steps"
-          includedLabel={`${new Intl.NumberFormat("en-US").format(tierIncludedSignalSteps)} steps`}
-          toDisplayValue={(raw) => raw}
-          toRawValue={(display) => Math.round(display)}
+          limitType="signal_cost"
+          label="Signals usage"
+          currentValue={signalCostLimit?.limitValue ?? null}
+          unit="USD"
+          includedLabel={`$${(tierIncludedSignalCostMicroUsd / 1_000_000).toLocaleString("en-US")}`}
+          includedRawValue={tierIncludedSignalCostMicroUsd}
+          toDisplayValue={(raw) => Math.round((raw / 1_000_000) * 100) / 100}
+          toRawValue={(display) => Math.round(display * 1_000_000)}
           onUpdate={handleUpdate}
         />
       </div>

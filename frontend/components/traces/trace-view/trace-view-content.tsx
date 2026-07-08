@@ -7,7 +7,7 @@ import Chat from "@/components/traces/trace-view/chat";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import { type TraceViewSpan, type TraceViewTrace, useTraceViewStore } from "@/components/traces/trace-view/store";
 import { enrichSpansWithPending, findSpanToSelect, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
-import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type Filter } from "@/lib/actions/common/filters";
 import { Feature } from "@/lib/features/features";
 import { useRealtime } from "@/lib/hooks/use-realtime";
@@ -31,7 +31,8 @@ export interface TraceViewContentProps {
   traceId: string;
   spanId?: string;
   propsTrace?: TraceViewTrace;
-  onClose: () => void;
+  // Omit to hide the close button entirely (e.g. an always-open panel).
+  onClose?: () => void;
   isAlwaysSelectSpan?: boolean;
   showChatInitial?: boolean;
   // Presence controls the layout type
@@ -51,8 +52,8 @@ export default function TraceViewContent({
   const router = useRouter();
   const pathName = usePathname();
   const { projectId } = useParams();
-
   const featureFlags = useFeatureFlags();
+
   // Panel visibility states
   const { spanPanelOpen, tracesAgentOpen, setTracesAgentOpen, selectSpanById } = useTraceViewStore(
     (state) => ({
@@ -253,7 +254,7 @@ export default function TraceViewContent({
     const params = new URLSearchParams(searchParams);
     params.delete("spanId");
     router.push(`${pathName}?${params.toString()}`);
-    onClose();
+    onClose?.();
   }, [onClose, pathName, router, searchParams]);
 
   const handleSpanPanelClose = useCallback(() => {
@@ -325,7 +326,8 @@ export default function TraceViewContent({
   const tracePanel = (
     <TracePanel
       traceId={traceId}
-      handleClose={handleClose}
+      // No onClose ⇒ no close button (always-open panels).
+      handleClose={onClose ? handleClose : undefined}
       handleSpanSelect={handleSpanSelect}
       fetchSpans={fetchSpans}
       isLoading={isLoading}

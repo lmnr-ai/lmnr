@@ -1,6 +1,7 @@
 //! In-process query engine. Replaces the Python gRPC query-engine service with
 //! native Rust query validation and JSON↔SQL conversion built on `sqlparser`.
 
+pub mod schema;
 pub mod types;
 pub mod validator;
 

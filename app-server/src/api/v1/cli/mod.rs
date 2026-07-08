@@ -2,10 +2,12 @@
 //! `CliUserAuth` / `CliProjectAuth` extractors (see `auth::cli_user`) and call
 //! the same service/db helpers as the project-API-key handlers.
 
+// The agent twin depends on `crate::agent`, which is signals-gated.
+#[cfg(feature = "signals")]
+pub mod agent;
 pub mod datasets;
 pub mod rollouts;
 pub mod sql;
-pub mod traces;
 
 use actix_web::{HttpResponse, get, post, web};
 use serde_json::json;

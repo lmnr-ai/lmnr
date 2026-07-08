@@ -2,6 +2,7 @@
 
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { Loader2, X } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -34,23 +35,29 @@ export default function PanelBody({ traceId, onClose }: Props) {
     setBodyHeight(Math.min(MAX_BODY_HEIGHT, Math.max(MIN_BODY_HEIGHT, measured)));
   });
 
-  const handleResizeMouseDown = useCallback(
-    (e: React.MouseEvent) => {
+  const handleResizePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
       e.preventDefault();
+      const handle = e.currentTarget;
       const startY = e.clientY;
       const startHeight = bodyHeight ?? contentRef.current?.scrollHeight ?? MIN_BODY_HEIGHT;
       resizedRef.current = true;
+      // Capture the pointer so move/up survive the cursor crossing an iframe
+      // (custom renderer) mid-drag; document listeners go silent over iframes.
+      handle.setPointerCapture(e.pointerId);
 
-      const onMove = (moveEvent: MouseEvent) => {
+      const onMove = (moveEvent: PointerEvent) => {
         const next = startHeight + (moveEvent.clientY - startY);
         setBodyHeight(Math.min(MAX_BODY_HEIGHT, Math.max(MIN_BODY_HEIGHT, next)));
       };
       const onUp = () => {
-        document.removeEventListener("mousemove", onMove);
-        document.removeEventListener("mouseup", onUp);
+        handle.removeEventListener("pointermove", onMove);
+        handle.removeEventListener("pointerup", onUp);
+        handle.removeEventListener("pointercancel", onUp);
       };
-      document.addEventListener("mousemove", onMove);
-      document.addEventListener("mouseup", onUp);
+      handle.addEventListener("pointermove", onMove);
+      handle.addEventListener("pointerup", onUp);
+      handle.addEventListener("pointercancel", onUp);
     },
     [bodyHeight]
   );
@@ -67,15 +74,24 @@ export default function PanelBody({ traceId, onClose }: Props) {
       shallow
     );
 
+  const searchParams = useSearchParams();
+  const highlightedEventId = searchParams.get("eventId");
+
   const effectiveTabId = useMemo(() => {
     if (activeSignalTabId && traceSignals.some((s) => s.signalId === activeSignalTabId)) {
       return activeSignalTabId;
+    }
+    // A deep link with eventId points at one specific finding — surface the
+    // signal tab that owns it so the highlighted card is visible on open.
+    if (highlightedEventId) {
+      const owner = traceSignals.find((s) => s.events.some((e) => e.id === highlightedEventId));
+      if (owner) return owner.signalId;
     }
     if (initialSignalId && traceSignals.some((s) => s.signalId === initialSignalId)) {
       return initialSignalId;
     }
     return traceSignals[0]?.signalId ?? "";
-  }, [activeSignalTabId, initialSignalId, traceSignals]);
+  }, [activeSignalTabId, highlightedEventId, initialSignalId, traceSignals]);
 
   const isSingleSignal = traceSignals.length === 1;
   const activeSignal = traceSignals.find((s) => s.signalId === effectiveTabId);
@@ -146,7 +162,7 @@ export default function PanelBody({ traceId, onClose }: Props) {
           <div
             role="separator"
             aria-orientation="horizontal"
-            onMouseDown={handleResizeMouseDown}
+            onPointerDown={handleResizePointerDown}
             className="group h-1.5 shrink-0 cursor-row-resize flex items-center justify-center hover:bg-blue-300/10 transition-colors"
           >
             <div className="h-0.5 w-8 rounded-full bg-primary-foreground/20" />

@@ -12,7 +12,7 @@ use super::utils::{
     build_report_data_from_batch, frontend_url_email, inject_utm_into_links,
     md_links_to_html_escaped, with_utm,
 };
-use crate::reports::email_template::ReportData;
+use crate::reports::ReportData;
 
 const REPORT_FROM_EMAIL: &str = "Laminar <reports@mail.lmnr.ai>";
 const ALERT_FROM_EMAIL: &str = "Laminar <alerts@mail.lmnr.ai>";
@@ -42,6 +42,7 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
     match first {
         NotificationKind::EventIdentification {
             project_id,
+            project_name,
             signal_id,
             trace_id,
             event_name,
@@ -65,11 +66,20 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 .clone()
                 .unwrap_or(serde_json::Value::Object(Default::default()));
             let severity_label = severity_label(*severity);
+            let subject = if project_name.is_empty() {
+                format!("{}: {} event", event_name, severity_label)
+            } else {
+                format!(
+                    "[{}] {}: {} event",
+                    project_name, event_name, severity_label
+                )
+            };
             EmailContent {
                 from: ALERT_FROM_EMAIL.to_string(),
-                subject: format!("{}: {} event", event_name, severity_label),
+                subject,
                 html: render_alert_email(
                     event_name,
+                    project_name,
                     &attributes,
                     &trace_link,
                     project_id,
@@ -80,29 +90,23 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 ),
             }
         }
-        NotificationKind::NewCluster {
-            project_id,
-            signal_id,
-            signal_name,
-            cluster_id,
-            cluster_name,
-            num_signal_events,
-            num_child_clusters,
-            alert_name,
-        } => EmailContent {
-            from: ALERT_FROM_EMAIL.to_string(),
-            subject: format!("{}: New cluster", signal_name),
-            html: render_new_cluster_email(
-                project_id,
-                signal_id,
-                signal_name,
-                cluster_id,
-                cluster_name,
-                *num_signal_events,
-                *num_child_clusters,
-                alert_name,
-            ),
-        },
+        NotificationKind::NewCluster { signal_name, .. } => {
+            // All clusters in the batch are rendered as one digest email.
+            let clusters: Vec<&NotificationKind> = notifications
+                .iter()
+                .filter(|n| matches!(n, NotificationKind::NewCluster { .. }))
+                .collect();
+            let subject = if clusters.len() > 1 {
+                format!("{}: {} new clusters", signal_name, clusters.len())
+            } else {
+                format!("{}: New cluster", signal_name)
+            };
+            EmailContent {
+                from: ALERT_FROM_EMAIL.to_string(),
+                subject,
+                html: render_new_cluster_email(&clusters),
+            }
+        }
         NotificationKind::SignalsReport { .. } => {
             let (title, report_data) = build_report_data_from_batch(notifications, *workspace_id)
                 .expect("SignalsReport batch must contain at least one report");
@@ -137,6 +141,25 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 *overage_billable,
             ),
         },
+        NotificationKind::UsageHardLimit {
+            workspace_name,
+            usage_label,
+            formatted_limit,
+            usage_item,
+        } => EmailContent {
+            from: USAGE_WARNING_FROM_EMAIL.to_string(),
+            subject: format!(
+                "Usage limit reached: {} \u{2013} {}",
+                usage_label, workspace_name
+            ),
+            html: render_usage_hard_limit_email(
+                workspace_name,
+                *workspace_id,
+                usage_item,
+                formatted_limit,
+                usage_label,
+            ),
+        },
     }
 }
 
@@ -165,6 +188,7 @@ fn severity_color(severity: u8) -> &'static str {
 /// Render an HTML email for an alert notification.
 fn render_alert_email(
     event_name: &str,
+    project_name: &str,
     attributes: &serde_json::Value,
     trace_link: &str,
     project_id: &Uuid,
@@ -272,6 +296,12 @@ fn render_alert_email(
         "manage_preferences",
     );
 
+    let eyebrow = if project_name.is_empty() {
+        "New event for signal".to_string()
+    } else {
+        format!("New event for signal · {}", html_escape(project_name))
+    };
+
     format!(
         r##"<!DOCTYPE html>
 <html lang="en">
@@ -283,9 +313,9 @@ fn render_alert_email(
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
 <div style="max-width:640px;margin:0 auto;padding:24px 16px;">
 
-  <div style="background:#0A0A0A;border-radius:10px;padding:28px 24px;margin-bottom:20px;">
-    <img src="cid:laminar-logo" alt="Laminar" width="120" height="21" style="display:block;margin-bottom:16px;" />
-    <p style="margin:0 0 6px;font-size:13px;color:#9ca3af;">New event for signal</p>
+  <div style="background:#0A0A0A;border-radius:10px;padding:24px 28px 16px;margin-bottom:20px;">
+    <img src="cid:laminar-logo" alt="Laminar" width="120" height="21" style="display:block;margin-bottom:24px;" />
+    <p style="margin:0 0 6px;font-size:13px;color:#9ca3af;">{eyebrow}</p>
     <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">{event_name}</h1>
   </div>
 
@@ -308,6 +338,7 @@ fn render_alert_email(
 </html>"##,
         event_name = html_escape(event_name),
         severity_label = severity_label,
+        eyebrow = eyebrow,
         attributes_html = attributes_html,
         trace_link = trace_link,
         manage_prefs_link = manage_prefs_link,
@@ -315,19 +346,24 @@ fn render_alert_email(
     )
 }
 
-/// Render an HTML email for a new-cluster notification.
-#[allow(clippy::too_many_arguments)]
-fn render_new_cluster_email(
-    project_id: &Uuid,
-    signal_id: &Uuid,
-    signal_name: &str,
-    cluster_id: &Uuid,
-    cluster_name: &str,
-    num_signal_events: u32,
-    num_child_clusters: usize,
-    alert_name: &str,
-) -> String {
-    let base = frontend_url_email();
+/// Render one cluster's section inside the new-cluster digest email.
+fn render_new_cluster_section(kind: &NotificationKind, base: &str) -> String {
+    let NotificationKind::NewCluster {
+        project_id,
+        signal_id,
+        cluster_id,
+        cluster_name,
+        num_signal_events,
+        first_seen,
+        last_seen,
+        severity_counts,
+        example_events,
+        ..
+    } = kind
+    else {
+        return String::new();
+    };
+
     let cluster_link = with_utm(
         &format!(
             "{}/project/{}/signals/{}?clusterId={}",
@@ -337,6 +373,120 @@ fn render_new_cluster_email(
         "new_cluster_alert",
         "view_cluster",
     );
+
+    let mut meta_parts: Vec<String> = vec![format!(
+        "{} event{}",
+        num_signal_events,
+        if *num_signal_events == 1 { "" } else { "s" }
+    )];
+    if let Some(first_seen) = first_seen {
+        meta_parts.push(format!("First seen: {}", html_escape(first_seen)));
+    }
+    if let Some(last_seen) = last_seen {
+        meta_parts.push(format!("Last seen: {}", html_escape(last_seen)));
+    }
+    let meta_html = format!(
+        r#"<div style="margin:4px 0 0;font-size:12px;color:#6b7280;">{}</div>"#,
+        meta_parts.join(" &middot; ")
+    );
+
+    let severity_parts: Vec<String> = severity_counts
+        .iter()
+        .enumerate()
+        .filter(|(_, count)| **count > 0)
+        .map(|(i, count)| {
+            format!(
+                r#"<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:{color};margin-right:4px;vertical-align:middle;"></span><span style="vertical-align:middle;">{count} {label}</span>"#,
+                color = severity_color(i as u8),
+                count = count,
+                label = severity_label(i as u8),
+            )
+        })
+        .collect();
+    let severity_html = if severity_parts.is_empty() {
+        String::new()
+    } else {
+        format!(
+            r#"<div style="margin:6px 0 0;font-size:12px;color:#6b7280;">{}</div>"#,
+            severity_parts.join("&nbsp;&nbsp;")
+        )
+    };
+
+    let examples_html = if example_events.is_empty() {
+        String::new()
+    } else {
+        let cards: Vec<String> = example_events
+            .iter()
+            .map(|event| {
+                let trace_link = with_utm(
+                    &format!(
+                        "{}/project/{}/traces/{}?chat=true",
+                        base, project_id, event.trace_id
+                    ),
+                    "email",
+                    "new_cluster_alert",
+                    "view_trace",
+                );
+                let summary_part = if let Some(summary) = &event.summary {
+                    format!(
+                        r#"<div style="margin-top:4px;color:#374151;font-size:13px;">{}</div>"#,
+                        html_escape(summary)
+                    )
+                } else {
+                    String::new()
+                };
+                format!(
+                    r##"<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:12px;margin-bottom:8px;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+    <td style="font-size:12px;color:#6b7280;" align="left"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:{severity_color};margin-right:5px;vertical-align:middle;"></span><span style="vertical-align:middle;">{name} &middot; {timestamp}</span></td>
+    <td style="font-size:12px;" align="right"><a href="{trace_link}" style="color:{primary};text-decoration:none;">View trace &rarr;</a></td>
+  </tr></table>{summary}
+</div>"##,
+                    severity_color = severity_color(event.severity),
+                    name = html_escape(&event.name),
+                    timestamp = html_escape(&event.timestamp),
+                    trace_link = trace_link,
+                    summary = summary_part,
+                    primary = PRIMARY,
+                )
+            })
+            .collect();
+        format!(
+            r#"<div style="margin-top:12px;">{}</div>"#,
+            cards.join("\n")
+        )
+    };
+
+    format!(
+        r##"<div>
+  <h2 style="margin:0;font-size:16px;font-weight:600;"><a href="{cluster_link}" style="color:#111827;text-decoration:none;">{cluster_name}</a></h2>
+  {meta_html}
+  {severity_html}
+  {examples_html}
+  <div style="margin-top:10px;font-size:13px;"><a href="{cluster_link}" style="color:{primary};text-decoration:none;">View cluster &rarr;</a></div>
+</div>"##,
+        cluster_link = cluster_link,
+        cluster_name = html_escape(cluster_name),
+        meta_html = meta_html,
+        severity_html = severity_html,
+        examples_html = examples_html,
+        primary = PRIMARY,
+    )
+}
+
+/// Render an HTML digest email covering every new cluster in the batch.
+fn render_new_cluster_email(clusters: &[&NotificationKind]) -> String {
+    let Some(NotificationKind::NewCluster {
+        project_id,
+        signal_name,
+        alert_name,
+        ..
+    }) = clusters.first()
+    else {
+        return String::new();
+    };
+
+    let base = frontend_url_email();
     let alert_link = with_utm(
         &format!("{}/project/{}/settings?tab=alerts", base, project_id),
         "email",
@@ -350,31 +500,20 @@ fn render_new_cluster_email(
         "manage_preferences",
     );
 
-    let details_html = format!(
-        r#"<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:20px;">
-  <h3 style="margin:0 0 12px;font-size:14px;font-weight:600;color:#6b7280;">Details</h3>
-  <table width="100%" cellpadding="0" cellspacing="0" border="0">
-    <tr>
-      <td style="padding:6px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6;vertical-align:top;">Cluster</td>
-      <td style="padding:6px 0 6px 12px;font-size:13px;color:#111827;border-bottom:1px solid #f3f4f6;">{cluster_name}</td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6;vertical-align:top;">Events</td>
-      <td style="padding:6px 0 6px 12px;font-size:13px;color:#111827;border-bottom:1px solid #f3f4f6;">{num_signal_events}</td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;font-size:13px;color:#6b7280;vertical-align:top;">Child clusters</td>
-      <td style="padding:6px 0 6px 12px;font-size:13px;color:#111827;">{num_child_clusters}</td>
-    </tr>
-  </table>
-</div>"#,
-        cluster_name = html_escape(cluster_name),
-        num_signal_events = num_signal_events,
-        num_child_clusters = num_child_clusters,
-    );
+    let eyebrow = if clusters.len() > 1 {
+        format!("{} new clusters", clusters.len())
+    } else {
+        "New cluster".to_string()
+    };
+
+    let sections = clusters
+        .iter()
+        .map(|c| render_new_cluster_section(c, &base))
+        .collect::<Vec<String>>()
+        .join(r#"<div style="border-top:1px solid #e5e7eb;margin:20px 0;"></div>"#);
 
     let context_html = format!(
-        r##"<div style="text-align:center;margin-top:14px;font-size:12px;color:#9ca3af;line-height:1.6;">
+        r##"<div style="text-align:center;margin-top:18px;font-size:12px;color:#9ca3af;line-height:1.6;">
   <span style="vertical-align:middle;">Alert: <a href="{alert_link}" style="color:{primary};text-decoration:none;">{alert_name}</a></span>
 </div>"##,
         alert_link = alert_link,
@@ -395,15 +534,12 @@ fn render_new_cluster_email(
 
   <div style="background:#0A0A0A;border-radius:10px;padding:28px 24px;margin-bottom:20px;">
     <img src="cid:laminar-logo" alt="Laminar" width="120" height="21" style="display:block;margin-bottom:16px;" />
-    <p style="margin:0 0 6px;font-size:13px;color:#9ca3af;">New cluster</p>
+    <p style="margin:0 0 6px;font-size:13px;color:#9ca3af;">{eyebrow}</p>
     <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">{signal_name}</h1>
   </div>
 
   <div style="background:#ffffff;border-radius:10px;border:1px solid #e5e7eb;padding:24px;margin-bottom:20px;">
-    {details_html}
-    <div style="text-align:center;padding-top:8px;">
-      <a href="{cluster_link}" style="display:inline-block;background:#D0754E;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:600;">View Cluster</a>
-    </div>
+    {sections}
     {context_html}
   </div>
 
@@ -417,8 +553,8 @@ fn render_new_cluster_email(
 </body>
 </html>"##,
         signal_name = html_escape(signal_name),
-        details_html = details_html,
-        cluster_link = cluster_link,
+        eyebrow = eyebrow,
+        sections = sections,
         context_html = context_html,
         manage_prefs_link = manage_prefs_link,
     )
@@ -437,8 +573,8 @@ fn render_usage_warning_email(
     overage_billable: bool,
 ) -> String {
     let meter_description = match usage_item {
-        "bytes" => "data ingested",
-        "signal_runs" | "signal_steps_processed" => "signal steps processed",
+        "bytes" => "data ingestion",
+        "signal_cost" => "Signals usage",
         _ => "usage",
     };
 
@@ -457,26 +593,27 @@ fn render_usage_warning_email(
     );
 
     // When the threshold being hit is exactly the included allowance of the
-    // workspace's tier, append a sentence telling the customer they've
-    // exhausted their included free allowance for the cycle. If the tier bills
-    // overage (Hobby / Pro) we additionally tell them they'll now be billed
-    // pay-as-you-go.
+    // workspace's tier, tell the customer they've used up the allowance bundled
+    // into their plan's flat rate. If the tier bills overage (Hobby / Pro) we
+    // additionally make the "from now on it's billable" message explicit.
     let tier_message_html = if at_tier_included_allowance {
+        // Space-prefixed tier name, or empty when the tier display name is
+        // unknown (legacy emails) so the surrounding copy stays grammatical.
         let tier_label = if tier_display_name.is_empty() {
-            "your".to_string()
+            String::new()
         } else {
-            html_escape(tier_display_name)
+            format!(" {}", html_escape(tier_display_name))
         };
         let billing_sentence = if overage_billable {
             format!(
-                " From now until the next billing cycle, additional {meter_description} will be billed in a pay-as-you-go manner at the overage rate for the {tier_label} tier."
+                " <strong>From now until the next billing cycle, any further {meter_description} is billable.</strong> It is charged pay-as-you-go at the{tier_label} tier's overage rate, on top of your flat monthly rate."
             )
         } else {
             String::new()
         };
         format!(
             r#"<p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
-      This threshold matches the {tier_label} tier's included allowance, so you have now used up the free {meter_description} included in your current plan.{billing_sentence}
+      This threshold equals the {meter_description} already included in your{tier_label} plan's flat monthly rate, so you have now used up everything bundled into your plan for this cycle.{billing_sentence}
     </p>"#
         )
     } else {
@@ -539,6 +676,88 @@ fn render_usage_warning_email(
         secondary_message_html = secondary_message_html,
         view_usage_link = view_usage_link,
         manage_thresholds_link = manage_thresholds_link,
+    )
+}
+
+/// Render an HTML email for a usage hard-limit notification. Unlike the soft
+/// warning, this tells the owner that the metered activity is now BLOCKED until
+/// the billing cycle resets.
+fn render_usage_hard_limit_email(
+    workspace_name: &str,
+    workspace_id: Uuid,
+    usage_item: &str,
+    formatted_limit: &str,
+    usage_label: &str,
+) -> String {
+    // What is now blocked, and the noun used in the running-cost copy.
+    let (blocked_activity, meter_description) = match usage_item {
+        "bytes" => ("data ingestion", "data ingested"),
+        "signal_cost" => ("signal runs", "signals cost"),
+        _ => ("usage", "usage"),
+    };
+
+    let base = frontend_url_email();
+    let view_usage_link = with_utm(
+        &format!("{}/workspace/{}?tab=usage", base, workspace_id),
+        "email",
+        "usage_hard_limit",
+        "view_usage",
+    );
+    let manage_limits_link = with_utm(
+        &format!("{}/workspace/{}?tab=usage", base, workspace_id),
+        "email",
+        "usage_hard_limit",
+        "manage_limits",
+    );
+
+    format!(
+        r##"<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Usage Limit Reached – {workspace_name}</title>
+</head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+<div style="max-width:640px;margin:0 auto;padding:24px 16px;">
+
+  <!-- Header -->
+  <div style="background:#0A0A0A;border-radius:10px;padding:28px 24px;margin-bottom:20px;">
+    <img src="cid:laminar-logo" alt="Laminar" width="120" height="21" style="display:block;margin-bottom:16px;" />
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#ffffff;">Usage Limit Reached</h1>
+    <p style="margin:0;font-size:16px;color:#ef4444;">{usage_label} hard limit hit &middot; {blocked_activity} paused</p>
+  </div>
+
+  <!-- Content -->
+  <div style="background:#ffffff;border-radius:10px;border:1px solid #e5e7eb;padding:24px;margin-bottom:20px;">
+    <p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
+      Your workspace <strong>{workspace_name}</strong> has reached its hard limit of <strong>{formatted_limit}</strong> of {meter_description} for the current billing cycle.
+    </p>
+    <p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
+      <strong>From now on, {blocked_activity} will stop until your billing cycle resets.</strong> To resume sooner, raise or remove this limit from your workspace usage settings.
+    </p>
+    <div style="text-align:center;padding-top:8px;">
+      <a href="{view_usage_link}" style="display:inline-block;background:#D0754E;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:600;">View Usage</a>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div style="text-align:center;padding:16px 0;">
+    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">This notification was generated automatically by <a href="https://www.lmnr.ai" style="color:#D0754E;text-decoration:none;">Laminar</a>.</p>
+    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">You are receiving this because you are the owner of the {workspace_name} workspace.</p>
+    <p style="margin:0;font-size:12px;color:#9ca3af;"><a href="{manage_limits_link}" style="color:#D0754E;text-decoration:none;">Manage usage limits</a></p>
+  </div>
+
+</div>
+</body>
+</html>"##,
+        workspace_name = html_escape(workspace_name),
+        usage_label = html_escape(usage_label),
+        formatted_limit = html_escape(formatted_limit),
+        blocked_activity = blocked_activity,
+        meter_description = meter_description,
+        view_usage_link = view_usage_link,
+        manage_limits_link = manage_limits_link,
     )
 }
 

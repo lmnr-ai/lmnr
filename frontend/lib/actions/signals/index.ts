@@ -14,12 +14,20 @@ import { db } from "@/lib/db/drizzle";
 import { alerts, alertTargets, signals, signalTriggers } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
+// User-controlled signal settings stored in the `metadata` jsonb column.
+// `disabled` is only persisted when true; absence means enabled (active).
+export type SignalMetadata = {
+  sampleRate?: number | null;
+  disabled?: boolean;
+};
+
 export type SignalRow = {
   id: string;
   name: string;
   prompt: string;
   createdAt: string;
   projectId: string;
+  disabled: boolean;
   eventsCount: number;
   clustersCount: number;
   lastEventAt: string | null;
@@ -33,6 +41,7 @@ export type Signal = {
   prompt: string;
   structuredOutput: Record<string, unknown>;
   sampleRate: number | null;
+  disabled: boolean;
 };
 
 export const GetSignalsSchema = PaginationFiltersSchema.extend({
@@ -52,6 +61,7 @@ const CreateSignalSchema = z.object({
   prompt: z.string(),
   structuredOutput: z.record(z.string(), z.unknown()),
   sampleRate: z.number().int().min(1).max(95).nullable().optional(),
+  disabled: z.boolean().optional(),
   // When provided, the creator is auto-subscribed via EMAIL alert targets on
   // every alert created for this signal.
   subscriberEmail: z.email().optional(),
@@ -63,6 +73,7 @@ const UpdateSignalSchema = z.object({
   prompt: z.string(),
   structuredOutput: z.record(z.string(), z.unknown()),
   sampleRate: z.number().int().min(1).max(95).nullable().optional(),
+  disabled: z.boolean().optional(),
 });
 
 export const DeleteSignalSchema = z.object({
@@ -86,23 +97,42 @@ const SetTemplateSignalsSchema = z.object({
   subscriberEmail: z.email().optional(),
 });
 
-async function purgeSignalEventsFromClickhouse(projectId: string, eventNames: string[]) {
-  if (eventNames.length === 0) return;
+// Purge a signal's ClickHouse footprint: its events, its clusters, and the
+// event<->cluster link rows. The link rows must be deleted before signal_events
+// since they're resolved by event_id against it.
+async function purgeSignalsFromClickhouse(projectId: string, signalIds: string[]) {
+  if (signalIds.length === 0) return;
   try {
     await clickhouseClient.command({
       query: `
-          DELETE FROM events
+          DELETE FROM events_to_clusters
           WHERE project_id = {projectId: UUID}
-            AND name IN ({eventNames: Array(String)})
-            AND source = 'SEMANTIC'
+            AND event_id IN (
+              SELECT id FROM signal_events
+              WHERE project_id = {projectId: UUID}
+                AND signal_id IN ({signalIds: Array(UUID)})
+            )
         `,
-      query_params: {
-        projectId,
-        eventNames,
-      },
+      query_params: { projectId, signalIds },
+    });
+    await clickhouseClient.command({
+      query: `
+          DELETE FROM signal_event_clusters
+          WHERE project_id = {projectId: UUID}
+            AND signal_id IN ({signalIds: Array(UUID)})
+        `,
+      query_params: { projectId, signalIds },
+    });
+    await clickhouseClient.command({
+      query: `
+          DELETE FROM signal_events
+          WHERE project_id = {projectId: UUID}
+            AND signal_id IN ({signalIds: Array(UUID)})
+        `,
+      query_params: { projectId, signalIds },
     });
   } catch (error) {
-    console.error("Failed to delete events from ClickHouse:", error);
+    console.error("Failed to purge signals from ClickHouse:", error);
   }
 }
 
@@ -131,7 +161,7 @@ export async function setTemplateSignals(input: z.infer<typeof SetTemplateSignal
 
   const clusteringEnabled = isFeatureEnabled(Feature.CLUSTERING);
 
-  const deletedEvents = await db.transaction(async (tx) => {
+  const deletedSignals = await db.transaction(async (tx) => {
     // Sequential, not Promise.all: drizzle serialises statements on a single
     // connection, and we want a deterministic abort point on failure.
     for (const name of toCreate) {
@@ -210,9 +240,9 @@ export async function setTemplateSignals(input: z.infer<typeof SetTemplateSignal
       .returning();
   });
 
-  await purgeSignalEventsFromClickhouse(
+  await purgeSignalsFromClickhouse(
     projectId,
-    deletedEvents.map((e) => e.name)
+    deletedSignals.map((s) => s.id)
   );
 
   // Creates write triggers too, so invalidate the cache whenever anything changed.
@@ -263,6 +293,7 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
       name: signals.name,
       prompt: signals.prompt,
       projectId: signals.projectId,
+      metadata: signals.metadata,
     })
     .from(signals)
     .where(and(...whereConditions))
@@ -315,8 +346,9 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
     }
   }
 
-  const items: SignalRow[] = results.map((signal) => ({
+  const items: SignalRow[] = results.map(({ metadata, ...signal }) => ({
     ...signal,
+    disabled: (metadata as SignalMetadata)?.disabled ?? false,
     eventsCount: eventCountBySignal[signal.id] || 0,
     clustersCount: clusterCountBySignal[signal.id] || 0,
     lastEventAt: lastEventBySignal[signal.id] || null,
@@ -355,9 +387,13 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
     mode: number;
   }[];
 
+  const metadata = (result.metadata ?? {}) as SignalMetadata;
+
   return {
     ...result,
     structuredOutput: result.structuredOutputSchema,
+    sampleRate: metadata.sampleRate ?? null,
+    disabled: metadata.disabled ?? false,
     triggers: triggerRows.map((row) => ({
       id: row.id,
       filters: row.value,
@@ -368,7 +404,13 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
 }
 
 export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
-  const { projectId, name, prompt, structuredOutput, sampleRate, subscriberEmail } = CreateSignalSchema.parse(input);
+  const { projectId, name, prompt, structuredOutput, sampleRate, disabled, subscriberEmail } =
+    CreateSignalSchema.parse(input);
+
+  const metadata: SignalMetadata = {};
+  if (sampleRate != null) metadata.sampleRate = sampleRate;
+  // Only persist `disabled` when deactivated; absence means active.
+  if (disabled === true) metadata.disabled = true;
 
   const result = await db.transaction(async (tx) => {
     const [signal] = await tx
@@ -378,7 +420,7 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
         name,
         prompt,
         structuredOutputSchema: structuredOutput,
-        sampleRate: sampleRate ?? null,
+        metadata,
       })
       .returning();
 
@@ -429,11 +471,26 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
 }
 
 export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
-  const { projectId, id, prompt, structuredOutput, sampleRate } = UpdateSignalSchema.parse(input);
+  const { projectId, id, prompt, structuredOutput, sampleRate, disabled } = UpdateSignalSchema.parse(input);
+
+  const [existing] = await db
+    .select({ metadata: signals.metadata })
+    .from(signals)
+    .where(and(eq(signals.projectId, projectId), eq(signals.id, id)));
+
+  // Merge over stored metadata so omitted fields keep their values — a PUT
+  // without `disabled` must not silently re-enable a deactivated signal.
+  const metadata: SignalMetadata = { ...((existing?.metadata ?? {}) as SignalMetadata) };
+  if (sampleRate !== undefined) metadata.sampleRate = sampleRate;
+  // Only persist `disabled` when deactivated; absence means active.
+  if (disabled !== undefined) {
+    if (disabled) metadata.disabled = true;
+    else delete metadata.disabled;
+  }
 
   const result = await db
     .update(signals)
-    .set({ prompt, structuredOutputSchema: structuredOutput, sampleRate: sampleRate ?? null })
+    .set({ prompt, structuredOutputSchema: structuredOutput, metadata })
     .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
     .returning();
 
@@ -462,6 +519,8 @@ export async function deleteSignal(input: z.infer<typeof DeleteSignalSchema>) {
       .returning();
   });
 
+  await purgeSignalsFromClickhouse(projectId, [id]);
+
   await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
 
   return result;
@@ -470,7 +529,7 @@ export async function deleteSignal(input: z.infer<typeof DeleteSignalSchema>) {
 export async function deleteSignals(input: z.infer<typeof DeleteSignalsSchema>) {
   const { projectId, ids } = DeleteSignalsSchema.parse(input);
 
-  const events = await db.transaction(async (tx) => {
+  const deletedSignals = await db.transaction(async (tx) => {
     await tx
       .delete(alerts)
       .where(
@@ -487,9 +546,9 @@ export async function deleteSignals(input: z.infer<typeof DeleteSignalsSchema>) 
       .returning();
   });
 
-  await purgeSignalEventsFromClickhouse(
+  await purgeSignalsFromClickhouse(
     projectId,
-    events.map((e) => e.name)
+    deletedSignals.map((s) => s.id)
   );
 
   await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);

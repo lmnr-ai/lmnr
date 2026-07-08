@@ -1,6 +1,6 @@
 import { flow, get, isNumber, mean, round } from "lodash";
 
-import { getOptimalTextColor, interpolateColor, normalizeValue, type RGBColor, type ScoreRange } from "@/lib/colors";
+import { interpolateColor, normalizeValue, type RGBColor, type ScoreRange } from "@/lib/colors";
 import {
   type EvalRow,
   type Evaluation,
@@ -188,18 +188,10 @@ export const mergeTraceUpdateIntoRows = (
   return next;
 };
 
-export const createHeatmapStyle = (value: number, { min, max }: ScoreRange) => {
-  if (!shouldShowHeatmap({ min, max })) {
-    return {
-      background: "transparent",
-      color: "inherit",
-    };
-  }
-
-  const bgColor = getScoreBackgroundColor(min, max, value);
-
-  return {
-    background: `rgb(${bgColor.join(", ")})`,
-    color: getOptimalTextColor(bgColor),
-  };
+// rgb(...) string for the heatmap color, or null when the range is too narrow
+// to be meaningful — callers treat null as "render the plain number".
+export const getHeatmapColor = (value: number, { min, max }: ScoreRange): string | null => {
+  if (!shouldShowHeatmap({ min, max })) return null;
+  const [r, g, b] = getScoreBackgroundColor(min, max, value);
+  return `rgb(${r}, ${g}, ${b})`;
 };

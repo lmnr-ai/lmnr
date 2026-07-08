@@ -48,6 +48,9 @@ export const loadDeviceContext = async (rawUserCode: string): Promise<DeviceAppr
   return {
     userCode: row.userCode,
     status: row.status as DeviceApprovalContext["status"],
+    // expiresAt is a Date because deviceCodes (and every BetterAuth table) is pinned to
+    // mode: 'date' — the adapter inserts raw Date objects and would throw under 'string'.
+    // The pin is re-applied on every `pnpm schema-pull:lint` by scripts/fix-auth-timestamp-modes.mjs.
     expiresAt: row.expiresAt.toISOString(),
     userId: row.userId,
   };

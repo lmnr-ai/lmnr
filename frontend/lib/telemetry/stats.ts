@@ -13,8 +13,6 @@ const VIEW_BACKING_TABLES: Record<string, string> = {
   dataset_datapoints_v0: "dataset_datapoints",
   dataset_datapoint_versions_v0: "dataset_datapoints",
   evaluation_datapoints_v0: "evaluation_datapoints",
-  events_v0: "events",
-  tags_v0: "tags",
   signal_runs_v0: "signal_runs",
   signal_events_v0: "signal_events",
   logs_v0: "logs",

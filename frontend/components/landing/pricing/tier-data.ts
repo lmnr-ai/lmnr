@@ -105,10 +105,10 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
     rows: [
       tierRow("Data included", formatDataIncluded),
       tierRow("Data overage rate", formatDataOverage),
-      tierRow("Signals steps included", formatSignalsCount),
-      // Comparison table is column-constrained, use the short "/ step" form
-      // instead of the verbose "/ Signals step" the cards use.
-      tierRow("Signals step overage rate", formatSignalsOverageShort),
+      tierRow("Signals included", formatSignalsCount),
+      // Comparison table is column-constrained, use the short per-1M-token form
+      // instead of the verbose rate the cards use.
+      tierRow("Signals overage rate", formatSignalsOverageShort),
       tierRow("Retention", (t) => (t === "enterprise" ? "Custom" : TIER_RETENTION[t].durationPlural)),
       tierRow("Projects", (t) => TIERS[t].projects),
       tierRow("Seats", (t) => TIERS[t].seats),
@@ -170,7 +170,7 @@ interface CardFeature {
 export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   free: [
     { label: `${formatDataIncluded("free")} data`, subfeature: "no overage" },
-    { label: `${formatSignalsCount("free")} Signals steps`, subfeature: "no overage" },
+    { label: `${formatSignalsCount("free")} in Signals`, subfeature: "no overage" },
     { label: retentionLabel("free") },
     { label: formatProjects("free") },
     { label: formatSeats("free") },
@@ -178,7 +178,7 @@ export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   ],
   hobby: [
     { label: `${formatDataIncluded("hobby")} data included`, subfeature: `then ${formatDataOverage("hobby")}` },
-    { label: `${formatSignalsCount("hobby")} Signals steps`, subfeature: `then ${formatSignalsOverage("hobby")}` },
+    { label: `${formatSignalsCount("hobby")} in Signals`, subfeature: `then ${formatSignalsOverage("hobby")}` },
     { label: retentionLabel("hobby") },
     { label: formatProjects("hobby") },
     { label: formatSeats("hobby") },
@@ -186,7 +186,7 @@ export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   ],
   pro: [
     { label: `${formatDataIncluded("pro")} data included`, subfeature: `then ${formatDataOverage("pro")}` },
-    { label: `${formatSignalsCount("pro")} Signals steps`, subfeature: `then ${formatSignalsOverage("pro")}` },
+    { label: `${formatSignalsCount("pro")} in Signals`, subfeature: `then ${formatSignalsOverage("pro")}` },
     { label: retentionLabel("pro") },
     { label: formatProjects("pro") },
     { label: formatSeats("pro") },

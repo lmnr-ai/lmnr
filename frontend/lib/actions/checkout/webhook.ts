@@ -3,10 +3,17 @@ import { type Stripe } from "stripe";
 
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
 import {
+  deleteHardLimitNotification,
   invalidateProjectCacheForWorkspace,
   invalidateUsageWarningsCacheForWorkspace,
 } from "@/lib/actions/usage/utils";
-import { cache, WORKSPACE_BYTES_USAGE_CACHE_KEY, WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY } from "@/lib/cache";
+import {
+  cache,
+  WORKSPACE_BYTES_USAGE_CACHE_KEY,
+  WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY,
+  WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY,
+  WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY,
+} from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
 import {
   subscriptionTiers,
@@ -91,14 +98,14 @@ export const manageWorkspaceSubscriptionEvent = async ({
       .values({
         workspaceId: workspace.id,
         bytes: 0,
-        signalSteps: 0,
+        signalCost: 0,
         lastReportedDate: sql`date_trunc('day', now())`,
       })
       .onConflictDoUpdate({
         target: workspaceUsage.workspaceId,
         set: {
           bytes: 0,
-          signalSteps: 0,
+          signalCost: 0,
           lastReportedDate: sql`date_trunc('day', now())`,
         },
       });
@@ -163,7 +170,11 @@ const updateUsageCacheForWorkspace = async (workspaceId: string, hasBytes: boole
     await cache.remove(`${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`);
   }
   if (hasSignalRuns) {
-    await cache.remove(`${WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY}:${workspaceId}`);
+    await Promise.all([
+      cache.remove(`${WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`),
+      cache.remove(`${WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`),
+      cache.remove(`${WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`),
+    ]);
   }
   await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
 };
@@ -288,7 +299,7 @@ export const handleInvoiceFinalized = async (
     .values({
       workspaceId: workspaceId,
       bytes: 0,
-      signalSteps: 0,
+      signalCost: 0,
       lastReportedDate: sql`date_trunc('day', ${resetDate})`,
     })
     .onConflictDoUpdate({
@@ -296,7 +307,7 @@ export const handleInvoiceFinalized = async (
       set: {
         lastReportedDate: sql`date_trunc('day', ${resetDate})`,
         ...(hasBytes ? { bytes: 0 } : {}),
-        ...(hasSignalRuns ? { signalSteps: 0 } : {}),
+        ...(hasSignalRuns ? { signalCost: 0 } : {}),
       },
     });
   await db
@@ -307,14 +318,14 @@ export const handleInvoiceFinalized = async (
 };
 
 // Extra overage warnings fired on Hobby only, above the included allowance, so users
-// accumulating a large overage bill are nudged before it grows further.
-const HOBBY_OVERAGE_WARNING_SIGNAL_STEPS = 15_000;
+// accumulating a large overage bill are nudged before it grows further. The signal
+// threshold is in micro-USD (1e-6 USD): $100
+const HOBBY_OVERAGE_WARNING_SIGNAL_COST_MICRO_USD = 100_000_000;
 const HOBBY_OVERAGE_WARNING_BYTES = 40 * 1024 ** 3; // 40 GiB
 
-// Default hard cap on Hobby signal-step overage. Deliberately pinned to the overage
-// warning threshold so the notification coincides with ingestion being blocked;
-// users can still raise/remove it from workspace usage settings.
-const HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_STEPS = HOBBY_OVERAGE_WARNING_SIGNAL_STEPS;
+// Default hard cap on Hobby signal cost, in micro-USD ($50). Users can still
+// raise/remove it from workspace usage settings.
+const HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_COST_MICRO_USD = HOBBY_OVERAGE_WARNING_SIGNAL_COST_MICRO_USD;
 
 const insertNewTierUsageWarnings = async ({
   workspaceId,
@@ -342,8 +353,8 @@ const insertNewTierUsageWarnings = async ({
       .where(
         and(
           eq(workspaceUsageWarnings.workspaceId, workspaceId),
-          eq(workspaceUsageWarnings.usageItem, "signal_steps_processed"),
-          eq(workspaceUsageWarnings.limitValue, currentTierConfig.includedSignalSteps)
+          eq(workspaceUsageWarnings.usageItem, "signal_cost"),
+          eq(workspaceUsageWarnings.limitValue, currentTierConfig.includedSignalCostMicroUsd)
         )
       );
   }
@@ -356,16 +367,16 @@ const insertNewTierUsageWarnings = async ({
     },
     {
       workspaceId,
-      usageItem: "signal_steps_processed",
-      limitValue: newTierConfig.includedSignalSteps,
+      usageItem: "signal_cost",
+      limitValue: newTierConfig.includedSignalCostMicroUsd,
     },
   ];
   if (newTierName === "hobby") {
     values.push(
       {
         workspaceId,
-        usageItem: "signal_steps_processed",
-        limitValue: HOBBY_OVERAGE_WARNING_SIGNAL_STEPS,
+        usageItem: "signal_cost",
+        limitValue: HOBBY_OVERAGE_WARNING_SIGNAL_COST_MICRO_USD,
       },
       {
         workspaceId,
@@ -386,8 +397,8 @@ const clearHobbyOverageWarnings = async (workspaceId: string) => {
     .where(
       and(
         eq(workspaceUsageWarnings.workspaceId, workspaceId),
-        eq(workspaceUsageWarnings.usageItem, "signal_steps_processed"),
-        eq(workspaceUsageWarnings.limitValue, HOBBY_OVERAGE_WARNING_SIGNAL_STEPS)
+        eq(workspaceUsageWarnings.usageItem, "signal_cost"),
+        eq(workspaceUsageWarnings.limitValue, HOBBY_OVERAGE_WARNING_SIGNAL_COST_MICRO_USD)
       )
     );
   await db
@@ -401,7 +412,7 @@ const clearHobbyOverageWarnings = async (workspaceId: string) => {
     );
 };
 
-// Hobby gets a default hard cap on signal steps processed so cheaper-than-Pro customers
+// Hobby gets a default hard cap on signal cost so cheaper-than-Pro customers
 // don't silently accrue overage charges; Pro intentionally has no default cap. `newTierName`
 // is undefined when the workspace moves to Free (cancellation), which must still trigger the
 // Hobby cleanup — otherwise a canceled Hobby leaves a default row that would silently re-apply
@@ -416,35 +427,58 @@ const upsertDefaultTierUsageLimits = async ({
   currentTierName?: PaidTier;
 }) => {
   // Preserve user overrides: only clear the default when it still matches a known Hobby
-  // default. TIER_CONFIG["hobby"].includedSignalSteps covers workspaces whose default was
-  // written before the hard cap was raised to HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_STEPS. Looked
-  // up here (not accepted from the caller) so the cleanup does not silently skip when the
-  // caller forgets to pass currentTierConfig.
+  // default. TIER_CONFIG["hobby"].includedSignalCostMicroUsd covers workspaces whose default
+  // was written before the hard cap was raised to HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_COST_MICRO_USD.
+  // Looked up here (not accepted from the caller) so the cleanup does not silently skip when
+  // the caller forgets to pass currentTierConfig.
   if (currentTierName === "hobby" && newTierName !== "hobby") {
-    const clearableValues = [HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_STEPS];
-    const legacyHobbyDefault = TIER_CONFIG.hobby.includedSignalSteps;
+    const clearableValues = [HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_COST_MICRO_USD];
+    const legacyHobbyDefault = TIER_CONFIG.hobby.includedSignalCostMicroUsd;
     if (!clearableValues.includes(legacyHobbyDefault)) {
       clearableValues.push(legacyHobbyDefault);
     }
-    await db
+    const deleted = await db
       .delete(workspaceUsageLimits)
       .where(
         and(
           eq(workspaceUsageLimits.workspaceId, workspaceId),
-          eq(workspaceUsageLimits.limitType, "signal_steps_processed"),
+          eq(workspaceUsageLimits.limitType, "signal_cost"),
           inArray(workspaceUsageLimits.limitValue, clearableValues)
         )
-      );
+      )
+      .returning({ id: workspaceUsageLimits.id });
+    // Mirror the user-facing delete path: clearing the default hard limit must also
+    // drop the dedup stamp so a re-applied limit on a future upgrade starts fresh.
+    // Best-effort: the limit delete already committed, and a throw here would skip
+    // the warnings sync + cache invalidations in the caller's try block.
+    if (deleted.length > 0) {
+      try {
+        await deleteHardLimitNotification(workspaceId, "signal_cost");
+      } catch (e) {
+        console.error("Failed to clear hard-limit dedup row on Hobby default limit delete, continuing", e);
+      }
+    }
   }
 
   if (newTierName === "hobby") {
-    await db
+    const inserted = await db
       .insert(workspaceUsageLimits)
       .values({
         workspaceId,
-        limitType: "signal_steps_processed",
-        limitValue: HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_STEPS,
+        limitType: "signal_cost",
+        limitValue: HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_COST_MICRO_USD,
       })
-      .onConflictDoNothing({ target: [workspaceUsageLimits.workspaceId, workspaceUsageLimits.limitType] });
+      .onConflictDoNothing({ target: [workspaceUsageLimits.workspaceId, workspaceUsageLimits.limitType] })
+      .returning({ id: workspaceUsageLimits.id });
+    // A freshly inserted default is a brand-new limit; drop any leftover dedup stamp
+    // (e.g. from a prior Hobby stint) so the first breach under the new limit notifies.
+    // Best-effort, same as the delete path above.
+    if (inserted.length > 0) {
+      try {
+        await deleteHardLimitNotification(workspaceId, "signal_cost");
+      } catch (e) {
+        console.error("Failed to clear hard-limit dedup row on Hobby default limit insert, continuing", e);
+      }
+    }
   }
 };

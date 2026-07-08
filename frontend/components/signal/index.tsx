@@ -47,6 +47,7 @@ function SignalContent({ slackClientId, slackRedirectUri, slackBrokerEnabled }: 
         schemaFields: form.schemaFields,
         triggers: form.triggers,
         sampleRate: form.sampleRate,
+        disabled: form.disabled,
       });
     },
     [signal, setSignal]
@@ -100,6 +101,7 @@ function SignalContent({ slackClientId, slackRedirectUri, slackBrokerEnabled }: 
             const params = new URLSearchParams(searchParams);
             params.delete("traceId");
             params.delete("spanId");
+            params.delete("eventId");
             push(`${pathName}?${params.toString()}`);
             setTraceId(null);
             setSpanId(null);

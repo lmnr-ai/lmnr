@@ -1,10 +1,12 @@
 import {
-  generateObject,
   generateText,
   type GenerateTextResult,
   jsonSchema,
+  type LanguageModelUsage,
   modelMessageSchema,
+  Output,
   type ToolSet,
+  type TypedToolCall,
 } from "ai";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
@@ -54,10 +56,35 @@ export const PlaygroundParamsSchema = z.object({
   abortSignal: z.any().optional(),
 });
 
+const emptyUsage: LanguageModelUsage = {
+  inputTokens: 0,
+  inputTokenDetails: { noCacheTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+  outputTokens: 0,
+  outputTokenDetails: { textTokens: 0, reasoningTokens: 0 },
+  totalTokens: 0,
+};
+
 export interface ChatGenerationResult {
-  result: GenerateTextResult<ToolSet, Record<string, never>>;
+  result: GenerateTextResult<ToolSet, Record<string, never>, never>;
   startTime: Date;
   endTime: Date;
+}
+
+/**
+ * Plain, serialization-safe result sent to the client.
+ *
+ * The AI SDK's `GenerateTextResult` is a class whose fields (`reasoning`,
+ * `usage`, `finalStep`, ...) are prototype getters — they do NOT survive an
+ * object spread or JSON serialization. So we materialize exactly what the
+ * client and span-attribute builder need into own properties here.
+ */
+export interface PlaygroundChatResult {
+  text: string;
+  reasoningText: string;
+  toolCalls: TypedToolCall<ToolSet>[];
+  usage: LanguageModelUsage;
+  finishReason: string | undefined;
+  response?: { modelId?: string };
 }
 
 export async function getProviderApiKey(projectId: string, provider: Provider): Promise<string> {
@@ -115,7 +142,10 @@ export async function generateChatResponse(
   let result: any;
 
   if (structuredOutput) {
-    const objectResult = await generateObject({
+    // Keep the live result instance — spreading it into a plain object would drop
+    // the class getters (finalStep/reasoning/reasoningText/usage/...). The `text`
+    // override for structured output is applied later in handleChatGeneration.
+    result = await generateText({
       abortSignal,
       model: getModel(model as `${Provider}:${string}`, decodedKey),
       messages,
@@ -124,19 +154,8 @@ export async function generateChatResponse(
       topK,
       topP,
       providerOptions,
-      schema: jsonSchema(structuredOutput),
+      output: Output.object({ schema: jsonSchema(structuredOutput) }),
     });
-
-    result = {
-      ...objectResult,
-      text: JSON.stringify(objectResult.object, null, 2),
-      reasoning: [],
-      toolCalls: [],
-      content: [],
-      files: [],
-      sources: [],
-      reasoningText: "",
-    };
   } else {
     result = await generateText({
       abortSignal,
@@ -163,36 +182,24 @@ export async function generateChatResponse(
 
 export async function handleChatGeneration(
   params: z.infer<typeof PlaygroundParamsSchema>
-): Promise<GenerateTextResult<ToolSet, Record<string, never>>> {
+): Promise<PlaygroundChatResult> {
   const parsedParams = PlaygroundParamsSchema.parse(params);
   const { messages, model, projectId, maxTokens, temperature, topP, topK, playgroundId, structuredOutput } =
     parsedParams;
 
   const { result, startTime, endTime } = await generateChatResponse(parsedParams);
 
-  const safeResult: GenerateTextResult<ToolSet, Record<string, never>> = {
-    ...result,
-    text: result.text || "",
-    reasoning: result.reasoning || [],
+  const finalStep = result.finalStep;
+
+  // In v7, generateText + Output.object still surfaces reasoning (thinking models),
+  // so we keep it. Structured runs don't pass tools, so toolCalls stays empty.
+  const safeResult: PlaygroundChatResult = {
+    text: structuredOutput ? JSON.stringify(result.output, null, 2) : result.text || "",
+    reasoningText: finalStep?.reasoningText || "",
     toolCalls: result.toolCalls || [],
-    usage: result.usage || {
-      inputTokens: 0,
-      outputTokens: 0,
-      reasoningTokens: 0,
-      cachedInputTokens: 0,
-      totalTokens: 0,
-    },
-    totalUsage: result.totalUsage || {
-      inputTokens: 0,
-      outputTokens: 0,
-      reasoningTokens: 0,
-      cachedInputTokens: 0,
-      totalTokens: 0,
-    },
-    content: result.content || [],
-    files: result.files || [],
-    sources: result.sources || [],
-    reasoningText: result.reasoningText || "",
+    usage: result.usage || emptyUsage,
+    finishReason: result.finishReason,
+    response: finalStep?.response ? { modelId: finalStep.response.modelId } : undefined,
   };
 
   try {

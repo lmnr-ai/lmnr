@@ -244,8 +244,7 @@ pub(crate) fn resolve_provider_name() -> Result<String, ProviderError> {
 /// Build the span input value from a [`ProviderRequest`] by combining
 /// `contents` with `system_instruction` (relabeled as role `"system"`)
 /// prepended. Used by callers that emit observability spans for an
-/// LLM call (signals worker, preview pipelines).
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+/// LLM call (signals worker, preview pipelines, system_extraction).
 pub fn request_to_span_input(request: &ProviderRequest) -> serde_json::Value {
     let mut contents = request.contents.clone();
     if let Some(mut sys) = request.system_instruction.clone() {
@@ -257,7 +256,6 @@ pub fn request_to_span_input(request: &ProviderRequest) -> serde_json::Value {
 
 /// Convert [`ProviderRequest`] tools into the `ai.prompt.tools`
 /// attribute format expected by the trace UI.
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub fn request_to_tools_attr(request: &ProviderRequest) -> Option<serde_json::Value> {
     let tools = request.tools.as_ref()?;
     let tool_array: Vec<serde_json::Value> = tools
@@ -350,8 +348,8 @@ pub fn model_for_size(provider: &str, size: ModelSize) -> String {
         ("gemini", ModelSize::Medium) => "gemini-3-flash-preview".to_string(),
         ("gemini", ModelSize::Large) => "gemini-3.1-pro-preview".to_string(),
         ("bedrock", ModelSize::Small) => "us.anthropic.claude-haiku-4-5-20251001-v1:0".to_string(),
-        ("bedrock", ModelSize::Medium) => "us.anthropic.claude-sonnet-4-6".to_string(),
-        ("bedrock", ModelSize::Large) => "us.anthropic.claude-opus-4-7".to_string(),
+        ("bedrock", ModelSize::Medium) => "us.anthropic.claude-sonnet-5".to_string(),
+        ("bedrock", ModelSize::Large) => "us.anthropic.claude-opus-4-8".to_string(),
         ("openai", ModelSize::Small) => "gpt-5.4-mini".to_string(),
         ("openai", ModelSize::Medium) => "gpt-5.4".to_string(),
         ("openai", ModelSize::Large) => "gpt-5.5".to_string(),
@@ -492,7 +490,6 @@ impl LlmClient {
     /// Resolve `(model, provider)` strings for `request` without firing
     /// the call. Used by callers that record the resolved model/provider
     /// in side-channel observability spans before/after `generate_content`.
-    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     pub fn resolve_model_provider(&self, request: &ProviderRequest) -> (String, String) {
         let provider_name = request
             .provider

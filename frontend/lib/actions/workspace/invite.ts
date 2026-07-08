@@ -121,7 +121,7 @@ export const inviteUserToWorkspace = async (input: z.infer<typeof InviteUserSche
       workspaceId,
     },
     (process.env.BETTER_AUTH_SECRET ?? process.env.NEXTAUTH_SECRET)!,
-    { expiresIn: "48h" }
+    { expiresIn: "7d" }
   );
 
   // Build from ORIGIN + the build-time-baked BASE_PATH, not the raw env URL: the

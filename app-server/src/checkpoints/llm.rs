@@ -116,7 +116,13 @@ fn content_text(content: &ProviderContent) -> String {
     content
         .parts
         .as_ref()
-        .map(|parts| parts.iter().filter_map(|p| p.text.clone()).collect::<Vec<_>>().join(""))
+        .map(|parts| {
+            parts
+                .iter()
+                .filter_map(|p| p.text.clone())
+                .collect::<Vec<_>>()
+                .join("")
+        })
         .unwrap_or_default()
 }
 

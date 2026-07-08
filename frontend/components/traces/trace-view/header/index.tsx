@@ -1,4 +1,4 @@
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUpRight, ChevronsRight, Layers, Maximize, Radio, Sparkles, User } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
@@ -10,7 +10,7 @@ import { TraceTagsButton, TraceTagsPills, useTraceTags } from "@/components/tags
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
-import { type TraceSignal } from "@/components/traces/trace-view/store/base";
+import { type TraceSignal, type TraceSignalClusterNode } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
@@ -29,10 +29,11 @@ import TraceDropdown from "./trace-dropdown";
 
 const HEADER_ITEM_CLS = "flex items-center h-7";
 
-const FREE_TIER_RETENTION_DAYS = 15;
+const FREE_TIER_RETENTION_DAYS = 7;
 
 interface HeaderProps {
-  handleClose: () => void;
+  // Undefined ⇒ the close button is hidden (always-open panel).
+  handleClose?: () => void;
   spans: TraceViewSpan[];
   onSearch: (filters: Filter[], search: string) => void;
   traceId: string;
@@ -48,6 +49,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
 
   const {
     trace,
+    tab,
     condensedTimelineEnabled,
     setCondensedTimelineEnabled,
     tracesAgentOpen,
@@ -63,6 +65,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   } = useTraceViewStore(
     (state) => ({
       trace: state.trace,
+      tab: state.tab,
       condensedTimelineEnabled: state.condensedTimelineEnabled,
       setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
       tracesAgentOpen: state.tracesAgentOpen,
@@ -102,8 +105,8 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           signalName: string;
           prompt: string;
           structuredOutput: Record<string, unknown>;
-          leafCluster?: { id: string; name: string; level: number } | null;
-          events: EventRow[];
+          leafCluster?: TraceSignalClusterNode | null;
+          events: Array<EventRow & { leafCluster?: TraceSignalClusterNode | null }>;
         }>;
         if (!Array.isArray(data)) return;
 
@@ -117,15 +120,30 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
             type: f.type,
             description: f.description,
           })),
-          events: Array.isArray(s.events) ? s.events : [],
+          events: Array.isArray(s.events)
+            ? s.events.map((e) => ({
+                id: e.id,
+                signalId: e.signalId,
+                traceId: e.traceId,
+                payload: e.payload,
+                timestamp: e.timestamp,
+                severity: e.severity,
+                leafCluster: e.leafCluster ?? null,
+              }))
+            : [],
         }));
 
         setTraceSignals(mapped);
 
         if (mapped.length > 0) {
           setSignalsPanelOpen(true);
+          // A deep link with eventId points at one specific finding — open the
+          // signal tab that owns it so the highlighted card is visible. Fall
+          // back to the initial signal, then the first signal.
+          const eventId = searchParams.get("eventId");
+          const owner = eventId ? mapped.find((s) => s.events.some((e) => e.id === eventId)) : undefined;
           const preferred = initialSignalId ? mapped.find((s) => s.signalId === initialSignalId) : undefined;
-          setActiveSignalTabId(preferred?.signalId ?? mapped[0].signalId);
+          setActiveSignalTabId(owner?.signalId ?? preferred?.signalId ?? mapped[0].signalId);
         }
       } catch {
         toast({ variant: "destructive", title: "Failed to load trace signals" });
@@ -180,9 +198,11 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
         <div className="flex items-center gap-1 flex-1 min-w-0">
           {!params?.traceId && (
             <span className={cn(HEADER_ITEM_CLS, "gap-0.5")}>
-              <Button variant="ghost" className="h-7 px-0.5" onClick={handleClose}>
-                <ChevronsRight className="w-5 h-5" />
-              </Button>
+              {handleClose && (
+                <Button variant="ghost" className="h-7 px-0.5" onClick={handleClose}>
+                  <ChevronsRight className="w-5 h-5" />
+                </Button>
+              )}
               {trace && (
                 <NextLink passHref href={`/project/${projectId}/traces/${trace?.id}?${fullScreenParams.toString()}`}>
                   <Button variant="ghost" className="h-7 px-0.5">
@@ -295,14 +315,25 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           />
         )}
       </AnimatePresence>
-      <div className="flex items-center gap-2 mt-2">
-        <TraceViewSearch
-          spans={spans}
-          onSubmit={onSearch}
-          className="flex-1"
-          initialSearch={initialSearch || undefined}
-        />
-      </div>
+      {/* Search targets the tree/transcript span list — hide it in custom render view. */}
+      <AnimatePresence initial={false}>
+        {tab !== "custom" && (
+          <motion.div
+            className="flex items-center gap-2 overflow-hidden"
+            initial={{ height: 0, opacity: 0, marginTop: 0 }}
+            animate={{ height: "auto", opacity: 1, marginTop: 8 }}
+            exit={{ height: 0, opacity: 0, marginTop: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+          >
+            <TraceViewSearch
+              spans={spans}
+              onSubmit={onSearch}
+              className="flex-1"
+              initialSearch={initialSearch || undefined}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
       {spans.length > 0 && (
         <CondensedTimelineControls enabled={condensedTimelineEnabled} setEnabled={setCondensedTimelineEnabled} />
       )}

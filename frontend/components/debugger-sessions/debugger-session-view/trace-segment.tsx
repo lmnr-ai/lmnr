@@ -26,7 +26,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SpanType, type TraceRow } from "@/lib/traces/types";
 
 import CopyFlag from "./copy-flag";
-import RunComment from "./run-comment";
 import { traceAnchorId } from "./session-outline/utils";
 import { useDebuggerSessionViewStore } from "./store";
 
@@ -167,7 +166,6 @@ export default function TraceSegment({
   const scrollToGroup = useSessionViewBaseStore((s) => s.scrollToGroup);
   const consumeScrollToGroup = useSessionViewBaseStore((s) => s.consumeScrollToGroup);
 
-  const note = useDebuggerSessionViewStore((s) => s.noteForTrace(traceId));
   // In-flight → skeleton; settled + empty → "No spans found". Expanding starts a
   // fetch synchronously, so an empty segment is never mislabeled pre-fetch.
   const isLoading = useDebuggerSessionViewStore((s) => !!s.traceSpansFetching[traceId]);
@@ -319,12 +317,6 @@ export default function TraceSegment({
 
   return (
     <div id={traceAnchorId(traceId)} className="relative">
-      {note && (
-        <div className="px-1 pb-5 pt-1">
-          <RunComment traceId={traceId} />
-        </div>
-      )}
-
       {/* Always sticky (collapsed AND expanded): CSS bounds it to THIS container,
           so it pins at the top and is pushed out by the segment's bottom edge.
           When collapsed the body below it is the (non-sticky) TraceCollapsedBody

@@ -75,6 +75,7 @@ struct RealtimeSpan {
 /// span under this association-property key — NOT as a bare
 /// `lmnr.rollout.session_id` attribute (see send_span_updates).
 const ROLLOUT_SESSION_SPAN_ATTR: &str = "lmnr.association.properties.metadata.rollout.session_id";
+const EVALUATION_SPAN_ATTR: &str = "lmnr.association.properties.metadata.evaluation_id";
 
 /// Send realtime span update events to SSE connections for specific traces, and
 /// to the owning debug session channel when the span carries the session id.
@@ -92,11 +93,19 @@ pub async fn send_span_updates(spans: &[Span], pubsub: &PubSub) {
             .or_default()
             .push(span_data.clone());
 
-        if let Some(rollout_session_id) = span
+        // Eval spans carry the session id too, but stay off the debugger channel.
+        let is_evaluation_span = span
             .attributes
             .raw_attributes
-            .get(ROLLOUT_SESSION_SPAN_ATTR)
-            .and_then(|v| v.as_str())
+            .get(EVALUATION_SPAN_ATTR)
+            .is_some();
+
+        if !is_evaluation_span
+            && let Some(rollout_session_id) = span
+                .attributes
+                .raw_attributes
+                .get(ROLLOUT_SESSION_SPAN_ATTR)
+                .and_then(|v| v.as_str())
         {
             spans_by_rollout_session
                 .entry((span.project_id, rollout_session_id.to_string()))
@@ -147,6 +156,17 @@ pub async fn send_trace_updates<T: Serialize>(
     send_to_key(pubsub, project_id, channel_key, message).await;
 }
 
+/// Push a resolved note / eval block to a debugger session (traces have their
+/// own path). `block` mirrors the frontend `SessionBlock` shape.
+pub async fn send_block_update(pubsub: &PubSub, project_id: &Uuid, session_id: &Uuid, block: Value) {
+    let message = SseMessage {
+        event_type: "block_update".to_string(),
+        data: serde_json::json!({ "sessionId": session_id, "block": block }),
+    };
+    let key = format!("rollout_session_{}", session_id);
+    send_to_key(pubsub, project_id, &key, message).await;
+}
+
 #[derive(Debug, Clone)]
 pub enum TraceChannel {
     Project,
@@ -175,8 +195,11 @@ pub async fn channels_for_trace(trace: &Trace, cache: &Cache) -> Vec<TraceChanne
         channels.push(TraceChannel::Project);
     }
 
-    if let Some(rollout_session_id) = rollout_session_id_from_metadata(trace) {
-        channels.push(TraceChannel::RolloutDebugger(rollout_session_id));
+    // Eval traces are surfaced as evaluation blocks, not runs — keep off the channel.
+    if !is_evaluation_trace {
+        if let Some(rollout_session_id) = rollout_session_id_from_metadata(trace) {
+            channels.push(TraceChannel::RolloutDebugger(rollout_session_id));
+        }
     }
 
     channels

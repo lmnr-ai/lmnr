@@ -238,6 +238,52 @@ async function getIntegrationWithToken(workspaceId: string) {
   return { ...integration, decryptedToken: token };
 }
 
+// Resolve a decrypted bot token by Slack team_id. team_id is not unique (a team can connect to many
+// Laminar workspaces) but every such install posts as the same bot user, so any of them works for a
+// team-scoped action like reacting. LIMIT 1; returns null when the team has no integration.
+async function getIntegrationTokenByTeamId(teamId: string): Promise<string | null> {
+  const [integration] = await db
+    .select({ teamId: slackIntegrations.teamId, token: slackIntegrations.token, nonceHex: slackIntegrations.nonceHex })
+    .from(slackIntegrations)
+    .where(eq(slackIntegrations.teamId, teamId))
+    .limit(1);
+
+  if (!integration) {
+    return null;
+  }
+
+  return decodeSlackToken(integration.teamId, integration.nonceHex, integration.token);
+}
+
+// Best-effort :eyes: reaction on a mentioned message, fired the moment the webhook receives the
+// mention (before the slow agent run) so the user sees an immediate ack. Never throws: a failure
+// (no token, missing scope, already_reacted, etc.) is logged and swallowed so it can't block
+// forwarding the mention.
+export async function addEyesReaction(input: { teamId: string; channel: string; ts: string }): Promise<void> {
+  try {
+    const token = await getIntegrationTokenByTeamId(input.teamId);
+    if (!token) {
+      return;
+    }
+
+    // Bound the call: it's awaited before forwarding the mention, so a hung Slack socket would block
+    // the agent from ever running. ~2.5s, then abort and continue (still best-effort).
+    const response = await fetch("https://slack.com/api/reactions.add", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "eyes", channel: input.channel, timestamp: input.ts }),
+      signal: AbortSignal.timeout(2500),
+    });
+    const data = await response.json();
+    // already_reacted (a Slack retry redelivered the mention) is harmless.
+    if (!data.ok && data.error !== "already_reacted") {
+      console.warn(`Slack reactions.add failed: ${data.error}`);
+    }
+  } catch (error) {
+    console.warn("Slack reactions.add threw (swallowed):", error);
+  }
+}
+
 const SLACK_CONVERSATIONS_PAGE_LIMIT = 500;
 
 interface SlackConversationsListResponse {

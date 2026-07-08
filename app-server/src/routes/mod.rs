@@ -5,6 +5,7 @@ pub mod rollouts;
 pub mod signal_events;
 pub mod spans;
 pub mod sql;
+pub mod system_extraction;
 pub mod types;
 use serde::Serialize;
 use types::*;

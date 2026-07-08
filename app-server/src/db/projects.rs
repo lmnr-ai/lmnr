@@ -27,13 +27,13 @@ pub struct ProjectWithWorkspaceBillingInfoDbRow {
     pub reset_time: DateTime<Utc>,
     pub workspace_project_ids: Vec<Uuid>,
     pub bytes_limit: i64,
-    pub signal_steps_limit: i64,
+    pub signal_cost_included_micro_usd: i64,
     /// Custom hard limit for bytes, configured by the user. Overrides tier limit when set.
     #[serde(default)]
     pub custom_bytes_limit: Option<i64>,
-    /// Custom hard limit for signal runs, configured by the user. Overrides tier limit when set.
+    /// Custom hard limit for signal cost (micro-USD), configured by the user. Overrides tier limit when set.
     #[serde(default)]
-    pub custom_signal_steps_limit: Option<i64>,
+    pub signal_cost_hard_limit_micro_usd: Option<i64>,
     /// `projects.settings` JSONB, opaque to the SQL row binding (we hand it
     /// to serde_json on the way into the typed `ProjectWithWorkspaceBillingInfo`).
     #[serde(default)]
@@ -81,13 +81,16 @@ impl WorkspaceTierName {
         }
     }
 
-    /// Signal steps included in this tier's monthly plan. Must stay in sync
-    /// with `TIER_CONFIG.includedSignalSteps` values in the frontend.
-    pub fn included_signal_steps(&self) -> Option<i64> {
+    /// Signal cost included in this tier's monthly plan, in micro-USD (1e-6
+    /// USD). Signals are billed by the token cost the agent spends, so the
+    /// included allowance is a dollar amount: $5 Free, $15 Hobby, $50 Pro.
+    /// Must stay in sync with `TIER_CONFIG.includedSignalCostMicroUsd` in the
+    /// frontend and the `subscription_tiers.signal_cost_included_micro_usd` DB column.
+    pub fn included_signal_cost_micro_usd(&self) -> Option<i64> {
         match self {
-            Self::Free => Some(500),
-            Self::Hobby => Some(5_000),
-            Self::Pro => Some(50_000),
+            Self::Free => Some(5_000_000),
+            Self::Hobby => Some(15_000_000),
+            Self::Pro => Some(50_000_000),
             Self::Other => None,
         }
     }
@@ -112,13 +115,13 @@ pub struct ProjectWithWorkspaceBillingInfo {
     pub reset_time: DateTime<Utc>,
     pub workspace_project_ids: Vec<Uuid>,
     pub bytes_limit: i64,
-    pub signal_steps_limit: i64,
+    pub signal_cost_included_micro_usd: i64,
     /// Custom hard limit for bytes, configured by the user. Overrides tier limit when set.
     #[serde(default)]
     pub custom_bytes_limit: Option<i64>,
-    /// Custom hard limit for signal runs, configured by the user. Overrides tier limit when set.
+    /// Custom hard limit for signal cost (micro-USD), configured by the user. Overrides tier limit when set.
     #[serde(default)]
-    pub custom_signal_steps_limit: Option<i64>,
+    pub signal_cost_hard_limit_micro_usd: Option<i64>,
     /// Typed view of `projects.settings`. Unknown keys are tolerated;
     /// missing keys fall back to the field's `Default` impl.
     #[serde(default)]
@@ -145,9 +148,9 @@ impl Into<ProjectWithWorkspaceBillingInfo> for ProjectWithWorkspaceBillingInfoDb
             reset_time: self.reset_time,
             workspace_project_ids: self.workspace_project_ids,
             bytes_limit: self.bytes_limit,
-            signal_steps_limit: self.signal_steps_limit,
+            signal_cost_included_micro_usd: self.signal_cost_included_micro_usd,
             custom_bytes_limit: self.custom_bytes_limit,
-            custom_signal_steps_limit: self.custom_signal_steps_limit,
+            signal_cost_hard_limit_micro_usd: self.signal_cost_hard_limit_micro_usd,
             settings,
         }
     }
@@ -168,6 +171,43 @@ pub async fn get_projects_for_workspace(
             .bind(workspace_id)
             .fetch_all(pool)
             .await?;
+
+    Ok(projects)
+}
+
+/// A project plus its owning workspace — used by the in-Slack project picker, which spans EVERY
+/// workspace a Slack team is connected to (so the binding write knows which workspace to scope to).
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+#[derive(FromRow, Debug, Clone)]
+pub struct ProjectForTeam {
+    pub id: Uuid,
+    pub name: String,
+    // Selected for the binding write (frontend interaction handler); app-server doesn't read it.
+    #[allow(dead_code)]
+    pub workspace_id: Uuid,
+}
+
+/// Every project across ALL Laminar workspaces a given Slack `team_id` is connected to. A team can be
+/// connected to many workspaces (`slack_integrations` is unique on `workspace_id`, not `team_id`), so
+/// the picker enumerates them all. Each row carries its `workspace_id` so the chosen project can be
+/// bound to the right workspace.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub async fn get_projects_for_team(
+    pool: &PgPool,
+    team_id: &str,
+) -> anyhow::Result<Vec<ProjectForTeam>> {
+    let projects = sqlx::query_as::<_, ProjectForTeam>(
+        r#"
+        SELECT p.id, p.name, p.workspace_id
+        FROM projects p
+        JOIN slack_integrations si ON si.workspace_id = p.workspace_id
+        WHERE si.team_id = $1
+        ORDER BY p.name
+        "#,
+    )
+    .bind(team_id)
+    .fetch_all(pool)
+    .await?;
 
     Ok(projects)
 }
@@ -249,9 +289,9 @@ pub async fn get_project_and_workspace_billing_info(
             workspaces.reset_time,
             COALESCE(workspace_project_ids.project_ids, '{}') as workspace_project_ids,
             subscription_tiers.bytes_ingested as bytes_limit,
-            subscription_tiers.signal_steps_processed as signal_steps_limit,
+            subscription_tiers.signal_cost_included_micro_usd as signal_cost_included_micro_usd,
             wul_bytes.limit_value as custom_bytes_limit,
-            wul_signal_steps.limit_value as custom_signal_steps_limit,
+            wul_signal_cost.limit_value as signal_cost_hard_limit_micro_usd,
             projects.settings
         FROM
             projects
@@ -260,8 +300,8 @@ pub async fn get_project_and_workspace_billing_info(
             LEFT join workspace_project_ids on projects.workspace_id = workspace_project_ids.workspace_id
             LEFT join workspace_usage_limits wul_bytes
                 on wul_bytes.workspace_id = workspaces.id AND wul_bytes.limit_type = 'bytes'
-            LEFT join workspace_usage_limits wul_signal_steps
-                on wul_signal_steps.workspace_id = workspaces.id AND wul_signal_steps.limit_type = 'signal_steps_processed'
+            LEFT join workspace_usage_limits wul_signal_cost
+                on wul_signal_cost.workspace_id = workspaces.id AND wul_signal_cost.limit_type = 'signal_cost'
         WHERE
             projects.id = $1",
     )

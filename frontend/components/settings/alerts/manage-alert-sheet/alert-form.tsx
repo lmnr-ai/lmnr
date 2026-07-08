@@ -86,12 +86,12 @@ export function AlertForm({
 
   const { toast } = useToast();
 
-  const form = useForm<AlertFormValues>({ defaultValues });
+  const form = useForm<AlertFormValues>({ defaultValues, mode: "onChange" });
   const {
     control,
     handleSubmit,
     watch,
-    formState: { isSubmitting },
+    formState: { isSubmitting, isValid, isDirty },
   } = form;
 
   const alertType = watch("type");
@@ -303,19 +303,23 @@ export function AlertForm({
         const url = isEditMode ? `/api/projects/${projectId}/alerts/${alert.id}` : `/api/projects/${projectId}/alerts`;
         const method = isEditMode ? "PATCH" : "POST";
 
+        // Only persist `disabled` when deactivated; absence means active.
+        const disabledMeta = data.disabled ? { disabled: true } : {};
         const metadata =
           data.type === ALERT_TYPE.SIGNAL_EVENT
             ? {
                 severities: Array.from(new Set(data.severities)).sort((a, b) => a - b),
                 // Force skipSimilar off without clustering so a stale form value can't leak through.
                 skipSimilar: clusteringEnabled ? data.skipSimilar : false,
+                ...disabledMeta,
               }
-            : {};
+            : { ...disabledMeta };
 
         const res = await fetch(url, {
           method,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            ...(isEditMode && { action: "update" }),
             name: data.name.trim(),
             type: data.type,
             sourceId: selectedSignal.id,
@@ -450,6 +454,48 @@ export function AlertForm({
       <form className="flex flex-col flex-1 overflow-hidden" onSubmit={handleSubmit(onSubmit)}>
         <ScrollArea className="flex-1">
           <div className="flex flex-col gap-8 p-4 pb-24">
+            {isEditMode && (
+              <Controller
+                name="disabled"
+                control={control}
+                render={({ field }) => {
+                  const isActive = !field.value;
+                  return (
+                    <div
+                      className={cn(
+                        "flex items-center justify-between gap-4 rounded-lg border p-4 transition-colors",
+                        isActive ? "border-primary/40 bg-primary/5" : "border-border bg-muted/40"
+                      )}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span
+                          className={cn(
+                            "inline-flex size-2.5 shrink-0 rounded-full",
+                            isActive ? "bg-primary" : "bg-muted-foreground/40"
+                          )}
+                        />
+                        <div className="flex flex-col gap-0.5 min-w-0">
+                          <Label htmlFor="alert-enabled" className="text-sm font-medium cursor-pointer">
+                            {isActive ? "Active" : "Inactive"}
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            {isActive
+                              ? "This alert is sending notifications."
+                              : "Paused — notifications aren't sent. The alert's configuration is kept."}
+                          </p>
+                        </div>
+                      </div>
+                      <Switch
+                        id="alert-enabled"
+                        checked={isActive}
+                        onCheckedChange={(checked) => field.onChange(!checked)}
+                      />
+                    </div>
+                  );
+                }}
+              />
+            )}
+
             <Controller
               name="name"
               control={control}
@@ -706,7 +752,7 @@ export function AlertForm({
           </div>
         </ScrollArea>
         <div className="flex justify-end px-4 py-3 border-t">
-          <Button type="submit" disabled={isSubmitting || !selectedSignal || !alertType}>
+          <Button type="submit" disabled={isSubmitting || !selectedSignal || !alertType || !isValid || !isDirty}>
             <Loader2 className={cn("mr-2 hidden", { "animate-spin block": isSubmitting })} size={16} />
             {isEditMode ? "Save" : "Create"}
           </Button>

@@ -2,17 +2,17 @@
 
 import { type Row } from "@tanstack/react-table";
 import { debounce } from "lodash";
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams, usePathname, useSearchParams } from "next/navigation";
+import { parseAsString, useQueryState } from "nuqs";
+import { useCallback, useEffect, useMemo } from "react";
 import useSWR from "swr";
 import { shallow } from "zustand/shallow";
 
-import Chart from "@/components/evaluation/chart";
-import CompareChart from "@/components/evaluation/compare-chart";
-import DatapointRunsChart from "@/components/evaluation/datapoint-runs-chart";
+import EvalTraceLayout from "@/components/evaluation/eval-trace-layout";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
-import ScoreCard from "@/components/evaluation/score-card";
+import RowScoreChips from "@/components/evaluation/row-score-chips";
+import RunScoreCard from "@/components/evaluation/run-score-card";
 import {
   buildColumnDefs,
   buildFetchParams,
@@ -30,13 +30,11 @@ import {
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableConfigStore, useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import { Skeleton } from "@/components/ui/skeleton";
 import { type EvalRow, type Evaluation as EvaluationType, type EvaluationResultsInfo } from "@/lib/evaluation/types";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { swrFetcher } from "@/lib/utils";
 
-import { TraceViewSidePanel } from "../traces/trace-view";
-import Header from "../ui/header";
+import TraceView from "../traces/trace-view";
 
 interface EvaluationProps {
   evaluations: EvaluationType[];
@@ -47,10 +45,13 @@ interface EvaluationProps {
 
 const PAGE_SIZE = 50;
 const BASE_COLUMN_ORDER = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
-const RESOURCE = "evaluation";
+// Forked from the pre-refresh "evaluation" resource so old persisted table
+// config never fights the new defaults.
+const RESOURCE = "evaluation-v1.1";
+// Default visibility: status + data + score:*.
+const DEFAULT_HIDDEN_COLUMNS = ["index", "target", "metadata", "output", "duration", "cost"];
 
-function EvaluationContent({ evaluations, evaluationId, evaluationName }: EvaluationProps) {
-  const { push } = useRouter();
+function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
   const pathName = usePathname();
   const searchParams = useSearchParams();
   const params = useParams<{ projectId: string }>();
@@ -85,7 +86,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
     [scoreNames, customColumns, isShared]
   );
 
-  // Stats SWR — drives the score card + chart.
+  // Stats SWR — drives the score chips + charts.
   const statsUrl = useMemo(() => {
     const base = `/api/projects/${params.projectId}/evaluations/${evaluationId}/stats`;
     const urlParams = buildStatsParams(
@@ -224,31 +225,31 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
     eventHandlers: realtimeHandlers,
   });
 
-  // Side-panel + selected-row state for trace view.
-  const [selectedScore, setSelectedScore] = useState<string | undefined>(() => scoreNames[0]);
-  // Lives here (not in the chart) so it survives trace switches — the chart remounts
-  // on the side panel's key={traceId}, which would otherwise reset local state.
-  const [runsChartCollapsed, setRunsChartCollapsed] = useState(false);
-  const [traceId, setTraceId] = useState<string | undefined>(() => searchParams.get("traceId") ?? undefined);
-  const [datapointId, setDatapointId] = useState<string | undefined>(
-    () => searchParams.get("datapointId") ?? undefined
+  // Selection is DERIVED from the URL, not stored — so a deep link whose
+  // datapoint hasn't loaded yet, a filter that drops the selected row, or a
+  // back/forward nav can never leave the always-open panel blank or stale.
+  // `datapointId` is the source of truth; `traceId` follows the resolved row.
+  const [datapointId, setDatapointId] = useQueryState("datapointId", parseAsString);
+  const [traceIdParam, setTraceIdParam] = useQueryState("traceId", parseAsString);
+
+  const firstRow = allDatapoints?.[0] as EvalRow | undefined;
+  // The open datapoint: the URL-linked row if it's loaded, else the first row.
+  const selectedRow = useMemo(() => {
+    const byId = datapointId ? allDatapoints?.find((r) => r["id"] === datapointId) : undefined;
+    return byId ?? firstRow;
+  }, [allDatapoints, datapointId, firstRow]);
+
+  // Prefer the resolved row's trace; fall back to a bare `?traceId` link (older
+  // shared links carried traceId without datapointId).
+  const traceId = (selectedRow?.["traceId"] as string | undefined) ?? traceIdParam ?? undefined;
+
+  const handleRowClick = useCallback(
+    (row: Row<EvalRow>) => {
+      setDatapointId(row.original["id"] as string);
+      setTraceIdParam(row.original["traceId"] as string);
+    },
+    [setDatapointId, setTraceIdParam]
   );
-
-  if (!selectedScore && scoreNames.length > 0) {
-    setSelectedScore(scoreNames[0]);
-  }
-
-  const selectedRow = useMemo<EvalRow | undefined>(
-    () => allDatapoints?.find((row) => row["id"] === datapointId),
-    [allDatapoints, datapointId]
-  );
-
-  const selectedIndex = selectedRow != null ? Number(selectedRow["index"]) : NaN;
-
-  const handleRowClick = useCallback((row: Row<EvalRow>) => {
-    setTraceId(row.original["traceId"] as string);
-    setDatapointId(row.original["id"] as string);
-  }, []);
 
   const getRowHref = useCallback(
     (row: Row<EvalRow>) => {
@@ -267,25 +268,6 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
     [setSort]
   );
 
-  const onClose = useCallback(() => {
-    setTraceId(undefined);
-    const next = new URLSearchParams(searchParams.toString());
-    next.delete("traceId");
-    next.delete("spanId");
-    push(`${pathName}?${next}`);
-  }, [searchParams, pathName, push]);
-
-  const handleTraceChange = useCallback(
-    (id: string) => {
-      const next = new URLSearchParams(searchParams);
-      next.set("traceId", id);
-      next.delete("spanId");
-      push(`${pathName}?${next}`);
-      setTraceId(id);
-    },
-    [searchParams, pathName, push]
-  );
-
   const visibleColumnDefs = useMemo(
     () => selectVisibleColumnDefs(columnDefs, isComparison),
     [columnDefs, isComparison]
@@ -301,116 +283,101 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
     [effective.filters, effective.search]
   );
 
+  const table = (
+    <EvaluationDatapointsTable
+      data={allDatapoints}
+      isLoading={isStatsLoading || isLoadingDatapoints || isViewLoading}
+      isFetching={isFetching}
+      hasMore={hasMore}
+      fetchNextPage={fetchNextPage}
+      columnDefs={columnDefs}
+      visibleColumnDefs={visibleColumnDefs}
+      isComparison={isComparison}
+      scoreRanges={scoreRanges}
+      datapointId={(selectedRow?.["id"] as string | undefined) ?? undefined}
+      handleRowClick={handleRowClick}
+      getRowHref={getRowHref}
+      sortBy={sortBy}
+      sortDirection={sortDirection}
+      onSort={handleSort}
+      heatmapEnabled={heatmapEnabled}
+      onHeatmapEnabledChange={setHeatmapEnabled}
+      onDeleteCustomColumn={onDeleteCustomColumn}
+      searchValue={searchValue}
+      onSearchChange={setSearchAndFilters}
+      viewsResource={RESOURCE}
+    />
+  );
+
   return (
     <>
-      <Header
-        path={[
-          { name: "evaluations", href: `/project/${params.projectId}/evaluations` },
-          { name: statsData?.evaluation?.name || evaluationName },
-        ]}
-      />
+      <EvaluationHeader name={statsData?.evaluation?.name} urlKey={statsUrl} evaluations={evaluations} />
       <div className="flex-1 flex gap-2 flex-col relative overflow-hidden">
-        <EvaluationHeader name={statsData?.evaluation?.name} urlKey={statsUrl} evaluations={evaluations} />
-        <div className="flex flex-col gap-2 flex-1 overflow-hidden px-4 pb-4">
-          <div className="flex flex-row space-x-4 p-4 border rounded bg-secondary">
-            {isStatsLoading ? (
-              <>
-                <Skeleton className="w-72 h-48" />
-                <Skeleton className="w-full h-48" />
-              </>
-            ) : (
-              <>
-                <div className="flex-none w-72">
-                  <ScoreCard
-                    scores={scoreNames}
-                    selectedScore={selectedScore}
-                    setSelectedScore={setSelectedScore}
-                    statistics={selectedScore ? (statsData?.allStatistics?.[selectedScore] ?? null) : null}
-                    comparedStatistics={
-                      selectedScore ? (targetStatsData?.allStatistics?.[selectedScore] ?? null) : null
-                    }
-                    isLoading={isStatsLoading}
+        {/* Left + top padding only: the trace panel must run flush to the right
+            and bottom edges when open, so those paddings live on the pieces that
+            need them (the table's right padding in EvalTraceLayout) rather than
+            the wrapper. */}
+        <div className="flex flex-col gap-2 flex-1 overflow-hidden pl-4 pt-2">
+          {/* Split view. LEFT = run aggregate card (score picker) above the table.
+              RIGHT = the selected datapoint's score pills above its always-open
+              trace view, flush to the right + bottom edges with a rounded top-left. */}
+          <EvalTraceLayout
+            table={
+              <div className="flex h-full w-full flex-col gap-2 overflow-hidden pb-4">
+                <RunScoreCard
+                  scoreNames={scoreNames}
+                  allStatistics={statsData?.allStatistics}
+                  allDistributions={statsData?.allDistributions}
+                  comparedAllStatistics={targetStatsData?.allStatistics}
+                  comparedAllDistributions={targetStatsData?.allDistributions}
+                  isComparison={isComparison}
+                />
+                <div className="flex min-h-0 flex-1 overflow-hidden">{table}</div>
+              </div>
+            }
+            traceColumn={
+              <div className="flex h-full flex-col overflow-hidden rounded-tl-lg border-l border-t bg-background">
+                <div className="flex-none border-b px-3 py-2">
+                  <RowScoreChips
+                    projectId={params.projectId}
+                    evaluations={evaluations}
+                    currentEvaluationId={evaluationId}
+                    scoreNames={scoreNames}
+                    row={selectedRow}
                   />
                 </div>
-                <div className="grow">
-                  {targetId ? (
-                    <CompareChart
-                      distribution={selectedScore ? (statsData?.allDistributions?.[selectedScore] ?? null) : null}
-                      comparedDistribution={
-                        selectedScore ? (targetStatsData?.allDistributions?.[selectedScore] ?? null) : null
-                      }
-                      isLoading={isStatsLoading}
-                    />
-                  ) : (
-                    <Chart
-                      scoreName={selectedScore}
-                      distribution={selectedScore ? (statsData?.allDistributions?.[selectedScore] ?? null) : null}
-                      isLoading={isStatsLoading}
-                    />
-                  )}
+                <div className="flex min-h-0 flex-1 overflow-hidden">
+                  {/* No onClose ⇒ always-open: the trace header shows no close button. */}
+                  {traceId && <TraceView key={traceId} traceId={traceId} />}
                 </div>
-              </>
-            )}
-          </div>
-          <EvaluationDatapointsTable
-            data={allDatapoints}
-            isLoading={isStatsLoading || isLoadingDatapoints || isViewLoading}
-            isFetching={isFetching}
-            hasMore={hasMore}
-            fetchNextPage={fetchNextPage}
-            columnDefs={columnDefs}
-            visibleColumnDefs={visibleColumnDefs}
-            isComparison={isComparison}
-            scoreRanges={scoreRanges}
-            datapointId={datapointId}
-            handleRowClick={handleRowClick}
-            getRowHref={getRowHref}
-            sortBy={sortBy}
-            sortDirection={sortDirection}
-            onSort={handleSort}
-            heatmapEnabled={heatmapEnabled}
-            onHeatmapEnabledChange={setHeatmapEnabled}
-            onDeleteCustomColumn={onDeleteCustomColumn}
-            searchValue={searchValue}
-            onSearchChange={setSearchAndFilters}
-            viewsResource={RESOURCE}
+              </div>
+            }
           />
         </div>
       </div>
-      {traceId && (
-        <TraceViewSidePanel onClose={onClose} traceId={traceId}>
-          {selectedRow && Number.isFinite(selectedIndex) && evaluations.length > 1 && (
-            <DatapointRunsChart
-              projectId={params.projectId}
-              index={selectedIndex}
-              evaluations={evaluations}
-              currentTraceId={traceId}
-              scoreNames={scoreNames}
-              selectedScore={selectedScore}
-              onSelectScore={setSelectedScore}
-              onSelectTrace={handleTraceChange}
-              collapsed={runsChartCollapsed}
-              onToggleCollapse={() => setRunsChartCollapsed((v) => !v)}
-            />
-          )}
-        </TraceViewSidePanel>
-      )}
     </>
   );
 }
 
 export default function Evaluation(props: EvaluationProps) {
   const { projectId } = useParams<{ projectId: string }>();
+
   const defaultColumnOrder = useMemo(
     () => [...BASE_COLUMN_ORDER, ...props.initialScoreNames.map((s) => `score:${s}`)],
     [props.initialScoreNames]
   );
 
+  const defaultColumnVisibility = useMemo(
+    () => Object.fromEntries(DEFAULT_HIDDEN_COLUMNS.map((id) => [id, false])),
+    []
+  );
+
   return (
     <EvalStoreProvider key={props.evaluationId} initialScoreNames={props.initialScoreNames}>
       <InfiniteDataTableProvider
+        key={RESOURCE}
         views={{ projectId, resource: RESOURCE }}
-        defaults={{ columnOrder: defaultColumnOrder }}
+        defaults={{ columnOrder: defaultColumnOrder, columnVisibility: defaultColumnVisibility }}
       >
         <EvaluationContent {...props} />
       </InfiniteDataTableProvider>

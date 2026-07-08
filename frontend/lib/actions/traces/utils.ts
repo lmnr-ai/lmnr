@@ -85,7 +85,7 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
 };
 
 // Traces table column mapping
-const tracesSelectColumns = [
+export const tracesSelectColumns = [
   "id",
   "formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime",
   "formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime",

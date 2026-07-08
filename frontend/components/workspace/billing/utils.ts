@@ -44,7 +44,7 @@ const buildInfo = (tier: TierKey): TierInfo => {
     priceSubtext,
     features: [
       `${formatDataIncluded(tier)} data`,
-      `${formatSignalsCount(tier)} Signals steps`,
+      `${formatSignalsCount(tier)} in Signals`,
       retentionLabel(tier),
       formatProjectsAndSeats(tier),
       formatSupport(tier),

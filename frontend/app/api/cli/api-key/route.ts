@@ -19,11 +19,8 @@ const Body = z
 // Mints a project API key for the session-bearer user. `lmnr-cli setup` is the
 // caller today (it writes LMNR_PROJECT_API_KEY into ./.env after login), but the
 // endpoint is intentionally generic — not bound to the setup flow. Auth comes
-// from a BetterAuth session token via the bearer() plugin.
-//
-// CLI-minted keys are ingest-only with no expiration: the CLI uses them purely to
-// send traces, and a setup key that silently expired would break ingestion with
-// no UI to renew it. The minting user is recorded for auditing.
+// from a BetterAuth session token via the bearer() plugin. CLI-minted keys have
+// no expiration. The minting user is recorded for auditing.
 export async function POST(req: NextRequest) {
   try {
     const session = await auth.api.getSession({ headers: await headers() });
@@ -59,7 +56,7 @@ export async function POST(req: NextRequest) {
       const key = await createApiKey({
         projectId: project.id,
         name: keyName,
-        isIngestOnly: true,
+        isIngestOnly: false,
         userId,
         expiresAt: null,
       });
@@ -103,7 +100,7 @@ export async function POST(req: NextRequest) {
     const key = await createApiKey({
       projectId: project.id,
       name: keyName,
-      isIngestOnly: true,
+      isIngestOnly: false,
       userId,
       expiresAt: null,
     });

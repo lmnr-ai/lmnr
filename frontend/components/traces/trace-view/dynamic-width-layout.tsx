@@ -91,7 +91,7 @@ export default function DynamicWidthLayout({ panels, sidePanelRef }: DynamicWidt
               transition={transition}
             >
               <div className="absolute inset-y-0 left-0 flex" style={{ width: widths.span }}>
-                <LeftEdgeResizeHandle onMouseDown={spanResize.handleMouseDown} />
+                <LeftEdgeResizeHandle onPointerDown={spanResize.handlePointerDown} />
                 {panels.spanPanel}
               </div>
             </motion.div>
@@ -108,7 +108,7 @@ export default function DynamicWidthLayout({ panels, sidePanelRef }: DynamicWidt
               transition={transition}
             >
               <div className="absolute inset-y-0 left-0 flex" style={{ width: widths.chat }}>
-                <LeftEdgeResizeHandle onMouseDown={chatResize.handleMouseDown} />
+                <LeftEdgeResizeHandle onPointerDown={chatResize.handlePointerDown} />
                 {panels.chatPanel}
               </div>
             </motion.div>

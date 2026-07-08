@@ -17,7 +17,8 @@ interface TraceViewProps {
   traceId: string;
   spanId?: string;
   propsTrace?: TraceViewTrace;
-  onClose: () => void;
+  // Omit to hide the close button entirely (e.g. an always-open panel).
+  onClose?: () => void;
   isFillWidth?: boolean;
   isAlwaysSelectSpan?: boolean;
   initialSignalId?: string;
@@ -108,10 +109,10 @@ function SidePanelLeftResizeHandle() {
     (panel: ResizablePanel, delta: number) => resizePanel(panel, delta, visible),
     [resizePanel, visible]
   );
-  const { handleMouseDown } = usePanelResize("trace", drag);
+  const { handlePointerDown } = usePanelResize("trace", drag);
 
   return (
-    <div className="group absolute inset-y-0 left-0 z-[60] w-2 cursor-col-resize" onMouseDown={handleMouseDown}>
+    <div className="group absolute inset-y-0 left-0 z-[60] w-2 cursor-col-resize" onPointerDown={handlePointerDown}>
       <div className="absolute inset-y-0 left-0 w-px bg-border transition-colors group-hover:w-0.5 group-hover:bg-blue-400" />
     </div>
   );

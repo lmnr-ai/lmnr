@@ -84,6 +84,7 @@ async fn create_session_event(
             db.into_inner(),
             clickhouse.into_inner().as_ref().clone(),
             cache.into_inner(),
+            queue.as_ref().clone(),
             project_api_key.project_id,
         )
         .await

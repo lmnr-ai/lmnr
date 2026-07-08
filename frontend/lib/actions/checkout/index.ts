@@ -227,7 +227,14 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
     newMegabytesOverageStr = (10 ** 15 - 1).toString();
   }
 
-  const newSignalRunsOverage = Math.max(0, usage.totalSignalSteps - newTierConfig.includedSignalSteps);
+  // `usage.totalSignalCostMicroUsd` and `includedSignalCostMicroUsd` are both
+  // in micro-USD. The Stripe signal-cost meter is priced per USD, so report the
+  // overage as a dollar amount (micro-USD / 1e6), rounded to 5 decimals.
+  const newSignalCostOverageMicroUsd = Math.max(
+    0,
+    usage.totalSignalCostMicroUsd - newTierConfig.includedSignalCostMicroUsd
+  );
+  const newSignalCostOverageUsd = (newSignalCostOverageMicroUsd / 1_000_000).toFixed(5);
 
   const subscription = await s.subscriptions.retrieve(workspace[0].subscriptionId);
 
@@ -237,14 +244,14 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
     lookup_keys: [
       newTierConfig.lookupKey,
       newTierConfig.overageMegabytesLookupKey,
-      newTierConfig.overageSignalStepsProcessedLookupKey,
+      newTierConfig.overageSignalCostLookupKey,
     ],
   });
 
   const newFlatPrice = newPrices.data.find((p) => p.lookup_key === newTierConfig.lookupKey);
   const newMegabytesOveragePrice = newPrices.data.find((p) => p.lookup_key === newTierConfig.overageMegabytesLookupKey);
   const newSignalRunsOveragePrice = newPrices.data.find(
-    (p) => p.lookup_key === newTierConfig.overageSignalStepsProcessedLookupKey
+    (p) => p.lookup_key === newTierConfig.overageSignalCostLookupKey
   );
 
   if (!newFlatPrice || !newMegabytesOveragePrice || !newSignalRunsOveragePrice) {
@@ -295,7 +302,7 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
       timestamp,
       payload: {
         stripe_customer_id: stripeCustomerId,
-        [METER_EVENT_NAMES.overageSignalRuns.payloadKey]: String(newSignalRunsOverage),
+        [METER_EVENT_NAMES.overageSignalRuns.payloadKey]: newSignalCostOverageUsd,
       },
     }),
   ]);

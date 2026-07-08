@@ -115,7 +115,7 @@ mod tests {
     use futures_util::stream;
 
     const CRLF_BODY: &str = concat!(
-        "data: {\"candidates\":[{\"content\":{\"parts\":[{\"functionCall\":{\"name\":\"compress_trace\",\"args\":{\"x\":1},\"id\":\"abc\"},\"thoughtSignature\":\"sig\"}],\"role\":\"model\"},\"index\":0}],\"modelVersion\":\"gemini-3-flash-preview\"}\r\n\r\n",
+        "data: {\"candidates\":[{\"content\":{\"parts\":[{\"functionCall\":{\"name\":\"get_trace_context\",\"args\":{\"x\":1},\"id\":\"abc\"},\"thoughtSignature\":\"sig\"}],\"role\":\"model\"},\"index\":0}],\"modelVersion\":\"gemini-3-flash-preview\"}\r\n\r\n",
         "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"\"}],\"role\":\"model\"},\"finishReason\":\"STOP\",\"index\":0}]}\r\n\r\n",
     );
 
@@ -157,8 +157,8 @@ mod tests {
             parts.iter().any(|p| p
                 .function_call
                 .as_ref()
-                .is_some_and(|f| f.name == "compress_trace")),
-            "compress_trace function call must survive CRLF framing reassembly"
+                .is_some_and(|f| f.name == "get_trace_context")),
+            "get_trace_context function call must survive CRLF framing reassembly"
         );
     }
 
