@@ -157,8 +157,9 @@ const minimalTraceRow = (traceId: string, metadata: Record<string, string> = {})
 // it (deleted, or not flushed to CH yet — realtime fills the latter in live).
 export type TraceRowState = "loading" | "loaded" | "missing";
 
-// Which kind of block arrived live — drives the "New trace" / "New eval" pill.
-export type NewBlockNotice = "trace" | "evaluation";
+// Which kind of block arrived live — drives the "New trace" / "New eval" /
+// "New note" pill.
+export type NewBlockNotice = "trace" | "evaluation" | "text";
 
 interface DebuggerSessionViewState {
   // The ordered timeline: trace / evaluation / text blocks. Single source of
@@ -550,8 +551,9 @@ export const createDebuggerSessionViewStore = (options: {
               void get().hydrateTraceRow(t.traceId);
               get().setTraceExpanded(t.traceId, true);
               // Pill only for genuinely new runs, after the initial fetch settles,
-              // so it can't flash on load.
-              if (!existingBlock && get().isInitialTracesLoaded) {
+              // so it can't flash on load. Don't overwrite an existing notice —
+              // the first unseen block the user hasn't scrolled to wins.
+              if (!existingBlock && get().isInitialTracesLoaded && !get().newBlockNotice) {
                 set({ newBlockNotice: "trace" } as Partial<DebuggerSessionViewStore>);
               }
               return;
@@ -575,14 +577,16 @@ export const createDebuggerSessionViewStore = (options: {
               block.type === "evaluation"
                 ? { id: block.id, type: "evaluation", createdAt: block.createdAt, evaluation: block.evaluation }
                 : { id: block.id, type: "text", createdAt: block.createdAt, text: block.text };
-            // Pill only for a genuinely new eval, after the initial fetch settles.
-            const isNewEval =
-              view.type === "evaluation" && get().isInitialTracesLoaded && !get().blocks.some((b) => b.id === view.id);
+            // Pill for a genuinely new eval OR note, after the initial fetch
+            // settles (so it can't flash on load). Don't overwrite an existing
+            // notice — the first unseen block the user hasn't scrolled to wins.
+            const isNewBlock =
+              get().isInitialTracesLoaded && !get().newBlockNotice && !get().blocks.some((b) => b.id === view.id);
             set((s) => {
               const rest = s.blocks.filter((b) => b.id !== view.id);
               return {
                 blocks: sortBlocks([...rest, view]),
-                ...(isNewEval ? { newBlockNotice: "evaluation" as const } : {}),
+                ...(isNewBlock ? { newBlockNotice: view.type } : {}),
               } as Partial<DebuggerSessionViewStore>;
             });
           },

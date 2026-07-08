@@ -46,7 +46,7 @@ export default function NewTracePill({
             dismiss();
           }}
         >
-          {notice === "evaluation" ? "New eval" : "New trace"}
+          {notice === "evaluation" ? "New eval" : notice === "text" ? "New note" : "New trace"}
         </button>
         <button type="button" aria-label="Dismiss" className="px-2 py-1.5 text-primary-foreground" onClick={dismiss}>
           <X className="h-4 w-4" />
