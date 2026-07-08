@@ -1,11 +1,11 @@
+import { EditorView } from "@uiw/react-codemirror";
 import { Loader2, Play } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 
 import SQLEditor from "@/components/sql/sql-editor";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 
 import { type ManageTemplateForm } from "../index";
 
@@ -57,29 +57,38 @@ const SpanFilter = ({ traceId }: Props) => {
     }
   }, [projectId, traceId, getValues, setValue]);
 
+  // Reserve space below the cursor so the floating Test button never covers the
+  // active line when the editor scrolls (bottom-2 + h-7 button ≈ 36px).
+  const editorExtensions = useMemo(() => [EditorView.scrollMargins.of(() => ({ bottom: 44 }))], []);
+
   return (
-    <div>
-      <Label className="text-xs tracking-wide text-muted-foreground">Span filter (SQL WHERE)</Label>
-      <div className="mt-1 flex items-start gap-2">
-        <div className="h-16 min-w-0 flex-1 overflow-hidden rounded-md border">
-          <Controller
-            name="whereClause"
-            control={control}
-            render={({ field }) => (
-              <SQLEditor
-                value={field.value ?? ""}
-                onChange={field.onChange}
-                placeholder="e.g. span_type = 'LLM' AND name LIKE 'agent%'"
-                schema={{ tables: ["spans"] }}
-              />
-            )}
-          />
-        </div>
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+        <p>Filter out unneeded spans from custom renderer to improve rendering performance.</p>
+        <p>
+          Appended to <code className="font-mono">SELECT * FROM spans WHERE trace_id = &lt;trace&gt; AND (...)</code>.
+        </p>
+      </div>
+
+      <div className="relative h-32 min-w-0 overflow-hidden rounded-md border">
+        <Controller
+          name="whereClause"
+          control={control}
+          render={({ field }) => (
+            <SQLEditor
+              value={field.value ?? ""}
+              onChange={field.onChange}
+              placeholder="e.g. span_type = 'LLM' AND name LIKE 'agent%'"
+              schema={{ tables: ["spans"] }}
+              extraExtensions={editorExtensions}
+            />
+          )}
+        />
         {traceId && (
           <Button
             type="button"
             variant="secondary"
-            className="h-8 shrink-0 text-xs"
+            className="absolute bottom-2 right-2 z-10 h-7 text-xs shadow-md"
             disabled={isTesting}
             onClick={testWhereClause}
           >
@@ -88,19 +97,16 @@ const SpanFilter = ({ traceId }: Props) => {
           </Button>
         )}
       </div>
+
       {testResult &&
         (testResult.ok ? (
-          <p className="mt-1 text-xs text-success">
+          <p className="text-xs text-success-bright">
             Matched {testResult.count} {testResult.count === 1 ? "span" : "spans"}
             {testResult.truncated ? " (truncated to 256)" : ""} — preview and data updated.
           </p>
         ) : (
-          <p className="mt-1 text-xs text-destructive">{testResult.error}</p>
+          <p className="text-xs text-destructive">{testResult.error}</p>
         ))}
-      <p className="mt-1 text-xs text-muted-foreground">
-        Appended to <code className="font-mono">SELECT * FROM spans WHERE trace_id = &lt;trace&gt; AND (...)</code>.
-        Leave empty to include all spans.{traceId ? " Test runs it against this trace." : ""}
-      </p>
     </div>
   );
 };

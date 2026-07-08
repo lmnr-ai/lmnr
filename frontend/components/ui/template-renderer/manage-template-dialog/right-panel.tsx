@@ -40,9 +40,9 @@ const RightPanel = ({ scope, traceId, spanOutline, activeTab, onTabChange, onCan
         <div className="flex w-full items-start justify-between">
           <TabsList>
             <TabsTrigger value="preview">Preview</TabsTrigger>
+            <TabsTrigger value="code">Code</TabsTrigger>
             {scope === "trace" && <TabsTrigger value="filter">Span filter</TabsTrigger>}
             <TabsTrigger value="data">Sample data</TabsTrigger>
-            <TabsTrigger value="code">Code</TabsTrigger>
           </TabsList>
           <Button
             type="button"
@@ -60,18 +60,6 @@ const RightPanel = ({ scope, traceId, spanOutline, activeTab, onTabChange, onCan
           className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-background outline-none"
         >
           <JsxRenderer code={code} data={testData} />
-        </TabsContent>
-
-        {scope === "trace" && (
-          <TabsContent value="filter" className="flex min-h-0 flex-1 flex-col outline-none">
-            <SpanFilter traceId={traceId} />
-          </TabsContent>
-        )}
-
-        <TabsContent value="data" className="flex min-h-0 flex-1 flex-col outline-none">
-          <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
-            <DataPanel />
-          </div>
         </TabsContent>
 
         <TabsContent value="code" className="flex min-h-0 flex-1 flex-col gap-3 outline-none">
@@ -92,6 +80,18 @@ const RightPanel = ({ scope, traceId, spanOutline, activeTab, onTabChange, onCan
           </div>
           <div className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-md border border-border">
             <CodeEditor />
+          </div>
+        </TabsContent>
+
+        {scope === "trace" && (
+          <TabsContent value="filter" className="flex min-h-0 flex-1 flex-col outline-none">
+            <SpanFilter traceId={traceId} />
+          </TabsContent>
+        )}
+
+        <TabsContent value="data" className="flex min-h-0 flex-1 flex-col outline-none">
+          <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+            <DataPanel />
           </div>
         </TabsContent>
       </Tabs>

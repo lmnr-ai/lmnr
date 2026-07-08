@@ -65,7 +65,9 @@ const LeftColumn = ({ title, isGenerating, describeText, onDescribeChange, onGen
           size="md"
         >
           <Sparkles className="size-3" />
-          <span className={cn(isGenerating && "shimmer")}>{isGenerating ? "Generating" : "Generate"}</span>
+          <span className={cn(isGenerating && "shimmer")}>
+            {isGenerating ? "Generating" : code?.trim() ? "Request changes" : "Generate"}
+          </span>
         </Button>
       </div>
     </div>
