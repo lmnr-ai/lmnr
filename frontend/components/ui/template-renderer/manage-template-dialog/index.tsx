@@ -204,7 +204,7 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
   return (
     <Dialog open={mode !== null} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="flex h-[700px] w-[1000px] max-w-none flex-col overflow-hidden rounded-lg border p-0 outline-0 2xl:h-[840px] 2xl:w-[1280px]"
+        className="flex h-[85vh] max-h-[900px] w-[90vw] max-w-[1400px] flex-col overflow-hidden rounded-lg border p-0 outline-0"
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >

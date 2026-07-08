@@ -37,17 +37,36 @@ const LeftColumn = ({ isGenerating, describeText, onDescribeChange, onGenerate }
           {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
         </div>
 
-        <Textarea
-          value={describeText}
-          onChange={(e) => onDescribeChange(e.target.value)}
-          disabled={isGenerating}
-          className="min-h-0 flex-1 resize-none rounded border border-border px-4 py-3 text-sm text-foreground outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
-          placeholder={
-            code?.trim()
-              ? "Describe changes to your custom render template"
-              : "Generate custom JSX to render your data however you want."
-          }
-        />
+        {/* Native <textarea> text can't take background-clip:text, so during
+            generation we hide the real text and overlay a shimmering copy that
+            mirrors its padding/typography. */}
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <Textarea
+            value={describeText}
+            onChange={(e) => onDescribeChange(e.target.value)}
+            disabled={isGenerating}
+            className={cn(
+              "min-h-0 flex-1 resize-none rounded border border-border px-4 py-3 text-sm text-foreground outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50",
+              isGenerating && "text-transparent disabled:opacity-100"
+            )}
+            placeholder={
+              code?.trim()
+                ? "Describe changes to your custom render template"
+                : "Generate custom JSX to render your data however you want."
+            }
+          />
+          {isGenerating && describeText && (
+            <div
+              aria-hidden
+              // Muted greys, not bright white: base = muted-foreground (currentColor),
+              // highlight pinned to the lighter secondary-foreground. Setting
+              // shimmer-color also bypasses tw-shimmer's dark-mode brighten-to-white.
+              className="shimmer shimmer-color-secondary-foreground pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words px-4 py-3 text-sm text-muted-foreground"
+            >
+              {describeText}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="flex justify-end">
