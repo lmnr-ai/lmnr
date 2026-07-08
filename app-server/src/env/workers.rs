@@ -11,6 +11,7 @@ pub const NUM_BROWSER_EVENTS: NumEnv<usize> = NumEnv::new("NUM_BROWSER_EVENTS_WO
 pub const NUM_LOGS: NumEnv<usize> = NumEnv::new("NUM_LOGS_WORKERS", 4);
 pub const NUM_REPORTS: NumEnv<usize> = NumEnv::new("NUM_REPORTS_WORKERS", 2);
 pub const NUM_CHECKPOINTS: NumEnv<usize> = NumEnv::new("NUM_CHECKPOINTS_WORKERS", 2);
+pub const NUM_STATIC_SP: NumEnv<usize> = NumEnv::new("NUM_STATIC_SP_WORKERS", 2);
 
 pub const NUM_INPUT_EXTRACTION: NumEnv<usize> = NumEnv::new("NUM_INPUT_EXTRACTION_WORKERS", 2);
 

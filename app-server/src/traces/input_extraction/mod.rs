@@ -47,5 +47,5 @@ pub mod self_tracing;
 
 pub use producer::{
     UserTaskCandidate, UserTaskSpanContext, capture_user_task_candidate,
-    process_user_task_candidates, set_llm_client_available,
+    process_user_task_candidates,
 };

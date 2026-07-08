@@ -76,6 +76,10 @@ use traces::{
         consumer::InputExtractionHandler,
         queue::{INPUT_EXTRACTION_EXCHANGE, INPUT_EXTRACTION_QUEUE, INPUT_EXTRACTION_ROUTING_KEY},
     },
+    static_sp_extraction::{
+        STATIC_PROMPT_EXCHANGE, STATIC_PROMPT_QUEUE, STATIC_PROMPT_ROUTING_KEY,
+        consumer::StaticPromptHandler,
+    },
 };
 
 use cache::{
@@ -796,6 +800,32 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.14 Static prompt message queue ====
+            channel
+                .exchange_declare(
+                    STATIC_PROMPT_EXCHANGE.into(),
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    STATIC_PROMPT_QUEUE.into(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
             let max_channel_pool_size = env::mq::MAX_CHANNEL_POOL_SIZE.get();
 
             log::info!("RabbitMQ channels: {}", max_channel_pool_size);
@@ -866,6 +896,8 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(REPORT_TRIGGERS_EXCHANGE, REPORT_TRIGGERS_QUEUE);
         // ==== 3.13 Checkpoints message queue ====
         queue.register_queue(CHECKPOINTS_EXCHANGE, CHECKPOINTS_QUEUE);
+        // ==== 3.14 Static prompt message queue ====
+        queue.register_queue(STATIC_PROMPT_EXCHANGE, STATIC_PROMPT_QUEUE);
         log::info!("Using tokio mpsc queue");
         Arc::new(queue.into())
     };
@@ -1072,7 +1104,7 @@ fn main() -> anyhow::Result<()> {
     // call wins) — the user-task producer hook must not enqueue extraction
     // work when the client failed to construct, since the extraction workers
     // would never spawn and the messages would sit on the queue unconsumed.
-    traces::input_extraction::set_llm_client_available(llm_provider_client.is_some());
+    llm::set_llm_client_available(llm_provider_client.is_some());
     let llm_provider_client_for_http = llm_provider_client.clone();
 
     if enable_consumer() {
@@ -1126,6 +1158,8 @@ fn main() -> anyhow::Result<()> {
         let num_reports_workers = env::workers::NUM_REPORTS.get();
 
         let num_checkpoints_workers = env::workers::NUM_CHECKPOINTS.get();
+
+        let num_static_prompt_workers = env::workers::NUM_STATIC_SP.get();
 
         let num_input_extraction_workers = env::workers::NUM_INPUT_EXTRACTION.get();
 
@@ -1665,6 +1699,31 @@ fn main() -> anyhow::Result<()> {
                         );
                     }
 
+                    // Spawn static prompt workers. Gate on the shared LLM
+                    // client exactly like input-extraction: a handler without
+                    // a client can only ack-and-drop messages, so a node that
+                    // failed to build the client must NOT consume this queue —
+                    // otherwise it silently discards work another node enqueued
+                    // instead of leaving it for a consumer that can extract.
+                    if let Some(llm_client) = llm_provider_client.as_ref() {
+                        let cache = cache_for_consumer.clone();
+                        let llm_client = llm_client.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::StaticPrompt,
+                            num_static_prompt_workers,
+                            move || {
+                                StaticPromptHandler::new(cache.clone(), Some(llm_client.clone()))
+                            },
+                            QueueConfig::new(
+                                STATIC_PROMPT_QUEUE,
+                                STATIC_PROMPT_EXCHANGE,
+                                STATIC_PROMPT_ROUTING_KEY,
+                            ),
+                        );
+                    } else {
+                        log::warn!("LLM provider not available - skipping static prompt workers");
+                    }
+
                     HttpServer::new(move || {
                         App::new()
                             .wrap(NormalizePath::trim())
@@ -1949,7 +2008,7 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::spans::search_spans)
                                     .service(routes::signal_events::search_signal_events)
                                     .service(routes::rollouts::update_session_name)
-                                    .service(routes::system_extraction::extract_system_prompt);
+                                    .service(routes::static_sp::extract_system_prompt);
                                 #[cfg(feature = "signals")]
                                 let scope = scope
                                     .service(crate::signals::private::routes::submit_signal_job)

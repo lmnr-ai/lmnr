@@ -124,6 +124,7 @@ pub enum WorkerType {
     Logs,
     Reports,
     Checkpoints,
+    StaticPrompt,
 }
 
 impl std::fmt::Display for WorkerType {
@@ -141,6 +142,7 @@ impl std::fmt::Display for WorkerType {
             WorkerType::Logs => write!(f, "logs"),
             WorkerType::Reports => write!(f, "reports"),
             WorkerType::Checkpoints => write!(f, "checkpoints"),
+            WorkerType::StaticPrompt => write!(f, "static_prompt"),
         }
     }
 }
