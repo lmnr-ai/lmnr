@@ -44,6 +44,8 @@ interface TokenBreakdownPanelProps {
   cacheRead: number;
   // Null/empty ⇒ fallback: plain input-tokens + cache rows, no bars.
   buckets: DisplayBucket[] | null;
+  // Breakdown still being fetched — shows a shimmer line under the cache row.
+  loading?: boolean;
 }
 
 /**
@@ -57,6 +59,7 @@ export const TokenBreakdownPanel = ({
   total,
   cacheRead,
   buckets,
+  loading = false,
 }: TokenBreakdownPanelProps) => {
   if (!buckets || buckets.length === 0) {
     return (
@@ -71,6 +74,7 @@ export const TokenBreakdownPanel = ({
             <span>{numberFormat.format(cacheRead)}</span>
           </div>
         )}
+        {loading && <span className="text-xs text-secondary-foreground shimmer">Loading token breakdown</span>}
       </div>
     );
   }
@@ -134,7 +138,7 @@ export const TokenBreakdownPanel = ({
   );
 };
 
-export const InputTokenBreakdown = ({ span }: { span: Span }) => {
+export const SpanTokenBreakdown = ({ span }: { span: Span }) => {
   const buckets = useMemo(() => {
     if (span.spanType !== SpanType.LLM && span.spanType !== SpanType.CACHED) return null;
     const estimated = estimateSpanTokenBuckets(span.input, resolveTools(span), span.inputTokens);
@@ -146,7 +150,7 @@ export const InputTokenBreakdown = ({ span }: { span: Span }) => {
   );
 };
 
-interface TraceInputTokenBreakdownProps {
+interface TraceTokenBreakdownProps {
   projectId: string;
   traceId: string;
   inputTokens: number;
@@ -159,12 +163,12 @@ interface TraceInputTokenBreakdownProps {
  * returns four numbers. Rendered inside a tooltip, so the fetch only fires on
  * first hover (Radix mounts the content on open) and is SWR-cached after.
  */
-export const TraceInputTokenBreakdown = ({
+export const TraceTokenBreakdown = ({
   projectId,
   traceId,
   inputTokens,
   cacheReadInputTokens,
-}: TraceInputTokenBreakdownProps) => {
+}: TraceTokenBreakdownProps) => {
   const { data } = useSWR<TraceTokenBreakdownResponse>(
     `/api/projects/${projectId}/traces/${traceId}/token-breakdown`,
     swrFetcher,
@@ -190,6 +194,7 @@ export const TraceInputTokenBreakdown = ({
       total={inputTokens}
       cacheRead={cacheReadInputTokens}
       buckets={buckets}
+      loading={!data}
     />
   );
 };

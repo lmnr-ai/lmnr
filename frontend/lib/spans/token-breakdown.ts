@@ -14,10 +14,9 @@ export type TokenBuckets = Record<TokenBucketKey, number>;
 export interface TraceTokenBreakdownResponse {
   buckets: TokenBuckets;
   // Sum of input_tokens over spans the estimator could bucket. The trace's
-  // remaining input tokens (unparseable inputs, spans beyond the cap) are the
-  // caller's "other" share.
+  // remaining input tokens (unparseable/non-array inputs) are the caller's
+  // "other" share.
   estimatedInputTokens: number;
-  truncated: boolean;
 }
 
 // Char count of a message's content only (role/keys excluded) — a rough proxy

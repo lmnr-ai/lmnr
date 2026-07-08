@@ -3,7 +3,7 @@ import { pick } from "lodash";
 import { CircleDollarSign, Clock3, Coins } from "lucide-react";
 import { memo, useMemo } from "react";
 
-import { InputTokenBreakdown, TraceInputTokenBreakdown } from "@/components/traces/token-breakdown";
+import { SpanTokenBreakdown, TraceTokenBreakdown } from "@/components/traces/token-breakdown";
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type Span, type TraceRow } from "@/lib/traces/types.ts";
@@ -231,9 +231,9 @@ export function StatsShields({
           <TooltipContent side="bottom" className="p-2 border bg-surface-700">
             <div className="flex-col space-y-2">
               {span ? (
-                <InputTokenBreakdown span={span} />
+                <SpanTokenBreakdown span={span} />
               ) : traceBreakdown ? (
-                <TraceInputTokenBreakdown
+                <TraceTokenBreakdown
                   projectId={traceBreakdown.projectId}
                   traceId={traceBreakdown.traceId}
                   inputTokens={stats.inputTokens}
