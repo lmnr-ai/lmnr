@@ -2,11 +2,14 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+import lmnr_hook
 from lmnr_hook import (
     LaminarConfig,
     OtlpSpanCollector,
+    SessionState,
     build_otlp_attributes,
     build_turns,
+    emit_ready_turns,
     emit_turn,
     new_span_id,
     new_trace_id,
@@ -53,6 +56,114 @@ class TestOtlpFormat:
         assert by_key["b"] == {"boolValue": True}
         assert by_key["arr"] == {"arrayValue": {"values": [{"stringValue": "a"}, {"stringValue": "b"}]}}
         assert "none" not in by_key
+
+
+class TestEmitReadyTurns:
+    def _turns(self, n):
+        turns = []
+        for i in range(n):
+            turns.extend(build_turns([
+                user_row(f"prompt {i}"),
+                assistant_row([{"type": "text", "text": f"answer {i}"}], msg_id=f"m{i}"),
+            ]))
+        return turns
+
+    def _emit_ready(self, turns, session_state):
+        collector = make_collector()
+        return emit_ready_turns(
+            collector,
+            collector.config,
+            "sess",
+            Path("/tmp/session.jsonl"),
+            turns,
+            session_state,
+            subagent_transcripts_by_tool_use_id={},
+        )
+
+    def test_counts_all_successful_turns(self):
+        assert self._emit_ready(self._turns(3), SessionState()) == 3
+
+    def test_failed_emit_not_counted(self, monkeypatch):
+        calls = []
+
+        def flaky_emit_turn(collector, config, session_id, turn_num, turn, transcript_path, **kwargs):
+            calls.append(turn_num)
+            if len(calls) == 2:
+                raise ValueError("boom")
+
+        monkeypatch.setattr(lmnr_hook, "emit_turn", flaky_emit_turn)
+        assert self._emit_ready(self._turns(3), SessionState(turn_count=5)) == 2
+        # Turn numbers only advance for successful emits, so the turn after a
+        # failure reuses the failed slot's number.
+        assert calls == [6, 7, 7]
+
+    def test_all_emits_failed_counts_zero(self, monkeypatch):
+        def failing_emit_turn(*args, **kwargs):
+            raise ValueError("boom")
+
+        monkeypatch.setattr(lmnr_hook, "emit_turn", failing_emit_turn)
+        assert self._emit_ready(self._turns(2), SessionState()) == 0
+
+
+class TestEmitNewTurnsFromTranscript:
+    def _setup(self, tmp_path, monkeypatch):
+        state_dir = tmp_path / "state"
+        monkeypatch.setattr(lmnr_hook, "STATE_DIR", state_dir)
+        monkeypatch.setattr(lmnr_hook, "STATE_FILE", state_dir / "lmnr_state.json")
+        monkeypatch.setattr(lmnr_hook, "LOCK_FILE", state_dir / "lmnr_state.lock")
+
+        transcript = tmp_path / "session.jsonl"
+        rows = [
+            user_row("hello"),
+            assistant_row([{"type": "text", "text": "hi"}]),
+        ]
+        transcript.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+        return transcript
+
+    def _run(self, transcript):
+        collector = make_collector()
+        return collector, lmnr_hook.emit_new_turns_from_transcript(
+            collector, collector.config, "sess", transcript
+        )
+
+    def _saved_state(self, transcript):
+        state = lmnr_hook.load_hook_state()
+        key = lmnr_hook.get_session_state_key("sess", str(transcript))
+        return lmnr_hook.get_session_state(state, key)
+
+    def test_export_failure_keeps_state_for_retry(self, tmp_path, monkeypatch):
+        transcript = self._setup(tmp_path, monkeypatch)
+        monkeypatch.setattr(lmnr_hook, "export_with_timeout", lambda collector: False)
+
+        _, emitted = self._run(transcript)
+        assert emitted == 0
+        saved = self._saved_state(transcript)
+        assert saved.offset == 0
+        assert saved.turn_count == 0
+
+        # Next run with a working export re-reads the same turn.
+        monkeypatch.setattr(lmnr_hook, "export_with_timeout", lambda collector: True)
+        collector, emitted = self._run(transcript)
+        assert emitted == 1
+        assert len(collector.spans) > 0
+        saved = self._saved_state(transcript)
+        assert saved.offset == transcript.stat().st_size
+        assert saved.turn_count == 1
+
+    def test_export_success_advances_state(self, tmp_path, monkeypatch):
+        transcript = self._setup(tmp_path, monkeypatch)
+        monkeypatch.setattr(lmnr_hook, "export_with_timeout", lambda collector: True)
+
+        _, emitted = self._run(transcript)
+        assert emitted == 1
+        saved = self._saved_state(transcript)
+        assert saved.offset == transcript.stat().st_size
+        assert saved.turn_count == 1
+
+        # Re-running with no new content emits nothing and keeps state stable.
+        _, emitted = self._run(transcript)
+        assert emitted == 0
+        assert self._saved_state(transcript).turn_count == 1
 
 
 class TestEmitTurn:

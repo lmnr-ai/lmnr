@@ -1892,8 +1892,7 @@ def emit_ready_turns(
 ) -> int:
     emitted = 0
     for turn in turns_to_emit:
-        emitted += 1
-        turn_num = session_state.turn_count + emitted
+        turn_num = session_state.turn_count + emitted + 1
         try:
             emit_turn(
                 collector,
@@ -1906,7 +1905,11 @@ def emit_ready_turns(
             )
         except Exception as e:
             # Log at INFO so emit failures are visible without CC_LMNR_DEBUG=true.
+            # The failed turn is not counted, so turn_count only reflects turns
+            # whose spans were actually built.
             info(f"emit_turn failed: {type(e).__name__}: {e}")
+            continue
+        emitted += 1
     return emitted
 
 def emit_new_turns_from_transcript(
@@ -1951,11 +1954,14 @@ def emit_new_turns_from_transcript(
             subagent_transcripts_by_tool_use_id=subagent_transcripts_by_tool_use_id,
         )
 
-        # Export before persisting the advanced offset so a failed export
-        # doesn't permanently skip these turns.
+        # Only persist the advanced offset after a successful export; on
+        # failure the old state stays on disk so the next hook run re-reads
+        # the same bytes and retries. (In-memory mutations to session_state
+        # are discarded because save_session_state is the only writer.)
         exported = export_with_timeout(collector)
         if not exported:
-            info("OTLP export failed; keeping state to retry on the next hook run is not possible mid-batch — turns may be lost")
+            info("OTLP export failed; keeping previous state so these turns are retried on the next hook run")
+            return 0
 
         session_state.turn_count += emitted
         save_session_state(state, key, session_state)
