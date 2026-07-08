@@ -1,5 +1,5 @@
 import { useParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 import useSWR, { useSWRConfig } from "swr";
 
@@ -42,16 +42,36 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
   const [describeText, setDescribeText] = useState("");
   const [activeTab, setActiveTab] = useState("preview");
 
+  // In-flight generate request. The dialog never unmounts, so a request that
+  // resolves after the user cancels must NOT write back into the (now restored)
+  // form — abort it on close and bail on `aborted`.
+  const generateAbortRef = useRef<AbortController | null>(null);
+
+  // Reset transient UI state each time the dialog opens. Because the component
+  // stays mounted across open/close, a stale `activeTab` (e.g. the trace-only
+  // "filter" tab) would otherwise leave a span dialog's panel blank.
+  useEffect(() => {
+    if (mode !== null) {
+      setActiveTab("preview");
+      setDescribeText("");
+      setIsGenerating(false);
+    }
+  }, [mode]);
+
   const handleGenerate = useCallback(async () => {
     if (!describeText.trim()) {
       toast({ variant: "destructive", title: "Describe what you want the template to render first." });
       return;
     }
+    generateAbortRef.current?.abort();
+    const controller = new AbortController();
+    generateAbortRef.current = controller;
     setIsGenerating(true);
     try {
       const res = await fetch(`/api/projects/${projectId}/render-templates/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           scope: effectiveScope,
           description: describeText,
@@ -73,6 +93,8 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
         return;
       }
       const result = (await res.json()) as { code: string; whereClause?: string };
+      // Cancelled mid-resolve — the form was already restored; don't clobber it.
+      if (controller.signal.aborted) return;
       setValue("code", result.code, { shouldDirty: true });
       if (effectiveScope === "trace" && result.whereClause !== undefined) {
         setValue("whereClause", result.whereClause, { shouldDirty: true });
@@ -80,15 +102,28 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
       setDescribeText("");
       setActiveTab("preview");
     } catch (e) {
+      // Aborted by cancel — silent, whoever cancelled owns the next state.
+      if (controller.signal.aborted) return;
       toast({
         variant: "destructive",
         title: "Error",
         description: e instanceof Error ? e.message : "Failed to generate template",
       });
     } finally {
-      setIsGenerating(false);
+      // Only the current request may clear the flag/ref — a newer one owns them.
+      if (generateAbortRef.current === controller) {
+        generateAbortRef.current = null;
+        setIsGenerating(false);
+      }
     }
   }, [projectId, effectiveScope, describeText, getValues, setValue, spanOutline, toast]);
+
+  // Abort any in-flight generate before delegating to the parent's cancel — used
+  // by both close affordances (overlay/escape and the panel's X button).
+  const handleCancel = useCallback(() => {
+    generateAbortRef.current?.abort();
+    onCancel();
+  }, [onCancel]);
 
   const submit = useCallback(
     async (data: ManageTemplateForm) => {
@@ -142,9 +177,9 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
-      if (!next) onCancel();
+      if (!next) handleCancel();
     },
-    [onCancel]
+    [handleCancel]
   );
 
   const title = `${mode === "edit" ? "Edit" : "Create a"} custom render template`;
@@ -176,7 +211,7 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
             spanOutline={spanOutline}
             activeTab={activeTab}
             onTabChange={setActiveTab}
-            onCancel={onCancel}
+            onCancel={handleCancel}
             isSaving={isSaving}
             canSave={!!code?.trim()}
           />
