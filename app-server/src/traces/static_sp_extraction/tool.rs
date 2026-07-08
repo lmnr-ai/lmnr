@@ -34,8 +34,8 @@ const REGEX_TOOL_DESCRIPTION: &str = r#"Test a list of candidate regexes against
 - `isValid` / `failingRegex`: whether all regexes compiled+ran, and the first that failed.
 - `isResultInAllIdenticalOutput`: true iff every residual is identical — the collapse goal.
 - `residualDivergences`: when not collapsed, deduplicated {a, b} pairs — a = example 1's residual around the first differing byte, b = the differing example's. This pinpoints the dynamic text you have not handled yet; read it first.
-- `removed`: removed[i] = exactly what your regexes DELETED from example i (input − output), with `⟦── gap ──⟧` between non-adjacent deleted blocks. Inspect this to see what you are throwing away.
-- `sharedRemoved`: deleted text that is IDENTICAL across every example. This should be EMPTY. Dynamic values differ between examples, so anything here is STATIC content you are wrongly deleting (over-removal) — tighten the offending regex (bound the sweep with a `(?=<landmark>)` instead of running to the end of the prompt). `isResultInAllIdenticalOutput: true` alone is NOT success if `sharedRemoved` is non-empty — an over-broad sweep collapses every example to the same prefix yet deletes shared static text."#;
+- `removed`: the changed regions of example i (input − output), reported at LINE granularity — any line your regexes touched appears in full, even if only part of it (e.g. an inline date) was actually deleted. Non-adjacent changed blocks are separated by `⟦── gap ──⟧`. Use it to locate WHICH regions you are affecting, not the exact deleted substring; for the precise dynamic text read `residualDivergences`.
+- `sharedRemoved`: static text (identical across every example) that appears in `removed`. A large multi-line span here means real over-removal — an over-broad sweep is eating a shared static block; tighten the offending regex (bound the sweep with a `(?=<landmark>)` instead of running to the end of the prompt). CAVEAT: because `removed` is line-granular, deleting an inline dynamic value also surfaces the static remainder of that same line, so a SHORT within-a-single-line entry here can be a false positive from a correct inline-removal regex — confirm against `residualDivergences` before tightening. `isResultInAllIdenticalOutput: true` with a large multi-line `sharedRemoved` is NOT success: the sweep collapsed every example to the same prefix while deleting shared static text."#;
 
 #[derive(Debug, Deserialize)]
 pub struct RegexToolInput {
@@ -179,15 +179,15 @@ fn divergence_window(s: &str, k: usize) -> &str {
     &s[start..end]
 }
 
-/// Character-granular diff of `original` vs `residual`, keeping only the
-/// removed side. Contiguous deleted chars form one block; blocks are split on
-/// surviving (equal) chars. Char- rather than line-granular so an inline
-/// dynamic value (e.g. a date embedded mid-line) is reported as exactly the
-/// deleted substring — a line diff reports the WHOLE line as removed whenever
-/// any part of it changes, which misled the model into thinking a correct
-/// inline-removal regex was over-removing static text.
+/// Line-granular diff of `original` vs `residual`, keeping only the removed
+/// side. Contiguous deleted lines form one block; blocks are split on
+/// surviving (equal) lines. NOTE: line-granular by design — a char/word diff
+/// is O(N·D) Myers and hangs for minutes on the huge (100k+ char) system
+/// prompts this tool runs against. The cost is that a regex deleting only part
+/// of a line surfaces the WHOLE line here; the tool description tells the model
+/// to rely on `residualDivergences` for the exact dynamic text.
 fn removed_blocks(original: &str, residual: &str) -> Vec<String> {
-    let diff = TextDiff::from_chars(original, residual);
+    let diff = TextDiff::from_lines(original, residual);
     let mut blocks: Vec<String> = Vec::new();
     let mut current = String::new();
     for change in diff.iter_all_changes() {
@@ -206,7 +206,7 @@ fn removed_blocks(original: &str, residual: &str) -> Vec<String> {
     }
     blocks
         .into_iter()
-        .map(|b| b.trim_matches('\n').to_string())
+        .map(|b| b.strip_suffix('\n').map(str::to_string).unwrap_or(b))
         .collect()
 }
 
@@ -360,7 +360,7 @@ mod tests {
         assert_eq!(out["isValid"], json!(false));
         assert_eq!(out["failingRegex"], json!("(unclosed"));
         // First pattern applied ("hello " deleted), third was not.
-        assert_eq!(out["removed"][0], json!("hello "));
+        assert_eq!(out["removed"][0], json!("hello world"));
     }
 
     #[test]
@@ -413,24 +413,6 @@ mod tests {
         // Both remove the identical "shared bit " — but it's shorter than one gram.
         let out = run_regex_tool(&["shared bit ".to_string()], &examples);
         assert_eq!(out["isResultInAllIdenticalOutput"], json!(false));
-        assert_eq!(out["sharedRemoved"], json!([]));
-    }
-
-    #[test]
-    fn removed_reports_only_inline_deletion_not_whole_line() {
-        // Regression: the dynamic value is embedded mid-line, so a line-granular
-        // diff would report the ENTIRE prompt as removed and `sharedRemoved`
-        // would flag the static prefix as over-removed. Word-granular diffing
-        // reports exactly the deleted date and leaves `sharedRemoved` empty.
-        let examples = vec![
-            "You are a concise assistant. No preamble. <date>2026-07-08</date>".to_string(),
-            "You are a concise assistant. No preamble. <date>2026-07-09</date>".to_string(),
-        ];
-        let out = run_regex_tool(&["(?<=<date>)[0-9-]+(?=</date>)".to_string()], &examples);
-        assert_eq!(out["isValid"], json!(true));
-        assert_eq!(out["isResultInAllIdenticalOutput"], json!(true));
-        assert_eq!(out["removed"][0], json!("2026-07-08"));
-        assert_eq!(out["removed"][1], json!("2026-07-09"));
         assert_eq!(out["sharedRemoved"], json!([]));
     }
 
