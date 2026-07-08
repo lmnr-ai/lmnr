@@ -1,7 +1,16 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Check, ChevronDown, Loader2, PencilIcon, Plus } from "lucide-react";
 import { useParams } from "next/navigation";
-import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  type MouseEvent,
+  type PropsWithChildren,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
 import useSWR from "swr";
 
@@ -237,7 +246,7 @@ const GROUP_CLASS =
 const formatLabel = (m: string) => (m.toLowerCase() === "messages" ? "LLM Messages" : m);
 
 export const TemplatePickerView = ({ mode, onModeChange, modes, triggerClassName }: TemplatePickerViewProps) => {
-  const { templates, selectedTemplate, selectTemplate, openCreate } = useTemplatePicker();
+  const { templates, selectedTemplate, selectTemplate, openCreate, openEdit } = useTemplatePicker();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -281,6 +290,21 @@ export const TemplatePickerView = ({ mode, onModeChange, modes, triggerClassName
     openCreate();
     setOpen(false);
   }, [openCreate]);
+
+  // Editing a template must load it into the shared form first (the manage
+  // dialog reads it via useFormContext), so edit implies selecting it.
+  const handleEditTemplate = useCallback(
+    async (e: MouseEvent, id: string) => {
+      e.stopPropagation();
+      e.preventDefault();
+      setOpen(false);
+      if (selectedTemplate?.id !== id) {
+        await selectTemplate(id);
+      }
+      openEdit();
+    },
+    [selectedTemplate, selectTemplate, openEdit]
+  );
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
@@ -340,10 +364,20 @@ export const TemplatePickerView = ({ mode, onModeChange, modes, triggerClassName
                         key={t.id}
                         value={`template:${t.id}`}
                         onSelect={() => handlePickTemplate(t.id)}
-                        className="text-xs"
+                        className="group text-xs"
                       >
                         <span className="flex-1 truncate">{t.name}</span>
-                        {active && <Check className="ml-2 size-3.5 shrink-0" />}
+                        <div className="ml-2 flex shrink-0 items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            aria-label={`Edit ${t.name}`}
+                            onClick={(e) => handleEditTemplate(e, t.id)}
+                            className="inline-flex size-5 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+                          >
+                            <PencilIcon className="size-3" />
+                          </button>
+                          {active && <Check className="size-3.5" />}
+                        </div>
                       </CommandItem>
                     );
                   })
