@@ -53,7 +53,8 @@ interface TemplatePickerContextValue {
   /** True while the manage dialog is open — selectedTemplate then reflects
    *  unsaved draft form values, so consumers should hold off side effects. */
   isManaging: boolean;
-  selectTemplate: (templateId: string) => Promise<void>;
+  /** Loads a template into the form. Resolves `true` only when the fetch succeeded and hydrated. */
+  selectTemplate: (templateId: string) => Promise<boolean>;
   openCreate: () => void;
   openEdit: () => void;
 }
@@ -154,14 +155,16 @@ export const TemplatePickerProvider = ({
   }, [presetKey, templates, getPresetTemplate, fetchTemplate, reset]);
 
   const selectTemplate = useCallback(
-    async (templateId: string) => {
+    async (templateId: string): Promise<boolean> => {
       const t = templates?.find((x) => x.id === templateId);
-      if (!t) return;
+      if (!t) return false;
       if (presetKey) setPresetTemplate(presetKey, templateId);
       setIsLoadingTemplate(true);
       try {
         const full = await fetchTemplate(templateId);
-        if (full) reset({ ...full, scope, testData });
+        if (!full) return false;
+        reset({ ...full, scope, testData });
+        return true;
       } finally {
         setIsLoadingTemplate(false);
       }
@@ -298,8 +301,10 @@ export const TemplatePickerView = ({ mode, onModeChange, modes, triggerClassName
       e.stopPropagation();
       e.preventDefault();
       setOpen(false);
-      if (selectedTemplate?.id !== id) {
-        await selectTemplate(id);
+      // Don't open edit on a failed load — fetchTemplate already toasted, and
+      // openEdit would otherwise snapshot stale/empty form values.
+      if (selectedTemplate?.id !== id && !(await selectTemplate(id))) {
+        return;
       }
       openEdit();
     },
