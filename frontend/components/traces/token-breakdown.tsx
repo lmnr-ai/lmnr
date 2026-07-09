@@ -178,14 +178,14 @@ export const TraceTokenBreakdown = ({
   const buckets = useMemo(() => {
     if (!data) return null;
     const display = toDisplayBuckets(data.buckets);
-    if (display.length === 0) return null;
-    // Input tokens the estimator couldn't attribute (unparseable inputs,
-    // spans beyond the server cap) — keeps the bar honest against the total.
+    // Input tokens the estimator couldn't attribute (unparseable/non-array
+    // inputs) — keeps the bar honest against the total. Computed before the
+    // empty check so an all-unparseable trace still renders a full Other bar.
     const other = Math.max(0, inputTokens - data.estimatedInputTokens);
     if (other > 0) {
       display.push({ key: "other", label: "Other", color: "hsl(215, 10%, 45%)", tokens: other });
     }
-    return display;
+    return display.length === 0 ? null : display;
   }, [data, inputTokens]);
 
   return (
