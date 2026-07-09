@@ -45,7 +45,7 @@ static STATIC_PROMPT_OCCURRENCE_THRESHOLD: LazyLock<u64> =
 /// are high just in case, so leave generous headroom)
 const EXTRACTION_LOCK_TTL_SECONDS: u64 = 60 * 60;
 
-const STATIC_REGEX_TTL_SECONDS: u64 = 7 * 24 * 3600;
+pub const STATIC_REGEX_TTL_SECONDS: u64 = 7 * 24 * 3600;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StaticPromptQueueMessage {

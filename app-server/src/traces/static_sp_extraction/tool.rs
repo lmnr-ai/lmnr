@@ -70,7 +70,7 @@ pub fn run_regex_tool(regexes: &[String], examples: &[String]) -> Value {
     let mut failing_regex: Option<String> = None;
 
     'patterns: for pattern in regexes {
-        let compiled = match Regex::new(&format!("(?m){pattern}")) {
+        let compiled = match compile_removal_regex(pattern) {
             Ok(re) => re,
             Err(_) => {
                 failing_regex = Some(pattern.clone());
@@ -132,9 +132,18 @@ pub fn run_regex_tool(regexes: &[String], examples: &[String]) -> Value {
     })
 }
 
+/// Compile a single removal pattern with the canonical flags (`m` — multiline
+/// `^`/`$`, no dotall, lookbehind via `fancy_regex`). This is the ONE place the
+/// removal-regex compile convention lives; every applier (this tool, the
+/// signals summarizer) must go through it so the regexes are applied exactly as
+/// they were tested when the agent produced them.
+pub fn compile_removal_regex(pattern: &str) -> Result<Regex, fancy_regex::Error> {
+    Regex::new(&format!("(?m){pattern}"))
+}
+
 /// Delete every match of `re` from `text`. Manual loop instead of
 /// `Regex::replace_all` so runtime errors surface as `Err` instead of a panic.
-fn remove_all(re: &Regex, text: &str) -> Result<String, fancy_regex::Error> {
+pub fn remove_all(re: &Regex, text: &str) -> Result<String, fancy_regex::Error> {
     let mut out = String::with_capacity(text.len());
     let mut last = 0;
     for m in re.find_iter(text) {
