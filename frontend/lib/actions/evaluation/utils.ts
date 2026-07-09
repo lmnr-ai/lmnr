@@ -54,14 +54,18 @@ export function calculateScoreDistribution(
   const lowerBound = Math.min(minScore, DEFAULT_LOWER_BOUND);
   const upperBound = maxScore;
 
-  // If all scores are the same, put everything in the last bucket
+  // All scores are the same value. This branch only fires when that value sits
+  // at the lower bound (<= 0, since lowerBound = min(value, 0)), e.g. a binary
+  // score filtered to `= 0`. Put the mass in the FIRST bucket — the last bucket
+  // is the "positive"/high end, so dumping all-zero rows there makes
+  // `binaryCounts` report a 100% positive rate instead of 0%.
   if (lowerBound === upperBound) {
     const buckets: EvaluationScoreDistributionBucket[] = Array.from({ length: DEFAULT_BUCKET_COUNT }, () => ({
       lowerBound,
       upperBound,
       heights: [0],
     }));
-    buckets[DEFAULT_BUCKET_COUNT - 1].heights = [scores.length];
+    buckets[0].heights = [scores.length];
     return buckets;
   }
 

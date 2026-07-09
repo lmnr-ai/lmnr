@@ -42,7 +42,7 @@ export default function LimitsSettings({
       <SettingsSectionHeader
         size="sm"
         title="Hard limits"
-        description="When a limit is reached, new data ingestion or signal runs will be rejected until the next billing cycle."
+        description="When a limit is reached, new data ingestion or signal usage will be rejected until the next billing cycle."
       />
       <div className="flex flex-col sm:flex-row gap-3">
         <LimitRow
@@ -52,6 +52,7 @@ export default function LimitsSettings({
           currentValue={bytesLimit?.limitValue ?? null}
           unit="GB"
           includedLabel={`${tierIncludedDataGB} GB`}
+          includedRawValue={tierIncludedDataGB * GB_IN_BYTES}
           toDisplayValue={(raw) => Math.round((raw / GB_IN_BYTES) * 100) / 100}
           toRawValue={(display) => Math.round(display * GB_IN_BYTES)}
           onUpdate={handleUpdate}
@@ -63,6 +64,7 @@ export default function LimitsSettings({
           currentValue={signalCostLimit?.limitValue ?? null}
           unit="USD"
           includedLabel={`$${(tierIncludedSignalCostMicroUsd / 1_000_000).toLocaleString("en-US")}`}
+          includedRawValue={tierIncludedSignalCostMicroUsd}
           toDisplayValue={(raw) => Math.round((raw / 1_000_000) * 100) / 100}
           toRawValue={(display) => Math.round(display * 1_000_000)}
           onUpdate={handleUpdate}

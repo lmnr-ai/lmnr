@@ -5,6 +5,7 @@ import { Circle } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import useSWR from "swr";
 import { shallow } from "zustand/shallow";
 
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
@@ -30,7 +31,7 @@ import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { getClusterColorById, UNCLUSTERED_COLOR } from "@/lib/clusters/colors";
 import { getHasClusteringAccess } from "@/lib/features/clustering";
 import { track } from "@/lib/posthog";
-import { cn } from "@/lib/utils";
+import { cn, swrFetcher } from "@/lib/utils";
 
 import ClusterList from "./cluster-list";
 import ClusterStackedChart from "./cluster-stacked-chart";
@@ -59,8 +60,6 @@ export default function ClustersSection({ className }: Props) {
   const signal = useSignalStoreContext((state) => state.signal);
   const fetchClusters = useSignalStoreContext((state) => state.fetchClusters);
   const fetchClusterStats = useSignalStoreContext((state) => state.fetchClusterStats);
-  const fetchRunStats = useSignalStoreContext((state) => state.fetchRunStats);
-  const runTotals = useSignalStoreContext((state) => state.runTotals);
 
   const pastHours = searchParams.get("pastHours");
   const startDate = searchParams.get("startDate");
@@ -142,11 +141,11 @@ export default function ClustersSection({ className }: Props) {
     endDate,
   });
 
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchRunStats({ statsUrl: runStatsUrl, abortSignal: controller.signal });
-    return () => controller.abort();
-  }, [runStatsUrl, fetchRunStats]);
+  // Chart-only overlay; SWR-keyed so the table refresh can revalidate by key.
+  const { data: runTotals = [] } = useSWR(runStatsUrl, async (url: string) => {
+    const data = (await swrFetcher(url)) as { items: { timestamp: string; count: number }[] };
+    return (data?.items ?? []).map((i) => ({ timestamp: i.timestamp, count: Number(i.count) }));
+  });
 
   // Navigation callbacks. No-op when paywalled — drilling is a Pro feature.
   const navigateToCluster = useCallback(
@@ -169,7 +168,8 @@ export default function ClustersSection({ className }: Props) {
     [isPaywall, setClusterId, setEmergingClusterId, clusterId, isLeaf, displayId]
   );
 
-  if (isClustersLoading) {
+  // Skeleton only on first load; refresh keeps old data until new arrives.
+  if (isClustersLoading && isEmpty(rawClusters)) {
     return (
       <div
         className={cn("flex border rounded-lg overflow-hidden h-[240px] w-full bg-secondary", className)}

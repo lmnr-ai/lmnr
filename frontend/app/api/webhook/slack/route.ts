@@ -1,7 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { SlackWebhookRequestSchema } from "@/lib/actions/slack/types";
+import { handleSlackInteraction } from "@/lib/actions/slack/handle-interaction";
+import { SlackBlockActionsSchema, SlackWebhookRequestSchema } from "@/lib/actions/slack/types";
 import { processSlackEvent, verifySlackRequest } from "@/lib/actions/slack/webhook";
 
 /**
@@ -24,9 +25,18 @@ export async function POST(req: NextRequest): Promise<Response> {
 
     const contentType = req.headers.get("content-type");
 
-    // Interactive actions (block_actions, etc.) are sent as form-urlencoded with a `payload` field.
-    // We don't process them, just acknowledge with 200 so Slack stops showing errors.
+    // Interactive actions (block_actions from the project picker) are sent as form-urlencoded with a
+    // `payload` field carrying URL-encoded JSON. Bind the channel, then ACK 200 (the bind is a quick
+    // upsert + a response_url post, well within Slack's 3s budget). A handler failure must not 500 the
+    // webhook — log and still ACK so Slack stops retrying.
     if (contentType?.includes("application/x-www-form-urlencoded")) {
+      const params = new URLSearchParams(body);
+      const { payload } = SlackBlockActionsSchema.parse({ payload: params.get("payload") ?? "" });
+      try {
+        await handleSlackInteraction(payload);
+      } catch (error) {
+        console.error("Slack interaction handling failed:", error);
+      }
       return NextResponse.json({ ok: true }, { status: 200 });
     }
 

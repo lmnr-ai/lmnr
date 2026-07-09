@@ -62,6 +62,27 @@ export const datasetParquets = pgTable(
   ]
 );
 
+export const workspaceHardLimitNotifications = pgTable(
+  "workspace_hard_limit_notifications",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    usageItem: text("usage_item").notNull(),
+    lastNotifiedAt: timestamp("last_notified_at", { withTimezone: true, mode: "string" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "workspace_hard_limit_notifications_workspace_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    unique("workspace_hard_limit_notif_workspace_id_usage_item_unique").on(table.workspaceId, table.usageItem),
+  ]
+);
+
 export const workspaceUsageLimits = pgTable(
   "workspace_usage_limits",
   {
@@ -120,7 +141,7 @@ export const signals = pgTable(
     prompt: text().notNull(),
     structuredOutputSchema: jsonb("structured_output_schema").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    sampleRate: smallint("sample_rate"),
+    metadata: jsonb().default({}).notNull(),
   },
   (table) => [
     foreignKey({
@@ -292,6 +313,8 @@ export const renderTemplates = pgTable(
     projectId: uuid("project_id").defaultRandom().notNull(),
     code: text().notNull(),
     name: text().notNull(),
+    type: text().default("span").notNull(),
+    whereClause: text("where_clause"),
   },
   (table) => [
     foreignKey({
@@ -1150,6 +1173,37 @@ export const debuggerSessions = pgTable(
       columns: [table.projectId],
       foreignColumns: [projects.id],
       name: "debugger_sessions_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
+export const debuggerSessionBlocks = pgTable(
+  "debugger_session_blocks",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    projectId: uuid("project_id").notNull(),
+    sessionId: uuid("session_id").notNull(),
+    type: text().notNull(),
+    content: jsonb()
+      .default(sql`'{}'::jsonb`)
+      .notNull(),
+  },
+  (table) => [
+    index("debugger_session_blocks_session_id_idx").using("btree", table.sessionId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "debugger_session_blocks_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    foreignKey({
+      columns: [table.sessionId],
+      foreignColumns: [debuggerSessions.id],
+      name: "debugger_session_blocks_session_id_fkey",
     })
       .onUpdate("cascade")
       .onDelete("cascade"),

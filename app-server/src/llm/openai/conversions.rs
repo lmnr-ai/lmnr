@@ -108,6 +108,9 @@ fn thinking_level_to_effort(level: &ProviderThinkingLevel) -> Option<&'static st
         ProviderThinkingLevel::Low => Some("low"),
         ProviderThinkingLevel::Medium => Some("medium"),
         ProviderThinkingLevel::High => Some("high"),
+        // `xhigh` is OpenAI's tier above `high` (gpt-5.2+/codex-max+); models
+        // without it reject the value, same pre-existing risk as `minimal`.
+        ProviderThinkingLevel::XHigh => Some("xhigh"),
     }
 }
 
@@ -155,8 +158,7 @@ fn append_content_as_messages(content: &ProviderContent, out: &mut Vec<Value>) {
         }
         if let Some(fr) = part.function_response {
             let tool_call_id = fr.id.unwrap_or_default();
-            let content_str =
-                serde_json::to_string(&fr.response).unwrap_or_else(|_| "".to_string());
+            let content_str = serde_json::to_string(&fr.response).unwrap_or("".to_string());
             tool_results.push(json!({
                 "role": "tool",
                 "tool_call_id": tool_call_id,
@@ -165,9 +167,9 @@ fn append_content_as_messages(content: &ProviderContent, out: &mut Vec<Value>) {
             continue;
         }
         if let Some(fc) = part.function_call {
-            let id = fc.id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+            let id = fc.id.unwrap_or_default();
             let args = fc.args.unwrap_or(Value::Object(Default::default()));
-            let arguments_str = serde_json::to_string(&args).unwrap_or_else(|_| "{}".to_string());
+            let arguments_str = serde_json::to_string(&args).unwrap_or("{}".to_string());
             tool_calls.push(json!({
                 "id": id,
                 "type": "function",
@@ -454,24 +456,6 @@ mod tests {
         assert_eq!(messages[2]["content"], "{\"temp\":60}");
         assert_eq!(messages[3]["role"], "user");
         assert_eq!(messages[3]["content"], "Thanks");
-    }
-
-    #[test]
-    fn missing_tool_call_id_gets_uuid() {
-        let req = ProviderRequest {
-            contents: vec![assistant_with_tool_call(None, "f", json!({}))],
-            system_instruction: None,
-            tools: None,
-            generation_config: None,
-            service_tier: None,
-            provider: None,
-            model_size: None,
-        };
-        let body = provider_request_to_openai_body("gpt-5", &req);
-        let id = body["messages"][0]["tool_calls"][0]["id"].as_str().unwrap();
-        // uuid v4 is 36 chars with 4 hyphens.
-        assert_eq!(id.len(), 36);
-        assert_eq!(id.chars().filter(|c| *c == '-').count(), 4);
     }
 
     #[test]

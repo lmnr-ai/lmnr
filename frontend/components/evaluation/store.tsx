@@ -52,10 +52,8 @@ export interface EvalStoreState {
   addScoreName: (name: string) => void;
 }
 
-export const selectVisibleColumnDefs = (
-  columnDefs: ColumnDef<EvalRow>[],
-  isComparison: boolean
-): ColumnDef<EvalRow>[] => columnDefs.filter((c) => !c.meta?.hidden && !(isComparison && c.id === "output"));
+export const selectVisibleColumnDefs = (columnDefs: ColumnDef<EvalRow>[]): ColumnDef<EvalRow>[] =>
+  columnDefs.filter((c) => !c.meta?.hidden);
 
 export function buildColumnDefs({
   scoreNames,
@@ -179,7 +177,7 @@ function createEvalStore({ initialScoreNames, isShared = false }: EvalStoreInit)
   return createStore<EvalStoreState>()(
     persist(
       (set, get) => ({
-        heatmapEnabled: false,
+        heatmapEnabled: true,
         isShared,
         scoreNames: initialScoreNames,
 

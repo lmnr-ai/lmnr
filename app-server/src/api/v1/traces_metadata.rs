@@ -26,10 +26,14 @@ pub struct UpdateTraceMetadataRequest {
 /// `lmnr.association.properties.metadata.<key>` attributes plus the
 /// `lmnr.internal.metadata_only` marker. The consumer (`process_span_messages`)
 /// splits these spans out before the regular pipeline and applies them to
-/// `traces.metadata` via a UPDATE that takes the same row lock as the regular
-/// `upsert_trace_statistics_batch`. The virtual span is never recorded to the
-/// `spans` table and contributes nothing to trace stats (start/end/tokens/
-/// num_spans/top_span/etc.).
+/// `traces.metadata` via an upsert that takes the same row lock as the regular
+/// `upsert_trace_statistics_batch` (and creates a virtual trace row when the
+/// trace's span batch hasn't been flushed yet — the handler's existence check
+/// keeps the public endpoint 404ing on unknown traces, but a trace deleted
+/// between request and consumption leaves a metadata-only stub row; accepted,
+/// see `merge_trace_metadata_batch`). The virtual span is never recorded to
+/// the `spans` table and contributes nothing to trace stats (start/end/tokens/
+/// top_span/etc.).
 #[post("metadata")]
 pub async fn update_trace_metadata(
     req: web::Json<UpdateTraceMetadataRequest>,
@@ -38,13 +42,18 @@ pub async fn update_trace_metadata(
     db: web::Data<DB>,
     cache: web::Data<Cache>,
 ) -> ResponseResult {
-    handle_trace_metadata(project_api_key.project_id, req, spans_message_queue, db, cache).await
+    handle_trace_metadata(
+        project_api_key.project_id,
+        req,
+        spans_message_queue,
+        db,
+        cache,
+    )
+    .await
 }
 
-/// Shared handler body for `/v1/traces/metadata` and its CLI twin
-/// `/v1/cli/traces/metadata`. Both surfaces differ only in auth (project API key
-/// vs `CliProjectAuth` user token) and how they resolve `project_id`; the
-/// empty-check, existence check, and patch publish live here so they can't drift.
+/// Handler body for `/v1/traces/metadata`: empty-check, existence check, and
+/// patch publish.
 pub async fn handle_trace_metadata(
     project_id: Uuid,
     req: web::Json<UpdateTraceMetadataRequest>,

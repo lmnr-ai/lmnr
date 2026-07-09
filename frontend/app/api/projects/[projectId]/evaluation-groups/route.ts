@@ -7,23 +7,17 @@ import { evaluations } from "@/lib/db/migrations/schema";
 export async function GET(request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
   const params = await props.params;
   const projectId = params.projectId;
-  const groupedEvaluations = db.$with("grouped_evaluations").as(
-    db
-      .select({
-        groupId: evaluations.groupId,
-        lastEvaluationCreatedAt: sql<Date>`MAX(${evaluations.createdAt})`.as("lastEvaluationCreatedAt"),
-      })
-      .from(evaluations)
-      .where(eq(evaluations.projectId, projectId))
-      .groupBy(evaluations.groupId)
-  );
+  const lastEvaluationCreatedAt = sql<Date>`MAX(${evaluations.createdAt})`.as("lastEvaluationCreatedAt");
   const groups = await db
-    .with(groupedEvaluations)
     .select({
-      groupId: groupedEvaluations.groupId,
-      lastEvaluationCreatedAt: groupedEvaluations.lastEvaluationCreatedAt,
+      groupId: evaluations.groupId,
+      lastEvaluationCreatedAt,
+      firstEvaluationCreatedAt: sql<Date>`MIN(${evaluations.createdAt})`.as("firstEvaluationCreatedAt"),
+      runCount: sql<number>`COUNT(*)::int`.as("runCount"),
     })
-    .from(groupedEvaluations)
-    .orderBy(desc(groupedEvaluations.lastEvaluationCreatedAt));
+    .from(evaluations)
+    .where(eq(evaluations.projectId, projectId))
+    .groupBy(evaluations.groupId)
+    .orderBy(desc(lastEvaluationCreatedAt));
   return NextResponse.json(groups);
 }

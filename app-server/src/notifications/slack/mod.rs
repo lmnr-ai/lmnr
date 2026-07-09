@@ -1,0 +1,687 @@
+use anyhow::Result;
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use sodiumoxide::{
+    crypto::aead::xchacha20poly1305_ietf::{Key, Nonce, open},
+    hex,
+};
+use uuid::Uuid;
+
+use super::NotificationKind;
+use super::utils::build_report_data_from_batch;
+
+const SLACK_API_BASE: &str = "https://slack.com/api";
+
+#[derive(Debug, Deserialize, Serialize)]
+struct SlackApiResponse {
+    ok: bool,
+    #[serde(default)]
+    error: Option<String>,
+    // `ts` of the posted message — the stable per-channel id the agent keys persisted rows on.
+    #[serde(default)]
+    ts: Option<String>,
+}
+
+pub fn decode_slack_token(
+    team_id: &str,
+    nonce_hex: &str,
+    encrypted_value: &str,
+) -> anyhow::Result<String> {
+    let key_hex = std::env::var(crate::env::secrets::SLACK_ENCRYPTION_KEY)
+        .map_err(|_| anyhow::anyhow!("SLACK_ENCRYPTION_KEY environment variable is not set"))?;
+
+    let key = Key::from_slice(
+        hex::decode(key_hex)
+            .map_err(|e| anyhow::anyhow!("Failed to decode SLACK_ENCRYPTION_KEY hex: {:?}", e))?
+            .as_slice(),
+    )
+    .ok_or_else(|| anyhow::anyhow!("Invalid SLACK_ENCRYPTION_KEY"))?;
+
+    let nonce_bytes = hex::decode(nonce_hex)
+        .map_err(|e| anyhow::anyhow!("Failed to decode nonce hex: {:?}", e))?;
+    let nonce = Nonce::from_slice(&nonce_bytes).ok_or_else(|| anyhow::anyhow!("Invalid nonce"))?;
+
+    let encrypted_bytes = hex::decode(encrypted_value)
+        .map_err(|e| anyhow::anyhow!("Failed to decode encrypted value hex: {:?}", e))?;
+
+    let decrypted = open(&encrypted_bytes, Some(team_id.as_bytes()), &nonce, &key)
+        .map_err(|_| anyhow::anyhow!("Failed to decrypt Slack token"))?;
+
+    String::from_utf8(decrypted)
+        .map_err(|e| anyhow::anyhow!("Failed to convert decrypted bytes to string: {}", e))
+}
+
+/// Format Slack message blocks for a batch of notifications.
+///
+/// All notifications in the batch are expected to be of the same kind.
+/// Reports are rendered by combining per-project data into a single message.
+/// Alerts use the first (and only) notification. Usage warnings and hard limits
+/// are email-only and never reach the Slack formatter.
+pub fn format_message_blocks_batch(
+    notifications: &[NotificationKind],
+    workspace_id: Uuid,
+) -> serde_json::Value {
+    let Some(first) = notifications.first() else {
+        return json!([]);
+    };
+
+    match first {
+        NotificationKind::EventIdentification {
+            project_id,
+            project_name,
+            trace_id,
+            event_id,
+            event_name,
+            extracted_information,
+            severity,
+            signal_id,
+            ..
+        } => format_event_identification_blocks(
+            &project_id.to_string(),
+            &signal_id.to_string(),
+            &trace_id.to_string(),
+            event_id.as_ref(),
+            event_name,
+            project_name,
+            extracted_information.clone(),
+            severity,
+            // Notification render time (~event detection time) — the payload carries no
+            // event timestamp, and delivery follows detection within seconds.
+            &chrono::Utc::now()
+                .format("%b %-d, %Y at %-I:%M %p UTC")
+                .to_string(),
+        ),
+        NotificationKind::NewCluster { .. } => {
+            // All clusters in the batch are rendered as one digest message.
+            let clusters: Vec<&NotificationKind> = notifications
+                .iter()
+                .filter(|n| matches!(n, NotificationKind::NewCluster { .. }))
+                .collect();
+            format_new_cluster_blocks(&clusters)
+        }
+        NotificationKind::SignalsReport { .. } => {
+            let (title, report_data) = build_report_data_from_batch(notifications, workspace_id)
+                .expect("SignalsReport batch must contain at least one report");
+            format_report_blocks(&title, &report_data)
+        }
+        // Usage warnings and hard limits are delivered by email only (fetch_targets never
+        // resolves a Slack target for either), so these arms are unreachable in practice.
+        NotificationKind::UsageWarning { .. } | NotificationKind::UsageHardLimit { .. } => {
+            json!([])
+        }
+    }
+}
+
+/// Slack section block `text` fields are capped at 3000 chars. If the input
+/// exceeds the limit, truncate at a char boundary and append `...` so the
+/// block stays under the limit while signalling the truncation to the reader.
+pub(crate) fn truncate_to_slack_section_limit(text: &str) -> String {
+    const SLACK_SECTION_TEXT_LIMIT: usize = 3000;
+    const ELLIPSIS: &str = "...";
+
+    if text.chars().count() <= SLACK_SECTION_TEXT_LIMIT {
+        return text.to_string();
+    }
+
+    let keep = SLACK_SECTION_TEXT_LIMIT - ELLIPSIS.chars().count();
+    let mut out: String = text.chars().take(keep).collect();
+    out.push_str(ELLIPSIS);
+    out
+}
+
+mod event_identification;
+mod new_cluster;
+mod report;
+mod rich_text;
+
+use event_identification::format_event_identification_blocks;
+use new_cluster::format_new_cluster_blocks;
+use report::format_report_blocks;
+
+pub async fn send_message(
+    slack_client: &Client,
+    token: &str,
+    channel_id: &str,
+    blocks: serde_json::Value,
+) -> Result<()> {
+    let body = json!({
+        "channel": channel_id,
+        "blocks": blocks,
+        "unfurl_links": false,
+        "unfurl_media": false
+    });
+
+    let response = slack_client
+        .post(format!("{}/chat.postMessage", SLACK_API_BASE))
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send()
+        .await?;
+    let status = response.status();
+    let body = response.text().await?;
+
+    if !status.is_success() {
+        return Err(anyhow::anyhow!(
+            "Failed to send Slack message. HTTP Status: {}, Response: {}",
+            status,
+            body
+        ));
+    }
+
+    let slack_response: SlackApiResponse = serde_json::from_str(&body).map_err(|e| {
+        anyhow::anyhow!(
+            "Failed to parse Slack API response: {}. Raw response: {}",
+            e,
+            body
+        )
+    })?;
+
+    if !slack_response.ok {
+        log::error!("Slack API returned error: {}", body);
+        return Err(anyhow::anyhow!(
+            "Slack API returned error: {}",
+            slack_response
+                .error
+                .unwrap_or_else(|| "Unknown error".to_string())
+        ));
+    }
+
+    Ok(())
+}
+
+/// Post a message into a Slack thread via `chat.postMessage`. Pass `blocks: Some(..)` for a Block Kit
+/// message (e.g. the in-Slack project picker), `None` for a plain-text reply. `text` is the plain body
+/// / Block Kit notification fallback and must be pre-truncated to the Slack section limit by the caller.
+/// Returns the posted message `ts` (None when Slack omits it) so callers that persist the turn can key
+/// it by `external_id`; callers that don't persist (e.g. the picker) ignore it. Errors propagate so the
+/// spawned handler can log them.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub async fn post_thread_message(
+    slack_client: &Client,
+    token: &str,
+    channel_id: &str,
+    thread_ts: &str,
+    text: &str,
+    blocks: Option<serde_json::Value>,
+) -> Result<Option<String>> {
+    let mut body = json!({
+        "channel": channel_id,
+        "thread_ts": thread_ts,
+        "text": text,
+        "unfurl_links": false,
+        "unfurl_media": false,
+    });
+    // Insert `blocks` only when present — never send `blocks: null`. `body` is an object literal, so
+    // serde_json's IndexMut adds the key in place.
+    if let Some(blocks) = blocks {
+        body["blocks"] = blocks;
+    }
+
+    let response = slack_client
+        .post(format!("{}/chat.postMessage", SLACK_API_BASE))
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send()
+        .await?;
+    let status = response.status();
+    let body = response.text().await?;
+    if !status.is_success() {
+        return Err(anyhow::anyhow!(
+            "Failed to post Slack thread message. HTTP Status: {}, Response: {}",
+            status,
+            body
+        ));
+    }
+    let parsed: SlackApiResponse = serde_json::from_str(&body)
+        .map_err(|e| anyhow::anyhow!("Failed to parse Slack response: {}. Raw: {}", e, body))?;
+    if !parsed.ok {
+        return Err(anyhow::anyhow!(
+            "Slack API error on chat.postMessage: {}",
+            parsed.error.unwrap_or_else(|| "unknown".to_string())
+        ));
+    }
+    // None (not "") when ts is absent: an empty external_id is non-NULL and would collapse rows under
+    // the partial unique index, whereas None is exempt (same as intermediate/non-Slack turns).
+    Ok(parsed.ts.filter(|ts| !ts.is_empty()))
+}
+
+/// Fetch a thread's prior messages via `conversations.replies` (oldest first). Used to backfill
+/// context when the agent is first mentioned mid-thread. The caller persists each as a `user` turn
+/// (the agent's own replies are written live as `assistant`), so authorship isn't distinguished here.
+/// Best-effort — the caller treats a failure as "no backfill".
+pub async fn fetch_thread_replies(
+    slack_client: &Client,
+    token: &str,
+    channel_id: &str,
+    thread_ts: &str,
+    limit: u32,
+) -> Result<Vec<ThreadMessage>> {
+    #[derive(Deserialize)]
+    struct RepliesResponse {
+        ok: bool,
+        #[serde(default)]
+        error: Option<String>,
+        #[serde(default)]
+        messages: Vec<RawThreadMessage>,
+    }
+    #[derive(Deserialize)]
+    struct RawThreadMessage {
+        #[serde(default)]
+        text: String,
+        #[serde(default)]
+        ts: Option<String>,
+    }
+
+    let response = slack_client
+        .get(format!("{}/conversations.replies", SLACK_API_BASE))
+        .header("Authorization", format!("Bearer {}", token))
+        .query(&[
+            ("channel", channel_id),
+            ("ts", thread_ts),
+            ("limit", &limit.to_string()),
+        ])
+        .send()
+        .await?;
+    let parsed: RepliesResponse = response.json().await?;
+    if !parsed.ok {
+        return Err(anyhow::anyhow!(
+            "Slack conversations.replies error: {}",
+            parsed.error.unwrap_or_else(|| "unknown".to_string())
+        ));
+    }
+
+    Ok(parsed
+        .messages
+        .into_iter()
+        .filter(|m| !m.text.trim().is_empty())
+        .map(|m| ThreadMessage {
+            text: m.text,
+            ts: m.ts,
+        })
+        .collect())
+}
+
+/// One backfilled thread message. Persisted as a `user` turn regardless of author (see
+/// `fetch_thread_replies`).
+#[derive(Debug, Clone)]
+pub struct ThreadMessage {
+    pub text: String,
+    pub ts: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn truncate_preserves_short_text() {
+        let input = "hello world";
+        assert_eq!(truncate_to_slack_section_limit(input), input);
+    }
+
+    #[test]
+    fn truncate_preserves_text_at_limit() {
+        let input: String = "a".repeat(3000);
+        assert_eq!(truncate_to_slack_section_limit(&input), input);
+    }
+
+    #[test]
+    fn truncate_appends_ellipsis_past_limit() {
+        let input: String = "a".repeat(3500);
+        let out = truncate_to_slack_section_limit(&input);
+        assert_eq!(out.chars().count(), 3000);
+        assert!(out.ends_with("..."));
+        assert!(out.starts_with("aaa"));
+    }
+
+    #[test]
+    fn truncate_respects_char_boundaries() {
+        // Multi-byte chars would panic on byte-index slicing.
+        let input: String = "é".repeat(3500);
+        let out = truncate_to_slack_section_limit(&input);
+        assert_eq!(out.chars().count(), 3000);
+        assert!(out.ends_with("..."));
+    }
+
+    use crate::reports::{NoteworthyEvent, ProjectReportData, ReportData};
+    use std::collections::BTreeMap;
+
+    fn blocks_of(v: &serde_json::Value) -> &Vec<serde_json::Value> {
+        v.as_array().expect("blocks array")
+    }
+
+    #[test]
+    fn event_identification_real_payload_renders_all_links() {
+        // A real production signal-event payload (background-agent project) with 3 embedded
+        // markdown trace links inside the `description` value — the exact shape the enterprise
+        // producer feeds into `extracted_information`.
+        let raw = r#"{"category":"api_error","description":"The initial LLM call [llm](https://lmnr.ai/project/c11e9ede-a637-460d-a28a-64b2922c7893/traces/1962d484-9e66-9d93-8cb8-54fa1a7ea52b?spanId=00000000-0000-0000-5eb2-129537392e3e&chat=true) failed with a 400 Bad Request error because the harness attempted to use an unsupported configuration ('thinking.type.enabled'). While the agent recovered in the next step, this represents a configuration mismatch in the underlying SDK/harness. Furthermore, the LLM call at [llm](https://lmnr.ai/project/c11e9ede-a637-460d-a28a-64b2922c7893/traces/1962d484-9e66-9d93-8cb8-54fa1a7ea52b?spanId=00000000-0000-0000-c950-143ca3d08d57&chat=true) returned a malformed response containing only internal metadata structure (a JSON array with thinking signatures) instead of a functional assistant message, resulting in a wasted turn and unnecessary cost. Finally, the LLM call at [llm](https://lmnr.ai/project/c11e9ede-a637-460d-a28a-64b2922c7893/traces/1962d484-9e66-9d93-8cb8-54fa1a7ea52b?spanId=00000000-0000-0000-1fcb-a83e5ec5231a&chat=true) exhibited abnormally high latency (136.7s) for a single code edit task."}"#;
+        let info: serde_json::Value = serde_json::from_str(raw).unwrap();
+        let eid = Uuid::parse_str("f4a7bf35-513c-40c8-8896-96c1623792bf").unwrap();
+        let v = format_event_identification_blocks(
+            "c8abcdea-81c0-4ce2-a345-70889198892a",
+            "7c250934-b112-47cd-8d79-8ea1b99b52a2",
+            "59b353d9-7636-7ff8-52ba-2efade7f7ff5",
+            Some(&eid),
+            "Background Agent Failure Detector",
+            "background-agent",
+            Some(info),
+            &2u8,
+            "Jul 2, 2026 at 2:32 PM UTC",
+        );
+
+        // The description value cell must carry 3 clickable `link` elements (UTM-injected).
+        let table = blocks_of(&v).iter().find(|b| b["type"] == "table").unwrap();
+        let desc_row = table["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r[0]["elements"][0]["elements"][0]["text"] == "description")
+            .expect("description row");
+        let value_els = desc_row[1]["elements"][0]["elements"].as_array().unwrap();
+        let links: Vec<_> = value_els.iter().filter(|e| e["type"] == "link").collect();
+        assert_eq!(
+            links.len(),
+            3,
+            "3 markdown links -> 3 rich_text link elements"
+        );
+        assert!(
+            links
+                .iter()
+                .all(|l| l["url"].as_str().unwrap().contains("utm_source=slack"))
+        );
+        // link labels preserved, prose kept as interleaved text runs
+        assert!(links.iter().all(|l| l["text"] == "llm"));
+        assert!(value_els.iter().any(|e| e["type"] == "text"));
+    }
+
+    #[test]
+    fn event_identification_renders_table_and_statline() {
+        let eid = Uuid::nil();
+        let info = json!({
+            "error_code": "INVALID_ORDER_ID",
+            "description": "x".repeat(120),
+            "trace": "see [trace](https://laminar.sh/project/p/traces/t)",
+        });
+        let v = format_event_identification_blocks(
+            "pid",
+            "sid",
+            "tid",
+            Some(&eid),
+            "Failure Detector",
+            "Travel Agent",
+            Some(info),
+            &2u8,
+            "Jul 2, 2026 at 2:32 PM UTC",
+        );
+        let blocks = blocks_of(&v);
+        // header carries the severity
+        let header = blocks.iter().find(|b| b["type"] == "header").unwrap();
+        let ht = header["text"]["text"].as_str().unwrap();
+        assert!(ht.contains("Failure Detector"));
+        assert!(ht.contains("Critical"));
+
+        // every field lives in a single `table` block: a bold Field/Value header row + 3 data rows.
+        let table = blocks.iter().find(|b| b["type"] == "table").unwrap();
+        let rows = table["rows"].as_array().unwrap();
+        assert_eq!(rows.len(), 4, "header row + 3 fields");
+        assert_eq!(rows[0][0]["elements"][0]["elements"][0]["text"], "Field");
+        assert_eq!(
+            rows[0][0]["elements"][0]["elements"][0]["style"]["bold"],
+            true
+        );
+        // data-row keys are bold too (label column emphasized)
+        assert_eq!(
+            rows[1][0]["elements"][0]["elements"][0]["style"]["bold"],
+            true
+        );
+        // value column wraps, label column does not
+        assert_eq!(table["column_settings"][0]["is_wrapped"], false);
+        assert_eq!(table["column_settings"][1]["is_wrapped"], true);
+
+        // a markdown link inside a value is rebuilt as a rich_text `link` element (stays clickable),
+        // with UTM params injected.
+        let has_link = rows.iter().any(|r| {
+            r[1]["elements"][0]["elements"]
+                .as_array()
+                .map(|els| {
+                    els.iter().any(|e| {
+                        e["type"] == "link"
+                            && e["url"]
+                                .as_str()
+                                .map(|u| u.contains("utm_source=slack"))
+                                .unwrap_or(false)
+                    })
+                })
+                .unwrap_or(false)
+        });
+        assert!(
+            has_link,
+            "markdown link should become a rich_text link element"
+        );
+
+        // three buttons: Open trace, View similar events, Manage alerts
+        let actions = blocks.iter().find(|b| b["type"] == "actions").unwrap();
+        let btns = actions["elements"].as_array().unwrap();
+        assert_eq!(btns.len(), 3);
+        // "Open trace" carries trace + cluster
+        assert_eq!(btns[0]["text"]["text"], "Open trace");
+        let open_url = btns[0]["url"].as_str().unwrap();
+        assert!(open_url.contains("eventCluster="));
+        assert!(open_url.contains("traceId="));
+        // "View similar events" selects the cluster but does NOT open the trace
+        assert_eq!(btns[1]["text"]["text"], "View similar events");
+        let similar_url = btns[1]["url"].as_str().unwrap();
+        assert!(similar_url.contains("eventCluster="));
+        assert!(!similar_url.contains("traceId="));
+        assert_eq!(btns[2]["text"]["text"], "Manage alerts");
+
+        // statline sits at the very bottom: "*Project* · <time>"
+        let last = blocks.last().unwrap();
+        assert_eq!(last["type"], "context");
+        let stat = last["elements"][0]["text"].as_str().unwrap();
+        assert!(stat.contains("Travel Agent"));
+        assert!(stat.contains("2:32 PM UTC"));
+    }
+
+    fn new_cluster_kind(cluster_name: &str, num_signal_events: u32) -> NotificationKind {
+        NotificationKind::NewCluster {
+            project_id: Uuid::nil(),
+            signal_id: Uuid::nil(),
+            signal_name: "Failure Detector".to_string(),
+            cluster_id: Uuid::new_v4(),
+            cluster_name: cluster_name.to_string(),
+            num_signal_events,
+            alert_name: "New cluster alert".to_string(),
+            first_seen: Some("Jul 1, 2026".to_string()),
+            last_seen: Some("Jul 6, 2026".to_string()),
+            severity_counts: [1, 0, 2],
+            example_events: vec![],
+        }
+    }
+
+    #[test]
+    fn new_cluster_digest_single_cluster() {
+        let kind = new_cluster_kind("Bad args", 3);
+        let v = format_new_cluster_blocks(&[&kind]);
+        let blocks = blocks_of(&v);
+        // header names the signal, singular form
+        assert_eq!(
+            blocks[0]["text"]["text"],
+            "`Failure Detector`: New Cluster"
+        );
+        // one cluster section with name, event count, seen dates, severity line
+        let section = blocks[1]["text"]["text"].as_str().unwrap();
+        assert!(section.contains("Bad args"));
+        assert!(section.contains("*Events:* 3"));
+        assert!(section.contains("*First seen:* Jul 1, 2026"));
+        assert!(section.contains("*Last seen:* Jul 6, 2026"));
+        assert!(section.contains("2 Critical"));
+        assert!(section.contains("1 Info"));
+        assert!(!section.contains("Warning"));
+        // per-cluster actions block with a View Cluster button
+        assert_eq!(blocks[2]["type"], "actions");
+        assert_eq!(
+            blocks[2]["elements"][0]["text"]["text"],
+            "View Cluster"
+        );
+        // trailing context (signal + alert links) and divider
+        let context = &blocks[blocks.len() - 2];
+        assert_eq!(context["type"], "context");
+        assert!(
+            context["elements"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("Failure Detector")
+        );
+        assert_eq!(blocks.last().unwrap()["type"], "divider");
+    }
+
+    #[test]
+    fn new_cluster_digest_multiple_clusters() {
+        let a = new_cluster_kind("Bad args", 3);
+        let b = new_cluster_kind("Timeouts", 9);
+        let v = format_new_cluster_blocks(&[&a, &b]);
+        let blocks = blocks_of(&v);
+        // header uses the plural count
+        assert_eq!(
+            blocks[0]["text"]["text"],
+            "`Failure Detector`: 2 New Clusters"
+        );
+        // each cluster contributes a section + actions pair
+        let sections: Vec<&str> = blocks
+            .iter()
+            .filter(|b| b["type"] == "section")
+            .filter_map(|b| b["text"]["text"].as_str())
+            .collect();
+        assert!(sections.iter().any(|s| s.contains("Bad args")));
+        assert!(sections.iter().any(|s| s.contains("Timeouts")));
+        let actions = blocks.iter().filter(|b| b["type"] == "actions").count();
+        assert_eq!(actions, 2);
+    }
+
+    fn report_with(noteworthy: Vec<NoteworthyEvent>) -> ReportData {
+        let mut counts = BTreeMap::new();
+        counts.insert("Failure Detector".to_string(), 93u64);
+        ReportData {
+            workspace_id: Uuid::nil(),
+            workspace_name: "WS".to_string(),
+            period_label: "Weekly".to_string(),
+            period_start: "Jun 1".to_string(),
+            period_end: "Jun 7".to_string(),
+            total_events: 93,
+            projects: vec![ProjectReportData {
+                project_name: "background-agent".to_string(),
+                project_id: Uuid::nil(),
+                signal_event_counts: counts,
+                ai_summary: "Summary text".to_string(),
+                noteworthy_events: noteworthy,
+            }],
+        }
+    }
+
+    fn event(sev: u8) -> NoteworthyEvent {
+        NoteworthyEvent {
+            signal_name: "Failure Detector".to_string(),
+            summary: "Something broke".to_string(),
+            timestamp: "Jun 7".to_string(),
+            trace_id: Uuid::nil().to_string(),
+            severity: sev,
+        }
+    }
+
+    #[test]
+    fn report_builds_noteworthy_table() {
+        let v = format_report_blocks("Weekly report – WS", &report_with(vec![event(2)]));
+        let blocks = blocks_of(&v);
+        // title is an H1 markdown block
+        assert_eq!(blocks[0]["type"], "markdown");
+        assert!(blocks[0]["text"].as_str().unwrap().starts_with("# 📊"));
+        // project name is an H2 markdown block
+        assert!(blocks.iter().any(
+            |b| b["type"] == "markdown" && b["text"].as_str().unwrap() == "## background-agent"
+        ));
+        // noteworthy events render as a table: Signal / Summary header + one data row
+        let table = blocks.iter().find(|b| b["type"] == "table").unwrap();
+        let rows = table["rows"].as_array().unwrap();
+        assert_eq!(rows.len(), 2, "header row + 1 event");
+        assert_eq!(table["column_settings"][1]["is_wrapped"], true);
+        // signal cell: severity emoji (Critical 🔴) + bold signal name
+        let sig_runs = rows[1][0]["elements"][0]["elements"].as_array().unwrap();
+        assert!(sig_runs[0]["text"].as_str().unwrap().contains("🔴"));
+        assert_eq!(sig_runs[1]["text"], "Failure Detector");
+        assert_eq!(sig_runs[1]["style"]["bold"], true);
+        // summary cell ends with an italic timestamp + a "View trace" link
+        let sum_runs = rows[1][1]["elements"][0]["elements"].as_array().unwrap();
+        assert!(
+            sum_runs.iter().any(|r| r["type"] == "text"
+                && r["style"]["italic"] == true
+                && r["text"] == "Jun 7")
+        );
+        let link = sum_runs.iter().find(|r| r["type"] == "link").unwrap();
+        assert_eq!(link["text"], "View trace");
+        assert!(link["url"].as_str().unwrap().contains("/traces/"));
+    }
+
+    #[test]
+    fn report_table_caps_at_max_events_with_overflow_note() {
+        let events: Vec<NoteworthyEvent> = (0..12).map(|_| event(1)).collect();
+        let v = format_report_blocks("R", &report_with(events));
+        let blocks = blocks_of(&v);
+        let table = blocks.iter().find(|b| b["type"] == "table").unwrap();
+        // header row + 10 events (MAX_EVENTS)
+        assert_eq!(table["rows"].as_array().unwrap().len(), 11);
+        // overflow surfaced as a "+N more" context with a signals link
+        assert!(blocks.iter().any(|b| {
+            b["type"] == "context"
+                && b["elements"][0]["text"]
+                    .as_str()
+                    .map(|t| t.contains("+2 more"))
+                    .unwrap_or(false)
+        }));
+    }
+
+    #[test]
+    fn report_stays_under_slack_block_limit_and_truncates() {
+        // Many projects (each ~6 blocks) would blow past Slack's 50-block cap;
+        // the formatter must truncate and stay <= 50.
+        let mut counts = BTreeMap::new();
+        counts.insert("Failure Detector".to_string(), 5u64);
+        let projects: Vec<ProjectReportData> = (0..20)
+            .map(|i| ProjectReportData {
+                project_name: format!("project-{}", i),
+                project_id: Uuid::nil(),
+                signal_event_counts: counts.clone(),
+                ai_summary: "summary text".to_string(),
+                noteworthy_events: vec![event(2), event(1)],
+            })
+            .collect();
+        let report = ReportData {
+            workspace_id: Uuid::nil(),
+            workspace_name: "WS".to_string(),
+            period_label: "Weekly".to_string(),
+            period_start: "Jun 1".to_string(),
+            period_end: "Jun 7".to_string(),
+            total_events: 100,
+            projects,
+        };
+        let v = format_report_blocks("Weekly report", &report);
+        let blocks = blocks_of(&v);
+        assert!(
+            blocks.len() <= 50,
+            "expected <= 50 blocks, got {}",
+            blocks.len()
+        );
+        // a "+N more projects" truncation notice is present
+        assert!(blocks.iter().any(|b| {
+            b["type"] == "context"
+                && b["elements"][0]["text"]
+                    .as_str()
+                    .map(|t| t.contains("more project"))
+                    .unwrap_or(false)
+        }));
+    }
+}

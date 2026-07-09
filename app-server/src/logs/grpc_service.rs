@@ -55,6 +55,7 @@ impl LogsService for ProcessLogsService {
                 self.db.clone(),
                 self.clickhouse.clone(),
                 self.cache.clone(),
+                self.queue.clone(),
                 project_id,
             )
             .await

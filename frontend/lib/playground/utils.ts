@@ -10,6 +10,7 @@ export const parseSystemMessages = (messages: Message[]): ModelMessage[] =>
       return {
         role: message.role,
         content: message.content[0].text,
+        ...(message.providerOptions !== undefined && { providerOptions: message.providerOptions }),
       } as SystemModelMessage;
     }
 
@@ -22,6 +23,7 @@ export const parseSystemMessages = (messages: Message[]): ModelMessage[] =>
       return {
         role: "tool",
         content: message.content,
+        ...(message.providerOptions !== undefined && { providerOptions: message.providerOptions }),
       } as unknown as ToolModelMessage;
     }
 

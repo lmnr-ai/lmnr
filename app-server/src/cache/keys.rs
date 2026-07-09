@@ -5,8 +5,11 @@ pub const CUSTOM_MODEL_COSTS_CACHE_KEY: &str = "custom_model_costs";
 pub const MODEL_COSTS_CACHE_KEY: &str = "model_costs";
 pub const PROJECT_API_KEY_CACHE_KEY: &str = "project_api_key";
 pub const PROJECT_CACHE_KEY: &str = "project";
+// `_v2`: signal `sample_rate` moved into `metadata` jsonb (migration 0099),
+// changing the cached `Signal` shape. Bumping abandons legacy-shaped entries
+// (which have no TTL) rather than deserializing them with sampling silently lost.
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub const SIGNAL_TRIGGERS_CACHE_KEY: &str = "signal_triggers";
+pub const SIGNAL_TRIGGERS_CACHE_KEY: &str = "signal_triggers_v2";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_TRIGGER_LOCK_CACHE_KEY: &str = "signal_trigger_lock";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
@@ -38,19 +41,45 @@ pub const REPORT_SCHEDULER_LAST_CHECK_CACHE_KEY: &str = "report_scheduler_last_c
 pub const SAMPLING_FACTORS_CACHE_KEY: &str = "sampling_factors";
 pub const WORKSPACE_USAGE_WARNINGS_CACHE_KEY: &str = "workspace_usage_warnings";
 pub const USAGE_WARNING_SEND_LOCK_KEY: &str = "usage_warning_send_lock";
+/// Race guard mirroring `USAGE_WARNING_SEND_LOCK_KEY` for hard-limit
+/// notifications. Hard-limit messages share `definition_id` (= workspace_id)
+/// across usage items, so the lock is keyed `…:{workspace_id}:{usage_item}` to
+/// avoid a bytes notification suppressing a concurrent signal-cost one.
+pub const HARD_LIMIT_SEND_LOCK_KEY: &str = "hard_limit_send_lock";
+/// Short-lived cache of `workspace_hard_limit_notifications.last_notified_at`
+/// per `(workspace_id, usage_item)`, so over-limit workspaces don't hit
+/// Postgres on every blocked ingestion request. The frontend evicts this key
+/// when it deletes the underlying dedup row (limit removed/raised); the short
+/// TTL is a backstop for a failed eviction. Must stay in sync with the
+/// frontend constant in `frontend/lib/cache.ts`.
+pub const HARD_LIMIT_NOTIFIED_CACHE_KEY: &str = "hard_limit_notified";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SYS_PROMPT_SUMMARY_CACHE_KEY: &str = "sys_prompt_summary_v2";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SPAN_KEEP_DEFAULT_RULES_CACHE_KEY: &str = "signals_span_keep_default_rules";
 pub const TRACE_EVALUATION_ID_CACHE_KEY: &str = "trace_evaluation_id";
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub const TRACE_INPUT_REGEX_CACHE_KEY: &str = "signals_trace_input_regex";
+pub const USER_TASK_REGEX_CACHE_KEY: &str = "user_task_regex";
+pub const USER_TASK_LOCK_CACHE_KEY: &str = "user_task_lock";
 
 pub const INGESTION_RATE_LIMIT_PROJECT_ID_CACHE_KEY: &str = "ingestion_rate_limit_project_id";
 pub const PROJECT_MEMBERSHIP_CACHE_KEY: &str = "project_membership";
 pub const AGENT_VERSION_HASH_CACHE_KEY: &str = "agent_version_hash";
 pub const AGENT_STABLE_PROMPT_REGEX_CACHE_KEY: &str = "agent_stable_prompt_regex";
 pub const AGENT_CLASSIFY_LOCK_CACHE_KEY: &str = "agent_classify_lock";
+
+// Static system-prompt extraction (LAM-1899). All three are namespaced by
+// `(project_id, prompt_hash)` — the naive signature — see
+// `traces/system_extraction/mod.rs`.
+/// `naive_signature → Vec<regex>` whose matches are the prompt's dynamic parts.
+pub const STATIC_SP_REGEX_CACHE_KEY: &str = "static_sp_regex";
+/// `naive_signature → Vec<system_prompt>` samples awaiting extraction.
+pub const STATIC_SP_ACCUMULATOR_CACHE_KEY: &str = "static_sp_accumulator";
+/// `naive_signature → total occurrences seen` (a small counter kept separate
+/// from the multi-KB samples blob so bumping it doesn't rewrite the samples).
+/// Drives the static-prompt fallback when unique samples never diversify.
+pub const STATIC_SP_OCCURRENCES_CACHE_KEY: &str = "static_sp_occurrences";
+/// Per-signature lock so the extraction agent runs once per signature.
+pub const STATIC_SP_LOCK_CACHE_KEY: &str = "static_sp_lock";
 
 // Debugger replay cache (LAM-1715). Concrete Redis keys are namespaced by
 // `(project_id, replay_trace_id)` — see `traces/debug_cache.rs`.

@@ -4,7 +4,7 @@ import CodeMirror, { type ReactCodeMirrorProps, type ReactCodeMirrorRef } from "
 import { Settings } from "lucide-react";
 import React, { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
-import Messages, { type MessageLabel } from "@/components/traces/span-view/messages";
+import Messages, { type MessageLabel, type ProcessedMessages } from "@/components/traces/span-view/messages";
 import { useSpanSearchRegistration } from "@/components/traces/span-view/span-search-context.tsx";
 import { Button } from "@/components/ui/button";
 import CodeSheet from "@/components/ui/content-renderer/code-sheet";
@@ -47,6 +47,8 @@ interface ContentRendererProps {
   hideScrollToBottom?: boolean;
   messageMaxHeight?: number;
   messageLabels?: MessageLabel[];
+  // Pre-detected messages for MESSAGES mode; other modes still use raw `value`.
+  processedMessages?: ProcessedMessages;
   customTheme?: Parameters<typeof CodeMirror>[0]["theme"];
   /**
    * Extra CodeMirror extensions appended to the built-in set. Use `Prec.highest`
@@ -86,6 +88,7 @@ const PureContentRenderer = ({
   hideScrollToBottom,
   messageMaxHeight,
   messageLabels,
+  processedMessages,
   customTheme,
   extraExtensions,
 }: ContentRendererProps) => {
@@ -285,6 +288,7 @@ const PureContentRenderer = ({
           <div className="flex-1 flex w-full min-h-0">
             <Messages
               messages={tryParseJson(value) ?? []}
+              processed={processedMessages}
               presetKey={presetKey ?? ""}
               hideScrollToBottom={hideScrollToBottom}
               maxHeight={messageMaxHeight}

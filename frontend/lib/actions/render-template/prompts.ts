@@ -139,3 +139,207 @@ ${dataBlock}
 
 ${WHAT_TO_RENDER}`;
 };
+
+const TRACE_INTRO = `You are generating a render template for Laminar, an open-source observability platform for AI agents. A trace template has TWO parts:
+
+1. A SQL WHERE fragment that selects which spans of a trace to render.
+2. A JSX template function that renders the selected spans inside a sandboxed iframe using Preact + Tailwind, with Tailwind wired to Laminar's semantic design tokens.
+
+Read the span filter contract, style guide, and output contract below. The trace outline at the bottom shows one representative span per distinct (name, span_type) shape in a real trace, with long values truncated and an \`occurrences\` count for how many spans share that shape. Use it to decide which spans matter and what their input/output/attributes look like. Reply with exactly two fenced code blocks — \`\`\`sql then \`\`\`jsx — and nothing else.`;
+
+const SPAN_FILTER_CONTRACT = `<span_filter_contract>
+The SQL fragment you write is composed into this ClickHouse query (it is ONLY the part inside the parentheses):
+
+SELECT span_id, parent_span_id, name, path, span_type, start_time, end_time, status, model, input, output, attributes
+FROM spans
+WHERE trace_id = <current trace> AND (<your fragment>)
+ORDER BY start_time
+
+Rules:
+- Write a boolean expression, not a full query. No SELECT, no semicolon, no trailing AND/OR.
+- Filter on these columns: \`span_type\` (e.g. 'LLM', 'TOOL', 'DEFAULT', 'EXECUTOR', 'EVALUATION'), \`name\`, \`path\` (dot-separated span path), \`model\`, \`status\` ('success' / 'error' / empty), \`start_time\`.
+- ClickHouse SQL syntax: single-quoted strings, \`LIKE\` for patterns, \`IN ('a', 'b')\` for sets.
+- Keep it selective: the render payload is capped at 256 spans. Prefer filtering to the span shapes the template actually renders (e.g. \`span_type = 'LLM'\` or \`name IN (...)\`).
+- An EMPTY sql block means "render all spans of the trace".
+</span_filter_contract>`;
+
+const TRACE_DATA_SHAPE = `<data_shape>
+The JSX template receives \`data\` shaped as:
+
+{
+  "spans": [
+    {
+      "spanId": "...", "parentSpanId": "...",
+      "name": "...", "path": "...", "spanType": "...",
+      "startTime": "ISO 8601", "endTime": "ISO 8601",
+      "status": "...", "model": "...",
+      "input": <parsed JSON or string>, "output": <parsed JSON or string>, "attributes": <parsed JSON or string>
+    }
+  ],
+  "truncated": false
+}
+
+\`spans\` contains the spans matching your SQL fragment, ordered by start time. \`truncated\` is true when the 256-span cap was hit — surface a small notice in that case.
+</data_shape>`;
+
+const TRACE_OUTPUT_CONTRACT = `<output_contract>
+Reply with EXACTLY two fenced code blocks, in this order, and no prose before, between, or after:
+
+1. A \`\`\`sql block containing the WHERE fragment (or empty to render all spans).
+2. A \`\`\`jsx block containing the template function.
+
+The jsx block must be exactly this shape:
+
+function({ data }) {
+  return (
+    <div className="w-full min-h-full p-4 text-sm text-foreground bg-background">
+      {/* JSX here */}
+    </div>
+  );
+}
+
+Hard rules for the jsx block:
+- Use HTML/JSX syntax (no TypeScript, no imports, no exports).
+- The function receives a single argument \`{ data }\`. Always destructure as \`function({ data })\`.
+- Return ONE root JSX element. Use Tailwind classes via \`className\`.
+- Prefer pure, static JSX. Reach for \`useState\` ONLY when the UI is genuinely interactive (e.g. an expand/collapse toggle). Do NOT use \`useEffect\`, \`useMemo\`, \`useCallback\`, \`useRef\`, or \`useContext\`. Do NOT import any hook.
+- \`Fragment\` is in scope. When rendering siblings in a list, give each iteration a stable \`key\`. Never emit \`<>\`/\`</>\` inside an \`Array.map\`.
+- You may use \`JSON.stringify\`, \`Array.isArray\`, \`Object.entries\`, \`Object.keys\`, \`String\`, \`Number\`, \`Boolean\`.
+- Be defensive: guard every access (\`data?.spans\`, \`Array.isArray(data?.spans) ? data.spans : []\`). Span \`input\`/\`output\`/\`attributes\` may be objects, arrays, strings, or null. The outline below shows TRUNCATED values — real values are longer, so always truncate/wrap long strings in the layout.
+- A \`selectSpan(spanId)\` function is in scope. To make an element select a span in the trace view when clicked, add an onClick handler, e.g. \`onClick={() => selectSpan(span.spanId)}\`. Each span in \`data.spans\` has a \`spanId\`.
+- Do NOT call \`fetch\`, \`XMLHttpRequest\`, \`WebSocket\`, \`EventSource\`, \`navigator.sendBeacon\`, \`window.open\`, \`document.cookie\`, \`localStorage\`, or any other I/O API. They are blocked in the sandbox and will throw.
+- Do NOT reference external URLs, \`<script>\`, \`<iframe>\`, \`<style>\`, \`<link>\`, inline event handlers on strings, or \`dangerouslySetInnerHTML\`.
+- Do NOT use \`import\`, \`require\`, \`eval\`, \`new Function\`, or top-level \`await\`.
+</output_contract>`;
+
+const TRACE_OUTLINE_PLACEHOLDER = `// No trace outline available. Open this dialog from a trace's Custom view to
+// include a real outline, or paste a sample of your trace's spans here.
+[]`;
+
+const TRACE_WHAT_TO_RENDER = `<what_to_render>
+// Describe what you want the template to show.
+// Example: "Render LLM spans as a chat conversation; show tool calls as compact rows with duration."
+</what_to_render>`;
+
+export const buildTraceRenderTemplatePrompt = (outline?: string): string => {
+  const trimmed = outline?.trim();
+  const outlineBlock = `<trace_outline>\n${trimmed && trimmed.length > 0 ? trimmed : TRACE_OUTLINE_PLACEHOLDER}\n</trace_outline>`;
+
+  return `${TRACE_INTRO}
+
+${SPAN_FILTER_CONTRACT}
+
+${TRACE_DATA_SHAPE}
+
+${STYLE_GUIDE}
+
+${TRACE_OUTPUT_CONTRACT}
+
+${outlineBlock}
+
+${TRACE_WHAT_TO_RENDER}`;
+};
+
+// ---------------------------------------------------------------------------
+// In-platform generation agent (ToolLoopAgent) — system instructions.
+// Reuses the same STYLE_GUIDE / OUTPUT_CONTRACT as the copy-prompt flow so the
+// generated code matches what the sandbox expects, then layers on the agent's
+// tool + gate contract (edit files in a virtual FS, validate before finishing).
+// ---------------------------------------------------------------------------
+
+const AGENT_INTRO = `You are an agent that authors a JSX render template for Laminar, an open-source observability platform for AI agents. The template renders a JSON payload inside a sandboxed iframe using Preact + Tailwind, with Tailwind wired to Laminar's semantic design tokens.
+
+You work by editing files in a virtual filesystem with the provided tools — you do NOT reply with the code in prose. When you are done, your final message is ignored; only the file contents are used.`;
+
+const AGENT_TOOL_CONTRACT = `<tools_and_workflow>
+You have these tools:
+- \`readFile({ path })\` — read a file's current contents.
+- \`writeFile({ path, content })\` — overwrite a file.
+- \`strReplace({ path, oldStr, newStr })\` — replace the first exact occurrence of \`oldStr\`. \`oldStr\` must appear exactly once.
+- \`validate()\` — syntax-check \`template.jsx\`. Returns \`{ ok, error }\`.
+
+Files:
+- \`template.jsx\` — the template function (ALWAYS edit this). It may be pre-seeded with an existing template you must MODIFY per the request, or empty for a fresh template.
+{{FILTER_FILE_DOC}}
+
+Workflow:
+1. \`readFile\` the current file(s).
+2. \`writeFile\` / \`strReplace\` to implement the user's request.
+3. \`validate()\` — if it returns \`ok: false\`, fix the reported error and validate again.
+4. Only finish once \`validate()\` returns \`ok: true\` AND you have fully addressed the user's request. Do NOT finish with a failing validation.
+</tools_and_workflow>`;
+
+const FILTER_FILE_DOC = `- \`filter.sql\` — a ClickHouse SQL WHERE fragment selecting which spans to render (see the span filter contract). Edit this when the request implies which spans matter; leave it empty to render all spans.`;
+
+// Agent output contracts. Deliberately SEPARATE from the copy-prompt
+// OUTPUT_CONTRACT / TRACE_OUTPUT_CONTRACT: those tell the model to REPLY with
+// fenced code blocks, but the agent must DELIVER via the file tools. Reusing the
+// copy-prompt contracts made the model answer in prose and never call writeFile
+// (empty VFS -> "no template code"). Keep all "reply with a fenced block"
+// delivery language OUT of these. The hard-rules text is intentionally
+// duplicated from OUTPUT_CONTRACT rather than shared, so editing the copy-prompt
+// flow can never silently change the agent's contract (and vice versa).
+const AGENT_JSX_SHAPE = `function({ data }) {
+  return (
+    <div className="w-full min-h-full p-4 text-sm text-foreground bg-background">
+      {/* JSX here */}
+    </div>
+  );
+}`;
+
+const AGENT_JSX_HARD_RULES = `- Use HTML/JSX syntax (no TypeScript, no imports, no exports).
+- The function receives a single argument \`{ data }\`. Always destructure as \`function({ data })\`.
+- Return ONE root JSX element. Use Tailwind classes via \`className\`.
+- Prefer pure, static JSX. Reach for \`useState\` ONLY when the UI is genuinely interactive (e.g. an expand/collapse toggle, a tab switcher). \`useState\` is in scope. Do NOT use \`useEffect\`, \`useMemo\`, \`useCallback\`, \`useRef\`, or \`useContext\`. Do NOT import any hook.
+- \`Fragment\` is in scope. When rendering siblings in a list, give each iteration a stable \`key\`. Never emit \`<>\`/\`</>\` inside an \`Array.map\`.
+- You may use \`JSON.stringify\`, \`Array.isArray\`, \`Object.entries\`, \`Object.keys\`, \`String\`, \`Number\`, \`Boolean\`.
+- Be defensive: \`data\` may be \`undefined\`, \`null\`, a primitive, an array, or an object. Guard every access.
+- Do NOT call \`fetch\`, \`XMLHttpRequest\`, \`WebSocket\`, \`EventSource\`, \`navigator.sendBeacon\`, \`window.open\`, \`document.cookie\`, \`localStorage\`, or any other I/O API. They are blocked in the sandbox and will throw.
+- Do NOT reference external URLs, \`<script>\`, \`<iframe>\`, \`<style>\`, \`<link>\`, inline event handlers on strings, or \`dangerouslySetInnerHTML\`.
+- Do NOT use \`import\`, \`require\`, \`eval\`, \`new Function\`, or top-level \`await\`.`;
+
+const AGENT_SPAN_OUTPUT = `<template_contract>
+Write the finished template to \`template.jsx\` using the writeFile / strReplace tools. Do NOT reply with the code in prose — only the file contents are used. The file must contain exactly this shape:
+
+${AGENT_JSX_SHAPE}
+
+Hard rules:
+${AGENT_JSX_HARD_RULES}
+</template_contract>`;
+
+const AGENT_TRACE_OUTPUT = `<template_contract>
+Write your work to the files using the tools — do NOT reply with the code in prose, only the file contents are used:
+- \`filter.sql\` — the ClickHouse WHERE fragment (leave empty to render all spans).
+- \`template.jsx\` — the template function, which must contain exactly this shape:
+
+${AGENT_JSX_SHAPE}
+
+Hard rules:
+${AGENT_JSX_HARD_RULES}
+- Span \`input\`/\`output\`/\`attributes\` may be objects, arrays, strings, or null; the outline shows TRUNCATED values, so always truncate/wrap long strings in the layout.
+- A \`selectSpan(spanId)\` function is in scope. To make an element select a span in the trace view when clicked, add an onClick handler, e.g. \`onClick={() => selectSpan(span.spanId)}\`. Each span in \`data.spans\` has a \`spanId\`.
+</template_contract>`;
+
+export const buildGenerateInstructions = (scope: "span" | "trace"): string => {
+  if (scope === "trace") {
+    return `${AGENT_INTRO}
+
+${AGENT_TOOL_CONTRACT.replace("{{FILTER_FILE_DOC}}", FILTER_FILE_DOC)}
+
+${SPAN_FILTER_CONTRACT}
+
+${TRACE_DATA_SHAPE}
+
+${STYLE_GUIDE}
+
+${AGENT_TRACE_OUTPUT}`;
+  }
+
+  return `${AGENT_INTRO}
+
+${AGENT_TOOL_CONTRACT.replace("\n{{FILTER_FILE_DOC}}", "")}
+
+${STYLE_GUIDE}
+
+${AGENT_SPAN_OUTPUT}`;
+};

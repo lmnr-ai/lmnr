@@ -18,7 +18,8 @@
 //! ```
 
 pub mod internal_exporter;
-// Shared internal-span builder. `allow(dead_code)`: today's only consumer is `signals`-gated.
+// Shared internal-span builder. `allow(dead_code)`: OSS consumers use only a
+// subset of the helpers; the rest are consumed by `signals`-gated code.
 #[allow(dead_code)]
 pub mod spans;
 
@@ -72,13 +73,18 @@ pub fn setup_tracing_and_logging(
         std::env::var(crate::env::observability::SENTRY_DSN).is_ok_and(|s| !s.is_empty());
 
     // Sentry's tracing layer only forwards ERROR-level events, and never any
-    // internal ones.
+    // internal ones. `span_filter` must be disabled: its default captures
+    // every INFO+ span as a Sentry span, duplicating the OTEL bridge below
+    // (Provider A + `SentrySpanProcessor`), which is the single owner of
+    // Sentry span export — each application-level span would otherwise
+    // arrive in Sentry twice with slightly different durations.
     let sentry_layer = (enable_sentry_tracing && sentry_dsn_set).then(|| {
         sentry::integrations::tracing::layer()
             .event_filter(|md| match *md.level() {
                 tracing::Level::ERROR => EventFilter::Event,
                 _ => EventFilter::Ignore,
             })
+            .span_filter(|_| false)
             .with_filter(FilterFn::new(|md: &Metadata<'_>| !is_internal(md)))
     });
 

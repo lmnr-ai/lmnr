@@ -252,12 +252,16 @@ export const WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY = "workspace_sig
 export const WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY = "workspace_signal_runs_usage_output_tokens";
 export const TRACE_CHATS_CACHE_KEY = "trace_chats";
 export const TRACE_SUMMARIES_CACHE_KEY = "trace_summaries";
-export const SIGNAL_TRIGGERS_CACHE_KEY = "signal_triggers";
+// `_v2`: must match app-server `SIGNAL_TRIGGERS_CACHE_KEY` (signal sample_rate
+// moved into metadata jsonb in migration 0099 — see app-server cache/keys.rs).
+export const SIGNAL_TRIGGERS_CACHE_KEY = "signal_triggers_v2";
 export const ALERT_FILTERS_CACHE_KEY = "alert_filters";
 export const SUMMARY_TRIGGER_SPANS_CACHE_KEY = "summary_trigger_spans";
 export const WORKSPACE_DEPLOYMENTS_CACHE_KEY = "workspace_deployment_config";
 export const WORKSPACE_DEPLOYMENTS_BY_WORKSPACE_CACHE_KEY = "workspace_deployment_config_by_ws";
 export const WORKSPACE_USAGE_WARNINGS_CACHE_KEY = "workspace_usage_warnings";
+// Must stay in sync with `HARD_LIMIT_NOTIFIED_CACHE_KEY` in `app-server/src/cache/keys.rs`
+export const HARD_LIMIT_NOTIFIED_CACHE_KEY = "hard_limit_notified";
 
 export const WORKSPACE_MEMBER_CACHE_KEY = (workspaceId: string, userId: string) =>
   `workspace_member:${workspaceId}:${userId}`;

@@ -204,7 +204,7 @@ fn fallback_classification(
 fn build_context(system_prompt: &str, existing_agents: &[AgentVersion]) -> String {
     let mut ctx = format!(
         "Incoming agent system prompt:\n{}\n\nExisting agents in this project:\n",
-        truncate_chars(system_prompt, INCOMING_PROMPT_LIMIT)
+        crate::utils::truncate_chars(system_prompt, INCOMING_PROMPT_LIMIT)
     );
     if existing_agents.is_empty() {
         ctx.push_str("(none)\n");
@@ -213,7 +213,7 @@ fn build_context(system_prompt: &str, existing_agents: &[AgentVersion]) -> Strin
             ctx.push_str(&format!(
                 "\n[agent_id={}]\n{}\n",
                 agent.agent_id,
-                truncate_chars(&agent.system_prompt, EXISTING_PROMPT_LIMIT)
+                crate::utils::truncate_chars(&agent.system_prompt, EXISTING_PROMPT_LIMIT)
             ));
         }
     }
@@ -246,13 +246,6 @@ fn build_classify_tool() -> ProviderTool {
                 "required": ["is_new_agent"]
             }),
         }],
-    }
-}
-
-fn truncate_chars(s: &str, max: usize) -> String {
-    match s.char_indices().nth(max) {
-        Some((idx, _)) => format!("{}…", &s[..idx]),
-        None => s.to_string(),
     }
 }
 

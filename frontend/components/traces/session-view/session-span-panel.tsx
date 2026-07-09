@@ -48,7 +48,7 @@ export default function SessionSpanPanel() {
   const shown = selection ?? lastSelection;
 
   const onResize = useCallback((_: unknown, delta: number) => resizePanel("span", delta), [resizePanel]);
-  const { handleMouseDown, isResizing } = usePanelResize("span", onResize);
+  const { handlePointerDown, isResizing } = usePanelResize("span", onResize);
 
   // Clamp widths to the hosting flex row: observe the parent so store-side
   // fitPanelsToMaxWidth keeps `width` within the available space.
@@ -82,7 +82,7 @@ export default function SessionSpanPanel() {
           {/* Inner wrapper pinned at target width — no text layout shift while
               the outer width animates. */}
           <div className="absolute inset-y-0 left-0 flex" style={{ width }}>
-            <LeftEdgeResizeHandle onMouseDown={handleMouseDown} />
+            <LeftEdgeResizeHandle onPointerDown={handlePointerDown} />
             <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
               {shown ? (
                 <SpanView

@@ -122,7 +122,7 @@ const createTraceViewStore = (options?: {
           return persistedState as TraceViewStore;
         },
         partialize: (state) => {
-          const persistentTabs = ["tree", "transcript"] as const;
+          const persistentTabs = ["tree", "transcript", "custom"] as const;
           const tabToPersist = persistentTabs.includes(state.tab as any) ? state.tab : undefined;
 
           return {
@@ -134,7 +134,7 @@ const createTraceViewStore = (options?: {
         },
         merge: (persistedState, currentState) => {
           const persisted = (persistedState ?? {}) as Record<string, unknown>;
-          const validTabs = ["tree", "transcript"] as const;
+          const validTabs = ["tree", "transcript", "custom"] as const;
           const tab =
             persisted.tab && validTabs.includes(persisted.tab as (typeof validTabs)[number])
               ? (persisted.tab as TraceViewStore["tab"])

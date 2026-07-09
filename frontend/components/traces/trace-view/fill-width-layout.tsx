@@ -1,5 +1,6 @@
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 
+import { useTraceViewStore } from "./store";
 import { type TraceViewPanels } from "./trace-view-content";
 
 // react-resizable-panels uses percentage-based sizing by default.
@@ -11,6 +12,7 @@ const PANEL_DEFAULT_PCT = 25;
 const PANEL_MIN_PCT = 20;
 
 export default function FillWidthLayout({ panels }: { panels: TraceViewPanels }) {
+  const setIsResizing = useTraceViewStore((s) => s.setIsResizing);
   return (
     <ResizablePanelGroup id="trace-view-fill" orientation="horizontal" className="h-full w-full">
       {/* Trace Panel — always visible */}
@@ -21,7 +23,7 @@ export default function FillWidthLayout({ panels }: { panels: TraceViewPanels })
       {/* Span Panel */}
       {panels.showSpan && (
         <>
-          <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors" />
+          <ResizableHandle onDragChange={setIsResizing} className="hover:bg-blue-400 z-10 transition-colors" />
           <ResizablePanel id="span" defaultSize={PANEL_DEFAULT_PCT} minSize={PANEL_MIN_PCT} className="overflow-hidden">
             {panels.spanPanel}
           </ResizablePanel>
@@ -31,7 +33,7 @@ export default function FillWidthLayout({ panels }: { panels: TraceViewPanels })
       {/* Chat Panel */}
       {panels.showChat && panels.chatPanel && (
         <>
-          <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors" />
+          <ResizableHandle onDragChange={setIsResizing} className="hover:bg-blue-400 z-10 transition-colors" />
           <ResizablePanel id="chat" defaultSize={PANEL_DEFAULT_PCT} minSize={PANEL_MIN_PCT} className="overflow-hidden">
             {panels.chatPanel}
           </ResizablePanel>

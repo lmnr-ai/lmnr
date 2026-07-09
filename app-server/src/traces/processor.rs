@@ -17,7 +17,7 @@ use crate::{
         traces::{CHTrace, TraceAggregation},
     },
     db::{
-        DB,
+        DB, debugger_session_blocks,
         spans::Span,
         trace::{
             Trace, TraceMetadataPatch, merge_trace_metadata_batch, upsert_trace_statistics_batch,
@@ -39,6 +39,7 @@ use crate::{
             RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_trace,
             send_span_updates, send_trace_updates,
         },
+        spans::SpanUsage,
         tool_dedup::{ToolDedup, resolve_tool_dedup},
         utils::{get_llm_usage_for_span, prepare_span_for_recording},
     },
@@ -142,7 +143,8 @@ pub async fn process_span_messages(
     // Split metadata-only virtual spans (POST /v1/traces/metadata) out before
     // the regular pipeline. They don't contribute span / token / time stats,
     // they aren't recorded to ClickHouse, and their PG path is a metadata
-    // merge against an existing trace row — never an insert.
+    // merge upsert against the trace row (creating a virtual row when the
+    // span batch hasn't landed yet).
     let metadata_patches: Vec<TraceMetadataPatch> = messages
         .iter()
         .filter(|m| m.span.attributes.is_metadata_only())
@@ -179,14 +181,21 @@ pub async fn process_span_messages(
     let mut span_usage_vec = Vec::with_capacity(messages.len());
 
     for m in &mut messages {
-        let span_usage = get_llm_usage_for_span(
-            &mut m.span.attributes,
-            db.clone(),
-            cache.clone(),
-            &m.span.name,
-            &m.span.project_id,
-        )
-        .await;
+        // Only LLM spans get token/cost usage. A non-LLM span may still carry stray
+        // `gen_ai.usage.*` attributes (some auto-instrumentations set them on Default/Tool
+        // spans); counting those would inflate the per-span columns and trace totals (LAM-1873).
+        let span_usage = if m.span.is_llm_span() {
+            get_llm_usage_for_span(
+                &mut m.span.attributes,
+                db.clone(),
+                cache.clone(),
+                &m.span.name,
+                &m.span.project_id,
+            )
+            .await
+        } else {
+            SpanUsage::default()
+        };
 
         prepare_span_for_recording(&mut m.span, &span_usage);
         if !m.pre_processed {
@@ -449,8 +458,9 @@ pub async fn process_span_messages(
             true
         };
 
-        // Patches are skipped (no row created) when the trace doesn't exist
-        // — the route handler validates existence up front.
+        // Patches that beat the trace's span batch create a virtual row that
+        // the aggregation upsert later fills in — see
+        // `merge_trace_metadata_batch` for the known stub-row caveat.
         let mut patched_traces: Vec<Trace> = Vec::new();
         if !metadata_patches.is_empty() {
             match merge_trace_metadata_batch(&db.pool, &metadata_patches).await {
@@ -460,6 +470,11 @@ pub async fn process_span_messages(
                 }
             }
         }
+        // Stub rows (patch beat the span batch) carry `now()` placeholder
+        // times — see `merge_trace_metadata_batch` — so they are safe to
+        // ship to ClickHouse (`CHTrace` maps NULL times to epoch 0, which
+        // would strand the row in the epoch partition where the later
+        // real-month row can't replace it).
 
         // Build the CH / realtime payload as the deduped union, keeping the
         // LATEST occurrence per `(project_id, id)`. When a single flush
@@ -503,6 +518,8 @@ pub async fn process_span_messages(
                     e
                 );
             }
+
+            debugger_session_blocks::upsert_blocks_for_traces(&db.pool, &updated_traces).await;
 
             dispatch_trace_realtime_updates(&updated_traces, cache.clone(), &pubsub).await;
         }
