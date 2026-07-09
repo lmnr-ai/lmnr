@@ -1,5 +1,5 @@
 import { type ColumnDef, type Row } from "@tanstack/react-table";
-import { Settings as SettingsIcon } from "lucide-react";
+import { ArrowRight, Database, Settings as SettingsIcon } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
 
@@ -38,6 +38,10 @@ interface EvaluationDatapointsTableProps {
   visibleColumnDefs: ColumnDef<EvalRow>[];
   /** True when a target evaluation is selected. Drives comparison column rendering. */
   isComparison: boolean;
+  /** Datapoint count for the current eval (respects active filter/search). */
+  datapointCount?: number;
+  /** Datapoint count for the compared eval; shown only in comparison mode. */
+  comparedDatapointCount?: number;
   /** Min/max per score, derived from data. Used by the heatmap renderer. */
   scoreRanges: ScoreRanges;
   /** Sticky-left columns (position: sticky during horizontal scroll). Opt-in, passes through to InfiniteDataTable. */
@@ -86,6 +90,8 @@ const EvaluationDatapointsTable = ({
   columnDefs,
   visibleColumnDefs,
   isComparison,
+  datapointCount,
+  comparedDatapointCount,
   scoreRanges,
   pinnedLeftColumnIds,
   datapointId,
@@ -146,7 +152,7 @@ const EvaluationDatapointsTable = ({
         sortDirection={sortDirection}
         onSort={onSort}
       >
-        <div className="flex flex-1 w-full space-x-2">
+        <div className="flex flex-1 w-full items-center space-x-2">
           <DataTableFilter columns={columnFilters} filters={searchValue.filters} onFiltersChange={onFiltersChange} />
           <EvalColumnsMenu
             columnDefs={columnDefs}
@@ -179,6 +185,23 @@ const EvaluationDatapointsTable = ({
                 </div>
               </DropdownMenuContent>
             </DropdownMenu>
+          )}
+          {datapointCount != null && (
+            <span
+              title={`${datapointCount.toLocaleString()} datapoints`}
+              className="ml-auto flex flex-none items-center gap-1.5 text-xs text-secondary-foreground"
+            >
+              <Database size={12} />
+              {isComparison && comparedDatapointCount != null ? (
+                <span className="flex items-center gap-1.5">
+                  {comparedDatapointCount.toLocaleString()}
+                  <ArrowRight size={12} />
+                  {datapointCount.toLocaleString()}
+                </span>
+              ) : (
+                datapointCount.toLocaleString()
+              )}
+            </span>
           )}
         </div>
         <div className="w-full">

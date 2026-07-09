@@ -249,12 +249,17 @@ function buildComparisonQuery(options: EvalQueryOptions): QueryResult {
 
   const outerSelect = [...primarySelect, ...comparedSelect].join(", ");
 
-  // Rows where both runs produced exactly the same scores carry no comparison
-  // signal — drop them. Unmatched rows are kept: with join_use_nulls=0 a
-  // missing right side yields '' (not NULL), hence the empty-string check.
+  // Drop rows whose scores match between runs. Compare by normalized (key,
+  // value) set — scores serialize from a Rust HashMap, so key order varies and
+  // a raw byte compare would keep identical scores as false diffs. Unmatched
+  // rows (missing right side yields '' under join_use_nulls=0) are kept.
   const whereClauses: string[] = [];
   if (columns.some((c) => c.id === "scores")) {
-    whereClauses.push("(c.`scores` IS NULL OR c.`scores` = '' OR p.`scores` != c.`scores`)");
+    whereClauses.push(
+      "(c.`scores` IS NULL OR c.`scores` = '' OR " +
+        "arraySort(JSONExtractKeysAndValues(p.`scores`, 'Float64')) != " +
+        "arraySort(JSONExtractKeysAndValues(c.`scores`, 'Float64')))"
+    );
   }
   const whereStr = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")} ` : "";
 

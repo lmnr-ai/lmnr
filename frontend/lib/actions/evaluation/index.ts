@@ -213,7 +213,7 @@ export const getEvaluationStatistics = async (
 
   if (search && searchTraceIds.length === 0) {
     return {
-      evaluation: evaluation as Evaluation,
+      evaluation: { ...(evaluation as Evaluation), dataPointsCount: 0 },
       allStatistics: {},
       allDistributions: {},
     };
@@ -259,7 +259,9 @@ export const getEvaluationStatistics = async (
   });
 
   return {
-    evaluation: evaluation as Evaluation,
+    // rawResults is the full filtered datapoint set (no LIMIT), so its length
+    // is the current filter's datapoint count.
+    evaluation: { ...(evaluation as Evaluation), dataPointsCount: rawResults.length },
     allStatistics,
     allDistributions,
   };

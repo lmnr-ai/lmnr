@@ -19,7 +19,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { type Evaluation as EvaluationType } from "@/lib/evaluation/types";
 import { formatTimestamp } from "@/lib/utils";
 
-interface EvaluationHeader {
+interface EvaluationHeaderProps {
   evaluations: EvaluationType[];
   name?: string;
   urlKey: string;
@@ -27,7 +27,7 @@ interface EvaluationHeader {
 
 const DOWNLOAD_FORMATS = ["csv", "json"] as const;
 
-const EvaluationHeader = ({ evaluations, name, urlKey }: EvaluationHeader) => {
+const EvaluationHeader = ({ evaluations, name, urlKey }: EvaluationHeaderProps) => {
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const { projectId, evaluationId } = useParams();

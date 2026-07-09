@@ -294,6 +294,8 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
       visibleColumnDefs={visibleColumnDefs}
       isComparison={isComparison}
       scoreRanges={scoreRanges}
+      datapointCount={statsData?.evaluation?.dataPointsCount}
+      comparedDatapointCount={targetStatsData?.evaluation?.dataPointsCount}
       datapointId={(selectedRow?.["id"] as string | undefined) ?? undefined}
       handleRowClick={handleRowClick}
       getRowHref={getRowHref}
