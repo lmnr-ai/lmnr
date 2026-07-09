@@ -74,8 +74,11 @@ export function useBlockScrollSync({
     };
   }, [scrollEl, storeApi]);
 
-  // A genuine user scroll gesture releases the pin so the outline follows again.
-  // Programmatic scrolls fire only 'scroll' (not wheel/touch), so they don't release it.
+  // A genuine user input gesture releases the pin so the outline follows again.
+  // Covers wheel/touch (gesture), pointerdown (scrollbar drag / content click), and
+  // keydown (arrows / PageUp-Down / Space / Home / End, bubbling from a focused
+  // descendant). All are user-initiated, so unlike a bare 'scroll' listener they
+  // never fire during the programmatic outline-click scroll or its lazy-target settle.
   useEffect(() => {
     if (!scrollEl) return;
     const release = () => {
@@ -83,9 +86,13 @@ export function useBlockScrollSync({
     };
     scrollEl.addEventListener("wheel", release, { passive: true });
     scrollEl.addEventListener("touchstart", release, { passive: true });
+    scrollEl.addEventListener("pointerdown", release, { passive: true });
+    scrollEl.addEventListener("keydown", release);
     return () => {
       scrollEl.removeEventListener("wheel", release);
       scrollEl.removeEventListener("touchstart", release);
+      scrollEl.removeEventListener("pointerdown", release);
+      scrollEl.removeEventListener("keydown", release);
     };
   }, [scrollEl]);
 
