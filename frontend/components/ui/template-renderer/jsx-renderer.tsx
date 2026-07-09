@@ -8,7 +8,41 @@ const MESSAGE_TYPE = "__TEMPLATE_DATA_UPDATE__";
 const RELOAD_MESSAGE_TYPE = "__TEMPLATE_RELOAD_REQUEST__";
 const MAX_LOAD_ATTEMPTS = 3;
 
-const createIframeContent = (templateCode: string, isFinalAttempt: boolean, reloadNonce: string): string => {
+const PRIMARY_CDN = {
+  origin: "https://esm.sh",
+  imports: {
+    preact: "https://esm.sh/preact@10.19.6",
+    "preact/hooks": "https://esm.sh/preact@10.19.6/hooks",
+    "@babel/standalone": "https://esm.sh/@babel/standalone@7.23.6",
+    "@twind/core": "https://esm.sh/@twind/core@1.1.3",
+    "@twind/preset-tailwind": "https://esm.sh/@twind/preset-tailwind@1.1.4",
+    "@twind/preset-autoprefix": "https://esm.sh/@twind/preset-autoprefix@1.0.7",
+  },
+};
+
+// Fallback for sustained esm.sh outages. jsDelivr `/+esm` (not unpkg — its
+// `?module` mode 404s on subpath exports like preact/hooks and can't serve
+// CJS packages like @babel/standalone as ESM).
+const FALLBACK_CDN = {
+  origin: "https://cdn.jsdelivr.net",
+  imports: {
+    preact: "https://cdn.jsdelivr.net/npm/preact@10.19.6/+esm",
+    "preact/hooks": "https://cdn.jsdelivr.net/npm/preact@10.19.6/hooks/+esm",
+    "@babel/standalone": "https://cdn.jsdelivr.net/npm/@babel/standalone@7.23.6/+esm",
+    "@twind/core": "https://cdn.jsdelivr.net/npm/@twind/core@1.1.3/+esm",
+    "@twind/preset-tailwind": "https://cdn.jsdelivr.net/npm/@twind/preset-tailwind@1.1.4/+esm",
+    "@twind/preset-autoprefix": "https://cdn.jsdelivr.net/npm/@twind/preset-autoprefix@1.0.7/+esm",
+  },
+};
+
+type CdnConfig = typeof PRIMARY_CDN;
+
+const createIframeContent = (
+  templateCode: string,
+  isFinalAttempt: boolean,
+  reloadNonce: string,
+  cdn: CdnConfig
+): string => {
   const escapedTemplateCode = templateCode
     .replace(/\\/g, "\\\\")
     .replace(/`/g, "\\`")
@@ -23,7 +57,7 @@ const createIframeContent = (templateCode: string, isFinalAttempt: boolean, relo
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://esm.sh; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://esm.sh; style-src 'self' 'unsafe-inline'; connect-src https://esm.sh; img-src data: blob:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' ${cdn.origin}; script-src 'self' 'unsafe-inline' 'unsafe-eval' ${cdn.origin}; style-src 'self' 'unsafe-inline'; connect-src ${cdn.origin}; img-src data: blob:;">
 
   <script>
     (function blockNetworkApis() {
@@ -41,16 +75,7 @@ const createIframeContent = (templateCode: string, isFinalAttempt: boolean, relo
   </script>
 
   <script type="importmap">
-  {
-    "imports": {
-      "preact": "https://esm.sh/preact@10.19.6",
-      "preact/hooks": "https://esm.sh/preact@10.19.6/hooks",
-      "@babel/standalone": "https://esm.sh/@babel/standalone@7.23.6",
-      "@twind/core": "https://esm.sh/@twind/core@1.1.3",
-      "@twind/preset-tailwind": "https://esm.sh/@twind/preset-tailwind@1.1.4",
-      "@twind/preset-autoprefix": "https://esm.sh/@twind/preset-autoprefix@1.0.7"
-    }
-  }
+  ${JSON.stringify({ imports: cdn.imports })}
   </script>
   
   <style>
@@ -287,8 +312,12 @@ const JsxRenderer = ({ code, data, className, autoHeight = false }: JsxRendererP
     const reloadNonce = crypto.randomUUID();
 
     const writeSrcdoc = () => {
+      const isFinalAttempt = attempt >= MAX_LOAD_ATTEMPTS - 1;
+      // esm.sh kept failing across remounts — likely an outage rather than a
+      // blip, so the last attempt goes through the fallback CDN.
+      const cdn = isFinalAttempt ? FALLBACK_CDN : PRIMARY_CDN;
       try {
-        iframe.srcdoc = createIframeContent(normalizeTemplateCode(code), attempt >= MAX_LOAD_ATTEMPTS - 1, reloadNonce);
+        iframe.srcdoc = createIframeContent(normalizeTemplateCode(code), isFinalAttempt, reloadNonce, cdn);
       } catch (error) {
         iframe.srcdoc = createErrorContent(
           error instanceof Error ? error.message : "Failed to initialize template renderer"
