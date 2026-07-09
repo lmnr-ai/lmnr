@@ -275,7 +275,7 @@ pub fn parse_openai_response(value: Value) -> Result<ProviderResponse, OpenAIErr
                     .and_then(|f| f.get("arguments"))
                     .and_then(|a| a.as_str())
                     .and_then(|s| serde_json::from_str::<Value>(s).ok())
-                    .or_else( || {
+                    .or_else(|| {
                         // Some gateways pre-parse `arguments` into an object.
                         func.and_then(|f| f.get("arguments")).cloned(),
                     });
