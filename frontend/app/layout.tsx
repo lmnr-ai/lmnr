@@ -11,7 +11,7 @@ import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flag
 import { getServerSession } from "@/lib/auth-session";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
 import { manrope, sans, sansLanding } from "@/lib/fonts";
-import { description,ogImage, title } from "@/lib/metadata";
+import { description, ogImage, title } from "@/lib/metadata";
 import { PostHogProvider } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 

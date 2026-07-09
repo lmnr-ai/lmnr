@@ -14,6 +14,7 @@ export const GetEventsByEmergingClusterPaginatedSchema = PaginationFiltersSchema
   projectId: z.guid(),
   signalId: z.guid(),
   emergingClusterId: z.guid(),
+  sortType: z.enum(["number", "boolean", "string"]).optional(),
   search: z.string().optional(),
   payloadField: z.array(z.string()).optional(),
 });
@@ -31,6 +32,9 @@ export async function getEventsByEmergingClusterPaginated(
     startDate,
     endDate,
     filter,
+    sortBy,
+    sortDirection,
+    sortType,
     search,
     payloadField,
   } = input;
@@ -71,6 +75,9 @@ export async function getEventsByEmergingClusterPaginated(
     clusterFilter: [emergingClusterId],
     idFilter,
     table: "signal_events_all",
+    sortBy,
+    sortDirection,
+    sortType,
   });
 
   const { query: countQuery, parameters: countParams } = buildEventsCountQueryWithParams({

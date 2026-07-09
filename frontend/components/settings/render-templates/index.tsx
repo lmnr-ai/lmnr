@@ -3,10 +3,11 @@
 import { isEmpty } from "lodash";
 import { Pencil, Trash2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
+import { type TemplateScope } from "@/components/ui/template-renderer";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
 import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow } from "../settings-section";
@@ -16,36 +17,35 @@ import RenderTemplateDialog from "./render-template-dialog";
 interface TemplateInfo {
   id: string;
   name: string;
+  type: TemplateScope;
   createdAt: string;
+}
+
+export interface ScopedTemplateInfo extends Omit<TemplateInfo, "type"> {
+  scope: TemplateScope;
 }
 
 export default function RenderTemplates() {
   const { projectId } = useParams();
-  const {
-    data: templates,
-    isLoading,
-    mutate,
-  } = useSWR<TemplateInfo[]>(`/api/projects/${projectId}/render-templates`, swrFetcher);
+  const { data, isLoading, mutate } = useSWR<TemplateInfo[]>(`/api/projects/${projectId}/render-templates`, swrFetcher);
 
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
-  const [templateToDelete, setTemplateToDelete] = useState<TemplateInfo | null>(null);
+  const templates = useMemo<ScopedTemplateInfo[]>(
+    () => (data ?? []).map(({ type, ...t }) => ({ ...t, scope: type })),
+    [data]
+  );
+
+  const [editingTemplate, setEditingTemplate] = useState<{ id: string | null; scope: TemplateScope } | null>(null);
+  const [templateToDelete, setTemplateToDelete] = useState<ScopedTemplateInfo | null>(null);
 
   const openCreate = useCallback(() => {
-    setEditingTemplateId(null);
-    setDialogOpen(true);
-  }, []);
-
-  const openEdit = useCallback((templateId: string) => {
-    setEditingTemplateId(templateId);
-    setDialogOpen(true);
+    setEditingTemplate({ id: null, scope: "span" });
   }, []);
 
   return (
     <SettingsSection>
       <SettingsSectionHeader
         title="Render templates"
-        description="JSX templates used to visualize data in a custom way."
+        description="Custom JSX views for span data or entire traces. Templates appear in the view picker on spans and traces."
       />
       <Button variant="outline" icon="plus" className="w-fit" onClick={openCreate}>
         New template
@@ -54,12 +54,13 @@ export default function RenderTemplates() {
         isLoading={isLoading}
         isEmpty={isEmpty(templates)}
         emptyMessage="No render templates yet."
-        headers={["Name", "Created", ""]}
-        colSpan={3}
+        headers={["Name", "Scope", "Created", ""]}
+        colSpan={4}
       >
-        {templates?.map((template) => (
-          <SettingsTableRow key={template.id}>
+        {templates.map((template) => (
+          <SettingsTableRow key={`${template.scope}:${template.id}`}>
             <td className="px-4 text-sm font-medium">{template.name}</td>
+            <td className="px-4 text-sm capitalize text-muted-foreground">{template.scope}</td>
             <td className="px-4 text-sm font-medium">{formatTimestamp(template.createdAt)}</td>
             <td className="px-4">
               <div className="flex justify-end gap-1">
@@ -67,7 +68,7 @@ export default function RenderTemplates() {
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7"
-                  onClick={() => openEdit(template.id)}
+                  onClick={() => setEditingTemplate({ id: template.id, scope: template.scope })}
                   title="Edit template"
                 >
                   <Pencil className="size-3.5" />
@@ -87,7 +88,14 @@ export default function RenderTemplates() {
         ))}
       </SettingsTable>
 
-      <RenderTemplateDialog open={dialogOpen} onOpenChange={setDialogOpen} templateId={editingTemplateId} />
+      <RenderTemplateDialog
+        open={!!editingTemplate}
+        onOpenChange={(open) => {
+          if (!open) setEditingTemplate(null);
+        }}
+        templateId={editingTemplate?.id ?? null}
+        scope={editingTemplate?.scope ?? "span"}
+      />
 
       <DeleteRenderTemplateDialog
         template={templateToDelete}

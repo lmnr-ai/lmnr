@@ -68,8 +68,7 @@ export function SelfResolvingSpanChip({
 }
 
 /**
- * Inline span-reference chip used inside debugger run comments. Styling mirrors
- * the Ask-AI span chip from `refactor/trace-view-header-signals-clean`: a small
+ * Inline span-reference chip used inside debugger notes. A small
  * span-type-colored icon backdrop plus the label in muted text. Clicking opens
  * the span view for the referenced (trace, span).
  */

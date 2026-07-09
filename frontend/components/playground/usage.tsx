@@ -2,25 +2,23 @@ import React, { memo } from "react";
 
 import { type PlaygroundOutputStore } from "./playground-output";
 
-const tokenLabels: Record<keyof PlaygroundOutputStore["usage"], string> = {
-  inputTokens: "Input Tokens",
-  outputTokens: "Output Tokens",
-  cachedInputTokens: "Cached Input Tokens",
-  reasoningTokens: "Reasoning Tokens",
-  totalTokens: "Total Tokens",
-};
-
 const Usage = ({ usage }: Pick<PlaygroundOutputStore, "usage">) => {
-  const validTokens = (Object.entries(tokenLabels) as [keyof PlaygroundOutputStore["usage"], string][]).filter(
-    ([key]) => usage?.[key] && !isNaN(usage?.[key])
-  );
+  const tokens: [string, number | undefined][] = [
+    ["Input Tokens", usage?.inputTokens],
+    ["Output Tokens", usage?.outputTokens],
+    ["Cached Input Tokens", usage?.inputTokenDetails?.cacheReadTokens],
+    ["Reasoning Tokens", usage?.outputTokenDetails?.reasoningTokens],
+    ["Total Tokens", usage?.totalTokens],
+  ];
+
+  const validTokens = tokens.filter((entry): entry is [string, number] => !!entry[1] && !isNaN(entry[1]));
 
   if (validTokens.length > 0) {
     return (
       <div className="flex flex-wrap items-center gap-1 mt-2">
-        {validTokens.map(([key, label]) => (
-          <span key={key} className="text-xs text-secondary-foreground">
-            &#8226; {label}: <b>{usage[key]}</b>
+        {validTokens.map(([label, value]) => (
+          <span key={label} className="text-xs text-secondary-foreground">
+            &#8226; {label}: <b>{value}</b>
           </span>
         ))}
       </div>

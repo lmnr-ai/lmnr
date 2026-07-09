@@ -68,8 +68,18 @@ use signals::private::{
 use tonic::transport::Server;
 use traces::{
     OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, SPANS_DATA_PLANE_EXCHANGE,
-    SPANS_DATA_PLANE_QUEUE, SPANS_DATA_PLANE_ROUTING_KEY, consumer::SpanHandler,
-    data_plane_consumer::DataPlaneSpanHandler, grpc_service::ProcessTracesService,
+    SPANS_DATA_PLANE_QUEUE, SPANS_DATA_PLANE_ROUTING_KEY,
+    consumer::SpanHandler,
+    data_plane_consumer::DataPlaneSpanHandler,
+    grpc_service::ProcessTracesService,
+    input_extraction::{
+        consumer::InputExtractionHandler,
+        queue::{INPUT_EXTRACTION_EXCHANGE, INPUT_EXTRACTION_QUEUE, INPUT_EXTRACTION_ROUTING_KEY},
+    },
+    static_sp_extraction::{
+        STATIC_PROMPT_EXCHANGE, STATIC_PROMPT_QUEUE, STATIC_PROMPT_ROUTING_KEY,
+        consumer::StaticPromptHandler,
+    },
 };
 
 use cache::{
@@ -455,6 +465,32 @@ fn main() -> anyhow::Result<()> {
                     .unwrap();
             }
 
+            // ==== 3.5b Input extraction message queue ====
+            channel
+                .exchange_declare(
+                    INPUT_EXTRACTION_EXCHANGE.into(),
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    INPUT_EXTRACTION_QUEUE.into(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
             // ==== 3.6 Notifications message queue ====
             channel
                 .exchange_declare(
@@ -764,6 +800,32 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.14 Static prompt message queue ====
+            channel
+                .exchange_declare(
+                    STATIC_PROMPT_EXCHANGE.into(),
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    STATIC_PROMPT_QUEUE.into(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
             let max_channel_pool_size = env::mq::MAX_CHANNEL_POOL_SIZE.get();
 
             log::info!("RabbitMQ channels: {}", max_channel_pool_size);
@@ -789,6 +851,8 @@ fn main() -> anyhow::Result<()> {
         // ==== 3.5 Signals event message queue ====
         #[cfg(feature = "signals")]
         queue.register_queue(SIGNALS_EXCHANGE, SIGNALS_QUEUE);
+        // ==== 3.5b Input extraction message queue ====
+        queue.register_queue(INPUT_EXTRACTION_EXCHANGE, INPUT_EXTRACTION_QUEUE);
         // ==== 3.6 Notifications message queue ====
         queue.register_queue(NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE);
         // ==== 3.6b Notification Deliveries message queue ====
@@ -832,6 +896,8 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(REPORT_TRIGGERS_EXCHANGE, REPORT_TRIGGERS_QUEUE);
         // ==== 3.13 Checkpoints message queue ====
         queue.register_queue(CHECKPOINTS_EXCHANGE, CHECKPOINTS_QUEUE);
+        // ==== 3.14 Static prompt message queue ====
+        queue.register_queue(STATIC_PROMPT_EXCHANGE, STATIC_PROMPT_QUEUE);
         log::info!("Using tokio mpsc queue");
         Arc::new(queue.into())
     };
@@ -1013,22 +1079,32 @@ fn main() -> anyhow::Result<()> {
     }
 
     // == LLM Client ==
-    let llm_provider_client: Option<Arc<llm::LlmClient>> = if is_feature_enabled(Feature::Signals) {
+    // Shared by every LLM-backed feature — gate on the union of their flags,
+    // not on any single feature, so the flags' conditions can diverge later
+    // without silently killing the others' client.
+    let llm_client_needed =
+        is_feature_enabled(Feature::Signals) || is_feature_enabled(Feature::InputExtraction);
+    let llm_provider_client: Option<Arc<llm::LlmClient>> = if llm_client_needed {
         log::info!("Initializing LLM client");
         match runtime_handle.block_on(llm::LlmClient::new()) {
             Ok(client) => Some(Arc::new(client)),
             Err(e) => {
                 log::warn!(
-                    "Failed to create LLM client (signals will be disabled): {:?}",
+                    "Failed to create LLM client (LLM-backed features will be disabled): {:?}",
                     e
                 );
                 None
             }
         }
     } else {
-        log::info!("Signals feature disabled - skipping LLM client initialization");
+        log::info!("No LLM-backed feature enabled - skipping LLM client initialization");
         None
     };
+    // Record whether the LLM client actually constructed (OnceLock, first
+    // call wins) — the user-task producer hook must not enqueue extraction
+    // work when the client failed to construct, since the extraction workers
+    // would never spawn and the messages would sit on the queue unconsumed.
+    llm::set_llm_client_available(llm_provider_client.is_some());
     let llm_provider_client_for_http = llm_provider_client.clone();
 
     if enable_consumer() {
@@ -1083,8 +1159,12 @@ fn main() -> anyhow::Result<()> {
 
         let num_checkpoints_workers = env::workers::NUM_CHECKPOINTS.get();
 
+        let num_static_prompt_workers = env::workers::NUM_STATIC_SP.get();
+
+        let num_input_extraction_workers = env::workers::NUM_INPUT_EXTRACTION.get();
+
         log::info!(
-            "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Signals workers: {}, Notification workers: {}, Notification delivery workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}, Reports workers: {}",
+            "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Signals workers: {}, Notification workers: {}, Notification delivery workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}, Reports workers: {}, Input extraction workers: {}",
             num_spans_workers,
             num_data_plane_spans_workers,
             num_spans_indexer_workers,
@@ -1097,7 +1177,8 @@ fn main() -> anyhow::Result<()> {
             num_signal_job_submission_batch_workers,
             num_signal_job_pending_batch_workers,
             num_logs_workers,
-            num_reports_workers
+            num_reports_workers,
+            num_input_extraction_workers,
         );
 
         let queue_for_health = mq_for_http.clone();
@@ -1134,7 +1215,7 @@ fn main() -> anyhow::Result<()> {
 
                         batch_worker_pool_clone.spawn(
                             BatchWorkerType::Spans,
-                            num_spans_workers as usize,
+                            num_spans_workers,
                             move || SpanHandler {
                                 db: db.clone(),
                                 cache: cache.clone(),
@@ -1177,7 +1258,7 @@ fn main() -> anyhow::Result<()> {
 
                         batch_worker_pool_clone.spawn(
                             BatchWorkerType::DataPlaneSpans,
-                            num_data_plane_spans_workers as usize,
+                            num_data_plane_spans_workers,
                             move || DataPlaneSpanHandler {
                                 db: db.clone(),
                                 cache: cache.clone(),
@@ -1205,7 +1286,7 @@ fn main() -> anyhow::Result<()> {
                         let quickwit = quickwit_client_for_indexer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::SpansIndexer,
-                            num_spans_indexer_workers as usize,
+                            num_spans_indexer_workers,
                             move || QuickwitIndexerHandler {
                                 quickwit_client: quickwit.clone(),
                             },
@@ -1232,7 +1313,7 @@ fn main() -> anyhow::Result<()> {
                         let queue = mq_for_consumer.clone();
                         batch_worker_pool_clone.spawn(
                             BatchWorkerType::BrowserEvents,
-                            num_browser_events_workers as usize,
+                            num_browser_events_workers,
                             move || BrowserEventHandler {
                                 db: db.clone(),
                                 clickhouse: clickhouse.clone(),
@@ -1263,7 +1344,7 @@ fn main() -> anyhow::Result<()> {
                         let queue = mq_for_consumer.clone();
                         batch_worker_pool_clone.spawn(
                             BatchWorkerType::SignalsBatching,
-                            num_signals_workers as usize,
+                            num_signals_workers,
                             move || {
                                 SignalBatchingHandler::new(
                                     queue.clone(),
@@ -1295,7 +1376,7 @@ fn main() -> anyhow::Result<()> {
 
                         worker_pool_clone.spawn(
                             WorkerType::Notifications,
-                            num_notification_workers as usize,
+                            num_notification_workers,
                             move || {
                                 NotificationHandler::new(
                                     db.clone(),
@@ -1326,7 +1407,7 @@ fn main() -> anyhow::Result<()> {
 
                         worker_pool_clone.spawn(
                             WorkerType::NotificationDeliveries,
-                            num_notification_delivery_workers as usize,
+                            num_notification_delivery_workers,
                             move || {
                                 NotificationDeliveryHandler::new(
                                     db.clone(),
@@ -1375,7 +1456,7 @@ fn main() -> anyhow::Result<()> {
                                     let queue: Arc<MessageQueue> = mq_for_consumer.clone();
                                     batch_worker_pool_clone.spawn(
                                         BatchWorkerType::ClusteringBatching,
-                                        num_clustering_batching_workers as usize,
+                                        num_clustering_batching_workers,
                                         move || {
                                             ClusteringEventBatchingHandler::new(
                                                 queue.clone(),
@@ -1399,7 +1480,7 @@ fn main() -> anyhow::Result<()> {
                                 let queue = mq_for_consumer.clone();
                                 worker_pool_clone.spawn(
                                     WorkerType::Clustering,
-                                    num_clustering_workers as usize,
+                                    num_clustering_workers,
                                     move || {
                                         ClusteringHandler::new(
                                             cache.clone(),
@@ -1437,7 +1518,7 @@ fn main() -> anyhow::Result<()> {
                         let config = Arc::new(SignalWorkerConfig::from_env());
                         worker_pool_clone.spawn(
                             WorkerType::SignalJobSubmissionBatch,
-                            num_signal_job_submission_batch_workers as usize,
+                            num_signal_job_submission_batch_workers,
                             move || {
                                 SignalJobSubmissionBatchHandler::new(
                                     db.clone(),
@@ -1471,7 +1552,7 @@ fn main() -> anyhow::Result<()> {
                         let config = Arc::new(SignalWorkerConfig::from_env());
                         worker_pool_clone.spawn(
                             WorkerType::SignalJobPendingBatch,
-                            num_signal_job_pending_batch_workers as usize,
+                            num_signal_job_pending_batch_workers,
                             move || {
                                 SignalJobPendingBatchHandler::new(
                                     db.clone(),
@@ -1524,6 +1605,33 @@ fn main() -> anyhow::Result<()> {
                         log::warn!("LLM provider not available - skipping realtime workers");
                     }
 
+                    // Spawn input extraction workers (ingestion-time user-task regex)
+                    if let Some(llm_client) = llm_provider_client.as_ref() {
+                        let db = db_for_consumer.clone();
+                        let cache = cache_for_consumer.clone();
+                        let queue = mq_for_consumer.clone();
+                        let llm_client_clone = llm_client.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::InputExtraction,
+                            num_input_extraction_workers,
+                            move || InputExtractionHandler {
+                                db: db.clone(),
+                                cache: cache.clone(),
+                                queue: queue.clone(),
+                                llm_client: llm_client_clone.clone(),
+                            },
+                            QueueConfig::new(
+                                INPUT_EXTRACTION_QUEUE,
+                                INPUT_EXTRACTION_EXCHANGE,
+                                INPUT_EXTRACTION_ROUTING_KEY,
+                            ),
+                        );
+                    } else {
+                        log::warn!(
+                            "LLM provider not available - skipping input extraction workers"
+                        );
+                    }
+
                     // Spawn logs workers
                     {
                         let db = db_for_consumer.clone();
@@ -1532,7 +1640,7 @@ fn main() -> anyhow::Result<()> {
                         let queue = mq_for_consumer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Logs,
-                            num_logs_workers as usize,
+                            num_logs_workers,
                             move || LogsHandler {
                                 db: db.clone(),
                                 cache: cache.clone(),
@@ -1551,7 +1659,7 @@ fn main() -> anyhow::Result<()> {
                         let llm_client = llm_provider_client.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Reports,
-                            num_reports_workers as usize,
+                            num_reports_workers,
                             move || ReportsGenerator {
                                 db: db.clone(),
                                 clickhouse: clickhouse.clone(),
@@ -1575,7 +1683,7 @@ fn main() -> anyhow::Result<()> {
                         let queue = mq_for_consumer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Checkpoints,
-                            num_checkpoints_workers as usize,
+                            num_checkpoints_workers,
                             move || CheckpointsHandler {
                                 db: db.clone(),
                                 cache: cache.clone(),
@@ -1589,6 +1697,31 @@ fn main() -> anyhow::Result<()> {
                                 CHECKPOINTS_ROUTING_KEY,
                             ),
                         );
+                    }
+
+                    // Spawn static prompt workers. Gate on the shared LLM
+                    // client exactly like input-extraction: a handler without
+                    // a client can only ack-and-drop messages, so a node that
+                    // failed to build the client must NOT consume this queue —
+                    // otherwise it silently discards work another node enqueued
+                    // instead of leaving it for a consumer that can extract.
+                    if let Some(llm_client) = llm_provider_client.as_ref() {
+                        let cache = cache_for_consumer.clone();
+                        let llm_client = llm_client.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::StaticPrompt,
+                            num_static_prompt_workers,
+                            move || {
+                                StaticPromptHandler::new(cache.clone(), Some(llm_client.clone()))
+                            },
+                            QueueConfig::new(
+                                STATIC_PROMPT_QUEUE,
+                                STATIC_PROMPT_EXCHANGE,
+                                STATIC_PROMPT_ROUTING_KEY,
+                            ),
+                        );
+                    } else {
+                        log::warn!("LLM provider not available - skipping static prompt workers");
                     }
 
                     HttpServer::new(move || {
@@ -1774,12 +1907,10 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::datasets::get_datasets)
                             .service(api::v1::cli::datasets::get_datapoints)
                             .service(api::v1::cli::datasets::create_datapoints)
-                            .service(
-                                web::scope("/traces")
-                                    .service(api::v1::cli::traces::update_trace_metadata),
-                            )
                             .service(api::v1::cli::rollouts::update_name)
-                            .service(api::v1::cli::rollouts::register_session);
+                            .service(api::v1::cli::rollouts::register_session)
+                            .service(api::v1::cli::rollouts::list_blocks)
+                            .service(api::v1::cli::rollouts::add_block);
                         #[cfg(feature = "signals")]
                         let cli_scope = cli_scope
                             .service(web::scope("/agent").service(api::v1::cli::agent::agent_chat));
@@ -1862,6 +1993,8 @@ fn main() -> anyhow::Result<()> {
                                     // so it lives under /v1/cli, not here.
                                     .service(api::v1::rollouts::register_session)
                                     .service(api::v1::rollouts::lookup_cache)
+                                    .service(api::v1::rollouts::list_blocks)
+                                    .service(api::v1::rollouts::add_block)
                                     .service(api::v1::rollouts::delete),
                             )
                             .service({
@@ -1874,7 +2007,8 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::sql::json_to_sql)
                                     .service(routes::spans::search_spans)
                                     .service(routes::signal_events::search_signal_events)
-                                    .service(routes::rollouts::update_session_name);
+                                    .service(routes::rollouts::update_session_name)
+                                    .service(routes::static_sp::extract_system_prompt);
                                 #[cfg(feature = "signals")]
                                 let scope = scope
                                     .service(crate::signals::private::routes::submit_signal_job)

@@ -43,7 +43,9 @@ pub mod rate_limit;
 pub mod secrets;
 pub mod server;
 pub mod sql;
+pub mod static_sp;
 pub mod storage;
+pub mod user_task;
 pub mod workers;
 
 /// A numeric env var with a static default. `T` is the parsed value type

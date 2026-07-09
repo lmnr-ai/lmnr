@@ -694,6 +694,34 @@
       "when": 1782383580685,
       "tag": "0098_slack_channel_agent",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1782837381312,
+      "tag": "0099_lam_1845_hard_limit_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1782997824496,
+      "tag": "0100_debugger_session_blocks",
+      "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1782997824497,
+      "tag": "0101_trace_render_templates",
+      "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1782997824498,
+      "tag": "0102_signals_metadata",
+      "breakpoints": true
     }
   ]
 }

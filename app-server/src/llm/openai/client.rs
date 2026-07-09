@@ -38,7 +38,7 @@ impl OpenAIClient {
 
         let client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(10))
-            .timeout(Duration::from_secs(120))
+            .timeout(Duration::from_secs(env::llm::HTTP_TIMEOUT_SECS.get()))
             .default_headers(default_headers)
             .build()
             .map_err(|e| OpenAIError::config(format!("Failed to build HTTP client: {}", e)))?;

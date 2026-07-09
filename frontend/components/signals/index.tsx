@@ -14,6 +14,7 @@ import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import Header from "@/components/ui/header.tsx";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SignalSparklineData } from "@/lib/actions/signals/stats";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -244,7 +245,7 @@ function SignalsContent() {
           )}
         </div>
 
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
+        <ScrollArea ref={scrollContainerRef} className="flex-1">
           {isLoading ? (
             <div className="flex flex-1 justify-center py-12">
               <Loader2 className="size-4 animate-spin text-muted-foreground" />
@@ -285,7 +286,7 @@ function SignalsContent() {
               )}
             </>
           )}
-        </div>
+        </ScrollArea>
       </div>
     </>
   );

@@ -293,10 +293,7 @@ impl LaminarMcpServer {
             ));
         }
 
-        let extractor = Arc::new(PreviewExtractor::new(
-            self.cache.clone(),
-            llm_client.clone(),
-        ));
+        let extractor = Arc::new(PreviewExtractor::new());
         let compressor = TraceCompressor::new(extractor, self.cache.clone(), llm_client);
         let compressed = compressor
             .compress_for_chat(&spans, project_id, trace_id, None)

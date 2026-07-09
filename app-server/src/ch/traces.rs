@@ -207,16 +207,21 @@ impl TraceAggregation {
                 None => span.end_time,
             });
 
-            // Sum tokens and costs from SpanUsage
-            entry.input_tokens += span_usage.input_tokens;
-            entry.output_tokens += span_usage.output_tokens;
-            entry.total_tokens += span_usage.total_tokens;
-            entry.cache_read_input_tokens += span_usage.cache_read_input_tokens;
-            entry.cache_creation_input_tokens += span_usage.cache_creation_input_tokens;
-            entry.reasoning_tokens += span_usage.reasoning_tokens;
-            entry.input_cost += span_usage.input_cost;
-            entry.output_cost += span_usage.output_cost;
-            entry.total_cost += span_usage.total_cost;
+            // Sum tokens and costs from SpanUsage — LLM spans only. `get_llm_usage_for_span`
+            // computes usage for every span (it reads `gen_ai.usage.*` unconditionally), so a
+            // non-LLM span carrying those attributes would otherwise inflate the trace totals.
+            // This mirrors `prepare_span_for_recording`, which records usage only on LLM spans.
+            if span.is_llm_span() {
+                entry.input_tokens += span_usage.input_tokens;
+                entry.output_tokens += span_usage.output_tokens;
+                entry.total_tokens += span_usage.total_tokens;
+                entry.cache_read_input_tokens += span_usage.cache_read_input_tokens;
+                entry.cache_creation_input_tokens += span_usage.cache_creation_input_tokens;
+                entry.reasoning_tokens += span_usage.reasoning_tokens;
+                entry.input_cost += span_usage.input_cost;
+                entry.output_cost += span_usage.output_cost;
+                entry.total_cost += span_usage.total_cost;
+            }
 
             // Use "any" strategy for these fields (take first non-empty value)
             if entry.session_id.is_none() {
@@ -290,5 +295,78 @@ impl TraceAggregation {
         }
 
         trace_aggregations.into_values().collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use serde_json::json;
+
+    use super::*;
+    use crate::traces::spans::SpanAttributes;
+
+    fn make_span(trace_id: Uuid, span_type: SpanType, output_tokens: i64) -> Span {
+        Span {
+            span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            trace_id,
+            parent_span_id: None,
+            name: "test".to_string(),
+            attributes: SpanAttributes::new(HashMap::from([(
+                "gen_ai.usage.output_tokens".to_string(),
+                json!(output_tokens),
+            )])),
+            input: None,
+            output: None,
+            span_type,
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            events: vec![],
+            status: None,
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        }
+    }
+
+    fn make_usage(output_tokens: i64, total_cost: f64) -> SpanUsage {
+        SpanUsage {
+            input_tokens: 0,
+            output_tokens,
+            total_tokens: output_tokens,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+            reasoning_tokens: 0,
+            input_cost: 0.0,
+            output_cost: total_cost,
+            total_cost,
+            request_model: None,
+            response_model: None,
+            provider_name: None,
+        }
+    }
+
+    // A Default span carrying `gen_ai.usage.*` must NOT contribute to the trace token/cost
+    // totals — only LLM spans do (LAM-1873).
+    #[test]
+    fn only_llm_spans_contribute_to_trace_usage() {
+        let trace_id = Uuid::new_v4();
+        let spans = vec![
+            make_span(trace_id, SpanType::LLM, 100),
+            make_span(trace_id, SpanType::Default, 50),
+        ];
+        let usage = vec![make_usage(100, 1.5), make_usage(50, 0.5)];
+
+        let aggregations = TraceAggregation::from_spans(&spans, &usage);
+
+        assert_eq!(aggregations.len(), 1);
+        let agg = &aggregations[0];
+        assert_eq!(agg.output_tokens, 100);
+        assert_eq!(agg.total_tokens, 100);
+        assert_eq!(agg.total_cost, 1.5);
+        assert_eq!(agg.num_spans, 2);
     }
 }

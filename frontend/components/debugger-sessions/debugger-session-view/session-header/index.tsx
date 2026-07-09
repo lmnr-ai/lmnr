@@ -8,11 +8,13 @@ import { fmtRelative } from "./utils";
 
 export interface SessionHeaderProps {
   title: string;
-  // Earliest run start / latest run end across loaded traces, in epoch ms.
-  // Undefined until at least one trace has loaded.
+  // Earliest / latest block created_at, in epoch ms. Undefined until the
+  // session's blocks have loaded.
   createdMs?: number;
-  lastActivityMs?: number;
-  runCount: number;
+  updatedMs?: number;
+  // Per-type block counts; a zero count is hidden from the meta line.
+  traceCount: number;
+  evalCount: number;
   sessionId: string;
 }
 
@@ -21,7 +23,14 @@ export interface SessionHeaderProps {
  * left-aligned, a 24px medium title over a single muted meta line. The
  * jump-to-latest affordance lives in the right-rail outline, not here.
  */
-export default function SessionHeader({ title, createdMs, lastActivityMs, runCount, sessionId }: SessionHeaderProps) {
+export default function SessionHeader({
+  title,
+  createdMs,
+  updatedMs,
+  traceCount,
+  evalCount,
+  sessionId,
+}: SessionHeaderProps) {
   const [copied, setCopied] = useState(false);
   const sessionNameRaw = useDebuggerSessionViewStore((s) => s.sessionNameRaw);
   const setSessionName = useDebuggerSessionViewStore((s) => s.setSessionName);
@@ -52,11 +61,23 @@ export default function SessionHeader({ title, createdMs, lastActivityMs, runCou
       <div className="flex items-center gap-2.5 text-sm text-secondary-foreground">
         <span>Created {fmtRelative(createdMs)}</span>
         <span>·</span>
-        <span>Updated {fmtRelative(lastActivityMs)}</span>
-        <span>·</span>
-        <span>
-          {runCount} {runCount === 1 ? "trace" : "traces"}
-        </span>
+        <span>Updated {fmtRelative(updatedMs)}</span>
+        {traceCount > 0 && (
+          <>
+            <span>·</span>
+            <span>
+              {traceCount} {traceCount === 1 ? "trace" : "traces"}
+            </span>
+          </>
+        )}
+        {evalCount > 0 && (
+          <>
+            <span>·</span>
+            <span>
+              {evalCount} {evalCount === 1 ? "eval" : "evals"}
+            </span>
+          </>
+        )}
         <span>·</span>
         <button
           onClick={onCopy}

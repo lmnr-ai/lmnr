@@ -1,4 +1,4 @@
-import { getTracer, observe } from "@lmnr-ai/lmnr";
+import { observe } from "@lmnr-ai/lmnr";
 import { generateText } from "ai";
 
 import { tryParseJson } from "@/lib/actions/common/utils";
@@ -14,7 +14,7 @@ export type AgentNamesResult = Record<string, string | null>;
 
 async function generateAgentName(systemPrompt: string): Promise<string | null> {
   try {
-    const { text } = await observe({ name: "generate-agent-name" }, async () =>
+    const { text } = await observe({ name: "generate-agent-name", metadata: { feature: "span-previews" } }, async () =>
       generateText({
         model: getLanguageModel("small"),
         system:
@@ -24,10 +24,6 @@ async function generateAgentName(systemPrompt: string): Promise<string | null> {
         maxRetries: 0,
         temperature: 0,
         abortSignal: AbortSignal.timeout(5000),
-        experimental_telemetry: {
-          isEnabled: true,
-          tracer: getTracer(),
-        },
       })
     );
 

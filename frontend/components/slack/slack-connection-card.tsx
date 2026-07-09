@@ -146,6 +146,21 @@ export default function SlackConnectionCard({
             <Badge className="py-1.5 border-success bg-success/80" variant="outline">
               Connected
             </Badge>
+            {/* Visible "Reconnect" sized to match the Connected badge (same px/py/text/radius), styled
+                transparent so it reads as secondary. Re-runs OAuth requesting the current SLACK_SCOPES,
+                so an install on the old notification-only scopes picks up the channel-agent scopes here.
+                Shown whenever connected — we don't persist granted scopes, so we can't gate it on
+                "scopes are stale" (see flagged note in PR). */}
+            {reconnectUrl && (
+              <a
+                href={reconnectUrl}
+                onClick={() => track("integrations", "slack_reconnect_clicked")}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-2.5 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted/50"
+              >
+                <RefreshCw className="h-3 w-3" />
+                Reconnect
+              </a>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
@@ -163,14 +178,6 @@ export default function SlackConnectionCard({
                         <Settings className="h-3.5 w-3.5" />
                         Settings
                       </Link>
-                    </DropdownMenuItem>
-                  )}
-                  {reconnectUrl && (
-                    <DropdownMenuItem asChild>
-                      <a href={reconnectUrl} onClick={() => track("integrations", "slack_reconnect_clicked")}>
-                        <RefreshCw className="h-3.5 w-3.5" />
-                        Reconnect
-                      </a>
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem variant="destructive" onClick={() => setConfirmOpen(true)}>

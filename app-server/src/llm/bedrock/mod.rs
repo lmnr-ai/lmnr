@@ -1,5 +1,6 @@
 #![cfg_attr(not(feature = "signals"), allow(dead_code))]
 
+use crate::env;
 use crate::llm::{
     LanguageModelClient, ProviderError, ProviderResult, ProviderUsageMetadata,
     models::{
@@ -8,8 +9,11 @@ use crate::llm::{
     },
 };
 use aws_sdk_bedrockruntime::Client as AwsBedrockClient;
+use aws_sdk_bedrockruntime::config::retry::RetryConfig;
+use aws_sdk_bedrockruntime::config::timeout::TimeoutConfig;
 use aws_sdk_bedrockruntime::primitives::Blob;
 use serde_json::Value;
+use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 
 mod accumulator;
@@ -19,6 +23,19 @@ fn cache_control_ephemeral() -> Value {
     serde_json::json!({"type": "ephemeral"})
 }
 
+/// AWS Smithy's `SdkError` `Display` only prints the variant label (e.g. "service error"),
+/// hiding the real cause (validation message, throttling reason, …) in its `source()` chain.
+/// Walk the chain so the actual Bedrock message surfaces in logs and `ProviderError`.
+fn format_sdk_error(e: &dyn std::error::Error) -> String {
+    let mut msg = e.to_string();
+    let mut source = e.source();
+    while let Some(s) = source {
+        msg.push_str(&format!(": {s}"));
+        source = s.source();
+    }
+    msg
+}
+
 #[derive(Clone)]
 pub struct BedrockClient {
     client: AwsBedrockClient,
@@ -26,9 +43,21 @@ pub struct BedrockClient {
 
 impl BedrockClient {
     pub async fn new() -> ProviderResult<Self> {
-        let config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
+        let sdk_config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
+        // Mirror the reqwest-based clients (openai/gemini): a single attempt bounded
+        // by the shared LLM_HTTP_TIMEOUT_SECS request timeout plus a 10s connect
+        // timeout. SDK auto-retries are disabled so all providers behave the same —
+        // the retry layer is owned by the caller.
+        let timeout_config = TimeoutConfig::builder()
+            .operation_attempt_timeout(Duration::from_secs(env::llm::HTTP_TIMEOUT_SECS.get()))
+            .connect_timeout(Duration::from_secs(10))
+            .build();
+        let config = aws_sdk_bedrockruntime::config::Builder::from(&sdk_config)
+            .timeout_config(timeout_config)
+            .retry_config(RetryConfig::disabled())
+            .build();
         Ok(Self {
-            client: AwsBedrockClient::new(&config),
+            client: AwsBedrockClient::from_conf(config),
         })
     }
 }
@@ -84,10 +113,12 @@ fn build_request_body(model: &str, request: &ProviderRequest) -> ProviderResult<
                 )
             });
         let thinking_enabled = thinking_level.is_some();
-        // Adaptive-thinking models (currently `claude-opus-4-7`)
-        // require `{type: "adaptive"[, effort: ...]}`
-        // and own their own thinking-token budgeting via the `effort`
-        // soft hint + `max_tokens` hard cap (see
+        // Adaptive-thinking models (`claude-opus-4-7` / `claude-opus-4-8`)
+        // require `thinking: {type: "adaptive"}` and reject the legacy
+        // `{type: "enabled", budget_tokens: N}` shape with a 400. They own
+        // their own thinking-token budgeting under the `max_tokens` hard cap;
+        // the caller's level is forwarded as a soft `effort` hint via a
+        // SIBLING `output_config` object (see
         // <https://docs.aws.amazon.com/bedrock/latest/userguide/claude-messages-adaptive-thinking.html>).
         let use_adaptive_thinking = thinking_enabled && requires_adaptive_thinking(model);
 
@@ -191,7 +222,10 @@ fn build_request_body(model: &str, request: &ProviderRequest) -> ProviderResult<
             body["tools"] = Value::Array(tools);
         }
 
-        if !thinking_enabled {
+        // Claude 5.x / Opus 4.7+ hard-reject `temperature`/`top_p`
+        // ("`temperature` is deprecated for this model" ValidationException),
+        // so only forward the sampling knobs for models that still accept them.
+        if !thinking_enabled && supports_sampling_params(model) {
             if let Some(temp) = request
                 .generation_config
                 .as_ref()
@@ -205,12 +239,16 @@ fn build_request_body(model: &str, request: &ProviderRequest) -> ProviderResult<
         }
 
         if use_adaptive_thinking {
-            // Adaptive-thinking models own their own thinking budget
-            // via complexity heuristics — we deliberately ignore the
-            // caller's `ProviderThinkingLevel` here.
+            // Adaptive-thinking models do their own thinking-token budgeting;
+            // the caller's level is forwarded only as a soft `effort` hint.
             body["thinking"] = serde_json::json!({
                 "type": "adaptive",
             });
+            // `effort` MUST be a sibling of `thinking` under `output_config` —
+            // nesting it inside `thinking` triggers a Bedrock ValidationException.
+            if let Some(effort) = thinking_level.map(thinking_level_to_adaptive_effort) {
+                body["output_config"] = serde_json::json!({ "effort": effort });
+            }
         } else if thinking_enabled {
             body["thinking"] = serde_json::json!({
                 "type": "enabled",
@@ -353,11 +391,12 @@ impl LanguageModelClient for BedrockClient {
             .send()
             .await
             .map_err(|e| {
-                log::error!("Failed to call AWS Bedrock InvokeModel. {e}");
+                let detail = format_sdk_error(&e);
+                log::error!("Failed to call AWS Bedrock InvokeModel. {detail}");
                 let status = e.raw_response().map(|r| r.status().as_u16()).unwrap_or(500);
                 ProviderError::ApiError {
                     status_code: status,
-                    message: e.to_string(),
+                    message: detail,
                     retryable: status >= 500 || status == 429,
                     resource_exhausted: status == 429,
                 }
@@ -389,11 +428,12 @@ impl LanguageModelClient for BedrockClient {
             .send()
             .await
             .map_err(|e| {
-                log::error!("Failed to call AWS Bedrock InvokeModelWithResponseStream. {e}");
+                let detail = format_sdk_error(&e);
+                log::error!("Failed to call AWS Bedrock InvokeModelWithResponseStream. {detail}");
                 let status = e.raw_response().map(|r| r.status().as_u16()).unwrap_or(500);
                 ProviderError::ApiError {
                     status_code: status,
-                    message: e.to_string(),
+                    message: detail,
                     retryable: status >= 500 || status == 429,
                     resource_exhausted: status == 429,
                 }
@@ -429,6 +469,22 @@ fn thinking_level_to_budget(level: &super::models::ProviderThinkingLevel) -> u64
         ProviderThinkingLevel::Low => 2_048,
         ProviderThinkingLevel::Medium => 4_096,
         ProviderThinkingLevel::High => 16_384,
+        ProviderThinkingLevel::XHigh => 32_768,
+    }
+}
+
+/// Map a thinking level onto the Anthropic adaptive-thinking `effort` hint
+/// (`output_config.effort`).
+fn thinking_level_to_adaptive_effort(level: &super::models::ProviderThinkingLevel) -> &'static str {
+    use super::models::ProviderThinkingLevel;
+    match level {
+        ProviderThinkingLevel::ThinkingLevelUnspecified => "high",
+        ProviderThinkingLevel::Minimal | ProviderThinkingLevel::Low => "low",
+        ProviderThinkingLevel::Medium => "medium",
+        ProviderThinkingLevel::High => "high",
+        // Bedrock's adaptive effort scale tops out at "max" (Anthropic naming),
+        // not "xhigh" (OpenAI naming) — "xhigh" is a ValidationException.
+        ProviderThinkingLevel::XHigh => "max",
     }
 }
 
@@ -436,9 +492,22 @@ fn thinking_level_to_budget(level: &super::models::ProviderThinkingLevel) -> u64
 /// the adaptive-thinking shape `{type: "adaptive"[, effort: ...]}`,
 /// rejecting the legacy `{type: "enabled", budget_tokens: N}` payload.
 ///
-/// Currently scoped to `claude-opus-4-7`
+/// Scoped to `claude-opus-4-7`, `claude-opus-4-8`, and the Claude 5.x
+/// generation (e.g. `claude-sonnet-5`) — all hard-reject
+/// `thinking.type.enabled`.
 fn requires_adaptive_thinking(model: &str) -> bool {
     model.contains("claude-opus-4-7")
+        || model.contains("claude-opus-4-8")
+        || model.contains("claude-sonnet-5")
+}
+
+/// False for models that deprecated the `temperature`/`top_p` sampling knobs
+/// and 400 when they're present ("`temperature` is deprecated for this model").
+/// Same generation as `requires_adaptive_thinking` (Claude 5.x / Opus 4.7+).
+fn supports_sampling_params(model: &str) -> bool {
+    !(model.contains("claude-opus-4-7")
+        || model.contains("claude-opus-4-8")
+        || model.contains("claude-sonnet-5"))
 }
 
 #[cfg(test)]
@@ -451,6 +520,109 @@ mod tests {
         assert!(requires_adaptive_thinking("us.anthropic.claude-opus-4-7"));
         // Bare model id (some call paths use this directly).
         assert!(requires_adaptive_thinking("claude-opus-4-7"));
+    }
+
+    #[test]
+    fn opus_4_8_under_any_bedrock_prefix_requires_adaptive() {
+        // 4.8 hard-rejects `thinking.type.enabled` just like 4.7.
+        assert!(requires_adaptive_thinking("us.anthropic.claude-opus-4-8"));
+        assert!(requires_adaptive_thinking("claude-opus-4-8"));
+    }
+
+    #[test]
+    fn sonnet_5_under_any_bedrock_prefix_requires_adaptive() {
+        // Claude 5.x is adaptive-only; `thinking.type.enabled` is a 400.
+        assert!(requires_adaptive_thinking("us.anthropic.claude-sonnet-5"));
+        assert!(requires_adaptive_thinking(
+            "global.anthropic.claude-sonnet-5"
+        ));
+        assert!(requires_adaptive_thinking("claude-sonnet-5"));
+    }
+
+    #[test]
+    fn adaptive_effort_maps_xhigh_to_max() {
+        use super::super::models::ProviderThinkingLevel;
+        assert_eq!(
+            thinking_level_to_adaptive_effort(&ProviderThinkingLevel::XHigh),
+            "max"
+        );
+        assert_eq!(
+            thinking_level_to_adaptive_effort(&ProviderThinkingLevel::High),
+            "high"
+        );
+        assert_eq!(
+            thinking_level_to_adaptive_effort(&ProviderThinkingLevel::Minimal),
+            "low"
+        );
+    }
+
+    #[test]
+    fn adaptive_body_puts_effort_in_sibling_output_config() {
+        use super::super::models::{
+            ProviderGenerationConfig, ProviderThinkingConfig, ProviderThinkingLevel,
+        };
+        let request = ProviderRequest {
+            contents: vec![],
+            system_instruction: None,
+            tools: None,
+            generation_config: Some(ProviderGenerationConfig {
+                thinking_config: Some(ProviderThinkingConfig {
+                    include_thoughts: Some(true),
+                    thinking_level: Some(ProviderThinkingLevel::XHigh),
+                }),
+                ..Default::default()
+            }),
+            service_tier: None,
+            provider: None,
+            model_size: None,
+        };
+        let body = build_request_body("us.anthropic.claude-opus-4-8", &request).unwrap();
+        assert_eq!(body["thinking"]["type"], "adaptive");
+        // effort is a sibling under output_config, never nested in `thinking`.
+        assert_eq!(body["output_config"]["effort"], "max");
+        assert!(body["thinking"].get("effort").is_none());
+    }
+
+    #[test]
+    fn sonnet_5_omits_deprecated_temperature() {
+        use super::super::models::ProviderGenerationConfig;
+        let request = ProviderRequest {
+            contents: vec![],
+            system_instruction: None,
+            tools: None,
+            generation_config: Some(ProviderGenerationConfig {
+                temperature: Some(0.4),
+                top_p: Some(0.9),
+                ..Default::default()
+            }),
+            service_tier: None,
+            provider: None,
+            model_size: None,
+        };
+        let body = build_request_body("us.anthropic.claude-sonnet-5", &request).unwrap();
+        assert!(body.get("temperature").is_none());
+        assert!(body.get("top_p").is_none());
+    }
+
+    #[test]
+    fn sonnet_4_keeps_temperature() {
+        use super::super::models::ProviderGenerationConfig;
+        let request = ProviderRequest {
+            contents: vec![],
+            system_instruction: None,
+            tools: None,
+            generation_config: Some(ProviderGenerationConfig {
+                temperature: Some(0.4),
+                top_p: Some(0.9),
+                ..Default::default()
+            }),
+            service_tier: None,
+            provider: None,
+            model_size: None,
+        };
+        let body = build_request_body("us.anthropic.claude-sonnet-4-6", &request).unwrap();
+        assert!(body["temperature"].is_number());
+        assert!(body["top_p"].is_number());
     }
 
     #[test]

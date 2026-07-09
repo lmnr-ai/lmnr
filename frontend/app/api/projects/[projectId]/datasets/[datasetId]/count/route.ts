@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { countDatapoints } from "@/lib/actions/datapoints";
+import { parseUrlParams } from "@/lib/actions/common/utils";
+import { countDatapoints, CountDatapointsSchema } from "@/lib/actions/datapoints";
 
 export async function GET(
   req: NextRequest,
@@ -9,7 +10,17 @@ export async function GET(
   const params = await props.params;
 
   try {
+    const parseResult = parseUrlParams(
+      req.nextUrl.searchParams,
+      CountDatapointsSchema.omit({ projectId: true, datasetId: true })
+    );
+
+    if (!parseResult.success) {
+      return NextResponse.json({ totalCount: 0 });
+    }
+
     const countData = await countDatapoints({
+      ...parseResult.data,
       projectId: params.projectId,
       datasetId: params.datasetId,
     });

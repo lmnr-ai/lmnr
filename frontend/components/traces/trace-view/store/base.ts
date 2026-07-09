@@ -177,7 +177,7 @@ export interface BaseTraceViewState {
   langGraph: boolean;
   sessionTime?: number;
   sessionStartTime?: number;
-  tab: "tree" | "transcript";
+  tab: "tree" | "transcript" | "custom";
   hasBrowserSession: boolean;
   showTreeContent: boolean;
   condensedTimelineEnabled: boolean;
@@ -195,6 +195,11 @@ export interface BaseTraceViewState {
   spanPanelOpen: boolean;
   tracesAgentOpen: boolean;
   signalsPanelOpen: boolean;
+
+  // True while a react-resizable-panels handle is being dragged. The custom-view
+  // iframe reads this to go pointer-transparent so it can't swallow the drag's
+  // pointer events (the library listens on document and has no drag-state hook).
+  isResizing: boolean;
 
   // Signal data for the signal events panel
   traceSignals: TraceSignal[];
@@ -256,6 +261,7 @@ export interface BaseTraceViewActions {
   setSpanPanelOpen: (open: boolean) => void;
   setTracesAgentOpen: (open: boolean) => void;
   setSignalsPanelOpen: (open: boolean) => void;
+  setIsResizing: (isResizing: boolean) => void;
 
   // Signal data actions
   setTraceSignals: (signals: TraceSignal[]) => void;
@@ -319,6 +325,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     spanPanelOpen: false,
     tracesAgentOpen: options?.initialChatOpen ?? false,
     signalsPanelOpen: false,
+    isResizing: false,
 
     // Signal data defaults
     traceSignals: [],
@@ -338,6 +345,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     scrollToGroupId: null,
 
     setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession } as Partial<T>),
+    setIsResizing: (isResizing: boolean) => set({ isResizing } as Partial<T>),
     setTrace: (trace) => {
       if (typeof trace === "function") {
         const prevTrace = get().trace;

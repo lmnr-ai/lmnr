@@ -1,12 +1,7 @@
-#![cfg_attr(not(feature = "signals"), allow(dead_code))]
-
 use anyhow::Result;
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use uuid::Uuid;
-
-use super::utils::chrono_to_nanoseconds;
 
 /// ClickHouse representation of a signal event
 #[derive(Row, Serialize, Deserialize, Clone, Debug)]
@@ -29,46 +24,6 @@ pub struct CHSignalEvent {
     pub summary: String,
     /// 0 = info, 1 = warning, 2 = critical
     pub severity: u8,
-}
-
-impl CHSignalEvent {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        id: Uuid,
-        project_id: Uuid,
-        signal_id: Uuid,
-        trace_id: Uuid,
-        run_id: Uuid,
-        name: String,
-        payload: Value,
-        timestamp: chrono::DateTime<chrono::Utc>,
-        summary: String,
-        severity: u8,
-    ) -> Self {
-        Self {
-            id,
-            project_id,
-            signal_id,
-            trace_id,
-            run_id,
-            name,
-            payload: payload.to_string(),
-            timestamp: chrono_to_nanoseconds(timestamp),
-            summary,
-            severity,
-        }
-    }
-
-    /// Get the name of the signal event
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Get the payload as a parsed JSON Value
-    pub fn payload_value(&self) -> Result<Value> {
-        serde_json::from_str(&self.payload)
-            .map_err(|e| anyhow::anyhow!("Failed to parse payload: {}", e))
-    }
 }
 
 /// ClickHouse row for signal event counts
@@ -128,6 +83,7 @@ pub struct SignalEventContextRow {
     pub summary: String,
     pub payload: String,
     pub timestamp: i64,
+    pub severity: u8,
 }
 
 /// Get the most recent signal events (up to `limit`) for the given project and time range.
@@ -147,7 +103,7 @@ pub async fn get_signal_events_for_summary(
     let placeholders: Vec<String> = signal_ids.iter().map(|_| "?".to_string()).collect();
 
     let query_str = format!(
-        "SELECT id, signal_id, trace_id, summary, payload, timestamp
+        "SELECT id, signal_id, trace_id, summary, payload, timestamp, severity
          FROM signal_events
          WHERE project_id = ?
            AND signal_id IN ({})
@@ -169,68 +125,4 @@ pub async fn get_signal_events_for_summary(
     let rows = query.fetch_all::<SignalEventContextRow>().await?;
 
     Ok(rows)
-}
-
-/// Fetch signal events by their IDs, filtering by project_id and signal_id
-/// to utilize the ClickHouse ordering key efficiently.
-pub async fn get_signal_events_by_ids(
-    clickhouse: &clickhouse::Client,
-    project_id: &Uuid,
-    signal_id: &Uuid,
-    event_ids: &[Uuid],
-) -> Result<Vec<CHSignalEvent>> {
-    if event_ids.is_empty() {
-        return Ok(vec![]);
-    }
-
-    let placeholders: Vec<String> = event_ids.iter().map(|_| "?".to_string()).collect();
-    let query_str = format!(
-        "SELECT id, project_id, signal_id, trace_id, run_id, name, payload, timestamp, summary, severity
-         FROM signal_events
-         WHERE project_id = ?
-           AND signal_id = ?
-           AND id IN ({})",
-        placeholders.join(",")
-    );
-
-    let mut query = clickhouse
-        .query(&query_str)
-        .bind(project_id)
-        .bind(signal_id);
-
-    for event_id in event_ids {
-        query = query.bind(event_id);
-    }
-
-    let rows = query.fetch_all::<CHSignalEvent>().await?;
-
-    Ok(rows)
-}
-
-/// Insert signal events into ClickHouse
-pub async fn insert_signal_events(
-    clickhouse: clickhouse::Client,
-    events: Vec<CHSignalEvent>,
-) -> Result<()> {
-    if events.is_empty() {
-        return Ok(());
-    }
-
-    let ch_insert = clickhouse.insert::<CHSignalEvent>("signal_events").await;
-    match ch_insert {
-        Ok(mut ch_insert) => {
-            ch_insert = ch_insert.with_setting("wait_for_async_insert", "0");
-            for event in events {
-                ch_insert.write(&event).await?;
-            }
-            ch_insert.end().await.map_err(|e| {
-                anyhow::anyhow!("Clickhouse signal_events insertion failed: {:?}", e)
-            })?;
-            Ok(())
-        }
-        Err(e) => Err(anyhow::anyhow!(
-            "Failed to insert signal events into Clickhouse: {:?}",
-            e
-        )),
-    }
 }

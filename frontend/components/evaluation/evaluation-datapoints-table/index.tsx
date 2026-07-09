@@ -40,6 +40,8 @@ interface EvaluationDatapointsTableProps {
   isComparison: boolean;
   /** Min/max per score, derived from data. Used by the heatmap renderer. */
   scoreRanges: ScoreRanges;
+  /** Sticky-left columns (position: sticky during horizontal scroll). Opt-in, passes through to InfiniteDataTable. */
+  pinnedLeftColumnIds?: string[];
 
   datapointId?: string;
   handleRowClick: (row: Row<EvalRow>) => void;
@@ -85,6 +87,7 @@ const EvaluationDatapointsTable = ({
   visibleColumnDefs,
   isComparison,
   scoreRanges,
+  pinnedLeftColumnIds,
   datapointId,
   handleRowClick,
   getRowHref,
@@ -103,7 +106,12 @@ const EvaluationDatapointsTable = ({
 
   const tableMeta = useMemo(
     () => ({
-      evalCellMeta: { isComparison, isShared, heatmapEnabled: heatmapEnabled ?? false, scoreRanges },
+      evalCellMeta: {
+        isComparison,
+        isShared,
+        heatmapEnabled: heatmapEnabled ?? false,
+        scoreRanges,
+      },
     }),
     [isComparison, isShared, heatmapEnabled, scoreRanges]
   );
@@ -132,6 +140,7 @@ const EvaluationDatapointsTable = ({
         focusedRowId={datapointId}
         onRowClick={handleRowClick}
         getRowHref={getRowHref}
+        pinnedLeftColumnIds={pinnedLeftColumnIds}
         className="flex-1"
         sortBy={sortBy}
         sortDirection={sortDirection}
