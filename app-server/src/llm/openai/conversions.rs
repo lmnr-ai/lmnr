@@ -158,8 +158,7 @@ fn append_content_as_messages(content: &ProviderContent, out: &mut Vec<Value>) {
         }
         if let Some(fr) = part.function_response {
             let tool_call_id = fr.id.unwrap_or_default();
-            let content_str =
-                serde_json::to_string(&fr.response).unwrap_or_else(|_| "".to_string());
+            let content_str = serde_json::to_string(&fr.response).unwrap_or("".to_string());
             tool_results.push(json!({
                 "role": "tool",
                 "tool_call_id": tool_call_id,
@@ -168,9 +167,9 @@ fn append_content_as_messages(content: &ProviderContent, out: &mut Vec<Value>) {
             continue;
         }
         if let Some(fc) = part.function_call {
-            let id = fc.id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+            let id = fc.id.unwrap_or_default();
             let args = fc.args.unwrap_or(Value::Object(Default::default()));
-            let arguments_str = serde_json::to_string(&args).unwrap_or_else(|_| "{}".to_string());
+            let arguments_str = serde_json::to_string(&args).unwrap_or("{}".to_string());
             tool_calls.push(json!({
                 "id": id,
                 "type": "function",
