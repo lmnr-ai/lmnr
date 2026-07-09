@@ -143,6 +143,11 @@ function HighlightedSnippet({ snippet }: { snippet: SnippetInfo }) {
   );
 }
 
+// Mirrors PAYLOAD_SORT_FIELD_RE in lib/actions/events/utils.ts: the server
+// rejects non-identifier field names in ORDER BY and silently falls back to
+// timestamp DESC, so such columns must not be offered as sortable.
+const SORTABLE_FIELD_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
 function createPayloadColumnDef(field: SchemaField): ColumnDef<EventRow> {
   const columnId = `payload:${field.name}`;
 
@@ -153,7 +158,7 @@ function createPayloadColumnDef(field: SchemaField): ColumnDef<EventRow> {
     size: getColumnSize(field.type),
     // String payloads are free-text and sorted lexically server-side would be
     // surprising; only typed fields (number/boolean/enum) are sortable.
-    enableSorting: field.type !== "string",
+    enableSorting: field.type !== "string" && SORTABLE_FIELD_NAME_RE.test(field.name),
     cell: ({ row, getValue }) => {
       const snippet = row.original.fieldSnippets?.[field.name];
       if (snippet) {
