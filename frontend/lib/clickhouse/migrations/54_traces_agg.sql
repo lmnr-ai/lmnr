@@ -40,6 +40,11 @@ CREATE TABLE IF NOT EXISTS default.traces_agg
     `reasoning_tokens` SimpleAggregateFunction(sum, UInt64),
     -- debug-only: insert wall-clock, folds to first-seen; not exposed in the view
     `created_at` SimpleAggregateFunction(min, DateTime64(9, 'UTC')) DEFAULT now64(9),
+    -- reserved (read-only for now, nothing writes them yet)
+    `agent_input` SimpleAggregateFunction(max, String),
+    `agent_output` SimpleAggregateFunction(max, String),
+    `subagent_inputs` SimpleAggregateFunction(maxMap, Map(String, String)),
+    `subagent_outputs` SimpleAggregateFunction(maxMap, Map(String, String)),
     PROJECTION p_start_time
     (
         SELECT *
@@ -114,7 +119,11 @@ SELECT
     t.id AS id,
     t.span_names AS span_names,
     t.root_span_input AS root_span_input,
-    t.root_span_output AS root_span_output
+    t.root_span_output AS root_span_output,
+    t.agent_input AS agent_input,
+    t.agent_output AS agent_output,
+    if(length(mapKeys(t.subagent_inputs)) = 0, '', toJSONString(t.subagent_inputs)) AS subagent_inputs,
+    if(length(mapKeys(t.subagent_outputs)) = 0, '', toJSONString(t.subagent_outputs)) AS subagent_outputs
 FROM (
     SELECT
         project_id,
@@ -142,7 +151,11 @@ FROM (
         max(has_browser_session) AS has_browser_session,
         groupUniqArrayArray(span_names) AS span_names,
         max(root_span_input) AS root_span_input,
-        max(root_span_output) AS root_span_output
+        max(root_span_output) AS root_span_output,
+        max(agent_input) AS agent_input,
+        max(agent_output) AS agent_output,
+        maxMap(subagent_inputs) AS subagent_inputs,
+        maxMap(subagent_outputs) AS subagent_outputs
     FROM (
         SELECT *
         FROM default.traces_agg

@@ -17,8 +17,10 @@ const STATUS_BIT_ERROR: u64 = 2;
 
 /// One per-batch partial row for the `traces_agg` AggregatingMergeTree table.
 /// Field order MUST match the CREATE TABLE column order exactly (RowBinary
-/// serialization is positional). `created_at` is deliberately absent: the
-/// insert names its columns, so the server fills the DEFAULT now64(9).
+/// serialization is positional). `created_at` and the reserved read-only
+/// columns (`agent_input`/`agent_output`/`subagent_inputs`/`subagent_outputs`)
+/// are deliberately absent: the insert names its columns, so the server fills
+/// their defaults.
 #[derive(Debug, Clone, Serialize, Deserialize, Row)]
 pub struct CHTraceAgg {
     #[serde(with = "clickhouse::serde::uuid")]
