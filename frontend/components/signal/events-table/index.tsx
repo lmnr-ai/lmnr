@@ -215,6 +215,8 @@ function PureEventsTable() {
     [setTraceId, setSpanId, searchParams, pathName, router]
   );
 
+  const fetchEnabled = !!(pastHours || (startDate && endDate)) && !isViewLoading;
+
   const {
     data: events,
     hasMore,
@@ -224,7 +226,7 @@ function PureEventsTable() {
     refetch,
   } = useInfiniteScroll<EventRow>({
     fetchFn: fetchEvents,
-    enabled: !!(pastHours || (startDate && endDate)) && !isViewLoading,
+    enabled: fetchEnabled,
     deps: [
       params.projectId,
       signal.id,
@@ -245,11 +247,14 @@ function PureEventsTable() {
   const { mutate } = useSWRConfig();
 
   const handleRefresh = useCallback(() => {
+    // Same gate as the events fetch: when refetch no-ops, skip the cluster and
+    // run-stats reloads too so refresh never updates one panel but not the other.
+    if (!fetchEnabled) return;
     refetch();
     // clusters reload cascades cluster-stats; run-stats revalidates via its SWR key.
     fetchClusters({ pastHours, startDate, endDate });
     mutate((key) => typeof key === "string" && key.includes(`/signals/${signal.id}/runs/stats`));
-  }, [refetch, fetchClusters, pastHours, startDate, endDate, mutate, signal.id]);
+  }, [fetchEnabled, refetch, fetchClusters, pastHours, startDate, endDate, mutate, signal.id]);
 
   const handleSort = useCallback(
     (columnId: string, direction: "asc" | "desc") => {
