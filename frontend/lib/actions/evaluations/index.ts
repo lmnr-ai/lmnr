@@ -167,6 +167,7 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
       count: number;
       unfinished_count: number;
       error_count: number;
+      last_datapoint_at: string;
     }>({
       projectId,
       query: `
@@ -177,7 +178,8 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
             trace_status != 'error'
             AND (scores = '' OR scores = '{}' OR top_span_id = toUUID('00000000-0000-0000-0000-000000000000'))
           ) as unfinished_count,
-          countIf(trace_status = 'error') as error_count
+          countIf(trace_status = 'error') as error_count,
+          formatDateTime(max(greatest(end_time, updated_at)), '%Y-%m-%dT%H:%i:%S.%fZ') as last_datapoint_at
         FROM evaluation_datapoints
         WHERE evaluation_id IN {evaluationIds:Array(String)}
         GROUP BY evaluation_id
@@ -197,6 +199,7 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
         dataPointsCount: counts?.count ?? 0,
         unfinishedCount: counts?.unfinished_count ?? 0,
         errorCount: counts?.error_count ?? 0,
+        lastDatapointAt: counts?.last_datapoint_at,
       };
     });
   }

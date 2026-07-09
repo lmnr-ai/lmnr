@@ -43,11 +43,16 @@ export const deriveStatus = (row: EvalRow): EvalDatapointStatus => {
  * Roll up the per-datapoint counts into a single evaluation status. Mirrors the
  * traces-table treatment: an evaluation still waiting on datapoints for over an
  * hour is treated as stale (grayed out) rather than perpetually "in progress".
+ * The staleness clock is the latest datapoint activity (max of trace end_time /
+ * datapoint updated_at, same clock deriveStatus uses per datapoint), so a
+ * long-running eval that is still producing datapoints stays "in progress";
+ * evaluation.createdAt is only the fallback for evals with no datapoints yet.
  */
 export const deriveEvaluationStatus = (evaluation: Evaluation): EvaluationStatus => {
   const inProgress = (evaluation.unfinishedCount ?? 0) > 0;
   if (inProgress) {
-    return isStringDateOld(evaluation.createdAt) ? "stale" : "inProgress";
+    const lastActivityAt = evaluation.lastDatapointAt || evaluation.createdAt;
+    return isStringDateOld(lastActivityAt) ? "stale" : "inProgress";
   }
   if ((evaluation.errorCount ?? 0) > 0) return "error";
   return "finished";

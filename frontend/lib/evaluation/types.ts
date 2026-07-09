@@ -15,6 +15,7 @@ export type Evaluation = {
   dataPointsCount?: number;
   unfinishedCount?: number;
   errorCount?: number;
+  lastDatapointAt?: string;
 };
 
 export type EvaluationScoreStatistics = {
