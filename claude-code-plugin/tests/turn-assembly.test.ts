@@ -255,6 +255,41 @@ describe("readNewJsonl", () => {
     });
   });
 
+  it("complete unterminated final line flushed at session end", () => {
+    withTmp((dir) => {
+      const p = path.join(dir, "t.jsonl");
+      // No trailing newline: the final row would otherwise sit in the buffer
+      // forever once offset reaches EOF.
+      fs.writeFileSync(p, '{"a": 1}\n{"b": 2}');
+      const state = new SessionState();
+      let msgs;
+      [msgs] = readNewJsonl(p, state);
+      assert.deepEqual(msgs, [{ a: 1 }]);
+      assert.equal(state.buffer, '{"b": 2}');
+
+      // Later runs read zero new bytes; without flushing the row stays held.
+      [msgs] = readNewJsonl(p, state);
+      assert.deepEqual(msgs, []);
+
+      [msgs] = readNewJsonl(p, state, true);
+      assert.deepEqual(msgs, [{ b: 2 }]);
+      assert.equal(state.buffer, "");
+    });
+  });
+
+  it("genuinely partial line stays buffered even when flushing", () => {
+    withTmp((dir) => {
+      const p = path.join(dir, "t.jsonl");
+      fs.writeFileSync(p, '{"a": 1}\n{"b":');
+      const state = new SessionState();
+      readNewJsonl(p, state);
+
+      const [msgs] = readNewJsonl(p, state, true);
+      assert.deepEqual(msgs, []);
+      assert.equal(state.buffer, '{"b":');
+    });
+  });
+
   it("shrunk file restarts", () => {
     withTmp((dir) => {
       const p = path.join(dir, "t.jsonl");

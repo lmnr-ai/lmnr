@@ -153,10 +153,45 @@ export function isToolResult(row: Row): boolean {
 
 // ----------------- Incremental transcript reading -----------------
 /**
+ * If the buffered partial line is actually a complete JSON row (transcript
+ * ended without a trailing newline), parse and return it. A genuinely partial
+ * line always fails JSON.parse and stays buffered.
+ */
+function flushBufferedRow(sessionState: SessionState): Row[] {
+  const line = sessionState.buffer.trim();
+  if (!line) {
+    sessionState.buffer = "";
+    return [];
+  }
+  try {
+    const row = JSON.parse(line);
+    sessionState.buffer = "";
+    debug("flushed complete unterminated final transcript line");
+    return [row];
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Reads only new bytes since sessionState.offset. Keeps sessionState.buffer for
  * the partial last line. Returns parsed JSON rows and the mutated state.
+ * With flushBuffer (SessionEnd — no more bytes are coming), a buffered final
+ * line that parses as complete JSON is returned instead of being held forever.
  */
-export function readNewJsonl(transcriptPath: string, sessionState: SessionState): [Row[], SessionState] {
+export function readNewJsonl(
+  transcriptPath: string,
+  sessionState: SessionState,
+  flushBuffer = false
+): [Row[], SessionState] {
+  const [msgs, state] = readNewJsonlIncremental(transcriptPath, sessionState);
+  if (flushBuffer) {
+    msgs.push(...flushBufferedRow(state));
+  }
+  return [msgs, state];
+}
+
+function readNewJsonlIncremental(transcriptPath: string, sessionState: SessionState): [Row[], SessionState] {
   if (!fs.existsSync(transcriptPath)) {
     return [[], sessionState];
   }

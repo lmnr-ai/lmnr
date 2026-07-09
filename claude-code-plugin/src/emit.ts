@@ -700,7 +700,10 @@ export function getNewTurnsFromTranscript(
   flushDeferredAgentTurns = false
 ): [Turn[], SessionState] {
   let rows: Row[];
-  [rows, sessionState] = readNewJsonl(transcriptPath, sessionState);
+  // At SessionEnd no more transcript bytes are coming, so a buffered final
+  // line that is complete JSON (file ended without a trailing newline) is
+  // flushed instead of being held forever.
+  [rows, sessionState] = readNewJsonl(transcriptPath, sessionState, flushDeferredAgentTurns);
   // Replay an incomplete trailing turn held from a prior run (chronologically
   // oldest), then let it flow through the normal pipeline.
   if (sessionState.pendingTurnRows.length > 0) {

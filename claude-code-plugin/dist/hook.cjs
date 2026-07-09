@@ -25210,7 +25210,29 @@ function isToolResult(row) {
   }
   return false;
 }
-function readNewJsonl(transcriptPath, sessionState) {
+function flushBufferedRow(sessionState) {
+  const line = sessionState.buffer.trim();
+  if (!line) {
+    sessionState.buffer = "";
+    return [];
+  }
+  try {
+    const row = JSON.parse(line);
+    sessionState.buffer = "";
+    debug("flushed complete unterminated final transcript line");
+    return [row];
+  } catch {
+    return [];
+  }
+}
+function readNewJsonl(transcriptPath, sessionState, flushBuffer = false) {
+  const [msgs, state] = readNewJsonlIncremental(transcriptPath, sessionState);
+  if (flushBuffer) {
+    msgs.push(...flushBufferedRow(state));
+  }
+  return [msgs, state];
+}
+function readNewJsonlIncremental(transcriptPath, sessionState) {
   if (!fs2.existsSync(transcriptPath)) {
     return [[], sessionState];
   }
@@ -26503,7 +26525,7 @@ function splitTrailingIncompleteTurn(rows) {
 }
 function getNewTurnsFromTranscript(transcriptPath, sessionState, subagentMap, flushDeferredAgentTurns = false) {
   let rows;
-  [rows, sessionState] = readNewJsonl(transcriptPath, sessionState);
+  [rows, sessionState] = readNewJsonl(transcriptPath, sessionState, flushDeferredAgentTurns);
   if (sessionState.pendingTurnRows.length > 0) {
     rows = [...sessionState.pendingTurnRows, ...rows];
     sessionState.pendingTurnRows = [];
