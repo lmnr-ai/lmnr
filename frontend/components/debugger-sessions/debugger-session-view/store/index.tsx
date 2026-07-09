@@ -30,7 +30,7 @@ export type SessionBlockView = SessionBlock;
 const sortBlocks = (blocks: SessionBlockView[]): SessionBlockView[] =>
   [...blocks].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
-const MAX_LOADED_TRACE_SPANS = 10;
+const MAX_LOADED_TRACE_SPANS = 25;
 
 // Normalize metadata (object OR JSON string) into TraceRow's Record<string,string>.
 const normalizeMetadata = (metadata: unknown): Record<string, string> => {
