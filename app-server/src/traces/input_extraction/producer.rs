@@ -4,7 +4,6 @@
 
 use std::sync::Arc;
 
-use tracing::instrument;
 use uuid::Uuid;
 
 use super::input::{lock_user_sig, prepare_user_task_input};
