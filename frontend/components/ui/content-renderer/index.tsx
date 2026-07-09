@@ -34,6 +34,10 @@ interface ContentRendererProps {
   readOnly?: boolean;
   modes?: string[];
   defaultMode?: string;
+  // When true, pick the initial mode from the content itself (JSON object/array →
+  // json, otherwise markdown) before falling back to `defaultMode`. A saved user
+  // choice still wins. Opt-in so json-first call sites are unaffected.
+  autoDetectMode?: boolean;
   value: string;
   className?: string;
   placeholder?: string;
@@ -58,6 +62,18 @@ interface ContentRendererProps {
   extraExtensions?: Extension[];
 }
 
+// Content-based mode detection: structured JSON → json, non-empty text → markdown.
+// Returns undefined (defer to defaultMode) for empty content or when the target
+// mode isn't offered. One `JSON.parse` attempt — cheap, runs once at mount.
+function detectMode(value: string, modes: string[]): string | undefined {
+  if (!value || !value.trim()) return undefined;
+  const lower = modes.map((m) => m.toLowerCase());
+  const parsed = tryParseJson(value);
+  if (parsed !== null && typeof parsed === "object" && lower.includes("json")) return "json";
+  if (lower.includes("markdown")) return "markdown";
+  return undefined;
+}
+
 function restoreOriginalFromPlaceholders(newText: string, imageMap: Record<string, ImageData>): string {
   let restoredText = newText;
 
@@ -75,6 +91,7 @@ const PureContentRenderer = ({
   readOnly,
   modes = defaultModes,
   defaultMode = "text",
+  autoDetectMode = false,
   value,
   className,
   placeholder,
@@ -104,7 +121,11 @@ const PureContentRenderer = ({
   const [mode, setMode] = useState(() => {
     if (presetKey && typeof window !== "undefined") {
       const savedMode = localStorage.getItem(`formatter-mode-${presetKey}`);
-      return savedMode || defaultMode;
+      if (savedMode) return savedMode;
+    }
+    if (autoDetectMode) {
+      const detected = detectMode(value, modes);
+      if (detected) return detected;
     }
     return defaultMode;
   });
@@ -292,7 +313,7 @@ const PureContentRenderer = ({
             <TemplatePickerPreview data={renderedValue} />
           </div>
         ) : mode === "markdown" ? (
-          <div className="flex-1 flex w-full min-h-0 overflow-auto">
+          <div className="flex-1 flex w-full min-w-0 min-h-0 overflow-y-auto overflow-x-hidden">
             <MarkdownRenderer value={getMarkdownSource(value)} className="p-2" />
           </div>
         ) : mode === "messages" ? (

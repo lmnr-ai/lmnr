@@ -6,7 +6,12 @@ import React, { memo, useCallback, useMemo, useRef } from "react";
 import { type z } from "zod/v4";
 
 import AnthropicContentParts from "@/components/traces/span-view/anthropic-parts";
-import { getRoleColors, MessageWrapper } from "@/components/traces/span-view/common";
+import {
+  getRoleColors,
+  MessageWrapper,
+  TextContentModeContext,
+  textDefaultModeForRole,
+} from "@/components/traces/span-view/common";
 import GeminiContentParts from "@/components/traces/span-view/gemini-parts";
 import ContentParts from "@/components/traces/span-view/generic-parts";
 import LangChainContentParts from "@/components/traces/span-view/langchain-parts";
@@ -549,7 +554,9 @@ function PureMessages({
                       maxHeight={maxHeight}
                       stickyHeader={false}
                     >
-                      {renderMessageContent(processedResult, messageIndex, presetKey, toolNameMap)}
+                      <TextContentModeContext.Provider value={textDefaultModeForRole(role)}>
+                        {renderMessageContent(processedResult, messageIndex, presetKey, toolNameMap)}
+                      </TextContentModeContext.Provider>
                     </MessageWrapper>
                   </div>
                 );

@@ -1,6 +1,16 @@
 import { capitalize } from "lodash";
 import { Bolt, Brain, ChevronDown, ChevronUp } from "lucide-react";
-import { memo, type PropsWithChildren, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  memo,
+  type PropsWithChildren,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
 import ContentRenderer from "@/components/ui/content-renderer/index";
@@ -55,6 +65,18 @@ export function getRoleColors(role?: string): RoleColorConfig {
   if (!role) return ROLE_COLORS.system;
   const normalized = ROLE_ALIASES[role.toLowerCase()] ?? role.toLowerCase();
   return ROLE_COLORS[normalized] ?? ROLE_COLORS.system;
+}
+
+// Default rendering mode for plain-text message parts, set per-message from its
+// role (system/user default to markdown; everything else stays JSON). Tool parts
+// use their own JSON renderer and are unaffected. `TextContentPart` reads this so
+// we don't thread a prop through every provider's part renderer.
+export const TextContentModeContext = createContext<string | undefined>(undefined);
+
+export function textDefaultModeForRole(role?: string): string | undefined {
+  if (!role) return undefined;
+  const normalized = ROLE_ALIASES[role.toLowerCase()] ?? role.toLowerCase();
+  return ["system", "assistant", "user"].includes(normalized) ? "markdown" : undefined;
 }
 
 interface ToolCallContentPartProps {
@@ -160,21 +182,25 @@ const PureTextContentPart = ({
   codeEditorClassName,
   messageIndex = 0,
   contentPartIndex = 0,
-}: TextContentPartProps) => (
-  <div>
-    <ContentRenderer
-      defaultMode="json"
-      readOnly
-      value={content}
-      presetKey={`editor-${presetKey}`}
-      className={cn("border-0 bg-card", className)}
-      codeEditorClassName={codeEditorClassName}
-      messageIndex={messageIndex}
-      contentPartIndex={contentPartIndex}
-      customTheme={spanViewTheme}
-    />
-  </div>
-);
+}: TextContentPartProps) => {
+  const defaultMode = useContext(TextContentModeContext) ?? "json";
+  return (
+    <div>
+      <ContentRenderer
+        defaultMode={defaultMode}
+        autoDetectMode
+        readOnly
+        value={content}
+        presetKey={`editor-${presetKey}`}
+        className={cn("border-0 bg-card", className)}
+        codeEditorClassName={codeEditorClassName}
+        messageIndex={messageIndex}
+        contentPartIndex={contentPartIndex}
+        customTheme={spanViewTheme}
+      />
+    </div>
+  );
+};
 
 interface RoleHeaderProps {
   role?: string;
