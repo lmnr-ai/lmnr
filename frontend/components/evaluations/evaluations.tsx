@@ -9,7 +9,7 @@ import useSWR from "swr";
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import HeatmapValue from "@/components/evaluation/heatmap-value";
-import { formatScoreValue, isValidScore } from "@/components/evaluation/utils";
+import { deriveEvaluationStatus, formatScoreValue, isValidScore } from "@/components/evaluation/utils";
 import ProgressionChart from "@/components/evaluations/progression-chart";
 import { Button } from "@/components/ui/button";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
@@ -34,7 +34,7 @@ import { Switch } from "@/components/ui/switch";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
 import { type ScoreRange } from "@/lib/colors";
-import { type Evaluation } from "@/lib/evaluation/types";
+import { type Evaluation, type EvaluationStatus } from "@/lib/evaluation/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
@@ -46,6 +46,33 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resi
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import GroupsList from "./groups-list";
 import { useEvaluationsProgression } from "./use-evaluations-progression";
+
+// Thin colored status bar, mirroring the traces table. All statuses map to a
+// color + hover label; only "finished" (green) means fully scored, "stale"
+// (gray) means loading stalled for over an hour.
+const STATUS_META: Record<EvaluationStatus, { className: string; label: string }> = {
+  finished: { className: "bg-success-bright", label: "Finished" },
+  inProgress: { className: "bg-amber-500", label: "In progress" },
+  error: { className: "bg-destructive-bright", label: "Completed with errors" },
+  stale: { className: "bg-muted-foreground", label: "Stalled — no updates for over an hour" },
+};
+
+// `__`-prefixed so the table treats it as a locked system column. Regular
+// columns are always reordered AFTER every system column by reconcileConfig
+// (newSystem is prepended), so a non-system status column could never sit
+// before the `__chart_visibility` eye — the system-column id fixes its position.
+const statusColumn: ColumnDef<Evaluation> = {
+  id: "__status",
+  header: () => <div className="w-fit">Status</div>,
+  enableResizing: false,
+  enableSorting: false,
+  size: 60,
+  cell: ({ row }) => {
+    const status = deriveEvaluationStatus(row.original);
+    const meta = STATUS_META[status];
+    return <div title={meta.label} className={cn("min-h-6 w-1.5 mx-auto rounded-[2.5px]", meta.className)} />;
+  },
+};
 
 const baseColumns: ColumnDef<Evaluation>[] = [
   {
@@ -67,23 +94,6 @@ const baseColumns: ColumnDef<Evaluation>[] = [
     accessorKey: "name",
     header: "Name",
     size: 300,
-  },
-  {
-    id: "status",
-    accessorKey: "status",
-    header: "Status",
-    cell: (row) => {
-      const status = row.getValue() as Evaluation["status"];
-      if (!status) return <span className="text-muted-foreground">—</span>;
-      const inProgress = status === "inProgress";
-      return (
-        <div className="flex items-center gap-1.5">
-          <span className={cn("size-1.5 shrink-0 rounded-full", inProgress ? "bg-amber-500" : "bg-success")} />
-          <span className="truncate">{inProgress ? "In progress" : "Finished"}</span>
-        </div>
-      );
-    },
-    size: 120,
   },
   {
     id: "dataPointsCount",
@@ -131,9 +141,9 @@ function buildScoreColumns(
 export const defaultEvaluationsColumnOrder = [
   "__row_selection",
   "__chart_visibility",
+  "__status",
   "id",
   "name",
-  "status",
   "dataPointsCount",
   "metadata",
   "createdAt",
@@ -187,7 +197,7 @@ export default function Evaluations() {
   return (
     <InfiniteDataTableProvider
       defaults={{ columnOrder: defaultEvaluationsColumnOrder }}
-      lockedColumns={["__row_selection", "__chart_visibility"]}
+      lockedColumns={["__row_selection", "__status", "__chart_visibility"]}
       views={{ projectId, resource: RESOURCE }}
     >
       <EvaluationsContent />
@@ -328,6 +338,7 @@ function EvaluationsContent() {
 
   const columns = useMemo<ColumnDef<Evaluation>[]>(
     () => [
+      statusColumn,
       {
         id: "__chart_visibility",
         enableResizing: false,
@@ -502,7 +513,7 @@ function EvaluationsContent() {
                   <DataTableFilter columns={filters} filters={effective.filters} onFiltersChange={setFilters} />
                   <ColumnsMenu
                     columnLabels={columns
-                      .filter((column) => column.id !== "__chart_visibility")
+                      .filter((column) => column.id !== "__chart_visibility" && column.id !== "__status")
                       .map((column) => ({
                         id: column.id!,
                         label: typeof column.header === "string" ? column.header : column.id!,

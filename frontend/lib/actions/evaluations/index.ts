@@ -155,11 +155,19 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
   });
 
   // Fetch counts for the returned evaluations to include in the response.
-  // A datapoint is unfinished when it has no scores yet or its trace top span
-  // hasn't arrived, unless the trace already errored (mirrors deriveStatus).
+  // A datapoint is still "loading" (unfinished) only when its trace did NOT
+  // error and it has no scores / top span yet — an errored trace is a terminal
+  // error state, not loading, even with no scores. Status is derived on the
+  // client (deriveEvaluationStatus): loading → error → finished, with loading
+  // past an hour rendered as stale (tracks wall clock).
   let itemsWithCounts = result.items;
   if (result.items.length > 0) {
-    const datapointCounts = await executeQuery<{ evaluation_id: string; count: number; unfinished_count: number }>({
+    const datapointCounts = await executeQuery<{
+      evaluation_id: string;
+      count: number;
+      unfinished_count: number;
+      error_count: number;
+    }>({
       projectId,
       query: `
         SELECT
@@ -168,7 +176,8 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
           countIf(
             trace_status != 'error'
             AND (scores = '' OR scores = '{}' OR top_span_id = toUUID('00000000-0000-0000-0000-000000000000'))
-          ) as unfinished_count
+          ) as unfinished_count,
+          countIf(trace_status = 'error') as error_count
         FROM evaluation_datapoints
         WHERE evaluation_id IN {evaluationIds:Array(String)}
         GROUP BY evaluation_id
@@ -186,7 +195,8 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
       return {
         ...evaluation,
         dataPointsCount: counts?.count ?? 0,
-        status: (counts?.unfinished_count ?? 0) > 0 ? ("inProgress" as const) : ("finished" as const),
+        unfinishedCount: counts?.unfinished_count ?? 0,
+        errorCount: counts?.error_count ?? 0,
       };
     });
   }

@@ -1,4 +1,4 @@
-import { Check, Loader2, X } from "lucide-react";
+import { Check, CircleDashed, Loader2, X } from "lucide-react";
 
 import { deriveStatus } from "@/components/evaluation/utils";
 import { type EvalRow } from "@/lib/evaluation/types";
@@ -17,6 +17,13 @@ export const StatusCell = ({ row }: { row: { original: EvalRow } }) => {
     return (
       <div className="flex h-full justify-center items-center w-10">
         <Check className="text-success" size={18} />
+      </div>
+    );
+  }
+  if (status === "stale") {
+    return (
+      <div className="flex h-full justify-center items-center w-10" title="No scores after over an hour">
+        <CircleDashed className="text-muted-foreground" size={18} />
       </div>
     );
   }

@@ -6,25 +6,51 @@ import {
   type Evaluation,
   type EvaluationScoreDistributionBucket,
   type EvaluationScoreStatistics,
+  type EvaluationStatus,
 } from "@/lib/evaluation/types";
+import { isStringDateOld } from "@/lib/traces/utils";
 
-export type EvalDatapointStatus = "error" | "pending" | "success";
+export type EvalDatapointStatus = "error" | "pending" | "stale" | "success";
 
 const NIL_UUID = "00000000-0000-0000-0000-000000000000";
 
 export const deriveStatus = (row: EvalRow): EvalDatapointStatus => {
   if (row["traceStatus"] === "error") return "error";
 
+  // A datapoint that ran over an hour ago but still has no scores is almost
+  // certainly never going to finish — e.g. the scorer span errored and wrote no
+  // score, which is invisible in traceStatus (that only reflects the executor
+  // trace). Surface it as stale instead of an eternal spinner. Prefer the
+  // trace's end time (when it actually ran), fall back to the datapoint time.
+  const pendingOrStale = (): EvalDatapointStatus => {
+    const ranAt = (get(row, "endTime") ?? get(row, "createdAt")) as unknown;
+    return typeof ranAt === "string" && ranAt.length > 0 && isStringDateOld(ranAt) ? "stale" : "pending";
+  };
+
   const scores = get(row, "scores");
   const hasScoresString = typeof scores === "string" && scores.length > 0 && scores !== "{}";
   const hasFlattenedScores = Object.keys(row).some((k) => k.startsWith("score:") && row[k] != null);
-  if (!hasScoresString && !hasFlattenedScores) return "pending";
+  if (!hasScoresString && !hasFlattenedScores) return pendingOrStale();
 
   const topSpanId = get(row, "topSpanId");
   if (typeof topSpanId !== "string" || topSpanId === "" || topSpanId === NIL_UUID) {
-    return "pending";
+    return pendingOrStale();
   }
   return "success";
+};
+
+/**
+ * Roll up the per-datapoint counts into a single evaluation status. Mirrors the
+ * traces-table treatment: an evaluation still waiting on datapoints for over an
+ * hour is treated as stale (grayed out) rather than perpetually "in progress".
+ */
+export const deriveEvaluationStatus = (evaluation: Evaluation): EvaluationStatus => {
+  const inProgress = (evaluation.unfinishedCount ?? 0) > 0;
+  if (inProgress) {
+    return isStringDateOld(evaluation.createdAt) ? "stale" : "inProgress";
+  }
+  if ((evaluation.errorCount ?? 0) > 0) return "error";
+  return "finished";
 };
 
 /**

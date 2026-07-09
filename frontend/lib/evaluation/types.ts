@@ -1,6 +1,9 @@
 export type EvalRow = Record<string, unknown>;
 
-export type EvaluationStatus = "finished" | "inProgress";
+// finished: every datapoint scored (green). inProgress: some datapoints still
+// loading (amber). error: all done but some traces errored (amber). stale: still
+// loading with no updates for over an hour (grayed out).
+export type EvaluationStatus = "finished" | "inProgress" | "error" | "stale";
 
 export type Evaluation = {
   id: string;
@@ -9,7 +12,9 @@ export type Evaluation = {
   name: string;
   projectId: string;
   metadata: Record<string, unknown> | null;
-  status?: EvaluationStatus;
+  dataPointsCount?: number;
+  unfinishedCount?: number;
+  errorCount?: number;
 };
 
 export type EvaluationScoreStatistics = {
