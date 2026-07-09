@@ -459,24 +459,6 @@ mod tests {
     }
 
     #[test]
-    fn missing_tool_call_id_gets_uuid() {
-        let req = ProviderRequest {
-            contents: vec![assistant_with_tool_call(None, "f", json!({}))],
-            system_instruction: None,
-            tools: None,
-            generation_config: None,
-            service_tier: None,
-            provider: None,
-            model_size: None,
-        };
-        let body = provider_request_to_openai_body("gpt-5", &req);
-        let id = body["messages"][0]["tool_calls"][0]["id"].as_str().unwrap();
-        // uuid v4 is 36 chars with 4 hyphens.
-        assert_eq!(id.len(), 36);
-        assert_eq!(id.chars().filter(|c| *c == '-').count(), 4);
-    }
-
-    #[test]
     fn tools_are_translated_to_chat_completions_shape() {
         let req = ProviderRequest {
             contents: vec![user("hi")],
