@@ -6,7 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 
 import { cn } from "@/lib/utils";
 
-import { type SessionBlockView, useDebuggerSessionViewStore } from "../store";
+import { type SessionBlockView, type TraceRowState, useDebuggerSessionViewStore } from "../store";
 
 // A row per block (trace / eval / text), in timeline order (blocks are ordered
 // by created_at). Keyed by block id — the same key the virtualized list tracks
@@ -37,7 +37,7 @@ const textBlockTitle = (text: string): string => {
   return oneLine.length > TEXT_BLOCK_TITLE_LEN ? `${oneLine.slice(0, TEXT_BLOCK_TITLE_LEN)}…` : oneLine || "Note";
 };
 
-const buildRows = (blocks: SessionBlockView[]): OutlineRow[] => {
+const buildRows = (blocks: SessionBlockView[], traceRowStates: Record<string, TraceRowState>): OutlineRow[] => {
   const rows: OutlineRow[] = [];
   let traceIndex = 0;
   for (const block of blocks) {
@@ -46,7 +46,13 @@ const buildRows = (blocks: SessionBlockView[]): OutlineRow[] => {
     } else if (block.type === "text") {
       rows.push({ blockId: block.id, text: textBlockTitle(block.text), kind: "text" });
     } else if (block.type === "trace") {
+      // Count missing traces so numbering stays in lockstep with the timeline
+      // (which indexes every trace block), but omit them from the outline: a
+      // missing trace renders no timeline row, so a listed entry would consume
+      // the scroll click without scrolling and strand the active highlight over
+      // an empty gap.
       traceIndex += 1;
+      if (traceRowStates[block.traceId] === "missing") continue;
       rows.push({ blockId: block.id, text: `Trace ${traceIndex}`, kind: "trace" });
     }
   }
@@ -67,6 +73,7 @@ interface SessionOutlineProps {
  */
 export default function SessionOutline({ className }: SessionOutlineProps) {
   const blocks = useDebuggerSessionViewStore((s) => s.blocks);
+  const traceRowStates = useDebuggerSessionViewStore((s) => s.traceRowStates);
   const activeBlockId = useDebuggerSessionViewStore((s) => s.activeBlockId);
   const requestScrollToBlock = useDebuggerSessionViewStore((s) => s.requestScrollToBlock);
   const navRef = useRef<HTMLElement>(null);
@@ -85,17 +92,19 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
 
   // Rebuild rows only when block order / eval names actually change (not on
   // every streamed span that mutates traceSpans).
+  // `!` marks a missing trace so the outline rebuilds (dropping its entry) when a
+  // trace flips to missing — block order alone doesn't change in that case.
   const signature = blocks
     .map((b) =>
       b.type === "trace"
-        ? `t${b.traceId}`
+        ? `t${b.traceId}${traceRowStates[b.traceId] === "missing" ? "!" : ""}`
         : b.type === "evaluation"
           ? `e${b.evaluation.id}${b.evaluation.name}`
           : `x${b.id}`
     )
     .join("");
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const rows = useMemo(() => buildRows(blocks), [signature]);
+  const rows = useMemo(() => buildRows(blocks, traceRowStates), [signature]);
 
   const rowRefs = useRef<Map<string, HTMLAnchorElement>>(new Map());
   const [indicator, setIndicator] = useState<{ top: number; height: number } | null>(null);
