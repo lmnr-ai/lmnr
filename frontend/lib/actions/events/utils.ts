@@ -179,9 +179,16 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
   const tableName = table ?? "signal_events";
 
   const sortColumn = sortBy ? resolveEventsSortColumn(sortBy, sortType) : null;
-  const orderBy = sortColumn
-    ? [{ column: sortColumn, direction: sortDirection ?? "DESC" }]
-    : [{ column: "timestamp", direction: "DESC" as const }];
+  // Order by the chosen column, then always fall back to `timestamp DESC` as a
+  // tiebreaker so offset pagination is stable on low-cardinality sorts (e.g. the
+  // 3-value severity enum): `signal_events` is a plain MergeTree, so without a
+  // secondary key ClickHouse may reorder ties between page fetches and duplicate
+  // / skip rows.
+  const orderBy: Array<{ column: string; direction: "ASC" | "DESC" }> = [];
+  if (sortColumn && sortColumn !== "timestamp") {
+    orderBy.push({ column: sortColumn, direction: sortDirection ?? "DESC" });
+  }
+  orderBy.push({ column: "timestamp", direction: sortColumn === "timestamp" ? (sortDirection ?? "DESC") : "DESC" });
 
   const customConditions: Array<{
     condition: string;

@@ -144,7 +144,7 @@ export default function ClustersSection({ className }: Props) {
   // Chart-only overlay; SWR-keyed so the table refresh can revalidate by key.
   const { data: runTotals = [] } = useSWR(runStatsUrl, async (url: string) => {
     const data = (await swrFetcher(url)) as { items: { timestamp: string; count: number }[] };
-    return data.items.map((i) => ({ timestamp: i.timestamp, count: Number(i.count) }));
+    return (data?.items ?? []).map((i) => ({ timestamp: i.timestamp, count: Number(i.count) }));
   });
 
   // Navigation callbacks. No-op when paywalled — drilling is a Pro feature.
