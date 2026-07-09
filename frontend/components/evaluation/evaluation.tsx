@@ -268,10 +268,7 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
     [setSort]
   );
 
-  const visibleColumnDefs = useMemo(
-    () => selectVisibleColumnDefs(columnDefs, isComparison),
-    [columnDefs, isComparison]
-  );
+  const visibleColumnDefs = useMemo(() => selectVisibleColumnDefs(columnDefs), [columnDefs]);
 
   const onDeleteCustomColumn = useCallback(
     (columnId: string) => removeCustomColumn(columnId.replace("custom:", "")),
