@@ -1,43 +1,28 @@
 import { MAX_PENDING_TASK_NOTIFICATIONS } from "./config.js";
 import { debug } from "./logger.js";
 import { getToolUseIdForTaskNotification, isTaskNotificationRow } from "./notifications.js";
-import type { SessionState } from "./state.js";
+import type { PendingAgentTurn, SessionState } from "./state.js";
 import { getContentFromRow, getToolUseBlocks } from "./transcript.js";
 import { isAsyncAgentLaunchResult, type Turn } from "./turns.js";
 import type { Row } from "./types.js";
 
-function findPendingAgentTurn(sessionState: SessionState, toolUseId: string): Row | null {
+function findPendingAgentTurn(sessionState: SessionState, toolUseId: string): PendingAgentTurn | null {
   for (const pendingTurn of sessionState.pendingAgentTurns) {
-    if (typeof pendingTurn !== "object" || pendingTurn === null) {
-      continue;
-    }
-    if (!Array.isArray(pendingTurn.rows)) {
-      continue;
-    }
-    const pendingToolUseIds = pendingTurn.pending_tool_use_ids;
-    const resolvedToolUseIds = pendingTurn.resolved_tool_use_ids;
     // Notifications can arrive more than once per tool_use_id, so ids that
-    // already received one keep matching until the whole turn resolves.
-    if (Array.isArray(pendingToolUseIds) && pendingToolUseIds.includes(toolUseId)) {
-      return pendingTurn;
-    }
-    if (Array.isArray(resolvedToolUseIds) && resolvedToolUseIds.includes(toolUseId)) {
+    // already resolved keep matching until the whole turn is done.
+    if (pendingTurn.pendingToolUseIds.includes(toolUseId) || pendingTurn.resolvedToolUseIds.includes(toolUseId)) {
       return pendingTurn;
     }
   }
   return null;
 }
 
-function routeToPendingTurn(pendingTurn: Row, row: Row, toolUseId: string): void {
+function routeToPendingTurn(pendingTurn: PendingAgentTurn, row: Row, toolUseId: string): void {
   pendingTurn.rows.push(row);
-  const pendingToolUseIds = pendingTurn.pending_tool_use_ids;
-  if (Array.isArray(pendingToolUseIds) && pendingToolUseIds.includes(toolUseId)) {
-    const idx = pendingToolUseIds.indexOf(toolUseId);
-    pendingToolUseIds.splice(idx, 1);
-    if (!Array.isArray(pendingTurn.resolved_tool_use_ids)) {
-      pendingTurn.resolved_tool_use_ids = [];
-    }
-    pendingTurn.resolved_tool_use_ids.push(toolUseId);
+  const idx = pendingTurn.pendingToolUseIds.indexOf(toolUseId);
+  if (idx >= 0) {
+    pendingTurn.pendingToolUseIds.splice(idx, 1);
+    pendingTurn.resolvedToolUseIds.push(toolUseId);
   }
 }
 
@@ -46,10 +31,8 @@ function routeToPendingTurn(pendingTurn: Row, row: Row, toolUseId: string): void
  *
  * Deferred rows are never spliced into the batch (a user row mid-batch would
  * cut the current turn in half); resolved turns are returned for isolated
- * assembly. Notifications matching a tool_use in the batch stay there, and
- * ones that cannot be attributed yet (task-id-only, subagent meta.json not on
- * disk) are stashed in the session state and retried on later runs instead of
- * being swallowed by the turn assembly.
+ * assembly. Notifications that cannot be attributed yet (task-id-only, subagent
+ * meta.json not on disk) are stashed and retried on later runs.
  */
 export function resolveDeferredAgentTurns(
   rows: Row[],
@@ -82,11 +65,13 @@ export function resolveDeferredAgentTurns(
     }
     const toolUseId = getToolUseIdForTaskNotification(row, taskIdToToolUseId);
     if (toolUseId === null) {
+      // Unattributable yet — stash for a later run when the meta.json exists.
       stashedNotifications.push(row);
       continue;
     }
     const pendingTurn = findPendingAgentTurn(sessionState, toolUseId);
     if (pendingTurn === null) {
+      // No waiting turn — leave it in the batch for normal assembly.
       remainingRows.push(row);
       continue;
     }
@@ -97,16 +82,13 @@ export function resolveDeferredAgentTurns(
 
   // Pop fully resolved turns in deferral (i.e. chronological) order.
   const resolvedTurnRowLists: Row[][] = [];
-  const stillPending: Row[] = [];
+  const stillPending: PendingAgentTurn[] = [];
   for (const pendingTurn of sessionState.pendingAgentTurns) {
-    if (typeof pendingTurn !== "object" || pendingTurn === null || !Array.isArray(pendingTurn.rows)) {
-      continue;
-    }
-    if (Array.isArray(pendingTurn.pending_tool_use_ids) && pendingTurn.pending_tool_use_ids.length > 0) {
+    if (pendingTurn.pendingToolUseIds.length > 0) {
       stillPending.push(pendingTurn);
-      continue;
+    } else {
+      resolvedTurnRowLists.push(pendingTurn.rows);
     }
-    resolvedTurnRowLists.push(pendingTurn.rows);
   }
   sessionState.pendingAgentTurns = stillPending;
 
@@ -114,16 +96,7 @@ export function resolveDeferredAgentTurns(
 }
 
 export function popAllDeferredAgentTurnRowLists(sessionState: SessionState): Row[][] {
-  const rowLists: Row[][] = [];
-  for (const pendingTurn of sessionState.pendingAgentTurns) {
-    if (typeof pendingTurn !== "object" || pendingTurn === null) {
-      continue;
-    }
-    const rows = pendingTurn.rows;
-    if (Array.isArray(rows) && rows.length > 0) {
-      rowLists.push(rows);
-    }
-  }
+  const rowLists = sessionState.pendingAgentTurns.filter((t) => t.rows.length > 0).map((t) => t.rows);
   sessionState.pendingAgentTurns = [];
   return rowLists;
 }
@@ -140,12 +113,8 @@ export function getPendingAgentToolUseIds(turn: Turn): string[] {
         continue;
       }
       const toolResultEntry = turn.toolResultsById[toolUseId];
-      if (
-        typeof toolResultEntry === "object" &&
-        toolResultEntry !== null &&
-        toolResultEntry.final_content !== undefined &&
-        toolResultEntry.final_content !== null
-      ) {
+      // Already resolved by a task-notification (final content present).
+      if (toolResultEntry?.finalContent != null) {
         continue;
       }
       // Defer only explicit async launches: sync agents also write a subagent
@@ -159,28 +128,25 @@ export function getPendingAgentToolUseIds(turn: Turn): string[] {
   return toolUseIds;
 }
 
-export function getTurnsToEmit(
-  turns: Turn[],
-  sessionState: SessionState,
-  flushDeferredAgentTurns = false
-): Turn[] {
+export function getTurnsToEmit(turns: Turn[], sessionState: SessionState, flushDeferredAgentTurns = false): Turn[] {
   const turnsToEmit: Turn[] = [];
   for (const turn of turns) {
     const pendingAgentToolUseIds = getPendingAgentToolUseIds(turn);
-    if (pendingAgentToolUseIds.length > 0) {
-      if (flushDeferredAgentTurns) {
-        debug(`Emitting async agent turn without task notification: ${pendingAgentToolUseIds}`);
-        turnsToEmit.push(turn);
-        continue;
-      }
-      sessionState.pendingAgentTurns.push({
-        pending_tool_use_ids: pendingAgentToolUseIds,
-        rows: turn.rows,
-      });
-      debug(`Deferred agent turn until task notification: ${pendingAgentToolUseIds}`);
+    if (pendingAgentToolUseIds.length === 0) {
+      turnsToEmit.push(turn);
       continue;
     }
-    turnsToEmit.push(turn);
+    if (flushDeferredAgentTurns) {
+      debug(`Emitting async agent turn without task notification: ${pendingAgentToolUseIds}`);
+      turnsToEmit.push(turn);
+      continue;
+    }
+    sessionState.pendingAgentTurns.push({
+      pendingToolUseIds: pendingAgentToolUseIds,
+      resolvedToolUseIds: [],
+      rows: turn.rows,
+    });
+    debug(`Deferred agent turn until task notification: ${pendingAgentToolUseIds}`);
   }
   return turnsToEmit;
 }

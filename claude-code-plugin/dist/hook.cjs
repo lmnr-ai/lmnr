@@ -25192,28 +25192,14 @@ function truncateText(s, maxChars = MAX_CHARS) {
     }
   ];
 }
-function getToolUseBlocks(content) {
-  const out = [];
-  if (Array.isArray(content)) {
-    for (const x of content) {
-      if (typeof x === "object" && x !== null && x.type === "tool_use") {
-        out.push(x);
-      }
-    }
+function blocksOfType(content, type) {
+  if (!Array.isArray(content)) {
+    return [];
   }
-  return out;
+  return content.filter((x) => typeof x === "object" && x !== null && x.type === type);
 }
-function getToolResultBlocks(content) {
-  const out = [];
-  if (Array.isArray(content)) {
-    for (const x of content) {
-      if (typeof x === "object" && x !== null && x.type === "tool_result") {
-        out.push(x);
-      }
-    }
-  }
-  return out;
-}
+var getToolUseBlocks = (content) => blocksOfType(content, "tool_use");
+var getToolResultBlocks = (content) => blocksOfType(content, "tool_result");
 function isToolResult(row) {
   if (getUserOrAssistantRoleFromRow(row) !== "user") {
     return false;
@@ -25297,16 +25283,12 @@ function isTaskNotificationRow(row) {
   const notificationText = extractTextFromContent(getContentFromRow(row)).replace(/^\s+/, "");
   return notificationText.startsWith("<task-notification>");
 }
-function getToolUseIdFromTaskNotification(row) {
-  const notificationText = extractTextFromContent(getContentFromRow(row));
-  const toolUseId = extractXmlTagValue(notificationText, "tool-use-id");
-  return typeof toolUseId === "string" && toolUseId.trim() ? toolUseId.trim() : null;
+function extractTag(row, tag) {
+  const value = extractXmlTagValue(extractTextFromContent(getContentFromRow(row)), tag);
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
-function getTaskIdFromTaskNotification(row) {
-  const notificationText = extractTextFromContent(getContentFromRow(row));
-  const taskId = extractXmlTagValue(notificationText, "task-id");
-  return typeof taskId === "string" && taskId.trim() ? taskId.trim() : null;
-}
+var getToolUseIdFromTaskNotification = (row) => extractTag(row, "tool-use-id");
+var getTaskIdFromTaskNotification = (row) => extractTag(row, "task-id");
 function getToolUseIdForTaskNotification(row, taskIdToToolUseId) {
   if (!isTaskNotificationRow(row)) {
     return null;
@@ -25357,7 +25339,7 @@ var TurnAssemblyState = class {
   currentRows = [];
 };
 function getToolResultText(toolResultEntry) {
-  if (typeof toolResultEntry !== "object" || toolResultEntry === null) {
+  if (!toolResultEntry) {
     return "";
   }
   const toolResultContent = toolResultEntry.content;
@@ -25374,12 +25356,11 @@ function getAsyncLaunchFlagFromRow(row) {
   return toolUseResult.status === "async_launched" || toolUseResult.isAsync === true;
 }
 function isAsyncAgentLaunchResult(toolResultEntry) {
-  if (typeof toolResultEntry !== "object" || toolResultEntry === null) {
+  if (!toolResultEntry) {
     return false;
   }
-  const isAsyncLaunch = toolResultEntry.is_async_launch;
-  if (isAsyncLaunch !== void 0 && isAsyncLaunch !== null) {
-    return Boolean(isAsyncLaunch);
+  if (toolResultEntry.isAsyncLaunch != null) {
+    return toolResultEntry.isAsyncLaunch;
   }
   const toolResultText = getToolResultText(toolResultEntry);
   return toolResultText.includes("Async agent launched successfully") || toolResultText.includes("agentId:") && toolResultText.includes("output_file:") && toolResultText.includes("You will be notified automatically");
@@ -25484,12 +25465,9 @@ function addToolResultRow(row, state) {
   for (const toolResultBlock of getToolResultBlocks(getContentFromRow(row))) {
     const toolUseId = toolResultBlock.tool_use_id;
     if (toolUseId) {
-      const entry = {
-        content: toolResultBlock.content,
-        timestamp: rowTimestamp
-      };
+      const entry = { content: toolResultBlock.content, timestamp: rowTimestamp };
       if (isAsyncLaunch !== null) {
-        entry.is_async_launch = isAsyncLaunch;
+        entry.isAsyncLaunch = isAsyncLaunch;
       }
       state.toolResultsById[String(toolUseId)] = entry;
     }
@@ -25509,9 +25487,9 @@ function addTaskNotificationRow(row, state, taskIdToToolUseId) {
     return true;
   }
   const existingResult = state.toolResultsById[toolUseId];
-  if (typeof existingResult === "object" && existingResult !== null) {
-    existingResult.final_content = getResultFromTaskNotification(row);
-    existingResult.final_timestamp = row.timestamp;
+  if (existingResult) {
+    existingResult.finalContent = getResultFromTaskNotification(row);
+    existingResult.finalTimestamp = row.timestamp;
   } else {
     state.toolResultsById[toolUseId] = {
       content: getResultFromTaskNotification(row),
@@ -25558,18 +25536,7 @@ function buildTurns(rows, taskIdToToolUseId) {
 // src/deferral.ts
 function findPendingAgentTurn(sessionState, toolUseId) {
   for (const pendingTurn of sessionState.pendingAgentTurns) {
-    if (typeof pendingTurn !== "object" || pendingTurn === null) {
-      continue;
-    }
-    if (!Array.isArray(pendingTurn.rows)) {
-      continue;
-    }
-    const pendingToolUseIds = pendingTurn.pending_tool_use_ids;
-    const resolvedToolUseIds = pendingTurn.resolved_tool_use_ids;
-    if (Array.isArray(pendingToolUseIds) && pendingToolUseIds.includes(toolUseId)) {
-      return pendingTurn;
-    }
-    if (Array.isArray(resolvedToolUseIds) && resolvedToolUseIds.includes(toolUseId)) {
+    if (pendingTurn.pendingToolUseIds.includes(toolUseId) || pendingTurn.resolvedToolUseIds.includes(toolUseId)) {
       return pendingTurn;
     }
   }
@@ -25577,14 +25544,10 @@ function findPendingAgentTurn(sessionState, toolUseId) {
 }
 function routeToPendingTurn(pendingTurn, row, toolUseId) {
   pendingTurn.rows.push(row);
-  const pendingToolUseIds = pendingTurn.pending_tool_use_ids;
-  if (Array.isArray(pendingToolUseIds) && pendingToolUseIds.includes(toolUseId)) {
-    const idx = pendingToolUseIds.indexOf(toolUseId);
-    pendingToolUseIds.splice(idx, 1);
-    if (!Array.isArray(pendingTurn.resolved_tool_use_ids)) {
-      pendingTurn.resolved_tool_use_ids = [];
-    }
-    pendingTurn.resolved_tool_use_ids.push(toolUseId);
+  const idx = pendingTurn.pendingToolUseIds.indexOf(toolUseId);
+  if (idx >= 0) {
+    pendingTurn.pendingToolUseIds.splice(idx, 1);
+    pendingTurn.resolvedToolUseIds.push(toolUseId);
   }
 }
 function resolveDeferredAgentTurns(rows, sessionState, taskIdToToolUseId) {
@@ -25624,29 +25587,17 @@ function resolveDeferredAgentTurns(rows, sessionState, taskIdToToolUseId) {
   const resolvedTurnRowLists = [];
   const stillPending = [];
   for (const pendingTurn of sessionState.pendingAgentTurns) {
-    if (typeof pendingTurn !== "object" || pendingTurn === null || !Array.isArray(pendingTurn.rows)) {
-      continue;
-    }
-    if (Array.isArray(pendingTurn.pending_tool_use_ids) && pendingTurn.pending_tool_use_ids.length > 0) {
+    if (pendingTurn.pendingToolUseIds.length > 0) {
       stillPending.push(pendingTurn);
-      continue;
+    } else {
+      resolvedTurnRowLists.push(pendingTurn.rows);
     }
-    resolvedTurnRowLists.push(pendingTurn.rows);
   }
   sessionState.pendingAgentTurns = stillPending;
   return [resolvedTurnRowLists, remainingRows];
 }
 function popAllDeferredAgentTurnRowLists(sessionState) {
-  const rowLists = [];
-  for (const pendingTurn of sessionState.pendingAgentTurns) {
-    if (typeof pendingTurn !== "object" || pendingTurn === null) {
-      continue;
-    }
-    const rows = pendingTurn.rows;
-    if (Array.isArray(rows) && rows.length > 0) {
-      rowLists.push(rows);
-    }
-  }
+  const rowLists = sessionState.pendingAgentTurns.filter((t) => t.rows.length > 0).map((t) => t.rows);
   sessionState.pendingAgentTurns = [];
   return rowLists;
 }
@@ -25662,7 +25613,7 @@ function getPendingAgentToolUseIds(turn) {
         continue;
       }
       const toolResultEntry = turn.toolResultsById[toolUseId];
-      if (typeof toolResultEntry === "object" && toolResultEntry !== null && toolResultEntry.final_content !== void 0 && toolResultEntry.final_content !== null) {
+      if (toolResultEntry?.finalContent != null) {
         continue;
       }
       if (isAsyncAgentLaunchResult(toolResultEntry)) {
@@ -25676,20 +25627,21 @@ function getTurnsToEmit(turns, sessionState, flushDeferredAgentTurns = false) {
   const turnsToEmit = [];
   for (const turn of turns) {
     const pendingAgentToolUseIds = getPendingAgentToolUseIds(turn);
-    if (pendingAgentToolUseIds.length > 0) {
-      if (flushDeferredAgentTurns) {
-        debug(`Emitting async agent turn without task notification: ${pendingAgentToolUseIds}`);
-        turnsToEmit.push(turn);
-        continue;
-      }
-      sessionState.pendingAgentTurns.push({
-        pending_tool_use_ids: pendingAgentToolUseIds,
-        rows: turn.rows
-      });
-      debug(`Deferred agent turn until task notification: ${pendingAgentToolUseIds}`);
+    if (pendingAgentToolUseIds.length === 0) {
+      turnsToEmit.push(turn);
       continue;
     }
-    turnsToEmit.push(turn);
+    if (flushDeferredAgentTurns) {
+      debug(`Emitting async agent turn without task notification: ${pendingAgentToolUseIds}`);
+      turnsToEmit.push(turn);
+      continue;
+    }
+    sessionState.pendingAgentTurns.push({
+      pendingToolUseIds: pendingAgentToolUseIds,
+      resolvedToolUseIds: [],
+      rows: turn.rows
+    });
+    debug(`Deferred agent turn until task notification: ${pendingAgentToolUseIds}`);
   }
   return turnsToEmit;
 }
@@ -25740,26 +25692,23 @@ function getSessionStateKey(sessionId, transcriptPath) {
 }
 function getSessionState(globalState, key) {
   const s = globalState[key] ?? {};
-  const pendingAgentTurns = Array.isArray(s.pending_agent_turns) ? s.pending_agent_turns : [];
-  const pendingTaskNotifications = Array.isArray(s.pending_task_notifications) ? s.pending_task_notifications : [];
-  const pendingTurnRows = Array.isArray(s.pending_turn_rows) ? s.pending_turn_rows : [];
   return new SessionState({
     offset: Number(s.offset ?? 0),
     buffer: String(s.buffer ?? ""),
-    turnCount: Number(s.turn_count ?? 0),
-    pendingAgentTurns,
-    pendingTaskNotifications,
-    pendingTurnRows
+    turnCount: Number(s.turnCount ?? 0),
+    pendingAgentTurns: Array.isArray(s.pendingAgentTurns) ? s.pendingAgentTurns : [],
+    pendingTaskNotifications: Array.isArray(s.pendingTaskNotifications) ? s.pendingTaskNotifications : [],
+    pendingTurnRows: Array.isArray(s.pendingTurnRows) ? s.pendingTurnRows : []
   });
 }
 function updateSessionState(globalState, key, sessionState) {
   globalState[key] = {
     offset: sessionState.offset,
     buffer: sessionState.buffer,
-    turn_count: sessionState.turnCount,
-    pending_agent_turns: sessionState.pendingAgentTurns || [],
-    pending_task_notifications: sessionState.pendingTaskNotifications || [],
-    pending_turn_rows: sessionState.pendingTurnRows || [],
+    turnCount: sessionState.turnCount,
+    pendingAgentTurns: sessionState.pendingAgentTurns,
+    pendingTaskNotifications: sessionState.pendingTaskNotifications,
+    pendingTurnRows: sessionState.pendingTurnRows,
     updated: (/* @__PURE__ */ new Date()).toISOString()
   };
 }
@@ -26122,13 +26071,13 @@ function buildGenerationInputMessages(assistantIndex, userText, previousToolResu
   if (assistantIndex === 0) {
     return [{ role: "user", content: userText }];
   }
-  const toolResults = [...previousToolResults, ...readyAsyncToolResults.map((r) => r.tool_result)];
+  const toolResults = [...previousToolResults, ...readyAsyncToolResults.map((r) => r.toolResult)];
   if (toolResults.length > 0) {
     return toolResults.map((toolResult) => ({
       role: "tool",
       content: jsonDumps(toolResult.output),
-      tool_call_id: toolResult.tool_use_id,
-      name: toolResult.tool_name
+      tool_call_id: toolResult.toolUseId,
+      name: toolResult.toolName
     }));
   }
   return null;
@@ -26156,30 +26105,25 @@ function getToolInputForObservation(toolUse) {
 function getToolResultForObservation(toolResultEntry) {
   const empty = {
     output: null,
-    result_timestamp: null,
-    final_output: null,
-    final_result_timestamp: null
+    resultTimestamp: null,
+    finalOutput: null,
+    finalResultTimestamp: null
   };
-  if (typeof toolResultEntry !== "object" || toolResultEntry === null) {
+  if (!toolResultEntry) {
     return empty;
   }
   const outputRaw = toolResultEntry.content;
   const outputStr = typeof outputRaw === "string" ? outputRaw : jsonDumps(outputRaw);
   const [output] = truncateText(outputStr);
   const resultTimestamp = parseTimestamp(toolResultEntry.timestamp);
-  const finalOutputRaw = toolResultEntry.final_content;
+  const finalOutputRaw = toolResultEntry.finalContent;
   if (finalOutputRaw === void 0 || finalOutputRaw === null) {
-    return { output, result_timestamp: resultTimestamp, final_output: null, final_result_timestamp: null };
+    return { output, resultTimestamp, finalOutput: null, finalResultTimestamp: null };
   }
   const finalOutputStr = typeof finalOutputRaw === "string" ? finalOutputRaw : jsonDumps(finalOutputRaw);
   const [finalOutput] = truncateText(finalOutputStr);
-  const finalResultTimestamp = parseTimestamp(toolResultEntry.final_timestamp);
-  return {
-    output,
-    result_timestamp: resultTimestamp,
-    final_output: finalOutput,
-    final_result_timestamp: finalResultTimestamp
-  };
+  const finalResultTimestamp = parseTimestamp(toolResultEntry.finalTimestamp);
+  return { output, resultTimestamp, finalOutput, finalResultTimestamp };
 }
 function getShortTranscriptPathForMetadata(p) {
   if (typeof p === "string" && p) {
@@ -26232,36 +26176,36 @@ function emitSingleToolObservation(emitter, parentSpan, turn, assistantTimestamp
   }
   let subagentEndTimestamp = null;
   if (subagent) {
-    if (toolResult.final_result_timestamp !== null) {
+    if (toolResult.finalResultTimestamp !== null) {
       pendingSubagents.push({
-        tool_use_id: toolUseId,
+        toolUseId,
         subagent,
-        parent_span: toolSpan,
-        start_timestamp: toolUseTimestamp,
-        ready_timestamp: toolResult.final_result_timestamp
+        parentSpan: toolSpan,
+        startTimestamp: toolUseTimestamp,
+        readyTimestamp: toolResult.finalResultTimestamp
       });
     } else {
       subagentEndTimestamp = emitSubagentObservations(emitter, toolSpan, subagent, toolUseTimestamp);
     }
   }
   const toolEndTimestamp = getLatestTimestamp(
-    toolResult.result_timestamp,
-    toolResult.final_result_timestamp,
+    toolResult.resultTimestamp,
+    toolResult.finalResultTimestamp,
     subagentEndTimestamp,
     toolUseTimestamp
   );
-  const handoffTimestamp = toolResult.result_timestamp ?? toolResult.final_result_timestamp ?? subagentEndTimestamp ?? assistantTimestamp;
+  const handoffTimestamp = toolResult.resultTimestamp ?? toolResult.finalResultTimestamp ?? subagentEndTimestamp ?? assistantTimestamp;
   toolSpan.end(toolEndTimestamp);
-  if (toolResult.final_result_timestamp !== null && toolResult.final_output !== null) {
+  if (toolResult.finalResultTimestamp !== null && toolResult.finalOutput !== null) {
     pendingAsyncToolResults.push({
-      timestamp: toolResult.final_result_timestamp,
-      tool_result: { tool_use_id: toolUseId, tool_name: toolName, output: toolResult.final_output }
+      timestamp: toolResult.finalResultTimestamp,
+      toolResult: { toolUseId, toolName, output: toolResult.finalOutput }
     });
   }
   return {
-    handoff_timestamp: handoffTimestamp,
-    tool_result: { tool_use_id: toolUseId, tool_name: toolName, output: toolResult.output },
-    latest_end_timestamp: getLatestTimestamp(toolEndTimestamp, subagentEndTimestamp)
+    handoffTimestamp,
+    toolResult: { toolUseId, toolName, output: toolResult.output },
+    latestEndTimestamp: getLatestTimestamp(toolEndTimestamp, subagentEndTimestamp)
   };
 }
 function emitToolObservationBatch(emitter, parentSpan, turn, assistantMessage, toolUses, subagentMap, pendingSubagents, pendingAsyncToolResults) {
@@ -26280,57 +26224,41 @@ function emitToolObservationBatch(emitter, parentSpan, turn, assistantMessage, t
       pendingSubagents,
       pendingAsyncToolResults
     );
-    if (emittedTool.handoff_timestamp !== null) {
-      resultTimestamps.push(emittedTool.handoff_timestamp);
+    if (emittedTool.handoffTimestamp !== null) {
+      resultTimestamps.push(emittedTool.handoffTimestamp);
     }
-    toolResults.push(emittedTool.tool_result);
-    latestEndTimestamp = getLatestTimestamp(latestEndTimestamp, emittedTool.latest_end_timestamp);
+    toolResults.push(emittedTool.toolResult);
+    latestEndTimestamp = getLatestTimestamp(latestEndTimestamp, emittedTool.latestEndTimestamp);
   }
-  return { result_timestamps: resultTimestamps, tool_results: toolResults, latest_end_timestamp: latestEndTimestamp };
+  return { resultTimestamps, toolResults, latestEndTimestamp };
 }
-function getReadySubagents(pendingSubagents, assistantTimestamp) {
+function partitionReady(items, tsOf, cutoff) {
   const ready = [];
-  const stillPending = [];
-  for (const pending of pendingSubagents) {
-    const readyTimestamp = pending.ready_timestamp;
-    if (readyTimestamp instanceof Date && (assistantTimestamp === null || readyTimestamp.getTime() <= assistantTimestamp.getTime())) {
-      ready.push(pending);
+  const pending = [];
+  for (const item of items) {
+    const ts = tsOf(item);
+    if (ts instanceof Date && (cutoff === null || ts.getTime() <= cutoff.getTime())) {
+      ready.push(item);
     } else {
-      stillPending.push(pending);
+      pending.push(item);
     }
   }
-  return [ready, stillPending];
-}
-function getReadyAsyncToolResults(pendingAsyncToolResults, assistantTimestamp) {
-  const ready = [];
-  const stillPending = [];
-  for (const result of pendingAsyncToolResults) {
-    const ts = result.timestamp;
-    if (ts instanceof Date && (assistantTimestamp === null || ts.getTime() <= assistantTimestamp.getTime())) {
-      ready.push(result);
-    } else {
-      stillPending.push(result);
-    }
-  }
-  const latestReadyTimestamp = getLatestTimestamp(...ready.map((r) => r.timestamp));
-  return [ready, stillPending, latestReadyTimestamp];
+  return [ready, pending];
 }
 function updatePendingSubagentDisplayStartAfterLaunchResponse(pendingSubagents, toolResultsUsedAsGenerationInput, generationStartTimestamp) {
   if (generationStartTimestamp === null) {
     return;
   }
-  const toolUseIds = new Set(
-    toolResultsUsedAsGenerationInput.filter((r) => r.tool_use_id).map((r) => String(r.tool_use_id))
-  );
+  const toolUseIds = new Set(toolResultsUsedAsGenerationInput.filter((r) => r.toolUseId).map((r) => r.toolUseId));
   if (toolUseIds.size === 0) {
     return;
   }
   for (const pending of pendingSubagents) {
-    if (pending.display_start_timestamp !== void 0 && pending.display_start_timestamp !== null) {
+    if (pending.displayStartTimestamp != null) {
       continue;
     }
-    if (toolUseIds.has(pending.tool_use_id)) {
-      pending.display_start_timestamp = new Date(generationStartTimestamp.getTime() + 1);
+    if (toolUseIds.has(pending.toolUseId)) {
+      pending.displayStartTimestamp = new Date(generationStartTimestamp.getTime() + 1);
     }
   }
 }
@@ -26415,24 +26343,24 @@ function emitTurnObservations(emitter, parentSpan, turn, startTimestamp, generat
   turn.assistantMsgs.forEach((assistantMessage, assistantIndex) => {
     const assistantTimestamp = parseTimestamp(assistantMessage);
     if (assistantIndex > 0 && pendingSubagents.length > 0) {
-      const [readySubagents, stillPending] = getReadySubagents(pendingSubagents, assistantTimestamp);
+      const [readySubagents, stillPending] = partitionReady(pendingSubagents, (p) => p.readyTimestamp, assistantTimestamp);
       pendingSubagents = stillPending;
       for (const readySubagent of readySubagents) {
         const subagentEndTimestamp = emitSubagentObservations(
           emitter,
-          readySubagent.parent_span ?? parentSpan,
+          readySubagent.parentSpan ?? parentSpan,
           readySubagent.subagent,
-          readySubagent.display_start_timestamp ?? readySubagent.start_timestamp
+          readySubagent.displayStartTimestamp ?? readySubagent.startTimestamp
         );
         latestEndTimestamp = getLatestTimestamp(latestEndTimestamp, subagentEndTimestamp);
       }
     }
     let readyAsyncToolResults = [];
     if (assistantIndex > 0 && pendingAsyncToolResults.length > 0) {
-      const [ready, stillPending, readyTs] = getReadyAsyncToolResults(pendingAsyncToolResults, assistantTimestamp);
+      const [ready, stillPending] = partitionReady(pendingAsyncToolResults, (r) => r.timestamp, assistantTimestamp);
       readyAsyncToolResults = ready;
       pendingAsyncToolResults = stillPending;
-      previousTimestamp = getLatestTimestamp(previousTimestamp, readyTs);
+      previousTimestamp = getLatestTimestamp(previousTimestamp, ...ready.map((r) => r.timestamp));
     }
     const [generationAttrs, toolUses] = buildGenerationAttributes(
       assistantIndex,
@@ -26460,13 +26388,13 @@ function emitTurnObservations(emitter, parentSpan, turn, startTimestamp, generat
       pendingSubagents,
       pendingAsyncToolResults
     );
-    latestEndTimestamp = getLatestTimestamp(latestEndTimestamp, emittedTools.latest_end_timestamp);
+    latestEndTimestamp = getLatestTimestamp(latestEndTimestamp, emittedTools.latestEndTimestamp);
     const generationEndTimestamp = assistantTimestamp ?? generationStartTimestamp;
     generationSpan.end(generationEndTimestamp);
     latestEndTimestamp = getLatestTimestamp(latestEndTimestamp, generationEndTimestamp);
-    previousToolResults = emittedTools.tool_results;
-    if (emittedTools.result_timestamps.length > 0) {
-      previousTimestamp = getLatestTimestamp(...emittedTools.result_timestamps);
+    previousToolResults = emittedTools.toolResults;
+    if (emittedTools.resultTimestamps.length > 0) {
+      previousTimestamp = getLatestTimestamp(...emittedTools.resultTimestamps);
     } else if (assistantTimestamp !== null) {
       previousTimestamp = assistantTimestamp;
     }
@@ -26474,9 +26402,9 @@ function emitTurnObservations(emitter, parentSpan, turn, startTimestamp, generat
   for (const pendingSubagent of pendingSubagents) {
     const subagentEndTimestamp = emitSubagentObservations(
       emitter,
-      pendingSubagent.parent_span ?? parentSpan,
+      pendingSubagent.parentSpan ?? parentSpan,
       pendingSubagent.subagent,
-      pendingSubagent.display_start_timestamp ?? pendingSubagent.start_timestamp
+      pendingSubagent.displayStartTimestamp ?? pendingSubagent.startTimestamp
     );
     latestEndTimestamp = getLatestTimestamp(latestEndTimestamp, subagentEndTimestamp);
   }

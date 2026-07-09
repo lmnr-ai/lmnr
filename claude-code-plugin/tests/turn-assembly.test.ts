@@ -177,7 +177,7 @@ describe("async agent deferral", () => {
     const toEmit = getTurnsToEmit(turns, state);
     assert.deepEqual(toEmit, []);
     assert.equal(state.pendingAgentTurns.length, 1);
-    assert.deepEqual(state.pendingAgentTurns[0]!.pending_tool_use_ids, ["tu_agent"]);
+    assert.deepEqual(state.pendingAgentTurns[0]!.pendingToolUseIds, ["tu_agent"]);
   });
 
   it("async turn flushed at session end", () => {
@@ -209,7 +209,7 @@ describe("async agent deferral", () => {
     const turns = buildTurns(rows);
     assert.equal(turns.length, 1);
     const entry = turns[0]!.toolResultsById["tu_agent"]!;
-    assert.equal(entry.final_content, "agent output here");
+    assert.equal(entry.finalContent, "agent output here");
     assert.deepEqual(getPendingAgentToolUseIds(turns[0]!), []);
   });
 });

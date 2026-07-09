@@ -24,17 +24,14 @@ export function isTaskNotificationRow(row: Row): boolean {
   return notificationText.startsWith("<task-notification>");
 }
 
-export function getToolUseIdFromTaskNotification(row: Row): string | null {
-  const notificationText = extractTextFromContent(getContentFromRow(row));
-  const toolUseId = extractXmlTagValue(notificationText, "tool-use-id");
-  return typeof toolUseId === "string" && toolUseId.trim() ? toolUseId.trim() : null;
+/** Read a trimmed non-empty XML tag value from a task-notification row, else null. */
+function extractTag(row: Row, tag: string): string | null {
+  const value = extractXmlTagValue(extractTextFromContent(getContentFromRow(row)), tag);
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-export function getTaskIdFromTaskNotification(row: Row): string | null {
-  const notificationText = extractTextFromContent(getContentFromRow(row));
-  const taskId = extractXmlTagValue(notificationText, "task-id");
-  return typeof taskId === "string" && taskId.trim() ? taskId.trim() : null;
-}
+export const getToolUseIdFromTaskNotification = (row: Row): string | null => extractTag(row, "tool-use-id");
+export const getTaskIdFromTaskNotification = (row: Row): string | null => extractTag(row, "task-id");
 
 export function getToolUseIdForTaskNotification(
   row: Row,

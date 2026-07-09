@@ -7,12 +7,24 @@ import type { Row } from "./types.js";
 
 export type GlobalState = Record<string, any>;
 
+/**
+ * A turn deferred until its async agent (Task/Agent) reports back. `rows` are
+ * the raw transcript rows to rebuild it from; `pendingToolUseIds` are the
+ * launches still awaiting a task-notification, moving to `resolvedToolUseIds`
+ * as each arrives (they keep matching so repeat notifications still route here).
+ */
+export interface PendingAgentTurn {
+  pendingToolUseIds: string[];
+  resolvedToolUseIds: string[];
+  rows: Row[];
+}
+
 /** Per-session state persisted between hook runs. */
 export class SessionState {
   offset: number; // Last byte read from the transcript file.
   buffer: string; // Partial JSONL line kept between hook runs.
   turnCount: number; // Turns already emitted for this session.
-  pendingAgentTurns: Row[];
+  pendingAgentTurns: PendingAgentTurn[];
   // Task-notification rows whose tool_use_id could not be resolved yet
   // (task-id-only and the subagent meta.json not on disk); retried each run.
   pendingTaskNotifications: Row[];
@@ -52,29 +64,24 @@ export function getSessionStateKey(sessionId: string, transcriptPath: string): s
 
 export function getSessionState(globalState: GlobalState, key: string): SessionState {
   const s = globalState[key] ?? {};
-  const pendingAgentTurns = Array.isArray(s.pending_agent_turns) ? s.pending_agent_turns : [];
-  const pendingTaskNotifications = Array.isArray(s.pending_task_notifications) ? s.pending_task_notifications : [];
-  const pendingTurnRows = Array.isArray(s.pending_turn_rows) ? s.pending_turn_rows : [];
   return new SessionState({
     offset: Number(s.offset ?? 0),
     buffer: String(s.buffer ?? ""),
-    turnCount: Number(s.turn_count ?? 0),
-    pendingAgentTurns,
-    pendingTaskNotifications,
-    pendingTurnRows,
+    turnCount: Number(s.turnCount ?? 0),
+    pendingAgentTurns: Array.isArray(s.pendingAgentTurns) ? s.pendingAgentTurns : [],
+    pendingTaskNotifications: Array.isArray(s.pendingTaskNotifications) ? s.pendingTaskNotifications : [],
+    pendingTurnRows: Array.isArray(s.pendingTurnRows) ? s.pendingTurnRows : [],
   });
 }
 
 export function updateSessionState(globalState: GlobalState, key: string, sessionState: SessionState): void {
-  // Persisted key names match the Python plugin so an in-place upgrade keeps
-  // the existing offset instead of re-emitting the whole session.
   globalState[key] = {
     offset: sessionState.offset,
     buffer: sessionState.buffer,
-    turn_count: sessionState.turnCount,
-    pending_agent_turns: sessionState.pendingAgentTurns || [],
-    pending_task_notifications: sessionState.pendingTaskNotifications || [],
-    pending_turn_rows: sessionState.pendingTurnRows || [],
+    turnCount: sessionState.turnCount,
+    pendingAgentTurns: sessionState.pendingAgentTurns,
+    pendingTaskNotifications: sessionState.pendingTaskNotifications,
+    pendingTurnRows: sessionState.pendingTurnRows,
     updated: new Date().toISOString(),
   };
 }

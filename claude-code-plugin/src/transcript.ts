@@ -130,29 +130,15 @@ export function truncateText(s: string | null | undefined, maxChars: number = MA
   ];
 }
 
-export function getToolUseBlocks(content: Json): Row[] {
-  const out: Row[] = [];
-  if (Array.isArray(content)) {
-    for (const x of content) {
-      if (typeof x === "object" && x !== null && x.type === "tool_use") {
-        out.push(x);
-      }
-    }
+function blocksOfType(content: Json, type: string): Row[] {
+  if (!Array.isArray(content)) {
+    return [];
   }
-  return out;
+  return content.filter((x): x is Row => typeof x === "object" && x !== null && x.type === type);
 }
 
-export function getToolResultBlocks(content: Json): Row[] {
-  const out: Row[] = [];
-  if (Array.isArray(content)) {
-    for (const x of content) {
-      if (typeof x === "object" && x !== null && x.type === "tool_result") {
-        out.push(x);
-      }
-    }
-  }
-  return out;
-}
+export const getToolUseBlocks = (content: Json): Row[] => blocksOfType(content, "tool_use");
+export const getToolResultBlocks = (content: Json): Row[] => blocksOfType(content, "tool_result");
 
 export function isToolResult(row: Row): boolean {
   if (getUserOrAssistantRoleFromRow(row) !== "user") {

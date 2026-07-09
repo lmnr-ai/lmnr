@@ -16,49 +16,49 @@ import {
   truncateText,
 } from "./transcript.js";
 import { ASSOC_PREFIX, SPAN_OUTPUT_ATTR, startSpan, TraceEmitter, exportWithTimeout, type SpanHandle } from "./tracer.js";
-import { buildTurns, type Turn } from "./turns.js";
+import { buildTurns, type ToolResultEntry, type Turn } from "./turns.js";
 import { getSubagentTranscriptsByToolUseId, getTaskIdToToolUseId, readSubagentJsonl, type SubagentTranscript } from "./subagents.js";
 import type { Json, Row } from "./types.js";
 import { getLatestTimestamp, jsonDumps } from "./util.js";
 
 // ----------------- Emission internal shapes -----------------
 interface GenerationToolResult {
-  tool_use_id: string;
-  tool_name: string;
+  toolUseId: string;
+  toolName: string;
   output: Json;
 }
 
 interface PendingSubagent {
-  tool_use_id: string;
+  toolUseId: string;
   subagent: SubagentTranscript;
-  parent_span: SpanHandle;
-  start_timestamp: Date | null;
-  ready_timestamp: Date | null;
-  display_start_timestamp?: Date | null;
+  parentSpan: SpanHandle;
+  startTimestamp: Date | null;
+  readyTimestamp: Date | null;
+  displayStartTimestamp?: Date | null;
 }
 
 interface PendingAsyncToolResult {
   timestamp: Date | null;
-  tool_result: GenerationToolResult;
+  toolResult: GenerationToolResult;
 }
 
 interface ToolResultForObservation {
   output: Json;
-  result_timestamp: Date | null;
-  final_output: Json;
-  final_result_timestamp: Date | null;
+  resultTimestamp: Date | null;
+  finalOutput: Json;
+  finalResultTimestamp: Date | null;
 }
 
 interface EmittedSingleToolObservation {
-  handoff_timestamp: Date | null;
-  tool_result: GenerationToolResult;
-  latest_end_timestamp: Date | null;
+  handoffTimestamp: Date | null;
+  toolResult: GenerationToolResult;
+  latestEndTimestamp: Date | null;
 }
 
 interface EmittedToolObservationBatch {
-  result_timestamps: Date[];
-  tool_results: GenerationToolResult[];
-  latest_end_timestamp: Date | null;
+  resultTimestamps: Date[];
+  toolResults: GenerationToolResult[];
+  latestEndTimestamp: Date | null;
 }
 
 // ----------------- Trace naming and tags -----------------
@@ -117,13 +117,14 @@ function buildGenerationInputMessages(
   }
   // Both feed the next generation's context: results from the previous tool
   // batch AND async agent results that became ready since.
-  const toolResults = [...previousToolResults, ...readyAsyncToolResults.map((r) => r.tool_result)];
+  const toolResults = [...previousToolResults, ...readyAsyncToolResults.map((r) => r.toolResult)];
   if (toolResults.length > 0) {
+    // tool_call_id / name are the OpenAI-style wire field names (kept verbatim).
     return toolResults.map((toolResult) => ({
       role: "tool",
       content: jsonDumps(toolResult.output),
-      tool_call_id: toolResult.tool_use_id,
-      name: toolResult.tool_name,
+      tool_call_id: toolResult.toolUseId,
+      name: toolResult.toolName,
     }));
   }
   return null;
@@ -153,14 +154,14 @@ function getToolInputForObservation(toolUse: Row): Json {
   return toolInputRaw;
 }
 
-function getToolResultForObservation(toolResultEntry: Json): ToolResultForObservation {
+function getToolResultForObservation(toolResultEntry: ToolResultEntry | null | undefined): ToolResultForObservation {
   const empty: ToolResultForObservation = {
     output: null,
-    result_timestamp: null,
-    final_output: null,
-    final_result_timestamp: null,
+    resultTimestamp: null,
+    finalOutput: null,
+    finalResultTimestamp: null,
   };
-  if (typeof toolResultEntry !== "object" || toolResultEntry === null) {
+  if (!toolResultEntry) {
     return empty;
   }
 
@@ -169,20 +170,15 @@ function getToolResultForObservation(toolResultEntry: Json): ToolResultForObserv
   const [output] = truncateText(outputStr);
   const resultTimestamp = parseTimestamp(toolResultEntry.timestamp);
 
-  const finalOutputRaw = toolResultEntry.final_content;
+  const finalOutputRaw = toolResultEntry.finalContent;
   if (finalOutputRaw === undefined || finalOutputRaw === null) {
-    return { output, result_timestamp: resultTimestamp, final_output: null, final_result_timestamp: null };
+    return { output, resultTimestamp, finalOutput: null, finalResultTimestamp: null };
   }
 
   const finalOutputStr = typeof finalOutputRaw === "string" ? finalOutputRaw : jsonDumps(finalOutputRaw);
   const [finalOutput] = truncateText(finalOutputStr);
-  const finalResultTimestamp = parseTimestamp(toolResultEntry.final_timestamp);
-  return {
-    output,
-    result_timestamp: resultTimestamp,
-    final_output: finalOutput,
-    final_result_timestamp: finalResultTimestamp,
-  };
+  const finalResultTimestamp = parseTimestamp(toolResultEntry.finalTimestamp);
+  return { output, resultTimestamp, finalOutput, finalResultTimestamp };
 }
 
 function getShortTranscriptPathForMetadata(p: unknown): string | null {
@@ -262,13 +258,13 @@ function emitSingleToolObservation(
   // frontend groups them automatically.
   let subagentEndTimestamp: Date | null = null;
   if (subagent) {
-    if (toolResult.final_result_timestamp !== null) {
+    if (toolResult.finalResultTimestamp !== null) {
       pendingSubagents.push({
-        tool_use_id: toolUseId,
+        toolUseId,
         subagent,
-        parent_span: toolSpan,
-        start_timestamp: toolUseTimestamp,
-        ready_timestamp: toolResult.final_result_timestamp,
+        parentSpan: toolSpan,
+        startTimestamp: toolUseTimestamp,
+        readyTimestamp: toolResult.finalResultTimestamp,
       });
     } else {
       subagentEndTimestamp = emitSubagentObservations(emitter, toolSpan, subagent, toolUseTimestamp);
@@ -276,26 +272,26 @@ function emitSingleToolObservation(
   }
 
   const toolEndTimestamp = getLatestTimestamp(
-    toolResult.result_timestamp,
-    toolResult.final_result_timestamp,
+    toolResult.resultTimestamp,
+    toolResult.finalResultTimestamp,
     subagentEndTimestamp,
     toolUseTimestamp
   );
   const handoffTimestamp =
-    toolResult.result_timestamp ?? toolResult.final_result_timestamp ?? subagentEndTimestamp ?? assistantTimestamp;
+    toolResult.resultTimestamp ?? toolResult.finalResultTimestamp ?? subagentEndTimestamp ?? assistantTimestamp;
   toolSpan.end(toolEndTimestamp);
 
-  if (toolResult.final_result_timestamp !== null && toolResult.final_output !== null) {
+  if (toolResult.finalResultTimestamp !== null && toolResult.finalOutput !== null) {
     pendingAsyncToolResults.push({
-      timestamp: toolResult.final_result_timestamp,
-      tool_result: { tool_use_id: toolUseId, tool_name: toolName, output: toolResult.final_output },
+      timestamp: toolResult.finalResultTimestamp,
+      toolResult: { toolUseId, toolName, output: toolResult.finalOutput },
     });
   }
 
   return {
-    handoff_timestamp: handoffTimestamp,
-    tool_result: { tool_use_id: toolUseId, tool_name: toolName, output: toolResult.output },
-    latest_end_timestamp: getLatestTimestamp(toolEndTimestamp, subagentEndTimestamp),
+    handoffTimestamp,
+    toolResult: { toolUseId, toolName, output: toolResult.output },
+    latestEndTimestamp: getLatestTimestamp(toolEndTimestamp, subagentEndTimestamp),
   };
 }
 
@@ -325,53 +321,30 @@ function emitToolObservationBatch(
       pendingSubagents,
       pendingAsyncToolResults
     );
-    if (emittedTool.handoff_timestamp !== null) {
-      resultTimestamps.push(emittedTool.handoff_timestamp);
+    if (emittedTool.handoffTimestamp !== null) {
+      resultTimestamps.push(emittedTool.handoffTimestamp);
     }
-    toolResults.push(emittedTool.tool_result);
-    latestEndTimestamp = getLatestTimestamp(latestEndTimestamp, emittedTool.latest_end_timestamp);
+    toolResults.push(emittedTool.toolResult);
+    latestEndTimestamp = getLatestTimestamp(latestEndTimestamp, emittedTool.latestEndTimestamp);
   }
 
-  return { result_timestamps: resultTimestamps, tool_results: toolResults, latest_end_timestamp: latestEndTimestamp };
+  return { resultTimestamps, toolResults, latestEndTimestamp };
 }
 
 // ----------------- Turn and subagent spans -----------------
-function getReadySubagents(
-  pendingSubagents: PendingSubagent[],
-  assistantTimestamp: Date | null
-): [PendingSubagent[], PendingSubagent[]] {
-  const ready: PendingSubagent[] = [];
-  const stillPending: PendingSubagent[] = [];
-  for (const pending of pendingSubagents) {
-    const readyTimestamp = pending.ready_timestamp;
-    if (
-      readyTimestamp instanceof Date &&
-      (assistantTimestamp === null || readyTimestamp.getTime() <= assistantTimestamp.getTime())
-    ) {
-      ready.push(pending);
+/** Partition items into those ready at `cutoff` (timestamp <= cutoff, or no cutoff) and the rest. */
+function partitionReady<T>(items: T[], tsOf: (item: T) => Date | null, cutoff: Date | null): [T[], T[]] {
+  const ready: T[] = [];
+  const pending: T[] = [];
+  for (const item of items) {
+    const ts = tsOf(item);
+    if (ts instanceof Date && (cutoff === null || ts.getTime() <= cutoff.getTime())) {
+      ready.push(item);
     } else {
-      stillPending.push(pending);
+      pending.push(item);
     }
   }
-  return [ready, stillPending];
-}
-
-function getReadyAsyncToolResults(
-  pendingAsyncToolResults: PendingAsyncToolResult[],
-  assistantTimestamp: Date | null
-): [PendingAsyncToolResult[], PendingAsyncToolResult[], Date | null] {
-  const ready: PendingAsyncToolResult[] = [];
-  const stillPending: PendingAsyncToolResult[] = [];
-  for (const result of pendingAsyncToolResults) {
-    const ts = result.timestamp;
-    if (ts instanceof Date && (assistantTimestamp === null || ts.getTime() <= assistantTimestamp.getTime())) {
-      ready.push(result);
-    } else {
-      stillPending.push(result);
-    }
-  }
-  const latestReadyTimestamp = getLatestTimestamp(...ready.map((r) => r.timestamp));
-  return [ready, stillPending, latestReadyTimestamp];
+  return [ready, pending];
 }
 
 function updatePendingSubagentDisplayStartAfterLaunchResponse(
@@ -382,20 +355,18 @@ function updatePendingSubagentDisplayStartAfterLaunchResponse(
   if (generationStartTimestamp === null) {
     return;
   }
-  const toolUseIds = new Set(
-    toolResultsUsedAsGenerationInput.filter((r) => r.tool_use_id).map((r) => String(r.tool_use_id))
-  );
+  const toolUseIds = new Set(toolResultsUsedAsGenerationInput.filter((r) => r.toolUseId).map((r) => r.toolUseId));
   if (toolUseIds.size === 0) {
     return;
   }
   for (const pending of pendingSubagents) {
-    if (pending.display_start_timestamp !== undefined && pending.display_start_timestamp !== null) {
+    if (pending.displayStartTimestamp != null) {
       continue;
     }
-    if (toolUseIds.has(pending.tool_use_id)) {
+    if (toolUseIds.has(pending.toolUseId)) {
       // Nudge just after the launch generation so the subagent renders after
       // it. Dates are ms-resolution, so we use +1ms (Python used +1µs).
-      pending.display_start_timestamp = new Date(generationStartTimestamp.getTime() + 1);
+      pending.displayStartTimestamp = new Date(generationStartTimestamp.getTime() + 1);
     }
   }
 }
@@ -514,14 +485,14 @@ function emitTurnObservations(
   turn.assistantMsgs.forEach((assistantMessage, assistantIndex) => {
     const assistantTimestamp = parseTimestamp(assistantMessage);
     if (assistantIndex > 0 && pendingSubagents.length > 0) {
-      const [readySubagents, stillPending] = getReadySubagents(pendingSubagents, assistantTimestamp);
+      const [readySubagents, stillPending] = partitionReady(pendingSubagents, (p) => p.readyTimestamp, assistantTimestamp);
       pendingSubagents = stillPending;
       for (const readySubagent of readySubagents) {
         const subagentEndTimestamp = emitSubagentObservations(
           emitter,
-          readySubagent.parent_span ?? parentSpan,
+          readySubagent.parentSpan ?? parentSpan,
           readySubagent.subagent,
-          readySubagent.display_start_timestamp ?? readySubagent.start_timestamp
+          readySubagent.displayStartTimestamp ?? readySubagent.startTimestamp
         );
         latestEndTimestamp = getLatestTimestamp(latestEndTimestamp, subagentEndTimestamp);
       }
@@ -529,10 +500,10 @@ function emitTurnObservations(
 
     let readyAsyncToolResults: PendingAsyncToolResult[] = [];
     if (assistantIndex > 0 && pendingAsyncToolResults.length > 0) {
-      const [ready, stillPending, readyTs] = getReadyAsyncToolResults(pendingAsyncToolResults, assistantTimestamp);
+      const [ready, stillPending] = partitionReady(pendingAsyncToolResults, (r) => r.timestamp, assistantTimestamp);
       readyAsyncToolResults = ready;
       pendingAsyncToolResults = stillPending;
-      previousTimestamp = getLatestTimestamp(previousTimestamp, readyTs);
+      previousTimestamp = getLatestTimestamp(previousTimestamp, ...ready.map((r) => r.timestamp));
     }
 
     const [generationAttrs, toolUses] = buildGenerationAttributes(
@@ -562,15 +533,15 @@ function emitTurnObservations(
       pendingSubagents,
       pendingAsyncToolResults
     );
-    latestEndTimestamp = getLatestTimestamp(latestEndTimestamp, emittedTools.latest_end_timestamp);
+    latestEndTimestamp = getLatestTimestamp(latestEndTimestamp, emittedTools.latestEndTimestamp);
 
     const generationEndTimestamp = assistantTimestamp ?? generationStartTimestamp;
     generationSpan.end(generationEndTimestamp);
     latestEndTimestamp = getLatestTimestamp(latestEndTimestamp, generationEndTimestamp);
 
-    previousToolResults = emittedTools.tool_results;
-    if (emittedTools.result_timestamps.length > 0) {
-      previousTimestamp = getLatestTimestamp(...emittedTools.result_timestamps);
+    previousToolResults = emittedTools.toolResults;
+    if (emittedTools.resultTimestamps.length > 0) {
+      previousTimestamp = getLatestTimestamp(...emittedTools.resultTimestamps);
     } else if (assistantTimestamp !== null) {
       previousTimestamp = assistantTimestamp;
     }
@@ -579,9 +550,9 @@ function emitTurnObservations(
   for (const pendingSubagent of pendingSubagents) {
     const subagentEndTimestamp = emitSubagentObservations(
       emitter,
-      pendingSubagent.parent_span ?? parentSpan,
+      pendingSubagent.parentSpan ?? parentSpan,
       pendingSubagent.subagent,
-      pendingSubagent.display_start_timestamp ?? pendingSubagent.start_timestamp
+      pendingSubagent.displayStartTimestamp ?? pendingSubagent.startTimestamp
     );
     latestEndTimestamp = getLatestTimestamp(latestEndTimestamp, subagentEndTimestamp);
   }

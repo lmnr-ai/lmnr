@@ -16,11 +16,24 @@ import { jsonDumps } from "./util.js";
 import type { Json, Row } from "./types.js";
 
 // ----------------- Turn model -----------------
+/**
+ * A tool's result as assembled from the transcript. `content`/`timestamp` are
+ * the initial result; `final*` are set later when an async agent's
+ * task-notification lands; `isAsyncLaunch` marks a deferred-agent launch.
+ */
+export interface ToolResultEntry {
+  content: Json;
+  timestamp?: Json;
+  isAsyncLaunch?: boolean;
+  finalContent?: Json;
+  finalTimestamp?: Json;
+}
+
 export interface Turn {
   userMsg: Row;
   assistantMsgs: Row[];
-  toolResultsById: Record<string, any>;
-  toolUseTimestampsById: Record<string, any>;
+  toolResultsById: Record<string, ToolResultEntry>;
+  toolUseTimestampsById: Record<string, Json>;
   // Injected context (e.g. skill instructions) keyed by the tool_use id it
   // belongs to, taken from isMeta rows carrying sourceToolUseID.
   injectedByToolId: Record<string, string>;
@@ -31,15 +44,15 @@ class TurnAssemblyState {
   currentTurnUserRow: Row | null = null;
   assistantMessageIds: string[] = [];
   assistantRowsByMessageId: Record<string, Row[]> = {};
-  toolResultsById: Record<string, any> = {};
-  toolUseTimestampsById: Record<string, any> = {};
+  toolResultsById: Record<string, ToolResultEntry> = {};
+  toolUseTimestampsById: Record<string, Json> = {};
   injectedByToolId: Record<string, string> = {};
   currentRows: Row[] = [];
 }
 
 // ----------------- Async-launch detection (shared with deferral) -----------------
-export function getToolResultText(toolResultEntry: Json): string {
-  if (typeof toolResultEntry !== "object" || toolResultEntry === null) {
+export function getToolResultText(toolResultEntry: ToolResultEntry | undefined): string {
+  if (!toolResultEntry) {
     return "";
   }
   const toolResultContent = toolResultEntry.content;
@@ -62,15 +75,14 @@ export function getAsyncLaunchFlagFromRow(row: Row): boolean | null {
   return toolUseResult.status === "async_launched" || toolUseResult.isAsync === true;
 }
 
-export function isAsyncAgentLaunchResult(toolResultEntry: Json): boolean {
-  if (typeof toolResultEntry !== "object" || toolResultEntry === null) {
+export function isAsyncAgentLaunchResult(toolResultEntry: ToolResultEntry | undefined): boolean {
+  if (!toolResultEntry) {
     return false;
   }
   // Prefer the structured toolUseResult marker: launch-text matching also
   // fires on tool results that merely quote it (e.g. reading this file).
-  const isAsyncLaunch = toolResultEntry.is_async_launch;
-  if (isAsyncLaunch !== undefined && isAsyncLaunch !== null) {
-    return Boolean(isAsyncLaunch);
+  if (toolResultEntry.isAsyncLaunch != null) {
+    return toolResultEntry.isAsyncLaunch;
   }
   const toolResultText = getToolResultText(toolResultEntry);
   return (
@@ -206,12 +218,9 @@ function addToolResultRow(row: Row, state: TurnAssemblyState): boolean {
   for (const toolResultBlock of getToolResultBlocks(getContentFromRow(row))) {
     const toolUseId = toolResultBlock.tool_use_id;
     if (toolUseId) {
-      const entry: Record<string, any> = {
-        content: toolResultBlock.content,
-        timestamp: rowTimestamp,
-      };
+      const entry: ToolResultEntry = { content: toolResultBlock.content, timestamp: rowTimestamp };
       if (isAsyncLaunch !== null) {
-        entry.is_async_launch = isAsyncLaunch;
+        entry.isAsyncLaunch = isAsyncLaunch;
       }
       state.toolResultsById[String(toolUseId)] = entry;
     }
@@ -236,9 +245,9 @@ function addTaskNotificationRow(
     return true;
   }
   const existingResult = state.toolResultsById[toolUseId];
-  if (typeof existingResult === "object" && existingResult !== null) {
-    existingResult.final_content = getResultFromTaskNotification(row);
-    existingResult.final_timestamp = row.timestamp;
+  if (existingResult) {
+    existingResult.finalContent = getResultFromTaskNotification(row);
+    existingResult.finalTimestamp = row.timestamp;
   } else {
     state.toolResultsById[toolUseId] = {
       content: getResultFromTaskNotification(row),
