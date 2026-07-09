@@ -28,7 +28,7 @@ const Metadata = ({ metadata }: MetadataProps) => {
           value={metadata}
           readOnly={true}
           defaultMode="json"
-          className="max-h-[50vh] border-nonebg-muted/30"
+          className="max-h-[50vh] border-none bg-muted/30"
           placeholder=""
         />
       </PopoverContent>
