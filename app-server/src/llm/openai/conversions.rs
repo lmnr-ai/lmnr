@@ -158,8 +158,7 @@ fn append_content_as_messages(content: &ProviderContent, out: &mut Vec<Value>) {
         }
         if let Some(fr) = part.function_response {
             let tool_call_id = fr.id.unwrap_or_default();
-            let content_str =
-                serde_json::to_string(&fr.response).unwrap_or_else(|_| "".to_string());
+            let content_str = serde_json::to_string(&fr.response).unwrap_or("".to_string());
             tool_results.push(json!({
                 "role": "tool",
                 "tool_call_id": tool_call_id,
@@ -168,9 +167,9 @@ fn append_content_as_messages(content: &ProviderContent, out: &mut Vec<Value>) {
             continue;
         }
         if let Some(fc) = part.function_call {
-            let id = fc.id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+            let id = fc.id.unwrap_or_default();
             let args = fc.args.unwrap_or(Value::Object(Default::default()));
-            let arguments_str = serde_json::to_string(&args).unwrap_or_else(|_| "{}".to_string());
+            let arguments_str = serde_json::to_string(&args).unwrap_or("{}".to_string());
             tool_calls.push(json!({
                 "id": id,
                 "type": "function",
@@ -276,10 +275,10 @@ pub fn parse_openai_response(value: Value) -> Result<ProviderResponse, OpenAIErr
                     .and_then(|f| f.get("arguments"))
                     .and_then(|a| a.as_str())
                     .and_then(|s| serde_json::from_str::<Value>(s).ok())
-                    .or_else(|| {
+                    .or(
                         // Some gateways pre-parse `arguments` into an object.
-                        func.and_then(|f| f.get("arguments")).cloned()
-                    });
+                        func.and_then(|f| f.get("arguments")).cloned(),
+                    );
                 parts.push(ProviderPart {
                     function_call: Some(ProviderFunctionCall { id, name, args }),
                     ..Default::default()
