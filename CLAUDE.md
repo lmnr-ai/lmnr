@@ -13,6 +13,7 @@ This is a multi-service monorepo with three main components:
 - **app-server/** - Rust backend (Actix-web HTTP, Tonic gRPC). SQL query validation + JSON↔SQL conversion run in-process here (`src/query_engine/`, built on `sqlparser`).
 - **frontend/** - Next.js/TypeScript web UI
 - **pii-redactor/** - optional Rust gRPC service that runs a HuggingFace token-classification PII model on CPU via ONNX Runtime. Standalone — not linked from app-server. Tested with the OpenAI privacy filter (BIOES) and Piiranha (BIO); accepts either scheme via `config.json` `id2label`. See `pii-redactor/README.md` for the gRPC contract, model layout (`model.onnx` + optional `model.onnx_data*` external-data shards + `tokenizer.json` + `config.json`), and the weight-baking Dockerfile.
+- **codex-plugin/** - Laminar observability hook for the OpenAI Codex CLI (TypeScript, standalone npm package, not part of the pnpm frontend workspace). Parses Codex rollout JSONL files and exports turns as OTLP traces. Planned to split into its own repo. See `codex-plugin/CLAUDE.md` for rollout-format notes and behavior invariants.
 
 ## Development Commands
 
@@ -205,6 +206,14 @@ Keep comments short. Don't write multi-paragraph rationale blocks — a single t
 - **Self-ingestion guardrail:** NEVER add `target = "lmnr::internal"` to the ingest path (`traces/grpc_service.rs`, `traces/producer.rs`/`push_spans_to_queue`, `db/spans.rs`, the span consumer). An internal span emitted from inside `push_spans_to_queue` would re-enter it and recurse.
 - `instrumentation/spans.rs` is the generic internal-span builder (shared `lmnr.span.*` / `gen_ai.*` / `signal.*` / association-prop conventions, `lmnr.span.input`/`output` JSON-stringified via `json_attr`, `ai.prompt.tools` as an OTEL string array via `tools_attr`). It keeps `#[allow(dead_code)]` because OSS producers (`traces/system_extraction`) consume only part of the surface; the rest is used by `signals`-gated enterprise producers in `lmnr-private`.
 - Span-creation pattern for producers: root via `info_span!(target: "lmnr::internal", parent: None, "<literal name>")` (tracing macros require literal span names) wrapped with `InternalSpan::wrap(...).parent(...).project(...).span_path_root(...)`; child spans created inside `.instrument()`-ed futures use plain `info_span!(target: "lmnr::internal", "name")` — contextual parenting nests them automatically, do NOT pass an explicit `parent:`. Attach the error AFTER the instrumented future resolves (`spans::record_error(&span, e.to_string())`), and note that a `let result = async { ... }` block whose error type is only used via `e.to_string()` needs an explicit `Result<T, E>` annotation (E0282).
+
+## Building external OTLP emitters (hooks/plugins that send traces to Laminar)
+
+- `lmnr.association.properties.*` attributes (session_id, user_id, tags, metadata.*) must be set on the trace's ROOT span only — ingestion propagates them trace-wide. Anything under `lmnr.association.properties.metadata.<key>` becomes trace metadata; per-span data (e.g. a tool span's call id) must use plain attribute names or it leaks onto every span in the trace.
+- OTLP/HTTP JSON to `POST {base}/v1/traces` with `Authorization: Bearer <project api key>` is the simplest emitter path (no protobuf toolchain needed); the handler dispatches on `Content-Type: application/json`. Local stack base URL is `http://localhost:8000`.
+- Spans can be backdated arbitrarily via explicit start/end timestamps — the platform renders whatever the span carries, so replay-style emitters (parsing log files after the fact) work fine.
+- To verify emitted spans in staging ClickHouse: `spans` uses numeric `span_type` (0=DEFAULT, 1=LLM, 6=TOOL); trace-level rows live in `traces_replacing` (ReplacingMergeTree — query with `FINAL`). Token columns are `input_tokens`/`output_tokens`/`total_tokens`.
+- Reference implementations: `codex-plugin/` (this repo) and the Claude Code plugin on branch `feat/lam-1934-claude-code-plugin`.
 
 ## OTel GenAI Semantic Convention Ingestion
 
