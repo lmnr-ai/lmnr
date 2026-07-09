@@ -23,12 +23,12 @@ const Metadata = ({ metadata }: MetadataProps) => {
           <span>Metadata</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="p-0 overflow-hidden bg-muted/30">
+      <PopoverContent className="p-0 overflow-hidden">
         <ContentRenderer
           value={metadata}
           readOnly={true}
           defaultMode="json"
-          className="max-h-[50vh] border-none"
+          className="max-h-[50vh] border-nonebg-muted/30"
           placeholder=""
         />
       </PopoverContent>
