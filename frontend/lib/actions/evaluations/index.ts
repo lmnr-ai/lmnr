@@ -154,15 +154,21 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
     orderBy: [desc(evaluations.createdAt)],
   });
 
-  // Fetch counts for the returned evaluations to include in the response
+  // Fetch counts for the returned evaluations to include in the response.
+  // A datapoint is unfinished when it has no scores yet or its trace top span
+  // hasn't arrived, unless the trace already errored (mirrors deriveStatus).
   let itemsWithCounts = result.items;
   if (result.items.length > 0) {
-    const datapointCounts = await executeQuery<{ evaluation_id: string; count: number }>({
+    const datapointCounts = await executeQuery<{ evaluation_id: string; count: number; unfinished_count: number }>({
       projectId,
       query: `
-        SELECT 
+        SELECT
           evaluation_id,
-          COUNT(*) as count
+          COUNT(*) as count,
+          countIf(
+            trace_status != 'error'
+            AND (scores = '' OR scores = '{}' OR top_span_id = toUUID('00000000-0000-0000-0000-000000000000'))
+          ) as unfinished_count
         FROM evaluation_datapoints
         WHERE evaluation_id IN {evaluationIds:Array(String)}
         GROUP BY evaluation_id
@@ -173,12 +179,16 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
       },
     });
 
-    const countMap = new Map(datapointCounts.map((row) => [row.evaluation_id, row.count]));
+    const countsMap = new Map(datapointCounts.map((row) => [row.evaluation_id, row]));
 
-    itemsWithCounts = result.items.map((evaluation: Evaluation) => ({
-      ...evaluation,
-      dataPointsCount: countMap.get(evaluation.id) || 0,
-    }));
+    itemsWithCounts = result.items.map((evaluation: Evaluation) => {
+      const counts = countsMap.get(evaluation.id);
+      return {
+        ...evaluation,
+        dataPointsCount: counts?.count ?? 0,
+        status: (counts?.unfinished_count ?? 0) > 0 ? ("inProgress" as const) : ("finished" as const),
+      };
+    });
   }
 
   return {

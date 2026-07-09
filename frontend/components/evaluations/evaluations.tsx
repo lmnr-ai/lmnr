@@ -37,7 +37,7 @@ import { type ScoreRange } from "@/lib/colors";
 import { type Evaluation } from "@/lib/evaluation/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
-import { swrFetcher } from "@/lib/utils";
+import { cn, swrFetcher } from "@/lib/utils";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import Header from "../ui/header";
@@ -67,6 +67,23 @@ const baseColumns: ColumnDef<Evaluation>[] = [
     accessorKey: "name",
     header: "Name",
     size: 300,
+  },
+  {
+    id: "status",
+    accessorKey: "status",
+    header: "Status",
+    cell: (row) => {
+      const status = row.getValue() as Evaluation["status"];
+      if (!status) return <span className="text-muted-foreground">—</span>;
+      const inProgress = status === "inProgress";
+      return (
+        <div className="flex items-center gap-1.5">
+          <span className={cn("size-1.5 shrink-0 rounded-full", inProgress ? "bg-amber-500" : "bg-success")} />
+          <span className="truncate">{inProgress ? "In progress" : "Finished"}</span>
+        </div>
+      );
+    },
+    size: 120,
   },
   {
     id: "dataPointsCount",
@@ -116,6 +133,7 @@ export const defaultEvaluationsColumnOrder = [
   "__chart_visibility",
   "id",
   "name",
+  "status",
   "dataPointsCount",
   "metadata",
   "createdAt",

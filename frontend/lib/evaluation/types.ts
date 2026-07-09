@@ -1,5 +1,7 @@
 export type EvalRow = Record<string, unknown>;
 
+export type EvaluationStatus = "finished" | "inProgress";
+
 export type Evaluation = {
   id: string;
   createdAt: string;
@@ -7,6 +9,7 @@ export type Evaluation = {
   name: string;
   projectId: string;
   metadata: Record<string, unknown> | null;
+  status?: EvaluationStatus;
 };
 
 export type EvaluationScoreStatistics = {

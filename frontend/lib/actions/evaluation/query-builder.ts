@@ -208,17 +208,15 @@ function resolveSortExpression(sortBy: string, sortSql?: string, columns?: EvalQ
 function buildComparisonQuery(options: EvalQueryOptions): QueryResult {
   const { evaluationId, columns, traceIds, filters, limit, offset, sortBy, sortSql, sortDirection, targetId } = options;
 
-  // Build primary subquery (with pagination)
+  // The primary subquery must be unpaginated: identical-score rows are filtered
+  // out after the join, so paginating before the join would return short pages
+  // and break the infinite-scroll hasMore heuristic. LIMIT/OFFSET are applied
+  // on the outer query instead.
   const primaryResult = buildSingleEvalQuery({
     evaluationId,
     columns,
     traceIds,
     filters,
-    limit,
-    offset,
-    sortBy,
-    sortSql,
-    sortDirection,
     evalIdParam: "evaluationId",
     paramPrefix: "p_",
   });
@@ -251,6 +249,15 @@ function buildComparisonQuery(options: EvalQueryOptions): QueryResult {
 
   const outerSelect = [...primarySelect, ...comparedSelect].join(", ");
 
+  // Rows where both runs produced exactly the same scores carry no comparison
+  // signal — drop them. Unmatched rows are kept: with join_use_nulls=0 a
+  // missing right side yields '' (not NULL), hence the empty-string check.
+  const whereClauses: string[] = [];
+  if (columns.some((c) => c.id === "scores")) {
+    whereClauses.push("(c.`scores` IS NULL OR c.`scores` = '' OR p.`scores` != c.`scores`)");
+  }
+  const whereStr = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")} ` : "";
+
   let orderByStr: string;
   if (sortBy && columns.find((c) => c.id === sortBy)) {
     const sortColumn = backtickEscape(sortBy);
@@ -260,7 +267,17 @@ function buildComparisonQuery(options: EvalQueryOptions): QueryResult {
     orderByStr = "ORDER BY p.`index` ASC, p.`createdAt` ASC";
   }
 
-  const query = `SELECT ${outerSelect} FROM (${primaryResult.query}) AS p LEFT JOIN (${comparedResult.query}) AS c ON p.\`index\` = c.\`index\` ${orderByStr}`;
+  let paginationStr = "";
+  if (limit != null) {
+    paginationStr += " LIMIT {limit:UInt32}";
+    parameters.limit = limit;
+  }
+  if (offset != null) {
+    paginationStr += " OFFSET {offset:UInt32}";
+    parameters.offset = offset;
+  }
+
+  const query = `SELECT ${outerSelect} FROM (${primaryResult.query}) AS p LEFT JOIN (${comparedResult.query}) AS c ON p.\`index\` = c.\`index\` ${whereStr}${orderByStr}${paginationStr}`;
 
   return { query, parameters };
 }
