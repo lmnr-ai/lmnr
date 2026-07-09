@@ -14,27 +14,32 @@
   "userConfig": {
     "LMNR_PROJECT_API_KEY": {
       "type": "string",
+      "title": "Laminar project API key",
       "description": "Laminar project API key (create one in your project settings at https://www.lmnr.ai)",
       "required": true,
       "sensitive": true
     },
     "LMNR_BASE_URL": {
       "type": "string",
+      "title": "Laminar base URL",
       "description": "Laminar base URL. Keep the default for Laminar Cloud; for self-hosted use e.g. http://localhost:8000",
       "default": "https://api.lmnr.ai"
     },
     "CC_LMNR_USER_ID": {
       "type": "string",
+      "title": "User id",
       "description": "Optional user id to associate with traces",
       "default": ""
     },
     "CC_LMNR_DEBUG": {
       "type": "string",
+      "title": "Debug logging",
       "description": "Set to 'true' to write debug logs to ~/.claude/state/lmnr_hook.log",
       "default": "false"
     },
     "CC_LMNR_MAX_CHARS": {
       "type": "string",
+      "title": "Max characters per field",
       "description": "Max characters kept per captured text field before truncation",
       "default": "20000"
     }
