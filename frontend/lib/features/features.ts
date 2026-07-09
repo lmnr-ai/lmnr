@@ -19,6 +19,7 @@ export enum Feature {
   SLACK = "SLACK",
   LANDING = "LANDING",
   LAMINAR_CLOUD = "LAMINAR_CLOUD",
+  LOOPS = "LOOPS",
   AGENT = "AGENT",
   TELEMETRY = "TELEMETRY",
 }
@@ -128,6 +129,10 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
 
   if (feature === Feature.LAMINAR_CLOUD) {
     return process.env.LAMINAR_CLOUD === "true";
+  }
+
+  if (feature === Feature.LOOPS) {
+    return process.env.LAMINAR_CLOUD === "true" && !!process.env.LOOPS_API_KEY;
   }
 
   if (feature === Feature.AGENT) {
