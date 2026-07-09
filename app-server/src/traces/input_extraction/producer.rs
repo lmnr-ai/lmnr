@@ -154,8 +154,14 @@ pub async fn process_user_task_candidates(
             candidate.prompt_hash.as_deref(),
             &candidate.fingerprint,
         );
-        let inline_result =
-            try_apply_cached_regex(&cache, &regex_key, &candidate.signposted_text).await;
+        let inline_result = try_apply_cached_regex(
+            &cache,
+            &regex_key,
+            &candidate.signposted_text,
+            project_id,
+            trace_id,
+        )
+        .await;
 
         if inline_result.is_some() {
             // Re-read the winner lock before the inline publish: a
