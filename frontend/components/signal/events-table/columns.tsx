@@ -151,6 +151,9 @@ function createPayloadColumnDef(field: SchemaField): ColumnDef<EventRow> {
     accessorFn: (row) => parsePayloadField(row.payload, field.name),
     header: () => <PayloadFieldHeader name={field.name} description={field.description} />,
     size: getColumnSize(field.type),
+    // String payloads are free-text and sorted lexically server-side would be
+    // surprising; only typed fields (number/boolean/enum) are sortable.
+    enableSorting: field.type !== "string",
     cell: ({ row, getValue }) => {
       const snippet = row.original.fieldSnippets?.[field.name];
       if (snippet) {
@@ -232,6 +235,7 @@ const staticColumnsBeforePayload: ColumnDef<EventRow>[] = [
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     size: 140,
     id: "timestamp",
+    enableSorting: true,
   },
   {
     accessorKey: "severity",
@@ -239,6 +243,7 @@ const staticColumnsBeforePayload: ColumnDef<EventRow>[] = [
     cell: (row) => <SeverityCell value={Number(row.getValue())} />,
     size: 120,
     id: "severity",
+    enableSorting: true,
   },
 ];
 

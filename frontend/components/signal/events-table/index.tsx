@@ -3,6 +3,7 @@
 import { type Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
+import { useSWRConfig } from "swr";
 import { shallow } from "zustand/shallow";
 
 import AdvancedSearch from "@/components/common/advanced-search";
@@ -20,6 +21,7 @@ import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
@@ -74,9 +76,11 @@ function PureEventsTable() {
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
 
-  const { effective, isLoading: isViewLoading, setFilters, setSearchAndFilters } = useTableView();
+  const { effective, isLoading: isViewLoading, setFilters, setSearchAndFilters, setSort } = useTableView();
   const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
   const textSearchFilter = effective.search.length > 0 ? effective.search : null;
+  const sortBy = effective.sortBy ?? undefined;
+  const sortDirection = (effective.sortDirection ?? undefined) as "asc" | "desc" | undefined;
   const searchValue = useMemo(
     () => ({ filters: effective.filters, search: effective.search }),
     [effective.filters, effective.search]
@@ -124,6 +128,18 @@ function PureEventsTable() {
           });
         }
 
+        if (sortBy && sortDirection) {
+          urlParams.set("sortBy", sortBy);
+          urlParams.set("sortDirection", sortDirection.toUpperCase());
+          if (sortBy.startsWith("payload:")) {
+            const fieldName = sortBy.slice("payload:".length);
+            const field = signal.schemaFields.find((f) => f.name === fieldName);
+            // enum sorts lexically like a string; number/boolean get typed casts.
+            const sortType = field?.type === "number" || field?.type === "boolean" ? field.type : "string";
+            urlParams.set("sortType", sortType);
+          }
+        }
+
         if (emergingClusterId) {
           urlParams.set("emergingClusterId", emergingClusterId);
         } else if (isUnclusteredFilter) {
@@ -163,6 +179,8 @@ function PureEventsTable() {
       isUnclusteredFilter,
       emergingClusterId,
       textSearchFilter,
+      sortBy,
+      sortDirection,
       signal.id,
       signal.schemaFields,
       params.projectId,
@@ -203,6 +221,7 @@ function PureEventsTable() {
     isFetching,
     isLoading,
     fetchNextPage,
+    refetch,
   } = useInfiniteScroll<EventRow>({
     fetchFn: fetchEvents,
     enabled: !!(pastHours || (startDate && endDate)) && !isViewLoading,
@@ -217,9 +236,29 @@ function PureEventsTable() {
       isUnclusteredFilter,
       emergingClusterId,
       textSearchFilter,
+      sortBy,
+      sortDirection,
     ],
   });
 
+  const fetchClusters = useSignalStoreContext((state) => state.fetchClusters);
+  const { mutate } = useSWRConfig();
+
+  const handleRefresh = useCallback(() => {
+    refetch();
+    // clusters reload cascades cluster-stats; run-stats revalidates via its SWR key.
+    fetchClusters({ pastHours, startDate, endDate });
+    mutate((key) => typeof key === "string" && key.includes(`/signals/${signal.id}/runs/stats`));
+  }, [refetch, fetchClusters, pastHours, startDate, endDate, mutate, signal.id]);
+
+  const handleSort = useCallback(
+    (columnId: string, direction: "asc" | "desc") => {
+      setSort(columnId || null, columnId ? direction : null);
+    },
+    [setSort]
+  );
+
+  // Find the first event matching the active traceId to highlight it
   const eventId = searchParams.get("eventId");
 
   // `eventId` is the only signal we trust for highlighting: a trace can now
@@ -256,6 +295,9 @@ function PureEventsTable() {
         fetchNextPage={fetchNextPage}
         loadMoreButton
         estimatedRowHeight={80}
+        sortBy={sortBy}
+        sortDirection={sortDirection}
+        onSort={handleSort}
         emptyRow={filter.length === 0 && !textSearchFilter ? getEmptyRow({ pastHours, startDate, endDate }) : undefined}
       >
         <div className="flex flex-1 w-full h-full gap-2">
@@ -268,6 +310,7 @@ function PureEventsTable() {
           />
           <ViewsToolbar projectId={params.projectId} resource={`signal-events:${signal.id}`} />
           <DateRangeFilter />
+          <RefreshButton onClick={handleRefresh} variant="outline" />
         </div>
         <div className="w-full px-px">
           <AdvancedSearch

@@ -73,6 +73,45 @@ const eventsSelectColumns = [
   "severity",
 ];
 
+/** Data type of a payload field being sorted on; drives the JSONExtract cast. */
+export type EventSortType = "number" | "boolean" | "string";
+
+// Payload field names are interpolated directly into the ORDER BY JSONExtract
+// call (params can't bind ORDER BY expressions cleanly), so the field name is
+// the SQL-injection boundary. This mirrors `search_signal_events` in
+// `app-server/src/search/signal_events.rs`: only strict identifiers pass, and
+// anything else silently drops back to the default timestamp ordering.
+const PAYLOAD_SORT_FIELD_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+/**
+ * Resolve a sortable column id into a safe ClickHouse ORDER BY expression.
+ * Returns null for unknown / unsafe columns so the caller can fall back to the
+ * default ordering.
+ */
+const resolveEventsSortColumn = (sortBy: string, sortType?: EventSortType): string | null => {
+  if (sortBy === "timestamp" || sortBy === "severity") {
+    return sortBy;
+  }
+
+  if (sortBy.startsWith("payload:")) {
+    const fieldName = sortBy.slice("payload:".length);
+    if (!PAYLOAD_SORT_FIELD_RE.test(fieldName)) {
+      return null;
+    }
+
+    switch (sortType) {
+      case "number":
+        return `simpleJSONExtractFloat(payload, '${fieldName}')`;
+      case "boolean":
+        return `simpleJSONExtractBool(payload, '${fieldName}')`;
+      default:
+        return `simpleJSONExtractString(payload, '${fieldName}')`;
+    }
+  }
+
+  return null;
+};
+
 export interface BuildEventsQueryOptions {
   signalId: string;
   filters: Filter[];
@@ -86,6 +125,11 @@ export interface BuildEventsQueryOptions {
   idFilter?: string[];
   // "signal_events_all" is used for the "emerging cluster" that includes L0 clusters
   table?: "signal_events" | "signal_events_all";
+  /** Column id to sort on ("timestamp" | "severity" | "payload:<field>"). */
+  sortBy?: string;
+  sortDirection?: "ASC" | "DESC";
+  /** Data type of the payload field being sorted on (ignored for native columns). */
+  sortType?: EventSortType;
 }
 
 function buildClusterConditions(
@@ -116,9 +160,28 @@ function buildIdFilterConditions(idFilter: string[] | undefined): Array<{ condit
 }
 
 export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): QueryResult => {
-  const { signalId, filters, limit, offset, startTime, endTime, pastHours, clusterFilter, idFilter, table } = options;
+  const {
+    signalId,
+    filters,
+    limit,
+    offset,
+    startTime,
+    endTime,
+    pastHours,
+    clusterFilter,
+    idFilter,
+    table,
+    sortBy,
+    sortDirection,
+    sortType,
+  } = options;
 
   const tableName = table ?? "signal_events";
+
+  const sortColumn = sortBy ? resolveEventsSortColumn(sortBy, sortType) : null;
+  const orderBy = sortColumn
+    ? [{ column: sortColumn, direction: sortDirection ?? "DESC" }]
+    : [{ column: "timestamp", direction: "DESC" as const }];
 
   const customConditions: Array<{
     condition: string;
@@ -150,12 +213,7 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
     filters,
     columnFilterConfig: eventsColumnFilterConfig,
     customConditions,
-    orderBy: [
-      {
-        column: "timestamp",
-        direction: "DESC",
-      },
-    ],
+    orderBy,
     pagination: {
       limit,
       offset,
