@@ -2,7 +2,7 @@
 //! capture, winner arbitration, inline cached-regex application, and
 //! enqueueing regex generation on cache miss.
 
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
 use tracing::instrument;
 use uuid::Uuid;
@@ -16,31 +16,12 @@ use crate::cache::{Cache, CacheTrait};
 use crate::db::{DB, spans::Span};
 use crate::env::user_task::USER_TASK_LOCK_TTL_SECONDS;
 use crate::features::{Feature, is_feature_enabled};
+use crate::llm::llm_client_available;
 use crate::mq::MessageQueue;
 use crate::traces::metadata::publish_trace_metadata_patch;
 use crate::traces::span_attributes::SPAN_PROMPT_HASH;
 use crate::traces::spans::SpanAttributes;
 use crate::traces::utils::get_llm_usage_for_span;
-
-/// Whether the shared `LlmClient` actually initialized. Set from `main.rs`
-/// after client construction. `Feature::UserTaskExtraction` only mirrors
-/// the credential env vars, but `LlmClient::new` can still fail (bad
-/// `LLM_DEFAULT_HEADERS_JSON`, HTTP client build error, ...) — and when it
-/// does, the extraction workers are never spawned, so enqueueing would
-/// strand messages on the queue unconsumed. Defaults to false so paths
-/// that never call `set_llm_client_available` (tests) don't enqueue.
-static LLM_CLIENT_AVAILABLE: OnceLock<bool> = OnceLock::new();
-
-/// Called once from `main.rs` right after `LlmClient` construction.
-/// First call wins (`OnceLock`); until then the producer hook treats the
-/// client as unavailable and never enqueues.
-pub fn set_llm_client_available(available: bool) {
-    let _ = LLM_CLIENT_AVAILABLE.set(available);
-}
-
-fn llm_client_available() -> bool {
-    LLM_CLIENT_AVAILABLE.get().copied().unwrap_or(false)
-}
 
 /// Per-span candidate captured inside `preprocess_for_queue`, BEFORE the
 /// dedup strip removes `span.input` — the only point where the full
@@ -50,6 +31,7 @@ pub struct UserTaskCandidate {
     pub signposted_text: String,
     pub fingerprint: String,
     pub prompt_hash: Option<String>,
+    pub start_time_ns: i64,
 }
 
 /// Everything the producer hook needs from a candidate's span, copied or
@@ -76,6 +58,9 @@ pub fn capture_user_task_candidate(span: &Span) -> Option<UserTaskCandidate> {
         signposted_text: prepared.signposted_text,
         fingerprint: prepared.fingerprint,
         prompt_hash,
+        // Out-of-range timestamps degrade to "never wins on the time
+        // axis", same as the legacy lock default.
+        start_time_ns: span.start_time.timestamp_nanos_opt().unwrap_or(i64::MAX),
     })
 }
 
@@ -147,6 +132,7 @@ pub async fn process_user_task_candidates(
             input_cost: usage.input_cost,
             depth,
             user_sig: lock_user_sig(&candidate.fingerprint).to_string(),
+            start_time_ns: candidate.start_time_ns,
         };
 
         let lock_key = lock_cache_key(project_id, trace_id);

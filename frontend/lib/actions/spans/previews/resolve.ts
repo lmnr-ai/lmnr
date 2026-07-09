@@ -386,6 +386,7 @@ export async function resolvePreviews(
   return observe(
     {
       name: "previews:resolve",
+      metadata: { feature: "span-previews" },
       input: { projectId, spanCount: spanIds.length, rawSpanCount: rawSpans.length, skipGeneration },
     },
     async () => {

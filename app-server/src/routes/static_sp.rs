@@ -12,7 +12,7 @@ use uuid::Uuid;
 use crate::instrumentation::spans::SpanContextCarrier;
 use crate::llm::{LlmClient, models::ModelSize};
 use crate::routes::ResponseResult;
-use crate::traces::system_extraction::{
+use crate::traces::static_sp_extraction::{
     ExtractionConfig, ExtractionResult, ExtractionTracing, extract_static_regexes,
 };
 
@@ -42,10 +42,11 @@ pub struct ExtractSystemPromptResponse {
 
 #[post("system-extraction")]
 pub async fn extract_system_prompt(
-    _project_id: web::Path<Uuid>,
+    project_id: web::Path<Uuid>,
     request: web::Json<ExtractSystemPromptRequest>,
     llm_client: web::Data<Option<Arc<LlmClient>>>,
 ) -> ResponseResult {
+    let project_id = project_id.into_inner();
     let request = request.into_inner();
 
     if request.examples.iter().all(|e| e.trim().is_empty()) {
@@ -59,18 +60,25 @@ pub async fn extract_system_prompt(
         })));
     };
 
-    let config = ExtractionConfig {
-        provider: request.provider,
+    let mut config = ExtractionConfig {
         model_size: request.model_size.or(Some(ModelSize::Medium)),
         include_diff: request.include_diff.unwrap_or(true),
         ..Default::default()
     };
+    // `Default` seeds the provider from `SP_EXTRACTION_LLM_PROVIDER`; only a
+    // request-supplied provider overrides it (naming the field unconditionally
+    // would clobber the env default with `None`).
+    if let Some(provider) = request.provider {
+        config.provider = Some(provider);
+    }
     let tracing_ctx = ExtractionTracing {
         project_id: request.internal_project_id,
+        source_project_id: Some(project_id),
         parent: request
             .parent_traceparent
             .as_deref()
             .and_then(SpanContextCarrier::from_w3c_traceparent),
+        prompt_hash: None,
     };
 
     let ExtractionResult {

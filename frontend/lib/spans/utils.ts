@@ -1,5 +1,6 @@
 import { type Message } from "@/lib/playground/types";
-import { convertToPlaygroundMessages, downloadImages } from "@/lib/spans/types";
+import { convertToPlaygroundMessages, downloadImages, normalizeToMessages } from "@/lib/spans/types";
+import { convertAiSdkToPlaygroundMessages, matchAiSdkMessages } from "@/lib/spans/types/ai-sdk";
 import {
   convertAnthropicToPlaygroundMessages,
   parseAnthropicInput,
@@ -53,6 +54,15 @@ export const downloadSpanImages = async (messages: any): Promise<unknown> => {
  * downloading necessary image parts
  */
 export const convertSpanToPlayground = async (messages: any): Promise<Message[]> => {
+  // Verbatim AI SDK messages (LAM-1922) are `{role, content}`-shaped; wrap
+  // loose shapes (single message object / bare parts array) and match them
+  // BEFORE the loose OpenAI schemas, same normalization + ordering as
+  // `processMessages`.
+  const aiSdkMessages = matchAiSdkMessages(normalizeToMessages(messages));
+  if (aiSdkMessages) {
+    return await convertAiSdkToPlaygroundMessages(aiSdkMessages);
+  }
+
   const openaiOutput = parseOpenAIOutput(messages);
   if (openaiOutput) {
     return await convertOpenAIToPlaygroundMessages(openaiOutput);
