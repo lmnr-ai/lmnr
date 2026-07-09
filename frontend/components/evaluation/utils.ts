@@ -49,7 +49,9 @@ export const deriveStatus = (row: EvalRow): EvalDatapointStatus => {
  * evaluation.createdAt is only the fallback for evals with no datapoints yet.
  */
 export const deriveEvaluationStatus = (evaluation: Evaluation): EvaluationStatus => {
-  const inProgress = (evaluation.unfinishedCount ?? 0) > 0;
+  // Zero datapoints means the run has started but nothing landed in ClickHouse
+  // yet — that's in progress, not finished.
+  const inProgress = (evaluation.dataPointsCount ?? 0) === 0 || (evaluation.unfinishedCount ?? 0) > 0;
   if (inProgress) {
     const lastActivityAt = evaluation.lastDatapointAt || evaluation.createdAt;
     return isStringDateOld(lastActivityAt) ? "stale" : "inProgress";
