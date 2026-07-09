@@ -4479,6 +4479,148 @@ mod tests {
     }
 
     #[test]
+    fn test_verbatim_ai_sdk_genai_messages_pass_through() {
+        // LAM-1922: the AI SDK v7 integration sends verbatim LanguageModel
+        // prompts/responses via `gen_ai.input.messages` / `gen_ai.output.messages`
+        // — `{role, content}` messages with dash-typed parts (`tool-call`,
+        // `tool-result`, `reasoning`), LanguageModel `file` parts, and
+        // `providerOptions` / `providerMetadata`. The app-server must treat them
+        // opaquely: deserialize the JSON string, reshape nothing (the frontend
+        // owns rendering).
+        let input_messages = json!([
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": [
+                {"type": "text", "text": "What is in this image?"},
+                {"type": "file", "data": "https://example.com/pic.png", "mediaType": "image/png"}
+            ]},
+            {"role": "assistant", "content": [
+                {"type": "reasoning", "text": "Let me look.", "providerOptions": {"anthropic": {"signature": "sig"}}},
+                {"type": "tool-call", "toolCallId": "call_1", "toolName": "describe_image", "input": {"detail": "high"}}
+            ]},
+            {"role": "tool", "content": [
+                {"type": "tool-result", "toolCallId": "call_1", "toolName": "describe_image", "output": {"type": "json", "value": {"objects": ["logo"]}}}
+            ]}
+        ]);
+        let output_messages = json!([
+            {"role": "assistant", "content": [
+                {"type": "text", "text": "The image shows a logo.", "providerMetadata": {"openai": {"itemId": "msg_1"}}}
+            ]}
+        ]);
+
+        let attributes = HashMap::from([
+            (
+                "gen_ai.input.messages".to_string(),
+                json!(input_messages.to_string()),
+            ),
+            (
+                "gen_ai.output.messages".to_string(),
+                json!(output_messages.to_string()),
+            ),
+        ]);
+
+        let mut span = make_llm_span(attributes);
+        span.parse_and_enrich_attributes();
+
+        // Byte-for-byte pass-through: only the serialized string is parsed.
+        assert_eq!(span.input, Some(input_messages));
+        assert_eq!(span.output, Some(output_messages));
+
+        // Consumed so they don't leak into the Attributes tab.
+        assert!(
+            !span
+                .attributes
+                .raw_attributes
+                .contains_key("gen_ai.input.messages")
+        );
+        assert!(
+            !span
+                .attributes
+                .raw_attributes
+                .contains_key("gen_ai.output.messages")
+        );
+    }
+
+    #[test]
+    fn test_verbatim_genai_messages_take_precedence_over_ai_prompt_messages() {
+        // Transition safety (LAM-1922 rollout): if a span carries BOTH the legacy
+        // `ai.prompt.messages` reshape and verbatim `gen_ai.input.messages` /
+        // `gen_ai.output.messages`, the verbatim GenAI attributes win — the
+        // GenAI block runs after the legacy handlers and overwrites input/output.
+        let verbatim_input = json!([
+            {"role": "user", "content": [
+                {"type": "tool-call", "toolCallId": "c1", "toolName": "t", "input": {}}
+            ]}
+        ]);
+        let verbatim_output = json!([
+            {"role": "assistant", "content": [{"type": "text", "text": "verbatim answer"}]}
+        ]);
+
+        let attributes = HashMap::from([
+            (
+                "ai.prompt.messages".to_string(),
+                json!(r#"[{"role":"user","content":[{"type":"text","text":"legacy prompt"}]}]"#),
+            ),
+            ("ai.response.text".to_string(), json!("legacy answer")),
+            (
+                "gen_ai.input.messages".to_string(),
+                json!(verbatim_input.to_string()),
+            ),
+            (
+                "gen_ai.output.messages".to_string(),
+                json!(verbatim_output.to_string()),
+            ),
+        ]);
+
+        let mut span = make_llm_span(attributes);
+        span.parse_and_enrich_attributes();
+
+        assert_eq!(span.input, Some(verbatim_input));
+        assert_eq!(span.output, Some(verbatim_output));
+    }
+
+    #[test]
+    fn test_normalize_aisdk_does_not_touch_verbatim_genai_messages() {
+        // `normalize_aisdk_attributes` copies `{prefix}.prompt.messages` →
+        // `ai.prompt.messages` (and token attrs) but must never synthesize or
+        // rewrite `gen_ai.input.messages` / `gen_ai.output.messages`. When a span
+        // carries both the operation-prefixed legacy attrs and the verbatim GenAI
+        // attrs, the verbatim input/output still win end-to-end.
+        let verbatim_input = json!([
+            {"role": "user", "content": [{"type": "text", "text": "verbatim"}]}
+        ]);
+
+        let attributes = HashMap::from([
+            ("aisdk.model.id".to_string(), json!("gpt-4o")),
+            ("generateText.usage.inputTokens".to_string(), json!(50)),
+            ("generateText.usage.outputTokens".to_string(), json!(100)),
+            (
+                "generateText.prompt.messages".to_string(),
+                json!(r#"[{"role":"user","content":[{"type":"text","text":"legacy"}]}]"#),
+            ),
+            (
+                "gen_ai.input.messages".to_string(),
+                json!(verbatim_input.to_string()),
+            ),
+        ]);
+
+        let mut span = make_llm_span(attributes);
+        span.parse_and_enrich_attributes();
+
+        // Token/model normalization still applies…
+        assert_eq!(span.attributes.input_tokens().total(), 50);
+        assert_eq!(span.attributes.output_tokens(), 100);
+        // …but the verbatim GenAI input overwrites the legacy reshape.
+        assert_eq!(span.input, Some(verbatim_input));
+        // Normalization never fabricates verbatim GenAI attributes.
+        assert!(
+            !span
+                .attributes
+                .raw_attributes
+                .contains_key("gen_ai.output.messages")
+        );
+    }
+
+    #[test]
     fn metadata_only_span_skips_clickhouse_and_metadata_extraction_works() {
         let attributes = HashMap::from([
             (

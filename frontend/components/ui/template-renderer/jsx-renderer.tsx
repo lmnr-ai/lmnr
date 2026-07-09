@@ -1,10 +1,13 @@
+import { Eye } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
+import { normalizeTemplateCode } from "./normalize";
 import { LAMINAR_IFRAME_THEME, laminarIframeThemeJson } from "./theme";
 
 const MESSAGE_TYPE = "__TEMPLATE_DATA_UPDATE__";
+const SELECT_SPAN_MESSAGE_TYPE = "__TEMPLATE_SELECT_SPAN__";
 
 const createIframeContent = (templateCode: string): string => {
   const escapedTemplateCode = templateCode
@@ -69,7 +72,7 @@ const createIframeContent = (templateCode: string): string => {
     *::-webkit-scrollbar-thumb { background: ${LAMINAR_IFRAME_THEME.colors.border}; border-radius: 10px; }
     *::-webkit-scrollbar-thumb:hover { background: ${LAMINAR_IFRAME_THEME.colors.border}CC; }
     html, body { scrollbar-color: ${LAMINAR_IFRAME_THEME.colors.border} ${LAMINAR_IFRAME_THEME.colors.border}33; }
-    .error { color: ${LAMINAR_IFRAME_THEME.colors.destructive.DEFAULT}; }
+    .error { color: ${LAMINAR_IFRAME_THEME.colors["destructive-bright"]}; padding: 1rem; font-size: 0.875rem; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
   </style>
 </head>
@@ -79,6 +82,9 @@ const createIframeContent = (templateCode: string): string => {
   <script type="module">
     const parentOrigin = window.origin;
     const LAMINAR_THEME = ${themeJson};
+
+    // Lets templates request a span selection in the parent trace view.
+    const selectSpan = (spanId) => { if (typeof spanId === 'string' && spanId) window.parent.postMessage({ type: '${SELECT_SPAN_MESSAGE_TYPE}', spanId }, parentOrigin); };
 
     class TemplateRenderer {
       constructor() {
@@ -145,9 +151,9 @@ const createIframeContent = (templateCode: string): string => {
         const { useState, useEffect, useMemo, useRef, useCallback, useContext } = preactHooks;
         
         const templateFunction = new Function(
-          'h', 'Fragment', 'useState', 'useEffect', 'useMemo', 'useRef', 'useCallback', 'useContext',
+          'h', 'Fragment', 'useState', 'useEffect', 'useMemo', 'useRef', 'useCallback', 'useContext', 'selectSpan',
           'return ' + this.compiledCode
-        )(h, Fragment, useState, useEffect, useMemo, useRef, useCallback, useContext);
+        )(h, Fragment, useState, useEffect, useMemo, useRef, useCallback, useContext, selectSpan);
         
         if (typeof templateFunction !== 'function') {
           throw new Error('Template must be a function');
@@ -210,7 +216,7 @@ const createErrorContent = (message: string): string => `
   <meta charset="utf-8">
   <style>
     body { margin: 0; padding: 1rem; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: ${LAMINAR_IFRAME_THEME.colors.background}; color: ${LAMINAR_IFRAME_THEME.colors.foreground}; }
-    .error { color: ${LAMINAR_IFRAME_THEME.colors.destructive.DEFAULT}; background: rgba(204, 51, 51, 0.08); padding: 1rem; border-radius: 0.375rem; border: 1px solid ${LAMINAR_IFRAME_THEME.colors.border}; }
+    .error { color: ${LAMINAR_IFRAME_THEME.colors["destructive-bright"]}; background: rgba(204, 51, 51, 0.08); padding: 1rem; border-radius: 0.375rem; border: 1px solid ${LAMINAR_IFRAME_THEME.colors.border}; font-size: 0.875rem; }
   </style>
 </head>
 <body>
@@ -220,21 +226,6 @@ const createErrorContent = (message: string): string => `
   </div>
 </body>
 </html>`;
-
-const normalizeTemplateCode = (code: string): string => {
-  const trimmedCode = code.trim();
-
-  const functionMatch = trimmedCode.match(/^function\s*\((.*?)\)\s*{([\s\S]*)}$/);
-  if (functionMatch) {
-    return `(${functionMatch[1]}) => {${functionMatch[2]}}`;
-  }
-
-  if (!trimmedCode.startsWith("(") && !trimmedCode.startsWith("function")) {
-    return `({ data }) => {${trimmedCode}}`;
-  }
-
-  return trimmedCode;
-};
 
 const parseData = (data: any): any => {
   try {
@@ -249,21 +240,41 @@ interface JsxRendererProps {
   data: any;
   className?: string;
   autoHeight?: boolean;
+  onSelectSpan?: (spanId: string) => void;
 }
 
-const JsxRenderer = ({ code, data, className, autoHeight = false }: JsxRendererProps) => {
+const JsxRenderer = ({ code, data, className, autoHeight = false, onSelectSpan }: JsxRendererProps) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const pendingDataRef = useRef<any>(null);
   const iframeReadyRef = useRef(false);
+  // Latest data, read by the [code] effect when the iframe (re)initializes so a
+  // freshly-mounted iframe (e.g. after the empty-state → populated transition)
+  // gets queued data even when `data` itself didn't change.
+  const latestDataRef = useRef(data);
+
+  // Keep the latest callback + data available to the [code]-keyed message
+  // listener. Declared before the [code] effect so it runs first on each commit.
+  const onSelectSpanRef = useRef(onSelectSpan);
+  useEffect(() => {
+    onSelectSpanRef.current = onSelectSpan;
+    latestDataRef.current = data;
+  });
 
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe) return;
 
     iframeReadyRef.current = false;
+    // Queue current data for this (re)initialized iframe's READY. The [data]
+    // effect only fires on data change, so it misses the empty→populated mount.
+    pendingDataRef.current = parseData(latestDataRef.current);
 
     const handleReady = (event: MessageEvent) => {
       if (event.source !== iframe.contentWindow) return;
+      if (event.data?.type === SELECT_SPAN_MESSAGE_TYPE && typeof event.data.spanId === "string") {
+        onSelectSpanRef.current?.(event.data.spanId);
+        return;
+      }
       if (event.data?.type !== `${MESSAGE_TYPE}_READY`) return;
       iframeReadyRef.current = true;
 
@@ -334,6 +345,19 @@ const JsxRenderer = ({ code, data, className, autoHeight = false }: JsxRendererP
       observer?.disconnect();
     };
   }, [autoHeight]);
+
+  // Nothing generated / written yet — show an empty state instead of a blank iframe.
+  if (!code?.trim()) {
+    return (
+      <div className={cn("flex h-full w-full flex-col items-center justify-center gap-2 p-6 text-center", className)}>
+        <Eye className="size-6 text-muted-foreground" />
+        <h3 className="text-sm font-medium text-secondary-foreground">Nothing to preview yet</h3>
+        <p className="max-w-xs text-xs text-muted-foreground">
+          Generate a template or write your own in the Code tab to see a live preview.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <iframe

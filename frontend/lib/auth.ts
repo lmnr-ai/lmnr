@@ -12,6 +12,7 @@ import { localEmail } from "@/lib/auth-local-email";
 import { db } from "@/lib/db/drizzle";
 import * as schema from "@/lib/db/migrations/schema";
 import { membersOfWorkspaces, users, workspaceInvitations } from "@/lib/db/migrations/schema";
+import { createLoopsContact } from "@/lib/loops";
 import PostHogClient from "@/lib/posthog/server";
 import { BASE_PATH } from "@/lib/utils";
 
@@ -269,6 +270,12 @@ export const auth = betterAuth({
       create: {
         after: async (user) => {
           trackUserCreated(user.email);
+          await createLoopsContact({
+            email: user.email,
+            userId: user.id,
+            name: user.name,
+            createdAt: user.createdAt,
+          });
         },
       },
     },
