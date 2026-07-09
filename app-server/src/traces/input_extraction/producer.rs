@@ -82,7 +82,6 @@ fn span_depth(attributes: &mut SpanAttributes, span_name: &str) -> usize {
 /// application on hit, enqueue for LLM regex generation on miss. All
 /// failures are logged and swallowed — user-task extraction must never
 /// block or fail span ingestion.
-#[instrument(skip_all)]
 pub async fn process_user_task_candidates(
     candidates: Vec<UserTaskSpanContext>,
     project_id: Uuid,
