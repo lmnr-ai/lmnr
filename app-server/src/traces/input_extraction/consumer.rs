@@ -52,7 +52,14 @@ impl MessageHandler for InputExtractionHandler {
         // span is created here (and only here — the consumer is off the
         // ingest path, so exported spans can't recurse through
         // `push_spans_to_queue`).
-        let result = match try_apply_cached_regex(&self.cache, &key, &message.signposted_text).await
+        let result = match try_apply_cached_regex(
+            &self.cache,
+            &key,
+            &message.signposted_text,
+            message.project_id,
+            message.trace_id,
+        )
+        .await
         {
             Some(result) => result,
             None => {
