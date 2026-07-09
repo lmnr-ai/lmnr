@@ -91,9 +91,12 @@ export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }:
   }, [isFetching, hasMore, currentPage, fetchPage]);
 
   const refetch = useCallback(() => {
+    // Same guard as the deps effect below: fetchPage no-ops when disabled,
+    // so resetting first would clear the table without a follow-up load.
+    if (!enabled || isViewLoading) return;
     resetInfiniteScroll();
     fetchPage(0, true);
-  }, [fetchPage]);
+  }, [fetchPage, enabled, isViewLoading, resetInfiniteScroll]);
 
   const updateData = useCallback((updater: (prevData: TData[]) => TData[]) => {
     setData(updater);
