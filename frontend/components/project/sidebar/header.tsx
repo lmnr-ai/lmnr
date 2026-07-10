@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/sidebar.tsx";
 import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
 import { useProjectContext } from "@/contexts/project-context.tsx";
+import { tierDisplayName } from "@/lib/billing/tiers";
 import { LAST_ID_COOKIE_MAX_AGE, LAST_PROJECT_ID, LAST_WORKSPACE_ID } from "@/lib/cookies";
 import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast.ts";
@@ -255,7 +256,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                                     { "border-primary bg-primary/10 text-primary": w.tierName === "Pro" }
                                   )}
                                 >
-                                  {w.tierName}
+                                  {tierDisplayName(w.tierName)}
                                 </span>
                               </DropdownMenuItem>
                             ))}

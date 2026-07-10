@@ -136,9 +136,9 @@ export default function WorkspaceBilling({
   const [isLoadingPortal, setIsLoadingPortal] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const currentTierKey: TierKey = subscription
-    ? (subscription.currentTier as TierKey)
-    : (workspace.tierName.toLowerCase() as TierKey);
+  // DB rows may carry the "Starter" display name for the internal "hobby" tier.
+  const workspaceTierKey = workspace.tierName.toLowerCase() === "starter" ? "hobby" : workspace.tierName.toLowerCase();
+  const currentTierKey: TierKey = subscription ? (subscription.currentTier as TierKey) : (workspaceTierKey as TierKey);
   const currentTierInfo = TIERS.find((t) => t.key === currentTierKey)?.info;
   const isFree = currentTierKey === "free";
 

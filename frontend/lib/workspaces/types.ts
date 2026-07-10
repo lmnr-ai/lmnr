@@ -30,7 +30,8 @@ export interface WorkspaceDeploymentSettings {
 export enum WorkspaceTier {
   FREE = "Free",
   PRO = "Pro",
-  HOBBY = "Hobby",
+  // Display name for the internal "hobby" tier (renamed from "Hobby").
+  HOBBY = "Starter",
   ENTERPRISE = "Enterprise",
 }
 

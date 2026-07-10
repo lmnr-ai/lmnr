@@ -309,7 +309,7 @@ export default function PricingCalculator() {
   const displayedSignalCostUsd = state === "pro" ? pro.signalCostUsd : hobby.signalCostUsd;
 
   const freeTooltip = "Your usage fits within the Free tier. No payment needed.";
-  const hobbyTooltip = "Most teams at this usage level choose Hobby as the safer, more predictable option.";
+  const hobbyTooltip = "Most teams at this usage level choose Starter as the safer, more predictable option.";
   const proTooltip = "Most teams at this usage level choose Pro as the safer, more predictable option.";
   const enterpriseTooltip = "Most teams at this scale choose Enterprise as the safer, more cost-effective option.";
 
