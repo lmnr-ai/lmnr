@@ -12,6 +12,16 @@ const bodySchema = z.object({
   traceIds: z.array(z.guid()).min(1).max(100),
 });
 
+const USER_TASK_METADATA_KEY = "lmnr_user_task";
+
+const USER_TASK_METADATA_QUERY = `
+  SELECT
+    id AS traceId,
+    simpleJSONExtractString(metadata, '${USER_TASK_METADATA_KEY}') AS userTask
+  FROM traces
+  WHERE id IN ({traceIds: Array(UUID)})
+`;
+
 const TOP_PATH_QUERY = `
     SELECT
       parent_path AS path,
@@ -95,7 +105,13 @@ export async function getMainAgentIOBatch({
 }): Promise<Record<string, TraceIOResult>> {
   const parsed = bodySchema.parse({ traceIds });
 
-  const traceData = await Promise.all(parsed.traceIds.map((traceId) => fetchTraceData(traceId, projectId)));
+  const userTaskByTrace = await fetchUserTaskMetadata(parsed.traceIds, projectId);
+
+  const traceData = await Promise.all(
+    parsed.traceIds.map((traceId) => fetchTraceData(traceId, projectId, { skipInput: userTaskByTrace.has(traceId) }))
+  );
+
+  const results: Record<string, TraceIOResult> = {};
 
   // Group by (systemHash, fingerprint). The fingerprint captures the top-level
   // XML-tag structure of the joined user message so traces whose user messages
@@ -104,6 +120,13 @@ export async function getMainAgentIOBatch({
   const noHashTraces: TraceWithParsedInput[] = [];
 
   for (const trace of traceData) {
+    // Prefer the ingestion-time user task when present; skip the on-read
+    // extraction entirely for these traces. Output still comes from the spans.
+    const userTask = userTaskByTrace.get(trace.traceId);
+    if (userTask) {
+      results[trace.traceId] = { inputPreview: userTask, outputPreview: trace.output, outputSpan: null };
+      continue;
+    }
     if (!trace.promptHash) {
       noHashTraces.push(trace);
       continue;
@@ -118,8 +141,6 @@ export async function getMainAgentIOBatch({
       byGroupKey.set(groupKey, { hash: trace.promptHash, fingerprint, traces: [trace] });
     }
   }
-
-  const results: Record<string, TraceIOResult> = {};
 
   for (const trace of noHashTraces) {
     results[trace.traceId] = {
@@ -178,6 +199,25 @@ export async function getTraceUserInput(traceId: string, projectId: string): Pro
   return results[traceId]?.inputPreview ?? rawInput;
 }
 
+// Batch-fetch the ingestion-time `lmnr_user_task` for every trace. Returns a
+// map of traceId -> user task, containing only traces whose task is a non-empty
+// string (absent / `false` values are omitted so callers fall back cleanly).
+async function fetchUserTaskMetadata(traceIds: string[], projectId: string): Promise<Map<string, string>> {
+  const rows = await executeQuery<{ traceId: string; userTask: string }>({
+    query: USER_TASK_METADATA_QUERY,
+    parameters: { traceIds },
+    projectId,
+  });
+
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    if (row.userTask && row.userTask.length > 0) {
+      map.set(row.traceId, row.userTask);
+    }
+  }
+  return map;
+}
+
 async function fetchTraceInputOnly(traceId: string, projectId: string): Promise<TraceWithParsedInput> {
   const pathRows = await executeQuery<{ path: string; promptHash: string }>({
     query: TOP_PATH_QUERY,
@@ -212,7 +252,13 @@ async function fetchTraceInputOnly(traceId: string, projectId: string): Promise<
   };
 }
 
-async function fetchTraceData(traceId: string, projectId: string): Promise<TraceWithParsedInput> {
+// `skipInput` omits the heavy input-column read (INPUT_QUERY) for traces whose
+// input we already have from metadata; output is still resolved from spans.
+async function fetchTraceData(
+  traceId: string,
+  projectId: string,
+  { skipInput = false }: { skipInput?: boolean } = {}
+): Promise<TraceWithParsedInput> {
   const pathRows = await executeQuery<{ path: string; promptHash: string }>({
     query: TOP_PATH_QUERY,
     parameters: { traceId },
@@ -226,11 +272,13 @@ async function fetchTraceData(traceId: string, projectId: string): Promise<Trace
   const { path: topPath, promptHash: topPromptHash } = pathRows[0];
 
   const [inputRows, outputRows] = await Promise.all([
-    executeQuery<InputQueryRow>({
-      query: INPUT_QUERY,
-      parameters: { traceId, path: topPath, promptHash: topPromptHash ?? "" },
-      projectId,
-    }),
+    skipInput
+      ? Promise.resolve([] as InputQueryRow[])
+      : executeQuery<InputQueryRow>({
+          query: INPUT_QUERY,
+          parameters: { traceId, path: topPath, promptHash: topPromptHash ?? "" },
+          projectId,
+        }),
     executeQuery<{ spanId: string; data: string; name: string }>({
       query: OUTPUT_QUERY,
       parameters: { traceId, path: topPath, promptHash: topPromptHash ?? "" },
