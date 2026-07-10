@@ -14,17 +14,10 @@ const bodySchema = z.object({
 
 const USER_TASK_METADATA_KEY = "lmnr_user_task";
 
-// The metadata value is a string (extracted task) or boolean false ("extraction
-// ran, found nothing"). Extract only when it's a JSON string so boolean values
-// yield '' and fall back to on-read extraction.
 const USER_TASK_METADATA_QUERY = `
   SELECT
     id AS traceId,
-    if(
-      JSONType(metadata, '${USER_TASK_METADATA_KEY}') = 'String',
-      JSONExtractString(metadata, '${USER_TASK_METADATA_KEY}'),
-      ''
-    ) AS userTask
+    simpleJSONExtractString(metadata, '${USER_TASK_METADATA_KEY}') AS userTask
   FROM traces
   WHERE id IN ({traceIds: Array(UUID)})
 `;
@@ -215,8 +208,7 @@ export async function getTraceUserInput(traceId: string, projectId: string): Pro
 
 // Batch-fetch the ingestion-time `lmnr_user_task` for every trace. Returns a
 // map of traceId -> user task, containing only traces whose task is a non-empty
-// string (absent / empty / boolean values are omitted so callers fall back
-// cleanly to on-read extraction).
+// string (absent / `false` values are omitted so callers fall back cleanly).
 async function fetchUserTaskMetadata(traceIds: string[], projectId: string): Promise<Map<string, string>> {
   const rows = await executeQuery<{ traceId: string; userTask: string }>({
     query: USER_TASK_METADATA_QUERY,
