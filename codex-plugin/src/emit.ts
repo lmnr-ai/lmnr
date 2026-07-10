@@ -321,7 +321,7 @@ export function getNewTurnsFromRollout(
   flushIncompleteTurns = false
 ): [Turn[], SessionState] {
   let rows: Row[];
-  [rows, sessionState] = readNewJsonl(transcriptPath, sessionState, flushIncompleteTurns);
+  [rows, sessionState] = readNewJsonl(transcriptPath, sessionState);
   // Replay an incomplete trailing turn held from a prior run (chronologically
   // oldest), then let it flow through the normal pipeline.
   if (sessionState.pendingTurnRows.length > 0) {

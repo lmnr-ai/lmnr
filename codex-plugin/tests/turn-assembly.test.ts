@@ -204,18 +204,43 @@ describe("incremental rollout reading", () => {
     assert.equal(batch[0].payload.role, "assistant");
   });
 
-  it("buffers a partial trailing line and flushes complete unterminated final line", () => {
+  it("parses a complete unterminated final line immediately and keeps a genuinely partial one buffered", () => {
     const rows = [sessionMetaLine(), userMessageLine("hi")];
     const file = writeRollout(rows, false); // no trailing newline
     let state = new SessionState();
     let batch: any[];
     [batch, state] = readNewJsonl(file, state);
-    // Last line has no newline -> held in buffer.
-    assert.equal(batch.length, 1);
+    // Complete-but-unterminated final line parses on the same read.
+    assert.equal(batch.length, 2);
+    assert.equal(state.buffer, "");
+
+    // A truly partial trailing line stays buffered...
+    const partial = JSON.stringify(assistantMessageLine("hello"));
+    fs.appendFileSync(file, "\n" + partial.slice(0, 20));
+    [batch, state] = readNewJsonl(file, state);
+    assert.equal(batch.length, 0);
     assert.ok(state.buffer.length > 0);
-    // Flush mode parses the buffered complete line.
-    [batch, state] = readNewJsonl(file, state, true);
+
+    // ...and completes once the rest of its bytes arrive.
+    fs.appendFileSync(file, partial.slice(20));
+    [batch, state] = readNewJsonl(file, state);
     assert.equal(batch.length, 1);
+    assert.equal(batch[0].payload.role, "assistant");
+    assert.equal(state.buffer, "");
+  });
+
+  it("emits a turn whose task_complete lacks a trailing newline without needing more appends", () => {
+    const file = writeRollout(
+      [sessionMetaLine(), turnContextLine(), userMessageLine("q1"), assistantMessageLine("a1"), taskCompleteLine("a1")],
+      false // task_complete is the unterminated final line
+    );
+    let state = new SessionState();
+    let turns: any[];
+    [turns, state] = getNewTurnsFromRollout(file, state); // flushIncompleteTurns defaults to false
+    assert.equal(turns.length, 1);
+    assert.equal(turns[0].completed, true);
+    assert.equal(turns[0].lastAssistantText, "a1");
+    assert.equal(state.pendingTurnRows.length, 0);
     assert.equal(state.buffer, "");
   });
 

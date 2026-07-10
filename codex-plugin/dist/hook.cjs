@@ -25193,11 +25193,9 @@ function flushBufferedRow(sessionState) {
     return [];
   }
 }
-function readNewJsonl(transcriptPath, sessionState, flushBuffer = false) {
+function readNewJsonl(transcriptPath, sessionState) {
   const [msgs, state] = readNewJsonlIncremental(transcriptPath, sessionState);
-  if (flushBuffer) {
-    msgs.push(...flushBufferedRow(state));
-  }
+  msgs.push(...flushBufferedRow(state));
   return [msgs, state];
 }
 function readNewJsonlIncremental(transcriptPath, sessionState) {
@@ -26066,7 +26064,7 @@ function captureSessionMeta(rows, sessionState) {
 }
 function getNewTurnsFromRollout(transcriptPath, sessionState, flushIncompleteTurns = false) {
   let rows;
-  [rows, sessionState] = readNewJsonl(transcriptPath, sessionState, flushIncompleteTurns);
+  [rows, sessionState] = readNewJsonl(transcriptPath, sessionState);
   if (sessionState.pendingTurnRows.length > 0) {
     rows = [...sessionState.pendingTurnRows, ...rows];
     sessionState.pendingTurnRows = [];

@@ -150,18 +150,14 @@ function flushBufferedRow(sessionState: SessionState): Row[] {
 /**
  * Reads only new bytes since sessionState.offset. Keeps sessionState.buffer for
  * the partial last line. Returns parsed JSON rows and the mutated state.
- * With flushBuffer, a buffered final line that parses as complete JSON is
- * returned instead of being held.
+ * A buffered final line that parses as complete JSON is always returned rather
+ * than held: Codex may not newline-terminate the last row (often task_complete)
+ * before the hook fires, and once the offset reaches EOF a later run reads zero
+ * new bytes and would never revisit the buffer.
  */
-export function readNewJsonl(
-  transcriptPath: string,
-  sessionState: SessionState,
-  flushBuffer = false
-): [Row[], SessionState] {
+export function readNewJsonl(transcriptPath: string, sessionState: SessionState): [Row[], SessionState] {
   const [msgs, state] = readNewJsonlIncremental(transcriptPath, sessionState);
-  if (flushBuffer) {
-    msgs.push(...flushBufferedRow(state));
-  }
+  msgs.push(...flushBufferedRow(state));
   return [msgs, state];
 }
 

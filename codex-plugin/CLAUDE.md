@@ -36,7 +36,7 @@ Laminar observability hook for the OpenAI Codex CLI. Parses Codex rollout JSONL 
 - **At-least-once export:** state (offset/turnCount) is persisted only AFTER a successful export. Duplicates on retry are acceptable; silent data loss is not.
 - **Per-turn emit failures** (malformed rows) are logged and the turn is skipped — it would fail identically on retry, so it must not poison the offset.
 - **Incomplete trailing turns** (no `task_complete` yet) are held via `pendingTurnRows` and replayed on the next invocation, unless `flushIncompleteTurns` is set.
-- **Partial trailing lines:** the reader keeps an unterminated final line in `sessionState.buffer`; at flush time it attempts to parse it anyway (Codex may not newline-terminate the last row before the hook fires).
+- **Partial trailing lines:** the reader keeps an unterminated final line in `sessionState.buffer`, but `readNewJsonl` ALWAYS attempts to parse the buffered line on every read (a complete-but-unterminated row — often `task_complete` — is consumed; a genuinely partial line fails JSON.parse and stays buffered). This must be unconditional: the offset advances to EOF regardless, so once no more bytes are appended a gated flush would strand the row forever.
 - **File shrink detection:** if the rollout is smaller than the stored offset, reset offset/buffer and re-read from zero.
 - **State locking:** all read-modify-write of `lmnr_state.json` happens under proper-lockfile (`withStateLock`) — concurrent hook invocations are real (subagents).
 
