@@ -81,16 +81,25 @@ function buildGenerationInputMessages(stepIndex: number, userText: string, previ
 }
 
 function buildGenerationOutputMessage(step: Step): Row {
+  // OTel GenAI semconv `{role, parts}` shape — the only output format Laminar's
+  // frontend renders reasoning distinctly (an extra key on the OpenAI chat
+  // shape would be silently stripped by its schema).
+  const parts: Row[] = [];
+  const [reasoningText] = truncateText(step.reasoningText);
+  if (reasoningText) {
+    parts.push({ type: "thinking", content: reasoningText });
+  }
   const [assistantText] = truncateText(step.assistantText);
-  const output: Row = { role: "assistant", content: assistantText };
-  if (step.toolCalls.length > 0) {
-    output.tool_calls = step.toolCalls.map((call) => ({
+  parts.push({ type: "text", content: assistantText });
+  for (const call of step.toolCalls) {
+    parts.push({
+      type: "tool_call",
       id: call.callId,
       name: call.name,
       arguments: typeof call.input === "object" && call.input !== null && !Array.isArray(call.input) ? call.input : {},
-    }));
+    });
   }
-  return output;
+  return { role: "assistant", parts };
 }
 
 function buildGenerationAttributes(

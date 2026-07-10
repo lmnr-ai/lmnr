@@ -25890,16 +25890,22 @@ function buildGenerationInputMessages(stepIndex, userText, previousStep) {
   return [{ role: "user", content: userText }];
 }
 function buildGenerationOutputMessage(step) {
+  const parts = [];
+  const [reasoningText] = truncateText(step.reasoningText);
+  if (reasoningText) {
+    parts.push({ type: "thinking", content: reasoningText });
+  }
   const [assistantText] = truncateText(step.assistantText);
-  const output = { role: "assistant", content: assistantText };
-  if (step.toolCalls.length > 0) {
-    output.tool_calls = step.toolCalls.map((call) => ({
+  parts.push({ type: "text", content: assistantText });
+  for (const call of step.toolCalls) {
+    parts.push({
+      type: "tool_call",
       id: call.callId,
       name: call.name,
       arguments: typeof call.input === "object" && call.input !== null && !Array.isArray(call.input) ? call.input : {}
-    }));
+    });
   }
-  return output;
+  return { role: "assistant", parts };
 }
 function buildGenerationAttributes(stepIndex, step, userText, previousStep, model) {
   const attrs = {

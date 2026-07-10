@@ -85,7 +85,13 @@ describe("emitTurn span structure", () => {
     const input1 = JSON.parse(attrs(llm1)["gen_ai.input.messages"]);
     assert.deepEqual(input1, [{ role: "user", content: "list files" }]);
     const output1 = JSON.parse(attrs(llm1)["gen_ai.output.messages"]);
-    assert.equal(output1[0].tool_calls[0].name, "shell");
+    assert.equal(output1[0].role, "assistant");
+    const thinkingPart = output1[0].parts.find((p: any) => p.type === "thinking");
+    assert.equal(thinkingPart.content, "thinking");
+    const toolCallPart = output1[0].parts.find((p: any) => p.type === "tool_call");
+    assert.equal(toolCallPart.name, "shell");
+    assert.equal(toolCallPart.id, "call_1");
+    assert.deepEqual(toolCallPart.arguments, { command: ["ls"] });
 
     const llm2 = byName["LLM Call 2"]!;
     const input2 = JSON.parse(attrs(llm2)["gen_ai.input.messages"]);
