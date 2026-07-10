@@ -14,7 +14,9 @@ use tracing::{Instrument, info_span};
 use uuid::Uuid;
 
 use super::prompt::{SYSTEM_INSTRUCTIONS, build_user_message};
-use super::tool::{REGEX_TOOL_NAME, RegexToolInput, regex_tool, run_regex_tool};
+use super::tool::{
+    LabeledRegex, REGEX_TOOL_NAME, RegexToolInput, patterns, regex_tool, run_regex_tool,
+};
 use crate::instrumentation::spans::{self, InternalSpan, SpanContextCarrier, SpanType};
 use crate::llm::models::ModelSize;
 use crate::llm::{
@@ -91,9 +93,9 @@ pub struct ExtractionTracing {
 
 #[derive(Debug)]
 pub struct ExtractionResult {
-    /// Ordered removal regexes; empty when the agent loop failed to produce a
-    /// usable answer.
-    pub regexes: Vec<String>,
+    /// Ordered labeled removal regexes; empty when the agent loop failed to
+    /// produce a usable answer.
+    pub regexes: Vec<LabeledRegex>,
     /// Total `regex`-tool invocations across all retry attempts.
     pub tool_calls: usize,
 }
@@ -101,11 +103,12 @@ pub struct ExtractionResult {
 /// What the agent loop produced.
 struct AgentOutcome {
     /// Parsed final answer; empty falls back to the tool-verified candidate.
-    regexes: Vec<String>,
+    regexes: Vec<LabeledRegex>,
     tool_calls: usize,
     /// Latest tool-call input whose RESULT had `isValid` and
-    /// `isResultInAllIdenticalOutput` — the fallback candidate.
-    tool_verified: Option<Vec<String>>,
+    /// `isResultInAllIdenticalOutput` — the fallback candidate (labels come
+    /// from the same tool call, so the fallback stays labeled).
+    tool_verified: Option<Vec<LabeledRegex>>,
 }
 
 /// The tool's full success criteria: every pattern compiled and ran, all
@@ -155,9 +158,9 @@ pub async fn extract_static_regexes(
 
     let user_message = build_user_message(examples, config.include_diff);
     let result = async {
-        let mut regexes: Vec<String> = Vec::new();
+        let mut regexes: Vec<LabeledRegex> = Vec::new();
         let mut tool_calls = 0;
-        let mut tool_verified: Option<Vec<String>> = None;
+        let mut tool_verified: Option<Vec<LabeledRegex>> = None;
 
         match run_agent_loop(llm_client, examples, &user_message, config, tracing_ctx).await {
             Ok(outcome) => {
@@ -218,7 +221,7 @@ async fn run_agent_loop(
 ) -> Result<AgentOutcome, ProviderError> {
     let mut contents = vec![text_content(Some("user"), user_message)];
     let mut tool_calls = 0;
-    let mut tool_verified: Option<Vec<String>> = None;
+    let mut tool_verified: Option<Vec<LabeledRegex>> = None;
 
     for step in 0..config.max_steps {
         let request = ProviderRequest {
@@ -343,9 +346,10 @@ async fn run_agent_loop(
                         fc.args.clone().unwrap_or(Value::Null),
                     ) {
                         Ok(input) => {
-                            let output = run_regex_tool(&input.regexes, examples);
+                            let labeled = input.into_labeled();
+                            let output = run_regex_tool(&patterns(&labeled), examples);
                             if tool_output_verified(&output) {
-                                tool_verified = Some(input.regexes);
+                                tool_verified = Some(labeled);
                             }
                             output
                         }
@@ -382,11 +386,11 @@ async fn run_agent_loop(
 
 /// True iff `regexes` is non-empty, every pattern compiles and runs, and
 /// applying them collapses every example to the same residual.
-fn regexes_collapse_examples(regexes: &[String], examples: &[String]) -> bool {
+fn regexes_collapse_examples(regexes: &[LabeledRegex], examples: &[String]) -> bool {
     if regexes.is_empty() {
         return false;
     }
-    tool_output_verified(&run_regex_tool(regexes, examples))
+    tool_output_verified(&run_regex_tool(&patterns(regexes), examples))
 }
 
 fn text_content(role: Option<&str>, text: &str) -> ProviderContent {
@@ -399,37 +403,42 @@ fn text_content(role: Option<&str>, text: &str) -> ProviderContent {
     }
 }
 
-/// Parse the model's final answer into an ordered regex list. Defensive, in
-/// order: bare JSON array → first fenced block (optional `json` tag) → first
-/// `[`…`]` span. Anything unparseable yields an empty list, which falls back
-/// to the tool-verified candidate.
-fn parse_final_answer(text: &str) -> Vec<String> {
+/// Parse the model's final answer into an ordered labeled-regex list.
+/// Defensive, in order: bare JSON array → first fenced block (optional `json`
+/// tag) → first `[`…`]` span. Anything unparseable yields an empty list,
+/// which falls back to the tool-verified candidate.
+fn parse_final_answer(text: &str) -> Vec<LabeledRegex> {
     let trimmed = text.trim();
-    if let Some(regexes) = parse_string_array(trimmed) {
+    if let Some(regexes) = parse_labeled_array(trimmed) {
         return regexes;
     }
     if let Some(fenced) = extract_fenced_block(trimmed)
-        && let Some(regexes) = parse_string_array(fenced.trim())
+        && let Some(regexes) = parse_labeled_array(fenced.trim())
     {
         return regexes;
     }
     if let (Some(start), Some(end)) = (trimmed.find('['), trimmed.rfind(']'))
         && start < end
-        && let Some(regexes) = parse_string_array(&trimmed[start..=end])
+        && let Some(regexes) = parse_labeled_array(&trimmed[start..=end])
     {
         return regexes;
     }
     Vec::new()
 }
 
-/// `Some` only when `text` is a JSON array of strings.
-fn parse_string_array(text: &str) -> Option<Vec<String>> {
+/// `Some` only when `text` is a JSON array of `{pattern, label}` objects
+/// (bare pattern strings tolerated with an empty label).
+fn parse_labeled_array(text: &str) -> Option<Vec<LabeledRegex>> {
     let Ok(Value::Array(items)) = serde_json::from_str::<Value>(text) else {
         return None;
     };
     items
         .iter()
-        .map(|v| v.as_str().map(str::to_string))
+        .map(|v| {
+            serde_json::from_value::<super::tool::RegexToolItem>(v.clone())
+                .ok()
+                .map(super::tool::RegexToolItem::into_labeled)
+        })
         .collect()
 }
 
@@ -445,22 +454,57 @@ fn extract_fenced_block(text: &str) -> Option<&str> {
 mod tests {
     use super::*;
 
+    fn labeled(items: &[&str]) -> Vec<LabeledRegex> {
+        items
+            .iter()
+            .map(|p| LabeledRegex {
+                pattern: p.to_string(),
+                label: String::new(),
+            })
+            .collect()
+    }
+
+    fn pattern_list(regexes: &[LabeledRegex]) -> Vec<&str> {
+        regexes.iter().map(|r| r.pattern.as_str()).collect()
+    }
+
     #[test]
-    fn parses_plain_json_array() {
+    fn parses_labeled_object_array() {
+        let parsed = parse_final_answer(
+            r#"[{"pattern": "^Current date: .*$", "label": "current date"},
+                {"pattern": "(?<=id: )\\d+", "label": "user id"}]"#,
+        );
+        assert_eq!(
+            pattern_list(&parsed),
+            vec!["^Current date: .*$", r"(?<=id: )\d+"]
+        );
+        assert_eq!(parsed[0].label, "current date");
+        assert_eq!(parsed[1].label, "user id");
+    }
+
+    #[test]
+    fn parses_bare_string_array_with_empty_labels() {
         let parsed = parse_final_answer(r#"["^Current date: .*$", "(?<=id: )\\d+"]"#);
-        assert_eq!(parsed, vec!["^Current date: .*$", r"(?<=id: )\d+"]);
+        assert_eq!(
+            pattern_list(&parsed),
+            vec!["^Current date: .*$", r"(?<=id: )\d+"]
+        );
+        assert!(parsed.iter().all(|r| r.label.is_empty()));
     }
 
     #[test]
     fn parses_fenced_json_array() {
-        let parsed = parse_final_answer("```json\n[\"a\", \"b\"]\n```");
-        assert_eq!(parsed, vec!["a", "b"]);
+        let parsed = parse_final_answer(
+            "```json\n[{\"pattern\": \"a\", \"label\": \"la\"}, {\"pattern\": \"b\", \"label\": \"lb\"}]\n```",
+        );
+        assert_eq!(pattern_list(&parsed), vec!["a", "b"]);
+        assert_eq!(parsed[0].label, "la");
     }
 
     #[test]
     fn parses_bracket_span_inside_prose() {
         let parsed = parse_final_answer("Here are your regexes: [\"a\", \"b\"] — done!");
-        assert_eq!(parsed, vec!["a", "b"]);
+        assert_eq!(pattern_list(&parsed), vec!["a", "b"]);
     }
 
     #[test]
@@ -471,14 +515,14 @@ mod tests {
         ];
         // Collapses all examples to the same residual.
         assert!(regexes_collapse_examples(
-            &["^date: .*\\n?".to_string()],
+            &labeled(&["^date: .*\\n?"]),
             &examples
         ));
         // Valid patterns, but residuals still differ.
-        assert!(!regexes_collapse_examples(&["tail".to_string()], &examples));
+        assert!(!regexes_collapse_examples(&labeled(&["tail"]), &examples));
         // Non-compiling pattern.
         assert!(!regexes_collapse_examples(
-            &["(unclosed".to_string()],
+            &labeled(&["(unclosed"]),
             &examples
         ));
         // Empty list never counts as collapsing.
@@ -498,12 +542,12 @@ mod tests {
         // examples to the same residual now counts as collapsing, even though
         // it eats the static footer. Don't re-add the gate here.
         assert!(regexes_collapse_examples(
-            &["DATA: [\\s\\S]*".to_string()],
+            &labeled(&["DATA: [\\s\\S]*"]),
             &examples
         ));
         // A bounded sweep collapses too.
         assert!(regexes_collapse_examples(
-            &["(?<=DATA: )\\S+".to_string()],
+            &labeled(&["(?<=DATA: )\\S+"]),
             &examples
         ));
     }
@@ -518,20 +562,20 @@ mod tests {
             "static\ndate: 2026-01-02\ntail".to_string(),
         ];
         // Valid pattern, but residuals still differ (the date line survives).
-        let non_collapsing = vec!["tail".to_string()];
-        let verified = vec!["^date: .*\\n?".to_string()];
+        let non_collapsing = labeled(&["tail"]);
+        let verified = labeled(&["^date: .*\\n?"]);
 
         assert!(!regexes_collapse_examples(&non_collapsing, &examples));
         assert!(regexes_collapse_examples(&verified, &examples));
 
-        let mut regexes: Vec<String> = Vec::new();
+        let mut regexes: Vec<LabeledRegex> = Vec::new();
         if regexes_collapse_examples(&non_collapsing, &examples) {
             regexes = non_collapsing.clone();
         }
         if regexes.is_empty() && regexes_collapse_examples(&verified, &examples) {
             regexes = verified.clone();
         }
-        assert_eq!(regexes, verified);
+        assert_eq!(pattern_list(&regexes), pattern_list(&verified));
     }
 
     #[test]
@@ -540,16 +584,16 @@ mod tests {
             "static\ndate: 2026-01-01\ntail".to_string(),
             "static\ndate: 2026-01-02\ntail".to_string(),
         ];
-        let non_collapsing = vec!["tail".to_string()];
+        let non_collapsing = labeled(&["tail"]);
 
         // No verified fallback available → the run yields an empty list, which
         // the consumer treats as a failure instead of caching a non-collapsing
         // pattern.
-        let mut regexes: Vec<String> = Vec::new();
+        let mut regexes: Vec<LabeledRegex> = Vec::new();
         if regexes_collapse_examples(&non_collapsing, &examples) {
             regexes = non_collapsing.clone();
         }
-        let tool_verified: Option<Vec<String>> = None;
+        let tool_verified: Option<Vec<LabeledRegex>> = None;
         if regexes.is_empty()
             && let Some(verified) = &tool_verified
             && regexes_collapse_examples(verified, &examples)
@@ -562,6 +606,7 @@ mod tests {
     #[test]
     fn rejects_mixed_arrays_and_garbage() {
         assert!(parse_final_answer(r#"["a", 42]"#).is_empty());
+        assert!(parse_final_answer(r#"[{"label": "no pattern key"}]"#).is_empty());
         assert!(parse_final_answer("").is_empty());
         assert!(parse_final_answer("[]").is_empty());
         assert!(parse_final_answer("no brackets at all").is_empty());

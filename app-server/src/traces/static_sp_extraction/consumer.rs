@@ -107,10 +107,13 @@ impl StaticPromptHandler {
             .and_then(|s| s.parse().ok())
     }
 
-    /// Run the extraction agent on the accumulated samples. The agent itself
-    /// never errors — an empty regex list means every attempt failed, which
-    /// is surfaced as an error so the caller keeps the extraction lock held
-    /// (its TTL then rate-limits retries).
+    /// Run the extraction agent on the accumulated samples and return the
+    /// bare removal patterns (labels are an HTTP-route-only surface for now —
+    /// the regex cache keeps its `Vec<String>` shape so downstream appliers
+    /// are unaffected). The agent itself never errors — an empty regex list
+    /// means every attempt failed, which is surfaced as an error so the
+    /// caller keeps the extraction lock held (its TTL then rate-limits
+    /// retries).
     async fn run_extraction(
         &self,
         samples: &[String],
@@ -146,7 +149,7 @@ impl StaticPromptHandler {
                 result.tool_calls
             );
         }
-        Ok(result.regexes)
+        Ok(super::tool::patterns(&result.regexes))
     }
 }
 
