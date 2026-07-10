@@ -73,9 +73,12 @@ export default function EvalTraceLayout({ table, traceColumn }: EvalTraceLayoutP
         setIsResizing(false);
         controller.abort();
         dragAbortRef.current = null;
+        // Persist only when the drag moved: lastWidth starts at the CLAMPED
+        // width, so a bare click on the handle in a narrow viewport would
+        // otherwise overwrite the stored (unclamped) preference.
         // Same batch: the storage write re-renders via useSyncExternalStore,
         // so clearing dragWidth never flashes a stale width.
-        setStoredWidth(lastWidth);
+        if (lastWidth !== startWidth) setStoredWidth(lastWidth);
         setDragWidth(null);
       };
       handle.addEventListener("pointermove", onMove, { signal });
