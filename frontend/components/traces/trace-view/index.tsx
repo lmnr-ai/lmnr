@@ -1,3 +1,4 @@
+import { useQueryState } from "nuqs";
 import React, { useCallback, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -26,12 +27,17 @@ interface TraceViewProps {
 }
 
 export default function TraceView(props: Omit<TraceViewProps, "isFillWidth">) {
+  // `chat=true` deep-links force the chat open over a persisted `false`; read once here
+  // so the store's creation-time merge can apply it (no ongoing effect — see store/index.tsx).
+  const [chatParam] = useQueryState("chat");
+  const initialChatOpen = chatParam === "true";
   return (
     <TraceViewStoreProvider
       initialTrace={props.propsTrace}
       isAlwaysSelectSpan={props.isAlwaysSelectSpan}
       initialSignalId={props.initialSignalId}
       initialSearch={props.initialSearch}
+      initialChatOpen={initialChatOpen}
     >
       <TraceViewContent {...props} />
     </TraceViewStoreProvider>
@@ -44,6 +50,8 @@ export function TraceViewSidePanel({
   ...props
 }: Omit<TraceViewProps, "isFillWidth"> & { className?: string; children?: React.ReactNode }) {
   const sidePanelRef = useRef<HTMLDivElement>(null);
+  const [chatParam] = useQueryState("chat");
+  const initialChatOpen = chatParam === "true";
 
   return (
     <div
@@ -59,13 +67,14 @@ export function TraceViewSidePanel({
         isAlwaysSelectSpan={props.isAlwaysSelectSpan}
         initialSignalId={props.initialSignalId}
         initialSearch={props.initialSearch}
+        initialChatOpen={initialChatOpen}
       >
         <div className="relative w-full h-full flex flex-col">
           <SidePanelLeftResizeHandle />
           {/* w-0 min-w-full keeps children (e.g. the eval runs chart, which pins its own
-              measured pixel width via recharts) from driving the right-anchored side panel's
-              intrinsic width — otherwise the panel ratchets wider than trace+span and a gap
-              opens between the span view and the screen edge. */}
+                  measured pixel width via recharts) from driving the right-anchored side panel's
+                  intrinsic width — otherwise the panel ratchets wider than trace+span and a gap
+                  opens between the span view and the screen edge. */}
           {children && <div className="w-0 min-w-full">{children}</div>}
           <TraceViewContent {...props} sidePanelRef={sidePanelRef} />
         </div>

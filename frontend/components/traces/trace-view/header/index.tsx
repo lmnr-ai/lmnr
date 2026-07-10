@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 
 import Metadata from "../metadata";
 import SignalEventsPanel from "../signal-events-panel";
+import { useChatPanel } from "../use-chat-panel";
 import CondensedTimelineControls from "./timeline-toggle";
 import TraceDropdown from "./trace-dropdown";
 
@@ -52,8 +53,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
     tab,
     condensedTimelineEnabled,
     setCondensedTimelineEnabled,
-    tracesAgentOpen,
-    setTracesAgentOpen,
     signalsPanelOpen,
     setSignalsPanelOpen,
     traceSignals,
@@ -68,8 +67,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
       tab: state.tab,
       condensedTimelineEnabled: state.condensedTimelineEnabled,
       setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
-      tracesAgentOpen: state.tracesAgentOpen,
-      setTracesAgentOpen: state.setTracesAgentOpen,
       signalsPanelOpen: state.signalsPanelOpen,
       setSignalsPanelOpen: state.setSignalsPanelOpen,
       traceSignals: state.traceSignals,
@@ -81,6 +78,9 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
     }),
     shallow
   );
+
+  // Chat open state + toggle (closing also clears a lingering `chat=true` from the URL).
+  const { chatOpen, toggleChat } = useChatPanel();
 
   // Eagerly fetch signals when the trace loads, populating store + auto-opening the panel
   // when there are any. Tab selection prefers initialSignalId from the store (set at creation).
@@ -221,11 +221,11 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           {featureFlags[Feature.AGENT] && spans.length > 0 && (
             <span className={HEADER_ITEM_CLS}>
               <Button
-                onClick={() => setTracesAgentOpen(!tracesAgentOpen)}
+                onClick={toggleChat}
                 variant="outline"
                 className={cn(
                   "h-6 text-xs px-1.5",
-                  tracesAgentOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
+                  chatOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
                 )}
               >
                 <Sparkles size={14} className="mr-1" />

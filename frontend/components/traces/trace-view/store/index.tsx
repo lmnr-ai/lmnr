@@ -49,6 +49,9 @@ const createTraceViewStore = (options?: {
   isAlwaysSelectSpan?: boolean;
   initialSignalId?: string;
   initialSearch?: string;
+  // One-shot override read from `chat=true` in the URL at store creation.
+  // Forces the chat open even over a persisted `false` — see merge below.
+  initialChatOpen?: boolean;
 }) =>
   createStore<TraceViewStore>()(
     persist(
@@ -155,6 +158,11 @@ const createTraceViewStore = (options?: {
             // Chat opens by default (currentState.tracesAgentOpen === true); a persisted
             // value is the user's last explicit choice, so a closed chat stays closed.
             ...(typeof persisted.tracesAgentOpen === "boolean" && { tracesAgentOpen: persisted.tracesAgentOpen }),
+            // `chat=true` deep-links (emails/Slack/notifications) force the chat open,
+            // overriding a persisted `false`. This is a creation-time override, NOT an
+            // ongoing effect — merge runs once at hydration, so a subsequent user close
+            // sticks. Re-entering via a fresh `chat=true` link (new store) re-forces it.
+            ...(options?.initialChatOpen ? { tracesAgentOpen: true } : {}),
             tab,
           };
         },
@@ -171,12 +179,14 @@ const TraceViewStoreProvider = ({
   isAlwaysSelectSpan,
   initialSignalId,
   initialSearch,
+  initialChatOpen,
 }: PropsWithChildren<{
   initialTrace?: TraceViewTrace;
   storeKey?: string;
   isAlwaysSelectSpan?: boolean;
   initialSignalId?: string;
   initialSearch?: string;
+  initialChatOpen?: boolean;
 }>) => {
   const [storeState] = useState(() =>
     createTraceViewStore({
@@ -185,6 +195,7 @@ const TraceViewStoreProvider = ({
       isAlwaysSelectSpan,
       initialSignalId,
       initialSearch,
+      initialChatOpen,
     })
   );
 

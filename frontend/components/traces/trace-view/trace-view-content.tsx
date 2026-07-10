@@ -18,6 +18,7 @@ import { SpanViewSkeleton } from "../span-view/skeleton";
 import DynamicWidthLayout from "./dynamic-width-layout";
 import FillWidthLayout from "./fill-width-layout";
 import TracePanel from "./trace-panel";
+import { useChatPanel } from "./use-chat-panel";
 
 export interface TraceViewPanels {
   tracePanel: React.ReactNode;
@@ -53,15 +54,16 @@ export default function TraceViewContent({
   const featureFlags = useFeatureFlags();
 
   // Panel visibility states
-  const { spanPanelOpen, tracesAgentOpen, setTracesAgentOpen, selectSpanById } = useTraceViewStore(
+  const { spanPanelOpen, selectSpanById } = useTraceViewStore(
     (state) => ({
       spanPanelOpen: state.spanPanelOpen,
-      tracesAgentOpen: state.tracesAgentOpen,
-      setTracesAgentOpen: state.setTracesAgentOpen,
       selectSpanById: state.selectSpanById,
     }),
     shallow
   );
+
+  // Chat open state + close action (close also clears a lingering `chat=true` from the URL).
+  const { chatOpen, closeChat } = useChatPanel();
 
   // Data states
   const {
@@ -145,7 +147,6 @@ export default function TraceViewContent({
     setIsTraceLoading,
     setTrace,
     setTraceError,
-    setTracesAgentOpen,
     traceId,
   ]);
 
@@ -360,12 +361,12 @@ export default function TraceViewContent({
   const isChatEnabled = featureFlags[Feature.AGENT];
   const chatPanel = isChatEnabled ? (
     <div className="flex flex-col h-full w-full overflow-hidden">
-      <Chat traceId={traceId} onSetSpanId={selectSpanById} onClose={() => setTracesAgentOpen(false)} />
+      <Chat traceId={traceId} onSetSpanId={selectSpanById} onClose={closeChat} />
     </div>
   ) : null;
 
   const showSpan = spanPanelOpen || (isAlwaysSelectSpan === true && !isLoading && spans.length > 0);
-  const showChat = isChatEnabled && tracesAgentOpen;
+  const showChat = isChatEnabled && chatOpen;
 
   const panels: TraceViewPanels = {
     tracePanel,
