@@ -24,3 +24,7 @@ pub const INSERT_TIMEOUT_SECS: NumEnv<u64> = NumEnv::new("CLICKHOUSE_INSERT_TIME
 /// Whether browser-event inserts wait for the async insert to complete.
 pub const BROWSER_EVENTS_WAIT_FOR_ASYNC_INSERT: BoolEnv =
     BoolEnv::new("BROWSER_EVENTS_CH_WAIT_FOR_ASYNC_INSERT", true);
+
+/// Gates the `traces_agg` dual-write (LAM-1879). Off by default so the
+/// cloud-only experiment doesn't touch self-hosted deployments.
+pub const WRITE_TRACES_AGG: BoolEnv = BoolEnv::new("WRITE_TRACES_AGG", false);
