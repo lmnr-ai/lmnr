@@ -211,8 +211,9 @@ async function fetchUserTaskMetadata(traceIds: string[], projectId: string): Pro
 
   const map = new Map<string, string>();
   for (const row of rows) {
-    if (row.userTask && row.userTask.length > 0) {
-      map.set(row.traceId, row.userTask);
+    const userTask = row.userTask?.trim();
+    if (userTask) {
+      map.set(row.traceId, userTask);
     }
   }
   return map;
