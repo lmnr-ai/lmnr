@@ -42,6 +42,8 @@ export interface InfiniteDataTableProps<TData extends RowData> extends Omit<
   onRowClick?: (row: Row<TData>) => void;
   onHoveredRowChange?: (row: Row<TData> | null) => void;
   focusedRowId?: string | null;
+  /** Extra classes applied to a row's <tr> (e.g. dimming hidden rows). */
+  getRowClassName?: (row: Row<TData>) => string | undefined;
 
   selectionPanel?: (selectedRowIds: string[]) => ReactNode;
 
@@ -71,6 +73,7 @@ export interface InfiniteDataTableBodyProps<TData extends RowData> {
   onRowClick?: (row: Row<TData>) => void;
   onHoveredRowChange?: (row: Row<TData> | null) => void;
   focusedRowId?: string | null;
+  getRowClassName?: (row: Row<TData>) => string | undefined;
   loadMoreRef: RefObject<HTMLTableRowElement | null>;
   emptyRow?: ReactNode;
   loadingRow?: ReactNode;
@@ -87,6 +90,7 @@ export interface InfiniteDataTableRowProps<TData extends RowData> {
   onHoveredRowChange?: (row: Row<TData> | null) => void;
   href?: string;
   focusedRowId?: string | null;
+  className?: string;
 }
 
 export interface SelectionPanelProps {

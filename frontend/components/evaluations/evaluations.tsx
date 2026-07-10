@@ -1,6 +1,6 @@
 "use client";
 
-import { type ColumnDef } from "@tanstack/react-table";
+import { type ColumnDef, type Row } from "@tanstack/react-table";
 import { Eye, EyeOff, Settings as SettingsIcon } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
@@ -373,6 +373,12 @@ function EvaluationsContent() {
     ]
   );
 
+  // Rows hidden from the chart read as inactive in the table too.
+  const getRowClassName = useCallback(
+    (row: Row<Evaluation>) => (hiddenEvaluationIds.includes(row.original.id) ? "opacity-50" : undefined),
+    [hiddenEvaluationIds]
+  );
+
   const handleDeleteEvaluations = async (evaluationIds: string[]) => {
     try {
       const response = await fetch(`/api/projects/${params?.projectId}/evaluations`, {
@@ -470,6 +476,7 @@ function EvaluationsContent() {
                 state={{ rowSelection }}
                 onRowSelectionChange={onRowSelectionChange}
                 onHoveredRowChange={(row) => setHoveredEvaluationId(row?.original.id)}
+                getRowClassName={getRowClassName}
                 selectionPanel={(selectedRowIds) => (
                   <div className="flex flex-col space-y-2">
                     <DeleteSelectedRows

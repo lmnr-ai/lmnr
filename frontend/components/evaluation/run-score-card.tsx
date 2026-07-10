@@ -1,7 +1,6 @@
 "use client";
 
 import { ArrowRight } from "lucide-react";
-import { useState } from "react";
 
 import { AggregationSelect, useAggregation } from "@/components/evaluation/metrics-panel/aggregation-select";
 import {
@@ -10,7 +9,6 @@ import {
   isBinaryDistribution,
   pctChange,
 } from "@/components/evaluation/metrics-panel/utils";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { type EvaluationScoreDistributionBucket, type EvaluationScoreStatistics } from "@/lib/evaluation/types";
 import { cn, isValidNumber } from "@/lib/utils";
 
@@ -40,9 +38,9 @@ function scalarFor(
   return aggregateScalar(aggregation, statistics, distribution);
 }
 
-// Whole-run aggregate for ONE picked score, shown above the table: a score
-// picker, the big aggregate number, and the aggregation picker that controls
-// it — on a clean background (no card, no distribution viz).
+// Whole-run aggregates for EVERY score, shown above the table: one tile per
+// score in a horizontally-scrollable row, plus the aggregation picker that
+// controls all non-binary tiles.
 export default function RunScoreCard({
   scoreNames,
   allStatistics,
@@ -51,66 +49,61 @@ export default function RunScoreCard({
   comparedAllDistributions,
   isComparison,
 }: RunScoreCardProps) {
-  const [selected, setSelected] = useState<string>(scoreNames[0]);
   const [aggregation] = useAggregation();
-  const active = selected && scoreNames.includes(selected) ? selected : scoreNames[0];
-
-  const distribution = allDistributions?.[active] ?? null;
-  const comparedDistribution = comparedAllDistributions?.[active] ?? null;
-  const isBinary = isBinaryDistribution(distribution);
-
-  const cur = scalarFor(isBinary, aggregation, allStatistics?.[active] ?? null, distribution);
-  const cmp = isComparison
-    ? scalarFor(isBinary, aggregation, comparedAllStatistics?.[active] ?? null, comparedDistribution)
-    : undefined;
-
-  const validCur = isValidNumber(cur);
-  const validCmp = isComparison && isValidNumber(cmp);
-  const change = validCur && validCmp ? pctChange(cur!, cmp!) : null;
-  const improved = change !== null && change >= 0;
 
   return (
     <div className="flex flex-col gap-1.5 pr-2">
       <div className="flex items-center gap-1.5">
-        <Select value={active} onValueChange={setSelected}>
-          <SelectTrigger className="h-7 w-fit gap-1 bg-secondary text-xs font-medium text-secondary-foreground">
-            <SelectValue placeholder="Select score" />
-          </SelectTrigger>
-          <SelectContent>
-            {scoreNames.map((s) => (
-              <SelectItem key={s} value={s} className="text-xs">
-                {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {!isBinary && <AggregationSelect />}
+        <AggregationSelect />
       </div>
-      <div className="flex items-center gap-2">
-        <div className="flex items-baseline gap-2 text-6xl py-8">
-          <div className="flex items-center gap-1 tabular-nums">
-            {validCmp && (
-              <>
-                <span className="font-medium leading-9 tracking-[-0.4px] text-muted-foreground">{fmt(cmp!)}</span>
-                <ArrowRight className="size-4 text-muted-foreground shrink-0" />
-              </>
-            )}
-            <span className="font-medium leading-9 tracking-[-0.4px] text-foreground">
-              {validCur ? fmt(cur!) : "—"}
-            </span>
-          </div>
-          {change !== null && (
-            <span
-              className={cn(
-                "text-[12px] leading-[10px] tabular-nums whitespace-nowrap",
-                improved ? "text-success-bright" : "text-destructive"
-              )}
-            >
-              <DeltaTriangle direction={improved ? "up" : "down"} />
-              {Math.abs(change).toFixed(1)}%
-            </span>
-          )}
-        </div>
+      <div className="flex gap-8 overflow-x-auto styled-scrollbar py-4">
+        {scoreNames.map((scoreName) => {
+          const distribution = allDistributions?.[scoreName] ?? null;
+          const comparedDistribution = comparedAllDistributions?.[scoreName] ?? null;
+          const isBinary = isBinaryDistribution(distribution);
+
+          const cur = scalarFor(isBinary, aggregation, allStatistics?.[scoreName] ?? null, distribution);
+          const cmp = isComparison
+            ? scalarFor(isBinary, aggregation, comparedAllStatistics?.[scoreName] ?? null, comparedDistribution)
+            : undefined;
+
+          const validCur = isValidNumber(cur);
+          const validCmp = isComparison && isValidNumber(cmp);
+          const change = validCur && validCmp ? pctChange(cur!, cmp!) : null;
+          const improved = change !== null && change >= 0;
+
+          return (
+            <div key={scoreName} className="flex shrink-0 flex-col gap-1">
+              <span className="max-w-48 truncate text-xs font-medium text-secondary-foreground" title={scoreName}>
+                {scoreName}
+              </span>
+              <div className="flex items-baseline gap-2 text-4xl">
+                <div className="flex items-center gap-1 tabular-nums">
+                  {validCmp && (
+                    <>
+                      <span className="font-medium leading-9 tracking-[-0.4px] text-muted-foreground">{fmt(cmp!)}</span>
+                      <ArrowRight className="size-4 text-muted-foreground shrink-0" />
+                    </>
+                  )}
+                  <span className="font-medium leading-9 tracking-[-0.4px] text-foreground">
+                    {validCur ? fmt(cur!) : "—"}
+                  </span>
+                </div>
+                {change !== null && (
+                  <span
+                    className={cn(
+                      "text-[12px] leading-[10px] tabular-nums whitespace-nowrap",
+                      improved ? "text-success-bright" : "text-destructive"
+                    )}
+                  >
+                    <DeltaTriangle direction={improved ? "up" : "down"} />
+                    {Math.abs(change).toFixed(1)}%
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

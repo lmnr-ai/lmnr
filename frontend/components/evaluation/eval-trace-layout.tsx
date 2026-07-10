@@ -2,12 +2,14 @@
 
 import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { useLocalStorage } from "@/hooks/use-local-storage";
 import { cn } from "@/lib/utils";
 
 const MIN_TABLE = 353; // magic number to match the width of buttons (add filter, columns, etc.) on the table header
 const MIN_TRACE = 360;
 const DEFAULT_TABLE = 420;
 const GAP = 16; // seam between the table and trace column
+const WIDTH_STORAGE_KEY = "evaluation-table-panel-width";
 
 interface EvalTraceLayoutProps {
   table: ReactNode;
@@ -19,7 +21,16 @@ interface EvalTraceLayoutProps {
 export default function EvalTraceLayout({ table, traceColumn }: EvalTraceLayoutProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [maxWidth, setMaxWidth] = useState(0);
-  const [tableWidth, setTableWidth] = useState(DEFAULT_TABLE);
+  // Persisted user intent; live drag updates go through local state and are
+  // flushed to localStorage once on drag end.
+  const [storedWidth, setStoredWidth] = useLocalStorage<number>(WIDTH_STORAGE_KEY, DEFAULT_TABLE);
+  const [tableWidth, setTableWidth] = useState(storedWidth);
+
+  // Sync once the client-side localStorage value hydrates (useLocalStorage
+  // returns the default until mounted) and on cross-tab updates.
+  useEffect(() => {
+    setTableWidth(storedWidth);
+  }, [storedWidth]);
   // Drives the seam highlight while dragging — hover alone can't cover it since
   // the pointer routinely outruns the 8px strip mid-drag.
   const [isResizing, setIsResizing] = useState(false);
@@ -55,20 +66,23 @@ export default function EvalTraceLayout({ table, traceColumn }: EvalTraceLayoutP
       dragAbortRef.current = controller;
       const { signal } = controller;
       setIsResizing(true);
+      let lastWidth = startWidth;
       const onMove = (ev: PointerEvent) => {
         const next = startWidth + (ev.clientX - startX);
-        setTableWidth(Math.max(MIN_TABLE, Math.min(next, Math.max(MIN_TABLE, maxWidth - MIN_TRACE))));
+        lastWidth = Math.max(MIN_TABLE, Math.min(next, Math.max(MIN_TABLE, maxWidth - MIN_TRACE)));
+        setTableWidth(lastWidth);
       };
       const onUp = () => {
         setIsResizing(false);
         controller.abort();
         dragAbortRef.current = null;
+        setStoredWidth(lastWidth);
       };
       handle.addEventListener("pointermove", onMove, { signal });
       handle.addEventListener("pointerup", onUp, { signal });
       handle.addEventListener("pointercancel", onUp, { signal });
     },
-    [clampedTable, maxWidth]
+    [clampedTable, maxWidth, setStoredWidth]
   );
 
   // Drop any listeners still attached if we unmount mid-drag.

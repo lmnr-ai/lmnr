@@ -52,6 +52,7 @@ export function InfiniteDataTable<TData extends RowData>({
   onRowClick,
   onHoveredRowChange,
   focusedRowId,
+  getRowClassName,
   selectionPanel,
   pinnedColumns,
   pinnedLeftColumnIds,
@@ -325,6 +326,7 @@ export function InfiniteDataTable<TData extends RowData>({
                 onRowClick={onRowClick}
                 onHoveredRowChange={onHoveredRowChange}
                 focusedRowId={focusedRowId}
+                getRowClassName={getRowClassName}
                 loadMoreRef={loadMoreRef}
                 emptyRow={emptyRow}
                 loadingRow={loadingRow}
