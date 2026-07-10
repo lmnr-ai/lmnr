@@ -90,6 +90,15 @@ pub fn patterns(regexes: &[LabeledRegex]) -> Vec<String> {
 
 /// Tool declaration handed to the LLM. The raw examples are held harness-side;
 /// the model only ever passes patterns.
+///
+/// The schema is INTENTIONALLY stricter than the deserializer: it advertises
+/// only the `{pattern, label}` object shape to steer generation toward always
+/// labeling, while `RegexToolItem` tolerates bare pattern strings for
+/// partially-compliant turns. No provider in use hard-rejects model-generated
+/// arguments against this schema (constrained-decoding providers make the
+/// bare shape unrepresentable instead), and a rejected parse only produces a
+/// recoverable tool-error turn — don't widen the schema with `anyOf` for the
+/// legacy shape.
 pub fn regex_tool() -> ProviderTool {
     ProviderTool {
         function_declarations: vec![ProviderFunctionDeclaration {

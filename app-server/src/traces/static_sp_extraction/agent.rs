@@ -173,6 +173,11 @@ pub async fn extract_static_regexes(
                 // than caching a bad one for 7 days.
                 if regexes_collapse_examples(&outcome.regexes, examples) {
                     regexes = outcome.regexes;
+                    // The model sometimes replays its final answer as bare
+                    // pattern strings even though its last verified tool call
+                    // carried labels — recover those instead of caching empty
+                    // labels for the TTL.
+                    backfill_labels(&mut regexes, tool_verified.as_deref());
                 }
             }
             Err(e) => {
@@ -382,6 +387,21 @@ async fn run_agent_loop(
         tool_calls,
         tool_verified,
     })
+}
+
+/// Fill empty labels in `regexes` from `source` entries carrying the same
+/// pattern with a non-empty label. Patterns not present in `source` (or
+/// unlabeled there too) are left as-is.
+fn backfill_labels(regexes: &mut [LabeledRegex], source: Option<&[LabeledRegex]>) {
+    let Some(source) = source else { return };
+    for regex in regexes.iter_mut().filter(|r| r.label.is_empty()) {
+        if let Some(labeled) = source
+            .iter()
+            .find(|s| s.pattern == regex.pattern && !s.label.is_empty())
+        {
+            regex.label = labeled.label.clone();
+        }
+    }
 }
 
 /// True iff `regexes` is non-empty, every pattern compiles and runs, and
@@ -601,6 +621,46 @@ mod tests {
             regexes = verified.clone();
         }
         assert!(regexes.is_empty());
+    }
+
+    #[test]
+    fn backfill_labels_recovers_tool_verified_labels() {
+        // Final answer replayed as bare strings; the verified candidate had
+        // labels for the same patterns.
+        let mut answer = labeled(&["^date: .*\\n?", "^user: .*\\n?"]);
+        let verified = vec![
+            LabeledRegex {
+                pattern: "^date: .*\\n?".to_string(),
+                label: "current date".to_string(),
+            },
+            LabeledRegex {
+                pattern: "^user: .*\\n?".to_string(),
+                label: "user name".to_string(),
+            },
+        ];
+        backfill_labels(&mut answer, Some(&verified));
+        assert_eq!(answer[0].label, "current date");
+        assert_eq!(answer[1].label, "user name");
+
+        // A label already present is never overwritten, and patterns unknown
+        // to the source stay unlabeled.
+        let mut answer = vec![
+            LabeledRegex {
+                pattern: "^date: .*\\n?".to_string(),
+                label: "kept label".to_string(),
+            },
+            LabeledRegex {
+                pattern: "^other: .*\\n?".to_string(),
+                label: String::new(),
+            },
+        ];
+        backfill_labels(&mut answer, Some(&verified));
+        assert_eq!(answer[0].label, "kept label");
+        assert_eq!(answer[1].label, "");
+
+        // No source — no-op.
+        backfill_labels(&mut answer, None);
+        assert_eq!(answer[1].label, "");
     }
 
     #[test]
