@@ -35,7 +35,7 @@ pub const STATIC_PROMPT_QUEUE: &str = "static_prompt_queue";
 pub const STATIC_PROMPT_EXCHANGE: &str = "static_prompt_exchange";
 pub const STATIC_PROMPT_ROUTING_KEY: &str = "static_prompt_routing_key";
 
-/// `naive_signature → Vec<regex>` for static-part extraction.
+/// `naive_signature → Vec<{pattern, label}>` for static-part extraction.
 pub fn static_regex_cache_key(project_id: Uuid, prompt_hash: &str) -> String {
     format!("{STATIC_SP_REGEX_CACHE_KEY}:{project_id}:{prompt_hash}")
 }

@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use super::{
     ExtractionConfig, ExtractionTracing, accumulator_cache_key, accumulator_occurrences_cache_key,
-    extract_static_regexes, extraction_lock_cache_key, static_regex_cache_key,
+    extract_static_regexes, extraction_lock_cache_key, static_regex_cache_key, tool::LabeledRegex,
 };
 use crate::{
     cache::{Cache, CacheTrait},
@@ -108,9 +108,8 @@ impl StaticPromptHandler {
     }
 
     /// Run the extraction agent on the accumulated samples and return the
-    /// bare removal patterns (labels are an HTTP-route-only surface for now —
-    /// the regex cache keeps its `Vec<String>` shape so downstream appliers
-    /// are unaffected). The agent itself never errors — an empty regex list
+    /// ordered `{pattern, label}` removal regexes exactly as the agent
+    /// produced them. The agent itself never errors — an empty regex list
     /// means every attempt failed, which is surfaced as an error so the
     /// caller keeps the extraction lock held (its TTL then rate-limits
     /// retries).
@@ -119,13 +118,19 @@ impl StaticPromptHandler {
         samples: &[String],
         prompt_hash: &str,
         source_project_id: Uuid,
-    ) -> anyhow::Result<Vec<String>> {
+    ) -> anyhow::Result<Vec<LabeledRegex>> {
         #[cfg(test)]
         if let Some(regexes) = &self.test_regexes {
             if regexes.is_empty() {
                 anyhow::bail!("Simulated extraction failure");
             }
-            return Ok(regexes.clone());
+            return Ok(regexes
+                .iter()
+                .map(|p| LabeledRegex {
+                    pattern: p.clone(),
+                    label: String::new(),
+                })
+                .collect());
         }
 
         let Some(llm_client) = &self.llm_client else {
@@ -149,7 +154,7 @@ impl StaticPromptHandler {
                 result.tool_calls
             );
         }
-        Ok(super::tool::patterns(&result.regexes))
+        Ok(result.regexes)
     }
 }
 
@@ -442,7 +447,13 @@ mod tests {
 
         handler
             .cache
-            .insert::<Vec<String>>(&regex_key, vec![r"\d+".to_string()])
+            .insert::<Vec<LabeledRegex>>(
+                &regex_key,
+                vec![LabeledRegex {
+                    pattern: r"\d+".to_string(),
+                    label: String::new(),
+                }],
+            )
             .await
             .unwrap();
 
@@ -617,7 +628,7 @@ mod tests {
 
         let cached = handler
             .cache
-            .get::<Vec<String>>(&regex_key)
+            .get::<Vec<LabeledRegex>>(&regex_key)
             .await
             .unwrap()
             .unwrap();
