@@ -107,7 +107,6 @@ function SignalContent({ slackClientId, slackRedirectUri, slackBrokerEnabled }: 
             setSpanId(null);
           }}
           traceId={traceId}
-          showChatInitial
           initialSignalId={signal.id}
         />
       )}

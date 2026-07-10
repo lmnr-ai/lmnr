@@ -370,17 +370,11 @@ function TracesTableContent() {
     [onRowClick]
   );
 
-  // Auto-open the chat panel for traces with meaningful LLM activity.
   const getRowHref = useCallback(
     (row: Row<TraceRow>) => {
       const params = new URLSearchParams(searchParams.toString());
       params.set("traceId", row.id);
       params.delete("spanId");
-      if (row.original.totalTokens > 1000) {
-        params.set("chat", "true");
-      } else {
-        params.delete("chat");
-      }
       return `${pathName}?${params.toString()}`;
     },
     [pathName, searchParams]

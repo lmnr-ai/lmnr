@@ -193,6 +193,8 @@ export interface BaseTraceViewState {
 
   // Panel visibility
   spanPanelOpen: boolean;
+  // Persisted (localStorage) with default true, so it opens by default but a chat
+  // the user closed stays closed across traces. See store/index.tsx partialize/merge.
   tracesAgentOpen: boolean;
   signalsPanelOpen: boolean;
 
@@ -292,7 +294,6 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     initialTrace?: TraceViewTrace;
     isAlwaysSelectSpan?: boolean;
     initialSignalId?: string;
-    initialChatOpen?: boolean;
     initialSearch?: string;
   }
 ): BaseTraceViewStore {
@@ -323,7 +324,8 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     // span panel closed until the user selects a span. In the full-width trace page the
     // panel is driven by isAlwaysSelectSpan instead.
     spanPanelOpen: false,
-    tracesAgentOpen: options?.initialChatOpen ?? false,
+    // Opens by default; persist middleware overrides this with the user's last choice.
+    tracesAgentOpen: true,
     signalsPanelOpen: false,
     isResizing: false,
 

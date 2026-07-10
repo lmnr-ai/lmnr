@@ -1,6 +1,6 @@
 "use client";
 
-import { intersection, isEqual, pick } from "lodash";
+import { isEqual } from "lodash";
 import { createContext, type ReactNode, useContext, useState } from "react";
 import { createStore, type StoreApi } from "zustand";
 import { shallow } from "zustand/shallow";
@@ -58,17 +58,25 @@ export function computeEffectiveOrder(persistedOrder: string[], availableIds: st
   return result;
 }
 
+// Data-derived columns are namespaced with a `:` (`score:`, `payload:`,
+// `custom:`) and legitimately absent from the static `defaults.columnOrder`
+// (they arrive asynchronously / vary by group), so they're kept rather than
+// purged as drift. `computeEffectiveOrder` still filters against rendered
+// columns, so a stale dynamic id never renders.
+function isDynamicColumnId(id: string): boolean {
+  return !id.startsWith("__") && id.includes(":");
+}
+
 // Pure helper: merge a loaded config blob with defaults. Filters columnOrder /
 // visibility / sizing down to ids known by the union of defaults + custom
-// columns, and appends any new defaults at the end. `purged` is true when the
-// loaded blob carried ids unknown to the current schema (drift) — appending
-// new defaults at the end is NOT a purge.
+// columns (plus namespaced dynamic columns), and appends any new defaults at
+// the end. `purged` is true when the loaded blob carried ids unknown to the
+// current schema (drift) — appending new defaults, or preserving a dynamic
+// column, is NOT a purge.
 //
-// System column ids (`__`-prefixed, e.g. `__row_selection`) are stripped from
-// persisted view configs by `normalizeViewConfig`, so they always show up as
-// "new defaults" on load. Restore them at their default-order position
-// instead of appending — the caller's `defaults.columnOrder` is authoritative
-// for where they belong (typically the front).
+// System column ids (`__`-prefixed) are stripped from persisted view configs
+// by `normalizeViewConfig`, so they always show up as "new defaults" on load.
+// Restore them at their default-order position instead of appending.
 export function reconcileConfig(
   loaded: Partial<TableConfig>,
   defaults: Partial<TableConfig>
@@ -77,22 +85,24 @@ export function reconcileConfig(
   const customColumnIds = customColumns.map((cc) => `custom:${cc.name}`);
   const fullDefaultOrder = [...(defaults.columnOrder ?? []), ...customColumnIds];
   const knownSet = new Set(fullDefaultOrder);
+  const isKept = (id: string) => knownSet.has(id) || isDynamicColumnId(id);
 
   const loadedOrder = loaded.columnOrder ?? [];
-  const validColumns = intersection(loadedOrder, fullDefaultOrder);
-  const newSystem = fullDefaultOrder.filter((id) => id.startsWith("__") && !validColumns.includes(id));
-  const newRegular = fullDefaultOrder.filter((id) => !id.startsWith("__") && !validColumns.includes(id));
+  const validColumns = loadedOrder.filter(isKept);
+  const validSet = new Set(validColumns);
+  const newSystem = fullDefaultOrder.filter((id) => id.startsWith("__") && !validSet.has(id));
+  const newRegular = fullDefaultOrder.filter((id) => !id.startsWith("__") && !validSet.has(id));
   const columnOrder = [...newSystem, ...validColumns, ...newRegular];
 
   const loadedVisibility = loaded.columnVisibility ?? defaults.columnVisibility ?? {};
   const loadedSizing = loaded.columnSizing ?? defaults.columnSizing ?? {};
-  const columnVisibility = pick(loadedVisibility, fullDefaultOrder);
-  const columnSizing = pick(loadedSizing, fullDefaultOrder);
+  const columnVisibility = Object.fromEntries(Object.entries(loadedVisibility).filter(([id]) => isKept(id)));
+  const columnSizing = Object.fromEntries(Object.entries(loadedSizing).filter(([id]) => isKept(id)));
 
   const purged =
-    loadedOrder.some((id) => !knownSet.has(id)) ||
-    Object.keys(loadedVisibility).some((id) => !knownSet.has(id)) ||
-    Object.keys(loadedSizing).some((id) => !knownSet.has(id));
+    loadedOrder.some((id) => !isKept(id)) ||
+    Object.keys(loadedVisibility).some((id) => !isKept(id)) ||
+    Object.keys(loadedSizing).some((id) => !isKept(id));
 
   return {
     config: { customColumns, columnOrder, columnVisibility, columnSizing },

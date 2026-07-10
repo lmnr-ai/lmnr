@@ -9,7 +9,6 @@ import Header from "@/components/ui/header";
 
 const Trace = ({ trace }: { trace: TraceViewTrace }) => {
   const searchParams = useSearchParams();
-  const showChatInitial = searchParams.get("chat") === "true";
   const initialSearch = searchParams.get("search") ?? undefined;
 
   return (
@@ -22,7 +21,6 @@ const Trace = ({ trace }: { trace: TraceViewTrace }) => {
           onClose={() => {}}
           traceId={trace.id}
           isAlwaysSelectSpan
-          showChatInitial={showChatInitial}
           initialSearch={initialSearch}
         />
       </div>
