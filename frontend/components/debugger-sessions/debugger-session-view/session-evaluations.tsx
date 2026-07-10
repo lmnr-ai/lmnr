@@ -1,8 +1,9 @@
 "use client";
 
-import { ArrowUpRight, FlaskConical } from "lucide-react";
+import { ArrowUpRight, Database, FlaskConical } from "lucide-react";
 import Link from "next/link";
 
+import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
 import { formatScoreValue } from "@/components/evaluation/utils";
 import { type SessionEvaluationRef } from "@/lib/actions/debugger-sessions";
 import { cn } from "@/lib/utils";
@@ -42,44 +43,74 @@ export const computeScoreDeltas = (evaluations: SessionEvaluationRef[]): Map<str
   return out;
 };
 
-// One evaluation card, rendered inline in the session timeline (interleaved with
-// runs and text notes by block `created_at`). Sets the `evalAnchorId` id so the
-// outline's anchor navigation keeps working.
+// One evaluation card in the session timeline, mirroring the trace card chrome:
+// tinted header (name + datapoint count + time) over a body of score stats.
 export const EvaluationCard = ({
   projectId,
   evaluation,
   scores,
+  createdAt,
 }: {
   projectId: string;
   evaluation: SessionEvaluationRef;
   scores: ScoreWithDelta[];
-}) => (
-  <div
-    id={evalAnchorId(evaluation.id)}
-    className="scroll-mt-4 rounded-lg border bg-background transition-colors hover:border-muted-foreground/30"
-  >
-    <div className="flex flex-col gap-3 px-4 py-3">
-      <Link
-        href={`/project/${projectId}/evaluations/${evaluation.id}`}
-        className="group flex items-center justify-between gap-2"
-      >
-        <span className="flex min-w-0 items-center gap-1.5">
-          <FlaskConical className="size-4 shrink-0 text-muted-foreground" />
-          <span className="truncate text-sm font-medium text-foreground">{evaluation.name}</span>
-        </span>
-        <ArrowUpRight className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-      </Link>
+  createdAt: string;
+}) => {
+  const relativeTime = (() => {
+    try {
+      return formatShortRelativeTime(new Date(createdAt));
+    } catch {
+      return "";
+    }
+  })();
+
+  return (
+    <Link
+      id={evalAnchorId(evaluation.id)}
+      href={`/project/${projectId}/evaluations/${evaluation.id}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group block scroll-mt-4 overflow-hidden rounded-lg border border-[rgba(232,232,232,0.1)] bg-background no-underline transition-colors hover:border-muted-foreground/30"
+    >
+      <div className="flex h-[40px] items-center justify-between gap-2 bg-muted/75 pl-2 pr-3 transition-colors group-hover:bg-muted/90">
+        <div className="flex min-w-0 items-center gap-2">
+          <FlaskConical className="size-4 shrink-0 text-emerald-500" />
+          <span className="truncate text-[13px] font-medium leading-[17px] text-primary-foreground">
+            {evaluation.name}
+          </span>
+          {evaluation.datapointCount > 0 && (
+            <span
+              className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs text-muted-foreground"
+              title={`${evaluation.datapointCount} ${evaluation.datapointCount === 1 ? "datapoint" : "datapoints"}`}
+            >
+              <Database className="size-3" />
+              <span className="tabular-nums">{evaluation.datapointCount}</span>
+            </span>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center">
+          {relativeTime && (
+            <span className="whitespace-nowrap text-[13px] leading-[17px] text-secondary-foreground">
+              {relativeTime}
+            </span>
+          )}
+          {/* Zero-width until hover so it reserves no space, then slides in. */}
+          <span className="flex w-0 items-center overflow-hidden opacity-0 transition-all duration-200 group-hover:ml-1.5 group-hover:w-4 group-hover:opacity-100">
+            <ArrowUpRight className="size-4 shrink-0 text-secondary-foreground" />
+          </span>
+        </div>
+      </div>
 
       {scores.length > 0 && (
-        <div className="flex flex-wrap gap-x-8 gap-y-3">
+        <div className="flex flex-wrap gap-x-8 gap-y-3 px-4 py-3">
           {scores.map((score) => (
             <ScoreStat key={score.name} name={score.name} value={score.value} delta={score.delta} isNew={score.isNew} />
           ))}
         </div>
       )}
-    </div>
-  </div>
-);
+    </Link>
+  );
+};
 
 // A new score dimension (absent from the previous card) is tinted with the
 // brand accent — distinct from the green/red delta colors — instead of a badge.

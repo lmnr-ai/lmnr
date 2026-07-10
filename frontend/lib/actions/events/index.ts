@@ -18,6 +18,9 @@ export const GetEventsPaginatedSchema = PaginationFiltersSchema.extend({
   clusterId: z.array(z.string()).optional(),
   unclustered: z.coerce.boolean().optional(),
   emergingClusterId: z.guid().optional(),
+  // Data type of the payload field being sorted on, used to pick the typed
+  // JSONExtract cast for ORDER BY. Native columns (timestamp/severity) ignore it.
+  sortType: z.enum(["number", "boolean", "string"]).optional(),
   search: z.string().optional(),
   // Schema field names rendered as table columns — passed through to the
   // search endpoint to scope the per-field snippet extracts. The client owns
@@ -86,6 +89,9 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     clusterId: clusterIds,
     unclustered,
     emergingClusterId,
+    sortBy,
+    sortDirection,
+    sortType,
     search,
     payloadField,
   } = input;
@@ -101,6 +107,9 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
       startDate,
       endDate,
       filter,
+      sortBy,
+      sortDirection,
+      sortType,
       search,
       payloadField,
     });
@@ -150,6 +159,9 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     pastHours,
     clusterFilter,
     idFilter,
+    sortBy,
+    sortDirection,
+    sortType,
   });
 
   const { query: countQuery, parameters: countParams } = buildEventsCountQueryWithParams({

@@ -9,10 +9,10 @@ import { useDebuggerSessionViewStore } from "./store";
 // 160px of bottom padding, so within this slack the new trace card is in view.
 const DISMISS_SLACK_PX = 160;
 
-// Pill that appears centered at the bottom when a new run arrives via realtime
-// (`trace_update` for an unknown trace sets `newTraceNotice`). Clicking the pill
-// scrolls to the bottom of the session; the X dismisses without scrolling, and
-// manually scrolling to the bottom dismisses too (the trace has been seen).
+// Pill that appears centered at the bottom when a new block arrives via realtime
+// (`trace_update` / `block_update` set `newBlockNotice` to the block kind).
+// Clicking the pill scrolls to the bottom of the session; the X dismisses without
+// scrolling, and manually scrolling to the bottom dismisses too (block seen).
 export default function NewTracePill({
   onScrollToBottom,
   scrollEl,
@@ -20,20 +20,20 @@ export default function NewTracePill({
   onScrollToBottom: () => void;
   scrollEl: HTMLElement | null;
 }) {
-  const visible = useDebuggerSessionViewStore((s) => s.newTraceNotice);
-  const dismiss = useDebuggerSessionViewStore((s) => s.dismissNewTraceNotice);
+  const notice = useDebuggerSessionViewStore((s) => s.newBlockNotice);
+  const dismiss = useDebuggerSessionViewStore((s) => s.dismissNewBlockNotice);
 
   useEffect(() => {
-    if (!visible || !scrollEl) return;
+    if (!notice || !scrollEl) return;
     const onScroll = () => {
       if (scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - DISMISS_SLACK_PX) dismiss();
     };
     onScroll();
     scrollEl.addEventListener("scroll", onScroll, { passive: true });
     return () => scrollEl.removeEventListener("scroll", onScroll);
-  }, [visible, scrollEl, dismiss]);
+  }, [notice, scrollEl, dismiss]);
 
-  if (!visible) return null;
+  if (!notice) return null;
 
   return (
     <div className="absolute bottom-6 left-1/2 z-30 -translate-x-1/2">
@@ -46,7 +46,7 @@ export default function NewTracePill({
             dismiss();
           }}
         >
-          New trace
+          {notice === "evaluation" ? "New eval" : notice === "text" ? "New note" : "New trace"}
         </button>
         <button type="button" aria-label="Dismiss" className="px-2 py-1.5 text-primary-foreground" onClick={dismiss}>
           <X className="h-4 w-4" />

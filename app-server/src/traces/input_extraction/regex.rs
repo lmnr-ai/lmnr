@@ -121,16 +121,55 @@ pub fn apply_result_to_json(result: &ApplyRegexResult) -> serde_json::Value {
     }
 }
 
+/// Apply a pattern and emit a single info span for the application to
+/// the external observability backend (currently Sentry). Default
+/// `target` routes the span to the external OTEL layer only — never the
+/// `lmnr::internal` tree (the two providers carry disjoint filters, see
+/// `instrumentation/mod.rs`). Covers every authoritative application
+/// (cached and freshly generated); the generation loop's probe
+/// applications are not "applications" in this sense and stay untraced
+/// here.
+fn apply_regex_externally_traced(
+    pattern: &str,
+    text: &str,
+    project_id: Uuid,
+    trace_id: Uuid,
+    from_cache: bool,
+) -> ApplyRegexResult {
+    let external_observability_span = tracing::info_span!(
+        "user_task.apply_regex",
+        project_id = %project_id,
+        trace_id = %trace_id,
+        regex = pattern,
+        regex_from_cache = from_cache,
+        passthrough_regex = is_passthrough_regex(pattern),
+        success = tracing::field::Empty,
+    );
+    let result = external_observability_span.in_scope(|| apply_regex(pattern, text));
+    // Success mirrors the trace-metadata `regex_failed` flag: `NoMatch`
+    // (no compile / no match / backtrack abort / no group 1) is the only
+    // failure; an empty capture (`NoUserRequest`) is a working regex.
+    external_observability_span.record("success", !matches!(result, ApplyRegexResult::NoMatch));
+    result
+}
+
 /// Apply a freshly generated pattern and trace the application as an
 /// `apply_regex` tool span — the one authoritative application whose
 /// result becomes the metadata patch (the generation loop's probe
 /// applications are traced under the probe tool name instead). Cached
-/// regexes are applied untraced via [`try_apply_cached_regex`].
+/// regexes skip the internal tool span ([`try_apply_cached_regex`]);
+/// both paths emit the external-observability application span.
 fn apply_regex_traced(pattern: &str, text: &str, scope: &SpanScope) -> ApplyRegexResult {
     let span = SpanBuilder::tool(scope, "apply_regex")
         .input(&serde_json::json!({ "regex": pattern }))
         .build();
-    let result = apply_regex(pattern, text);
+    let result = apply_regex_externally_traced(
+        pattern,
+        text,
+        scope.source_project_id,
+        scope.trace_id,
+        false,
+    );
     self_tracing::set_output(&span, &apply_result_to_json(&result));
     result
 }
@@ -153,16 +192,19 @@ pub fn regex_cache_key(project_id: Uuid, prompt_hash: Option<&str>, fingerprint:
 
 /// Consult the regex cache and apply on hit. `None` means "no
 /// usable cached regex" — either a true miss or a stale entry that no
-/// longer matches (removed so the consumer regenerates). Deliberately
-/// untraced: a cache hit is pure regex application, and self-tracing
-/// only follows actual LLM generation runs.
+/// longer matches (removed so the consumer regenerates). Emits no
+/// internal (`lmnr::internal`) spans — self-tracing only follows actual
+/// LLM generation runs — but every application, hit or stale, emits the
+/// external-observability application span.
 pub async fn try_apply_cached_regex(
     cache: &Arc<Cache>,
     key: &str,
     signposted_text: &str,
+    project_id: Uuid,
+    trace_id: Uuid,
 ) -> Option<ApplyRegexResult> {
     let cached = cache.get::<String>(key).await.ok().flatten()?;
-    match apply_regex(&cached, signposted_text) {
+    match apply_regex_externally_traced(&cached, signposted_text, project_id, trace_id, true) {
         ApplyRegexResult::NoMatch => {
             let _ = cache.remove(key).await;
             None
