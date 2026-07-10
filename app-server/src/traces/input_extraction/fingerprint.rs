@@ -1,6 +1,7 @@
 //! Structural fingerprinting of user messages: the sequence of
-//! top-level XML-like scaffolding tags, used as part of the regex cache
-//! key so traces with the same scaffolding shape share a cached regex.
+//! top-level XML-like scaffolding tags plus the ordered sequence of
+//! markdown headings (h1-h3), used as part of the regex cache key so
+//! traces with the same scaffolding shape share a cached regex.
 
 use std::sync::LazyLock;
 
@@ -11,10 +12,50 @@ use fancy_regex::Regex;
 static TOP_LEVEL_TAG: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"<([a-zA-Z_][\w-]*)\b[^>]*>[\s\S]*?</\1\s*>").unwrap());
 
+/// ATX-style markdown heading, levels 1-3 only (`#`/`##`/`###`). Up to 3
+/// leading spaces are allowed (CommonMark); a 4th makes it a code block,
+/// not a heading. `(?!#)` after the level group rejects h4+
+/// (`####...`). The heading text is optional (a bare `###` still
+/// counts), but when text is present it must be separated by whitespace
+/// — CommonMark treats `###foo` (no space) as a paragraph, not a
+/// heading.
+static MARKDOWN_HEADING: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^ {0,3}(#{1,3})(?!#)(?:[ \t]+.*)?$").unwrap());
+
+/// Ordered sequence of markdown heading levels (`"h1"`, `"h2"`, `"h3"`)
+/// found in the message, scanned line by line over the raw input
+/// (including text inside XML-like tag bodies). Unlike XML tags,
+/// headings have no closing marker, so — unlike tag names — order here
+/// is significant and is preserved as encountered, not sorted or
+/// deduplicated.
+fn heading_sequence(input: &str) -> Vec<String> {
+    let mut levels = Vec::new();
+    for line in input.lines() {
+        if let Ok(Some(captures)) = MARKDOWN_HEADING.captures(line) {
+            let level = captures.get(1).unwrap().as_str().len();
+            levels.push(format!("h{level}"));
+        }
+    }
+    levels
+}
+
 /// Structural fingerprint of a user message: the sequence of top-level
-/// XML-like tags (nested tags are swallowed by the lazy body match), or
-/// `"plain"` for messages with no balanced tags.
+/// XML-like tags (nested tags are swallowed by the lazy body match, and
+/// tag order doesn't affect the fingerprint), or `"plain"` for messages
+/// with no balanced tags — followed by `|` and the order-sensitive
+/// sequence of markdown headings (h1-h3), when any are present.
 pub fn fingerprint_user_message(input: &str) -> String {
+    let tag_fingerprint = fingerprint_tags(input);
+    let headings = heading_sequence(input);
+    if headings.is_empty() {
+        tag_fingerprint
+    } else {
+        format!("{tag_fingerprint}|{}", headings.join(","))
+    }
+}
+
+/// Tag-only half of the fingerprint. See `fingerprint_user_message`.
+fn fingerprint_tags(input: &str) -> String {
     let mut parts: Vec<String> = Vec::new();
     let mut rest = input;
 
@@ -133,5 +174,79 @@ mod tests {
         assert_eq!(fingerprint_user_message("<ENV>x</ENV>"), "env,/env");
         // Prose on both sides of an unmatched region stays one "plain".
         assert_eq!(fingerprint_user_message("a <br oken b"), "plain");
+    }
+
+    #[test]
+    fn fingerprint_no_headings_unaffected() {
+        assert_eq!(fingerprint_user_message("just some prose"), "plain");
+        assert_eq!(fingerprint_user_message("<env>x</env>"), "env,/env");
+    }
+
+    #[test]
+    fn fingerprint_headings_levels() {
+        assert_eq!(fingerprint_user_message("# Title"), "plain|h1");
+        assert_eq!(fingerprint_user_message("## Title"), "plain|h2");
+        assert_eq!(fingerprint_user_message("### Title"), "plain|h3");
+    }
+
+    #[test]
+    fn fingerprint_headings_ignore_h4_plus() {
+        assert_eq!(fingerprint_user_message("#### Title"), "plain");
+        assert_eq!(fingerprint_user_message("###### Title"), "plain");
+    }
+
+    #[test]
+    fn fingerprint_headings_order_matters() {
+        // Unlike tags, heading order is preserved, not sorted.
+        let a = fingerprint_user_message("# One\ntext\n## Two\ntext\n### Three");
+        let b = fingerprint_user_message("### Three\ntext\n## Two\ntext\n# One");
+        assert_eq!(a, "plain|h1,h2,h3");
+        assert_eq!(b, "plain|h3,h2,h1");
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn fingerprint_headings_repeated_levels_not_deduped() {
+        assert_eq!(
+            fingerprint_user_message("# A\n# B\n## C"),
+            "plain|h1,h1,h2"
+        );
+    }
+
+    #[test]
+    fn fingerprint_headings_combine_with_tags() {
+        assert_eq!(
+            fingerprint_user_message("<env>x</env>\n# Title\nbody"),
+            "env,/env,plain|h1"
+        );
+    }
+
+    #[test]
+    fn fingerprint_headings_bare_hash_counts() {
+        // A heading marker with no text still counts as a heading.
+        assert_eq!(fingerprint_user_message("###"), "plain|h3");
+        assert_eq!(fingerprint_user_message("###\nbody"), "plain|h3");
+    }
+
+    #[test]
+    fn fingerprint_headings_require_leading_whitespace_for_text() {
+        // No space after the hashes: not a heading per CommonMark, so no
+        // "|h*" suffix is appended.
+        assert_eq!(fingerprint_user_message("###notaheading"), "plain");
+    }
+
+    #[test]
+    fn fingerprint_headings_leading_spaces_allowed() {
+        assert_eq!(fingerprint_user_message("   # Title"), "plain|h1");
+        // 4+ leading spaces makes it a code block, not a heading.
+        assert_eq!(fingerprint_user_message("    # Title"), "plain");
+    }
+
+    #[test]
+    fn fingerprint_headings_inside_tag_body_are_detected() {
+        assert_eq!(
+            fingerprint_user_message("<context>\n# Heading\nbody\n</context>"),
+            "context,/context|h1"
+        );
     }
 }
