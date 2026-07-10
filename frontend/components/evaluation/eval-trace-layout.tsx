@@ -21,16 +21,13 @@ interface EvalTraceLayoutProps {
 export default function EvalTraceLayout({ table, traceColumn }: EvalTraceLayoutProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [maxWidth, setMaxWidth] = useState(0);
-  // Persisted user intent; live drag updates go through local state and are
-  // flushed to localStorage once on drag end.
+  // Persisted user intent; live drag updates go through dragWidth and are
+  // flushed to localStorage once on drag end. Deriving (instead of syncing via
+  // an effect) applies the persisted width in the same render localStorage
+  // hydrates, avoiding an extra painted frame at the default width.
   const [storedWidth, setStoredWidth] = useLocalStorage<number>(WIDTH_STORAGE_KEY, DEFAULT_TABLE);
-  const [tableWidth, setTableWidth] = useState(storedWidth);
-
-  // Sync once the client-side localStorage value hydrates (useLocalStorage
-  // returns the default until mounted) and on cross-tab updates.
-  useEffect(() => {
-    setTableWidth(storedWidth);
-  }, [storedWidth]);
+  const [dragWidth, setDragWidth] = useState<number | null>(null);
+  const tableWidth = dragWidth ?? storedWidth;
   // Drives the seam highlight while dragging — hover alone can't cover it since
   // the pointer routinely outruns the 8px strip mid-drag.
   const [isResizing, setIsResizing] = useState(false);
@@ -70,13 +67,16 @@ export default function EvalTraceLayout({ table, traceColumn }: EvalTraceLayoutP
       const onMove = (ev: PointerEvent) => {
         const next = startWidth + (ev.clientX - startX);
         lastWidth = Math.max(MIN_TABLE, Math.min(next, Math.max(MIN_TABLE, maxWidth - MIN_TRACE)));
-        setTableWidth(lastWidth);
+        setDragWidth(lastWidth);
       };
       const onUp = () => {
         setIsResizing(false);
         controller.abort();
         dragAbortRef.current = null;
+        // Same batch: the storage write re-renders via useSyncExternalStore,
+        // so clearing dragWidth never flashes a stale width.
         setStoredWidth(lastWidth);
+        setDragWidth(null);
       };
       handle.addEventListener("pointermove", onMove, { signal });
       handle.addEventListener("pointerup", onUp, { signal });
