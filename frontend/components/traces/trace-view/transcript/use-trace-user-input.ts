@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { MAIN_AGENT_SEARCH_WINDOW } from "@/components/traces/trace-view/store/utils";
 import { useToast } from "@/lib/hooks/use-toast";
+import { tryParseJson } from "@/lib/utils";
 
 interface UseTraceUserInputResult {
   userInput: string | null;
@@ -12,7 +13,8 @@ export function useTraceUserInput(
   projectId: string | undefined,
   traceId: string | undefined,
   isShared: boolean,
-  llmSpanCount: number
+  llmSpanCount: number,
+  traceMetadata?: string
 ): UseTraceUserInputResult {
   const { toast } = useToast();
   const [userInput, setUserInput] = useState<string | null>(null);
@@ -21,9 +23,22 @@ export function useTraceUserInput(
   // server has at least MAIN_AGENT_SEARCH_WINDOW LLM spans to pick from.
   const resolvedRef = useRef<{ traceId: string; input: string | null; llmSpanCount: number } | null>(null);
 
+  // User task extracted at ingestion (string on success, `false` when
+  // extraction found nothing, absent when it never ran).
+  const metadataUserTask = useMemo(() => {
+    const task = tryParseJson(traceMetadata ?? "")?.lmnr_user_task;
+    return typeof task === "string" && task.length > 0 ? task : null;
+  }, [traceMetadata]);
+
   useEffect(() => {
     if (!traceId) {
       setUserInput(null);
+      resolvedRef.current = null;
+      return;
+    }
+
+    if (metadataUserTask) {
+      setUserInput(metadataUserTask);
       resolvedRef.current = null;
       return;
     }
@@ -77,7 +92,7 @@ export function useTraceUserInput(
     fetchUserInput();
 
     return () => controller.abort();
-  }, [projectId, traceId, isShared, llmSpanCount, toast]);
+  }, [projectId, traceId, isShared, llmSpanCount, metadataUserTask, toast]);
 
   return { userInput, isLoading };
 }

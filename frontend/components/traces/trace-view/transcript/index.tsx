@@ -125,7 +125,13 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trace?.id, spans.length]);
 
-  const { userInput, isLoading: isUserInputLoading } = useTraceUserInput(projectId, trace?.id, isShared, llmSpanCount);
+  const { userInput, isLoading: isUserInputLoading } = useTraceUserInput(
+    projectId,
+    trace?.id,
+    isShared,
+    llmSpanCount,
+    trace?.metadata
+  );
   const hasUserInput = !!userInput;
 
   const flatRows = useMemo(() => {
