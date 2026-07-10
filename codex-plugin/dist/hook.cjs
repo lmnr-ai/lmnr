@@ -25210,6 +25210,8 @@ function readNewJsonlIncremental(transcriptPath, sessionState) {
       debug(`rollout shrank (${fileSize} < ${sessionState.offset}); restarting`);
       sessionState.offset = 0;
       sessionState.buffer = "";
+      sessionState.pendingTurnRows = [];
+      sessionState.lastModel = null;
     }
     const fd = fs2.openSync(transcriptPath, "r");
     try {

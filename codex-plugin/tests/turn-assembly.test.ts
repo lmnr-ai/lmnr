@@ -292,4 +292,36 @@ describe("incremental rollout reading", () => {
     const [batch] = readNewJsonl(file, state);
     assert.equal(batch.length, 1);
   });
+
+  it("drops held pending rows on shrink so the re-read does not duplicate them", () => {
+    const file = writeRollout([
+      sessionMetaLine(),
+      turnContextLine(),
+      userMessageLine("q1"),
+      assistantMessageLine("a1"),
+      taskCompleteLine(),
+      userMessageLine("q2"), // incomplete trailing turn -> held in pendingTurnRows
+    ]);
+    let state = new SessionState();
+    let turns: any[];
+    [turns, state] = getNewTurnsFromRollout(file, state);
+    assert.equal(turns.length, 1);
+    assert.ok(state.pendingTurnRows.length > 0);
+
+    // In-place truncate: the same file is rewritten smaller. The from-zero
+    // re-read includes the rows that fed pendingTurnRows, so stale held rows
+    // must not be prepended again.
+    fs.writeFileSync(
+      file,
+      [sessionMetaLine(), turnContextLine(), userMessageLine("q2"), assistantMessageLine("a2"), taskCompleteLine()]
+        .map((r) => JSON.stringify(r))
+        .join("\n") + "\n",
+      "utf-8"
+    );
+    [turns, state] = getNewTurnsFromRollout(file, state);
+    assert.equal(turns.length, 1);
+    assert.equal(turns[0].userText, "q2");
+    assert.equal(turns[0].lastAssistantText, "a2");
+    assert.equal(state.pendingTurnRows.length, 0);
+  });
 });

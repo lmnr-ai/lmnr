@@ -171,10 +171,16 @@ function readNewJsonlIncremental(transcriptPath: string, sessionState: SessionSt
   try {
     const fileSize = fs.statSync(transcriptPath).size;
     if (fileSize < sessionState.offset) {
-      // Rollout was rotated or truncated — restart from the beginning.
+      // Rollout was rotated or truncated — restart from the beginning. Drop
+      // state derived from bytes we are about to re-read (held pending rows
+      // would be prepended to the same rows again and mis-assemble turns).
+      // turnCount is kept: duplicates with advancing numbers match the
+      // at-least-once model.
       debug(`rollout shrank (${fileSize} < ${sessionState.offset}); restarting`);
       sessionState.offset = 0;
       sessionState.buffer = "";
+      sessionState.pendingTurnRows = [];
+      sessionState.lastModel = null;
     }
     const fd = fs.openSync(transcriptPath, "r");
     try {

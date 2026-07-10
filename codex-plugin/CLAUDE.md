@@ -37,7 +37,7 @@ Laminar observability hook for the OpenAI Codex CLI. Parses Codex rollout JSONL 
 - **Per-turn emit failures** (malformed rows) are logged and the turn is skipped — it would fail identically on retry, so it must not poison the offset.
 - **Incomplete trailing turns** (no `task_complete` yet) are held via `pendingTurnRows` and replayed on the next invocation, unless `flushIncompleteTurns` is set.
 - **Partial trailing lines:** the reader keeps an unterminated final line in `sessionState.buffer`, but `readNewJsonl` ALWAYS attempts to parse the buffered line on every read (a complete-but-unterminated row — often `task_complete` — is consumed; a genuinely partial line fails JSON.parse and stays buffered). This must be unconditional: the offset advances to EOF regardless, so once no more bytes are appended a gated flush would strand the row forever.
-- **File shrink detection:** if the rollout is smaller than the stored offset, reset offset/buffer and re-read from zero.
+- **File shrink detection:** if the rollout is smaller than the stored offset, reset offset/buffer AND clear `pendingTurnRows`/`lastModel`, then re-read from zero — the re-read includes the rows that fed the held state, so stale pending rows would be prepended twice and mis-assemble turns. `turnCount`/`meta` are kept (duplicate turns with advancing numbers match at-least-once; meta is first-wins for the same session).
 - **State locking:** all read-modify-write of `lmnr_state.json` happens under proper-lockfile (`withStateLock`) — concurrent hook invocations are real (subagents).
 
 ## Laminar/OTLP ingestion gotchas
@@ -49,6 +49,6 @@ Laminar observability hook for the OpenAI Codex CLI. Parses Codex rollout JSONL 
 
 ## Testing
 
-- `npm test` (23 tests), `npm run typecheck`.
+- `npm test` (25 tests), `npm run typecheck`.
 - `emitNewTurnsFromRollout` takes an injectable `exportFn` so tests exercise the full pipeline without a network; `CODEX_LMNR_STATE_DIR` redirects state for test/e2e isolation.
 - For e2e against the local stack: craft a synthetic rollout under a fake `CODEX_HOME`, invoke `dist/hook.cjs` with a legacy-notify argv payload, then verify spans in ClickHouse (`spans`, and `traces_replacing` — ReplacingMergeTree, query with `FINAL`).
