@@ -43,6 +43,12 @@ export function useTraceUserInput(
       return;
     }
 
+    // On a trace switch, clear input resolved for a previous trace (e.g. via
+    // metadata, which clears resolvedRef) so it can't render as this trace's.
+    if (resolvedRef.current?.traceId !== traceId) {
+      setUserInput(null);
+    }
+
     // Only fetch once we know there is at least one LLM span in the trace,
     // since extraction relies on LLM span inputs. Before then, leave the hook
     // in its idle state so the UI can skip rendering a placeholder input row.
