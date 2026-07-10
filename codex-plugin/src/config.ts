@@ -28,7 +28,8 @@ export function lockFile(): string {
   return path.join(stateDir(), "lmnr_state.lock");
 }
 
-export const DEBUG = opt("CODEX_LMNR_DEBUG").toLowerCase() === "true";
+// README documents `1`/`true` as the accepted values.
+export const DEBUG = ["1", "true"].includes(opt("CODEX_LMNR_DEBUG").trim().toLowerCase());
 
 function parseMaxChars(): number {
   const raw = opt("CODEX_LMNR_MAX_CHARS") || "20000";

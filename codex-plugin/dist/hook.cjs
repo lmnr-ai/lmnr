@@ -25022,7 +25022,7 @@ function stateFile() {
 function lockFile() {
   return path.join(stateDir(), "lmnr_state.lock");
 }
-var DEBUG = opt("CODEX_LMNR_DEBUG").toLowerCase() === "true";
+var DEBUG = ["1", "true"].includes(opt("CODEX_LMNR_DEBUG").trim().toLowerCase());
 function parseMaxChars() {
   const raw = opt("CODEX_LMNR_MAX_CHARS") || "20000";
   const n = Number.parseInt(raw, 10);
