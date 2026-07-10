@@ -51,11 +51,19 @@ export default function RunScoreCard({
 }: RunScoreCardProps) {
   const [aggregation] = useAggregation();
 
+  // The picker only affects non-binary tiles; hide it when there's nothing
+  // for it to control (all scores binary, or no scores at all).
+  const hasAggregatableScore = scoreNames.some(
+    (scoreName) => !isBinaryDistribution(allDistributions?.[scoreName] ?? null)
+  );
+
   return (
     <div className="flex flex-col gap-1.5 pr-2">
-      <div className="flex items-center gap-1.5">
-        <AggregationSelect />
-      </div>
+      {hasAggregatableScore && (
+        <div className="flex items-center gap-1.5">
+          <AggregationSelect />
+        </div>
+      )}
       <div className="flex gap-8 overflow-x-auto styled-scrollbar py-4">
         {scoreNames.map((scoreName) => {
           const distribution = allDistributions?.[scoreName] ?? null;
