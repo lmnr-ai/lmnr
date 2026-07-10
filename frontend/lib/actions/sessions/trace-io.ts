@@ -182,6 +182,13 @@ export async function getMainAgentIOBatch({
  * pipeline (top LLM path -> parse messages -> regex extraction).
  */
 export async function getTraceUserInput(traceId: string, projectId: string): Promise<string | null> {
+  // Prefer the ingestion-time user task, mirroring getMainAgentIOBatch. The
+  // client only calls this fallback when its metadata snapshot lacks the key,
+  // but that snapshot can be stale (ingestion may have written the key since).
+  const userTaskByTrace = await fetchUserTaskMetadata([traceId], projectId);
+  const metadataTask = userTaskByTrace.get(traceId);
+  if (metadataTask) return metadataTask;
+
   const traceData = await fetchTraceInputOnly(traceId, projectId);
   if (!traceData.parsed) return null;
 
