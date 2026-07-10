@@ -44,6 +44,7 @@ Laminar observability hook for the OpenAI Codex CLI. Parses Codex rollout JSONL 
 
 - `lmnr.association.properties.*` (session_id, user_id, tags, metadata.*) go on the ROOT span only — the app-server propagates them trace-wide. Per-tool metadata must NOT use that prefix (it would leak onto every span); use plain attrs like `codex.tool.name` instead.
 - `lmnr.span.type` values: `DEFAULT`, `LLM`, `TOOL`. Inputs/outputs go in `lmnr.span.input` / `lmnr.span.output` as JSON strings.
+- `gen_ai.output.messages` uses the OTel GenAI semconv `{role, parts}` shape (`thinking`/`text`/`tool_call` parts) — NOT the OpenAI chat shape. Reasoning must render distinctly, and the frontend's `OpenAIAssistantMessageSchema` silently strips unknown keys, so a bare `reasoning` field on a chat-shaped message would be invisible. Input messages stay chat-shaped (`{role, content}`); the frontend parses input/output attrs independently.
 - Spans are backdated to rollout timestamps via explicit `startTime`/`endTime`.
 - Export is OTLP/HTTP **JSON** to `{base}/v1/traces` with `Authorization: Bearer <key>`, hard 5s timeout.
 
