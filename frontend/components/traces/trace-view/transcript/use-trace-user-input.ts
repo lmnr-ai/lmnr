@@ -27,7 +27,7 @@ export function useTraceUserInput(
   // extraction found nothing, absent when it never ran).
   const metadataUserTask = useMemo(() => {
     const task = tryParseJson(traceMetadata ?? "")?.lmnr_user_task;
-    return typeof task === "string" && task.length > 0 ? task : null;
+    return typeof task === "string" && task.trim().length > 0 ? task : null;
   }, [traceMetadata]);
 
   useEffect(() => {
