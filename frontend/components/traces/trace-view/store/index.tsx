@@ -48,7 +48,6 @@ const createTraceViewStore = (options?: {
   storeKey?: string;
   isAlwaysSelectSpan?: boolean;
   initialSignalId?: string;
-  initialChatOpen?: boolean;
   initialSearch?: string;
 }) =>
   createStore<TraceViewStore>()(
@@ -58,7 +57,6 @@ const createTraceViewStore = (options?: {
           initialTrace: options?.initialTrace,
           isAlwaysSelectSpan: options?.isAlwaysSelectSpan,
           initialSignalId: options?.initialSignalId,
-          initialChatOpen: options?.initialChatOpen,
           initialSearch: options?.initialSearch,
         });
 
@@ -130,6 +128,7 @@ const createTraceViewStore = (options?: {
             ...(tabToPersist && { tab: tabToPersist }),
             showTreeContent: state.showTreeContent,
             condensedTimelineEnabled: state.condensedTimelineEnabled,
+            tracesAgentOpen: state.tracesAgentOpen,
           };
         },
         merge: (persistedState, currentState) => {
@@ -153,6 +152,9 @@ const createTraceViewStore = (options?: {
             ...(typeof persisted.condensedTimelineEnabled === "boolean" && {
               condensedTimelineEnabled: persisted.condensedTimelineEnabled,
             }),
+            // Chat opens by default (currentState.tracesAgentOpen === true); a persisted
+            // value is the user's last explicit choice, so a closed chat stays closed.
+            ...(typeof persisted.tracesAgentOpen === "boolean" && { tracesAgentOpen: persisted.tracesAgentOpen }),
             tab,
           };
         },
@@ -168,14 +170,12 @@ const TraceViewStoreProvider = ({
   storeKey,
   isAlwaysSelectSpan,
   initialSignalId,
-  initialChatOpen,
   initialSearch,
 }: PropsWithChildren<{
   initialTrace?: TraceViewTrace;
   storeKey?: string;
   isAlwaysSelectSpan?: boolean;
   initialSignalId?: string;
-  initialChatOpen?: boolean;
   initialSearch?: string;
 }>) => {
   const [storeState] = useState(() =>
@@ -184,7 +184,6 @@ const TraceViewStoreProvider = ({
       storeKey,
       isAlwaysSelectSpan,
       initialSignalId,
-      initialChatOpen,
       initialSearch,
     })
   );

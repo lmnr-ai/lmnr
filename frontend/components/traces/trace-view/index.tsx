@@ -22,7 +22,6 @@ interface TraceViewProps {
   isFillWidth?: boolean;
   isAlwaysSelectSpan?: boolean;
   initialSignalId?: string;
-  showChatInitial?: boolean;
   initialSearch?: string;
 }
 
@@ -32,7 +31,6 @@ export default function TraceView(props: Omit<TraceViewProps, "isFillWidth">) {
       initialTrace={props.propsTrace}
       isAlwaysSelectSpan={props.isAlwaysSelectSpan}
       initialSignalId={props.initialSignalId}
-      initialChatOpen={props.showChatInitial}
       initialSearch={props.initialSearch}
     >
       <TraceViewContent {...props} />
@@ -60,7 +58,6 @@ export function TraceViewSidePanel({
         initialTrace={props.propsTrace}
         isAlwaysSelectSpan={props.isAlwaysSelectSpan}
         initialSignalId={props.initialSignalId}
-        initialChatOpen={props.showChatInitial}
         initialSearch={props.initialSearch}
       >
         <div className="relative w-full h-full flex flex-col">

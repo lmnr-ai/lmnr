@@ -34,7 +34,6 @@ export interface TraceViewContentProps {
   // Omit to hide the close button entirely (e.g. an always-open panel).
   onClose?: () => void;
   isAlwaysSelectSpan?: boolean;
-  showChatInitial?: boolean;
   // Presence controls the layout type
   sidePanelRef?: React.RefObject<HTMLDivElement | null>;
 }
@@ -45,7 +44,6 @@ export default function TraceViewContent({
   onClose,
   propsTrace,
   isAlwaysSelectSpan,
-  showChatInitial,
   sidePanelRef,
 }: TraceViewContentProps) {
   const searchParams = useSearchParams();
@@ -290,15 +288,6 @@ export default function TraceViewContent({
       }
     }
   }, [isSpansLoading, setSelectedSpan, spanId, spans]);
-
-  // The store is created once with `initialChatOpen` from whatever URL state
-  // exists when the provider mounts, but `router.push` is a transition so the
-  // `chat` param can arrive late — or be stale from a previous trace. Keep the
-  // panel in sync with the URL both ways so a late-arriving `chat=true` opens
-  // the panel and a late-arriving `chat=false` closes it.
-  useEffect(() => {
-    setTracesAgentOpen(!!showChatInitial);
-  }, [showChatInitial, setTracesAgentOpen]);
 
   useEffect(() => {
     handleFetchTrace();

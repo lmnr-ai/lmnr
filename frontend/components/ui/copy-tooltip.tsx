@@ -26,24 +26,28 @@ export default function CopyTooltip({
   const [open, setOpen] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(value);
+  const handleCopy = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      try {
+        await navigator.clipboard.writeText(value);
 
-      setCopied(true);
-      setOpen(true);
+        setCopied(true);
+        setOpen(true);
 
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
+
+        timeoutRef.current = setTimeout(() => {
+          setOpen(false);
+        }, 2000);
+      } catch (err) {
+        console.error("Failed to copy text: ", err);
       }
-
-      timeoutRef.current = setTimeout(() => {
-        setOpen(false);
-      }, 2000);
-    } catch (err) {
-      console.error("Failed to copy text: ", err);
-    }
-  }, [value]);
+    },
+    [value]
+  );
 
   const handleOpenChange = useCallback((newOpen: boolean) => {
     if (newOpen) {
