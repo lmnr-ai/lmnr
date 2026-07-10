@@ -92,7 +92,8 @@ function buildScoreColumns(
   scoreNames: string[],
   scoresByEvalId: Record<string, Record<string, number | null>>,
   heatmapEnabled: boolean,
-  scoreRanges: Record<string, ScoreRange>
+  scoreRanges: Record<string, ScoreRange>,
+  hiddenEvaluationIds: string[]
 ): ColumnDef<Evaluation>[] {
   return scoreNames.map((scoreName) => ({
     id: `score:${scoreName}`,
@@ -102,7 +103,8 @@ function buildScoreColumns(
       const v = cell.getValue() as number | null;
       if (!isValidScore(v)) return <span className="text-muted-foreground">—</span>;
       const range = scoreRanges[scoreName];
-      if (heatmapEnabled && range) {
+      // Rows hidden from the chart are grayed out — skip the heatmap accent there too.
+      if (heatmapEnabled && range && !hiddenEvaluationIds.includes(cell.row.original.id)) {
         return <HeatmapValue value={v} range={range} text={<Mono>{formatScoreValue(v)}</Mono>} />;
       }
       return <Mono>{Number.isInteger(v) ? v.toString() : v.toFixed(3)}</Mono>;
@@ -359,7 +361,7 @@ function EvaluationsContent() {
         },
       },
       ...baseColumns,
-      ...buildScoreColumns(scoreNames, scoresByEvalId, heatmapEnabled, scoreRanges),
+      ...buildScoreColumns(scoreNames, scoresByEvalId, heatmapEnabled, scoreRanges, hiddenEvaluationIds),
     ],
     [
       scoreNames,

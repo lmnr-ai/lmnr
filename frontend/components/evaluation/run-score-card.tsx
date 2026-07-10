@@ -64,7 +64,7 @@ export default function RunScoreCard({
           <AggregationSelect />
         </div>
       )}
-      <div className="flex gap-8 overflow-x-auto styled-scrollbar py-4">
+      <div className="flex gap-3 overflow-x-auto styled-scrollbar py-2">
         {scoreNames.map((scoreName) => {
           const distribution = allDistributions?.[scoreName] ?? null;
           const comparedDistribution = comparedAllDistributions?.[scoreName] ?? null;
@@ -81,7 +81,7 @@ export default function RunScoreCard({
           const improved = change !== null && change >= 0;
 
           return (
-            <div key={scoreName} className="flex shrink-0 flex-col gap-1">
+            <div key={scoreName} className="flex min-w-40 shrink-0 flex-col gap-2 rounded-lg border bg-card px-4 py-3">
               <span className="max-w-48 truncate text-xs font-medium text-secondary-foreground" title={scoreName}>
                 {scoreName}
               </span>
