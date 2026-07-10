@@ -26,6 +26,7 @@ use crate::{
         },
         workspaces::WorkspaceDeployment,
     },
+    env,
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
     pii_redactor::{PiiRedactorClient, redact_spans_in_place},
@@ -531,28 +532,33 @@ pub async fn process_span_messages(
         // span metadata beat the patch. Stamping the patch strictly higher
         // mirrors the PG path, where the patch UPDATE runs after the
         // aggregation upsert.
-        let mut traces_agg_rows: Vec<CHTraceAgg> =
-            Vec::with_capacity(trace_aggregations.len() + patched_traces.len());
-        let now_ns = chrono_to_nanoseconds(chrono::Utc::now());
-        if aggregation_ok {
-            traces_agg_rows.extend(
-                trace_aggregations
-                    .iter()
-                    .map(|agg| CHTraceAgg::from_aggregation(agg, now_ns)),
-            );
-        }
-        traces_agg_rows.extend(
-            patched_traces
-                .iter()
-                .map(|trace| CHTraceAgg::from_patched_trace(trace, now_ns + 1)),
-        );
-        if !traces_agg_rows.is_empty() {
-            if let Err(e) = ch.insert_batch(&traces_agg_rows, config).await {
-                log::error!(
-                    "Failed to insert {} trace aggregation partials to ClickHouse: {:?}",
-                    traces_agg_rows.len(),
-                    e
+        // The whole dual-write is gated behind WRITE_TRACES_AGG (default off)
+        // while the cloud-only performance experiment runs, so self-hosted
+        // deployments keep writing only traces_replacing.
+        if env::clickhouse::WRITE_TRACES_AGG.get() {
+            let mut traces_agg_rows: Vec<CHTraceAgg> =
+                Vec::with_capacity(trace_aggregations.len() + patched_traces.len());
+            let now_ns = chrono_to_nanoseconds(chrono::Utc::now());
+            if aggregation_ok {
+                traces_agg_rows.extend(
+                    trace_aggregations
+                        .iter()
+                        .map(|agg| CHTraceAgg::from_aggregation(agg, now_ns)),
                 );
+            }
+            traces_agg_rows.extend(
+                patched_traces
+                    .iter()
+                    .map(|trace| CHTraceAgg::from_patched_trace(trace, now_ns + 1)),
+            );
+            if !traces_agg_rows.is_empty() {
+                if let Err(e) = ch.insert_batch(&traces_agg_rows, config).await {
+                    log::error!(
+                        "Failed to insert {} trace aggregation partials to ClickHouse: {:?}",
+                        traces_agg_rows.len(),
+                        e
+                    );
+                }
             }
         }
 
