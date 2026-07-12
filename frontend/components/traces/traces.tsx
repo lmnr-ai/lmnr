@@ -38,15 +38,12 @@ function TracesContent() {
     setSpanId: state.setSpanId,
   }));
 
-  const showChatInitial = searchParams.get("chat") === "true";
-
   const resetUrlParams = (newView: string) => {
     const params = new URLSearchParams(searchParams);
     params.delete("filter");
     params.delete("textSearch");
     params.delete("traceId");
     params.delete("spanId");
-    params.delete("chat");
     params.set("view", newView);
     setTraceId(null);
     router.push(`${pathName}?${params.toString()}`);
@@ -102,12 +99,10 @@ function TracesContent() {
             const params = new URLSearchParams(searchParams);
             params.delete("traceId");
             params.delete("spanId");
-            params.delete("chat");
             router.push(`${pathName}?${params.toString()}`);
             setTraceId(null);
           }}
           traceId={traceId}
-          showChatInitial={showChatInitial}
           initialSearch={searchParams.get("search") ?? undefined}
         />
       )}

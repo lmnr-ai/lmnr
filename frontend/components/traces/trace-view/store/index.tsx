@@ -48,8 +48,10 @@ const createTraceViewStore = (options?: {
   storeKey?: string;
   isAlwaysSelectSpan?: boolean;
   initialSignalId?: string;
-  initialChatOpen?: boolean;
   initialSearch?: string;
+  // One-shot override read from `chat=true` in the URL at store creation.
+  // Forces the chat open even over a persisted `false` — see merge below.
+  initialChatOpen?: boolean;
 }) =>
   createStore<TraceViewStore>()(
     persist(
@@ -58,7 +60,6 @@ const createTraceViewStore = (options?: {
           initialTrace: options?.initialTrace,
           isAlwaysSelectSpan: options?.isAlwaysSelectSpan,
           initialSignalId: options?.initialSignalId,
-          initialChatOpen: options?.initialChatOpen,
           initialSearch: options?.initialSearch,
         });
 
@@ -130,6 +131,7 @@ const createTraceViewStore = (options?: {
             ...(tabToPersist && { tab: tabToPersist }),
             showTreeContent: state.showTreeContent,
             condensedTimelineEnabled: state.condensedTimelineEnabled,
+            tracesAgentOpen: state.tracesAgentOpen,
           };
         },
         merge: (persistedState, currentState) => {
@@ -153,6 +155,14 @@ const createTraceViewStore = (options?: {
             ...(typeof persisted.condensedTimelineEnabled === "boolean" && {
               condensedTimelineEnabled: persisted.condensedTimelineEnabled,
             }),
+            // Chat opens by default (currentState.tracesAgentOpen === true); a persisted
+            // value is the user's last explicit choice, so a closed chat stays closed.
+            ...(typeof persisted.tracesAgentOpen === "boolean" && { tracesAgentOpen: persisted.tracesAgentOpen }),
+            // `chat=true` deep-links (emails/Slack/notifications) force the chat open,
+            // overriding a persisted `false`. This is a creation-time override, NOT an
+            // ongoing effect — merge runs once at hydration, so a subsequent user close
+            // sticks. Re-entering via a fresh `chat=true` link (new store) re-forces it.
+            ...(options?.initialChatOpen ? { tracesAgentOpen: true } : {}),
             tab,
           };
         },
@@ -168,15 +178,15 @@ const TraceViewStoreProvider = ({
   storeKey,
   isAlwaysSelectSpan,
   initialSignalId,
-  initialChatOpen,
   initialSearch,
+  initialChatOpen,
 }: PropsWithChildren<{
   initialTrace?: TraceViewTrace;
   storeKey?: string;
   isAlwaysSelectSpan?: boolean;
   initialSignalId?: string;
-  initialChatOpen?: boolean;
   initialSearch?: string;
+  initialChatOpen?: boolean;
 }>) => {
   const [storeState] = useState(() =>
     createTraceViewStore({
@@ -184,8 +194,8 @@ const TraceViewStoreProvider = ({
       storeKey,
       isAlwaysSelectSpan,
       initialSignalId,
-      initialChatOpen,
       initialSearch,
+      initialChatOpen,
     })
   );
 

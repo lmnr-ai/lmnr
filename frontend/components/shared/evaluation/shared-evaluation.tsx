@@ -170,7 +170,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
     [searchParams, push, pathName]
   );
 
-  const visibleColumnDefs = useMemo(() => selectVisibleColumnDefs(columnDefs, false), [columnDefs]);
+  const visibleColumnDefs = useMemo(() => selectVisibleColumnDefs(columnDefs), [columnDefs]);
   const { width: defaultTraceViewWidth, handleResizeStop } = useResizableTraceViewWidth();
 
   return (

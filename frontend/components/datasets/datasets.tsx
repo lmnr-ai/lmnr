@@ -21,6 +21,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
+import CopyTooltip from "../ui/copy-tooltip";
 import Header from "../ui/header";
 import { InfiniteDataTable } from "../ui/infinite-datatable";
 import Mono from "../ui/mono";
@@ -28,7 +29,11 @@ import CreateDatasetDialog from "./create-dataset-dialog";
 
 const columns: ColumnDef<DatasetInfo>[] = [
   {
-    cell: ({ row }) => <Mono>{row.original.id}</Mono>,
+    cell: ({ row }) => (
+      <CopyTooltip value={row.original.id} className="block truncate">
+        <Mono className="text-xs">{row.original.id}</Mono>
+      </CopyTooltip>
+    ),
     size: 300,
     header: "ID",
     id: "id",

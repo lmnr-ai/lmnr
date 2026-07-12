@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { parseAiSdkMessages } from "@/lib/spans/types/ai-sdk";
+import { convertAiSdkToPlaygroundMessages, matchAiSdkMessages, parseAiSdkMessages } from "@/lib/spans/types/ai-sdk";
 
 describe("parseAiSdkMessages", () => {
   it("returns null for payloads that aren't native AI-SDK-shaped", () => {
@@ -190,6 +190,112 @@ describe("parseAiSdkMessages", () => {
     assert.strictEqual(parseAiSdkMessages(openaiStyle), null);
   });
 
+  it("does not claim OpenAI image/file payloads (nested image_url / file keys)", () => {
+    // OpenAI nests media under `image_url.url` / `file.file_data`; neither
+    // carries a top-level data|url + mediaType, so the file-part discriminator
+    // must not fire.
+    const openaiStyle = [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "look" },
+          { type: "image_url", image_url: { url: "https://example.com/pic.png" } },
+          { type: "file", file: { file_data: "base64...", filename: "doc.pdf" } },
+        ],
+      },
+    ];
+    assert.strictEqual(parseAiSdkMessages(openaiStyle), null);
+  });
+
+  it("claims a verbatim LanguageModel prompt via its file part (top-level data + mediaType)", () => {
+    // LAM-1922: the SDK sends the LanguageModel-level prompt verbatim; a
+    // URL-image arrives as a `file` part with `data`/`url` + `mediaType`.
+    const input = [
+      { role: "system", content: "be helpful" },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "what is this?" },
+          { type: "file", data: "https://example.com/pic.png", mediaType: "image/png" },
+        ],
+      },
+    ];
+
+    const result = parseAiSdkMessages(input);
+    assert.ok(result, "expected the file part to claim this payload");
+    const content = result[1].content as any[];
+    // Image-flavored file parts render as images.
+    assert.deepStrictEqual(content[1], { type: "image", image: "https://example.com/pic.png" });
+  });
+
+  it("wraps base64 image file data into a data URI", () => {
+    const input = [
+      {
+        role: "user",
+        content: [{ type: "file", data: "aGVsbG8=", mediaType: "image/jpeg" }],
+      },
+    ];
+
+    const result = parseAiSdkMessages(input);
+    assert.ok(result);
+    const content = result[0].content as any[];
+    assert.deepStrictEqual(content[0], { type: "image", image: "data:image/jpeg;base64,aGVsbG8=" });
+  });
+
+  it("claims via providerOptions on a message or part", () => {
+    // Verbatim prompts keep providerOptions; that alone is a discriminator.
+    const viaMessage = [
+      { role: "user", content: "hello", providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } } },
+    ];
+    const result = parseAiSdkMessages(viaMessage);
+    assert.ok(result, "expected message-level providerOptions to claim this payload");
+    assert.deepStrictEqual((result[0] as any).providerOptions, {
+      anthropic: { cacheControl: { type: "ephemeral" } },
+    });
+
+    const viaPart = [
+      { role: "user", content: [{ type: "text", text: "hello", providerOptions: { openai: { foo: 1 } } }] },
+    ];
+    assert.ok(parseAiSdkMessages(viaPart), "expected part-level providerOptions to claim this payload");
+  });
+
+  it("claims via providerMetadata on response content (LanguageModel output)", () => {
+    const input = [
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "answer", providerMetadata: { anthropic: { signature: "sig" } } }],
+      },
+    ];
+    const result = parseAiSdkMessages(input);
+    assert.ok(result);
+    const content = result[0].content as any[];
+    assert.deepStrictEqual(content[0].providerMetadata, { anthropic: { signature: "sig" } });
+  });
+
+  it("claims the legacy server-reshaped snake_case tool_call shape", () => {
+    // Historical spans reshaped by the server (`ai.prompt.messages` →
+    // ChatMessage) remain in ClickHouse indefinitely; keep parsing them.
+    const input = [
+      {
+        role: "assistant",
+        content: [
+          { type: "text", text: "checking" },
+          { type: "tool_call", id: "c1", name: "get_weather", arguments: { city: "SF" } },
+        ],
+      },
+    ];
+
+    const result = parseAiSdkMessages(input);
+    assert.ok(result, "expected the legacy tool_call part to claim this payload");
+    const content = result[0].content as any[];
+    assert.deepStrictEqual(content[1], {
+      type: "tool-call",
+      toolCallId: "c1",
+      toolName: "get_weather",
+      input: { city: "SF" },
+    });
+  });
+
   it("rejects messages whose role is not a canonical ModelMessage role", () => {
     // The role-discriminated union only knows system/user/assistant/tool. A
     // `human`/`ai`-style role (LangChain) must fall through even when it carries
@@ -274,5 +380,79 @@ describe("parseAiSdkMessages", () => {
     const content = result[0].content as any[];
     assert.strictEqual(content[0].type, "reasoning");
     assert.deepStrictEqual(content[1], { type: "tool-poll", pollId: "p1", detail: { nested: true } });
+  });
+});
+
+describe("convertAiSdkToPlaygroundMessages", () => {
+  it("preserves part-level providerOptions on text and tool-call parts", async () => {
+    const messages = matchAiSdkMessages([
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "hello", providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } } },
+        ],
+      },
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: "c1",
+            toolName: "t",
+            input: {},
+            providerOptions: { openai: { foo: 1 } },
+          },
+        ],
+      },
+    ]);
+    assert.ok(messages);
+
+    const result = await convertAiSdkToPlaygroundMessages(messages);
+    const userPart = result[0].content[0] as any;
+    assert.deepStrictEqual(userPart.providerOptions, { anthropic: { cacheControl: { type: "ephemeral" } } });
+    const toolCallPart = result[1].content[0] as any;
+    assert.strictEqual(toolCallPart.type, "tool-call");
+    assert.deepStrictEqual(toolCallPart.providerOptions, { openai: { foo: 1 } });
+  });
+
+  it("preserves message-level providerOptions", async () => {
+    const messages = matchAiSdkMessages([
+      {
+        role: "system",
+        content: "be helpful",
+        providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
+      },
+      {
+        role: "user",
+        content: [{ type: "text", text: "hi" }],
+        providerOptions: { openai: { foo: 1 } },
+      },
+    ]);
+    assert.ok(messages);
+
+    const result = await convertAiSdkToPlaygroundMessages(messages);
+    assert.deepStrictEqual((result[0] as any).providerOptions, {
+      anthropic: { cacheControl: { type: "ephemeral" } },
+    });
+    assert.deepStrictEqual((result[1] as any).providerOptions, { openai: { foo: 1 } });
+  });
+
+  it("surfaces opaque image data as JSON instead of dropping the part", async () => {
+    const messages = matchAiSdkMessages([
+      {
+        role: "user",
+        content: [
+          { type: "image", image: { bytes: [1, 2, 3] }, providerOptions: { openai: { foo: 1 } } },
+          { type: "tool-call", toolCallId: "c1", toolName: "t", input: {} },
+        ],
+      },
+    ]);
+    assert.ok(messages);
+
+    const result = await convertAiSdkToPlaygroundMessages(messages);
+    const content = result[0].content as any[];
+    assert.strictEqual(content.length, 2);
+    assert.strictEqual(content[0].type, "text");
+    assert.ok(content[0].text.includes('"bytes"'), "expected the opaque image payload to survive as JSON");
   });
 });

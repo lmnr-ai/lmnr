@@ -76,6 +76,7 @@ export interface ToolCallPart {
 export interface Message {
   role: "system" | "user" | "assistant" | "tool";
   content: Array<ImagePart | TextPart | ToolResultPart | ToolCallPart>;
+  providerOptions?: Record<string, Record<string, unknown>>;
 }
 
 export type OpenAIProviderOptions = {

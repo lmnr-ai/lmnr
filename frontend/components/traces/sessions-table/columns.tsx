@@ -2,6 +2,7 @@ import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { type ColumnDef } from "@tanstack/react-table";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
+import CopyTooltip from "@/components/ui/copy-tooltip";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -63,9 +64,9 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     header: "ID",
     id: "id",
     cell: (row) => (
-      <div className="min-h-6 flex items-center">
-        <Mono className="text-xs truncate">{row.getValue()}</Mono>
-      </div>
+      <CopyTooltip value={String(row.getValue())} className="block truncate">
+        <Mono className="text-xs">{row.getValue()}</Mono>
+      </CopyTooltip>
     ),
     size: 200,
     meta: { sql: "session_id" },

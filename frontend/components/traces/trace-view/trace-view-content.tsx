@@ -18,6 +18,7 @@ import { SpanViewSkeleton } from "../span-view/skeleton";
 import DynamicWidthLayout from "./dynamic-width-layout";
 import FillWidthLayout from "./fill-width-layout";
 import TracePanel from "./trace-panel";
+import { useChatPanel } from "./use-chat-panel";
 
 export interface TraceViewPanels {
   tracePanel: React.ReactNode;
@@ -34,7 +35,6 @@ export interface TraceViewContentProps {
   // Omit to hide the close button entirely (e.g. an always-open panel).
   onClose?: () => void;
   isAlwaysSelectSpan?: boolean;
-  showChatInitial?: boolean;
   // Presence controls the layout type
   sidePanelRef?: React.RefObject<HTMLDivElement | null>;
 }
@@ -45,7 +45,6 @@ export default function TraceViewContent({
   onClose,
   propsTrace,
   isAlwaysSelectSpan,
-  showChatInitial,
   sidePanelRef,
 }: TraceViewContentProps) {
   const searchParams = useSearchParams();
@@ -55,15 +54,16 @@ export default function TraceViewContent({
   const featureFlags = useFeatureFlags();
 
   // Panel visibility states
-  const { spanPanelOpen, tracesAgentOpen, setTracesAgentOpen, selectSpanById } = useTraceViewStore(
+  const { spanPanelOpen, selectSpanById } = useTraceViewStore(
     (state) => ({
       spanPanelOpen: state.spanPanelOpen,
-      tracesAgentOpen: state.tracesAgentOpen,
-      setTracesAgentOpen: state.setTracesAgentOpen,
       selectSpanById: state.selectSpanById,
     }),
     shallow
   );
+
+  // Chat open state + close action (close also clears a lingering `chat=true` from the URL).
+  const { chatOpen, closeChat } = useChatPanel();
 
   // Data states
   const {
@@ -147,7 +147,6 @@ export default function TraceViewContent({
     setIsTraceLoading,
     setTrace,
     setTraceError,
-    setTracesAgentOpen,
     traceId,
   ]);
 
@@ -291,15 +290,6 @@ export default function TraceViewContent({
     }
   }, [isSpansLoading, setSelectedSpan, spanId, spans]);
 
-  // The store is created once with `initialChatOpen` from whatever URL state
-  // exists when the provider mounts, but `router.push` is a transition so the
-  // `chat` param can arrive late — or be stale from a previous trace. Keep the
-  // panel in sync with the URL both ways so a late-arriving `chat=true` opens
-  // the panel and a late-arriving `chat=false` closes it.
-  useEffect(() => {
-    setTracesAgentOpen(!!showChatInitial);
-  }, [showChatInitial, setTracesAgentOpen]);
-
   useEffect(() => {
     handleFetchTrace();
   }, [handleFetchTrace]);
@@ -371,12 +361,12 @@ export default function TraceViewContent({
   const isChatEnabled = featureFlags[Feature.AGENT];
   const chatPanel = isChatEnabled ? (
     <div className="flex flex-col h-full w-full overflow-hidden">
-      <Chat traceId={traceId} onSetSpanId={selectSpanById} onClose={() => setTracesAgentOpen(false)} />
+      <Chat traceId={traceId} onSetSpanId={selectSpanById} onClose={closeChat} />
     </div>
   ) : null;
 
   const showSpan = spanPanelOpen || (isAlwaysSelectSpan === true && !isLoading && spans.length > 0);
-  const showChat = isChatEnabled && tracesAgentOpen;
+  const showChat = isChatEnabled && chatOpen;
 
   const panels: TraceViewPanels = {
     tracePanel,

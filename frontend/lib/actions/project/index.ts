@@ -94,6 +94,7 @@ async function deleteProjectDataFromClickHouse(
   const tables = [
     "default.spans",
     "default.traces_replacing",
+    "default.traces_agg",
     "default.trace_tags",
     "default.trace_summaries",
     "default.browser_session_events",

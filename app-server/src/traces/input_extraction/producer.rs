@@ -4,7 +4,6 @@
 
 use std::sync::Arc;
 
-use tracing::instrument;
 use uuid::Uuid;
 
 use super::input::{lock_user_sig, prepare_user_task_input};
@@ -82,7 +81,6 @@ fn span_depth(attributes: &mut SpanAttributes, span_name: &str) -> usize {
 /// application on hit, enqueue for LLM regex generation on miss. All
 /// failures are logged and swallowed — user-task extraction must never
 /// block or fail span ingestion.
-#[instrument(skip_all)]
 pub async fn process_user_task_candidates(
     candidates: Vec<UserTaskSpanContext>,
     project_id: Uuid,
@@ -154,8 +152,14 @@ pub async fn process_user_task_candidates(
             candidate.prompt_hash.as_deref(),
             &candidate.fingerprint,
         );
-        let inline_result =
-            try_apply_cached_regex(&cache, &regex_key, &candidate.signposted_text).await;
+        let inline_result = try_apply_cached_regex(
+            &cache,
+            &regex_key,
+            &candidate.signposted_text,
+            project_id,
+            trace_id,
+        )
+        .await;
 
         if inline_result.is_some() {
             // Re-read the winner lock before the inline publish: a
