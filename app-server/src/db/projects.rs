@@ -53,8 +53,7 @@ impl WorkspaceTierName {
     fn from_str(s: &str) -> Self {
         match s.trim().to_lowercase().as_str() {
             "free" => Self::Free,
-            // "Starter" is the display name of the internal "hobby" tier.
-            "hobby" | "starter" => Self::Hobby,
+            "hobby" => Self::Hobby,
             "pro" => Self::Pro,
             x => {
                 log::warn!("Unknown workspace tier name: {}", x);
@@ -84,7 +83,7 @@ impl WorkspaceTierName {
 
     /// Signal cost included in this tier's monthly plan, in micro-USD (1e-6
     /// USD). Signals are billed by the token cost the agent spends, so the
-    /// included allowance is a dollar amount: $5 Free, $15 Starter, $50 Pro.
+    /// included allowance is a dollar amount: $5 Free, $15 Hobby, $50 Pro.
     /// Must stay in sync with `TIER_CONFIG.includedSignalCostMicroUsd` in the
     /// frontend and the `subscription_tiers.signal_cost_included_micro_usd` DB column.
     pub fn included_signal_cost_micro_usd(&self) -> Option<i64> {
@@ -99,7 +98,7 @@ impl WorkspaceTierName {
     pub fn display_name(&self) -> &'static str {
         match self {
             Self::Free => "Free",
-            Self::Hobby => "Starter",
+            Self::Hobby => "Hobby",
             Self::Pro => "Pro",
             Self::Other => "your",
         }
