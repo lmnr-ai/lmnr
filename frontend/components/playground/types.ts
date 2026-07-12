@@ -233,6 +233,11 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         name: "MiniMax-M3",
         label: "MiniMax-M3",
       },
+      {
+        id: "minimax:MiniMax-M2.7",
+        name: "MiniMax-M2.7",
+        label: "MiniMax-M2.7",
+      },
     ],
   },
   {

@@ -33,7 +33,12 @@ export const getModel = <P extends Provider, K extends string>(key: `${P}:${K}`,
   }
 
   try {
-    const providerConfig = provider === "minimax" ? { apiKey, baseURL: "https://api.minimax.io/v1" } : { apiKey };
+    if (provider === "minimax") {
+      const providerInstance = createOpenAI({ apiKey, baseURL: "https://api.minimax.io/v1" });
+      return providerInstance.chat(model);
+    }
+
+    const providerConfig = { apiKey };
     const providerInstance = createProvider(providerConfig);
     return providerInstance(model);
   } catch (error) {
