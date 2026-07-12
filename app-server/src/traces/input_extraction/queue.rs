@@ -9,7 +9,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::lock::UserTaskLockState;
+use super::lock::{SubagentInputLockState, UserTaskLockState};
 use crate::mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload};
 
 pub const INPUT_EXTRACTION_QUEUE: &str = "input_extraction_queue";
@@ -34,6 +34,26 @@ pub struct InputExtractionMessage {
     /// superseded this candidate).
     #[serde(default)]
     pub winner_state: Option<UserTaskLockState>,
+    /// When set, this extraction targets a subagent slot instead of the
+    /// trace's main `lmnr_user_task` (LAM-1953). `None` = main task, so
+    /// in-flight legacy messages decode unchanged.
+    #[serde(default)]
+    pub subagent: Option<SubagentTarget>,
+}
+
+/// A subagent extraction target: the locator span identifies the branch
+/// point where the subagent's subtree diverges from its owning agent.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubagentTarget {
+    /// Locator half-UUID span id — resolves the metadata keys
+    /// (`lmnr_subagent_input.<uuid>`) and the `st_in_lock` cache key.
+    pub span_id: Uuid,
+    /// Dot-joined name-path down to the locator, for
+    /// `lmnr_subagent_path.<uuid>`.
+    pub label: String,
+    /// Per-locator winner-lock snapshot at enqueue time; supersession
+    /// checks run against `st_in_lock` instead of the main lock.
+    pub winner_state: Option<SubagentInputLockState>,
 }
 
 /// Returns `Ok(true)` when the message was enqueued, `Ok(false)` when it

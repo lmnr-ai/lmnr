@@ -4,10 +4,39 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::cache::keys::USER_TASK_LOCK_CACHE_KEY;
+use crate::cache::keys::{
+    SUBAGENT_INPUT_LOCK_CACHE_KEY, SUBAGENT_OUTPUT_LOCK_CACHE_KEY, TRACE_OUTPUT_LOCK_CACHE_KEY,
+    USER_TASK_LOCK_CACHE_KEY,
+};
 
 pub fn lock_cache_key(project_id: Uuid, trace_id: Uuid) -> String {
     format!("{USER_TASK_LOCK_CACHE_KEY}:{project_id}:{trace_id}")
+}
+
+pub fn trace_output_lock_cache_key(project_id: Uuid, trace_id: Uuid) -> String {
+    format!("{TRACE_OUTPUT_LOCK_CACHE_KEY}:{project_id}:{trace_id}")
+}
+
+pub fn subagent_input_lock_cache_key(project_id: Uuid, trace_id: Uuid, locator: Uuid) -> String {
+    format!(
+        "{SUBAGENT_INPUT_LOCK_CACHE_KEY}:{project_id}:{trace_id}:{}",
+        loc16(locator)
+    )
+}
+
+pub fn subagent_output_lock_cache_key(project_id: Uuid, trace_id: Uuid, locator: Uuid) -> String {
+    format!(
+        "{SUBAGENT_OUTPUT_LOCK_CACHE_KEY}:{project_id}:{trace_id}:{}",
+        loc16(locator)
+    )
+}
+
+/// Compact cache-key form of a locator span id. Span ids are 64-bit OTel
+/// ids stored as half-UUIDs (leading 16 hex chars zero), so the last 16
+/// hex chars carry all the entropy; keep the `0123-456789abcdef` shape.
+pub fn loc16(span_id: Uuid) -> String {
+    let simple = span_id.simple().to_string();
+    format!("{}-{}", &simple[16..20], &simple[20..32])
 }
 
 /// Legacy lock entries (written before `start_time_ns` existed) carry no
@@ -64,6 +93,63 @@ impl UserTaskLockState {
     /// snapshot CAN override is necessarily such a stale older state:
     /// the snapshot is still the strongest known candidate and must
     /// publish, not drop.
+    pub fn supersedes(&self, snapshot: &Self) -> bool {
+        self != snapshot && !self.should_override(snapshot)
+    }
+}
+
+/// Winning-output state, shared by the trace-output lock and per-locator
+/// subagent-output locks. The agent's final answer sits on its own spine
+/// (shallowest depth within the lock's scope) and is the LAST such span,
+/// so: strictly shallower wins; at equal depth, strictly later end wins.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OutputLockState {
+    /// Span path depth of the winning span.
+    #[serde(rename = "d")]
+    pub depth: usize,
+    /// End time (ns since epoch) of the winning span.
+    #[serde(rename = "t")]
+    pub end_time_ns: i64,
+}
+
+impl OutputLockState {
+    pub fn should_override(&self, candidate: &Self) -> bool {
+        if candidate.depth < self.depth {
+            return true;
+        }
+        candidate.depth == self.depth && candidate.end_time_ns > self.end_time_ns
+    }
+
+    /// Same order-aware supersession semantics as
+    /// [`UserTaskLockState::supersedes`]; relies on `should_override`
+    /// being antisymmetric (strict comparisons on both axes).
+    pub fn supersedes(&self, snapshot: &Self) -> bool {
+        self != snapshot && !self.should_override(snapshot)
+    }
+}
+
+/// Winning-input state for one subagent locator. The subagent's task is
+/// pinned to its earliest LLM span — strictly earlier start wins. Depth
+/// is stored (not arbitrated on) because the registered `d` drives the
+/// nested-subagent descent walk in `subagent.rs`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SubagentInputLockState {
+    /// Span path depth of the winning span.
+    #[serde(rename = "d")]
+    pub depth: usize,
+    /// Start time (ns since epoch) of the winning span.
+    #[serde(rename = "t")]
+    pub start_time_ns: i64,
+}
+
+impl SubagentInputLockState {
+    pub fn should_override(&self, candidate: &Self) -> bool {
+        candidate.start_time_ns < self.start_time_ns
+    }
+
+    /// Same order-aware supersession semantics as
+    /// [`UserTaskLockState::supersedes`]; antisymmetric via the strict
+    /// start-time comparison.
     pub fn supersedes(&self, snapshot: &Self) -> bool {
         self != snapshot && !self.should_override(snapshot)
     }
@@ -161,5 +247,99 @@ mod tests {
         let back: UserTaskLockState =
             serde_json::from_str(r#"{"c":1.5,"d":3,"s":"plain"}"#).unwrap();
         assert_eq!(back.start_time_ns, i64::MAX);
+    }
+
+    #[test]
+    fn loc16_keeps_last_16_hex_with_dash_shape() {
+        let id = Uuid::parse_str("00000000-0000-0000-0123-456789abcdef").unwrap();
+        assert_eq!(loc16(id), "0123-456789abcdef");
+    }
+
+    #[test]
+    fn output_and_subagent_lock_keys_scope_correctly() {
+        let p = Uuid::new_v4();
+        let t = Uuid::new_v4();
+        let l = Uuid::parse_str("00000000-0000-0000-d2c3-61d0ea548a38").unwrap();
+        assert_eq!(
+            trace_output_lock_cache_key(p, t),
+            format!("trace_output_lock:{p}:{t}")
+        );
+        assert_eq!(
+            subagent_input_lock_cache_key(p, t, l),
+            format!("st_in_lock:{p}:{t}:d2c3-61d0ea548a38")
+        );
+        assert_eq!(
+            subagent_output_lock_cache_key(p, t, l),
+            format!("st_out_lock:{p}:{t}:d2c3-61d0ea548a38")
+        );
+    }
+
+    fn out(depth: usize, t: i64) -> OutputLockState {
+        OutputLockState {
+            depth,
+            end_time_ns: t,
+        }
+    }
+
+    #[test]
+    fn output_lock_shallower_wins_then_later_end() {
+        let prev = out(3, 100);
+        // Strictly shallower always overrides.
+        assert!(prev.should_override(&out(2, 50)));
+        // Equal depth: only a strictly LATER end overrides.
+        assert!(prev.should_override(&out(3, 200)));
+        assert!(!prev.should_override(&out(3, 100)));
+        assert!(!prev.should_override(&out(3, 50)));
+        // Deeper never overrides.
+        assert!(!prev.should_override(&out(4, 200)));
+    }
+
+    #[test]
+    fn output_lock_supersedes_is_order_aware() {
+        let snapshot = out(2, 100);
+        assert!(!out(2, 100).supersedes(&snapshot));
+        // Newer winner (shallower, or same depth later): drop.
+        assert!(out(1, 50).supersedes(&snapshot));
+        assert!(out(2, 200).supersedes(&snapshot));
+        // Stale older lock the snapshot can override: publish.
+        assert!(!out(3, 200).supersedes(&snapshot));
+        assert!(!out(2, 50).supersedes(&snapshot));
+    }
+
+    fn sub_in(depth: usize, t: i64) -> SubagentInputLockState {
+        SubagentInputLockState {
+            depth,
+            start_time_ns: t,
+        }
+    }
+
+    #[test]
+    fn subagent_input_lock_earliest_start_wins() {
+        let prev = sub_in(3, 100);
+        assert!(prev.should_override(&sub_in(5, 50)));
+        assert!(!prev.should_override(&sub_in(2, 100)));
+        assert!(!prev.should_override(&sub_in(2, 200)));
+    }
+
+    #[test]
+    fn subagent_input_lock_supersedes_is_order_aware() {
+        let snapshot = sub_in(3, 100);
+        assert!(!sub_in(3, 100).supersedes(&snapshot));
+        // Newer (earlier-starting) winner: drop.
+        assert!(sub_in(4, 50).supersedes(&snapshot));
+        // Stale later-starting lock the snapshot overrides: publish.
+        assert!(!sub_in(2, 200).supersedes(&snapshot));
+    }
+
+    #[test]
+    fn new_lock_states_serialize_with_short_keys() {
+        assert_eq!(
+            serde_json::to_string(&out(3, 42)).unwrap(),
+            r#"{"d":3,"t":42}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&sub_in(3, 42)).unwrap(),
+            r#"{"d":3,"t":42}"#
+        );
     }
 }

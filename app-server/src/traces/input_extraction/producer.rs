@@ -1,16 +1,22 @@
 //! Producer-side hook, called from `publish_span_messages`: candidate
-//! capture, winner arbitration, inline cached-regex application, and
-//! enqueueing regex generation on cache miss.
+//! capture, winner arbitration, inline cached-regex application,
+//! enqueueing regex generation on cache miss, and the inline
+//! trace-output / subagent extraction passes (LAM-1953).
 
 use std::sync::Arc;
 
 use uuid::Uuid;
 
-use super::input::{lock_user_sig, prepare_user_task_input};
+use super::input::{HAS_HISTORY_FINGERPRINT_PREFIX, lock_user_sig, prepare_user_task_input};
 use super::lock::{UserTaskLockState, lock_cache_key};
 use super::metadata::build_metadata_patch;
+use super::output::{OutputCandidate, process_trace_output_candidate};
 use super::queue::{InputExtractionMessage, push_to_input_extraction_queue};
 use super::regex::{regex_cache_key, try_apply_cached_regex};
+use super::subagent::{
+    locator_label, process_subagent_input_candidate, process_subagent_output_candidate,
+    resolve_locator,
+};
 use crate::cache::{Cache, CacheTrait};
 use crate::db::{DB, spans::Span};
 use crate::env::user_task::USER_TASK_LOCK_TTL_SECONDS;
@@ -34,12 +40,17 @@ pub struct UserTaskCandidate {
 }
 
 /// Everything the producer hook needs from a candidate's span, copied or
-/// moved out of the queue message before the hook runs.
+/// moved out of the queue message before the hook runs. Built when the
+/// span carries an input candidate, an output candidate, or both.
 pub struct UserTaskSpanContext {
     pub trace_id: Uuid,
     pub span_name: String,
     pub attributes: SpanAttributes,
-    pub candidate: UserTaskCandidate,
+    pub candidate: Option<UserTaskCandidate>,
+    pub output_candidate: Option<OutputCandidate>,
+    pub ids_path: Option<Vec<String>>,
+    pub span_path: Option<Vec<String>>,
+    pub start_time_ns: i64,
 }
 
 pub fn capture_user_task_candidate(span: &Span) -> Option<UserTaskCandidate> {
@@ -109,10 +120,26 @@ pub async fn process_user_task_candidates(
         return;
     }
 
-    for mut ctx in candidates {
+    // Depth is computed once up front (`span_depth` mutates the span
+    // path), then contexts are sorted by span start time: pass 2's
+    // per-locator registrations land in start order, and pass 3 runs
+    // strictly after pass 2 so every subagent-output gate in this batch
+    // sees every registration from this batch.
+    let mut contexts: Vec<(UserTaskSpanContext, usize)> = candidates
+        .into_iter()
+        .map(|mut ctx| {
+            let depth = span_depth(&mut ctx.attributes, &ctx.span_name);
+            (ctx, depth)
+        })
+        .collect();
+    contexts.sort_by_key(|(ctx, _)| ctx.start_time_ns);
+
+    // Pass 1: main user-task inputs (LAM-1880 flow, unchanged).
+    for (ctx, depth) in contexts.iter_mut() {
+        let Some(candidate) = ctx.candidate.as_ref() else {
+            continue;
+        };
         let trace_id = ctx.trace_id;
-        let candidate = ctx.candidate;
-        let depth = span_depth(&mut ctx.attributes, &ctx.span_name);
         let usage = get_llm_usage_for_span(
             &mut ctx.attributes,
             db.clone(),
@@ -128,7 +155,7 @@ pub async fn process_user_task_candidates(
         // every follow-up turn from reclaiming the lock.
         let state = UserTaskLockState {
             input_cost: usage.input_cost,
-            depth,
+            depth: *depth,
             user_sig: lock_user_sig(&candidate.fingerprint).to_string(),
             start_time_ns: candidate.start_time_ns,
         };
@@ -208,10 +235,11 @@ pub async fn process_user_task_candidates(
                 let message = InputExtractionMessage {
                     trace_id,
                     project_id,
-                    prompt_hash: candidate.prompt_hash,
-                    signposted_text: candidate.signposted_text,
-                    fingerprint: candidate.fingerprint,
+                    prompt_hash: candidate.prompt_hash.clone(),
+                    signposted_text: candidate.signposted_text.clone(),
+                    fingerprint: candidate.fingerprint.clone(),
                     winner_state: Some(state.clone()),
+                    subagent: None,
                 };
                 match push_to_input_extraction_queue(message, queue.clone()).await {
                     Ok(enqueued) => enqueued,
@@ -241,6 +269,108 @@ pub async fn process_user_task_candidates(
                 log::error!("user-task: lock state write failed for trace [{trace_id}]: {e:?}");
             }
         }
+    }
+
+    // Pass 2: subagent inputs (LAM-1953). Runs after pass 1 so the main
+    // winner lock — the descent anchor for locator resolution — reflects
+    // this batch's own main-input winner.
+    for (ctx, depth) in &contexts {
+        let Some(candidate) = ctx.candidate.as_ref() else {
+            continue;
+        };
+        // A history-bearing turn belongs to an ongoing main conversation;
+        // subagents are isolated, so their first LLM call never carries
+        // history. Gating here keeps main-agent follow-up turns out of
+        // subagent slots.
+        if candidate
+            .fingerprint
+            .starts_with(HAS_HISTORY_FINGERPRINT_PREFIX)
+        {
+            continue;
+        }
+        // Bare-OTel spans without `lmnr.span.ids_path` are invisible to
+        // subagent extraction (accepted v0 degradation).
+        let Some(ids) = ctx.ids_path.as_ref() else {
+            continue;
+        };
+        let trace_id = ctx.trace_id;
+        // Fresh main-lock read per candidate: its depth is the starting
+        // gate for the descent walk. No main winner yet → this span is
+        // (or ties with) the main agent, not a subagent.
+        let main_lock: Option<UserTaskLockState> = cache
+            .get(&lock_cache_key(project_id, trace_id))
+            .await
+            .ok()
+            .flatten();
+        let Some(main_lock) = main_lock else {
+            continue;
+        };
+        let Some(locator) =
+            resolve_locator(ids, *depth, main_lock.depth, project_id, trace_id, &cache).await
+        else {
+            continue;
+        };
+        let label = locator_label(ctx.span_path.as_deref().unwrap_or(&[]), locator.path_index);
+        process_subagent_input_candidate(
+            candidate,
+            &locator,
+            &label,
+            *depth,
+            trace_id,
+            project_id,
+            queue.clone(),
+            db.clone(),
+            cache.clone(),
+        )
+        .await;
+    }
+
+    // Pass 3: trace and subagent outputs (LAM-1953). Strictly after pass
+    // 2 so subagent-output registration gates see every `st_in_lock`
+    // written by this batch.
+    for (ctx, depth) in &contexts {
+        let Some(output_candidate) = ctx.output_candidate.as_ref() else {
+            continue;
+        };
+        let trace_id = ctx.trace_id;
+        process_trace_output_candidate(
+            output_candidate,
+            *depth,
+            trace_id,
+            project_id,
+            queue.clone(),
+            db.clone(),
+            cache.clone(),
+        )
+        .await;
+
+        let Some(ids) = ctx.ids_path.as_ref() else {
+            continue;
+        };
+        let main_lock: Option<UserTaskLockState> = cache
+            .get(&lock_cache_key(project_id, trace_id))
+            .await
+            .ok()
+            .flatten();
+        let Some(main_lock) = main_lock else {
+            continue;
+        };
+        let Some(locator) =
+            resolve_locator(ids, *depth, main_lock.depth, project_id, trace_id, &cache).await
+        else {
+            continue;
+        };
+        process_subagent_output_candidate(
+            output_candidate,
+            &locator,
+            *depth,
+            trace_id,
+            project_id,
+            queue.clone(),
+            db.clone(),
+            cache.clone(),
+        )
+        .await;
     }
 }
 
