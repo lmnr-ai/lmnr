@@ -551,7 +551,9 @@ pub struct GenerateContentResponse {
 impl From<GeminiError> for super::ProviderError {
     fn from(e: GeminiError) -> Self {
         match e {
-            GeminiError::RequestError(e) => super::ProviderError::RequestError(e.to_string()),
+            GeminiError::RequestError(e) => {
+                super::ProviderError::RequestError(super::format_error_chain(&e))
+            }
             GeminiError::ParseError(e) => super::ProviderError::ParseError(e.to_string()),
             GeminiError::ConfigError(s) => super::ProviderError::ConfigError(s),
             GeminiError::ApiError {
