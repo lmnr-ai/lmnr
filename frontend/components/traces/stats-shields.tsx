@@ -219,16 +219,14 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
         </TooltipTrigger>
         <TooltipPortal>
           <TooltipContent side="bottom" className="p-2 border bg-surface-700">
-            <div className="flex-col space-y-2">
-              {span ? (
-                <InputTokenBreakdown span={span} />
-              ) : (
-                <Label className="flex text-xs gap-1">
-                  <span className="text-secondary-foreground">{label("input tokens")}</span>{" "}
-                  {numberFormat.format(stats.inputTokens)}
+            {span ? (
+              <InputTokenBreakdown span={span} />
+            ) : (
+              <div className="flex-col space-y-1">
+                <Label className="flex justify-between text-xs gap-4">
+                  <span className="text-secondary-foreground">{label("input tokens")}</span>
+                  <span>{numberFormat.format(stats.inputTokens)}</span>
                 </Label>
-              )}
-              <div className="flex-col space-y-1 border-t pt-2">
                 <Label className="flex justify-between text-xs gap-4">
                   <span className="text-secondary-foreground">{label("output tokens")}</span>
                   <span>{numberFormat.format(stats.outputTokens)}</span>
@@ -239,14 +237,14 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
                     <span>{numberFormat.format(stats.reasoningTokens)}</span>
                   </Label>
                 )}
-                {!span && !!stats.cacheReadInputTokens && (
+                {!!stats.cacheReadInputTokens && (
                   <Label className="flex justify-between text-xs gap-4 text-success-bright">
                     <span>{label("cache input tokens")}</span>
                     <span>{numberFormat.format(stats.cacheReadInputTokens)}</span>
                   </Label>
                 )}
               </div>
-            </div>
+            )}
           </TooltipContent>
         </TooltipPortal>
       </Tooltip>
