@@ -63,6 +63,20 @@ impl ProviderError {
 
 pub type ProviderResult<T> = Result<T, ProviderError>;
 
+/// Walks the `source()` chain — `reqwest::Error`'s `Display` drops the
+/// underlying cause (connection reset, TLS/DNS failure, timeout).
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub(crate) fn format_error_chain(err: &(dyn std::error::Error + 'static)) -> String {
+    let mut out = err.to_string();
+    let mut source = err.source();
+    while let Some(cause) = source {
+        out.push_str(": ");
+        out.push_str(&cause.to_string());
+        source = cause.source();
+    }
+    out
+}
+
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub(crate) fn emit_response_as_chunks(
     response: &ProviderResponse,
