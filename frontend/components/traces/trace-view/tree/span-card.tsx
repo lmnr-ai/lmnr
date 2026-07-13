@@ -131,6 +131,7 @@ export function SpanCard({
                 outputTokens={llmMetrics?.outputTokens}
                 cost={llmMetrics?.cost}
                 cacheReadInputTokens={llmMetrics?.cacheReadInputTokens}
+                model={span.spanType === "LLM" && !span.aggregatedMetrics?.hasLLMDescendants ? span.model : undefined}
               />
             )}
             {isExpandable && (
