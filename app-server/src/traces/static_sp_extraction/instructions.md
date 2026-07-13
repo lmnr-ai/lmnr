@@ -51,6 +51,7 @@ Before finishing, harden: would each regex survive (a) unseen/reordered sections
 - The pattern removes a whole logical unit: for a data-presenting sentence that means the WHOLE sentence (`This company has the following integrations connected: …. `), for a record block the whole block, for an inline value the bare value or smallest natural phrase — whichever reads better next to its label.
 - Removal boundaries are exact: no trailing punctuation or comma dragged out of a surviving list (`price\w+` between lookarounds, NOT `price\w+, ` which eats the list's comma), no half-removed words.
 - `label + removed text` reads as self-sufficient data, and the skeleton reads cleanly — no empty headers, no orphaned scaffolds, template rules intact.
+- EVERY label passes the redundancy check: at most 5 words (before an `(echo)` marker), NO parenthetical field lists, and no word that merely repeats what the span shows — `user profile`, never `user profile (id, language, level)`. Rewrite any label that fails; this is as much a defect as a broken pattern.
 
 Your final answer must be byte-identical to a list the tool verified with `isValid: true` and `isResultInAllIdenticalOutput: true` — never edit a pattern after its last test.
 
