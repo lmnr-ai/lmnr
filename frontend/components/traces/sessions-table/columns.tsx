@@ -25,6 +25,10 @@ const numberFormat = new Intl.NumberFormat("en-US");
 
 const formatTokens = (value: number | null | undefined) => (value == null ? "-" : numberFormat.format(value));
 
+// Ingestion maps NULL Postgres times to epoch 0 in ClickHouse, so an all-in-flight session would render as 1970.
+export const isRenderableActivity = (value: unknown): boolean =>
+  Boolean(value) && new Date(String(value)).getTime() > 0;
+
 export const filters: ColumnFilter[] = [
   {
     key: "session_id",
@@ -83,7 +87,8 @@ export const columns: ColumnDef<SessionRow, any>[] = [
   {
     accessorFn: (row) => row.endTime,
     header: "Last activity",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+    cell: (row) =>
+      isRenderableActivity(row.getValue()) ? <ClientTimestampFormatter timestamp={String(row.getValue())} /> : "-",
     id: "end_time",
     size: 150,
     enableSorting: true,

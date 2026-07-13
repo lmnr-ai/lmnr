@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { isRenderableActivity } from "@/components/traces/sessions-table/columns";
 import { buildSessionsQueryWithParams, type SessionSortColumn } from "@/lib/actions/sessions/utils";
 
 describe("buildSessionsQueryWithParams sort-key resolution", () => {
@@ -55,5 +56,25 @@ describe("buildSessionsQueryWithParams pagination under sort", () => {
     assert.ok(query.includes("LIMIT {limit:UInt32} OFFSET {offset:UInt32}"), query);
     assert.equal(parameters.limit, 50);
     assert.equal(parameters.offset, 100);
+  });
+});
+
+describe("isRenderableActivity", () => {
+  it("returns true for a valid ISO timestamp", () => {
+    assert.equal(isRenderableActivity("2026-07-13T10:00:00.000Z"), true);
+  });
+
+  it("returns false for epoch 0 (ingestion maps NULL Postgres times to epoch 0)", () => {
+    assert.equal(isRenderableActivity("1970-01-01T00:00:00.000Z"), false);
+  });
+
+  it("returns false for absent values", () => {
+    assert.equal(isRenderableActivity(null), false);
+    assert.equal(isRenderableActivity(undefined), false);
+    assert.equal(isRenderableActivity(""), false);
+  });
+
+  it("returns false for an invalid string", () => {
+    assert.equal(isRenderableActivity("not-a-date"), false);
   });
 });
