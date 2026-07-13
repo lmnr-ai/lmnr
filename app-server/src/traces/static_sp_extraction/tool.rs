@@ -120,7 +120,7 @@ pub fn regex_tool() -> ProviderTool {
                                 },
                                 "label": {
                                     "type": "string",
-                                    "description": "Short context label (3-12 words) attached to every span this pattern removes, so the extracted content is understandable on its own."
+                                    "description": "Short name (2-5 words) for what this pattern removes, shown next to the raw span — add only what the span itself doesn't show, never repeat its contents."
                                 }
                             }
                         },
