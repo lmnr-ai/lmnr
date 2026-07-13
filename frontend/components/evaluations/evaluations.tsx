@@ -463,6 +463,7 @@ function EvaluationsContent() {
                 data={evaluations}
                 getRowId={(evaluation) => evaluation.id}
                 getRowHref={(row) => `/project/${params?.projectId}/evaluations/${row.original.id}`}
+                getRowClassName={(row) => (hiddenEvaluationIds.includes(row.original.id) ? "opacity-40" : "")}
                 hasMore={hasMore}
                 isFetching={isFetching}
                 isLoading={isLoading || isViewLoading || isGroupDefaultPending}

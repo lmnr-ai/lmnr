@@ -322,6 +322,8 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
             table={
               <div className="flex h-full w-full flex-col gap-2 overflow-hidden pb-4">
                 <RunScoreCard
+                  projectId={params.projectId}
+                  evaluationId={evaluationId}
                   scoreNames={scoreNames}
                   allStatistics={statsData?.allStatistics}
                   allDistributions={statsData?.allDistributions}

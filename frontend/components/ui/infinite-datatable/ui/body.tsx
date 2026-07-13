@@ -23,6 +23,7 @@ export function InfiniteDatatableBody<TData extends RowData>({
   emptyRow,
   loadingRow,
   getRowHref,
+  getRowClassName,
   loadMoreButton,
   fetchNextPage,
 }: InfiniteDataTableBodyProps<TData>) {
@@ -78,6 +79,7 @@ export function InfiniteDatatableBody<TData extends RowData>({
                 onHoveredRowChange={onHoveredRowChange}
                 focusedRowId={focusedRowId}
                 href={getRowHref?.(row)}
+                className={getRowClassName?.(row)}
               />
             );
           })}
