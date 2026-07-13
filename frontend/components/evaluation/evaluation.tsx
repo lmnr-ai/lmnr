@@ -1,16 +1,15 @@
 "use client";
 
-import { type Row } from "@tanstack/react-table";
 import { debounce } from "lodash";
-import { useParams, usePathname, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { parseAsString, useQueryState } from "nuqs";
 import { useCallback, useEffect, useMemo } from "react";
 import useSWR from "swr";
 import { shallow } from "zustand/shallow";
 
 import EvalTraceLayout from "@/components/evaluation/eval-trace-layout";
-import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
+import GatesTable from "@/components/evaluation/gates-table";
 import RowScoreChips from "@/components/evaluation/row-score-chips";
 import RunScoreCard from "@/components/evaluation/run-score-card";
 import {
@@ -18,7 +17,6 @@ import {
   buildFetchParams,
   buildStatsParams,
   EvalStoreProvider,
-  selectVisibleColumnDefs,
   useEvalStore,
 } from "@/components/evaluation/store";
 import {
@@ -52,7 +50,6 @@ const RESOURCE = "evaluation-v1.1";
 const DEFAULT_HIDDEN_COLUMNS = ["index", "target", "metadata", "output", "duration", "cost"];
 
 function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
-  const pathName = usePathname();
   const searchParams = useSearchParams();
   const params = useParams<{ projectId: string }>();
 
@@ -60,7 +57,7 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
 
   // View-owned params (filter / search / sort) flow through the view layer.
   // `effective` merges URL params with the selected view's baseline.
-  const { effective, isLoading: isViewLoading, setSort, setSearchAndFilters } = useTableView();
+  const { effective, isLoading: isViewLoading } = useTableView();
   const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
   const search = effective.search.length > 0 ? effective.search : null;
   const sortBy = effective.sortBy ?? undefined;
@@ -68,16 +65,11 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
 
   // Column config layer: customColumns are read from the config store and
   // threaded into the columnDefs / URLs below.
-  const { customColumns, removeCustomColumn } = useTableConfigStore(
-    (s) => ({ customColumns: s.config.customColumns, removeCustomColumn: s.removeCustomColumn }),
-    shallow
-  );
+  const { customColumns } = useTableConfigStore((s) => ({ customColumns: s.config.customColumns }), shallow);
 
   // Eval-specific state lives in EvalStore. customColumns intentionally do not.
   const scoreNames = useEvalStore((s) => s.scoreNames);
   const isShared = useEvalStore((s) => s.isShared);
-  const heatmapEnabled = useEvalStore((s) => s.heatmapEnabled);
-  const setHeatmapEnabled = useEvalStore((s) => s.setHeatmapEnabled);
   const addScoreName = useEvalStore((s) => s.addScoreName);
 
   const isComparison = !!targetId;
@@ -161,26 +153,6 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
     deps: [search, filter, evaluationId, sortBy, sortDirection, targetId, columnSqls],
   });
 
-  // Score-range heatmap input — derived from current data, no storage needed.
-  const scoreRanges = useMemo(() => {
-    if (!allDatapoints) return {};
-    const isValidNumber = (value: unknown): value is number => typeof value === "number" && !isNaN(value);
-    return scoreNames.reduce(
-      (acc, scoreName) => {
-        const values = allDatapoints
-          .flatMap((row) => {
-            const v = [row[`score:${scoreName}`]];
-            if (targetId) v.push(row[`compared:score:${scoreName}`]);
-            return v;
-          })
-          .filter(isValidNumber);
-        if (values.length === 0) return acc;
-        return { ...acc, [scoreName]: { min: Math.min(...values), max: Math.max(...values) } };
-      },
-      {} as Record<string, { min: number; max: number }>
-    );
-  }, [allDatapoints, scoreNames, targetId]);
-
   // Realtime — only on the live (non-comparison) eval page.
   const debouncedRevalidateStats = useMemo(
     () => debounce(() => mutateStats(), 1000, { leading: false, trailing: true }),
@@ -243,66 +215,23 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
   // shared links carried traceId without datapointId).
   const traceId = (selectedRow?.["traceId"] as string | undefined) ?? traceIdParam ?? undefined;
 
-  const handleRowClick = useCallback(
-    (row: Row<EvalRow>) => {
-      setDatapointId(row.original["id"] as string);
-      setTraceIdParam(row.original["traceId"] as string);
+  const onGateRowClick = useCallback(
+    (row: EvalRow) => {
+      setDatapointId(row["id"] as string);
+      setTraceIdParam(row["traceId"] as string);
     },
     [setDatapointId, setTraceIdParam]
   );
 
-  const getRowHref = useCallback(
-    (row: Row<EvalRow>) => {
-      const next = new URLSearchParams(searchParams.toString());
-      next.set("traceId", row.original["traceId"] as string);
-      next.set("datapointId", row.original["id"] as string);
-      return `${pathName}?${next.toString()}`;
-    },
-    [pathName, searchParams]
-  );
-
-  const handleSort = useCallback(
-    (columnId: string, direction: "asc" | "desc") => {
-      setSort(columnId || null, columnId ? direction : null);
-    },
-    [setSort]
-  );
-
-  const visibleColumnDefs = useMemo(() => selectVisibleColumnDefs(columnDefs), [columnDefs]);
-
-  const onDeleteCustomColumn = useCallback(
-    (columnId: string) => removeCustomColumn(columnId.replace("custom:", "")),
-    [removeCustomColumn]
-  );
-
-  const searchValue = useMemo(
-    () => ({ filters: effective.filters, search: effective.search }),
-    [effective.filters, effective.search]
-  );
-
   const table = (
-    <EvaluationDatapointsTable
+    <GatesTable
       data={allDatapoints}
       isLoading={isStatsLoading || isLoadingDatapoints || isViewLoading}
       isFetching={isFetching}
       hasMore={hasMore}
       fetchNextPage={fetchNextPage}
-      columnDefs={columnDefs}
-      visibleColumnDefs={visibleColumnDefs}
-      isComparison={isComparison}
-      scoreRanges={scoreRanges}
-      datapointId={(selectedRow?.["id"] as string | undefined) ?? undefined}
-      handleRowClick={handleRowClick}
-      getRowHref={getRowHref}
-      sortBy={sortBy}
-      sortDirection={sortDirection}
-      onSort={handleSort}
-      heatmapEnabled={heatmapEnabled}
-      onHeatmapEnabledChange={setHeatmapEnabled}
-      onDeleteCustomColumn={onDeleteCustomColumn}
-      searchValue={searchValue}
-      onSearchChange={setSearchAndFilters}
-      viewsResource={RESOURCE}
+      selectedId={(selectedRow?.["id"] as string | undefined) ?? undefined}
+      onRowClick={onGateRowClick}
     />
   );
 
