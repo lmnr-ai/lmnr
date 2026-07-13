@@ -17,9 +17,9 @@ use crate::llm::models::{ProviderFunctionDeclaration, ProviderTool};
 
 pub const REGEX_TOOL_NAME: &str = "regex";
 
-/// A removal pattern plus the label attached to every span it removes —
-/// the context that makes the extracted dynamic content self-sufficient
-/// (e.g. "user profile (id, target language, CEFR level)").
+/// A removal pattern plus the label attached to every span it removes — a
+/// short name (2-5 words, e.g. "user profile") shown next to the extracted
+/// content, adding only what the content itself doesn't show.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LabeledRegex {
     pub pattern: String,
@@ -120,7 +120,7 @@ pub fn regex_tool() -> ProviderTool {
                                 },
                                 "label": {
                                     "type": "string",
-                                    "description": "Short context label (3-12 words) attached to every span this pattern removes, so the extracted content is understandable on its own."
+                                    "description": "Short name (2-5 words) for what this pattern removes, shown next to the raw span — add only what the span itself doesn't show, never repeat its contents."
                                 }
                             }
                         },

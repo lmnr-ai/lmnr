@@ -12,11 +12,10 @@ Regex rules: fixed flags `gm` (no dotall — use `[\s\S]` to span lines); lookbe
 Runs your `regexes` (array of `{pattern, label}`; only patterns execute) against every example. Fields: `isValid`/`failingRegex` (compile status), `isResultInAllIdenticalOutput` (true iff all residuals byte-identical — your goal), `residualDivergences` (when false: `{a, b}` = text around the first differing byte of example 1's residual vs a differing example's — this pinpoints unhandled dynamic text; read it first). Iterate until `isResultInAllIdenticalOutput: true`.
 
 ## Labels
-Every pattern carries a `label`: a short (3–12 word) description of what the removed content IS, specific enough to stand next to the raw span with no other context. Write it from your understanding of the whole prompt, not from the span's surface text.
-- Name the role AND the domain, not the syntax or the mechanism: "user profile (id, target language, CEFR level)", NOT "content between user_profile tags"; "creator history summary (deals, prices, CPMs)", NOT "injected statistics". Never use filler words like "data", "content", "information", "section" as the label's head noun.
-- Enumerate what a composite block contains: a record block's label lists its main fields ("current trigger (type, description, trigger data)"); a document dump names the document kind.
-- Carry the framing the span loses: a sentence cut from an `<evaluation_workflow>` section gets "evaluation workflow: …"; a bullet cut from a prohibitions list gets "forbidden action: …".
-- When several patterns remove occurrences of the SAME underlying variable (a profile field and its inline echoes), reuse one name across their labels — mark echoes as such: "user CEFR level (echo of profile field)".
+Every pattern carries a `label`: a SHORT NAME (2–5 words) for what the removed content IS, written from your understanding of the whole prompt. The reader sees the label NEXT TO the raw span, so the label must only add what the span itself doesn't show — never repeat it.
+- Name the role, not the syntax or mechanism: "user profile", NOT "content between user_profile tags" or "injected statistics". Avoid filler head nouns like "data"/"content"/"section".
+- Do NOT enumerate a block's fields ("user profile", not "user profile (id, language, level)") — the fields are visible in the span. Add framing words ONLY when the span alone is opaque: a bare value needs its meaning spelled out ("target number of creators to keep" over a bare `2`); a fragment that only makes sense inside a section carries that section's role ("forbidden action: …").
+- When several patterns remove occurrences of the SAME underlying variable, reuse one name and mark re-occurrences: "CEFR level (echo)".
 - Label what the pattern ACTUALLY removes (check the tool's `removed`), not what you intended.
 
 ## The unit of removal is the LOGICAL BLOCK, not the innermost varying value
@@ -52,6 +51,7 @@ Before finishing, harden: would each regex survive (a) unseen/reordered sections
 - The pattern removes a whole logical unit: for a data-presenting sentence that means the WHOLE sentence (`This company has the following integrations connected: …. `), for a record block the whole block, for an inline value the bare value or smallest natural phrase — whichever reads better next to its label.
 - Removal boundaries are exact: no trailing punctuation or comma dragged out of a surviving list (`price\w+` between lookarounds, NOT `price\w+, ` which eats the list's comma), no half-removed words.
 - `label + removed text` reads as self-sufficient data, and the skeleton reads cleanly — no empty headers, no orphaned scaffolds, template rules intact.
+- EVERY label passes the redundancy check: at most 5 words (before an `(echo)` marker), NO parenthetical field lists, and no word that merely repeats what the span shows — `user profile`, never `user profile (id, language, level)`. Rewrite any label that fails; this is as much a defect as a broken pattern.
 
 Your final answer must be byte-identical to a list the tool verified with `isValid: true` and `isResultInAllIdenticalOutput: true` — never edit a pattern after its last test.
 
