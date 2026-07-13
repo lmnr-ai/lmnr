@@ -54,7 +54,7 @@ const getEmptyRow = ({
 
 function RunsTableContent() {
   const { toast } = useToast();
-  const params = useParams<{ projectId: string; id: string }>();
+  const params = useParams<{ projectId: string; signalId: string }>();
   const { signal, runsFilters, setRunsFilters } = useSignalStoreContext((state) => ({
     signal: state.signal,
     runsFilters: state.runsFilters,

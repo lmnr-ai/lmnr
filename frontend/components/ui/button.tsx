@@ -75,6 +75,9 @@ const buttonVariants = cva(
         md: "h-8 rounded-md px-3 text-sm",
         lg: "h-10 rounded-md px-8",
         icon: "h-7 w-7",
+        // Smaller icon sizes the shadcn chat components (message-scroller, attachment) default to.
+        "icon-sm": "h-6 w-6",
+        "icon-xs": "h-5 w-5",
       },
     },
     defaultVariants: {

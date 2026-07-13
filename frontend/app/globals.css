@@ -153,6 +153,110 @@
   scrollbar-color: var(--color-foreground-600) transparent;
 }
 
+/* Scrollbar utilities the shadcn chat MessageScrollerViewport composes. tailwind-scrollbar-style
+   names; inlined here rather than pulling the whole plugin. */
+/* Native scrollbar styled to match the Radix <ScrollArea> thumb (rounded-full bg-border, w-2.5) so
+   the MessageScroller's native scroll looks like the rest of the app. Firefox gets thin + color only
+   (it can't round the native thumb); Chromium/WebKit get the full inset rounded thumb. */
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+  &::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background-color: var(--color-border);
+    border-radius: 9999px;
+    /* transparent border + padding-box insets the thumb to ~6px, mirroring ScrollBar's p-px. */
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-foreground-500);
+  }
+}
+@utility scrollbar-gutter-stable {
+  scrollbar-gutter: stable;
+}
+@utility scrollbar-thumb-transparent {
+  scrollbar-color: transparent transparent;
+  &::-webkit-scrollbar-thumb {
+    background-color: transparent;
+  }
+}
+@utility scrollbar-track-transparent {
+  &::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+}
+
+/* scroll-fade: edge fade masks for scroll containers (used by MessageScrollerViewport via
+   `scroll-fade-b`). NOTE: the upstream shadcn utility is scroll-DRIVEN (animation-timeline:
+   scroll(self)) so the fade disappears at the boundary; this is a static-mask approximation built
+   from the documented usage table — the edge always fades. Override depth with --scroll-fade-size.
+   `s`/`e` map to left/right for LTR only (no RTL mirroring). */
+@utility scroll-fade {
+  --scroll-fade-size: 2rem;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--scroll-fade-size),
+    #000 calc(100% - var(--scroll-fade-size)),
+    transparent 100%
+  );
+}
+@utility scroll-fade-y {
+  --scroll-fade-size: 2rem;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--scroll-fade-size),
+    #000 calc(100% - var(--scroll-fade-size)),
+    transparent 100%
+  );
+}
+@utility scroll-fade-x {
+  --scroll-fade-size: 2rem;
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--scroll-fade-size),
+    #000 calc(100% - var(--scroll-fade-size)),
+    transparent 100%
+  );
+}
+@utility scroll-fade-t {
+  --scroll-fade-size: 2rem;
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--scroll-fade-size));
+}
+@utility scroll-fade-b {
+  --scroll-fade-size: 2rem;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--scroll-fade-size)), transparent 100%);
+}
+@utility scroll-fade-l {
+  --scroll-fade-size: 2rem;
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--scroll-fade-size));
+}
+@utility scroll-fade-r {
+  --scroll-fade-size: 2rem;
+  mask-image: linear-gradient(to right, #000 calc(100% - var(--scroll-fade-size)), transparent 100%);
+}
+@utility scroll-fade-s {
+  --scroll-fade-size: 2rem;
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--scroll-fade-size));
+}
+@utility scroll-fade-e {
+  --scroll-fade-size: 2rem;
+  mask-image: linear-gradient(to right, #000 calc(100% - var(--scroll-fade-size)), transparent 100%);
+}
+@utility scroll-fade-none {
+  mask-image: none;
+}
+
 @utility hide-arrow {
   &[type="number"]::-webkit-inner-spin-button {
     -webkit-appearance: none;

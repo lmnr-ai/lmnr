@@ -1,7 +1,6 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import React from "react";
 
 import TraceView from "@/components/traces/trace-view";
 import { type TraceViewTrace } from "@/components/traces/trace-view/store";

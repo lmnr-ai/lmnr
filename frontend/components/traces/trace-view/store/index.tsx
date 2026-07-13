@@ -49,9 +49,6 @@ const createTraceViewStore = (options?: {
   isAlwaysSelectSpan?: boolean;
   initialSignalId?: string;
   initialSearch?: string;
-  // One-shot override read from `chat=true` in the URL at store creation.
-  // Forces the chat open even over a persisted `false` — see merge below.
-  initialChatOpen?: boolean;
 }) =>
   createStore<TraceViewStore>()(
     persist(
@@ -92,11 +89,6 @@ const createTraceViewStore = (options?: {
             baseSlice.setSpanPanelOpen(open);
             set({ layoutChangeSource: "visibility" } as Partial<TraceViewStore>);
           },
-
-          setTracesAgentOpen: (open) => {
-            baseSlice.setTracesAgentOpen(open);
-            set({ layoutChangeSource: "visibility" } as Partial<TraceViewStore>);
-          },
         };
       },
       {
@@ -111,9 +103,8 @@ const createTraceViewStore = (options?: {
           if (version < 2) {
             const trace = s.tracePanelWidth;
             const span = s.spanPanelWidth;
-            const chat = s.chatPanelWidth;
-            if (typeof trace === "number" && typeof span === "number" && typeof chat === "number") {
-              s.targets = { trace, span, chat };
+            if (typeof trace === "number" && typeof span === "number") {
+              s.targets = { trace, span };
             }
             delete s.tracePanelWidth;
             delete s.spanPanelWidth;
@@ -131,7 +122,6 @@ const createTraceViewStore = (options?: {
             ...(tabToPersist && { tab: tabToPersist }),
             showTreeContent: state.showTreeContent,
             condensedTimelineEnabled: state.condensedTimelineEnabled,
-            tracesAgentOpen: state.tracesAgentOpen,
           };
         },
         merge: (persistedState, currentState) => {
@@ -144,8 +134,8 @@ const createTraceViewStore = (options?: {
 
           const t = persisted.targets as Partial<Targets> | undefined;
           const targets: Targets =
-            t && typeof t.trace === "number" && typeof t.span === "number" && typeof t.chat === "number"
-              ? { trace: t.trace, span: t.span, chat: t.chat }
+            t && typeof t.trace === "number" && typeof t.span === "number"
+              ? { trace: t.trace, span: t.span }
               : currentState.targets;
 
           return {
@@ -155,14 +145,6 @@ const createTraceViewStore = (options?: {
             ...(typeof persisted.condensedTimelineEnabled === "boolean" && {
               condensedTimelineEnabled: persisted.condensedTimelineEnabled,
             }),
-            // Chat opens by default (currentState.tracesAgentOpen === true); a persisted
-            // value is the user's last explicit choice, so a closed chat stays closed.
-            ...(typeof persisted.tracesAgentOpen === "boolean" && { tracesAgentOpen: persisted.tracesAgentOpen }),
-            // `chat=true` deep-links (emails/Slack/notifications) force the chat open,
-            // overriding a persisted `false`. This is a creation-time override, NOT an
-            // ongoing effect — merge runs once at hydration, so a subsequent user close
-            // sticks. Re-entering via a fresh `chat=true` link (new store) re-forces it.
-            ...(options?.initialChatOpen ? { tracesAgentOpen: true } : {}),
             tab,
           };
         },
@@ -179,14 +161,12 @@ const TraceViewStoreProvider = ({
   isAlwaysSelectSpan,
   initialSignalId,
   initialSearch,
-  initialChatOpen,
 }: PropsWithChildren<{
   initialTrace?: TraceViewTrace;
   storeKey?: string;
   isAlwaysSelectSpan?: boolean;
   initialSignalId?: string;
   initialSearch?: string;
-  initialChatOpen?: boolean;
 }>) => {
   const [storeState] = useState(() =>
     createTraceViewStore({
@@ -195,7 +175,6 @@ const TraceViewStoreProvider = ({
       isAlwaysSelectSpan,
       initialSignalId,
       initialSearch,
-      initialChatOpen,
     })
   );
 
@@ -216,6 +195,16 @@ export const useTraceViewStore = <T,>(
   }
 
   return useStoreWithEqualityFn(store, selector, equalityFn);
+};
+
+// Raw store handle (not a selector hook) for consumers that register the whole store, e.g. the
+// Laminar agent reading live trace state for span-reference resolution.
+export const useTraceViewStoreApi = (): StoreApi<TraceViewStore> => {
+  const store = useContext(TraceViewStoreContext);
+  if (!store) {
+    throw new Error("useTraceViewStoreApi must be used within a TraceViewStoreContext");
+  }
+  return store;
 };
 
 export default TraceViewStoreProvider;

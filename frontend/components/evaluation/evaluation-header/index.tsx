@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { memo } from "react";
 
+import AgentHeaderToggle from "@/components/agent/header-toggle";
 import DeleteEvaluationDialog from "@/components/evaluation/delete-evaluation-dialog";
 import ShareEvalButton from "@/components/evaluation/evaluation-header/share-eval-button";
 import RenameEvaluationDialog from "@/components/evaluation/rename-evaluation-dialog";
@@ -148,6 +149,7 @@ const EvaluationHeader = ({ evaluations, name, urlKey }: EvaluationHeader) => {
         {typeof evaluationId === "string" && typeof projectId === "string" && (
           <ShareEvalButton evaluationId={evaluationId} projectId={projectId} />
         )}
+        <AgentHeaderToggle />
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
+import { laminarAgentStore } from "@/components/agent/store";
 import ClusterIcon from "@/components/signal/clusters-section/cluster-list/cluster-icon";
 import { jsonSchemaToSchemaFields, type SchemaField } from "@/components/signals/utils";
 import { type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
@@ -157,22 +158,20 @@ export default function SignalDetails({ traceId, signal }: Props) {
   const searchParams = useSearchParams();
   const highlightedEventId = searchParams.get("eventId");
   const featureFlags = useFeatureFlags();
-  const { selectSpanById, spans, openSignalInChat } = useTraceViewStore(
+  const { selectSpanById, spans } = useTraceViewStore(
     (state) => ({
       selectSpanById: state.selectSpanById,
       spans: state.spans,
-      openSignalInChat: state.openSignalInChat,
     }),
     shallow
   );
 
   const events = signal.events ?? [];
-  const latestEvent = events[0];
 
+  // Chat is the global agent column now; open it (already scoped to this trace's context via the
+  // registered trace store). Signal-definition/payload injection was dropped with the old inline chat.
   const handleOpenInChat = () => {
-    const signalDefinition = `### ${signal.signalName}\n${signal.prompt}`;
-    const eventPayload = latestEvent ? latestEvent.payload : "No events found";
-    openSignalInChat(signalDefinition, eventPayload);
+    laminarAgentStore.getState().open();
   };
 
   const schemaFields = useMemo(

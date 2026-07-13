@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import useSWR from "swr";
 import { shallow } from "zustand/shallow";
 
+import { useReportAgentContextName } from "@/components/agent/store";
 import EvalTraceLayout from "@/components/evaluation/eval-trace-layout";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
@@ -55,6 +56,9 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
   const pathName = usePathname();
   const searchParams = useSearchParams();
   const params = useParams<{ projectId: string }>();
+
+  // Surface the eval name to the agent context breadcrumb (RouteAgentContext registers the id).
+  useReportAgentContextName("evaluation", evaluations.find((e) => e.id === evaluationId)?.name);
 
   const targetId = searchParams.get("targetId");
 
