@@ -78,6 +78,7 @@ export function InfiniteDataTable<TData extends RowData>({
   getRowId,
   error,
   getRowHref,
+  getRowClassName,
   loadMoreButton,
   hideSelectionPanel = false,
   ...tableOptions
@@ -329,6 +330,7 @@ export function InfiniteDataTable<TData extends RowData>({
                 emptyRow={emptyRow}
                 loadingRow={loadingRow}
                 getRowHref={getRowHref}
+                getRowClassName={getRowClassName}
                 loadMoreButton={loadMoreButton}
                 fetchNextPage={fetchNextPage}
               />
