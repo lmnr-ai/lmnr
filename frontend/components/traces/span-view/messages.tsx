@@ -4,12 +4,7 @@ import { ChevronDown } from "lucide-react";
 import React, { memo, useCallback, useMemo, useRef } from "react";
 
 import AnthropicContentParts from "@/components/traces/span-view/anthropic-parts";
-import {
-  getRoleColors,
-  MessageWrapper,
-  TextContentModeContext,
-  textDefaultModeForRole,
-} from "@/components/traces/span-view/common";
+import { getRoleColors, MessageWrapper } from "@/components/traces/span-view/common";
 import GeminiContentParts from "@/components/traces/span-view/gemini-parts";
 import ContentParts from "@/components/traces/span-view/generic-parts";
 import LangChainContentParts from "@/components/traces/span-view/langchain-parts";
@@ -378,9 +373,7 @@ function PureMessages({
                       maxHeight={maxHeight}
                       stickyHeader={false}
                     >
-                      <TextContentModeContext.Provider value={textDefaultModeForRole(role)}>
-                        {renderMessageContent(processedResult, messageIndex, presetKey, toolNameMap)}
-                      </TextContentModeContext.Provider>
+                      {renderMessageContent(processedResult, messageIndex, presetKey, toolNameMap)}
                     </MessageWrapper>
                   </div>
                 );

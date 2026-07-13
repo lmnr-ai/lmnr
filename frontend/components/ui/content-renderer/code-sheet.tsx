@@ -54,7 +54,9 @@ const PureCodeSheet = ({ mode, modes, renderedValue, extensions, onModeChange, p
           <DialogTitle className="hidden"></DialogTitle>
           <div className="flex-none items-center flex px-2 justify-between">
             <div className="flex items-center gap-1">
-              <TemplatePickerView mode={sheetMode} onModeChange={onModeChange} modes={sheetModes} />
+              {sheetModes.length > 1 && (
+                <TemplatePickerView mode={sheetMode} onModeChange={onModeChange} modes={sheetModes} />
+              )}
               {sheetMode === "custom" && <TemplatePickerActions />}
             </div>
             <div className="flex items-center">

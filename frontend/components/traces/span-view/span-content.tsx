@@ -86,7 +86,7 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
         codeEditorClassName="rounded-none border-none bg-background contain-strict"
         value={JSON.stringify(normalizedData)}
         defaultMode="messages"
-        modes={["MESSAGES", "JSON", "YAML", "TEXT", "MARKDOWN", "CUSTOM"]}
+        modes={["MESSAGES", "JSON", "YAML", "TEXT", "CUSTOM"]}
         presetKey={presetKey}
         messageMaxHeight={type === "input" ? 320 : 560}
         customTheme={spanViewTheme}
@@ -99,7 +99,7 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
       className="rounded-none border-none bg-background"
       codeEditorClassName="rounded-none border-none bg-background contain-strict"
       readOnly
-      modes={["JSON", "YAML", "TEXT", "MARKDOWN", "CUSTOM", "MESSAGES"]}
+      modes={["JSON", "YAML", "TEXT", "CUSTOM", "MESSAGES"]}
       value={JSON.stringify(normalizedData)}
       presetKey={presetKey}
       defaultMode="json"

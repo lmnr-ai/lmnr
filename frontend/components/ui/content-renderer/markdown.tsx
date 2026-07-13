@@ -3,7 +3,6 @@ import { defaultRehypePlugins, Streamdown } from "streamdown";
 
 import { cn, tryParseJson } from "@/lib/utils";
 
-// Unwrap JSON-stringified span payloads (`"# Hello"`) to the inner markdown source.
 export const getMarkdownSource = (value: string): string => {
   const parsed = tryParseJson(value);
   return typeof parsed === "string" ? parsed : value;
@@ -22,11 +21,10 @@ const PureMarkdownRenderer = ({ value, className }: MarkdownRendererProps) => (
       isAnimating={false}
       className={cn(
         "text-wrap [overflow-wrap:anywhere] [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
-        // Wrap fenced code blocks instead of scrolling horizontally.
         "[&_pre]:whitespace-pre-wrap [&_pre]:break-words [&_pre]:overflow-x-hidden [&_pre_code]:whitespace-pre-wrap text-xs"
       )}
       controls={{ mermaid: { download: false, fullscreen: false } }}
-      rehypePlugins={[defaultRehypePlugins.raw, defaultRehypePlugins.harden]}
+      rehypePlugins={[defaultRehypePlugins.harden]}
       components={{
         h1: ({ children, className, ...props }) => (
           <h1 {...props} className={cn(className, "mt-3 mb-1 text-base font-semibold")}>

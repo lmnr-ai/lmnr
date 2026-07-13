@@ -65,7 +65,7 @@ const PureSpanOverview = ({ span }: { span: Span }) => {
       readOnly
       value={mergedValue}
       defaultMode="messages"
-      modes={["MESSAGES", "JSON", "YAML", "TEXT", "MARKDOWN", "CUSTOM"]}
+      modes={["MESSAGES", "JSON", "YAML", "TEXT", "CUSTOM"]}
       presetKey={presetKey}
       customTheme={spanViewTheme}
       messageMaxHeight={560}

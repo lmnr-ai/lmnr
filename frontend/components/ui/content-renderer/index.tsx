@@ -34,10 +34,6 @@ interface ContentRendererProps {
   readOnly?: boolean;
   modes?: string[];
   defaultMode?: string;
-  // When true, pick the initial mode from the content itself (JSON object/array →
-  // json, otherwise markdown) before falling back to `defaultMode`. A saved user
-  // choice still wins. Opt-in so json-first call sites are unaffected.
-  autoDetectMode?: boolean;
   value: string;
   className?: string;
   placeholder?: string;
@@ -52,7 +48,6 @@ interface ContentRendererProps {
   hideScrollToBottom?: boolean;
   messageMaxHeight?: number;
   messageLabels?: MessageLabel[];
-  // Pre-detected messages for MESSAGES mode; other modes still use raw `value`.
   processedMessages?: ProcessedMessages;
   customTheme?: Parameters<typeof CodeMirror>[0]["theme"];
   /**
@@ -60,18 +55,6 @@ interface ContentRendererProps {
    * for keymap injections that need to win over `defaultKeymap` from `basicSetup`.
    */
   extraExtensions?: Extension[];
-}
-
-// Content-based mode detection: structured JSON → json, non-empty text → markdown.
-// Returns undefined (defer to defaultMode) for empty content or when the target
-// mode isn't offered. One `JSON.parse` attempt — cheap, runs once at mount.
-function detectMode(value: string, modes: string[]): string | undefined {
-  if (!value || !value.trim()) return undefined;
-  const lower = modes.map((m) => m.toLowerCase());
-  const parsed = tryParseJson(value);
-  if (parsed !== null && typeof parsed === "object" && lower.includes("json")) return "json";
-  if (lower.includes("markdown")) return "markdown";
-  return undefined;
 }
 
 function restoreOriginalFromPlaceholders(newText: string, imageMap: Record<string, ImageData>): string {
@@ -91,7 +74,6 @@ const PureContentRenderer = ({
   readOnly,
   modes = defaultModes,
   defaultMode = "text",
-  autoDetectMode = false,
   value,
   className,
   placeholder,
@@ -119,13 +101,10 @@ const PureContentRenderer = ({
   const [editorMountKey, setEditorMountKey] = useState(0);
 
   const [mode, setMode] = useState(() => {
+    const allowed = modes.map((m) => m.toLowerCase());
     if (presetKey && typeof window !== "undefined") {
       const savedMode = localStorage.getItem(`formatter-mode-${presetKey}`);
-      if (savedMode) return savedMode;
-    }
-    if (autoDetectMode) {
-      const detected = detectMode(value, modes);
-      if (detected) return detected;
+      if (savedMode && allowed.includes(savedMode.toLowerCase())) return savedMode;
     }
     return defaultMode;
   });
@@ -230,23 +209,14 @@ const PureContentRenderer = ({
     }
   }, [searchRegistration, editorMountKey, messageIndex, contentPartIndex, mode]);
 
-  // Settings popover only applies to the CodeMirror branch.
   const isCodeMode = mode !== "custom" && mode !== "messages" && mode !== "markdown";
+  const canPickMode = modes.length > 1;
 
-  const renderHeaderContent = () => (
+  const actionButtons = (
     <>
-      <TemplatePickerView mode={mode} onModeChange={handleModeChange} modes={modes} />
-      {mode === "custom" && (
-        <TemplatePickerActions
-          className={cn(
-            "transition-opacity data-[state=open]:opacity-100",
-            isHovered || isSettingsOpen ? "opacity-100" : "opacity-0"
-          )}
-        />
-      )}
       <CopyButton
         className={cn(
-          "ml-auto text-foreground/80 transition-opacity data-[state=open]:opacity-100",
+          "text-foreground/80 transition-opacity data-[state=open]:opacity-100",
           isHovered || isSettingsOpen ? "opacity-100" : "opacity-0"
         )}
         iconClassName="h-3.5 w-3.5"
@@ -298,6 +268,56 @@ const PureContentRenderer = ({
     </>
   );
 
+  const content = (() => {
+    if (mode === "custom") {
+      return (
+        <div className="flex-1 flex bg-muted/50 overflow-auto w-full min-h-0 border-t">
+          <TemplatePickerPreview data={renderedValue} />
+        </div>
+      );
+    }
+    if (mode === "markdown") {
+      return (
+        <div className="flex-1 flex w-full min-w-0 min-h-0 overflow-y-auto overflow-x-hidden">
+          <MarkdownRenderer value={getMarkdownSource(value)} className="p-2" />
+        </div>
+      );
+    }
+    if (mode === "messages") {
+      return (
+        <div className="flex-1 flex w-full min-h-0">
+          <Messages
+            messages={tryParseJson(value) ?? []}
+            processed={processedMessages}
+            presetKey={presetKey ?? ""}
+            hideScrollToBottom={hideScrollToBottom}
+            maxHeight={messageMaxHeight}
+            labels={messageLabels}
+          />
+        </div>
+      );
+    }
+    return (
+      <div className={cn("flex-1 flex w-full overflow-hidden", !showLineNumbers && "pl-1", codeEditorClassName)}>
+        <CodeMirror
+          ref={editorRef}
+          className="w-full"
+          placeholder={placeholder}
+          onChange={handleChange}
+          theme={customTheme ?? defaultTheme}
+          basicSetup={{
+            lineNumbers: showLineNumbers,
+            foldGutter: showLineNumbers,
+          }}
+          extensions={extensions}
+          value={renderedValue}
+          readOnly={readOnly}
+          onCreateEditor={handleCreateEditor}
+        />
+      </div>
+    );
+  })();
+
   return (
     <TemplatePickerProvider presetKey={presetKey ?? null} testData={value}>
       <div
@@ -305,45 +325,26 @@ const PureContentRenderer = ({
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        <div className={cn("flex justify-end items-center gap-1 pl-2 pr-1 w-full rounded-t bg-transparent")}>
-          {renderHeaderContent()}
-        </div>
-        {mode === "custom" ? (
-          <div className="flex-1 flex bg-muted/50 overflow-auto w-full min-h-0 border-t">
-            <TemplatePickerPreview data={renderedValue} />
-          </div>
-        ) : mode === "markdown" ? (
-          <div className="flex-1 flex w-full min-w-0 min-h-0 overflow-y-auto overflow-x-hidden">
-            <MarkdownRenderer value={getMarkdownSource(value)} className="p-2" />
-          </div>
-        ) : mode === "messages" ? (
-          <div className="flex-1 flex w-full min-h-0">
-            <Messages
-              messages={tryParseJson(value) ?? []}
-              processed={processedMessages}
-              presetKey={presetKey ?? ""}
-              hideScrollToBottom={hideScrollToBottom}
-              maxHeight={messageMaxHeight}
-              labels={messageLabels}
-            />
-          </div>
+        {canPickMode ? (
+          <>
+            <div className="flex justify-end items-center gap-1 pl-2 pr-1 w-full rounded-t bg-transparent">
+              <TemplatePickerView mode={mode} onModeChange={handleModeChange} modes={modes} />
+              {mode === "custom" && (
+                <TemplatePickerActions
+                  className={cn(
+                    "transition-opacity data-[state=open]:opacity-100",
+                    isHovered || isSettingsOpen ? "opacity-100" : "opacity-0"
+                  )}
+                />
+              )}
+              <div className="ml-auto flex items-center gap-1">{actionButtons}</div>
+            </div>
+            {content}
+          </>
         ) : (
-          <div className={cn("flex-1 flex w-full overflow-hidden", !showLineNumbers && "pl-1", codeEditorClassName)}>
-            <CodeMirror
-              ref={editorRef}
-              className="w-full"
-              placeholder={placeholder}
-              onChange={handleChange}
-              theme={customTheme ?? defaultTheme}
-              basicSetup={{
-                lineNumbers: showLineNumbers,
-                foldGutter: showLineNumbers,
-              }}
-              extensions={extensions}
-              value={renderedValue}
-              readOnly={readOnly}
-              onCreateEditor={handleCreateEditor}
-            />
+          <div className="flex flex-1 min-h-0 w-full items-start">
+            <div className="flex-1 min-w-0 min-h-0 flex flex-col">{content}</div>
+            <div className="flex items-center shrink-0 gap-0.5 pl-0.5">{actionButtons}</div>
           </div>
         )}
       </div>
