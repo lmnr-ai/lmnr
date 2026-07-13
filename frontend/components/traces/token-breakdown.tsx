@@ -146,10 +146,19 @@ export const InputTokenBreakdown = ({ span }: { span: Span }) => {
   const data = useMemo(() => getTokenBreakdown(span), [span]);
 
   if (!data) {
+    const cacheReadFallback = span.cacheReadInputTokens ?? 0;
     return (
-      <div className="flex justify-between text-xs gap-4">
-        <span className="text-secondary-foreground">Input tokens</span>
-        <span className="tabular-nums">{numberFormat.format(span.inputTokens || 0)}</span>
+      <div className="flex flex-col gap-1">
+        <div className="flex justify-between text-xs gap-4">
+          <span className="text-secondary-foreground">Input tokens</span>
+          <span className="tabular-nums">{numberFormat.format(span.inputTokens || 0)}</span>
+        </div>
+        {cacheReadFallback > 0 && (
+          <div className="flex justify-between text-xs gap-4 text-success-bright">
+            <span>Cache input tokens</span>
+            <span className="tabular-nums">{numberFormat.format(cacheReadFallback)}</span>
+          </div>
+        )}
       </div>
     );
   }
