@@ -240,6 +240,8 @@ export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions)
         column: (sortColumn && SORT_COLUMN_MAP[sortColumn]) || "MIN(start_time)",
         direction: sortDirection === "ASC" ? "ASC" : "DESC",
       },
+      // Stable tie-breaker: aggregate sort keys produce ties, and a non-deterministic order duplicates/drops rows across pages.
+      { column: "session_id", direction: "ASC" },
     ],
     ...(!isNil(limit) &&
       !isNil(offset) && {

@@ -15,30 +15,33 @@ describe("buildSessionsQueryWithParams sort-key resolution", () => {
   ];
 
   for (const [sortColumn, expr] of cases) {
-    it(`resolves ${sortColumn} to ${expr}`, () => {
+    it(`resolves ${sortColumn} to ${expr} with a session_id tie-breaker`, () => {
       const { query } = buildSessionsQueryWithParams({
         filters: [],
         sortColumn,
         sortDirection: "DESC",
       });
-      assert.ok(query.includes(`ORDER BY ${expr} DESC`), `expected query to order by "${expr} DESC", got: ${query}`);
+      assert.ok(
+        query.includes(`ORDER BY ${expr} DESC, session_id ASC`),
+        `expected query to order by "${expr} DESC, session_id ASC", got: ${query}`
+      );
     });
   }
 
-  it("resolves end_time with ASC direction", () => {
+  it("resolves end_time with ASC direction and a session_id tie-breaker", () => {
     const { query } = buildSessionsQueryWithParams({
       filters: [],
       sortColumn: "end_time",
       sortDirection: "ASC",
     });
-    assert.ok(query.includes("ORDER BY MAX(end_time) ASC"), query);
+    assert.ok(query.includes("ORDER BY MAX(end_time) ASC, session_id ASC"), query);
   });
 });
 
 describe("buildSessionsQueryWithParams default ordering", () => {
-  it("orders by MIN(start_time) DESC when no sortColumn is given", () => {
+  it("orders by MIN(start_time) DESC with a session_id tie-breaker when no sortColumn is given", () => {
     const { query } = buildSessionsQueryWithParams({ filters: [] });
-    assert.ok(query.includes("ORDER BY MIN(start_time) DESC"), query);
+    assert.ok(query.includes("ORDER BY MIN(start_time) DESC, session_id ASC"), query);
   });
 });
 
@@ -52,7 +55,7 @@ describe("buildSessionsQueryWithParams pagination under sort", () => {
       offset: 100,
     });
 
-    assert.ok(query.includes("ORDER BY MAX(end_time) DESC"), query);
+    assert.ok(query.includes("ORDER BY MAX(end_time) DESC, session_id ASC"), query);
     assert.ok(query.includes("LIMIT {limit:UInt32} OFFSET {offset:UInt32}"), query);
     assert.equal(parameters.limit, 50);
     assert.equal(parameters.offset, 100);
