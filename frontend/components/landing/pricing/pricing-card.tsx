@@ -18,8 +18,8 @@ export interface PricingCardProps {
   ctaHref: string;
 }
 
-// One tier column. Surface-550 panel by default; Pro switches to the orange
-// fill via `isAccent`. Price is the dominant element; the tier name reads as
+// One tier column. Surface-550 panel by default; the recommended tier switches
+// to the orange fill via `isAccent`. Price is the dominant element; the tier name reads as
 // a smaller label above. CTA sits at the bottom of the card.
 export default function PricingCard({
   className,

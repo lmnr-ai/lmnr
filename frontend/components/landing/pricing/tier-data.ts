@@ -69,7 +69,7 @@ export const TIER_COLUMNS: PricingColumn[] = PRICING_COLUMNS.map((c) => ({
   price: formatPrice(c.id),
 }));
 
-export const RECOMMENDED_TIER: TierId = "pro";
+export const RECOMMENDED_TIER: TierId = "hobby";
 
 // `false` / `null` cells render as an em-dash via the table renderer.
 export type FeatureValue = string | boolean | null;

@@ -33,7 +33,7 @@ export default function Pricing() {
         <>
           Signals are billed by the tokens the agent spends to read a trace and generate a structured event: $0.50 per
           1M input tokens and $3 per 1M output tokens. Each plan includes a dollar amount of Signals usage ($5 Free, $15
-          Hobby, $50 Pro); usage past that is billed at the same per-token rates. You pay for what a Signal reads and
+          Starter, $50 Pro); usage past that is billed at the same per-token rates. You pay for what a Signal reads and
           writes, not for the spans your agent emits. Read more in the{" "}
           <a
             href="https://laminar.sh/docs/signals/introduction"

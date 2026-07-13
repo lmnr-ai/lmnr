@@ -36,6 +36,13 @@ interface ManageWorkspaceSubscriptionEventArgs {
   cancel?: boolean;
 }
 
+// DB tier rows may carry either the old "Hobby" or the new "Starter" display name
+// for the internal "hobby" tier; normalize both to the internal key.
+const normalizeTierName = (name?: string | null): string | undefined => {
+  const key = name?.trim().toLowerCase();
+  return key === "starter" ? "hobby" : key;
+};
+
 export async function getUserSubscriptionInfo(
   email: string
 ): Promise<typeof userSubscriptionInfo.$inferSelect | undefined> {
@@ -69,7 +76,7 @@ export const manageWorkspaceSubscriptionEvent = async ({
       subscriptionTier: true,
     },
   });
-  const currentTier = workspace?.subscriptionTier?.name.trim().toLowerCase();
+  const currentTier = normalizeTierName(workspace?.subscriptionTier?.name);
 
   const updatedRows = await db
     .update(workspaces)
@@ -123,7 +130,7 @@ export const manageWorkspaceSubscriptionEvent = async ({
     const newTier = await db.query.subscriptionTiers.findFirst({
       where: eq(subscriptionTiers.id, newTierId),
     });
-    const newTierName = newTier?.name?.toLowerCase()?.trim();
+    const newTierName = normalizeTierName(newTier?.name);
     const newPaidTier = ["hobby", "pro"].includes(newTierName ?? "") ? (newTierName as PaidTier) : undefined;
     const currentPaidTier = ["hobby", "pro"].includes(currentTier ?? "") ? (currentTier as PaidTier) : undefined;
     const currentTierConfig = currentPaidTier ? TIER_CONFIG[currentPaidTier] : undefined;

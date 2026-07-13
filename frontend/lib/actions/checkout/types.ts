@@ -7,7 +7,7 @@ export type TierConfigEntry = {
   includedBytes: number;
   // Included signal budget in micro-USD (1e-6 USD). Signals are billed by the
   // token cost the agent spends, so the allowance is a dollar amount stored as
-  // micro-USD to stay integer-safe. $15 Hobby, $50 Pro.
+  // micro-USD to stay integer-safe. $15 Starter (internal key "hobby"), $50 Pro.
   includedSignalCostMicroUsd: number;
 };
 
@@ -67,11 +67,12 @@ export const METER_EVENT_NAMES = {
 } as const;
 
 export const LOOKUP_KEY_DISPLAY_NAMES: Record<string, string> = {
-  // Base tiers
-  hobby_monthly_2026_02: "Hobby plan",
+  // Base tiers. "Starter" is the display name of the internal "hobby" tier;
+  // the Stripe lookup keys are immutable identifiers and keep the old name.
+  hobby_monthly_2026_02: "Starter plan",
   pro_monthly_2026_02: "Pro plan",
-  hobby_monthly_2025_04: "Hobby plan",
-  hobby_monthly_2026_02_legacy: "Hobby plan",
+  hobby_monthly_2025_04: "Starter plan",
+  hobby_monthly_2026_02_legacy: "Starter plan",
   pro_monthly_2025_04: "Pro plan",
   // Overage - bytes
   hobby_monthly_2026_03_overage_megabytes: "Data overage",
