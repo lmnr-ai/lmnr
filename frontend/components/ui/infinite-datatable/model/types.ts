@@ -55,8 +55,6 @@ export interface InfiniteDataTableProps<TData extends RowData> extends Omit<
   getRowHref?: (row: Row<TData>) => string;
   loadMoreButton?: boolean | ((props: LoadMoreButtonProps) => ReactNode);
   hideSelectionPanel?: boolean;
-  /** Optional per-row className (e.g. dim a row). Merged onto the row's own classes. */
-  getRowClassName?: (row: Row<TData>) => string;
 }
 
 export interface InfiniteDataTableHeaderProps<TData extends RowData> {
@@ -77,7 +75,6 @@ export interface InfiniteDataTableBodyProps<TData extends RowData> {
   emptyRow?: ReactNode;
   loadingRow?: ReactNode;
   getRowHref?: (row: Row<TData>) => string;
-  getRowClassName?: (row: Row<TData>) => string;
   loadMoreButton?: boolean | ((props: LoadMoreButtonProps) => ReactNode);
   fetchNextPage: () => void;
 }
@@ -90,8 +87,6 @@ export interface InfiniteDataTableRowProps<TData extends RowData> {
   onHoveredRowChange?: (row: Row<TData> | null) => void;
   href?: string;
   focusedRowId?: string | null;
-  /** Extra className merged onto the row's own classes. */
-  className?: string;
 }
 
 export interface SelectionPanelProps {

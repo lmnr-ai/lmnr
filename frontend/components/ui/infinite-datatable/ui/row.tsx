@@ -16,7 +16,6 @@ export function InfiniteDatatableRow<TData extends RowData>({
   onHoveredRowChange,
   focusedRowId,
   href,
-  className,
 }: InfiniteDataTableRowProps<TData>) {
   const router = useRouter();
 
@@ -55,8 +54,7 @@ export function InfiniteDatatableRow<TData extends RowData>({
         "flex min-w-full border-b last:border-b-0 group/row relative",
         (!!onRowClick || !!href) && "cursor-pointer",
         row.depth > 0 && "bg-secondary/40",
-        focusedRowId === row.id && "bg-muted",
-        className
+        focusedRowId === row.id && "bg-muted"
       )}
       key={row.id}
       data-state={row.getIsSelected() && "selected"}

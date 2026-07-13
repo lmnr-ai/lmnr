@@ -1,11 +1,11 @@
-import { type RowData } from "@tanstack/react-table";
+import { type Row, type RowData } from "@tanstack/react-table";
 import { type ReactNode } from "react";
 
 import { type ScoreRanges } from "@/components/evaluation/utils";
 
 // -- tanstack module augmentation --
 declare module "@tanstack/react-table" {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   interface TableMeta<TData extends RowData> {
     // Evaluation table — passed via InfiniteDataTable so cell components can
     // read shared rendering state (comparison mode, heatmap toggle, score
@@ -18,6 +18,11 @@ declare module "@tanstack/react-table" {
       heatmapEnabled: boolean;
       scoreRanges: ScoreRanges;
     };
+    // Generic per-row dim: when it returns true the row's content cells render
+    // at reduced opacity. Applied only to data cells (the `__row_selection`
+    // checkbox column and the selection bar stay full-opacity) so selection
+    // affordances remain legible. See `InfiniteTableCell`.
+    getRowDimmed?: (row: Row<TData>) => boolean;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

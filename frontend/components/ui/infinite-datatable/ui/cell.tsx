@@ -25,6 +25,12 @@ export function InfiniteTableCell<TData extends RowData>({ cell }: InfiniteTable
   const isOtherDragging = draggingColumnId && draggingColumnId !== columnId;
   const isPinned = cell.column.getIsPinned() === "left";
 
+  // Dim only content cells — never the selection checkbox — so a dimmed row's
+  // selection affordances (checkbox + left bar, the latter is a row-level td)
+  // stay legible.
+  const { table } = cell.getContext();
+  const isDimmed = columnId !== "__row_selection" && (table.options.meta?.getRowDimmed?.(cell.row) ?? false);
+
   const style: CSSProperties = {
     opacity: isDragging ? 0.4 : isOtherDragging ? 0.9 : 1,
     position: isPinned ? "sticky" : "relative",
@@ -55,7 +61,9 @@ export function InfiniteTableCell<TData extends RowData>({ cell }: InfiniteTable
       }}
       ref={setNodeRef}
     >
-      <div className="truncate flex-1 min-w-0">{flexRender(cell.column.columnDef.cell, cell.getContext())}</div>
+      <div className={cn("truncate flex-1 min-w-0 transition-opacity", isDimmed && "opacity-50")}>
+        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+      </div>
     </TableCell>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { type ColumnDef } from "@tanstack/react-table";
+import { type ColumnDef, type Row } from "@tanstack/react-table";
 import { Eye, EyeOff, Settings as SettingsIcon } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
@@ -219,6 +219,12 @@ function EvaluationsContent() {
       );
     },
     [setHiddenEvaluationIds]
+  );
+
+  // Dim chart-hidden runs' content cells (checkbox + selection bar stay crisp).
+  const tableMeta = useMemo(
+    () => ({ getRowDimmed: (row: Row<Evaluation>) => hiddenEvaluationIds.includes(row.original.id) }),
+    [hiddenEvaluationIds]
   );
 
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
@@ -463,7 +469,7 @@ function EvaluationsContent() {
                 data={evaluations}
                 getRowId={(evaluation) => evaluation.id}
                 getRowHref={(row) => `/project/${params?.projectId}/evaluations/${row.original.id}`}
-                getRowClassName={(row) => (hiddenEvaluationIds.includes(row.original.id) ? "opacity-40" : "")}
+                meta={tableMeta}
                 hasMore={hasMore}
                 isFetching={isFetching}
                 isLoading={isLoading || isViewLoading || isGroupDefaultPending}
