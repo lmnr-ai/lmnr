@@ -40,14 +40,26 @@ const HeaderCell = ({ children, className }: { children?: React.ReactNode; class
   <div className={cn("truncate px-4 text-secondary-foreground", className)}>{children}</div>
 );
 
+// Trim a soft score to 2 decimals, dropping trailing zeros (0.87, 0.5, 1).
+const formatScore = (v: number): string => String(Math.round(v * 100) / 100);
+
 const GateRow = ({ gate }: { gate: Gate }) => (
-  <div className="flex items-center gap-2 border-b bg-secondary/40 pl-[52px] pr-4" style={{ height: GATE_ROW_HEIGHT }}>
-    {gate.passing ? (
-      <Check className="shrink-0 text-success-bright" size={13} strokeWidth={2.5} />
-    ) : (
-      <X className="shrink-0 text-destructive" size={13} strokeWidth={2.5} />
-    )}
-    <span className={cn("truncate font-mono text-xs", gate.passing ? "text-foreground" : "text-muted-foreground")}>
+  <div className="flex items-center gap-2 border-b bg-surface-900 pl-[52px] pr-4" style={{ height: GATE_ROW_HEIGHT }}>
+    <span className="flex w-9 shrink-0 items-center">
+      {gate.soft ? (
+        <span className="font-mono text-xs tabular-nums text-muted-foreground">{formatScore(gate.value)}</span>
+      ) : gate.passing ? (
+        <Check className="text-success-bright" size={13} strokeWidth={2.5} />
+      ) : (
+        <X className="text-destructive" size={13} strokeWidth={2.5} />
+      )}
+    </span>
+    <span
+      className={cn(
+        "truncate font-mono text-xs",
+        gate.soft ? "text-muted-foreground" : gate.passing ? "text-foreground" : "text-muted-foreground"
+      )}
+    >
       {gate.label}
     </span>
   </div>
@@ -114,7 +126,7 @@ const GatesTable = ({
     <div className="flex flex-1 flex-col self-start min-h-0 max-h-full overflow-hidden rounded border bg-secondary">
       {/* Header */}
       <div
-        className="grid shrink-0 items-center rounded-t bg-secondary text-xs"
+        className="grid shrink-0 items-center rounded-t border-b bg-secondary text-xs"
         style={{ gridTemplateColumns: GRID, height: 32 }}
       >
         <HeaderCell />

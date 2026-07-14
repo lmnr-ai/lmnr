@@ -31,6 +31,11 @@ export const GateSummary = ({ summary }: { summary: RowGates }) => {
     );
   }
 
+  // Only soft measurements ran — no pass/fail gates to summarize.
+  if (total === 0) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+
   const Icon = allPassing ? Check : passing === 0 ? X : CircleAlert;
   const color = allPassing ? "text-success-bright" : passing === 0 ? "text-destructive" : "text-amber-500";
 
