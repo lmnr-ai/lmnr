@@ -13,9 +13,13 @@ export function formatShortRelativeTime(date: Date): string {
   const hours = differenceInHours(now, date);
   const days = differenceInDays(now, date);
 
-  const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto", style: "narrow" });
+  // numeric: "always" — "auto" renders -1 day as "yesterday", which is wrong for
+  // most of the 24-48h window that differenceInDays maps to 1.
+  const rtf = new Intl.RelativeTimeFormat("en", { numeric: "always", style: "narrow" });
 
-  if (seconds < 60) {
+  if (seconds < 1) {
+    return "now";
+  } else if (seconds < 60) {
     return rtf.format(-seconds, "second");
   } else if (minutes < 60) {
     return rtf.format(-minutes, "minute");
@@ -47,7 +51,7 @@ export default function ClientTimestampFormatter({
     : days < 7
       ? formatShortRelativeTime(date)
       : formatTimestamp(timestamp);
-  const tooltipText = format(date, "MMMM d, yyyy, h:mm a O");
+  const tooltipText = format(date, "MMMM d, yyyy, h:mm:ss a O");
 
   return (
     <TooltipProvider>
