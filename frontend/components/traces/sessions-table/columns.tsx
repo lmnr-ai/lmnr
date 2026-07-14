@@ -25,6 +25,10 @@ const numberFormat = new Intl.NumberFormat("en-US");
 
 const formatTokens = (value: number | null | undefined) => (value == null ? "-" : numberFormat.format(value));
 
+// Ingestion maps NULL Postgres times to epoch 0 in ClickHouse, so an all-in-flight session would render as 1970.
+export const isRenderableActivity = (value: unknown): boolean =>
+  Boolean(value) && new Date(String(value)).getTime() > 0;
+
 export const filters: ColumnFilter[] = [
   {
     key: "session_id",
@@ -77,19 +81,32 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     id: "start_time",
     size: 150,
+    enableSorting: true,
     meta: { sql: "start_time" },
+  },
+  {
+    accessorFn: (row) => row.endTime,
+    header: "Last activity",
+    cell: (row) =>
+      isRenderableActivity(row.getValue()) ? <ClientTimestampFormatter timestamp={String(row.getValue())} /> : "-",
+    id: "end_time",
+    size: 150,
+    enableSorting: true,
+    meta: { sql: "end_time" },
   },
   {
     accessorFn: (row) => (row.duration ?? 0).toFixed(2) + "s",
     header: "Duration",
     id: "duration",
     size: 100,
+    enableSorting: true,
     meta: { sql: "duration" },
   },
   {
     accessorFn: (row) => row.totalCost,
     header: "Cost",
     id: "total_cost",
+    enableSorting: true,
     meta: { sql: "total_cost" },
     cell: (row) => {
       if (row.getValue() > 0) {
@@ -126,6 +143,7 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     accessorFn: (row) => row.totalTokens ?? "-",
     header: "Tokens",
     id: "total_tokens",
+    enableSorting: true,
     meta: { sql: "total_tokens" },
     cell: (row) => (
       <div className="truncate">
@@ -142,6 +160,7 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     header: "Traces",
     id: "trace_count",
     size: 100,
+    enableSorting: true,
     meta: { sql: "trace_count" },
   },
   {
@@ -156,6 +175,7 @@ export const columns: ColumnDef<SessionRow, any>[] = [
 export const defaultSessionsColumnOrder = [
   "id",
   "start_time",
+  "end_time",
   "duration",
   "total_cost",
   "total_tokens",

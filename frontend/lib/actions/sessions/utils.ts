@@ -141,7 +141,7 @@ const sessionsSelectColumns = [
   "any(user_id) as userId",
 ];
 
-export type SessionSortColumn = "start_time" | "duration" | "total_tokens" | "total_cost" | "trace_count";
+export type SessionSortColumn = "start_time" | "end_time" | "duration" | "total_tokens" | "total_cost" | "trace_count";
 
 export interface BuildSessionsQueryOptions {
   columns?: string[];
@@ -158,6 +158,7 @@ export interface BuildSessionsQueryOptions {
 
 const SORT_COLUMN_MAP: Record<SessionSortColumn, string> = {
   start_time: "MIN(start_time)",
+  end_time: "MAX(end_time)",
   duration: "SUM(end_time - start_time)",
   total_tokens: "SUM(total_tokens)",
   total_cost: "SUM(total_cost)",
@@ -239,6 +240,8 @@ export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions)
         column: (sortColumn && SORT_COLUMN_MAP[sortColumn]) || "MIN(start_time)",
         direction: sortDirection === "ASC" ? "ASC" : "DESC",
       },
+      // Stable tie-breaker: aggregate sort keys produce ties, and a non-deterministic order duplicates/drops rows across pages.
+      { column: "session_id", direction: "ASC" },
     ],
     ...(!isNil(limit) &&
       !isNil(offset) && {
