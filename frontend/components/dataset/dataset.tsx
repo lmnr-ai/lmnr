@@ -6,7 +6,7 @@ import { Resizable } from "re-resizable";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
-import { useReportAgentContextName } from "@/components/agent/store";
+import { useReportAgentContextName } from "@/components/agent";
 import AdvancedSearch, { type AdvancedSearchValue } from "@/components/common/advanced-search";
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import { Button } from "@/components/ui/button.tsx";

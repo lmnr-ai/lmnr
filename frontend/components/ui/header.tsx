@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren } from "react";
 
-import AgentHeaderToggle from "@/components/agent/header-toggle";
+import { AgentHeaderToggle } from "@/components/agent";
 import CopyTooltip from "@/components/ui/copy-tooltip.tsx";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";

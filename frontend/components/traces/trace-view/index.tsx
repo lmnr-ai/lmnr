@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
-import { TraceAgentContext } from "@/components/agent/store/registrars";
+import { TraceAgentContext } from "@/components/agent";
 import TraceViewStoreProvider, {
   type ResizablePanel,
   type TraceViewTrace,
