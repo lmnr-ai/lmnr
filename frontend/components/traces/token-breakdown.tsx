@@ -124,8 +124,7 @@ const estimateShares = (span: Span): EstimatedBucket[] | null => {
  * Measured token counts from the span, plus an optional char-weighted estimate
  * of how input tokens split across system / tools / user / assistant.
  */
-export const getTokenBreakdown = (span?: Span): TokenBreakdownData | null => {
-  if (!span) return null;
+export const getTokenBreakdown = (span: Span): TokenBreakdownData | null => {
   if (span.spanType !== SpanType.LLM && span.spanType !== SpanType.CACHED) return null;
 
   const inputTokens = span.inputTokens || 0;
@@ -143,21 +142,21 @@ export const getTokenBreakdown = (span?: Span): TokenBreakdownData | null => {
   };
 };
 
-export const InputTokenBreakdown = ({ span }: { span?: Span }) => {
+export const InputTokenBreakdown = ({ span }: { span: Span }) => {
   const data = useMemo(() => getTokenBreakdown(span), [span]);
 
   if (!data) {
-    const cacheReadFallback = span?.cacheReadInputTokens ?? 0;
-    const reasoningFallback = span?.reasoningTokens ?? 0;
+    const cacheReadFallback = span.cacheReadInputTokens ?? 0;
+    const reasoningFallback = span.reasoningTokens ?? 0;
     return (
       <div className="flex flex-col gap-1">
         <div className="flex justify-between text-xs gap-4">
           <span className="text-secondary-foreground">Input tokens</span>
-          <span className="tabular-nums">{numberFormat.format(span?.inputTokens || 0)}</span>
+          <span className="tabular-nums">{numberFormat.format(span.inputTokens || 0)}</span>
         </div>
         <div className="flex justify-between text-xs gap-4">
           <span className="text-secondary-foreground">Output tokens</span>
-          <span className="tabular-nums">{numberFormat.format(span?.outputTokens || 0)}</span>
+          <span className="tabular-nums">{numberFormat.format(span.outputTokens || 0)}</span>
         </div>
         {reasoningFallback > 0 && (
           <div className="flex justify-between text-xs gap-4">
