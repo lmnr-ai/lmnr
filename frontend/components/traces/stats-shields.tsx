@@ -6,7 +6,7 @@ import { memo, useMemo } from "react";
 import { InputTokenBreakdown } from "@/components/traces/token-breakdown";
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { type Span, type TraceRow } from "@/lib/traces/types.ts";
+import { type Span, SpanType, type TraceRow } from "@/lib/traces/types.ts";
 import { cn, getDurationString } from "@/lib/utils";
 
 import { Label } from "../ui/label";
@@ -219,7 +219,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
         </TooltipTrigger>
         <TooltipPortal>
           <TooltipContent side="bottom" className="p-2 border bg-surface-700">
-            {span ? (
+            {span && (span.spanType === SpanType.LLM || span.spanType === SpanType.CACHED) ? (
               <InputTokenBreakdown span={span} />
             ) : (
               <div className="flex-col space-y-1">
