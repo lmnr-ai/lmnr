@@ -17,7 +17,7 @@ export function formatShortRelativeTime(date: Date): string {
   // most of the 24-48h window that differenceInDays maps to 1.
   const rtf = new Intl.RelativeTimeFormat("en", { numeric: "always", style: "narrow" });
 
-  if (seconds < 1) {
+  if (Math.abs(seconds) < 1) {
     return "now";
   } else if (seconds < 60) {
     return rtf.format(-seconds, "second");
