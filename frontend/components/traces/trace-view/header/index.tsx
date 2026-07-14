@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
+import { useLaminarAgentStore } from "@/components/agent";
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import { TraceTagsButton, TraceTagsPills, useTraceTags } from "@/components/tags/trace-tags-list";
 import ShareTraceButton from "@/components/traces/share-trace-button";
@@ -24,7 +25,6 @@ import { cn } from "@/lib/utils";
 
 import Metadata from "../metadata";
 import SignalEventsPanel from "../signal-events-panel";
-import { useChatPanel } from "../use-chat-panel";
 import CondensedTimelineControls from "./timeline-toggle";
 import TraceDropdown from "./trace-dropdown";
 
@@ -47,6 +47,9 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   const { toast } = useToast();
   const { project } = useProjectContext();
   const featureFlags = useFeatureFlags();
+  const agentOpen = useLaminarAgentStore((s) => s.viewMode === "open");
+  const openAgent = useLaminarAgentStore((s) => s.open);
+  const collapseAgent = useLaminarAgentStore((s) => s.collapse);
 
   const {
     trace,
@@ -78,9 +81,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
     }),
     shallow
   );
-
-  // Chat open state + toggle (closing also clears a lingering `chat=true` from the URL).
-  const { chatOpen, toggleChat } = useChatPanel();
 
   // Eagerly fetch signals when the trace loads, populating store + auto-opening the panel
   // when there are any. Tab selection prefers initialSignalId from the store (set at creation).
@@ -218,21 +218,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
               <TraceDropdown traceId={traceId} />
             </span>
           )}
-          {featureFlags[Feature.AGENT] && spans.length > 0 && (
-            <span className={HEADER_ITEM_CLS}>
-              <Button
-                onClick={toggleChat}
-                variant="outline"
-                className={cn(
-                  "h-6 text-xs px-1.5",
-                  chatOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
-                )}
-              >
-                <Sparkles size={14} className="mr-1" />
-                Chat
-              </Button>
-            </span>
-          )}
           {signalCount > 0 && (
             <span className={HEADER_ITEM_CLS}>
               <Button
@@ -245,6 +230,28 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
               >
                 <Radio size={14} className="mr-1" />
                 Signals ({signalCount})
+              </Button>
+            </span>
+          )}
+          {featureFlags[Feature.AGENT] && spans.length > 0 && (
+            <span className={HEADER_ITEM_CLS}>
+              <Button
+                onClick={() => {
+                  if (agentOpen) {
+                    collapseAgent();
+                  } else {
+                    track("sessions", "agent_panel_opened", { surface: "trace_header" });
+                    openAgent();
+                  }
+                }}
+                variant="outline"
+                className={cn(
+                  "h-6 text-xs px-1.5",
+                  agentOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
+                )}
+              >
+                <Sparkles size={14} className="mr-1" />
+                Chat
               </Button>
             </span>
           )}

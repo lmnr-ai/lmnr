@@ -1338,6 +1338,7 @@ export const chatSessions = pgTable(
     lastUsedAt: timestamp("last_used_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     userId: uuid("user_id"),
     traceId: uuid("trace_id"),
+    name: text("name"),
   },
   (table) => [
     uniqueIndex("chat_sessions_project_user_trace_key")

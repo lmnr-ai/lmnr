@@ -722,6 +722,13 @@
       "when": 1782997824498,
       "tag": "0102_signals_metadata",
       "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1782997824499,
+      "tag": "0103_agent_chat_session_name",
+      "breakpoints": true
     }
   ]
 }

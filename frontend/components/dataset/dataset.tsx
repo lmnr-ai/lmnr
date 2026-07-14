@@ -6,6 +6,7 @@ import { Resizable } from "re-resizable";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
+import { useReportAgentContextName } from "@/components/agent";
 import AdvancedSearch, { type AdvancedSearchValue } from "@/components/common/advanced-search";
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import { Button } from "@/components/ui/button.tsx";
@@ -96,6 +97,9 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathName = usePathname();
+
+  // Surface the dataset name to the agent context breadcrumb (RouteAgentContext registers the id).
+  useReportAgentContextName("dataset", dataset.name);
   const { projectId } = useParams();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const { toast } = useToast();

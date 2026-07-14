@@ -1,14 +1,12 @@
-import { useQueryState } from "nuqs";
 import React, { useCallback, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
+import { TraceAgentContext } from "@/components/agent";
 import TraceViewStoreProvider, {
   type ResizablePanel,
   type TraceViewTrace,
   useTraceViewStore,
 } from "@/components/traces/trace-view/store";
-import { useFeatureFlags } from "@/contexts/feature-flags-context";
-import { Feature } from "@/lib/features/features";
 import { cn } from "@/lib/utils";
 
 import TraceViewContent from "./trace-view-content";
@@ -27,18 +25,14 @@ interface TraceViewProps {
 }
 
 export default function TraceView(props: Omit<TraceViewProps, "isFillWidth">) {
-  // `chat=true` deep-links force the chat open over a persisted `false`; read once here
-  // so the store's creation-time merge can apply it (no ongoing effect — see store/index.tsx).
-  const [chatParam] = useQueryState("chat");
-  const initialChatOpen = chatParam === "true";
   return (
     <TraceViewStoreProvider
       initialTrace={props.propsTrace}
       isAlwaysSelectSpan={props.isAlwaysSelectSpan}
       initialSignalId={props.initialSignalId}
       initialSearch={props.initialSearch}
-      initialChatOpen={initialChatOpen}
     >
+      <TraceAgentContext traceId={props.traceId} />
       <TraceViewContent {...props} />
     </TraceViewStoreProvider>
   );
@@ -50,8 +44,6 @@ export function TraceViewSidePanel({
   ...props
 }: Omit<TraceViewProps, "isFillWidth"> & { className?: string; children?: React.ReactNode }) {
   const sidePanelRef = useRef<HTMLDivElement>(null);
-  const [chatParam] = useQueryState("chat");
-  const initialChatOpen = chatParam === "true";
 
   return (
     <div
@@ -67,9 +59,9 @@ export function TraceViewSidePanel({
         isAlwaysSelectSpan={props.isAlwaysSelectSpan}
         initialSignalId={props.initialSignalId}
         initialSearch={props.initialSearch}
-        initialChatOpen={initialChatOpen}
       >
         <div className="relative w-full h-full flex flex-col">
+          <TraceAgentContext traceId={props.traceId} />
           <SidePanelLeftResizeHandle />
           {/* w-0 min-w-full keeps children (e.g. the eval runs chart, which pins its own
                   measured pixel width via recharts) from driving the right-anchored side panel's
@@ -91,25 +83,21 @@ export function TraceViewSidePanel({
  * so the resize math matches what's rendered.
  */
 function SidePanelLeftResizeHandle() {
-  const { resizePanel, spanPanelOpen, tracesAgentOpen, isAlwaysSelectSpan, isTraceLoading, hasTrace, spansLength } =
-    useTraceViewStore(
-      (s) => ({
-        resizePanel: s.resizePanel,
-        spanPanelOpen: s.spanPanelOpen,
-        tracesAgentOpen: s.tracesAgentOpen,
-        isAlwaysSelectSpan: s.isAlwaysSelectSpan,
-        isTraceLoading: s.isTraceLoading,
-        hasTrace: !!s.trace,
-        spansLength: s.spans.length,
-      }),
-      shallow
-    );
+  const { resizePanel, spanPanelOpen, isAlwaysSelectSpan, isTraceLoading, hasTrace, spansLength } = useTraceViewStore(
+    (s) => ({
+      resizePanel: s.resizePanel,
+      spanPanelOpen: s.spanPanelOpen,
+      isAlwaysSelectSpan: s.isAlwaysSelectSpan,
+      isTraceLoading: s.isTraceLoading,
+      hasTrace: !!s.trace,
+      spansLength: s.spans.length,
+    }),
+    shallow
+  );
 
-  const isChatEnabled = useFeatureFlags()[Feature.AGENT];
   const isLoading = isTraceLoading && !hasTrace;
   const showSpan = spanPanelOpen || (isAlwaysSelectSpan && !isLoading && spansLength > 0);
-  const showChat = isChatEnabled && tracesAgentOpen;
-  const visible = useMemo(() => ({ span: showSpan, chat: showChat }), [showSpan, showChat]);
+  const visible = useMemo(() => ({ span: showSpan }), [showSpan]);
 
   const drag = useCallback(
     (panel: ResizablePanel, delta: number) => resizePanel(panel, delta, visible),
