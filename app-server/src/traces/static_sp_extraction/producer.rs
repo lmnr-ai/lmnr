@@ -44,9 +44,15 @@ pub async fn publish_static_prompt_candidates(
 
     // Spans emitted by our own extraction self-tracing land in this project;
     // feeding them back into extraction would loop indefinitely.
-    let internal_project_id = std::env::var(crate::env::connections::STATIC_SP_INTERNAL_PROJECT_ID)
-        .ok()
-        .and_then(|s| Uuid::parse_str(&s).ok());
+    let static_sp_internal_project_id: Option<Uuid> =
+        std::env::var(crate::env::connections::STATIC_SP_INTERNAL_PROJECT_ID)
+            .ok()
+            .and_then(|s| Uuid::parse_str(&s).ok());
+
+    let signals_internal_project_id: Option<Uuid> =
+        std::env::var(crate::env::private::signals::INTERNAL_PROJECT_ID)
+            .ok()
+            .and_then(|s| Uuid::parse_str(&s).ok());
 
     // Collapse only same-trace repeats of a signature within this batch (an
     // agent making many LLM calls in one trace). Distinct traces sharing a
@@ -56,7 +62,9 @@ pub async fn publish_static_prompt_candidates(
     let mut messages: Vec<StaticPromptQueueMessage> = Vec::new();
 
     for candidate in candidates {
-        if internal_project_id == Some(candidate.project_id) {
+        if static_sp_internal_project_id == Some(candidate.project_id)
+            || signals_internal_project_id == Some(candidate.project_id)
+        {
             continue;
         }
 
