@@ -70,8 +70,12 @@ pub const AGENT_CLASSIFY_LOCK_CACHE_KEY: &str = "agent_classify_lock";
 // Static system-prompt extraction (LAM-1899). All three are namespaced by
 // `(project_id, prompt_hash)` — the naive signature — see
 // `traces/system_extraction/mod.rs`.
-/// `naive_signature → Vec<regex>` whose matches are the prompt's dynamic parts.
-pub const STATIC_SP_REGEX_CACHE_KEY: &str = "static_sp_regex";
+/// `naive_signature → Vec<{pattern, label}>` whose patterns' matches are the
+/// prompt's dynamic parts. `_v2` abandons pre-label entries whose shape was a
+/// bare `Vec<String>` — readers of the old key (the enterprise summarizer)
+/// degrade to their raw-prompt fallback as those entries expire, instead of
+/// failing to deserialize objects where strings were cached.
+pub const STATIC_SP_REGEX_CACHE_KEY: &str = "static_sp_regex_v2";
 /// `naive_signature → Vec<system_prompt>` samples awaiting extraction.
 pub const STATIC_SP_ACCUMULATOR_CACHE_KEY: &str = "static_sp_accumulator";
 /// `naive_signature → total occurrences seen` (a small counter kept separate

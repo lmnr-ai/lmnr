@@ -15,6 +15,7 @@ pub mod service;
 pub mod signal_events;
 pub mod spans;
 pub mod traces;
+pub mod traces_agg;
 pub mod utils;
 
 pub use data_plane::DataPlaneBatch;
@@ -58,6 +59,7 @@ pub static INSERT_END_TIMEOUT: LazyLock<Option<Duration>> = LazyLock::new(|| {
 pub enum Table {
     Spans,
     Traces,
+    TracesAgg,
     NotificationDeliveries,
     Notifications,
     DedupedContent,
@@ -68,6 +70,7 @@ impl Table {
         match self {
             Table::Spans => "spans",
             Table::Traces => "traces_replacing",
+            Table::TracesAgg => "traces_agg",
             Table::NotificationDeliveries => "notification_deliveries",
             Table::Notifications => "notifications",
             Table::DedupedContent => "deduped_content",

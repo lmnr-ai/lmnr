@@ -6,15 +6,18 @@ import { Resizable } from "re-resizable";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
+import { useReportAgentContextName } from "@/components/agent";
 import AdvancedSearch, { type AdvancedSearchValue } from "@/components/common/advanced-search";
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import { Button } from "@/components/ui/button.tsx";
+import CopyTooltip from "@/components/ui/copy-tooltip";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableConfigStore, useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
+import Mono from "@/components/ui/mono";
 import { type Datapoint, type Dataset as DatasetType } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -51,7 +54,11 @@ const columns: ColumnDef<Datapoint>[] = [
     accessorKey: "id",
     header: "ID",
     size: 300,
-    cell: (row) => <span className="font-mono text-xs truncate">{String(row.getValue())}</span>,
+    cell: (row) => (
+      <CopyTooltip value={String(row.getValue())} className="block truncate">
+        <Mono className="text-xs">{String(row.getValue())}</Mono>
+      </CopyTooltip>
+    ),
   },
   {
     id: "createdAt",
@@ -90,6 +97,9 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathName = usePathname();
+
+  // Surface the dataset name to the agent context breadcrumb (RouteAgentContext registers the id).
+  useReportAgentContextName("dataset", dataset.name);
   const { projectId } = useParams();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const { toast } = useToast();

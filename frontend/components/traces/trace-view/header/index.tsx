@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
+import { useLaminarAgentStore } from "@/components/agent";
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import { TraceTagsButton, TraceTagsPills, useTraceTags } from "@/components/tags/trace-tags-list";
 import ShareTraceButton from "@/components/traces/share-trace-button";
@@ -46,14 +47,15 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   const { toast } = useToast();
   const { project } = useProjectContext();
   const featureFlags = useFeatureFlags();
+  const agentOpen = useLaminarAgentStore((s) => s.viewMode === "open");
+  const openAgent = useLaminarAgentStore((s) => s.open);
+  const collapseAgent = useLaminarAgentStore((s) => s.collapse);
 
   const {
     trace,
     tab,
     condensedTimelineEnabled,
     setCondensedTimelineEnabled,
-    tracesAgentOpen,
-    setTracesAgentOpen,
     signalsPanelOpen,
     setSignalsPanelOpen,
     traceSignals,
@@ -68,8 +70,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
       tab: state.tab,
       condensedTimelineEnabled: state.condensedTimelineEnabled,
       setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
-      tracesAgentOpen: state.tracesAgentOpen,
-      setTracesAgentOpen: state.setTracesAgentOpen,
       signalsPanelOpen: state.signalsPanelOpen,
       setSignalsPanelOpen: state.setSignalsPanelOpen,
       traceSignals: state.traceSignals,
@@ -218,21 +218,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
               <TraceDropdown traceId={traceId} />
             </span>
           )}
-          {featureFlags[Feature.AGENT] && spans.length > 0 && (
-            <span className={HEADER_ITEM_CLS}>
-              <Button
-                onClick={() => setTracesAgentOpen(!tracesAgentOpen)}
-                variant="outline"
-                className={cn(
-                  "h-6 text-xs px-1.5",
-                  tracesAgentOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
-                )}
-              >
-                <Sparkles size={14} className="mr-1" />
-                Chat
-              </Button>
-            </span>
-          )}
           {signalCount > 0 && (
             <span className={HEADER_ITEM_CLS}>
               <Button
@@ -245,6 +230,28 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
               >
                 <Radio size={14} className="mr-1" />
                 Signals ({signalCount})
+              </Button>
+            </span>
+          )}
+          {featureFlags[Feature.AGENT] && spans.length > 0 && (
+            <span className={HEADER_ITEM_CLS}>
+              <Button
+                onClick={() => {
+                  if (agentOpen) {
+                    collapseAgent();
+                  } else {
+                    track("sessions", "agent_panel_opened", { surface: "trace_header" });
+                    openAgent();
+                  }
+                }}
+                variant="outline"
+                className={cn(
+                  "h-6 text-xs px-1.5",
+                  agentOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
+                )}
+              >
+                <Sparkles size={14} className="mr-1" />
+                Chat
               </Button>
             </span>
           )}

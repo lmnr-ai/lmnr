@@ -42,13 +42,15 @@ function SessionsTableContent() {
   const { projectId } = useParams();
   const { toast } = useToast();
 
-  const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
+  const { effective, isLoading: isViewLoading, setSort, setSearchAndFilters, setFilters } = useTableView();
   const searchValue = useMemo(
     () => ({ filters: effective.filters, search: effective.search }),
     [effective.filters, effective.search]
   );
   const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
   const textSearchFilter = effective.search.length > 0 ? effective.search : null;
+  const sortBy = effective.sortBy ?? undefined;
+  const sortDirection = (effective.sortDirection ?? undefined) as "asc" | "desc" | undefined;
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
   const pastHours = searchParams.get("pastHours");
@@ -80,6 +82,11 @@ function SessionsTableContent() {
           urlParams.set("search", textSearchFilter);
         }
 
+        if (sortBy) {
+          urlParams.set("sortColumn", sortBy);
+          if (sortDirection) urlParams.set("sortDirection", sortDirection.toUpperCase());
+        }
+
         const url = `/api/projects/${projectId}/sessions?${urlParams.toString()}`;
         const res = await fetch(url, { method: "GET", headers: { "Content-Type": "application/json" } });
 
@@ -98,7 +105,7 @@ function SessionsTableContent() {
         throw error;
       }
     },
-    [endDate, filter, pastHours, projectId, startDate, textSearchFilter, toast]
+    [endDate, filter, pastHours, projectId, sortBy, sortDirection, startDate, textSearchFilter, toast]
   );
 
   const {
@@ -112,7 +119,7 @@ function SessionsTableContent() {
   } = useInfiniteScroll<SessionRow>({
     fetchFn: fetchSessions,
     enabled: shouldFetch && !isViewLoading,
-    deps: [endDate, filter, pastHours, projectId, startDate, textSearchFilter],
+    deps: [endDate, filter, pastHours, projectId, sortBy, sortDirection, startDate, textSearchFilter],
   });
 
   const handleRowClick = useCallback(
@@ -122,6 +129,13 @@ function SessionsTableContent() {
       track("sessions", "detail_opened", { source: "table" });
     },
     [projectId, router]
+  );
+
+  const handleSort = useCallback(
+    (columnId: string, direction: "asc" | "desc") => {
+      setSort(columnId || null, columnId ? direction : null);
+    },
+    [setSort]
   );
 
   return (
@@ -137,6 +151,9 @@ function SessionsTableContent() {
         isLoading={isLoading || !shouldFetch || isViewLoading}
         fetchNextPage={fetchNextPage}
         error={error}
+        sortBy={sortBy}
+        sortDirection={sortDirection}
+        onSort={handleSort}
       >
         <div className="flex flex-1 w-full h-full gap-2">
           <DataTableFilter columns={filters} filters={effective.filters} onFiltersChange={setFilters} />

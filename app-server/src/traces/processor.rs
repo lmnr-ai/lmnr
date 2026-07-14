@@ -15,6 +15,8 @@ use crate::{
         deduped_content::CHDedupedContent,
         spans::CHSpan,
         traces::{CHTrace, TraceAggregation},
+        traces_agg::CHTraceAgg,
+        utils::chrono_to_nanoseconds,
     },
     db::{
         DB, debugger_session_blocks,
@@ -24,6 +26,7 @@ use crate::{
         },
         workspaces::WorkspaceDeployment,
     },
+    env,
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
     pii_redactor::{PiiRedactorClient, redact_spans_in_place},
@@ -489,7 +492,7 @@ pub async fn process_span_messages(
         let mut updated_traces: Vec<Trace> =
             Vec::with_capacity(aggregation_traces.len() + patched_traces.len());
         updated_traces.extend(aggregation_traces.iter().cloned());
-        updated_traces.extend(patched_traces);
+        updated_traces.extend(patched_traces.iter().cloned());
         if updated_traces.len() > 1 {
             let mut last_idx_by_key: HashMap<(Uuid, Uuid), usize> =
                 HashMap::with_capacity(updated_traces.len());
@@ -522,6 +525,50 @@ pub async fn process_span_messages(
             debugger_session_blocks::upsert_blocks_for_traces(&db.pool, &updated_traces).await;
 
             dispatch_trace_realtime_updates(&updated_traces, cache.clone(), &pubsub).await;
+        }
+
+        // Dual-write partial rows to `traces_agg` (AggregatingMergeTree,
+        // LAM-1879). Aggregate partials come from the in-memory per-batch
+        // deltas (`trace_aggregations`), NOT the PG-merged rows above — those
+        // are cumulative, and inserting them as partials would double-count
+        // every sum on each batch. Gated on `aggregation_ok` so traces_agg
+        // never runs ahead of traces_replacing while both are written.
+        // Metadata patches get identity partials built from the PG-merged
+        // row: the full metadata map re-stamped at `now_ns + 1` wins per-key
+        // LWW. The +1 matters when one flush touches the same trace via BOTH
+        // span aggregation AND a patch: with equal versions, maxMap would
+        // break the tie lexicographically on the encoded JSON value, letting
+        // span metadata beat the patch. Stamping the patch strictly higher
+        // mirrors the PG path, where the patch UPDATE runs after the
+        // aggregation upsert.
+        // The whole dual-write is gated behind WRITE_TRACES_AGG (default off)
+        // while the cloud-only performance experiment runs, so self-hosted
+        // deployments keep writing only traces_replacing.
+        if env::clickhouse::WRITE_TRACES_AGG.get() {
+            let mut traces_agg_rows: Vec<CHTraceAgg> =
+                Vec::with_capacity(trace_aggregations.len() + patched_traces.len());
+            let now_ns = chrono_to_nanoseconds(chrono::Utc::now());
+            if aggregation_ok {
+                traces_agg_rows.extend(
+                    trace_aggregations
+                        .iter()
+                        .map(|agg| CHTraceAgg::from_aggregation(agg, now_ns)),
+                );
+            }
+            traces_agg_rows.extend(
+                patched_traces
+                    .iter()
+                    .map(|trace| CHTraceAgg::from_patched_trace(trace, now_ns + 1)),
+            );
+            if !traces_agg_rows.is_empty() {
+                if let Err(e) = ch.insert_batch(&traces_agg_rows, config).await {
+                    log::error!(
+                        "Failed to insert {} trace aggregation partials to ClickHouse: {:?}",
+                        traces_agg_rows.len(),
+                        e
+                    );
+                }
+            }
         }
 
         // Return only the aggregation results to the signals path. `None`

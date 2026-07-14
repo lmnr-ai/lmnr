@@ -7,6 +7,7 @@ import TraceTagsCell from "@/components/tags/trace-tags-cell";
 import { CostCell, DurationCell, TokensCell } from "@/components/traces/cells";
 import { SnippetPreview } from "@/components/traces/snippet-preview";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
+import CopyTooltip from "@/components/ui/copy-tooltip.tsx";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import JsonTooltip from "@/components/ui/json-tooltip";
 import Mono from "@/components/ui/mono";
@@ -48,7 +49,11 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     size: 40,
   },
   {
-    cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
+    cell: (row) => (
+      <CopyTooltip value={row.getValue()} className="block truncate">
+        <Mono className="text-xs">{row.getValue()}</Mono>
+      </CopyTooltip>
+    ),
     header: "ID",
     accessorKey: "id",
     id: "id",

@@ -365,6 +365,7 @@ impl LaminarMcpServer {
             query_engine: self.query_engine.clone(),
             clickhouse_ro,
             http_client: self.http_client.clone(),
+            pubsub: None,
             internal_project_id,
             // Persist so a follow-up `ask_agent` with the same conversationId sees this turn.
             persist: Some(conversation_id.clone()),

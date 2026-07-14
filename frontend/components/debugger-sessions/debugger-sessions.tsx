@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SessionsPlaceholder from "@/components/debugger-sessions/sessions-placeholder";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
+import CopyTooltip from "@/components/ui/copy-tooltip";
 import Header from "@/components/ui/header";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks/use-infinite-scroll";
@@ -22,7 +23,11 @@ const RESOURCE = "debugger-sessions";
 
 const columns: ColumnDef<DebuggerSession>[] = [
   {
-    cell: ({ row }) => <Mono className="text-xs text-muted-foreground">{row.original.id}</Mono>,
+    cell: ({ row }) => (
+      <CopyTooltip value={row.original.id} className="block truncate">
+        <Mono className="text-xs text-muted-foreground">{row.original.id}</Mono>
+      </CopyTooltip>
+    ),
     size: 120,
     header: "ID",
     id: "id",

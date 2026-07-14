@@ -9,6 +9,7 @@ import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import AdvancedSearch from "@/components/common/advanced-search";
 import { Button } from "@/components/ui/button";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
+import CopyTooltip from "@/components/ui/copy-tooltip";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
@@ -36,7 +37,11 @@ import CreateQueueDialog from "./create-queue-dialog";
 
 const columns: ColumnDef<LabelingQueueWithProgress>[] = [
   {
-    cell: ({ row }) => <Mono>{row.original.id}</Mono>,
+    cell: ({ row }) => (
+      <CopyTooltip value={row.original.id} className="block truncate">
+        <Mono className="text-xs">{row.original.id}</Mono>
+      </CopyTooltip>
+    ),
     size: 120,
     header: "ID",
     id: "id",

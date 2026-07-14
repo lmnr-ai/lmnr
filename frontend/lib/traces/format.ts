@@ -14,15 +14,9 @@ export const currencyFormatter = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 1,
 });
 
-export const detailedCurrencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 8,
-});
-
 // No `$` — paired with a CircleDollarSign icon in shields.
 const costNumberFormatter = new Intl.NumberFormat("en-US", {
-  maximumFractionDigits: 5,
+  maximumFractionDigits: 3,
   minimumFractionDigits: 1,
 });
 

@@ -32,7 +32,9 @@ impl OpenAIError {
 impl From<OpenAIError> for super::ProviderError {
     fn from(e: OpenAIError) -> Self {
         match e {
-            OpenAIError::RequestError(e) => super::ProviderError::RequestError(e.to_string()),
+            OpenAIError::RequestError(e) => {
+                super::ProviderError::RequestError(super::format_error_chain(&e))
+            }
             OpenAIError::ParseError(e) => super::ProviderError::ParseError(e.to_string()),
             OpenAIError::ConfigError(s) => super::ProviderError::ConfigError(s),
             OpenAIError::ApiError {

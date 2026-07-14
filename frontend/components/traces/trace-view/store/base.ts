@@ -193,7 +193,6 @@ export interface BaseTraceViewState {
 
   // Panel visibility
   spanPanelOpen: boolean;
-  tracesAgentOpen: boolean;
   signalsPanelOpen: boolean;
 
   // True while a react-resizable-panels handle is being dragged. The custom-view
@@ -211,13 +210,6 @@ export interface BaseTraceViewState {
   initialSignalId?: string;
 
   initialSearch: string;
-
-  // Pending signal→chat injection. Written by openSignalInChat, consumed
-  // once by the Chat component's effect, then nulled.
-  pendingChatInjection: {
-    signalDefinition: string;
-    eventPayload: string;
-  } | null;
 
   // Layout options
   isAlwaysSelectSpan: boolean;
@@ -259,7 +251,6 @@ export interface BaseTraceViewActions {
 
   // Panel visibility actions
   setSpanPanelOpen: (open: boolean) => void;
-  setTracesAgentOpen: (open: boolean) => void;
   setSignalsPanelOpen: (open: boolean) => void;
   setIsResizing: (isResizing: boolean) => void;
 
@@ -267,10 +258,6 @@ export interface BaseTraceViewActions {
   setTraceSignals: (signals: TraceSignal[]) => void;
   setIsTraceSignalsLoading: (loading: boolean) => void;
   setActiveSignalTabId: (id: string | null) => void;
-
-  // Traces Agent injection actions
-  openSignalInChat: (signalDefinition: string, eventPayload: string) => void;
-  consumePendingChatInjection: () => { signalDefinition: string; eventPayload: string } | null;
 
   toggleTranscriptGroup: (groupId: string) => void;
   requestScrollToGroup: (groupId: string) => void;
@@ -292,7 +279,6 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     initialTrace?: TraceViewTrace;
     isAlwaysSelectSpan?: boolean;
     initialSignalId?: string;
-    initialChatOpen?: boolean;
     initialSearch?: string;
   }
 ): BaseTraceViewStore {
@@ -323,7 +309,6 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     // span panel closed until the user selects a span. In the full-width trace page the
     // panel is driven by isAlwaysSelectSpan instead.
     spanPanelOpen: false,
-    tracesAgentOpen: options?.initialChatOpen ?? false,
     signalsPanelOpen: false,
     isResizing: false,
 
@@ -333,9 +318,6 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     activeSignalTabId: null,
     initialSignalId: options?.initialSignalId,
     initialSearch: options?.initialSearch ?? "",
-
-    // Traces Agent injection defaults
-    pendingChatInjection: null,
 
     // Layout options
     isAlwaysSelectSpan: options?.isAlwaysSelectSpan ?? false,
@@ -475,26 +457,12 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
 
     // Panel visibility actions
     setSpanPanelOpen: (open: boolean) => set({ spanPanelOpen: open } as Partial<T>),
-    setTracesAgentOpen: (open: boolean) => set({ tracesAgentOpen: open } as Partial<T>),
     setSignalsPanelOpen: (open: boolean) => set({ signalsPanelOpen: open } as Partial<T>),
 
     // Signal data actions
     setTraceSignals: (signals: TraceSignal[]) => set({ traceSignals: signals } as Partial<T>),
     setIsTraceSignalsLoading: (loading: boolean) => set({ isTraceSignalsLoading: loading } as Partial<T>),
     setActiveSignalTabId: (id: string | null) => set({ activeSignalTabId: id } as Partial<T>),
-
-    // Traces Agent injection actions
-    openSignalInChat: (signalDefinition: string, eventPayload: string) => {
-      get().setTracesAgentOpen(true);
-      set({ pendingChatInjection: { signalDefinition, eventPayload } } as Partial<T>);
-    },
-    consumePendingChatInjection: () => {
-      const pending = get().pendingChatInjection;
-      if (pending) {
-        set({ pendingChatInjection: null } as Partial<T>);
-      }
-      return pending;
-    },
   };
 }
 

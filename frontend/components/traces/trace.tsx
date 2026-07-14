@@ -1,7 +1,6 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import React from "react";
 
 import TraceView from "@/components/traces/trace-view";
 import { type TraceViewTrace } from "@/components/traces/trace-view/store";
@@ -9,7 +8,6 @@ import Header from "@/components/ui/header";
 
 const Trace = ({ trace }: { trace: TraceViewTrace }) => {
   const searchParams = useSearchParams();
-  const showChatInitial = searchParams.get("chat") === "true";
   const initialSearch = searchParams.get("search") ?? undefined;
 
   return (
@@ -22,7 +20,6 @@ const Trace = ({ trace }: { trace: TraceViewTrace }) => {
           onClose={() => {}}
           traceId={trace.id}
           isAlwaysSelectSpan
-          showChatInitial={showChatInitial}
           initialSearch={initialSearch}
         />
       </div>

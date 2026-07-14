@@ -45,10 +45,7 @@ export default function DynamicWidthLayout({ panels, sidePanelRef }: DynamicWidt
     return () => observer.disconnect();
   }, [sidePanelRef, setMaxWidth]);
 
-  const visible = useMemo<Visible>(
-    () => ({ span: panels.showSpan, chat: panels.showChat }),
-    [panels.showSpan, panels.showChat]
-  );
+  const visible = useMemo<Visible>(() => ({ span: panels.showSpan }), [panels.showSpan]);
 
   const widths = useMemo(() => computeLayout(targets, visible, maxWidth), [targets, visible, maxWidth]);
 
@@ -60,9 +57,8 @@ export default function DynamicWidthLayout({ panels, sidePanelRef }: DynamicWidt
   // Trace's left-edge handle lives at the side-panel level (TraceViewSidePanel) so it
   // spans the full height including the header/chart area above this layout.
   const spanResize = usePanelResize("span", dragPanel);
-  const chatResize = usePanelResize("chat", dragPanel);
 
-  const isResizing = spanResize.isResizing || chatResize.isResizing;
+  const isResizing = spanResize.isResizing;
   const transition = !isResizing && layoutChangeSource === "visibility" ? enterExitTransition : instantTransition;
 
   return (
@@ -93,23 +89,6 @@ export default function DynamicWidthLayout({ panels, sidePanelRef }: DynamicWidt
               <div className="absolute inset-y-0 left-0 flex" style={{ width: widths.span }}>
                 <LeftEdgeResizeHandle onPointerDown={spanResize.handlePointerDown} />
                 {panels.spanPanel}
-              </div>
-            </motion.div>
-          )}
-
-          {/* Chat Panel */}
-          {panels.showChat && panels.chatPanel && (
-            <motion.div
-              key="chat-panel"
-              className="relative h-full flex-shrink-0 overflow-hidden"
-              initial={{ width: 0, opacity: 0.5 }}
-              animate={{ width: widths.chat, opacity: 1 }}
-              exit={{ width: 0, opacity: 0.5 }}
-              transition={transition}
-            >
-              <div className="absolute inset-y-0 left-0 flex" style={{ width: widths.chat }}>
-                <LeftEdgeResizeHandle onPointerDown={chatResize.handlePointerDown} />
-                {panels.chatPanel}
               </div>
             </motion.div>
           )}

@@ -4,6 +4,7 @@ import { CircleDollarSign, Clock3, Coins } from "lucide-react";
 import { memo, useMemo } from "react";
 
 import { CostBreakdown, TokensBreakdown } from "@/components/traces/cells";
+import { InputTokenBreakdown } from "@/components/traces/token-breakdown";
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -181,9 +182,10 @@ interface StatsShieldsProps {
   className?: string;
   variant?: "filled" | "outline";
   labelPrefix?: string;
+  span?: Span;
 }
 
-export function StatsShields({ stats, className, variant = "filled", labelPrefix }: StatsShieldsProps) {
+export function StatsShields({ stats, className, variant = "filled", labelPrefix, span }: StatsShieldsProps) {
   const durationMs = durationMsBetween(stats.startTime, stats.endTime);
   const durationContent = (
     <TooltipProvider delayDuration={250}>
@@ -215,8 +217,8 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
           </div>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent className="flex flex-col border gap-1 min-w-55 px-3 py-2">
-            <TokensBreakdown stats={stats} labelPrefix={labelPrefix} />
+          <TooltipContent side="bottom" className="flex flex-col border gap-1 min-w-55 p-2">
+            {span ? <InputTokenBreakdown span={span} /> : <TokensBreakdown stats={stats} labelPrefix={labelPrefix} />}
           </TooltipContent>
         </TooltipPortal>
       </Tooltip>
@@ -235,7 +237,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
           </div>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent className="flex flex-col border gap-1 min-w-50 px-3 py-2">
+          <TooltipContent className="flex flex-col border gap-1 p-2">
             <CostBreakdown stats={stats} labelPrefix={labelPrefix} />
           </TooltipContent>
         </TooltipPortal>
@@ -309,6 +311,7 @@ const SpanStatsShields = ({ span, className, variant }: SpanStatsShieldsProps) =
     ])}
     className={className}
     variant={variant}
+    span={span}
   />
 );
 

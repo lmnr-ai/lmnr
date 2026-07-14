@@ -1,5 +1,5 @@
 import { MetricBreakdownRow } from "@/components/traces/cells/metric-breakdown-row";
-import { type CostStats, detailedCurrencyFormatter } from "@/lib/traces/format";
+import { type CostStats, currencyFormatter } from "@/lib/traces/format";
 
 interface CostBreakdownProps {
   stats: CostStats;
@@ -18,15 +18,15 @@ export function CostBreakdown({ stats, labelPrefix }: CostBreakdownProps) {
     <>
       <MetricBreakdownRow
         label={prefixed("Input cost", labelPrefix)}
-        value={detailedCurrencyFormatter.format(stats.inputCost ?? 0)}
+        value={currencyFormatter.format(stats.inputCost ?? 0)}
       />
       <MetricBreakdownRow
         label={prefixed("Output cost", labelPrefix)}
-        value={detailedCurrencyFormatter.format(stats.outputCost ?? 0)}
+        value={currencyFormatter.format(stats.outputCost ?? 0)}
       />
       <MetricBreakdownRow
         label={prefixed("Total cost", labelPrefix)}
-        value={detailedCurrencyFormatter.format(totalCost)}
+        value={currencyFormatter.format(totalCost)}
         bold
       />
     </>

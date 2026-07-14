@@ -9,10 +9,10 @@ export const metadata: Metadata = {
 };
 
 export default async function SignalPage(props: {
-  params: Promise<{ projectId: string; id: string }>;
+  params: Promise<{ projectId: string; signalId: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [{ projectId, id: signalId }, searchParams] = await Promise.all([props.params, props.searchParams]);
+  const [{ projectId, signalId }, searchParams] = await Promise.all([props.params, props.searchParams]);
 
   const eventClusterParam = searchParams.eventCluster;
   const eventCluster = Array.isArray(eventClusterParam) ? eventClusterParam[0] : eventClusterParam;
