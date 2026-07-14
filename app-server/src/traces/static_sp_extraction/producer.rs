@@ -50,7 +50,7 @@ pub async fn publish_static_prompt_candidates(
             .and_then(|s| Uuid::parse_str(&s).ok());
 
     let signals_internal_project_id: Option<Uuid> =
-        std::env::var(crate::env::private::signals::INTERNAL_PROJECT_ID)
+        std::env::var(crate::env::connections::SIGNALS_INTERNAL_PROJECT_ID)
             .ok()
             .and_then(|s| Uuid::parse_str(&s).ok());
 
