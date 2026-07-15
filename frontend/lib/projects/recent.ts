@@ -26,16 +26,25 @@ export const upsertRecentProject = (
     .filter((p) => now - p.lastAccessedAt < RECENT_PROJECT_TTL_MS)
     .slice(0, MAX_RECENT_PROJECTS);
 
-export const readRecentProjects = (userId: string): RecentProject[] => {
+export const readRecentProjects = (userId: string, now: number = Date.now()): RecentProject[] => {
   if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(storageKey(userId));
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (p): p is RecentProject =>
-        typeof p?.id === "string" && typeof p?.name === "string" && typeof p?.workspaceId === "string"
+    return (
+      parsed
+        .filter(
+          (p): p is RecentProject =>
+            typeof p?.id === "string" &&
+            typeof p?.name === "string" &&
+            typeof p?.workspaceId === "string" &&
+            typeof p?.lastAccessedAt === "number"
+        )
+        // Apply the TTL on read too, so expired entries never render even if no
+        // write (upsert) has run since they aged out.
+        .filter((p) => now - p.lastAccessedAt < RECENT_PROJECT_TTL_MS)
     );
   } catch {
     return [];
