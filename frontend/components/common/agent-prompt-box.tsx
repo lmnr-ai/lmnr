@@ -103,16 +103,16 @@ export function AgentPromptBox({ prompt, copyLabel = "Copy setup prompt", onCopy
       onClick={handleCopy}
       className="relative flex flex-col rounded-md border bg-secondary text-left text-base text-muted-foreground group hover:border-secondary-foreground/25 active:border-secondary-foreground/35 overflow-hidden"
     >
-      <ScrollArea ref={scrollRef} className="max-h-[220px] [&>div]:max-h-[220px]">
+      <ScrollArea
+        ref={scrollRef}
+        className={cn("max-h-[220px] [&>div]:max-h-[220px]", notAtTheBottom && "scroll-fade-b")}
+      >
         <div className="px-5 py-4">
           <Streamdown className={proseClassName} components={markdownComponents}>
             {prompt}
           </Streamdown>
         </div>
       </ScrollArea>
-      {notAtTheBottom && (
-        <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-[120px] bg-gradient-to-t from-secondary to-transparent" />
-      )}
       <div
         aria-label={copied ? "Copied" : "Copy prompt"}
         className="absolute top-2 right-2 items-center gap-2 rounded bg-primary px-3 py-1 text-sm transition-colors flex border border-white/20 text-primary-foreground"
