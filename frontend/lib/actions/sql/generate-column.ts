@@ -27,6 +27,9 @@ export type GenerateColumnSqlInput = z.infer<typeof GenerateColumnSqlSchema>;
 export interface GenerateColumnSqlResult {
   success: boolean;
   sql?: string;
+  // Why generation didn't produce sql: "none" = agent found no good identifier
+  // (definitive — stop suggesting); "error" = something failed (transient — retry later).
+  reason?: "none" | "error";
 }
 
 // Runaway guard — write → verify → fix should finish in a handful of steps.
@@ -77,7 +80,8 @@ export const generateColumnSql = async (input: GenerateColumnSqlInput): Promise<
     }
   };
 
-  // Fetch example rows the agent reasons over. On failure we can't generate.
+  // Fetch example rows the agent reasons over. On failure / no data we can't
+  // generate now — treat as transient so it retries later.
   let sampleRows: Record<string, unknown>[] = [];
   try {
     sampleRows = await executeQuery<Record<string, unknown>>({
@@ -86,11 +90,12 @@ export const generateColumnSql = async (input: GenerateColumnSqlInput): Promise<
       parameters,
     });
   } catch {
-    return { success: false };
+    return { success: false, reason: "error" };
   }
-  if (sampleRows.length === 0) return { success: false };
+  if (sampleRows.length === 0) return { success: false, reason: "error" };
 
   let submitted: string | null = null;
+  let agentErrored = false;
 
   await observe(
     { name: "generateColumnSql", metadata: { feature: "column-suggestion" }, input: { projectId, table } },
@@ -120,9 +125,15 @@ export const generateColumnSql = async (input: GenerateColumnSqlInput): Promise<
         },
         stopWhen: stepCountIs(MAX_STEPS),
       });
-      await agent.generate({ prompt: buildUserPrompt(parsed, sampleRows) });
+      try {
+        await agent.generate({ prompt: buildUserPrompt(parsed, sampleRows) });
+      } catch {
+        // Provider / network error mid-run — transient, let the caller retry.
+        agentErrored = true;
+      }
     }
   );
 
-  return submitted ? { success: true, sql: submitted } : { success: false };
+  if (submitted) return { success: true, sql: submitted };
+  return { success: false, reason: agentErrored ? "error" : "none" };
 };

@@ -26,25 +26,25 @@ export function createLabelSuggestion(projectId: string, evaluationId: string): 
     name: LABEL_SUGGESTION_NAME,
     dataType: "string",
     generate: async () => {
-      try {
-        const res = await fetch(`/api/projects/${projectId}/sql/generate-column`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            table: "evaluation_datapoints",
-            whereSql: "evaluation_id = {evaluationId:UUID}",
-            parameters: { evaluationId },
-            sampleColumns: ["data", "target", "metadata"],
-            instruction: LABEL_INSTRUCTION,
-            dataType: "string",
-          }),
-        });
-        if (!res.ok) return null;
-        const json = (await res.json()) as { success?: boolean; sql?: string };
-        return json.success && json.sql ? { sql: json.sql } : null;
-      } catch {
-        return null;
-      }
+      const res = await fetch(`/api/projects/${projectId}/sql/generate-column`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          table: "evaluation_datapoints",
+          whereSql: "evaluation_id = {evaluationId:UUID}",
+          parameters: { evaluationId },
+          sampleColumns: ["data", "target", "metadata"],
+          instruction: LABEL_INSTRUCTION,
+          dataType: "string",
+        }),
+      });
+      // Non-2xx = transient (throw so the hook retries next mount, not resolve).
+      if (!res.ok) throw new Error(`generate-column failed: ${res.status}`);
+      const json = (await res.json()) as { success?: boolean; sql?: string; reason?: "none" | "error" };
+      if (json.success && json.sql) return { sql: json.sql };
+      // Agent definitively found no identifier -> resolve. Anything else is transient.
+      if (json.reason === "none") return null;
+      throw new Error("generate-column produced no result");
     },
   };
 }

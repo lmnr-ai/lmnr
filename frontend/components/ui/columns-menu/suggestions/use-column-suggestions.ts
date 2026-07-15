@@ -108,11 +108,12 @@ export function useColumnSuggestions({
       suggestion
         .generate()
         .then((res) => {
-          // No good identifier → resolve silently so nothing is shown / re-run.
+          // {sql} -> pending; null -> definitive "no identifier" -> resolved.
           setRecord(suggestion.id, res && res.sql.trim() ? pendingRecord(res.sql) : resolvedRecord());
         })
         .catch(() => {
-          setRecord(suggestion.id, resolvedRecord());
+          // Transient failure (network / backend): leave unseen so a later
+          // mount retries. Do NOT persist `resolved` — that would hide it forever.
         });
     }
   }, [resolution.toGenerate, disabled, setRecord]);

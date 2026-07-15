@@ -11,7 +11,9 @@ export interface ColumnSuggestion {
   /** Display name of the resulting column (e.g. "Label"). */
   name: string;
   dataType: "string" | "number";
-  /** Produce the column SQL expression, or null when no good suggestion exists. */
+  /** Produce the column SQL expression, or null when no good suggestion exists.
+   *  THROW on a transient failure (network / backend) so the hook leaves the
+   *  suggestion unseen and retries next mount instead of resolving it forever. */
   generate: () => Promise<{ sql: string } | null>;
 }
 
