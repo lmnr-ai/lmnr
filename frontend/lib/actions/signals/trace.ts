@@ -227,47 +227,36 @@ export async function getTraceRowSignals(
   return result;
 }
 
-/** Resolve each event's deepest (highest-level) named cluster via keyed lookups. */
+/**
+ * Resolve each event's deepest (highest-level) named cluster in one round-trip.
+ * The join's left side is pruned by the page's event ids (verified via EXPLAIN) —
+ * unlike signal_events_v0's project-wide clusters subquery.
+ */
 async function fetchEventLeafClusters(
   projectId: string,
   eventIds: string[]
 ): Promise<Map<string, TraceSignalClusterNode>> {
-  const linksResult = await clickhouseClient.query({
+  const result = await clickhouseClient.query({
     query: `
-      SELECT event_id as eventId, cluster_id as clusterId
-      FROM events_to_clusters FINAL
-      WHERE project_id = {projectId: UUID}
-        AND event_id IN ({eventIds: Array(UUID)})
+      SELECT e.event_id AS eventId, c.id AS id, c.name AS name, c.level AS level
+      FROM events_to_clusters e FINAL
+      INNER JOIN signal_event_clusters c FINAL
+        ON e.project_id = c.project_id AND e.cluster_id = c.id
+      WHERE e.project_id = {projectId: UUID}
+        AND e.event_id IN ({eventIds: Array(UUID)})
+        AND c.project_id = {projectId: UUID}
+        AND c.level > 0
     `,
     query_params: { projectId, eventIds },
   });
-  const links = (await linksResult.json()).data as { eventId: string; clusterId: string }[];
-  if (links.length === 0) return new Map();
-
-  const clustersResult = await clickhouseClient.query({
-    query: `
-      SELECT id, name, level
-      FROM signal_event_clusters FINAL
-      WHERE project_id = {projectId: UUID}
-        AND id IN ({clusterIds: Array(UUID)})
-        AND level > 0
-    `,
-    query_params: { projectId, clusterIds: [...new Set(links.map((l) => l.clusterId))] },
-  });
-  const clusterMeta = new Map(
-    ((await clustersResult.json()).data as TraceSignalClusterNode[]).map((c) => [
-      c.id,
-      { ...c, level: Number(c.level) },
-    ])
-  );
+  const rows = (await result.json()).data as ({ eventId: string } & TraceSignalClusterNode)[];
 
   const leafByEvent = new Map<string, TraceSignalClusterNode>();
-  for (const link of links) {
-    const cluster = clusterMeta.get(link.clusterId);
-    if (!cluster) continue;
-    const current = leafByEvent.get(link.eventId);
+  for (const row of rows) {
+    const cluster = { id: row.id, name: row.name, level: Number(row.level) };
+    const current = leafByEvent.get(row.eventId);
     if (!current || cluster.level > current.level) {
-      leafByEvent.set(link.eventId, cluster);
+      leafByEvent.set(row.eventId, cluster);
     }
   }
   return leafByEvent;
