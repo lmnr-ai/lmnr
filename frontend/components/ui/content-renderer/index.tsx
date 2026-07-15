@@ -106,7 +106,7 @@ const PureContentRenderer = ({
     const allowed = modes.map((m) => m.toLowerCase());
     if (presetKey && typeof window !== "undefined") {
       const savedMode = localStorage.getItem(`formatter-mode-${presetKey}`);
-      if (savedMode && allowed.includes(savedMode.toLowerCase())) return savedMode;
+      if (savedMode && allowed.includes(savedMode.toLowerCase())) return savedMode.toLowerCase();
     }
     return defaultMode;
   });
