@@ -43,7 +43,7 @@ export function SuggestedColumnHeader({ name, onKeep, onDiscard }: SuggestedColu
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <div
-          className="flex w-full min-w-0 items-center justify-between gap-2"
+          className="flex w-full min-w-0 items-center justify-between gap-2 pr-2"
           onMouseEnter={openNow}
           onMouseLeave={scheduleClose}
           // Header is a drag handle; don't let the trigger hijack pointer/click.
