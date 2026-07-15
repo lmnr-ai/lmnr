@@ -1,8 +1,6 @@
-import { observe } from "@lmnr-ai/lmnr";
-import { stepCountIs, ToolLoopAgent } from "ai";
 import { z } from "zod";
 
-import { getLanguageModel } from "@/lib/ai/model";
+import { LaminarToolLoopAgent } from "@/lib/ai/laminar-tool-loop-agent";
 
 import { buildGenerateInstructions } from "./prompts";
 import { createVfsTools, FILTER_FILE, TEMPLATE_FILE, type Vfs } from "./tools";
@@ -68,23 +66,16 @@ export const generateTemplate = async (input: GenerateTemplateInput): Promise<Ge
     allowedPaths.push(FILTER_FILE);
   }
 
-  await observe(
-    {
-      name: "generateRenderTemplate",
-      sessionId: parsed.sessionId,
-      metadata: { feature: "render-template" },
-      input: { projectId, scope },
-    },
-    async () => {
-      const agent = new ToolLoopAgent({
-        model: getLanguageModel("medium"),
-        instructions: buildGenerateInstructions(scope),
-        tools: createVfsTools(vfs, allowedPaths),
-        stopWhen: stepCountIs(MAX_STEPS),
-      });
-      await agent.generate({ prompt: buildUserPrompt(parsed) });
-    }
-  );
+  const agent = new LaminarToolLoopAgent({
+    name: "generateRenderTemplate",
+    tier: "medium",
+    maxSteps: MAX_STEPS,
+    sessionId: parsed.sessionId,
+    metadata: { feature: "render-template", projectId, scope },
+    instructions: buildGenerateInstructions(scope),
+    tools: createVfsTools(vfs, allowedPaths),
+  });
+  await agent.run(buildUserPrompt(parsed));
 
   const code = (vfs[TEMPLATE_FILE] ?? "").trim();
   if (!code) {

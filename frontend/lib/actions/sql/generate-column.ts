@@ -1,8 +1,7 @@
-import { observe } from "@lmnr-ai/lmnr";
-import { stepCountIs, tool, ToolLoopAgent } from "ai";
+import { tool } from "ai";
 import { z } from "zod";
 
-import { getLanguageModel } from "@/lib/ai/model";
+import { LaminarToolLoopAgent } from "@/lib/ai/laminar-tool-loop-agent";
 
 import { buildSampleRowsQuery, buildVerifyColumnQuery } from "./column-sql-queries";
 import { executeQuery } from "./index";
@@ -82,7 +81,7 @@ export const generateColumnSql = async (input: GenerateColumnSqlInput): Promise<
 
   // Fetch example rows the agent reasons over. On failure / no data we can't
   // generate now — treat as transient so it retries later.
-  let sampleRows: Record<string, unknown>[] = [];
+  let sampleRows: Record<string, unknown>[];
   try {
     sampleRows = await executeQuery<Record<string, unknown>>({
       projectId,
@@ -97,42 +96,39 @@ export const generateColumnSql = async (input: GenerateColumnSqlInput): Promise<
   let submitted: string | null = null;
   let agentErrored = false;
 
-  await observe(
-    { name: "generateColumnSql", metadata: { feature: "column-suggestion" }, input: { projectId, table } },
-    async () => {
-      const agent = new ToolLoopAgent({
-        model: getLanguageModel("medium"),
-        instructions: SYSTEM_INSTRUCTIONS,
-        tools: {
-          verifyColumnSql: tool({
-            description:
-              "Run a candidate column expression against the example rows. Returns { ok, rows } or { ok: false, error }.",
-            inputSchema: z.object({ sql: z.string().min(1) }),
-            execute: async ({ sql }) => runVerify(sql),
-          }),
-          submitColumnSql: tool({
-            description:
-              "Submit the final, verified column expression. Rejected (with an error) if it does not run cleanly.",
-            inputSchema: z.object({ sql: z.string().min(1) }),
-            execute: async ({ sql }) => {
-              const trimmed = sql.trim();
-              const res = await runVerify(trimmed);
-              if (!res.ok) return { ok: false as const, error: res.error };
-              submitted = trimmed;
-              return { ok: true as const };
-            },
-          }),
+  const agent = new LaminarToolLoopAgent({
+    name: "generateColumnSql",
+    tier: "medium",
+    maxSteps: MAX_STEPS,
+    metadata: { feature: "column-suggestion", projectId, table },
+    instructions: SYSTEM_INSTRUCTIONS,
+    tools: {
+      verifyColumnSql: tool({
+        description:
+          "Run a candidate column expression against the example rows. Returns { ok, rows } or { ok: false, error }.",
+        inputSchema: z.object({ sql: z.string().min(1) }),
+        execute: async ({ sql }) => runVerify(sql),
+      }),
+      submitColumnSql: tool({
+        description:
+          "Submit the final, verified column expression. Rejected (with an error) if it does not run cleanly.",
+        inputSchema: z.object({ sql: z.string().min(1) }),
+        execute: async ({ sql }) => {
+          const trimmed = sql.trim();
+          const res = await runVerify(trimmed);
+          if (!res.ok) return { ok: false as const, error: res.error };
+          submitted = trimmed;
+          return { ok: true as const };
         },
-        stopWhen: stepCountIs(MAX_STEPS),
-      });
-      try {
-        await agent.generate({ prompt: buildUserPrompt(parsed, sampleRows) });
-      } catch {
-        // Provider / network error mid-run — transient, let the caller retry.
-        agentErrored = true;
-      }
-    }
-  );
+      }),
+    },
+  });
+  try {
+    await agent.run(buildUserPrompt(parsed, sampleRows));
+  } catch {
+    // Provider / network error mid-run — transient, let the caller retry.
+    agentErrored = true;
+  }
 
   if (submitted) return { success: true, sql: submitted };
   return { success: false, reason: agentErrored ? "error" : "none" };

@@ -8,6 +8,7 @@ import type { LanguageModel } from "ai";
  * Each tier maps to a specific model per provider.
  */
 type ModelTier = "small" | "medium" | "large";
+export type { ModelTier };
 
 type LLMProvider = "openai" | "gemini" | "bedrock";
 type LlmDefaultHeaders = Record<string, string>;
