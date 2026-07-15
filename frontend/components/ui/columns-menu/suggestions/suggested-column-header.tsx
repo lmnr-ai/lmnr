@@ -1,8 +1,10 @@
 "use client";
 
-import { Check, Sparkles, X } from "lucide-react";
+import { Sparkles } from "lucide-react";
+import { useCallback, useRef, useState } from "react";
 
-import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface SuggestedColumnHeaderProps {
   name: string;
@@ -12,60 +14,70 @@ interface SuggestedColumnHeaderProps {
 
 /**
  * Header for a not-yet-accepted suggested column. Shows the name with a
- * sparkles marker and a hover-revealed keep (✓) / discard (✕) control pair.
- * Relies on the `group` class on the enclosing table head cell for hover.
+ * sparkles marker; hovering opens a popover asking to keep or discard. The
+ * popover stays open while the pointer moves between the header and the
+ * content (shared close timer) so its buttons are clickable.
  */
 export function SuggestedColumnHeader({ name, onKeep, onDiscard }: SuggestedColumnHeaderProps) {
-  const stop = (e: React.SyntheticEvent) => {
-    e.stopPropagation();
-  };
+  const [open, setOpen] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelClose = useCallback(() => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  }, []);
+
+  const scheduleClose = useCallback(() => {
+    cancelClose();
+    closeTimer.current = setTimeout(() => setOpen(false), 120);
+  }, [cancelClose]);
+
+  const openNow = useCallback(() => {
+    cancelClose();
+    setOpen(true);
+  }, [cancelClose]);
 
   return (
-    <div className="flex items-center gap-1 min-w-0">
-      <Sparkles className="size-3 shrink-0 text-primary-400" />
-      <span className="truncate">{name}</span>
-      <div
-        className="ml-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150"
-        onPointerDown={stop}
-        onClick={stop}
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <div
+          className="flex min-w-0 items-center gap-1"
+          onMouseEnter={openNow}
+          onMouseLeave={scheduleClose}
+          // Header is a drag handle; don't let the trigger hijack pointer/click.
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <Sparkles className="size-3 shrink-0 text-primary" />
+          <span className="truncate">{name}</span>
+        </div>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        sideOffset={6}
+        className="w-64 p-3"
+        onMouseEnter={openNow}
+        onMouseLeave={scheduleClose}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
-        <IconButton title="Keep column" onClick={onKeep} className="hover:text-success">
-          <Check className="size-3" />
-        </IconButton>
-        <IconButton title="Discard suggestion" onClick={onDiscard} className="hover:text-destructive">
-          <X className="size-3" />
-        </IconButton>
-      </div>
-    </div>
-  );
-}
-
-function IconButton({
-  title,
-  onClick,
-  className,
-  children,
-}: {
-  title: string;
-  onClick: () => void;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      aria-label={title}
-      className={cn(
-        "flex items-center justify-center rounded p-0.5 text-muted-foreground hover:bg-muted transition-colors",
-        className
-      )}
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
-    >
-      {children}
-    </button>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-1.5 text-sm font-medium">
+            <Sparkles className="size-3.5 text-primary" />
+            Custom column suggestion
+          </div>
+          <p className="text-xs text-muted-foreground">Would you like to keep the custom &quot;{name}&quot; column?</p>
+          <div className="mt-1 flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={onDiscard}>
+              Discard
+            </Button>
+            <Button size="sm" onClick={onKeep}>
+              Keep
+            </Button>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
