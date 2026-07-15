@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import useSWR from "swr";
 
 import NotificationTrigger from "@/components/notifications/notification-trigger";
+import RecentProjects from "@/components/project/sidebar/recent-projects";
 import AccountMenu from "@/components/projects/account-menu";
 import ProjectCreateDialog from "@/components/projects/project-create-dialog";
 import WorkspaceCreateDialog from "@/components/projects/workspace-create-dialog";
@@ -154,6 +155,9 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                         exit="exit"
                         transition={{ duration: 0.18, ease: "easeInOut" }}
                       >
+                        {/* Fast access to recently visited projects (cross-workspace). Hidden while
+                            browsing another workspace's projects to keep that pane focused. */}
+                        {isSelectedCurrent && <RecentProjects currentProjectId={projectId} />}
                         <div className="p-1">
                           <button
                             type="button"

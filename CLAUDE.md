@@ -763,6 +763,12 @@ The frontend uses Husky with lint-staged. Before commits:
 - The site-wide CSP in `frontend/next.config.ts` deliberately omits `base-uri`. rrweb-player rebuilds captured DOM by injecting `<base href="<recorded-origin>">` so relative URLs in the snapshot resolve against the original site. `base-uri 'self'` blocks that and the replay loses every relative asset (LAM-1622). Do NOT add `base-uri` back without first moving the player into a CSP-relaxed iframe.
 - The `Blocked script execution ... 'allow-scripts' is not set` console warnings during replay are NOT a bug — rrweb-player intentionally creates its replay iframe with a sandbox that omits `allow-scripts` so captured `<script>` tags can't execute inside lmnr.ai. They render as warnings in dev tools but the replay itself is unaffected.
 
+## Sidebar Project Picker / Recent Projects (LAM-1973)
+
+- The sidebar project dropdown (`components/project/sidebar/header.tsx`) shows a "Recent" section at the top — a per-user MRU of the last 5 visited projects stored in **localStorage** under `recent-projects:<userId>` (`lib/projects/recent.ts`; capped at `MAX_RECENT_PROJECTS`, 30-day TTL). It's client-only by design: same trust level as the `last-project-id` cookie, cross-workspace, no server round-trip. Visits are stamped by `components/project/recent-project-tracker.tsx`, mounted in the project layout next to `WorkspaceGroupTracker`.
+- Recents are read via a lazy `useState` initializer, NOT a `useEffect` — Radix mounts the dropdown content fresh on every open, so the initializer re-reads per open, and the `react-hooks/set-state-in-effect` lint rule rejects the effect version. Entries carry `workspaceId` so clicking a cross-workspace recent writes both breadcrumb cookies (same synchronous `document.cookie` pattern as the main project list).
+- The section is hidden while the picker is browsing a non-current workspace (`isSelectedCurrent` gate) and filters out the currently open project.
+
 ## Frontend Best Practices
 
 ### One component per file
