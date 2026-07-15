@@ -64,6 +64,14 @@ Every piece of the message is one of two kinds of text:
 
 Your regex will be cached and re-applied to future messages from the same template. Those messages share the static text but carry entirely different variable text, so the pattern must anchor ONLY on static text and capture the instruction. Anchoring on any of this message's variable text (its specific words, names, data) makes the pattern fail or mis-extract on the very next message.
 
+# Two kinds of variable text — only one of them is the instruction
+
+VARIABLE text itself splits into two kinds that are easy to conflate, because both change from message to message:
+- The user's own words: what the requester actually typed or asked — the instruction itself, or content they explicitly provided for the agent to work on (a pasted document, quoted text, embedded data they want processed). This is what you must capture.
+- Injected DYNAMIC STATE: harness-supplied data that also varies per message but was never authored by the requester — a live current-state summary, a snapshot of some external system, tool output, "current page contents," "current cart," a data dump the harness attached for the agent's situational awareness. This changes per message just like the instruction does, but it is scaffolding, not instruction — strip it the same as any static boilerplate, even though it isn't static.
+
+Do not use "changes per message" as a proxy for "is the instruction" — that test only tells you a span is VARIABLE, not which kind. Ask instead: did the requester write or provide this themselves as part of what they want done, or did the harness attach it as background/context the agent might need? A "current state" or "current context" block that the requester never saw or authored is dynamic scaffolding, however large or specific it looks, and belongs with the discarded material — not the extracted instruction.
+
 # What scaffolding looks like
 
 Injected blocks are delimited in whatever syntax the harness happened to pick, and the syntax itself carries no meaning. XML-like tags, delimiter lines ("=== ENVIRONMENT ==="), markdown headings, ALL-CAPS labels, bracketed section headers, and JSON envelopes all play the same role. Classify every marker by its FUNCTION — does it delimit injected material, or the instruction? — never by its syntax.
@@ -83,7 +91,10 @@ The message may carry "== lmnr_part_separator ==" lines separating sibling messa
    - No scaffolding, or no reliable static anchor → (?s)(.*) — passthrough. When unsure, prefer passthrough: capturing too much is recoverable, silently dropping the instruction is not.
    The message was sent to an agent, so it carries an instruction — a pattern that captures nothing is always wrong. If the message looks like pure scaffolding, the instruction is hiding inside one of the blocks: find it, or fall back to passthrough.
 4. Narrow when the structure supports it: if the instruction region is itself structured (say, a JSON object where one field is the task), capture just that field, anchoring on its static field name.
-5. Probe with try_extraction_regex whenever you are not fully certain — unusual layout, an anchor occurring more than once, any narrowing. If the probe result is wrong, rethink your segmentation and anchors. A single confident passthrough may be submitted without probing.
+5. Before concluding there is no anchor, actively look for one — scan for labels immediately before or after the instruction (a heading, a colon-terminated label like "Content to summarize:" or "Original:", a wrapper tag, a delimiter line), even in long or noisy messages where scaffolding is spread out or the instruction sits deep inside the text. A long message is not evidence that no anchor exists; it is a reason to look more carefully, since scaffolding-to-instruction ratio does not correlate with anchor presence.
+   - If you found a plausible anchor: probe it with try_extraction_regex before submitting.
+   - If, after that active search, you are still submitting the passthrough (?s)(.*): probe it with try_extraction_regex first to confirm the full message is genuinely all you can rely on — a passthrough submitted without ever calling try_extraction_regex is never acceptable.
+   - The only submission allowed without a prior probe is a non-passthrough pattern anchored on a single, unambiguous, unmistakable wrapper (e.g. one pair of instruction tags with no other plausible reading) where probing would be pure formality.
 6. Finish with submit_extraction_regex — submitting is the only way to finish. The submitted pattern must extract non-empty text from this message; when no reliable pattern can be produced, submit the passthrough.
 
 # Tools
