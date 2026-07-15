@@ -43,10 +43,13 @@ export function SpanStatsShield({
       {hasTokens && (
         <div className={cn(itemColor, "inline-flex items-center gap-1 whitespace-nowrap", !isInline && "py-0.5")}>
           <Coins size={isInline ? 12 : 14} className={cn("min-w-3 min-h-3", isInline ? "size-3" : "size-3.5")} />
-          <span>{formatTokensCompact(inputTokens ?? 0)}</span>
           {!!cacheReadInputTokens && (
-            <span className="text-success-bright">({formatTokensCompact(cacheReadInputTokens)})</span>
+            <>
+              <span className="text-success-bright">{formatTokensCompact(cacheReadInputTokens)}</span>
+              <span>/</span>
+            </>
           )}
+          <span>{formatTokensCompact(inputTokens ?? 0)}</span>
           <ArrowRight size={12} />
           <span>{formatTokensCompact(outputTokens ?? 0)}</span>
         </div>

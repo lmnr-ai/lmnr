@@ -76,6 +76,12 @@ export function formatTokensFull(n: number | null | undefined): string {
   return fullNumberFormatter.format(n);
 }
 
+/** Prefix a breakdown label: "Input tokens" → "Group input tokens". */
+export function prefixedLabel(base: string, prefix?: string): string {
+  if (!prefix) return base;
+  return `${prefix} ${base.toLowerCase()}`;
+}
+
 // Subset shapes shared by TraceRow / SpanRow / SessionRow.
 export interface TokenStats {
   inputTokens?: number | null;

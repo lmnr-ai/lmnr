@@ -1,14 +1,9 @@
 import { MetricBreakdownRow } from "@/components/traces/cells/metric-breakdown-row";
-import { formatTokensFull, type TokenStats } from "@/lib/traces/format";
+import { formatTokensFull, prefixedLabel, type TokenStats } from "@/lib/traces/format";
 
 interface TokensBreakdownProps {
   stats: TokenStats;
   labelPrefix?: string;
-}
-
-function prefixed(base: string, prefix?: string) {
-  if (!prefix) return base;
-  return `${prefix} ${base.toLowerCase()}`;
 }
 
 export function TokensBreakdown({ stats, labelPrefix }: TokensBreakdownProps) {
@@ -18,19 +13,29 @@ export function TokensBreakdown({ stats, labelPrefix }: TokensBreakdownProps) {
 
   return (
     <>
-      <MetricBreakdownRow label={prefixed("Input tokens", labelPrefix)} value={formatTokensFull(stats.inputTokens)} />
-      <MetricBreakdownRow label={prefixed("Output tokens", labelPrefix)} value={formatTokensFull(stats.outputTokens)} />
-      <MetricBreakdownRow label={prefixed("Total tokens", labelPrefix)} value={formatTokensFull(totalTokens)} bold />
       {!!stats.cacheReadInputTokens && (
         <MetricBreakdownRow
-          label={prefixed("Cache input tokens", labelPrefix)}
+          label={prefixedLabel("Cache input tokens", labelPrefix)}
           value={formatTokensFull(stats.cacheReadInputTokens)}
           highlight
         />
       )}
+      <MetricBreakdownRow
+        label={prefixedLabel("Input tokens", labelPrefix)}
+        value={formatTokensFull(stats.inputTokens)}
+      />
+      <MetricBreakdownRow
+        label={prefixedLabel("Output tokens", labelPrefix)}
+        value={formatTokensFull(stats.outputTokens)}
+      />
+      <MetricBreakdownRow
+        label={prefixedLabel("Total tokens", labelPrefix)}
+        value={formatTokensFull(totalTokens)}
+        bold
+      />
       {!!stats.reasoningTokens && (
         <MetricBreakdownRow
-          label={prefixed("Reasoning tokens", labelPrefix)}
+          label={prefixedLabel("Reasoning tokens", labelPrefix)}
           value={formatTokensFull(stats.reasoningTokens)}
         />
       )}
