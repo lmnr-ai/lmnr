@@ -1,7 +1,7 @@
 "use client";
 
 import { Sparkles } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -38,6 +38,9 @@ export function SuggestedColumnHeader({ name, onKeep, onDiscard }: SuggestedColu
     cancelClose();
     setOpen(true);
   }, [cancelClose]);
+
+  // Clear any pending close timer on unmount so it can't setState afterwards.
+  useEffect(() => () => cancelClose(), [cancelClose]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
