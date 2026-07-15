@@ -47,9 +47,20 @@ const RESOURCE = "traces";
 
 export default function TracesTable() {
   const { projectId } = useParams();
+  const signalsEnabled = useFeatureFlags()[Feature.SIGNALS];
+  // Drop "signals" from the default order when the feature is off — the order
+  // seeds the columns menu, which would otherwise list a ghost entry whose
+  // column def doesn't exist (reconcileConfig also purges it from saved views).
+  const defaults = useMemo(
+    () => ({
+      columnOrder: signalsEnabled ? defaultTracesColumnOrder : defaultTracesColumnOrder.filter((c) => c !== "signals"),
+      columnVisibility: defaultTracesColumnVisibility,
+    }),
+    [signalsEnabled]
+  );
   return (
     <InfiniteDataTableProvider
-      defaults={{ columnOrder: defaultTracesColumnOrder, columnVisibility: defaultTracesColumnVisibility }}
+      defaults={defaults}
       lockedColumns={["status", "preview"]}
       views={{ projectId: String(projectId), resource: RESOURCE }}
     >
