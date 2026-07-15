@@ -39,6 +39,7 @@ export function InfiniteTableHead<TData extends RowData>({
 
   const isOtherDragging = draggingColumnId && draggingColumnId !== columnId;
   const isPinned = header.column.getIsPinned() === "left";
+  const isSuggested = header.column.columnDef.meta?.suggested === true;
 
   const transformValue = CSS.Translate.toString(transform);
   const scaleValue = isDragging ? "scale(1.02)" : "";
@@ -72,6 +73,7 @@ export function InfiniteTableHead<TData extends RowData>({
       className={cn(
         "m-0 relative text-secondary-foreground truncate hover:bg-transparent",
         isDragging && "shadow-lg",
+        isSuggested && "bg-primary-400/5",
         isPinned && "bg-secondary border-r shadow-[2px_0_6px_-2px_rgba(0,0,0,0.35)]"
       )}
       key={header.id}

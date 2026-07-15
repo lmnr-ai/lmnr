@@ -22,6 +22,9 @@ interface EvaluationDatapointsTableProps {
   isComparison: boolean;
   scoreRanges: ScoreRanges;
   pinnedLeftColumnIds?: string[];
+  /** Columns rendered first (far-left) but NOT sticky — used for suggested columns. */
+  pinnedColumns?: string[];
+
   datapointId?: string;
   handleRowClick: (row: Row<EvalRow>) => void;
   getRowHref?: (row: Row<EvalRow>) => string;
@@ -67,6 +70,7 @@ const EvaluationDatapointsTable = ({
   isComparison,
   scoreRanges,
   pinnedLeftColumnIds,
+  pinnedColumns,
   datapointId,
   handleRowClick,
   getRowHref,
@@ -104,6 +108,7 @@ const EvaluationDatapointsTable = ({
         isShared={isShared}
         scoreRanges={scoreRanges}
         pinnedLeftColumnIds={pinnedLeftColumnIds}
+        pinnedColumns={pinnedColumns}
         datapointId={datapointId}
         handleRowClick={handleRowClick}
         getRowHref={getRowHref}

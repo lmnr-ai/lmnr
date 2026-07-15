@@ -12,6 +12,7 @@ import { useReportAgentContextName } from "@/components/agent";
 import EvalTraceLayout from "@/components/evaluation/eval-trace-layout";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
+import { buildSuggestedColumnDefs, createLabelSuggestion } from "@/components/evaluation/label-suggestion";
 import RowScoreChips from "@/components/evaluation/row-score-chips";
 import RunScoreCard from "@/components/evaluation/run-score-card";
 import {
@@ -29,6 +30,7 @@ import {
   mergeDatapointUpsertIntoRows,
   mergeTraceUpdateIntoRows,
 } from "@/components/evaluation/utils";
+import { type ColumnSuggestion, useColumnSuggestions } from "@/components/ui/columns-menu/suggestions";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableConfigStore, useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
@@ -79,8 +81,12 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
 
   // Column config layer: customColumns are read from the config store and
   // threaded into the columnDefs / URLs below.
-  const { customColumns, removeCustomColumn } = useTableConfigStore(
-    (s) => ({ customColumns: s.config.customColumns, removeCustomColumn: s.removeCustomColumn }),
+  const { customColumns, addCustomColumn, removeCustomColumn } = useTableConfigStore(
+    (s) => ({
+      customColumns: s.config.customColumns,
+      addCustomColumn: s.addCustomColumn,
+      removeCustomColumn: s.removeCustomColumn,
+    }),
     shallow
   );
 
@@ -92,7 +98,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
   const addScoreName = useEvalStore((s) => s.addScoreName);
 
   const isComparison = !!targetId;
-  const columnDefs = useMemo(
+  const baseColumnDefs = useMemo(
     () => buildColumnDefs({ scoreNames, customColumns, isShared }),
     [scoreNames, customColumns, isShared]
   );
@@ -100,6 +106,38 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
   // Resolved eval-score directions (override > app-wide LLM default > true).
   // Async — coloring repaints when it lands; shared evals can't write overrides.
   const { resolved: scoreDirections, toggle: toggleScoreDirection } = useScoreDirections(params.projectId, scoreNames);
+
+  // Proactive "Label" column suggestion (Ticket 1: deterministic generator).
+  // Suppressed in shared evals and when a "Label" column already exists.
+  const existingColumnNames = useMemo(
+    () => baseColumnDefs.map((c) => (typeof c.header === "string" ? c.header : "")).filter(Boolean),
+    [baseColumnDefs]
+  );
+  const suggestions = useMemo<ColumnSuggestion[]>(() => [createLabelSuggestion()], []);
+  const onKeepSuggestion = useCallback(
+    (s: ColumnSuggestion, sql: string) => addCustomColumn({ name: s.name, sql, dataType: s.dataType }),
+    [addCustomColumn]
+  );
+  const {
+    active: activeSuggestions,
+    keep: keepSuggestion,
+    discard: discardSuggestion,
+  } = useColumnSuggestions({
+    resource: RESOURCE,
+    scopeId: evaluationId,
+    suggestions,
+    existingColumnNames,
+    disabled: isShared,
+    onKeep: onKeepSuggestion,
+  });
+  const suggestedColumnDefs = useMemo(
+    () => buildSuggestedColumnDefs(activeSuggestions, keepSuggestion, discardSuggestion),
+    [activeSuggestions, keepSuggestion, discardSuggestion]
+  );
+  const suggestedColumnIds = useMemo(() => suggestedColumnDefs.map((c) => c.id!), [suggestedColumnDefs]);
+
+  // Suggested columns render first (far-left), then the normal columns.
+  const columnDefs = useMemo(() => [...suggestedColumnDefs, ...baseColumnDefs], [suggestedColumnDefs, baseColumnDefs]);
 
   // Stats SWR — drives the score chips + charts.
   const statsUrl = useMemo(() => {
@@ -322,6 +360,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
       searchValue={searchValue}
       onSearchChange={setSearchAndFilters}
       viewsResource={RESOURCE}
+      pinnedColumns={suggestedColumnIds}
     />
   );
 

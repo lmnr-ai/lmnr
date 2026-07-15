@@ -58,6 +58,10 @@ declare module "@tanstack/react-table" {
     // Marks dynamically-created custom columns so components can identify them
     // from columnDefs without reaching into the separate `customColumns` array.
     isCustom?: boolean;
+    // Marks a not-yet-accepted suggested column (e.g. the eval "Label" suggestion).
+    // Drives the distinct `bg-primary-400/5` tint on the header + cells so the user
+    // knows it's a proposal they can keep/discard, not a saved column.
+    suggested?: boolean;
     // The untruncated SQL expression for columns whose SELECT uses substring().
     // Used by DataCell to fetch the full value on hover.
     fullSql?: string;
