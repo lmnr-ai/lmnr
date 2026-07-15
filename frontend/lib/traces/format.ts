@@ -34,8 +34,9 @@ export function formatDurationMs(ms: number | null | undefined): string {
   if (seconds < 10) return `${seconds.toFixed(2)}s`;
   if (seconds < 60) return `${seconds.toFixed(1)}s`;
 
-  const totalMinutes = Math.floor(seconds / 60);
-  const remainderSeconds = Math.round(seconds - totalMinutes * 60);
+  const totalSeconds = Math.round(seconds);
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const remainderSeconds = totalSeconds - totalMinutes * 60;
   if (totalMinutes < 60) {
     return remainderSeconds === 0 ? `${totalMinutes}m` : `${totalMinutes}m ${remainderSeconds}s`;
   }

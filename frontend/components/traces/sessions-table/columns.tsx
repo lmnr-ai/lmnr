@@ -77,7 +77,7 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     meta: { sql: "end_time" },
   },
   {
-    accessorFn: (row) => (row.duration ?? 0).toFixed(2) + "s",
+    accessorFn: (row) => row.duration ?? 0,
     header: "Duration",
     id: "duration",
     size: 100,
