@@ -567,6 +567,16 @@
     color: white;
   }
 
+  /* ::highlight() can't do border/radius — color/background only. */
+  ::highlight(span-search-match) {
+    background-color: hsl(var(--primary) / 0.3);
+  }
+
+  ::highlight(span-search-active) {
+    background-color: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+
   .font-sans-landing {
     letter-spacing: 0.002em;
     font-weight: 450;

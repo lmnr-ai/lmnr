@@ -725,7 +725,8 @@ The frontend uses Husky with lint-staged. Before commits:
 ## ContentRenderer modes
 
 - `ContentRenderer` (`frontend/components/ui/content-renderer/index.tsx`) mode state is lowercase (`"json"`, `"markdown"`) but the `modes` prop lists are UPPERCASE (`["JSON", "MARKDOWN", ...]`) — `TemplatePickerView` lowercases on selection. Mode persists to localStorage under `formatter-mode-${presetKey}`.
-- Non-CodeMirror modes (`custom`, `messages`, `markdown`) must each be excluded from BOTH the `useSpanSearchRegistration` effect condition and the `isCodeMode` gate (Settings popover); `code-sheet.tsx` (the maximize sheet) needs its own render branch per non-CodeMirror mode.
+- Span-view search (`SpanSearchProvider`) registers **searchable sources**, not bare `EditorView`s — `SearchableSource` in `span-view/searchable/` with a CodeMirror adapter (JSON/text modes) and a DOM adapter (markdown / Streamdown via CSS Custom Highlight). `custom` and `messages` still do not register at the top level (`messages` nests its own ContentRenderers). Settings popover stays CodeMirror-only (`isCodeMode`). `code-sheet.tsx` needs its own render branch per non-CodeMirror mode.
+- Markdown search matches **rendered `textContent`**, not the raw markdown source — offsets map to DOM `Range`s; highlight via `::highlight(span-search-match)` / `::highlight(span-search-active)` in `globals.css`.
 - Span payloads arrive JSON-stringified (a markdown string is `"\"# H\\n...\""`), so the markdown branch unwraps via `getMarkdownSource` (`content-renderer/markdown.tsx`) before rendering with Streamdown.
 
 ## Span-view Message Parsing

@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, type Ref } from "react";
 import { defaultRehypePlugins, Streamdown } from "streamdown";
 
 import { cn, tryParseJson } from "@/lib/utils";
@@ -11,10 +11,14 @@ export const getMarkdownSource = (value: string): string => {
 interface MarkdownRendererProps {
   value: string;
   className?: string;
+  containerRef?: Ref<HTMLDivElement>;
 }
 
-const PureMarkdownRenderer = ({ value, className }: MarkdownRendererProps) => (
-  <div className={cn("w-full min-w-0 text-[12px] text-card-foreground [font-family:monospace]", className)}>
+const PureMarkdownRenderer = ({ value, className, containerRef }: MarkdownRendererProps) => (
+  <div
+    ref={containerRef}
+    className={cn("w-full min-w-0 text-[12px] text-card-foreground [font-family:monospace]", className)}
+  >
     <Streamdown
       mode="static"
       parseIncompleteMarkdown={false}

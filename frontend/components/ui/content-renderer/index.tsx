@@ -2,9 +2,10 @@ import { type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import CodeMirror, { type ReactCodeMirrorProps, type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { Settings } from "lucide-react";
-import React, { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import Messages, { type MessageLabel, type ProcessedMessages } from "@/components/traces/span-view/messages";
+import { createCodeMirrorSearchSource, createDomSearchSource } from "@/components/traces/span-view/searchable";
 import { useSpanSearchRegistration } from "@/components/traces/span-view/span-search-context.tsx";
 import { Button } from "@/components/ui/button";
 import CodeSheet from "@/components/ui/content-renderer/code-sheet";
@@ -98,6 +99,7 @@ const PureContentRenderer = ({
   const editorIdRef = useRef(`editor-${editorId}`);
   const searchRegistration = useSpanSearchRegistration();
   const currentViewRef = useRef<EditorView | null>(null);
+  const markdownContainerRef = useRef<HTMLDivElement | null>(null);
   const [editorMountKey, setEditorMountKey] = useState(0);
 
   const [mode, setMode] = useState(() => {
@@ -193,24 +195,45 @@ const PureContentRenderer = ({
     setEditorMountKey((k) => k + 1);
   }, []);
 
-  useEffect(() => {
-    if (
-      searchRegistration &&
-      currentViewRef.current &&
-      mode !== "custom" &&
-      mode !== "messages" &&
-      mode !== "markdown"
-    ) {
-      searchRegistration.registerEditor(editorIdRef.current, currentViewRef.current, messageIndex, contentPartIndex);
-
-      return () => {
-        searchRegistration.unregisterEditor(editorIdRef.current);
-      };
-    }
-  }, [searchRegistration, editorMountKey, messageIndex, contentPartIndex, mode]);
-
   const isCodeMode = mode !== "custom" && mode !== "messages" && mode !== "markdown";
   const canPickMode = modes.length > 1;
+
+  useEffect(() => {
+    if (!searchRegistration || !isCodeMode || !currentViewRef.current) return;
+
+    searchRegistration.registerSource(
+      createCodeMirrorSearchSource({
+        id: editorIdRef.current,
+        view: currentViewRef.current,
+        messageIndex,
+        contentPartIndex,
+      })
+    );
+
+    return () => {
+      searchRegistration.unregisterSource(editorIdRef.current);
+    };
+  }, [searchRegistration, editorMountKey, messageIndex, contentPartIndex, isCodeMode]);
+
+  useLayoutEffect(() => {
+    if (!searchRegistration || mode !== "markdown") return;
+
+    const container = markdownContainerRef.current;
+    if (!container) return;
+
+    searchRegistration.registerSource(
+      createDomSearchSource({
+        id: editorIdRef.current,
+        container,
+        messageIndex,
+        contentPartIndex,
+      })
+    );
+
+    return () => {
+      searchRegistration.unregisterSource(editorIdRef.current);
+    };
+  }, [searchRegistration, mode, messageIndex, contentPartIndex, value]);
 
   const actionButtons = (
     <>
@@ -279,7 +302,7 @@ const PureContentRenderer = ({
     if (mode === "markdown") {
       return (
         <div className="flex-1 flex w-full min-w-0 min-h-0 overflow-y-auto overflow-x-hidden">
-          <MarkdownRenderer value={getMarkdownSource(value)} className="p-2" />
+          <MarkdownRenderer value={getMarkdownSource(value)} className="p-2" containerRef={markdownContainerRef} />
         </div>
       );
     }
