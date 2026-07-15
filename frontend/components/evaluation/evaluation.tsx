@@ -113,7 +113,10 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
     () => baseColumnDefs.map((c) => (typeof c.header === "string" ? c.header : "")).filter(Boolean),
     [baseColumnDefs]
   );
-  const suggestions = useMemo<ColumnSuggestion[]>(() => [createLabelSuggestion()], []);
+  const suggestions = useMemo<ColumnSuggestion[]>(
+    () => [createLabelSuggestion(params.projectId, evaluationId)],
+    [params.projectId, evaluationId]
+  );
   const onKeepSuggestion = useCallback(
     (s: ColumnSuggestion, sql: string) => addCustomColumn({ name: s.name, sql, dataType: s.dataType }),
     [addCustomColumn]
