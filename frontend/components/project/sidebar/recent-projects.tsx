@@ -16,9 +16,10 @@ const RecentProjects = ({ currentProjectId }: { currentProjectId: string }) => {
   // Radix mounts the dropdown content on every open, so a lazy initializer reads
   // fresh data per open — no effect/setState needed. Client-only render (the
   // dropdown opens via interaction), so there's no SSR hydration concern.
-  const [recents] = useState<RecentProject[]>(() =>
-    readRecentProjects(user.id).filter((p) => p.id !== currentProjectId)
-  );
+  const [stored] = useState<RecentProject[]>(() => readRecentProjects(user.id));
+  // Filter at render time, not in the initializer — the active project can change
+  // while the content stays mounted (e.g. back/forward with the menu open).
+  const recents = stored.filter((p) => p.id !== currentProjectId);
 
   if (recents.length === 0) return null;
 
