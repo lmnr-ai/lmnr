@@ -309,7 +309,8 @@ function TracesTableContent() {
 
         if (existingTraceIndex !== -1) {
           const newTraces = [...currentTraces];
-          newTraces[existingTraceIndex] = traceData;
+          // Realtime payloads never carry signals; keep the fetched chips.
+          newTraces[existingTraceIndex] = { ...traceData, signals: currentTraces[existingTraceIndex].signals };
           return newTraces;
         } else {
           const newTraces = [traceData, ...currentTraces];
