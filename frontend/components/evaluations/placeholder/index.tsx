@@ -21,7 +21,16 @@ export default function EvalsPagePlaceholder() {
       <Header path="evaluations" />
       <ScrollArea>
         <div className="flex flex-col mx-auto p-6 max-w-3xl gap-8 pb-36">
-          <h1 className="text-2xl font-medium">Get started with Evaluations</h1>
+          <div className="flex flex-col gap-4">
+            <h1 className="text-2xl font-medium">Get started with Evaluations</h1>
+            <p className="text-muted-foreground leading-6">
+              Evaluations are the offline testing layer for your agents and LLM pipelines: run a new version against
+              a fixed set of inputs, score every output, and compare to the previous run to see whether a change is
+              actually better before you ship. You define the inputs, a function that produces the output, and
+              functions that score it, and Laminar runs them in parallel, traces every call, and tracks the scores
+              across runs.
+            </p>
+          </div>
 
           <Tabs defaultValue="agent" className="gap-8">
             <TabsList>
