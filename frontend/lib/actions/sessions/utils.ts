@@ -132,6 +132,7 @@ const sessionsSelectColumns = [
   "SUM(input_tokens) as inputTokens",
   "SUM(output_tokens) as outputTokens",
   "SUM(total_tokens) as totalTokens",
+  "SUM(cache_read_input_tokens) as cacheReadInputTokens",
   "formatDateTime(MIN(start_time), '%Y-%m-%dT%H:%i:%S.%fZ') as startTime",
   "formatDateTime(MAX(end_time), '%Y-%m-%dT%H:%i:%S.%fZ') as endTime",
   "SUM(end_time - start_time) as duration",
