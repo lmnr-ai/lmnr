@@ -39,7 +39,7 @@ evaluate({
   groupName: 'my_first_eval',
 });`;
 
-export function ManualTab({ projectId }: { projectId?: string }) {
+export function ManualTab() {
   const [tabValue, setTabValue] = useState("typescript");
 
   return (
@@ -49,7 +49,7 @@ export function ManualTab({ projectId }: { projectId?: string }) {
         <InstallTabsSection />
       </div>
 
-      <ApiKeyGenerator context="evaluations" titleClassName="text-base" projectId={projectId} />
+      <ApiKeyGenerator context="evaluations" titleClassName="text-base" />
 
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">

@@ -1,7 +1,5 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-
 import { AgentPromptBox } from "@/components/common/agent-prompt-box";
 import { track } from "@/lib/posthog";
 
@@ -19,8 +17,6 @@ An evaluation has three parts:
 4. Direct the user to view the evaluation scores and per-datapoint traces in the browser.`;
 
 export function AgentTab() {
-  const isFromOnboarding = useSearchParams().get("onboarding") === "true";
-
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-1">
@@ -32,7 +28,7 @@ export function AgentTab() {
 
       <AgentPromptBox
         prompt={AGENT_PROMPT}
-        onCopy={() => track("onboarding", "evals_coding_agent_command_copied", { from_onboarding: isFromOnboarding })}
+        onCopy={() => track("onboarding", "evals_coding_agent_command_copied")}
       />
     </div>
   );
