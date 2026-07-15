@@ -43,10 +43,14 @@ export interface UseColumnSuggestionsArgs {
   suggestions: ColumnSuggestion[];
   /** Names of columns already on the table (custom + built-in) — collision guard. */
   existingColumnNames: string[];
+  /** suggestionKeys of existing custom columns (kept-and-saved / cross-user guard). */
+  existingSuggestionKeys: string[];
   /** True where suggestions must never appear (e.g. shared evals). */
   disabled: boolean;
   /** Called when the user keeps a suggestion: promote it to a real column. */
   onKeep: (suggestion: ColumnSuggestion, sql: string) => void;
+  /** Called when a generation fails transiently (for a user-facing toast). */
+  onError?: (suggestion: ColumnSuggestion) => void;
 }
 
 export interface ActiveSuggestion {
@@ -71,8 +75,10 @@ export function useColumnSuggestions({
   scopeId,
   suggestions,
   existingColumnNames,
+  existingSuggestionKeys,
   disabled,
   onKeep,
+  onError,
 }: UseColumnSuggestionsArgs): UseColumnSuggestionsResult {
   const storageKey = useMemo(() => keyFor(resource, scopeId), [resource, scopeId]);
   // Read once at mount via a lazy initializer (SSR-safe: returns {} on the
@@ -93,30 +99,50 @@ export function useColumnSuggestions({
   );
 
   const resolution = useMemo(
-    () => resolveColumnSuggestions({ suggestions, existingColumnNames, persisted, disabled }),
-    [suggestions, existingColumnNames, persisted, disabled]
+    () => resolveColumnSuggestions({ suggestions, existingColumnNames, existingSuggestionKeys, persisted, disabled }),
+    [suggestions, existingColumnNames, existingSuggestionKeys, persisted, disabled]
   );
 
-  // Run generation for eligible suggestions exactly once per mount.
+  // Run generation for eligible suggestions exactly once per mount. Each run gets
+  // its own AbortController so it can be cancelled when the hook unmounts (e.g.
+  // navigating to another eval) — the generation is a multi-second agent call.
   const attempted = useRef<Set<string>>(new Set());
+  const controllers = useRef<Map<string, AbortController>>(new Map());
 
   useEffect(() => {
     if (disabled) return;
     for (const suggestion of resolution.toGenerate) {
       if (attempted.current.has(suggestion.id)) continue;
       attempted.current.add(suggestion.id);
+      const controller = new AbortController();
+      controllers.current.set(suggestion.id, controller);
       suggestion
-        .generate()
+        .generate(controller.signal)
         .then((res) => {
           // {sql} -> pending; null -> definitive "no identifier" -> resolved.
           setRecord(suggestion.id, res && res.sql.trim() ? pendingRecord(res.sql) : resolvedRecord());
         })
         .catch(() => {
-          // Transient failure (network / backend): leave unseen so a later
-          // mount retries. Do NOT persist `resolved` — that would hide it forever.
+          // Aborted (unmount / nav): stay silent, don't persist. Otherwise it's a
+          // transient failure: surface via onError and retry next mount.
+          if (controller.signal.aborted) return;
+          onError?.(suggestion);
+        })
+        .finally(() => {
+          controllers.current.delete(suggestion.id);
         });
     }
-  }, [resolution.toGenerate, disabled, setRecord]);
+  }, [resolution.toGenerate, disabled, setRecord, onError]);
+
+  // Abort any in-flight generation on unmount so it can't run on / setState a
+  // dead component (and the server call is cancelled).
+  useEffect(() => {
+    const map = controllers.current;
+    return () => {
+      for (const c of map.values()) c.abort();
+      map.clear();
+    };
+  }, []);
 
   const keep = useCallback(
     (id: string) => {

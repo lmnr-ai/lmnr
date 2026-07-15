@@ -21,14 +21,16 @@ const mkSuggestion = (id: string, name = id): ColumnSuggestion => ({
 
 const label = mkSuggestion("label", "Label");
 
+const base = {
+  existingColumnNames: [] as string[],
+  existingSuggestionKeys: [] as string[],
+  persisted: {} as Record<string, SuggestionRecord>,
+  disabled: false,
+};
+
 describe("resolveColumnSuggestions", () => {
   it("marks an unseen, eligible suggestion for generation", () => {
-    const res = resolveColumnSuggestions({
-      suggestions: [label],
-      existingColumnNames: [],
-      persisted: {},
-      disabled: false,
-    });
+    const res = resolveColumnSuggestions({ ...base, suggestions: [label] });
     assert.deepEqual(
       res.toGenerate.map((s) => s.id),
       ["label"]
@@ -37,14 +39,10 @@ describe("resolveColumnSuggestions", () => {
   });
 
   it("shows a pending suggestion from its cached sql without regenerating", () => {
-    const persisted: Record<string, SuggestionRecord> = {
-      label: { status: "pending", sql: "simpleJSONExtractString(data, 'id')" },
-    };
     const res = resolveColumnSuggestions({
+      ...base,
       suggestions: [label],
-      existingColumnNames: [],
-      persisted,
-      disabled: false,
+      persisted: { label: { status: "pending", sql: "simpleJSONExtractString(data, 'id')" } },
     });
     assert.deepEqual(res.toGenerate, []);
     assert.equal(res.toShow.length, 1);
@@ -54,41 +52,42 @@ describe("resolveColumnSuggestions", () => {
 
   it("skips a resolved suggestion entirely (never nag again)", () => {
     const res = resolveColumnSuggestions({
+      ...base,
       suggestions: [label],
-      existingColumnNames: [],
       persisted: { label: { status: "resolved" } },
-      disabled: false,
     });
     assert.deepEqual(res.toShow, []);
     assert.deepEqual(res.toGenerate, []);
   });
 
-  it("skips when a column of the same name already exists (cross-user / self guard)", () => {
-    const res = resolveColumnSuggestions({
-      suggestions: [label],
-      existingColumnNames: ["Label"],
-      persisted: {},
-      disabled: false,
-    });
+  it("skips when a column of the same name already exists (self guard)", () => {
+    const res = resolveColumnSuggestions({ ...base, suggestions: [label], existingColumnNames: ["Label"] });
     assert.deepEqual(res.toShow, []);
     assert.deepEqual(res.toGenerate, []);
   });
 
   it("name match is case-insensitive", () => {
-    const res = resolveColumnSuggestions({
-      suggestions: [label],
-      existingColumnNames: ["label"],
-      persisted: {},
-      disabled: false,
-    });
+    const res = resolveColumnSuggestions({ ...base, suggestions: [label], existingColumnNames: ["label"] });
     assert.deepEqual(res.toGenerate, []);
     assert.deepEqual(res.toShow, []);
   });
 
+  it("skips when a kept custom column carries the suggestion key (cross-user / rename-proof)", () => {
+    // Column was renamed away from "Label" but still carries suggestionKey "label".
+    const res = resolveColumnSuggestions({
+      ...base,
+      suggestions: [label],
+      existingColumnNames: ["Renamed"],
+      existingSuggestionKeys: ["label"],
+    });
+    assert.deepEqual(res.toShow, []);
+    assert.deepEqual(res.toGenerate, []);
+  });
+
   it("suppresses everything when disabled (shared eval)", () => {
     const res = resolveColumnSuggestions({
+      ...base,
       suggestions: [label],
-      existingColumnNames: [],
       persisted: { label: { status: "pending", sql: "1" } },
       disabled: true,
     });
@@ -101,10 +100,10 @@ describe("resolveColumnSuggestions", () => {
     const b = mkSuggestion("b", "Beta");
     const c = mkSuggestion("c", "Gamma");
     const res = resolveColumnSuggestions({
+      ...base,
       suggestions: [a, b, c],
       existingColumnNames: ["Gamma"], // c is skipped
       persisted: { b: { status: "pending", sql: "b_sql" } }, // b shows, a generates
-      disabled: false,
     });
     assert.deepEqual(
       res.toGenerate.map((s) => s.id),

@@ -4,7 +4,14 @@ import type { SQLSchemaConfig } from "@/components/sql/utils";
 import type { GenerationMode } from "@/lib/actions/sql";
 
 /** Shared custom column definition used by both evaluations and traces. */
-export type CustomColumn = { name: string; sql: string; dataType: "string" | "number" };
+export type CustomColumn = {
+  name: string;
+  sql: string;
+  dataType: "string" | "number";
+  /** Set when this column originated from a kept suggestion. Persists in the view
+   *  config (JSON) so other users who load that view don't get re-suggested it. */
+  suggestionKey?: string;
+};
 
 /** Configuration for the custom column panel to make it context-agnostic. */
 export interface CustomColumnPanelConfig {

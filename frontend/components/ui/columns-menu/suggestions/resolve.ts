@@ -13,8 +13,9 @@ export interface ColumnSuggestion {
   dataType: "string" | "number";
   /** Produce the column SQL expression, or null when no good suggestion exists.
    *  THROW on a transient failure (network / backend) so the hook leaves the
-   *  suggestion unseen and retries next mount instead of resolving it forever. */
-  generate: () => Promise<{ sql: string } | null>;
+   *  suggestion unseen and retries next mount instead of resolving it forever.
+   *  Receives an AbortSignal so the hook can cancel an in-flight generation. */
+  generate: (signal: AbortSignal) => Promise<{ sql: string } | null>;
 }
 
 /**
@@ -33,6 +34,9 @@ export interface ResolveInput {
   suggestions: ColumnSuggestion[];
   /** Names of columns already present on the table (custom + built-in). */
   existingColumnNames: string[];
+  /** suggestionKeys of custom columns already present (kept-and-saved guard;
+   *  survives a rename, and works cross-user via the persisted view config). */
+  existingSuggestionKeys: string[];
   /** Persisted record per suggestion id. */
   persisted: Record<string, SuggestionRecord | undefined>;
   /** True in contexts where suggestions must never appear (e.g. shared evals). */
@@ -47,14 +51,18 @@ export interface SuggestionResolution {
 }
 
 export function resolveColumnSuggestions(input: ResolveInput): SuggestionResolution {
-  const { suggestions, existingColumnNames, persisted, disabled } = input;
+  const { suggestions, existingColumnNames, existingSuggestionKeys, persisted, disabled } = input;
   const result: SuggestionResolution = { toShow: [], toGenerate: [] };
   if (disabled) return result;
 
   const existingLower = new Set(existingColumnNames.map((n) => n.toLowerCase()));
+  const existingKeys = new Set(existingSuggestionKeys);
 
   for (const suggestion of suggestions) {
+    // Already adopted: a column of that name exists, or a kept-and-saved column
+    // carries this suggestion's key (cross-user / survives rename).
     if (existingLower.has(suggestion.name.toLowerCase())) continue;
+    if (existingKeys.has(suggestion.id)) continue;
     const record = persisted[suggestion.id];
     if (record?.status === "resolved") continue;
     if (record?.status === "pending") {

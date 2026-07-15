@@ -12,7 +12,7 @@ import { useReportAgentContextName } from "@/components/agent";
 import EvalTraceLayout from "@/components/evaluation/eval-trace-layout";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
-import { buildSuggestedColumnDefs, createLabelSuggestion } from "@/components/evaluation/label-suggestion";
+import { buildSuggestedColumnDefs, createEvalSuggestions } from "@/components/evaluation/label-suggestion";
 import RowScoreChips from "@/components/evaluation/row-score-chips";
 import RunScoreCard from "@/components/evaluation/run-score-card";
 import {
@@ -32,7 +32,11 @@ import {
 } from "@/components/evaluation/utils";
 import { type ColumnSuggestion, useColumnSuggestions } from "@/components/ui/columns-menu/suggestions";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { useTableConfigStore, useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
+import {
+  useTableConfigStore,
+  useTableConfigStoreApi,
+  useTableView,
+} from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import {
   type EvalRow,
@@ -41,6 +45,7 @@ import {
   type LinkedDataset,
 } from "@/lib/evaluation/types";
 import { useRealtime } from "@/lib/hooks/use-realtime";
+import { useToast } from "@/lib/hooks/use-toast";
 import { swrFetcher } from "@/lib/utils";
 
 import TraceView from "../traces/trace-view";
@@ -81,14 +86,14 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
 
   // Column config layer: customColumns are read from the config store and
   // threaded into the columnDefs / URLs below.
-  const { customColumns, addCustomColumn, removeCustomColumn } = useTableConfigStore(
+  const { customColumns, removeCustomColumn } = useTableConfigStore(
     (s) => ({
       customColumns: s.config.customColumns,
-      addCustomColumn: s.addCustomColumn,
       removeCustomColumn: s.removeCustomColumn,
     }),
     shallow
   );
+  const { toast } = useToast();
 
   // Eval-specific state lives in EvalStore. customColumns intentionally do not.
   const scoreNames = useEvalStore((s) => s.scoreNames);
@@ -107,20 +112,36 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
   // Async — coloring repaints when it lands; shared evals can't write overrides.
   const { resolved: scoreDirections, toggle: toggleScoreDirection } = useScoreDirections(params.projectId, scoreNames);
 
-  // Proactive "Label" column suggestion (Ticket 1: deterministic generator).
-  // Suppressed in shared evals and when a "Label" column already exists.
+  // Proactive column suggestions (e.g. the "Label" column). Suppressed in shared
+  // evals, when a same-named column exists, or when a kept-and-saved custom column
+  // already carries the suggestion key (cross-user guard via the view config).
   const existingColumnNames = useMemo(
     () => baseColumnDefs.map((c) => (typeof c.header === "string" ? c.header : "")).filter(Boolean),
     [baseColumnDefs]
   );
+  const existingSuggestionKeys = useMemo(
+    () => customColumns.map((c) => c.suggestionKey).filter((k): k is string => !!k),
+    [customColumns]
+  );
   const suggestions = useMemo<ColumnSuggestion[]>(
-    () => [createLabelSuggestion(params.projectId, evaluationId)],
+    () => createEvalSuggestions(params.projectId, evaluationId),
     [params.projectId, evaluationId]
   );
+  const configStore = useTableConfigStoreApi();
   const onKeepSuggestion = useCallback(
-    (s: ColumnSuggestion, sql: string) => addCustomColumn({ name: s.name, sql, dataType: s.dataType }),
-    [addCustomColumn]
+    (s: ColumnSuggestion, sql: string) => {
+      const { addCustomColumn: add, setColumnOrder, config } = configStore.getState();
+      add({ name: s.name, sql, dataType: s.dataType, suggestionKey: s.id });
+      // A kept suggestion "joins the family" at the front (it was shown far-left);
+      // addCustomColumn appends to columnOrder, so move it to the front.
+      const id = `custom:${s.name}`;
+      setColumnOrder([id, ...config.columnOrder.filter((c) => c !== id)]);
+    },
+    [configStore]
   );
+  const onSuggestionError = useCallback(() => {
+    toast({ variant: "destructive", title: "Column suggestion generation failed" });
+  }, [toast]);
   const {
     active: activeSuggestions,
     keep: keepSuggestion,
@@ -130,8 +151,10 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
     scopeId: evaluationId,
     suggestions,
     existingColumnNames,
+    existingSuggestionKeys,
     disabled: isShared,
     onKeep: onKeepSuggestion,
+    onError: onSuggestionError,
   });
   const suggestedColumnDefs = useMemo(
     () => buildSuggestedColumnDefs(activeSuggestions, keepSuggestion, discardSuggestion),
