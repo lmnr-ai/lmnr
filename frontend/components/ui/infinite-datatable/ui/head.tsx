@@ -73,7 +73,7 @@ export function InfiniteTableHead<TData extends RowData>({
       className={cn(
         "m-0 relative text-secondary-foreground truncate hover:bg-transparent",
         isDragging && "shadow-lg",
-        isSuggested && "bg-surface-700",
+        isSuggested && "bg-blue-400/5",
         isPinned && "bg-secondary border-r shadow-[2px_0_6px_-2px_rgba(0,0,0,0.35)]"
       )}
       key={header.id}

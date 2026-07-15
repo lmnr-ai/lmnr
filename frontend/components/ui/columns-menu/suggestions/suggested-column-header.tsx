@@ -49,13 +49,13 @@ export function SuggestedColumnHeader({ name, onKeep, onDiscard }: SuggestedColu
           // Header is a drag handle; don't let the trigger hijack pointer/click.
           onPointerDown={(e) => e.stopPropagation()}
         >
-          <Sparkles className="size-3 shrink-0 text-primary" />
+          <Sparkles className="size-3 shrink-0 text-blue-400" />
           <span className="truncate">{name}</span>
         </div>
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        sideOffset={6}
+        sideOffset={12}
         className="w-64 p-3"
         onMouseEnter={openNow}
         onMouseLeave={scheduleClose}
@@ -64,7 +64,7 @@ export function SuggestedColumnHeader({ name, onKeep, onDiscard }: SuggestedColu
       >
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-1.5 text-sm font-medium">
-            <Sparkles className="size-3.5 text-primary" />
+            <Sparkles className="size-3.5 text-blue-400" />
             Custom column suggestion
           </div>
           <p className="text-xs text-muted-foreground">Would you like to keep the custom &quot;{name}&quot; column?</p>
