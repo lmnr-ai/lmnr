@@ -50,7 +50,7 @@ export function SuggestedColumnHeader({ name, onKeep, onDiscard }: SuggestedColu
           onPointerDown={(e) => e.stopPropagation()}
         >
           <span className="truncate">{name}</span>
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-blue-400/30 bg-blue-400/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-400">
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
             <Sparkles className="size-2.5" />
             Suggested
           </span>
@@ -67,7 +67,7 @@ export function SuggestedColumnHeader({ name, onKeep, onDiscard }: SuggestedColu
       >
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-1.5 text-sm font-medium">
-            <Sparkles className="size-3.5 text-blue-400" />
+            <Sparkles className="size-3.5 text-primary" />
             Custom column suggestion
           </div>
           <p className="text-xs text-muted-foreground">Would you like to keep the custom &quot;{name}&quot; column?</p>

@@ -73,9 +73,9 @@ export function InfiniteTableHead<TData extends RowData>({
       className={cn(
         "m-0 relative text-secondary-foreground truncate",
         isDragging && "shadow-lg",
-        // Suggested header keeps its blue tint and deepens on hover (base cells
+        // Suggested header keeps its primary tint and deepens on hover (base cells
         // clear to transparent on hover, which would wipe the tint).
-        isSuggested ? "bg-blue-400/5 hover:bg-blue-400/15" : "hover:bg-transparent",
+        isSuggested ? "bg-primary/5 hover:bg-primary/15" : "hover:bg-transparent",
         isPinned && "bg-secondary border-r shadow-[2px_0_6px_-2px_rgba(0,0,0,0.35)]"
       )}
       key={header.id}

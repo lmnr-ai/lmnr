@@ -59,8 +59,8 @@ declare module "@tanstack/react-table" {
     // from columnDefs without reaching into the separate `customColumns` array.
     isCustom?: boolean;
     // Marks a not-yet-accepted suggested column (e.g. the eval "Label" suggestion).
-    // Renders with the same subtle blue tint as extracted-input items so the user
-    // knows it's a proposal they can keep/discard, not a saved column.
+    // Renders with a subtle primary (brand) tint so the user knows it's a proposal
+    // they can keep/discard, not a saved column.
     suggested?: boolean;
     // The untruncated SQL expression for columns whose SELECT uses substring().
     // Used by DataCell to fetch the full value on hover.
