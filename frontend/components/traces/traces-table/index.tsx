@@ -13,6 +13,7 @@ import TracesChart from "@/components/traces/traces-chart";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import {
   defaultTracesColumnOrder,
+  defaultTracesColumnVisibility,
   filters as staticFilters,
   PREVIEW_COLUMN,
 } from "@/components/traces/traces-table/columns";
@@ -48,7 +49,7 @@ export default function TracesTable() {
   const { projectId } = useParams();
   return (
     <InfiniteDataTableProvider
-      defaults={{ columnOrder: defaultTracesColumnOrder }}
+      defaults={{ columnOrder: defaultTracesColumnOrder, columnVisibility: defaultTracesColumnVisibility }}
       lockedColumns={["status", "preview"]}
       views={{ projectId: String(projectId), resource: RESOURCE }}
     >

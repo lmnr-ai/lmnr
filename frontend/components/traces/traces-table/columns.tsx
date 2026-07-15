@@ -380,3 +380,9 @@ export const defaultTracesColumnOrder = [
   "session_id",
   "user_id",
 ];
+
+export const defaultTracesColumnVisibility: Record<string, boolean> = {
+  id: false,
+  root_span_input: false,
+  root_span_output: false,
+};

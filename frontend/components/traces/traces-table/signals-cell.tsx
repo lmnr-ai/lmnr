@@ -1,57 +1,72 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
+import { Radio } from "lucide-react";
 
+import ClusterIcon from "@/components/signal/clusters-section/cluster-list/cluster-icon";
+import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SEVERITY_LABELS } from "@/lib/actions/alerts/types";
-import { getClusterColorById, withOpacity } from "@/lib/clusters/colors";
+import { getClusterColorById, UNCLUSTERED_COLOR } from "@/lib/clusters/colors";
 import { type TraceRowSignal } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 const MAX_VISIBLE_CHIPS = 2;
 
-const SEVERITY_DOT_STYLES: Record<number, string> = {
-  0: "bg-muted-foreground/60",
-  1: "bg-orange-400/80",
-  2: "bg-red-400",
+const SEVERITY_TEXT_STYLES: Record<number, string> = {
+  0: "text-muted-foreground/60",
+  1: "text-orange-400/80",
+  2: "text-red-400",
 };
 
 function SignalChip({ signal }: { signal: TraceRowSignal }) {
+  const hasCluster = !!signal.clusterId;
+  const color = hasCluster ? getClusterColorById(signal.clusterId) : UNCLUSTERED_COLOR;
   const label = signal.clusterName ?? signal.signalName;
-  const color = signal.clusterId ? getClusterColorById(signal.clusterId) : "var(--color-primary)";
   const severityLabel = SEVERITY_LABELS[signal.maxSeverity as keyof typeof SEVERITY_LABELS] ?? "Info";
+  const severityClassName = SEVERITY_TEXT_STYLES[signal.maxSeverity] ?? SEVERITY_TEXT_STYLES[0];
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div
-          className="flex items-center gap-1.5 min-w-0 shrink rounded-full border px-2 py-0.5 text-xs"
-          style={{ borderColor: withOpacity(color, 0.5), backgroundColor: withOpacity(color, 0.12) }}
-        >
-          <span
-            className={cn(
-              "size-1.5 shrink-0 rounded-full",
-              SEVERITY_DOT_STYLES[signal.maxSeverity] ?? SEVERITY_DOT_STYLES[0]
-            )}
-          />
+        <div className="flex items-center gap-1 min-w-0 shrink rounded-full border px-1.5 py-0.5 text-xs" style={{}}>
+          <ClusterIcon iconVariant={hasCluster ? "box" : "circle-dashed"} color={color} />
           <span className="truncate">{label}</span>
           {signal.eventCount > 1 && <span className="shrink-0 text-muted-foreground">{signal.eventCount}</span>}
         </div>
       </TooltipTrigger>
       <TooltipPortal>
-        <TooltipContent side="bottom" className="max-w-96 p-2 border">
-          <div className="flex flex-col gap-1">
-            <div className="flex items-baseline justify-between gap-4">
-              <span className="font-medium">{signal.signalName}</span>
-              <span className="text-muted-foreground">
+        <TooltipContent side="bottom" className="max-w-80 p-2.5 border">
+          <div className="flex flex-col gap-1.5 text-xs">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Radio className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="font-medium text-foreground truncate min-w-0 flex-1">{signal.signalName}</span>
+              <Badge
+                variant="outline"
+                className={cn("rounded-full font-medium shrink-0 px-1.5 py-0.5 text-[10px]", severityClassName)}
+              >
                 {severityLabel}
-                {signal.eventCount > 1 && ` · ${signal.eventCount} events`}
-              </span>
+              </Badge>
             </div>
-            {signal.clusterName && <div className="text-muted-foreground">Cluster: {signal.clusterName}</div>}
-            {signal.summaries.map((summary, i) => (
-              <div key={i} className="line-clamp-3 text-secondary-foreground">
-                {summary}
+            {signal.clusterName && (
+              <div className="flex items-center gap-1 min-w-0 font-medium text-foreground">
+                <ClusterIcon iconVariant="box" color={color} />
+                <span className="truncate">{signal.clusterName}</span>
+                {signal.eventCount > 1 && (
+                  <span className="shrink-0 text-muted-foreground font-normal">· {signal.eventCount}</span>
+                )}
               </div>
-            ))}
+            )}
+            {!signal.clusterName && signal.eventCount > 1 && (
+              <span className="text-muted-foreground">{signal.eventCount} events</span>
+            )}
+            {signal.summaries.length > 0 && (
+              <div className="flex flex-col gap-1 border-t pt-1.5 mt-0.5">
+                {signal.summaries.map((summary, i) => (
+                  <div key={i} className="line-clamp-2 text-secondary-foreground">
+                    {summary}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </TooltipContent>
       </TooltipPortal>
