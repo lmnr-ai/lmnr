@@ -43,14 +43,17 @@ export function SuggestedColumnHeader({ name, onKeep, onDiscard }: SuggestedColu
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <div
-          className="flex min-w-0 items-center gap-1"
+          className="flex w-full min-w-0 items-center justify-between gap-2"
           onMouseEnter={openNow}
           onMouseLeave={scheduleClose}
           // Header is a drag handle; don't let the trigger hijack pointer/click.
           onPointerDown={(e) => e.stopPropagation()}
         >
-          <Sparkles className="size-3 shrink-0 text-blue-400" />
           <span className="truncate">{name}</span>
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-blue-400/30 bg-blue-400/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-400">
+            <Sparkles className="size-2.5" />
+            Suggested
+          </span>
         </div>
       </PopoverTrigger>
       <PopoverContent
