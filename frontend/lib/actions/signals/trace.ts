@@ -138,6 +138,9 @@ export const GetTraceRowSignalsSchema = z.object({
 });
 
 const MAX_SUMMARIES_PER_SIGNAL = 5;
+// Caps the events fetched per trace (LIMIT BY, so one noisy trace can't evict
+// others). Chips built from the latest N events; eventCount saturates at this.
+const MAX_EVENTS_PER_TRACE = 50;
 
 type BatchEventRow = {
   id: string;
@@ -172,8 +175,9 @@ export async function getTraceRowSignals(
       WHERE project_id = {projectId: UUID}
         AND trace_id IN ({traceIds: Array(UUID)})
       ORDER BY timestamp DESC
+      LIMIT {maxEventsPerTrace: UInt32} BY trace_id
     `,
-    query_params: { projectId, traceIds },
+    query_params: { projectId, traceIds, maxEventsPerTrace: MAX_EVENTS_PER_TRACE },
   });
   const events = (await eventsResult.json()).data as BatchEventRow[];
   if (events.length === 0) return new Map();
