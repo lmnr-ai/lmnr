@@ -122,6 +122,19 @@ export type Trace = {
   userId: string | null;
 };
 
+// Client-safe aggregate of one signal's events on a trace, rendered as a chip
+// in the traces table. Built server-side by getTraceRowSignals.
+export type TraceRowSignal = {
+  signalId: string;
+  signalName: string;
+  eventCount: number;
+  maxSeverity: number;
+  clusterId: string | null;
+  clusterName: string | null;
+  /** Non-empty per-event summaries, latest first (tooltip content). */
+  summaries: string[];
+};
+
 export type TraceRow = {
   id: string;
   startTime: string;
@@ -153,6 +166,8 @@ export type TraceRow = {
   outputSnippet?: { text: string; highlight: [number, number] };
   attributesSnippet?: { text: string; highlight: [number, number] };
   snippetsCount?: number;
+  /** Populated server-side when Feature.SIGNALS is on; absent on realtime rows. */
+  signals?: TraceRowSignal[];
 };
 
 export type RealtimeTracePayload = {

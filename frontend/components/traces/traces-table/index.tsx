@@ -32,7 +32,9 @@ import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatab
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { Switch } from "@/components/ui/switch";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
+import { Feature } from "@/lib/features/features";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type TraceRow } from "@/lib/traces/types";
@@ -108,7 +110,11 @@ function TracesTableContent() {
     shallow
   );
 
-  const columnDefs = useMemo(() => buildColumnDefs(customColumns), [customColumns]);
+  const signalsEnabled = useFeatureFlags()[Feature.SIGNALS];
+  const columnDefs = useMemo(
+    () => buildColumnDefs(customColumns, { signals: signalsEnabled }),
+    [customColumns, signalsEnabled]
+  );
 
   // Merge static filter definitions with custom column filters.
   const allFilters = useMemo<ColumnFilter[]>(() => {

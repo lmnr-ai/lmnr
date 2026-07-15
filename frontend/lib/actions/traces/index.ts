@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import { type Filter } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
+import { getTraceRowSignals } from "@/lib/actions/signals/trace";
 import { executeQuery } from "@/lib/actions/sql";
 import { searchSpans, type SpanSearchHit } from "@/lib/actions/traces/search";
 import {
@@ -13,6 +14,7 @@ import {
 import { clickhouseClient } from "@/lib/clickhouse/client.ts";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { type TraceRow } from "@/lib/traces/types.ts";
 
 import { DEFAULT_SEARCH_MAX_HITS } from "./utils";
@@ -136,9 +138,26 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     }
   }
 
+  await attachTraceSignals(projectId, items);
+
   return {
     items,
   };
+}
+
+/** Attach signal chips to a page of trace rows. Best-effort — never fails the traces fetch. */
+async function attachTraceSignals(projectId: string, items: TraceRow[]): Promise<void> {
+  if (!isFeatureEnabled(Feature.SIGNALS) || items.length === 0) return;
+  try {
+    const signalsByTrace = await getTraceRowSignals({ projectId, traceIds: items.map((item) => item.id) });
+    if (signalsByTrace.size === 0) return;
+    for (const item of items) {
+      const traceSignals = signalsByTrace.get(item.id);
+      if (traceSignals) item.signals = traceSignals;
+    }
+  } catch (error) {
+    console.warn("Failed to attach trace signals:", error);
+  }
 }
 
 export async function countTraces(input: z.infer<typeof GetTracesSchema>): Promise<{ count: number }> {

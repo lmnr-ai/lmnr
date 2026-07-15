@@ -4,9 +4,11 @@ import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { executeQuery } from "@/lib/actions/sql";
+import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { signals } from "@/lib/db/migrations/schema";
 import { type EventRow } from "@/lib/events/types";
+import { type TraceRowSignal } from "@/lib/traces/types";
 
 export const GetTraceSignalsSchema = z.object({
   projectId: z.guid(),
@@ -128,6 +130,143 @@ export async function getTraceSignals(input: z.infer<typeof GetTraceSignalsSchem
       events: mappedEvents,
     };
   });
+}
+
+export const GetTraceRowSignalsSchema = z.object({
+  projectId: z.guid(),
+  traceIds: z.array(z.guid()).min(1),
+});
+
+const MAX_SUMMARIES_PER_SIGNAL = 5;
+
+type BatchEventRow = {
+  id: string;
+  signalId: string;
+  traceId: string;
+  severity: number;
+  summary: string;
+};
+
+/**
+ * Per-trace signal chips for the traces table, batched over one page of trace ids.
+ *
+ * Deliberately does NOT read signal_events_v0: its `clusters` column comes from a
+ * project-wide events_to_clusters ⋈ signal_event_clusters join that runs even when
+ * the column isn't selected. Instead three explicitly keyed reads, each pruning on
+ * its table's primary key (events by trace_id set, links by event_id, clusters by id).
+ */
+export async function getTraceRowSignals(
+  input: z.infer<typeof GetTraceRowSignalsSchema>
+): Promise<Map<string, TraceRowSignal[]>> {
+  const { projectId, traceIds } = GetTraceRowSignalsSchema.parse(input);
+
+  const eventsResult = await clickhouseClient.query({
+    query: `
+      SELECT
+        id,
+        signal_id as signalId,
+        trace_id as traceId,
+        severity,
+        summary
+      FROM signal_events
+      WHERE project_id = {projectId: UUID}
+        AND trace_id IN ({traceIds: Array(UUID)})
+      ORDER BY timestamp DESC
+    `,
+    query_params: { projectId, traceIds },
+  });
+  const events = (await eventsResult.json()).data as BatchEventRow[];
+  if (events.length === 0) return new Map();
+
+  const [eventClusters, signalNames] = await Promise.all([
+    fetchEventLeafClusters(
+      projectId,
+      events.map((e) => e.id)
+    ),
+    db
+      .select({ id: signals.id, name: signals.name })
+      .from(signals)
+      .where(and(eq(signals.projectId, projectId), inArray(signals.id, [...new Set(events.map((e) => e.signalId))])))
+      .then((rows) => new Map(rows.map((r) => [r.id, r.name]))),
+  ]);
+
+  const result = new Map<string, TraceRowSignal[]>();
+  // Events are timestamp-DESC, so the first event seen per (trace, signal) is the
+  // latest — its leaf cluster becomes the chip's cluster.
+  for (const e of events) {
+    const signalName = signalNames.get(e.signalId);
+    if (!signalName) continue;
+
+    const traceSignals = result.get(e.traceId) ?? [];
+    let chip = traceSignals.find((s) => s.signalId === e.signalId);
+    if (!chip) {
+      const leaf = eventClusters.get(e.id) ?? null;
+      chip = {
+        signalId: e.signalId,
+        signalName,
+        eventCount: 0,
+        maxSeverity: e.severity,
+        clusterId: leaf?.id ?? null,
+        clusterName: leaf?.name ?? null,
+        summaries: [],
+      };
+      traceSignals.push(chip);
+      result.set(e.traceId, traceSignals);
+    }
+    chip.eventCount += 1;
+    chip.maxSeverity = Math.max(chip.maxSeverity, e.severity);
+    if (e.summary && chip.summaries.length < MAX_SUMMARIES_PER_SIGNAL) {
+      chip.summaries.push(e.summary);
+    }
+  }
+
+  return result;
+}
+
+/** Resolve each event's deepest (highest-level) named cluster via keyed lookups. */
+async function fetchEventLeafClusters(
+  projectId: string,
+  eventIds: string[]
+): Promise<Map<string, TraceSignalClusterNode>> {
+  const linksResult = await clickhouseClient.query({
+    query: `
+      SELECT event_id as eventId, cluster_id as clusterId
+      FROM events_to_clusters FINAL
+      WHERE project_id = {projectId: UUID}
+        AND event_id IN ({eventIds: Array(UUID)})
+    `,
+    query_params: { projectId, eventIds },
+  });
+  const links = (await linksResult.json()).data as { eventId: string; clusterId: string }[];
+  if (links.length === 0) return new Map();
+
+  const clustersResult = await clickhouseClient.query({
+    query: `
+      SELECT id, name, level
+      FROM signal_event_clusters FINAL
+      WHERE project_id = {projectId: UUID}
+        AND id IN ({clusterIds: Array(UUID)})
+        AND level > 0
+    `,
+    query_params: { projectId, clusterIds: [...new Set(links.map((l) => l.clusterId))] },
+  });
+  const clusterMeta = new Map(
+    ((await clustersResult.json()).data as TraceSignalClusterNode[]).map((c) => [
+      c.id,
+      { ...c, level: Number(c.level) },
+    ])
+  );
+
+  const leafByEvent = new Map<string, TraceSignalClusterNode>();
+  for (const link of links) {
+    const cluster = clusterMeta.get(link.clusterId);
+    if (!cluster) continue;
+    const current = leafByEvent.get(link.eventId);
+    if (!current || cluster.level > current.level) {
+      leafByEvent.set(link.eventId, cluster);
+    }
+  }
+  return leafByEvent;
 }
 
 async function fetchClusterNodes(
