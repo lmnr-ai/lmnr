@@ -16,7 +16,7 @@ export const currencyFormatter = new Intl.NumberFormat("en-US", {
 
 // No `$` — paired with a CircleDollarSign icon in shields.
 const costNumberFormatter = new Intl.NumberFormat("en-US", {
-  maximumFractionDigits: 3,
+  maximumFractionDigits: 4,
   minimumFractionDigits: 1,
 });
 
@@ -27,6 +27,7 @@ export function formatCostNumber(n: number | null | undefined): string {
 
 export function formatDurationMs(ms: number | null | undefined): string {
   if (ms == null || !isFinite(ms) || ms < 0) return "-";
+  if (ms === 0) return "0ms";
   if (ms < 1) return "<1ms";
   if (ms < 1000) return `${Math.round(ms)}ms`;
 

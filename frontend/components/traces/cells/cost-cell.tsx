@@ -26,7 +26,7 @@ export function CostCell({ stats, className }: CostCellProps) {
           <span className={cn("truncate", className)}>{currencyFormatter.format(totalCost)}</span>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent className="flex flex-col border gap-1 min-w-[200px] px-3 py-2">
+          <TooltipContent className="flex flex-col border gap-1 p-2">
             <CostBreakdown stats={stats} />
           </TooltipContent>
         </TooltipPortal>

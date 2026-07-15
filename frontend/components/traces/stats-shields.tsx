@@ -14,7 +14,7 @@ import {
   formatDurationMs,
   formatTokensCompact,
 } from "@/lib/traces/format";
-import { type Span, type TraceRow } from "@/lib/traces/types.ts";
+import { type Span, SpanType, type TraceRow } from "@/lib/traces/types.ts";
 import { cn } from "@/lib/utils";
 
 import { Label } from "../ui/label";
@@ -218,7 +218,11 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
         </TooltipTrigger>
         <TooltipPortal>
           <TooltipContent side="bottom" className="flex flex-col border gap-1 min-w-55 p-2">
-            {span ? <InputTokenBreakdown span={span} /> : <TokensBreakdown stats={stats} labelPrefix={labelPrefix} />}
+            {span && (span.spanType === SpanType.LLM || span?.spanType === SpanType.CACHED) ? (
+              <InputTokenBreakdown span={span} />
+            ) : (
+              <TokensBreakdown stats={stats} labelPrefix={labelPrefix} />
+            )}
           </TooltipContent>
         </TooltipPortal>
       </Tooltip>

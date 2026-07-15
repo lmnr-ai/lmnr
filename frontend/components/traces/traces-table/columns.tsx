@@ -183,7 +183,11 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     size: 100,
   },
   {
-    cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
+    cell: (row) => (
+      <CopyTooltip value={row.getValue()} className="block truncate">
+        <Mono className="text-xs">{row.getValue()}</Mono>
+      </CopyTooltip>
+    ),
     header: "Session ID",
     accessorKey: "sessionId",
     id: "session_id",
@@ -191,7 +195,11 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     meta: { sql: "session_id" },
   },
   {
-    cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
+    cell: (row) => (
+      <CopyTooltip value={row.getValue()} className="block truncate">
+        <Mono className="text-xs">{row.getValue()}</Mono>
+      </CopyTooltip>
+    ),
     header: "User ID",
     accessorKey: "userId",
     id: "user_id",
