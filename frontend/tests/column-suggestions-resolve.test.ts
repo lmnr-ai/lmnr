@@ -22,7 +22,7 @@ const mkSuggestion = (id: string, name = id): ColumnSuggestion => ({
 const label = mkSuggestion("label", "Label");
 
 const base = {
-  existingColumnNames: [] as string[],
+  existingColumnIds: [] as string[],
   existingSuggestionKeys: [] as string[],
   persisted: {} as Record<string, SuggestionRecord>,
   disabled: false,
@@ -60,24 +60,25 @@ describe("resolveColumnSuggestions", () => {
     assert.deepEqual(res.toGenerate, []);
   });
 
-  it("skips when a column of the same name already exists (self guard)", () => {
-    const res = resolveColumnSuggestions({ ...base, suggestions: [label], existingColumnNames: ["Label"] });
+  it("skips when a custom column with the suggestion's id already exists (self guard)", () => {
+    const res = resolveColumnSuggestions({ ...base, suggestions: [label], existingColumnIds: ["custom:Label"] });
     assert.deepEqual(res.toShow, []);
     assert.deepEqual(res.toGenerate, []);
   });
 
-  it("name match is case-insensitive", () => {
-    const res = resolveColumnSuggestions({ ...base, suggestions: [label], existingColumnNames: ["label"] });
+  it("id match is case-insensitive", () => {
+    const res = resolveColumnSuggestions({ ...base, suggestions: [label], existingColumnIds: ["custom:label"] });
     assert.deepEqual(res.toGenerate, []);
     assert.deepEqual(res.toShow, []);
   });
 
   it("skips when a kept custom column carries the suggestion key (cross-user / rename-proof)", () => {
-    // Column was renamed away from "Label" but still carries suggestionKey "label".
+    // Column was renamed away from "Label" (id now custom:Renamed) but still
+    // carries suggestionKey "label" — the id compare misses, the key guard catches it.
     const res = resolveColumnSuggestions({
       ...base,
       suggestions: [label],
-      existingColumnNames: ["Renamed"],
+      existingColumnIds: ["custom:Renamed"],
       existingSuggestionKeys: ["label"],
     });
     assert.deepEqual(res.toShow, []);
@@ -102,7 +103,7 @@ describe("resolveColumnSuggestions", () => {
     const res = resolveColumnSuggestions({
       ...base,
       suggestions: [a, b, c],
-      existingColumnNames: ["Gamma"], // c is skipped
+      existingColumnIds: ["custom:Gamma"], // c is skipped
       persisted: { b: { status: "pending", sql: "b_sql" } }, // b shows, a generates
     });
     assert.deepEqual(

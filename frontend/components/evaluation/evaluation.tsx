@@ -115,8 +115,10 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
   // Proactive column suggestions (e.g. the "Label" column). Suppressed in shared
   // evals, when a same-named column exists, or when a kept-and-saved custom column
   // already carries the suggestion key (cross-user guard via the view config).
-  const existingColumnNames = useMemo(
-    () => baseColumnDefs.map((c) => (typeof c.header === "string" ? c.header : "")).filter(Boolean),
+  // Collision guard keys off column IDs (a kept suggestion becomes `custom:<name>`),
+  // not the rendered header — ids are stable and never a React component.
+  const existingColumnIds = useMemo(
+    () => baseColumnDefs.map((c) => c.id).filter((id): id is string => !!id),
     [baseColumnDefs]
   );
   const existingSuggestionKeys = useMemo(
@@ -150,9 +152,11 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
     resource: RESOURCE,
     scopeId: evaluationId,
     suggestions,
-    existingColumnNames,
+    existingColumnIds,
     existingSuggestionKeys,
-    disabled: isShared,
+    // Suppress in comparison mode: suggested cols are proposals for the primary
+    // eval and have no compared value, so they'd render an empty comparison cell.
+    disabled: isShared || isComparison,
     onKeep: onKeepSuggestion,
     onError: onSuggestionError,
   });

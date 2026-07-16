@@ -32,8 +32,10 @@ export const resolvedRecord = (): SuggestionRecord => ({ status: "resolved" });
 
 export interface ResolveInput {
   suggestions: ColumnSuggestion[];
-  /** Names of columns already present on the table (custom + built-in). */
-  existingColumnNames: string[];
+  /** IDs of columns already present on the table (custom + built-in). A kept
+   *  suggestion occupies the id `custom:<name>`, so collision is an id compare —
+   *  more stable than matching the rendered header (which can be a component). */
+  existingColumnIds: string[];
   /** suggestionKeys of custom columns already present (kept-and-saved guard;
    *  survives a rename, and works cross-user via the persisted view config). */
   existingSuggestionKeys: string[];
@@ -51,17 +53,17 @@ export interface SuggestionResolution {
 }
 
 export function resolveColumnSuggestions(input: ResolveInput): SuggestionResolution {
-  const { suggestions, existingColumnNames, existingSuggestionKeys, persisted, disabled } = input;
+  const { suggestions, existingColumnIds, existingSuggestionKeys, persisted, disabled } = input;
   const result: SuggestionResolution = { toShow: [], toGenerate: [] };
   if (disabled) return result;
 
-  const existingLower = new Set(existingColumnNames.map((n) => n.toLowerCase()));
+  const existingIdsLower = new Set(existingColumnIds.map((id) => id.toLowerCase()));
   const existingKeys = new Set(existingSuggestionKeys);
 
   for (const suggestion of suggestions) {
-    // Already adopted: a column of that name exists, or a kept-and-saved column
-    // carries this suggestion's key (cross-user / survives rename).
-    if (existingLower.has(suggestion.name.toLowerCase())) continue;
+    // Already adopted: a custom column with this suggestion's id (`custom:<name>`)
+    // exists, or a kept-and-saved column carries its key (cross-user / survives rename).
+    if (existingIdsLower.has(`custom:${suggestion.name}`.toLowerCase())) continue;
     if (existingKeys.has(suggestion.id)) continue;
     const record = persisted[suggestion.id];
     if (record?.status === "resolved") continue;

@@ -41,8 +41,8 @@ export interface UseColumnSuggestionsArgs {
   /** Scope within the resource, e.g. the evaluation id. Part of the key. */
   scopeId: string;
   suggestions: ColumnSuggestion[];
-  /** Names of columns already on the table (custom + built-in) — collision guard. */
-  existingColumnNames: string[];
+  /** IDs of columns already on the table (custom + built-in) — collision guard. */
+  existingColumnIds: string[];
   /** suggestionKeys of existing custom columns (kept-and-saved / cross-user guard). */
   existingSuggestionKeys: string[];
   /** True where suggestions must never appear (e.g. shared evals). */
@@ -74,7 +74,7 @@ export function useColumnSuggestions({
   resource,
   scopeId,
   suggestions,
-  existingColumnNames,
+  existingColumnIds,
   existingSuggestionKeys,
   disabled,
   onKeep,
@@ -82,9 +82,12 @@ export function useColumnSuggestions({
 }: UseColumnSuggestionsArgs): UseColumnSuggestionsResult {
   const storageKey = useMemo(() => keyFor(resource, scopeId), [resource, scopeId]);
   // Read once at mount via a lazy initializer (SSR-safe: returns {} on the
-  // server). Consumers are expected to remount the hook per scope — the eval
-  // page keys its providers on the evaluation id, the established pattern here —
-  // so a fresh `scopeId` gets a fresh read without a set-state-in-effect reload.
+  // server; the client re-runs it at hydration and reads localStorage). Consumers
+  // MUST remount the hook per scope — the eval page keys its providers on the
+  // evaluation id, the established pattern here — so a fresh `scopeId` gets a
+  // fresh read. FOOTGUN: `persisted` and `attempted` are captured at mount and
+  // never reset on prop change, so if a caller ever changes `scopeId` WITHOUT
+  // remounting, it will show the prior scope's cache and block generation.
   const [persisted, setPersisted] = useState<PersistedMap>(() => loadPersisted(storageKey));
 
   const setRecord = useCallback(
@@ -99,8 +102,8 @@ export function useColumnSuggestions({
   );
 
   const resolution = useMemo(
-    () => resolveColumnSuggestions({ suggestions, existingColumnNames, existingSuggestionKeys, persisted, disabled }),
-    [suggestions, existingColumnNames, existingSuggestionKeys, persisted, disabled]
+    () => resolveColumnSuggestions({ suggestions, existingColumnIds, existingSuggestionKeys, persisted, disabled }),
+    [suggestions, existingColumnIds, existingSuggestionKeys, persisted, disabled]
   );
 
   // Run generation for eligible suggestions exactly once per mount. Each run gets
