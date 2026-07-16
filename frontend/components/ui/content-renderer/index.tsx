@@ -106,7 +106,7 @@ const PureContentRenderer = ({
   const markdownContainerRef = useRef<HTMLDivElement | null>(null);
   const [editorMountKey, setEditorMountKey] = useState(0);
 
-  const [mode, setMode] = useState(() => {
+  const [selectedMode, setSelectedMode] = useState(() => {
     const allowed = modes.map((m) => m.toLowerCase());
     if (presetKey && typeof window !== "undefined") {
       const savedMode = localStorage.getItem(`formatter-mode-${presetKey}`);
@@ -114,6 +114,13 @@ const PureContentRenderer = ({
     }
     return defaultMode;
   });
+  // `defaultMode`/`modes` are content-derived at some call sites (resolveContentMode)
+  // and can change on a mounted instance (virtualized rows reuse components across
+  // span switches) — reconcile instead of trusting the once-initialized selection.
+  const mode = useMemo(
+    () => (modes.some((m) => m.toLowerCase() === selectedMode) ? selectedMode : defaultMode),
+    [modes, selectedMode, defaultMode]
+  );
 
   const [shouldRenderImages, setShouldRenderImages] = useState(renderBase64Images);
 
@@ -129,7 +136,7 @@ const PureContentRenderer = ({
 
   const handleModeChange = useCallback(
     (newMode: string) => {
-      setMode(newMode);
+      setSelectedMode(newMode);
       if (presetKey && typeof window !== "undefined") {
         localStorage.setItem(`formatter-mode-${presetKey}`, newMode);
       }
