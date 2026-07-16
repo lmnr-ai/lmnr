@@ -1,8 +1,49 @@
 import { findMatchOffsets, type MatchOffset } from "@/components/traces/span-view/searchable/find-matches";
 import { type SearchableSource } from "@/components/traces/span-view/searchable/types";
 
-const MATCH_CLASS = "span-search-match";
-const ACTIVE_CLASS = "span-search-active";
+// CSS Custom Highlight API names, styled via ::highlight(...) in globals.css.
+// Highlights paint through Ranges without touching the DOM — mark-wrapping is
+// not an option here: splitting/reparenting Streamdown's React-managed text
+// nodes corrupts the next reconciliation pass.
+const MATCH_HIGHLIGHT = "span-search-match";
+const ACTIVE_HIGHLIGHT = "span-search-active";
+
+// lib.dom's Highlight/HighlightRegistry interfaces omit their setlike/maplike
+// members (TS 5.8), so we type the surface we use.
+interface HighlightLike {
+  priority: number;
+  add(range: AbstractRange): void;
+  delete(range: AbstractRange): boolean;
+}
+
+interface SharedHighlights {
+  match: HighlightLike;
+  active: HighlightLike;
+}
+
+// One Highlight object per name, shared by all sources (the registry is
+// document-global); each source only adds/deletes its own ranges.
+function getSharedHighlights(): SharedHighlights | null {
+  if (typeof CSS === "undefined" || !("highlights" in CSS) || typeof Highlight === "undefined") {
+    return null;
+  }
+  const registry = CSS.highlights as unknown as Map<string, HighlightLike>;
+
+  let match = registry.get(MATCH_HIGHLIGHT);
+  if (!match) {
+    match = new Highlight() as unknown as HighlightLike;
+    registry.set(MATCH_HIGHLIGHT, match);
+  }
+
+  let active = registry.get(ACTIVE_HIGHLIGHT);
+  if (!active) {
+    active = new Highlight() as unknown as HighlightLike;
+    active.priority = 1; // paint over the plain match highlight
+    registry.set(ACTIVE_HIGHLIGHT, active);
+  }
+
+  return { match, active };
+}
 
 interface TextNodeSpan {
   node: Text;
@@ -67,51 +108,38 @@ function collectSearchable(root: HTMLElement): { spans: TextNodeSpan[]; text: st
   return { spans, text: parts.join("") };
 }
 
-function unwrapMark(mark: HTMLElement) {
-  const parent = mark.parentNode;
-  if (!parent) return;
-  while (mark.firstChild) {
-    parent.insertBefore(mark.firstChild, mark);
-  }
-  parent.removeChild(mark);
-  parent.normalize();
-}
-
-/** Wrap each text-node slice of `offset` in a `<mark>`. Process one offset at a time
- *  after a fresh text-node walk — callers must wrap from last match to first so earlier
- *  offsets stay valid. */
-function wrapOffset(root: HTMLElement, offset: MatchOffset): HTMLElement[] {
-  const { spans } = collectSearchable(root);
-  const marks: HTMLElement[] = [];
+/** A single Range can span multiple text nodes: anchor its start in the first
+ *  overlapping span and its end in the last. */
+function rangeForOffset(spans: TextNodeSpan[], offset: MatchOffset): Range | null {
+  let startSpan: TextNodeSpan | null = null;
+  let endSpan: TextNodeSpan | null = null;
 
   for (const span of spans) {
-    if (offset.end <= span.start || offset.start >= span.end) continue;
-
-    const localStart = Math.max(0, offset.start - span.start);
-    const localEnd = Math.min(span.node.length, offset.end - span.start);
-    if (localStart >= localEnd) continue;
-
-    // Split so the matched slice is its own text node, then wrap it.
-    let node = span.node;
-    if (localEnd < node.length) {
-      node.splitText(localEnd);
-    }
-    if (localStart > 0) {
-      node = node.splitText(localStart);
-    }
-
-    const mark = document.createElement("mark");
-    mark.className = MATCH_CLASS;
-    node.parentNode?.insertBefore(mark, node);
-    mark.appendChild(node);
-    marks.push(mark);
+    if (offset.end <= span.start) break;
+    if (offset.start >= span.end) continue;
+    startSpan ??= span;
+    endSpan = span;
   }
+  if (!startSpan || !endSpan) return null;
 
-  return marks;
+  const range = document.createRange();
+  range.setStart(startSpan.node, Math.max(0, offset.start - startSpan.start));
+  range.setEnd(endSpan.node, Math.min(endSpan.node.length, offset.end - endSpan.start));
+  return range;
 }
 
-function scrollMarkIntoView(mark: HTMLElement) {
-  mark.scrollIntoView({ block: "center", behavior: "instant" });
+function scrollRangeIntoView(range: Range, container: HTMLElement) {
+  let scroller: HTMLElement | null = container;
+  while (scroller && scroller !== document.body) {
+    const { overflowY } = getComputedStyle(scroller);
+    if ((overflowY === "auto" || overflowY === "scroll") && scroller.scrollHeight > scroller.clientHeight) break;
+    scroller = scroller.parentElement;
+  }
+  if (!scroller || scroller === document.body) return;
+
+  const rect = range.getBoundingClientRect();
+  const scrollerRect = scroller.getBoundingClientRect();
+  scroller.scrollTop += rect.top - scrollerRect.top - scroller.clientHeight / 2 + rect.height / 2;
 }
 
 interface DomSearchSourceOptions {
@@ -127,30 +155,27 @@ export function createDomSearchSource({
   messageIndex,
   contentPartIndex,
 }: DomSearchSourceOptions): SearchableSource {
-  // Each match may span multiple text nodes → multiple marks.
-  let matchMarks: HTMLElement[][] = [];
-  let activeIndex = -1;
+  // Without Highlight API support, matches are still counted and scrolled to;
+  // they just don't paint.
+  const highlights = getSharedHighlights();
+  let ranges: Range[] = [];
+  let activeRange: Range | null = null;
 
-  const clearActiveClass = () => {
-    if (activeIndex < 0 || activeIndex >= matchMarks.length) {
-      activeIndex = -1;
-      return;
+  const clearActive = () => {
+    if (activeRange) {
+      highlights?.active.delete(activeRange);
+      activeRange = null;
     }
-    for (const mark of matchMarks[activeIndex]) {
-      mark.classList.remove(ACTIVE_CLASS);
-    }
-    activeIndex = -1;
   };
 
   const clearMatches = () => {
-    clearActiveClass();
-    // Unwrap last→first so sibling splits stay stable while walking.
-    for (let i = matchMarks.length - 1; i >= 0; i--) {
-      for (let j = matchMarks[i].length - 1; j >= 0; j--) {
-        unwrapMark(matchMarks[i][j]);
+    clearActive();
+    if (highlights) {
+      for (const range of ranges) {
+        highlights.match.delete(range);
       }
     }
-    matchMarks = [];
+    ranges = [];
   };
 
   return {
@@ -163,35 +188,28 @@ export function createDomSearchSource({
       const trimmed = term.trim();
       if (!trimmed) return 0;
 
-      const { text } = collectSearchable(container);
+      const { spans, text } = collectSearchable(container);
       const offsets = findMatchOffsets(text, trimmed);
-      if (offsets.length === 0) return 0;
 
-      // Wrap last→first so earlier character offsets remain valid in the live DOM.
-      const marksByMatch: HTMLElement[][] = new Array(offsets.length);
-      for (let i = offsets.length - 1; i >= 0; i--) {
-        marksByMatch[i] = wrapOffset(container, offsets[i]);
+      for (const offset of offsets) {
+        const range = rangeForOffset(spans, offset);
+        if (!range) continue;
+        ranges.push(range);
+        highlights?.match.add(range);
       }
-      matchMarks = marksByMatch;
 
-      return matchMarks.length;
+      return ranges.length;
     },
     goTo(localIndex: number) {
-      if (localIndex < 0 || localIndex >= matchMarks.length) return;
+      const range = ranges[localIndex];
+      if (!range) return;
 
-      clearActiveClass();
-      activeIndex = localIndex;
-      const marks = matchMarks[localIndex];
-      for (const mark of marks) {
-        mark.classList.add(ACTIVE_CLASS);
-      }
-      if (marks[0]) {
-        scrollMarkIntoView(marks[0]);
-      }
+      clearActive();
+      activeRange = range;
+      highlights?.active.add(range);
+      scrollRangeIntoView(range, container);
     },
-    clearActive() {
-      clearActiveClass();
-    },
+    clearActive,
     destroy() {
       clearMatches();
     },

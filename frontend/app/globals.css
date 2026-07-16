@@ -567,21 +567,16 @@
     color: white;
   }
 
-  /* Match CodeMirror .cm-searchMatch / .cm-searchMatch-selected (content-renderer/utils.ts). */
-  mark.span-search-match {
+  /* CSS Custom Highlight API (searchable/dom-source.ts). Match CodeMirror
+     .cm-searchMatch / .cm-searchMatch-selected (content-renderer/utils.ts);
+     ::highlight() only allows color/background/text-decoration properties. */
+  ::highlight(span-search-match) {
     background-color: hsl(var(--primary) / 0.3);
-    border: 1px solid hsl(var(--primary));
-    border-radius: 3px;
-    color: inherit;
-    padding: 0;
-    -webkit-box-decoration-break: clone;
-    box-decoration-break: clone;
   }
 
-  mark.span-search-match.span-search-active {
+  ::highlight(span-search-active) {
     background-color: hsl(var(--primary));
     color: hsl(var(--primary-foreground));
-    font-weight: 600;
   }
 
   .font-sans-landing {
