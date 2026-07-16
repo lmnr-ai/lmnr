@@ -31,7 +31,6 @@ pnpm build                      # Production build
 ```
 
 - In a fresh checkout, `pnpm type-check` (and the husky pre-commit hook, which runs it) fails with dozens of `TS2307: Cannot find module '@/assets/...svg'` errors — `next-env.d.ts` is gitignored and carries the image-module declarations. Fix: `npx next typegen` (or any `next dev`/`next build` run) regenerates it.
-- Like the app-server (see `PORT` env inheritance note below), `next dev` also honors an inherited `PORT` env var over its default 3000 — in a sandbox/agent shell that exports `PORT`, launch with an explicit `PORT=3000 pnpm run dev` or the dev server binds the wrong port (often the agent's own, failing with EADDRINUSE).
 
 ### Backend (Rust)
 
