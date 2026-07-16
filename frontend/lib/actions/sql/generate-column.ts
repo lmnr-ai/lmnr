@@ -31,8 +31,9 @@ export interface GenerateColumnSqlResult {
   reason?: "none" | "error";
 }
 
-// Runaway guard — write → verify → fix should finish in a handful of steps.
-const MAX_STEPS = 8;
+// Runaway guard. Each candidate costs a verify round-trip + an LLM step, so give
+// enough budget to iterate a few times AND still submit before the cap.
+const MAX_STEPS = 16;
 
 const SYSTEM_INSTRUCTIONS = `You write a single ClickHouse SQL *expression* to be used as a custom table column: it is spliced into "SELECT <expression> FROM <table>".
 
@@ -97,7 +98,16 @@ export const generateColumnSql = async (
   if (sampleRows.length === 0) return { success: false, reason: "error" };
 
   let submitted: string | null = null;
+  // Latest expression that verified cleanly with non-empty values — used as a
+  // fallback if the agent runs out of steps before formally submitting.
+  let lastVerified: string | null = null;
   let agentErrored = false;
+
+  const hasUsefulValue = (rows: Record<string, unknown>[]) =>
+    rows.some((r) => {
+      const v = r.value;
+      return v !== null && v !== undefined && String(v).trim() !== "";
+    });
 
   const agent = new LaminarToolLoopAgent({
     name: "generateColumnSql",
@@ -110,7 +120,11 @@ export const generateColumnSql = async (
         description:
           "Run a candidate column expression against the example rows. Returns { ok, rows } or { ok: false, error }.",
         inputSchema: z.object({ sql: z.string().min(1) }),
-        execute: async ({ sql }) => runVerify(sql),
+        execute: async ({ sql }) => {
+          const res = await runVerify(sql);
+          if (res.ok && hasUsefulValue(res.rows)) lastVerified = sql.trim();
+          return res;
+        },
       }),
       submitColumnSql: tool({
         description:
@@ -134,6 +148,9 @@ export const generateColumnSql = async (
     agentErrored = true;
   }
 
-  if (submitted) return { success: true, sql: submitted };
+  // Prefer a formal submit; fall back to the last verified expression so a
+  // step-cap exhaustion after a working candidate isn't wasted.
+  const finalSql = submitted ?? lastVerified;
+  if (finalSql) return { success: true, sql: finalSql };
   return { success: false, reason: agentErrored ? "error" : "none" };
 };
