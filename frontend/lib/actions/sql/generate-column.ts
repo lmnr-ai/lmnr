@@ -39,11 +39,12 @@ const SYSTEM_INSTRUCTIONS = `You write a single ClickHouse SQL *expression* to b
 
 Rules:
 - Output an EXPRESSION only — no SELECT, no AS alias, no semicolons, no trailing clauses.
-- You are given a few example rows. Use the verifyColumnSql tool to run your candidate against real data: it evaluates "SELECT <expression> AS value FROM <table> LIMIT 5" and returns the resulting values or the ClickHouse error.
-- Iterate until the expression runs with NO error and produces useful, non-empty values for most rows.
-- Prefer concise, robust expressions. When extracting from JSON string columns use simpleJSONExtractString / simpleJSONExtractRaw. Guard against missing keys (e.g. coalesce / nullIf) so the value is rarely empty.
-- When you are confident, call submitColumnSql with the final verified expression. Only submit an expression you have successfully verified.
-- If no useful expression is possible, submit nothing.`;
+- You are given a few example rows. Use the verifyColumnSql tool to test a candidate: it evaluates "SELECT <expression> AS value FROM <table> LIMIT 5" and returns the resulting values or the ClickHouse error.
+- STOP EARLY. As soon as a candidate verifies with no error and produces useful, non-empty, DISTINCT values across the sample rows, call submitColumnSql with THAT expression. Do not keep refining something that already works.
+- Prefer the SIMPLEST expression. If a single field (e.g. simpleJSONExtractString(metadata, 'name')) already gives good distinct values, submit it as-is. Do NOT append ids/suffixes or build if/coalesce fallback chains onto an expression that already works — that only adds noise.
+- Only reach for guards (coalesce / nullIf) or a fallback field when the simple expression actually returned empty or identical values across the rows.
+- When extracting from JSON string columns use simpleJSONExtractString / simpleJSONExtractRaw.
+- Only submit an expression you have successfully verified. If no useful expression is possible, submit nothing.`;
 
 const buildUserPrompt = (input: GenerateColumnSqlInput, sampleRows: unknown[]): string =>
   [
