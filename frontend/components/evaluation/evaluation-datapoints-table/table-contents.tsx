@@ -27,6 +27,8 @@ interface EvaluationDatapointsTableContentsProps {
   sortDirection?: "asc" | "desc";
   onSort: (columnId: string, direction: "asc" | "desc") => void;
   heatmapEnabled?: boolean;
+  scoreDirections?: Record<string, boolean>;
+  onToggleScoreDirection?: (scoreName: string) => void;
   isSearchActive: boolean;
 }
 
@@ -49,6 +51,8 @@ export const EvaluationDatapointsTableContents = memo(function EvaluationDatapoi
   sortDirection,
   onSort,
   heatmapEnabled,
+  scoreDirections,
+  onToggleScoreDirection,
   isSearchActive,
 }: PropsWithChildren<EvaluationDatapointsTableContentsProps>) {
   if (isLoading) return <EvalTableSkeleton />;
@@ -63,6 +67,8 @@ export const EvaluationDatapointsTableContents = memo(function EvaluationDatapoi
           isShared,
           heatmapEnabled: heatmapEnabled ?? false,
           scoreRanges,
+          scoreDirections,
+          onToggleScoreDirection,
         },
       }}
       hasMore={!isSearchActive && hasMore}

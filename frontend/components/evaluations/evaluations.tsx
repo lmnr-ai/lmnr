@@ -26,6 +26,8 @@ import { track } from "@/lib/posthog";
 import { swrFetcher } from "@/lib/utils";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
+import { higherBetterMenuItem } from "../evaluation/columns/score-cell";
+import { useScoreDirections } from "../evaluation/use-score-directions";
 import Header from "../ui/header";
 import Mono from "../ui/mono";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
@@ -79,23 +81,40 @@ function buildScoreColumns(
   scoreNames: string[],
   scoresByEvalId: Record<string, Record<string, number | null>>,
   heatmapEnabled: boolean,
-  scoreRanges: Record<string, ScoreRange>
+  scoreRanges: Record<string, ScoreRange>,
+  isHigherBetter: (scoreName: string) => boolean,
+  onToggleScoreDirection?: (scoreName: string) => void
 ): ColumnDef<Evaluation>[] {
-  return scoreNames.map((scoreName) => ({
-    id: `score:${scoreName}`,
-    header: scoreName,
-    accessorFn: (row) => scoresByEvalId[row.id]?.[scoreName] ?? null,
-    cell: (cell) => {
-      const v = cell.getValue() as number | null;
-      if (!isValidScore(v)) return <span className="text-muted-foreground">—</span>;
-      const range = scoreRanges[scoreName];
-      if (heatmapEnabled && range) {
-        return <HeatmapValue value={v} range={range} text={<Mono>{formatScoreValue(v)}</Mono>} />;
-      }
-      return <Mono>{Number.isInteger(v) ? v.toString() : v.toFixed(3)}</Mono>;
-    },
-    size: 120,
-  }));
+  return scoreNames.map((scoreName) => {
+    const higherBetter = isHigherBetter(scoreName);
+    return {
+      id: `score:${scoreName}`,
+      header: scoreName,
+      accessorFn: (row) => scoresByEvalId[row.id]?.[scoreName] ?? null,
+      cell: (cell) => {
+        const v = cell.getValue() as number | null;
+        if (!isValidScore(v)) return <span className="text-muted-foreground">—</span>;
+        const range = scoreRanges[scoreName];
+        if (heatmapEnabled && range) {
+          return (
+            <HeatmapValue
+              value={v}
+              range={range}
+              isHigherBetter={higherBetter}
+              text={<Mono>{formatScoreValue(v)}</Mono>}
+            />
+          );
+        }
+        return <Mono>{Number.isInteger(v) ? v.toString() : v.toFixed(3)}</Mono>;
+      },
+      size: 120,
+      meta: onToggleScoreDirection
+        ? {
+            customDropdownItems: () => [higherBetterMenuItem(higherBetter, () => onToggleScoreDirection(scoreName))],
+          }
+        : undefined,
+    };
+  });
 }
 
 const layoutStorage: LayoutStorage = {
@@ -184,6 +203,9 @@ function EvaluationsContent() {
     allRunIds,
   } = useEvaluationsProgression(params?.projectId, groupId, aggregationFunction);
 
+  // Resolved eval-score directions (override > app-wide LLM default > true).
+  const { isHigherBetter, toggle: toggleScoreDirection } = useScoreDirections(params?.projectId, scoreNames);
+
   const columns = useMemo<ColumnDef<Evaluation>[]>(
     () => [
       {
@@ -231,7 +253,14 @@ function EvaluationsContent() {
         },
       },
       ...baseColumns,
-      ...buildScoreColumns(scoreNames, scoresByEvalId, heatmapEnabled, scoreRanges),
+      ...buildScoreColumns(
+        scoreNames,
+        scoresByEvalId,
+        heatmapEnabled,
+        scoreRanges,
+        isHigherBetter,
+        toggleScoreDirection
+      ),
     ],
     [
       scoreNames,
@@ -242,6 +271,8 @@ function EvaluationsContent() {
       toggleEvaluationVisibility,
       setHiddenEvaluationIds,
       allRunIds,
+      isHigherBetter,
+      toggleScoreDirection,
     ]
   );
 

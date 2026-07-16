@@ -31,6 +31,12 @@ interface EvaluationDatapointsTableProps {
   heatmapEnabled?: boolean;
   onHeatmapEnabledChange?: (enabled: boolean) => void;
   onDeleteCustomColumn?: (columnId: string) => void;
+
+  /** Resolved score directions (name -> isHigherBetter) for delta/heatmap coloring. */
+  scoreDirections?: Record<string, boolean>;
+  /** Flip + persist a score's direction from the header dropdown. Omit to hide the toggle. */
+  onToggleScoreDirection?: (scoreName: string) => void;
+
   searchValue: AdvancedSearchValue;
   onSearchChange: (next: AdvancedSearchValue) => void;
   viewsResource?: string;
@@ -70,6 +76,8 @@ const EvaluationDatapointsTable = ({
   heatmapEnabled,
   onHeatmapEnabledChange,
   onDeleteCustomColumn,
+  scoreDirections,
+  onToggleScoreDirection,
   searchValue,
   onSearchChange,
   viewsResource,
@@ -103,6 +111,8 @@ const EvaluationDatapointsTable = ({
         sortDirection={sortDirection}
         onSort={onSort}
         heatmapEnabled={heatmapEnabled}
+        scoreDirections={scoreDirections}
+        onToggleScoreDirection={onToggleScoreDirection}
         isSearchActive={isSearchActive}
       >
         <EvaluationDatapointsTableControls
