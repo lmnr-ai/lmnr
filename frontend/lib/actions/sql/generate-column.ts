@@ -155,7 +155,9 @@ export const generateColumnSql = async (
   } catch {
     return { success: false, reason: "error" };
   }
-  if (sampleRows.length === 0) return { success: false, reason: "error" };
+  // No datapoints yet is a normal state (fresh eval), not a failure — return
+  // "none" so the client resolves silently instead of toasting on every load.
+  if (sampleRows.length === 0) return { success: false, reason: "none" };
 
   // Structure-keyed cache: reuse a prior generation for the same shape (skips the
   // agent). Best-effort — any cache error falls through to generation. Only keyed
@@ -191,6 +193,7 @@ export const generateColumnSql = async (
   });
 
   let candidate: string | undefined;
+  let producedOutput: boolean;
   try {
     const result = await observe(
       {
@@ -201,11 +204,17 @@ export const generateColumnSql = async (
       },
       () => agent.generate({ prompt: buildUserPrompt(parsed, prepareRows(sampleRows)), abortSignal: signal })
     );
+    producedOutput = result.output != null;
     candidate = result.output?.sql?.trim();
   } catch {
-    // Provider / network error or client-disconnect abort mid-run — transient.
+    // Provider / network error, abort, or the loop ended without a structured
+    // answer (e.g. step cap) — all transient, retry next load.
     return { success: false, reason: "error" };
   }
+
+  // Stopped without producing a final answer (step cap / no structured output) —
+  // transient, not a definitive "no identifier". Retry rather than suppress.
+  if (!producedOutput) return { success: false, reason: "error" };
 
   // Empty answer = the agent found no useful identifier (definitive). Not cached:
   // "none" is now rare (id fallback almost always yields SQL) and caching a negative

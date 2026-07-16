@@ -342,8 +342,16 @@ export async function register() {
         projectApiKey: process.env.LMNR_PROJECT_API_KEY,
         ...(process.env.LMNR_BASE_URL && {
           baseUrl: process.env.LMNR_BASE_URL,
-          ...(process.env.LMNR_HTTP_PORT && { httpPort: Number(process.env.LMNR_HTTP_PORT) }),
-          ...(process.env.LMNR_GRPC_PORT && { grpcPort: Number(process.env.LMNR_GRPC_PORT) }),
+          // Guard with isFinite so a non-numeric value is skipped rather than
+          // passed through as NaN.
+          ...(process.env.LMNR_HTTP_PORT &&
+            Number.isFinite(Number(process.env.LMNR_HTTP_PORT)) && {
+              httpPort: Number(process.env.LMNR_HTTP_PORT),
+            }),
+          ...(process.env.LMNR_GRPC_PORT &&
+            Number.isFinite(Number(process.env.LMNR_GRPC_PORT)) && {
+              grpcPort: Number(process.env.LMNR_GRPC_PORT),
+            }),
         }),
       });
       registerTelemetry(new LaminarAiSdkTelemetry());

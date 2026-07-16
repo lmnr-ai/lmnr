@@ -83,6 +83,9 @@ export function buildColumnDefs({
           filterable: true,
           comparable: true,
           isCustom: true,
+          // Preserve the origin suggestion id so an edit through the columns menu
+          // doesn't wipe the cross-user/rename guard.
+          suggestionKey: cc.suggestionKey,
         },
       }));
   return [...STATIC_COLUMNS, ...scoreCols, ...customCols];
