@@ -380,9 +380,9 @@ const PureContentRenderer = ({
             {content}
           </>
         ) : (
-          <div className="flex flex-1 min-h-0 w-full items-start">
+          <div className="flex flex-1 min-h-0 w-full">
             <div className="flex-1 min-w-0 min-h-0 flex flex-col">{content}</div>
-            <div className="flex items-center shrink-0 gap-0.5 pl-0.5">{actionButtons}</div>
+            <div className="flex items-center self-start shrink-0 gap-0.5 pl-0.5">{actionButtons}</div>
           </div>
         )}
       </div>
