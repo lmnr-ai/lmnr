@@ -8,7 +8,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { projectId } = await params;
     const body = await request.json();
 
-    const result = await generateColumnSql({ ...body, projectId });
+    const result = await generateColumnSql({ ...body, projectId }, request.signal);
 
     return Response.json(result);
   } catch (error) {

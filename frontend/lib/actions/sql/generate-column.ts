@@ -62,7 +62,10 @@ const buildUserPrompt = (input: GenerateColumnSqlInput, sampleRows: unknown[]): 
  * enforced executeQuery), then submits a verified expression. Returns
  * { success: false } when the agent finds nothing usable or errors.
  */
-export const generateColumnSql = async (input: GenerateColumnSqlInput): Promise<GenerateColumnSqlResult> => {
+export const generateColumnSql = async (
+  input: GenerateColumnSqlInput,
+  signal?: AbortSignal
+): Promise<GenerateColumnSqlResult> => {
   const parsed = GenerateColumnSqlSchema.parse(input);
   const { projectId, table, whereSql, parameters, sampleColumns } = parsed;
 
@@ -124,9 +127,10 @@ export const generateColumnSql = async (input: GenerateColumnSqlInput): Promise<
     },
   });
   try {
-    await agent.run(buildUserPrompt(parsed, sampleRows));
+    await agent.run(buildUserPrompt(parsed, sampleRows), { abortSignal: signal });
   } catch {
-    // Provider / network error mid-run — transient, let the caller retry.
+    // Provider / network error or client-disconnect abort mid-run — transient,
+    // let the caller retry. Nothing is persisted.
     agentErrored = true;
   }
 

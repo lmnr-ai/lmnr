@@ -49,8 +49,9 @@ export class LaminarToolLoopAgent extends ToolLoopAgent<never, ToolSet> {
     this.observeArgs = { name, metadata, sessionId };
   }
 
-  /** Run the agent inside a named Laminar span. */
-  run(prompt: string) {
-    return observe({ ...this.observeArgs }, () => this.generate({ prompt }));
+  /** Run the agent inside a named Laminar span. Pass an AbortSignal (e.g. the
+   *  route's `request.signal`) to cancel the loop when the client disconnects. */
+  run(prompt: string, options?: { abortSignal?: AbortSignal }) {
+    return observe({ ...this.observeArgs }, () => this.generate({ prompt, abortSignal: options?.abortSignal }));
   }
 }
