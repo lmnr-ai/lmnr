@@ -320,7 +320,7 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
               trace view, flush to the right + bottom edges with a rounded top-left. */}
           <EvalTraceLayout
             table={
-              <div className="flex h-full w-full flex-col gap-2 overflow-hidden pb-4">
+              <div className="flex h-full w-full flex-col gap-6 overflow-hidden pb-4">
                 <RunScoreCard
                   projectId={params.projectId}
                   evaluationId={evaluationId}

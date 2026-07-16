@@ -75,7 +75,7 @@ export default function RunScoreCard({
   );
 
   return (
-    <div className="flex flex-col gap-3 pr-2">
+    <>
       <div className="flex items-center gap-1.5">
         <ScoresVisibilityPopover
           scoreOrder={scoreOrder}
@@ -85,7 +85,7 @@ export default function RunScoreCard({
         />
         <AggregationSelect />
       </div>
-      <div className="flex gap-2 overflow-x-auto pb-1 scroll-fade-x">
+      <div className="flex gap-4 overflow-x-auto scroll-fade-x px-2 overflow-y-hidden no-scrollbar">
         {visibleScores.map((name) => (
           <ScoreCardItem
             key={name}
@@ -99,6 +99,6 @@ export default function RunScoreCard({
           />
         ))}
       </div>
-    </div>
+    </>
   );
 }

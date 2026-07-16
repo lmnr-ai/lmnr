@@ -62,7 +62,7 @@ export default function ScoreCardItem({
   const improved = change !== null && change >= 0;
 
   return (
-    <div className="flex min-w-[140px] shrink-0 flex-col gap-2 rounded-lg px-4 py-3">
+    <div className="flex min-w-[140px] shrink-0 flex-col gap-2 border-l-foreground-600 border-l pl-3 py-0.5">
       <span className="truncate text-xs font-medium text-muted-foreground" title={name}>
         {name}
       </span>
