@@ -17,7 +17,19 @@ export type CustomColumn = {
 export interface CustomColumnPanelConfig {
   /** ClickHouse table schema for the SQL editor autocomplete. */
   schema: SQLSchemaConfig;
-  /** AI SQL generation mode passed to the SQL editor. */
+  /** Context for the agentic AI column generator — the panel's "Ask AI" always
+   *  routes through it (verify-loop against real rows), never the one-shot route. */
+  aiGeneration: {
+    /** Allowlisted table the column runs against, e.g. "evaluation_datapoints". */
+    table: string;
+    /** Scope fragment, e.g. "evaluation_id = {evaluationId:UUID}" or "1 = 1" for the whole table. */
+    whereSql: string;
+    /** Parameters referenced by whereSql, e.g. { evaluationId }. */
+    parameters?: Record<string, string>;
+    /** Columns the agent inspects as sample data, e.g. ["data", "target", "metadata"]. */
+    sampleColumns: string[];
+  };
+  /** AI SQL generation mode — used only for analytics labeling now. */
   generationMode?: GenerationMode;
   /** Build a test query to validate the SQL expression. */
   buildTestQuery: (sql: string) => string;

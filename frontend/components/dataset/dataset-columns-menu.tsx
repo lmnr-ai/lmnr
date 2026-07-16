@@ -25,6 +25,11 @@ export default function DatasetColumnsMenu({ columnLabels = [], columnDefs }: Da
   const panelConfig = useMemo<CustomColumnPanelConfig>(
     () => ({
       schema: { tables: ["dataset_datapoints"] },
+      aiGeneration: {
+        table: "dataset_datapoints",
+        whereSql: "1 = 1",
+        sampleColumns: ["data", "target", "metadata"],
+      },
       generationMode: "dataset-expression",
       buildTestQuery: (sql) => `SELECT ${sql} as \`test\` FROM dataset_datapoints LIMIT 1`,
       getColumnDefs: () => columnDefs,

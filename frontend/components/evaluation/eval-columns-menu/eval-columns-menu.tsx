@@ -27,6 +27,12 @@ export default function EvalColumnsMenu({ columnDefs, columnLabels = [] }: EvalC
   const panelConfig = useMemo<CustomColumnPanelConfig>(
     () => ({
       schema: { tables: ["evaluation_datapoints"] },
+      aiGeneration: {
+        table: "evaluation_datapoints",
+        whereSql: "evaluation_id = {evaluationId:UUID}",
+        parameters: { evaluationId: evaluationId as string },
+        sampleColumns: ["data", "target", "metadata"],
+      },
       generationMode: "eval-expression",
       buildTestQuery: (sql) =>
         `SELECT ${sql} as \`test\` FROM evaluation_datapoints WHERE evaluation_id = {evaluationId:UUID} LIMIT 1`,

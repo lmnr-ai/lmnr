@@ -45,16 +45,15 @@ const SYSTEM_INSTRUCTIONS = `You write a single ClickHouse SQL *expression* to b
 
 CRITICAL — stop as soon as you have a good answer:
 - Use the verifyColumnSql tool to test a candidate against real data: it evaluates "SELECT <expression> AS value FROM <table> LIMIT 5" and returns the values or the ClickHouse error.
-- The MOMENT a candidate verifies with useful, non-empty, DISTINCT values across the sample rows, that candidate IS your answer. Do NOT run more tests and do NOT try to "improve" it.
-- If a verify result is 100% distinct and non-null across the rows, you MUST answer with that exact expression immediately.
+- The MOMENT a candidate verifies with no error and produces sensible, non-empty values that satisfy the request across the sample rows, that candidate IS your answer. Do NOT run more tests and do NOT try to "improve" it.
 - You MUST verify your chosen expression before answering. Never answer with an expression you have not just verified.
 
 Rules:
 - Output an EXPRESSION only — no SELECT, no AS alias, no semicolons, no trailing clauses.
-- Prefer the SIMPLEST expression. A single-field extraction (e.g. simpleJSONExtractString(metadata, 'name')) is ALWAYS preferred over a coalesce/if fallback chain — even if a fallback might help edge cases not present in the samples. Never append ids/suffixes to an expression that already works.
-- Do NOT add a field to a coalesce/fallback just because it might be non-empty. Only combine fields when the single simplest field actually returned empty or identical values in the samples.
+- Prefer the SIMPLEST expression that satisfies the request. Do NOT add coalesce/if fallback chains, ids, or suffixes to an expression that already works — even if a fallback might help edge cases not present in the samples.
+- Only combine fields (coalesce / nullIf) when the simplest expression actually returned empty or unusable values in the samples.
 - When extracting from JSON string columns use simpleJSONExtractString / simpleJSONExtractRaw.
-- Your final answer is the \`sql\` field. If no useful identifier is possible, answer with an empty string for \`sql\`.`;
+- Your final answer is the \`sql\` field. If the request cannot be satisfied with the available columns, answer with an empty string for \`sql\`.`;
 
 const buildUserPrompt = (input: GenerateColumnSqlInput, sampleRows: unknown[]): string =>
   [
