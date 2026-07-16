@@ -30,57 +30,57 @@ const PureMarkdownRenderer = ({ value, className, containerRef }: MarkdownRender
       controls={{ mermaid: { download: false, fullscreen: false } }}
       rehypePlugins={[defaultRehypePlugins.harden]}
       components={{
-        h1: ({ children, className, ...props }) => (
+        h1: ({ node: _node, children, className, ...props }) => (
           <h1 {...props} className={cn(className, "mt-3 mb-1 text-base font-semibold")}>
             {children}
           </h1>
         ),
-        h2: ({ children, className, ...props }) => (
+        h2: ({ node: _node, children, className, ...props }) => (
           <h2 {...props} className={cn(className, "mt-3 mb-1 text-xs font-semibold")}>
             {children}
           </h2>
         ),
-        td: ({ children, className, ...props }) => (
+        td: ({ node: _node, children, className, ...props }) => (
           <td {...props} className={cn(className, "text-xs px-2 py-1")}>
             {children}
           </td>
         ),
-        th: ({ children, className, ...props }) => (
+        th: ({ node: _node, children, className, ...props }) => (
           <th {...props} className={cn(className, "whitespace-nowrap px-2 py-1 text-left font-semibold text-sm")}>
             {children}
           </th>
         ),
-        h3: ({ children, className, ...props }) => (
+        h3: ({ node: _node, children, className, ...props }) => (
           <h3 {...props} className={cn(className, "mt-2 mb-1 text-sm font-semibold")}>
             {children}
           </h3>
         ),
-        p: ({ children, className, ...props }) => (
+        p: ({ node: _node, children, className, ...props }) => (
           <p {...props} className={cn(className, "my-1.5 text-xs leading-relaxed")}>
             {children}
           </p>
         ),
-        sub: ({ children, className, ...props }) => (
+        sub: ({ node: _node, children, className, ...props }) => (
           <sub {...props} className={cn(className, "text-xs")}>
             {children}
           </sub>
         ),
-        ul: ({ children, className, ...props }) => (
+        ul: ({ node: _node, children, className, ...props }) => (
           <ul {...props} className={cn(className, "my-1.5 list-disc pl-5 text-[12px] space-y-0.5")}>
             {children}
           </ul>
         ),
-        ol: ({ children, className, ...props }) => (
+        ol: ({ node: _node, children, className, ...props }) => (
           <ol {...props} className={cn(className, "my-1.5 list-decimal pl-5 text-[12px] space-y-0.5")}>
             {children}
           </ol>
         ),
-        li: ({ children, className, ...props }) => (
+        li: ({ node: _node, children, className, ...props }) => (
           <li {...props} className={cn(className, "text-[12px] leading-relaxed")}>
             {children}
           </li>
         ),
-        blockquote: ({ children, className, ...props }) => (
+        blockquote: ({ node: _node, children, className, ...props }) => (
           <blockquote
             {...props}
             className={cn(className, "my-1.5 border-l-2 border-border pl-3 text-[12px] italic text-muted-foreground")}
@@ -88,12 +88,12 @@ const PureMarkdownRenderer = ({ value, className, containerRef }: MarkdownRender
             {children}
           </blockquote>
         ),
-        code: ({ children, className, ...props }) => (
+        code: ({ node: _node, children, className, ...props }) => (
           <code {...props} className={cn(className, "text-xs whitespace-pre-wrap")}>
             {children}
           </code>
         ),
-        a: ({ href, children, ...props }) => (
+        a: ({ node: _node, href, children, ...props }) => (
           <a {...props} href={href} target="_blank" rel="noreferrer">
             {children}
           </a>
