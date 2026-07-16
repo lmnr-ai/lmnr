@@ -10,22 +10,61 @@ interface TextNodeSpan {
   end: number;
 }
 
-function collectTextNodes(root: Node): TextNodeSpan[] {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  const nodes: TextNodeSpan[] = [];
+// prettier-ignore
+const BLOCK_TAGS = new Set([
+  "ADDRESS", "ARTICLE", "ASIDE", "BLOCKQUOTE", "DD", "DETAILS", "DIV", "DL", "DT",
+  "FIGCAPTION", "FIGURE", "FOOTER", "H1", "H2", "H3", "H4", "H5", "H6", "HEADER",
+  "HR", "LI", "MAIN", "NAV", "OL", "P", "PRE", "SECTION", "SUMMARY", "TABLE",
+  "TBODY", "TD", "TFOOT", "TH", "THEAD", "TR", "UL",
+]);
+
+function nearestBlock(node: Text, root: Node): Node {
+  let el: Node | null = node.parentNode;
+  while (el && el !== root) {
+    if (el instanceof HTMLElement && BLOCK_TAGS.has(el.tagName)) return el;
+    el = el.parentNode;
+  }
+  return root;
+}
+
+/** Walk `root`'s text nodes, building the searchable text alongside the node→offset
+ *  mapping. A virtual "\n" is inserted at block-element (and <br>) boundaries so
+ *  matches can't join text that isn't contiguous when rendered — `textContent`
+ *  concatenates blocks with no separator. Text and spans share one position counter,
+ *  so offsets from one always map onto the other. */
+function collectSearchable(root: HTMLElement): { spans: TextNodeSpan[]; text: string } {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+  const spans: TextNodeSpan[] = [];
+  const parts: string[] = [];
   let pos = 0;
+  let prevBlock: Node | null = null;
+  let sawLineBreak = false;
   let current: Node | null;
 
   while ((current = walker.nextNode())) {
+    if (current.nodeType === Node.ELEMENT_NODE) {
+      if ((current as HTMLElement).tagName === "BR") sawLineBreak = true;
+      continue;
+    }
+
     const text = current as Text;
     const len = text.length;
-    if (len > 0) {
-      nodes.push({ node: text, start: pos, end: pos + len });
-      pos += len;
+    if (len === 0) continue;
+
+    const block = nearestBlock(text, root);
+    if (sawLineBreak || (prevBlock !== null && block !== prevBlock)) {
+      parts.push("\n");
+      pos += 1;
     }
+    prevBlock = block;
+    sawLineBreak = false;
+
+    spans.push({ node: text, start: pos, end: pos + len });
+    parts.push(text.data);
+    pos += len;
   }
 
-  return nodes;
+  return { spans, text: parts.join("") };
 }
 
 function unwrapMark(mark: HTMLElement) {
@@ -42,10 +81,10 @@ function unwrapMark(mark: HTMLElement) {
  *  after a fresh text-node walk — callers must wrap from last match to first so earlier
  *  offsets stay valid. */
 function wrapOffset(root: HTMLElement, offset: MatchOffset): HTMLElement[] {
-  const textNodes = collectTextNodes(root);
+  const { spans } = collectSearchable(root);
   const marks: HTMLElement[] = [];
 
-  for (const span of textNodes) {
+  for (const span of spans) {
     if (offset.end <= span.start || offset.start >= span.end) continue;
 
     const localStart = Math.max(0, offset.start - span.start);
@@ -124,7 +163,7 @@ export function createDomSearchSource({
       const trimmed = term.trim();
       if (!trimmed) return 0;
 
-      const text = container.textContent ?? "";
+      const { text } = collectSearchable(container);
       const offsets = findMatchOffsets(text, trimmed);
       if (offsets.length === 0) return 0;
 
