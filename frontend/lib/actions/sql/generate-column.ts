@@ -35,6 +35,11 @@ export interface GenerateColumnSqlResult {
 // enough budget to iterate a few times AND still submit before the cap.
 const MAX_STEPS = 16;
 
+// Hard wall-clock cap on the whole agent run. On a slow/remote ClickHouse each
+// verify can wait ~15s, so a multi-step run can otherwise take minutes. On the
+// deadline we still salvage the last verified expression (see finalSql below).
+const GENERATION_TIMEOUT_MS = 60_000;
+
 const SYSTEM_INSTRUCTIONS = `You write a single ClickHouse SQL *expression* to be used as a custom table column: it is spliced into "SELECT <expression> FROM <table>".
 
 Rules:
@@ -142,10 +147,16 @@ export const generateColumnSql = async (
     },
   });
   try {
-    await agent.run(buildUserPrompt(parsed, sampleRows), { abortSignal: signal });
+    // Bound total wall-clock time (each verify can wait ~15s on a slow/remote
+    // ClickHouse; without a cap a multi-iteration run can take minutes). On the
+    // deadline the loop aborts -> agentErrored -> reason:"error" -> retries next
+    // load. Combined with the client-disconnect signal.
+    const deadline = AbortSignal.timeout(GENERATION_TIMEOUT_MS);
+    const abortSignal = signal ? AbortSignal.any([signal, deadline]) : deadline;
+    await agent.run(buildUserPrompt(parsed, sampleRows), { abortSignal });
   } catch {
-    // Provider / network error or client-disconnect abort mid-run — transient,
-    // let the caller retry. Nothing is persisted.
+    // Provider / network error, client-disconnect, or deadline abort mid-run —
+    // transient, let the caller retry. Nothing is persisted.
     agentErrored = true;
   }
 
