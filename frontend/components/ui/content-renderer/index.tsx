@@ -239,6 +239,10 @@ const PureContentRenderer = ({
     };
   }, [searchRegistration, mode, messageIndex, contentPartIndex, value]);
 
+  // Markdown is the only mode that changes the encoding of what's shown
+  // (unwrapping JSON-stringified payloads) — copy what the user sees.
+  const copyText = mode === "markdown" ? getMarkdownSource(value) : value;
+
   const actionButtons = (
     <>
       <CopyButton
@@ -249,7 +253,7 @@ const PureContentRenderer = ({
         iconClassName="h-3.5 w-3.5"
         size="icon"
         variant="ghost"
-        text={value}
+        text={copyText}
       />
       <div
         className={cn(
