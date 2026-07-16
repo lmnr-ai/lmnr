@@ -96,7 +96,11 @@ const PureContentRenderer = ({
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
   const editorId = useId();
 
-  const editorIdRef = useRef(`editor-${editorId}`);
+  // Distinct ids per source kind: the code-mode effect's stale cleanup runs AFTER the
+  // markdown layout effect's setup on a mode switch, so a shared id would let it
+  // unregister the just-registered DOM source.
+  const cmSourceIdRef = useRef(`editor-${editorId}-cm`);
+  const domSourceIdRef = useRef(`editor-${editorId}-dom`);
   const searchRegistration = useSpanSearchRegistration();
   const currentViewRef = useRef<EditorView | null>(null);
   const markdownContainerRef = useRef<HTMLDivElement | null>(null);
@@ -203,7 +207,7 @@ const PureContentRenderer = ({
 
     searchRegistration.registerSource(
       createCodeMirrorSearchSource({
-        id: editorIdRef.current,
+        id: cmSourceIdRef.current,
         view: currentViewRef.current,
         messageIndex,
         contentPartIndex,
@@ -211,7 +215,7 @@ const PureContentRenderer = ({
     );
 
     return () => {
-      searchRegistration.unregisterSource(editorIdRef.current);
+      searchRegistration.unregisterSource(cmSourceIdRef.current);
     };
   }, [searchRegistration, editorMountKey, messageIndex, contentPartIndex, isCodeMode]);
 
@@ -223,7 +227,7 @@ const PureContentRenderer = ({
 
     searchRegistration.registerSource(
       createDomSearchSource({
-        id: editorIdRef.current,
+        id: domSourceIdRef.current,
         container,
         messageIndex,
         contentPartIndex,
@@ -231,7 +235,7 @@ const PureContentRenderer = ({
     );
 
     return () => {
-      searchRegistration.unregisterSource(editorIdRef.current);
+      searchRegistration.unregisterSource(domSourceIdRef.current);
     };
   }, [searchRegistration, mode, messageIndex, contentPartIndex, value]);
 
