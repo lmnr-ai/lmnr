@@ -11,6 +11,41 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// Compact a (possibly JSON-string) value into a small tree safe to embed in an
+// LLM prompt: parse JSON strings first, then cap string length, array length,
+// and depth. Parsing first (vs slicing the raw string) preserves the structure
+// the model needs, and every cut leaves a visible "…" marker so nothing vanishes
+// silently. Tuning is span-outline's (its numbers work well); reused by the
+// custom-column agent.
+const PROMPT_MAX_STRING = 64;
+const PROMPT_MAX_ARRAY = 10;
+const PROMPT_MAX_DEPTH = 8;
+
+const truncatePromptTree = (value: unknown, depth = 0): unknown => {
+  if (typeof value === "string") {
+    return value.length > PROMPT_MAX_STRING ? `${value.slice(0, PROMPT_MAX_STRING)}…` : value;
+  }
+  if (value === null || typeof value !== "object") return value;
+  if (depth >= PROMPT_MAX_DEPTH) return "…";
+  if (Array.isArray(value)) {
+    const head = value.slice(0, PROMPT_MAX_ARRAY).map((item) => truncatePromptTree(item, depth + 1));
+    return value.length > PROMPT_MAX_ARRAY ? [...head, `…${value.length - PROMPT_MAX_ARRAY} more items`] : head;
+  }
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, truncatePromptTree(item, depth + 1)]));
+};
+
+export const truncateForPrompt = (value: unknown): unknown => {
+  let root = value;
+  if (typeof value === "string" && value !== "") {
+    try {
+      root = JSON.parse(value);
+    } catch {
+      root = value;
+    }
+  }
+  return truncatePromptTree(root);
+};
+
 // Sub-path the app is served under, baked in at build time (see next.config.ts).
 // Next auto-prefixes <Link>/router/redirect/next-image/assets, but NOT runtime
 // native fetch, EventSource, window.location.*, or Better Auth callbackURLs —

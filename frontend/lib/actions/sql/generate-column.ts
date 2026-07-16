@@ -3,8 +3,10 @@ import { Output, stepCountIs, tool, ToolLoopAgent } from "ai";
 import { z } from "zod";
 
 import { getLanguageModel } from "@/lib/ai/model";
+import { cache, COLUMN_SUGGESTION_CACHE_KEY } from "@/lib/cache";
+import { truncateForPrompt } from "@/lib/utils";
 
-import { buildSampleRowsQuery, buildVerifyColumnQuery } from "./column-sql-queries";
+import { buildSampleRowsQuery, buildVerifyColumnQuery, sampleFingerprint } from "./column-sql-queries";
 import { executeQuery } from "./index";
 
 const GenerateColumnSqlSchema = z.object({
@@ -20,6 +22,15 @@ const GenerateColumnSqlSchema = z.object({
   /** Task-specific instruction (e.g. "extract a human-readable identifier..."). */
   instruction: z.string().min(1),
   dataType: z.enum(["string", "number"]).default("string"),
+  /**
+   * Stable suggestion id (e.g. "label"). When set, the generated SQL is cached by
+   * (projectId, cacheKey, structural-fingerprint-of-sample-rows) so other evals with
+   * the same data/target/metadata shape reuse it without re-running the agent.
+   * Omit for ad-hoc "Ask AI" generation (variable instruction ⇒ must not be cached).
+   * The cacheKey implicitly pins the instruction; bump it (e.g. "label-v2") if the
+   * suggestion's instruction changes, or stale SQL is served for the TTL window.
+   */
+  cacheKey: z.string().min(1).optional(),
 });
 
 export type GenerateColumnSqlInput = z.infer<typeof GenerateColumnSqlSchema>;
@@ -32,28 +43,49 @@ export interface GenerateColumnSqlResult {
   reason?: "none" | "error";
 }
 
-// Runaway guard. Each candidate costs a verify round-trip + an LLM step, so give
-// enough budget to iterate a few times AND still answer before the cap.
-const MAX_STEPS = 16;
+// Runaway guard. The agent should answer in ~1-3 verifications; this only caps
+// pathological thrashing. Higher values just give a stuck model room to loop.
+const MAX_STEPS = 8;
+
+// Cached generated SQL is reused by any eval sharing the sample structure.
+const COLUMN_SUGGESTION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
 // The agent's final structured answer. Empty `sql` = no useful identifier.
 const ColumnSqlOutputSchema = z.object({
-  sql: z.string().describe("The final, verified ClickHouse column expression. Empty string if no useful column is possible."),
+  sql: z
+    .string()
+    .describe("The final, verified ClickHouse column expression. Empty string if no useful column is possible."),
 });
 
 const SYSTEM_INSTRUCTIONS = `You write a single ClickHouse SQL *expression* to be used as a custom table column: it is spliced into "SELECT <expression> FROM <table>".
 
-CRITICAL — stop as soon as you have a good answer:
-- Use the verifyColumnSql tool to test a candidate against real data: it evaluates "SELECT <expression> AS value FROM <table> LIMIT 5" and returns the values or the ClickHouse error.
-- The MOMENT a candidate verifies with no error and produces sensible, non-empty values that satisfy the request across the sample rows, that candidate IS your answer. Do NOT run more tests and do NOT try to "improve" it.
-- You MUST verify your chosen expression before answering. Never answer with an expression you have not just verified.
+The verifyColumnSql tool tests a candidate against real data: it evaluates "SELECT <expression> AS value FROM <table> LIMIT 5" and returns the values or the ClickHouse error.
+
+THE EXAMPLE ROWS ARE THE GROUND TRUTH:
+- They show you EVERY key that exists. NEVER reference a JSON key that does not appear in them (no guessing at "task"/"input"/"question"/"title" if they aren't there).
+- Decide your answer by reading the rows, not by probing. You should almost always need just ONE verification of your chosen expression.
+
+BE DECISIVE — minimize tool calls:
+- The MOMENT a candidate verifies with no error and produces non-empty values that satisfy the request, that candidate IS your answer — submit it immediately. Do NOT keep hunting for a "nicer" field.
+- NEVER verify the same (or trivially equivalent) expression twice. If a tool result says you already verified an expression, stop testing and submit it.
+- You MUST verify your chosen expression before answering.
+
+WHAT MAKES A GOOD ANSWER — take the FIRST rung that works, don't climb past it:
+1. A human-readable label field that is PRESENT in the rows (a name, title, question, key input) — best. Extract it directly.
+2. If no such field is present, a stable identifier (id, trace_id, uuid) is a GOOD answer. Wrap it as a self-describing labeled string, e.g. concat('Trace id: ', simpleJSONExtractString(data, 'trace_id')). This is a SINGLE extraction — do NOT precede it with a coalesce chain over human-readable keys that aren't in the rows.
+3. Only if NOTHING usable exists, answer with an empty string.
 
 Rules:
 - Output an EXPRESSION only — no SELECT, no AS alias, no semicolons, no trailing clauses.
-- Prefer the SIMPLEST expression that satisfies the request. Do NOT add coalesce/if fallback chains, ids, or suffixes to an expression that already works — even if a fallback might help edge cases not present in the samples.
-- Only combine fields (coalesce / nullIf) when the simplest expression actually returned empty or unusable values in the samples.
+- Prefer the SIMPLEST expression that works — ideally a single extraction. Use coalesce/nullIf ONLY across keys that actually appear in the rows AND that a plain extraction showed to be sometimes-empty.
 - When extracting from JSON string columns use simpleJSONExtractString / simpleJSONExtractRaw.
-- Your final answer is the \`sql\` field. If the request cannot be satisfied with the available columns, answer with an empty string for \`sql\`.`;
+- Your final answer is the \`sql\` field.`;
+
+// Payloads (data/target/metadata) can be enormous — usually STRUCTURAL bloat
+// (arrays with hundreds of items), so truncateForPrompt parses each JSON-string
+// column and caps string/array/depth, keeping the shape the agent needs small.
+const prepareRows = (rows: Record<string, unknown>[]): Record<string, unknown>[] =>
+  rows.map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, truncateForPrompt(v)])));
 
 const buildUserPrompt = (input: GenerateColumnSqlInput, sampleRows: unknown[]): string =>
   [
@@ -79,19 +111,36 @@ export const generateColumnSql = async (
   signal?: AbortSignal
 ): Promise<GenerateColumnSqlResult> => {
   const parsed = GenerateColumnSqlSchema.parse(input);
-  const { projectId, table, whereSql, parameters, sampleColumns } = parsed;
+  const { projectId, table, whereSql, parameters, sampleColumns, cacheKey } = parsed;
+
+  // Dedup backstop: gemini re-tests identical expressions (observed thrash), so
+  // cache by normalized SQL. A repeat skips the ClickHouse round-trip AND nudges
+  // the model to stop and submit instead of looping on the same candidate.
+  const verifiedCache = new Map<string, { ok: true; rows: Record<string, unknown>[] } | { ok: false; error: string }>();
+  const normalize = (sql: string) => sql.replace(/\s+/g, " ").trim();
 
   const runVerify = async (expression: string) => {
+    const key = normalize(expression);
+    const cached = verifiedCache.get(key);
+    if (cached) {
+      return {
+        ...cached,
+        note: "You already verified this exact expression. Stop testing and submit it as your final answer now.",
+      };
+    }
+    let result: { ok: true; rows: Record<string, unknown>[] } | { ok: false; error: string };
     try {
       const rows = await executeQuery<Record<string, unknown>>({
         projectId,
         query: buildVerifyColumnQuery({ table, expression, whereSql }),
         parameters,
       });
-      return { ok: true as const, rows };
+      result = { ok: true, rows: prepareRows(rows) };
     } catch (e) {
-      return { ok: false as const, error: e instanceof Error ? e.message : String(e) };
+      result = { ok: false, error: e instanceof Error ? e.message : String(e) };
     }
+    verifiedCache.set(key, result);
+    return result;
   };
 
   // Fetch example rows the agent reasons over. On failure / no data we can't
@@ -108,10 +157,28 @@ export const generateColumnSql = async (
   }
   if (sampleRows.length === 0) return { success: false, reason: "error" };
 
+  // Structure-keyed cache: reuse a prior generation for the same shape (skips the
+  // agent). Best-effort — any cache error falls through to generation. Only keyed
+  // when a stable cacheKey is supplied (fixed-instruction suggestions), never for
+  // ad-hoc "Ask AI" where the instruction varies per request.
+  let fullCacheKey: string | null = null;
+  if (cacheKey) {
+    try {
+      fullCacheKey = COLUMN_SUGGESTION_CACHE_KEY(projectId, cacheKey, sampleFingerprint(sampleRows[0], sampleColumns));
+      const hit = await cache.get<string>(fullCacheKey);
+      if (hit) return { success: true, sql: hit };
+    } catch {
+      // Fingerprint / cache read failed — proceed to generation.
+    }
+  }
+
   const agent = new ToolLoopAgent({
     model: getLanguageModel("medium"),
     instructions: SYSTEM_INSTRUCTIONS,
     stopWhen: stepCountIs(MAX_STEPS),
+    // Deterministic: the task has one right answer per dataset; sampling only
+    // adds speculative field-probing and run-to-run variance.
+    temperature: 0,
     output: Output.object({ schema: ColumnSqlOutputSchema }),
     tools: {
       verifyColumnSql: tool({
@@ -132,7 +199,7 @@ export const generateColumnSql = async (
         // caller's run links back to what it generated for — no eval-specific wiring.
         metadata: { feature: "column-suggestion", projectId, table, whereSql, ...parameters },
       },
-      () => agent.generate({ prompt: buildUserPrompt(parsed, sampleRows), abortSignal: signal })
+      () => agent.generate({ prompt: buildUserPrompt(parsed, prepareRows(sampleRows)), abortSignal: signal })
     );
     candidate = result.output?.sql?.trim();
   } catch {
@@ -140,7 +207,17 @@ export const generateColumnSql = async (
     return { success: false, reason: "error" };
   }
 
-  // Empty answer = the agent found no useful identifier (definitive).
+  // Empty answer = the agent found no useful identifier (definitive). Not cached:
+  // "none" is now rare (id fallback almost always yields SQL) and caching a negative
+  // would suppress retries for that whole structure.
   if (!candidate) return { success: false, reason: "none" };
+
+  if (fullCacheKey) {
+    try {
+      await cache.set(fullCacheKey, candidate, { expireAfterSeconds: COLUMN_SUGGESTION_TTL_SECONDS });
+    } catch {
+      // Best-effort — a failed write just means the next request regenerates.
+    }
+  }
   return { success: true, sql: candidate };
 };

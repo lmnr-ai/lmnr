@@ -8,6 +8,7 @@ import {
   buildEvalStatsQuery,
   EvalFilterSchema,
   type EvalQueryColumn,
+  stripTruncatedAliases,
 } from "@/lib/actions/evaluation/query-builder";
 import { getSearchTraceIds } from "@/lib/actions/evaluation/search";
 import { calculateScoreDistribution, calculateScoreStatistics } from "@/lib/actions/evaluation/utils";
@@ -208,7 +209,8 @@ export const getEvaluationDatapoints = async (
 
   return {
     evaluation: evaluation as Evaluation,
-    results,
+    // Rename truncated-preview aliases (`__t:data` → `data`) back to their ids.
+    results: stripTruncatedAliases(results),
   };
 };
 

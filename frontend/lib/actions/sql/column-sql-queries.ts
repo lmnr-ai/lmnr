@@ -2,6 +2,29 @@
 // Kept dependency-free so it's unit-testable; the agent (generate-column.ts)
 // composes these and runs them through the validator-enforced executeQuery.
 
+import { generateFingerprint } from "@/lib/actions/spans/previews/utils";
+
+// Structural fingerprint of the sample rows (values stripped, array length ignored)
+// via the shared previews fingerprint — the cache key basis for reusing a prior
+// generation across evals with the same shape. Fingerprints row[0] only; evals are
+// structurally homogeneous, so the first row's shape represents the dataset.
+export function sampleFingerprint(row: Record<string, unknown>, cols: string[]): string {
+  const shape: Record<string, unknown> = {};
+  for (const col of cols) {
+    const v = row[col];
+    if (typeof v === "string" && v !== "") {
+      try {
+        shape[col] = JSON.parse(v);
+      } catch {
+        shape[col] = v;
+      }
+    } else {
+      shape[col] = v;
+    }
+  }
+  return generateFingerprint("column-suggestion", shape);
+}
+
 /** Number of example rows the agent inspects and verifies candidate SQL against. */
 export const SAMPLE_ROW_LIMIT = 5;
 

@@ -12,6 +12,36 @@ export interface EvalQueryColumn {
   comparable?: boolean;
   filterSql?: string; // WHERE clause SQL (defaults to sql). Template for JSON filters.
   dbType?: string; // DB type for casting: "String", "Float64", "Int64", "UUID"
+  // A preview column that truncates a raw column (e.g. substring(data,1,200) AS data).
+  // Its output id equals the raw column name, so ClickHouse would let the truncated
+  // ALIAS shadow the raw column for any OTHER select expr that references it — a
+  // custom column like simpleJSONExtractString(data,'x') would then extract from the
+  // 200-char preview, not the full value. We alias truncated columns to a safe
+  // internal name so `data` binds to the raw column, then rename back in the response.
+  truncated?: boolean;
+}
+
+// Internal alias prefix for truncated preview columns (see EvalQueryColumn.truncated).
+// Stripped from result keys by stripTruncatedAliases before returning to the client.
+export const TRUNCATED_ALIAS_PREFIX = "__t:";
+
+const columnAlias = (c: EvalQueryColumn): string => (c.truncated ? `${TRUNCATED_ALIAS_PREFIX}${c.id}` : c.id);
+
+// Rename `__t:<id>` result keys back to `<id>`. Applied to every fetched row.
+export function stripTruncatedAliases<T extends Record<string, unknown>>(rows: T[]): T[] {
+  return rows.map((row) => {
+    let changed = false;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(row)) {
+      if (k.startsWith(TRUNCATED_ALIAS_PREFIX)) {
+        out[k.slice(TRUNCATED_ALIAS_PREFIX.length)] = v;
+        changed = true;
+      } else {
+        out[k] = v;
+      }
+    }
+    return (changed ? out : row) as T;
+  });
 }
 
 export const EvalFilterSchema = z.object({
@@ -140,8 +170,9 @@ function buildSingleEvalQuery(options: SingleEvalQueryOptions): QueryResult {
   const prefix = options.paramPrefix || "";
   const parameters: QueryParams = {};
 
-  // SELECT
-  const selectClauses = columns.map((c) => `${c.sql} as ${backtickEscape(c.id)}`);
+  // SELECT — truncated previews get a safe alias so they don't shadow the raw
+  // column that custom-column expressions reference (see EvalQueryColumn.truncated).
+  const selectClauses = columns.map((c) => `${c.sql} as ${backtickEscape(columnAlias(c))}`);
   const selectStr = selectClauses.join(", ");
 
   // WHERE
@@ -243,8 +274,9 @@ function buildComparisonQuery(options: EvalQueryOptions): QueryResult {
   // Determine which columns get compared aliases — uses comparable flag from FE column config
   const comparableColumns = columns.filter((c) => c.comparable);
 
-  // Build outer SELECT
-  const primarySelect = columns.map((c) => `p.${backtickEscape(c.id)}`);
+  // Build outer SELECT — reference the inner alias (truncated cols use the safe
+  // alias); the outer output keeps that alias and is renamed in the response.
+  const primarySelect = columns.map((c) => `p.${backtickEscape(columnAlias(c))}`);
   const comparedSelect = comparableColumns.map(
     (c) => `c.${backtickEscape(c.id)} as ${backtickEscape(`compared:${c.id}`)}`
   );

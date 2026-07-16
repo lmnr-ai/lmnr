@@ -16,8 +16,9 @@ export const LABEL_SUGGESTION_NAME = "Label";
 const LABEL_INSTRUCTION =
   "Produce a ClickHouse SQL expression that extracts a short, human-readable identifier for each evaluation datapoint " +
   "from its `data`, `target`, or `metadata` JSON columns \u2014 something a reviewer can use to tell rows apart at a glance " +
-  "(e.g. a name, id, title, question, or key input field). Prefer a real identifier key over a raw text dump; fall back to " +
-  "a short prefix of the most descriptive field only if nothing better exists.";
+  "(e.g. a name, title, question, or key input field). If no human-readable field exists, a stable id/uuid (e.g. a " +
+  "trace_id or id key) is sufficient \u2014 wrap it as a self-describing label like concat('Trace id: ', simpleJSONExtractString(data, 'trace_id')). " +
+  "Prefer a real field over a raw text dump.";
 
 /** Declarative column-suggestion definitions for the eval table. Add an entry to
  *  offer another suggested column. `key` is the localStorage dedup key + the
@@ -51,6 +52,9 @@ export function createEvalSuggestions(projectId: string, evaluationId: string): 
           sampleColumns: ["data", "target", "metadata"],
           instruction: cfg.prompt,
           dataType: cfg.dataType,
+          // Fixed-instruction suggestion → cache generated SQL by data shape.
+          // Bump this key if cfg.prompt changes (stale SQL served for the TTL otherwise).
+          cacheKey: cfg.key,
         }),
       });
       // Non-2xx = transient (throw so the hook retries next mount, not resolve).

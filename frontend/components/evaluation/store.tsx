@@ -31,6 +31,7 @@ function toColumnsPayload(columnDefs: ColumnDef<EvalRow>[]): EvalQueryColumn[] {
       comparable: c.meta!.comparable ?? false,
       ...(c.meta!.filterSql && { filterSql: c.meta!.filterSql }),
       ...(c.meta!.dbType && { dbType: c.meta!.dbType }),
+      ...(c.meta!.truncated && { truncated: true }),
     }));
 }
 
