@@ -127,7 +127,12 @@ export const generateColumnSql = async (
   let candidate: string | undefined;
   try {
     const result = await observe(
-      { name: "generateColumnSql", metadata: { feature: "column-suggestion", projectId, table } },
+      {
+        name: "generateColumnSql",
+        // whereSql + its parameters carry the scope (e.g. evaluationId), so any
+        // caller's run links back to what it generated for — no eval-specific wiring.
+        metadata: { feature: "column-suggestion", projectId, table, whereSql, ...parameters },
+      },
       () => agent.generate({ prompt: buildUserPrompt(parsed, sampleRows), abortSignal: signal })
     );
     candidate = result.output?.sql?.trim();
