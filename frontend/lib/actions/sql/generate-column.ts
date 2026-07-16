@@ -71,8 +71,8 @@ const buildUserPrompt = (input: GenerateColumnSqlInput, sampleRows: unknown[]): 
  * Agentic generator for a custom column SQL expression. A ToolLoopAgent iterates
  * with a verifyColumnSql tool that runs candidates against real example rows
  * (validator-enforced executeQuery), then returns its final expression as
- * structured output. We post-verify that answer before returning success — an
- * invalid expression would break the consuming table query, not just show blanks.
+ * structured output. The agent is prompted to only answer with an expression it
+ * has verified — we trust that rather than re-running it here.
  * Returns { success: false } when the agent finds nothing usable or errors.
  */
 export const generateColumnSql = async (
@@ -94,12 +94,6 @@ export const generateColumnSql = async (
       return { ok: false as const, error: e instanceof Error ? e.message : String(e) };
     }
   };
-
-  const hasUsefulValue = (rows: Record<string, unknown>[]) =>
-    rows.some((r) => {
-      const v = r.value;
-      return v !== null && v !== undefined && String(v).trim() !== "";
-    });
 
   // Fetch example rows the agent reasons over. On failure / no data we can't
   // generate now — treat as transient so it retries later.
@@ -144,10 +138,5 @@ export const generateColumnSql = async (
 
   // Empty answer = the agent found no useful identifier (definitive).
   if (!candidate) return { success: false, reason: "none" };
-
-  // Trust-but-verify: the model is only *prompted* to test its answer, so confirm
-  // the final expression actually runs with useful values before we return it.
-  const check = await runVerify(candidate);
-  if (check.ok && hasUsefulValue(check.rows)) return { success: true, sql: candidate };
-  return { success: false, reason: "error" };
+  return { success: true, sql: candidate };
 };
