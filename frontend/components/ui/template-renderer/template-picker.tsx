@@ -84,12 +84,15 @@ export const TemplatePickerProvider = ({
   traceId,
   children,
 }: PropsWithChildren<TemplatePickerProviderProps>) => {
-  const { projectId } = useParams();
+  const { projectId } = useParams<{ projectId?: string }>();
   const { toast } = useToast();
 
-  const templatesBaseUrl = `/api/projects/${projectId}/render-templates`;
-
-  const { data: templates } = useSWR<TemplateInfo[]>(`${templatesBaseUrl}?type=${scope}`, swrFetcher);
+  // Shared pages have no projectId; fetching would 401 → sign-in via swrFetcher.
+  const templatesBaseUrl = projectId ? `/api/projects/${projectId}/render-templates` : null;
+  const { data: templates } = useSWR<TemplateInfo[]>(
+    templatesBaseUrl ? `${templatesBaseUrl}?type=${scope}` : null,
+    swrFetcher
+  );
 
   const { setPresetTemplate, getPresetTemplate } = useTemplateRenderer();
 
@@ -115,6 +118,7 @@ export const TemplatePickerProvider = ({
 
   const fetchTemplate = useCallback(
     async (templateId: string): Promise<Template | null> => {
+      if (!templatesBaseUrl) return null;
       try {
         const res = await fetch(`${templatesBaseUrl}/${templateId}`);
         if (!res.ok) {

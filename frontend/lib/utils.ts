@@ -522,20 +522,6 @@ export function formatTimeRange(start: Date, end: Date): string {
   return `${startDateStr}, ${startTimeStr} – ${endDateStr}, ${endTimeStr}`;
 }
 
-export const getDurationString = (startTime: string, endTime: string) => {
-  const start = new Date(startTime);
-  const end = new Date(endTime);
-  const duration = end.getTime() - start.getTime();
-
-  return `${(duration / 1000).toFixed(2)}s`;
-};
-
-export const getDuration = (startTime: string, endTime: string) => {
-  const start = new Date(startTime);
-  const end = new Date(endTime);
-  return Math.max(end.getTime() - start.getTime(), 0);
-};
-
 export const tryParseJson = (value: string) => {
   if (value === "" || value === undefined) return null;
 
