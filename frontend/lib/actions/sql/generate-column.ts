@@ -1,7 +1,8 @@
-import { tool } from "ai";
+import { observe } from "@lmnr-ai/lmnr";
+import { stepCountIs, tool, ToolLoopAgent } from "ai";
 import { z } from "zod";
 
-import { LaminarToolLoopAgent } from "@/lib/ai/laminar-tool-loop-agent";
+import { getLanguageModel } from "@/lib/ai/model";
 
 import { buildSampleRowsQuery, buildVerifyColumnQuery } from "./column-sql-queries";
 import { executeQuery } from "./index";
@@ -58,11 +59,10 @@ const buildUserPrompt = (input: GenerateColumnSqlInput, sampleRows: unknown[]): 
   ].join("\n\n");
 
 /**
- * Agentic generator for a custom column SQL expression. Mirrors the
- * render-template generation agent: a ToolLoopAgent iterates with a verify tool
- * that runs candidate SQL against real example rows (through the validator-
- * enforced executeQuery), then submits a verified expression. Returns
- * { success: false } when the agent finds nothing usable or errors.
+ * Agentic generator for a custom column SQL expression. A ToolLoopAgent iterates
+ * with a verify tool that runs candidate SQL against real example rows (through
+ * the validator-enforced executeQuery), then submits a verified expression.
+ * Returns { success: false } when the agent finds nothing usable or errors.
  */
 export const generateColumnSql = async (
   input: GenerateColumnSqlInput,
@@ -110,12 +110,10 @@ export const generateColumnSql = async (
       return v !== null && v !== undefined && String(v).trim() !== "";
     });
 
-  const agent = new LaminarToolLoopAgent({
-    name: "generateColumnSql",
-    tier: "medium",
-    maxSteps: MAX_STEPS,
-    metadata: { feature: "column-suggestion", projectId, table },
+  const agent = new ToolLoopAgent({
+    model: getLanguageModel("medium"),
     instructions: SYSTEM_INSTRUCTIONS,
+    stopWhen: stepCountIs(MAX_STEPS),
     tools: {
       verifyColumnSql: tool({
         description:
@@ -142,7 +140,10 @@ export const generateColumnSql = async (
     },
   });
   try {
-    await agent.run(buildUserPrompt(parsed, sampleRows), { abortSignal: signal });
+    await observe(
+      { name: "generateColumnSql", metadata: { feature: "column-suggestion", projectId, table } },
+      () => agent.generate({ prompt: buildUserPrompt(parsed, sampleRows), abortSignal: signal })
+    );
   } catch {
     // Provider / network error or client-disconnect abort mid-run — transient,
     // let the caller retry. Nothing is persisted.
