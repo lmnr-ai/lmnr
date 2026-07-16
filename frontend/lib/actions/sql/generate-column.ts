@@ -1,5 +1,5 @@
 import { observe } from "@lmnr-ai/lmnr";
-import { stepCountIs, tool, ToolLoopAgent } from "ai";
+import { Output, stepCountIs, tool, ToolLoopAgent } from "ai";
 import { z } from "zod";
 
 import { getLanguageModel } from "@/lib/ai/model";
@@ -33,19 +33,28 @@ export interface GenerateColumnSqlResult {
 }
 
 // Runaway guard. Each candidate costs a verify round-trip + an LLM step, so give
-// enough budget to iterate a few times AND still submit before the cap.
+// enough budget to iterate a few times AND still answer before the cap.
 const MAX_STEPS = 16;
+
+// The agent's final structured answer. Empty `sql` = no useful identifier.
+const ColumnSqlOutputSchema = z.object({
+  sql: z.string().describe("The final, verified ClickHouse column expression. Empty string if no useful column is possible."),
+});
 
 const SYSTEM_INSTRUCTIONS = `You write a single ClickHouse SQL *expression* to be used as a custom table column: it is spliced into "SELECT <expression> FROM <table>".
 
+CRITICAL — stop as soon as you have a good answer:
+- Use the verifyColumnSql tool to test a candidate against real data: it evaluates "SELECT <expression> AS value FROM <table> LIMIT 5" and returns the values or the ClickHouse error.
+- The MOMENT a candidate verifies with useful, non-empty, DISTINCT values across the sample rows, that candidate IS your answer. Do NOT run more tests and do NOT try to "improve" it.
+- If a verify result is 100% distinct and non-null across the rows, you MUST answer with that exact expression immediately.
+- You MUST verify your chosen expression before answering. Never answer with an expression you have not just verified.
+
 Rules:
 - Output an EXPRESSION only — no SELECT, no AS alias, no semicolons, no trailing clauses.
-- You are given a few example rows. Use the verifyColumnSql tool to test a candidate: it evaluates "SELECT <expression> AS value FROM <table> LIMIT 5" and returns the resulting values or the ClickHouse error.
-- STOP EARLY. As soon as a candidate verifies with no error and produces useful, non-empty, DISTINCT values across the sample rows, call submitColumnSql with THAT expression. Do not keep refining something that already works.
-- Prefer the SIMPLEST expression. If a single field (e.g. simpleJSONExtractString(metadata, 'name')) already gives good distinct values, submit it as-is. Do NOT append ids/suffixes or build if/coalesce fallback chains onto an expression that already works — that only adds noise.
-- Only reach for guards (coalesce / nullIf) or a fallback field when the simple expression actually returned empty or identical values across the rows.
+- Prefer the SIMPLEST expression. A single-field extraction (e.g. simpleJSONExtractString(metadata, 'name')) is ALWAYS preferred over a coalesce/if fallback chain — even if a fallback might help edge cases not present in the samples. Never append ids/suffixes to an expression that already works.
+- Do NOT add a field to a coalesce/fallback just because it might be non-empty. Only combine fields when the single simplest field actually returned empty or identical values in the samples.
 - When extracting from JSON string columns use simpleJSONExtractString / simpleJSONExtractRaw.
-- Only submit an expression you have successfully verified. If no useful expression is possible, submit nothing.`;
+- Your final answer is the \`sql\` field. If no useful identifier is possible, answer with an empty string for \`sql\`.`;
 
 const buildUserPrompt = (input: GenerateColumnSqlInput, sampleRows: unknown[]): string =>
   [
@@ -55,13 +64,15 @@ const buildUserPrompt = (input: GenerateColumnSqlInput, sampleRows: unknown[]): 
     "```json",
     JSON.stringify(sampleRows, null, 2),
     "```",
-    "Test candidate expressions with verifyColumnSql, then call submitColumnSql with the final expression.",
+    "Test candidate expressions with verifyColumnSql, then return the final verified expression as your answer (the `sql` field).",
   ].join("\n\n");
 
 /**
  * Agentic generator for a custom column SQL expression. A ToolLoopAgent iterates
- * with a verify tool that runs candidate SQL against real example rows (through
- * the validator-enforced executeQuery), then submits a verified expression.
+ * with a verifyColumnSql tool that runs candidates against real example rows
+ * (validator-enforced executeQuery), then returns its final expression as
+ * structured output. We post-verify that answer before returning success — an
+ * invalid expression would break the consuming table query, not just show blanks.
  * Returns { success: false } when the agent finds nothing usable or errors.
  */
 export const generateColumnSql = async (
@@ -84,6 +95,12 @@ export const generateColumnSql = async (
     }
   };
 
+  const hasUsefulValue = (rows: Record<string, unknown>[]) =>
+    rows.some((r) => {
+      const v = r.value;
+      return v !== null && v !== undefined && String(v).trim() !== "";
+    });
+
   // Fetch example rows the agent reasons over. On failure / no data we can't
   // generate now — treat as transient so it retries later.
   let sampleRows: Record<string, unknown>[];
@@ -98,61 +115,39 @@ export const generateColumnSql = async (
   }
   if (sampleRows.length === 0) return { success: false, reason: "error" };
 
-  let submitted: string | null = null;
-  // Latest expression that verified cleanly with non-empty values — used as a
-  // fallback if the agent runs out of steps before formally submitting.
-  let lastVerified: string | null = null;
-  let agentErrored = false;
-
-  const hasUsefulValue = (rows: Record<string, unknown>[]) =>
-    rows.some((r) => {
-      const v = r.value;
-      return v !== null && v !== undefined && String(v).trim() !== "";
-    });
-
   const agent = new ToolLoopAgent({
     model: getLanguageModel("medium"),
     instructions: SYSTEM_INSTRUCTIONS,
     stopWhen: stepCountIs(MAX_STEPS),
+    output: Output.object({ schema: ColumnSqlOutputSchema }),
     tools: {
       verifyColumnSql: tool({
         description:
           "Run a candidate column expression against the example rows. Returns { ok, rows } or { ok: false, error }.",
         inputSchema: z.object({ sql: z.string().min(1) }),
-        execute: async ({ sql }) => {
-          const res = await runVerify(sql);
-          if (res.ok && hasUsefulValue(res.rows)) lastVerified = sql.trim();
-          return res;
-        },
-      }),
-      submitColumnSql: tool({
-        description:
-          "Submit the final, verified column expression. Rejected (with an error) if it does not run cleanly.",
-        inputSchema: z.object({ sql: z.string().min(1) }),
-        execute: async ({ sql }) => {
-          const trimmed = sql.trim();
-          const res = await runVerify(trimmed);
-          if (!res.ok) return { ok: false as const, error: res.error };
-          submitted = trimmed;
-          return { ok: true as const };
-        },
+        execute: async ({ sql }) => runVerify(sql),
       }),
     },
   });
+
+  let candidate: string | undefined;
   try {
-    await observe(
+    const result = await observe(
       { name: "generateColumnSql", metadata: { feature: "column-suggestion", projectId, table } },
       () => agent.generate({ prompt: buildUserPrompt(parsed, sampleRows), abortSignal: signal })
     );
+    candidate = result.output?.sql?.trim();
   } catch {
-    // Provider / network error or client-disconnect abort mid-run — transient,
-    // let the caller retry. Nothing is persisted.
-    agentErrored = true;
+    // Provider / network error or client-disconnect abort mid-run — transient.
+    return { success: false, reason: "error" };
   }
 
-  // Prefer a formal submit; fall back to the last verified expression so a
-  // step-cap exhaustion after a working candidate isn't wasted.
-  const finalSql = submitted ?? lastVerified;
-  if (finalSql) return { success: true, sql: finalSql };
-  return { success: false, reason: agentErrored ? "error" : "none" };
+  // Empty answer = the agent found no useful identifier (definitive).
+  if (!candidate) return { success: false, reason: "none" };
+
+  // Trust-but-verify: the model is only *prompted* to test its answer, so confirm
+  // the final expression actually runs with useful values before we return it.
+  const check = await runVerify(candidate);
+  if (check.ok && hasUsefulValue(check.rows)) return { success: true, sql: candidate };
+  return { success: false, reason: "error" };
 };
