@@ -57,7 +57,11 @@ export function getRoleColors(role?: string): RoleColorConfig {
   return ROLE_COLORS[normalized] ?? ROLE_COLORS.system;
 }
 
-function resolveToolContent(content: unknown): { mode: "json" | "markdown"; value: string } {
+// Shared by tool and text parts: JSON object/array payloads render as JSON,
+// prose renders as markdown. Several callers funnel JSON.stringify'd parts
+// through TextContentPart (e.g. GenericUnknownContentPart), which markdown
+// would mangle.
+function resolveContentMode(content: unknown): { mode: "json" | "markdown"; value: string } {
   if (content !== null && typeof content === "object") {
     return { mode: "json", value: JSON.stringify(content, null, 2) };
   }
@@ -86,7 +90,7 @@ const PureToolCallContentPart = ({
   messageIndex = 0,
   contentPartIndex = 0,
 }: ToolCallContentPartProps) => {
-  const { mode, value } = resolveToolContent(content);
+  const { mode, value } = resolveContentMode(content);
   return (
     <div className="flex flex-col gap-2 p-2 bg-background rounded-b">
       <span
@@ -132,7 +136,7 @@ const PureToolResultContentPart = ({
   messageIndex = 0,
   contentPartIndex = 0,
 }: ToolResultContentPartProps) => {
-  const { mode, value } = resolveToolContent(content);
+  const { mode, value } = resolveContentMode(content);
   return (
     <div className="flex flex-col gap-2 p-2 bg-background rounded-b">
       <span
@@ -191,22 +195,25 @@ const PureTextContentPart = ({
   codeEditorClassName,
   messageIndex = 0,
   contentPartIndex = 0,
-}: TextContentPartProps) => (
-  <div>
-    <ContentRenderer
-      defaultMode="markdown"
-      modes={["MARKDOWN"]}
-      readOnly
-      value={content}
-      presetKey={`editor-${presetKey}`}
-      className={cn("border-0 bg-card", className)}
-      codeEditorClassName={codeEditorClassName}
-      messageIndex={messageIndex}
-      contentPartIndex={contentPartIndex}
-      customTheme={spanViewTheme}
-    />
-  </div>
-);
+}: TextContentPartProps) => {
+  const { mode, value } = resolveContentMode(content);
+  return (
+    <div>
+      <ContentRenderer
+        defaultMode={mode}
+        modes={[mode.toUpperCase()]}
+        readOnly
+        value={value}
+        presetKey={`editor-${presetKey}`}
+        className={cn("border-0 bg-card", className)}
+        codeEditorClassName={codeEditorClassName}
+        messageIndex={messageIndex}
+        contentPartIndex={contentPartIndex}
+        customTheme={spanViewTheme}
+      />
+    </div>
+  );
+};
 
 interface RoleHeaderProps {
   role?: string;
