@@ -567,14 +567,21 @@
     color: white;
   }
 
-  /* ::highlight() can't do border/radius — color/background only. */
-  ::highlight(span-search-match) {
+  /* Match CodeMirror .cm-searchMatch / .cm-searchMatch-selected (content-renderer/utils.ts). */
+  mark.span-search-match {
     background-color: hsl(var(--primary) / 0.3);
+    border: 1px solid hsl(var(--primary));
+    border-radius: 3px;
+    color: inherit;
+    padding: 0;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
   }
 
-  ::highlight(span-search-active) {
+  mark.span-search-match.span-search-active {
     background-color: hsl(var(--primary));
     color: hsl(var(--primary-foreground));
+    font-weight: 600;
   }
 
   .font-sans-landing {

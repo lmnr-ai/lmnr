@@ -1,40 +1,8 @@
 import { findMatchOffsets, type MatchOffset } from "@/components/traces/span-view/searchable/find-matches";
 import { type SearchableSource } from "@/components/traces/span-view/searchable/types";
 
-const MATCH_KEY = "span-search-match";
-const ACTIVE_KEY = "span-search-active";
-
-// lib.dom omits Highlight setlike methods.
-type HighlightLike = {
-  priority: number;
-  add(range: AbstractRange): void;
-  delete(range: AbstractRange): boolean;
-};
-
-type HighlightRegistryLike = {
-  get(key: string): HighlightLike | undefined;
-  set(key: string, value: HighlightLike): void;
-};
-
-function getHighlightRegistry(): HighlightRegistryLike | null {
-  if (typeof CSS === "undefined" || !("highlights" in CSS) || typeof Highlight === "undefined") {
-    return null;
-  }
-  return CSS.highlights as unknown as HighlightRegistryLike;
-}
-
-function getOrCreateHighlight(key: string, priority: number): HighlightLike | null {
-  const registry = getHighlightRegistry();
-  if (!registry) return null;
-
-  let highlight = registry.get(key);
-  if (!highlight) {
-    highlight = new Highlight() as unknown as HighlightLike;
-    highlight.priority = priority;
-    registry.set(key, highlight);
-  }
-  return highlight;
-}
+const MATCH_CLASS = "span-search-match";
+const ACTIVE_CLASS = "span-search-active";
 
 interface TextNodeSpan {
   node: Text;
@@ -60,44 +28,51 @@ function collectTextNodes(root: Node): TextNodeSpan[] {
   return nodes;
 }
 
-function rangeFromOffset(textNodes: TextNodeSpan[], offset: MatchOffset): Range | null {
-  let startNode: Text | null = null;
-  let startOffset = 0;
-  let endNode: Text | null = null;
-  let endOffset = 0;
-
-  for (const span of textNodes) {
-    if (startNode === null && offset.start >= span.start && offset.start < span.end) {
-      startNode = span.node;
-      startOffset = offset.start - span.start;
-    }
-    if (offset.end > span.start && offset.end <= span.end) {
-      endNode = span.node;
-      endOffset = offset.end - span.start;
-      break;
-    }
+function unwrapMark(mark: HTMLElement) {
+  const parent = mark.parentNode;
+  if (!parent) return;
+  while (mark.firstChild) {
+    parent.insertBefore(mark.firstChild, mark);
   }
-
-  if (startNode && !endNode && textNodes.length > 0) {
-    const last = textNodes[textNodes.length - 1];
-    if (offset.end === last.end) {
-      endNode = last.node;
-      endOffset = last.node.length;
-    }
-  }
-
-  if (!startNode || !endNode) return null;
-
-  const range = document.createRange();
-  range.setStart(startNode, startOffset);
-  range.setEnd(endNode, endOffset);
-  return range;
+  parent.removeChild(mark);
+  parent.normalize();
 }
 
-function scrollRangeIntoView(range: Range) {
-  const node = range.startContainer;
-  const el = node.nodeType === Node.TEXT_NODE ? node.parentElement : (node as Element);
-  el?.scrollIntoView({ block: "center", behavior: "instant" });
+/** Wrap each text-node slice of `offset` in a `<mark>`. Process one offset at a time
+ *  after a fresh text-node walk — callers must wrap from last match to first so earlier
+ *  offsets stay valid. */
+function wrapOffset(root: HTMLElement, offset: MatchOffset): HTMLElement[] {
+  const textNodes = collectTextNodes(root);
+  const marks: HTMLElement[] = [];
+
+  for (const span of textNodes) {
+    if (offset.end <= span.start || offset.start >= span.end) continue;
+
+    const localStart = Math.max(0, offset.start - span.start);
+    const localEnd = Math.min(span.node.length, offset.end - span.start);
+    if (localStart >= localEnd) continue;
+
+    // Split so the matched slice is its own text node, then wrap it.
+    let node = span.node;
+    if (localEnd < node.length) {
+      node.splitText(localEnd);
+    }
+    if (localStart > 0) {
+      node = node.splitText(localStart);
+    }
+
+    const mark = document.createElement("mark");
+    mark.className = MATCH_CLASS;
+    node.parentNode?.insertBefore(mark, node);
+    mark.appendChild(node);
+    marks.push(mark);
+  }
+
+  return marks;
+}
+
+function scrollMarkIntoView(mark: HTMLElement) {
+  mark.scrollIntoView({ block: "center", behavior: "instant" });
 }
 
 interface DomSearchSourceOptions {
@@ -113,25 +88,30 @@ export function createDomSearchSource({
   messageIndex,
   contentPartIndex,
 }: DomSearchSourceOptions): SearchableSource {
-  let matchRanges: Range[] = [];
-  let activeRange: Range | null = null;
+  // Each match may span multiple text nodes → multiple marks.
+  let matchMarks: HTMLElement[][] = [];
+  let activeIndex = -1;
 
-  const removeRanges = (highlight: HighlightLike | null, ranges: Range[]) => {
-    if (!highlight) return;
-    for (const range of ranges) {
-      highlight.delete(range);
+  const clearActiveClass = () => {
+    if (activeIndex < 0 || activeIndex >= matchMarks.length) {
+      activeIndex = -1;
+      return;
     }
+    for (const mark of matchMarks[activeIndex]) {
+      mark.classList.remove(ACTIVE_CLASS);
+    }
+    activeIndex = -1;
   };
 
   const clearMatches = () => {
-    const matchHighlight = getOrCreateHighlight(MATCH_KEY, 0);
-    const activeHighlight = getOrCreateHighlight(ACTIVE_KEY, 1);
-    removeRanges(matchHighlight, matchRanges);
-    if (activeRange) {
-      removeRanges(activeHighlight, [activeRange]);
+    clearActiveClass();
+    // Unwrap last→first so sibling splits stay stable while walking.
+    for (let i = matchMarks.length - 1; i >= 0; i--) {
+      for (let j = matchMarks[i].length - 1; j >= 0; j--) {
+        unwrapMark(matchMarks[i][j]);
+      }
     }
-    matchRanges = [];
-    activeRange = null;
+    matchMarks = [];
   };
 
   return {
@@ -148,48 +128,30 @@ export function createDomSearchSource({
       const offsets = findMatchOffsets(text, trimmed);
       if (offsets.length === 0) return 0;
 
-      const textNodes = collectTextNodes(container);
-      const ranges: Range[] = [];
-      for (const offset of offsets) {
-        const range = rangeFromOffset(textNodes, offset);
-        if (range) ranges.push(range);
+      // Wrap last→first so earlier character offsets remain valid in the live DOM.
+      const marksByMatch: HTMLElement[][] = new Array(offsets.length);
+      for (let i = offsets.length - 1; i >= 0; i--) {
+        marksByMatch[i] = wrapOffset(container, offsets[i]);
       }
+      matchMarks = marksByMatch;
 
-      matchRanges = ranges;
-
-      const matchHighlight = getOrCreateHighlight(MATCH_KEY, 0);
-      if (matchHighlight) {
-        for (const range of ranges) {
-          matchHighlight.add(range);
-        }
-      }
-
-      return ranges.length;
+      return matchMarks.length;
     },
     goTo(localIndex: number) {
-      if (localIndex < 0 || localIndex >= matchRanges.length) return;
+      if (localIndex < 0 || localIndex >= matchMarks.length) return;
 
-      const activeHighlight = getOrCreateHighlight(ACTIVE_KEY, 1);
-      if (activeRange && activeHighlight) {
-        activeHighlight.delete(activeRange);
+      clearActiveClass();
+      activeIndex = localIndex;
+      const marks = matchMarks[localIndex];
+      for (const mark of marks) {
+        mark.classList.add(ACTIVE_CLASS);
       }
-
-      activeRange = matchRanges[localIndex];
-      if (activeHighlight && activeRange) {
-        activeHighlight.add(activeRange);
-      }
-
-      if (activeRange) {
-        scrollRangeIntoView(activeRange);
+      if (marks[0]) {
+        scrollMarkIntoView(marks[0]);
       }
     },
     clearActive() {
-      if (!activeRange) return;
-      const activeHighlight = getOrCreateHighlight(ACTIVE_KEY, 1);
-      if (activeHighlight) {
-        activeHighlight.delete(activeRange);
-      }
-      activeRange = null;
+      clearActiveClass();
     },
     destroy() {
       clearMatches();
