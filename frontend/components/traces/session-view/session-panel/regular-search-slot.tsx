@@ -36,10 +36,10 @@ export default function RegularSearchSlot() {
     // TODO(session-view): add autocomplete suggestions from loaded/matched spans
     <AdvancedSearch
       filters={filterColumns}
+      placeholder="Search and filter text, name, id, tags..."
       resource="spans"
       value={EMPTY_SEARCH_VALUE}
       onChange={({ filters, search }) => handleSearch(filters, search)}
-      placeholder="Search text, name, id, tags..."
       className="w-full"
       disabled={isTracesLoading}
       options={SEARCH_OPTIONS}

@@ -1,10 +1,10 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { motion } from "framer-motion";
+import { ListFilter, Search } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 
 import { dataTypeOperationsMap, OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils";
 
@@ -111,9 +111,9 @@ interface FilterSuggestionsProps {
   className?: string;
 }
 
+// Content-only: search-input's popover owns positioning, surface, and animation.
 const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
   const inputValue = useAdvancedSearchContext((state) => state.inputValue);
-  const isOpen = useAdvancedSearchContext((state) => state.isOpen);
   const activeIndex = useAdvancedSearchContext((state) => state.activeIndex);
   const activeRecentIndex = useAdvancedSearchContext((state) => state.activeRecentIndex);
   const filters = useAdvancedSearchContext((state) => state.filters);
@@ -198,22 +198,16 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
     [applyRecentSearch]
   );
 
-  if (!isOpen || (suggestions.length === 0 && !showRecent)) return null;
+  if (suggestions.length === 0 && !showRecent) return null;
 
   return (
-    <div
-      className={cn(
-        "absolute top-full left-0 right-0 z-50 mt-1 bg-secondary border rounded-md shadow-md overflow-hidden",
-        className
-      )}
-      onMouseDown={(e) => e.preventDefault()}
-    >
+    <div className={className} onMouseDown={(e) => e.preventDefault()}>
       {showRecent && (
         <div className="border-b">
-          <div className="px-3 pt-2 pb-1 text-xs text-muted-foreground font-medium tracking-wide">Recent searches</div>
+          <div className="px-2 pt-2 pb-1 text-xs text-muted-foreground font-medium tracking-wide">Recent searches</div>
           <div
             ref={recentContainerRef}
-            className="flex items-center gap-1.5 px-3 pb-2 pt-1 overflow-x-auto no-scrollbar"
+            className="flex items-center gap-1.5 px-2 pb-2 pt-1 overflow-x-auto no-scrollbar"
           >
             {recentSearches.map((rs, idx) => (
               <RecentSearchChip
@@ -232,11 +226,20 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
       )}
       {suggestions.length > 0 && (
         <>
-          <div className="px-3 pt-2 pb-1 text-xs text-muted-foreground font-medium tracking-wide">
+          <div className="flex items-center px-2 pt-2 pb-1 text-xs font-medium tracking-wide text-muted-foreground">
+            {!inputValue.trim() && (
+              <motion.span
+                className="flex items-center overflow-hidden"
+                initial={{ width: 0, opacity: 0, marginRight: 0 }}
+                animate={{ width: "auto", opacity: 1, marginRight: 4 }}
+                transition={{ duration: 0.16, ease: "easeOut", delay: 0.04 }}
+              >
+                <ListFilter className="size-3.5 shrink-0" />
+              </motion.span>
+            )}
             {inputValue.trim() ? "Suggestions" : "Filter by"}
           </div>
-          <ScrollArea className="max-h-64 [&>div]:max-h-64">
-            <div className="pb-1">
+          <div className="max-h-64 overflow-y-auto scroll-fade-y scrollbar-thin pb-1">
               {suggestions.map((suggestion, idx) => {
                 const isActive = idx === activeIndex;
 
@@ -248,7 +251,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
                         if (el) suggestionRefs.current.set(idx, el);
                       }}
                       className={cn(
-                        "px-3 py-1.5 text-xs cursor-pointer font-medium text-secondary-foreground",
+                        "px-2 py-1.5 text-xs cursor-pointer font-medium text-secondary-foreground",
                         isActive ? "bg-accent" : "hover:bg-accent"
                       )}
                       onMouseDown={(e) => {
@@ -273,7 +276,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
                         if (el) suggestionRefs.current.set(idx, el);
                       }}
                       className={cn(
-                        "px-3 py-1.5 text-xs cursor-pointer text-secondary-foreground",
+                        "px-2 py-1.5 text-xs cursor-pointer text-secondary-foreground",
                         isActive ? "bg-accent" : "hover:bg-accent"
                       )}
                       onMouseDown={(e) => {
@@ -295,7 +298,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
                       if (el) suggestionRefs.current.set(idx, el);
                     }}
                     className={cn(
-                      "flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer text-secondary-foreground border-t mt-1 pt-2",
+                      "flex items-center gap-2 px-2 py-1.5 text-xs cursor-pointer text-secondary-foreground border-t mt-1 pt-2",
                       isActive ? "bg-accent" : "hover:bg-accent"
                     )}
                     onMouseDown={(e) => {
@@ -310,8 +313,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
                   </div>
                 );
               })}
-            </div>
-          </ScrollArea>
+          </div>
         </>
       )}
     </div>

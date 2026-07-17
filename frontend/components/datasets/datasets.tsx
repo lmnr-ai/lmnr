@@ -12,7 +12,6 @@ import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { TableCell, TableRow } from "@/components/ui/table";
@@ -116,7 +115,7 @@ function DatasetsContent() {
     track("datasets", "page_viewed");
   }, []);
 
-  const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
+  const { effective, isLoading: isViewLoading, setSearchAndFilters } = useTableView();
   const searchValue = useMemo(
     () => ({ filters: effective.filters, search: effective.search }),
     [effective.filters, effective.search]
@@ -249,11 +248,6 @@ function DatasetsContent() {
             )}
           >
             <div className="flex flex-1 w-full space-x-2 pt-1">
-              <DataTableFilter
-                columns={datasetsTableFilters}
-                filters={effective.filters}
-                onFiltersChange={setFilters}
-              />
               <ColumnsMenu
                 columnLabels={columns.map((column) => ({
                   id: column.id!,
@@ -268,7 +262,7 @@ function DatasetsContent() {
                 onChange={setSearchAndFilters}
                 storageKey={`datasets-${projectId}`}
                 filters={datasetsTableFilters}
-                placeholder="Search by dataset name..."
+                placeholder="Search and filter by dataset name..."
                 className="w-full flex-1"
               />
             </div>

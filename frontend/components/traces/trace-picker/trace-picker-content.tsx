@@ -126,11 +126,11 @@ const TracePickerContent = ({
         <div className="w-full px-px">
           <AdvancedSearch
             filters={traceFilters}
+            placeholder="Search and filter traces..."
             resource="traces"
             storageKey="traces"
             value={filters}
             onChange={({ filters: f, search }) => setFilters({ filters: f, search })}
-            placeholder="Search traces..."
             className="w-full flex-1"
             options={{ disableHotKey: true }}
           />

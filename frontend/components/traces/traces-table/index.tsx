@@ -27,7 +27,6 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableConfigStore, useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
@@ -87,7 +86,7 @@ function TracesTableContent() {
   const pastHours = searchParams.get("pastHours");
   const searchIn = searchParams.getAll("searchIn");
 
-  const { effective, isLoading: isViewLoading, setSort, setSearchAndFilters, setFilters } = useTableView();
+  const { effective, isLoading: isViewLoading, setSort, setSearchAndFilters } = useTableView();
 
   // Wire-shape: filters as JSON-encoded strings (matches the API + URL convention).
   const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
@@ -427,7 +426,6 @@ function TracesTableContent() {
         onSort={handleSort}
       >
         <div className="flex flex-1 w-full h-full gap-2">
-          <DataTableFilter columns={allFilters} filters={effective.filters} onFiltersChange={setFilters} />
           <TracesColumnsMenu columnLabels={columnLabels} columnDefs={columnDefs} />
           <ViewsToolbar projectId={String(projectId)} resource={RESOURCE} />
           <DateRangeFilter />
@@ -442,9 +440,9 @@ function TracesTableContent() {
             value={searchValue}
             onChange={setSearchAndFilters}
             filters={allFilters}
+            placeholder="Search and filter by root span name, tokens, tags, full text and more..."
             storageKey={`traces-${projectId}`}
             resource="traces"
-            placeholder="Search by root span name, tokens, tags, full text and more..."
             className="w-full flex-1"
           />
         </div>

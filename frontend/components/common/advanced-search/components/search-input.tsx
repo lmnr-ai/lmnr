@@ -1,7 +1,9 @@
 "use client";
 
-import { Search, X } from "lucide-react";
-import React, { type ChangeEvent, type FocusEvent, type KeyboardEvent, memo, useCallback, useRef } from "react";
+import * as PopoverPrimitive from "@radix-ui/react-popover";
+import { AnimatePresence, motion } from "framer-motion";
+import { ListFilter, Search, X } from "lucide-react";
+import { type ChangeEvent, type FocusEvent, type KeyboardEvent, memo, useCallback, useRef } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import { getSuggestionAtIndex, getSuggestionsCount } from "@/components/common/advanced-search/utils.ts";
@@ -24,7 +26,7 @@ interface FilterSearchInputProps {
 }
 
 const FilterSearchInput = ({
-  placeholder = "Search...",
+  placeholder = "Search and filter...",
   className,
   resource = "traces",
   disableHotKey,
@@ -331,20 +333,39 @@ const FilterSearchInput = ({
 
   const hasContent = tags.length > 0 || inputValue.length > 0;
 
+  // On focus, the bar anchors a portaled popover (escapes the table's overflow-hidden and
+  // layers above it) that grows the suggestions in flush below it as one elevated surface.
   return (
-    <div
-      ref={containerRef}
-      className={cn(
-        "flex items-start gap-2 px-1 rounded-md border border-input relative",
-        "bg-muted/80 transition duration-250 py-0.75",
-        disabled && "opacity-50 pointer-events-none",
-        className
-      )}
-      onClick={() => mainInputRef.current?.focus()}
-      onBlur={handleContainerBlur}
-    >
-      <span className="py-1 pl-1">
-        <Search className="text-secondary-foreground size-3.5 mt-0.25 shrink-0" />
+    <PopoverPrimitive.Root open={isOpen}>
+      <PopoverPrimitive.Anchor asChild>
+        <div
+          ref={containerRef}
+          className={cn(
+            "flex items-start gap-2 rounded-md border border-input bg-muted/80 py-0.75 pl-1 pr-2 transition duration-250 focus-within:bg-surface-600",
+            isOpen && "rounded-b-none border-b-0 shadow-md",
+            disabled && "pointer-events-none opacity-50",
+            className
+          )}
+          onClick={() => mainInputRef.current?.focus()}
+          onBlur={handleContainerBlur}
+        >
+          <span className="flex items-center py-1 pl-1 text-secondary-foreground">
+        <Search className="size-3.5 mt-0.25 shrink-0" />
+        <AnimatePresence initial={false}>
+          {!isOpen && (
+            <motion.span
+              key="filter-hint"
+              className="flex items-center gap-1 overflow-hidden"
+              initial={{ width: 0, opacity: 0, marginLeft: 0 }}
+              animate={{ width: "auto", opacity: 1, marginLeft: 4 }}
+              exit={{ width: 0, opacity: 0, marginLeft: 0 }}
+              transition={{ duration: 0.16, ease: "easeOut" }}
+            >
+              <span className="select-none text-xs text-muted-foreground">/</span>
+              <ListFilter className="size-3.5 shrink-0" />
+            </motion.span>
+          )}
+        </AnimatePresence>
       </span>
       <div className="flex items-center gap-1 flex-wrap flex-1">
         {tags.map((tag) => (
@@ -390,8 +411,35 @@ const FilterSearchInput = ({
           ⌘K
         </kbd>
       )}
-      <FilterSuggestions />
-    </div>
+        </div>
+      </PopoverPrimitive.Anchor>
+      <PopoverPrimitive.Portal forceMount>
+        <PopoverPrimitive.Content
+          forceMount
+          align="start"
+          sideOffset={0}
+          // Keep the caret in the live input — the popover must not steal focus.
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          className="z-50 w-[var(--radix-popover-trigger-width)] outline-hidden"
+        >
+          <AnimatePresence initial={false}>
+            {isOpen && (
+              <motion.div
+                key="panel"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.16, ease: "easeOut" }}
+                className="overflow-hidden rounded-b-md border border-input bg-surface-600 shadow-md"
+              >
+                <FilterSuggestions />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </PopoverPrimitive.Content>
+      </PopoverPrimitive.Portal>
+    </PopoverPrimitive.Root>
   );
 };
 

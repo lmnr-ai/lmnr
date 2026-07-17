@@ -26,7 +26,6 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar.tsx";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
@@ -182,7 +181,7 @@ function EvaluationsContent() {
   const router = useRouter();
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
+  const { effective, isLoading: isViewLoading, setSearchAndFilters } = useTableView();
   const searchValue = useMemo(
     () => ({ filters: effective.filters, search: effective.search }),
     [effective.filters, effective.search]
@@ -481,7 +480,6 @@ function EvaluationsContent() {
                 )}
               >
                 <div className="flex flex-1 w-full space-x-2">
-                  <DataTableFilter columns={filters} filters={effective.filters} onFiltersChange={setFilters} />
                   <ColumnsMenu
                     columnLabels={columns
                       .filter((column) => column.id !== "__chart_visibility")
@@ -518,7 +516,7 @@ function EvaluationsContent() {
                     onChange={setSearchAndFilters}
                     storageKey={`evaluations-${params?.projectId}`}
                     filters={filters}
-                    placeholder="Search evaluations..."
+                    placeholder="Search and filter evaluations..."
                     className="w-full flex-1"
                   />
                 </div>

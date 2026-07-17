@@ -12,7 +12,6 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -42,7 +41,7 @@ function SessionsTableContent() {
   const { projectId } = useParams();
   const { toast } = useToast();
 
-  const { effective, isLoading: isViewLoading, setSort, setSearchAndFilters, setFilters } = useTableView();
+  const { effective, isLoading: isViewLoading, setSort, setSearchAndFilters } = useTableView();
   const searchValue = useMemo(
     () => ({ filters: effective.filters, search: effective.search }),
     [effective.filters, effective.search]
@@ -156,7 +155,6 @@ function SessionsTableContent() {
         onSort={handleSort}
       >
         <div className="flex flex-1 w-full h-full gap-2">
-          <DataTableFilter columns={filters} filters={effective.filters} onFiltersChange={setFilters} />
           <ColumnsMenu
             columnLabels={columns.map((column) => ({
               id: column.id!,
@@ -172,7 +170,7 @@ function SessionsTableContent() {
             value={searchValue}
             onChange={setSearchAndFilters}
             filters={filters}
-            placeholder="Search by session ID, duration, cost, tokens and more..."
+            placeholder="Search and filter by session ID, duration, cost, tokens and more..."
             className="w-full flex-1"
             storageKey={`sessions-${projectId}`}
             resource="sessions"

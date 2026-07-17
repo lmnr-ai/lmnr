@@ -399,10 +399,10 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
             <div className="w-full px-px">
               <AdvancedSearch
                 filters={allFilters}
+                placeholder="Search and filter by id, metadata, data, target..."
                 value={searchValue}
                 onChange={handleSearchChange}
                 storageKey={`dataset-${dataset.id}`}
-                placeholder="Filter by id, metadata, data, target..."
                 className="w-full flex-1"
               />
             </div>

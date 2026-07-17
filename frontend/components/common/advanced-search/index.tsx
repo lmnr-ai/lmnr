@@ -31,7 +31,7 @@ interface AdvancedSearchInnerProps {
 
 const AdvancedSearchInner = ({
   resource,
-  placeholder = "Search...",
+  placeholder = "Search and filter...",
   className,
   disabled,
   value,

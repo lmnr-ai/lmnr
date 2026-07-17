@@ -14,7 +14,6 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import Mono from "@/components/ui/mono";
@@ -153,7 +152,7 @@ const QueuesContent = () => {
   const { toast } = useToast();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
+  const { effective, isLoading: isViewLoading, setSearchAndFilters } = useTableView();
   const searchValue = useMemo(
     () => ({ filters: effective.filters, search: effective.search }),
     [effective.filters, effective.search]
@@ -305,7 +304,6 @@ const QueuesContent = () => {
           )}
         >
           <div className="flex flex-1 w-full space-x-2 pt-1">
-            <DataTableFilter columns={queuesTableFilters} filters={effective.filters} onFiltersChange={setFilters} />
             <ColumnsMenu
               columnLabels={columns.map((column) => ({
                 id: column.id!,
@@ -320,7 +318,7 @@ const QueuesContent = () => {
               onChange={setSearchAndFilters}
               storageKey={`queues-${projectId}`}
               filters={queuesTableFilters}
-              placeholder="Search queues..."
+              placeholder="Search and filter queues..."
               className="w-full flex-1"
             />
           </div>

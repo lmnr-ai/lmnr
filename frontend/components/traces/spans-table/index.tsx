@@ -14,7 +14,6 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -49,7 +48,7 @@ function SpansTableContent() {
     setSpanId: state.setSpanId,
   }));
 
-  const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
+  const { effective, isLoading: isViewLoading, setSearchAndFilters } = useTableView();
   const searchValue = useMemo(
     () => ({ filters: effective.filters, search: effective.search }),
     [effective.filters, effective.search]
@@ -172,7 +171,6 @@ function SpansTableContent() {
         fetchNextPage={fetchNextPage}
       >
         <div className="flex flex-1 w-full h-full gap-2">
-          <DataTableFilter columns={filters} filters={effective.filters} onFiltersChange={setFilters} />
           <ColumnsMenu
             columnLabels={columns.map((column) => ({
               id: column.id!,
@@ -189,8 +187,8 @@ function SpansTableContent() {
             onChange={setSearchAndFilters}
             storageKey={`spans-${projectId}`}
             filters={filters}
+            placeholder="Search and filter by span name, tokens, tags, full text and more..."
             resource="spans"
-            placeholder="Search by span name, tokens, tags, full text and more..."
             className="w-full flex-1"
           />
         </div>

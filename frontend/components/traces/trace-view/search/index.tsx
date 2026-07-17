@@ -36,10 +36,10 @@ const TraceViewSearch = ({ spans, onSubmit, className, disabled, initialSearch }
   return (
     <AdvancedSearch
       filters={filterColumns}
+      placeholder="Search and filter text, name, id, tags..."
       resource="spans"
       value={value}
       onChange={({ filters, search }) => onSubmit(filters, search)}
-      placeholder="Search text, name, id, tags..."
       className={cn("w-full", className)}
       disabled={disabled}
       options={{
