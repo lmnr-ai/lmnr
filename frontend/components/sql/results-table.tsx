@@ -2,7 +2,7 @@
 
 import { type ColumnDef } from "@tanstack/react-table";
 import { isEmpty, isNil, isObject } from "lodash";
-import { useEffect, useMemo } from "react";
+import { useLayoutEffect, useMemo } from "react";
 
 import { CopyButton } from "@/components/ui/copy-button";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
@@ -58,7 +58,10 @@ const loadStoredSizing = (storageKey: string): Record<string, number> => {
 const ColumnSizingPersistence = ({ storageKey }: { storageKey: string }) => {
   const store = useTableConfigStoreApi();
 
-  useEffect(() => {
+  // Layout effect so stored widths land before the browser paints the fresh
+  // provider's default sizing — a plain effect flashes default widths for one
+  // frame on every re-run.
+  useLayoutEffect(() => {
     const stored = loadStoredSizing(storageKey);
     if (!isEmpty(stored)) {
       store.getState().setColumnSizing({ ...stored, ...store.getState().config.columnSizing });
