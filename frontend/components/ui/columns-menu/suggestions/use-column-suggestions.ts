@@ -14,6 +14,12 @@ export type { ColumnSuggestion } from "./resolve";
 
 const keyFor = (resource: string, scopeId: string) => `column-suggestions:${resource}:${scopeId}`;
 
+// Bounded retry for transient generation failures (empty / streaming eval): ~5
+// attempts over ~20s covers realtime datapoint arrival, then stops so a
+// genuinely-empty eval doesn't poll forever.
+const SUGGESTION_MAX_RETRIES = 5;
+const SUGGESTION_RETRY_DELAY_MS = 4000;
+
 type PersistedMap = Record<string, SuggestionRecord>;
 
 function loadPersisted(storageKey: string): PersistedMap {
@@ -106,11 +112,18 @@ export function useColumnSuggestions({
     [suggestions, existingColumnIds, existingSuggestionKeys, persisted, disabled]
   );
 
-  // Run generation for eligible suggestions exactly once per mount. Each run gets
-  // its own AbortController so it can be cancelled when the hook unmounts (e.g.
-  // navigating to another eval) — the generation is a multi-second agent call.
+  // Run generation for eligible suggestions once per mount. Each run gets its own
+  // AbortController so it can be cancelled when the hook unmounts (e.g. navigating
+  // to another eval) — the generation is a multi-second agent call.
   const attempted = useRef<Set<string>>(new Set());
   const controllers = useRef<Map<string, AbortController>>(new Map());
+  // Transient failures (most commonly an empty / still-streaming eval) are retried
+  // WITHIN the mount: `attempted` is cleared and a bounded delayed `retryNonce`
+  // bump re-runs the effect, so the suggestion appears once realtime datapoints
+  // arrive without a remount. Capped so a genuinely-empty eval never polls forever.
+  const retryCounts = useRef<Map<string, number>>(new Map());
+  const retryTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     if (disabled) return;
@@ -126,24 +139,38 @@ export function useColumnSuggestions({
           setRecord(suggestion.id, res && res.sql.trim() ? pendingRecord(res.sql) : resolvedRecord());
         })
         .catch(() => {
-          // Aborted (unmount / nav): stay silent, don't persist. Otherwise it's a
-          // transient failure: surface via onError and retry next mount.
+          // Aborted (unmount / nav): stay silent, don't persist.
           if (controller.signal.aborted) return;
           onError?.(suggestion);
+          // Transient failure — unblock and schedule a bounded retry so a
+          // streaming eval's suggestion appears once rows land, without a remount.
+          const count = retryCounts.current.get(suggestion.id) ?? 0;
+          if (count >= SUGGESTION_MAX_RETRIES) return;
+          retryCounts.current.set(suggestion.id, count + 1);
+          attempted.current.delete(suggestion.id);
+          const timer = setTimeout(() => {
+            retryTimers.current.delete(timer);
+            setRetryNonce((n) => n + 1);
+          }, SUGGESTION_RETRY_DELAY_MS);
+          retryTimers.current.add(timer);
         })
         .finally(() => {
           controllers.current.delete(suggestion.id);
         });
     }
-  }, [resolution.toGenerate, disabled, setRecord, onError]);
+  }, [resolution.toGenerate, disabled, setRecord, onError, retryNonce]);
 
   // Abort any in-flight generation on unmount so it can't run on / setState a
-  // dead component (and the server call is cancelled).
+  // dead component (and the server call is cancelled). Also clear pending retry
+  // timers so a scheduled retry can't setState after unmount.
   useEffect(() => {
     const map = controllers.current;
+    const timers = retryTimers.current;
     return () => {
       for (const c of map.values()) c.abort();
       map.clear();
+      for (const t of timers) clearTimeout(t);
+      timers.clear();
     };
   }, []);
 
