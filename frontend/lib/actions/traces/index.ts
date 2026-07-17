@@ -138,18 +138,26 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     }
   }
 
-  await attachTraceSignals(projectId, items);
+  await attachTraceSignals(projectId, items, { pastHours, startDate: startTime, endDate: endTime });
 
   return {
     items,
   };
 }
 
-/** Attach signal chips to a page of trace rows. Best-effort — never fails the traces fetch. */
-async function attachTraceSignals(projectId: string, items: TraceRow[]): Promise<void> {
+/** Best-effort; never fails the traces fetch. */
+async function attachTraceSignals(
+  projectId: string,
+  items: TraceRow[],
+  timeRange: { pastHours?: string; startDate?: string; endDate?: string }
+): Promise<void> {
   if (!isFeatureEnabled(Feature.SIGNALS) || items.length === 0) return;
   try {
-    const signalsByTrace = await getTraceRowSignals({ projectId, traceIds: items.map((item) => item.id) });
+    const signalsByTrace = await getTraceRowSignals({
+      projectId,
+      traceIds: items.map((item) => item.id),
+      ...timeRange,
+    });
     if (signalsByTrace.size === 0) return;
     for (const item of items) {
       const traceSignals = signalsByTrace.get(item.id);

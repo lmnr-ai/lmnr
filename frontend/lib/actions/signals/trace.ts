@@ -135,12 +135,13 @@ export async function getTraceSignals(input: z.infer<typeof GetTraceSignalsSchem
 export const GetTraceRowSignalsSchema = z.object({
   projectId: z.guid(),
   traceIds: z.array(z.guid()).min(1),
+  pastHours: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
 });
 
 const MAX_SUMMARIES_PER_SIGNAL = 5;
-// Caps the events fetched per trace (LIMIT BY, so one noisy trace can't evict
-// others). Chips built from the latest N events; eventCount saturates at this.
-const MAX_EVENTS_PER_TRACE = 50;
+const MAX_EVENTS_PER_TRACE = 5;
 
 type BatchEventRow = {
   id: string;
@@ -148,20 +149,16 @@ type BatchEventRow = {
   traceId: string;
   severity: number;
   summary: string;
+  name: string;
 };
 
-/**
- * Per-trace signal chips for the traces table, batched over one page of trace ids.
- *
- * Deliberately does NOT read signal_events_v0: its `clusters` column comes from a
- * project-wide events_to_clusters ⋈ signal_event_clusters join that runs even when
- * the column isn't selected. Instead three explicitly keyed reads, each pruning on
- * its table's primary key (events by trace_id set, links by event_id, clusters by id).
- */
+/** Trace-table signal chips. Skips signal_events_v0 (its clusters join is project-wide). */
 export async function getTraceRowSignals(
   input: z.infer<typeof GetTraceRowSignalsSchema>
 ): Promise<Map<string, TraceRowSignal[]>> {
-  const { projectId, traceIds } = GetTraceRowSignalsSchema.parse(input);
+  const { projectId, traceIds, pastHours, startDate, endDate } = GetTraceRowSignalsSchema.parse(input);
+
+  const { timeClause, timeParams } = buildEventTimeClause({ pastHours, startDate, endDate });
 
   const eventsResult = await clickhouseClient.query({
     query: `
@@ -170,36 +167,33 @@ export async function getTraceRowSignals(
         signal_id as signalId,
         trace_id as traceId,
         severity,
-        summary
+        summary,
+        name
       FROM signal_events
       WHERE project_id = {projectId: UUID}
         AND trace_id IN ({traceIds: Array(UUID)})
+        ${timeClause}
       ORDER BY timestamp DESC
       LIMIT {maxEventsPerTrace: UInt32} BY trace_id
     `,
-    query_params: { projectId, traceIds, maxEventsPerTrace: MAX_EVENTS_PER_TRACE },
+    query_params: {
+      projectId,
+      traceIds,
+      maxEventsPerTrace: MAX_EVENTS_PER_TRACE,
+      ...timeParams,
+    },
   });
   const events = (await eventsResult.json()).data as BatchEventRow[];
   if (events.length === 0) return new Map();
 
-  const [eventClusters, signalNames] = await Promise.all([
-    fetchEventLeafClusters(
-      projectId,
-      events.map((e) => e.id)
-    ),
-    db
-      .select({ id: signals.id, name: signals.name })
-      .from(signals)
-      .where(and(eq(signals.projectId, projectId), inArray(signals.id, [...new Set(events.map((e) => e.signalId))])))
-      .then((rows) => new Map(rows.map((r) => [r.id, r.name]))),
-  ]);
+  const eventClusters = await fetchEventLeafClusters(
+    projectId,
+    events.map((e) => e.id)
+  );
 
   const result = new Map<string, TraceRowSignal[]>();
-  // Events are timestamp-DESC, so the first event seen per (trace, signal) is the
-  // latest — its leaf cluster becomes the chip's cluster.
   for (const e of events) {
-    const signalName = signalNames.get(e.signalId);
-    if (!signalName) continue;
+    if (!e.name) continue;
 
     const traceSignals = result.get(e.traceId) ?? [];
     let chip = traceSignals.find((s) => s.signalId === e.signalId);
@@ -207,7 +201,7 @@ export async function getTraceRowSignals(
       const leaf = eventClusters.get(e.id) ?? null;
       chip = {
         signalId: e.signalId,
-        signalName,
+        signalName: e.name,
         eventCount: 0,
         maxSeverity: e.severity,
         clusterId: leaf?.id ?? null,
@@ -227,11 +221,28 @@ export async function getTraceRowSignals(
   return result;
 }
 
-/**
- * Resolve each event's deepest (highest-level) named cluster in one round-trip.
- * The join's left side is pruned by the page's event ids (verified via EXPLAIN) —
- * unlike signal_events_v0's project-wide clusters subquery.
- */
+function buildEventTimeClause(opts: { pastHours?: string; startDate?: string; endDate?: string }): {
+  timeClause: string;
+  timeParams: Record<string, string | number>;
+} {
+  const { pastHours, startDate, endDate } = opts;
+  if (pastHours && !isNaN(parseFloat(pastHours))) {
+    return {
+      timeClause: "AND timestamp >= now() - INTERVAL {pastHours: UInt32} HOUR",
+      timeParams: { pastHours: parseInt(pastHours) },
+    };
+  }
+  if (startDate && endDate) {
+    return {
+      timeClause: `AND timestamp >= toDateTime64({startDate: String}, 9)
+        AND timestamp <= toDateTime64({endDate: String}, 9)`,
+      timeParams: { startDate, endDate },
+    };
+  }
+  return { timeClause: "", timeParams: {} };
+}
+
+/** Deepest named cluster per event (level > 0). */
 async function fetchEventLeafClusters(
   projectId: string,
   eventIds: string[]
