@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import useSWR from "swr";
 
 import {
   type ColumnSuggestion,
@@ -14,11 +15,12 @@ export type { ColumnSuggestion } from "./resolve";
 
 const keyFor = (resource: string, scopeId: string) => `column-suggestions:${resource}:${scopeId}`;
 
-// Bounded retry for transient generation failures (empty / streaming eval): ~5
-// attempts over ~20s covers realtime datapoint arrival, then stops so a
-// genuinely-empty eval doesn't poll forever.
+// SWR error-retry bounds for transient generation failures (most commonly an
+// empty / still-streaming eval): retry a few times so the suggestion appears
+// once realtime datapoints land, then stop so a genuinely-empty eval doesn't
+// retry forever. SWR layers its own backoff on top of the base interval.
 const SUGGESTION_MAX_RETRIES = 5;
-const SUGGESTION_RETRY_DELAY_MS = 4000;
+const SUGGESTION_RETRY_INTERVAL_MS = 4000;
 
 type PersistedMap = Record<string, SuggestionRecord>;
 
@@ -91,9 +93,9 @@ export function useColumnSuggestions({
   // server; the client re-runs it at hydration and reads localStorage). Consumers
   // MUST remount the hook per scope — the eval page keys its providers on the
   // evaluation id, the established pattern here — so a fresh `scopeId` gets a
-  // fresh read. FOOTGUN: `persisted` and `attempted` are captured at mount and
-  // never reset on prop change, so if a caller ever changes `scopeId` WITHOUT
-  // remounting, it will show the prior scope's cache and block generation.
+  // fresh read. FOOTGUN: `persisted` is captured at mount and never reset on prop
+  // change, so if a caller ever changes `scopeId` WITHOUT remounting, it will
+  // show the prior scope's cache.
   const [persisted, setPersisted] = useState<PersistedMap>(() => loadPersisted(storageKey));
 
   const setRecord = useCallback(
@@ -112,67 +114,64 @@ export function useColumnSuggestions({
     [suggestions, existingColumnIds, existingSuggestionKeys, persisted, disabled]
   );
 
-  // Run generation for eligible suggestions once per mount. Each run gets its own
-  // AbortController so it can be cancelled when the hook unmounts (e.g. navigating
-  // to another eval) — the generation is a multi-second agent call.
-  const attempted = useRef<Set<string>>(new Set());
-  const controllers = useRef<Map<string, AbortController>>(new Map());
-  // Transient failures (most commonly an empty / still-streaming eval) are retried
-  // WITHIN the mount: `attempted` is cleared and a bounded delayed `retryNonce`
-  // bump re-runs the effect, so the suggestion appears once realtime datapoints
-  // arrive without a remount. Capped so a genuinely-empty eval never polls forever.
-  const retryCounts = useRef<Map<string, number>>(new Map());
-  const retryTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
-  const [retryNonce, setRetryNonce] = useState(0);
+  // Generation runs as a single SWR resource keyed on the set of pending
+  // suggestion ids (null when there's nothing to generate / disabled). SWR gives
+  // us dedup (the same pending set can't double-fire), bounded error-retry with
+  // backoff (an empty / streaming eval retries until rows land, then stops), and
+  // no revalidation on focus/reconnect — replacing the old hand-rolled attempted
+  // set + retry timers. SWR does NOT abort in-flight fetches, so we keep one
+  // AbortController to cancel the multi-second agent call on unmount / key change.
+  const abortRef = useRef<AbortController | null>(null);
+  const toGenerate = resolution.toGenerate;
+  const genKey =
+    !disabled && toGenerate.length > 0
+      ? [
+          "column-suggestions:generate",
+          storageKey,
+          toGenerate
+            .map((s) => s.id)
+            .sort()
+            .join(","),
+        ]
+      : null;
 
-  useEffect(() => {
-    if (disabled) return;
-    for (const suggestion of resolution.toGenerate) {
-      if (attempted.current.has(suggestion.id)) continue;
-      attempted.current.add(suggestion.id);
+  useSWR(
+    genKey,
+    async () => {
+      abortRef.current?.abort();
       const controller = new AbortController();
-      controllers.current.set(suggestion.id, controller);
-      suggestion
-        .generate(controller.signal)
-        .then((res) => {
-          // {sql} -> pending; null -> definitive "no identifier" -> resolved.
-          setRecord(suggestion.id, res && res.sql.trim() ? pendingRecord(res.sql) : resolvedRecord());
+      abortRef.current = controller;
+      // Persist each result as it lands; rethrow the first transient failure so
+      // SWR schedules a bounded retry. Aborted calls (unmount / nav) are swallowed.
+      let firstError: unknown = null;
+      await Promise.all(
+        toGenerate.map(async (suggestion) => {
+          try {
+            const res = await suggestion.generate(controller.signal);
+            // {sql} -> pending; null -> definitive "no identifier" -> resolved.
+            setRecord(suggestion.id, res && res.sql.trim() ? pendingRecord(res.sql) : resolvedRecord());
+          } catch (e) {
+            if (controller.signal.aborted) return;
+            onError?.(suggestion);
+            firstError ??= e;
+          }
         })
-        .catch(() => {
-          // Aborted (unmount / nav): stay silent, don't persist.
-          if (controller.signal.aborted) return;
-          onError?.(suggestion);
-          // Transient failure — unblock and schedule a bounded retry so a
-          // streaming eval's suggestion appears once rows land, without a remount.
-          const count = retryCounts.current.get(suggestion.id) ?? 0;
-          if (count >= SUGGESTION_MAX_RETRIES) return;
-          retryCounts.current.set(suggestion.id, count + 1);
-          attempted.current.delete(suggestion.id);
-          const timer = setTimeout(() => {
-            retryTimers.current.delete(timer);
-            setRetryNonce((n) => n + 1);
-          }, SUGGESTION_RETRY_DELAY_MS);
-          retryTimers.current.add(timer);
-        })
-        .finally(() => {
-          controllers.current.delete(suggestion.id);
-        });
+      );
+      if (firstError) throw firstError;
+    },
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      revalidateIfStale: false,
+      shouldRetryOnError: true,
+      errorRetryCount: SUGGESTION_MAX_RETRIES,
+      errorRetryInterval: SUGGESTION_RETRY_INTERVAL_MS,
     }
-  }, [resolution.toGenerate, disabled, setRecord, onError, retryNonce]);
+  );
 
-  // Abort any in-flight generation on unmount so it can't run on / setState a
-  // dead component (and the server call is cancelled). Also clear pending retry
-  // timers so a scheduled retry can't setState after unmount.
-  useEffect(() => {
-    const map = controllers.current;
-    const timers = retryTimers.current;
-    return () => {
-      for (const c of map.values()) c.abort();
-      map.clear();
-      for (const t of timers) clearTimeout(t);
-      timers.clear();
-    };
-  }, []);
+  // SWR won't abort the in-flight agent call on unmount; do it ourselves so a
+  // nav-away cancels the server work and can't setState a dead component.
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const keep = useCallback(
     (id: string) => {
