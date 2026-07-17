@@ -244,25 +244,33 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
     deps: [search, filter, evaluationId, sortBy, sortDirection, targetId, columnSqls],
   });
 
-  // Score-range heatmap input — derived from current data, no storage needed.
+  // Heatmap ranges — derived from current data, no storage needed. Keyed by score
+  // name for score columns AND by column id (`custom:<name>`) for numeric custom
+  // columns, so DataCell can heatmap those too. `series[i] = { rowKey, rangeKey }`.
   const scoreRanges = useMemo(() => {
     if (!allDatapoints) return {};
     const isValidNumber = (value: unknown): value is number => typeof value === "number" && !isNaN(value);
-    return scoreNames.reduce(
-      (acc, scoreName) => {
+    const series = [
+      ...scoreNames.map((name) => ({ rowKey: `score:${name}`, rangeKey: name })),
+      ...customColumns
+        .filter((c) => c.dataType === "number")
+        .map((c) => ({ rowKey: `custom:${c.name}`, rangeKey: `custom:${c.name}` })),
+    ];
+    return series.reduce(
+      (acc, { rowKey, rangeKey }) => {
         const values = allDatapoints
           .flatMap((row) => {
-            const v = [row[`score:${scoreName}`]];
-            if (targetId) v.push(row[`compared:score:${scoreName}`]);
+            const v = [row[rowKey]];
+            if (targetId) v.push(row[`compared:${rowKey}`]);
             return v;
           })
           .filter(isValidNumber);
         if (values.length === 0) return acc;
-        return { ...acc, [scoreName]: { min: Math.min(...values), max: Math.max(...values) } };
+        return { ...acc, [rangeKey]: { min: Math.min(...values), max: Math.max(...values) } };
       },
       {} as Record<string, { min: number; max: number }>
     );
-  }, [allDatapoints, scoreNames, targetId]);
+  }, [allDatapoints, scoreNames, targetId, customColumns]);
 
   // Realtime — only on the live (non-comparison) eval page.
   const debouncedRevalidateStats = useMemo(

@@ -2,6 +2,8 @@ import { type CellContext } from "@tanstack/react-table";
 import { useParams } from "next/navigation";
 import { useCallback } from "react";
 
+import HeatmapValue from "@/components/evaluation/heatmap-value";
+import { formatScoreValue, isValidScore } from "@/components/evaluation/utils";
 import JsonTooltip from "@/components/ui/json-tooltip";
 import { type EvalRow } from "@/lib/evaluation/types";
 
@@ -16,7 +18,12 @@ const formatValue = (v: unknown): string => {
 
 export const DataCell = ({ getValue, column, row, table }: CellContext<EvalRow, unknown>) => {
   const { projectId } = useParams();
-  const { isComparison = false, isShared = false } = table.options.meta?.evalCellMeta ?? {};
+  const {
+    isComparison = false,
+    isShared = false,
+    heatmapEnabled = false,
+    scoreRanges = {},
+  } = table.options.meta?.evalCellMeta ?? {};
   const fullSql = column.columnDef.meta?.fullSql;
   const isTruncatedColumn = column.columnDef.meta?.truncated === true;
   const isCustom = column.columnDef.meta?.isCustom === true;
@@ -53,6 +60,20 @@ export const DataCell = ({ getValue, column, row, table }: CellContext<EvalRow, 
         comparisonValue={isNumeric ? (comparedValue as number | undefined) : undefined}
       />
     );
+  }
+
+  // Numeric custom columns get the same heatmap treatment as score columns.
+  if (isCustom && dataType === "number" && heatmapEnabled) {
+    const range = scoreRanges[column.id];
+    if (range && isValidScore(value as number)) {
+      return (
+        <HeatmapValue
+          value={value as number}
+          range={range}
+          text={<span title={String(value)}>{formatScoreValue(value as number)}</span>}
+        />
+      );
+    }
   }
 
   return <JsonTooltip data={getValue()} columnSize={column.getSize()} onOpen={canFetch ? onFetchFull : undefined} />;
