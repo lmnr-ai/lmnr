@@ -151,9 +151,15 @@ export function useColumnSuggestions({
     (id: string) => {
       const entry = resolution.toShow.find((s) => s.suggestion.id === id);
       if (entry) onKeep(entry.suggestion, entry.sql);
-      setRecord(id, resolvedRecord());
+      // Deliberately NO resolved localStorage write here. onKeep only adds the
+      // column to the (unsaved) view config; resolve already hides the suggestion
+      // in-session via existingColumnIds and cross-session via existingSuggestionKeys
+      // once the view is saved. Persisting "resolved" now would suppress the
+      // suggestion forever if the add is rolled back (refresh / eval switch /
+      // discard changes before save) — the column would be gone but Label never
+      // returns. discard() is the only path that persists resolved.
     },
-    [resolution.toShow, onKeep, setRecord]
+    [resolution.toShow, onKeep]
   );
 
   const discard = useCallback((id: string) => setRecord(id, resolvedRecord()), [setRecord]);
