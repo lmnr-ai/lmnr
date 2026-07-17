@@ -16,7 +16,7 @@ describe("buildSampleRowsQuery", () => {
     });
     assert.equal(
       q,
-      `SELECT data, target, metadata FROM evaluation_datapoints WHERE evaluation_id = {evaluationId:UUID} LIMIT ${SAMPLE_ROW_LIMIT}`
+      `SELECT data, target, metadata FROM evaluation_datapoints WHERE evaluation_id = {evaluationId:UUID} ORDER BY id LIMIT ${SAMPLE_ROW_LIMIT}`
     );
   });
 });
@@ -30,7 +30,7 @@ describe("buildVerifyColumnQuery", () => {
     });
     assert.equal(
       q,
-      `SELECT simpleJSONExtractString(data, 'id') AS value FROM evaluation_datapoints WHERE evaluation_id = {evaluationId:UUID} LIMIT ${SAMPLE_ROW_LIMIT}`
+      `SELECT simpleJSONExtractString(data, 'id') AS value FROM evaluation_datapoints WHERE evaluation_id = {evaluationId:UUID} ORDER BY id LIMIT ${SAMPLE_ROW_LIMIT}`
     );
   });
 });

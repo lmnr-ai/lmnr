@@ -38,8 +38,11 @@ export interface SampleRowsQueryOptions {
   whereSql: string;
 }
 
+// ORDER BY id so the sample fetch and every verify run inspect the SAME rows —
+// LIMIT without ORDER BY lets ClickHouse return different rows per call, which
+// would break the "distinct across sample rows" check and make output flaky.
 export function buildSampleRowsQuery({ table, sampleColumns, whereSql }: SampleRowsQueryOptions): string {
-  return `SELECT ${sampleColumns.join(", ")} FROM ${table} WHERE ${whereSql} LIMIT ${SAMPLE_ROW_LIMIT}`;
+  return `SELECT ${sampleColumns.join(", ")} FROM ${table} WHERE ${whereSql} ORDER BY id LIMIT ${SAMPLE_ROW_LIMIT}`;
 }
 
 export interface VerifyColumnQueryOptions {
@@ -50,5 +53,5 @@ export interface VerifyColumnQueryOptions {
 }
 
 export function buildVerifyColumnQuery({ table, expression, whereSql }: VerifyColumnQueryOptions): string {
-  return `SELECT ${expression} AS value FROM ${table} WHERE ${whereSql} LIMIT ${SAMPLE_ROW_LIMIT}`;
+  return `SELECT ${expression} AS value FROM ${table} WHERE ${whereSql} ORDER BY id LIMIT ${SAMPLE_ROW_LIMIT}`;
 }

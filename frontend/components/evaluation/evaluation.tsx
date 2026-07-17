@@ -45,7 +45,6 @@ import {
   type LinkedDataset,
 } from "@/lib/evaluation/types";
 import { useRealtime } from "@/lib/hooks/use-realtime";
-import { useToast } from "@/lib/hooks/use-toast";
 import { swrFetcher } from "@/lib/utils";
 
 import TraceView from "../traces/trace-view";
@@ -93,7 +92,6 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
     }),
     shallow
   );
-  const { toast } = useToast();
 
   // Eval-specific state lives in EvalStore. customColumns intentionally do not.
   const scoreNames = useEvalStore((s) => s.scoreNames);
@@ -141,9 +139,10 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
     },
     [configStore]
   );
-  const onSuggestionError = useCallback(() => {
-    toast({ variant: "destructive", title: "Column suggestion generation failed" });
-  }, [toast]);
+  // Proactive suggestions are opportunistic — a transient failure (no AI provider
+  // configured, empty/streaming eval, backend hiccup) must NOT surface a
+  // destructive toast on every load. Fail silently; the hook retries next mount.
+  const onSuggestionError = useCallback(() => {}, []);
   const {
     active: activeSuggestions,
     keep: keepSuggestion,

@@ -67,11 +67,12 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn, config }: Cus
 
     if (!trimmedName || !trimmedSql) return;
 
-    // Check for duplicate names (skip the current name when editing)
+    // Check for duplicate names by column id (skip the current name when
+    // editing). Compare `custom:<name>` rather than the rendered header — a
+    // suggested column's header is a React component, so a header-string compare
+    // would miss it and let a duplicate slip through.
     const cols = config.getColumnDefs();
-    if (
-      cols.some((c) => c.meta?.isCustom && (c.header as string) === trimmedName && trimmedName !== editingColumn?.name)
-    ) {
+    if (cols.some((c) => c.meta?.isCustom && c.id === `custom:${trimmedName}` && trimmedName !== editingColumn?.name)) {
       setError(`A column named "${trimmedName}" already exists.`);
       return;
     }

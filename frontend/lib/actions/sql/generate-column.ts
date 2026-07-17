@@ -95,6 +95,9 @@ const buildUserPrompt = (input: GenerateColumnSqlInput, sampleRows: unknown[]): 
     : input.sampleColumns;
   return [
     input.instruction.trim(),
+    input.dataType === "number"
+      ? "The column is NUMERIC — your expression MUST evaluate to a number (cast/parse if the source is a string)."
+      : "The column is a STRING label — your expression MUST evaluate to a human-readable string.",
     `Target table: ${input.table}. Source columns available: ${availableColumns.join(", ")}.`,
     `Example rows (up to 5):`,
     "```json",
@@ -161,9 +164,11 @@ export const generateColumnSql = async (
   } catch {
     return { success: false, reason: "error" };
   }
-  // No datapoints yet is a normal state (fresh eval), not a failure — return
-  // "none" so the client resolves silently instead of toasting on every load.
-  if (sampleRows.length === 0) return { success: false, reason: "none" };
+  // No datapoints yet (fresh / still-streaming eval) is transient, NOT a
+  // definitive "no identifier" — return "error" so the client retries once rows
+  // arrive instead of persisting the suggestion resolved forever. Proactive
+  // suggestions fail silently (no toast), so this doesn't nag on empty evals.
+  if (sampleRows.length === 0) return { success: false, reason: "error" };
 
   // Structure-keyed cache: reuse a prior generation for the same shape (skips the
   // agent). Best-effort — any cache error falls through to generation. Only keyed
