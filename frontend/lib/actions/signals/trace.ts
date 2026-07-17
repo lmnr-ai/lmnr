@@ -140,16 +140,18 @@ export const GetTraceRowSignalsSchema = z.object({
   endDate: z.string().optional(),
 });
 
-const MAX_SUMMARIES_PER_SIGNAL = 5;
-const MAX_EVENTS_PER_TRACE = 5;
+const MAX_EVENTS_PER_SIGNAL = 5;
 
 type BatchEventRow = {
   id: string;
   signalId: string;
   traceId: string;
-  severity: number;
   summary: string;
   name: string;
+  // Window aggregates over ALL of the (trace, signal) pair's events — exact
+  // even though LIMIT BY trims the returned rows.
+  eventCount: string;
+  maxSeverity: number;
 };
 
 /** Trace-table signal chips. Skips signal_events_v0 (its clusters join is project-wide). */
@@ -160,26 +162,30 @@ export async function getTraceRowSignals(
 
   const { timeClause, timeParams } = buildEventTimeClause({ pastHours, startDate, endDate });
 
+  // Cap is per (trace, signal) so one multi-finding signal can't evict other
+  // signals' chips; window aggregates are computed BEFORE the LIMIT BY trim,
+  // so eventCount / maxSeverity stay exact past the cap.
   const eventsResult = await clickhouseClient.query({
     query: `
       SELECT
         id,
         signal_id as signalId,
         trace_id as traceId,
-        severity,
         summary,
-        name
+        name,
+        count() OVER (PARTITION BY trace_id, signal_id) as eventCount,
+        max(severity) OVER (PARTITION BY trace_id, signal_id) as maxSeverity
       FROM signal_events
       WHERE project_id = {projectId: UUID}
         AND trace_id IN ({traceIds: Array(UUID)})
         ${timeClause}
       ORDER BY timestamp DESC
-      LIMIT {maxEventsPerTrace: UInt32} BY trace_id
+      LIMIT {maxEventsPerSignal: UInt32} BY trace_id, signal_id
     `,
     query_params: {
       projectId,
       traceIds,
-      maxEventsPerTrace: MAX_EVENTS_PER_TRACE,
+      maxEventsPerSignal: MAX_EVENTS_PER_SIGNAL,
       ...timeParams,
     },
   });
@@ -202,8 +208,8 @@ export async function getTraceRowSignals(
       chip = {
         signalId: e.signalId,
         signalName: e.name,
-        eventCount: 0,
-        maxSeverity: e.severity,
+        eventCount: Number(e.eventCount),
+        maxSeverity: Number(e.maxSeverity),
         clusterId: leaf?.id ?? null,
         clusterName: leaf?.name ?? null,
         summaries: [],
@@ -211,9 +217,7 @@ export async function getTraceRowSignals(
       traceSignals.push(chip);
       result.set(e.traceId, traceSignals);
     }
-    chip.eventCount += 1;
-    chip.maxSeverity = Math.max(chip.maxSeverity, e.severity);
-    if (e.summary && chip.summaries.length < MAX_SUMMARIES_PER_SIGNAL) {
+    if (e.summary) {
       chip.summaries.push(e.summary);
     }
   }
