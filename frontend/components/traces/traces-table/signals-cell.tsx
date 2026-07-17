@@ -27,7 +27,7 @@ function SignalChip({ signal }: { signal: TraceRowSignal }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div className="flex items-center gap-1 min-w-0 shrink rounded-full border px-1.5 py-0.5 text-xs" style={{}}>
+        <div className="flex items-center gap-1 min-w-0 shrink rounded-full border px-1.5 py-0.5 text-xs">
           <ClusterIcon iconVariant={hasCluster ? "box" : "circle-dashed"} color={color} />
           <span className="truncate">{label}</span>
           {signal.eventCount > 1 && <span className="shrink-0 text-muted-foreground">{signal.eventCount}</span>}
