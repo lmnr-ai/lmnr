@@ -41,12 +41,15 @@ export default function QueueHotkeys() {
   );
 
   // Esc blurs whatever input/editor holds focus so the default-scope nav
-  // hotkeys (⌘←/⌘→/⌘⌫) work again without reaching for the mouse. CodeMirror
-  // only claims Escape while its search panel is open, so this doesn't
-  // shadow any editor binding.
+  // hotkeys (⌘←/⌘→/⌘⌫) work again without reaching for the mouse. Skip when
+  // something already consumed the Escape (Radix dialogs call preventDefault
+  // when dismissing — including ones with local open state that never reach
+  // the store's `dialogOpen`, like the schema-definition dialog — and so does
+  // CodeMirror's search-panel-close binding).
   useHotkeys(
     "escape",
-    () => {
+    (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
       const el = document.activeElement;
       if (el instanceof HTMLElement) el.blur();
     },
