@@ -132,6 +132,21 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "input_tokens", type: "Int64", description: "Number of input tokens" },
       { name: "output_tokens", type: "Int64", description: "Number of output tokens" },
       { name: "total_tokens", type: "Int64", description: "Total tokens used" },
+      {
+        name: "cache_read_input_tokens",
+        type: "Int64",
+        description: "Tokens read from prompt cache (summed across LLM spans)",
+      },
+      {
+        name: "cache_creation_input_tokens",
+        type: "Int64",
+        description: "Tokens written to prompt cache (summed across LLM spans)",
+      },
+      {
+        name: "reasoning_tokens",
+        type: "Int64",
+        description: "Reasoning tokens (summed across LLM spans)",
+      },
       { name: "input_cost", type: "Float64", description: "Cost for input tokens" },
       { name: "output_cost", type: "Float64", description: "Cost for output tokens" },
       { name: "total_cost", type: "Float64", description: "Total cost of the span" },
