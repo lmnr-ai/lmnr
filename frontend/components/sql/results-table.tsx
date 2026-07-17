@@ -97,7 +97,11 @@ export default function ResultsTable({ results, storageKey }: ResultsTableProps)
   }, [results]);
 
   return (
-    <InfiniteDataTableProvider>
+    // Keyed by storageKey: switching templates without a route remount would
+    // otherwise keep the previous template's config store alive, and its
+    // in-memory widths would leak into the new template's localStorage entry
+    // via the mount-time merge in ColumnSizingPersistence.
+    <InfiniteDataTableProvider key={storageKey}>
       <ColumnSizingPersistence storageKey={storageKey} />
       <InfiniteDataTable
         className="w-full"
