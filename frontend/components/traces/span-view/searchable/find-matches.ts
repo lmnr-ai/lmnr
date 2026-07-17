@@ -3,9 +3,12 @@ export interface MatchOffset {
   end: number;
 }
 
+/** Non-letter/non-number runs (Unicode-aware). */
+const NON_ALNUM = "[^\\p{L}\\p{N}]+";
+
 export function buildSearchRegex(query: string): RegExp | null {
   const tokens = query
-    .split(/[^a-zA-Z0-9]+/)
+    .split(new RegExp(NON_ALNUM, "u"))
     .filter((t) => t.length > 0)
     .map((t) => t.replace(/[\\.*+?^${}()|[\]]/g, "\\$&"));
 
@@ -13,8 +16,8 @@ export function buildSearchRegex(query: string): RegExp | null {
     return null;
   }
 
-  const core = tokens.length === 1 ? tokens[0] : tokens.join("[^a-zA-Z0-9]+");
-  return new RegExp(core, "i");
+  const core = tokens.length === 1 ? tokens[0] : tokens.join(NON_ALNUM);
+  return new RegExp(core, "iu");
 }
 
 export function findMatchOffsets(text: string, term: string): MatchOffset[] {
@@ -24,7 +27,7 @@ export function findMatchOffsets(text: string, term: string): MatchOffset[] {
   const regex = buildSearchRegex(trimmed);
   if (!regex) return [];
 
-  const globalRegex = new RegExp(regex.source, "gi");
+  const globalRegex = new RegExp(regex.source, "giu");
   const offsets: MatchOffset[] = [];
   let match: RegExpExecArray | null;
 

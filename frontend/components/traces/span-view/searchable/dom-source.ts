@@ -128,18 +128,10 @@ function rangeForOffset(spans: TextNodeSpan[], offset: MatchOffset): Range | nul
   return range;
 }
 
-function scrollRangeIntoView(range: Range, container: HTMLElement) {
-  let scroller: HTMLElement | null = container;
-  while (scroller && scroller !== document.body) {
-    const { overflowY } = getComputedStyle(scroller);
-    if ((overflowY === "auto" || overflowY === "scroll") && scroller.scrollHeight > scroller.clientHeight) break;
-    scroller = scroller.parentElement;
-  }
-  if (!scroller || scroller === document.body) return;
-
-  const rect = range.getBoundingClientRect();
-  const scrollerRect = scroller.getBoundingClientRect();
-  scroller.scrollTop += rect.top - scrollerRect.top - scroller.clientHeight / 2 + rect.height / 2;
+function scrollRangeIntoView(range: Range) {
+  const node = range.startContainer;
+  const el = node.nodeType === Node.TEXT_NODE ? node.parentElement : (node as Element);
+  el?.scrollIntoView({ block: "center", behavior: "instant" });
 }
 
 interface DomSearchSourceOptions {
@@ -207,7 +199,7 @@ export function createDomSearchSource({
       clearActive();
       activeRange = range;
       highlights?.active.add(range);
-      scrollRangeIntoView(range, container);
+      scrollRangeIntoView(range);
     },
     clearActive,
     destroy() {
