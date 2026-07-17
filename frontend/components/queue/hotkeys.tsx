@@ -40,6 +40,19 @@ export default function QueueHotkeys() {
     submitScope
   );
 
+  // Esc blurs whatever input/editor holds focus so the default-scope nav
+  // hotkeys (⌘←/⌘→/⌘⌫) work again without reaching for the mouse. CodeMirror
+  // only claims Escape while its search panel is open, so this doesn't
+  // shadow any editor binding.
+  useHotkeys(
+    "escape",
+    () => {
+      const el = document.activeElement;
+      if (el instanceof HTMLElement) el.blur();
+    },
+    submitScope
+  );
+
   useHotkeys(
     "meta+backspace,ctrl+backspace",
     async (e: KeyboardEvent) => {
