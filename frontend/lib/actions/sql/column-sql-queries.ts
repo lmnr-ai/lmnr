@@ -9,8 +9,10 @@ import { generateFingerprint } from "@/lib/actions/spans/previews/utils";
 // generation across evals with the same shape. Fingerprints row[0] only; evals are
 // structurally homogeneous, so the first row's shape represents the dataset.
 export function sampleFingerprint(row: Record<string, unknown>, cols: string[]): string {
+  // "*" (SELECT *) means fingerprint every column present in the row.
+  const effectiveCols = cols.includes("*") ? Object.keys(row) : cols;
   const shape: Record<string, unknown> = {};
-  for (const col of cols) {
+  for (const col of effectiveCols) {
     const v = row[col];
     if (typeof v === "string" && v !== "") {
       try {

@@ -87,16 +87,22 @@ Rules:
 const prepareRows = (rows: Record<string, unknown>[]): Record<string, unknown>[] =>
   rows.map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, truncateForPrompt(v)])));
 
-const buildUserPrompt = (input: GenerateColumnSqlInput, sampleRows: unknown[]): string =>
-  [
+const buildUserPrompt = (input: GenerateColumnSqlInput, sampleRows: unknown[]): string => {
+  // With SELECT * the requested list is just ["*"]; surface the real column names
+  // from the fetched rows so the agent knows exactly what it can reference.
+  const availableColumns = input.sampleColumns.includes("*")
+    ? Object.keys((sampleRows[0] as Record<string, unknown> | undefined) ?? {})
+    : input.sampleColumns;
+  return [
     input.instruction.trim(),
-    `Target table: ${input.table}. Source columns available: ${input.sampleColumns.join(", ")}.`,
+    `Target table: ${input.table}. Source columns available: ${availableColumns.join(", ")}.`,
     `Example rows (up to 5):`,
     "```json",
     JSON.stringify(sampleRows, null, 2),
     "```",
     "Test candidate expressions with verifyColumnSql, then return the final verified expression as your answer (the `sql` field).",
   ].join("\n\n");
+};
 
 /**
  * Agentic generator for a custom column SQL expression. A ToolLoopAgent iterates

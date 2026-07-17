@@ -31,7 +31,10 @@ export default function EvalColumnsMenu({ columnDefs, columnLabels = [] }: EvalC
         table: "evaluation_datapoints",
         whereSql: "evaluation_id = {evaluationId:UUID}",
         parameters: { evaluationId: evaluationId as string },
-        sampleColumns: ["data", "target", "metadata"],
+        // Pass the ENTIRE datapoint (SELECT *) so the agent can reference any column
+        // — scores, executor_output, costs, trace data — not just data/target/metadata.
+        // truncateForPrompt caps every column so the prompt stays bounded.
+        sampleColumns: ["*"],
       },
       generationMode: "eval-expression",
       buildTestQuery: (sql) =>
