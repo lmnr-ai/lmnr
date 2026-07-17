@@ -240,7 +240,9 @@ function buildEventTimeClause(opts: { pastHours?: string; startDate?: string; en
     return {
       timeClause: `AND timestamp >= toDateTime64({startDate: String}, 9)
         AND timestamp <= toDateTime64({endDate: String}, 9)`,
-      timeParams: { startDate, endDate },
+      // toDateTime64 rejects the ISO Z suffix (CANNOT_PARSE_TEXT) — strip it,
+      // same as the shared query-builder's time-range params.
+      timeParams: { startDate: startDate.replace("Z", ""), endDate: endDate.replace("Z", "") },
     };
   }
   return { timeClause: "", timeParams: {} };
