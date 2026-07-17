@@ -8,11 +8,13 @@ import { type ManageSignalForm } from "@/components/signals/create-signal-drawer
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import { type ClusterStatsDataPoint, type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { type Filter } from "@/lib/actions/common/filters.ts";
+import { type AgentBucket } from "@/lib/actions/signal-breakdown";
 import { type Trigger } from "@/lib/actions/signal-triggers";
 import { type Signal } from "@/lib/actions/signals";
 import { type EventRow } from "@/lib/events/types";
 
 import { buildPath, buildTree, type ClusterNode, collectDescendantIds, findNodeById } from "./clusters-section/utils";
+import { type BreakdownDimension } from "./signal-breakdown/types";
 
 export type { ClusterStatsDataPoint };
 
@@ -36,6 +38,12 @@ export type SignalState = {
   isClustersLoading: boolean;
   clusterStatsData: ClusterStatsDataPoint[];
   isClusterStatsLoading: boolean;
+  // Breakdown-dimension state. Clusters keep their URL selection (clusterId /
+  // emergingClusterId); every other dimension lives here in state. `agentBuckets`
+  // is the agent→version tree, needed to resolve an agent-level events filter.
+  breakdownBy: BreakdownDimension;
+  breakdownSelectedId: string | null;
+  agentBuckets: AgentBucket[];
 };
 
 export type FetchClusterStatsParams = {
@@ -59,6 +67,10 @@ export type SignalActions = {
   // Cluster actions
   fetchClusters: (params: FetchClustersParams) => Promise<void>;
   fetchClusterStats: (params: FetchClusterStatsParams) => Promise<void>;
+  // Breakdown actions
+  setBreakdownBy: (dimension: BreakdownDimension) => void;
+  setBreakdownSelectedId: (id: string | null) => void;
+  setAgentBuckets: (buckets: AgentBucket[]) => void;
 };
 
 export interface EventsProps {
@@ -199,6 +211,9 @@ export const createSignalStore = (initProps: EventsProps) =>
     isClustersLoading: true,
     clusterStatsData: [],
     isClusterStatsLoading: false,
+    breakdownBy: { kind: "clusters" },
+    breakdownSelectedId: null,
+    agentBuckets: [],
     signal: {
       ...initProps.signal,
       prompt: initProps.signal.prompt,
@@ -301,6 +316,10 @@ export const createSignalStore = (initProps: EventsProps) =>
         set({ clusterStatsData: [], isClusterStatsLoading: false });
       }
     },
+    // Switching dimension always clears the (non-cluster) selection.
+    setBreakdownBy: (dimension) => set({ breakdownBy: dimension, breakdownSelectedId: null }),
+    setBreakdownSelectedId: (id) => set({ breakdownSelectedId: id }),
+    setAgentBuckets: (buckets) => set({ agentBuckets: buckets }),
   }));
 
 export const SignalContext = createContext<SignalStoreApi | null>(null);

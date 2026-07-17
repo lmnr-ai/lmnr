@@ -1,8 +1,15 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle";
 import { agents, agentVersions } from "@/lib/db/migrations/schema";
+
+// Lookback for the per-version "Last trace" column. Bounded so the traces_v0
+// scan is pruned (the view is partitioned by month on start_time); a version
+// with no trace in this window shows no last-trace. TODO(prototype): a
+// denormalised last-trace on agent_versions would remove the bound.
+const LAST_TRACE_LOOKBACK_HOURS = 720;
 
 export const GetAgentsSchema = z.object({
   projectId: z.guid(),
@@ -53,6 +60,9 @@ export interface AgentVersionItem {
   toolDefinitions: string;
   model: string;
   createdAt: string;
+  /** Most recent trace tagged with this version in the lookback window, if any. */
+  lastTraceId: string | null;
+  lastTraceAt: string | null;
 }
 
 export interface AgentVersionsResult {
@@ -73,7 +83,7 @@ export async function getAgentVersions(
 
   if (!agent) return null;
 
-  const versions = await db
+  const versionRows = await db
     .select({
       versionHash: agentVersions.versionHash,
       systemPrompt: agentVersions.systemPrompt,
@@ -86,5 +96,46 @@ export async function getAgentVersions(
     .orderBy(desc(agentVersions.createdAt))
     .limit(50);
 
+  const lastTraceByHash = await getLastTraceByVersion(
+    projectId,
+    versionRows.map((v) => v.versionHash)
+  );
+
+  const versions: AgentVersionItem[] = versionRows.map((v) => ({
+    ...v,
+    createdAt: String(v.createdAt),
+    lastTraceId: lastTraceByHash.get(v.versionHash)?.id ?? null,
+    lastTraceAt: lastTraceByHash.get(v.versionHash)?.at ?? null,
+  }));
+
   return { agent, versions };
+}
+
+/** Most-recent trace id + time per version_hash, from traces.metadata (bounded). */
+async function getLastTraceByVersion(
+  projectId: string,
+  versionHashes: string[]
+): Promise<Map<string, { id: string; at: string }>> {
+  const result = new Map<string, { id: string; at: string }>();
+  if (versionHashes.length === 0) return result;
+
+  const rows = await executeQuery<{ versionHash: string; lastTraceId: string; lastTraceAt: string }>({
+    query: `
+      SELECT
+        simpleJSONExtractString(metadata, 'version_hash') AS versionHash,
+        argMax(id, start_time) AS lastTraceId,
+        formatDateTime(max(start_time), '%Y-%m-%dT%H:%i:%S.%fZ') AS lastTraceAt
+      FROM traces
+      WHERE start_time >= now() - INTERVAL {lookbackHours:UInt32} HOUR
+        AND simpleJSONExtractString(metadata, 'version_hash') IN {versionHashes:Array(String)}
+      GROUP BY versionHash
+    `,
+    parameters: { lookbackHours: LAST_TRACE_LOOKBACK_HOURS, versionHashes },
+    projectId,
+  }).catch(() => []);
+
+  for (const r of rows) {
+    if (r.versionHash) result.set(r.versionHash, { id: r.lastTraceId, at: r.lastTraceAt });
+  }
+  return result;
 }

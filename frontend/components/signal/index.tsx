@@ -7,6 +7,7 @@ import EventsTable from "@/components/signal/events-table";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type ManageSignalForm, ManageSignalPanel } from "@/components/signals/create-signal-drawer";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
+import DateRangeFilter from "@/components/ui/date-range-filter";
 import Header from "@/components/ui/header.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { track } from "@/lib/posthog";
@@ -67,7 +68,7 @@ function SignalContent({ slackClientId, slackRedirectUri, slackBrokerEnabled }: 
     <>
       <Header path={[{ name: "signals", href: `/project/${params.projectId}/signals` }, { name: signal.name }]} />
       <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col gap-6 overflow-hidden">
-        <div className="px-4">
+        <div className="px-4 flex items-center gap-2">
           <TabsList className="h-8">
             <TabsTrigger className="text-xs" value="events">
               Events
@@ -76,6 +77,8 @@ function SignalContent({ slackClientId, slackRedirectUri, slackBrokerEnabled }: 
               Settings
             </TabsTrigger>
           </TabsList>
+          {/* Time range governs both the breakdown section and the events table. */}
+          {activeTab === "events" && <DateRangeFilter />}
         </div>
 
         <TabsContent value="events" className="flex flex-col overflow-hidden">

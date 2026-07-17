@@ -121,6 +121,8 @@ export interface BuildEventsQueryOptions {
   endTime?: string;
   pastHours?: string;
   clusterFilter?: "unclustered" | string[];
+  /** Restrict to events whose trace matches an agent version (or the unversioned bucket). */
+  versionFilter?: VersionFilter;
   /** Restrict results to this set of event ids (used for full-text search hydration). */
   idFilter?: string[];
   // "signal_events_all" is used for the "emerging cluster" that includes L0 clusters
@@ -159,6 +161,56 @@ function buildIdFilterConditions(idFilter: string[] | undefined): Array<{ condit
   ];
 }
 
+/** null versionHashes = the "unversioned" agent bucket (trace has no version_hash). */
+export interface VersionFilter {
+  versionHashes: string[] | null;
+}
+
+// Filter events to those whose trace resolves to a given agent version, via a
+// subquery on `traces.metadata.version_hash`. The subquery's own `start_time`
+// bound lets the query-engine validator prune `traces_v0` (smoke-tested LAM).
+// Prototype note: bounding traces to the event window makes long-running traces
+// (started before the window) fall out — same tradeoff as the agent stats query.
+function buildVersionConditions(
+  versionFilter: VersionFilter | undefined,
+  bounds: { startTime?: string; endTime?: string; pastHours?: string }
+): Array<{ condition: string; params: QueryParams }> {
+  if (!versionFilter) return [];
+  const { versionHashes } = versionFilter;
+  // An agent with zero versions can never match.
+  if (versionHashes && versionHashes.length === 0) return [{ condition: "1 = 0", params: {} }];
+
+  const traceConds: string[] = [];
+  const params: QueryParams = {};
+  if (bounds.pastHours && !isNaN(parseFloat(bounds.pastHours))) {
+    traceConds.push("start_time >= now() - INTERVAL {vhPastHours:UInt32} HOUR");
+    params.vhPastHours = parseInt(bounds.pastHours);
+  } else {
+    if (bounds.startTime) {
+      traceConds.push("start_time >= {vhStartTime:String}");
+      params.vhStartTime = bounds.startTime.replace("Z", "");
+    }
+    if (bounds.endTime) {
+      traceConds.push("start_time <= {vhEndTime:String}");
+      params.vhEndTime = bounds.endTime.replace("Z", "");
+    }
+  }
+
+  if (versionHashes === null) {
+    traceConds.push("simpleJSONExtractString(metadata, 'version_hash') = ''");
+  } else {
+    traceConds.push("simpleJSONExtractString(metadata, 'version_hash') IN {versionHashes:Array(String)}");
+    params.versionHashes = versionHashes;
+  }
+
+  return [
+    {
+      condition: `trace_id IN (SELECT id FROM traces WHERE ${traceConds.join(" AND ")})`,
+      params,
+    },
+  ];
+}
+
 export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): QueryResult => {
   const {
     signalId,
@@ -169,6 +221,7 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
     endTime,
     pastHours,
     clusterFilter,
+    versionFilter,
     idFilter,
     table,
     sortBy,
@@ -199,6 +252,7 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
       params: { signalId },
     },
     ...buildClusterConditions(clusterFilter),
+    ...buildVersionConditions(versionFilter, { startTime, endTime, pastHours }),
     ...buildIdFilterConditions(idFilter),
   ];
 
@@ -233,7 +287,7 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
 export const buildEventsCountQueryWithParams = (
   options: Omit<BuildEventsQueryOptions, "limit" | "offset">
 ): QueryResult => {
-  const { signalId, filters, startTime, endTime, pastHours, clusterFilter, idFilter, table } = options;
+  const { signalId, filters, startTime, endTime, pastHours, clusterFilter, versionFilter, idFilter, table } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -244,6 +298,7 @@ export const buildEventsCountQueryWithParams = (
       params: { signalId },
     },
     ...buildClusterConditions(clusterFilter),
+    ...buildVersionConditions(versionFilter, { startTime, endTime, pastHours }),
     ...buildIdFilterConditions(idFilter),
   ];
 

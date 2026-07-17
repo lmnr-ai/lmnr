@@ -7,20 +7,17 @@ import { useSWRConfig } from "swr";
 import { shallow } from "zustand/shallow";
 
 import AdvancedSearch from "@/components/common/advanced-search";
-import ClustersSection from "@/components/signal/clusters-section";
-import ClusterBreadcrumbs from "@/components/signal/clusters-section/cluster-breadcrumbs";
-import EmergingClusterBreadcrumbs from "@/components/signal/emerging-cluster-breadcrumbs";
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
 import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-cluster-id";
+import SignalBreakdownSection from "@/components/signal/signal-breakdown";
+import { deriveBreakdownEventsFilter } from "@/components/signal/signal-breakdown/dimensions";
 import { getFilterClusterIds, useSignalStoreContext } from "@/components/signal/store.tsx";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
-import DateRangeFilter from "@/components/ui/date-range-filter";
 import { getDisplayRange, getTimeDifference } from "@/components/ui/date-range-filter/utils.ts";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
@@ -68,6 +65,19 @@ function PureEventsTable() {
   const signal = useSignalStoreContext((state) => state.signal);
   const selectedClusterIds = useSignalStoreContext((state) => getFilterClusterIds(state, clusterId), shallow);
   const isUnclusteredFilter = clusterId === UNCLUSTERED_ID;
+
+  // Breakdown dimension: clusters use the cluster-id path below; every other
+  // dimension contributes a standard events filter derived from store state.
+  const breakdownBy = useSignalStoreContext((state) => state.breakdownBy);
+  const breakdownSelectedId = useSignalStoreContext((state) => state.breakdownSelectedId);
+  const agentBuckets = useSignalStoreContext((state) => state.agentBuckets);
+  const isClustersBreakdown = breakdownBy.kind === "clusters";
+  // Memoised → stable ref while its inputs are unchanged, so it's safe directly
+  // in the fetch dependency arrays.
+  const breakdownEventsFilter = useMemo(
+    () => deriveBreakdownEventsFilter(breakdownBy, breakdownSelectedId, agentBuckets),
+    [breakdownBy, breakdownSelectedId, agentBuckets]
+  );
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();
@@ -76,7 +86,7 @@ function PureEventsTable() {
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
 
-  const { effective, isLoading: isViewLoading, setFilters, setSearchAndFilters, setSort } = useTableView();
+  const { effective, isLoading: isViewLoading, setSearchAndFilters, setSort } = useTableView();
   const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
   const textSearchFilter = effective.search.length > 0 ? effective.search : null;
   const sortBy = effective.sortBy ?? undefined;
@@ -140,12 +150,22 @@ function PureEventsTable() {
           }
         }
 
-        if (emergingClusterId) {
-          urlParams.set("emergingClusterId", emergingClusterId);
-        } else if (isUnclusteredFilter) {
-          urlParams.set("unclustered", "true");
-        } else {
-          selectedClusterIds.forEach((id) => urlParams.append("clusterId", id));
+        if (isClustersBreakdown) {
+          if (emergingClusterId) {
+            urlParams.set("emergingClusterId", emergingClusterId);
+          } else if (isUnclusteredFilter) {
+            urlParams.set("unclustered", "true");
+          } else {
+            selectedClusterIds.forEach((id) => urlParams.append("clusterId", id));
+          }
+        } else if (breakdownEventsFilter.kind === "filter") {
+          urlParams.append("filter", JSON.stringify(breakdownEventsFilter.filter));
+        } else if (breakdownEventsFilter.kind === "agentVersion") {
+          if (breakdownEventsFilter.versionHashes === null) {
+            urlParams.set("noVersion", "true");
+          } else {
+            breakdownEventsFilter.versionHashes.forEach((h) => urlParams.append("versionHash", h));
+          }
         }
 
         urlParams.set("eventDefinitionId", signal.id);
@@ -178,6 +198,8 @@ function PureEventsTable() {
       selectedClusterIds,
       isUnclusteredFilter,
       emergingClusterId,
+      isClustersBreakdown,
+      breakdownEventsFilter,
       textSearchFilter,
       sortBy,
       sortDirection,
@@ -237,6 +259,8 @@ function PureEventsTable() {
       selectedClusterIds,
       isUnclusteredFilter,
       emergingClusterId,
+      isClustersBreakdown,
+      breakdownEventsFilter,
       textSearchFilter,
       sortBy,
       sortDirection,
@@ -285,9 +309,10 @@ function PureEventsTable() {
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
 
   return (
-    <div className="flex flex-1 overflow-hidden px-4 pb-4">
+    <div className="flex flex-col flex-1 overflow-hidden px-4 pb-4 gap-2">
+      <SignalBreakdownSection className="shrink-0 mb-4" />
       <InfiniteDataTable<EventRow>
-        className="w-full"
+        className="w-full flex-1 min-h-0"
         columns={columns}
         data={events}
         onRowClick={handleRowClick}
@@ -306,7 +331,6 @@ function PureEventsTable() {
         emptyRow={filter.length === 0 && !textSearchFilter ? getEmptyRow({ pastHours, startDate, endDate }) : undefined}
       >
         <div className="flex flex-1 w-full h-full gap-2">
-          <DataTableFilter columns={filters} filters={effective.filters} onFiltersChange={setFilters} />
           <ColumnsMenu
             columnLabels={columns.map((column) => ({
               id: column.id!,
@@ -314,7 +338,6 @@ function PureEventsTable() {
             }))}
           />
           <ViewsToolbar projectId={params.projectId} resource={`signal-events:${signal.id}`} />
-          <DateRangeFilter />
           <RefreshButton onClick={handleRefresh} variant="outline" />
         </div>
         <div className="w-full px-px">
@@ -322,14 +345,12 @@ function PureEventsTable() {
             value={searchValue}
             onChange={setSearchAndFilters}
             filters={filters}
+            placeholder="Search and filter events by payload, severity, trace id, and more..."
             storageKey={`signal-events-${signal.id}`}
             resource="signal-events"
-            placeholder="Search events by payload, severity, trace id, and more..."
             className="w-full flex-1 mb-2"
           />
         </div>
-        {emergingClusterId ? <EmergingClusterBreadcrumbs /> : <ClusterBreadcrumbs />}
-        <ClustersSection className="mb-2" />
       </InfiniteDataTable>
     </div>
   );

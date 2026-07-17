@@ -18,6 +18,10 @@ export const GetEventsPaginatedSchema = PaginationFiltersSchema.extend({
   clusterId: z.array(z.string()).optional(),
   unclustered: z.coerce.boolean().optional(),
   emergingClusterId: z.guid().optional(),
+  // Agent-version breakdown filter: match events whose trace resolves to any of
+  // these version hashes, or (noVersion) the unversioned bucket.
+  versionHash: z.array(z.string()).optional(),
+  noVersion: z.coerce.boolean().optional(),
   // Data type of the payload field being sorted on, used to pick the typed
   // JSONExtract cast for ORDER BY. Native columns (timestamp/severity) ignore it.
   sortType: z.enum(["number", "boolean", "string"]).optional(),
@@ -89,6 +93,8 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     clusterId: clusterIds,
     unclustered,
     emergingClusterId,
+    versionHash,
+    noVersion,
     sortBy,
     sortDirection,
     sortType,
@@ -128,6 +134,14 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     clusterFilter = clusterIds;
   }
 
+  // Agent-version filter (agent breakdown dimension).
+  let versionFilter: { versionHashes: string[] | null } | undefined;
+  if (noVersion) {
+    versionFilter = { versionHashes: null };
+  } else if (versionHash && versionHash.length > 0) {
+    versionFilter = { versionHashes: versionHash };
+  }
+
   let idFilter: string[] | undefined;
   let searchHits: SignalEventSearchHit[] = [];
   const trimmedSearch = search?.trim();
@@ -158,6 +172,7 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     endTime: endDate,
     pastHours,
     clusterFilter,
+    versionFilter,
     idFilter,
     sortBy,
     sortDirection,
@@ -171,6 +186,7 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     endTime: endDate,
     pastHours,
     clusterFilter,
+    versionFilter,
     idFilter,
   });
 

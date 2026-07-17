@@ -1,6 +1,8 @@
 "use client";
 
 import { ChevronRight } from "lucide-react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +42,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 export default function VersionCard({ version, previous, versionNumber, isLatest }: VersionCardProps) {
   const [open, setOpen] = useState(isLatest);
+  const { projectId } = useParams<{ projectId: string }>();
 
   const modelChanged = previous ? version.model !== previous.model : false;
   const promptChanged = previous ? version.systemPrompt !== previous.systemPrompt : false;
@@ -64,6 +67,17 @@ export default function VersionCard({ version, previous, versionNumber, isLatest
           {isLatest && <span className="text-xs font-medium text-primary">Latest</span>}
           <span className="text-xs text-muted-foreground">{formatTimestamp(version.createdAt)}</span>
           <div className="flex-1" />
+          {version.lastTraceId ? (
+            <Link
+              href={`/project/${projectId}/traces?traceId=${version.lastTraceId}`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-xs text-muted-foreground hover:text-primary hover:underline"
+            >
+              Last trace{version.lastTraceAt ? ` ${formatTimestamp(version.lastTraceAt)}` : ""}
+            </Link>
+          ) : (
+            <span className="text-xs text-muted-foreground/60">No recent traces</span>
+          )}
           <span className="font-mono text-xs text-muted-foreground">{version.model}</span>
           <div className="flex items-center gap-1.5">
             {previous ? (

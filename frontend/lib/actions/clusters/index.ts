@@ -153,7 +153,7 @@ interface TimeRangeClauses {
   params: Record<string, unknown>;
 }
 
-const buildTimeRangeClauses = ({
+export const buildTimeRangeClauses = ({
   timeColumn,
   pastHours,
   startTime,
