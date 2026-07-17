@@ -243,6 +243,7 @@ fn build_request_body(model: &str, request: &ProviderRequest) -> ProviderResult<
             // the caller's level is forwarded only as a soft `effort` hint.
             body["thinking"] = serde_json::json!({
                 "type": "adaptive",
+                "display": "summarized"
             });
             // `effort` MUST be a sibling of `thinking` under `output_config` —
             // nesting it inside `thinking` triggers a Bedrock ValidationException.
