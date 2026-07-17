@@ -1,19 +1,9 @@
 "use client";
 
 import { Check, Copy } from "lucide-react";
-import {
-  type ComponentProps,
-  createElement,
-  type JSX,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { type ComponentProps, createElement, type JSX, type ReactNode, useState } from "react";
 import { Streamdown } from "streamdown";
 
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 type Components = NonNullable<ComponentProps<typeof Streamdown>["components"]>;
@@ -69,22 +59,6 @@ interface AgentPromptBoxProps {
 // Scrollable, click-to-copy box that renders an agent prompt as markdown.
 export function AgentPromptBox({ prompt, copyLabel = "Copy setup prompt", onCopy }: AgentPromptBoxProps) {
   const [copied, setCopied] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [notAtTheBottom, setNotAtTheBottom] = useState(false);
-
-  const updateScrollState = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    setNotAtTheBottom(el.scrollHeight - el.scrollTop - el.clientHeight > 1);
-  }, []);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    updateScrollState();
-    el.addEventListener("scroll", updateScrollState, { passive: true });
-    return () => el.removeEventListener("scroll", updateScrollState);
-  }, [updateScrollState]);
 
   const handleCopy = async () => {
     try {
@@ -103,16 +77,13 @@ export function AgentPromptBox({ prompt, copyLabel = "Copy setup prompt", onCopy
       onClick={handleCopy}
       className="relative flex flex-col rounded-md border bg-secondary text-left text-base text-muted-foreground group hover:border-secondary-foreground/25 active:border-secondary-foreground/35 overflow-hidden"
     >
-      <ScrollArea ref={scrollRef} className="max-h-[220px] [&>div]:max-h-[220px]">
-        <div className="px-5 py-4">
-          <Streamdown className={proseClassName} components={markdownComponents}>
-            {prompt}
-          </Streamdown>
-        </div>
-      </ScrollArea>
-      {notAtTheBottom && (
-        <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-[120px] bg-gradient-to-t from-secondary to-transparent" />
-      )}
+      {/* scroll-fade-y is scroll-driven: it must sit on the actual scrolling
+          element (self), and self-manages the top/bottom fades. */}
+      <div className="max-h-[220px] overflow-y-auto scroll-fade-y scrollbar-thin px-5 py-4">
+        <Streamdown className={proseClassName} components={markdownComponents}>
+          {prompt}
+        </Streamdown>
+      </div>
       <div
         aria-label={copied ? "Copied" : "Copy prompt"}
         className="absolute top-2 right-2 items-center gap-2 rounded bg-primary px-3 py-1 text-sm transition-colors flex border border-white/20 text-primary-foreground"
