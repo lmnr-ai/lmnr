@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { computeEffectiveOrder, reconcileConfig } from "@/components/ui/infinite-datatable/model/table-config-store";
+import {
+  asSavedViewConfig,
+  computeEffectiveOrder,
+  reconcileConfig,
+} from "@/components/ui/infinite-datatable/model/table-config-store";
 
 describe("computeEffectiveOrder", () => {
   it("returns available ids in input order when no persisted state", () => {
@@ -108,5 +112,31 @@ describe("reconcileConfig", () => {
     );
     assert.deepStrictEqual(config.columnOrder, ["__row_selection", "name", "createdAt"]);
     assert.strictEqual(purged, true);
+  });
+});
+
+describe("asSavedViewConfig", () => {
+  it("treats a missing columnVisibility as all-visible so default hidden columns don't leak in", () => {
+    // A view saved when every column was visible persists NO columnVisibility
+    // (normalizeViewConfig drops all-visible maps). Reconciling it against
+    // defaults that now hide columns must not inherit those hidden defaults.
+    const { config } = reconcileConfig(asSavedViewConfig({ columnOrder: ["name", "createdAt"] }), {
+      columnOrder: ["name", "createdAt"],
+      columnVisibility: { name: false },
+    });
+    assert.deepStrictEqual(config.columnVisibility, {});
+  });
+
+  it("keeps a saved view's explicit hidden columns", () => {
+    const { config } = reconcileConfig(
+      asSavedViewConfig({ columnOrder: ["name", "createdAt"], columnVisibility: { createdAt: false } }),
+      { columnOrder: ["name", "createdAt"], columnVisibility: { name: false } }
+    );
+    assert.deepStrictEqual(config.columnVisibility, { createdAt: false });
+  });
+
+  it("without the wrapper, defaults still apply (default-view path)", () => {
+    const { config } = reconcileConfig({}, { columnOrder: ["name", "createdAt"], columnVisibility: { name: false } });
+    assert.deepStrictEqual(config.columnVisibility, { name: false });
   });
 });

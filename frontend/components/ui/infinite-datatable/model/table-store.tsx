@@ -6,6 +6,7 @@ import { createStore, type StoreApi } from "zustand";
 
 import { useViewState, viewStateToStorePatch } from "../views/use-table-view";
 import {
+  asSavedViewConfig,
   createTableConfigStore,
   type TableConfig,
   TableConfigContext,
@@ -230,7 +231,9 @@ function InfiniteDataTableProviderWithViews({
   }, [store, viewState]);
 
   useEffect(() => {
-    store.getState().applyColumnsFromConfig(viewState.view?.config ?? {});
+    // Default view (null) falls through to table defaults; a saved view gets
+    // saved-view semantics (missing columnVisibility = all visible).
+    store.getState().applyColumnsFromConfig(viewState.view?.config ? asSavedViewConfig(viewState.view.config) : {});
   }, [store, viewState.view]);
 
   return (
