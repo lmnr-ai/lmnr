@@ -21,9 +21,12 @@ export interface EvalQueryColumn {
   truncated?: boolean;
 }
 
-// Internal alias prefix for truncated preview columns (see EvalQueryColumn.truncated).
-// Stripped from result keys by stripTruncatedAliases before returning to the client.
-export const TRUNCATED_ALIAS_PREFIX = "__t:";
+// Alias prefix for truncated preview columns (see EvalQueryColumn.truncated): the
+// preview `substring(data,1,200)` is aliased `truncated:data` — NOT `data` — so it
+// can't shadow the raw `data` column a custom expression references. The colon keeps
+// it distinct from any real column name. Stripped back to the bare id by
+// stripTruncatedAliases (via runEvalQuery) before rows reach the client.
+export const TRUNCATED_ALIAS_PREFIX = "truncated:";
 
 const columnAlias = (c: EvalQueryColumn): string => (c.truncated ? `${TRUNCATED_ALIAS_PREFIX}${c.id}` : c.id);
 

@@ -1,13 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { compact } from "lodash";
 
-import {
-  buildEvalQuery,
-  buildEvalStatsQuery,
-  type EvalFilter,
-  type EvalQueryColumn,
-  stripTruncatedAliases,
-} from "@/lib/actions/evaluation/query-builder";
+import { buildEvalStatsQuery, type EvalFilter, type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
+import { runEvalQuery } from "@/lib/actions/evaluation/run-query";
 import { getSearchTraceIds } from "@/lib/actions/evaluation/search";
 import { calculateScoreDistribution, calculateScoreStatistics } from "@/lib/actions/evaluation/utils";
 import { executeQuery } from "@/lib/actions/sql";
@@ -91,7 +86,9 @@ export async function getSharedEvaluationDatapoints({
     }
   }
 
-  const { query, parameters } = buildEvalQuery({
+  // Same chokepoint as the private path: build + execute + un-alias truncated
+  // previews, so shared eval cells read `row["data"]` etc. rather than empty.
+  const results = await runEvalQuery(projectId, {
     evaluationId,
     columns,
     traceIds: searchTraceIds,
@@ -103,15 +100,7 @@ export async function getSharedEvaluationDatapoints({
     sortDirection,
   });
 
-  const results = await executeQuery<Record<string, unknown>>({
-    query,
-    parameters,
-    projectId,
-  });
-
-  // Same as the private path: rename `__t:<col>` preview aliases back to `<col>`
-  // so shared eval cells read `row["data"]` etc. rather than empty.
-  return { evaluation, results: stripTruncatedAliases(results) };
+  return { evaluation, results };
 }
 
 export async function getSharedEvaluationStatistics({

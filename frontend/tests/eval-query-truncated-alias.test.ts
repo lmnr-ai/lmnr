@@ -5,7 +5,7 @@ import { buildEvalQuery, stripTruncatedAliases } from "@/lib/actions/evaluation/
 
 // Regression: a truncated preview column (substring(data,1,200) AS data) must NOT
 // shadow the raw `data` column that a custom column extracts from. It's aliased to
-// `__t:data` in SQL and renamed back in the response.
+// `truncated:data` in SQL and renamed back in the response.
 const baseOpts = {
   evaluationId: "11111111-1111-1111-1111-111111111111",
   traceIds: [],
@@ -15,7 +15,7 @@ const baseOpts = {
 };
 
 describe("truncated-alias shadowing fix", () => {
-  it("aliases a truncated preview column to __t:<id>, leaving the custom expr's raw ref bare", () => {
+  it("aliases a truncated preview column to truncated:<id>, leaving the custom expr's raw ref bare", () => {
     const { query } = buildEvalQuery({
       ...baseOpts,
       columns: [
@@ -24,7 +24,7 @@ describe("truncated-alias shadowing fix", () => {
       ],
     });
     // Preview aliased away from the raw name...
-    assert.match(query, /substring\(data, 1, 200\) as `__t:data`/);
+    assert.match(query, /substring\(data, 1, 200\) as `truncated:data`/);
     assert.doesNotMatch(query, /substring\(data, 1, 200\) as `data`/);
     // ...so the custom column's `data` binds to the raw column, not the truncated alias.
     assert.match(query, /simpleJSONExtractString\(data, 'name'\) as `custom:Label`/);
@@ -35,7 +35,7 @@ describe("truncated-alias shadowing fix", () => {
       ...baseOpts,
       columns: [{ id: "custom:Label", sql: "simpleJSONExtractString(data, 'name')" }],
     });
-    assert.doesNotMatch(query, /__t:/);
+    assert.doesNotMatch(query, /truncated:/);
   });
 
   it("references the safe alias in comparison mode", () => {
@@ -47,13 +47,13 @@ describe("truncated-alias shadowing fix", () => {
         { id: "index", sql: "`index`" },
       ],
     });
-    assert.match(query, /p\.`__t:data`/);
+    assert.match(query, /p\.`truncated:data`/);
   });
 });
 
 describe("stripTruncatedAliases", () => {
-  it("renames __t:<id> keys back to <id>", () => {
-    const out = stripTruncatedAliases([{ "__t:data": "full value", "custom:Label": "x", index: 0 }]);
+  it("renames truncated:<id> keys back to <id>", () => {
+    const out = stripTruncatedAliases([{ "truncated:data": "full value", "custom:Label": "x", index: 0 }]);
     assert.deepEqual(out[0], { data: "full value", "custom:Label": "x", index: 0 });
   });
 
