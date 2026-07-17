@@ -266,7 +266,7 @@ export function createTableConfigStore({
           config: {
             ...get().config,
             columnOrder: defaults.columnOrder ?? [],
-            columnVisibility: {},
+            columnVisibility: defaults.columnVisibility ?? {},
             columnSizing: {},
           },
         });
