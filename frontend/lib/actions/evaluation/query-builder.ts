@@ -277,8 +277,10 @@ function buildComparisonQuery(options: EvalQueryOptions): QueryResult {
   // Build outer SELECT — reference the inner alias (truncated cols use the safe
   // alias); the outer output keeps that alias and is renamed in the response.
   const primarySelect = columns.map((c) => `p.${backtickEscape(columnAlias(c))}`);
+  // Reference the inner alias (truncated cols are aliased `__t:id`, not `id`) but
+  // keep the stable `compared:id` output name the response/client key on.
   const comparedSelect = comparableColumns.map(
-    (c) => `c.${backtickEscape(c.id)} as ${backtickEscape(`compared:${c.id}`)}`
+    (c) => `c.${backtickEscape(columnAlias(c))} as ${backtickEscape(`compared:${c.id}`)}`
   );
 
   const outerSelect = [...primarySelect, ...comparedSelect].join(", ");

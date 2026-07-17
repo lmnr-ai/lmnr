@@ -227,6 +227,14 @@ export const generateColumnSql = async (
   // would suppress retries for that whole structure.
   if (!candidate) return { success: false, reason: "none" };
 
+  // Never trust the model's final answer blind — it's spliced straight into the
+  // eval-datapoints SELECT, so an unverified/typo'd expression would 500 the whole
+  // table until the user discards it. runVerify is memoized, so a candidate the
+  // agent already tested is a cache hit (no extra round-trip); a fresh one gets one
+  // real check. A failing candidate is transient (retry), not a definitive "none".
+  const finalCheck = await runVerify(candidate);
+  if (!finalCheck.ok) return { success: false, reason: "error" };
+
   if (fullCacheKey) {
     try {
       await cache.set(fullCacheKey, candidate, { expireAfterSeconds: COLUMN_SUGGESTION_TTL_SECONDS });
