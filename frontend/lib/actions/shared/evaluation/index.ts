@@ -6,6 +6,7 @@ import {
   buildEvalStatsQuery,
   type EvalFilter,
   type EvalQueryColumn,
+  stripTruncatedAliases,
 } from "@/lib/actions/evaluation/query-builder";
 import { getSearchTraceIds } from "@/lib/actions/evaluation/search";
 import { calculateScoreDistribution, calculateScoreStatistics } from "@/lib/actions/evaluation/utils";
@@ -108,7 +109,9 @@ export async function getSharedEvaluationDatapoints({
     projectId,
   });
 
-  return { evaluation, results };
+  // Same as the private path: rename `__t:<col>` preview aliases back to `<col>`
+  // so shared eval cells read `row["data"]` etc. rather than empty.
+  return { evaluation, results: stripTruncatedAliases(results) };
 }
 
 export async function getSharedEvaluationStatistics({
