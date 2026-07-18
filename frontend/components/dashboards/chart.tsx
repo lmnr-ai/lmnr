@@ -6,11 +6,12 @@ import { useSWRConfig } from "swr";
 
 import { ChartRendererCore } from "@/components/chart-builder/charts";
 import { type ChartDragHandlers } from "@/components/chart-builder/charts/line-chart";
-import { ChartType, type TableColumnConfig } from "@/components/chart-builder/types";
+import { ChartType, isMetricConfig, type TableColumnConfig } from "@/components/chart-builder/types";
 import { transformDataToColumns } from "@/components/chart-builder/utils";
 import ChartHeader from "@/components/dashboards/chart-header";
 import { useDashboardSelectionStore } from "@/components/dashboards/dashboard-selection-store";
 import { useDashboardTraceStore } from "@/components/dashboards/dashboard-trace-context";
+import MetricWidget from "@/components/dashboards/metric-widget";
 import SelectionToolbar from "@/components/dashboards/selection-toolbar";
 import { type DashboardChart } from "@/components/dashboards/types";
 import { IconResizeHandle } from "@/components/ui/icons";
@@ -49,6 +50,7 @@ const Chart = ({ chart }: ChartProps) => {
   const { toast } = useToast();
   const { mutate: swrMutate } = useSWRConfig();
   const isTable = settings.config.type === ChartType.Table;
+  const isMetric = isMetricConfig(settings.config);
   const {
     chartId: selectionChartId,
     startLabel,
@@ -305,6 +307,8 @@ const Chart = ({ chart }: ChartProps) => {
           </div>
         ) : isLoading ? (
           <Skeleton className="h-full w-full" />
+        ) : isMetric ? (
+          <MetricWidget data={data} config={settings.config as import("@/components/chart-builder/types").MetricCardConfig} />
         ) : (
           <ChartRendererCore
             config={settings.config}
