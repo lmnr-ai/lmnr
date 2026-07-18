@@ -1,4 +1,4 @@
-import { Edit, Ellipsis, GripVertical, Pen, Trash2 } from "lucide-react";
+import { Copy, Edit, Ellipsis, GripVertical, Pen, Trash2 } from "lucide-react";
 import Link from "next/link";
 import React, { type FocusEvent, type KeyboardEventHandler, useCallback, useEffect, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
@@ -9,6 +9,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -42,6 +43,7 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const { mutate } = useSWRConfig();
+
   const handleDeleteChart = useCallback(async () => {
     try {
       await mutate<DashboardChart[]>(
@@ -61,6 +63,49 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
     } catch (e) {
       toast({
         title: "Failed to delete chart. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [id, mutate, projectId, toast]);
+
+  const handleDuplicateChart = useCallback(async () => {
+    const key = `/api/projects/${projectId}/dashboard-charts`;
+    try {
+      await mutate<DashboardChart[]>(
+        key,
+        async (currentData) => {
+          // Find the source chart to copy its full settings
+          const source = (currentData || []).find((item) => item.id === id);
+          if (!source) return currentData;
+
+          const res = await fetch(key, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: `${source.name} (copy)`,
+              query: source.query,
+              config: source.settings.config,
+              queryStructure: source.settings.queryStructure ?? null,
+            }),
+          });
+
+          if (!res.ok) {
+            throw new Error("Failed to duplicate chart");
+          }
+
+          const newChart: DashboardChart = await res.json();
+          return [...(currentData || []), newChart];
+        },
+        {
+          revalidate: true,
+          populateCache: true,
+          rollbackOnError: true,
+        }
+      );
+      track("dashboards", "chart_duplicated");
+    } catch (e) {
+      toast({
+        title: "Failed to duplicate chart. Please try again.",
         variant: "destructive",
       });
     }
@@ -144,7 +189,7 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
               <Ellipsis className="size-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-32">
+          <DropdownMenuContent align="end" className="w-36">
             <DropdownMenuItem
               onClick={(e) => {
                 e.stopPropagation();
@@ -161,6 +206,17 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
                 Edit
               </DropdownMenuItem>
             </Link>
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDuplicateChart();
+              }}
+              className="cursor-pointer"
+            >
+              <Copy className="h-3.5 w-3.5 mr-1 text-inherit" />
+              Duplicate
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={(e) => {
                 e.stopPropagation();
