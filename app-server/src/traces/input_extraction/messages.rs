@@ -122,7 +122,9 @@ pub(super) fn is_task_anchor_message(msg: &Value) -> bool {
 // ---------------------------------------------------------------------------
 
 /// Does this message carry tool calls? Covers OpenAI (`tool_calls` array
-/// on the message) and Anthropic (`tool_use` content parts).
+/// on the message), Anthropic (`tool_use` content parts), OTel GenAI
+/// semconv / LangChain (`tool_call` parts), and OpenAI Responses
+/// (`function_call` parts).
 pub(super) fn has_tool_calls(message: &Value) -> bool {
     if let Some(Value::Array(calls)) = message.get("tool_calls")
         && !calls.is_empty()
@@ -130,9 +132,12 @@ pub(super) fn has_tool_calls(message: &Value) -> bool {
         return true;
     }
     if let Some(Value::Array(parts)) = message.get("content").or_else(|| message.get("parts")) {
-        return parts
-            .iter()
-            .any(|p| p.get("type").and_then(Value::as_str) == Some("tool_use"));
+        return parts.iter().any(|p| {
+            matches!(
+                p.get("type").and_then(Value::as_str),
+                Some("tool_use" | "tool_call" | "function_call")
+            )
+        });
     }
     false
 }
@@ -191,6 +196,25 @@ mod tests {
             "content": [{"type": "text", "text": "done"}],
         });
         assert!(!has_tool_calls(&msg));
+    }
+
+    #[test]
+    fn has_tool_calls_detects_genai_and_responses_part_types() {
+        // OTel GenAI semconv / LangChain: `tool_call` parts under `parts`.
+        let msg = json!({
+            "role": "assistant",
+            "parts": [
+                {"type": "text", "content": "let me check"},
+                {"type": "tool_call", "id": "c1", "name": "get_weather", "arguments": {}},
+            ],
+        });
+        assert!(has_tool_calls(&msg));
+        // OpenAI Responses: `function_call` part types.
+        let msg = json!({
+            "role": "assistant",
+            "content": [{"type": "function_call", "name": "f", "arguments": "{}"}],
+        });
+        assert!(has_tool_calls(&msg));
     }
 
     #[test]
