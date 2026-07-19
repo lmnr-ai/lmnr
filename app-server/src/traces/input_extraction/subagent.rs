@@ -36,7 +36,8 @@ pub struct Locator {
 }
 
 /// Dot-joined name-path prefix down to and including the locator,
-/// published under `lmnr_subagent_path.<uuid>` as a display label.
+/// published under `lmnr.internal.lmnr_subagent_path.<uuid>` as a
+/// display label.
 pub fn locator_label(span_path: &[String], path_index: usize) -> String {
     let end = (path_index + 1).min(span_path.len());
     span_path[..end].join(".")

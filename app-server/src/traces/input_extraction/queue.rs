@@ -46,10 +46,11 @@ pub struct InputExtractionMessage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubagentTarget {
     /// Locator half-UUID span id — resolves the metadata keys
-    /// (`lmnr_subagent_input.<uuid>`) and the `st_in_lock` cache key.
+    /// (`lmnr.internal.lmnr_subagent_input.<uuid>`) and the `st_in_lock`
+    /// cache key.
     pub span_id: Uuid,
     /// Dot-joined name-path down to the locator, for
-    /// `lmnr_subagent_path.<uuid>`.
+    /// `lmnr.internal.lmnr_subagent_path.<uuid>`.
     pub label: String,
     /// Per-locator winner-lock snapshot at enqueue time; supersession
     /// checks run against `st_in_lock` instead of the main lock.

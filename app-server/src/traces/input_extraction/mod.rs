@@ -22,8 +22,9 @@
 //!   - LAM-1953 adds inline trace-output extraction (latest toolless
 //!     assistant text, shallowest-LLM-span-wins → `lmnr_trace_output`)
 //!     and per-subagent input/output extraction keyed on the subagent's
-//!     locator span id (`lmnr_subagent_input.<uuid>`,
-//!     `lmnr_subagent_output.<uuid>`, `lmnr_subagent_path.<uuid>`),
+//!     locator span id (`lmnr.internal.lmnr_subagent_input.<uuid>`,
+//!     `lmnr.internal.lmnr_subagent_output.<uuid>`,
+//!     `lmnr.internal.lmnr_subagent_path.<uuid>`),
 //!     sharing the regex cache and generation queue with the main flow.
 //!
 //! Module layout:

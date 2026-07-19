@@ -18,14 +18,15 @@ pub const USER_TASK_METADATA_KEY: &str = "lmnr_user_task";
 /// trace with no qualifying assistant text just has no key.
 pub const TRACE_OUTPUT_METADATA_KEY: &str = "lmnr_trace_output";
 
-/// Per-subagent keys, suffixed with the locator span's bare dashed UUID.
-/// Dotted keys are independent top-level JSONB keys under `||` merge, so
-/// each subagent's slot overwrites independently.
+/// Per-subagent keys, namespaced under `lmnr.internal.` and suffixed
+/// with the locator span's bare dashed UUID. Each full dotted string is
+/// one independent top-level JSONB key under `||` merge, so each
+/// subagent's slot overwrites independently.
 pub const SUBAGENT_INPUT_METADATA_KEY_PREFIX: &str = "lmnr.internal.lmnr_subagent_input";
 pub const SUBAGENT_OUTPUT_METADATA_KEY_PREFIX: &str = "lmnr.internal.lmnr_subagent_output";
 /// Dot-joined name-path down to the locator, published alongside every
 /// winning subagent-input patch as a display label.
-pub const SUBAGENT_PATH_METADATA_KEY_PREFIX: &str = "lmnr.intermal.lmnr_subagent_path";
+pub const SUBAGENT_PATH_METADATA_KEY_PREFIX: &str = "lmnr.internal.lmnr_subagent_path";
 
 pub fn subagent_input_metadata_key(locator: Uuid) -> String {
     format!("{SUBAGENT_INPUT_METADATA_KEY_PREFIX}.{locator}")
@@ -54,8 +55,9 @@ pub fn build_metadata_patch(result: &ApplyRegexResult) -> HashMap<String, Value>
 }
 
 /// Subagent-input patch: same string-or-`false` semantics as the main
-/// task under `lmnr_subagent_input.<uuid>`, plus the display label under
-/// `lmnr_subagent_path.<uuid>` (LWW alongside every winning patch).
+/// task under `lmnr.internal.lmnr_subagent_input.<uuid>`, plus the
+/// display label under `lmnr.internal.lmnr_subagent_path.<uuid>` (LWW
+/// alongside every winning patch).
 pub fn build_subagent_metadata_patch(
     result: &ApplyRegexResult,
     locator: Uuid,
@@ -109,18 +111,18 @@ mod tests {
         let result = ApplyRegexResult::Extracted("task".to_string());
         let patch = build_subagent_metadata_patch(&result, locator, "agent.tool_call");
         assert_eq!(
-            patch.get(&format!("lmnr_subagent_input.{locator}")),
+            patch.get(&format!("lmnr.internal.lmnr_subagent_input.{locator}")),
             Some(&Value::String("task".to_string()))
         );
         assert_eq!(
-            patch.get(&format!("lmnr_subagent_path.{locator}")),
+            patch.get(&format!("lmnr.internal.lmnr_subagent_path.{locator}")),
             Some(&Value::String("agent.tool_call".to_string()))
         );
         assert_eq!(patch.len(), 2);
         // No-result outcomes write `false` but still stamp the label.
         let patch = build_subagent_metadata_patch(&ApplyRegexResult::NoMatch, locator, "a.b");
         assert_eq!(
-            patch.get(&format!("lmnr_subagent_input.{locator}")),
+            patch.get(&format!("lmnr.internal.lmnr_subagent_input.{locator}")),
             Some(&Value::Bool(false))
         );
     }
