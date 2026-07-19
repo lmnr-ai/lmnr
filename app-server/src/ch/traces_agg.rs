@@ -11,16 +11,17 @@ use super::{
 };
 use crate::db::trace::Trace;
 
-/// Status bitmask: bit 0 = a non-error status observed, bit 1 = an error observed.
-const STATUS_BIT_SUCCESS: u64 = 1;
-const STATUS_BIT_ERROR: u64 = 2;
+/// `statuses` Enum8 values; must match the DDL enum
+/// `Enum8('success' = 1, 'error' = 2)` in the traces_agg migration.
+const STATUS_ENUM_SUCCESS: i8 = 1;
+const STATUS_ENUM_ERROR: i8 = 2;
 
 /// One per-batch partial row for the `traces_agg` AggregatingMergeTree table.
 /// Field order MUST match the CREATE TABLE column order exactly (RowBinary
-/// serialization is positional). `created_at` and the reserved read-only
-/// columns (`agent_input`/`agent_output`/`subagent_inputs`/`subagent_outputs`)
-/// are deliberately absent: the insert names its columns, so the server fills
-/// their defaults.
+/// serialization is positional). `created_at`, the reserved read-only columns
+/// (`agent_input`/`agent_output`/`subagent_inputs`/`subagent_outputs`), and the
+/// legacy `status_seen`/`trace_type_seen` bitmasks are deliberately absent: the
+/// insert names its columns, so the server fills their defaults.
 #[derive(Debug, Clone, Serialize, Deserialize, Row)]
 pub struct CHTraceAgg {
     #[serde(with = "clickhouse::serde::uuid")]
@@ -42,12 +43,10 @@ pub struct CHTraceAgg {
     pub metadata: Vec<(String, String)>,
     pub session_id: String,
     pub user_id: String,
-    pub status_seen: u64,
     #[serde(with = "clickhouse::serde::uuid")]
     pub top_span_id: Uuid,
     pub top_span_name: String,
     pub top_span_type: u8,
-    pub trace_type_seen: u64,
     pub tags: Vec<String>,
     pub num_spans: u64,
     pub has_browser_session: u8,
@@ -57,6 +56,12 @@ pub struct CHTraceAgg {
     pub cache_read_input_tokens: u64,
     pub cache_creation_input_tokens: u64,
     pub reasoning_tokens: u64,
+    /// Enum8 values on the wire (Int8); union of statuses seen in this batch.
+    pub statuses: Vec<i8>,
+    /// Enum8 values on the wire (Int8); must stay in sync with
+    /// `Into<u8> for TraceType` AND the DDL enum — out-of-range ints are
+    /// accepted at insert but poison every later read of the part.
+    pub trace_types: Vec<i8>,
 }
 
 fn encode_metadata(metadata: Option<&Value>, version_ns: i64) -> Vec<(String, String)> {
@@ -82,11 +87,11 @@ fn encode_top_span_name(name: Option<&str>, saw_root_span: bool) -> String {
     }
 }
 
-fn status_bits(status: Option<&str>) -> u64 {
+fn status_enum_values(status: Option<&str>) -> Vec<i8> {
     match status {
-        Some("error") => STATUS_BIT_ERROR,
-        Some(s) if !s.is_empty() => STATUS_BIT_SUCCESS,
-        _ => 0,
+        Some("error") => vec![STATUS_ENUM_ERROR],
+        Some(s) if !s.is_empty() => vec![STATUS_ENUM_SUCCESS],
+        _ => Vec::new(),
     }
 }
 
@@ -112,14 +117,12 @@ impl CHTraceAgg {
             metadata: encode_metadata(agg.metadata.as_ref(), now_ns),
             session_id: agg.session_id.clone().unwrap_or_default(),
             user_id: agg.user_id.clone().unwrap_or_default(),
-            status_seen: status_bits(agg.status.as_deref()),
             top_span_id: agg.top_span_id.unwrap_or(Uuid::nil()),
             top_span_name: encode_top_span_name(
                 agg.top_span_name.as_deref(),
                 agg.top_span_id.is_some(),
             ),
             top_span_type: agg.top_span_type,
-            trace_type_seen: 1u64 << agg.trace_type,
             tags: agg.tags.iter().cloned().collect(),
             num_spans: agg.num_spans as u64,
             has_browser_session: agg.has_browser_session.unwrap_or(false) as u8,
@@ -129,6 +132,8 @@ impl CHTraceAgg {
             cache_read_input_tokens: agg.cache_read_input_tokens as u64,
             cache_creation_input_tokens: agg.cache_creation_input_tokens as u64,
             reasoning_tokens: agg.reasoning_tokens as u64,
+            statuses: status_enum_values(agg.status.as_deref()),
+            trace_types: vec![agg.trace_type as i8],
         }
     }
 
@@ -161,11 +166,9 @@ impl CHTraceAgg {
             metadata: encode_metadata(trace.metadata(), now_ns),
             session_id: String::new(),
             user_id: String::new(),
-            status_seen: 0,
             top_span_id: Uuid::nil(),
             top_span_name: String::new(),
             top_span_type: 0,
-            trace_type_seen: 0,
             tags: Vec::new(),
             num_spans: 1,
             has_browser_session: 0,
@@ -175,6 +178,8 @@ impl CHTraceAgg {
             cache_read_input_tokens: 0,
             cache_creation_input_tokens: 0,
             reasoning_tokens: 0,
+            statuses: Vec::new(),
+            trace_types: Vec::new(),
         }
     }
 }
@@ -232,11 +237,14 @@ mod tests {
     }
 
     #[test]
-    fn status_bits_mapping() {
-        assert_eq!(status_bits(Some("error")), STATUS_BIT_ERROR);
-        assert_eq!(status_bits(Some("success")), STATUS_BIT_SUCCESS);
-        assert_eq!(status_bits(Some("ok")), STATUS_BIT_SUCCESS);
-        assert_eq!(status_bits(Some("")), 0);
-        assert_eq!(status_bits(None), 0);
+    fn status_enum_mapping() {
+        assert_eq!(status_enum_values(Some("error")), vec![STATUS_ENUM_ERROR]);
+        assert_eq!(
+            status_enum_values(Some("success")),
+            vec![STATUS_ENUM_SUCCESS]
+        );
+        assert_eq!(status_enum_values(Some("ok")), vec![STATUS_ENUM_SUCCESS]);
+        assert_eq!(status_enum_values(Some("")), Vec::<i8>::new());
+        assert_eq!(status_enum_values(None), Vec::<i8>::new());
     }
 }
