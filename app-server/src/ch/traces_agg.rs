@@ -18,10 +18,9 @@ const STATUS_ENUM_ERROR: i8 = 2;
 
 /// One per-batch partial row for the `traces_agg` AggregatingMergeTree table.
 /// Field order MUST match the CREATE TABLE column order exactly (RowBinary
-/// serialization is positional). `created_at`, the reserved read-only columns
-/// (`agent_input`/`agent_output`/`subagent_inputs`/`subagent_outputs`), and the
-/// legacy `status_seen`/`trace_type_seen` bitmasks are deliberately absent: the
-/// insert names its columns, so the server fills their defaults.
+/// serialization is positional). `created_at` and the reserved columns
+/// (`agent_input`/`agent_output`) are deliberately absent: the insert names
+/// its columns, so the server fills their defaults.
 #[derive(Debug, Clone, Serialize, Deserialize, Row)]
 pub struct CHTraceAgg {
     #[serde(with = "clickhouse::serde::uuid")]
