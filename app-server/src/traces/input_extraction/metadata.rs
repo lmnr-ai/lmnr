@@ -21,11 +21,11 @@ pub const TRACE_OUTPUT_METADATA_KEY: &str = "lmnr_trace_output";
 /// Per-subagent keys, suffixed with the locator span's bare dashed UUID.
 /// Dotted keys are independent top-level JSONB keys under `||` merge, so
 /// each subagent's slot overwrites independently.
-pub const SUBAGENT_INPUT_METADATA_KEY_PREFIX: &str = "lmnr_subagent_input";
-pub const SUBAGENT_OUTPUT_METADATA_KEY_PREFIX: &str = "lmnr_subagent_output";
+pub const SUBAGENT_INPUT_METADATA_KEY_PREFIX: &str = "lmnr.internal.lmnr_subagent_input";
+pub const SUBAGENT_OUTPUT_METADATA_KEY_PREFIX: &str = "lmnr.internal.lmnr_subagent_output";
 /// Dot-joined name-path down to the locator, published alongside every
 /// winning subagent-input patch as a display label.
-pub const SUBAGENT_PATH_METADATA_KEY_PREFIX: &str = "lmnr_subagent_path";
+pub const SUBAGENT_PATH_METADATA_KEY_PREFIX: &str = "lmnr.intermal.lmnr_subagent_path";
 
 pub fn subagent_input_metadata_key(locator: Uuid) -> String {
     format!("{SUBAGENT_INPUT_METADATA_KEY_PREFIX}.{locator}")
