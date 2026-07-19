@@ -96,6 +96,17 @@ fn status_enum_values(status: Option<&str>) -> Vec<i8> {
     }
 }
 
+/// A value outside the DDL enum would wrap in the cast and poison reads of
+/// the part; surface the drift at test time (a panic on the ingest hot path
+/// would be worse than the poisoned column it guards).
+fn trace_type_enum_value(trace_type: u8) -> i8 {
+    debug_assert!(
+        trace_type <= 3,
+        "trace_type {trace_type} not in the traces_agg Enum8 DDL — extend the enum via ALTER"
+    );
+    trace_type as i8
+}
+
 impl CHTraceAgg {
     /// Build a partial row from one batch's in-memory aggregation. `now_ns` is
     /// the flush wall-clock: it versions metadata values (last processed wins,
@@ -134,7 +145,7 @@ impl CHTraceAgg {
             cache_creation_input_tokens: agg.cache_creation_input_tokens as u64,
             reasoning_tokens: agg.reasoning_tokens as u64,
             statuses: status_enum_values(agg.status.as_deref()),
-            trace_types: vec![agg.trace_type as i8],
+            trace_types: vec![trace_type_enum_value(agg.trace_type)],
         }
     }
 
