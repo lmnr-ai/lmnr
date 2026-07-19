@@ -66,7 +66,8 @@ const buttonVariants = cva(
           "border border-primary-400/50 bg-primary-400/8 hover:bg-primary/24 text-primary-300 shadow-[inset_0_0_12px_0] shadow-primary-400/10",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/60 border border-secondary-foreground/20",
         secondaryLight: "bg-secondary text-secondary-foreground hover:bg-secondary/60",
-        ghost: "hover:text-accent-foreground/80",
+        ghost:
+          "hover:text-accent-foreground/80 data-[state=open]:bg-surface-600 data-[state=open]:text-foreground-200 data-[active=true]:bg-surface-600 data-[active=true]:text-foreground-200",
         light: "bg-white/90 text-black/90 hover:bg-white/60 border-white/20 border hover:border-white/50",
         lightSecondary: "bg-white/10 text-white/80 hover:bg-white/20 border-white/20 border hover:border-white/50",
         link: "text-primary underline-offset-4 hover:underline",
@@ -152,11 +153,26 @@ export interface ButtonProps
   handleEnter?: boolean;
   handleKeys?: HandledKey[];
   icon?: keyof typeof iconMap;
+  // Marks the button as "open"/selected. Ghost variant fills + dims when true.
+  // Radix triggers get the same look for free via their own data-state="open".
+  isActive?: boolean;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (
-    { className, variant, size, asChild = false, handleEnter, handleKeys, icon, children, type = "button", ...props },
+    {
+      className,
+      variant,
+      size,
+      asChild = false,
+      handleEnter,
+      handleKeys,
+      icon,
+      isActive,
+      children,
+      type = "button",
+      ...props
+    },
     ref
   ) => {
     const Comp = asChild ? Slot : "button";
@@ -217,14 +233,25 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     // to throw in React 19 where Children.count includes null entries.
     if (asChild) {
       return (
-        <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props}>
+        <Comp
+          className={cn(buttonVariants({ variant, size, className }))}
+          ref={ref}
+          data-active={isActive ? "true" : undefined}
+          {...props}
+        >
           {children}
         </Comp>
       );
     }
 
     return (
-      <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} type={type} {...props}>
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        type={type}
+        data-active={isActive ? "true" : undefined}
+        {...props}
+      >
         {IconComponent && (
           <IconComponent className={cn(size === "sm" ? "size-3" : "size-3.5", { "mr-1": !!children })} />
         )}
