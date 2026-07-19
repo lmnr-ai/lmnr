@@ -63,6 +63,7 @@ SELECT
         WHEN t.top_span_type = 8 THEN 'CACHED'
         ELSE 'UNKNOWN'
     END AS top_span_type,
+    -- EVENT deliberately falls through to DEFAULT, matching the bitmask view
     multiIf(
         has(t.trace_types, 'PLAYGROUND'), 'PLAYGROUND',
         has(t.trace_types, 'EVALUATION'), 'EVALUATION',

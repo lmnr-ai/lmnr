@@ -59,8 +59,9 @@ pub struct CHTraceAgg {
     /// Enum8 values on the wire (Int8); union of statuses seen in this batch.
     pub statuses: Vec<i8>,
     /// Enum8 values on the wire (Int8); must stay in sync with
-    /// `Into<u8> for TraceType` AND the DDL enum — out-of-range ints are
-    /// accepted at insert but poison every later read of the part.
+    /// `Into<u8> for TraceType` AND the DDL enum — out-of-range ints
+    /// (an unlisted variant, or a value > 127 wrapping in the u8→i8 cast)
+    /// are accepted at insert but poison every later read of the part.
     pub trace_types: Vec<i8>,
 }
 
