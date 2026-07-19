@@ -222,11 +222,9 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
             <span className={HEADER_ITEM_CLS}>
               <Button
                 onClick={() => setSignalsPanelOpen(!signalsPanelOpen)}
-                variant="outline"
-                className={cn(
-                  "h-6 text-xs px-1.5",
-                  signalsPanelOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
-                )}
+                variant="ghost"
+                isActive={signalsPanelOpen}
+                className="h-6 text-xs px-1.5 hover:bg-secondary"
               >
                 <Radio size={14} className="mr-1" />
                 Signals ({signalCount})
@@ -244,11 +242,9 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                     openAgent();
                   }
                 }}
-                variant="outline"
-                className={cn(
-                  "h-6 text-xs px-1.5",
-                  agentOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
-                )}
+                variant="ghost"
+                isActive={agentOpen}
+                className="h-6 text-xs px-1.5 hover:bg-secondary"
               >
                 <Sparkles size={14} className="mr-1" />
                 Chat
