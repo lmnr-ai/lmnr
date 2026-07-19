@@ -3,12 +3,12 @@
 -- and reads always re-aggregate with GROUP BY (never FINAL, so the projection
 -- stays usable). `metadata` values are encoded as
 -- `<20-digit zero-padded version_ns>|<raw JSON value>` so maxMap yields
--- per-key last-write-wins. `status_seen` / `trace_type_seen` are groupBitOr
--- bitmasks (bit N = value N observed); precedence lives only in the view.
--- `top_span_name` carries a 1-byte priority prefix ('2' = real root span,
--- '1' = path-derived fallback set by a batch without the root) so max(String)
--- always prefers the root-derived name regardless of arrival order; the view
--- strips it with substring(_, 2).
+-- per-key last-write-wins. `statuses` / `trace_types` are seen-value enum
+-- arrays (LAM-1983); precedence lives only in the view. `top_span_name`
+-- carries a 1-byte priority prefix ('2' = real root span, '1' = path-derived
+-- fallback set by a batch without the root) so max(String) always prefers the
+-- root-derived name regardless of arrival order; the view strips it with
+-- substring(_, 2).
 CREATE TABLE IF NOT EXISTS default.traces_agg
 (
     `id` UUID,
@@ -24,11 +24,9 @@ CREATE TABLE IF NOT EXISTS default.traces_agg
     `metadata` SimpleAggregateFunction(maxMap, Map(String, String)),
     `session_id` SimpleAggregateFunction(max, String),
     `user_id` SimpleAggregateFunction(max, String),
-    `status_seen` SimpleAggregateFunction(groupBitOr, UInt64),
     `top_span_id` SimpleAggregateFunction(max, UUID),
     `top_span_name` SimpleAggregateFunction(max, String),
     `top_span_type` SimpleAggregateFunction(max, UInt8),
-    `trace_type_seen` SimpleAggregateFunction(groupBitOr, UInt64),
     `tags` SimpleAggregateFunction(groupUniqArrayArray, Array(String)),
     `num_spans` SimpleAggregateFunction(sum, UInt64),
     `has_browser_session` SimpleAggregateFunction(max, UInt8),
@@ -38,13 +36,14 @@ CREATE TABLE IF NOT EXISTS default.traces_agg
     `cache_read_input_tokens` SimpleAggregateFunction(sum, UInt64),
     `cache_creation_input_tokens` SimpleAggregateFunction(sum, UInt64),
     `reasoning_tokens` SimpleAggregateFunction(sum, UInt64),
+    `statuses` SimpleAggregateFunction(groupUniqArrayArray, Array(Enum8('success' = 1, 'error' = 2))),
+    `trace_types` SimpleAggregateFunction(groupUniqArrayArray,
+        Array(Enum8('DEFAULT' = 0, 'EVALUATION' = 1, 'EVENT' = 2, 'PLAYGROUND' = 3))),
     -- debug-only: insert wall-clock, folds to first-seen; not exposed in the view
     `created_at` SimpleAggregateFunction(min, DateTime64(9, 'UTC')) DEFAULT now64(9),
     -- reserved (read-only for now, nothing writes them yet)
     `agent_input` SimpleAggregateFunction(max, String),
     `agent_output` SimpleAggregateFunction(max, String),
-    `subagent_inputs` SimpleAggregateFunction(maxMap, Map(String, String)),
-    `subagent_outputs` SimpleAggregateFunction(maxMap, Map(String, String)),
     PROJECTION p_start_time
     (
         SELECT *
@@ -93,8 +92,8 @@ SELECT
     ) AS metadata,
     t.session_id AS session_id,
     t.user_id AS user_id,
-    -- status_seen = 0 (no status-bearing spans) resolves to 'success', matching traces_v0's two-value contract
-    if(bitAnd(t.status_seen, 2) != 0, 'error', 'success') AS status,
+    -- no status-bearing spans resolves to 'success', matching traces_v0's two-value contract
+    if(has(t.statuses, 'error'), 'error', 'success') AS status,
     t.top_span_id AS top_span_id,
     substring(t.top_span_name, 2) AS top_span_name,
     CASE
@@ -109,8 +108,8 @@ SELECT
         ELSE 'UNKNOWN'
     END AS top_span_type,
     multiIf(
-        bitAnd(t.trace_type_seen, 8) != 0, 'PLAYGROUND',
-        bitAnd(t.trace_type_seen, 2) != 0, 'EVALUATION',
+        has(t.trace_types, 'PLAYGROUND'), 'PLAYGROUND',
+        has(t.trace_types, 'EVALUATION'), 'EVALUATION',
         'DEFAULT'
     ) AS trace_type,
     t.tags AS tags,
@@ -121,9 +120,7 @@ SELECT
     t.root_span_input AS root_span_input,
     t.root_span_output AS root_span_output,
     t.agent_input AS agent_input,
-    t.agent_output AS agent_output,
-    if(length(mapKeys(t.subagent_inputs)) = 0, '', toJSONString(t.subagent_inputs)) AS subagent_inputs,
-    if(length(mapKeys(t.subagent_outputs)) = 0, '', toJSONString(t.subagent_outputs)) AS subagent_outputs
+    t.agent_output AS agent_output
 FROM (
     SELECT
         project_id,
@@ -142,20 +139,18 @@ FROM (
         maxMap(metadata) AS metadata_state,
         max(session_id) AS session_id,
         max(user_id) AS user_id,
-        groupBitOr(status_seen) AS status_seen,
+        groupUniqArrayArray(statuses) AS statuses,
         max(top_span_id) AS top_span_id,
         max(top_span_name) AS top_span_name,
         max(top_span_type) AS top_span_type,
-        groupBitOr(trace_type_seen) AS trace_type_seen,
+        groupUniqArrayArray(trace_types) AS trace_types,
         groupUniqArrayArray(tags) AS tags,
         max(has_browser_session) AS has_browser_session,
         groupUniqArrayArray(span_names) AS span_names,
         max(root_span_input) AS root_span_input,
         max(root_span_output) AS root_span_output,
         max(agent_input) AS agent_input,
-        max(agent_output) AS agent_output,
-        maxMap(subagent_inputs) AS subagent_inputs,
-        maxMap(subagent_outputs) AS subagent_outputs
+        max(agent_output) AS agent_output
     FROM (
         SELECT *
         FROM default.traces_agg
