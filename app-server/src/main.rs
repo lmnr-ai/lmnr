@@ -1674,8 +1674,9 @@ fn main() -> anyhow::Result<()> {
                         );
                     }
 
-                    // Spawn checkpoints workers
-                    {
+                    // Spawn checkpoints workers. Gated behind
+                    // CHECKPOINTS_ENABLED (LAM-1987, default off).
+                    if is_feature_enabled(Feature::Checkpoints) {
                         let db = db_for_consumer.clone();
                         let cache = cache_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();

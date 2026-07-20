@@ -27,6 +27,7 @@ use std::env;
 use std::str::FromStr;
 
 pub mod batching;
+pub mod checkpoints;
 pub mod clickhouse;
 pub mod connections;
 pub mod database;

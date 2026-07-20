@@ -26,6 +26,9 @@ pub enum Feature {
     /// features are fine-grained so gating can diverge later.
     InputExtraction,
     Reports,
+    /// Checkpoints / agent-versioning pipeline (LAM-1987). Temporarily
+    /// gated behind `CHECKPOINTS_ENABLED`, default off.
+    Checkpoints,
     RateLimiter,
     GrpcRateLimiter,
     /// Strip PII from span input/output via the pii-redactor gRPC service,
@@ -72,6 +75,7 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
             std::env::var(env::observability::ENABLE_REPORTS).is_ok_and(|s| s == "true")
                 && std::env::var(env::secrets::RESEND_API_KEY).is_ok_and(|s| !s.is_empty())
         }
+        Feature::Checkpoints => env::checkpoints::ENABLED.get(),
         Feature::RateLimiter => {
             std::env::var(env::connections::REDIS_URL).is_ok()
                 && std::env::var(env::rate_limit::HTTP_LIMIT).is_ok()
