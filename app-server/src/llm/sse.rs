@@ -10,8 +10,11 @@ use crate::llm::models::{ProviderResponse, ProviderStreamChunk};
 
 pub(crate) trait StreamAccumulator: Default {
     type Chunk: DeserializeOwned;
+    /// Error surfaced when the terminal event indicates the provider failed the
+    /// request (e.g. a Responses `response.failed` event).
+    type Error;
     fn ingest(&mut self, chunk: Self::Chunk, tx: &UnboundedSender<ProviderStreamChunk>);
-    fn into_response(self, model: &str) -> ProviderResponse;
+    fn into_response(self, model: &str) -> Result<ProviderResponse, Self::Error>;
 }
 
 pub(crate) async fn accumulate_sse<A, E>(
@@ -21,7 +24,7 @@ pub(crate) async fn accumulate_sse<A, E>(
 ) -> Result<ProviderResponse, E>
 where
     A: StreamAccumulator,
-    E: From<reqwest::Error> + From<serde_json::Error>,
+    E: From<reqwest::Error> + From<serde_json::Error> + From<A::Error>,
 {
     let mut accumulator = A::default();
     let mut payloads = Box::pin(sse_data_stream(byte_stream));
@@ -29,7 +32,7 @@ where
         let chunk: A::Chunk = serde_json::from_str(&payload?)?;
         accumulator.ingest(chunk, tx);
     }
-    Ok(accumulator.into_response(model))
+    accumulator.into_response(model).map_err(E::from)
 }
 
 fn sse_data_stream(

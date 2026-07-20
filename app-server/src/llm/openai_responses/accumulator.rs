@@ -7,6 +7,7 @@ use super::conversions::parse_openai_responses_response;
 use crate::llm::models::{
     ProviderCandidate, ProviderContent, ProviderPart, ProviderResponse, ProviderStreamChunk,
 };
+use crate::llm::openai::OpenAIError;
 use crate::llm::sse::StreamAccumulator;
 
 /// Accumulator for the Responses API SSE stream. Deltas are forwarded live for
@@ -22,6 +23,7 @@ pub(super) struct OpenAIResponsesStreamAccumulator {
 
 impl StreamAccumulator for OpenAIResponsesStreamAccumulator {
     type Chunk = Value;
+    type Error = OpenAIError;
 
     fn ingest(&mut self, chunk: Value, tx: &UnboundedSender<ProviderStreamChunk>) {
         let Some(event_type) = chunk.get("type").and_then(|t| t.as_str()) else {
@@ -53,15 +55,14 @@ impl StreamAccumulator for OpenAIResponsesStreamAccumulator {
         }
     }
 
-    fn into_response(self, model: &str) -> ProviderResponse {
-        // Prefer the authoritative full response object from the terminal event.
+    fn into_response(self, model: &str) -> Result<ProviderResponse, OpenAIError> {
+        // The terminal event carries the authoritative result. Parsing also
+        // surfaces a `response.failed` event as an error rather than empty content.
         if let Some(response) = self.final_response {
-            if let Ok(parsed) = parse_openai_responses_response(response) {
-                return parsed;
-            }
+            return parse_openai_responses_response(response);
         }
 
-        // Fallback: assemble from accumulated deltas (no tool calls / usage).
+        // No terminal event (stream cut short): assemble from accumulated deltas.
         let mut parts: Vec<ProviderPart> = Vec::new();
         if !self.reasoning.is_empty() {
             parts.push(ProviderPart {
@@ -76,7 +77,7 @@ impl StreamAccumulator for OpenAIResponsesStreamAccumulator {
                 ..Default::default()
             });
         }
-        ProviderResponse {
+        Ok(ProviderResponse {
             candidates: Some(vec![ProviderCandidate {
                 content: Some(ProviderContent {
                     role: Some("model".to_string()),
@@ -86,7 +87,7 @@ impl StreamAccumulator for OpenAIResponsesStreamAccumulator {
             }]),
             usage_metadata: None,
             model_version: Some(model.to_string()),
-        }
+        })
     }
 }
 
@@ -112,10 +113,13 @@ mod tests {
         ))]);
 
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<ProviderStreamChunk>();
-        let response =
-            accumulate_sse::<OpenAIResponsesStreamAccumulator, OpenAIError>(byte_stream, "gpt-5", &tx)
-                .await
-                .unwrap();
+        let response = accumulate_sse::<OpenAIResponsesStreamAccumulator, OpenAIError>(
+            byte_stream,
+            "gpt-5",
+            &tx,
+        )
+        .await
+        .unwrap();
         drop(tx);
 
         let mut texts = Vec::new();
@@ -141,5 +145,32 @@ mod tests {
         let usage = response.usage_metadata.unwrap();
         assert_eq!(usage.candidates_token_count, Some(7));
         assert_eq!(usage.reasoning_token_count, Some(4));
+    }
+
+    #[tokio::test]
+    async fn responses_stream_failed_event_propagates_error() {
+        let body = concat!(
+            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"partial\"}\n\n",
+            "data: {\"type\":\"response.failed\",\"response\":{\"model\":\"gpt-5\",\"status\":\"failed\",\"error\":{\"code\":\"server_error\",\"message\":\"boom\"}}}\n\n",
+            "data: [DONE]\n\n",
+        );
+        let byte_stream = stream::iter(vec![Ok::<_, reqwest::Error>(Bytes::copy_from_slice(
+            body.as_bytes(),
+        ))]);
+
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel::<ProviderStreamChunk>();
+        let result = accumulate_sse::<OpenAIResponsesStreamAccumulator, OpenAIError>(
+            byte_stream,
+            "gpt-5",
+            &tx,
+        )
+        .await;
+        assert!(matches!(
+            result,
+            Err(OpenAIError::ApiError {
+                status_code: 500,
+                ..
+            })
+        ));
     }
 }

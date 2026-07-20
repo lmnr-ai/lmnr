@@ -2,7 +2,9 @@
 
 use tokio::sync::mpsc::UnboundedSender;
 
-use super::{Candidate, Content, FinishReason, GenerateContentResponse, Part, UsageMetadata};
+use super::{
+    Candidate, Content, FinishReason, GeminiError, GenerateContentResponse, Part, UsageMetadata,
+};
 use crate::llm::models::{ProviderResponse, ProviderStreamChunk};
 use crate::llm::sse::StreamAccumulator;
 
@@ -41,6 +43,7 @@ impl GeminiStreamAccumulator {
 
 impl StreamAccumulator for GeminiStreamAccumulator {
     type Chunk = GenerateContentResponse;
+    type Error = GeminiError;
 
     fn ingest(
         &mut self,
@@ -85,7 +88,7 @@ impl StreamAccumulator for GeminiStreamAccumulator {
         }
     }
 
-    fn into_response(self, _model: &str) -> ProviderResponse {
+    fn into_response(self, _model: &str) -> Result<ProviderResponse, GeminiError> {
         let candidate = Candidate {
             content: Some(Content {
                 role: self.role.or_else(|| Some("model".to_string())),
@@ -96,13 +99,13 @@ impl StreamAccumulator for GeminiStreamAccumulator {
             safety_ratings: None,
             index: None,
         };
-        GenerateContentResponse {
+        Ok(GenerateContentResponse {
             candidates: Some(vec![candidate]),
             usage_metadata: self.usage_metadata,
             model_version: self.model_version,
             response_id: self.response_id,
         }
-        .into()
+        .into())
     }
 }
 

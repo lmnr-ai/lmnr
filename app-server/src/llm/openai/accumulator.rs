@@ -7,6 +7,7 @@ use crate::llm::models::{
     ProviderCandidate, ProviderContent, ProviderFinishReason, ProviderFunctionCall, ProviderPart,
     ProviderResponse, ProviderStreamChunk, ProviderUsageMetadata,
 };
+use crate::llm::openai::OpenAIError;
 use crate::llm::sse::StreamAccumulator;
 
 #[derive(Default)]
@@ -20,6 +21,7 @@ pub(super) struct OpenAIStreamAccumulator {
 
 impl StreamAccumulator for OpenAIStreamAccumulator {
     type Chunk = Value;
+    type Error = OpenAIError;
 
     fn ingest(&mut self, chunk: Value, tx: &UnboundedSender<ProviderStreamChunk>) {
         if let Some(usage) = chunk.get("usage").filter(|u| !u.is_null()) {
@@ -88,7 +90,7 @@ impl StreamAccumulator for OpenAIStreamAccumulator {
         }
     }
 
-    fn into_response(self, model: &str) -> ProviderResponse {
+    fn into_response(self, model: &str) -> Result<ProviderResponse, OpenAIError> {
         let mut parts: Vec<ProviderPart> = Vec::new();
         if !self.reasoning.is_empty() {
             parts.push(ProviderPart {
@@ -119,7 +121,7 @@ impl StreamAccumulator for OpenAIStreamAccumulator {
             });
         }
 
-        ProviderResponse {
+        Ok(ProviderResponse {
             candidates: Some(vec![ProviderCandidate {
                 content: Some(ProviderContent {
                     role: Some("model".to_string()),
@@ -129,7 +131,7 @@ impl StreamAccumulator for OpenAIStreamAccumulator {
             }]),
             usage_metadata: self.usage,
             model_version: Some(model.to_string()),
-        }
+        })
     }
 }
 

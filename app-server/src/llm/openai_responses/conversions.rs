@@ -163,6 +163,12 @@ fn append_content_as_items(content: &ProviderContent, out: &mut Vec<Value>) {
 
 /// Parse an OpenAI Responses API response JSON into a `ProviderResponse`.
 pub fn parse_openai_responses_response(value: Value) -> Result<ProviderResponse, OpenAIError> {
+    // A `failed` status is a provider-side failure, not a valid empty response —
+    // surface the `error` payload instead of returning empty content.
+    if value.get("status").and_then(|s| s.as_str()) == Some("failed") {
+        return Err(responses_failed_error(&value));
+    }
+
     let output = value
         .get("output")
         .and_then(|o| o.as_array())
@@ -281,6 +287,30 @@ fn extract_reasoning_summary(item: &Value) -> String {
         }
     }
     out
+}
+
+/// Build an error from a `status: "failed"` Responses payload. The status code
+/// is chosen so the shared `OpenAIError::ApiError` → `ProviderError` mapping
+/// derives sensible retry semantics: `rate_limit_exceeded` → 429 (retryable,
+/// resource-exhausted), `server_error` → 500 (retryable), anything else → 400
+/// (non-retryable — retrying a model/content failure won't help).
+fn responses_failed_error(value: &Value) -> OpenAIError {
+    let error = value.get("error");
+    let message = error
+        .and_then(|e| e.get("message"))
+        .and_then(|m| m.as_str())
+        .or_else(|| error.and_then(|e| e.as_str()))
+        .unwrap_or("Responses API returned status \"failed\"")
+        .to_string();
+    let status_code = match error.and_then(|e| e.get("code")).and_then(|c| c.as_str()) {
+        Some("rate_limit_exceeded") => 429,
+        Some("server_error") => 500,
+        _ => 400,
+    };
+    OpenAIError::ApiError {
+        status_code,
+        message,
+    }
 }
 
 fn map_responses_status(value: &Value) -> Option<ProviderFinishReason> {
@@ -535,6 +565,27 @@ mod tests {
         assert_eq!(fc.id.as_deref(), Some("call_abc"));
         assert_eq!(fc.name, "get_weather");
         assert_eq!(fc.args.as_ref().unwrap()["city"], "SF");
+    }
+
+    #[test]
+    fn failed_status_returns_error_with_message() {
+        let value = json!({
+            "model": "gpt-5",
+            "status": "failed",
+            "error": {"code": "server_error", "message": "the model failed"},
+            "output": []
+        });
+        let err = parse_openai_responses_response(value).unwrap_err();
+        match err {
+            OpenAIError::ApiError {
+                status_code,
+                message,
+            } => {
+                assert_eq!(status_code, 500);
+                assert_eq!(message, "the model failed");
+            }
+            other => panic!("expected ApiError, got {other:?}"),
+        }
     }
 
     #[test]
