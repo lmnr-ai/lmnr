@@ -185,16 +185,9 @@ export default function ViewsPicker({
   const triggerLabel = selected?.name ?? DEFAULT_LABEL;
 
   const canSaveCurrent = currentViewId !== null && !!onSaveCurrent;
-  const showQuickSave = dirty && (canSaveCurrent || !!onSaveAsNew);
-  const quickSaveLabel = canSaveCurrent ? "Save changes" : "Save as new view";
-
-  const handleQuickSave = useCallback(() => {
-    if (currentViewId !== null && onSaveCurrent) {
-      onSaveCurrent();
-    } else {
-      onSaveAsNew?.();
-    }
-  }, [currentViewId, onSaveCurrent, onSaveAsNew]);
+  // Quick save only applies to an existing view; on the default view saving
+  // goes through the dropdown's "Save as new view" item.
+  const showQuickSave = dirty && canSaveCurrent;
 
   return (
     <div className="flex items-center">
@@ -305,19 +298,13 @@ export default function ViewsPicker({
         <Button
           variant="outline"
           size="icon"
-          aria-label={quickSaveLabel}
-          title={quickSaveLabel}
-          className="rounded-l-none border-l text-amber-500 hover:text-amber-500 outline-0"
+          aria-label="Save changes"
+          title="Save changes"
+          className="rounded-l-none border-l text-muted-foreground hover:text-secondary-foreground outline-0"
           disabled={isSaving}
-          onClick={handleQuickSave}
+          onClick={onSaveCurrent}
         >
-          {isSaving ? (
-            <Loader2 className="size-3.5 shrink-0 animate-spin" />
-          ) : canSaveCurrent ? (
-            <Save className="size-3.5 shrink-0" />
-          ) : (
-            <FilePlus2 className="size-3.5 shrink-0" />
-          )}
+          {isSaving ? <Loader2 className="size-3.5 shrink-0 animate-spin" /> : <Save className="size-3.5 shrink-0" />}
         </Button>
       )}
       <Dialog
