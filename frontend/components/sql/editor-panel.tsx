@@ -32,6 +32,10 @@ import { track } from "@/lib/posthog";
 export default function EditorPanel() {
   const { projectId } = useParams();
   const [results, setResults] = useState<Record<string, any>[] | null>(null);
+  // Template that PRODUCED the current results. `results` survives a template
+  // switch (no remount on /sql/[id] nav), so keying storage off the selected
+  // template would save the old result shape's widths under the new template.
+  const [resultsTemplateId, setResultsTemplateId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -105,6 +109,7 @@ export default function EditorPanel() {
       const data = await response.json();
 
       setResults(Array.isArray(data) ? data : []);
+      setResultsTemplateId(template?.id ?? null);
       track("sql_editor", "query_executed");
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
@@ -130,7 +135,7 @@ export default function EditorPanel() {
         setIsLoading(false);
       }
     }
-  }, [projectId, template?.query, toast, getFormattedParameters]);
+  }, [projectId, template?.query, template?.id, toast, getFormattedParameters]);
 
   useHotkeys("meta+enter,ctrl+enter", executeQuery, {
     enableOnFormTags: ["input"],
@@ -248,7 +253,7 @@ export default function EditorPanel() {
                 success: (
                   <ResultsTable
                     results={results || []}
-                    storageKey={`sql-results-column-sizing-${projectId}-${template?.id ?? "draft"}`}
+                    storageKey={`sql-results-column-sizing-${projectId}-${resultsTemplateId ?? "draft"}`}
                   />
                 ),
                 loadingText: "Executing query...",
