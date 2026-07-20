@@ -1,21 +1,24 @@
 "use client";
 
 // TEMPORARY style exploration tooling — safe to delete this folder + the mount in layout.tsx.
-// Floating button (collapsed) + HUD window (expanded) with Color | JSON tabs.
+// Floating button (collapsed) + HUD window (expanded) with Color | Icons tabs. State lives in
+// the `style` URL param (nuqs), so sharing is just copying the URL — no JSON export needed.
 
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Palette, X } from "@/components/ui/icon-lib";
+import { Palette, Trash2, X } from "@/components/ui/icon-lib";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 import ColorTab from "./color-tab";
 import IconsTab from "./icons-tab";
-import JsonTab from "./json-tab";
+import { useStyleContext } from "./style-context";
 
 export default function PanelShell() {
   const [open, setOpen] = useState(false);
+  const { resetAll } = useStyleContext();
 
   if (!open) {
     return (
@@ -30,6 +33,11 @@ export default function PanelShell() {
       </Button>
     );
   }
+
+  const handleReset = () => {
+    resetAll();
+    toast({ title: "Reset to defaults — cleared the shared style" });
+  };
 
   return (
     <div
@@ -55,9 +63,6 @@ export default function PanelShell() {
           <TabsTrigger value="icons" className="flex-1">
             Icons
           </TabsTrigger>
-          <TabsTrigger value="json" className="flex-1">
-            JSON
-          </TabsTrigger>
         </TabsList>
         <div className="min-h-0 flex-1 overflow-y-auto thin-scrollbar pr-1">
           <TabsContent value="color">
@@ -66,11 +71,14 @@ export default function PanelShell() {
           <TabsContent value="icons">
             <IconsTab />
           </TabsContent>
-          <TabsContent value="json">
-            <JsonTab />
-          </TabsContent>
         </div>
       </Tabs>
+      <div className="border-t border-border p-3">
+        <Button variant="destructive" size="md" onClick={handleReset} className="w-full">
+          <Trash2 className="mr-1 size-3.5" />
+          Reset to defaults
+        </Button>
+      </div>
     </div>
   );
 }

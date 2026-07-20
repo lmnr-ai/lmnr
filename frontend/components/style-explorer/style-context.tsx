@@ -2,8 +2,8 @@
 
 // TEMPORARY style exploration tooling — safe to delete this folder + the mount in layout.tsx.
 // Holds the full editable theme state and live-applies it to document.documentElement via
-// inline custom-property overrides. Persists into a single base64 `style` query param so a
-// theme can be shared by copying the URL.
+// inline custom-property overrides. Persists theme + icon state (library + stroke) into a
+// single base64 `style` query param so the whole look can be shared by copying the URL.
 
 import { useQueryState } from "nuqs";
 import {
@@ -16,6 +16,16 @@ import {
   useRef,
   useState,
 } from "react";
+
+import {
+  DEFAULT_ICON_STROKE,
+  ICON_LIBS,
+  type IconLib,
+  setIconLib,
+  setIconStroke,
+  useIconLib,
+  useIconStroke,
+} from "@/components/ui/icon-lib/store";
 
 import {
   BINDING_KEYS,
@@ -79,8 +89,6 @@ interface StyleContextValue {
   replaceState: (next: StyleState) => void;
   applyToDocument: () => void;
   resetAll: () => void;
-  toJSON: () => string;
-  fromJSON: (raw: string) => void;
 }
 
 const StyleContext = createContext<StyleContextValue | null>(null);
@@ -131,48 +139,70 @@ function validateState(parsed: unknown): StyleState {
   return s as StyleState;
 }
 
-// Serialize the whole state into a URL-safe base64 blob for the `style` query param.
-function encodeState(state: StyleState): string {
-  return btoa(encodeURIComponent(JSON.stringify(state)));
+// The `style` param carries theme + icon state together so one URL shares the whole look.
+interface DecodedPayload {
+  state: StyleState;
+  iconLib: IconLib;
+  iconStroke: number;
+}
+
+// Serialize theme + icon state into a URL-safe base64 blob for the `style` query param.
+function encodePayload(state: StyleState, iconLib: IconLib, iconStroke: number): string {
+  return btoa(encodeURIComponent(JSON.stringify({ ...state, iconLib, iconStroke })));
 }
 
 // Decode + validate the `style` param; fall back to fresh defaults on missing/corrupt input.
-function decodeState(param: string | null): StyleState {
-  if (!param) return freshState();
+function decodePayload(param: string | null): DecodedPayload {
+  const fallback: DecodedPayload = { state: freshState(), iconLib: "lucide", iconStroke: DEFAULT_ICON_STROKE };
+  if (!param) return fallback;
   try {
-    return validateState(JSON.parse(decodeURIComponent(atob(param))));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const obj = JSON.parse(decodeURIComponent(atob(param))) as any;
+    const state = validateState(obj);
+    const iconLib: IconLib = ICON_LIBS.includes(obj.iconLib) ? obj.iconLib : "lucide";
+    const iconStroke = typeof obj.iconStroke === "number" ? obj.iconStroke : DEFAULT_ICON_STROKE;
+    return { state, iconLib, iconStroke };
   } catch {
     /* corrupt/old payload — fall through to defaults */
-    return freshState();
+    return fallback;
   }
 }
 
 export function StyleProvider({ children }: PropsWithChildren) {
-  // Single base64 query param is the persistence layer — copy the URL to share a theme.
+  // Single base64 query param is the persistence layer — copy the URL to share the look.
   // Throttled + history:replace so rapid slider drags don't spam browser history.
   const [styleParam, setStyleParam] = useQueryState("style", { history: "replace", throttleMs: 300 });
 
-  // Seed once from the param present at first render (or defaults if missing/corrupt).
-  const [state, setState] = useState<StyleState>(() => decodeState(styleParam));
+  // Seed theme once from the param present at first render (or defaults if missing/corrupt).
+  const [state, setState] = useState<StyleState>(() => decodePayload(styleParam).state);
+
+  // Icon state lives in a global store (the icon wrapper reads it app-wide, outside this
+  // provider), so we mirror it into the encoded payload rather than owning it here.
+  const iconLib = useIconLib();
+  const iconStroke = useIconStroke();
 
   // Skip the URL write for the initial mount and for resetAll (which clears the param).
   const skipSyncRef = useRef(true);
 
-  // Apply persisted state to the document once on mount so it survives reloads.
+  // Apply persisted theme to the document + push persisted icon state into the store once
+  // on mount so the whole look survives a reload / shared link.
   useEffect(() => {
-    applyState(state);
+    const dec = decodePayload(styleParam);
+    applyState(dec.state);
+    setIconLib(dec.iconLib);
+    setIconStroke(dec.iconStroke);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist on every change into the URL param (nuqs throttles the writes).
+  // Persist theme + icon state on every change into the URL param (nuqs throttles writes).
   useEffect(() => {
     if (skipSyncRef.current) {
       skipSyncRef.current = false;
       return;
     }
-    void setStyleParam(encodeState(state));
+    void setStyleParam(encodePayload(state, iconLib, iconStroke));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
+  }, [state, iconLib, iconStroke]);
 
   const resetAll = useCallback(() => {
     void setStyleParam(null);
@@ -181,6 +211,8 @@ export function StyleProvider({ children }: PropsWithChildren) {
     }
     skipSyncRef.current = true; // don't let the sync effect re-write the default over the cleared param
     setState(freshState());
+    setIconLib("lucide");
+    setIconStroke(DEFAULT_ICON_STROKE);
   }, [setStyleParam]);
 
   const setPoint = useCallback((curve: CurveKey, key: string, t: number, l: number) => {
@@ -239,14 +271,6 @@ export function StyleProvider({ children }: PropsWithChildren) {
 
   const applyToDocument = useCallback(() => applyState(state), [state]);
 
-  const toJSON = useCallback(() => JSON.stringify(state, null, 2), [state]);
-
-  const fromJSON = useCallback((raw: string) => {
-    const next = validateState(JSON.parse(raw));
-    setState(next);
-    applyState(next);
-  }, []);
-
   const value = useMemo<StyleContextValue>(
     () => ({
       state,
@@ -259,8 +283,6 @@ export function StyleProvider({ children }: PropsWithChildren) {
       replaceState,
       applyToDocument,
       resetAll,
-      toJSON,
-      fromJSON,
     }),
     [
       state,
@@ -273,8 +295,6 @@ export function StyleProvider({ children }: PropsWithChildren) {
       replaceState,
       applyToDocument,
       resetAll,
-      toJSON,
-      fromJSON,
     ]
   );
 
