@@ -296,6 +296,7 @@ fn parse_usage(usage_obj: Option<&Value>) -> ProviderUsageMetadata {
         ),
         cache_read_input_tokens: cache_read,
         cache_creation_input_tokens: cache_write,
+        reasoning_token_count: None,
     }
 }
 

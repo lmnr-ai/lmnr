@@ -101,7 +101,7 @@ pub fn provider_request_to_openai_stream_body(model: &str, request: &ProviderReq
     body
 }
 
-fn thinking_level_to_effort(level: &ProviderThinkingLevel) -> Option<&'static str> {
+pub(crate) fn thinking_level_to_effort(level: &ProviderThinkingLevel) -> Option<&'static str> {
     match level {
         ProviderThinkingLevel::ThinkingLevelUnspecified => None,
         ProviderThinkingLevel::Minimal => Some("minimal"),
@@ -346,6 +346,7 @@ pub(super) fn parse_usage(usage: &Value) -> ProviderUsageMetadata {
         total_token_count: total_tokens,
         cache_read_input_tokens: cached_tokens,
         cache_creation_input_tokens: None,
+        reasoning_token_count: None,
     }
 }
 

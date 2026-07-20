@@ -3,6 +3,7 @@ pub mod gemini;
 pub mod mock;
 pub mod models;
 pub mod openai;
+pub mod openai_responses;
 pub(crate) mod sse;
 
 pub use bedrock::BedrockClient;
@@ -10,6 +11,7 @@ pub use gemini::GeminiClient;
 pub use mock::MockProviderClient;
 pub use models::*;
 pub use openai::OpenAIClient;
+pub use openai_responses::OpenAIResponsesClient;
 
 use enum_dispatch::enum_dispatch;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
@@ -154,6 +156,7 @@ pub(crate) enum ProviderClient {
     Gemini(GeminiClient),
     Bedrock(BedrockClient),
     OpenAI(OpenAIClient),
+    OpenAIResponses(OpenAIResponsesClient),
     Mock(MockProviderClient),
 }
 
@@ -435,11 +438,30 @@ impl LlmClient {
         }
 
         if has_openai_credentials() {
-            let client = OpenAIClient::new().map_err(|e| {
-                ProviderError::ConfigError(format!("Failed to create OpenAI client: {e}"))
-            })?;
-            log::info!("Initialized OpenAI provider at {}", client.api_base_url());
-            providers.insert("openai".to_string(), ProviderClient::OpenAI(client));
+            // The Responses API and Chat Completions are separate client impls;
+            // OPENAI_USE_RESPONSES selects which one backs the `openai` provider.
+            let provider = if env::llm::OPENAI_USE_RESPONSES.get() {
+                let client = OpenAIResponsesClient::new().map_err(|e| {
+                    ProviderError::ConfigError(format!(
+                        "Failed to create OpenAI Responses client: {e}"
+                    ))
+                })?;
+                log::info!(
+                    "Initialized OpenAI provider (Responses API) at {}",
+                    client.api_base_url()
+                );
+                ProviderClient::OpenAIResponses(client)
+            } else {
+                let client = OpenAIClient::new().map_err(|e| {
+                    ProviderError::ConfigError(format!("Failed to create OpenAI client: {e}"))
+                })?;
+                log::info!(
+                    "Initialized OpenAI provider (Chat Completions) at {}",
+                    client.api_base_url()
+                );
+                ProviderClient::OpenAI(client)
+            };
+            providers.insert("openai".to_string(), provider);
         }
 
         if default_provider == "mock" {
