@@ -37,8 +37,8 @@ pub struct CHTraceAgg {
     pub input_cost: f64,
     pub output_cost: f64,
     pub total_cost: f64,
-    /// Per-key LWW: value is `<20-digit zero-padded version_ns>|<raw JSON value>`,
-    /// so the table's `maxMap` keeps the highest-version value per key.
+    /// Raw JSON value per key; the table's `anyMap` keeps an arbitrary
+    /// occurrence per key.
     pub metadata: Vec<(String, String)>,
     pub session_id: String,
     pub user_id: String,
@@ -64,12 +64,12 @@ pub struct CHTraceAgg {
     pub trace_types: Vec<i8>,
 }
 
-fn encode_metadata(metadata: Option<&Value>, version_ns: i64) -> Vec<(String, String)> {
+fn encode_metadata(metadata: Option<&Value>) -> Vec<(String, String)> {
     let Some(Value::Object(map)) = metadata else {
         return Vec::new();
     };
     map.iter()
-        .map(|(k, v)| (k.clone(), format!("{:020}|{}", version_ns, v)))
+        .map(|(k, v)| (k.clone(), v.to_string()))
         .collect()
 }
 
@@ -108,8 +108,7 @@ fn trace_type_enum_value(trace_type: u8) -> i8 {
 
 impl CHTraceAgg {
     /// Build a partial row from one batch's in-memory aggregation. `now_ns` is
-    /// the flush wall-clock: it versions metadata values (last processed wins,
-    /// matching the PG `||` merge) and is the fallback timestamp.
+    /// the flush wall-clock, used only as the start/end time fallback.
     pub fn from_aggregation(agg: &TraceAggregation, now_ns: i64) -> Self {
         let start_time = agg.start_time.map(chrono_to_nanoseconds).unwrap_or(now_ns);
         let end_time = agg.end_time.map(chrono_to_nanoseconds).unwrap_or(now_ns);
@@ -125,7 +124,7 @@ impl CHTraceAgg {
             input_cost: agg.input_cost,
             output_cost: agg.output_cost,
             total_cost: agg.total_cost,
-            metadata: encode_metadata(agg.metadata.as_ref(), now_ns),
+            metadata: encode_metadata(agg.metadata.as_ref()),
             session_id: agg.session_id.clone().unwrap_or_default(),
             user_id: agg.user_id.clone().unwrap_or_default(),
             top_span_id: agg.top_span_id.unwrap_or(Uuid::nil()),
@@ -150,9 +149,10 @@ impl CHTraceAgg {
 
     /// Build a partial row for a metadata patch (POST /v1/traces/metadata),
     /// from the PG-merged trace row the patch UPDATE returned. All aggregates
-    /// are identities except: metadata (the full merged map re-stamped at
-    /// `now_ns`, so the patch wins per-key LWW) and `num_spans` (+1, matching
-    /// the PG counter bump that pays for the virtual metadata-only span).
+    /// are identities except: metadata (the full merged map — `anyMap` keeps
+    /// an arbitrary per-key occurrence, so this is best-effort, not LWW) and
+    /// `num_spans` (+1, matching the PG counter bump that pays for the
+    /// virtual metadata-only span). `now_ns` is the fallback timestamp.
     pub fn from_patched_trace(trace: &Trace, now_ns: i64) -> Self {
         let start_time = trace
             .start_time()
@@ -174,7 +174,7 @@ impl CHTraceAgg {
             input_cost: 0.0,
             output_cost: 0.0,
             total_cost: 0.0,
-            metadata: encode_metadata(trace.metadata(), now_ns),
+            metadata: encode_metadata(trace.metadata()),
             session_id: String::new(),
             user_id: String::new(),
             top_span_id: Uuid::nil(),
@@ -217,23 +217,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn metadata_values_carry_sortable_version_prefix() {
+    fn metadata_values_are_raw_json() {
         let metadata = json!({"a": 1, "b": "x", "c": {"nested": true}});
-        let encoded = encode_metadata(Some(&metadata), 1_700_000_000_000_000_000);
+        let encoded = encode_metadata(Some(&metadata));
 
         let a = encoded.iter().find(|(k, _)| k == "a").unwrap();
-        assert_eq!(a.1, "01700000000000000000|1");
-        // 20-digit prefix + '|' = raw JSON value starts at byte 22 (1-indexed),
-        // matching `substring(v, 22)` in the traces_agg_v0 view.
-        assert_eq!(&a.1[21..], "1");
+        assert_eq!(a.1, "1");
         let b = encoded.iter().find(|(k, _)| k == "b").unwrap();
-        assert_eq!(&b.1[21..], "\"x\"");
+        assert_eq!(b.1, "\"x\"");
         let c = encoded.iter().find(|(k, _)| k == "c").unwrap();
-        assert_eq!(&c.1[21..], "{\"nested\":true}");
-
-        // Higher version sorts lexicographically above regardless of value.
-        let newer = encode_metadata(Some(&json!({"a": 0})), 1_700_000_000_000_000_001);
-        assert!(newer[0].1 > a.1);
+        assert_eq!(c.1, "{\"nested\":true}");
     }
 
     #[test]

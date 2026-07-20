@@ -534,13 +534,10 @@ pub async fn process_span_messages(
         // every sum on each batch. Gated on `aggregation_ok` so traces_agg
         // never runs ahead of traces_replacing while both are written.
         // Metadata patches get identity partials built from the PG-merged
-        // row: the full metadata map re-stamped at `now_ns + 1` wins per-key
-        // LWW. The +1 matters when one flush touches the same trace via BOTH
-        // span aggregation AND a patch: with equal versions, maxMap would
-        // break the tie lexicographically on the encoded JSON value, letting
-        // span metadata beat the patch. Stamping the patch strictly higher
-        // mirrors the PG path, where the patch UPDATE runs after the
-        // aggregation upsert.
+        // row: the full metadata map, unversioned (the table's `anyMap`
+        // keeps an arbitrary per-key occurrence across partials, so this is
+        // best-effort — not a guaranteed last-write-wins against a same-flush
+        // span-aggregation partial for the same trace).
         // The whole dual-write is gated behind WRITE_TRACES_AGG (default off)
         // while the cloud-only performance experiment runs, so self-hosted
         // deployments keep writing only traces_replacing.
@@ -558,7 +555,7 @@ pub async fn process_span_messages(
             traces_agg_rows.extend(
                 patched_traces
                     .iter()
-                    .map(|trace| CHTraceAgg::from_patched_trace(trace, now_ns + 1)),
+                    .map(|trace| CHTraceAgg::from_patched_trace(trace, now_ns)),
             );
             if !traces_agg_rows.is_empty() {
                 if let Err(e) = ch.insert_batch(&traces_agg_rows, config).await {
