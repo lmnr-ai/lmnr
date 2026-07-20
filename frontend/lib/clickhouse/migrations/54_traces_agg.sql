@@ -1,10 +1,12 @@
 -- Aggregating replacement for traces_replacing (LAM-1879). Each ingest batch
 -- inserts one partial row per trace; ClickHouse folds partials at merge time,
 -- and reads always re-aggregate with GROUP BY (never FINAL, so the projection
--- stays usable). `metadata` values are raw JSON strings per key; `anyMap`
--- keeps an arbitrary occurrence per key (no versioning). `statuses` /
--- `trace_types` are seen-value enum arrays (LAM-1983); precedence lives only
--- in the view. `top_span_name`
+-- stays usable). `metadata` values are raw JSON strings per key, unversioned;
+-- ClickHouse only ships per-key map-merge combinators for min/max/sum, so
+-- `maxMap` is used as an "any occurrence wins" merge (picks each key's
+-- lexicographically-greatest raw JSON string — arbitrary from an application
+-- standpoint, but deterministic and cheap). `statuses` / `trace_types` are
+-- seen-value enum arrays (LAM-1983); precedence lives only in the view. `top_span_name`
 -- carries a 1-byte priority prefix ('2' = real root span, '1' = path-derived
 -- fallback set by a batch without the root) so max(String) always prefers the
 -- root-derived name regardless of arrival order; the view strips it with
@@ -21,7 +23,7 @@ CREATE TABLE IF NOT EXISTS default.traces_agg
     `input_cost` SimpleAggregateFunction(sum, Float64),
     `output_cost` SimpleAggregateFunction(sum, Float64),
     `total_cost` SimpleAggregateFunction(sum, Float64),
-    `metadata` SimpleAggregateFunction(anyMap, Map(String, String)),
+    `metadata` SimpleAggregateFunction(maxMap, Map(String, String)),
     `session_id` SimpleAggregateFunction(max, String),
     `user_id` SimpleAggregateFunction(max, String),
     `top_span_id` SimpleAggregateFunction(max, UUID),
@@ -136,7 +138,7 @@ FROM (
         sum(input_cost) AS input_cost,
         sum(output_cost) AS output_cost,
         sum(total_cost) AS total_cost,
-        anyMap(metadata) AS metadata,
+        maxMap(metadata) AS metadata,
         max(session_id) AS session_id,
         max(user_id) AS user_id,
         groupUniqArrayArray(statuses) AS statuses,

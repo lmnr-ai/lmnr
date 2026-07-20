@@ -37,8 +37,10 @@ pub struct CHTraceAgg {
     pub input_cost: f64,
     pub output_cost: f64,
     pub total_cost: f64,
-    /// Raw JSON value per key; the table's `anyMap` keeps an arbitrary
-    /// occurrence per key.
+    /// Raw JSON value per key, unversioned; the table's `maxMap` keeps each
+    /// key's lexicographically-greatest value across partials, used purely
+    /// as an "any occurrence wins" per-key merge (CH has no per-key map-merge
+    /// combinator that isn't min/max/sum-based).
     pub metadata: Vec<(String, String)>,
     pub session_id: String,
     pub user_id: String,
@@ -149,10 +151,11 @@ impl CHTraceAgg {
 
     /// Build a partial row for a metadata patch (POST /v1/traces/metadata),
     /// from the PG-merged trace row the patch UPDATE returned. All aggregates
-    /// are identities except: metadata (the full merged map — `anyMap` keeps
-    /// an arbitrary per-key occurrence, so this is best-effort, not LWW) and
-    /// `num_spans` (+1, matching the PG counter bump that pays for the
-    /// virtual metadata-only span). `now_ns` is the fallback timestamp.
+    /// are identities except: metadata (the full merged map, unversioned —
+    /// `maxMap`'s per-key value comparison is arbitrary from an application
+    /// standpoint, so this is best-effort, not LWW) and `num_spans` (+1,
+    /// matching the PG counter bump that pays for the virtual metadata-only
+    /// span). `now_ns` is the fallback timestamp.
     pub fn from_patched_trace(trace: &Trace, now_ns: i64) -> Self {
         let start_time = trace
             .start_time()

@@ -534,10 +534,11 @@ pub async fn process_span_messages(
         // every sum on each batch. Gated on `aggregation_ok` so traces_agg
         // never runs ahead of traces_replacing while both are written.
         // Metadata patches get identity partials built from the PG-merged
-        // row: the full metadata map, unversioned (the table's `anyMap`
-        // keeps an arbitrary per-key occurrence across partials, so this is
-        // best-effort — not a guaranteed last-write-wins against a same-flush
-        // span-aggregation partial for the same trace).
+        // row: the full metadata map, unversioned (the table's `maxMap`
+        // picks each key's lexicographically-greatest value across partials,
+        // which is arbitrary from an application standpoint — not a
+        // guaranteed last-write-wins against a same-flush span-aggregation
+        // partial for the same trace).
         // The whole dual-write is gated behind WRITE_TRACES_AGG (default off)
         // while the cloud-only performance experiment runs, so self-hosted
         // deployments keep writing only traces_replacing.
