@@ -1,9 +1,8 @@
 "use client";
 
-import { ArrowUpRight } from "lucide-react";
-
 import { AgentPromptBox } from "@/components/common/agent-prompt-box";
 import Header from "@/components/ui/header";
+import { ArrowUpRight } from "@/components/ui/icon-lib";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { track } from "@/lib/posthog";
 

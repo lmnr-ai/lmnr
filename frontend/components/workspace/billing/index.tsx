@@ -1,12 +1,12 @@
 "use client";
 
-import { Calendar, ExternalLink, Info, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Calendar, ExternalLink, Info, Loader2 } from "@/components/ui/icon-lib";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import WorkspaceAddons from "@/components/workspace/billing/addons";
 import CancelSubscriptionDialog from "@/components/workspace/billing/cancel-subscription-dialog";

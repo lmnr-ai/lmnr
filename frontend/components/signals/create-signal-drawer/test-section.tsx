@@ -1,6 +1,5 @@
 "use client";
 
-import { Info, Loader2, PlayIcon, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import { useFormContext } from "react-hook-form";
@@ -8,6 +7,7 @@ import { useFormContext } from "react-hook-form";
 import TracePicker from "@/components/traces/trace-picker";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Info, Loader2, PlayIcon, X } from "@/components/ui/icon-lib";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type TraceRow } from "@/lib/traces/types";

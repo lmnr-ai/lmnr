@@ -1,9 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { FileText, FlaskConical, MessageCircle } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
+import { FileText, FlaskConical, MessageCircle } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 import { type SessionBlockView, type TraceRowState, useDebuggerSessionViewStore } from "../store";

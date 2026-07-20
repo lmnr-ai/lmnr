@@ -1,8 +1,8 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { GripVertical, X } from "lucide-react";
 import { memo } from "react";
 
 import { Button } from "@/components/ui/button";
+import { GripVertical, X } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 export type ColumnCategory = "data" | "target" | "metadata";

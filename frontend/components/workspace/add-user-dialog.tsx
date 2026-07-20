@@ -1,4 +1,3 @@
-import { Loader2, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useCallback, useState } from "react";
 
@@ -12,6 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Loader2, User } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";

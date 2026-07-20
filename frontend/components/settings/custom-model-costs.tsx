@@ -1,11 +1,11 @@
 "use client";
 
 import { isEmpty } from "lodash";
-import { AlertTriangle, Copy, Pencil, Trash2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import useSWR from "swr";
 
+import { AlertTriangle, Copy, Pencil, Trash2 } from "@/components/ui/icon-lib";
 import { useProjectContext } from "@/contexts/project-context.tsx";
 import { type CustomModelCost } from "@/lib/actions/custom-model-costs";
 import { useToast } from "@/lib/hooks/use-toast";

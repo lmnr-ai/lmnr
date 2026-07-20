@@ -1,5 +1,4 @@
-import { Box, Boxes, CircleDashed } from "lucide-react";
-
+import { Box, Boxes, CircleDashed } from "@/components/ui/icon-lib";
 import { withOpacity } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 

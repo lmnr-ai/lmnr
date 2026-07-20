@@ -1,4 +1,3 @@
-import { ChevronDown, ChevronsRight, Copy, Maximize } from "lucide-react";
 import Link from "next/link";
 import { memo, useCallback } from "react";
 
@@ -12,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ChevronDown, ChevronsRight, Copy, Maximize } from "@/components/ui/icon-lib";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 

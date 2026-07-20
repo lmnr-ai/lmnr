@@ -1,9 +1,9 @@
-import { Download, Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useCallback, useState } from "react";
 import useSWR from "swr";
 
 import { CopyButton } from "@/components/ui/copy-button.tsx";
+import { Download, Loader2 } from "@/components/ui/icon-lib";
 import { type ExportJob } from "@/lib/actions/dataset-export-jobs";
 import { useToast } from "@/lib/hooks/use-toast";
 import { swrFetcher } from "@/lib/utils";

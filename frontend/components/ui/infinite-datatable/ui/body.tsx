@@ -1,8 +1,8 @@
 import { type Row, type RowData } from "@tanstack/react-table";
-import { Loader2 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button.tsx";
+import { Loader2 } from "@/components/ui/icon-lib";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { TableBody, TableCell, TableRow } from "@/components/ui/table.tsx";
 

@@ -1,6 +1,5 @@
 "use client";
 
-import { HelpCircle, Loader2, Mail, Send, Slack } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Controller, FormProvider, useForm, useWatch } from "react-hook-form";
 import useSWR from "swr";
@@ -14,6 +13,7 @@ import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import DateRangeFilter from "@/components/ui/date-range-filter";
+import { HelpCircle, Loader2, Mail, Send, Slack } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";

@@ -1,5 +1,7 @@
 "use client";
 
+import { type ComponentType, type ReactNode, useEffect, useRef } from "react";
+
 import {
   ArrowRight,
   Bolt,
@@ -13,9 +15,7 @@ import {
   DatabaseZap,
   List,
   MessageCircle,
-} from "lucide-react";
-import { type ComponentType, type ReactNode, useEffect, useRef } from "react";
-
+} from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 // This file is a class-faithful "compile" of the real debugger trace tree

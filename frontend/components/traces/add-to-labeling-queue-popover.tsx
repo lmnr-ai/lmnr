@@ -1,4 +1,3 @@
-import { Loader2, Plus } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useState } from "react";
@@ -6,6 +5,7 @@ import useSWR from "swr";
 
 import CreateQueueDialog from "@/components/queues/create-queue-dialog";
 import { Button } from "@/components/ui/button";
+import { Loader2, Plus } from "@/components/ui/icon-lib";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/lib/hooks/use-toast";

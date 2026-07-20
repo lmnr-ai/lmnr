@@ -1,9 +1,9 @@
-import { ChevronRight, CircleAlert } from "lucide-react";
 import React, { memo, useState } from "react";
 
 import { Button } from "@/components/ui/button.tsx";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { CopyButton } from "@/components/ui/copy-button.tsx";
+import { ChevronRight, CircleAlert } from "@/components/ui/icon-lib";
 import { type ErrorEventAttributes } from "@/lib/types";
 
 interface ErrorCardProps {

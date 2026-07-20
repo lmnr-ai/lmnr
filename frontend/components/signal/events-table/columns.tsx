@@ -1,5 +1,4 @@
 import { type ColumnDef } from "@tanstack/react-table";
-import { Check, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useMemo } from "react";
 import { shallow } from "zustand/shallow";
@@ -10,6 +9,7 @@ import { type SchemaField, type SchemaFieldType } from "@/components/signals/uti
 import { renderSpanReferences, type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
 import { Badge } from "@/components/ui/badge";
 import CopyTooltip from "@/components/ui/copy-tooltip";
+import { Check, X } from "@/components/ui/icon-lib";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import Mono from "@/components/ui/mono.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";

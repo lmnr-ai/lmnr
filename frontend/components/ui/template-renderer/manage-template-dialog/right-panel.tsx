@@ -1,7 +1,7 @@
-import { Sparkles } from "lucide-react";
 import { useFormContext, useWatch } from "react-hook-form";
 
 import { CopyButton } from "@/components/ui/copy-button";
+import { Sparkles } from "@/components/ui/icon-lib";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { buildRenderTemplatePrompt, buildTraceRenderTemplatePrompt } from "@/lib/actions/render-template/prompts";
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { isEmpty, isNil } from "lodash";
-import { Pen } from "lucide-react";
 import { useEffect, useState } from "react";
 import useSWR from "swr";
 
@@ -14,6 +13,7 @@ import {
 } from "@/components/settings/settings-section";
 import SlackConnectionCard, { useSlackIntegration } from "@/components/slack/slack-connection-card";
 import { Button } from "@/components/ui/button";
+import { Pen } from "@/components/ui/icon-lib";
 import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
 import { type ReportWithDetails } from "@/lib/actions/reports/types";

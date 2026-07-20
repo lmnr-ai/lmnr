@@ -1,8 +1,8 @@
-import { Search } from "lucide-react";
 import React, { type RefObject, useCallback, useRef, useState } from "react";
 
 import { useSpanSearchState } from "@/components/traces/span-view/span-search-context.tsx";
 import { Button } from "@/components/ui/button.tsx";
+import { Search } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input.tsx";
 
 const SEARCH_DEBOUNCE_MS = 300;

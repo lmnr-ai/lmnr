@@ -1,6 +1,5 @@
 "use client";
 
-import { Activity, Bell, History, Settings2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo } from "react";
@@ -11,6 +10,7 @@ import { SettingsSectionHeader } from "@/components/settings/settings-section";
 import CreateSignalJob from "@/components/signal/create-signal-job";
 import SignalRunsTable from "@/components/signal/runs-table";
 import SlackConnectionCard from "@/components/slack/slack-connection-card";
+import { Activity, Bell, History, Settings2 } from "@/components/ui/icon-lib";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Sidebar,

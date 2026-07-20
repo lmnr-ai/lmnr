@@ -1,11 +1,11 @@
 "use client";
 
-import { Loader2, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { useFormContext } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
+import { Loader2, X } from "@/components/ui/icon-lib";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/lib/hooks/use-toast";

@@ -1,10 +1,10 @@
 "use client";
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { Globe, Link, Loader2, Lock, Share } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
+import { Globe, Link, Loader2, Lock, Share } from "@/components/ui/icon-lib";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";

@@ -1,11 +1,11 @@
 import CodeMirror, { type Extension } from "@uiw/react-codemirror";
-import { Maximize, Minimize } from "lucide-react";
 import React, { memo, useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
 import { createImageDecorationPlugin, renderText, theme } from "@/components/ui/content-renderer/utils";
 import { CopyButton } from "@/components/ui/copy-button";
 import { DialogTitle } from "@/components/ui/dialog";
+import { Maximize, Minimize } from "@/components/ui/icon-lib";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetClose, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {

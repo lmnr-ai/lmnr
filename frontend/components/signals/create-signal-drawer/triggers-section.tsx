@@ -1,11 +1,11 @@
 "use client";
 
 import { SelectValue } from "@radix-ui/react-select";
-import { Info, Plus, Trash2, X } from "lucide-react";
 import { Controller, useFieldArray, useFormContext } from "react-hook-form";
 
 import { getDefaultFilter, SIGNAL_TRIGGER_COLUMNS } from "@/components/signals/trigger-filter-field";
 import { Button } from "@/components/ui/button";
+import { Info, Plus, Trash2, X } from "@/components/ui/icon-lib";
 import { dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

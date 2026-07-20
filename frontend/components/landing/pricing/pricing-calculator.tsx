@@ -1,9 +1,9 @@
 "use client";
 
-import { Info } from "lucide-react";
 import { type ReactNode, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { Info } from "@/components/ui/icon-lib";
 import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { retentionLabel, TIER_RETENTION } from "@/lib/billing/retention";

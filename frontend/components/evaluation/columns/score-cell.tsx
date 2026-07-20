@@ -1,5 +1,4 @@
 import { type CellContext } from "@tanstack/react-table";
-import { ArrowRight } from "lucide-react";
 
 import HeatmapValue from "@/components/evaluation/heatmap-value";
 import {
@@ -11,6 +10,7 @@ import {
   type ScoreValue,
   shouldShowHeatmap,
 } from "@/components/evaluation/utils";
+import { ArrowRight } from "@/components/ui/icon-lib";
 import { type ScoreRange } from "@/lib/colors";
 import { type EvalRow } from "@/lib/evaluation/types";
 

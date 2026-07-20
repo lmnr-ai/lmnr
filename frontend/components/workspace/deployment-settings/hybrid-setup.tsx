@@ -1,9 +1,9 @@
-import { CheckCircle2, CircleDot, ExternalLink, Loader2 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useFormContext } from "react-hook-form";
 
 import { Button } from "@/components/ui/button.tsx";
 import { CopyButton } from "@/components/ui/copy-button.tsx";
+import { CheckCircle2, CircleDot, ExternalLink, Loader2 } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
 import { type DeploymentManagementForm } from "@/components/workspace/deployment-settings/workspace-deployment.tsx";

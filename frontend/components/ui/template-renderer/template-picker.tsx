@@ -1,5 +1,4 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Check, ChevronDown, Loader2, PencilIcon, Plus } from "lucide-react";
 import { useParams } from "next/navigation";
 import {
   createContext,
@@ -23,6 +22,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
+import { Check, ChevronDown, Loader2, PencilIcon, Plus } from "@/components/ui/icon-lib";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import JsxRenderer from "@/components/ui/template-renderer/jsx-renderer";

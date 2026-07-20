@@ -1,10 +1,10 @@
 "use client";
 
 import { Command as CommandPrimitive } from "cmdk";
-import { Hash, Loader2, X } from "lucide-react";
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
+import { Hash, Loader2, X } from "@/components/ui/icon-lib";
 import { type SlackChannel } from "@/lib/actions/slack";
 import { cn } from "@/lib/utils";
 

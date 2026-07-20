@@ -1,6 +1,5 @@
 "use client";
 
-import { Check, Copy } from "lucide-react";
 import {
   type ComponentProps,
   createElement,
@@ -13,6 +12,7 @@ import {
 } from "react";
 import { Streamdown } from "streamdown";
 
+import { Check, Copy } from "@/components/ui/icon-lib";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 

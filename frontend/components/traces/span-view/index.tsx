@@ -1,5 +1,4 @@
 import { get } from "lodash";
-import { CircleAlert } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useCallback, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -13,6 +12,7 @@ import { SpanSearchProvider } from "@/components/traces/span-view/span-search-co
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { spanViewTheme } from "@/components/ui/content-renderer/utils";
+import { CircleAlert } from "@/components/ui/icon-lib";
 import { track } from "@/lib/posthog";
 import { type Span, SpanType } from "@/lib/traces/types";
 

@@ -1,10 +1,10 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { flexRender, type Header, type RowData } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, Check, ChevronDown, EyeOff } from "lucide-react";
 import React, { type CSSProperties } from "react";
 import { useStore } from "zustand";
 
+import { ArrowDown, ArrowUp, Check, ChevronDown, EyeOff } from "@/components/ui/icon-lib";
 import { TableHead } from "@/components/ui/table.tsx";
 import { cn } from "@/lib/utils.ts";
 

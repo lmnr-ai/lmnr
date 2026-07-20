@@ -1,13 +1,13 @@
 "use client";
 
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { Loader2, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
+import { Loader2, X } from "@/components/ui/icon-lib";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";

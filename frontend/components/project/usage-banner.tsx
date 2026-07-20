@@ -1,8 +1,8 @@
 "use client";
 
-import { AlertCircle, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
+import { AlertCircle, ArrowRight } from "@/components/ui/icon-lib";
 import { useProjectContext } from "@/contexts/project-context";
 import { type ProjectDetails } from "@/lib/actions/project";
 

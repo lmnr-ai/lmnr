@@ -1,10 +1,10 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { Bolt, X } from "lucide-react";
 import { type PropsWithChildren, useCallback, useMemo } from "react";
 import { Controller, type ControllerRenderProps, useFormContext } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
 import ContentRenderer from "@/components/ui/content-renderer/index";
+import { Bolt, X } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";

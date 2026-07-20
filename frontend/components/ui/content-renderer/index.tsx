@@ -1,7 +1,6 @@
 import { type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import CodeMirror, { type ReactCodeMirrorProps, type ReactCodeMirrorRef } from "@uiw/react-codemirror";
-import { Settings } from "lucide-react";
 import React, { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import Messages, { type MessageLabel, type ProcessedMessages } from "@/components/traces/span-view/messages";
@@ -18,6 +17,7 @@ import {
   theme as defaultTheme,
 } from "@/components/ui/content-renderer/utils";
 import { CopyButton } from "@/components/ui/copy-button";
+import { Settings } from "@/components/ui/icon-lib";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import {

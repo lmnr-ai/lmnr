@@ -1,11 +1,11 @@
 import { json } from "@codemirror/lang-json";
 import { EditorView } from "@codemirror/view";
 import CodeMirror from "@uiw/react-codemirror";
-import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useCallback, useState } from "react";
 
 import { theme } from "@/components/ui/content-renderer/utils";
+import { Loader2 } from "@/components/ui/icon-lib";
 import { Label } from "@/components/ui/label.tsx";
 import { isValidJsonObject } from "@/lib/utils";
 

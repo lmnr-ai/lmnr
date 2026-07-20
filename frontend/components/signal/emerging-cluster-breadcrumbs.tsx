@@ -1,7 +1,6 @@
 "use client";
 
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { Layers, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -9,6 +8,7 @@ import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-clu
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Layers, X } from "@/components/ui/icon-lib";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";
 

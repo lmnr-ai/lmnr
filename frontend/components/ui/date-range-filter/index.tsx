@@ -1,6 +1,5 @@
 import { formatDate, subDays, subYears } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, CalendarIcon, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
@@ -9,6 +8,7 @@ import { type DateRange as ReactDateRange } from "react-day-picker";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Calendar, type CalendarProps } from "@/components/ui/calendar.tsx";
+import { ArrowLeft, CalendarIcon, ChevronRight } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";

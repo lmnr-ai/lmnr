@@ -1,8 +1,8 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripHorizontal, Pencil, Trash2 } from "lucide-react";
 import React from "react";
 
+import { GripHorizontal, Pencil, Trash2 } from "@/components/ui/icon-lib";
 import { Switch } from "@/components/ui/switch.tsx";
 import { cn } from "@/lib/utils.ts";
 

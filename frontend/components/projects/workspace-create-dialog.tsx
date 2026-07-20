@@ -1,8 +1,8 @@
-import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type PropsWithChildren, useState } from "react";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Loader2 } from "@/components/ui/icon-lib";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 

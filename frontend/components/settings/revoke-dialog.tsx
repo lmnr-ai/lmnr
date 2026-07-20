@@ -1,6 +1,6 @@
-import { Loader2, Trash2 } from "lucide-react";
 import { useState } from "react";
 
+import { Loader2, Trash2 } from "@/components/ui/icon-lib";
 import { type ProjectApiKey } from "@/lib/api-keys/types";
 import { cn } from "@/lib/utils";
 

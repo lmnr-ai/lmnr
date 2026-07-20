@@ -1,8 +1,7 @@
 "use client";
 
-import { GanttChart } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
+import { GanttChart } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 import { useSessionViewStore } from "../store";

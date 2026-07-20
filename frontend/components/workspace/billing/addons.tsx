@@ -1,6 +1,5 @@
 "use client";
 
-import { Loader2, Plus, Server, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -15,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Loader2, Plus, Server, Trash2 } from "@/components/ui/icon-lib";
 import { ADDON_CONFIG } from "@/lib/actions/checkout/types";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";

@@ -1,10 +1,10 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { find, get, head, isEmpty, isEqual, map } from "lodash";
-import { ListFilter, X } from "lucide-react";
 import { memo, type PropsWithChildren, useCallback, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
+import { ListFilter, X } from "@/components/ui/icon-lib";
 import {
   BOOLEAN_OPERATIONS,
   type ColumnFilter,

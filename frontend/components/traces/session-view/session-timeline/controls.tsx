@@ -1,8 +1,8 @@
-import { Minus, Plus } from "lucide-react";
 import { shallow } from "zustand/shallow";
 
 import { MAX_ZOOM, MIN_ZOOM, ZOOM_INCREMENT } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
+import { Minus, Plus } from "@/components/ui/icon-lib";
 
 import { useSessionViewStore } from "../store";
 

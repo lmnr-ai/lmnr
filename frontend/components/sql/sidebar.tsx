@@ -1,7 +1,6 @@
 "use client";
 
 import { isEmpty } from "lodash";
-import { Edit, EllipsisVertical, FileText, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import React, { type KeyboardEvent, memo, useCallback, useEffect, useMemo, useRef } from "react";
@@ -15,6 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Edit, EllipsisVertical, FileText, Plus, Trash2 } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/lib/hooks/use-toast";

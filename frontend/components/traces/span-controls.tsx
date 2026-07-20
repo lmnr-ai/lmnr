@@ -1,4 +1,3 @@
-import { ChevronDown, Copy, Database, Loader, PlayCircle, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useMemo } from "react";
@@ -15,6 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ChevronDown, Copy, Database, Loader, PlayCircle, X } from "@/components/ui/icon-lib";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type Span, SpanType } from "@/lib/traces/types";

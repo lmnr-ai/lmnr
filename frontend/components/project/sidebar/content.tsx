@@ -1,12 +1,12 @@
 "use client";
 
-import { Database, Radio, SquareArrowOutUpRight } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useMemo } from "react";
 
 import { getSidebarMenus } from "@/components/project/utils.ts";
 import { Button } from "@/components/ui/button.tsx";
+import { Database, Radio, SquareArrowOutUpRight } from "@/components/ui/icon-lib";
 import { Progress } from "@/components/ui/progress.tsx";
 import {
   SidebarContent,

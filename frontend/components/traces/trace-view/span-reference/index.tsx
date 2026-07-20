@@ -1,9 +1,9 @@
 "use client";
 
-import { ArrowUpRight } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
 import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
+import { ArrowUpRight } from "@/components/ui/icon-lib";
 import { parseSpanLinks } from "@/lib/traces/span-link-parsing";
 import { SpanType } from "@/lib/traces/types";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";

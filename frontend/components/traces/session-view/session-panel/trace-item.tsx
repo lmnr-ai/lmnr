@@ -1,7 +1,6 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, Copy, ExternalLink } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
@@ -14,6 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ChevronDown, Copy, ExternalLink } from "@/components/ui/icon-lib";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type TraceRow } from "@/lib/traces/types";

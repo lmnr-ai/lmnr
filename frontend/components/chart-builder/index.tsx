@@ -1,4 +1,3 @@
-import { ChartBar, ChartColumn, ChartLine, Upload } from "lucide-react";
 import React, { type ReactNode } from "react";
 
 import {
@@ -12,6 +11,7 @@ import { ChartType } from "@/components/chart-builder/types";
 import { type ColumnInfo } from "@/components/chart-builder/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ChartBar, ChartColumn, ChartLine, Upload } from "@/components/ui/icon-lib";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";

@@ -1,7 +1,6 @@
 "use client";
 
 import { format } from "date-fns";
-import { X } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
 
@@ -9,6 +8,7 @@ import { parseUtcTimestamp } from "@/components/chart-builder/charts/utils";
 import { normalizeTimeRange } from "@/components/charts/time-series-chart/utils";
 import { useDashboardSelectionStore } from "@/components/dashboards/dashboard-selection-store";
 import { Button } from "@/components/ui/button";
+import { X } from "@/components/ui/icon-lib";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 
 const formatRange = (startTs: string, endTs: string) => {

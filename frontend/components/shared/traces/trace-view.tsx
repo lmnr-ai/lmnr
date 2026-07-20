@@ -1,6 +1,5 @@
 "use client";
 
-import { CirclePlay } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -24,6 +23,7 @@ import Tree from "@/components/traces/trace-view/tree";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
+import { CirclePlay } from "@/components/ui/icon-lib";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { cn } from "@/lib/utils";
 

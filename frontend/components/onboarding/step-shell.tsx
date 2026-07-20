@@ -1,11 +1,11 @@
 "use client";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { type ComponentProps, type PropsWithChildren, type ReactNode } from "react";
 
 import logo from "@/assets/logo/laminar-wordmark.svg";
 import { Button } from "@/components/ui/button";
+import { ArrowLeft, ArrowRight, Loader2 } from "@/components/ui/icon-lib";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
 import { Feature } from "@/lib/features/features.ts";

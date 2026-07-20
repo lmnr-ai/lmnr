@@ -1,7 +1,6 @@
 "use client";
 
 import { motion, type MotionValue, type Transition } from "framer-motion";
-import { ChevronDown, ChevronsRight, List, Maximize, Radio, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -11,6 +10,7 @@ import { type TraceViewSpan, type TraceViewTrace, useTraceViewStore } from "@/co
 import Transcript from "@/components/traces/trace-view/transcript";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button";
+import { ChevronDown, ChevronsRight, List, Maximize, Radio, Sparkles } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 import { SIGNAL_PARALLEL_CANCEL_SPAN_ID } from "../signal-event-card";

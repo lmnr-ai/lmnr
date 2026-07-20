@@ -3,10 +3,10 @@
 // TEMPORARY style exploration tooling — safe to delete this folder + the mount in layout.tsx.
 // Copy current state as JSON; paste + Apply to load and re-theme. Invalid JSON toasts, no crash.
 
-import { Check, Copy, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Check, Copy, Trash2 } from "@/components/ui/icon-lib";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/lib/hooks/use-toast";
 

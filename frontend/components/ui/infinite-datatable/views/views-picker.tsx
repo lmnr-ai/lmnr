@@ -1,6 +1,5 @@
 "use client";
 
-import { Check, ChevronDown, FilePlus2, Layers2, Loader2, Pencil, Save, Search, Trash2, Undo2 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 
@@ -21,6 +20,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Check, ChevronDown, FilePlus2, Layers2, Loader2, Pencil, Save, Search, Trash2, Undo2 } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast";

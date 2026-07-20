@@ -1,6 +1,5 @@
 "use client";
 import { isEmpty } from "lodash";
-import { Bolt, ChevronRight, Loader, Square } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useCallback, useRef } from "react";
 import { Controller, type ControllerRenderProps, type SubmitHandler, useFormContext } from "react-hook-form";
@@ -21,6 +20,7 @@ import { getDefaultThinkingModelProviderOptions } from "@/components/playground/
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import ContentRenderer from "@/components/ui/content-renderer/index";
+import { Bolt, ChevronRight, Loader, Square } from "@/components/ui/icon-lib";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { type PlaygroundChatResult } from "@/lib/actions/chat";
 import { useToast } from "@/lib/hooks/use-toast";

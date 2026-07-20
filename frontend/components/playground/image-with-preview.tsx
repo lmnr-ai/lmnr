@@ -1,8 +1,8 @@
-import { X } from "lucide-react";
 import { memo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { X } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 interface ImageWithPreviewProps {

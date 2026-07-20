@@ -1,9 +1,9 @@
 import { isNil } from "lodash";
-import { Search, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { type KeyboardEventHandler, memo, useCallback, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Search, X } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 

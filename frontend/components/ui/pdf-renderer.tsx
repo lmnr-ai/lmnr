@@ -4,10 +4,10 @@
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
-import { ChevronDown, ChevronUp, Maximize } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 
+import { ChevronDown, ChevronUp, Maximize } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 import { Button } from "./button";

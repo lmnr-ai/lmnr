@@ -1,9 +1,9 @@
-import { GanttChart } from "lucide-react";
 import { shallow } from "zustand/shallow";
 
 import Metadata from "@/components/traces/trace-view/metadata";
 import ViewToggle, { type ViewTab } from "@/components/traces/trace-view/view-toggle";
 import { Button } from "@/components/ui/button";
+import { GanttChart } from "@/components/ui/icon-lib";
 import { type Feature, track } from "@/lib/posthog";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";

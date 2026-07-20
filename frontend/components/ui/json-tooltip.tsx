@@ -1,9 +1,9 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { Loader2 } from "lucide-react";
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { defaultRehypePlugins, Streamdown } from "streamdown";
 
 import { CopyButton } from "@/components/ui/copy-button.tsx";
+import { Loader2 } from "@/components/ui/icon-lib";
 import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, isValidJsonObject } from "@/lib/utils";

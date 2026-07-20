@@ -1,13 +1,13 @@
 "use client";
 
 import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
-import { Loader2, SquareArrowOutUpRight, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import { Button } from "@/components/ui/button";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
+import { Loader2, SquareArrowOutUpRight, Trash2 } from "@/components/ui/icon-lib";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";

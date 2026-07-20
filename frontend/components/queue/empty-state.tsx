@@ -1,7 +1,7 @@
-import { FileCode, Inbox, MessageCircle, SquareArrowOutUpRight, Terminal } from "lucide-react";
 import { useParams } from "next/navigation";
 
 import Header from "@/components/ui/header";
+import { FileCode, Inbox, MessageCircle, SquareArrowOutUpRight, Terminal } from "@/components/ui/icon-lib";
 
 import { useQueueStore } from "./queue-store";
 import Toolbar from "./toolbar";

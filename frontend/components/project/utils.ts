@@ -10,7 +10,7 @@ import {
   Rows4,
   Settings,
   SquareTerminal,
-} from "lucide-react";
+} from "@/components/ui/icon-lib";
 
 export const getSidebarMenus = (projectId: string) => [
   {

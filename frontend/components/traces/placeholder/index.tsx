@@ -1,10 +1,10 @@
 "use client";
 
-import { ArrowUpRight } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import FrameworksGrid from "@/components/integrations/frameworks-grid";
+import { ArrowUpRight } from "@/components/ui/icon-lib";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/lib/hooks/use-realtime";

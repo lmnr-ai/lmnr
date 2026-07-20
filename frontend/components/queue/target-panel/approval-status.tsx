@@ -1,8 +1,7 @@
 "use client";
 
-import { Check, Pencil, Undo2 } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
+import { Check, Pencil, Undo2 } from "@/components/ui/icon-lib";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 

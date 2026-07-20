@@ -1,11 +1,11 @@
 import { isEmpty } from "lodash";
-import { X } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { formatTimeMarkerLabel } from "@/components/traces/trace-view/condensed-timeline/use-dynamic-time-intervals";
 import { useWheelZoom } from "@/components/traces/trace-view/condensed-timeline/use-wheel-zoom";
 import { Button } from "@/components/ui/button";
+import { X } from "@/components/ui/icon-lib";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { useSessionViewStore } from "../store";

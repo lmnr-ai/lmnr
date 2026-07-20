@@ -1,8 +1,8 @@
-import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "@/components/ui/icon-lib";
 import { Label } from "@/components/ui/label";
 import { uploadFile } from "@/lib/dataset/utils";
 import { useToast } from "@/lib/hooks/use-toast";

@@ -1,5 +1,4 @@
 "use client";
-import { X } from "lucide-react";
 import React, { useMemo } from "react";
 import useSWR from "swr";
 
@@ -12,6 +11,7 @@ import { StructuredOutputSchema } from "@/components/traces/structured-output-sc
 import { resolveTools, ToolList } from "@/components/traces/tool-list";
 import { Button } from "@/components/ui/button";
 import ContentRenderer from "@/components/ui/content-renderer";
+import { X } from "@/components/ui/icon-lib";
 import MonoWithCopy from "@/components/ui/mono-with-copy";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";

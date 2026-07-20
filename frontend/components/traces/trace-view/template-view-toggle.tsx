@@ -1,15 +1,3 @@
-import {
-  Check,
-  ChevronDown,
-  Eye,
-  EyeOff,
-  LayoutTemplate,
-  List,
-  ListTree,
-  type LucideIcon,
-  PencilIcon,
-  Plus,
-} from "lucide-react";
 import { type MouseEvent, useCallback, useMemo, useState } from "react";
 
 import { type ViewTab } from "@/components/traces/trace-view/view-toggle";
@@ -21,6 +9,18 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
+import {
+  Check,
+  ChevronDown,
+  Eye,
+  EyeOff,
+  LayoutTemplate,
+  List,
+  ListTree,
+  type LucideIcon,
+  PencilIcon,
+  Plus,
+} from "@/components/ui/icon-lib";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTemplatePicker } from "@/components/ui/template-renderer/template-picker";

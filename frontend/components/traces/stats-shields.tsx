@@ -1,10 +1,10 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { pick } from "lodash";
-import { CircleDollarSign, Clock3, Coins } from "lucide-react";
 import { memo, useMemo } from "react";
 
 import { InputTokenBreakdown } from "@/components/traces/token-breakdown";
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
+import { CircleDollarSign, Clock3, Coins } from "@/components/ui/icon-lib";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type Span, SpanType, type TraceRow } from "@/lib/traces/types.ts";
 import { cn, getDurationString } from "@/lib/utils";

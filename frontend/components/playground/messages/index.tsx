@@ -1,10 +1,10 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Plus } from "lucide-react";
 import { useRef } from "react";
 import { useFieldArray, useFormContext } from "react-hook-form";
 
 import Message from "@/components/playground/messages/message";
 import { Button } from "@/components/ui/button";
+import { Plus } from "@/components/ui/icon-lib";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { type PlaygroundForm } from "@/lib/playground/types";
 

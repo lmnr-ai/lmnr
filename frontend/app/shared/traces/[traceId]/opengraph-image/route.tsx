@@ -1,3 +1,6 @@
+import { ImageResponse } from "next/og";
+import type { NextRequest } from "next/server";
+
 import {
   Activity,
   ArrowRight,
@@ -10,10 +13,7 @@ import {
   type LucideIcon,
   MessageCircle,
   PersonStanding,
-} from "lucide-react";
-import { ImageResponse } from "next/og";
-import type { NextRequest } from "next/server";
-
+} from "@/components/ui/icon-lib";
 import { getSharedTrace } from "@/lib/actions/shared/trace";
 import { loadOgFonts, OgContainer, OgHeader } from "@/lib/og/og-layout";
 import { SpanType } from "@/lib/traces/types";

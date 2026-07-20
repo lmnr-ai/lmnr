@@ -1,10 +1,10 @@
 import { motion } from "framer-motion";
-import { ArrowLeft, Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
 import SQLEditor from "@/components/sql/sql-editor.tsx";
 import { Button } from "@/components/ui/button";
+import { ArrowLeft, Loader2 } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

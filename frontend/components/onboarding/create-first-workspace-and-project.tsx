@@ -1,10 +1,10 @@
 "use client";
 
-import { ArrowRight, ExternalLink, Loader2, Mail, Radio } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { type FormEvent, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { ArrowRight, ExternalLink, Loader2, Mail, Radio } from "@/components/ui/icon-lib";
 import { LaminarLogo } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

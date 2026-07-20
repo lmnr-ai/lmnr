@@ -1,6 +1,5 @@
 "use client";
 
-import { Loader2, SquareArrowOutUpRight } from "lucide-react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -12,6 +11,7 @@ import DateRangeFilter, { type DateRange } from "@/components/ui/date-range-filt
 import { type DateRangeValue } from "@/components/ui/date-range-filter/store";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import Header from "@/components/ui/header.tsx";
+import { Loader2, SquareArrowOutUpRight } from "@/components/ui/icon-lib";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import { ScrollArea } from "@/components/ui/scroll-area";

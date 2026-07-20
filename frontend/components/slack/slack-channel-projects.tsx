@@ -1,11 +1,11 @@
 "use client";
 
-import { Loader2, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import useSWR from "swr";
 
 import { useSlackIntegration } from "@/components/slack/slack-connection-card";
 import { Button } from "@/components/ui/button";
+import { Loader2, Trash2 } from "@/components/ui/icon-lib";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";

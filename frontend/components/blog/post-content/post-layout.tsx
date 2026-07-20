@@ -1,9 +1,9 @@
-import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { type ReactNode } from "react";
 
 import { LANDING_COLUMN_MAX_W } from "@/components/landing/class-names";
 import CTAButtons from "@/components/landing/cta-buttons";
+import { ArrowLeft } from "@/components/ui/icon-lib";
 import { type BlogMetadata } from "@/lib/blog/types";
 import { cn, formatUTCDate } from "@/lib/utils";
 

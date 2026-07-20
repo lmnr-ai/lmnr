@@ -1,8 +1,8 @@
 import { motion } from "framer-motion";
-import { RefreshCw } from "lucide-react";
 import { type MouseEventHandler, useState } from "react";
 
 import { Button, type ButtonProps } from "@/components/ui/button.tsx";
+import { RefreshCw } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils.ts";
 
 const RefreshButton = ({ iconClassName, onClick, ...rest }: ButtonProps & { iconClassName?: string }) => {

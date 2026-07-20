@@ -1,9 +1,9 @@
 "use client";
 
 import { isEmpty } from "lodash";
-import { ChevronRight } from "lucide-react";
 import useSWR from "swr";
 
+import { ChevronRight } from "@/components/ui/icon-lib";
 import { type AgentListItem } from "@/lib/actions/agents";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 

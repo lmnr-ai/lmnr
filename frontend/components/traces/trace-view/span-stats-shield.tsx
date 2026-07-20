@@ -1,5 +1,4 @@
-import { ArrowRight, CircleDollarSign, Clock3, Coins } from "lucide-react";
-
+import { ArrowRight, CircleDollarSign, Clock3, Coins } from "@/components/ui/icon-lib";
 import { cn, getDurationString } from "@/lib/utils";
 
 const numberFormatter = new Intl.NumberFormat("en-US", {

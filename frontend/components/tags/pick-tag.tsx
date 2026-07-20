@@ -1,11 +1,11 @@
 "use client";
 
 import { isEmpty } from "lodash";
-import { Plus } from "lucide-react";
 import { type Dispatch, type SetStateAction, useMemo } from "react";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { Plus } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { type TagClass } from "@/lib/traces/types";
 

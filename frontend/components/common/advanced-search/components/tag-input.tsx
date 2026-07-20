@@ -1,6 +1,5 @@
 "use client";
 
-import { X } from "lucide-react";
 import {
   type InputHTMLAttributes,
   type KeyboardEvent,
@@ -12,6 +11,7 @@ import {
   useState,
 } from "react";
 
+import { X } from "@/components/ui/icon-lib";
 import { useSizeInput } from "@/hooks/use-size-input.tsx";
 import { cn } from "@/lib/utils.ts";
 

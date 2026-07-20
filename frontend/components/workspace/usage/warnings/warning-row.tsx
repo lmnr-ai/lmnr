@@ -1,11 +1,11 @@
 "use client";
 
-import { Loader2, Plus, X } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Loader2, Plus, X } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/lib/hooks/use-toast";

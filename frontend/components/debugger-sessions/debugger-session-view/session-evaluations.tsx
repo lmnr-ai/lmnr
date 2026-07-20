@@ -1,10 +1,10 @@
 "use client";
 
-import { ArrowUpRight, Database, FlaskConical } from "lucide-react";
 import Link from "next/link";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
 import { formatScoreValue } from "@/components/evaluation/utils";
+import { ArrowUpRight, Database, FlaskConical } from "@/components/ui/icon-lib";
 import { type SessionEvaluationRef } from "@/lib/actions/debugger-sessions";
 import { cn } from "@/lib/utils";
 

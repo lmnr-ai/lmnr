@@ -1,7 +1,8 @@
 "use client";
 
-import { X } from "lucide-react";
 import { useEffect } from "react";
+
+import { X } from "@/components/ui/icon-lib";
 
 import { useDebuggerSessionViewStore } from "./store";
 

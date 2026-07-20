@@ -3,12 +3,12 @@
 import { type Extension } from "@codemirror/state";
 import CodeMirror from "@uiw/react-codemirror";
 import { motion } from "framer-motion";
-import { Loader2, Sparkles } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { createExtensions, type SQLSchemaConfig, theme } from "@/components/sql/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Loader2, Sparkles } from "@/components/ui/icon-lib";
 import { Textarea } from "@/components/ui/textarea";
 import type { GenerationMode } from "@/lib/actions/sql";
 import { toast } from "@/lib/hooks/use-toast";

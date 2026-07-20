@@ -1,8 +1,7 @@
 "use client";
 
-import { Check, Sparkles } from "lucide-react";
-
 import { type PlanOption } from "@/components/onboarding/steps/plan-step/plans";
+import { Check, Sparkles } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 interface PlanCardProps {

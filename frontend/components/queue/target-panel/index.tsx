@@ -2,12 +2,12 @@
 
 import { Prec } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
-import { Braces, Loader2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
 import SchemaDefinitionDialog from "@/components/queue/target-panel/schema-definition-dialog.tsx";
 import { Button } from "@/components/ui/button";
 import ContentRenderer from "@/components/ui/content-renderer/index";
+import { Braces, Loader2 } from "@/components/ui/icon-lib";
 import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";

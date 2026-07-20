@@ -1,6 +1,5 @@
 "use client";
 
-import { ArrowRight, Database, Loader2, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -15,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ArrowRight, Database, Loader2, TriangleAlert } from "@/components/ui/icon-lib";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/lib/hooks/use-toast";

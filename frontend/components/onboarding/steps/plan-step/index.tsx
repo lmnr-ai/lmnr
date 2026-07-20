@@ -1,6 +1,5 @@
 "use client";
 
-import { CheckCircle2 } from "lucide-react";
 import { useFormContext } from "react-hook-form";
 
 import { useOnboardingContext } from "@/components/onboarding/context";
@@ -9,6 +8,7 @@ import PlanCard from "@/components/onboarding/steps/plan-step/plan-card";
 import { PLANS } from "@/components/onboarding/steps/plan-step/plans";
 import { type OnboardingFormValues, TIER_RANK } from "@/components/onboarding/types";
 import { useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
+import { CheckCircle2 } from "@/components/ui/icon-lib";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { TIER_CONFIG } from "@/lib/actions/checkout/types";
 import { Feature } from "@/lib/features/features";

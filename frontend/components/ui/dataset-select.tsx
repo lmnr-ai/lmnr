@@ -1,9 +1,9 @@
-import { Plus } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback } from "react";
 import useSWR from "swr";
 
 import CreateDatasetDialog from "@/components/datasets/create-dataset-dialog";
+import { Plus } from "@/components/ui/icon-lib";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { type Dataset, type DatasetInfo } from "@/lib/dataset/types";
 import { type PaginatedResponse } from "@/lib/types";

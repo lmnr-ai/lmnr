@@ -1,6 +1,5 @@
 "use client";
 
-import { ChevronDown, Database, ListChecks, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useState } from "react";
@@ -19,6 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ChevronDown, Database, ListChecks, Loader2 } from "@/components/ui/icon-lib";
 import QueueSelect from "@/components/ui/queue-select";
 import { type Dataset } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";

@@ -1,10 +1,10 @@
 "use client";
 
-import { Bell } from "lucide-react";
 import useSWR from "swr";
 
 import { formatNotification } from "@/components/notifications/notification-panel";
 import { useNotificationPanelStore } from "@/components/notifications/notification-store";
+import { Bell } from "@/components/ui/icon-lib";
 import { useProjectContext } from "@/contexts/project-context";
 import { type WebNotification } from "@/lib/actions/notifications";
 import { track } from "@/lib/posthog";

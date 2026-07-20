@@ -1,10 +1,10 @@
 "use client";
 
 import * as Sentry from "@sentry/nextjs";
-import { ArrowLeft, RefreshCw, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useRef } from "react";
 
 import { Button } from "@/components/ui/button.tsx";
+import { ArrowLeft, RefreshCw, TriangleAlert } from "@/components/ui/icon-lib";
 
 interface ErrorPageProps {
   error: Error & { digest?: string };

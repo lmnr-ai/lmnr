@@ -1,5 +1,4 @@
 "use client";
-import { Check, ChevronsUpDown } from "lucide-react";
 import * as React from "react";
 import { type FC } from "react";
 
@@ -12,6 +11,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command.tsx";
+import { Check, ChevronsUpDown } from "@/components/ui/icon-lib";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 import { cn } from "@/lib/utils.ts";
 

@@ -1,6 +1,5 @@
-import { ArrowRight } from "lucide-react";
-
 import { CollapsedTextWithMore } from "@/components/traces/trace-view/transcript/collapsed-text-with-more";
+import { ArrowRight } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils.ts";
 
 interface InputItemProps {

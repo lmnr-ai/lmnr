@@ -1,12 +1,12 @@
 "use client";
 
-import { AlertTriangle } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import SessionSpanPanel from "@/components/traces/session-view/session-span-panel";
 import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
+import { AlertTriangle } from "@/components/ui/icon-lib";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type SessionBlock } from "@/lib/actions/debugger-sessions";
 import { useRealtime } from "@/lib/hooks/use-realtime";

@@ -1,6 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { isEqual, isNil } from "lodash";
-import { ChevronDown } from "lucide-react";
 import React, { memo, useCallback, useMemo, useRef } from "react";
 
 import AnthropicContentParts from "@/components/traces/span-view/anthropic-parts";
@@ -12,6 +11,7 @@ import OpenAIContentParts from "@/components/traces/span-view/openai-parts";
 import OpenAIResponsesContentParts from "@/components/traces/span-view/openai-responses-parts";
 import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
 import { Button } from "@/components/ui/button";
+import { ChevronDown } from "@/components/ui/icon-lib";
 // Detection logic lives in `lib/spans/process-messages.ts` (a plain TS module)
 // so tests can import it without pulling component CSS into the module graph.
 import { type ProcessedMessages, processMessages, responsesItemRole } from "@/lib/spans/process-messages";

@@ -1,6 +1,5 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { capitalize } from "lodash";
-import { Bolt, ChevronRight, CircleMinus, CirclePlus, ImagePlus, MessageCirclePlus } from "lucide-react";
 import React from "react";
 import {
   Controller,
@@ -13,6 +12,7 @@ import {
 import MessageParts from "@/components/playground/messages/message-parts";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Bolt, ChevronRight, CircleMinus, CirclePlus, ImagePlus, MessageCirclePlus } from "@/components/ui/icon-lib";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {

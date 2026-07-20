@@ -1,6 +1,5 @@
 "use client";
 
-import { ArrowUpRight, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef } from "react";
@@ -15,6 +14,7 @@ import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { type TraceSignal, type TraceSignalEvent } from "@/components/traces/trace-view/store/base";
 import Markdown from "@/components/traces/trace-view/transcript/markdown.tsx";
 import { Badge } from "@/components/ui/badge";
+import { ArrowUpRight, Sparkles } from "@/components/ui/icon-lib";
 import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
 import { SEVERITY_LABELS } from "@/lib/actions/alerts/types";
 import { getClusterColorById } from "@/lib/clusters/colors";

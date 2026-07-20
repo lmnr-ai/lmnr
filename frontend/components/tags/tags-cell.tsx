@@ -1,9 +1,9 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { Plus } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
 import useSWR from "swr";
 
+import { Plus } from "@/components/ui/icon-lib";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type TagClass } from "@/lib/traces/types";
 import { cn, swrFetcher } from "@/lib/utils";

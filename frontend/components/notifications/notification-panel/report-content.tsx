@@ -1,7 +1,7 @@
-import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
 import { type ReportNotification } from "@/components/notifications/notification-panel/utils";
+import { ArrowUpRight } from "@/components/ui/icon-lib";
 import { formatRelativeTime } from "@/lib/utils";
 
 export const ReportContent = ({ formatted, projectId }: { formatted: ReportNotification; projectId?: string }) => (

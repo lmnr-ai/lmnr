@@ -1,8 +1,7 @@
 "use client";
 
-import { AlertCircle, Brain, CheckCircle, CloudOff, Frown, Plus, Shield, Target, Zap } from "lucide-react";
-
 import templates, { type EventTemplate } from "@/components/signals/prompts";
+import { AlertCircle, Brain, CheckCircle, CloudOff, Frown, Plus, Shield, Target, Zap } from "@/components/ui/icon-lib";
 import { Label } from "@/components/ui/label";
 
 import TemplateItem from "./template-item";

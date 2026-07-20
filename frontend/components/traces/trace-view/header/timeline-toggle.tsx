@@ -1,6 +1,5 @@
-import { GanttChart, X } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
+import { GanttChart, X } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 interface CondensedTimelineControlsProps {

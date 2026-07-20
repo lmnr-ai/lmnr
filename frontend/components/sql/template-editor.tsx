@@ -1,7 +1,6 @@
 "use client";
 
 import { debounce } from "lodash";
-import { Plus, SquareTerminal } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
 import { useSWRConfig } from "swr";
@@ -10,6 +9,7 @@ import { v4 } from "uuid";
 import SQLEditor from "@/components/sql/sql-editor";
 import { type SQLTemplate, useSqlEditorStore } from "@/components/sql/sql-editor-store";
 import { Button } from "@/components/ui/button";
+import { Plus, SquareTerminal } from "@/components/ui/icon-lib";
 import { useToast } from "@/lib/hooks/use-toast";
 
 interface TemplateEditorProps {

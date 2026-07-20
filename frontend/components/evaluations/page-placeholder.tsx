@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowUpRight } from "lucide-react";
 import { useState } from "react";
 
+import { ArrowUpRight } from "@/components/ui/icon-lib";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PYTHON_INSTALL, TYPESCRIPT_INSTALL } from "@/lib/const";
 

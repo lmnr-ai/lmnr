@@ -1,9 +1,9 @@
-import { ArrowUpRight } from "lucide-react";
 import React, { useMemo } from "react";
 import { Bar, BarChart as RechartsBarChart, LabelList, XAxis, YAxis } from "recharts";
 
 import { type DisplayMode } from "@/components/chart-builder/types";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { ArrowUpRight } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 import { formatMetricValue } from "./format-value";

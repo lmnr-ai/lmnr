@@ -1,11 +1,11 @@
 "use client";
 
-import { LogOut, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 import { useSessionSync } from "@/components/auth/session-sync-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.tsx";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu.tsx";
+import { LogOut, Sparkles } from "@/components/ui/icon-lib";
 import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
 import { useProjectContext } from "@/contexts/project-context.tsx";
 import { useUserContext } from "@/contexts/user-context.tsx";

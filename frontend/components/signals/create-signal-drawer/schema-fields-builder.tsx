@@ -1,9 +1,9 @@
 "use client";
 
-import { Info } from "lucide-react";
 import { useFieldArray, useFormContext } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
+import { Info } from "@/components/ui/icon-lib";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 

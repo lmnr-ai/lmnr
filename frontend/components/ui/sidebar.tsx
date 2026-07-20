@@ -3,10 +3,10 @@
 import { Slot } from "@radix-ui/react-slot";
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { cva, type VariantProps } from "class-variance-authority";
-import { PanelLeftIcon } from "lucide-react";
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
+import { PanelLeftIcon } from "@/components/ui/icon-lib";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";

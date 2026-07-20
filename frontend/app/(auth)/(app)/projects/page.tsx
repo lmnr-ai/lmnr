@@ -1,6 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { get, head } from "lodash";
-import { FolderOpen } from "lucide-react";
+import { FolderOpen } from "@/components/ui/icon-lib";
 import { type Metadata } from "next";
 import { redirect } from "next/navigation";
 

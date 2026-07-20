@@ -1,10 +1,10 @@
-import { ChartBar, ChartColumn, ChartLine, Table2 } from "lucide-react";
 import { type ReactNode } from "react";
 import { useFormContext } from "react-hook-form";
 
 import { ChartType } from "@/components/chart-builder/types";
 import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/dashboard-editor-store";
 import { transformFormForChartType } from "@/components/dashboards/editor/utils";
+import { ChartBar, ChartColumn, ChartLine, Table2 } from "@/components/ui/icon-lib";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { type QueryStructure } from "@/lib/actions/sql/types.ts";

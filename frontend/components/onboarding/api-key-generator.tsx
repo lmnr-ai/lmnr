@@ -1,11 +1,11 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button.tsx";
 import CodeHighlighter from "@/components/ui/code-highlighter.tsx";
+import { Loader2 } from "@/components/ui/icon-lib";
 import { type GenerateProjectApiKeyResponse } from "@/lib/api-keys/types.ts";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { cn } from "@/lib/utils.ts";

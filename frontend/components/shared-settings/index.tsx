@@ -1,5 +1,20 @@
 "use client";
 
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { useMemo } from "react";
+
+import AgentVersions from "@/components/settings/agent-versions";
+import AlertsSettings from "@/components/settings/alerts";
+import CustomModelCosts from "@/components/settings/custom-model-costs";
+import DeleteProject from "@/components/settings/delete-project";
+import PiiRedaction from "@/components/settings/pii-redaction";
+import ProjectApiKeys from "@/components/settings/project-api-keys";
+import ProviderApiKeys from "@/components/settings/provider-api-keys";
+import RenameProject from "@/components/settings/rename-project";
+import RenderTemplates from "@/components/settings/render-templates";
+import { SettingsSectionHeader } from "@/components/settings/settings-section";
+import Header from "@/components/ui/header";
 import {
   Activity,
   Bell,
@@ -16,22 +31,7 @@ import {
   Sparkles,
   Unplug,
   Users,
-} from "lucide-react";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { useMemo } from "react";
-
-import AgentVersions from "@/components/settings/agent-versions";
-import AlertsSettings from "@/components/settings/alerts";
-import CustomModelCosts from "@/components/settings/custom-model-costs";
-import DeleteProject from "@/components/settings/delete-project";
-import PiiRedaction from "@/components/settings/pii-redaction";
-import ProjectApiKeys from "@/components/settings/project-api-keys";
-import ProviderApiKeys from "@/components/settings/provider-api-keys";
-import RenameProject from "@/components/settings/rename-project";
-import RenderTemplates from "@/components/settings/render-templates";
-import { SettingsSectionHeader } from "@/components/settings/settings-section";
-import Header from "@/components/ui/header";
+} from "@/components/ui/icon-lib";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Sidebar,

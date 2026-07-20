@@ -1,6 +1,5 @@
-import { ArrowRight } from "lucide-react";
-
 import { isValidScore } from "@/components/evaluation/utils";
+import { ArrowRight } from "@/components/ui/icon-lib";
 
 import ComparisonIndicator from "../comparison-indicator";
 

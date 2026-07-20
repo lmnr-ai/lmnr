@@ -1,12 +1,12 @@
 "use client";
 
-import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { memo, useEffect } from "react";
 import { PolarGrid, PolarRadiusAxis, RadialBar, RadialBarChart } from "recharts";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { ChartContainer } from "@/components/ui/chart";
+import { ArrowRight } from "@/components/ui/icon-lib";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type WorkspaceStats } from "@/lib/actions/usage/types";
 import { normalizeTier, signalInputRate, signalOutputRate, TIERS } from "@/lib/billing/tiers";

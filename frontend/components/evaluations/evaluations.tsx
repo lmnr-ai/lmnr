@@ -1,7 +1,6 @@
 "use client";
 
 import { type ColumnDef } from "@tanstack/react-table";
-import { Eye, EyeOff, Settings as SettingsIcon } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { type LayoutStorage, useDefaultLayout } from "react-resizable-panels";
@@ -22,6 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Eye, EyeOff, Settings as SettingsIcon } from "@/components/ui/icon-lib";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";

@@ -1,11 +1,11 @@
 "use client";
 
-import { ChevronsRight } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { PureTraceView } from "@/components/shared/traces/trace-view";
 import TraceViewStoreProvider, { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
+import { ChevronsRight } from "@/components/ui/icon-lib";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface SharedEvalTraceViewProps {

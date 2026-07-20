@@ -1,8 +1,7 @@
 "use client";
 
-import { Check, X } from "lucide-react";
-
 import { type SchemaField } from "@/components/signals/utils";
+import { Check, X } from "@/components/ui/icon-lib";
 
 export default function PayloadValue({ value, field }: { value: unknown; field: SchemaField }) {
   if (value === null || value === undefined) {

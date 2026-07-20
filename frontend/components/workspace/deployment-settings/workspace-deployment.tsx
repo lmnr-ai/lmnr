@@ -1,6 +1,5 @@
 "use client";
 
-import { Cloud, Loader2, Lock, Server } from "lucide-react";
 import Link from "next/link";
 import React, { useCallback, useEffect, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
@@ -18,6 +17,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog.tsx";
 import { Button } from "@/components/ui/button.tsx";
+import { Cloud, Loader2, Lock, Server } from "@/components/ui/icon-lib";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import HybridSetup from "@/components/workspace/deployment-settings/hybrid-setup.tsx";
 import { useProjectContext } from "@/contexts/project-context";

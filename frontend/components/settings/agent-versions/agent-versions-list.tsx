@@ -1,10 +1,10 @@
 "use client";
 
 import { isEmpty, times } from "lodash";
-import { ArrowLeft } from "lucide-react";
 import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "@/components/ui/icon-lib";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type AgentVersionsResult } from "@/lib/actions/agents";
 import { swrFetcher } from "@/lib/utils";

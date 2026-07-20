@@ -1,7 +1,7 @@
 import { compact, get, isNil, sortBy, uniq } from "lodash";
-import { Bolt, ChevronDown } from "lucide-react";
 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Bolt, ChevronDown } from "@/components/ui/icon-lib";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { pluralize } from "@/lib/utils";
 

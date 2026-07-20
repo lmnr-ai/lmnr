@@ -1,6 +1,5 @@
-import { X } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
+import { X } from "@/components/ui/icon-lib";
 
 interface CloseButtonProps {
   onClose: () => void;

@@ -1,6 +1,6 @@
-import { Eye } from "lucide-react";
 import { useEffect, useRef } from "react";
 
+import { Eye } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 import { normalizeTemplateCode } from "./normalize";

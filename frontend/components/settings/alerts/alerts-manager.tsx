@@ -1,7 +1,6 @@
 "use client";
 
 import { isEmpty, isNil } from "lodash";
-import { Bell, Trash2 } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 import useSWR from "swr";
 
@@ -9,6 +8,7 @@ import ClientTimestampFormatter from "@/components/client-timestamp-formatter.ts
 import { useSlackIntegration } from "@/components/slack/slack-connection-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Bell, Trash2 } from "@/components/ui/icon-lib";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipPortal, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";

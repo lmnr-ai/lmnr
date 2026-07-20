@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import {
   ArrowUpRight,
   Bug,
@@ -7,8 +9,7 @@ import {
   MonitorPlay,
   Tags,
   TextSearch,
-} from "lucide-react";
-import Link from "next/link";
+} from "@/components/ui/icon-lib";
 
 import { subSection } from "../class-names";
 

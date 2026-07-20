@@ -1,11 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
 import React, { useCallback, useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
 import useSWR from "swr";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";

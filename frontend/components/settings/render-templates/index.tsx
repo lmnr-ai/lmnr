@@ -1,12 +1,12 @@
 "use client";
 
 import { isEmpty } from "lodash";
-import { Pencil, Trash2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
+import { Pencil, Trash2 } from "@/components/ui/icon-lib";
 import { type TemplateScope } from "@/components/ui/template-renderer";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 

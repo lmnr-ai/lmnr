@@ -1,6 +1,5 @@
-import { X } from "lucide-react";
-
 import { Button } from "@/components/ui/button.tsx";
+import { X } from "@/components/ui/icon-lib";
 import { Label } from "@/components/ui/label.tsx";
 
 import { type SelectionPanelProps } from "../model/types.ts";

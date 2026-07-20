@@ -1,8 +1,8 @@
 "use client";
 
-import { Info } from "lucide-react";
 import { Controller, useFormContext } from "react-hook-form";
 
+import { Info } from "@/components/ui/icon-lib";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";

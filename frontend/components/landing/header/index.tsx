@@ -1,11 +1,11 @@
 "use client";
 
-import { Equal, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import logo from "@/assets/logo/laminar-wordmark.svg";
+import { Equal, X } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 import LandingButton from "../landing-button";

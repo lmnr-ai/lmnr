@@ -1,6 +1,6 @@
 "use client";
 
-import { Info } from "lucide-react";
+import { Info } from "@/components/ui/icon-lib";
 
 import { useSignalsBannerStore } from "./store";
 

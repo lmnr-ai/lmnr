@@ -1,6 +1,6 @@
-import { Check, Minus } from "lucide-react";
 import Link from "next/link";
 
+import { Check, Minus } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 import { microLabel, subSection } from "../class-names";

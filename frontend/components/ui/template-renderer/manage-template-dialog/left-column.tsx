@@ -1,7 +1,7 @@
-import { Sparkles } from "lucide-react";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
+import { Sparkles } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";

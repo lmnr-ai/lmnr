@@ -3,14 +3,15 @@
 // TEMPORARY style exploration tooling — safe to delete this folder + the mount in layout.tsx.
 // Floating button (collapsed) + HUD window (expanded) with Color | JSON tabs.
 
-import { Palette, X } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Palette, X } from "@/components/ui/icon-lib";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
 import ColorTab from "./color-tab";
+import IconsTab from "./icons-tab";
 import JsonTab from "./json-tab";
 
 export default function PanelShell() {
@@ -51,6 +52,9 @@ export default function PanelShell() {
           <TabsTrigger value="color" className="flex-1">
             Color
           </TabsTrigger>
+          <TabsTrigger value="icons" className="flex-1">
+            Icons
+          </TabsTrigger>
           <TabsTrigger value="json" className="flex-1">
             JSON
           </TabsTrigger>
@@ -58,6 +62,9 @@ export default function PanelShell() {
         <div className="min-h-0 flex-1 overflow-y-auto thin-scrollbar pr-1">
           <TabsContent value="color">
             <ColorTab />
+          </TabsContent>
+          <TabsContent value="icons">
+            <IconsTab />
           </TabsContent>
           <TabsContent value="json">
             <JsonTab />

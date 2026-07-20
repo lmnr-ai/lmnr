@@ -1,12 +1,12 @@
 "use client";
 
-import { Clock, Loader2, Mail } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 
 import SlackChannelPicker, { type SlackChannelSelection } from "@/components/settings/alerts/slack-channel-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Clock, Loader2, Mail } from "@/components/ui/icon-lib";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";

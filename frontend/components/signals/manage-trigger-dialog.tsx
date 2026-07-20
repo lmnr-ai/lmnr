@@ -1,7 +1,6 @@
 "use client";
 
 import { get } from "lodash";
-import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useEffect, useState } from "react";
 import { Controller, FormProvider, useForm, useFormContext, useWatch } from "react-hook-form";
@@ -17,6 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Loader2 } from "@/components/ui/icon-lib";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";

@@ -1,10 +1,10 @@
 "use client";
 
-import { ArrowUpRight, Lock } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { ArrowUpRight, Lock } from "@/components/ui/icon-lib";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
 import { Feature } from "@/lib/features/features";

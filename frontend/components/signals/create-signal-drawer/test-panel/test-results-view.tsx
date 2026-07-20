@@ -3,10 +3,10 @@
 import { json } from "@codemirror/lang-json";
 import { EditorView } from "@codemirror/view";
 import CodeMirror from "@uiw/react-codemirror";
-import { Loader2 } from "lucide-react";
 
 import { type SchemaField } from "@/components/signals/utils";
 import { theme } from "@/components/ui/content-renderer/utils";
+import { Loader2 } from "@/components/ui/icon-lib";
 
 import PayloadValue from "./payload-value";
 

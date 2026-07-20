@@ -1,12 +1,12 @@
 "use client";
 
-import { ArrowRight, PanelLeft } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
 
 import { renderTick } from "@/components/evaluation/graphs-utils";
 import { Button } from "@/components/ui/button";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { ArrowRight, PanelLeft } from "@/components/ui/icon-lib";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 

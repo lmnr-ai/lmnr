@@ -1,5 +1,4 @@
 import { type ColumnDef, type Row } from "@tanstack/react-table";
-import { Settings as SettingsIcon } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
 
@@ -15,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Settings as SettingsIcon } from "@/components/ui/icon-lib";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";

@@ -1,6 +1,7 @@
 "use client";
-import { Check, Copy } from "lucide-react";
 import { type MouseEvent, useState } from "react";
+
+import { Check, Copy } from "@/components/ui/icon-lib";
 
 import { useDebuggerSessionViewStore } from "../store";
 import EditableSessionTitle from "./editable-session-title";

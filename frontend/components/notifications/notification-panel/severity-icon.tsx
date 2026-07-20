@@ -1,4 +1,4 @@
-import { AlertTriangle, CircleAlert, Info } from "lucide-react";
+import { AlertTriangle, CircleAlert, Info } from "@/components/ui/icon-lib";
 
 export const SeverityIcon = ({ severity }: { severity: number }) => {
   switch (severity) {

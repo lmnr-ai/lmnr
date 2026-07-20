@@ -1,9 +1,9 @@
 "use client";
 
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import { Check, Circle, Pencil } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { Check, Circle, Pencil } from "@/components/ui/icon-lib";
 import { type QueueItemState } from "@/lib/actions/queue";
 import { cn } from "@/lib/utils";
 

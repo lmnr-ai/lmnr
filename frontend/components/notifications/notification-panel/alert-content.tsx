@@ -1,8 +1,8 @@
-import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
 import { LinkText } from "@/components/notifications/notification-panel/link-text";
 import { type NewEventNotification } from "@/components/notifications/notification-panel/utils";
+import { ArrowUpRight } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 export const AlertContent = ({ formatted, isUnread }: { formatted: NewEventNotification; isUnread: boolean }) => (

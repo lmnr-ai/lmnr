@@ -1,11 +1,11 @@
 "use client";
 
-import { Circle } from "lucide-react";
 import { useMemo } from "react";
 
 import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { type TimeSeriesChartConfig, type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
 import ClusterIcon, { type IconVariant } from "@/components/signal/clusters-section/cluster-list/cluster-icon";
+import { Circle } from "@/components/ui/icon-lib";
 import { type ClusterStatsDataPoint, type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { UNCLUSTERED_COLOR, withOpacity } from "@/lib/clusters/colors";
 

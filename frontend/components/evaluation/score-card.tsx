@@ -1,5 +1,4 @@
-import { ArrowRight } from "lucide-react";
-
+import { ArrowRight } from "@/components/ui/icon-lib";
 import { type EvaluationScoreStatistics } from "@/lib/evaluation/types";
 import { cn, isValidNumber } from "@/lib/utils";
 

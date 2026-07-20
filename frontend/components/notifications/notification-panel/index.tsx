@@ -1,7 +1,6 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Settings, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
@@ -13,6 +12,7 @@ import {
 } from "@/components/notifications/notification-panel/severity-filter";
 import { formatNotification, type FormattedNotification } from "@/components/notifications/notification-panel/utils";
 import { useNotificationPanelStore } from "@/components/notifications/notification-store";
+import { Settings, X } from "@/components/ui/icon-lib";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useProjectContext } from "@/contexts/project-context";
 import { type WebNotification } from "@/lib/actions/notifications";

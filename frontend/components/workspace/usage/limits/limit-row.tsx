@@ -1,9 +1,9 @@
 "use client";
 
-import { Info, Loader2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Info, Loader2, X } from "@/components/ui/icon-lib";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 

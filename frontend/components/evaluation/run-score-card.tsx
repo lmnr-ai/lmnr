@@ -1,6 +1,5 @@
 "use client";
 
-import { ArrowRight } from "lucide-react";
 import { useState } from "react";
 
 import { AggregationSelect, useAggregation } from "@/components/evaluation/metrics-panel/aggregation-select";
@@ -10,6 +9,7 @@ import {
   isBinaryDistribution,
   pctChange,
 } from "@/components/evaluation/metrics-panel/utils";
+import { ArrowRight } from "@/components/ui/icon-lib";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { type EvaluationScoreDistributionBucket, type EvaluationScoreStatistics } from "@/lib/evaluation/types";
 import { cn, isValidNumber } from "@/lib/utils";

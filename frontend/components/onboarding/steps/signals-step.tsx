@@ -1,6 +1,5 @@
 "use client";
 
-import { AlertCircle, Brain, Check, CheckCircle, CloudOff, Frown, Shield, Target, Zap } from "lucide-react";
 import { type ComponentType } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 
@@ -8,6 +7,7 @@ import StepShell from "@/components/onboarding/step-shell";
 import { type OnboardingFormValues } from "@/components/onboarding/types";
 import { useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
 import signalTemplates from "@/components/signals/prompts";
+import { AlertCircle, Brain, Check, CheckCircle, CloudOff, Frown, Shield, Target, Zap } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 const ICONS: Record<string, ComponentType<{ className?: string }>> = {

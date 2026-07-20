@@ -5,7 +5,6 @@ import "@/lib/styles/session-player.css";
 
 import { PauseIcon, PlayIcon } from "@radix-ui/react-icons";
 import { truncate } from "lodash";
-import { Loader2, X } from "lucide-react";
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import rrwebPlayer from "rrweb-player";
@@ -20,6 +19,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Loader2, X } from "@/components/ui/icon-lib";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { formatSecondsToMinutesAndSeconds } from "@/lib/utils";
 

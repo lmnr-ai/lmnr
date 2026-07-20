@@ -1,6 +1,5 @@
-import { ChevronDown, Layers2, Search, Settings } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
+import { ChevronDown, Layers2, Search, Settings } from "@/components/ui/icon-lib";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 

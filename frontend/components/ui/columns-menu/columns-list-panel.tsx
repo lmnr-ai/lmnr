@@ -7,9 +7,9 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { motion } from "framer-motion";
-import { ListRestart, Plus } from "lucide-react";
 import React from "react";
 
+import { ListRestart, Plus } from "@/components/ui/icon-lib";
 import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 
 import { ColumnsMenuItem } from "./columns-menu-item";

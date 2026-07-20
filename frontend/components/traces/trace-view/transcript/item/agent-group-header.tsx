@@ -1,4 +1,3 @@
-import { Bot, ChevronRight } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
@@ -7,6 +6,7 @@ import {
   CollapsedPreviewBlock,
   type PreviewMap,
 } from "@/components/traces/trace-view/transcript/item/collapsed-preview-block";
+import { Bot, ChevronRight } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 export interface AgentGroupHeaderProps {

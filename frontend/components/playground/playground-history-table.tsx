@@ -1,12 +1,12 @@
 "use client";
 import { type ColumnDef, type Row } from "@tanstack/react-table";
-import { ArrowRight, Check, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
+import { ArrowRight, Check, X } from "@/components/ui/icon-lib";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";

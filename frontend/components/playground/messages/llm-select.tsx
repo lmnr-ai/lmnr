@@ -1,5 +1,4 @@
 import { isEmpty } from "lodash";
-import { Check, ChevronDown, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -19,6 +18,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Check, ChevronDown, Plus, Search } from "@/components/ui/icon-lib";
 import { IconAnthropic, IconGemini, IconOpenAI } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { type EnvVars } from "@/lib/env/utils";

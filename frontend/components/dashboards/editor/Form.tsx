@@ -1,7 +1,6 @@
 "use client";
 
 import { debounce } from "lodash";
-import { AlertCircle, Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
@@ -19,6 +18,7 @@ import { QueryBuilderFields } from "@/components/dashboards/editor/fields";
 import { getTimeColumn } from "@/components/dashboards/editor/table-schemas";
 import { getDefaultTimeRange, injectIdMetrics, needsTimeSeries } from "@/components/dashboards/editor/utils";
 import DateRangeFilter from "@/components/ui/date-range-filter";
+import { AlertCircle, Loader2 } from "@/components/ui/icon-lib";
 import { Label } from "@/components/ui/label.tsx";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";

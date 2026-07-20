@@ -1,11 +1,11 @@
 import { isNil } from "lodash";
-import { ChevronDown, ChevronRight, X } from "lucide-react";
 import { useRef } from "react";
 
 import { SnippetPreview } from "@/components/traces/snippet-preview";
 import { ContentPreview } from "@/components/traces/trace-view/content-preview";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils";
+import { ChevronDown, ChevronRight, X } from "@/components/ui/icon-lib";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";

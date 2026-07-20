@@ -1,12 +1,12 @@
 "use client";
 
-import { ArrowLeft, Home } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import icon from "@/assets/logo/icon.png";
 import { Button } from "@/components/ui/button.tsx";
+import { ArrowLeft, Home } from "@/components/ui/icon-lib";
 
 export default function NotFound() {
   const router = useRouter();

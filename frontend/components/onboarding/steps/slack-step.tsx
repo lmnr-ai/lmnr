@@ -1,6 +1,5 @@
 "use client";
 
-import { CheckCircle2 } from "lucide-react";
 import Image from "next/image";
 import { useMemo } from "react";
 import { useFormContext } from "react-hook-form";
@@ -11,6 +10,7 @@ import StepShell from "@/components/onboarding/step-shell";
 import { type OnboardingFormValues } from "@/components/onboarding/types";
 import { useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
 import { Button } from "@/components/ui/button";
+import { CheckCircle2 } from "@/components/ui/icon-lib";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { SLACK_SCOPES } from "@/lib/actions/slack/types";
 import { Feature } from "@/lib/features/features";

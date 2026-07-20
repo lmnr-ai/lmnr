@@ -1,7 +1,8 @@
 "use client";
 
-import { Check } from "lucide-react";
 import { useState } from "react";
+
+import { Check } from "@/components/ui/icon-lib";
 
 // Copied verbatim from the traces placeholder's AgentTab (AGENT_PROMPT). No
 // shared source of truth by design — this is the landing-hero copy.

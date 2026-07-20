@@ -1,11 +1,10 @@
-import { ChevronDown, Eye, EyeOff, LayoutTemplate, List, ListTree, type LucideIcon } from "lucide-react";
-
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ChevronDown, Eye, EyeOff, LayoutTemplate, List, ListTree, type LucideIcon } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils.ts";
 
 export type ViewTab = "tree" | "transcript" | "custom";

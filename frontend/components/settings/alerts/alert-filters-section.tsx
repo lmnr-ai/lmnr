@@ -1,11 +1,11 @@
 "use client";
 
-import { Info, Plus, Trash2, X } from "lucide-react";
 import { useMemo } from "react";
 import { Controller, useFieldArray, useFormContext } from "react-hook-form";
 
 import { jsonSchemaToSchemaFields, type SchemaField } from "@/components/signals/utils";
 import { Button } from "@/components/ui/button";
+import { Info, Plus, Trash2, X } from "@/components/ui/icon-lib";
 import { type ColumnFilter, dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

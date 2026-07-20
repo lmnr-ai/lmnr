@@ -1,6 +1,5 @@
 "use client";
 
-import { ArrowUp, Bolt, MessageCircle } from "lucide-react";
 import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
@@ -8,6 +7,7 @@ import { Response } from "@/components/ai-elements/response";
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
+import { ArrowUp, Bolt, MessageCircle } from "@/components/ui/icon-lib";
 import { parseSpanLinks } from "@/lib/traces/span-link-parsing";
 import { cn } from "@/lib/utils";
 

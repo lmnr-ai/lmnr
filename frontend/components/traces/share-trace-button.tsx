@@ -1,11 +1,11 @@
 "use client";
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { Globe, Link, Loader2, Lock, Share } from "lucide-react";
 import React, { useState } from "react";
 
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
+import { Globe, Link, Loader2, Lock, Share } from "@/components/ui/icon-lib";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";

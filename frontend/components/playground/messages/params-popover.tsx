@@ -1,10 +1,10 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { SlidersHorizontal } from "lucide-react";
 import { Controller, useFormContext } from "react-hook-form";
 
 import ReasoningField from "@/components/playground/messages/reasoning-field";
 import { defaultMaxTokens, defaultTemperature } from "@/components/playground/utils";
 import { Button } from "@/components/ui/button";
+import { SlidersHorizontal } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Slider } from "@/components/ui/slider";

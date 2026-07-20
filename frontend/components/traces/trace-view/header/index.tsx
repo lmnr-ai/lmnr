@@ -1,5 +1,4 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUpRight, ChevronsRight, Layers, Maximize, Radio, Sparkles, User } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo } from "react";
@@ -13,6 +12,7 @@ import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
 import { type TraceSignal, type TraceSignalClusterNode } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
+import { ArrowUpRight, ChevronsRight, Layers, Maximize, Radio, Sparkles, User } from "@/components/ui/icon-lib";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";

@@ -1,8 +1,7 @@
 "use client";
 
-import { AlertTriangle, ArrowRight, Info } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
+import { AlertTriangle, ArrowRight, Info } from "@/components/ui/icon-lib";
 
 /**
  * Renders inside the Fields tab when the row's target disagrees with the

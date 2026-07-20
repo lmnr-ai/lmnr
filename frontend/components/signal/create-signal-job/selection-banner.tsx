@@ -1,7 +1,7 @@
-import { CheckCircle2, Info, X } from "lucide-react";
 import React from "react";
 
 import { Button } from "@/components/ui/button.tsx";
+import { CheckCircle2, Info, X } from "@/components/ui/icon-lib";
 
 interface SelectionBannerProps {
   selectionMode: "none" | "page" | "all";

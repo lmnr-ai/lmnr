@@ -1,10 +1,10 @@
 "use client";
 
-import { AlertTriangle } from "lucide-react";
 import { type ReactNode, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
 import { computeTraceStats, StatsShields } from "@/components/traces/stats-shields";
+import { AlertTriangle } from "@/components/ui/icon-lib";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Skeleton } from "@/components/ui/skeleton";
 

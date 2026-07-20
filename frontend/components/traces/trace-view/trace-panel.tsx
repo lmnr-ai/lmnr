@@ -1,4 +1,3 @@
-import { AlertTriangle, CirclePlay } from "lucide-react";
 import { useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -8,6 +7,7 @@ import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
+import { AlertTriangle, CirclePlay } from "@/components/ui/icon-lib";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TemplatePickerProvider } from "@/components/ui/template-renderer/template-picker";
 import { type Filter } from "@/lib/actions/common/filters";

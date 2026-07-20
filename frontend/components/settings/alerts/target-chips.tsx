@@ -1,7 +1,7 @@
-import { Mail, Slack } from "lucide-react";
 import { useMemo } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { Mail, Slack } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 export interface TargetChipItem {

@@ -1,8 +1,8 @@
 "use client";
 
-import { Search } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 
+import { Search } from "@/components/ui/icon-lib";
 import { dataTypeOperationsMap, OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Operator } from "@/lib/actions/common/operators";

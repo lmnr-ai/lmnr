@@ -1,7 +1,7 @@
 import { Handle, Position } from "@xyflow/react";
-import { Bolt, Braces } from "lucide-react";
 import { memo } from "react";
 
+import { Bolt, Braces } from "@/components/ui/icon-lib";
 import { NODE_DIMENSIONS } from "@/lib/lang-graph/types";
 import { cn } from "@/lib/utils";
 

@@ -1,8 +1,8 @@
-import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
+import { Loader2 } from "@/components/ui/icon-lib";
 import { TemplatePickerPreview, useTemplatePicker } from "@/components/ui/template-renderer/template-picker";
 
 /** Renders the selected trace template. Template selection lives in the trace

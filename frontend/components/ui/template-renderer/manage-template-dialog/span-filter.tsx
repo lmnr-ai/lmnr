@@ -1,11 +1,11 @@
 import { EditorView } from "@uiw/react-codemirror";
-import { Loader2, Play } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
 
 import SQLEditor from "@/components/sql/sql-editor";
 import { Button } from "@/components/ui/button";
+import { Loader2, Play } from "@/components/ui/icon-lib";
 
 import { type ManageTemplateForm } from "../index";
 import { fetchRenderData } from "./fetch-render-data";

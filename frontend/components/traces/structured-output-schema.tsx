@@ -1,6 +1,5 @@
-import { Braces, ChevronDown } from "lucide-react";
-
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Braces, ChevronDown } from "@/components/ui/icon-lib";
 
 import ContentRenderer from "../ui/content-renderer/index";
 

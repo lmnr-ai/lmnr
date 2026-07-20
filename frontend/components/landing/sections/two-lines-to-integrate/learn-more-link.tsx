@@ -1,6 +1,6 @@
-import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
+import { ArrowUpRight } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 import { microLabel } from "../../class-names";

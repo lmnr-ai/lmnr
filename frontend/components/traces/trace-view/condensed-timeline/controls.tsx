@@ -1,7 +1,6 @@
-import { DollarSign, Minus, Plus } from "lucide-react";
-
 import { MAX_ZOOM, MIN_ZOOM } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
+import { DollarSign, Minus, Plus } from "@/components/ui/icon-lib";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 

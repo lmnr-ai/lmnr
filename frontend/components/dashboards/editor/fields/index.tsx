@@ -1,4 +1,3 @@
-import { Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { useFormContext } from "react-hook-form";
@@ -9,6 +8,7 @@ import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/d
 import { injectIdMetrics } from "@/components/dashboards/editor/utils";
 import { type DashboardChart } from "@/components/dashboards/types";
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

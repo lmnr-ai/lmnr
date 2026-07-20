@@ -1,7 +1,7 @@
-import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
 import { type NewClusterNotification } from "@/components/notifications/notification-panel/utils";
+import { ArrowUpRight } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 export const ClusterContent = ({ formatted, isUnread }: { formatted: NewClusterNotification; isUnread: boolean }) => (

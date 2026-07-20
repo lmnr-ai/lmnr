@@ -1,6 +1,5 @@
 "use client";
 
-import { X } from "lucide-react";
 import {
   type FocusEvent,
   type KeyboardEvent,
@@ -15,6 +14,7 @@ import {
 } from "react";
 
 import { Button } from "@/components/ui/button";
+import { X } from "@/components/ui/icon-lib";
 import { AUTOCOMPLETE_FIELDS } from "@/lib/actions/autocomplete/fields";
 import { cn } from "@/lib/utils";
 

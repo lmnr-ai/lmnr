@@ -1,11 +1,11 @@
 "use client";
 
 import { get } from "lodash";
-import { Code2, Database, ExternalLink, type LucideIcon, Workflow } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
 
 import ContentRenderer from "@/components/ui/content-renderer/index";
+import { Code2, Database, ExternalLink, type LucideIcon, Workflow } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 import { useQueueStore } from "./queue-store";

@@ -1,4 +1,3 @@
-import { ArrowLeftRight, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 import { useSWRConfig } from "swr";
@@ -14,6 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog.tsx";
+import { ArrowLeftRight, Loader2 } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
 import { useUserContext } from "@/contexts/user-context.tsx";

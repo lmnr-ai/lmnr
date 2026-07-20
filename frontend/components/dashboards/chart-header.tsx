@@ -1,4 +1,3 @@
-import { Edit, Ellipsis, GripVertical, Pen, Trash2 } from "lucide-react";
 import Link from "next/link";
 import React, { type FocusEvent, type KeyboardEventHandler, useCallback, useEffect, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
@@ -11,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Edit, Ellipsis, GripVertical, Pen, Trash2 } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";

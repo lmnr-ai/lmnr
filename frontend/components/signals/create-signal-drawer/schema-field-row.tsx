@@ -1,11 +1,11 @@
 "use client";
 
-import { X } from "lucide-react";
 import { useCallback } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 
 import { SCHEMA_FIELD_TYPES } from "@/components/signals/utils";
 import { Button } from "@/components/ui/button";
+import { X } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
 import { Textarea } from "@/components/ui/textarea";

@@ -1,7 +1,6 @@
-import { FileText } from "lucide-react";
-
 import { Button } from "@/components/ui/button.tsx";
 import ContentRenderer from "@/components/ui/content-renderer/index";
+import { FileText } from "@/components/ui/icon-lib";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 
 interface MetadataProps {

@@ -1,4 +1,3 @@
-import { Bolt, Image as IconImage, Paperclip, X } from "lucide-react";
 import React, { type ChangeEvent, useCallback, useRef } from "react";
 import { Controller, type FieldArrayWithId, type UseFieldArrayRemove, useFormContext } from "react-hook-form";
 
@@ -6,6 +5,7 @@ import ImageWithPreview from "@/components/playground/image-with-preview";
 import { Button } from "@/components/ui/button";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import DefaultTextarea from "@/components/ui/default-textarea";
+import { Bolt, Image as IconImage, Paperclip, X } from "@/components/ui/icon-lib";
 import { IconMessage } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";

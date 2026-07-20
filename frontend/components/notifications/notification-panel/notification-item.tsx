@@ -1,6 +1,5 @@
 "use client";
 
-import { ChevronDown, ChevronUp, FileText, Layers } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { AlertContent } from "@/components/notifications/notification-panel/alert-content";
@@ -8,6 +7,7 @@ import { ClusterContent } from "@/components/notifications/notification-panel/cl
 import { ReportContent } from "@/components/notifications/notification-panel/report-content";
 import { SeverityIcon } from "@/components/notifications/notification-panel/severity-icon";
 import { type FormattedNotification } from "@/components/notifications/notification-panel/utils";
+import { ChevronDown, ChevronUp, FileText, Layers } from "@/components/ui/icon-lib";
 import { type WebNotification } from "@/lib/actions/notifications";
 import { cn, formatRelativeTime } from "@/lib/utils";
 

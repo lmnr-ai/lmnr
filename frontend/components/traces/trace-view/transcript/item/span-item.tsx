@@ -1,5 +1,3 @@
-import { X } from "lucide-react";
-
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
 import { SnippetPreview } from "@/components/traces/snippet-preview";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
@@ -9,6 +7,7 @@ import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shiel
 import { type TraceViewListSpan } from "@/components/traces/trace-view/store/base";
 import { CollapsedTextWithMore } from "@/components/traces/trace-view/transcript/collapsed-text-with-more";
 import { getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
+import { X } from "@/components/ui/icon-lib";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";

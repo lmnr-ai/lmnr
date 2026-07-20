@@ -1,6 +1,5 @@
 "use client";
 
-import { ChartBar, ChartColumn, ChartLine, Pen, Table2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
@@ -8,6 +7,7 @@ import { useSWRConfig } from "swr";
 
 import { CHART_PRESETS, type ChartPreset, type PresetTable } from "@/components/dashboards/chart-presets";
 import { Button } from "@/components/ui/button";
+import { ChartBar, ChartColumn, ChartLine, Pen, Table2 } from "@/components/ui/icon-lib";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/lib/hooks/use-toast";

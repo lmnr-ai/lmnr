@@ -1,6 +1,6 @@
-import { ArrowUpRight, Bolt, Box, MessageCircle, X } from "lucide-react";
 import { type ReactNode } from "react";
 
+import { ArrowUpRight, Bolt, Box, MessageCircle, X } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 const SIGNAL_BORDER = "rgb(49 134 255 / 0.6)";

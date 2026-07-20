@@ -1,8 +1,8 @@
-import { CircleAlert } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { CircleAlert } from "@/components/ui/icon-lib";
 
 const ProvidersAlert = () => {
   const params = useParams();

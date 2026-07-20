@@ -1,6 +1,6 @@
-import { Check } from "lucide-react";
 import Link from "next/link";
 
+import { Check } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 import { microLabel } from "../class-names";

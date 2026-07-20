@@ -1,4 +1,4 @@
-import { Boxes } from "lucide-react";
+import { Boxes } from "@/components/ui/icon-lib";
 
 interface ClusterListEmptyStateProps {
   title?: string;

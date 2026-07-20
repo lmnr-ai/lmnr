@@ -1,6 +1,5 @@
 "use client";
 
-import { EllipsisVertical, Loader2, RefreshCw, Settings, Trash2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -24,6 +23,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { EllipsisVertical, Loader2, RefreshCw, Settings, Trash2 } from "@/components/ui/icon-lib";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjectContext } from "@/contexts/project-context";
 import { useToast } from "@/lib/hooks/use-toast";

@@ -1,4 +1,3 @@
-import { Plus } from "lucide-react";
 import Image, { type StaticImageData } from "next/image";
 import Link from "next/link";
 
@@ -17,6 +16,7 @@ import playwright from "@/assets/landing/logos/playwright.svg";
 import pydanticAi from "@/assets/landing/logos/pydantic-ai.svg";
 import stagehand from "@/assets/landing/logos/stagehand.svg";
 import vercel from "@/assets/landing/logos/vercel.svg";
+import { Plus } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 const DOCS_BASE = "https://laminar.sh/docs/tracing/integrations";

@@ -1,6 +1,6 @@
-import { ChevronDown, ChevronUp } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { ChevronDown, ChevronUp } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 import Markdown from "./transcript/markdown";

@@ -1,7 +1,7 @@
 import { Handle, Position } from "@xyflow/react";
-import { Circle, Play, Square } from "lucide-react";
 import { memo } from "react";
 
+import { Circle, Play, Square } from "@/components/ui/icon-lib";
 import { NODE_DIMENSIONS } from "@/lib/lang-graph/types";
 import { cn } from "@/lib/utils";
 

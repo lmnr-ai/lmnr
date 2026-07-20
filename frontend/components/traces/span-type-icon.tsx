@@ -1,4 +1,6 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
+import { type ReactNode } from "react";
+
 import {
   Activity,
   ArrowRight,
@@ -10,9 +12,7 @@ import {
   Gauge,
   MessageCircle,
   PersonStanding,
-} from "lucide-react";
-import { type ReactNode } from "react";
-
+} from "@/components/ui/icon-lib";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SpanType } from "@/lib/traces/types";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";

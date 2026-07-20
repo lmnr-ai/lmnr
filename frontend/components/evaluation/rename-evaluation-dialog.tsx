@@ -1,9 +1,9 @@
-import { Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import React, { type PropsWithChildren, useCallback, useState } from "react";
 import { useSWRConfig } from "swr";
 
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { type EvaluationResultsInfo } from "@/lib/evaluation/types";
 import { useToast } from "@/lib/hooks/use-toast";

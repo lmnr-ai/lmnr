@@ -1,10 +1,10 @@
 "use client";
 
-import { VariableIcon } from "lucide-react";
 import React from "react";
 
 import { DatePicker } from "@/components/sql/date-picker";
 import { type SQLParameter } from "@/components/sql/sql-editor-store";
+import { VariableIcon } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 

@@ -1,9 +1,9 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { X } from "@/components/ui/icon-lib";
 
 import { useSignalsBannerStore } from "./store";
 

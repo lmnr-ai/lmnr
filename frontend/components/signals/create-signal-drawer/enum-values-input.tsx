@@ -1,7 +1,8 @@
 "use client";
 
-import { X } from "lucide-react";
 import { useCallback, useState } from "react";
+
+import { X } from "@/components/ui/icon-lib";
 
 export default function EnumValuesInput({
   values,

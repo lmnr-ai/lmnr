@@ -1,11 +1,11 @@
 "use client";
 
 import { isEmpty } from "lodash";
-import { Trash2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
 
 import { envVarsToIconMap } from "@/components/playground/utils";
+import { Trash2 } from "@/components/ui/icon-lib";
 import { type EnvVars } from "@/lib/env/utils";
 import { track } from "@/lib/posthog";
 import { type ProviderApiKey } from "@/lib/settings/types";

@@ -2,6 +2,8 @@
 
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
+import * as React from "react";
+
 import {
   Activity,
   AlertTriangle,
@@ -44,9 +46,7 @@ import {
   Users,
   X,
   ZoomOut,
-} from "lucide-react";
-import * as React from "react";
-
+} from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(

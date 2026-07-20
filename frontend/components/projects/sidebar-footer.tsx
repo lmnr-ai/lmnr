@@ -1,12 +1,12 @@
 "use client";
 
-import { Book, X } from "lucide-react";
 import Link from "next/link";
 
 import laminarIcon from "@/assets/logo/icon.svg";
 import laminarWordmark from "@/assets/logo/laminar-wordmark.svg";
 import VersionBadge from "@/components/common/version-badge.tsx";
 import GitHubStarsButton from "@/components/landing/header/github-stars-button.tsx";
+import { Book, X } from "@/components/ui/icon-lib";
 import {
   SidebarFooter,
   SidebarGroup,

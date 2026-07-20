@@ -1,6 +1,5 @@
-import { Check, Loader2, X } from "lucide-react";
-
 import { deriveStatus } from "@/components/evaluation/utils";
+import { Check, Loader2, X } from "@/components/ui/icon-lib";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 export const StatusCell = ({ row }: { row: { original: EvalRow } }) => {

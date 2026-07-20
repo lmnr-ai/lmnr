@@ -3,6 +3,16 @@
 import { type ColumnDef } from "@tanstack/react-table";
 import ChartBuilder from "components/chart-builder";
 import { isEmpty, isNil, isObject } from "lodash";
+import { useParams } from "next/navigation";
+import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
+import { useHotkeys } from "react-hotkeys-hook";
+
+import ExportSqlDialog from "@/components/sql/export-sql-dialog";
+import ParametersPanel from "@/components/sql/parameters-panel";
+import { useSqlEditorStore } from "@/components/sql/sql-editor-store";
+import TemplateEditor from "@/components/sql/template-editor";
+import { Button } from "@/components/ui/button";
+import ContentRenderer from "@/components/ui/content-renderer/index";
 import {
   AlertCircle,
   Braces,
@@ -14,17 +24,7 @@ import {
   PlayIcon,
   Square,
   TableProperties,
-} from "lucide-react";
-import { useParams } from "next/navigation";
-import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
-import { useHotkeys } from "react-hotkeys-hook";
-
-import ExportSqlDialog from "@/components/sql/export-sql-dialog";
-import ParametersPanel from "@/components/sql/parameters-panel";
-import { useSqlEditorStore } from "@/components/sql/sql-editor-store";
-import TemplateEditor from "@/components/sql/template-editor";
-import { Button } from "@/components/ui/button";
-import ContentRenderer from "@/components/ui/content-renderer/index";
+} from "@/components/ui/icon-lib";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store.tsx";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";

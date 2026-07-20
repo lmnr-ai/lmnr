@@ -1,7 +1,7 @@
-import { ArrowUpRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
+import { ArrowUpRight } from "@/components/ui/icon-lib";
 import { cn } from "@/lib/utils";
 
 import { subSection } from "../class-names";

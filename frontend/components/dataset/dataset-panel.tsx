@@ -1,10 +1,10 @@
-import { ChevronsRight, Loader2, Save } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import ContentRenderer from "@/components/ui/content-renderer/index";
+import { ChevronsRight, Loader2, Save } from "@/components/ui/icon-lib";
 import { type Datapoint } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { isValidJsonObject, swrFetcher } from "@/lib/utils";

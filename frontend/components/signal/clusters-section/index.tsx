@@ -1,7 +1,6 @@
 "use client";
 
 import { isEmpty } from "lodash";
-import { Circle } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -24,6 +23,7 @@ import {
   useSignalStoreContext,
 } from "@/components/signal/store.tsx";
 import { Button } from "@/components/ui/button";
+import { Circle } from "@/components/ui/icon-lib";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useProjectContext } from "@/contexts/project-context";

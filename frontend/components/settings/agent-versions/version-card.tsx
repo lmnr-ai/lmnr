@@ -1,10 +1,10 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronRight } from "@/components/ui/icon-lib";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { type AgentVersionItem } from "@/lib/actions/agents";
 import { cn, formatTimestamp } from "@/lib/utils";

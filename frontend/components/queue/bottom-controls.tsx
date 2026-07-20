@@ -1,9 +1,9 @@
 "use client";
 
-import { Check, ChevronLeft, ChevronRight, Loader2, RotateCcw, Trash2 } from "lucide-react";
 import { useCallback } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Check, ChevronLeft, ChevronRight, Loader2, RotateCcw, Trash2 } from "@/components/ui/icon-lib";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";
 

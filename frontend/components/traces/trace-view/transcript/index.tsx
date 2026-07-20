@@ -1,6 +1,5 @@
 import { defaultRangeExtractor, type Range, useVirtualizer } from "@tanstack/react-virtual";
 import { isEmpty, times } from "lodash";
-import { ListTree } from "lucide-react";
 import { useParams } from "next/navigation";
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
@@ -24,6 +23,7 @@ import {
   useReportVisibleTimeRange,
 } from "@/components/traces/trace-view/use-report-visible-time-range";
 import { Button } from "@/components/ui/button";
+import { ListTree } from "@/components/ui/icon-lib";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils.ts";

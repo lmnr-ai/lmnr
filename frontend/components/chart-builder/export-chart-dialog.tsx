@@ -1,4 +1,3 @@
-import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import React, { type PropsWithChildren, useState } from "react";
@@ -6,6 +5,7 @@ import React, { type PropsWithChildren, useState } from "react";
 import { useChartBuilderStoreContext } from "@/components/chart-builder/chart-builder-store";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Loader2 } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/lib/hooks/use-toast";

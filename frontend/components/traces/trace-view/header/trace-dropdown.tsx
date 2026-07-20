@@ -1,4 +1,3 @@
-import { ChevronDown, Copy, Database, Loader } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback } from "react";
 
@@ -11,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ChevronDown, Copy, Database, Loader } from "@/components/ui/icon-lib";
 import { useToast } from "@/lib/hooks/use-toast";
 
 interface TraceDropdownProps {

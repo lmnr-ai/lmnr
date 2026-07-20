@@ -1,12 +1,12 @@
 "use client";
 
-import { Info, Loader2 } from "lucide-react";
 import { useCallback } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 
 import templates from "@/components/signals/prompts";
 import { getDefaultSchemaFields, jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import { Button } from "@/components/ui/button.tsx";
+import { Info, Loader2 } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
