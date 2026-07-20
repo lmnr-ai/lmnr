@@ -54,13 +54,23 @@ export function useScoreDirections(projectId: string, scoreNames: string[]): Use
     [overrides, defaults]
   );
 
-  // Latest overrides for write-time snapshots, and a promise chain so overlapping
-  // toggles PATCH strictly in click order. The write always carries the FULL map
-  // (JSONB `||` replaces the whole scoreDirectionOverrides value), so without
-  // ordering a slower older request could land last and drop a newer key.
+  // Synchronous source of truth for the override map + a promise chain so
+  // overlapping toggles PATCH strictly in click order. The write always carries
+  // the FULL map (JSONB `||` replaces the whole scoreDirectionOverrides value),
+  // so without ordering a slower older request could land last and drop a newer
+  // key. The ref must be updated SYNCHRONOUSLY on every mutation (not just at
+  // render): a chained write's microtask reads it before React re-renders, so a
+  // render-only sync would let a write serialize a value the catch just reverted.
   const overridesRef = useRef(overrides);
-  overridesRef.current = overrides;
+  overridesRef.current = overrides; // safety net; setBoth keeps it current in-flight
   const writeChainRef = useRef<Promise<unknown>>(Promise.resolve());
+
+  // Update the ref (synchronous reads) and React state (render) together.
+  const setBoth = useCallback((updater: (cur: Record<string, boolean>) => Record<string, boolean>) => {
+    const next = updater(overridesRef.current);
+    overridesRef.current = next;
+    setOverrides(next);
+  }, []);
 
   const toggle = useCallback(
     (scoreName: string) => {
@@ -68,7 +78,7 @@ export function useScoreDirections(projectId: string, scoreNames: string[]): Use
       const next = !(cur[scoreName] ?? defaults[scoreName] ?? true);
       const hadKey = scoreName in cur;
       const prevValue = cur[scoreName];
-      setOverrides({ ...cur, [scoreName]: next }); // optimistic + reactive
+      setBoth((c) => ({ ...c, [scoreName]: next })); // optimistic + reactive
 
       const write = async () => {
         try {
@@ -88,7 +98,8 @@ export function useScoreDirections(projectId: string, scoreNames: string[]): Use
           }
         } catch (e) {
           // Revert ONLY this score, preserving concurrent edits to other scores.
-          setOverrides((s) => {
+          // Sync the ref too so a chained write serializes the reverted map.
+          setBoth((s) => {
             const r = { ...s };
             if (hadKey) r[scoreName] = prevValue as boolean;
             else delete r[scoreName];
@@ -105,7 +116,7 @@ export function useScoreDirections(projectId: string, scoreNames: string[]): Use
       // whether the previous write resolved or rejected.
       writeChainRef.current = writeChainRef.current.then(write, write);
     },
-    [projectId, defaults, toast]
+    [projectId, defaults, toast, setBoth]
   );
 
   return { resolved, isHigherBetter, toggle };
