@@ -79,9 +79,10 @@ export default async function RootLayout({ children }: PropsWithChildren) {
             <Toaster />
           </div>
         </div>
+        {/* TEMPORARY: style exploration HUD — remove this line + components/style-explorer/ to rip out.
+            Must stay inside NuqsAdapter: style-context uses useQueryState to share the theme via URL. */}
+        <StyleExplorer />
       </NuqsAdapter>
-      {/* TEMPORARY: style exploration HUD — remove this line + components/style-explorer/ to rip out. */}
-      <StyleExplorer />
     </body>
   );
 
