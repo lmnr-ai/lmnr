@@ -1,10 +1,12 @@
 -- Aggregating replacement for traces_replacing (LAM-1879). Each ingest batch
 -- inserts one partial row per trace; ClickHouse folds partials at merge time,
 -- and reads always re-aggregate with GROUP BY (never FINAL, so the projection
--- stays usable). `metadata` values are encoded as
--- `<20-digit zero-padded version_ns>|<raw JSON value>` so maxMap yields
--- per-key last-write-wins. `statuses` / `trace_types` are seen-value enum
--- arrays (LAM-1983); precedence lives only in the view. `top_span_name`
+-- stays usable). `metadata` values are raw JSON strings per key, unversioned;
+-- ClickHouse only ships per-key map-merge combinators for min/max/sum, so
+-- `maxMap` is used as an "any occurrence wins" merge (picks each key's
+-- lexicographically-greatest raw JSON string — arbitrary from an application
+-- standpoint, but deterministic and cheap). `statuses` / `trace_types` are
+-- seen-value enum arrays (LAM-1983); precedence lives only in the view. `top_span_name`
 -- carries a 1-byte priority prefix ('2' = real root span, '1' = path-derived
 -- fallback set by a batch without the root) so max(String) always prefers the
 -- root-derived name regardless of arrival order; the view strips it with
@@ -31,8 +33,6 @@ CREATE TABLE IF NOT EXISTS default.traces_agg
     `num_spans` SimpleAggregateFunction(sum, UInt64),
     `has_browser_session` SimpleAggregateFunction(max, UInt8),
     `span_names` SimpleAggregateFunction(groupUniqArrayArray, Array(String)),
-    `root_span_input` SimpleAggregateFunction(max, String),
-    `root_span_output` SimpleAggregateFunction(max, String),
     `cache_read_input_tokens` SimpleAggregateFunction(sum, UInt64),
     `cache_creation_input_tokens` SimpleAggregateFunction(sum, UInt64),
     `reasoning_tokens` SimpleAggregateFunction(sum, UInt64),
@@ -41,7 +41,6 @@ CREATE TABLE IF NOT EXISTS default.traces_agg
         Array(Enum8('DEFAULT' = 0, 'EVALUATION' = 1, 'EVENT' = 2, 'PLAYGROUND' = 3))),
     -- debug-only: insert wall-clock, folds to first-seen; not exposed in the view
     `created_at` SimpleAggregateFunction(min, DateTime64(9, 'UTC')) DEFAULT now64(9),
-    -- reserved (read-only for now, nothing writes them yet)
     `agent_input` SimpleAggregateFunction(max, String),
     `agent_output` SimpleAggregateFunction(max, String),
     PROJECTION p_start_time
@@ -76,14 +75,14 @@ SELECT
     t.total_cost AS total_cost,
     (toUnixTimestamp64Nano(t.end_time) - toUnixTimestamp64Nano(t.start_time)) / 1000000000 AS duration,
     if(
-        length(mapKeys(t.metadata_state)) = 0,
+        length(mapKeys(t.metadata)) = 0,
         '',
         concat(
             '{',
             arrayStringConcat(
                 arrayMap(
-                    kv -> concat(toJSONString(kv.1), ':', substring(kv.2, 22)),
-                    arrayZip(mapKeys(t.metadata_state), mapValues(t.metadata_state))
+                    (k, v) -> concat(toJSONString(k), ':', v),
+                    mapKeys(t.metadata), mapValues(t.metadata)
                 ),
                 ','
             ),
@@ -117,8 +116,6 @@ SELECT
     toBool(t.has_browser_session) AS has_browser_session,
     t.id AS id,
     t.span_names AS span_names,
-    t.root_span_input AS root_span_input,
-    t.root_span_output AS root_span_output,
     t.agent_input AS agent_input,
     t.agent_output AS agent_output
 FROM (
@@ -136,7 +133,7 @@ FROM (
         sum(input_cost) AS input_cost,
         sum(output_cost) AS output_cost,
         sum(total_cost) AS total_cost,
-        maxMap(metadata) AS metadata_state,
+        maxMap(metadata) AS metadata,
         max(session_id) AS session_id,
         max(user_id) AS user_id,
         groupUniqArrayArray(statuses) AS statuses,
@@ -147,8 +144,6 @@ FROM (
         groupUniqArrayArray(tags) AS tags,
         max(has_browser_session) AS has_browser_session,
         groupUniqArrayArray(span_names) AS span_names,
-        max(root_span_input) AS root_span_input,
-        max(root_span_output) AS root_span_output,
         max(agent_input) AS agent_input,
         max(agent_output) AS agent_output
     FROM (
