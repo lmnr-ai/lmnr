@@ -33,8 +33,6 @@ CREATE TABLE IF NOT EXISTS default.traces_agg
     `num_spans` SimpleAggregateFunction(sum, UInt64),
     `has_browser_session` SimpleAggregateFunction(max, UInt8),
     `span_names` SimpleAggregateFunction(groupUniqArrayArray, Array(String)),
-    `root_span_input` SimpleAggregateFunction(max, String),
-    `root_span_output` SimpleAggregateFunction(max, String),
     `cache_read_input_tokens` SimpleAggregateFunction(sum, UInt64),
     `cache_creation_input_tokens` SimpleAggregateFunction(sum, UInt64),
     `reasoning_tokens` SimpleAggregateFunction(sum, UInt64),
@@ -43,9 +41,8 @@ CREATE TABLE IF NOT EXISTS default.traces_agg
         Array(Enum8('DEFAULT' = 0, 'EVALUATION' = 1, 'EVENT' = 2, 'PLAYGROUND' = 3))),
     -- debug-only: insert wall-clock, folds to first-seen; not exposed in the view
     `created_at` SimpleAggregateFunction(min, DateTime64(9, 'UTC')) DEFAULT now64(9),
-    -- reserved (read-only for now, nothing writes them yet)
-    `agent_input` SimpleAggregateFunction(max, String),
-    `agent_output` SimpleAggregateFunction(max, String),
+    `agent_input` SimpleAggregateFunction(anyLast, String),
+    `agent_output` AggregateFunction(anyLast, String),
     PROJECTION p_start_time
     (
         SELECT *
@@ -119,8 +116,6 @@ SELECT
     toBool(t.has_browser_session) AS has_browser_session,
     t.id AS id,
     t.span_names AS span_names,
-    t.root_span_input AS root_span_input,
-    t.root_span_output AS root_span_output,
     t.agent_input AS agent_input,
     t.agent_output AS agent_output
 FROM (
@@ -149,10 +144,8 @@ FROM (
         groupUniqArrayArray(tags) AS tags,
         max(has_browser_session) AS has_browser_session,
         groupUniqArrayArray(span_names) AS span_names,
-        max(root_span_input) AS root_span_input,
-        max(root_span_output) AS root_span_output,
-        max(agent_input) AS agent_input,
-        max(agent_output) AS agent_output
+        anyLast(agent_input) AS agent_input,
+        anyLast(agent_output) AS agent_output
     FROM (
         SELECT *
         FROM default.traces_agg
