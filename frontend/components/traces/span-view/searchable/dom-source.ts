@@ -1,12 +1,12 @@
 import { findMatchOffsets, type MatchOffset } from "@/components/traces/span-view/searchable/find-matches";
 import { type SearchableSource } from "@/components/traces/span-view/searchable/types";
 
-// CSS Custom Highlight API names, styled via ::highlight(...) in globals.css.
-// Highlights paint through Ranges without touching the DOM — mark-wrapping is
-// not an option here: splitting/reparenting Streamdown's React-managed text
-// nodes corrupts the next reconciliation pass.
+// CSS Custom Highlight API names. Highlights paint through Ranges without
+// touching the DOM — mark-wrapping is not an option here: splitting/reparenting
+// Streamdown's React-managed text nodes corrupts the next reconciliation pass.
 const MATCH_HIGHLIGHT = "span-search-match";
 const ACTIVE_HIGHLIGHT = "span-search-active";
+const HIGHLIGHT_STYLE_ID = "span-search-highlight-styles";
 
 // lib.dom's Highlight/HighlightRegistry interfaces omit their setlike/maplike
 // members (TS 5.8), so we type the surface we use.
@@ -21,12 +21,32 @@ interface SharedHighlights {
   active: HighlightLike;
 }
 
+// Inject ::highlight() styles at runtime — Turbopack/LightningCSS still rejects
+function ensureHighlightStyles() {
+  if (typeof document === "undefined" || document.getElementById(HIGHLIGHT_STYLE_ID)) {
+    return;
+  }
+  const style = document.createElement("style");
+  style.id = HIGHLIGHT_STYLE_ID;
+  style.textContent = `
+::highlight(${MATCH_HIGHLIGHT}) {
+  background-color: hsl(var(--primary) / 0.3);
+}
+::highlight(${ACTIVE_HIGHLIGHT}) {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+`;
+  document.head.appendChild(style);
+}
+
 // One Highlight object per name, shared by all sources (the registry is
 // document-global); each source only adds/deletes its own ranges.
 function getSharedHighlights(): SharedHighlights | null {
   if (typeof CSS === "undefined" || !("highlights" in CSS) || typeof Highlight === "undefined") {
     return null;
   }
+  ensureHighlightStyles();
   const registry = CSS.highlights as unknown as Map<string, HighlightLike>;
 
   let match = registry.get(MATCH_HIGHLIGHT);

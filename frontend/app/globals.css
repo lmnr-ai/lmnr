@@ -567,18 +567,6 @@
     color: white;
   }
 
-  /* CSS Custom Highlight API (searchable/dom-source.ts). Match CodeMirror
-     .cm-searchMatch / .cm-searchMatch-selected (content-renderer/utils.ts);
-     ::highlight() only allows color/background/text-decoration properties. */
-  ::highlight(span-search-match) {
-    background-color: hsl(var(--primary) / 0.3);
-  }
-
-  ::highlight(span-search-active) {
-    background-color: hsl(var(--primary));
-    color: hsl(var(--primary-foreground));
-  }
-
   .font-sans-landing {
     letter-spacing: 0.002em;
     font-weight: 450;
