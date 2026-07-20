@@ -10,14 +10,6 @@ export type IconLib = "lucide" | "tabler" | "phosphor" | "hugeicons" | "remix";
 
 export const ICON_LIBS: IconLib[] = ["lucide", "tabler", "phosphor", "hugeicons", "remix"];
 
-// Iconify set prefix per library ("lucide" never goes through Iconify — see index.tsx).
-export const ICONIFY_PREFIX: Record<Exclude<IconLib, "lucide">, string> = {
-  tabler: "tabler",
-  phosphor: "ph",
-  hugeicons: "hugeicons",
-  remix: "ri",
-};
-
 let current: IconLib = "lucide";
 // Global default icon stroke width (lucide's native default is 2). Per-call
 // strokeWidth props still win; the wrapper falls back to this when none is passed.
