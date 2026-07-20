@@ -1,8 +1,6 @@
 "use client";
 
-import { type ColumnDef } from "@tanstack/react-table";
 import ChartBuilder from "components/chart-builder";
-import { isEmpty, isNil, isObject } from "lodash";
 import {
   AlertCircle,
   Braces,
@@ -16,17 +14,16 @@ import {
   TableProperties,
 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import ExportSqlDialog from "@/components/sql/export-sql-dialog";
 import ParametersPanel from "@/components/sql/parameters-panel";
+import ResultsTable from "@/components/sql/results-table";
 import { useSqlEditorStore } from "@/components/sql/sql-editor-store";
 import TemplateEditor from "@/components/sql/template-editor";
 import { Button } from "@/components/ui/button";
 import ContentRenderer from "@/components/ui/content-renderer/index";
-import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store.tsx";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -35,6 +32,10 @@ import { track } from "@/lib/posthog";
 export default function EditorPanel() {
   const { projectId } = useParams();
   const [results, setResults] = useState<Record<string, any>[] | null>(null);
+  // Template that PRODUCED the current results. `results` survives a template
+  // switch (no remount on /sql/[id] nav), so keying storage off the selected
+  // template would save the old result shape's widths under the new template.
+  const [resultsTemplateId, setResultsTemplateId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -49,29 +50,6 @@ export default function EditorPanel() {
 
   const hasQuery = Boolean(template?.query?.trim());
   const hasResults = results !== null && results.length > 0;
-
-  const columns = useMemo<ColumnDef<any>[]>(() => {
-    if (results && !isEmpty(results)) {
-      return Object.keys(results[0]).map((column) => ({
-        id: column,
-        header: column,
-        accessorFn: (row: any) => {
-          const value = row[column];
-          if (isNil(value)) return "NULL";
-          if (isObject(value)) {
-            try {
-              const serialized = JSON.stringify(value);
-              return serialized.length > 100 ? `${serialized.slice(0, 100)}...` : serialized;
-            } catch {
-              return "[Object]";
-            }
-          }
-          return String(value);
-        },
-      }));
-    }
-    return [];
-  }, [results]);
 
   const cancelQuery = useCallback(() => {
     if (abortControllerRef.current) {
@@ -131,6 +109,7 @@ export default function EditorPanel() {
       const data = await response.json();
 
       setResults(Array.isArray(data) ? data : []);
+      setResultsTemplateId(template?.id ?? null);
       track("sql_editor", "query_executed");
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
@@ -156,7 +135,7 @@ export default function EditorPanel() {
         setIsLoading(false);
       }
     }
-  }, [projectId, template?.query, toast, getFormattedParameters]);
+  }, [projectId, template?.query, template?.id, toast, getFormattedParameters]);
 
   useHotkeys("meta+enter,ctrl+enter", executeQuery, {
     enableOnFormTags: ["input"],
@@ -237,6 +216,11 @@ export default function EditorPanel() {
                 <span>Parameters</span>
               </TabsTrigger>
             </TabsList>
+            {results !== null && !isLoading && !error && (
+              <span className="ml-3 text-xs text-muted-foreground whitespace-nowrap">
+                {results.length} {results.length === 1 ? "row" : "rows"}
+              </span>
+            )}
             <div className="ml-auto">
               {isLoading ? (
                 <Button onClick={cancelQuery} className="rounded-tr-none rounded-br-none border-r-0">
@@ -267,17 +251,10 @@ export default function EditorPanel() {
             <div className="flex overflow-hidden h-full">
               {renderContent({
                 success: (
-                  <InfiniteDataTableProvider>
-                    <InfiniteDataTable
-                      className="w-full"
-                      columns={columns}
-                      data={results || []}
-                      hasMore={false}
-                      isFetching={false}
-                      isLoading={false}
-                      fetchNextPage={() => {}}
-                    />
-                  </InfiniteDataTableProvider>
+                  <ResultsTable
+                    results={results || []}
+                    storageKey={`sql-results-column-sizing-${projectId}-${resultsTemplateId ?? "draft"}`}
+                  />
                 ),
                 loadingText: "Executing query...",
                 default: (
