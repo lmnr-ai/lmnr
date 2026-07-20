@@ -359,6 +359,7 @@ Route groups: `(auth)/layout.tsx` requires a session (redirects to `/sign-in`); 
 
 ## Checkpoints / Agent Versioning
 
+- **The whole pipeline is gated behind `CHECKPOINTS_ENABLED` (default off, LAM-1987)** — `Feature::Checkpoints` in `features/mod.rs`, backed by `env::checkpoints::ENABLED` (`env/checkpoints.rs`). The gate sits at two points: the producer call in `traces/processor.rs` (no checkpoint messages published) and the worker spawn in `main.rs` (no `CheckpointsHandler` workers). The queue/exchange declarations in `main.rs` stay unconditional so a mixed-flag fleet can't lose messages (an enabled producer node can publish while a disabled node runs alongside). Set `CHECKPOINTS_ENABLED=true` to re-enable.
 - Checkpoint text fields (`name`, `system_prompt`, `tool_definitions`, `model`) originate from user span data and can contain a NUL byte (`0x00`). Postgres `text` columns reject it ("invalid byte sequence for encoding UTF8: 0x00"), which surfaced as `Failed to process checkpoint` errors from `checkpoints::consumer`. The DB write helpers in `app-server/src/db/agents.rs` run every user-controlled string through `crate::utils::sanitize_string` (strips NUL + other control chars, keeps `\n`/`\t`) — the same helper used on the ClickHouse insert path. `version_hash` is hex so it's left untouched. Sanitize at the Postgres write boundary, not at hash time, so dedup hashing keeps the original bytes.
 
 ## Evaluations Page (groups + table)
