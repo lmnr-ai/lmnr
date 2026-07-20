@@ -1,6 +1,7 @@
 "use client";
 
 import { TooltipPortal } from "@radix-ui/react-tooltip";
+import { Zap } from "lucide-react";
 
 import { TokensBreakdown } from "@/components/traces/cells/tokens-breakdown";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -27,12 +28,16 @@ export function TokensCell({ stats, className, showCacheInline = false }: Tokens
     <TooltipProvider delayDuration={250}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <span className={cn("truncate", className)}>
-            {formatTokensCompact(stats.inputTokens)}
+          <span className={cn("inline-flex items-center gap-1 truncate", className)}>
+            <span>{formatTokensCompact(stats.inputTokens)}</span>
             {showCacheInline && cacheReadInputTokens > 0 && (
-              <span className="text-success-bright"> ({formatTokensCompact(cacheReadInputTokens)})</span>
-            )}{" "}
-            {"→"} {formatTokensCompact(stats.outputTokens)}{" "}
+              <span className="inline-flex items-center text-success-bright">
+                <Zap size={11} className="shrink-0" />
+                {formatTokensCompact(cacheReadInputTokens)}
+              </span>
+            )}
+            <span>{"→"}</span>
+            <span>{formatTokensCompact(stats.outputTokens)}</span>
             <span className="text-muted-foreground">({formatTokensCompact(totalTokens)})</span>
           </span>
         </TooltipTrigger>

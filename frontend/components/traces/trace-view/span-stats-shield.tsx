@@ -1,4 +1,4 @@
-import { ArrowRight, CircleDollarSign, Clock3, Coins } from "lucide-react";
+import { ArrowRight, CircleDollarSign, Clock3, Coins, Zap } from "lucide-react";
 
 import { durationMsBetween, formatCostNumber, formatDurationMs, formatTokensCompact } from "@/lib/traces/format";
 import { cn } from "@/lib/utils";
@@ -45,7 +45,10 @@ export function SpanStatsShield({
           <Coins size={isInline ? 12 : 14} className={cn("min-w-3 min-h-3", isInline ? "size-3" : "size-3.5")} />
           <span>{formatTokensCompact(inputTokens ?? 0)}</span>
           {!!cacheReadInputTokens && (
-            <span className="text-success-bright">({formatTokensCompact(cacheReadInputTokens)})</span>
+            <span className="inline-flex items-center text-success-bright">
+              <Zap size={11} className="shrink-0" />
+              {formatTokensCompact(cacheReadInputTokens)}
+            </span>
           )}
           <ArrowRight size={12} />
           <span>{formatTokensCompact(outputTokens ?? 0)}</span>
