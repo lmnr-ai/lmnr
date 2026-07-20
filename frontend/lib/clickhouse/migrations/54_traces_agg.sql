@@ -41,8 +41,8 @@ CREATE TABLE IF NOT EXISTS default.traces_agg
         Array(Enum8('DEFAULT' = 0, 'EVALUATION' = 1, 'EVENT' = 2, 'PLAYGROUND' = 3))),
     -- debug-only: insert wall-clock, folds to first-seen; not exposed in the view
     `created_at` SimpleAggregateFunction(min, DateTime64(9, 'UTC')) DEFAULT now64(9),
-    `agent_input` SimpleAggregateFunction(anyLast, String),
-    `agent_output` AggregateFunction(anyLast, String),
+    `agent_input` SimpleAggregateFunction(max, String),
+    `agent_output` SimpleAggregateFunction(max, String),
     PROJECTION p_start_time
     (
         SELECT *
@@ -144,8 +144,8 @@ FROM (
         groupUniqArrayArray(tags) AS tags,
         max(has_browser_session) AS has_browser_session,
         groupUniqArrayArray(span_names) AS span_names,
-        anyLast(agent_input) AS agent_input,
-        anyLast(agent_output) AS agent_output
+        max(agent_input) AS agent_input,
+        max(agent_output) AS agent_output
     FROM (
         SELECT *
         FROM default.traces_agg
