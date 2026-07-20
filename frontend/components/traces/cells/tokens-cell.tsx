@@ -28,13 +28,11 @@ export function TokensCell({ stats, className, showCacheInline = false }: Tokens
       <Tooltip>
         <TooltipTrigger asChild>
           <span className={cn("truncate", className)}>
+            {formatTokensCompact(stats.inputTokens)}
             {showCacheInline && cacheReadInputTokens > 0 && (
-              <>
-                <span className="text-success-bright">{formatTokensCompact(cacheReadInputTokens)}</span>
-                <span className="text-muted-foreground"> / </span>
-              </>
-            )}
-            {formatTokensCompact(stats.inputTokens)} {"→"} {formatTokensCompact(stats.outputTokens)}{" "}
+              <span className="text-success-bright"> ({formatTokensCompact(cacheReadInputTokens)})</span>
+            )}{" "}
+            {"→"} {formatTokensCompact(stats.outputTokens)}{" "}
             <span className="text-muted-foreground">({formatTokensCompact(totalTokens)})</span>
           </span>
         </TooltipTrigger>

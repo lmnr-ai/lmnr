@@ -13,6 +13,10 @@ export function TokensBreakdown({ stats, labelPrefix }: TokensBreakdownProps) {
 
   return (
     <>
+      <MetricBreakdownRow
+        label={prefixedLabel("Input tokens", labelPrefix)}
+        value={formatTokensFull(stats.inputTokens)}
+      />
       {!!stats.cacheReadInputTokens && (
         <MetricBreakdownRow
           label={prefixedLabel("Cache input tokens", labelPrefix)}
@@ -20,10 +24,6 @@ export function TokensBreakdown({ stats, labelPrefix }: TokensBreakdownProps) {
           highlight
         />
       )}
-      <MetricBreakdownRow
-        label={prefixedLabel("Input tokens", labelPrefix)}
-        value={formatTokensFull(stats.inputTokens)}
-      />
       <MetricBreakdownRow
         label={prefixedLabel("Output tokens", labelPrefix)}
         value={formatTokensFull(stats.outputTokens)}

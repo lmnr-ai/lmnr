@@ -154,6 +154,12 @@ export const InputTokenBreakdown = ({ span }: { span: Span }) => {
           <span className="text-secondary-foreground">Input tokens</span>
           <span className="tabular-nums">{numberFormat.format(span.inputTokens || 0)}</span>
         </div>
+        {cacheReadFallback > 0 && (
+          <div className="flex justify-between text-xs gap-4 text-success-bright">
+            <span>Cache input tokens</span>
+            <span className="tabular-nums">{numberFormat.format(cacheReadFallback)}</span>
+          </div>
+        )}
         <div className="flex justify-between text-xs gap-4">
           <span className="text-secondary-foreground">Output tokens</span>
           <span className="tabular-nums">{numberFormat.format(span.outputTokens || 0)}</span>
@@ -162,12 +168,6 @@ export const InputTokenBreakdown = ({ span }: { span: Span }) => {
           <div className="flex justify-between text-xs gap-4">
             <span className="text-secondary-foreground">Reasoning tokens</span>
             <span className="tabular-nums">{numberFormat.format(reasoningFallback)}</span>
-          </div>
-        )}
-        {cacheReadFallback > 0 && (
-          <div className="flex justify-between text-xs gap-4 text-success-bright">
-            <span>Cache input tokens</span>
-            <span className="tabular-nums">{numberFormat.format(cacheReadFallback)}</span>
           </div>
         )}
       </div>
