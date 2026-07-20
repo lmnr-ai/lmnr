@@ -3,11 +3,22 @@
 import { useState } from "react";
 
 import Assorted from "./assorted";
+import { callsiteCounts } from "./callsite-counts";
 import Grid from "./grid";
 import Preview from "./preview";
 import { notPreviewable, registry } from "./registry";
 
 const ASSORTED = "Assorted";
+
+// Small right-aligned callsite count shown next to each sidebar item.
+function Count({ name }: { name: string }) {
+  const n = callsiteCounts[name] ?? 0;
+  return (
+    <span className="ml-auto shrink-0 tabular-nums text-[11px] text-muted-foreground/50" title={`${n} callsites`}>
+      {n}
+    </span>
+  );
+}
 
 export default function UiGallery() {
   const [selectedName, setSelectedName] = useState<string>(ASSORTED);
@@ -35,13 +46,14 @@ export default function UiGallery() {
           <button
             key={e.name}
             onClick={() => setSelectedName(e.name)}
-            className={`rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
+            className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
               e.name === selectedName
                 ? "bg-muted font-medium text-foreground"
                 : "text-muted-foreground hover:bg-muted/50"
             }`}
           >
             {e.name}
+            <Count name={e.name} />
           </button>
         ))}
 
@@ -49,8 +61,13 @@ export default function UiGallery() {
           Needs app context
         </div>
         {notPreviewable.map((n) => (
-          <div key={n.name} className="px-2 py-1 text-xs text-muted-foreground/50" title={n.reason}>
+          <div
+            key={n.name}
+            className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground/50"
+            title={n.reason}
+          >
             {n.name}
+            <Count name={n.name} />
           </div>
         ))}
       </aside>
