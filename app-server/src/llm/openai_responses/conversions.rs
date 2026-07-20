@@ -69,7 +69,9 @@ pub fn provider_request_to_responses_body(model: &str, request: &ProviderRequest
             .and_then(|tc| tc.thinking_level.as_ref())
             .and_then(thinking_level_to_effort)
         {
-            body["reasoning"] = json!({ "effort": effort });
+            // `summary: "auto"` requests a reasoning summary (richest available)
+            // so summary text is returned alongside the answer.
+            body["reasoning"] = json!({ "effort": effort, "summary": "auto" });
         }
     }
 
@@ -462,6 +464,7 @@ mod tests {
         assert_eq!(tools[0]["parameters"]["type"], "object");
         // Responses allows reasoning + tools together.
         assert_eq!(body["reasoning"]["effort"], "high");
+        assert_eq!(body["reasoning"]["summary"], "auto");
         assert_eq!(body["max_output_tokens"], 100);
         assert!(body.get("temperature").is_none());
     }
@@ -494,7 +497,11 @@ mod tests {
                 .iter()
                 .any(|p| p.thought == Some(true) && p.text.as_deref() == Some("thinking"))
         );
-        assert!(parts.iter().any(|p| p.text.as_deref() == Some("hello there")));
+        assert!(
+            parts
+                .iter()
+                .any(|p| p.text.as_deref() == Some("hello there"))
+        );
         let usage = resp.usage_metadata.unwrap();
         assert_eq!(usage.prompt_token_count, Some(10));
         assert_eq!(usage.candidates_token_count, Some(20));
