@@ -2,9 +2,20 @@
 
 // TEMPORARY style exploration tooling — safe to delete this folder + the mount in layout.tsx.
 // Holds the full editable theme state and live-applies it to document.documentElement via
-// inline custom-property overrides. Does NOT persist anywhere.
+// inline custom-property overrides. Persists into a single base64 `style` query param so a
+// theme can be shared by copying the URL.
 
-import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useQueryState } from "nuqs";
+import {
+  createContext,
+  type PropsWithChildren,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
   BINDING_KEYS,
@@ -22,8 +33,6 @@ import {
   type SurfaceEndpoints,
   type SurfacePoint,
 } from "./tokens";
-
-const STORAGE_KEY = "lmnr-style-explorer-v1";
 
 // Every custom property the panel can write — used to fully clear overrides on reset.
 const MANAGED_PROPERTIES: string[] = [
@@ -122,20 +131,32 @@ function validateState(parsed: unknown): StyleState {
   return s as StyleState;
 }
 
-// Read persisted state on the client; fall back to fresh defaults (and on SSR).
-function loadInitial(): StyleState {
-  if (typeof window === "undefined") return freshState();
+// Serialize the whole state into a URL-safe base64 blob for the `style` query param.
+function encodeState(state: StyleState): string {
+  return btoa(encodeURIComponent(JSON.stringify(state)));
+}
+
+// Decode + validate the `style` param; fall back to fresh defaults on missing/corrupt input.
+function decodeState(param: string | null): StyleState {
+  if (!param) return freshState();
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw) return validateState(JSON.parse(raw));
+    return validateState(JSON.parse(decodeURIComponent(atob(param))));
   } catch {
     /* corrupt/old payload — fall through to defaults */
+    return freshState();
   }
-  return freshState();
 }
 
 export function StyleProvider({ children }: PropsWithChildren) {
-  const [state, setState] = useState<StyleState>(loadInitial);
+  // Single base64 query param is the persistence layer — copy the URL to share a theme.
+  // Throttled + history:replace so rapid slider drags don't spam browser history.
+  const [styleParam, setStyleParam] = useQueryState("style", { history: "replace", throttleMs: 300 });
+
+  // Seed once from the param present at first render (or defaults if missing/corrupt).
+  const [state, setState] = useState<StyleState>(() => decodeState(styleParam));
+
+  // Skip the URL write for the initial mount and for resetAll (which clears the param).
+  const skipSyncRef = useRef(true);
 
   // Apply persisted state to the document once on mount so it survives reloads.
   useEffect(() => {
@@ -143,26 +164,24 @@ export function StyleProvider({ children }: PropsWithChildren) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist on every change.
+  // Persist on every change into the URL param (nuqs throttles the writes).
   useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      /* quota/unavailable — non-fatal for a dev tool */
+    if (skipSyncRef.current) {
+      skipSyncRef.current = false;
+      return;
     }
+    void setStyleParam(encodeState(state));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
   const resetAll = useCallback(() => {
-    try {
-      window.localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      /* ignore */
-    }
+    void setStyleParam(null);
     if (typeof document !== "undefined") {
       for (const prop of MANAGED_PROPERTIES) document.documentElement.style.removeProperty(prop);
     }
+    skipSyncRef.current = true; // don't let the sync effect re-write the default over the cleared param
     setState(freshState());
-  }, []);
+  }, [setStyleParam]);
 
   const setPoint = useCallback((curve: CurveKey, key: string, t: number, l: number) => {
     setState((prev) => ({
