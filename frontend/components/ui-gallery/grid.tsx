@@ -11,6 +11,8 @@ interface GridProps {
 
 export default function Grid({ entry }: GridProps) {
   const { Component, defaultProps, sampleChildren } = entry;
+  // Fixed-sample entries have no variants to sweep — nothing to grid.
+  if (!Component || !entry.variants) return null;
   const { combos, capped, total } = cartesian(entry.variants, CELL_CAP);
 
   return (

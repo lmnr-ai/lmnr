@@ -11,20 +11,33 @@ interface PreviewProps {
 }
 
 export default function Preview({ entry }: PreviewProps) {
-  const [selection, setSelection] = useState<Record<string, string>>(() => initialSelection(entry.variants));
+  const variants = entry.variants ?? {};
+  const [selection, setSelection] = useState<Record<string, string>>(() => initialSelection(variants));
+
+  // Fixed-sample entry: render the composition as-is, no controls.
+  if (entry.sample !== undefined) {
+    return (
+      <div className="flex min-h-24 items-center justify-center rounded-md border border-border bg-background p-8">
+        {entry.sample}
+      </div>
+    );
+  }
+
   const { Component, defaultProps, sampleChildren } = entry;
 
   return (
     <div className="flex flex-col gap-4">
       <Controls
-        variants={entry.variants}
+        variants={variants}
         selection={selection}
         onChange={(key, value) => setSelection((prev) => ({ ...prev, [key]: value }))}
       />
       <div className="flex min-h-24 items-center justify-center rounded-md border border-border bg-background p-8">
-        <Component {...defaultProps} {...selection}>
-          {sampleChildren}
-        </Component>
+        {Component && (
+          <Component {...defaultProps} {...selection}>
+            {sampleChildren}
+          </Component>
+        )}
       </div>
     </div>
   );
