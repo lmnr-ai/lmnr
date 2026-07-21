@@ -163,21 +163,24 @@ impl UserTaskLockState {
         self.roster.iter().any(|e| e.span_id == span_id)
     }
 
-    /// CRDT-ish merge with a concurrently-written lock: shallower depth
-    /// wins wholesale; at equal depth rosters union (earliest-N) and the
-    /// stronger winner survives. Used by the guarded write-back so a
-    /// get-then-set race degrades to a slightly stale roster, never to a
-    /// rolled-back winner.
+    /// CRDT-ish merge with a concurrently-written lock: the shallower
+    /// depth's roster wins wholesale (equal depth → rosters union,
+    /// earliest-N), while the winner merges INDEPENDENTLY of depth — the
+    /// stronger by [`WinnerState::beats`] survives from either side.
+    /// The winner may legitimately sit deeper than the lock's depth
+    /// (no-winner eligibility bypass), so folding it under the depth
+    /// axis would silently drop a deeper published winner on every
+    /// shallow reset. Used by the guarded write-back so a get-then-set
+    /// race degrades to a slightly stale roster, never to a rolled-back
+    /// winner.
     pub fn merge_from(&mut self, other: &Self) {
-        if other.depth > self.depth {
-            return;
-        }
         if other.depth < self.depth {
-            *self = other.clone();
-            return;
-        }
-        for entry in &other.roster {
-            self.register(entry.clone());
+            self.depth = other.depth;
+            self.roster = other.roster.clone();
+        } else if other.depth == self.depth {
+            for entry in &other.roster {
+                self.register(entry.clone());
+            }
         }
         match (&self.winner, &other.winner) {
             (Some(w), Some(ow)) if ow.beats(w) => self.winner = other.winner.clone(),
@@ -188,27 +191,20 @@ impl UserTaskLockState {
 
     /// Does the current lock supersede a queued candidate's snapshot —
     /// i.e. should the queued extraction drop instead of publishing?
-    /// Only a strictly stronger PUBLISHED winner supersedes — NEVER
-    /// depth alone: a shallower batch resets the lock to `winner: None`
-    /// and that reset persists even when its own publish/enqueue FAILED,
-    /// so dropping the queued deeper extraction on depth would leave
-    /// `lmnr_user_task` unset for the whole lock TTL. Publishing the
-    /// deeper value is strictly better — a later shallow success
-    /// overwrites it (same key, `no_winner_yet` keeps shallow candidates
-    /// eligible). An equal winner is this candidate's own producer
-    /// write; a weaker same-depth one is stale state the snapshot
-    /// already overrode.
+    /// Only a strictly stronger PUBLISHED winner supersedes (depth-major
+    /// via [`WinnerState::beats`]) — NEVER the lock's own `depth`: a
+    /// shallower batch resets `depth` with `winner: None` even when its
+    /// publish/enqueue FAILED, and under the no-winner eligibility
+    /// bypass the published winner can sit DEEPER than `lock.depth` —
+    /// judging by lock depth would drop that winner's own queued
+    /// extraction and leave `lmnr_user_task` unset for the whole TTL.
+    /// An equal winner is this candidate's own producer write; a
+    /// non-beating one is stale state the snapshot already overrode (or
+    /// a deeper interim value a shallower snapshot must overwrite).
     pub fn supersedes(&self, snapshot: &WinnerState) -> bool {
-        let Some(winner) = &self.winner else {
-            return false;
-        };
-        if self.depth < snapshot.depth {
-            return true;
-        }
-        if self.depth > snapshot.depth {
-            return false;
-        }
-        winner != snapshot && winner.beats(snapshot)
+        self.winner
+            .as_ref()
+            .is_some_and(|w| w != snapshot && w.beats(snapshot))
     }
 }
 
@@ -429,23 +425,31 @@ mod tests {
     }
 
     #[test]
-    fn merge_prefers_shallower_then_unions_rosters_and_stronger_winner() {
+    fn merge_prefers_shallower_roster_and_keeps_stronger_winner_across_depths() {
         let mut a = UserTaskLockState::new(3);
         a.register(entry(10, "deep"));
         a.winner = Some(w(3, 100, 10, "deep"));
-        // Shallower other replaces wholesale.
+        // Shallower other replaces depth+roster but the winner axis is
+        // depth-independent: a published deeper winner SURVIVES a
+        // winner-less shallow reset (dropping it would let weaker
+        // candidates republish over the value that owns the metadata).
         let mut b = UserTaskLockState::new(2);
         b.register(entry(20, "shallow"));
         a.merge_from(&b);
         assert_eq!(a.depth, 2);
-        assert!(a.winner.is_none());
-        // Deeper other is ignored.
+        assert_eq!(a.roster.len(), 1);
+        assert!(a.roster.iter().any(|e| e.span_id == "shallow"));
+        assert_eq!(a.winner, Some(w(3, 100, 10, "deep")));
+        // Deeper other's roster is ignored, but its stronger winner
+        // still merges (depth-major beats: the depth-3 winner loses to
+        // nothing here, so a same-depth stronger one takes over).
         let mut c = UserTaskLockState::new(5);
-        c.winner = Some(w(5, 9000, 1, "x"));
+        c.winner = Some(w(3, 9000, 1, "x"));
         a.merge_from(&c);
         assert_eq!(a.depth, 2);
-        assert!(a.winner.is_none());
-        // Equal depth: rosters union, stronger winner survives.
+        assert_eq!(a.winner, Some(w(3, 9000, 1, "x")));
+        // Equal depth: rosters union; a shallower (stronger) winner
+        // replaces the deeper one.
         let mut d = UserTaskLockState::new(2);
         d.register(entry(5, "other"));
         d.winner = Some(w(2, 50, 5, "other"));
@@ -461,22 +465,23 @@ mod tests {
     #[test]
     fn supersedes_requires_strictly_stronger_published_winner() {
         let snapshot = w(2, 100, 50, "self");
-        // Shallower lock with a PUBLISHED winner supersedes.
+        // A shallower published winner supersedes (beats is depth-major).
         let mut shallow_published = UserTaskLockState::new(1);
         shallow_published.winner = Some(w(1, 10, 60, "main"));
         assert!(shallow_published.supersedes(&snapshot));
-        // Shallower lock with NO published winner must NOT drop the
-        // queued deeper extraction: a shallow batch resets the lock even
-        // when its own effect FAILED, and depth-alone supersession would
-        // leave lmnr_user_task unset for the whole TTL. The deeper value
-        // publishes; a later shallow success overwrites it.
+        // NO published winner never supersedes, regardless of the lock's
+        // depth: a shallow batch resets depth even when its own effect
+        // FAILED, and depth-alone supersession would drop the queued
+        // deeper extraction and leave lmnr_user_task unset for the TTL.
         assert!(!UserTaskLockState::new(1).supersedes(&snapshot));
-        // Deeper lock never supersedes.
-        let mut deep = UserTaskLockState::new(3);
-        deep.winner = Some(w(3, 9000, 1, "x"));
-        assert!(!deep.supersedes(&snapshot));
-        // Equal depth, no published winner: publish.
         assert!(!UserTaskLockState::new(2).supersedes(&snapshot));
+        // A deeper published winner never supersedes a shallower
+        // snapshot — the shallower value must overwrite it. The lock's
+        // own depth is irrelevant (the winner can sit deeper than
+        // lock.depth under the no-winner eligibility bypass).
+        let mut deep_winner = UserTaskLockState::new(1);
+        deep_winner.winner = Some(w(3, 9000, 1, "x"));
+        assert!(!deep_winner.supersedes(&snapshot));
         // Own producer write (winner == snapshot): publish.
         let mut own = UserTaskLockState::new(2);
         own.winner = Some(snapshot.clone());
@@ -501,6 +506,33 @@ mod tests {
         assert_eq!(back.depth, 3);
         assert!(back.roster.is_empty());
         assert!(back.winner.is_none());
+    }
+
+    #[test]
+    fn deeper_candidates_stay_eligible_after_failed_shallow_reset() {
+        // A shallow batch resets the lock but its effect fails: the
+        // persisted state is {depth: 1, winner: None}. A later deeper
+        // candidate must still be able to win — eligibility bypasses
+        // both the roster AND the depth gate while winner is None (the
+        // producer's `no_winner_yet` branch), and once the deeper value
+        // publishes, its winner merges in despite sitting deeper than
+        // lock.depth.
+        let mut lock = UserTaskLockState::new(1);
+        lock.register(entry(10, "shallow_failed"));
+        assert!(lock.winner.is_none());
+        let deeper = w(3, 500, 20, "subagent");
+        // merge_from folds the deeper published winner into the shallow
+        // lock (winner axis is depth-independent).
+        let mut publish_result = UserTaskLockState::new(deeper.depth);
+        publish_result.winner = Some(deeper.clone());
+        lock.merge_from(&publish_result);
+        assert_eq!(lock.depth, 1);
+        assert_eq!(lock.winner, Some(deeper.clone()));
+        // The deeper winner cannot drop a later shallower snapshot —
+        // the shallow spine reclaims ownership when it succeeds.
+        assert!(!lock.supersedes(&w(1, 10, 5, "main")));
+        // But it does supersede weaker same/deeper candidates.
+        assert!(lock.supersedes(&w(3, 100, 30, "other_subagent")));
     }
 
     #[test]

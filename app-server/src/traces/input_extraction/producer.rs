@@ -268,9 +268,19 @@ async fn process_trace_inputs(
         .map(|c| c.state.depth)
         .min()
         .unwrap_or(usize::MAX);
+    // A strictly shallower batch resets depth + roster (the previous
+    // roster was subagent-level) but CARRIES the published winner: the
+    // winner axis is independent of lock depth (`merge_from` keeps the
+    // stronger winner across depths too), so candidates keep challenging
+    // whatever value actually owns `lmnr_user_task` — forgetting it here
+    // would let a weaker candidate publish a redundant overwrite.
     let mut lock = match current {
         Some(l) if l.depth <= batch_min_depth => l,
-        _ => UserTaskLockState::new(batch_min_depth),
+        Some(l) => UserTaskLockState {
+            winner: l.winner,
+            ..UserTaskLockState::new(batch_min_depth)
+        },
+        None => UserTaskLockState::new(batch_min_depth),
     };
 
     // Register every contender at the lock's depth FIRST, then derive
@@ -280,12 +290,18 @@ async fn process_trace_inputs(
     // on span id), so snapshotting eligibility inside the loop could
     // publish a winner that isn't in the persisted window.
     //
-    // The roster window exists to stop late spans from OVERRIDING an
-    // already-published value — while `winner` is still None (first
-    // batch, or every earlier effect failed), an out-of-window candidate
-    // is still eligible: publishing something beats sealing the trace
-    // with nothing for the whole lock TTL, and under last-user-block
-    // extraction a later turn re-finds the same original task anyway.
+    // The window and depth gates exist to stop late/deep spans from
+    // OVERRIDING an already-published value — while `winner` is still
+    // None (first batch, or every earlier effect failed) NEITHER gates:
+    // publishing something beats sealing the trace with nothing for the
+    // whole lock TTL. The depth bypass matters when a shallow batch's
+    // effect failed and every later batch carries only deeper (subagent)
+    // candidates — gating those out would leave `lmnr_user_task` unset
+    // forever, where the pre-roster design published the deeper value
+    // and let a later shallower span override it. `beats` is depth-major,
+    // so shallow candidates still always win whenever they're present,
+    // and a deeper published winner stays overridable by any shallower
+    // span (`supersedes` never drops a shallower snapshot on it).
     let no_winner_yet = lock.winner.is_none();
     for contender in &trace_contenders {
         if contender.state.depth != lock.depth {
@@ -297,8 +313,10 @@ async fn process_trace_inputs(
         });
     }
     let eligible = trace_contenders.iter().filter(|c| {
-        c.state.depth == lock.depth
-            && (no_winner_yet || lock.roster.iter().any(|e| e.span_id == c.state.span_id))
+        if no_winner_yet {
+            return true;
+        }
+        c.state.depth == lock.depth && lock.roster.iter().any(|e| e.span_id == c.state.span_id)
     });
 
     let challenger = eligible.reduce(|best, c| if c.state.beats(&best.state) { c } else { best });
