@@ -13,6 +13,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use backoff::ExponentialBackoffBuilder;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -185,6 +186,10 @@ impl UserTaskLockState {
 /// the guarded section (one cache round-trip); only a crashed worker
 /// ever runs it out.
 const LOCK_WRITE_MUTEX_TTL_SECONDS: u64 = 5;
+/// First retry delay for mutex acquisition (grows exponentially).
+const LOCK_WRITE_MUTEX_INITIAL_BACKOFF_MS: u64 = 5;
+/// Total time budget for mutex acquisition before failing open.
+const LOCK_WRITE_MUTEX_MAX_ELAPSED_MS: u64 = 200;
 
 /// Merge-guarded lock write-back, serialized under a short cache mutex:
 /// re-read the lock and [`UserTaskLockState::merge_from`] the local state
@@ -193,9 +198,11 @@ const LOCK_WRITE_MUTEX_TTL_SECONDS: u64 = 5;
 /// TOCTOU — without it two concurrent writers can both read the same
 /// stale snapshot and the weaker last write would drop the stronger
 /// winner, letting a medium-strength candidate republish over the true
-/// `lmnr_user_task` later. Acquisition is bounded retry, then FAIL OPEN
-/// (an unserialized merge beats losing the write entirely — every field
-/// still folds monotonically); best-effort like every lock write.
+/// `lmnr_user_task` later. Acquisition retries with the conventional
+/// `backoff` crate (like `generate.rs::call_llm`) under a short elapsed
+/// budget, then FAILS OPEN (an unserialized merge beats losing the write
+/// entirely — every field still folds monotonically); best-effort like
+/// every lock write.
 pub async fn write_lock_merged(
     cache: &Arc<Cache>,
     lock_key: &str,
@@ -203,24 +210,26 @@ pub async fn write_lock_merged(
     trace_id: Uuid,
 ) {
     let mutex_key = format!("{lock_key}:mx");
-    let mut mutex_held = false;
-    for backoff_ms in [0u64, 5, 15, 40, 100] {
-        if backoff_ms > 0 {
-            tokio::time::sleep(Duration::from_millis(backoff_ms)).await;
-        }
+    let backoff = ExponentialBackoffBuilder::new()
+        .with_initial_interval(Duration::from_millis(LOCK_WRITE_MUTEX_INITIAL_BACKOFF_MS))
+        .with_max_elapsed_time(Some(Duration::from_millis(LOCK_WRITE_MUTEX_MAX_ELAPSED_MS)))
+        .build();
+    let mutex_held = backoff::future::retry(backoff, || async {
         match cache
             .try_acquire_lock(&mutex_key, LOCK_WRITE_MUTEX_TTL_SECONDS)
             .await
         {
-            Ok(true) => {
-                mutex_held = true;
-                break;
-            }
-            Ok(false) => continue,
+            Ok(true) => Ok(()),
+            // Held by a concurrent writer: retry within the budget.
+            Ok(false) => Err(backoff::Error::transient(anyhow::anyhow!(
+                "lock write mutex held"
+            ))),
             // Cache errors: don't spin, fall through to the open write.
-            Err(_) => break,
+            Err(e) => Err(backoff::Error::permanent(anyhow::anyhow!("{e:?}"))),
         }
-    }
+    })
+    .await
+    .is_ok();
 
     let mut merged: UserTaskLockState = cache
         .get(lock_key)
