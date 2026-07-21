@@ -172,8 +172,8 @@ export default function AlertsManager({ projectId, workspaceId, userEmail, fixed
                     }
                   }}
                   className={cn(
-                    "group relative flex cursor-pointer flex-col gap-3 rounded-lg border border-surface-400 bg-surface-200 px-4.5 py-4",
-                    "transition-[filter] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:brightness-125",
+                    "group relative flex cursor-pointer flex-col gap-3 rounded-lg border border-surface-400 bg-surface-200 [--surface-raise:var(--color-surface-300)] px-4.5 py-4",
+                    "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-[var(--surface-raise)]",
                     isDisabled && "border-dashed opacity-70"
                   )}
                 >

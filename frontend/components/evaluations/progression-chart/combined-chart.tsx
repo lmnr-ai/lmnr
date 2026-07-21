@@ -231,7 +231,7 @@ function NormalizedTooltip({
   const row = payload[0]?.payload;
   if (!row) return null;
   return (
-    <div className="rounded-md border bg-background p-2 text-xs shadow-md">
+    <div className="rounded-md border border-surface-700 bg-surface-500 p-2 text-xs shadow-elevation-500">
       <div className="font-medium truncate max-w-60">{row.name}</div>
       <div className="text-muted-foreground mb-1">{formatTimestamp(row.timestamp)}</div>
       <div className="space-y-1">

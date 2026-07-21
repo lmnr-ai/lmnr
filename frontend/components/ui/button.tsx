@@ -61,13 +61,13 @@ const buttonVariants = cva(
         warning: "bg-amber-600 text-white shadow-sm hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600",
         warningOutline: "border border-amber-500 text-amber-600 dark:text-amber-500 shadow-sm hover:bg-amber-500/10",
         outline:
-          "border border-border hover:bg-foreground/10 shadow-[inset_0_0_4px_0] shadow-surface-500/30 bg-surface-500/20 hover:shadow-surface-500/50",
+          "border border-border hover:bg-[var(--surface-raise)] shadow-[inset_0_0_4px_0] shadow-surface-500/30 bg-surface-500/20 hover:shadow-surface-500/50",
         outlinePrimary:
           "border border-primary-400/50 bg-primary-400/8 hover:bg-primary/24 text-primary-300 shadow-[inset_0_0_12px_0] shadow-primary-400/10",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/60 border border-secondary-foreground/20",
         secondaryLight: "bg-secondary text-secondary-foreground hover:bg-secondary/60",
         ghost:
-          "hover:bg-foreground/10 hover:text-accent-foreground/80 data-[state=open]:bg-foreground/15 data-[state=open]:text-foreground-200 data-[active=true]:bg-foreground/15 data-[active=true]:text-foreground-200",
+          "hover:bg-[var(--surface-raise)] hover:text-accent-foreground/80 data-[state=open]:bg-[var(--surface-raise)] data-[state=open]:text-foreground-200 data-[active=true]:bg-[var(--surface-raise)] data-[active=true]:text-foreground-200",
         light: "bg-white/90 text-black/90 hover:bg-white/60 border-white/20 border hover:border-white/50",
         lightSecondary: "bg-white/10 text-white/80 hover:bg-white/20 border-white/20 border hover:border-white/50",
         link: "text-primary underline-offset-4 hover:underline",

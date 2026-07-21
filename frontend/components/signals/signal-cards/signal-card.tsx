@@ -41,7 +41,7 @@ export default function SignalCard({
     >
       <Card
         className={cn(
-          "hover:border-primary/40 transition-colors h-full",
+          "hover:bg-[var(--surface-raise)] transition-colors h-full",
           signal.disabled && "border-dashed bg-muted/30"
         )}
       >

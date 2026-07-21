@@ -33,12 +33,32 @@ export const SURFACE_SHADOW: Record<number, string> = {
   8: "shadow-elevation-800",
 };
 
+// Each surface publishes `--surface-raise` = the fill one level lighter than itself,
+// which interactive descendants consume as `hover:bg-[var(--surface-raise)]`. That keeps
+// hover/highlight one step up the scale relative to whatever surface an element sits on,
+// with no per-element level math and no collision with the substrate.
+export const SURFACE_RAISE: Record<number, string> = {
+  1: "[--surface-raise:var(--color-surface-200)]",
+  2: "[--surface-raise:var(--color-surface-300)]",
+  3: "[--surface-raise:var(--color-surface-400)]",
+  4: "[--surface-raise:var(--color-surface-500)]",
+  5: "[--surface-raise:var(--color-surface-600)]",
+  6: "[--surface-raise:var(--color-surface-700)]",
+  7: "[--surface-raise:var(--color-surface-800)]",
+  8: "[--surface-raise:var(--color-surface-800)]",
+};
+
 const clampLevel = (n: number): number => Math.round(Math.max(MIN_SURFACE, Math.min(MAX_SURFACE, n)));
+
+/** The arbitrary-property class that publishes `--surface-raise` for a surface at `level`. */
+export function raiseVar(level: number): string {
+  return SURFACE_RAISE[clampLevel(level)];
+}
 
 /** Returns "bg-surface-N shadow-elevation-M", clamped to 1..8 and rounded so a
  *  fractional level can't index out of the tables. shadow defaults to bg's level. */
 export function surfaceClasses(bgLevel: number, shadowLevel: number = bgLevel): string {
-  return `${SURFACE_BG[clampLevel(bgLevel)]} ${SURFACE_SHADOW[clampLevel(shadowLevel)]}`;
+  return `${SURFACE_BG[clampLevel(bgLevel)]} ${SURFACE_SHADOW[clampLevel(shadowLevel)]} ${SURFACE_RAISE[clampLevel(bgLevel)]}`;
 }
 
 // Per-elevation border colors drawn from the surface scale, so an edge reads as a
@@ -54,8 +74,8 @@ export const SURFACE_BORDER: Record<number, string> = {
   8: "border-surface-800",
 };
 
-/** The border color for a surface at `level`: two stops lighter (clamped) so the
- *  rim stands out against the surface's own fill. Pair with the `border` width. */
+/** The border color for a surface at `level`: three stops lighter (clamped) so the
+ *  rim reads clearly against the surface's own fill. Pair with the `border` width. */
 export function borderForLevel(level: number): string {
-  return SURFACE_BORDER[clampLevel(level + 2)];
+  return SURFACE_BORDER[clampLevel(level + 3)];
 }

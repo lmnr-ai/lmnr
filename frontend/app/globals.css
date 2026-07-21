@@ -46,7 +46,7 @@
   --font-sans-landing: var(--font-general-sans);
   --font-manrope: var(--font-manrope);
 
-  --color-border: var(--color-surface-300);
+  --color-border: var(--color-surface-400);
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
   --color-background: var(--color-surface-100);
@@ -575,6 +575,10 @@
 @layer base {
   :root {
     --radius: 0.5rem;
+
+    /* Default interactive-raise fill (base substrate + 1). Surfaces override this on
+       themselves via raiseVar()/surfaceClasses so hover tracks their own level. */
+    --surface-raise: var(--color-surface-200);
 
     --background: 0 0% 4%;
     --foreground: 0 8% 90%;
