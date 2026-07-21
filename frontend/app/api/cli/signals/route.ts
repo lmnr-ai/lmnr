@@ -58,10 +58,13 @@ const TriggerFilterSchema = z.union([
       operator: z.enum(["eq", "ne", "gt", "gte", "lt", "lte"]),
       value: z.union([
         z.number(),
+        // Trim before validating AND storing: Number() trims but the Rust
+        // evaluator's parse::<f64>() does not, so a stored " 1000 " would make
+        // the filter permanently false. Number("") is 0, hence the length check.
         z
           .string()
-          // Number(" ") is 0, so a whitespace-only string would otherwise pass.
-          .refine((v) => v.trim().length > 0 && Number.isFinite(Number(v)), {
+          .transform((v) => v.trim())
+          .refine((v) => v.length > 0 && Number.isFinite(Number(v)), {
             message: "Value must be a number",
           }),
       ]),
