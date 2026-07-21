@@ -46,7 +46,7 @@ export function InfiniteTableCell<TData extends RowData>({ cell }: InfiniteTable
         // Opaque baseline + row-state overlays (named `group/row` on TableRow)
         // so the pinned cell reads correctly as OTHER columns scroll underneath it.
         isPinned &&
-          "bg-secondary border-r shadow-[2px_0_6px_-2px_rgba(0,0,0,0.35)] group-hover/row:bg-muted/50 group-data-[state=selected]/row:bg-primary/15 group-data-[focused=true]/row:bg-muted"
+          "bg-secondary border-r shadow-[2px_0_6px_-2px_rgba(0,0,0,0.35)] group-hover/row:bg-surface-300 group-data-[state=selected]/row:bg-primary/15 group-data-[focused=true]/row:bg-surface-400"
       )}
       key={cell.id}
       style={{

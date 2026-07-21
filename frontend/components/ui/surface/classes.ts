@@ -33,45 +33,29 @@ export const SURFACE_SHADOW: Record<number, string> = {
   8: "shadow-elevation-800",
 };
 
-// Interactive-state variants of the ramp, prefixed so a component can lift its
-// hover / open / active fill relative to its substrate instead of a fixed color.
-export const SURFACE_HOVER_BG: Record<number, string> = {
-  1: "hover:bg-surface-100",
-  2: "hover:bg-surface-200",
-  3: "hover:bg-surface-300",
-  4: "hover:bg-surface-400",
-  5: "hover:bg-surface-500",
-  6: "hover:bg-surface-600",
-  7: "hover:bg-surface-700",
-  8: "hover:bg-surface-800",
-};
-
-export const SURFACE_OPEN_BG: Record<number, string> = {
-  1: "data-[state=open]:bg-surface-100",
-  2: "data-[state=open]:bg-surface-200",
-  3: "data-[state=open]:bg-surface-300",
-  4: "data-[state=open]:bg-surface-400",
-  5: "data-[state=open]:bg-surface-500",
-  6: "data-[state=open]:bg-surface-600",
-  7: "data-[state=open]:bg-surface-700",
-  8: "data-[state=open]:bg-surface-800",
-};
-
-export const SURFACE_ACTIVE_BG: Record<number, string> = {
-  1: "data-[active=true]:bg-surface-100",
-  2: "data-[active=true]:bg-surface-200",
-  3: "data-[active=true]:bg-surface-300",
-  4: "data-[active=true]:bg-surface-400",
-  5: "data-[active=true]:bg-surface-500",
-  6: "data-[active=true]:bg-surface-600",
-  7: "data-[active=true]:bg-surface-700",
-  8: "data-[active=true]:bg-surface-800",
-};
-
 const clampLevel = (n: number): number => Math.round(Math.max(MIN_SURFACE, Math.min(MAX_SURFACE, n)));
 
 /** Returns "bg-surface-N shadow-elevation-M", clamped to 1..8 and rounded so a
  *  fractional level can't index out of the tables. shadow defaults to bg's level. */
 export function surfaceClasses(bgLevel: number, shadowLevel: number = bgLevel): string {
   return `${SURFACE_BG[clampLevel(bgLevel)]} ${SURFACE_SHADOW[clampLevel(shadowLevel)]}`;
+}
+
+// Per-elevation border colors drawn from the surface scale, so an edge reads as a
+// lighter rim on top of its own surface. Literal names for the Tailwind scanner.
+export const SURFACE_BORDER: Record<number, string> = {
+  1: "border-surface-100",
+  2: "border-surface-200",
+  3: "border-surface-300",
+  4: "border-surface-400",
+  5: "border-surface-500",
+  6: "border-surface-600",
+  7: "border-surface-700",
+  8: "border-surface-800",
+};
+
+/** The border color for a surface at `level`: two stops lighter (clamped) so the
+ *  rim stands out against the surface's own fill. Pair with the `border` width. */
+export function borderForLevel(level: number): string {
+  return SURFACE_BORDER[clampLevel(level + 2)];
 }

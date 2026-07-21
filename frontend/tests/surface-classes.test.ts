@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { SURFACE_ACTIVE_BG, SURFACE_HOVER_BG, SURFACE_OPEN_BG, surfaceClasses } from "@/components/ui/surface/classes";
+import { borderForLevel, surfaceClasses } from "@/components/ui/surface/classes";
 
 test("surfaceClasses maps a level (1..8) to its hundreds bg + shadow utility", () => {
   assert.equal(surfaceClasses(1), "bg-surface-100 shadow-elevation-100");
@@ -26,9 +26,9 @@ test("surfaceClasses rounds fractional levels so it never indexes out of the tab
   assert.equal(surfaceClasses(2.6), "bg-surface-300 shadow-elevation-300");
 });
 
-test("interactive-state maps carry the prefixed hundreds utility per level", () => {
-  assert.equal(SURFACE_HOVER_BG[2], "hover:bg-surface-200");
-  assert.equal(SURFACE_HOVER_BG[8], "hover:bg-surface-800");
-  assert.equal(SURFACE_OPEN_BG[4], "data-[state=open]:bg-surface-400");
-  assert.equal(SURFACE_ACTIVE_BG[4], "data-[active=true]:bg-surface-400");
+test("borderForLevel picks a border two stops lighter, clamped to the top", () => {
+  assert.equal(borderForLevel(1), "border-surface-300");
+  assert.equal(borderForLevel(4), "border-surface-600");
+  assert.equal(borderForLevel(7), "border-surface-800");
+  assert.equal(borderForLevel(8), "border-surface-800");
 });

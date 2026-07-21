@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
+import { SURFACE_BG, useSurface } from "@/components/ui/surface";
 import { withOpacity } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
@@ -128,14 +129,18 @@ export default function ClusterItem({
 
   const icon = <ClusterIcon iconVariant={iconVariant} color={color} isSelected={isSelected} isPaywall={isPaywall} />;
 
+  // The row sits one surface above the list it lives in, so it reads as distinct.
+  const resting = SURFACE_BG[Math.min(useSurface() + 1, 8)];
+
   return (
     <>
       <button
         ref={buttonRef}
         className={cn(
-          "flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left transition-colors text-secondary-foreground w-full min-w-0",
+          "flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left transition-[filter,background-color] text-secondary-foreground w-full min-w-0",
+          resting,
           isPaywall ? "cursor-default" : "cursor-pointer",
-          !isPaywall && hovered && "bg-muted",
+          !isPaywall && hovered && "brightness-125",
           isSelected && "bg-sidebar-accent font-medium text-primary-foreground"
         )}
         onClick={isPaywall ? undefined : onClick}

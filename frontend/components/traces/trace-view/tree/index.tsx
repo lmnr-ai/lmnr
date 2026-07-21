@@ -154,7 +154,7 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
   }
 
   return (
-    <div ref={scrollRef} className="overflow-x-hidden overflow-y-auto grow relative h-full w-full styled-scrollbar">
+    <div ref={scrollRef} className="overflow-x-hidden overflow-y-auto grow relative h-full w-full styled-scrollbar scroll-fade-y">
       <div className="flex flex-col pb-[100px] pt-1">
         <div
           className="relative"

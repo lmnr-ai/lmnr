@@ -87,7 +87,6 @@ interface StyleContextValue {
   setHsl: (varName: string, value: string) => void;
   setBinding: (token: string, stop: string) => void;
   replaceState: (next: StyleState) => void;
-  applyToDocument: () => void;
   resetAll: () => void;
 }
 
@@ -204,6 +203,13 @@ export function StyleProvider({ children }: PropsWithChildren) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, iconLib, iconStroke]);
 
+  // Live-apply the theme to the document on every change (debounced) — no Save button.
+  useEffect(() => {
+    const id = setTimeout(() => applyState(state), 150);
+    return () => clearTimeout(id);
+     
+  }, [state]);
+
   const resetAll = useCallback(() => {
     void setStyleParam(null);
     if (typeof document !== "undefined") {
@@ -269,8 +275,6 @@ export function StyleProvider({ children }: PropsWithChildren) {
 
   const replaceState = useCallback((next: StyleState) => setState(next), []);
 
-  const applyToDocument = useCallback(() => applyState(state), [state]);
-
   const value = useMemo<StyleContextValue>(
     () => ({
       state,
@@ -281,7 +285,6 @@ export function StyleProvider({ children }: PropsWithChildren) {
       setHsl,
       setBinding,
       replaceState,
-      applyToDocument,
       resetAll,
     }),
     [
@@ -293,7 +296,6 @@ export function StyleProvider({ children }: PropsWithChildren) {
       setHsl,
       setBinding,
       replaceState,
-      applyToDocument,
       resetAll,
     ]
   );
