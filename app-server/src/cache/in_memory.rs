@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::result::Result;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use super::{CacheError, CacheTrait};
 
@@ -12,6 +12,9 @@ pub struct InMemoryCache {
     cache: moka::future::Cache<String, Vec<u8>>,
     locks: Arc<RwLock<HashMap<String, tokio::time::Instant>>>,
     sorted_sets: Arc<RwLock<HashMap<String, HashSet<String>>>>,
+    // Serializes counter read-modify-writes so concurrent increments can't
+    // lose counts (Redis INCRBY is atomic; this mirrors that guarantee).
+    counter_mutex: Mutex<()>,
 }
 
 impl InMemoryCache {
@@ -20,7 +23,23 @@ impl InMemoryCache {
             cache: moka::future::Cache::new(capacity.unwrap_or(DEFAULT_CACHE_SIZE)),
             locks: Arc::new(RwLock::new(HashMap::new())),
             sorted_sets: Arc::new(RwLock::new(HashMap::new())),
+            counter_mutex: Mutex::new(()),
         }
+    }
+
+    /// Read-modify-write increment; callers must hold `counter_mutex`.
+    async fn increment_unlocked(&self, key: &str, amount: i64) -> Result<i64, CacheError> {
+        // Like Redis INCRBY, this creates the key with value=0 if it doesn't exist
+        let current_value: i64 = match self.cache.get(key).await {
+            Some(bytes) => serde_json::from_slice(&bytes).map_err(|e| CacheError::SerDeError(e))?,
+            None => 0,
+        };
+
+        let new_value = current_value + amount;
+        let new_bytes = serde_json::to_vec(&new_value).map_err(|e| CacheError::SerDeError(e))?;
+
+        self.cache.insert(String::from(key), new_bytes).await;
+        Ok(new_value)
     }
 }
 
@@ -71,19 +90,8 @@ impl CacheTrait for InMemoryCache {
     }
 
     async fn increment(&self, key: &str, amount: i64) -> Result<i64, CacheError> {
-        // Note: This is not truly atomic for in-memory cache, but should be fine for dev/testing.
-        // Production should use Redis where increment is atomic.
-        // Like Redis INCRBY, this creates the key with value=0 if it doesn't exist
-        let current_value: i64 = match self.cache.get(key).await {
-            Some(bytes) => serde_json::from_slice(&bytes).map_err(|e| CacheError::SerDeError(e))?,
-            None => 0,
-        };
-
-        let new_value = current_value + amount;
-        let new_bytes = serde_json::to_vec(&new_value).map_err(|e| CacheError::SerDeError(e))?;
-
-        self.cache.insert(String::from(key), new_bytes).await;
-        Ok(new_value)
+        let _guard = self.counter_mutex.lock().await;
+        self.increment_unlocked(key, amount).await
     }
 
     async fn increment_with_ttl_on_create(
@@ -92,11 +100,13 @@ impl CacheTrait for InMemoryCache {
         amount: i64,
         ttl_seconds: u64,
     ) -> Result<i64, CacheError> {
-        // Not atomic (like `increment` above) — fine for dev/testing.
-        // The spawned invalidation task from creation time survives later
-        // inserts, so the key still expires at the original window end.
+        // The mutex covers the exists-check + increment, so concurrent calls
+        // can't lose counts or double-arm the expiry. The spawned invalidation
+        // task from creation time survives later inserts, so the key still
+        // expires at the original window end.
+        let _guard = self.counter_mutex.lock().await;
         let created = self.cache.get(key).await.is_none();
-        let new_value = self.increment(key, amount).await?;
+        let new_value = self.increment_unlocked(key, amount).await?;
         if created {
             self.set_ttl(key, ttl_seconds).await?;
         }
@@ -164,5 +174,32 @@ impl CacheTrait for InMemoryCache {
 
     fn is_healthy(&self) -> bool {
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn concurrent_increments_lose_no_counts() {
+        let cache = Arc::new(InMemoryCache::new(Some(1000)));
+        let tasks: Vec<_> = (0..100)
+            .map(|_| {
+                let cache = cache.clone();
+                tokio::spawn(async move {
+                    cache
+                        .increment_with_ttl_on_create("counter", 1, 60)
+                        .await
+                        .unwrap()
+                })
+            })
+            .collect();
+        let mut max_seen = 0;
+        for task in tasks {
+            max_seen = max_seen.max(task.await.unwrap());
+        }
+        assert_eq!(max_seen, 100);
+        assert_eq!(cache.get::<i64>("counter").await.unwrap(), Some(100));
     }
 }
