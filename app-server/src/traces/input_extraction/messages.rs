@@ -123,8 +123,10 @@ pub(super) fn is_task_anchor_message(msg: &Value) -> bool {
 
 /// Does this message carry tool calls? Covers OpenAI (`tool_calls` array
 /// on the message), Anthropic (`tool_use` content parts), OTel GenAI
-/// semconv / LangChain (`tool_call` parts), and OpenAI Responses
-/// (`function_call` parts).
+/// semconv / LangChain (`tool_call` parts), OpenAI Responses
+/// (`function_call` parts), and AI SDK v7 verbatim payloads (dash-typed
+/// `tool-call` parts — stored unreshaped from `gen_ai.output.messages`
+/// per LAM-1922).
 pub(super) fn has_tool_calls(message: &Value) -> bool {
     if let Some(Value::Array(calls)) = message.get("tool_calls")
         && !calls.is_empty()
@@ -135,7 +137,7 @@ pub(super) fn has_tool_calls(message: &Value) -> bool {
         return parts.iter().any(|p| {
             matches!(
                 p.get("type").and_then(Value::as_str),
-                Some("tool_use" | "tool_call" | "function_call")
+                Some("tool_use" | "tool_call" | "tool-call" | "function_call")
             )
         });
     }
@@ -213,6 +215,16 @@ mod tests {
         let msg = json!({
             "role": "assistant",
             "content": [{"type": "function_call", "name": "f", "arguments": "{}"}],
+        });
+        assert!(has_tool_calls(&msg));
+        // AI SDK v7 verbatim: dash-typed `tool-call` parts (a mixed
+        // text + tool-call turn is a hand-off, not the final answer).
+        let msg = json!({
+            "role": "assistant",
+            "content": [
+                {"type": "text", "text": "let me check"},
+                {"type": "tool-call", "toolCallId": "c1", "toolName": "get_weather", "input": {}},
+            ],
         });
         assert!(has_tool_calls(&msg));
     }
