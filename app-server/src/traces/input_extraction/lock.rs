@@ -41,13 +41,27 @@ pub fn trace_output_lock_cache_key(project_id: Uuid, trace_id: Uuid) -> String {
     format!("{TRACE_OUTPUT_LOCK_CACHE_KEY}:{project_id}:{trace_id}")
 }
 
+/// Deserialize a depth clamped to [`MAX_ARBITRATED_DEPTH`]. The mint-time
+/// clamp in `span_depth` covers everything THIS build writes, but state
+/// also enters through serde: cached locks and in-flight queue snapshots
+/// written by an older (pre-clamp) worker during a rolling deploy can
+/// carry raw depths past the ver's saturation point — comparing those
+/// raw would re-open the depth-255-overrides-depth-256 tie the mint
+/// clamp closed.
+fn clamped_depth<'de, D>(deserializer: D) -> Result<usize, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    usize::deserialize(deserializer).map(|d| d.min(MAX_ARBITRATED_DEPTH))
+}
+
 /// Stats of a candidate span competing for the trace's user task. Doubles
 /// as the published-winner record inside [`UserTaskLockState`] and as the
 /// snapshot a queued extraction carries.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WinnerState {
     /// Span path depth.
-    #[serde(rename = "d")]
+    #[serde(rename = "d", deserialize_with = "clamped_depth")]
     pub depth: usize,
     /// Non-cached input tokens (`input_tokens.total() - cache_read`).
     /// Cache-read-heavy turns are later same-conversation turns; a fresh
@@ -108,7 +122,7 @@ pub struct RosterEntry {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UserTaskLockState {
     /// Shallowest span-path depth seen for this trace.
-    #[serde(rename = "d")]
+    #[serde(rename = "d", deserialize_with = "clamped_depth")]
     pub depth: usize,
     /// Up to [`ROSTER_CAP`] earliest-starting spans at `depth`. Closes
     /// the arbitration window: once full AND a winner is published,
@@ -275,7 +289,7 @@ pub async fn write_lock_merged(
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OutputLockState {
     /// Span path depth of the winning span.
-    #[serde(rename = "d")]
+    #[serde(rename = "d", deserialize_with = "clamped_depth")]
     pub depth: usize,
     /// End time (ns since epoch) of the winning span. Stored at full
     /// precision; compared at ver granularity.
@@ -487,6 +501,26 @@ mod tests {
         assert_eq!(back.depth, 3);
         assert!(back.roster.is_empty());
         assert!(back.winner.is_none());
+    }
+
+    #[test]
+    fn deserialized_depths_clamp_to_the_arbitrated_ceiling() {
+        // State written by a pre-clamp worker (rolling deploy) can carry
+        // raw depths past the ver's saturation point; serde normalizes
+        // them so no comparison ever sees a depth the ver can't encode.
+        let lock: UserTaskLockState = serde_json::from_str(r#"{"d":300}"#).unwrap();
+        assert_eq!(lock.depth, MAX_ARBITRATED_DEPTH);
+        let winner: WinnerState =
+            serde_json::from_str(r#"{"d":300,"k":10,"t":1,"id":"a"}"#).unwrap();
+        assert_eq!(winner.depth, MAX_ARBITRATED_DEPTH);
+        let output: OutputLockState = serde_json::from_str(r#"{"d":300,"t":42}"#).unwrap();
+        assert_eq!(output.depth, MAX_ARBITRATED_DEPTH);
+        // A depth-255 candidate no longer "beats" a cached depth-300
+        // winner — both normalize to the same bucket.
+        assert!(!output.should_override(&OutputLockState {
+            depth: MAX_ARBITRATED_DEPTH,
+            end_time_ns: 42,
+        }));
     }
 
     #[test]
