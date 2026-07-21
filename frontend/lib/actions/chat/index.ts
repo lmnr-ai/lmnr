@@ -18,9 +18,10 @@ import { db } from "@/lib/db/drizzle";
 import { providerApiKeys } from "@/lib/db/migrations/schema";
 import { getModel } from "@/lib/playground/providersRegistry";
 
+import { type JsonObject } from "./types";
 import { createSpanAttributes, sendSpanData, type SpanData } from "./utils";
 
-export type JsonObject = { [key: PropertyKey]: JsonObject | string | number | boolean | null | JsonObject[] } | null;
+export type { JsonObject };
 
 export const zJsonObject = z
   .string()

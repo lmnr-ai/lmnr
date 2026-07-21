@@ -9,7 +9,7 @@ import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from "@/co
 import { Input } from "@/components/ui/input";
 import { type TagClass } from "@/lib/traces/types";
 
-import { type Tag } from "./tags-dropdown";
+import { type Tag } from "./types";
 
 interface PickTagProps {
   tags: Tag[];

@@ -11,7 +11,7 @@ import { authClient } from "@/lib/auth-client";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { createProjectInWorkspace, createWorkspaceWithProject } from "./create-project";
-import { Centered, Field } from "./index";
+import { Centered, Field } from "./shared";
 
 interface Props {
   userCode: string;

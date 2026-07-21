@@ -5,6 +5,7 @@ import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { db } from "@/lib/db/drizzle";
 import { workspaceUsageLimits } from "@/lib/db/migrations/schema";
 
+import { USAGE_LIMIT_TYPES, type UsageLimitType } from "./types";
 import {
   clearHardLimitNotificationOnIncrease,
   deleteHardLimitNotification,
@@ -12,8 +13,8 @@ import {
   isFreeTierWorkspace,
 } from "./utils";
 
-export const USAGE_LIMIT_TYPES = ["bytes", "signal_cost"] as const;
-export type UsageLimitType = (typeof USAGE_LIMIT_TYPES)[number];
+export { USAGE_LIMIT_TYPES };
+export type { UsageLimitType };
 
 export interface WorkspaceUsageLimit {
   id: string;

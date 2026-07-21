@@ -1,11 +1,13 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 
+import Messages from "@/components/traces/span-view/messages";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PAYLOAD_URL_REGEX } from "@/lib/actions/trace/utils";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { type Span, SpanType } from "@/lib/traces/types";
+import { tryParseJson } from "@/lib/utils";
 
 interface SpanContentProps {
   span: Span;
@@ -88,8 +90,14 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
         defaultMode="messages"
         modes={["MESSAGES", "JSON", "YAML", "TEXT", "CUSTOM"]}
         presetKey={presetKey}
-        messageMaxHeight={type === "input" ? 320 : 560}
         customTheme={spanViewTheme}
+        renderMessages={(ctx) => (
+          <Messages
+            messages={tryParseJson(ctx.value) ?? []}
+            presetKey={ctx.presetKey}
+            maxHeight={type === "input" ? 320 : 560}
+          />
+        )}
       />
     );
   }
@@ -99,7 +107,7 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
       className="rounded-none border-none bg-background"
       codeEditorClassName="rounded-none border-none bg-background contain-strict"
       readOnly
-      modes={["JSON", "YAML", "TEXT", "CUSTOM", "MESSAGES"]}
+      modes={["JSON", "YAML", "TEXT", "CUSTOM"]}
       value={JSON.stringify(normalizedData)}
       presetKey={presetKey}
       defaultMode="json"

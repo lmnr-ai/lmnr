@@ -58,6 +58,22 @@ export const buildSuggestions = (
   return [...fieldSuggestions, ...valueSuggestions, { type: "raw_search" as const, value: inputValue.trim() }];
 };
 
+export const getSuggestionsCount = (
+  filters: ColumnFilter[],
+  inputValue: string,
+  autocompleteData: Map<string, string[]>
+): number => buildSuggestions(inputValue, filters, autocompleteData).length;
+
+export const getSuggestionAtIndex = (
+  filters: ColumnFilter[],
+  inputValue: string,
+  index: number,
+  autocompleteData: Map<string, string[]>
+): Suggestion | null => {
+  const suggestions = buildSuggestions(inputValue, filters, autocompleteData);
+  return suggestions[index] ?? null;
+};
+
 const RecentSearchChip = ({
   recentSearch,
   columnFilters,

@@ -8,6 +8,18 @@ import {
   type QueryResult,
   type SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
+import { type EventRow } from "@/lib/events/types";
+
+import { type SignalEventSearchHit } from "./search";
+
+export function attachSnippets(items: EventRow[], hits: SignalEventSearchHit[]): EventRow[] {
+  const lookup = new Map(hits.map((h) => [h.id, h]));
+  return items.map((item) => {
+    const hit = lookup.get(item.id);
+    if (!hit) return item;
+    return { ...item, fieldSnippets: hit.fieldSnippets };
+  });
+}
 
 export const eventsColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([

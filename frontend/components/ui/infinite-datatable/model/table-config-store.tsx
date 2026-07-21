@@ -11,13 +11,9 @@ import { type Filter } from "@/lib/actions/common/filters";
 
 import { EMPTY_VIEW_PARAMS, type ViewParams } from "../views/params";
 import { type View } from "../views/types";
+import { type TableConfig } from "./table-config-types";
 
-export interface TableConfig {
-  customColumns: CustomColumn[];
-  columnOrder: string[];
-  columnVisibility: Record<string, boolean>;
-  columnSizing: Record<string, number>;
-}
+export type { TableConfig };
 
 const EMPTY_CONFIG: TableConfig = {
   customColumns: [],

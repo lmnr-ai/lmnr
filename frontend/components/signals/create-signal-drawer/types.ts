@@ -3,6 +3,8 @@ import { type Filter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 import { type Signal } from "@/lib/actions/signals";
 
+export type ManageSignalContentVariant = "sheet" | "panel";
+
 export type TriggerFormItem = {
   /** Undefined for new triggers that haven't been saved yet */
   id?: string;

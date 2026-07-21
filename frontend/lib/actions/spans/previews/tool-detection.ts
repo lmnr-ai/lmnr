@@ -1,11 +1,9 @@
 import { findAdapter, PROVIDERS } from "@/lib/spans/providers";
+import { type ExtractedTool } from "@/lib/spans/providers/message-types";
 
 import { type ProviderHint } from "./utils";
 
-export interface ExtractedTool {
-  name: string;
-  input: unknown;
-}
+export type { ExtractedTool };
 
 /**
  * If an LLM output has tool calls but no visible text/thinking, return

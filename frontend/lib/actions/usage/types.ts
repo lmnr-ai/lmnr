@@ -1,3 +1,6 @@
+export const USAGE_LIMIT_TYPES = ["bytes", "signal_cost"] as const;
+export type UsageLimitType = (typeof USAGE_LIMIT_TYPES)[number];
+
 export type WorkspaceStats = {
   tierName?: string;
   resetTime: string;

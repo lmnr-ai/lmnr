@@ -37,9 +37,10 @@ import {
   type Template,
   type TemplateScope,
 } from "./index";
+import { type ManageTemplateMode } from "./manage-template-mode";
 import { useTemplateRenderer } from "./template-renderer-store";
 
-export type ManageTemplateMode = "create" | "edit" | null;
+export type { ManageTemplateMode };
 
 interface TemplateInfo {
   id: string;
