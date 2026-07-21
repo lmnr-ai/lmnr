@@ -62,6 +62,14 @@ pub const USER_TASK_REGEX_CACHE_KEY: &str = "user_task_regex";
 pub const USER_TASK_LOCK_CACHE_KEY: &str = "user_task_lock";
 
 pub const INGESTION_RATE_LIMIT_PROJECT_ID_CACHE_KEY: &str = "ingestion_rate_limit_project_id";
+// Per-project overrides for the /v1/sql rate limit (N requests per T seconds).
+// Flat layout — two keys per project, set out-of-band via valkey-cli:
+// `sql_rate_limit:{project_id}` = N, `sql_rate_limit_period:{project_id}` = T.
+// A missing key means "use the global default" for that half independently.
+pub const SQL_RATE_LIMIT_CACHE_KEY: &str = "sql_rate_limit";
+pub const SQL_RATE_LIMIT_PERIOD_CACHE_KEY: &str = "sql_rate_limit_period";
+/// Fixed-window request counter behind the two config keys above.
+pub const SQL_RATE_LIMIT_COUNT_CACHE_KEY: &str = "sql_rate_limit_count";
 pub const PROJECT_MEMBERSHIP_CACHE_KEY: &str = "project_membership";
 pub const AGENT_VERSION_HASH_CACHE_KEY: &str = "agent_version_hash";
 pub const AGENT_STABLE_PROMPT_REGEX_CACHE_KEY: &str = "agent_stable_prompt_regex";

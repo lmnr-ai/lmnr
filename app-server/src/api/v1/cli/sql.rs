@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
-use actix_limitation::Limiter;
 use actix_web::{post, web};
 
 use crate::{
-    api::v1::sql::{SqlQueryRequest, handle_sql_query},
+    api::v1::sql::{SqlQueryRequest, SqlRateLimitConfig, handle_sql_query},
     auth::cli_user::CliProjectAuth,
     cache::Cache,
     db::DB,
@@ -19,7 +18,7 @@ use crate::{
 #[post("query")]
 pub async fn execute_sql_query(
     auth: CliProjectAuth,
-    limiter: Option<web::Data<Limiter>>,
+    rate_limit_config: Option<web::Data<SqlRateLimitConfig>>,
     req: web::Json<SqlQueryRequest>,
     db: web::Data<DB>,
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
@@ -30,7 +29,7 @@ pub async fn execute_sql_query(
     handle_sql_query(
         auth.project_id,
         req,
-        limiter,
+        rate_limit_config,
         db,
         clickhouse_ro,
         query_engine,
