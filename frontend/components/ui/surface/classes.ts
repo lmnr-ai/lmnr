@@ -23,14 +23,14 @@ export const SURFACE_BG: Record<number, string> = {
 };
 
 export const SURFACE_SHADOW: Record<number, string> = {
-  1: "shadow-surface-100",
-  2: "shadow-surface-200",
-  3: "shadow-surface-300",
-  4: "shadow-surface-400",
-  5: "shadow-surface-500",
-  6: "shadow-surface-600",
-  7: "shadow-surface-700",
-  8: "shadow-surface-800",
+  1: "shadow-elevation-100",
+  2: "shadow-elevation-200",
+  3: "shadow-elevation-300",
+  4: "shadow-elevation-400",
+  5: "shadow-elevation-500",
+  6: "shadow-elevation-600",
+  7: "shadow-elevation-700",
+  8: "shadow-elevation-800",
 };
 
 // Interactive-state variants of the ramp, prefixed so a component can lift its
@@ -70,7 +70,7 @@ export const SURFACE_ACTIVE_BG: Record<number, string> = {
 
 const clampLevel = (n: number): number => Math.round(Math.max(MIN_SURFACE, Math.min(MAX_SURFACE, n)));
 
-/** Returns "bg-surface-N shadow-surface-M", clamped to 1..8 and rounded so a
+/** Returns "bg-surface-N shadow-elevation-M", clamped to 1..8 and rounded so a
  *  fractional level can't index out of the tables. shadow defaults to bg's level. */
 export function surfaceClasses(bgLevel: number, shadowLevel: number = bgLevel): string {
   return `${SURFACE_BG[clampLevel(bgLevel)]} ${SURFACE_SHADOW[clampLevel(shadowLevel)]}`;
