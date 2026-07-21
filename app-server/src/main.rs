@@ -1848,6 +1848,12 @@ fn main() -> anyhow::Result<()> {
                     let jwks_cache = web::Data::new(Arc::new(auth::cli_user::JwksCache::from_env(
                         http_client_for_http.clone(),
                     )));
+                    let mcp_oauth_enabled = env::notifications::oauth_mcp_configured();
+                    if !mcp_oauth_enabled {
+                        log::info!(
+                            "OAuth MCP routes disabled; set LAMINAR_MCP_RESOURCE_URL and NEXT_PUBLIC_URL to enable them"
+                        );
+                    }
 
                     log::info!("Spinning up full HTTP server");
                     HttpServer::new(move || {
@@ -1963,23 +1969,6 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::tag::tag_trace),
                             )
                             .service(
-                                web::scope("/v1/mcp/oauth")
-                                    .wrap(mcp_oauth_auth.clone())
-                                    .app_data(mcp_state.clone())
-                                    .service(api::v1::mcp::oauth_mcp_handler)
-                                    .default_service(
-                                        web::route().to(api::v1::mcp::method_not_allowed),
-                                    ),
-                            )
-                            .route(
-                                "/.well-known/oauth-protected-resource",
-                                web::get().to(api::v1::mcp::oauth_protected_resource_metadata),
-                            )
-                            .route(
-                                "/.well-known/oauth-protected-resource/v1/mcp/oauth",
-                                web::get().to(api::v1::mcp::oauth_protected_resource_metadata),
-                            )
-                            .service(
                                 web::scope("/v1/mcp")
                                     .wrap(project_auth.clone())
                                     .app_data(mcp_state.clone())
@@ -2035,6 +2024,21 @@ fn main() -> anyhow::Result<()> {
                                     .service(crate::agent::routes::post_agent_chat);
                                 scope
                             });
+                        let app = if mcp_oauth_enabled {
+                            app.service(
+                                web::scope("/v1/mcp/oauth")
+                                    .wrap(mcp_oauth_auth.clone())
+                                    .app_data(mcp_state.clone())
+                                    .service(api::v1::mcp::oauth_mcp_handler)
+                                    .default_service(
+                                        web::route().to(api::v1::mcp::method_not_allowed),
+                                    ),
+                            )
+                            .service(api::v1::mcp::oauth_protected_resource_metadata)
+                            .service(api::v1::mcp::oauth_mcp_protected_resource_metadata)
+                        } else {
+                            app
+                        };
                         // Internal Slack-event receiver — the frontend verifies the Slack signature
                         // and forwards verified events here. No HTTP auth (cluster-internal), same as
                         // agent/chat. Signals-gated: it drives the agent.

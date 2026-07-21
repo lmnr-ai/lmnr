@@ -11,3 +11,12 @@ pub const NEXT_INTERNAL_URL: &str = "NEXT_INTERNAL_URL";
 /// Public URL of the user-scoped OAuth MCP resource. This exact value is used
 /// as the OAuth access-token audience.
 pub const LAMINAR_MCP_RESOURCE_URL: &str = "LAMINAR_MCP_RESOURCE_URL";
+
+/// OAuth MCP is fail-closed unless both the public resource and authorization
+/// server origins are configured. This prevents partial self-hosted upgrades
+/// from advertising an authorization flow that cannot complete.
+pub fn oauth_mcp_configured() -> bool {
+    [LAMINAR_MCP_RESOURCE_URL, NEXT_PUBLIC_URL]
+        .into_iter()
+        .all(|key| std::env::var(key).is_ok_and(|value| !value.trim().is_empty()))
+}

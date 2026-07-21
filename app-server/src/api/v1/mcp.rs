@@ -15,7 +15,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    auth::cli_user::{McpOAuthUserAuth, is_user_member_of_project},
+    auth::cli_user::McpOAuthUserAuth,
     cache::Cache,
     db::{DB, project_api_keys::ProjectApiKey},
     llm::LlmClient,
@@ -668,11 +668,10 @@ pub async fn oauth_mcp_handler(
             Some(project_id) => project_id,
             None => return json_rpc_error(id, -32602, "A valid projectId is required"),
         };
-        match is_user_member_of_project(
+        match crate::db::projects::project_has_member(
             &state.server.db.pool,
-            &state.server.cache,
-            user.user_id,
-            project_id,
+            &user.user_id,
+            &project_id,
         )
         .await
         {
@@ -753,12 +752,11 @@ pub async fn method_not_allowed() -> HttpResponse {
         .finish()
 }
 
-/// RFC 9728 protected-resource metadata for OAuth MCP discovery.
-pub async fn oauth_protected_resource_metadata() -> HttpResponse {
+fn oauth_protected_resource_metadata_response() -> HttpResponse {
     let resource = std::env::var(crate::env::notifications::LAMINAR_MCP_RESOURCE_URL)
-        .unwrap_or_else(|_| "http://localhost:8000/v1/mcp/oauth".to_string());
+        .expect("OAuth MCP routes require LAMINAR_MCP_RESOURCE_URL");
     let frontend = std::env::var(crate::env::notifications::NEXT_PUBLIC_URL)
-        .unwrap_or_else(|_| "http://localhost:3000".to_string())
+        .expect("OAuth MCP routes require NEXT_PUBLIC_URL")
         .trim_end_matches('/')
         .to_string();
     HttpResponse::Ok().json(serde_json::json!({
@@ -767,6 +765,18 @@ pub async fn oauth_protected_resource_metadata() -> HttpResponse {
         "scopes_supported": ["mcp:read"],
         "bearer_methods_supported": ["header"]
     }))
+}
+
+/// RFC 9728 protected-resource metadata for OAuth MCP discovery.
+#[actix_web::get("/.well-known/oauth-protected-resource")]
+pub async fn oauth_protected_resource_metadata() -> HttpResponse {
+    oauth_protected_resource_metadata_response()
+}
+
+/// RFC 9728 path-specific metadata for the OAuth MCP resource.
+#[actix_web::get("/.well-known/oauth-protected-resource/v1/mcp/oauth")]
+pub async fn oauth_mcp_protected_resource_metadata() -> HttpResponse {
+    oauth_protected_resource_metadata_response()
 }
 
 #[cfg(test)]
