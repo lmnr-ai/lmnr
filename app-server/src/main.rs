@@ -1768,6 +1768,8 @@ fn main() -> anyhow::Result<()> {
             // (shared by both /v1/sql and /v1/cli/sql) with an explicit
             // `ratelimit:<project_id>` key — no middleware key extractor needed
             // since project_id is only known after the auth extractor runs.
+            // The env limit is the global default; a per-project N override in
+            // cache (`sql_rate_limit:{id}`) swaps in an ad-hoc limiter.
             match Limiter::builder(&redis_url)
                 .limit(http_limit)
                 .period(Duration::from_secs(http_period_secs))
@@ -1779,7 +1781,11 @@ fn main() -> anyhow::Result<()> {
                         http_limit,
                         http_period_secs
                     );
-                    Some(limiter)
+                    Some(web::Data::new(api::v1::sql::SqlRateLimiter::new(
+                        limiter,
+                        redis_url,
+                        http_period_secs,
+                    )))
                 }
                 Err(e) => {
                     log::warn!("Failed to initialize rate limiter: {:?}", e);
@@ -1893,7 +1899,7 @@ fn main() -> anyhow::Result<()> {
                             .app_data(jwks_cache.clone());
 
                         if let Some(ref limiter) = rate_limiter {
-                            app = app.app_data(web::Data::new(limiter.clone()));
+                            app = app.app_data(limiter.clone());
                         }
 
                         // Built as a binding so the signals-gated agent twin can be conditionally

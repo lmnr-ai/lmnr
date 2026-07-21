@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use actix_limitation::{Error as LimiterError, Limiter};
 use actix_web::{HttpResponse, post, web};
@@ -11,12 +11,63 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    cache::Cache,
+    cache::{Cache, CacheTrait, keys::SQL_RATE_LIMIT_CACHE_KEY},
     db::{DB, project_api_keys::ProjectApiKey},
     query_engine::QueryEngine,
     routes::types::ResponseResult,
     sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
 };
+
+/// Per-project SQL rate limiter, mirroring the gRPC ingestion path
+/// (`traces/grpc_service.rs`): a shared `actix_limitation::Limiter` carries
+/// the global default limit, and a per-project override N stored out-of-band
+/// in cache (`sql_rate_limit:{project_id}`, set via valkey-cli) swaps in an
+/// ad-hoc limiter with the same period. Only N is overridable; the period is
+/// global. Built in main.rs when `Feature::RateLimiter` is enabled.
+pub struct SqlRateLimiter {
+    default_limiter: Limiter,
+    redis_url: String,
+    period_secs: u64,
+}
+
+impl SqlRateLimiter {
+    pub fn new(default_limiter: Limiter, redis_url: String, period_secs: u64) -> Self {
+        Self {
+            default_limiter,
+            redis_url,
+            period_secs,
+        }
+    }
+
+    /// Fail-open like the rest of the limiter: cache/builder errors fall back
+    /// to the default limiter.
+    async fn limiter_for_project(&self, cache: &Cache, project_id: Uuid) -> Limiter {
+        let limit = match cache
+            .get::<usize>(&format!("{SQL_RATE_LIMIT_CACHE_KEY}:{project_id}"))
+            .await
+        {
+            Ok(limit) => limit,
+            Err(e) => {
+                log::error!("Failed to read SQL rate limit override, using default: {e:?}");
+                None
+            }
+        };
+        let Some(limit) = limit else {
+            return self.default_limiter.clone();
+        };
+        match Limiter::builder(&self.redis_url)
+            .limit(limit)
+            .period(Duration::from_secs(self.period_secs))
+            .build()
+        {
+            Ok(limiter) => limiter,
+            Err(e) => {
+                log::error!("Failed to build override SQL rate limiter, using default: {e:?}");
+                self.default_limiter.clone()
+            }
+        }
+    }
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -36,7 +87,7 @@ pub struct SqlQueryResponse {
 pub async fn execute_sql_query(
     req: web::Json<SqlQueryRequest>,
     project_api_key: ProjectApiKey,
-    limiter: Option<web::Data<Limiter>>,
+    limiter: Option<web::Data<SqlRateLimiter>>,
     db: web::Data<DB>,
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,
@@ -61,12 +112,12 @@ pub async fn execute_sql_query(
 /// everything after that — per-project rate limiting (shared `ratelimit:<id>`
 /// key, fail-open), the query span, and the response shape — lives here so the
 /// two endpoints can't drift. Rate limiting is inline (not scope middleware)
-/// because `project_id` is known only after the auth extractor runs.
+/// because `project_id` is only known after the auth extractor runs.
 #[allow(clippy::too_many_arguments)]
 pub async fn handle_sql_query(
     project_id: Uuid,
     req: web::Json<SqlQueryRequest>,
-    limiter: Option<web::Data<Limiter>>,
+    limiter: Option<web::Data<SqlRateLimiter>>,
     db: web::Data<DB>,
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,
@@ -74,6 +125,9 @@ pub async fn handle_sql_query(
     cache: web::Data<Cache>,
 ) -> ResponseResult {
     if let Some(limiter) = limiter.as_ref() {
+        let limiter = limiter
+            .limiter_for_project(cache.get_ref(), project_id)
+            .await;
         match limiter.count(format!("ratelimit:{project_id}")).await {
             Ok(_) => {}
             Err(LimiterError::LimitExceeded(_)) => {
