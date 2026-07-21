@@ -15,9 +15,9 @@ use crate::llm::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-/// OpenAI provider using the Responses API (`/responses`). Selected over
-/// [`OpenAIClient`](crate::llm::openai::OpenAIClient) when
-/// `OPENAI_USE_RESPONSES` is enabled.
+/// OpenAI provider using the Responses API (`/responses`). Registered under the
+/// `openai_responses` provider name (via `LLM_PROVIDER`), separate from the
+/// Chat Completions [`OpenAIClient`](crate::llm::openai::OpenAIClient).
 #[derive(Clone)]
 pub struct OpenAIResponsesClient {
     client: reqwest::Client,

@@ -27,10 +27,6 @@ pub const MODEL_LARGE: &str = "LLM_MODEL_LARGE";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const ALWAYS_USE_REALTIME: BoolEnv = BoolEnv::new("SIGNALS_ALWAYS_USE_REALTIME", false);
 
-/// Route the OpenAI provider through the Responses API (`/responses`) instead
-/// of Chat Completions (`/chat/completions`). Default false (Chat Completions).
-pub const OPENAI_USE_RESPONSES: BoolEnv = BoolEnv::new("OPENAI_USE_RESPONSES", false);
-
 /// Per-request HTTP timeout (seconds) applied only to flex-tier Gemini requests.
 /// Flex responses can take minutes, so this is far higher than the shared client
 /// timeout. Lives here (not under signals) because the gemini client applies it
