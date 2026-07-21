@@ -113,10 +113,7 @@ pub async fn process_user_task_candidates(
         return;
     }
 
-    if contexts.is_empty()
-        || !is_feature_enabled(Feature::InputExtraction)
-        || !llm_client_available()
-    {
+    if contexts.is_empty() || !is_feature_enabled(Feature::InputExtraction) {
         return;
     }
 
@@ -132,14 +129,20 @@ pub async fn process_user_task_candidates(
         .collect();
     contexts.sort_by_key(|(ctx, _)| ctx.start_time_ns);
 
-    // Pass 1: user-task inputs. Collect per-trace contenders first (usage
-    // lookup needs &mut attributes), then arbitrate one trace at a time —
-    // registering EVERY batch candidate in the roster but attempting the
-    // effect only for the strongest, so a small trace arriving in one
-    // batch publishes once instead of once per ascending-token span.
+    // Pass 1: user-task inputs. Gated on `llm_client_available()` — this
+    // is the only pass that can enqueue LLM-backed regex generation, and
+    // without a client the extraction workers never spawn, so enqueueing
+    // would strand messages. Pass 2 (trace outputs) is fully inline with
+    // no LLM/queue and deliberately runs regardless.
+    // Collect per-trace contenders first (usage lookup needs &mut
+    // attributes), then arbitrate one trace at a time — registering EVERY
+    // batch candidate in the roster but attempting the effect only for
+    // the strongest, so a small trace arriving in one batch publishes
+    // once instead of once per ascending-token span.
+    let inputs_enabled = llm_client_available();
     let mut contenders: HashMap<Uuid, Vec<InputContender>> = HashMap::new();
     for (idx, (ctx, depth)) in contexts.iter_mut().enumerate() {
-        if ctx.candidate.is_none() {
+        if !inputs_enabled || ctx.candidate.is_none() {
             continue;
         }
         let usage = get_llm_usage_for_span(
