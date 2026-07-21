@@ -8,6 +8,15 @@ use tokio::sync::{Mutex, RwLock};
 use super::{CacheError, CacheTrait};
 
 const DEFAULT_CACHE_SIZE: u64 = 100;
+
+/// Per-key TTL bookkeeping: `generation` invalidates stale timer tasks,
+/// `armed` records whether a live timer currently covers the key.
+#[derive(Default, Clone, Copy)]
+struct TtlState {
+    generation: u64,
+    armed: bool,
+}
+
 pub struct InMemoryCache {
     cache: moka::future::Cache<String, Vec<u8>>,
     locks: Arc<RwLock<HashMap<String, tokio::time::Instant>>>,
@@ -15,12 +24,14 @@ pub struct InMemoryCache {
     // Serializes counter read-modify-writes so concurrent increments can't
     // lose counts (Redis INCRBY is atomic; this mirrors that guarantee).
     counter_mutex: Mutex<()>,
-    // Monotonic per-key generation for TTL invalidation tasks. `set_ttl` and
-    // `remove` bump it; a spawned invalidate only fires if its generation is
-    // still current, so a stale timer from a deleted/evicted key can't expire
-    // a recreated one early. Entries are never removed (bounded by key
+    // TTL invalidation-task state. `set_ttl` bumps the generation and arms;
+    // `remove` bumps and disarms; a timer only fires while its generation is
+    // still current, so a stale timer from a deleted key can't expire a
+    // recreated one early. The `armed` flag lets counter code arm a TTL
+    // whenever none is live (create or self-heal), mirroring the Redis Lua
+    // `TTL < 0` check. Entries are never removed (bounded by key
     // cardinality — fine for dev).
-    ttl_generations: Arc<RwLock<HashMap<String, u64>>>,
+    ttl_states: Arc<RwLock<HashMap<String, TtlState>>>,
 }
 
 impl InMemoryCache {
@@ -30,7 +41,7 @@ impl InMemoryCache {
             locks: Arc::new(RwLock::new(HashMap::new())),
             sorted_sets: Arc::new(RwLock::new(HashMap::new())),
             counter_mutex: Mutex::new(()),
-            ttl_generations: Arc::new(RwLock::new(HashMap::new())),
+            ttl_states: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -73,11 +84,13 @@ impl CacheTrait for InMemoryCache {
     }
 
     async fn remove(&self, key: &str) -> Result<(), CacheError> {
-        // Bump the generation so any armed TTL task for this key becomes a
-        // no-op — it must not expire a later recreation of the key.
+        // Bump the generation (and disarm) so any live TTL task for this key
+        // becomes a no-op — it must not expire a later recreation of the key.
         {
-            let mut generations = self.ttl_generations.write().await;
-            *generations.entry(String::from(key)).or_insert(0) += 1;
+            let mut states = self.ttl_states.write().await;
+            let state = states.entry(String::from(key)).or_default();
+            state.generation += 1;
+            state.armed = false;
         }
         self.cache.remove(key).await;
         Ok(())
@@ -86,20 +99,24 @@ impl CacheTrait for InMemoryCache {
     async fn set_ttl(&self, key: &str, seconds: u64) -> Result<(), CacheError> {
         let key = String::from(key);
         let cache = self.cache.clone();
-        let generations = self.ttl_generations.clone();
+        let states = self.ttl_states.clone();
         let my_generation = {
-            let mut generations = generations.write().await;
-            let entry = generations.entry(key.clone()).or_insert(0);
-            *entry += 1;
-            *entry
+            let mut states = states.write().await;
+            let state = states.entry(key.clone()).or_default();
+            state.generation += 1;
+            state.armed = true;
+            state.generation
         };
         tokio::spawn(async move {
             tokio::time::sleep(tokio::time::Duration::from_secs(seconds)).await;
             // Only the latest armed TTL may invalidate; stale timers from a
             // removed or re-armed key are no-ops.
-            let still_current = generations.read().await.get(&key).copied() == Some(my_generation);
-            if still_current {
-                cache.invalidate(&key).await;
+            let mut states = states.write().await;
+            if let Some(state) = states.get_mut(&key) {
+                if state.generation == my_generation {
+                    state.armed = false;
+                    cache.invalidate(&key).await;
+                }
             }
         });
         Ok(())
@@ -125,14 +142,22 @@ impl CacheTrait for InMemoryCache {
         amount: i64,
         ttl_seconds: u64,
     ) -> Result<i64, CacheError> {
-        // The mutex covers the exists-check + increment, so concurrent calls
-        // can't lose counts or double-arm the expiry. The spawned invalidation
-        // task from creation time survives later inserts, so the key still
-        // expires at the original window end.
+        // The mutex covers the increment + arm-check, so concurrent calls
+        // can't lose counts or double-arm the expiry. Mirroring the Redis Lua
+        // `TTL < 0` check, the TTL is armed whenever no live timer covers the
+        // key (creation or self-heal after a concurrent `remove` disarmed it)
+        // — not just when the key was absent — so the counter can never stay
+        // TTL-less. An armed live window is never re-armed (fixed-window
+        // semantics).
         let _guard = self.counter_mutex.lock().await;
-        let created = self.cache.get(key).await.is_none();
         let new_value = self.increment_unlocked(key, amount).await?;
-        if created {
+        let armed = self
+            .ttl_states
+            .read()
+            .await
+            .get(key)
+            .is_some_and(|s| s.armed);
+        if !armed {
             self.set_ttl(key, ttl_seconds).await?;
         }
         Ok(new_value)
@@ -250,6 +275,32 @@ mod tests {
 
         // Past the new window's own 60s deadline: now it expires.
         tokio::time::sleep(Duration::from_secs(55)).await;
+        tokio::task::yield_now().await;
+        assert_eq!(cache.get::<i64>("counter").await.unwrap(), None);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn counter_recreated_after_remove_still_gets_ttl() {
+        let cache = InMemoryCache::new(Some(1000));
+        // Simulate the increment-sees-key-then-remove interleave: the second
+        // increment lands on an existing key whose timer a `remove` then
+        // disarms. The next increment must re-arm a TTL (self-heal), not
+        // leave the counter permanent.
+        cache
+            .increment_with_ttl_on_create("counter", 1, 10)
+            .await
+            .unwrap();
+        cache.remove("counter").await.unwrap();
+        // Recreate via plain increment (no TTL arming at all) — this is the
+        // worst case: key exists, no live timer.
+        cache.increment("counter", 1).await.unwrap();
+        // Self-heal: the next windowed increment arms a TTL on the existing key.
+        cache
+            .increment_with_ttl_on_create("counter", 1, 10)
+            .await
+            .unwrap();
+
+        tokio::time::sleep(Duration::from_secs(11)).await;
         tokio::task::yield_now().await;
         assert_eq!(cache.get::<i64>("counter").await.unwrap(), None);
     }
