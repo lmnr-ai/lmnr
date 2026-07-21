@@ -15,7 +15,9 @@ const Command = React.forwardRef<
   <CommandPrimitive
     ref={ref}
     className={cn(
-      "flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground",
+      // Transparent: Command always sits inside an Elevated surface (a popover or
+      // CommandDialog), so it inherits that level rather than painting its own.
+      "flex h-full w-full flex-col overflow-hidden rounded-md text-popover-foreground",
       className
     )}
     {...props}

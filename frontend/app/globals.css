@@ -106,6 +106,40 @@
   --color-surface-900: oklch(0.1591 0 0); /* #0d0d0d */
   --color-surface-1000: oklch(0.1344 0 0); /* #080808 */
 
+  /* --- Fluid surfaces: relative elevation scale (surface-1 = base .. surface-8) ---
+     8-step neutral ramp re-derived in OKLCH from fluidfunctionalism.com's dark
+     scale (#171717 → #484848). Higher level = lighter = more elevated. Consumed
+     via <Elevated> + the bg-surface-N / shadow-surface-N utilities. */
+  --color-surface-1: oklch(0.2046 0 0); /* #171717 */
+  --color-surface-2: oklch(0.235 0 0); /* #1e1e1e */
+  --color-surface-3: oklch(0.2645 0 0); /* #252525 */
+  --color-surface-4: oklch(0.2931 0 0); /* #2c2c2c */
+  --color-surface-5: oklch(0.3211 0 0); /* #333333 */
+  --color-surface-6: oklch(0.3485 0 0); /* #3a3a3a */
+  --color-surface-7: oklch(0.3753 0 0); /* #414141 */
+  --color-surface-8: oklch(0.4017 0 0); /* #484848 */
+
+  /* Layered dark elevation shadows, one per surface level: inset top highlight +
+     inset white ring + outer dark ring + stacked drop shadows, intensifying with
+     level. shadow-surface-N pairs with surface-N; a component can pin its own
+     level so its shadow stays constant regardless of nesting depth. */
+  --dm-hi-base: rgba(255, 255, 255, 0.01);
+  --dm-hi-mid: rgba(255, 255, 255, 0.02);
+  --dm-hi-high: rgba(255, 255, 255, 0.04);
+  --dm-hi-peak: rgba(255, 255, 255, 0.06);
+  --dm-ring-base: rgba(255, 255, 255, 0.02);
+  --dm-ring-mid: rgba(255, 255, 255, 0.04);
+  --dm-ring-high: rgba(255, 255, 255, 0.06);
+  --dm-drop: rgba(0, 0, 0, 0.18);
+  --shadow-surface-1: inset 0 0 0 1px var(--dm-ring-base);
+  --shadow-surface-2: inset 0 1px 0 0 var(--dm-hi-base), inset 0 0 0 1px var(--dm-ring-base), 0 1px 1px -0.5px var(--dm-drop);
+  --shadow-surface-3: inset 0 1px 0 0 var(--dm-hi-mid), inset 0 0 0 1px var(--dm-ring-base), 0 0 0 1px rgba(0, 0, 0, 0.12), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop);
+  --shadow-surface-4: inset 0 1px 0 0 var(--dm-hi-mid), inset 0 0 0 1px var(--dm-ring-mid), 0 0 0 1px rgba(0, 0, 0, 0.14), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop);
+  --shadow-surface-5: inset 0 1px 0 0 var(--dm-hi-high), inset 0 0 0 1px var(--dm-ring-mid), 0 0 0 1px rgba(0, 0, 0, 0.16), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop);
+  --shadow-surface-6: inset 0 1px 0 0 var(--dm-hi-high), inset 0 0 0 1px var(--dm-ring-high), 0 0 0 1px rgba(0, 0, 0, 0.18), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop);
+  --shadow-surface-7: inset 0 1px 0 0 var(--dm-hi-peak), inset 0 0 0 1px var(--dm-ring-high), 0 0 0 1px rgba(0, 0, 0, 0.2), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop), 0 48px 48px -24px var(--dm-drop);
+  --shadow-surface-8: inset 0 1px 0 0 var(--dm-hi-peak), inset 0 0 0 1px var(--dm-ring-high), 0 0 0 1px rgba(0, 0, 0, 0.22), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop), 0 48px 48px -24px var(--dm-drop), 0 96px 96px -48px var(--dm-drop);
+
   /* Foreground (text) ramp — neutral, dark-theme */
   --color-foreground-50: oklch(1 0 0); /* #ffffff */
   --color-foreground-100: oklch(0.9249 0 0); /* #e6e6e6 */

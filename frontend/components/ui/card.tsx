@@ -1,20 +1,23 @@
 import * as React from 'react';
 
+import { SURFACE_OFFSET, SurfaceProvider, useElevated } from '@/components/ui/surface';
 import { cn } from '@/lib/utils';
 
 const Card = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn(
-      'rounded-xl border bg-card text-card-foreground shadow-sm',
-      className
-    )}
-    {...props}
-  />
-));
+>(({ className, children, ...props }, ref) => {
+  const { level, className: surface } = useElevated(SURFACE_OFFSET.inline);
+  return (
+    <div
+      ref={ref}
+      className={cn('rounded-xl border text-card-foreground', surface, className)}
+      {...props}
+    >
+      <SurfaceProvider value={level}>{children}</SurfaceProvider>
+    </div>
+  );
+});
 Card.displayName = 'Card';
 
 const CardHeader = React.forwardRef<

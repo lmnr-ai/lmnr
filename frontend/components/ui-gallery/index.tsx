@@ -7,8 +7,10 @@ import { callsiteCounts } from "./callsite-counts";
 import Grid from "./grid";
 import Preview from "./preview";
 import { notPreviewable, registry } from "./registry";
+import SurfacesDemo from "./surfaces-demo";
 
 const ASSORTED = "Assorted";
+const SURFACES = "Surfaces";
 
 // Small right-aligned callsite count shown next to each sidebar item.
 function Count({ name }: { name: string }) {
@@ -23,6 +25,7 @@ function Count({ name }: { name: string }) {
 export default function UiGallery() {
   const [selectedName, setSelectedName] = useState<string>(ASSORTED);
   const isAssorted = selectedName === ASSORTED;
+  const isSurfaces = selectedName === SURFACES;
   const entry = registry.find((e) => e.name === selectedName);
 
   return (
@@ -37,6 +40,14 @@ export default function UiGallery() {
           }`}
         >
           Assorted
+        </button>
+        <button
+          onClick={() => setSelectedName(SURFACES)}
+          className={`rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
+            isSurfaces ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:bg-muted/50"
+          }`}
+        >
+          Surfaces
         </button>
 
         <div className="mt-4 px-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
@@ -73,7 +84,16 @@ export default function UiGallery() {
       </aside>
 
       <main className="flex-1 overflow-y-auto p-6">
-        {isAssorted ? (
+        {isSurfaces ? (
+          <div className="flex flex-col gap-3">
+            <h2 className="text-lg font-semibold">Surfaces</h2>
+            <p className="text-sm text-muted-foreground">
+              Relative elevation — components read their substrate and lift a fixed number of steps, so nested overlays
+              stay legible at any depth.
+            </p>
+            <SurfacesDemo />
+          </div>
+        ) : isAssorted ? (
           <div className="flex flex-col gap-3">
             <h2 className="text-lg font-semibold">Assorted</h2>
             <p className="text-sm text-muted-foreground">
