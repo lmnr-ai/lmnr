@@ -46,10 +46,11 @@ pub trait CacheTrait {
     async fn increment(&self, key: &str, amount: i64) -> Result<i64, CacheError>;
 
     /// Atomically increment a counter, creating it with the given TTL when
-    /// absent. Create + expire + increment run as one atomic unit (Redis MULTI
-    /// pipeline), so the key can never exist without an expiry — the TTL is
-    /// only set on creation, never refreshed. Returns the new value. Used for
-    /// fixed-window rate-limit counters.
+    /// absent. Increment + expiry-arming run as one atomic unit (Redis Lua
+    /// script), so the key can never exist without an expiry — the TTL is
+    /// set when the key has none (creation or self-heal), never refreshed on
+    /// a live window. Returns the new value. Used for fixed-window rate-limit
+    /// counters.
     async fn increment_with_ttl_on_create(
         &self,
         key: &str,

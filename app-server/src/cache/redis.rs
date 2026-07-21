@@ -136,26 +136,28 @@ impl CacheTrait for RedisCache {
         amount: i64,
         ttl_seconds: u64,
     ) -> Result<i64, CacheError> {
-        // Atomic MULTI pipeline: create-with-expiry (no-op when the key
-        // exists) then increment. The key can never be left without a TTL,
-        // even if the process dies mid-call.
-        let mut pipe = redis::pipe();
-        pipe.atomic()
-            .cmd("SET")
-            .arg(key)
-            .arg(0)
-            .arg("NX")
-            .arg("EX")
+        // Lua script instead of a SET-NX-EX + INCRBY MULTI pipeline: within
+        // MULTI, each command checks passive expiry against the live clock,
+        // so the key could expire between the two commands and INCRBY would
+        // recreate it WITHOUT a TTL — a permanently stuck counter. Scripts
+        // freeze the expiry clock at script start, and the TTL<0 check
+        // additionally self-heals any TTL-less counter on the next call.
+        let script = redis::Script::new(
+            r"
+            local v = redis.call('INCRBY', KEYS[1], ARGV[1])
+            if redis.call('TTL', KEYS[1]) < 0 then
+                redis.call('EXPIRE', KEYS[1], ARGV[2])
+            end
+            return v",
+        );
+        let result: RedisResult<i64> = script
+            .key(key)
+            .arg(amount)
             .arg(ttl_seconds)
-            .ignore()
-            .cmd("INCRBY")
-            .arg(key)
-            .arg(amount);
-
-        let result: RedisResult<(i64,)> =
-            pipe.query_async(&mut self.connection.current_clone()).await;
+            .invoke_async(&mut self.connection.current_clone())
+            .await;
         match result {
-            Ok((new_value,)) => Ok(new_value),
+            Ok(new_value) => Ok(new_value),
             Err(e) => {
                 self.on_error("increment_with_ttl_on_create", &e);
                 Err(CacheError::InternalError(anyhow::Error::from(e)))
