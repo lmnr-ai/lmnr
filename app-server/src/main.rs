@@ -1858,6 +1858,8 @@ fn main() -> anyhow::Result<()> {
                         // authz is the CliProjectAuth extractor's job per-handler.
                         let cli_auth =
                             HttpAuthentication::bearer(auth::cli_user::cli_auth_validator);
+                        let mcp_oauth_auth =
+                            HttpAuthentication::bearer(auth::cli_user::mcp_oauth_auth_validator);
 
                         let mut app = App::new()
                             .wrap(ErrorHandlers::new().handler(
@@ -1959,6 +1961,23 @@ fn main() -> anyhow::Result<()> {
                                 web::scope("/v1/tag")
                                     .wrap(project_auth.clone())
                                     .service(api::v1::tag::tag_trace),
+                            )
+                            .service(
+                                web::scope("/v1/mcp/oauth")
+                                    .wrap(mcp_oauth_auth.clone())
+                                    .app_data(mcp_state.clone())
+                                    .service(api::v1::mcp::oauth_mcp_handler)
+                                    .default_service(
+                                        web::route().to(api::v1::mcp::method_not_allowed),
+                                    ),
+                            )
+                            .route(
+                                "/.well-known/oauth-protected-resource",
+                                web::get().to(api::v1::mcp::oauth_protected_resource_metadata),
+                            )
+                            .route(
+                                "/.well-known/oauth-protected-resource/v1/mcp/oauth",
+                                web::get().to(api::v1::mcp::oauth_protected_resource_metadata),
                             )
                             .service(
                                 web::scope("/v1/mcp")

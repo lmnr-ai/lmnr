@@ -15,12 +15,15 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
+    auth::cli_user::{McpOAuthUserAuth, is_user_member_of_project},
     cache::Cache,
     db::{DB, project_api_keys::ProjectApiKey},
     llm::LlmClient,
     query_engine::QueryEngine,
     sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
 };
+
+const OAUTH_TOOL_NAMES: &[&str] = &["query_laminar_sql", "get_trace_context"];
 
 // ============ Per-request context ============
 
@@ -506,30 +509,240 @@ pub async fn mcp_handler(
                     .insert(ProjectId(api_key.project_id));
             }
 
-            // Use rmcp's OneshotTransport + serve_directly (same pattern as the
-            // official tower handler) to route through our ServerHandler.
-            let (transport, mut receiver) =
-                OneshotTransport::<RoleServer>::new(ClientJsonRpcMessage::Request(request));
-            let service_handle = serve_directly(state.server.clone(), transport, None);
+            serve_request(request, &state).await
+        }
+    }
+}
 
-            tokio::spawn(async move {
-                let _ = service_handle.waiting().await;
-            });
+async fn serve_request(
+    request: JsonRpcRequest<ClientRequest>,
+    state: &web::Data<McpState>,
+) -> HttpResponse {
+    let (transport, mut receiver) =
+        OneshotTransport::<RoleServer>::new(ClientJsonRpcMessage::Request(request));
+    let service_handle = serve_directly(state.server.clone(), transport, None);
 
-            // Collect the response from the channel
-            match receiver.recv().await {
-                Some(response) => {
-                    let body = serde_json::to_vec(&response).unwrap_or_else(|_| b"{}".to_vec());
-                    HttpResponse::Ok()
-                        .content_type("application/json")
-                        .body(Bytes::from(body))
-                }
-                None => HttpResponse::InternalServerError()
-                    .content_type("application/json")
-                    .body("{\"error\": \"No response from handler\"}"),
+    tokio::spawn(async move {
+        let _ = service_handle.waiting().await;
+    });
+
+    match receiver.recv().await {
+        Some(response) => {
+            let body = serde_json::to_vec(&response).unwrap_or_else(|_| b"{}".to_vec());
+            HttpResponse::Ok()
+                .content_type("application/json")
+                .body(Bytes::from(body))
+        }
+        None => HttpResponse::InternalServerError()
+            .content_type("application/json")
+            .body("{\"error\": \"No response from handler\"}"),
+    }
+}
+
+fn json_rpc_error(id: Value, code: i64, message: &str) -> HttpResponse {
+    HttpResponse::Ok().json(serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "error": { "code": code, "message": message },
+    }))
+}
+
+fn decorate_oauth_tools_response(response: &mut Value) {
+    let Some(tools) = response
+        .pointer_mut("/result/tools")
+        .and_then(Value::as_array_mut)
+    else {
+        return;
+    };
+    tools.retain(|tool| {
+        tool.get("name")
+            .and_then(Value::as_str)
+            .is_some_and(|name| OAUTH_TOOL_NAMES.contains(&name))
+    });
+    for tool in tools.iter_mut() {
+        if let Some(schema) = tool.get_mut("inputSchema").and_then(Value::as_object_mut) {
+            let properties = schema
+                .entry("properties")
+                .or_insert_with(|| serde_json::json!({}));
+            if let Some(properties) = properties.as_object_mut() {
+                properties.insert(
+                    "projectId".to_string(),
+                    serde_json::json!({
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Laminar project ID returned by list_laminar_projects"
+                    }),
+                );
+            }
+            let required = schema
+                .entry("required")
+                .or_insert_with(|| serde_json::json!([]));
+            if let Some(required) = required.as_array_mut() {
+                required.push(Value::String("projectId".to_string()));
             }
         }
     }
+    tools.insert(
+        0,
+        serde_json::json!({
+            "name": "list_laminar_projects",
+            "description": "List the Laminar projects the signed-in user can inspect. Call this before querying traces.",
+            "inputSchema": { "type": "object", "properties": {} }
+        }),
+    );
+}
+
+/// POST /v1/mcp/oauth — user-scoped OAuth MCP for agent integrations.
+///
+/// The OAuth token supplies identity only. Project selection is an explicit
+/// `projectId` tool argument and membership is checked before project context
+/// reaches the existing read-only Laminar tools.
+#[actix_web::post("")]
+pub async fn oauth_mcp_handler(
+    req: HttpRequest,
+    body: web::Bytes,
+    state: web::Data<McpState>,
+) -> HttpResponse {
+    let user = match req.extensions().get::<McpOAuthUserAuth>().cloned() {
+        Some(user) => user,
+        None => return HttpResponse::Unauthorized().finish(),
+    };
+    let mut raw: Value = match serde_json::from_slice(&body) {
+        Ok(value) => value,
+        Err(e) => {
+            return HttpResponse::BadRequest().json(serde_json::json!({ "error": e.to_string() }));
+        }
+    };
+    let id = raw.get("id").cloned().unwrap_or(Value::Null);
+    let method = raw
+        .get("method")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+
+    if method == "notifications/initialized" {
+        return HttpResponse::Accepted().finish();
+    }
+
+    if method == "tools/call" {
+        let name = raw
+            .pointer("/params/name")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if name == "list_laminar_projects" {
+            let projects = match crate::db::projects::get_projects_for_user(
+                &state.server.db.pool,
+                &user.user_id,
+            )
+            .await
+            {
+                Ok(projects) => projects,
+                Err(e) => {
+                    log::error!("OAuth MCP project discovery failed: {e}");
+                    return json_rpc_error(id, -32603, "Failed to list Laminar projects");
+                }
+            };
+            let text = serde_json::to_string_pretty(&projects).unwrap_or_else(|_| "[]".to_string());
+            return HttpResponse::Ok().json(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": {
+                    "content": [{ "type": "text", "text": text }],
+                    "isError": false
+                }
+            }));
+        }
+        if !OAUTH_TOOL_NAMES.contains(&name) {
+            return json_rpc_error(
+                id,
+                -32601,
+                "Tool is not available on the OAuth MCP resource",
+            );
+        }
+
+        let project_id = match raw
+            .pointer("/params/arguments/projectId")
+            .and_then(Value::as_str)
+            .and_then(|value| Uuid::parse_str(value).ok())
+        {
+            Some(project_id) => project_id,
+            None => return json_rpc_error(id, -32602, "A valid projectId is required"),
+        };
+        match is_user_member_of_project(
+            &state.server.db.pool,
+            &state.server.cache,
+            user.user_id,
+            project_id,
+        )
+        .await
+        {
+            Ok(true) => {}
+            Ok(false) => {
+                return json_rpc_error(
+                    id,
+                    -32602,
+                    "You do not have access to this Laminar project",
+                );
+            }
+            Err(e) => {
+                log::error!("OAuth MCP membership check failed: {e}");
+                return json_rpc_error(id, -32603, "Failed to verify Laminar project access");
+            }
+        }
+
+        if let Some(arguments) = raw
+            .pointer_mut("/params/arguments")
+            .and_then(Value::as_object_mut)
+        {
+            arguments.remove("projectId");
+        }
+        let mut message: ClientJsonRpcMessage = match serde_json::from_value(raw) {
+            Ok(message) => message,
+            Err(e) => return json_rpc_error(id, -32602, &format!("Invalid tool call: {e}")),
+        };
+        if let ClientJsonRpcMessage::Request(request) = &mut message {
+            request
+                .request
+                .extensions_mut()
+                .insert(ProjectId(project_id));
+        }
+        return match message {
+            ClientJsonRpcMessage::Request(request) => serve_request(request, &state).await,
+            _ => json_rpc_error(id, -32600, "Expected a JSON-RPC request"),
+        };
+    }
+
+    let message: ClientJsonRpcMessage = match serde_json::from_value(raw) {
+        Ok(message) => message,
+        Err(e) => return json_rpc_error(id, -32600, &format!("Invalid JSON-RPC request: {e}")),
+    };
+    let request = match message {
+        ClientJsonRpcMessage::Request(request) => request,
+        ClientJsonRpcMessage::Notification(_)
+        | ClientJsonRpcMessage::Response(_)
+        | ClientJsonRpcMessage::Error(_) => {
+            return HttpResponse::Accepted().finish();
+        }
+    };
+
+    if method != "tools/list" {
+        return serve_request(request, &state).await;
+    }
+
+    // Ask the existing server for its canonical schemas, then expose the two
+    // read-only trace tools with a required project selector plus discovery.
+    let (transport, mut receiver) =
+        OneshotTransport::<RoleServer>::new(ClientJsonRpcMessage::Request(request));
+    let service_handle = serve_directly(state.server.clone(), transport, None);
+    tokio::spawn(async move {
+        let _ = service_handle.waiting().await;
+    });
+    let Some(response) = receiver.recv().await else {
+        return json_rpc_error(id, -32603, "No response from Laminar MCP");
+    };
+    let mut response = serde_json::to_value(response).unwrap_or_else(|_| serde_json::json!({}));
+    decorate_oauth_tools_response(&mut response);
+    HttpResponse::Ok().json(response)
 }
 
 /// Catch-all for non-POST methods (GET, DELETE, etc.) → 405 Method Not Allowed.
@@ -538,6 +751,22 @@ pub async fn method_not_allowed() -> HttpResponse {
     HttpResponse::MethodNotAllowed()
         .insert_header(("Allow", "POST"))
         .finish()
+}
+
+/// RFC 9728 protected-resource metadata for OAuth MCP discovery.
+pub async fn oauth_protected_resource_metadata() -> HttpResponse {
+    let resource = std::env::var(crate::env::notifications::LAMINAR_MCP_RESOURCE_URL)
+        .unwrap_or_else(|_| "http://localhost:8000/v1/mcp/oauth".to_string());
+    let frontend = std::env::var(crate::env::notifications::NEXT_PUBLIC_URL)
+        .unwrap_or_else(|_| "http://localhost:3000".to_string())
+        .trim_end_matches('/')
+        .to_string();
+    HttpResponse::Ok().json(serde_json::json!({
+        "resource": resource,
+        "authorization_servers": [format!("{frontend}/api/auth")],
+        "scopes_supported": ["mcp:read"],
+        "bearer_methods_supported": ["header"]
+    }))
 }
 
 #[cfg(test)]
@@ -621,5 +850,44 @@ mod tests {
             trace.contains("LLM-optimized summary of a trace"),
             "get_trace_context description changed unexpectedly: {trace}"
         );
+    }
+
+    #[test]
+    fn oauth_tool_list_is_read_only_and_requires_project_selection() {
+        let mut response = serde_json::json!({
+            "result": {
+                "tools": [
+                    { "name": "ask_agent", "inputSchema": { "type": "object", "properties": {} } },
+                    { "name": "get_trace_context", "inputSchema": { "type": "object", "properties": {} } },
+                    { "name": "query_laminar_sql", "inputSchema": { "type": "object", "properties": {} } }
+                ]
+            }
+        });
+
+        decorate_oauth_tools_response(&mut response);
+
+        let tools = response["result"]["tools"].as_array().expect("tools array");
+        let names: Vec<_> = tools
+            .iter()
+            .filter_map(|tool| tool["name"].as_str())
+            .collect();
+        assert_eq!(
+            names,
+            vec![
+                "list_laminar_projects",
+                "get_trace_context",
+                "query_laminar_sql"
+            ]
+        );
+        for tool in tools.iter().skip(1) {
+            assert_eq!(
+                tool["inputSchema"]["properties"]["projectId"]["format"],
+                "uuid"
+            );
+            assert_eq!(
+                tool["inputSchema"]["required"],
+                serde_json::json!(["projectId"])
+            );
+        }
     }
 }

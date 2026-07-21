@@ -1,3 +1,4 @@
+import { oauthProvider } from "@better-auth/oauth-provider";
 import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
@@ -32,6 +33,7 @@ const AUTH_URL = process.env.BETTER_AUTH_URL ?? process.env.NEXTAUTH_URL;
 // auth-client.ts `baseURL`) and OAuth callback URIs (prefixedCallbackUri below, which
 // rebuilds the prefixed `/api/auth/callback/<id>` from AUTH_ORIGIN + BASE_PATH).
 const AUTH_ORIGIN = AUTH_URL ? new URL(AUTH_URL).origin : undefined;
+const LAMINAR_MCP_RESOURCE_URL = process.env.LAMINAR_MCP_RESOURCE_URL;
 
 /**
  * Process any pending workspace invitations for the given user.
@@ -237,6 +239,28 @@ export const auth = betterAuth({
         }),
       },
     }),
+    // User-scoped OAuth 2.1 for remote MCP clients such as Eve. Access tokens
+    // are audience-bound to the public app-server resource; the app server
+    // still re-checks Laminar project membership for every tool invocation.
+    ...(LAMINAR_MCP_RESOURCE_URL
+      ? [
+          oauthProvider({
+            // OAuth Provider redirects these paths itself, outside Next's
+            // router, so preserve the baked sub-path for self-hosted installs.
+            loginPage: `${BASE_PATH}/sign-in`,
+            consentPage: `${BASE_PATH}/oauth/consent`,
+            scopes: ["openid", "profile", "email", "offline_access", "mcp:read"],
+            validAudiences: [LAMINAR_MCP_RESOURCE_URL],
+            allowDynamicClientRegistration: true,
+            // Eve is a public PKCE client and therefore cannot authenticate at
+            // dynamic registration time. Confidential clients remain hashed.
+            allowUnauthenticatedClientRegistration: true,
+            clientRegistrationDefaultScopes: ["openid", "profile", "email", "offline_access", "mcp:read"],
+            clientRegistrationAllowedScopes: [],
+            grantTypes: ["authorization_code", "refresh_token"],
+          }),
+        ]
+      : []),
     // Accept Authorization: Bearer <session-token> so the device-flow access
     // token (which IS a session token) round-trips through getSession().
     bearer(),

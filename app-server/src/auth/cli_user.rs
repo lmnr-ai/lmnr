@@ -59,6 +59,14 @@ struct Claims {
     exp: usize,
 }
 
+#[derive(Debug, Deserialize)]
+struct OAuthClaims {
+    sub: Uuid,
+    scope: String,
+    #[allow(dead_code)]
+    exp: usize,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum VerifyError {
     #[error("missing kid in token header")]
@@ -155,10 +163,60 @@ pub async fn verify_jwt(token: &str, jwks: &JwksCache) -> Result<Uuid, VerifyErr
     Ok(data.claims.user_id)
 }
 
+/// Verify an audience-bound OAuth access token issued for the Laminar MCP
+/// resource. Unlike CLI tokens, OAuth tokens are rejected unless issuer,
+/// audience, expiry, signature, and the read-only MCP scope all match.
+pub async fn verify_oauth_jwt(token: &str, jwks: &JwksCache) -> Result<Uuid, VerifyError> {
+    let public_frontend = std::env::var(crate::env::notifications::NEXT_PUBLIC_URL)
+        .unwrap_or_else(|_| "http://localhost:3000".to_string())
+        .trim_end_matches('/')
+        .to_string();
+    let issuer = format!("{public_frontend}/api/auth");
+    let audience = std::env::var(crate::env::notifications::LAMINAR_MCP_RESOURCE_URL)
+        .unwrap_or_else(|_| "http://localhost:8000/v1/mcp/oauth".to_string());
+
+    verify_oauth_jwt_for(token, jwks, &issuer, &audience).await
+}
+
+async fn verify_oauth_jwt_for(
+    token: &str,
+    jwks: &JwksCache,
+    issuer: &str,
+    audience: &str,
+) -> Result<Uuid, VerifyError> {
+    let header = decode_header(token)?;
+    let kid = header.kid.ok_or(VerifyError::MissingKid)?;
+    let key = jwks.decoding_key_for_kid(&kid).await?;
+
+    let mut validation = Validation::new(Algorithm::EdDSA);
+    validation.set_required_spec_claims(&["exp", "iss", "aud", "sub"]);
+    validation.set_issuer(&[issuer]);
+    validation.set_audience(&[audience]);
+
+    let data = decode::<OAuthClaims>(token, &key, &validation)?;
+    if !data
+        .claims
+        .scope
+        .split_whitespace()
+        .any(|scope| scope == "mcp:read")
+    {
+        return Err(VerifyError::Invalid(
+            jsonwebtoken::errors::ErrorKind::InvalidToken.into(),
+        ));
+    }
+    Ok(data.claims.sub)
+}
+
 /// A verified CLI user, inserted into request extensions by
 /// `cli_auth_validator`. This is the authN result — identity only, no project.
 #[derive(Clone)]
 pub struct CliUserAuth {
+    pub user_id: Uuid,
+}
+
+/// Verified user identity for the OAuth MCP surface.
+#[derive(Clone)]
+pub struct McpOAuthUserAuth {
     pub user_id: Uuid,
 }
 
@@ -212,6 +270,33 @@ pub async fn cli_auth_validator(
         }
     };
     req.extensions_mut().insert(CliUserAuth { user_id });
+    Ok(req)
+}
+
+pub async fn mcp_oauth_auth_validator(
+    req: ServiceRequest,
+    credentials: BearerAuth,
+) -> Result<ServiceRequest, (Error, ServiceRequest)> {
+    let config = req.app_data::<Config>().cloned().unwrap_or_default();
+    let jwks = match req.app_data::<web::Data<Arc<JwksCache>>>().cloned() {
+        Some(j) => j.into_inner(),
+        None => {
+            log::error!("JwksCache not registered; OAuth MCP auth cannot verify tokens");
+            return Err((
+                actix_web::error::ErrorInternalServerError("OAuth MCP auth unavailable"),
+                req,
+            ));
+        }
+    };
+
+    let user_id = match verify_oauth_jwt(credentials.token(), &jwks).await {
+        Ok(uid) => uid,
+        Err(e) => {
+            log::warn!("OAuth MCP JWT verification failed: {e}");
+            return Err((AuthenticationError::from(config).into(), req));
+        }
+    };
+    req.extensions_mut().insert(McpOAuthUserAuth { user_id });
     Ok(req)
 }
 
@@ -428,6 +513,56 @@ mod tests {
         );
         let got = verify_jwt(&token, &jwks).await.expect("verify ok");
         assert_eq!(got, user_id);
+    }
+
+    #[tokio::test]
+    async fn oauth_token_requires_matching_resource_and_scope() {
+        let kid = "oauth-key";
+        let (encoding, jwk) = make_key(kid);
+        let (_server, jwks) = cache_serving(vec![jwk]).await;
+        let user_id = Uuid::new_v4();
+        let issuer = "https://laminar.example/api/auth";
+        let audience = "https://laminar-api.example/v1/mcp/oauth";
+        let token = sign_token(
+            &encoding,
+            kid,
+            serde_json::json!({
+                "sub": user_id,
+                "scope": "openid mcp:read",
+                "iss": issuer,
+                "aud": audience,
+                "exp": future_exp()
+            }),
+        );
+
+        assert_eq!(
+            verify_oauth_jwt_for(&token, &jwks, issuer, audience)
+                .await
+                .expect("valid OAuth MCP token"),
+            user_id
+        );
+        assert!(
+            verify_oauth_jwt_for(&token, &jwks, issuer, "https://other.example")
+                .await
+                .is_err()
+        );
+
+        let no_scope = sign_token(
+            &encoding,
+            kid,
+            serde_json::json!({
+                "sub": user_id,
+                "scope": "openid profile",
+                "iss": issuer,
+                "aud": audience,
+                "exp": future_exp()
+            }),
+        );
+        assert!(
+            verify_oauth_jwt_for(&no_scope, &jwks, issuer, audience)
+                .await
+                .is_err()
+        );
     }
 
     #[tokio::test]

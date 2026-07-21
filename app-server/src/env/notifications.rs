@@ -7,3 +7,7 @@ pub const NEXT_PUBLIC_URL: &str = "NEXT_PUBLIC_URL";
 /// Internal URL preferred over the public one for server-to-server calls
 /// (e.g. the CLI-auth JWKS fetch).
 pub const NEXT_INTERNAL_URL: &str = "NEXT_INTERNAL_URL";
+
+/// Public URL of the user-scoped OAuth MCP resource. This exact value is used
+/// as the OAuth access-token audience.
+pub const LAMINAR_MCP_RESOURCE_URL: &str = "LAMINAR_MCP_RESOURCE_URL";

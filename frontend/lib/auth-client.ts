@@ -1,3 +1,4 @@
+import { oauthProviderClient } from "@better-auth/oauth-provider/client";
 import { deviceAuthorizationClient, genericOAuthClient, jwtClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
@@ -14,7 +15,7 @@ const baseURL = typeof window !== "undefined" ? `${window.location.origin}${BASE
 
 export const authClient = createAuthClient({
   baseURL,
-  plugins: [genericOAuthClient(), jwtClient(), deviceAuthorizationClient()],
+  plugins: [genericOAuthClient(), jwtClient(), deviceAuthorizationClient(), oauthProviderClient()],
 });
 
 export const { signIn, signOut, useSession, getSession } = authClient;
