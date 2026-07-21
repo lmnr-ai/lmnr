@@ -98,8 +98,11 @@ pub struct UserTaskLockState {
     #[serde(rename = "d")]
     pub depth: usize,
     /// Up to [`ROSTER_CAP`] earliest-starting spans at `depth`. Closes
-    /// the arbitration window: once full, later-starting spans can't
-    /// compete regardless of token count.
+    /// the arbitration window: once full AND a winner is published,
+    /// later-starting spans can't compete regardless of token count.
+    /// While `winner` is `None` the window doesn't gate — registrations
+    /// persist even when the effect fails, and a sealed-but-empty lock
+    /// would otherwise block every later span for the whole TTL.
     #[serde(rename = "r", default)]
     pub roster: Vec<RosterEntry>,
     /// The candidate whose extraction effect last landed (metadata

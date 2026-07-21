@@ -226,12 +226,14 @@ pub async fn process_user_task_candidates(
 /// depth; a strictly shallower batch resets it — the previous depth's
 /// roster and winner were subagent-level); register every contender at
 /// the lock's depth (the roster keeps the [`super::lock::ROSTER_CAP`]
-/// earliest starters — once full, later spans are out of the window);
-/// the strongest in-window contender challenges the published winner and
-/// runs the effect only when it strictly beats it. The lock is written
-/// back merge-guarded regardless of publish, so registrations (which
-/// close the window) survive; the winner field moves only after the
-/// effect lands.
+/// earliest starters); the strongest eligible contender challenges the
+/// published winner and runs the effect only when it strictly beats it.
+/// The window only gates candidates once a winner is PUBLISHED — with no
+/// winner yet (first batch, or every earlier effect failed) even
+/// out-of-window spans stay eligible, so persisted roster registrations
+/// can never seal the trace with nothing written for the lock TTL. The
+/// lock is written back merge-guarded regardless of publish; the winner
+/// field moves only after the effect lands.
 async fn process_trace_inputs(
     trace_id: Uuid,
     trace_contenders: Vec<InputContender>,
@@ -262,8 +264,15 @@ async fn process_trace_inputs(
         _ => UserTaskLockState::new(batch_min_depth),
     };
 
-    // Register contenders at the lock's depth; keep the in-window ones.
-    let mut in_window: Vec<&InputContender> = Vec::new();
+    // Register contenders at the lock's depth; keep the eligible ones.
+    // The roster window exists to stop late spans from OVERRIDING an
+    // already-published value — while `winner` is still None (first
+    // batch, or every earlier effect failed), an out-of-window candidate
+    // is still eligible: publishing something beats sealing the trace
+    // with nothing for the whole lock TTL, and under last-user-block
+    // extraction a later turn re-finds the same original task anyway.
+    let no_winner_yet = lock.winner.is_none();
+    let mut eligible: Vec<&InputContender> = Vec::new();
     for contender in &trace_contenders {
         if contender.state.depth != lock.depth {
             continue;
@@ -272,12 +281,12 @@ async fn process_trace_inputs(
             start_time_ns: contender.state.start_time_ns,
             span_id: contender.state.span_id.clone(),
         });
-        if registered {
-            in_window.push(contender);
+        if registered || no_winner_yet {
+            eligible.push(contender);
         }
     }
 
-    let challenger = in_window
+    let challenger = eligible
         .into_iter()
         .reduce(|best, c| if c.state.beats(&best.state) { c } else { best });
 
