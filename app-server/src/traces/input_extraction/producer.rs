@@ -264,7 +264,13 @@ async fn process_trace_inputs(
         _ => UserTaskLockState::new(batch_min_depth),
     };
 
-    // Register contenders at the lock's depth; keep the eligible ones.
+    // Register every contender at the lock's depth FIRST, then derive
+    // eligibility from the FINAL roster — `register`'s return value is a
+    // point-in-time verdict and a later same-start registration can
+    // evict an earlier-accepted span (equal `start_time_ns` ties break
+    // on span id), so snapshotting eligibility inside the loop could
+    // publish a winner that isn't in the persisted window.
+    //
     // The roster window exists to stop late spans from OVERRIDING an
     // already-published value — while `winner` is still None (first
     // batch, or every earlier effect failed), an out-of-window candidate
@@ -272,23 +278,21 @@ async fn process_trace_inputs(
     // with nothing for the whole lock TTL, and under last-user-block
     // extraction a later turn re-finds the same original task anyway.
     let no_winner_yet = lock.winner.is_none();
-    let mut eligible: Vec<&InputContender> = Vec::new();
     for contender in &trace_contenders {
         if contender.state.depth != lock.depth {
             continue;
         }
-        let registered = lock.register(RosterEntry {
+        lock.register(RosterEntry {
             start_time_ns: contender.state.start_time_ns,
             span_id: contender.state.span_id.clone(),
         });
-        if registered || no_winner_yet {
-            eligible.push(contender);
-        }
     }
+    let eligible = trace_contenders.iter().filter(|c| {
+        c.state.depth == lock.depth
+            && (no_winner_yet || lock.roster.iter().any(|e| e.span_id == c.state.span_id))
+    });
 
-    let challenger = eligible
-        .into_iter()
-        .reduce(|best, c| if c.state.beats(&best.state) { c } else { best });
+    let challenger = eligible.reduce(|best, c| if c.state.beats(&best.state) { c } else { best });
 
     if let Some(challenger) = challenger
         && lock

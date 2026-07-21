@@ -126,7 +126,10 @@ impl UserTaskLockState {
 
     /// Upsert a span into the roster (dedup by span id), keep the
     /// [`ROSTER_CAP`] earliest by start time. Returns whether the span is
-    /// in the window after the upsert.
+    /// in the window after THIS upsert — a point-in-time verdict only: a
+    /// later registration can still evict it (equal-start ties break on
+    /// span id), so callers registering several spans must re-check
+    /// membership against the final roster, not collect return values.
     pub fn register(&mut self, entry: RosterEntry) -> bool {
         let span_id = entry.span_id.clone();
         self.roster.retain(|e| e.span_id != entry.span_id);
@@ -368,6 +371,21 @@ mod tests {
         assert!(!lock.roster.iter().any(|e| e.span_id == "s4"));
         // Re-registering an existing span (redelivery) is idempotent.
         assert!(lock.register(entry(5, "early")));
+        assert_eq!(lock.roster.len(), ROSTER_CAP);
+    }
+
+    #[test]
+    fn register_verdict_is_point_in_time_only() {
+        // Fill the roster with equal-start spans; a later registration
+        // with the same start but smaller span id evicts the largest-id
+        // earlier acceptee — its earlier `true` verdict is stale, which
+        // is why the producer derives eligibility from the FINAL roster.
+        let mut lock = UserTaskLockState::new(2);
+        for id in ["b", "c", "d", "e", "f"] {
+            assert!(lock.register(entry(100, id)));
+        }
+        assert!(lock.register(entry(100, "a")));
+        assert!(!lock.roster.iter().any(|e| e.span_id == "f"));
         assert_eq!(lock.roster.len(), ROSTER_CAP);
     }
 
