@@ -89,15 +89,12 @@ async fn check_sql_rate_limit(
         .unwrap_or(config.default_period_secs);
 
     let count_key = format!("{SQL_RATE_LIMIT_COUNT_CACHE_KEY}:{project_id}");
-    let count = cache.increment(&count_key, 1).await?;
-    if count == 1 {
-        // First request of the window owns the expiry. If this fails, the
-        // window would never reset — drop the key so the next request retries.
-        if let Err(e) = cache.set_ttl(&count_key, period_secs).await {
-            let _ = cache.remove(&count_key).await;
-            return Err(e);
-        }
-    }
+    // Create-with-expiry + increment run atomically, so the counter can
+    // never exist without a TTL (a stuck counter would 429 the project
+    // until manual deletion).
+    let count = cache
+        .increment_with_ttl_on_create(&count_key, 1, period_secs)
+        .await?;
     Ok(count as u64 <= limit)
 }
 

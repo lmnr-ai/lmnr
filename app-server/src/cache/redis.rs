@@ -130,6 +130,39 @@ impl CacheTrait for RedisCache {
         }
     }
 
+    async fn increment_with_ttl_on_create(
+        &self,
+        key: &str,
+        amount: i64,
+        ttl_seconds: u64,
+    ) -> Result<i64, CacheError> {
+        // Atomic MULTI pipeline: create-with-expiry (no-op when the key
+        // exists) then increment. The key can never be left without a TTL,
+        // even if the process dies mid-call.
+        let mut pipe = redis::pipe();
+        pipe.atomic()
+            .cmd("SET")
+            .arg(key)
+            .arg(0)
+            .arg("NX")
+            .arg("EX")
+            .arg(ttl_seconds)
+            .ignore()
+            .cmd("INCRBY")
+            .arg(key)
+            .arg(amount);
+
+        let result: RedisResult<(i64,)> =
+            pipe.query_async(&mut self.connection.current_clone()).await;
+        match result {
+            Ok((new_value,)) => Ok(new_value),
+            Err(e) => {
+                self.on_error("increment_with_ttl_on_create", &e);
+                Err(CacheError::InternalError(anyhow::Error::from(e)))
+            }
+        }
+    }
+
     async fn try_acquire_lock(&self, key: &str, ttl_seconds: u64) -> Result<bool, CacheError> {
         let result: RedisResult<Option<String>> = redis::cmd("SET")
             .arg(key)

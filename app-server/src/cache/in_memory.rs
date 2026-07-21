@@ -86,6 +86,23 @@ impl CacheTrait for InMemoryCache {
         Ok(new_value)
     }
 
+    async fn increment_with_ttl_on_create(
+        &self,
+        key: &str,
+        amount: i64,
+        ttl_seconds: u64,
+    ) -> Result<i64, CacheError> {
+        // Not atomic (like `increment` above) — fine for dev/testing.
+        // The spawned invalidation task from creation time survives later
+        // inserts, so the key still expires at the original window end.
+        let created = self.cache.get(key).await.is_none();
+        let new_value = self.increment(key, amount).await?;
+        if created {
+            self.set_ttl(key, ttl_seconds).await?;
+        }
+        Ok(new_value)
+    }
+
     async fn try_acquire_lock(&self, key: &str, ttl_seconds: u64) -> Result<bool, CacheError> {
         let mut locks = self.locks.write().await;
         let now = tokio::time::Instant::now();
