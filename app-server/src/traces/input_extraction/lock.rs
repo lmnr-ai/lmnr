@@ -166,19 +166,27 @@ impl UserTaskLockState {
 
     /// Does the current lock supersede a queued candidate's snapshot —
     /// i.e. should the queued extraction drop instead of publishing?
-    /// Only a strictly stronger PUBLISHED winner supersedes; an equal
-    /// winner is this candidate's own producer write, and a weaker one is
-    /// stale state the snapshot already overrode.
+    /// Only a strictly stronger PUBLISHED winner supersedes — NEVER
+    /// depth alone: a shallower batch resets the lock to `winner: None`
+    /// and that reset persists even when its own publish/enqueue FAILED,
+    /// so dropping the queued deeper extraction on depth would leave
+    /// `lmnr_user_task` unset for the whole lock TTL. Publishing the
+    /// deeper value is strictly better — a later shallow success
+    /// overwrites it (same key, `no_winner_yet` keeps shallow candidates
+    /// eligible). An equal winner is this candidate's own producer
+    /// write; a weaker same-depth one is stale state the snapshot
+    /// already overrode.
     pub fn supersedes(&self, snapshot: &WinnerState) -> bool {
+        let Some(winner) = &self.winner else {
+            return false;
+        };
         if self.depth < snapshot.depth {
             return true;
         }
         if self.depth > snapshot.depth {
             return false;
         }
-        self.winner
-            .as_ref()
-            .is_some_and(|w| w != snapshot && w.beats(snapshot))
+        winner != snapshot && winner.beats(snapshot)
     }
 }
 
@@ -431,8 +439,16 @@ mod tests {
     #[test]
     fn supersedes_requires_strictly_stronger_published_winner() {
         let snapshot = w(2, 100, 50, "self");
-        // Shallower lock always supersedes.
-        assert!(UserTaskLockState::new(1).supersedes(&snapshot));
+        // Shallower lock with a PUBLISHED winner supersedes.
+        let mut shallow_published = UserTaskLockState::new(1);
+        shallow_published.winner = Some(w(1, 10, 60, "main"));
+        assert!(shallow_published.supersedes(&snapshot));
+        // Shallower lock with NO published winner must NOT drop the
+        // queued deeper extraction: a shallow batch resets the lock even
+        // when its own effect FAILED, and depth-alone supersession would
+        // leave lmnr_user_task unset for the whole TTL. The deeper value
+        // publishes; a later shallow success overwrites it.
+        assert!(!UserTaskLockState::new(1).supersedes(&snapshot));
         // Deeper lock never supersedes.
         let mut deep = UserTaskLockState::new(3);
         deep.winner = Some(w(3, 9000, 1, "x"));
