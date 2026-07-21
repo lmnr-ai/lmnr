@@ -1,165 +1,397 @@
-//! Winning-span state: the per-trace idempotency / override record that
-//! arbitrates which LLM span's input owns the trace's user task.
+//! Winner arbitration state: the per-trace record that arbitrates which
+//! LLM span's input owns the trace's user task, and which span's output
+//! owns the trace output.
+//!
+//! Input arbitration is roster-based: the winner must be among the first
+//! [`ROSTER_CAP`] spans (by start time) at the shallowest observed depth,
+//! and among those the one with the most non-cached input tokens wins.
+//! The first few shallow spans of a trace are often secondary helpers
+//! (title generation, routing) — token mass is what singles out the real
+//! main-agent call, while the roster cap stops later main-loop turns
+//! (which grow monotonically in tokens) from overriding forever.
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::cache::keys::USER_TASK_LOCK_CACHE_KEY;
+use crate::cache::keys::{TRACE_OUTPUT_LOCK_CACHE_KEY, USER_TASK_LOCK_CACHE_KEY};
+
+/// How many earliest-starting spans at the shallowest depth stay eligible
+/// to own the user task.
+pub const ROSTER_CAP: usize = 5;
 
 pub fn lock_cache_key(project_id: Uuid, trace_id: Uuid) -> String {
     format!("{USER_TASK_LOCK_CACHE_KEY}:{project_id}:{trace_id}")
 }
 
-/// Legacy lock entries (written before `start_time_ns` existed) carry no
-/// `t` key; defaulting to `i64::MAX` keeps them beatable by any
-/// timestamped candidate, matching the pre-start-time semantics.
-fn legacy_start_time_ns() -> i64 {
+pub fn trace_output_lock_cache_key(project_id: Uuid, trace_id: Uuid) -> String {
+    format!("{TRACE_OUTPUT_LOCK_CACHE_KEY}:{project_id}:{trace_id}")
+}
+
+/// Stats of a candidate span competing for the trace's user task. Doubles
+/// as the published-winner record inside [`UserTaskLockState`] and as the
+/// snapshot a queued extraction carries.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WinnerState {
+    /// Span path depth.
+    #[serde(rename = "d")]
+    pub depth: usize,
+    /// Non-cached input tokens (`input_tokens.total() - cache_read`).
+    /// Cache-read-heavy turns are later same-conversation turns; a fresh
+    /// first call reads no cache, so this discriminates "big new context"
+    /// from "big replayed context". Tokens (not cost) on purpose: cost is
+    /// only derivable when the model resolves in the pricing tables.
+    #[serde(rename = "k", default)]
+    pub input_tokens: i64,
+    /// Start time (ns since epoch); `i64::MAX` = unknown ("never wins on
+    /// the time axis"). Also the default for legacy lock JSON without `t`.
+    #[serde(rename = "t", default = "unknown_time_ns")]
+    pub start_time_ns: i64,
+    /// Simple-form span id — dedups roster re-registration on redelivery
+    /// and breaks full ties deterministically.
+    #[serde(rename = "id", default)]
+    pub span_id: String,
+}
+
+fn unknown_time_ns() -> i64 {
     i64::MAX
 }
 
-/// Stats of the span whose input currently owns the trace's user task.
-/// Stored as short-key JSON in the lock cache under
-/// `lock_cache_key(project_id, trace_id)`.
+impl WinnerState {
+    /// Strict total order over distinct spans: shallower depth, then more
+    /// non-cached input tokens, then earlier start, then smaller span id.
+    pub fn beats(&self, other: &Self) -> bool {
+        if self.depth != other.depth {
+            return self.depth < other.depth;
+        }
+        if self.input_tokens != other.input_tokens {
+            return self.input_tokens > other.input_tokens;
+        }
+        if self.start_time_ns != other.start_time_ns {
+            return self.start_time_ns < other.start_time_ns;
+        }
+        self.span_id < other.span_id
+    }
+}
+
+/// One roster slot: a span registered at the lock's depth.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RosterEntry {
+    #[serde(rename = "t", default = "unknown_time_ns")]
+    pub start_time_ns: i64,
+    #[serde(rename = "id", default)]
+    pub span_id: String,
+}
+
+/// Per-trace arbitration state stored under `lock_cache_key`. Legacy
+/// pre-roster lock JSON (`{c,d,s,t}`) decodes to `{depth, roster: [],
+/// winner: None}` — the next candidate at that depth rebuilds the roster
+/// and publishes, a graceful reset.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UserTaskLockState {
-    /// Input cost of the winning span.
-    #[serde(rename = "c")]
-    pub input_cost: f64,
-    /// Span path depth of the winning span.
+    /// Shallowest span-path depth seen for this trace.
     #[serde(rename = "d")]
     pub depth: usize,
-    /// Order-insensitive user naive signature of the winning span.
-    #[serde(rename = "s")]
-    pub user_sig: String,
-    /// Start time (ns since epoch) of the winning span.
-    #[serde(rename = "t", default = "legacy_start_time_ns")]
-    pub start_time_ns: i64,
+    /// Up to [`ROSTER_CAP`] earliest-starting spans at `depth`. Closes
+    /// the arbitration window: once full, later-starting spans can't
+    /// compete regardless of token count.
+    #[serde(rename = "r", default)]
+    pub roster: Vec<RosterEntry>,
+    /// The candidate whose extraction effect last landed (metadata
+    /// publish or queue enqueue). `None` until the first effect.
+    #[serde(rename = "w", default)]
+    pub winner: Option<WinnerState>,
 }
 
 impl UserTaskLockState {
-    /// Only a strictly EARLIER-starting candidate can override — the
-    /// trace's user task is pinned to the earliest span (LAM-1926). On
-    /// top of that gate, the prior rules apply: a strictly shallower
-    /// candidate always overrides (it is closer to the main agent than
-    /// the current winner); at equal depth, only the same (sub)agent —
-    /// same user signature — with strictly higher input cost overrides.
-    pub fn should_override(&self, candidate: &Self) -> bool {
-        if candidate.start_time_ns >= self.start_time_ns {
+    pub fn new(depth: usize) -> Self {
+        UserTaskLockState {
+            depth,
+            roster: Vec::new(),
+            winner: None,
+        }
+    }
+
+    /// Upsert a span into the roster (dedup by span id), keep the
+    /// [`ROSTER_CAP`] earliest by start time. Returns whether the span is
+    /// in the window after the upsert.
+    pub fn register(&mut self, entry: RosterEntry) -> bool {
+        let span_id = entry.span_id.clone();
+        self.roster.retain(|e| e.span_id != entry.span_id);
+        self.roster.push(entry);
+        self.roster
+            .sort_by(|a, b| (a.start_time_ns, &a.span_id).cmp(&(b.start_time_ns, &b.span_id)));
+        self.roster.truncate(ROSTER_CAP);
+        self.roster.iter().any(|e| e.span_id == span_id)
+    }
+
+    /// CRDT-ish merge with a concurrently-written lock: shallower depth
+    /// wins wholesale; at equal depth rosters union (earliest-N) and the
+    /// stronger winner survives. Used by the guarded write-back so a
+    /// get-then-set race degrades to a slightly stale roster, never to a
+    /// rolled-back winner.
+    pub fn merge_from(&mut self, other: &Self) {
+        if other.depth > self.depth {
+            return;
+        }
+        if other.depth < self.depth {
+            *self = other.clone();
+            return;
+        }
+        for entry in &other.roster {
+            self.register(entry.clone());
+        }
+        match (&self.winner, &other.winner) {
+            (Some(w), Some(ow)) if ow.beats(w) => self.winner = other.winner.clone(),
+            (None, Some(_)) => self.winner = other.winner.clone(),
+            _ => {}
+        }
+    }
+
+    /// Does the current lock supersede a queued candidate's snapshot —
+    /// i.e. should the queued extraction drop instead of publishing?
+    /// Only a strictly stronger PUBLISHED winner supersedes; an equal
+    /// winner is this candidate's own producer write, and a weaker one is
+    /// stale state the snapshot already overrode.
+    pub fn supersedes(&self, snapshot: &WinnerState) -> bool {
+        if self.depth < snapshot.depth {
+            return true;
+        }
+        if self.depth > snapshot.depth {
             return false;
         }
+        self.winner
+            .as_ref()
+            .is_some_and(|w| w != snapshot && w.beats(snapshot))
+    }
+}
+
+/// Winning-output state for the trace-output lock: the agent's final
+/// answer sits on the shallowest spine and is the LAST such message, so
+/// strictly shallower wins; at equal depth, strictly later end wins.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OutputLockState {
+    /// Span path depth of the winning span.
+    #[serde(rename = "d")]
+    pub depth: usize,
+    /// End time (ns since epoch) of the winning span.
+    #[serde(rename = "t")]
+    pub end_time_ns: i64,
+}
+
+impl OutputLockState {
+    pub fn should_override(&self, candidate: &Self) -> bool {
         if candidate.depth < self.depth {
             return true;
         }
-        candidate.depth == self.depth
-            && candidate.user_sig == self.user_sig
-            && candidate.input_cost > self.input_cost
+        candidate.depth == self.depth && candidate.end_time_ns > self.end_time_ns
     }
+}
 
-    /// Consumer-side supersession check: does the current lock (`self`)
-    /// supersede a queued candidate's `snapshot`? Bare inequality is not
-    /// enough — the producer writes the lock only after the enqueue
-    /// lands, so a failed lock write can leave an OLDER state in the
-    /// lock. `should_override` is antisymmetric (a candidate that beat
-    /// the lock can never be beaten back by it), so a differing lock the
-    /// snapshot CAN override is necessarily such a stale older state:
-    /// the snapshot is still the strongest known candidate and must
-    /// publish, not drop.
-    pub fn supersedes(&self, snapshot: &Self) -> bool {
-        self != snapshot && !self.should_override(snapshot)
-    }
+/// Depth-major RMT version for the `trace_agent_input` /
+/// `trace_agent_output` ClickHouse rows: inverted depth in the top byte
+/// (shallower ⇒ larger ver), winner-strength minor in the low 56 bits —
+/// non-cached input tokens for inputs, end-time millis for outputs
+/// (millis fit 56 bits until year ~4254). ReplacingMergeTree(ver) then
+/// converges to the strongest winner regardless of arrival order, so
+/// blind re-inserts of stale values are harmless.
+pub fn agent_io_ver(depth: usize, minor: i64) -> u64 {
+    const MINOR_MASK: u64 = (1 << 56) - 1;
+    let inverted_depth = 255 - depth.min(255) as u64;
+    (inverted_depth << 56) | (minor.max(0) as u64).min(MINOR_MASK)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn state(cost: f64, depth: usize, sig: &str, t: i64) -> UserTaskLockState {
-        UserTaskLockState {
-            input_cost: cost,
+    fn w(depth: usize, tokens: i64, t: i64, id: &str) -> WinnerState {
+        WinnerState {
             depth,
-            user_sig: sig.to_string(),
+            input_tokens: tokens,
             start_time_ns: t,
+            span_id: id.to_string(),
+        }
+    }
+
+    fn entry(t: i64, id: &str) -> RosterEntry {
+        RosterEntry {
+            start_time_ns: t,
+            span_id: id.to_string(),
         }
     }
 
     #[test]
-    fn lock_key_scopes_by_project_and_trace() {
+    fn lock_keys_scope_by_project_and_trace() {
         let p = Uuid::new_v4();
         let t = Uuid::new_v4();
         assert_eq!(lock_cache_key(p, t), format!("user_task_lock:{p}:{t}"));
+        assert_eq!(
+            trace_output_lock_cache_key(p, t),
+            format!("trace_output_lock:{p}:{t}")
+        );
     }
 
     #[test]
-    fn equal_depth_override_requires_same_sig_higher_cost() {
-        // Candidates start earlier (t=50) than the winner (t=100) so the
-        // start-time gate passes and the depth/sig/cost rules decide.
-        let prev = state(1.0, 2, "plain", 100);
-        assert!(prev.should_override(&state(2.0, 2, "plain", 50)));
-        // Deeper path — a subagent, not the main conversation.
-        assert!(!prev.should_override(&state(2.0, 3, "plain", 50)));
-        // Different user signature — different (sub)agent shape.
-        assert!(!prev.should_override(&state(2.0, 2, "env,/env", 50)));
-        // Not strictly higher cost — nothing new in the context.
-        assert!(!prev.should_override(&state(1.0, 2, "plain", 50)));
-        assert!(!prev.should_override(&state(0.5, 2, "plain", 50)));
+    fn beats_orders_by_depth_tokens_start_then_id() {
+        // Shallower always beats, regardless of tokens.
+        assert!(w(1, 10, 100, "a").beats(&w(2, 9000, 50, "b")));
+        // Equal depth: more tokens beats.
+        assert!(w(2, 500, 100, "a").beats(&w(2, 100, 50, "b")));
+        // Equal depth+tokens: earlier start beats.
+        assert!(w(2, 100, 50, "b").beats(&w(2, 100, 100, "a")));
+        // Full tie except id: smaller id beats (determinism).
+        assert!(w(2, 100, 50, "a").beats(&w(2, 100, 50, "b")));
+        assert!(!w(2, 100, 50, "b").beats(&w(2, 100, 50, "a")));
+        // Identical: neither beats (strict order).
+        assert!(!w(2, 100, 50, "a").beats(&w(2, 100, 50, "a")));
     }
 
     #[test]
-    fn shallower_candidate_overrides_regardless_of_sig_and_cost() {
-        // A first-arriving deeper subagent must not hold the lock
-        // against the shallower, earlier main agent.
-        let subagent = state(5.0, 3, "env,/env", 100);
-        assert!(subagent.should_override(&state(1.0, 2, "plain", 50)));
-        // Same sig, shallower — closer to the main agent wins even at
-        // lower cost.
-        assert!(subagent.should_override(&state(1.0, 2, "env,/env", 50)));
-        // Deeper never overrides, regardless of sig or cost.
-        assert!(!subagent.should_override(&state(50.0, 4, "env,/env", 50)));
+    fn roster_keeps_earliest_n_and_dedups_by_span_id() {
+        let mut lock = UserTaskLockState::new(2);
+        for i in 0..ROSTER_CAP as i64 {
+            assert!(lock.register(entry(i * 10, &format!("s{i}"))));
+        }
+        // A later-starting span no longer fits the window.
+        assert!(!lock.register(entry(1000, "late")));
+        assert_eq!(lock.roster.len(), ROSTER_CAP);
+        // An earlier-starting span evicts the latest.
+        assert!(lock.register(entry(5, "early")));
+        assert!(lock.roster.iter().any(|e| e.span_id == "early"));
+        assert!(!lock.roster.iter().any(|e| e.span_id == "s4"));
+        // Re-registering an existing span (redelivery) is idempotent.
+        assert!(lock.register(entry(5, "early")));
+        assert_eq!(lock.roster.len(), ROSTER_CAP);
     }
 
     #[test]
-    fn later_or_equal_start_never_overrides() {
-        let prev = state(1.0, 2, "plain", 100);
-        // Equal start blocks even a shallower candidate.
-        assert!(!prev.should_override(&state(5.0, 1, "other", 100)));
-        // Later start blocks even a shallower candidate.
-        assert!(!prev.should_override(&state(5.0, 1, "other", 200)));
-        // Later same-sig higher-cost: blocked too.
-        assert!(!prev.should_override(&state(2.0, 2, "plain", 200)));
-        // Legacy lock (no stored start time) stays beatable by any
-        // timestamped candidate.
-        let legacy = state(1.0, 2, "plain", legacy_start_time_ns());
-        assert!(legacy.should_override(&state(2.0, 2, "plain", 100)));
+    fn merge_prefers_shallower_then_unions_rosters_and_stronger_winner() {
+        let mut a = UserTaskLockState::new(3);
+        a.register(entry(10, "deep"));
+        a.winner = Some(w(3, 100, 10, "deep"));
+        // Shallower other replaces wholesale.
+        let mut b = UserTaskLockState::new(2);
+        b.register(entry(20, "shallow"));
+        a.merge_from(&b);
+        assert_eq!(a.depth, 2);
+        assert!(a.winner.is_none());
+        // Deeper other is ignored.
+        let mut c = UserTaskLockState::new(5);
+        c.winner = Some(w(5, 9000, 1, "x"));
+        a.merge_from(&c);
+        assert_eq!(a.depth, 2);
+        assert!(a.winner.is_none());
+        // Equal depth: rosters union, stronger winner survives.
+        let mut d = UserTaskLockState::new(2);
+        d.register(entry(5, "other"));
+        d.winner = Some(w(2, 50, 5, "other"));
+        a.merge_from(&d);
+        assert_eq!(a.roster.len(), 2);
+        assert_eq!(a.winner, Some(w(2, 50, 5, "other")));
+        let mut e = UserTaskLockState::new(2);
+        e.winner = Some(w(2, 500, 20, "shallow"));
+        a.merge_from(&e);
+        assert_eq!(a.winner, Some(w(2, 500, 20, "shallow")));
     }
 
     #[test]
-    fn supersedes_is_order_aware_not_bare_inequality() {
-        let snapshot = state(2.0, 2, "plain", 100);
-        // Identical lock — the snapshot IS the current winner: publish.
-        assert!(!state(2.0, 2, "plain", 100).supersedes(&snapshot));
-        // Newer winner (earlier-starting, shallower or same-sig higher
-        // cost): drop.
-        assert!(state(1.0, 1, "other", 50).supersedes(&snapshot));
-        assert!(state(3.0, 2, "plain", 50).supersedes(&snapshot));
-        // Stale OLDER lock left behind by a failed producer lock write
-        // (the snapshot overrode it to get enqueued): must NOT drop.
-        assert!(!state(1.0, 2, "plain", 200).supersedes(&snapshot));
-        assert!(!state(5.0, 3, "env,/env", 200).supersedes(&snapshot));
+    fn supersedes_requires_strictly_stronger_published_winner() {
+        let snapshot = w(2, 100, 50, "self");
+        // Shallower lock always supersedes.
+        assert!(UserTaskLockState::new(1).supersedes(&snapshot));
+        // Deeper lock never supersedes.
+        let mut deep = UserTaskLockState::new(3);
+        deep.winner = Some(w(3, 9000, 1, "x"));
+        assert!(!deep.supersedes(&snapshot));
+        // Equal depth, no published winner: publish.
+        assert!(!UserTaskLockState::new(2).supersedes(&snapshot));
+        // Own producer write (winner == snapshot): publish.
+        let mut own = UserTaskLockState::new(2);
+        own.winner = Some(snapshot.clone());
+        assert!(!own.supersedes(&snapshot));
+        // Stronger winner: drop.
+        let mut stronger = UserTaskLockState::new(2);
+        stronger.winner = Some(w(2, 500, 40, "big"));
+        assert!(stronger.supersedes(&snapshot));
+        // Weaker (stale) winner the snapshot overrode: publish.
+        let mut weaker = UserTaskLockState::new(2);
+        weaker.winner = Some(w(2, 10, 60, "small"));
+        assert!(!weaker.supersedes(&snapshot));
+    }
+
+    #[test]
+    fn legacy_lock_json_decodes_to_empty_roster() {
+        // Pre-roster locks carry {c,d,s,t}; unknown keys are ignored and
+        // the missing roster/winner default — the depth gate survives,
+        // arbitration restarts cleanly.
+        let back: UserTaskLockState =
+            serde_json::from_str(r#"{"c":1.5,"d":3,"s":"plain","t":42}"#).unwrap();
+        assert_eq!(back.depth, 3);
+        assert!(back.roster.is_empty());
+        assert!(back.winner.is_none());
     }
 
     #[test]
     fn lock_state_serializes_with_short_keys() {
-        let s = state(1.5, 3, "plain", 42);
-        let json = serde_json::to_string(&s).unwrap();
-        assert_eq!(json, r#"{"c":1.5,"d":3,"s":"plain","t":42}"#);
+        let mut lock = UserTaskLockState::new(2);
+        lock.register(entry(10, "abc"));
+        lock.winner = Some(w(2, 100, 10, "abc"));
+        let json = serde_json::to_string(&lock).unwrap();
+        assert_eq!(
+            json,
+            r#"{"d":2,"r":[{"t":10,"id":"abc"}],"w":{"d":2,"k":100,"t":10,"id":"abc"}}"#
+        );
         let back: UserTaskLockState = serde_json::from_str(&json).unwrap();
-        assert_eq!(back, s);
+        assert_eq!(back, lock);
     }
 
     #[test]
-    fn legacy_lock_json_defaults_start_time_to_max() {
-        let back: UserTaskLockState =
-            serde_json::from_str(r#"{"c":1.5,"d":3,"s":"plain"}"#).unwrap();
-        assert_eq!(back.start_time_ns, i64::MAX);
+    fn legacy_winner_snapshot_decodes_with_defaults() {
+        // A queued pre-roster message's winner_state ({c,d,s,t}) decodes:
+        // d/t map, tokens default 0, span id default empty.
+        let back: WinnerState =
+            serde_json::from_str(r#"{"c":1.5,"d":3,"s":"plain","t":42}"#).unwrap();
+        assert_eq!(back.depth, 3);
+        assert_eq!(back.start_time_ns, 42);
+        assert_eq!(back.input_tokens, 0);
+        assert_eq!(back.span_id, "");
+    }
+
+    #[test]
+    fn agent_io_ver_is_depth_major() {
+        // Shallower depth always outranks, regardless of minor.
+        assert!(agent_io_ver(1, 0) > agent_io_ver(2, i64::MAX));
+        // Same depth: larger minor wins.
+        assert!(agent_io_ver(2, 100) > agent_io_ver(2, 50));
+        // Negative / oversized minors clamp instead of corrupting depth.
+        assert_eq!(agent_io_ver(2, -5), agent_io_ver(2, 0));
+        assert!(agent_io_ver(1, i64::MAX) < agent_io_ver(0, 0));
+    }
+
+    #[test]
+    fn output_lock_shallower_wins_then_later_end() {
+        let prev = OutputLockState {
+            depth: 3,
+            end_time_ns: 100,
+        };
+        // Strictly shallower always overrides.
+        assert!(prev.should_override(&OutputLockState {
+            depth: 2,
+            end_time_ns: 50
+        }));
+        // Equal depth: only a strictly LATER end overrides.
+        assert!(prev.should_override(&OutputLockState {
+            depth: 3,
+            end_time_ns: 200
+        }));
+        assert!(!prev.should_override(&OutputLockState {
+            depth: 3,
+            end_time_ns: 100
+        }));
+        // Deeper never overrides.
+        assert!(!prev.should_override(&OutputLockState {
+            depth: 4,
+            end_time_ns: 200
+        }));
     }
 }

@@ -12,6 +12,11 @@ use super::regex::ApplyRegexResult;
 /// — distinguishes "ran and found nothing" from "never ran" (key absent).
 pub const USER_TASK_METADATA_KEY: &str = "lmnr_user_task";
 
+/// The trace's final output: latest toolless assistant text of the
+/// shallowest (main-agent) spine. String only — no `false` sentinel; a
+/// trace with no qualifying assistant text just has no key.
+pub const TRACE_OUTPUT_METADATA_KEY: &str = "lmnr_trace_output";
+
 /// Map an extraction outcome onto the trace-metadata patch. Extracted
 /// text is signpost-split and re-joined; no-result outcomes never fall
 /// back to raw text — they write `false`. Trace metadata merges with

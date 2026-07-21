@@ -9,7 +9,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use super::{
-    lock::{UserTaskLockState, lock_cache_key},
+    lock::{RosterEntry, UserTaskLockState, agent_io_ver, lock_cache_key},
     metadata::build_metadata_patch,
     queue::InputExtractionMessage,
     regex::{
@@ -117,13 +117,13 @@ impl MessageHandler for InputExtractionHandler {
         // leaves that window open and this older extraction would
         // overwrite the newer winner's `lmnr_user_task`. Runs after regex
         // generation on purpose: the regex is cached per shape, so the
-        // work is kept even when this candidate
-        // is dropped. The check is order-aware (`supersedes`), not bare
-        // inequality: the producer writes the lock only after the enqueue
-        // lands, so a failed lock write can leave an OLDER state behind —
-        // a lock this snapshot can override must not drop it. Absent lock
-        // or cache error fails open — a redundant publish beats a missing
-        // one.
+        // work is kept even when this candidate is dropped. `supersedes`
+        // requires a strictly STRONGER published winner: an equal winner
+        // is this candidate's own producer write, and a weaker one is
+        // stale state the snapshot already beat (the producer moves the
+        // winner only after the enqueue lands, so a failed lock write can
+        // leave older state behind). Absent lock or cache error fails
+        // open — a redundant publish beats a missing one.
         if let Some(snapshot) = &message.winner_state {
             let lock_key = lock_cache_key(message.project_id, message.trace_id);
             if let Ok(Some(current)) = self.cache.get::<UserTaskLockState>(&lock_key).await
@@ -138,10 +138,15 @@ impl MessageHandler for InputExtractionHandler {
         }
 
         let patch = build_metadata_patch(&result);
+        let ver = message
+            .winner_state
+            .as_ref()
+            .map(|s| agent_io_ver(s.depth, s.input_tokens));
         publish_trace_metadata_patch(
             message.trace_id,
             message.project_id,
             patch,
+            ver,
             self.queue.clone(),
             self.db.clone(),
             self.cache.clone(),
@@ -149,21 +154,33 @@ impl MessageHandler for InputExtractionHandler {
         .await
         .map_err(HandlerError::transient)?;
 
-        // Re-assert the winner lock for the state whose extraction just
-        // published — retries the producer lock write that may have
-        // failed after the enqueue, so future arbitration compares
-        // against the actual metadata owner. Guarded by a re-read: a
-        // genuinely newer lock written while this message was in flight
-        // must not be clobbered with the older snapshot. Best-effort
+        // Re-assert the winner whose extraction just published — retries
+        // the producer lock write that may have failed after the enqueue,
+        // so future arbitration compares against the actual metadata
+        // owner. Merge-guarded: the snapshot is folded into the current
+        // lock (roster registrations survive; a genuinely stronger winner
+        // written while this message was in flight is kept). Best-effort
         // like every lock write.
         if let Some(snapshot) = &message.winner_state {
             let lock_key = lock_cache_key(message.project_id, message.trace_id);
-            let current: Option<UserTaskLockState> = self.cache.get(&lock_key).await.ok().flatten();
-            if !current.is_some_and(|c| c.supersedes(snapshot))
-                && let Err(e) = self
-                    .cache
-                    .insert_with_ttl(&lock_key, snapshot, USER_TASK_LOCK_TTL_SECONDS.get())
-                    .await
+            let mut local = UserTaskLockState::new(snapshot.depth);
+            local.register(RosterEntry {
+                start_time_ns: snapshot.start_time_ns,
+                span_id: snapshot.span_id.clone(),
+            });
+            local.winner = Some(snapshot.clone());
+            let mut merged: UserTaskLockState = self
+                .cache
+                .get(&lock_key)
+                .await
+                .ok()
+                .flatten()
+                .unwrap_or_else(|| UserTaskLockState::new(snapshot.depth));
+            merged.merge_from(&local);
+            if let Err(e) = self
+                .cache
+                .insert_with_ttl(&lock_key, &merged, USER_TASK_LOCK_TTL_SECONDS.get())
+                .await
             {
                 log::error!(
                     "user-task: lock state write failed for trace [{}]: {e:?}",

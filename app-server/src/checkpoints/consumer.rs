@@ -278,6 +278,7 @@ impl CheckpointsHandler {
             message.trace_id,
             message.project_id,
             metadata,
+            None,
             self.queue.clone(),
             self.db.clone(),
             self.cache.clone(),

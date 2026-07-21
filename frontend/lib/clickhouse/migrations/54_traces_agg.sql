@@ -41,8 +41,6 @@ CREATE TABLE IF NOT EXISTS default.traces_agg
         Array(Enum8('DEFAULT' = 0, 'EVALUATION' = 1, 'EVENT' = 2, 'PLAYGROUND' = 3))),
     -- debug-only: insert wall-clock, folds to first-seen; not exposed in the view
     `created_at` SimpleAggregateFunction(min, DateTime64(9, 'UTC')) DEFAULT now64(9),
-    `agent_input` SimpleAggregateFunction(max, String),
-    `agent_output` SimpleAggregateFunction(max, String),
     PROJECTION p_start_time
     (
         SELECT *
@@ -53,6 +51,35 @@ ENGINE = AggregatingMergeTree
 PARTITION BY toYYYYMM(start_time)
 ORDER BY (project_id, id)
 SETTINGS index_granularity = 8192, deduplicate_merge_projection_mode = 'rebuild';
+
+-- Extracted agent input/output (LAM-1953) live OUTSIDE traces_agg: they are
+-- mutable latest-wins strings, which SimpleAggregateFunction(max) cannot
+-- express. One row per trace per table, blind idempotent inserts; `ver`
+-- encodes winner strength (shallower depth, then tokens/end-time), so rows
+-- converge to the true winner regardless of arrival order or redelivery.
+-- `value` is the raw JSON value (string or `false`), matching the metadata
+-- map encoding in traces_agg.
+CREATE TABLE IF NOT EXISTS default.trace_agent_input
+(
+    `project_id` UUID,
+    `trace_id` UUID,
+    `ver` UInt64,
+    `value` String
+)
+ENGINE = ReplacingMergeTree(ver)
+ORDER BY (project_id, trace_id)
+SETTINGS index_granularity = 8192;
+
+CREATE TABLE IF NOT EXISTS default.trace_agent_output
+(
+    `project_id` UUID,
+    `trace_id` UUID,
+    `ver` UInt64,
+    `value` String
+)
+ENGINE = ReplacingMergeTree(ver)
+ORDER BY (project_id, trace_id)
+SETTINGS index_granularity = 8192;
 
 -- Time-bound params are load-bearing for correctness, not just pruning: the
 -- inner scan must include every partial of a qualifying trace, and the outer
@@ -116,8 +143,8 @@ SELECT
     toBool(t.has_browser_session) AS has_browser_session,
     t.id AS id,
     t.span_names AS span_names,
-    t.agent_input AS agent_input,
-    t.agent_output AS agent_output
+    ai.value AS agent_input,
+    ao.value AS agent_output
 FROM (
     SELECT
         project_id,
@@ -143,9 +170,7 @@ FROM (
         groupUniqArrayArray(trace_types) AS trace_types,
         groupUniqArrayArray(tags) AS tags,
         max(has_browser_session) AS has_browser_session,
-        groupUniqArrayArray(span_names) AS span_names,
-        max(agent_input) AS agent_input,
-        max(agent_output) AS agent_output
+        groupUniqArrayArray(span_names) AS span_names
     FROM (
         SELECT *
         FROM default.traces_agg
@@ -159,5 +184,13 @@ LEFT JOIN (
     SELECT * FROM default.trace_tags FINAL WHERE project_id = {project_id:UUID}
 ) AS tt
     ON t.project_id = tt.project_id AND t.id = tt.trace_id
+LEFT JOIN (
+    SELECT * FROM default.trace_agent_input FINAL WHERE project_id = {project_id:UUID}
+) AS ai
+    ON t.project_id = ai.project_id AND t.id = ai.trace_id
+LEFT JOIN (
+    SELECT * FROM default.trace_agent_output FINAL WHERE project_id = {project_id:UUID}
+) AS ao
+    ON t.project_id = ao.project_id AND t.id = ao.trace_id
 WHERE t.start_time >= {min_start_time:DateTime64(9)}
     AND t.start_time <= {max_start_time:DateTime64(9)};

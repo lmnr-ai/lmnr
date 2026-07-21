@@ -1,10 +1,13 @@
-//! Ingestion-time user-task extraction (LAM-1880).
+//! Ingestion-time user-task extraction (LAM-1880) plus trace-output
+//! extraction (LAM-1953).
 //!
 //! Extracts the user's task from a trace's winning LLM span at ingestion
-//! time and stores it as trace metadata (`lmnr_user_task`). Key design
-//! points:
-//!   - operates on the whole last TURN (every user message after the
-//!     latest assistant message), not just the last user message;
+//! time and stores it as trace metadata (`lmnr_user_task`), and the
+//! trace's final output (`lmnr_trace_output`). Key design points:
+//!   - operates on the last USER BLOCK (the latest run of consecutive
+//!     user messages with real text — tool-result-only user messages are
+//!     turn boundaries), so every span of an agentic trace re-finds the
+//!     same original task;
 //!   - joins parts with a signpost separator both when generating and
 //!     when applying the regex, then re-joins the extraction on a plain
 //!     user-facing separator;
@@ -17,19 +20,23 @@
 //!     scaffolding-only (or a cached regex stops extracting);
 //!   - caches generated regexes per project + prompt hash + fingerprint
 //!     (`USER_TASK_REGEX_CACHE_KEY`) so traces with the same scaffolding
-//!     shape share one LLM call.
+//!     shape share one LLM call;
+//!   - the trace output is the latest toolless assistant text from the
+//!     shallowest LLM span — no LLM, no regex, published inline.
 //!
 //! Module layout:
-//!   - `messages` — permissive parsing of LLM-span input messages;
+//!   - `messages` — permissive parsing of LLM-span input/output messages;
 //!   - `fingerprint` — structural fingerprinting of user messages;
-//!   - `input` — last-turn collection, signpost join/split, prepared
-//!     input (`UserTaskInput`);
+//!   - `input` — last-user-block collection, signpost join/split,
+//!     prepared input (`UserTaskInput`);
 //!   - `regex` — regex application (`fancy-regex`) and the regex cache;
 //!   - `generate` — the LLM call that generates an extraction regex;
-//!   - `lock` — per-trace winner arbitration (`UserTaskLockState`);
+//!   - `lock` — per-trace winner arbitration (roster-based
+//!     `UserTaskLockState` for inputs, `OutputLockState` for outputs);
 //!   - `metadata` — extraction outcome → trace-metadata patch;
-//!   - `producer` — the ingestion-side hook (candidate capture, winner
-//!     gate, inline apply, enqueue on miss);
+//!   - `output` — trace-output capture and inline processing;
+//!   - `producer` — the ingestion-side hook (candidate capture, roster
+//!     arbitration, inline apply, enqueue on miss, output pass);
 //!   - `queue` / `consumer` — the regex-generation queue and its worker;
 //!   - `self_tracing` — internal OTEL spans for the consumer's LLM work.
 
@@ -40,11 +47,13 @@ pub mod input;
 pub mod lock;
 pub mod messages;
 pub mod metadata;
+pub mod output;
 pub mod producer;
 pub mod queue;
 pub mod regex;
 pub mod self_tracing;
 
+pub use output::{OutputCandidate, capture_output_candidate};
 pub use producer::{
     UserTaskCandidate, UserTaskSpanContext, capture_user_task_candidate,
     process_user_task_candidates,

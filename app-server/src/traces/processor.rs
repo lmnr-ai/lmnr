@@ -14,6 +14,7 @@ use crate::{
         ClickhouseTrait,
         deduped_content::CHDedupedContent,
         spans::CHSpan,
+        trace_agent_io::{CHTraceAgentInput, CHTraceAgentOutput},
         traces::{CHTrace, TraceAggregation},
         traces_agg::CHTraceAgg,
         utils::chrono_to_nanoseconds,
@@ -107,6 +108,57 @@ fn tool_bytes(
     }
 }
 
+/// `trace_agent_input` / `trace_agent_output` rows from extraction
+/// metadata-only spans (LAM-1953): those carrying the `agent_io_ver`
+/// internal attribute alongside `lmnr_user_task` or `lmnr_trace_output`.
+/// `value` is the raw JSON value (string or `false`), matching the
+/// traces_agg metadata map encoding.
+fn collect_agent_io_rows(
+    messages: &[RabbitMqSpanMessage],
+) -> (Vec<CHTraceAgentInput>, Vec<CHTraceAgentOutput>) {
+    use crate::traces::input_extraction::metadata::{
+        TRACE_OUTPUT_METADATA_KEY, USER_TASK_METADATA_KEY,
+    };
+    use crate::traces::span_attributes::SPAN_AGENT_IO_VER;
+
+    let mut inputs = Vec::new();
+    let mut outputs = Vec::new();
+    for m in messages {
+        if !m.span.attributes.is_metadata_only() {
+            continue;
+        }
+        let Some(ver) = m
+            .span
+            .attributes
+            .raw_attributes
+            .get(SPAN_AGENT_IO_VER)
+            .and_then(Value::as_u64)
+        else {
+            continue;
+        };
+        let Some(metadata) = m.span.attributes.metadata() else {
+            continue;
+        };
+        if let Some(value) = metadata.get(USER_TASK_METADATA_KEY) {
+            inputs.push(CHTraceAgentInput {
+                project_id: m.span.project_id,
+                trace_id: m.span.trace_id,
+                ver,
+                value: value.to_string(),
+            });
+        }
+        if let Some(value) = metadata.get(TRACE_OUTPUT_METADATA_KEY) {
+            outputs.push(CHTraceAgentOutput {
+                project_id: m.span.project_id,
+                trace_id: m.span.trace_id,
+                ver,
+                value: value.to_string(),
+            });
+        }
+    }
+    (inputs, outputs)
+}
+
 #[instrument(skip(
     messages,
     db,
@@ -178,6 +230,13 @@ pub async fn process_span_messages(
             }
         })
         .collect();
+    // Extraction patches (LAM-1953) also feed the `trace_agent_input` /
+    // `trace_agent_output` RMT tables: the metadata-only span carries the
+    // depth-major RMT version as an internal attribute, and the metadata
+    // value rides encoded like the traces_agg metadata map (raw JSON).
+    // Blind idempotent inserts — RMT(ver) converges to the strongest
+    // winner regardless of arrival order or redelivery.
+    let (agent_input_rows, agent_output_rows) = collect_agent_io_rows(&messages);
     messages.retain(|m| !m.span.attributes.is_metadata_only());
 
     // Enrich spans with usage info
@@ -566,6 +625,27 @@ pub async fn process_span_messages(
                         e
                     );
                 }
+            }
+            // Extracted agent input/output rows (LAM-1953). Independent of
+            // aggregation success — RMT(ver) inserts are idempotent and
+            // self-arbitrating, and the values live outside traces_agg.
+            if !agent_input_rows.is_empty()
+                && let Err(e) = ch.insert_batch(&agent_input_rows, config).await
+            {
+                log::error!(
+                    "Failed to insert {} trace agent-input rows to ClickHouse: {:?}",
+                    agent_input_rows.len(),
+                    e
+                );
+            }
+            if !agent_output_rows.is_empty()
+                && let Err(e) = ch.insert_batch(&agent_output_rows, config).await
+            {
+                log::error!(
+                    "Failed to insert {} trace agent-output rows to ClickHouse: {:?}",
+                    agent_output_rows.len(),
+                    e
+                );
             }
         }
 

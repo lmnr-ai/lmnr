@@ -65,10 +65,19 @@ pub struct CHTraceAgg {
 }
 
 fn encode_metadata(metadata: Option<&Value>) -> Vec<(String, String)> {
+    use crate::traces::input_extraction::metadata::{
+        TRACE_OUTPUT_METADATA_KEY, USER_TASK_METADATA_KEY,
+    };
     let Some(Value::Object(map)) = metadata else {
         return Vec::new();
     };
     map.iter()
+        // Extraction values (LAM-1953) have dedicated latest-wins RMT
+        // tables on the agg path; carrying them in the maxMap would
+        // resurface arbitrary-occurrence-wins through the view's blob.
+        .filter(|(k, _)| {
+            k.as_str() != USER_TASK_METADATA_KEY && k.as_str() != TRACE_OUTPUT_METADATA_KEY
+        })
         .map(|(k, v)| (k.clone(), v.to_string()))
         .collect()
 }
@@ -224,6 +233,18 @@ mod tests {
         assert_eq!(b.1, "\"x\"");
         let c = encoded.iter().find(|(k, _)| k == "c").unwrap();
         assert_eq!(c.1, "{\"nested\":true}");
+    }
+
+    #[test]
+    fn metadata_excludes_extraction_keys() {
+        let metadata = json!({
+            "a": 1,
+            "lmnr_user_task": "do the thing",
+            "lmnr_trace_output": "done"
+        });
+        let encoded = encode_metadata(Some(&metadata));
+        assert_eq!(encoded.len(), 1);
+        assert_eq!(encoded[0].0, "a");
     }
 
     #[test]

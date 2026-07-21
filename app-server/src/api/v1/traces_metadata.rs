@@ -78,6 +78,7 @@ pub async fn handle_trace_metadata(
         req.trace_id,
         project_id,
         req.metadata,
+        None,
         spans_message_queue.as_ref().clone(),
         db,
         cache,

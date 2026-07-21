@@ -18,13 +18,18 @@ use crate::{
     mq::MessageQueue,
     traces::{
         producer::publish_span_messages,
-        span_attributes::{ASSOCIATION_PROPERTIES_PREFIX, SPAN_METADATA_ONLY},
+        span_attributes::{ASSOCIATION_PROPERTIES_PREFIX, SPAN_AGENT_IO_VER, SPAN_METADATA_ONLY},
         spans::SpanAttributes,
     },
 };
 
 /// Merge `metadata` onto a trace via a virtual metadata-only span, creating a
 /// virtual trace row when the trace doesn't exist yet. No-op when empty.
+///
+/// `agent_io_ver` (extraction patches only) rides as an internal span
+/// attribute — the processor uses it as the RMT version for the
+/// `trace_agent_input` / `trace_agent_output` ClickHouse rows; it never
+/// merges into trace metadata.
 ///
 /// Returns a boxed future: the user-task hook forms an async cycle
 /// (`publish_span_messages` → hook → here → `publish_span_messages`), so the
@@ -34,6 +39,7 @@ pub fn publish_trace_metadata_patch(
     trace_id: Uuid,
     project_id: Uuid,
     metadata: HashMap<String, Value>,
+    agent_io_ver: Option<u64>,
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -43,8 +49,11 @@ pub fn publish_trace_metadata_patch(
             return Ok(());
         }
 
-        let mut attributes: HashMap<String, Value> = HashMap::with_capacity(metadata.len() + 1);
+        let mut attributes: HashMap<String, Value> = HashMap::with_capacity(metadata.len() + 2);
         attributes.insert(SPAN_METADATA_ONLY.to_string(), Value::Bool(true));
+        if let Some(ver) = agent_io_ver {
+            attributes.insert(SPAN_AGENT_IO_VER.to_string(), Value::from(ver));
+        }
         for (key, value) in metadata {
             attributes.insert(
                 format!("{ASSOCIATION_PROPERTIES_PREFIX}.metadata.{key}"),

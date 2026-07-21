@@ -34,6 +34,10 @@ pub const SPAN_PROMPT_HASH: &str = "lmnr.span.prompt_hash";
 /// the row is not written to `spans`, doesn't index in Quickwit, and
 /// contributes nothing to trace stats (start/end/tokens/num_spans/top_span/etc.).
 pub const SPAN_METADATA_ONLY: &str = "lmnr.internal.metadata_only";
+/// Rider on extraction metadata-only spans (LAM-1953): the depth-major
+/// RMT version for the `trace_agent_input` / `trace_agent_output` rows.
+/// Consumed by the processor, never merged into trace metadata.
+pub const SPAN_AGENT_IO_VER: &str = "lmnr.internal.agent_io_ver";
 /// Marker on the checkpoints pipeline's own tracing spans, skipped by its producer.
 pub const CHECKPOINT_INTERNAL_SPAN: &str = "lmnr.internal.checkpoint";
 

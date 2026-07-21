@@ -49,6 +49,7 @@ struct DedupVerdicts {
     /// message — feeds static-part regex extraction (LAM-1899).
     system_prompt: Option<(String, String)>,
     user_task: Option<crate::traces::input_extraction::UserTaskCandidate>,
+    trace_output: Option<crate::traces::input_extraction::OutputCandidate>,
 }
 
 /// Run the producer-side preprocessing pipeline that the consumer would
@@ -82,9 +83,11 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
         }
     }
 
-    // Capture the user-task candidate while `span.input` is still populated
-    // (the dedup strip below may null it).
+    // Capture the user-task and trace-output candidates while `span.input`
+    // / `span.output` are still populated (the dedup strip below may null
+    // them).
     let user_task = crate::traces::input_extraction::capture_user_task_candidate(span);
+    let trace_output = crate::traces::input_extraction::capture_output_candidate(span);
 
     // Tool dedup runs first so its source attributes are stripped before
     // anything else looks at `raw_attributes`.
@@ -118,6 +121,7 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
         tools,
         system_prompt,
         user_task,
+        trace_output,
     }
 }
 
@@ -156,8 +160,8 @@ pub async fn publish_span_messages(
                 system_prompt,
             });
         }
-        if let Some(candidate) = verdicts.user_task {
-            user_task_candidates.push((idx, candidate));
+        if verdicts.user_task.is_some() || verdicts.trace_output.is_some() {
+            user_task_candidates.push((idx, verdicts.user_task, verdicts.trace_output));
         }
     }
 
@@ -209,13 +213,20 @@ pub async fn publish_span_messages(
     // hook can't affect the published payload. Never fails ingestion.
     let contexts = user_task_candidates
         .into_iter()
-        .filter_map(|(idx, candidate)| {
+        .filter_map(|(idx, candidate, output_candidate)| {
             let msg = messages.get_mut(idx)?;
             Some(crate::traces::input_extraction::UserTaskSpanContext {
                 trace_id: msg.span.trace_id,
+                span_id: msg.span.span_id,
                 span_name: msg.span.name.clone(),
                 attributes: std::mem::take(&mut msg.span.attributes),
                 candidate,
+                output_candidate,
+                start_time_ns: msg
+                    .span
+                    .start_time
+                    .timestamp_nanos_opt()
+                    .unwrap_or(i64::MAX),
             })
         })
         .collect();
