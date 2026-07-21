@@ -126,22 +126,28 @@ pub(super) fn is_task_anchor_message(msg: &Value) -> bool {
 /// semconv / LangChain (`tool_call` parts), OpenAI Responses
 /// (`function_call` parts), and AI SDK v7 verbatim payloads (dash-typed
 /// `tool-call` parts — stored unreshaped from `gen_ai.output.messages`
-/// per LAM-1922).
+/// per LAM-1922). Checks `content` AND `parts` — unlike text collection
+/// (`collect_message_parts`, which prefers `content` when both exist)
+/// this is a hand-off detector: a few payloads carry both fields, and a
+/// string/text-only `content` must not mask tool-call parts under
+/// `parts`, or an intermediate tool turn reads as the final answer.
 pub(super) fn has_tool_calls(message: &Value) -> bool {
     if let Some(Value::Array(calls)) = message.get("tool_calls")
         && !calls.is_empty()
     {
         return true;
     }
-    if let Some(Value::Array(parts)) = message.get("content").or_else(|| message.get("parts")) {
-        return parts.iter().any(|p| {
+    ["content", "parts"].iter().any(|field| {
+        let Some(Value::Array(parts)) = message.get(field) else {
+            return false;
+        };
+        parts.iter().any(|p| {
             matches!(
                 p.get("type").and_then(Value::as_str),
                 Some("tool_use" | "tool_call" | "tool-call" | "function_call")
             )
-        });
-    }
-    false
+        })
+    })
 }
 
 /// The latest assistant/model message with non-empty rendered text and no
@@ -227,6 +233,36 @@ mod tests {
             ],
         });
         assert!(has_tool_calls(&msg));
+    }
+
+    #[test]
+    fn has_tool_calls_checks_parts_even_when_content_is_present() {
+        // Some payloads carry BOTH fields; a string / text-only `content`
+        // must not mask tool calls under `parts` — this message is a
+        // hand-off, not a final answer.
+        let msg = json!({
+            "role": "assistant",
+            "content": "let me check",
+            "parts": [
+                {"type": "tool_call", "id": "c1", "name": "get_weather", "arguments": {}},
+            ],
+        });
+        assert!(has_tool_calls(&msg));
+        let msg = json!({
+            "role": "assistant",
+            "content": [{"type": "text", "text": "let me check"}],
+            "parts": [
+                {"type": "tool_call", "id": "c1", "name": "get_weather", "arguments": {}},
+            ],
+        });
+        assert!(has_tool_calls(&msg));
+        // Both present, neither carries tool parts: still toolless.
+        let msg = json!({
+            "role": "assistant",
+            "content": "done",
+            "parts": [{"type": "text", "content": "done"}],
+        });
+        assert!(!has_tool_calls(&msg));
     }
 
     #[test]
