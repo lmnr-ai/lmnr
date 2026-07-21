@@ -60,8 +60,10 @@ const TriggerFilterSchema = z.union([
         z.number(),
         z
           .string()
-          .min(1)
-          .refine((v) => Number.isFinite(Number(v)), { message: "Value must be a number" }),
+          // Number(" ") is 0, so a whitespace-only string would otherwise pass.
+          .refine((v) => v.trim().length > 0 && Number.isFinite(Number(v)), {
+            message: "Value must be a number",
+          }),
       ]),
     })
     .strict(),
