@@ -50,7 +50,7 @@ export function TraceViewSidePanel({
     <div
       ref={sidePanelRef}
       className={cn(
-        "absolute top-0 right-0 bottom-0 max-w-[calc(100%-80px)] bg-surface-200 [--surface-raise:var(--color-surface-300)] border-l z-50 flex",
+        "absolute top-0 right-0 bottom-0 max-w-[calc(100%-80px)] bg-surface-200 [--surface-raise:var(--color-surface-400)] [--surface-border:var(--surface-border-2)] border-l z-50 flex",
         className
       )}
     >

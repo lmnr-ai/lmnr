@@ -21,13 +21,13 @@ export type CurveKey = "surfaceCurve" | "foregroundCurve";
 // ordered surface-100 (base/darkest) .. surface-800 (most elevated/lightest).
 export const SURFACE_SEED: { key: string; l: number }[] = [
   { key: "surface-100", l: 0.2046 },
-  { key: "surface-200", l: 0.235 },
-  { key: "surface-300", l: 0.2645 },
-  { key: "surface-400", l: 0.2931 },
-  { key: "surface-500", l: 0.312 },
-  { key: "surface-600", l: 0.327 },
-  { key: "surface-700", l: 0.34 },
-  { key: "surface-800", l: 0.35 },
+  { key: "surface-200", l: 0.2354 },
+  { key: "surface-300", l: 0.2661 },
+  { key: "surface-400", l: 0.2969 },
+  { key: "surface-500", l: 0.3277 },
+  { key: "surface-600", l: 0.3585 },
+  { key: "surface-700", l: 0.3892 },
+  { key: "surface-800", l: 0.42 },
 ];
 
 export const SURFACE_KEYS: string[] = SURFACE_SEED.map((s) => s.key);

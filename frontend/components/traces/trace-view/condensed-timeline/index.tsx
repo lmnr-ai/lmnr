@@ -6,7 +6,7 @@ import { MAX_ZOOM, MIN_ZOOM, ZOOM_INCREMENT } from "@/components/traces/trace-vi
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { computeVisibleSpanIds } from "@/components/traces/trace-view/store/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MAX_SURFACE, raiseVar, SURFACE_BG, SurfaceProvider, useSurface } from "@/components/ui/surface";
+import { borderVar, MAX_SURFACE, raiseVar, SURFACE_BG, SurfaceProvider, useSurface } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
 import CondensedTimelineElement, { ROW_HEIGHT } from "./condensed-timeline-element";
@@ -338,7 +338,8 @@ function CondensedTimeline() {
         className={cn(
           "flex-1 overflow-auto relative min-h-0 h-full minimal-scrollbar scroll-fade-t",
           SURFACE_BG[timelineLevel],
-          raiseVar(timelineLevel)
+          raiseVar(timelineLevel),
+          borderVar(timelineLevel)
         )}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}

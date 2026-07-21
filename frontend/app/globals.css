@@ -46,7 +46,10 @@
   --font-sans-landing: var(--font-general-sans);
   --font-manrope: var(--font-manrope);
 
-  --color-border: var(--color-surface-400);
+  /* A thin light rim composited over the surface behind it. Reads the per-surface slot
+     `--surface-border` (published by surfaceClasses/borderVar), so each elevation gets its
+     own edge strength; falls back to the level-3 value for anything not under a surface. */
+  --color-border: var(--surface-border, var(--surface-border-3));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
   --color-background: var(--color-surface-100);
@@ -99,33 +102,40 @@
      elevated/lightest), OKLCH, dark-only. Consumed via <Elevated> + the
      bg-surface-N00 / shadow-elevation-N00 utilities. */
   --color-surface-100: oklch(0.2046 0 0); /* #171717 */
-  --color-surface-200: oklch(0.235 0 0); /* #1e1e1e */
-  --color-surface-300: oklch(0.2645 0 0); /* #252525 */
-  --color-surface-400: oklch(0.2931 0 0); /* #2c2c2c */
-  --color-surface-500: oklch(0.312 0 0); /* #313131 */
-  --color-surface-600: oklch(0.327 0 0); /* #343434 */
-  --color-surface-700: oklch(0.34 0 0); /* #383838 */
-  --color-surface-800: oklch(0.35 0 0); /* #3a3a3a */
+  --color-surface-200: oklch(0.2354 0 0); /* #1e1e1e */
+  --color-surface-300: oklch(0.2661 0 0); /* #262626 */
+  --color-surface-400: oklch(0.2969 0 0); /* #2d2d2d */
+  --color-surface-500: oklch(0.3277 0 0); /* #353535 */
+  --color-surface-600: oklch(0.3585 0 0); /* #3c3c3c */
+  --color-surface-700: oklch(0.3892 0 0); /* #434343 */
+  --color-surface-800: oklch(0.42 0 0); /* #4b4b4b */
+
+  /* Per-elevation border palette: translucent white, rising with level so a rim on a
+     lighter (more elevated) surface stays legible. The active edge is picked per surface
+     via the --surface-border slot (see --color-border above). */
+  --surface-border-1: oklch(1 0 0 / 0.1);
+  --surface-border-2: oklch(1 0 0 / 0.12);
+  --surface-border-3: oklch(1 0 0 / 0.14);
+  --surface-border-4: oklch(1 0 0 / 0.16);
+  --surface-border-5: oklch(1 0 0 / 0.18);
+  --surface-border-6: oklch(1 0 0 / 0.2);
+  --surface-border-7: oklch(1 0 0 / 0.22);
+  --surface-border-8: oklch(1 0 0 / 0.24);
 
   /* Layered dark elevation shadows; shadow-elevation-100 is lightest, -800 heaviest.
      Namespaced apart from the surface COLORS so `shadow-surface-N` stays free to mean
      a surface-tinted shadow color (Tailwind resolves --shadow-* before a color). */
-  --dm-hi-base: rgba(255, 255, 255, 0.01);
-  --dm-hi-mid: rgba(255, 255, 255, 0.02);
-  --dm-hi-high: rgba(255, 255, 255, 0.04);
-  --dm-hi-peak: rgba(255, 255, 255, 0.06);
-  --dm-ring-base: rgba(255, 255, 255, 0.02);
-  --dm-ring-mid: rgba(255, 255, 255, 0.04);
-  --dm-ring-high: rgba(255, 255, 255, 0.06);
   --dm-drop: rgba(0, 0, 0, 0.18);
-  --shadow-elevation-100: inset 0 0 0 1px var(--dm-ring-base);
-  --shadow-elevation-200: inset 0 1px 0 0 var(--dm-hi-base), inset 0 0 0 1px var(--dm-ring-base), 0 1px 1px -0.5px var(--dm-drop);
-  --shadow-elevation-300: inset 0 1px 0 0 var(--dm-hi-mid), inset 0 0 0 1px var(--dm-ring-base), 0 0 0 1px rgba(0, 0, 0, 0.12), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop);
-  --shadow-elevation-400: inset 0 1px 0 0 var(--dm-hi-mid), inset 0 0 0 1px var(--dm-ring-mid), 0 0 0 1px rgba(0, 0, 0, 0.14), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop);
-  --shadow-elevation-500: inset 0 1px 0 0 var(--dm-hi-high), inset 0 0 0 1px var(--dm-ring-mid), 0 0 0 1px rgba(0, 0, 0, 0.16), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop);
-  --shadow-elevation-600: inset 0 1px 0 0 var(--dm-hi-high), inset 0 0 0 1px var(--dm-ring-high), 0 0 0 1px rgba(0, 0, 0, 0.18), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop);
-  --shadow-elevation-700: inset 0 1px 0 0 var(--dm-hi-peak), inset 0 0 0 1px var(--dm-ring-high), 0 0 0 1px rgba(0, 0, 0, 0.2), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop), 0 48px 48px -24px var(--dm-drop);
-  --shadow-elevation-800: inset 0 1px 0 0 var(--dm-hi-peak), inset 0 0 0 1px var(--dm-ring-high), 0 0 0 1px rgba(0, 0, 0, 0.22), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop), 0 48px 48px -24px var(--dm-drop), 0 96px 96px -48px var(--dm-drop);
+  /* Inset rim + top-highlight (the reference's inner glow) are removed for now — depth is
+     carried by the outer drop shadows + dark hairline, and the edge by the alpha border. */
+  --shadow-elevation-100: none;
+  --shadow-elevation-200: 0 1px 1px -0.5px var(--dm-drop);
+  --shadow-elevation-300: 0 0 0 1px rgba(0, 0, 0, 0.12), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop);
+  --shadow-elevation-400: 0 0 0 1px rgba(0, 0, 0, 0.14), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop);
+  --shadow-elevation-500: 0 0 0 1px rgba(0, 0, 0, 0.16), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop);
+  --shadow-elevation-600: 0 0 0 1px rgba(0, 0, 0, 0.18), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop);
+  --shadow-elevation-700: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop), 0 48px 48px -24px var(--dm-drop);
+  --shadow-elevation-800: 0 0 0 1px rgba(0, 0, 0, 0.22), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop), 0 48px 48px -24px var(--dm-drop), 0 96px 96px -48px var(--dm-drop);
 
   /* Foreground (text) ramp — neutral, dark-theme */
   --color-foreground-50: oklch(1 0 0); /* #ffffff */
@@ -213,69 +223,6 @@
   &::-webkit-scrollbar-track {
     background-color: transparent;
   }
-}
-
-/* scroll-fade: edge fade masks for scroll containers (used by MessageScrollerViewport via
-   `scroll-fade-b`). NOTE: the upstream shadcn utility is scroll-DRIVEN (animation-timeline:
-   scroll(self)) so the fade disappears at the boundary; this is a static-mask approximation built
-   from the documented usage table — the edge always fades. Override depth with --scroll-fade-size.
-   `s`/`e` map to left/right for LTR only (no RTL mirroring). */
-@utility scroll-fade {
-  --scroll-fade-size: 2rem;
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    #000 var(--scroll-fade-size),
-    #000 calc(100% - var(--scroll-fade-size)),
-    transparent 100%
-  );
-}
-@utility scroll-fade-y {
-  --scroll-fade-size: 2rem;
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    #000 var(--scroll-fade-size),
-    #000 calc(100% - var(--scroll-fade-size)),
-    transparent 100%
-  );
-}
-@utility scroll-fade-x {
-  --scroll-fade-size: 2rem;
-  mask-image: linear-gradient(
-    to right,
-    transparent 0,
-    #000 var(--scroll-fade-size),
-    #000 calc(100% - var(--scroll-fade-size)),
-    transparent 100%
-  );
-}
-@utility scroll-fade-t {
-  --scroll-fade-size: 2rem;
-  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--scroll-fade-size));
-}
-@utility scroll-fade-b {
-  --scroll-fade-size: 2rem;
-  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--scroll-fade-size)), transparent 100%);
-}
-@utility scroll-fade-l {
-  --scroll-fade-size: 2rem;
-  mask-image: linear-gradient(to right, transparent 0, #000 var(--scroll-fade-size));
-}
-@utility scroll-fade-r {
-  --scroll-fade-size: 2rem;
-  mask-image: linear-gradient(to right, #000 calc(100% - var(--scroll-fade-size)), transparent 100%);
-}
-@utility scroll-fade-s {
-  --scroll-fade-size: 2rem;
-  mask-image: linear-gradient(to right, transparent 0, #000 var(--scroll-fade-size));
-}
-@utility scroll-fade-e {
-  --scroll-fade-size: 2rem;
-  mask-image: linear-gradient(to right, #000 calc(100% - var(--scroll-fade-size)), transparent 100%);
-}
-@utility scroll-fade-none {
-  mask-image: none;
 }
 
 @utility hide-arrow {
@@ -576,9 +523,9 @@
   :root {
     --radius: 0.5rem;
 
-    /* Default interactive-raise fill (base substrate + 1). Surfaces override this on
+    /* Default interactive-raise fill (base substrate + 2). Surfaces override this on
        themselves via raiseVar()/surfaceClasses so hover tracks their own level. */
-    --surface-raise: var(--color-surface-200);
+    --surface-raise: var(--color-surface-300);
 
     --background: 0 0% 4%;
     --foreground: 0 8% 90%;

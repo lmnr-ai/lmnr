@@ -33,19 +33,34 @@ export const SURFACE_SHADOW: Record<number, string> = {
   8: "shadow-elevation-800",
 };
 
-// Each surface publishes `--surface-raise` = the fill one level lighter than itself,
+// Each surface publishes `--surface-raise` = the fill two levels lighter than itself,
 // which interactive descendants consume as `hover:bg-[var(--surface-raise)]`. That keeps
-// hover/highlight one step up the scale relative to whatever surface an element sits on,
-// with no per-element level math and no collision with the substrate.
+// hover/highlight two steps up the scale relative to whatever surface an element sits on
+// (adjacent shades are too close for a one-step lift to read), with no per-element level
+// math and no collision with the substrate.
 export const SURFACE_RAISE: Record<number, string> = {
-  1: "[--surface-raise:var(--color-surface-200)]",
-  2: "[--surface-raise:var(--color-surface-300)]",
-  3: "[--surface-raise:var(--color-surface-400)]",
-  4: "[--surface-raise:var(--color-surface-500)]",
-  5: "[--surface-raise:var(--color-surface-600)]",
-  6: "[--surface-raise:var(--color-surface-700)]",
+  1: "[--surface-raise:var(--color-surface-300)]",
+  2: "[--surface-raise:var(--color-surface-400)]",
+  3: "[--surface-raise:var(--color-surface-500)]",
+  4: "[--surface-raise:var(--color-surface-600)]",
+  5: "[--surface-raise:var(--color-surface-700)]",
+  6: "[--surface-raise:var(--color-surface-800)]",
   7: "[--surface-raise:var(--color-surface-800)]",
   8: "[--surface-raise:var(--color-surface-800)]",
+};
+
+// Each surface also publishes `--surface-border` = the edge color for its own level, which
+// `--color-border` (and thus every `border`/`border-border`) reads. So a surface's descendants
+// get an elevation-appropriate rim with no per-element wiring — same cascade trick as the raise.
+export const SURFACE_BORDER: Record<number, string> = {
+  1: "[--surface-border:var(--surface-border-1)]",
+  2: "[--surface-border:var(--surface-border-2)]",
+  3: "[--surface-border:var(--surface-border-3)]",
+  4: "[--surface-border:var(--surface-border-4)]",
+  5: "[--surface-border:var(--surface-border-5)]",
+  6: "[--surface-border:var(--surface-border-6)]",
+  7: "[--surface-border:var(--surface-border-7)]",
+  8: "[--surface-border:var(--surface-border-8)]",
 };
 
 const clampLevel = (n: number): number => Math.round(Math.max(MIN_SURFACE, Math.min(MAX_SURFACE, n)));
@@ -55,27 +70,14 @@ export function raiseVar(level: number): string {
   return SURFACE_RAISE[clampLevel(level)];
 }
 
-/** Returns "bg-surface-N shadow-elevation-M", clamped to 1..8 and rounded so a
- *  fractional level can't index out of the tables. shadow defaults to bg's level. */
-export function surfaceClasses(bgLevel: number, shadowLevel: number = bgLevel): string {
-  return `${SURFACE_BG[clampLevel(bgLevel)]} ${SURFACE_SHADOW[clampLevel(shadowLevel)]} ${SURFACE_RAISE[clampLevel(bgLevel)]}`;
+/** The arbitrary-property class that publishes `--surface-border` for a surface at `level`. */
+export function borderVar(level: number): string {
+  return SURFACE_BORDER[clampLevel(level)];
 }
 
-// Per-elevation border colors drawn from the surface scale, so an edge reads as a
-// lighter rim on top of its own surface. Literal names for the Tailwind scanner.
-export const SURFACE_BORDER: Record<number, string> = {
-  1: "border-surface-100",
-  2: "border-surface-200",
-  3: "border-surface-300",
-  4: "border-surface-400",
-  5: "border-surface-500",
-  6: "border-surface-600",
-  7: "border-surface-700",
-  8: "border-surface-800",
-};
-
-/** The border color for a surface at `level`: three stops lighter (clamped) so the
- *  rim reads clearly against the surface's own fill. Pair with the `border` width. */
-export function borderForLevel(level: number): string {
-  return SURFACE_BORDER[clampLevel(level + 3)];
+/** Returns "bg-surface-N shadow-elevation-M" plus the raise + border vars, clamped to 1..8 and
+ *  rounded so a fractional level can't index out of the tables. shadow defaults to bg's level. */
+export function surfaceClasses(bgLevel: number, shadowLevel: number = bgLevel): string {
+  const b = clampLevel(bgLevel);
+  return `${SURFACE_BG[b]} ${SURFACE_SHADOW[clampLevel(shadowLevel)]} ${SURFACE_RAISE[b]} ${SURFACE_BORDER[b]}`;
 }

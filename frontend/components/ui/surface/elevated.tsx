@@ -11,7 +11,7 @@ import { MAX_SURFACE, SurfaceProvider, useSurface } from "./context";
 export const SURFACE_OFFSET = {
   inline: 1, // cards, panels, anything that lifts a hair off its container
   popover: 2, // popover / dropdown / select / context menu / tooltip
-  dialog: 3, // dialog / modal / sheet
+  dialog: 2, // dialog / modal / sheet — surface-300 over the base page
 } as const;
 
 // Pinned shadow weight per overlay kind, so shadow stays constant with depth.

@@ -15,7 +15,7 @@ interface ProjectSidebarProps {
 
 export default function ProjectSidebar({ details }: ProjectSidebarProps) {
   return (
-    <Sidebar className="border-none [--surface-raise:var(--color-surface-300)]" collapsible="icon">
+    <Sidebar className="border-none [--surface-raise:var(--color-surface-400)] [--surface-border:var(--surface-border-2)]" collapsible="icon">
       <ProjectSidebarHeader workspaceId={details.workspaceId} projectId={details.id} />
       <ProjectSidebarContent details={details} />
       <SidebarFooter />
