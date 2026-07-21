@@ -39,9 +39,9 @@ function scalarFor(
   return aggregateScalar(aggregation, statistics, distribution);
 }
 
-// One score's whole-run aggregate rendered as a bordered card: the score name
-// on top, the big aggregate number below, and (in comparison mode) the compared
-// value + percent delta.
+// One score's whole-run aggregate: name on top, big number below, and (in
+// comparison mode) the compared value + percent delta. Dividers live between
+// items only (see first: / not-first: border classes).
 export default function ScoreCardItem({
   name,
   aggregation,
@@ -62,7 +62,7 @@ export default function ScoreCardItem({
   const improved = change !== null && change >= 0;
 
   return (
-    <div className="flex min-w-[140px] shrink-0 flex-col gap-2 border-l-foreground-600 border-l pl-3 py-0.5">
+    <div className="relative flex min-w-[140px] shrink-0 flex-col gap-1.5 px-2.5 first:pl-0 [&:not(:first-child)]:before:absolute [&:not(:first-child)]:before:bottom-0.5 [&:not(:first-child)]:before:left-0 [&:not(:first-child)]:before:top-0.5 [&:not(:first-child)]:before:w-px [&:not(:first-child)]:before:bg-foreground-600">
       <span className="truncate text-xs font-medium text-muted-foreground" title={name}>
         {name}
       </span>
