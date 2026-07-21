@@ -96,6 +96,8 @@ export const tracesSelectColumns = [
   "input_tokens as inputTokens",
   "output_tokens as outputTokens",
   "cache_read_input_tokens as cacheReadInputTokens",
+  "cache_creation_input_tokens as cacheCreationInputTokens",
+  "reasoning_tokens as reasoningTokens",
   "top_span_id as topSpanId",
   "top_span_name as topSpanName",
   "top_span_type as topSpanType",
