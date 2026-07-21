@@ -3,7 +3,7 @@
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import * as React from "react";
 
-import { SURFACE_OFFSET, SurfaceProvider, useElevated } from "@/components/ui/surface";
+import { SHADOW_LEVEL, SURFACE_OFFSET, SurfaceProvider, useElevated } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
 const TooltipProvider = TooltipPrimitive.Provider;
@@ -18,7 +18,7 @@ const TooltipContent = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
 >(({ className, sideOffset = 4, children, ...props }, ref) => {
-  const { level, className: surface } = useElevated(SURFACE_OFFSET.popover, 2);
+  const { level, className: surface } = useElevated(SURFACE_OFFSET.popover, SHADOW_LEVEL.tooltip);
   return (
     <TooltipPrimitive.Content
       ref={ref}

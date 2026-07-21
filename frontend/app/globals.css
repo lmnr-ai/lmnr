@@ -106,10 +106,8 @@
   --color-surface-900: oklch(0.1591 0 0); /* #0d0d0d */
   --color-surface-1000: oklch(0.1344 0 0); /* #080808 */
 
-  /* --- Fluid surfaces: relative elevation scale (surface-1 = base .. surface-8) ---
-     8-step neutral ramp re-derived in OKLCH from fluidfunctionalism.com's dark
-     scale (#171717 → #484848). Higher level = lighter = more elevated. Consumed
-     via <Elevated> + the bg-surface-N / shadow-surface-N utilities. */
+  /* Relative elevation scale (surface-1 = base .. surface-8), OKLCH, dark-only.
+     Consumed via <Elevated> + the bg-surface-N / shadow-surface-N utilities. */
   --color-surface-1: oklch(0.2046 0 0); /* #171717 */
   --color-surface-2: oklch(0.235 0 0); /* #1e1e1e */
   --color-surface-3: oklch(0.2645 0 0); /* #252525 */
@@ -119,10 +117,7 @@
   --color-surface-7: oklch(0.3753 0 0); /* #414141 */
   --color-surface-8: oklch(0.4017 0 0); /* #484848 */
 
-  /* Layered dark elevation shadows, one per surface level: inset top highlight +
-     inset white ring + outer dark ring + stacked drop shadows, intensifying with
-     level. shadow-surface-N pairs with surface-N; a component can pin its own
-     level so its shadow stays constant regardless of nesting depth. */
+  /* Layered dark elevation shadows, one per surface level (shadow-surface-N). */
   --dm-hi-base: rgba(255, 255, 255, 0.01);
   --dm-hi-mid: rgba(255, 255, 255, 0.02);
   --dm-hi-high: rgba(255, 255, 255, 0.04);

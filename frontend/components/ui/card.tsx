@@ -1,13 +1,13 @@
 import * as React from 'react';
 
-import { SURFACE_OFFSET, SurfaceProvider, useElevated } from '@/components/ui/surface';
+import { SHADOW_LEVEL, SURFACE_OFFSET, SurfaceProvider, useElevated } from '@/components/ui/surface';
 import { cn } from '@/lib/utils';
 
 const Card = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
 >(({ className, children, ...props }, ref) => {
-  const { level, className: surface } = useElevated(SURFACE_OFFSET.inline);
+  const { level, className: surface } = useElevated(SURFACE_OFFSET.inline, SHADOW_LEVEL.inline);
   return (
     <div
       ref={ref}

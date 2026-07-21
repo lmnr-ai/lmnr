@@ -14,6 +14,14 @@ export const SURFACE_OFFSET = {
   dialog: 4, // dialog / modal / sheet
 } as const;
 
+// Pinned shadow weight per overlay kind, so shadow stays constant with depth.
+export const SHADOW_LEVEL = {
+  dialog: 6, // dialog / sheet
+  popover: 3, // popover / dropdown / select
+  tooltip: 2,
+  inline: 2, // card / panel
+} as const;
+
 /**
  * Level math for components that can't use <Elevated>'s <div> directly — e.g. a
  * Radix content node that must be the positioned element. Returns the computed
@@ -31,12 +39,8 @@ interface ElevatedProps extends ComponentPropsWithoutRef<"div"> {
    * nesting keeps walking up the ladder. See SURFACE_OFFSET for conventions.
    */
   offset: number;
-  /**
-   * Pin the shadow to a fixed level regardless of computed elevation. Use it so a
-   * component keeps a constant shadow weight at any depth — a dropdown reads as a
-   * dropdown whether it opens on the page or three layers into a dialog, even
-   * though its background tracks the substrate. Defaults to the computed level.
-   */
+  /** Pin the shadow to a fixed level so weight stays constant with depth (see
+   *  SHADOW_LEVEL); defaults to the computed level. */
   shadowLevel?: number;
   children?: ReactNode;
 }

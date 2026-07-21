@@ -4,7 +4,7 @@ import { CaretSortIcon, CheckIcon, ChevronDownIcon, ChevronUpIcon } from "@radix
 import * as SelectPrimitive from "@radix-ui/react-select";
 import * as React from "react";
 
-import { SURFACE_OFFSET, SurfaceProvider, useElevated } from "@/components/ui/surface";
+import { SHADOW_LEVEL, SURFACE_OFFSET, SurfaceProvider, useElevated } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
 const Select = SelectPrimitive.Root;
@@ -70,7 +70,7 @@ const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(({ className, children, position = "popper", ...props }, ref) => {
-  const { level, className: surface } = useElevated(SURFACE_OFFSET.popover, 3);
+  const { level, className: surface } = useElevated(SURFACE_OFFSET.popover, SHADOW_LEVEL.popover);
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content

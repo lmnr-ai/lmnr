@@ -4,7 +4,7 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import * as React from "react";
 
 import { buttonVariants } from "@/components/ui/button";
-import { SURFACE_OFFSET, SurfaceProvider, useElevated } from "@/components/ui/surface";
+import { SHADOW_LEVEL, SURFACE_OFFSET, SurfaceProvider, useElevated } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
 const AlertDialog = AlertDialogPrimitive.Root;
@@ -32,7 +32,7 @@ const AlertDialogContent = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
 >(({ className, children, ...props }, ref) => {
-  const { level, className: surface } = useElevated(SURFACE_OFFSET.dialog, 6);
+  const { level, className: surface } = useElevated(SURFACE_OFFSET.dialog, SHADOW_LEVEL.dialog);
   return (
     <AlertDialogPortal>
       <AlertDialogOverlay />
