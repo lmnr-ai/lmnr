@@ -25,8 +25,8 @@ export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) 
   // Guard + delete run in one transaction with the sibling rows locked FOR UPDATE, so two
   // concurrent deletes can't both pass the count check and empty the workspace.
   // A missing row is NOT an error: a prior attempt may have committed the Postgres delete
-  // and then failed on the ClickHouse purge, so the retry must be able to finish the purge
-  // and report success instead of throwing "Project not found" forever.
+  // and then failed on the ClickHouse purge, so the retry must be able to re-run the purge
+  // instead of throwing "Project not found" forever.
   const deleted = await db.transaction(async (tx) => {
     const projectRow = await tx.query.projects.findFirst({
       where: eq(projects.id, projectId),
@@ -70,13 +70,14 @@ export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) 
     await deleteAllProjectsWorkspaceInfoFromCache(deleted.workspaceId);
   }
 
-  // Best-effort: the Postgres delete is the source of truth and has already committed, so a
-  // ClickHouse hiccup must not fail the request (the orphaned rows are unreachable and get
-  // re-purged on any retry). Same pattern as purgeSignalsFromClickhouse.
+  // The Postgres delete has already committed, but a failed ClickHouse purge must still
+  // surface to the caller — success here would stop the user from retrying, and there is
+  // no background reconciliation for the retained rows. The retry is what re-runs the
+  // purge (the missing-row path above makes it reachable).
   const result = await deleteProjectDataFromClickHouse(projectId);
 
   if (!result.success) {
-    console.error(`Failed to delete ClickHouse data for project ${projectId} from tables: ${result.tables.join(",")}`);
+    throw new Error(`Failed to delete project data for ${result.tables.join(",")}`);
   }
 }
 
