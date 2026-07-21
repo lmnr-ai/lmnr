@@ -752,13 +752,60 @@ pub async fn method_not_allowed() -> HttpResponse {
         .finish()
 }
 
-fn oauth_protected_resource_metadata_response() -> HttpResponse {
+fn oauth_authorization_server_is_ready(metadata: &Value, frontend: &str) -> bool {
+    let issuer = format!("{frontend}/api/auth");
+    [
+        ("issuer", issuer.clone()),
+        (
+            "authorization_endpoint",
+            format!("{issuer}/oauth2/authorize"),
+        ),
+        ("token_endpoint", format!("{issuer}/oauth2/token")),
+        ("registration_endpoint", format!("{issuer}/oauth2/register")),
+    ]
+    .into_iter()
+    .all(|(field, expected)| metadata.get(field).and_then(Value::as_str) == Some(&expected))
+}
+
+async fn oauth_protected_resource_metadata_response(
+    http_client: web::Data<reqwest::Client>,
+) -> HttpResponse {
     let resource = std::env::var(crate::env::notifications::LAMINAR_MCP_RESOURCE_URL)
         .expect("OAuth MCP routes require LAMINAR_MCP_RESOURCE_URL");
     let frontend = std::env::var(crate::env::notifications::NEXT_PUBLIC_URL)
         .expect("OAuth MCP routes require NEXT_PUBLIC_URL")
         .trim_end_matches('/')
         .to_string();
+    let frontend_internal = std::env::var(crate::env::notifications::NEXT_INTERNAL_URL)
+        .unwrap_or_else(|_| frontend.clone())
+        .trim_end_matches('/')
+        .to_string();
+    let metadata_url =
+        format!("{frontend_internal}/.well-known/oauth-authorization-server/api/auth");
+    let authorization_metadata = match http_client.get(&metadata_url).send().await {
+        Ok(response) if response.status().is_success() => match response.json::<Value>().await {
+            Ok(metadata) => metadata,
+            Err(error) => {
+                log::warn!("OAuth authorization-server metadata was invalid: {error}");
+                return HttpResponse::ServiceUnavailable().finish();
+            }
+        },
+        Ok(response) => {
+            log::warn!(
+                "OAuth authorization-server metadata returned {}",
+                response.status()
+            );
+            return HttpResponse::ServiceUnavailable().finish();
+        }
+        Err(error) => {
+            log::warn!("OAuth authorization-server metadata was unavailable: {error}");
+            return HttpResponse::ServiceUnavailable().finish();
+        }
+    };
+    if !oauth_authorization_server_is_ready(&authorization_metadata, &frontend) {
+        log::warn!("OAuth authorization-server metadata does not match the configured frontend");
+        return HttpResponse::ServiceUnavailable().finish();
+    }
     HttpResponse::Ok().json(serde_json::json!({
         "resource": resource,
         "authorization_servers": [format!("{frontend}/api/auth")],
@@ -769,14 +816,18 @@ fn oauth_protected_resource_metadata_response() -> HttpResponse {
 
 /// RFC 9728 protected-resource metadata for OAuth MCP discovery.
 #[actix_web::get("/.well-known/oauth-protected-resource")]
-pub async fn oauth_protected_resource_metadata() -> HttpResponse {
-    oauth_protected_resource_metadata_response()
+pub async fn oauth_protected_resource_metadata(
+    http_client: web::Data<reqwest::Client>,
+) -> HttpResponse {
+    oauth_protected_resource_metadata_response(http_client).await
 }
 
 /// RFC 9728 path-specific metadata for the OAuth MCP resource.
 #[actix_web::get("/.well-known/oauth-protected-resource/v1/mcp/oauth")]
-pub async fn oauth_mcp_protected_resource_metadata() -> HttpResponse {
-    oauth_protected_resource_metadata_response()
+pub async fn oauth_mcp_protected_resource_metadata(
+    http_client: web::Data<reqwest::Client>,
+) -> HttpResponse {
+    oauth_protected_resource_metadata_response(http_client).await
 }
 
 #[cfg(test)]
@@ -899,5 +950,25 @@ mod tests {
                 serde_json::json!(["projectId"])
             );
         }
+    }
+
+    #[test]
+    fn oauth_authorization_server_readiness_requires_the_complete_frontend_flow() {
+        let frontend = "https://laminar.example";
+        let issuer = format!("{frontend}/api/auth");
+        let metadata = serde_json::json!({
+            "issuer": issuer,
+            "authorization_endpoint": format!("{issuer}/oauth2/authorize"),
+            "token_endpoint": format!("{issuer}/oauth2/token"),
+            "registration_endpoint": format!("{issuer}/oauth2/register")
+        });
+        assert!(oauth_authorization_server_is_ready(&metadata, frontend));
+
+        let mut incomplete = metadata;
+        incomplete
+            .as_object_mut()
+            .expect("metadata object")
+            .remove("registration_endpoint");
+        assert!(!oauth_authorization_server_is_ready(&incomplete, frontend));
     }
 }
