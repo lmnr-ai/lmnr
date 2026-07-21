@@ -524,11 +524,13 @@ pub async fn process_span_messages(
         // the aggregation upsert later fills in — see
         // `merge_trace_metadata_batch` for the known stub-row caveat.
         let mut patched_traces: Vec<Trace> = Vec::new();
+        let mut patch_ok = true;
         if !metadata_patches.is_empty() {
             match merge_trace_metadata_batch(&db.pool, &metadata_patches).await {
                 Ok(patched) => patched_traces = patched,
                 Err(e) => {
                     log::error!("Failed to merge trace metadata patches: {:?}", e);
+                    patch_ok = false;
                 }
             }
         }
@@ -627,25 +629,33 @@ pub async fn process_span_messages(
                 }
             }
             // Extracted agent input/output rows (LAM-1953). Independent of
-            // aggregation success — RMT(ver) inserts are idempotent and
-            // self-arbitrating, and the values live outside traces_agg.
-            if !agent_input_rows.is_empty()
-                && let Err(e) = ch.insert_batch(&agent_input_rows, config).await
-            {
-                log::error!(
-                    "Failed to insert {} trace agent-input rows to ClickHouse: {:?}",
-                    agent_input_rows.len(),
-                    e
-                );
-            }
-            if !agent_output_rows.is_empty()
-                && let Err(e) = ch.insert_batch(&agent_output_rows, config).await
-            {
-                log::error!(
-                    "Failed to insert {} trace agent-output rows to ClickHouse: {:?}",
-                    agent_output_rows.len(),
-                    e
-                );
+            // AGGREGATION success (RMT(ver) inserts are idempotent and
+            // self-arbitrating, and the values live outside traces_agg)
+            // but gated on the PG metadata merge: the patch is only
+            // logged on failure (the message is acked, never retried), so
+            // writing the RMT rows anyway would leave traces_agg_v0
+            // showing agent IO the PG / traces_replacing path never
+            // received — the same never-runs-ahead rule `aggregation_ok`
+            // enforces for the aggregation partials.
+            if patch_ok {
+                if !agent_input_rows.is_empty()
+                    && let Err(e) = ch.insert_batch(&agent_input_rows, config).await
+                {
+                    log::error!(
+                        "Failed to insert {} trace agent-input rows to ClickHouse: {:?}",
+                        agent_input_rows.len(),
+                        e
+                    );
+                }
+                if !agent_output_rows.is_empty()
+                    && let Err(e) = ch.insert_batch(&agent_output_rows, config).await
+                {
+                    log::error!(
+                        "Failed to insert {} trace agent-output rows to ClickHouse: {:?}",
+                        agent_output_rows.len(),
+                        e
+                    );
+                }
             }
         }
 
