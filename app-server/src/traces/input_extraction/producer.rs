@@ -10,7 +10,8 @@ use uuid::Uuid;
 
 use super::input::prepare_user_task_input;
 use super::lock::{
-    RosterEntry, UserTaskLockState, WinnerState, agent_io_ver, lock_cache_key, write_lock_merged,
+    MAX_ARBITRATED_DEPTH, RosterEntry, UserTaskLockState, WinnerState, agent_io_ver,
+    lock_cache_key, write_lock_merged,
 };
 use super::metadata::build_metadata_patch;
 use super::output::{OutputCandidate, process_trace_output_candidate};
@@ -77,7 +78,15 @@ pub fn capture_user_task_candidate(span: &Span) -> Option<UserTaskCandidate> {
 /// consumer re-derives the path on its own copy.
 fn span_depth(attributes: &mut SpanAttributes, span_name: &str) -> usize {
     attributes.extend_span_path(span_name);
-    attributes.path().map(|p| p.len()).unwrap_or(0)
+    // Clamp at mint so arbitration and the CH ver see the same saturated
+    // depth — raw depths past the ver's major-byte ceiling would let a
+    // depth-255 candidate override a depth-256 winner it can only tie in
+    // ClickHouse (see `MAX_ARBITRATED_DEPTH`).
+    attributes
+        .path()
+        .map(|p| p.len())
+        .unwrap_or(0)
+        .min(MAX_ARBITRATED_DEPTH)
 }
 
 /// One trace's input candidate after stats collection, pointing back at
@@ -420,5 +429,13 @@ mod tests {
         // Missing path attribute: seeded as a 1-element array.
         let mut attrs = SpanAttributes::new(HashMap::new());
         assert_eq!(span_depth(&mut attrs, "llm_call"), 1);
+        // Absurdly deep paths clamp to the ver's depth ceiling so
+        // arbitration never sees depths the CH version can't distinguish.
+        let deep_path: Vec<String> = (0..300).map(|i| format!("s{i}")).collect();
+        let mut attrs = SpanAttributes::new(HashMap::from([(
+            SPAN_PATH.to_string(),
+            serde_json::to_value(&deep_path).unwrap(),
+        )]));
+        assert_eq!(span_depth(&mut attrs, "s299"), MAX_ARBITRATED_DEPTH);
     }
 }

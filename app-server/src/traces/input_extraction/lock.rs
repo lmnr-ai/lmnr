@@ -25,6 +25,14 @@ use crate::env::user_task::USER_TASK_LOCK_TTL_SECONDS;
 /// to own the user task.
 pub const ROSTER_CAP: usize = 5;
 
+/// Deepest span-path depth arbitration distinguishes — the ver's major
+/// byte saturates here, so depth MUST be clamped at mint (`span_depth`)
+/// before it enters any lock state: comparing raw depths past the
+/// saturation point would let a depth-255 candidate override a depth-256
+/// winner whose CH ver it can only tie (same aligned-orders rule as
+/// [`ver_minor`]). Anything this deep is one flat "absurdly deep" bucket.
+pub const MAX_ARBITRATED_DEPTH: usize = 255;
+
 pub fn lock_cache_key(project_id: Uuid, trace_id: Uuid) -> String {
     format!("{USER_TASK_LOCK_CACHE_KEY}:{project_id}:{trace_id}")
 }
@@ -315,7 +323,7 @@ fn ver_minor(minor: i64) -> u64 {
 /// lock would admit overrides whose CH rows only TIE, and a redelivered
 /// older row could win by arrival order.
 pub fn agent_io_ver(depth: usize, minor: i64) -> u64 {
-    let inverted_depth = 255 - depth.min(255) as u64;
+    let inverted_depth = (MAX_ARBITRATED_DEPTH - depth.min(MAX_ARBITRATED_DEPTH)) as u64;
     (inverted_depth << 56) | ver_minor(minor)
 }
 
@@ -545,6 +553,14 @@ mod tests {
         // Negative / oversized minors clamp instead of corrupting depth.
         assert_eq!(agent_io_ver(2, -5), agent_io_ver(2, 0));
         assert!(agent_io_ver(1, i64::MAX) < agent_io_ver(0, 0));
+        // Depths at/past the major-byte ceiling saturate to one bucket —
+        // which is why `span_depth` clamps to MAX_ARBITRATED_DEPTH at
+        // mint: 255 vs 256 must never reach arbitration as distinct.
+        assert_eq!(
+            agent_io_ver(MAX_ARBITRATED_DEPTH, 10),
+            agent_io_ver(MAX_ARBITRATED_DEPTH + 1, 10)
+        );
+        assert!(agent_io_ver(MAX_ARBITRATED_DEPTH - 1, 0) > agent_io_ver(MAX_ARBITRATED_DEPTH, 10));
     }
 
     #[test]
