@@ -3,6 +3,7 @@ import { Maximize, Minimize } from "lucide-react";
 import React, { memo, useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
+import { getMarkdownSource, MarkdownRenderer } from "@/components/ui/content-renderer/markdown";
 import { createImageDecorationPlugin, renderText, theme } from "@/components/ui/content-renderer/utils";
 import { CopyButton } from "@/components/ui/copy-button";
 import { DialogTitle } from "@/components/ui/dialog";
@@ -53,11 +54,18 @@ const PureCodeSheet = ({ mode, modes, renderedValue, extensions, onModeChange, p
           <DialogTitle className="hidden"></DialogTitle>
           <div className="flex-none items-center flex px-2 justify-between">
             <div className="flex items-center gap-1">
-              <TemplatePickerView mode={sheetMode} onModeChange={onModeChange} modes={sheetModes} />
+              {sheetModes.length > 1 && (
+                <TemplatePickerView mode={sheetMode} onModeChange={onModeChange} modes={sheetModes} />
+              )}
               {sheetMode === "custom" && <TemplatePickerActions />}
             </div>
             <div className="flex items-center">
-              <CopyButton iconClassName="h-3.5 w-3.5" size="icon" variant="ghost" text={renderedValue} />
+              <CopyButton
+                iconClassName="h-3.5 w-3.5"
+                size="icon"
+                variant="ghost"
+                text={sheetMode === "markdown" ? getMarkdownSource(renderedValue) : renderedValue}
+              />
               <SheetClose asChild>
                 <Button variant="ghost" size="icon">
                   <Minimize className="h-4 w-4" />
@@ -69,6 +77,8 @@ const PureCodeSheet = ({ mode, modes, renderedValue, extensions, onModeChange, p
             <div className="flex flex-col">
               {sheetMode === "custom" ? (
                 <TemplatePickerPreview data={renderedValue} />
+              ) : sheetMode === "markdown" ? (
+                <MarkdownRenderer value={getMarkdownSource(renderedValue)} className="p-3" />
               ) : (
                 <CodeMirror
                   placeholder={placeholder}
