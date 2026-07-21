@@ -24,13 +24,16 @@ export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) 
   // A workspace must always retain at least one project — refuse to delete the last one.
   // Guard + delete run in one transaction with the sibling rows locked FOR UPDATE, so two
   // concurrent deletes can't both pass the count check and empty the workspace.
-  const { workspaceId, apiKeyHashes } = await db.transaction(async (tx) => {
+  // A missing row is NOT an error: a prior attempt may have committed the Postgres delete
+  // and then failed on the ClickHouse purge, so the retry must be able to finish the purge
+  // and report success instead of throwing "Project not found" forever.
+  const deleted = await db.transaction(async (tx) => {
     const projectRow = await tx.query.projects.findFirst({
       where: eq(projects.id, projectId),
       columns: { workspaceId: true },
     });
     if (!projectRow) {
-      throw new Error("Project not found");
+      return null;
     }
 
     const siblingProjects = await tx
@@ -54,21 +57,26 @@ export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) 
     return { workspaceId: projectRow.workspaceId, apiKeyHashes };
   });
 
-  try {
-    const result = await deleteProjectApiKeysFromCache(apiKeyHashes);
-    if (!result.success) {
-      console.error("Failed to delete project api keys from cache. Failed keys:", result.failedKeys);
+  if (deleted) {
+    try {
+      const result = await deleteProjectApiKeysFromCache(deleted.apiKeyHashes);
+      if (!result.success) {
+        console.error("Failed to delete project api keys from cache. Failed keys:", result.failedKeys);
+      }
+    } catch (error) {
+      console.error("Failed to delete project api keys from cache", error);
     }
-  } catch (error) {
-    console.error("Failed to delete project api keys from cache", error);
+
+    await deleteAllProjectsWorkspaceInfoFromCache(deleted.workspaceId);
   }
 
-  await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
-
+  // Best-effort: the Postgres delete is the source of truth and has already committed, so a
+  // ClickHouse hiccup must not fail the request (the orphaned rows are unreachable and get
+  // re-purged on any retry). Same pattern as purgeSignalsFromClickhouse.
   const result = await deleteProjectDataFromClickHouse(projectId);
 
   if (!result.success) {
-    throw new Error(`Failed to delete project data for ${result.tables.join(",")}`);
+    console.error(`Failed to delete ClickHouse data for project ${projectId} from tables: ${result.tables.join(",")}`);
   }
 }
 
