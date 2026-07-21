@@ -6,7 +6,7 @@ import { createStore, type StoreApi } from "zustand";
 import { shallow } from "zustand/shallow";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 
-import { type CustomColumn } from "@/components/ui/columns-menu";
+import type { CustomColumn } from "@/components/ui/columns-menu/types";
 import { type Filter } from "@/lib/actions/common/filters";
 
 import { EMPTY_VIEW_PARAMS, type ViewParams } from "../views/params";
