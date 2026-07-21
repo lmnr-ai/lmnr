@@ -5,8 +5,8 @@ import { OAuthConsent } from "@/components/auth/oauth-consent";
 import { getServerSession } from "@/lib/auth-session";
 
 export const metadata: Metadata = {
-  title: "Authorize agent access - Laminar",
-  description: "Authorize an agent to inspect Laminar traces on your behalf.",
+  title: "Authorize application access - Laminar",
+  description: "Authorize an OAuth client to access Laminar on your behalf.",
 };
 
 interface ConsentPageProps {
@@ -28,7 +28,7 @@ export default async function ConsentPage({ searchParams }: ConsentPageProps) {
     redirect(`/sign-in?callbackUrl=${encodeURIComponent(callbackUrl)}`);
   }
 
-  const clientName = typeof params.client_name === "string" ? params.client_name : "Eve or another agent client";
+  const clientName = typeof params.client_name === "string" ? params.client_name : "OAuth client";
   const requestedScopes = typeof params.scope === "string" ? params.scope.split(" ").filter(Boolean) : [];
 
   return (

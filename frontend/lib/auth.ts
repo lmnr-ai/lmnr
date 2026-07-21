@@ -239,7 +239,7 @@ export const auth = betterAuth({
         }),
       },
     }),
-    // User-scoped OAuth 2.1 for remote MCP clients such as Eve. Access tokens
+    // User-scoped OAuth 2.1 for remote MCP clients. Access tokens
     // are audience-bound to the public app-server resource; the app server
     // still re-checks Laminar project membership for every tool invocation.
     ...(LAMINAR_MCP_RESOURCE_URL
@@ -252,8 +252,8 @@ export const auth = betterAuth({
             scopes: ["openid", "profile", "email", "offline_access", "mcp:read"],
             validAudiences: [LAMINAR_MCP_RESOURCE_URL],
             allowDynamicClientRegistration: true,
-            // Eve is a public PKCE client and therefore cannot authenticate at
-            // dynamic registration time. Confidential clients remain hashed.
+            // Public PKCE clients cannot authenticate at dynamic registration
+            // time. Confidential client secrets remain hashed.
             allowUnauthenticatedClientRegistration: true,
             clientRegistrationDefaultScopes: ["openid", "profile", "email", "offline_access", "mcp:read"],
             clientRegistrationAllowedScopes: [],

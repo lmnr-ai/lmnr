@@ -53,7 +53,7 @@ export function OAuthConsent({ clientName, oauthQuery, requestedScopes, userEmai
         <CardHeader>
           <CardTitle>Authorize {clientName}</CardTitle>
           <CardDescription>
-            This agent will act as {userEmail}. It can only access Laminar projects that you can access.
+            This application will act as {userEmail}. It can only access Laminar projects that you can access.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
@@ -66,8 +66,8 @@ export function OAuthConsent({ clientName, oauthQuery, requestedScopes, userEmai
             </ul>
           </div>
           <p className="text-xs text-muted-foreground">
-            Project membership is checked again on every tool call. Disconnect the integration in the agent to revoke
-            its stored grant.
+            Project membership is checked again on every tool call. Disconnect this application to revoke its stored
+            grant.
           </p>
           <div className="flex gap-2">
             <Button
