@@ -55,7 +55,7 @@ impl StreamAccumulator for OpenAIResponsesStreamAccumulator {
         }
     }
 
-    fn into_response(self, model: &str) -> Result<ProviderResponse, OpenAIError> {
+    fn try_into_response(self, model: &str) -> Result<ProviderResponse, OpenAIError> {
         // The terminal event carries the authoritative result. Parsing also
         // surfaces a `response.failed` event as an error rather than empty content.
         if let Some(response) = self.final_response {

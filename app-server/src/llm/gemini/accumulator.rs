@@ -88,7 +88,7 @@ impl StreamAccumulator for GeminiStreamAccumulator {
         }
     }
 
-    fn into_response(self, _model: &str) -> Result<ProviderResponse, GeminiError> {
+    fn try_into_response(self, _model: &str) -> Result<ProviderResponse, GeminiError> {
         let candidate = Candidate {
             content: Some(Content {
                 role: self.role.or_else(|| Some("model".to_string())),

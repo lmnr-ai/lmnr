@@ -14,7 +14,7 @@ pub(crate) trait StreamAccumulator: Default {
     /// request (e.g. a Responses `response.failed` event).
     type Error;
     fn ingest(&mut self, chunk: Self::Chunk, tx: &UnboundedSender<ProviderStreamChunk>);
-    fn into_response(self, model: &str) -> Result<ProviderResponse, Self::Error>;
+    fn try_into_response(self, model: &str) -> Result<ProviderResponse, Self::Error>;
 }
 
 pub(crate) async fn accumulate_sse<A, E>(
@@ -32,7 +32,7 @@ where
         let chunk: A::Chunk = serde_json::from_str(&payload?)?;
         accumulator.ingest(chunk, tx);
     }
-    accumulator.into_response(model).map_err(E::from)
+    accumulator.try_into_response(model).map_err(E::from)
 }
 
 fn sse_data_stream(

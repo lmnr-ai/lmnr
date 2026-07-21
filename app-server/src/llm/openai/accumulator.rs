@@ -90,7 +90,7 @@ impl StreamAccumulator for OpenAIStreamAccumulator {
         }
     }
 
-    fn into_response(self, model: &str) -> Result<ProviderResponse, OpenAIError> {
+    fn try_into_response(self, model: &str) -> Result<ProviderResponse, OpenAIError> {
         let mut parts: Vec<ProviderPart> = Vec::new();
         if !self.reasoning.is_empty() {
             parts.push(ProviderPart {
