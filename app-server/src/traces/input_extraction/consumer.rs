@@ -9,7 +9,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use super::{
-    lock::{RosterEntry, UserTaskLockState, agent_io_ver, lock_cache_key},
+    lock::{RosterEntry, UserTaskLockState, agent_io_ver, lock_cache_key, write_lock_merged},
     metadata::build_metadata_patch,
     queue::InputExtractionMessage,
     regex::{
@@ -21,7 +21,6 @@ use super::{
 use crate::{
     cache::{Cache, CacheTrait},
     db::DB,
-    env::user_task::USER_TASK_LOCK_TTL_SECONDS,
     llm::LlmClient,
     mq::MessageQueue,
     traces::metadata::publish_trace_metadata_patch,
@@ -157,7 +156,8 @@ impl MessageHandler for InputExtractionHandler {
         // Re-assert the winner whose extraction just published — retries
         // the producer lock write that may have failed after the enqueue,
         // so future arbitration compares against the actual metadata
-        // owner. Merge-guarded: the snapshot is folded into the current
+        // owner. Merge-guarded and mutex-serialized via
+        // `write_lock_merged`: the snapshot is folded into the current
         // lock (roster registrations survive; a genuinely stronger winner
         // written while this message was in flight is kept). Best-effort
         // like every lock write.
@@ -169,24 +169,7 @@ impl MessageHandler for InputExtractionHandler {
                 span_id: snapshot.span_id.clone(),
             });
             local.winner = Some(snapshot.clone());
-            let mut merged: UserTaskLockState = self
-                .cache
-                .get(&lock_key)
-                .await
-                .ok()
-                .flatten()
-                .unwrap_or_else(|| UserTaskLockState::new(snapshot.depth));
-            merged.merge_from(&local);
-            if let Err(e) = self
-                .cache
-                .insert_with_ttl(&lock_key, &merged, USER_TASK_LOCK_TTL_SECONDS.get())
-                .await
-            {
-                log::error!(
-                    "user-task: lock state write failed for trace [{}]: {e:?}",
-                    message.trace_id
-                );
-            }
+            write_lock_merged(&self.cache, &lock_key, &local, message.trace_id).await;
         }
 
         Ok(())

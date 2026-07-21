@@ -10,10 +10,15 @@
 //! main-agent call, while the roster cap stops later main-loop turns
 //! (which grow monotonically in tokens) from overriding forever.
 
+use std::sync::Arc;
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::cache::keys::{TRACE_OUTPUT_LOCK_CACHE_KEY, USER_TASK_LOCK_CACHE_KEY};
+use crate::cache::{Cache, CacheTrait};
+use crate::env::user_task::USER_TASK_LOCK_TTL_SECONDS;
 
 /// How many earliest-starting spans at the shallowest depth stay eligible
 /// to own the user task.
@@ -163,6 +168,66 @@ impl UserTaskLockState {
         self.winner
             .as_ref()
             .is_some_and(|w| w != snapshot && w.beats(snapshot))
+    }
+}
+
+/// TTL of the short mutex serializing lock write-backs. Generous versus
+/// the guarded section (one cache round-trip); only a crashed worker
+/// ever runs it out.
+const LOCK_WRITE_MUTEX_TTL_SECONDS: u64 = 5;
+
+/// Merge-guarded lock write-back, serialized under a short cache mutex:
+/// re-read the lock and [`UserTaskLockState::merge_from`] the local state
+/// into it (shallower depth wins wholesale; equal depth unions rosters
+/// and keeps the stronger winner). The mutex closes the read-merge-write
+/// TOCTOU — without it two concurrent writers can both read the same
+/// stale snapshot and the weaker last write would drop the stronger
+/// winner, letting a medium-strength candidate republish over the true
+/// `lmnr_user_task` later. Acquisition is bounded retry, then FAIL OPEN
+/// (an unserialized merge beats losing the write entirely — every field
+/// still folds monotonically); best-effort like every lock write.
+pub async fn write_lock_merged(
+    cache: &Arc<Cache>,
+    lock_key: &str,
+    local: &UserTaskLockState,
+    trace_id: Uuid,
+) {
+    let mutex_key = format!("{lock_key}:mx");
+    let mut mutex_held = false;
+    for backoff_ms in [0u64, 5, 15, 40, 100] {
+        if backoff_ms > 0 {
+            tokio::time::sleep(Duration::from_millis(backoff_ms)).await;
+        }
+        match cache
+            .try_acquire_lock(&mutex_key, LOCK_WRITE_MUTEX_TTL_SECONDS)
+            .await
+        {
+            Ok(true) => {
+                mutex_held = true;
+                break;
+            }
+            Ok(false) => continue,
+            // Cache errors: don't spin, fall through to the open write.
+            Err(_) => break,
+        }
+    }
+
+    let mut merged: UserTaskLockState = cache
+        .get(lock_key)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| UserTaskLockState::new(local.depth));
+    merged.merge_from(local);
+    if let Err(e) = cache
+        .insert_with_ttl(lock_key, &merged, USER_TASK_LOCK_TTL_SECONDS.get())
+        .await
+    {
+        log::error!("user-task: lock state write failed for trace [{trace_id}]: {e:?}");
+    }
+
+    if mutex_held && let Err(e) = cache.release_lock(&mutex_key).await {
+        log::error!("user-task: lock write mutex release failed for trace [{trace_id}]: {e:?}");
     }
 }
 
@@ -362,6 +427,35 @@ mod tests {
         );
         let back: UserTaskLockState = serde_json::from_str(&json).unwrap();
         assert_eq!(back, lock);
+    }
+
+    #[tokio::test]
+    async fn write_lock_merged_serializes_and_keeps_stronger_winner() {
+        use crate::cache::in_memory::InMemoryCache;
+        let cache: Arc<Cache> = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+        let trace_id = Uuid::new_v4();
+        let lock_key = format!("test_lock:{trace_id}");
+
+        // Two writers race: strong lands first, weak second. The weak
+        // write-back must fold INTO the stored state, not clobber it.
+        let mut strong = UserTaskLockState::new(2);
+        strong.register(entry(10, "strong"));
+        strong.winner = Some(w(2, 500, 10, "strong"));
+        write_lock_merged(&cache, &lock_key, &strong, trace_id).await;
+
+        let mut weak = UserTaskLockState::new(2);
+        weak.register(entry(20, "weak"));
+        weak.winner = Some(w(2, 100, 20, "weak"));
+        write_lock_merged(&cache, &lock_key, &weak, trace_id).await;
+
+        let stored: UserTaskLockState = cache.get(&lock_key).await.unwrap().unwrap();
+        assert_eq!(stored.winner, Some(w(2, 500, 10, "strong")));
+        assert_eq!(stored.roster.len(), 2);
+
+        // The write-back mutex is released on the happy path — the key
+        // is immediately re-acquirable.
+        let mutex_key = format!("{lock_key}:mx");
+        assert!(cache.try_acquire_lock(&mutex_key, 5).await.unwrap());
     }
 
     #[test]

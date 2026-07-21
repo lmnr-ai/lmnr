@@ -9,14 +9,15 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use super::input::prepare_user_task_input;
-use super::lock::{RosterEntry, UserTaskLockState, WinnerState, agent_io_ver, lock_cache_key};
+use super::lock::{
+    RosterEntry, UserTaskLockState, WinnerState, agent_io_ver, lock_cache_key, write_lock_merged,
+};
 use super::metadata::build_metadata_patch;
 use super::output::{OutputCandidate, process_trace_output_candidate};
 use super::queue::{InputExtractionMessage, push_to_input_extraction_queue};
 use super::regex::{regex_cache_key, try_apply_cached_regex};
 use crate::cache::{Cache, CacheTrait};
 use crate::db::{DB, spans::Span};
-use crate::env::user_task::USER_TASK_LOCK_TTL_SECONDS;
 use crate::features::{Feature, is_feature_enabled};
 use crate::llm::llm_client_available;
 use crate::mq::MessageQueue;
@@ -379,32 +380,6 @@ async fn process_trace_inputs(
     }
 
     write_lock_merged(&cache, &lock_key, &lock, trace_id).await;
-}
-
-/// Merge-guarded lock write-back: re-read and fold the local state into
-/// whatever is there now (shallower depth wins wholesale; equal depth
-/// unions rosters and keeps the stronger winner), so a concurrent batch's
-/// get-then-set can cost at most a stale roster entry — never a
-/// rolled-back winner. Best-effort like every lock write.
-async fn write_lock_merged(
-    cache: &Arc<Cache>,
-    lock_key: &str,
-    local: &UserTaskLockState,
-    trace_id: Uuid,
-) {
-    let mut merged: UserTaskLockState = cache
-        .get(lock_key)
-        .await
-        .ok()
-        .flatten()
-        .unwrap_or_else(|| UserTaskLockState::new(local.depth));
-    merged.merge_from(local);
-    if let Err(e) = cache
-        .insert_with_ttl(lock_key, &merged, USER_TASK_LOCK_TTL_SECONDS.get())
-        .await
-    {
-        log::error!("user-task: lock state write failed for trace [{trace_id}]: {e:?}");
-    }
 }
 
 #[cfg(test)]
