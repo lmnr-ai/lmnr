@@ -217,6 +217,15 @@ const LOCK_WRITE_MUTEX_INITIAL_BACKOFF_MS: u64 = 5;
 /// Total time budget for mutex acquisition before failing open.
 const LOCK_WRITE_MUTEX_MAX_ELAPSED_MS: u64 = 200;
 
+/// First retry delay for a failed post-publish lock WRITE (grows
+/// exponentially). Retrying matters most on the output path, which has
+/// no queued consumer to re-assert a lock the producer failed to write —
+/// an open gate lets a later weaker output overwrite the stronger
+/// published value.
+pub(super) const LOCK_WRITE_RETRY_INITIAL_BACKOFF_MS: u64 = 10;
+/// Total time budget for post-publish lock-write retries.
+pub(super) const LOCK_WRITE_RETRY_MAX_ELAPSED_MS: u64 = 300;
+
 /// Merge-guarded lock write-back, serialized under a short cache mutex:
 /// re-read the lock and [`UserTaskLockState::merge_from`] the local state
 /// into it (shallower depth wins wholesale; equal depth unions rosters
