@@ -42,6 +42,20 @@ pub fn capture_output_candidate(span: &Span) -> Option<OutputCandidate> {
 /// Inline trace-output processing: lock gate (shallower depth wins, then
 /// latest end time), metadata publish, guarded lock write. Fails open on
 /// cache errors; all failures are logged and swallowed.
+///
+/// Get-then-set race, ACCEPTED for the PG metadata path (same class as
+/// the input path's both-publish-before-either-locks interleaving):
+/// two batches can both pass the gate and their patches — separate MQ
+/// messages — can be MERGED into PG in either order, so
+/// `lmnr_trace_output` may transiently keep the older answer while the
+/// lock records the newer winner. No producer-side re-check can close
+/// this (the gate and publish are adjacent — unlike the input path
+/// there's no round-trip between them, and consumer-side merge order is
+/// out of the producer's hands). Any strictly-newer output repairs the
+/// value; only the trace's final two racing batches can leave it stale.
+/// The `trace_agent_output` RMT row is immune by construction — its
+/// `agent_io_ver` converges to the newest answer regardless of arrival
+/// order, which is the store the traces_agg read path uses.
 pub async fn process_trace_output_candidate(
     candidate: &OutputCandidate,
     depth: usize,
