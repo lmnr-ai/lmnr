@@ -5,21 +5,17 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
 
-use backoff::ExponentialBackoffBuilder;
 use serde_json::Value;
 use uuid::Uuid;
 
 use super::lock::{
-    LOCK_WRITE_RETRY_INITIAL_BACKOFF_MS, LOCK_WRITE_RETRY_MAX_ELAPSED_MS, OutputLockState,
-    agent_io_ver, trace_output_lock_cache_key,
+    OutputLockState, agent_io_ver, trace_output_lock_cache_key, write_output_lock_guarded,
 };
 use super::messages::last_assistant_text;
 use super::metadata::TRACE_OUTPUT_METADATA_KEY;
 use crate::cache::{Cache, CacheTrait};
 use crate::db::{DB, spans::Span};
-use crate::env::user_task::USER_TASK_LOCK_TTL_SECONDS;
 use crate::mq::MessageQueue;
 use crate::traces::metadata::publish_trace_metadata_patch;
 
@@ -108,36 +104,10 @@ pub async fn process_trace_output_candidate(
         return;
     }
 
-    // Guarded lock write after the effect landed: a newer winner can take
-    // the lock while this publish was in flight; writing blindly would
-    // roll it back and let an older output overwrite the newer one later.
-    // The write is RETRIED (conventional `backoff` crate, short budget):
-    // unlike the input path there is no queued consumer to re-assert an
-    // output lock, so a publish that lands without its lock write leaves
-    // the gate open for a later WEAKER output to overwrite the stronger
-    // value in PG while the RMT row keeps it — retrying closes the
-    // transient-blip case; a persistently dead cache stays best-effort
-    // (logged) like every lock write. The guard re-read runs per attempt
-    // so a newer winner arriving mid-retry is still respected.
-    let write_backoff = ExponentialBackoffBuilder::new()
-        .with_initial_interval(Duration::from_millis(LOCK_WRITE_RETRY_INITIAL_BACKOFF_MS))
-        .with_max_elapsed_time(Some(Duration::from_millis(LOCK_WRITE_RETRY_MAX_ELAPSED_MS)))
-        .build();
-    let write_result = backoff::future::retry(write_backoff, || async {
-        let current: Option<OutputLockState> = cache.get(&lock_key).await.ok().flatten();
-        if current.is_some_and(|c| !c.should_override(&state)) {
-            // A newer winner took the lock mid-flight: nothing to write.
-            return Ok(());
-        }
-        cache
-            .insert_with_ttl(&lock_key, &state, USER_TASK_LOCK_TTL_SECONDS.get())
-            .await
-            .map_err(|e| backoff::Error::transient(anyhow::anyhow!("{e:?}")))
-    })
-    .await;
-    if let Err(e) = write_result {
-        log::error!("trace-output: lock write failed for trace [{trace_id}]: {e:?}");
-    }
+    // Post-publish lock write: guarded, mutex-serialized, and retried —
+    // see `write_output_lock_guarded` for why each of the three matters
+    // on this path (no queued consumer to heal a missed/raced write).
+    write_output_lock_guarded(&cache, &lock_key, &state, trace_id).await;
 }
 
 #[cfg(test)]

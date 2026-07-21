@@ -222,36 +222,23 @@ const LOCK_WRITE_MUTEX_MAX_ELAPSED_MS: u64 = 200;
 /// no queued consumer to re-assert a lock the producer failed to write —
 /// an open gate lets a later weaker output overwrite the stronger
 /// published value.
-pub(super) const LOCK_WRITE_RETRY_INITIAL_BACKOFF_MS: u64 = 10;
+const LOCK_WRITE_RETRY_INITIAL_BACKOFF_MS: u64 = 10;
 /// Total time budget for post-publish lock-write retries.
-pub(super) const LOCK_WRITE_RETRY_MAX_ELAPSED_MS: u64 = 300;
+const LOCK_WRITE_RETRY_MAX_ELAPSED_MS: u64 = 300;
 
-/// Merge-guarded lock write-back, serialized under a short cache mutex:
-/// re-read the lock and [`UserTaskLockState::merge_from`] the local state
-/// into it (shallower depth wins wholesale; equal depth unions rosters
-/// and keeps the stronger winner). The mutex closes the read-merge-write
-/// TOCTOU — without it two concurrent writers can both read the same
-/// stale snapshot and the weaker last write would drop the stronger
-/// winner, letting a medium-strength candidate republish over the true
-/// `lmnr_user_task` later. Acquisition retries with the conventional
-/// `backoff` crate (like `generate.rs::call_llm`) under a short elapsed
-/// budget, then FAILS OPEN (an unserialized merge beats losing the write
-/// entirely — every field still folds monotonically); best-effort like
-/// every lock write.
-pub async fn write_lock_merged(
-    cache: &Arc<Cache>,
-    lock_key: &str,
-    local: &UserTaskLockState,
-    trace_id: Uuid,
-) {
-    let mutex_key = format!("{lock_key}:mx");
+/// Acquire the short write-back mutex for a lock key. Retries with the
+/// conventional `backoff` crate (like `generate.rs::call_llm`) under a
+/// short elapsed budget, then FAILS OPEN by returning `false` — an
+/// unserialized merge beats losing the write entirely. Returns whether
+/// the mutex was actually acquired (callers release only then).
+async fn acquire_write_mutex(cache: &Arc<Cache>, mutex_key: &str) -> bool {
     let backoff = ExponentialBackoffBuilder::new()
         .with_initial_interval(Duration::from_millis(LOCK_WRITE_MUTEX_INITIAL_BACKOFF_MS))
         .with_max_elapsed_time(Some(Duration::from_millis(LOCK_WRITE_MUTEX_MAX_ELAPSED_MS)))
         .build();
-    let mutex_held = backoff::future::retry(backoff, || async {
+    backoff::future::retry(backoff, || async {
         match cache
-            .try_acquire_lock(&mutex_key, LOCK_WRITE_MUTEX_TTL_SECONDS)
+            .try_acquire_lock(mutex_key, LOCK_WRITE_MUTEX_TTL_SECONDS)
             .await
         {
             Ok(true) => Ok(()),
@@ -264,7 +251,25 @@ pub async fn write_lock_merged(
         }
     })
     .await
-    .is_ok();
+    .is_ok()
+}
+
+/// Merge-guarded lock write-back, serialized under a short cache mutex:
+/// re-read the lock and [`UserTaskLockState::merge_from`] the local state
+/// into it (shallower depth wins wholesale; equal depth unions rosters
+/// and keeps the stronger winner). The mutex closes the read-merge-write
+/// TOCTOU — without it two concurrent writers can both read the same
+/// stale snapshot and the weaker last write would drop the stronger
+/// winner, letting a medium-strength candidate republish over the true
+/// `lmnr_user_task` later. Best-effort like every lock write.
+pub async fn write_lock_merged(
+    cache: &Arc<Cache>,
+    lock_key: &str,
+    local: &UserTaskLockState,
+    trace_id: Uuid,
+) {
+    let mutex_key = format!("{lock_key}:mx");
+    let mutex_held = acquire_write_mutex(cache, &mutex_key).await;
 
     let mut merged: UserTaskLockState = cache
         .get(lock_key)
@@ -314,6 +319,51 @@ impl OutputLockState {
         candidate.depth == self.depth
             && ver_minor(candidate.end_time_ns / 1_000_000)
                 > ver_minor(self.end_time_ns / 1_000_000)
+    }
+}
+
+/// Post-publish output-lock write: guarded (a stronger winner already in
+/// the lock is never rolled back), serialized under the same short cache
+/// mutex as [`write_lock_merged`] (without it, two concurrent writers
+/// both pass the guard re-read and the weaker last write reopens the
+/// gate for a medium-strength later batch to overwrite the true
+/// `lmnr_trace_output`), and RETRIED under a short budget — the output
+/// path has no queued consumer to re-assert a lock the producer failed
+/// to write, so a publish that lands without its lock write leaves the
+/// gate open. The guard re-read runs per attempt (a newer winner
+/// arriving mid-retry is respected); a persistently dead cache stays
+/// best-effort (logged) like every lock write.
+pub(super) async fn write_output_lock_guarded(
+    cache: &Arc<Cache>,
+    lock_key: &str,
+    state: &OutputLockState,
+    trace_id: Uuid,
+) {
+    let mutex_key = format!("{lock_key}:mx");
+    let mutex_held = acquire_write_mutex(cache, &mutex_key).await;
+
+    let write_backoff = ExponentialBackoffBuilder::new()
+        .with_initial_interval(Duration::from_millis(LOCK_WRITE_RETRY_INITIAL_BACKOFF_MS))
+        .with_max_elapsed_time(Some(Duration::from_millis(LOCK_WRITE_RETRY_MAX_ELAPSED_MS)))
+        .build();
+    let write_result = backoff::future::retry(write_backoff, || async {
+        let current: Option<OutputLockState> = cache.get(lock_key).await.ok().flatten();
+        if current.is_some_and(|c| !c.should_override(state)) {
+            // A newer winner took the lock mid-flight: nothing to write.
+            return Ok(());
+        }
+        cache
+            .insert_with_ttl(lock_key, state, USER_TASK_LOCK_TTL_SECONDS.get())
+            .await
+            .map_err(|e| backoff::Error::transient(anyhow::anyhow!("{e:?}")))
+    })
+    .await;
+    if let Err(e) = write_result {
+        log::error!("trace-output: lock write failed for trace [{trace_id}]: {e:?}");
+    }
+
+    if mutex_held && let Err(e) = cache.release_lock(&mutex_key).await {
+        log::error!("trace-output: lock write mutex release failed for trace [{trace_id}]: {e:?}");
     }
 }
 
@@ -603,6 +653,33 @@ mod tests {
 
         // The write-back mutex is released on the happy path — the key
         // is immediately re-acquirable.
+        let mutex_key = format!("{lock_key}:mx");
+        assert!(cache.try_acquire_lock(&mutex_key, 5).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn write_output_lock_guarded_keeps_stronger_winner_and_releases_mutex() {
+        use crate::cache::in_memory::InMemoryCache;
+        let cache: Arc<Cache> = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+        let trace_id = Uuid::new_v4();
+        let lock_key = format!("test_out_lock:{trace_id}");
+
+        // Stronger (later-ending) state lands first; a weaker write-back
+        // must not roll it back.
+        let strong = OutputLockState {
+            depth: 2,
+            end_time_ns: 200_000_000,
+        };
+        write_output_lock_guarded(&cache, &lock_key, &strong, trace_id).await;
+        let weak = OutputLockState {
+            depth: 2,
+            end_time_ns: 100_000_000,
+        };
+        write_output_lock_guarded(&cache, &lock_key, &weak, trace_id).await;
+        let stored: OutputLockState = cache.get(&lock_key).await.unwrap().unwrap();
+        assert_eq!(stored, strong);
+
+        // Mutex released on the happy path.
         let mutex_key = format!("{lock_key}:mx");
         assert!(cache.try_acquire_lock(&mutex_key, 5).await.unwrap());
     }
