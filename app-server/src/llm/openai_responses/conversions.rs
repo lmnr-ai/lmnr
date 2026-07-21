@@ -275,15 +275,20 @@ fn extract_message_text(item: &Value) -> Option<String> {
     Some(out)
 }
 
-/// Concatenate `summary_text` pieces from a Responses `reasoning` item.
+/// Extract reasoning text from a Responses `reasoning` item. OpenAI o-series
+/// return a human summary under `summary[].summary_text`; some providers return
+/// the raw reasoning under `content[].reasoning_text`.
+/// Read both so thinking surfaces regardless of provider.
 fn extract_reasoning_summary(item: &Value) -> String {
-    let Some(summary) = item.get("summary").and_then(|s| s.as_array()) else {
-        return String::new();
-    };
     let mut out = String::new();
-    for piece in summary {
-        if let Some(t) = piece.get("text").and_then(|x| x.as_str()) {
-            out.push_str(t);
+    for field in ["summary", "content"] {
+        let Some(arr) = item.get(field).and_then(|s| s.as_array()) else {
+            continue;
+        };
+        for piece in arr {
+            if let Some(t) = piece.get("text").and_then(|x| x.as_str()) {
+                out.push_str(t);
+            }
         }
     }
     out
@@ -539,6 +544,33 @@ mod tests {
         assert_eq!(usage.cache_read_input_tokens, Some(4));
         assert_eq!(usage.reasoning_token_count, Some(12));
         assert_eq!(resp.model_version.as_deref(), Some("gpt-5-2026"));
+    }
+
+    #[test]
+    fn parses_reasoning_from_content_reasoning_text() {
+        // Providers like GLM on Fireworks return raw reasoning under
+        // `content[].reasoning_text`, not the OpenAI-style `summary`.
+        let value = json!({
+            "model": "glm-4.6",
+            "status": "completed",
+            "output": [
+                {"type": "reasoning", "summary": [], "content": [
+                    {"type": "reasoning_text", "text": "let me think"}
+                ]},
+                {"type": "message", "role": "assistant", "content": [
+                    {"type": "output_text", "text": "answer"}
+                ]}
+            ]
+        });
+        let resp = parse_openai_responses_response(value).unwrap();
+        let cand = &resp.candidates.as_ref().unwrap()[0];
+        let parts = cand.content.as_ref().unwrap().parts.as_ref().unwrap();
+        assert!(
+            parts
+                .iter()
+                .any(|p| p.thought == Some(true) && p.text.as_deref() == Some("let me think"))
+        );
+        assert!(parts.iter().any(|p| p.text.as_deref() == Some("answer")));
     }
 
     #[test]
