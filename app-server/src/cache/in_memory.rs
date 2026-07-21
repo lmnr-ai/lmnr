@@ -15,6 +15,12 @@ pub struct InMemoryCache {
     // Serializes counter read-modify-writes so concurrent increments can't
     // lose counts (Redis INCRBY is atomic; this mirrors that guarantee).
     counter_mutex: Mutex<()>,
+    // Monotonic per-key generation for TTL invalidation tasks. `set_ttl` and
+    // `remove` bump it; a spawned invalidate only fires if its generation is
+    // still current, so a stale timer from a deleted/evicted key can't expire
+    // a recreated one early. Entries are never removed (bounded by key
+    // cardinality — fine for dev).
+    ttl_generations: Arc<RwLock<HashMap<String, u64>>>,
 }
 
 impl InMemoryCache {
@@ -24,6 +30,7 @@ impl InMemoryCache {
             locks: Arc::new(RwLock::new(HashMap::new())),
             sorted_sets: Arc::new(RwLock::new(HashMap::new())),
             counter_mutex: Mutex::new(()),
+            ttl_generations: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -66,6 +73,12 @@ impl CacheTrait for InMemoryCache {
     }
 
     async fn remove(&self, key: &str) -> Result<(), CacheError> {
+        // Bump the generation so any armed TTL task for this key becomes a
+        // no-op — it must not expire a later recreation of the key.
+        {
+            let mut generations = self.ttl_generations.write().await;
+            *generations.entry(String::from(key)).or_insert(0) += 1;
+        }
         self.cache.remove(key).await;
         Ok(())
     }
@@ -73,9 +86,21 @@ impl CacheTrait for InMemoryCache {
     async fn set_ttl(&self, key: &str, seconds: u64) -> Result<(), CacheError> {
         let key = String::from(key);
         let cache = self.cache.clone();
+        let generations = self.ttl_generations.clone();
+        let my_generation = {
+            let mut generations = generations.write().await;
+            let entry = generations.entry(key.clone()).or_insert(0);
+            *entry += 1;
+            *entry
+        };
         tokio::spawn(async move {
             tokio::time::sleep(tokio::time::Duration::from_secs(seconds)).await;
-            cache.invalidate(&key).await;
+            // Only the latest armed TTL may invalidate; stale timers from a
+            // removed or re-armed key are no-ops.
+            let still_current = generations.read().await.get(&key).copied() == Some(my_generation);
+            if still_current {
+                cache.invalidate(&key).await;
+            }
         });
         Ok(())
     }
@@ -201,5 +226,31 @@ mod tests {
         }
         assert_eq!(max_seen, 100);
         assert_eq!(cache.get::<i64>("counter").await.unwrap(), Some(100));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn stale_ttl_task_cannot_expire_recreated_key() {
+        let cache = InMemoryCache::new(Some(1000));
+        // Arm a 5s window, then reset it (ops `DEL`) and start a 60s window.
+        cache
+            .increment_with_ttl_on_create("counter", 1, 5)
+            .await
+            .unwrap();
+        cache.remove("counter").await.unwrap();
+        cache
+            .increment_with_ttl_on_create("counter", 1, 60)
+            .await
+            .unwrap();
+
+        // Past the stale 5s deadline: the old timer must not invalidate the
+        // new window.
+        tokio::time::sleep(Duration::from_secs(10)).await;
+        tokio::task::yield_now().await;
+        assert_eq!(cache.get::<i64>("counter").await.unwrap(), Some(1));
+
+        // Past the new window's own 60s deadline: now it expires.
+        tokio::time::sleep(Duration::from_secs(55)).await;
+        tokio::task::yield_now().await;
+        assert_eq!(cache.get::<i64>("counter").await.unwrap(), None);
     }
 }
