@@ -15,15 +15,18 @@ use crate::llm::models::{
     ProviderCandidate, ProviderContent, ProviderFinishReason, ProviderFunctionCall, ProviderPart,
     ProviderRequest, ProviderResponse, ProviderUsageMetadata,
 };
-use crate::llm::openai::OpenAIError;
 use crate::llm::openai::conversions::thinking_level_to_effort;
+use crate::llm::openai::{OpenAIError, OpenAIResult};
 use serde_json::{Value, json};
 
 /// Build the OpenAI Responses request body from a `ProviderRequest`.
-pub fn provider_request_to_responses_body(model: &str, request: &ProviderRequest) -> Value {
+pub fn provider_request_to_responses_body(
+    model: &str,
+    request: &ProviderRequest,
+) -> OpenAIResult<Value> {
     let mut input: Vec<Value> = Vec::new();
     for content in &request.contents {
-        append_content_as_items(content, &mut input);
+        append_content_as_items(content, &mut input)?;
     }
 
     let mut body = json!({
@@ -75,16 +78,19 @@ pub fn provider_request_to_responses_body(model: &str, request: &ProviderRequest
         }
     }
 
-    body
+    Ok(body)
 }
 
 /// Same as [`provider_request_to_responses_body`] but flags the request for SSE
 /// streaming. Usage rides the terminal `response.completed` event, so no
 /// `stream_options` toggle is needed.
-pub fn provider_request_to_responses_stream_body(model: &str, request: &ProviderRequest) -> Value {
-    let mut body = provider_request_to_responses_body(model, request);
+pub fn provider_request_to_responses_stream_body(
+    model: &str,
+    request: &ProviderRequest,
+) -> OpenAIResult<Value> {
+    let mut body = provider_request_to_responses_body(model, request)?;
     body["stream"] = json!(true);
-    body
+    Ok(body)
 }
 
 fn concat_text_parts(content: &ProviderContent) -> String {
@@ -106,7 +112,7 @@ fn concat_text_parts(content: &ProviderContent) -> String {
 /// Expand one internal `ProviderContent` into one (or more) Responses input items:
 /// a `{role, content}` message for text, `function_call` items for tool calls,
 /// and `function_call_output` items for tool results.
-fn append_content_as_items(content: &ProviderContent, out: &mut Vec<Value>) {
+fn append_content_as_items(content: &ProviderContent, out: &mut Vec<Value>) -> OpenAIResult<()> {
     let raw_role = content.role.as_deref().unwrap_or("user");
     let role = match raw_role {
         "assistant" | "model" => "assistant",
@@ -125,7 +131,10 @@ fn append_content_as_items(content: &ProviderContent, out: &mut Vec<Value>) {
             continue;
         }
         if let Some(fr) = part.function_response {
-            let call_id = fr.id.unwrap_or_default();
+            // The Responses API 400s on an empty `call_id`, and a synthetic one
+            // couldn't be paired to its `function_call`. Fail fast on malformed
+            // history rather than emit an item the API rejects.
+            let call_id = require_call_id(fr.id, "function_call_output")?;
             let output_str = serde_json::to_string(&fr.response).unwrap_or_default();
             tool_results.push(json!({
                 "type": "function_call_output",
@@ -135,7 +144,7 @@ fn append_content_as_items(content: &ProviderContent, out: &mut Vec<Value>) {
             continue;
         }
         if let Some(fc) = part.function_call {
-            let call_id = fc.id.unwrap_or_default();
+            let call_id = require_call_id(fc.id, "function_call")?;
             let args = fc.args.unwrap_or(Value::Object(Default::default()));
             let arguments_str = serde_json::to_string(&args).unwrap_or("{}".to_string());
             tool_calls.push(json!({
@@ -159,6 +168,14 @@ fn append_content_as_items(content: &ProviderContent, out: &mut Vec<Value>) {
     }
     out.extend(tool_calls);
     out.extend(tool_results);
+    Ok(())
+}
+
+/// A tool-call/result item requires a non-empty `call_id` to link the two
+/// halves; the Responses API rejects an empty one with a 400.
+fn require_call_id(id: Option<String>, item: &str) -> OpenAIResult<String> {
+    id.filter(|s| !s.is_empty())
+        .ok_or_else(|| OpenAIError::config(format!("{item} is missing a non-empty call_id")))
 }
 
 /// Parse an OpenAI Responses API response JSON into a `ProviderResponse`.
@@ -443,7 +460,7 @@ mod tests {
             role: None,
             parts: Some(vec![text_part("Be terse")]),
         });
-        let body = provider_request_to_responses_body("gpt-5", &req);
+        let body = provider_request_to_responses_body("gpt-5", &req).unwrap();
         assert_eq!(body["instructions"], "Be terse");
         let input = body["input"].as_array().unwrap();
         assert_eq!(input.len(), 1);
@@ -460,7 +477,7 @@ mod tests {
             tool_response(Some("call_1"), "get_weather", json!({"temp": 60})),
             user("Thanks"),
         ]);
-        let body = provider_request_to_responses_body("gpt-5", &req);
+        let body = provider_request_to_responses_body("gpt-5", &req).unwrap();
         let input = body["input"].as_array().unwrap();
         assert_eq!(input.len(), 4);
         assert_eq!(input[0]["content"], "Find weather");
@@ -472,6 +489,17 @@ mod tests {
         assert_eq!(input[2]["call_id"], "call_1");
         assert_eq!(input[2]["output"], "{\"temp\":60}");
         assert_eq!(input[3]["content"], "Thanks");
+    }
+
+    #[test]
+    fn missing_tool_call_id_is_rejected() {
+        let req = request(vec![assistant_with_tool_call(
+            None,
+            "get_weather",
+            json!({"city": "SF"}),
+        )]);
+        let err = provider_request_to_responses_body("gpt-5", &req).unwrap_err();
+        assert!(matches!(err, OpenAIError::ConfigError(_)));
     }
 
     #[test]
@@ -492,7 +520,7 @@ mod tests {
             }),
             ..Default::default()
         });
-        let body = provider_request_to_responses_body("gpt-5", &req);
+        let body = provider_request_to_responses_body("gpt-5", &req).unwrap();
         let tools = body["tools"].as_array().unwrap();
         assert_eq!(tools[0]["type"], "function");
         assert_eq!(tools[0]["name"], "lookup");

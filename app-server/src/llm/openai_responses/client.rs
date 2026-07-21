@@ -50,7 +50,7 @@ impl LanguageModelClient for OpenAIResponsesClient {
         model: &str,
         request: &ProviderRequest,
     ) -> ProviderResult<ProviderResponse> {
-        let body = provider_request_to_responses_body(model, request);
+        let body = provider_request_to_responses_body(model, request)?;
         let url = format!("{}/responses", self.api_base_url);
 
         let response = send_openai_request(&self.client, &self.api_key, &url, &body).await?;
@@ -67,7 +67,7 @@ impl LanguageModelClient for OpenAIResponsesClient {
         request: &ProviderRequest,
         chunk_tx: &UnboundedSender<ProviderStreamChunk>,
     ) -> ProviderResult<ProviderResponse> {
-        let body = provider_request_to_responses_stream_body(model, request);
+        let body = provider_request_to_responses_stream_body(model, request)?;
         let url = format!("{}/responses", self.api_base_url);
 
         let response = send_openai_request(&self.client, &self.api_key, &url, &body).await?;
