@@ -229,20 +229,41 @@ pub async fn process_user_task_candidates(
     }
 }
 
+/// Can this candidate challenge, given the lock state? The roster
+/// window (earliest-N at `lock.depth`) is the ONLY thing that seals a
+/// trace, and it seals only spans at the settled depth once a
+/// same-or-shallower winner is published. Everything else stays open:
+///   - no published winner → everyone is eligible (a failed effect must
+///     not seal the trace with nothing for the lock TTL);
+///   - winner DEEPER than `lock.depth` (transitional: it published via
+///     this bypass after a shallow effect failed) → candidates at or
+///     above the winner's depth stay eligible, so the winner's own
+///     same-depth peers keep token-arbitrating and any shallower span
+///     keeps challenging — only spans even deeper than the interim
+///     winner are gated out;
+///   - winner at/above `lock.depth` (settled state) → challengers must
+///     be at `lock.depth` AND in the roster window.
+fn is_eligible(state: &WinnerState, lock: &UserTaskLockState) -> bool {
+    let Some(winner) = &lock.winner else {
+        return true;
+    };
+    if winner.depth > lock.depth {
+        return state.depth <= winner.depth;
+    }
+    state.depth == lock.depth && lock.roster.iter().any(|e| e.span_id == state.span_id)
+}
+
 /// Roster arbitration + effect for one trace's batch contenders.
 ///
 /// Protocol: read the lock (absent → fresh at the batch's shallowest
 /// depth; a strictly shallower batch resets it — the previous depth's
 /// roster and winner were subagent-level); register every contender at
 /// the lock's depth (the roster keeps the [`super::lock::ROSTER_CAP`]
-/// earliest starters); the strongest eligible contender challenges the
-/// published winner and runs the effect only when it strictly beats it.
-/// The window only gates candidates once a winner is PUBLISHED — with no
-/// winner yet (first batch, or every earlier effect failed) even
-/// out-of-window spans stay eligible, so persisted roster registrations
-/// can never seal the trace with nothing written for the lock TTL. The
-/// lock is written back merge-guarded regardless of publish; the winner
-/// field moves only after the effect lands.
+/// earliest starters); the strongest eligible contender (see
+/// [`is_eligible`]) challenges the published winner and runs the effect
+/// only when it strictly beats it. The lock is written back
+/// merge-guarded regardless of publish; the winner field moves only
+/// after the effect lands.
 async fn process_trace_inputs(
     trace_id: Uuid,
     trace_contenders: Vec<InputContender>,
@@ -302,7 +323,6 @@ async fn process_trace_inputs(
     // so shallow candidates still always win whenever they're present,
     // and a deeper published winner stays overridable by any shallower
     // span (`supersedes` never drops a shallower snapshot on it).
-    let no_winner_yet = lock.winner.is_none();
     for contender in &trace_contenders {
         if contender.state.depth != lock.depth {
             continue;
@@ -312,12 +332,9 @@ async fn process_trace_inputs(
             span_id: contender.state.span_id.clone(),
         });
     }
-    let eligible = trace_contenders.iter().filter(|c| {
-        if no_winner_yet {
-            return true;
-        }
-        c.state.depth == lock.depth && lock.roster.iter().any(|e| e.span_id == c.state.span_id)
-    });
+    let eligible = trace_contenders
+        .iter()
+        .filter(|c| is_eligible(&c.state, &lock));
 
     let challenger = eligible.reduce(|best, c| if c.state.beats(&best.state) { c } else { best });
 
@@ -455,5 +472,47 @@ mod tests {
             serde_json::to_value(&deep_path).unwrap(),
         )]));
         assert_eq!(span_depth(&mut attrs, "s299"), MAX_ARBITRATED_DEPTH);
+    }
+
+    fn w(depth: usize, tokens: i64, t: i64, id: &str) -> WinnerState {
+        WinnerState {
+            depth,
+            input_tokens: tokens,
+            start_time_ns: t,
+            span_id: id.to_string(),
+        }
+    }
+
+    #[test]
+    fn eligibility_stays_open_around_a_deeper_interim_winner() {
+        // Shallow effect failed → lock.depth = 1, winner published via
+        // the no-winner bypass at depth 3.
+        let mut lock = UserTaskLockState::new(1);
+        lock.register(RosterEntry {
+            start_time_ns: 10,
+            span_id: "shallow_failed".to_string(),
+        });
+        lock.winner = Some(w(3, 100, 20, "subagent"));
+        // The interim winner's same-depth peers keep token-arbitrating,
+        // and anything shallower keeps challenging.
+        assert!(is_eligible(&w(3, 500, 30, "peer"), &lock));
+        assert!(is_eligible(&w(2, 50, 40, "mid"), &lock));
+        assert!(is_eligible(&w(1, 10, 50, "main_retry"), &lock));
+        // Only spans even deeper than the interim winner are gated out.
+        assert!(!is_eligible(&w(4, 9000, 60, "deeper"), &lock));
+
+        // No published winner: everyone is eligible.
+        assert!(is_eligible(&w(4, 1, 60, "any"), &UserTaskLockState::new(1)));
+
+        // Settled state (winner at lock.depth): roster window gates.
+        let mut settled = UserTaskLockState::new(1);
+        settled.register(RosterEntry {
+            start_time_ns: 10,
+            span_id: "a".to_string(),
+        });
+        settled.winner = Some(w(1, 100, 10, "a"));
+        assert!(is_eligible(&w(1, 200, 10, "a"), &settled));
+        assert!(!is_eligible(&w(1, 900, 5, "not_in_roster"), &settled));
+        assert!(!is_eligible(&w(2, 900, 5, "deeper"), &settled));
     }
 }
