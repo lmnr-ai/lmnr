@@ -130,41 +130,6 @@ impl CacheTrait for RedisCache {
         }
     }
 
-    async fn increment_with_ttl_on_create(
-        &self,
-        key: &str,
-        amount: i64,
-        ttl_seconds: u64,
-    ) -> Result<i64, CacheError> {
-        // Lua script instead of a SET-NX-EX + INCRBY MULTI pipeline: within
-        // MULTI, each command checks passive expiry against the live clock,
-        // so the key could expire between the two commands and INCRBY would
-        // recreate it WITHOUT a TTL — a permanently stuck counter. Scripts
-        // freeze the expiry clock at script start, and the TTL<0 check
-        // additionally self-heals any TTL-less counter on the next call.
-        let script = redis::Script::new(
-            r"
-            local v = redis.call('INCRBY', KEYS[1], ARGV[1])
-            if redis.call('TTL', KEYS[1]) < 0 then
-                redis.call('EXPIRE', KEYS[1], ARGV[2])
-            end
-            return v",
-        );
-        let result: RedisResult<i64> = script
-            .key(key)
-            .arg(amount)
-            .arg(ttl_seconds)
-            .invoke_async(&mut self.connection.current_clone())
-            .await;
-        match result {
-            Ok(new_value) => Ok(new_value),
-            Err(e) => {
-                self.on_error("increment_with_ttl_on_create", &e);
-                Err(CacheError::InternalError(anyhow::Error::from(e)))
-            }
-        }
-    }
-
     async fn try_acquire_lock(&self, key: &str, ttl_seconds: u64) -> Result<bool, CacheError> {
         let result: RedisResult<Option<String>> = redis::cmd("SET")
             .arg(key)

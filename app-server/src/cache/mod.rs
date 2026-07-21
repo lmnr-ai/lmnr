@@ -45,19 +45,6 @@ pub trait CacheTrait {
     /// and existing keys (to trigger recomputation logic, for example).
     async fn increment(&self, key: &str, amount: i64) -> Result<i64, CacheError>;
 
-    /// Atomically increment a counter, creating it with the given TTL when
-    /// absent. Increment + expiry-arming run as one atomic unit (Redis Lua
-    /// script), so the key can never exist without an expiry — the TTL is
-    /// set when the key has none (creation or self-heal), never refreshed on
-    /// a live window. Returns the new value. Used for fixed-window rate-limit
-    /// counters.
-    async fn increment_with_ttl_on_create(
-        &self,
-        key: &str,
-        amount: i64,
-        ttl_seconds: u64,
-    ) -> Result<i64, CacheError>;
-
     /// Try to acquire a lock. Returns true if lock was acquired, false if already locked.
     /// Lock expires after TTL seconds if not manually released.
     async fn try_acquire_lock(&self, key: &str, ttl_seconds: u64) -> Result<bool, CacheError>;

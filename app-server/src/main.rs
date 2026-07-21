@@ -1753,13 +1753,10 @@ fn main() -> anyhow::Result<()> {
         log::info!("Enabling producer mode, spinning up full HTTP and gRPC servers");
 
         // === Rate limiter ===
-        // Per-project SQL rate limit, counted inline in `handle_sql_query`
-        // (shared by both /v1/sql and /v1/cli/sql) against the shared cache —
-        // project_id is only known after the auth extractor runs, and
-        // per-project overrides live in cache (`sql_rate_limit:{id}` /
-        // `sql_rate_limit_period:{id}`), falling back to these env defaults.
-        let sql_rate_limit_config = if is_feature_enabled(Feature::RateLimiter) {
-            let http_limit: u64 = std::env::var(env::rate_limit::HTTP_LIMIT)
+        let rate_limiter = if is_feature_enabled(Feature::RateLimiter) {
+            let redis_url = std::env::var(env::connections::REDIS_URL).unwrap();
+
+            let http_limit: usize = std::env::var(env::rate_limit::HTTP_LIMIT)
                 .unwrap()
                 .parse()
                 .unwrap();
@@ -1767,15 +1764,34 @@ fn main() -> anyhow::Result<()> {
                 .unwrap()
                 .parse()
                 .unwrap();
-            log::info!(
-                "SQL rate limiter initialized ({} req/{} s per project by default)",
-                http_limit,
-                http_period_secs
-            );
-            Some(api::v1::sql::SqlRateLimitConfig {
-                default_limit: http_limit,
-                default_period_secs: http_period_secs,
-            })
+            // Per-project SQL rate limiter, counted inline in `handle_sql_query`
+            // (shared by both /v1/sql and /v1/cli/sql) with an explicit
+            // `ratelimit:<project_id>` key — no middleware key extractor needed
+            // since project_id is only known after the auth extractor runs.
+            // The env limit is the global default; a per-project N override in
+            // cache (`sql_rate_limit:{id}`) swaps in an ad-hoc limiter.
+            match Limiter::builder(&redis_url)
+                .limit(http_limit)
+                .period(Duration::from_secs(http_period_secs))
+                .build()
+            {
+                Ok(limiter) => {
+                    log::info!(
+                        "Rate limiter initialized ({} req/{} s per project)",
+                        http_limit,
+                        http_period_secs
+                    );
+                    Some(web::Data::new(api::v1::sql::SqlRateLimiter::new(
+                        limiter,
+                        redis_url,
+                        http_period_secs,
+                    )))
+                }
+                Err(e) => {
+                    log::warn!("Failed to initialize rate limiter: {:?}", e);
+                    None
+                }
+            }
         } else {
             log::info!("Rate limiter is disabled");
             None
@@ -1882,8 +1898,8 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(llm_provider_client_for_http.clone()))
                             .app_data(jwks_cache.clone());
 
-                        if let Some(config) = sql_rate_limit_config {
-                            app = app.app_data(web::Data::new(config));
+                        if let Some(ref limiter) = rate_limiter {
+                            app = app.app_data(limiter.clone());
                         }
 
                         // Built as a binding so the signals-gated agent twin can be conditionally

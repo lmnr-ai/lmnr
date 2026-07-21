@@ -1,5 +1,6 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
+use actix_limitation::{Error as LimiterError, Limiter};
 use actix_web::{HttpResponse, post, web};
 use opentelemetry::{
     global,
@@ -10,26 +11,62 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    cache::{
-        Cache, CacheError, CacheTrait,
-        keys::{
-            SQL_RATE_LIMIT_CACHE_KEY, SQL_RATE_LIMIT_COUNT_CACHE_KEY,
-            SQL_RATE_LIMIT_PERIOD_CACHE_KEY,
-        },
-    },
+    cache::{Cache, CacheTrait, keys::SQL_RATE_LIMIT_CACHE_KEY},
     db::{DB, project_api_keys::ProjectApiKey},
     query_engine::QueryEngine,
     routes::types::ResponseResult,
     sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
 };
 
-/// Global defaults for the per-project SQL rate limit. Registered as app_data
-/// in main.rs only when `Feature::RateLimiter` is enabled; per-project
-/// overrides are read from cache in `check_sql_rate_limit`.
-#[derive(Clone, Copy)]
-pub struct SqlRateLimitConfig {
-    pub default_limit: u64,
-    pub default_period_secs: u64,
+/// Per-project SQL rate limiter, mirroring the gRPC ingestion path
+/// (`traces/grpc_service.rs`): a shared `actix_limitation::Limiter` carries
+/// the global default limit, and a per-project override N stored out-of-band
+/// in cache (`sql_rate_limit:{project_id}`, set via valkey-cli) swaps in an
+/// ad-hoc limiter with the same period. Only N is overridable; the period is
+/// global. Built in main.rs when `Feature::RateLimiter` is enabled.
+pub struct SqlRateLimiter {
+    default_limiter: Limiter,
+    redis_url: String,
+    period_secs: u64,
+}
+
+impl SqlRateLimiter {
+    pub fn new(default_limiter: Limiter, redis_url: String, period_secs: u64) -> Self {
+        Self {
+            default_limiter,
+            redis_url,
+            period_secs,
+        }
+    }
+
+    /// Fail-open like the rest of the limiter: cache/builder errors fall back
+    /// to the default limiter.
+    async fn limiter_for_project(&self, cache: &Cache, project_id: Uuid) -> Limiter {
+        let limit = match cache
+            .get::<usize>(&format!("{SQL_RATE_LIMIT_CACHE_KEY}:{project_id}"))
+            .await
+        {
+            Ok(limit) => limit,
+            Err(e) => {
+                log::error!("Failed to read SQL rate limit override, using default: {e:?}");
+                None
+            }
+        };
+        let Some(limit) = limit else {
+            return self.default_limiter.clone();
+        };
+        match Limiter::builder(&self.redis_url)
+            .limit(limit)
+            .period(Duration::from_secs(self.period_secs))
+            .build()
+        {
+            Ok(limiter) => limiter,
+            Err(e) => {
+                log::error!("Failed to build override SQL rate limiter, using default: {e:?}");
+                self.default_limiter.clone()
+            }
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -50,7 +87,7 @@ pub struct SqlQueryResponse {
 pub async fn execute_sql_query(
     req: web::Json<SqlQueryRequest>,
     project_api_key: ProjectApiKey,
-    rate_limit_config: Option<web::Data<SqlRateLimitConfig>>,
+    limiter: Option<web::Data<SqlRateLimiter>>,
     db: web::Data<DB>,
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,
@@ -60,7 +97,7 @@ pub async fn execute_sql_query(
     handle_sql_query(
         project_api_key.project_id,
         req,
-        rate_limit_config,
+        limiter,
         db,
         clickhouse_ro,
         query_engine,
@@ -70,62 +107,30 @@ pub async fn execute_sql_query(
     .await
 }
 
-/// Fixed-window per-project rate limit for the SQL surface. Limit N and
-/// period T resolve independently: cache override
-/// (`sql_rate_limit:{id}` / `sql_rate_limit_period:{id}`) if present, else the
-/// global default from env. Returns Ok(true) when the request is allowed.
-async fn check_sql_rate_limit(
-    cache: &Cache,
-    config: &SqlRateLimitConfig,
-    project_id: Uuid,
-) -> Result<bool, CacheError> {
-    let limit = cache
-        .get::<u64>(&format!("{SQL_RATE_LIMIT_CACHE_KEY}:{project_id}"))
-        .await?
-        .unwrap_or(config.default_limit);
-    let period_secs = cache
-        .get::<u64>(&format!("{SQL_RATE_LIMIT_PERIOD_CACHE_KEY}:{project_id}"))
-        .await?
-        .filter(|p| *p > 0)
-        .unwrap_or(config.default_period_secs);
-    if period_secs == 0 {
-        // Redis rejects `EX 0`, which would strand a TTL-less counter.
-        // A zero period is a misconfiguration — fail open like cache errors.
-        log::error!("SQL rate limit period is 0 (misconfigured), allowing request");
-        return Ok(true);
-    }
-
-    let count_key = format!("{SQL_RATE_LIMIT_COUNT_CACHE_KEY}:{project_id}");
-    // Create-with-expiry + increment run atomically, so the counter can
-    // never exist without a TTL (a stuck counter would 429 the project
-    // until manual deletion).
-    let count = cache
-        .increment_with_ttl_on_create(&count_key, 1, period_secs)
-        .await?;
-    Ok(count as u64 <= limit)
-}
-
 /// Shared handler body for `/v1/sql/query` and its CLI twin `/v1/cli/sql/query`.
 /// Both surfaces differ only in how they authenticate and resolve `project_id`;
-/// everything after that — per-project rate limiting (fail-open), the query
-/// span, and the response shape — lives here so the two endpoints can't drift.
-/// Rate limiting is inline (not scope middleware) because `project_id` is
-/// known only after the auth extractor runs.
+/// everything after that — per-project rate limiting (shared `ratelimit:<id>`
+/// key, fail-open), the query span, and the response shape — lives here so the
+/// two endpoints can't drift. Rate limiting is inline (not scope middleware)
+/// because `project_id` is only known after the auth extractor runs.
 #[allow(clippy::too_many_arguments)]
 pub async fn handle_sql_query(
     project_id: Uuid,
     req: web::Json<SqlQueryRequest>,
-    rate_limit_config: Option<web::Data<SqlRateLimitConfig>>,
+    limiter: Option<web::Data<SqlRateLimiter>>,
     db: web::Data<DB>,
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,
     http_client: web::Data<reqwest::Client>,
     cache: web::Data<Cache>,
 ) -> ResponseResult {
-    if let Some(config) = rate_limit_config.as_ref() {
-        match check_sql_rate_limit(cache.get_ref(), config, project_id).await {
-            Ok(true) => {}
-            Ok(false) => {
+    if let Some(limiter) = limiter.as_ref() {
+        let limiter = limiter
+            .limiter_for_project(cache.get_ref(), project_id)
+            .await;
+        match limiter.count(format!("ratelimit:{project_id}")).await {
+            Ok(_) => {}
+            Err(LimiterError::LimitExceeded(_)) => {
                 return Ok(HttpResponse::TooManyRequests().finish());
             }
             Err(e) => log::error!("SQL rate limiter error, allowing request: {e:?}"),
@@ -160,116 +165,5 @@ pub async fn handle_sql_query(
             }
         }
         None => Err(anyhow::anyhow!("ClickHouse read-only client is not configured.").into()),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::cache::in_memory::InMemoryCache;
-
-    const CONFIG: SqlRateLimitConfig = SqlRateLimitConfig {
-        default_limit: 3,
-        default_period_secs: 60,
-    };
-
-    fn cache() -> Cache {
-        Cache::InMemory(InMemoryCache::new(Some(1000)))
-    }
-
-    #[tokio::test]
-    async fn global_default_applies_without_override() {
-        let cache = cache();
-        let project_id = Uuid::new_v4();
-        for _ in 0..3 {
-            assert!(
-                check_sql_rate_limit(&cache, &CONFIG, project_id)
-                    .await
-                    .unwrap()
-            );
-        }
-        assert!(
-            !check_sql_rate_limit(&cache, &CONFIG, project_id)
-                .await
-                .unwrap()
-        );
-    }
-
-    #[tokio::test]
-    async fn per_project_limit_override() {
-        let cache = cache();
-        let project_id = Uuid::new_v4();
-        cache
-            .insert(&format!("{SQL_RATE_LIMIT_CACHE_KEY}:{project_id}"), 1u64)
-            .await
-            .unwrap();
-        assert!(
-            check_sql_rate_limit(&cache, &CONFIG, project_id)
-                .await
-                .unwrap()
-        );
-        assert!(
-            !check_sql_rate_limit(&cache, &CONFIG, project_id)
-                .await
-                .unwrap()
-        );
-    }
-
-    #[tokio::test]
-    async fn zero_period_fails_open() {
-        let cache = cache();
-        let project_id = Uuid::new_v4();
-        // Zero period override falls back to the default period — still limited.
-        cache
-            .insert(
-                &format!("{SQL_RATE_LIMIT_PERIOD_CACHE_KEY}:{project_id}"),
-                0u64,
-            )
-            .await
-            .unwrap();
-        for _ in 0..3 {
-            assert!(
-                check_sql_rate_limit(&cache, &CONFIG, project_id)
-                    .await
-                    .unwrap()
-            );
-        }
-        assert!(
-            !check_sql_rate_limit(&cache, &CONFIG, project_id)
-                .await
-                .unwrap()
-        );
-
-        // Zero default period (env misconfig) fails open instead of
-        // stranding a TTL-less counter.
-        let zero_config = SqlRateLimitConfig {
-            default_limit: 1,
-            default_period_secs: 0,
-        };
-        let other = Uuid::new_v4();
-        for _ in 0..3 {
-            assert!(
-                check_sql_rate_limit(&cache, &zero_config, other)
-                    .await
-                    .unwrap()
-            );
-        }
-    }
-
-    #[tokio::test]
-    async fn override_is_per_project() {
-        let cache = cache();
-        let limited = Uuid::new_v4();
-        let other = Uuid::new_v4();
-        cache
-            .insert(&format!("{SQL_RATE_LIMIT_CACHE_KEY}:{limited}"), 0u64)
-            .await
-            .unwrap();
-        assert!(
-            !check_sql_rate_limit(&cache, &CONFIG, limited)
-                .await
-                .unwrap()
-        );
-        assert!(check_sql_rate_limit(&cache, &CONFIG, other).await.unwrap());
     }
 }
