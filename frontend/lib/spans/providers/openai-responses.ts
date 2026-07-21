@@ -1,7 +1,7 @@
 import { compact } from "lodash";
 import { type z } from "zod/v4";
 
-import { type ParsedInput, type TextPart } from "@/lib/actions/sessions/parse-input";
+import { type ParsedInput, type TextPart } from "@/lib/spans/providers/message-types";
 import {
   OpenAIResponsesItemSchema,
   OpenAIResponsesItemsSchema as ItemsSchema,

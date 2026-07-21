@@ -7,7 +7,7 @@ import { computeLayout, type ResizablePanel, type Visible } from "@/components/t
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { usePanelResize } from "@/components/traces/trace-view/use-panel-resize";
 
-import { type TraceViewPanels } from "./trace-view-content";
+import { type TraceViewPanels } from "./trace-view-panels";
 
 const enterExitTransition = { duration: 0.25, ease: "easeOut" } as const;
 const instantTransition = { duration: 0 } as const;

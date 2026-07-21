@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { getWorkspaceUsage } from "@/lib/actions/workspace";
+import { getWorkspaceUsage } from "@/lib/actions/workspace/usage-summary";
 import { cache, PROJECT_API_KEY_CACHE_KEY, PROJECT_CACHE_KEY } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";

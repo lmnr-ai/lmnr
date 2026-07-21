@@ -1,4 +1,4 @@
-import { type TraceViewListSpan, type TraceViewSpan, type TranscriptListEntry } from "./base";
+import { type TraceViewListSpan, type TraceViewSpan, type TranscriptListEntry } from "./types";
 
 export type PathInfo = {
   display: Array<{ spanId: string; name: string; count?: number }>;

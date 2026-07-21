@@ -15,12 +15,7 @@ import { SpanViewSkeleton } from "../span-view/skeleton";
 import DynamicWidthLayout from "./dynamic-width-layout";
 import FillWidthLayout from "./fill-width-layout";
 import TracePanel from "./trace-panel";
-
-export interface TraceViewPanels {
-  tracePanel: React.ReactNode;
-  spanPanel: React.ReactNode;
-  showSpan: boolean;
-}
+import { type TraceViewPanels } from "./trace-view-panels";
 
 export interface TraceViewContentProps {
   traceId: string;

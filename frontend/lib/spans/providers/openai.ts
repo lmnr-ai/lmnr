@@ -1,8 +1,7 @@
 import { isString } from "lodash";
 import { z } from "zod/v4";
 
-import { type ParsedInput, type TextPart } from "@/lib/actions/sessions/parse-input";
-import { type ExtractedTool } from "@/lib/actions/spans/previews/tool-detection";
+import { type ExtractedTool, type ParsedInput, type TextPart } from "@/lib/spans/providers/message-types";
 import {
   type OpenAIMessagesSchema,
   OpenAIOutputSchema,

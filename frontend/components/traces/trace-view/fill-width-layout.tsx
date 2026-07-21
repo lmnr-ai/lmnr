@@ -4,7 +4,7 @@ import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { cn } from "@/lib/utils";
 
 import { PANELS } from "./panel-layout";
-import { type TraceViewPanels } from "./trace-view-content";
+import { type TraceViewPanels } from "./trace-view-panels";
 
 const DEFAULT_TRACE_FRACTION = 0.6;
 const STACK_THRESHOLD = PANELS.trace.min + PANELS.span.min;

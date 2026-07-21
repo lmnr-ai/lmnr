@@ -5,9 +5,8 @@ import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/t
 import { executeQuery } from "@/lib/actions/sql";
 import { type EventRow } from "@/lib/events/types";
 
-import { attachSnippets } from "./index";
 import { searchSignalEvents, type SignalEventSearchHit } from "./search";
-import { buildEventsCountQueryWithParams, buildEventsQueryWithParams } from "./utils";
+import { attachSnippets, buildEventsCountQueryWithParams, buildEventsQueryWithParams } from "./utils";
 
 export const GetEventsByEmergingClusterPaginatedSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,

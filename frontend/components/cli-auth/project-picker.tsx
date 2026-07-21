@@ -19,7 +19,7 @@ import { authClient } from "@/lib/auth-client";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { CreateProjectDialog } from "./create-project-dialog";
-import { Centered } from "./index";
+import { Centered } from "./shared";
 
 interface Props {
   userCode: string;

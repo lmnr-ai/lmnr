@@ -17,7 +17,7 @@ import { type SessionProject, type SessionWorkspace } from "@/lib/actions/cli-au
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { createProjectInWorkspace, createWorkspaceWithProject } from "./create-project";
-import { Field } from "./index";
+import { Field } from "./shared";
 
 interface Props {
   open: boolean;

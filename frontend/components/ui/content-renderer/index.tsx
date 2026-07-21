@@ -4,7 +4,6 @@ import CodeMirror, { type ReactCodeMirrorProps, type ReactCodeMirrorRef } from "
 import { Settings } from "lucide-react";
 import React, { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import Messages, { type MessageLabel, type ProcessedMessages } from "@/components/traces/span-view/messages";
 import { createCodeMirrorSearchSource, createDomSearchSource } from "@/components/traces/span-view/searchable";
 import { useSpanSearchRegistration } from "@/components/traces/span-view/span-search-context.tsx";
 import { Button } from "@/components/ui/button";
@@ -28,7 +27,7 @@ import {
   TemplatePickerProvider,
   TemplatePickerView,
 } from "@/components/ui/template-renderer/template-picker";
-import { cn, tryParseJson } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 interface ContentRendererProps {
   onChange?: ReactCodeMirrorProps["onChange"];
@@ -46,10 +45,7 @@ interface ContentRendererProps {
   defaultShowLineNumbers?: boolean;
   messageIndex?: number;
   contentPartIndex?: number;
-  hideScrollToBottom?: boolean;
-  messageMaxHeight?: number;
-  messageLabels?: MessageLabel[];
-  processedMessages?: ProcessedMessages;
+  renderMessages?: (ctx: { value: string; presetKey: string }) => React.ReactNode;
   customTheme?: Parameters<typeof CodeMirror>[0]["theme"];
   /**
    * Extra CodeMirror extensions appended to the built-in set. Use `Prec.highest`
@@ -86,10 +82,7 @@ const PureContentRenderer = ({
   defaultShowLineNumbers = false,
   messageIndex = 0,
   contentPartIndex = 0,
-  hideScrollToBottom,
-  messageMaxHeight,
-  messageLabels,
-  processedMessages,
+  renderMessages,
   customTheme,
   extraExtensions,
 }: ContentRendererProps) => {
@@ -323,16 +316,7 @@ const PureContentRenderer = ({
     }
     if (mode === "messages") {
       return (
-        <div className="flex-1 flex w-full min-h-0">
-          <Messages
-            messages={tryParseJson(value) ?? []}
-            processed={processedMessages}
-            presetKey={presetKey ?? ""}
-            hideScrollToBottom={hideScrollToBottom}
-            maxHeight={messageMaxHeight}
-            labels={messageLabels}
-          />
-        </div>
+        <div className="flex-1 flex w-full min-h-0">{renderMessages?.({ value, presetKey: presetKey ?? "" })}</div>
       );
     }
     return (

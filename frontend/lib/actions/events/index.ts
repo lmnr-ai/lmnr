@@ -9,7 +9,7 @@ import { parseSpanLinks } from "@/lib/traces/span-link-parsing";
 
 import { getEventsByEmergingClusterPaginated } from "./emerging-cluster";
 import { searchSignalEvents, type SignalEventSearchHit } from "./search";
-import { buildEventsCountQueryWithParams, buildEventsQueryWithParams } from "./utils";
+import { attachSnippets, buildEventsCountQueryWithParams, buildEventsQueryWithParams } from "./utils";
 
 export const GetEventsPaginatedSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
@@ -28,16 +28,6 @@ export const GetEventsPaginatedSchema = PaginationFiltersSchema.extend({
   // params avoids an extra Postgres signal lookup on every paged events fetch.
   payloadField: z.array(z.string()).optional(),
 });
-
-/** Merges per-event field snippets onto already-hydrated EventRows by id. */
-export function attachSnippets(items: EventRow[], hits: SignalEventSearchHit[]): EventRow[] {
-  const lookup = new Map(hits.map((h) => [h.id, h]));
-  return items.map((item) => {
-    const hit = lookup.get(item.id);
-    if (!hit) return item;
-    return { ...item, fieldSnippets: hit.fieldSnippets };
-  });
-}
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

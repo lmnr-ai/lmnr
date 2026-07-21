@@ -1,12 +1,8 @@
-import { type Filter, FilterSchema } from "@/lib/actions/common/filters";
+import { FilterSchema } from "@/lib/actions/common/filters";
 
-import type { SliceCreator } from "./types";
+import type { RecentSearch, RecentsSlice, SliceCreator } from "./types";
 
-export interface RecentSearch {
-  filters: Filter[];
-  search: string;
-  timestamp: number;
-}
+export type { RecentSearch, RecentsSlice } from "./types";
 
 const MAX_RECENT_SEARCHES = 5;
 
@@ -14,11 +10,6 @@ function areSearchesEqual(a: RecentSearch, b: RecentSearch): boolean {
   if (a.search !== b.search) return false;
   if (a.filters.length !== b.filters.length) return false;
   return JSON.stringify(a.filters) === JSON.stringify(b.filters);
-}
-
-export interface RecentsSlice {
-  recentSearches: RecentSearch[];
-  addRecentSearch: (filters: Filter[], search: string) => void;
 }
 
 export const createRecentsSlice: SliceCreator<RecentsSlice> = (set, get, { storageKey }) => ({

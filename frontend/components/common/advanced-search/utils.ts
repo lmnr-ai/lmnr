@@ -1,4 +1,3 @@
-import { buildSuggestions, type Suggestion } from "@/components/common/advanced-search/components/suggestions.tsx";
 import { type ColumnFilter, type TagFocusPosition } from "@/components/common/advanced-search/types.ts";
 
 const FIELD_ORDER: TagFocusPosition[] = ["field", "operator", "value", "remove"];
@@ -49,19 +48,4 @@ export const buildValueSuggestions = (
   });
 
   return valueSuggestions;
-};
-export const getSuggestionsCount = (
-  filters: ColumnFilter[],
-  inputValue: string,
-  autocompleteData: Map<string, string[]>
-): number => buildSuggestions(inputValue, filters, autocompleteData).length;
-
-export const getSuggestionAtIndex = (
-  filters: ColumnFilter[],
-  inputValue: string,
-  index: number,
-  autocompleteData: Map<string, string[]>
-): Suggestion | null => {
-  const suggestions = buildSuggestions(inputValue, filters, autocompleteData);
-  return suggestions[index] ?? null;
 };

@@ -7,12 +7,9 @@ import { type TagClass } from "@/lib/traces/types";
 
 import CreateTag from "./create-tag";
 import PickTag from "./pick-tag";
+import { type Tag } from "./types";
 
-export type Tag = {
-  id: string;
-  name: string;
-  color?: string;
-};
+export type { Tag };
 
 export interface TagsDropdownCallbacks {
   onAttach: (tagClassName: string) => Promise<void>;

@@ -17,7 +17,7 @@ import {
   type QueryResult,
   type SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
-import { type TracesStatsDataPoint } from "@/lib/actions/traces/stats.ts";
+import { type TracesStatsDataPoint } from "@/lib/actions/traces/stats-types";
 import { type TimeRange } from "@/lib/clickhouse/utils.ts";
 
 export const tracesColumnFilterConfig: ColumnFilterConfig = {

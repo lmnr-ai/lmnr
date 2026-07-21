@@ -4,7 +4,10 @@ import { Search, X } from "lucide-react";
 import React, { type ChangeEvent, type FocusEvent, type KeyboardEvent, memo, useCallback, useRef } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
-import { getSuggestionAtIndex, getSuggestionsCount } from "@/components/common/advanced-search/utils.ts";
+import {
+  getSuggestionAtIndex,
+  getSuggestionsCount,
+} from "@/components/common/advanced-search/components/suggestions.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Operator } from "@/lib/actions/common/operators";

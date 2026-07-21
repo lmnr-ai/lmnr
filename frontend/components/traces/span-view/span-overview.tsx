@@ -1,6 +1,7 @@
 import { memo, useMemo } from "react";
 import useSWR from "swr";
 
+import Messages from "@/components/traces/span-view/messages";
 import { buildOverview } from "@/components/traces/span-view/span-overview-utils";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { spanViewTheme } from "@/components/ui/content-renderer/utils";
@@ -8,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PAYLOAD_URL_REGEX } from "@/lib/actions/trace/utils";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type Span } from "@/lib/traces/types";
-import { swrFetcher } from "@/lib/utils.ts";
+import { swrFetcher, tryParseJson } from "@/lib/utils.ts";
 
 const extractPayloadUrl = (data: unknown): string | null => {
   if (typeof data === "string") {
@@ -68,9 +69,15 @@ const PureSpanOverview = ({ span }: { span: Span }) => {
       modes={["MESSAGES", "JSON", "YAML", "TEXT", "CUSTOM"]}
       presetKey={presetKey}
       customTheme={spanViewTheme}
-      messageMaxHeight={560}
-      messageLabels={messageLabels}
-      processedMessages={processedMessages}
+      renderMessages={(ctx) => (
+        <Messages
+          messages={tryParseJson(ctx.value) ?? []}
+          processed={processedMessages}
+          presetKey={ctx.presetKey}
+          maxHeight={560}
+          labels={messageLabels}
+        />
+      )}
     />
   );
 };

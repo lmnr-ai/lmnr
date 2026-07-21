@@ -15,12 +15,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { track } from "@/lib/posthog";
 import { cn, tryParseJson } from "@/lib/utils";
 
-import { type ManageSignalContentVariant } from "./manage-signal-content";
 import SamplingSection from "./sampling-section";
 import SchemaFieldsBuilder from "./schema-fields-builder";
 import TemplatePicker from "./template-picker";
 import TriggersSection from "./triggers-section";
-import { type ManageSignalForm } from "./types";
+import { type ManageSignalContentVariant, type ManageSignalForm } from "./types";
 
 export default function SignalFormFields({
   variant,
