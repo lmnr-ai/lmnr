@@ -220,10 +220,16 @@ fn has_gemini_credentials() -> bool {
     llm_provider_env() == "gemini" && has_llm_api_key()
 }
 
-/// True when `LLM_PROVIDER` selects OpenAI — Chat Completions (`openai`) or the
-/// Responses API (`openai_responses`) — and `LLM_API_KEY` is set.
+/// True when `LLM_PROVIDER=openai` (Chat Completions) and `LLM_API_KEY` is set.
 fn has_openai_credentials() -> bool {
-    matches!(llm_provider_env().as_str(), "openai" | "openai_responses") && has_llm_api_key()
+    llm_provider_env() == "openai" && has_llm_api_key()
+}
+
+/// True when `LLM_PROVIDER=openai_responses` (Responses API) and `LLM_API_KEY`
+/// is set. Separate from `has_openai_credentials` since the two are distinct
+/// client impls registered under their own provider names.
+fn has_openai_responses_credentials() -> bool {
+    llm_provider_env() == "openai_responses" && has_llm_api_key()
 }
 
 /// Bedrock initializes whenever AWS creds are present, independent of
@@ -392,7 +398,8 @@ pub fn model_for_size(provider: &str, size: ModelSize) -> String {
         ("bedrock", ModelSize::Large) => "us.anthropic.claude-opus-4-8".to_string(),
         ("openai" | "openai_responses", ModelSize::Small) => "gpt-5.4-mini".to_string(),
         ("openai" | "openai_responses", ModelSize::Medium) => "gpt-5.4".to_string(),
-        ("openai" | "openai_responses", ModelSize::Large) => "gpt-5.5".to_string(),
+        ("openai", ModelSize::Large) => "gpt-5.5".to_string(),
+        ("openai_responses", ModelSize::Large) => "gpt-5.6".to_string(),
         _ => "".to_string(),
     }
 }
@@ -439,32 +446,28 @@ impl LlmClient {
         }
 
         if has_openai_credentials() {
-            // Chat Completions (`openai`) and the Responses API (`openai_responses`)
-            // are separate client impls, selected by LLM_PROVIDER and registered
-            // under that same provider name.
-            let provider_name = llm_provider_env();
-            let provider = if provider_name == "openai_responses" {
-                let client = OpenAIResponsesClient::new().map_err(|e| {
-                    ProviderError::ConfigError(format!(
-                        "Failed to create OpenAI Responses client: {e}"
-                    ))
-                })?;
-                log::info!(
-                    "Initialized OpenAI provider (Responses API) at {}",
-                    client.api_base_url()
-                );
-                ProviderClient::OpenAIResponses(client)
-            } else {
-                let client = OpenAIClient::new().map_err(|e| {
-                    ProviderError::ConfigError(format!("Failed to create OpenAI client: {e}"))
-                })?;
-                log::info!(
-                    "Initialized OpenAI provider (Chat Completions) at {}",
-                    client.api_base_url()
-                );
-                ProviderClient::OpenAI(client)
-            };
-            providers.insert(provider_name, provider);
+            let client = OpenAIClient::new().map_err(|e| {
+                ProviderError::ConfigError(format!("Failed to create OpenAI client: {e}"))
+            })?;
+            log::info!(
+                "Initialized OpenAI provider (Chat Completions) at {}",
+                client.api_base_url()
+            );
+            providers.insert("openai".to_string(), ProviderClient::OpenAI(client));
+        }
+
+        if has_openai_responses_credentials() {
+            let client = OpenAIResponsesClient::new().map_err(|e| {
+                ProviderError::ConfigError(format!("Failed to create OpenAI Responses client: {e}"))
+            })?;
+            log::info!(
+                "Initialized OpenAI provider (Responses API) at {}",
+                client.api_base_url()
+            );
+            providers.insert(
+                "openai_responses".to_string(),
+                ProviderClient::OpenAIResponses(client),
+            );
         }
 
         if default_provider == "mock" {
