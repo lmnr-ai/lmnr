@@ -107,7 +107,7 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
       className="rounded-none border-none bg-background"
       codeEditorClassName="rounded-none border-none bg-background contain-strict"
       readOnly
-      modes={["JSON", "YAML", "TEXT", "CUSTOM", "MESSAGES"]}
+      modes={["JSON", "YAML", "TEXT", "CUSTOM"]}
       value={JSON.stringify(normalizedData)}
       presetKey={presetKey}
       defaultMode="json"
