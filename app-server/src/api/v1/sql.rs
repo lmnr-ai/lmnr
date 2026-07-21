@@ -86,7 +86,14 @@ async fn check_sql_rate_limit(
     let period_secs = cache
         .get::<u64>(&format!("{SQL_RATE_LIMIT_PERIOD_CACHE_KEY}:{project_id}"))
         .await?
+        .filter(|p| *p > 0)
         .unwrap_or(config.default_period_secs);
+    if period_secs == 0 {
+        // Redis rejects `EX 0`, which would strand a TTL-less counter.
+        // A zero period is a misconfiguration — fail open like cache errors.
+        log::error!("SQL rate limit period is 0 (misconfigured), allowing request");
+        return Ok(true);
+    }
 
     let count_key = format!("{SQL_RATE_LIMIT_COUNT_CACHE_KEY}:{project_id}");
     // Create-with-expiry + increment run atomically, so the counter can
@@ -206,6 +213,47 @@ mod tests {
                 .await
                 .unwrap()
         );
+    }
+
+    #[tokio::test]
+    async fn zero_period_fails_open() {
+        let cache = cache();
+        let project_id = Uuid::new_v4();
+        // Zero period override falls back to the default period — still limited.
+        cache
+            .insert(
+                &format!("{SQL_RATE_LIMIT_PERIOD_CACHE_KEY}:{project_id}"),
+                0u64,
+            )
+            .await
+            .unwrap();
+        for _ in 0..3 {
+            assert!(
+                check_sql_rate_limit(&cache, &CONFIG, project_id)
+                    .await
+                    .unwrap()
+            );
+        }
+        assert!(
+            !check_sql_rate_limit(&cache, &CONFIG, project_id)
+                .await
+                .unwrap()
+        );
+
+        // Zero default period (env misconfig) fails open instead of
+        // stranding a TTL-less counter.
+        let zero_config = SqlRateLimitConfig {
+            default_limit: 1,
+            default_period_secs: 0,
+        };
+        let other = Uuid::new_v4();
+        for _ in 0..3 {
+            assert!(
+                check_sql_rate_limit(&cache, &zero_config, other)
+                    .await
+                    .unwrap()
+            );
+        }
     }
 
     #[tokio::test]
