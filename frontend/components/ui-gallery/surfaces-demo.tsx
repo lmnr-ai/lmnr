@@ -45,7 +45,7 @@ export default function SurfacesDemo() {
           <LevelLabel>Card · offset inline (+1)</LevelLabel>
 
           <Elevated offset={SURFACE_OFFSET.dialog} className="rounded-lg p-4">
-            <LevelLabel>Dialog · offset dialog (+4)</LevelLabel>
+            <LevelLabel>Dialog · offset dialog (+3)</LevelLabel>
 
             <Elevated offset={SURFACE_OFFSET.popover} shadowLevel={3} className="rounded-lg p-4">
               <LevelLabel>Popover · offset popover (+2)</LevelLabel>

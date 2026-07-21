@@ -33,6 +33,41 @@ export const SURFACE_SHADOW: Record<number, string> = {
   8: "shadow-surface-800",
 };
 
+// Interactive-state variants of the ramp, prefixed so a component can lift its
+// hover / open / active fill relative to its substrate instead of a fixed color.
+export const SURFACE_HOVER_BG: Record<number, string> = {
+  1: "hover:bg-surface-100",
+  2: "hover:bg-surface-200",
+  3: "hover:bg-surface-300",
+  4: "hover:bg-surface-400",
+  5: "hover:bg-surface-500",
+  6: "hover:bg-surface-600",
+  7: "hover:bg-surface-700",
+  8: "hover:bg-surface-800",
+};
+
+export const SURFACE_OPEN_BG: Record<number, string> = {
+  1: "data-[state=open]:bg-surface-100",
+  2: "data-[state=open]:bg-surface-200",
+  3: "data-[state=open]:bg-surface-300",
+  4: "data-[state=open]:bg-surface-400",
+  5: "data-[state=open]:bg-surface-500",
+  6: "data-[state=open]:bg-surface-600",
+  7: "data-[state=open]:bg-surface-700",
+  8: "data-[state=open]:bg-surface-800",
+};
+
+export const SURFACE_ACTIVE_BG: Record<number, string> = {
+  1: "data-[active=true]:bg-surface-100",
+  2: "data-[active=true]:bg-surface-200",
+  3: "data-[active=true]:bg-surface-300",
+  4: "data-[active=true]:bg-surface-400",
+  5: "data-[active=true]:bg-surface-500",
+  6: "data-[active=true]:bg-surface-600",
+  7: "data-[active=true]:bg-surface-700",
+  8: "data-[active=true]:bg-surface-800",
+};
+
 const clampLevel = (n: number): number => Math.round(Math.max(MIN_SURFACE, Math.min(MAX_SURFACE, n)));
 
 /** Returns "bg-surface-N shadow-surface-M", clamped to 1..8 and rounded so a

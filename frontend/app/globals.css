@@ -102,10 +102,10 @@
   --color-surface-200: oklch(0.235 0 0); /* #1e1e1e */
   --color-surface-300: oklch(0.2645 0 0); /* #252525 */
   --color-surface-400: oklch(0.2931 0 0); /* #2c2c2c */
-  --color-surface-500: oklch(0.3211 0 0); /* #333333 */
-  --color-surface-600: oklch(0.3485 0 0); /* #3a3a3a */
-  --color-surface-700: oklch(0.3753 0 0); /* #414141 */
-  --color-surface-800: oklch(0.4017 0 0); /* #484848 */
+  --color-surface-500: oklch(0.312 0 0); /* #313131 */
+  --color-surface-600: oklch(0.327 0 0); /* #343434 */
+  --color-surface-700: oklch(0.34 0 0); /* #383838 */
+  --color-surface-800: oklch(0.35 0 0); /* #3a3a3a */
 
   /* Layered dark elevation shadows; shadow-surface-100 is lightest, -800 heaviest. */
   --dm-hi-base: rgba(255, 255, 255, 0.01);

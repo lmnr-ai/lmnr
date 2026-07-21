@@ -24,10 +24,10 @@ export const SURFACE_SEED: { key: string; l: number }[] = [
   { key: "surface-200", l: 0.235 },
   { key: "surface-300", l: 0.2645 },
   { key: "surface-400", l: 0.2931 },
-  { key: "surface-500", l: 0.3211 },
-  { key: "surface-600", l: 0.3485 },
-  { key: "surface-700", l: 0.3753 },
-  { key: "surface-800", l: 0.4017 },
+  { key: "surface-500", l: 0.312 },
+  { key: "surface-600", l: 0.327 },
+  { key: "surface-700", l: 0.34 },
+  { key: "surface-800", l: 0.35 },
 ];
 
 export const SURFACE_KEYS: string[] = SURFACE_SEED.map((s) => s.key);
