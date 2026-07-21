@@ -75,7 +75,11 @@ impl WinnerState {
         if self.depth != other.depth {
             return self.depth < other.depth;
         }
-        self.input_tokens > other.input_tokens
+        // Compare AS ENCODED: a negative count (garbage usage attrs)
+        // clamps to 0 in the ver, so -5 vs -10 tokens must be a tie
+        // here too, or the "beats ⇒ strictly greater ver" invariant
+        // breaks at the clamp boundary.
+        ver_minor(self.input_tokens) > ver_minor(other.input_tokens)
     }
 }
 
@@ -256,27 +260,43 @@ impl OutputLockState {
         if candidate.depth < self.depth {
             return true;
         }
+        // Compare AS ENCODED (millis, clamped): pre-epoch end times all
+        // clamp to minor 0 in the ver, so -2ms vs -1ms must be a tie
+        // here too — admitting it as an override would produce equal CH
+        // vers and let a redelivered older row win by arrival order.
         candidate.depth == self.depth
-            && candidate.end_time_ns / 1_000_000 > self.end_time_ns / 1_000_000
+            && ver_minor(candidate.end_time_ns / 1_000_000)
+                > ver_minor(self.end_time_ns / 1_000_000)
     }
+}
+
+/// The ver's 56-bit minor: clamped to `[0, 2^56)`. Lock comparisons MUST
+/// compare through this same clamp (see the aligned-orders rule on
+/// [`agent_io_ver`]) — values that collapse to the same encoded minor
+/// (negatives, the saturation ceiling) are ties everywhere, not just in
+/// ClickHouse.
+fn ver_minor(minor: i64) -> u64 {
+    const MINOR_MASK: u64 = (1 << 56) - 1;
+    (minor.max(0) as u64).min(MINOR_MASK)
 }
 
 /// Depth-major RMT version for the `trace_agent_input` /
 /// `trace_agent_output` ClickHouse rows: inverted depth in the top byte
 /// (shallower ⇒ larger ver), winner-strength minor in the low 56 bits —
 /// non-cached input tokens for inputs, end-time millis for outputs
-/// (millis fit 56 bits until year ~4254). The lock orders
-/// ([`WinnerState::beats`], [`OutputLockState::should_override`]) compare
-/// EXACTLY these axes, so a lock-admitted override always carries a
-/// strictly greater ver and ReplacingMergeTree(ver) converges to the
-/// lock's winner regardless of arrival order — blind re-inserts of stale
-/// rows are harmless. Never add a lock tie-break this encoding can't
-/// express: the lock would admit overrides whose CH rows only TIE, and a
-/// redelivered older row could win by arrival order.
+/// (millis fit 56 bits until year ~4254; pre-epoch times clamp to 0).
+/// The lock orders ([`WinnerState::beats`],
+/// [`OutputLockState::should_override`]) compare EXACTLY these axes
+/// through the same [`ver_minor`] clamp, so a lock-admitted override
+/// always carries a strictly greater ver and ReplacingMergeTree(ver)
+/// converges to the lock's winner regardless of arrival order — blind
+/// re-inserts of stale rows are harmless. Never add a lock tie-break (or
+/// widen a lock comparison beyond) what this encoding expresses: the
+/// lock would admit overrides whose CH rows only TIE, and a redelivered
+/// older row could win by arrival order.
 pub fn agent_io_ver(depth: usize, minor: i64) -> u64 {
-    const MINOR_MASK: u64 = (1 << 56) - 1;
     let inverted_depth = 255 - depth.min(255) as u64;
-    (inverted_depth << 56) | (minor.max(0) as u64).min(MINOR_MASK)
+    (inverted_depth << 56) | ver_minor(minor)
 }
 
 #[cfg(test)]
@@ -482,6 +502,31 @@ mod tests {
         // Negative / oversized minors clamp instead of corrupting depth.
         assert_eq!(agent_io_ver(2, -5), agent_io_ver(2, 0));
         assert!(agent_io_ver(1, i64::MAX) < agent_io_ver(0, 0));
+    }
+
+    #[test]
+    fn lock_comparisons_tie_where_the_ver_clamps() {
+        // Negative token counts (garbage usage attrs) clamp to minor 0
+        // in the ver — the lock must treat them as ties too, or an
+        // admitted override would produce an equal CH ver.
+        assert!(!w(2, -5, 0, "a").beats(&w(2, -10, 0, "b")));
+        assert!(!w(2, -10, 0, "b").beats(&w(2, -5, 0, "a")));
+        // But a positive count still beats a clamped negative one.
+        assert!(w(2, 1, 0, "a").beats(&w(2, -10, 0, "b")));
+        // Pre-epoch end times: -2ms vs -1ms both clamp to 0 — tie.
+        let older = OutputLockState {
+            depth: 3,
+            end_time_ns: -2_000_000,
+        };
+        assert!(!older.should_override(&OutputLockState {
+            depth: 3,
+            end_time_ns: -1_000_000,
+        }));
+        // A post-epoch candidate still overrides a pre-epoch winner.
+        assert!(older.should_override(&OutputLockState {
+            depth: 3,
+            end_time_ns: 1_000_000,
+        }));
     }
 
     #[test]
