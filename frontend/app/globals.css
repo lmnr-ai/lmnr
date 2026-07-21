@@ -46,16 +46,16 @@
   --font-sans-landing: var(--font-general-sans);
   --font-manrope: var(--font-manrope);
 
-  --color-border: var(--color-surface-400);
+  --color-border: var(--color-surface-300);
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
-  --color-background: var(--color-surface-800);
+  --color-background: var(--color-surface-100);
   --color-foreground: hsl(var(--foreground));
 
   --color-primary: var(--color-primary-400);
   --color-primary-foreground: var(--color-foreground-100);
 
-  --color-secondary: var(--color-surface-700);
+  --color-secondary: var(--color-surface-200);
   --color-secondary-foreground: var(--color-foreground-200);
 
   --color-success: hsl(var(--success));
@@ -67,23 +67,23 @@
   --color-success-bright: hsl(var(--success-bright));
   --color-destructive-bright: hsl(var(--destructive-bright));
 
-  --color-muted: var(--color-surface-500);
+  --color-muted: var(--color-surface-200);
   --color-muted-foreground: var(--color-foreground-400);
 
-  --color-accent: var(--color-surface-400);
+  --color-accent: var(--color-surface-300);
   --color-accent-foreground: hsl(var(--accent-foreground));
 
-  --color-popover: var(--color-surface-800);
+  --color-popover: var(--color-surface-100);
   --color-popover-foreground: hsl(var(--popover-foreground));
 
-  --color-card: var(--color-surface-800);
+  --color-card: var(--color-surface-100);
   --color-card-foreground: hsl(var(--card-foreground));
 
-  --color-sidebar: var(--color-surface-700);
+  --color-sidebar: var(--color-surface-200);
   --color-sidebar-foreground: hsl(var(--sidebar-foreground));
   --color-sidebar-primary: hsl(var(--sidebar-primary));
   --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
-  --color-sidebar-accent: var(--color-surface-500);
+  --color-sidebar-accent: var(--color-surface-300);
   --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
   --color-sidebar-border: hsl(var(--sidebar-border));
   --color-sidebar-ring: hsl(var(--sidebar-ring));
@@ -95,29 +95,19 @@
 
   --color-subagent: hsl(var(--subagent));
 
-  /* Surface elevation ramp — neutral, dark-theme  */
-  --color-surface-200: oklch(0.3092 0 0); /* #303030 */
-  --color-surface-300: oklch(0.2891 0 0); /* #2b2b2b */
-  --color-surface-400: oklch(0.2686 0 0); /* #262626 */
-  --color-surface-500: oklch(0.2478 0 0); /* #212121 */
-  --color-surface-600: oklch(0.2264 0 0); /* #1c1c1c */
-  --color-surface-700: oklch(0.2046 0 0); /* #171717 */
-  --color-surface-800: oklch(0.1822 0 0); /* #121212 */
-  --color-surface-900: oklch(0.1591 0 0); /* #0d0d0d */
-  --color-surface-1000: oklch(0.1344 0 0); /* #080808 */
+  /* Relative elevation ramp (surface-100 = base/darkest .. surface-800 = most
+     elevated/lightest), OKLCH, dark-only. Consumed via <Elevated> + the
+     bg-surface-N00 / shadow-surface-N00 utilities. */
+  --color-surface-100: oklch(0.2046 0 0); /* #171717 */
+  --color-surface-200: oklch(0.235 0 0); /* #1e1e1e */
+  --color-surface-300: oklch(0.2645 0 0); /* #252525 */
+  --color-surface-400: oklch(0.2931 0 0); /* #2c2c2c */
+  --color-surface-500: oklch(0.3211 0 0); /* #333333 */
+  --color-surface-600: oklch(0.3485 0 0); /* #3a3a3a */
+  --color-surface-700: oklch(0.3753 0 0); /* #414141 */
+  --color-surface-800: oklch(0.4017 0 0); /* #484848 */
 
-  /* Relative elevation scale (surface-1 = base .. surface-8), OKLCH, dark-only.
-     Consumed via <Elevated> + the bg-surface-N / shadow-surface-N utilities. */
-  --color-surface-1: oklch(0.2046 0 0); /* #171717 */
-  --color-surface-2: oklch(0.235 0 0); /* #1e1e1e */
-  --color-surface-3: oklch(0.2645 0 0); /* #252525 */
-  --color-surface-4: oklch(0.2931 0 0); /* #2c2c2c */
-  --color-surface-5: oklch(0.3211 0 0); /* #333333 */
-  --color-surface-6: oklch(0.3485 0 0); /* #3a3a3a */
-  --color-surface-7: oklch(0.3753 0 0); /* #414141 */
-  --color-surface-8: oklch(0.4017 0 0); /* #484848 */
-
-  /* Layered dark elevation shadows, one per surface level (shadow-surface-N). */
+  /* Layered dark elevation shadows; shadow-surface-100 is lightest, -800 heaviest. */
   --dm-hi-base: rgba(255, 255, 255, 0.01);
   --dm-hi-mid: rgba(255, 255, 255, 0.02);
   --dm-hi-high: rgba(255, 255, 255, 0.04);
@@ -126,14 +116,14 @@
   --dm-ring-mid: rgba(255, 255, 255, 0.04);
   --dm-ring-high: rgba(255, 255, 255, 0.06);
   --dm-drop: rgba(0, 0, 0, 0.18);
-  --shadow-surface-1: inset 0 0 0 1px var(--dm-ring-base);
-  --shadow-surface-2: inset 0 1px 0 0 var(--dm-hi-base), inset 0 0 0 1px var(--dm-ring-base), 0 1px 1px -0.5px var(--dm-drop);
-  --shadow-surface-3: inset 0 1px 0 0 var(--dm-hi-mid), inset 0 0 0 1px var(--dm-ring-base), 0 0 0 1px rgba(0, 0, 0, 0.12), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop);
-  --shadow-surface-4: inset 0 1px 0 0 var(--dm-hi-mid), inset 0 0 0 1px var(--dm-ring-mid), 0 0 0 1px rgba(0, 0, 0, 0.14), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop);
-  --shadow-surface-5: inset 0 1px 0 0 var(--dm-hi-high), inset 0 0 0 1px var(--dm-ring-mid), 0 0 0 1px rgba(0, 0, 0, 0.16), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop);
-  --shadow-surface-6: inset 0 1px 0 0 var(--dm-hi-high), inset 0 0 0 1px var(--dm-ring-high), 0 0 0 1px rgba(0, 0, 0, 0.18), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop);
-  --shadow-surface-7: inset 0 1px 0 0 var(--dm-hi-peak), inset 0 0 0 1px var(--dm-ring-high), 0 0 0 1px rgba(0, 0, 0, 0.2), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop), 0 48px 48px -24px var(--dm-drop);
-  --shadow-surface-8: inset 0 1px 0 0 var(--dm-hi-peak), inset 0 0 0 1px var(--dm-ring-high), 0 0 0 1px rgba(0, 0, 0, 0.22), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop), 0 48px 48px -24px var(--dm-drop), 0 96px 96px -48px var(--dm-drop);
+  --shadow-surface-100: inset 0 0 0 1px var(--dm-ring-base);
+  --shadow-surface-200: inset 0 1px 0 0 var(--dm-hi-base), inset 0 0 0 1px var(--dm-ring-base), 0 1px 1px -0.5px var(--dm-drop);
+  --shadow-surface-300: inset 0 1px 0 0 var(--dm-hi-mid), inset 0 0 0 1px var(--dm-ring-base), 0 0 0 1px rgba(0, 0, 0, 0.12), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop);
+  --shadow-surface-400: inset 0 1px 0 0 var(--dm-hi-mid), inset 0 0 0 1px var(--dm-ring-mid), 0 0 0 1px rgba(0, 0, 0, 0.14), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop);
+  --shadow-surface-500: inset 0 1px 0 0 var(--dm-hi-high), inset 0 0 0 1px var(--dm-ring-mid), 0 0 0 1px rgba(0, 0, 0, 0.16), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop);
+  --shadow-surface-600: inset 0 1px 0 0 var(--dm-hi-high), inset 0 0 0 1px var(--dm-ring-high), 0 0 0 1px rgba(0, 0, 0, 0.18), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop);
+  --shadow-surface-700: inset 0 1px 0 0 var(--dm-hi-peak), inset 0 0 0 1px var(--dm-ring-high), 0 0 0 1px rgba(0, 0, 0, 0.2), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop), 0 48px 48px -24px var(--dm-drop);
+  --shadow-surface-800: inset 0 1px 0 0 var(--dm-hi-peak), inset 0 0 0 1px var(--dm-ring-high), 0 0 0 1px rgba(0, 0, 0, 0.22), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop), 0 48px 48px -24px var(--dm-drop), 0 96px 96px -48px var(--dm-drop);
 
   /* Foreground (text) ramp — neutral, dark-theme */
   --color-foreground-50: oklch(1 0 0); /* #ffffff */

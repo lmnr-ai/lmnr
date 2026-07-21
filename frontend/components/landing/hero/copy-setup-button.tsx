@@ -33,7 +33,7 @@ const CopySetupButton = () => {
     <button
       type="button"
       onClick={onCopy}
-      className="flex items-center justify-center gap-1.5 w-[160px] h-[36px] rounded-sm border border-foreground-600 hover:bg-surface-600 transition-colors"
+      className="flex items-center justify-center gap-1.5 w-[160px] h-[36px] rounded-sm border border-foreground-600 hover:bg-surface-400 transition-colors"
     >
       {copied && <Check className="size-4 text-foreground-200" />}
       <span className="font-sans-landing font-medium text-sm text-foreground-200">

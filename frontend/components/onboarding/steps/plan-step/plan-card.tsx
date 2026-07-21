@@ -26,7 +26,7 @@ export default function PlanCard({ plan, selected, onSelect, disabled = false, i
       aria-disabled={disabled}
       className={cn(
         "relative flex flex-col gap-3 2xl:gap-4 rounded-md p-4 xl:p-5 2xl:p-6 text-left transition-all bg-surface-500",
-        !disabled && "hover:bg-surface-400",
+        !disabled && "hover:bg-surface-600",
         selected && "ring-1 ring-inset ring-primary",
         disabled && "opacity-50 cursor-not-allowed"
       )}
@@ -41,7 +41,7 @@ export default function PlanCard({ plan, selected, onSelect, disabled = false, i
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm xl:text-base 2xl:text-lg text-white">{plan.name}</span>
         {isCurrent ? (
-          <span className="text-[10px] 2xl:text-xs px-1.5 py-0.5 rounded-full bg-surface-200 text-white font-medium">
+          <span className="text-[10px] 2xl:text-xs px-1.5 py-0.5 rounded-full bg-surface-800 text-white font-medium">
             Current
           </span>
         ) : (

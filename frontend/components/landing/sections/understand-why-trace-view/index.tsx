@@ -197,7 +197,7 @@ const UnderstandWhyTraceView = () => {
               <div className="sticky top-0 h-screen overflow-hidden flex flex-col justify-center items-center">
                 <div className="h-[760px] w-full overflow-hidden relative">
                   {/* Top gradient — text fades into page bg at top of viewport */}
-                  <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-surface-700 to-transparent pointer-events-none h-[100px]" />
+                  <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-surface-300 to-transparent pointer-events-none h-[100px]" />
 
                   {/* Stack wrapper — vertically centered in viewport via flex
                   items-center. Inner motion.div uses `style={{ y }}` with
@@ -229,7 +229,7 @@ const UnderstandWhyTraceView = () => {
                   </div>
 
                   {/* Bottom gradient — text fades into page bg at bottom of viewport */}
-                  <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-surface-700 to-transparent pointer-events-none h-[120px]" />
+                  <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-surface-300 to-transparent pointer-events-none h-[120px]" />
                 </div>
               </div>
             </div>

@@ -54,7 +54,7 @@ const EntryRow = ({ entry, active }: { entry: Entry; active: boolean }) => {
         <div
           className={cn(
             "flex items-center pl-1 pr-2",
-            entry.sign === "-" && "bg-surface-400/60",
+            entry.sign === "-" && "bg-surface-600/60",
             entry.sign === "+" && "bg-primary-400/10"
           )}
         >
@@ -110,7 +110,7 @@ const DebuggerTerminalMock = ({ entries, typed, isTyping, finished, prompt, clas
   return (
     <div
       className={cn(
-        "h-[480px] w-[400px] shrink-0 rounded-md border border-surface-400 bg-surface-700 flex flex-col",
+        "h-[480px] w-[400px] shrink-0 rounded-md border border-surface-600 bg-surface-300 flex flex-col",
         className
       )}
     >
@@ -137,7 +137,7 @@ const DebuggerTerminalMock = ({ entries, typed, isTyping, finished, prompt, clas
           prompt is "submitted". pt-4 replaces the old outer gap; pb-4/px-5 replace
           the old outer padding. */}
       <div className="shrink-0 flex flex-col gap-1.5 px-5 pb-4 pt-4">
-        <div className="flex items-center gap-2 rounded-md border border-surface-400 bg-surface-600 px-3 py-2.5">
+        <div className="flex items-center gap-2 rounded-md border border-surface-600 bg-surface-400 px-3 py-2.5">
           <span className={cn(monoBase, "font-medium text-primary-300")}>&gt;</span>
           <span className={cn(monoBase, "text-foreground-200")}>
             {isTyping ? typed : ""}

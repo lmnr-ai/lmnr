@@ -30,7 +30,7 @@ export default function BlogSidebar({ tocItems, className }: Props) {
       </Link>
 
       {tocItems.length > 0 && (
-        <div className="flex flex-col gap-3 pt-6 border-t border-surface-400 flex-1 min-h-0">
+        <div className="flex flex-col gap-3 pt-6 border-t border-surface-600 flex-1 min-h-0">
           <TableOfContents headings={tocItems} className="flex-1 min-h-0" />
         </div>
       )}

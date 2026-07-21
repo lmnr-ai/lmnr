@@ -22,7 +22,7 @@ function LevelLabel({ children }: { children: string }) {
     <div className="mb-3 flex items-center justify-between text-xs">
       <span className="font-medium text-foreground">{children}</span>
       <span className="rounded bg-black/20 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
-        surface-{level}
+        surface-{level * 100}
       </span>
     </div>
   );
@@ -107,7 +107,7 @@ export default function SurfacesDemo() {
         <div className="flex gap-1">
           {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
             <div key={n} className={`flex h-12 flex-1 items-end justify-center rounded pb-1 ${SURFACE_BG[n]}`}>
-              <span className="font-mono text-[10px] text-muted-foreground">{n}</span>
+              <span className="font-mono text-[10px] text-muted-foreground">{n * 100}</span>
             </div>
           ))}
         </div>

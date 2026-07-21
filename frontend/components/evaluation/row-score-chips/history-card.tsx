@@ -51,7 +51,7 @@ export default function HistoryCard({ name, points }: HistoryCardProps) {
   const previous = points.filter((p) => !p.isCurrent && p.value !== null).length;
 
   return (
-    <div className="flex w-full flex-col gap-4 rounded-[4px] border border-border bg-surface-700 px-4 py-3">
+    <div className="flex w-full flex-col gap-4 rounded-[4px] border border-border bg-surface-300 px-4 py-3">
       <div className="flex flex-col gap-2">
         <p className="truncate text-xs leading-4 text-muted-foreground">{name}</p>
         <span className="text-2xl font-medium leading-6 tracking-[-0.4px] tabular-nums text-foreground">

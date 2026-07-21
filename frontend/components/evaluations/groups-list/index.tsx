@@ -64,7 +64,7 @@ export default function GroupsList() {
                     className={cn(
                       "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors",
                       // Match the settings sidebar nav hover/active colors.
-                      isSelected ? "bg-surface-600" : "hover:bg-surface-700 active:bg-surface-600"
+                      isSelected ? "bg-surface-400" : "hover:bg-surface-300 active:bg-surface-400"
                     )}
                   >
                     <div className="flex min-w-0 flex-1 flex-col">

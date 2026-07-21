@@ -336,7 +336,7 @@ const FilterSearchInput = ({
       ref={containerRef}
       className={cn(
         "flex items-start gap-2 px-1 rounded-md border border-border relative",
-        "bg-surface-200/40 shadow-[inset_0_0_4px] shadow-surface-200/40 transition duration-250 py-0.75 hover:bg-surface-200/60 hover:shadow-surface-200/80",
+        "bg-surface-800/40 shadow-[inset_0_0_4px] shadow-surface-800/40 transition duration-250 py-0.75 hover:bg-surface-800/60 hover:shadow-surface-800/80",
         disabled && "opacity-50 pointer-events-none",
         className
       )}

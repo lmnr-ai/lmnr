@@ -11,7 +11,7 @@ import { UNCLUSTERED_COLOR, withOpacity } from "@/lib/clusters/colors";
 
 const RUN_TOTAL_KEY = "__runTotal";
 const OVERLAY_LABEL = "Signal runs";
-const OVERLAY_COLOR = "var(--color-surface-300)";
+const OVERLAY_COLOR = "var(--color-surface-700)";
 
 interface ClusterStackedChartProps {
   clusters: EventCluster[];

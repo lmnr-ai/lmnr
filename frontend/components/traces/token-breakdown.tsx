@@ -186,7 +186,7 @@ export const InputTokenBreakdown = ({ span }: { span: Span }) => {
         </div>
         {cacheReadTokens > 0 && (
           <div className="flex flex-col gap-2 pt-1">
-            <div className="flex w-full h-1 gap-0.5 rounded-full bg-surface-200">
+            <div className="flex w-full h-1 gap-0.5 rounded-full bg-surface-800">
               <div
                 className="h-full rounded-full bg-success-bright"
                 style={{ flex: cacheReadTokens }}

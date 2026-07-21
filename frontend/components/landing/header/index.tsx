@@ -112,11 +112,11 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
       {/* Mobile Menu Overlay - starts below header */}
       <div
         className={cn(
-          "fixed left-0 right-0 bottom-0 top-[60px] z-40 bg-surface-700 md:hidden transition-opacity duration-300",
+          "fixed left-0 right-0 bottom-0 top-[60px] z-40 bg-surface-300 md:hidden transition-opacity duration-300",
           mobileMenuOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         )}
       >
-        <nav className="flex flex-col px-[32px] pt-12 border-t border-t-surface-200 gap-5">
+        <nav className="flex flex-col px-[32px] pt-12 border-t border-t-surface-800 gap-5">
           {NAV_LINKS.map((link) => (
             <Link
               key={link.href}

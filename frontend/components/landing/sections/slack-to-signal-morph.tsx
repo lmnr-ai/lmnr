@@ -29,11 +29,11 @@ interface Props {
 // values here. FLAG: if you ever update --color-surface-* tokens
 // in globals.css, sync these constants by hand (or this morph will drift
 // from the rest of the page).
-const SLACK_BORDER = "rgb(38 38 38)"; // surface-400
-const SLACK_BG = "rgb(23 23 23)"; // surface-700
+const SLACK_BORDER = "rgb(38 38 38)"; // surface-600
+const SLACK_BG = "rgb(23 23 23)"; // surface-300
 const SIGNAL_BORDER = "rgb(49 134 255 / 0.6)";
 const SIGNAL_BG = "rgb(49 134 255 / 0.12)";
-// Midpoint background — exact hex of --color-surface-600.
+// Midpoint background — exact hex of --color-surface-400.
 const MIDPOINT_BG = "#1c1c1c44";
 
 // Morphs from a Slack notification (progress=0) to a Signal event card

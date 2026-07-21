@@ -218,7 +218,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
           </div>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent side="bottom" className="p-2 border bg-surface-700">
+          <TooltipContent side="bottom" className="p-2 border bg-surface-300">
             {span && (span.spanType === SpanType.LLM || span.spanType === SpanType.CACHED) ? (
               <InputTokenBreakdown span={span} />
             ) : (
@@ -263,7 +263,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
           </div>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent side="bottom" className="p-2 border bg-surface-700">
+          <TooltipContent side="bottom" className="p-2 border bg-surface-300">
             <div className="flex-col space-y-1">
               <Label className="flex text-xs gap-1">
                 <span className="text-secondary-foreground">{label("total cost")}</span>{" "}

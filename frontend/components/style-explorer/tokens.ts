@@ -17,17 +17,17 @@ export interface SurfaceEndpoints {
 // Which curve a generic curve component edits.
 export type CurveKey = "surfaceCurve" | "foregroundCurve";
 
-// Bucket 1 — OKLCH @theme surface scale (curve editor target). Lightness seeds, ordered 200..1000.
+// Bucket 1 — OKLCH @theme surface scale (curve editor target). Lightness seeds,
+// ordered surface-100 (base/darkest) .. surface-800 (most elevated/lightest).
 export const SURFACE_SEED: { key: string; l: number }[] = [
-  { key: "surface-200", l: 0.3092 },
-  { key: "surface-300", l: 0.2891 },
-  { key: "surface-400", l: 0.2686 },
-  { key: "surface-500", l: 0.2478 },
-  { key: "surface-600", l: 0.2264 },
-  { key: "surface-700", l: 0.2046 },
-  { key: "surface-800", l: 0.1822 },
-  { key: "surface-900", l: 0.1591 },
-  { key: "surface-1000", l: 0.1344 },
+  { key: "surface-100", l: 0.2046 },
+  { key: "surface-200", l: 0.235 },
+  { key: "surface-300", l: 0.2645 },
+  { key: "surface-400", l: 0.2931 },
+  { key: "surface-500", l: 0.3211 },
+  { key: "surface-600", l: 0.3485 },
+  { key: "surface-700", l: 0.3753 },
+  { key: "surface-800", l: 0.4017 },
 ];
 
 export const SURFACE_KEYS: string[] = SURFACE_SEED.map((s) => s.key);
@@ -60,15 +60,15 @@ export const PRIMARY_KEYS: string[] = ["primary-200", "primary-300", "primary-40
 // Semantic @theme tokens that bind to a ramp stop -> their default stop key
 // (mirrors the `var(--color-...)` references in globals.css @theme).
 export const BINDINGS_SEED: Record<string, string> = {
-  background: "surface-800",
-  card: "surface-800",
-  popover: "surface-800",
-  secondary: "surface-700",
-  sidebar: "surface-700",
-  muted: "surface-500",
-  "sidebar-accent": "surface-500",
-  accent: "surface-400",
-  border: "surface-400",
+  background: "surface-100",
+  card: "surface-100",
+  popover: "surface-100",
+  secondary: "surface-200",
+  sidebar: "surface-200",
+  muted: "surface-200",
+  "sidebar-accent": "surface-300",
+  accent: "surface-300",
+  border: "surface-300",
   primary: "primary-400",
   "primary-foreground": "foreground-100",
   "secondary-foreground": "foreground-200",

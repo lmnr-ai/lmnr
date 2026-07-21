@@ -125,8 +125,8 @@ function applyState(state: StyleState): void {
 function validateState(parsed: unknown): StyleState {
   const s = parsed as Partial<StyleState>;
   if (!s || s.version !== 1) throw new Error("Expected version 1");
-  if (!s.surfaceCurve || !Array.isArray(s.surfaceCurve.points) || s.surfaceCurve.points.length !== 9) {
-    throw new Error("surfaceCurve.points must have 9 entries");
+  if (!s.surfaceCurve || !Array.isArray(s.surfaceCurve.points) || s.surfaceCurve.points.length !== 8) {
+    throw new Error("surfaceCurve.points must have 8 entries");
   }
   if (!s.surfaceCurve.endpoints) throw new Error("Missing surfaceCurve.endpoints");
   if (!s.foregroundCurve || !Array.isArray(s.foregroundCurve.points) || s.foregroundCurve.points.length !== 7) {

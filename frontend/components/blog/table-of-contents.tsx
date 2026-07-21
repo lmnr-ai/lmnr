@@ -94,7 +94,7 @@ export default function TableOfContents({ headings, className }: Props) {
           instead of extending through the scrollable region. */}
       <div className="relative flex flex-col">
         {/* Continuous muted track — spans the full scroll content height. */}
-        <div className="absolute left-0 top-0 bottom-0 w-px bg-surface-400" />
+        <div className="absolute left-0 top-0 bottom-0 w-px bg-surface-600" />
 
         {/* Highlight — animates between row positions. Initial mount uses
             `initial={false}` so the very first frame snaps to the measured

@@ -50,7 +50,7 @@ export default function CurveEditor({ curve }: { curve: CurveKey }) {
       ref={boxRef}
       onPointerMove={onPointerMove}
       onPointerUp={stopDrag}
-      className="relative h-48 w-full overflow-hidden rounded-md border border-border bg-surface-1000 select-none"
+      className="relative h-48 w-full overflow-hidden rounded-md border border-border bg-surface-100 select-none"
     >
       <svg
         className="pointer-events-none absolute inset-0 h-full w-full"
