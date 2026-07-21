@@ -57,19 +57,20 @@ fn unknown_time_ns() -> i64 {
 }
 
 impl WinnerState {
-    /// Strict total order over distinct spans: shallower depth, then more
-    /// non-cached input tokens, then earlier start, then smaller span id.
+    /// Partial order over the EXACT axes [`agent_io_ver`] encodes:
+    /// shallower depth, then more non-cached input tokens. Deliberately
+    /// NO further tie-break (earlier start / span id were tried and
+    /// removed): an axis the CH version can't encode would let the lock
+    /// admit an override whose `trace_agent_input` row only TIES the
+    /// value it replaced — an MQ redelivery of the older row could then
+    /// win by arrival order. With the orders aligned, a lock-admitted
+    /// override always carries a strictly greater ver; equal-strength
+    /// candidates don't override, so the first published one stays.
     pub fn beats(&self, other: &Self) -> bool {
         if self.depth != other.depth {
             return self.depth < other.depth;
         }
-        if self.input_tokens != other.input_tokens {
-            return self.input_tokens > other.input_tokens;
-        }
-        if self.start_time_ns != other.start_time_ns {
-            return self.start_time_ns < other.start_time_ns;
-        }
-        self.span_id < other.span_id
+        self.input_tokens > other.input_tokens
     }
 }
 
@@ -167,13 +168,17 @@ impl UserTaskLockState {
 
 /// Winning-output state for the trace-output lock: the agent's final
 /// answer sits on the shallowest spine and is the LAST such message, so
-/// strictly shallower wins; at equal depth, strictly later end wins.
+/// strictly shallower wins; at equal depth, strictly later end wins —
+/// at MILLISECOND granularity, matching what [`agent_io_ver`] encodes
+/// (same aligned-orders rule as [`WinnerState::beats`]; sub-ms-apart
+/// answers are equal strength and never override each other).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OutputLockState {
     /// Span path depth of the winning span.
     #[serde(rename = "d")]
     pub depth: usize,
-    /// End time (ns since epoch) of the winning span.
+    /// End time (ns since epoch) of the winning span. Stored at full
+    /// precision; compared at ver granularity.
     #[serde(rename = "t")]
     pub end_time_ns: i64,
 }
@@ -183,7 +188,8 @@ impl OutputLockState {
         if candidate.depth < self.depth {
             return true;
         }
-        candidate.depth == self.depth && candidate.end_time_ns > self.end_time_ns
+        candidate.depth == self.depth
+            && candidate.end_time_ns / 1_000_000 > self.end_time_ns / 1_000_000
     }
 }
 
@@ -191,9 +197,14 @@ impl OutputLockState {
 /// `trace_agent_output` ClickHouse rows: inverted depth in the top byte
 /// (shallower ⇒ larger ver), winner-strength minor in the low 56 bits —
 /// non-cached input tokens for inputs, end-time millis for outputs
-/// (millis fit 56 bits until year ~4254). ReplacingMergeTree(ver) then
-/// converges to the strongest winner regardless of arrival order, so
-/// blind re-inserts of stale values are harmless.
+/// (millis fit 56 bits until year ~4254). The lock orders
+/// ([`WinnerState::beats`], [`OutputLockState::should_override`]) compare
+/// EXACTLY these axes, so a lock-admitted override always carries a
+/// strictly greater ver and ReplacingMergeTree(ver) converges to the
+/// lock's winner regardless of arrival order — blind re-inserts of stale
+/// rows are harmless. Never add a lock tie-break this encoding can't
+/// express: the lock would admit overrides whose CH rows only TIE, and a
+/// redelivered older row could win by arrival order.
 pub fn agent_io_ver(depth: usize, minor: i64) -> u64 {
     const MINOR_MASK: u64 = (1 << 56) - 1;
     let inverted_depth = 255 - depth.min(255) as u64;
@@ -232,18 +243,26 @@ mod tests {
     }
 
     #[test]
-    fn beats_orders_by_depth_tokens_start_then_id() {
+    fn beats_orders_by_depth_then_tokens_only() {
         // Shallower always beats, regardless of tokens.
         assert!(w(1, 10, 100, "a").beats(&w(2, 9000, 50, "b")));
         // Equal depth: more tokens beats.
         assert!(w(2, 500, 100, "a").beats(&w(2, 100, 50, "b")));
-        // Equal depth+tokens: earlier start beats.
-        assert!(w(2, 100, 50, "b").beats(&w(2, 100, 100, "a")));
-        // Full tie except id: smaller id beats (determinism).
-        assert!(w(2, 100, 50, "a").beats(&w(2, 100, 50, "b")));
-        assert!(!w(2, 100, 50, "b").beats(&w(2, 100, 50, "a")));
-        // Identical: neither beats (strict order).
+        // Equal depth+tokens: NEITHER beats — start/id are deliberately
+        // not tie-breaks because `agent_io_ver` can't encode them; an
+        // equal-strength pair must not override so the CH ver of a
+        // lock-admitted override is always strictly greater.
+        assert!(!w(2, 100, 50, "b").beats(&w(2, 100, 100, "a")));
+        assert!(!w(2, 100, 100, "a").beats(&w(2, 100, 50, "b")));
         assert!(!w(2, 100, 50, "a").beats(&w(2, 100, 50, "a")));
+        // The aligned-orders invariant itself: beats ⇒ strictly greater ver.
+        let stronger = w(2, 500, 100, "a");
+        let weaker = w(2, 100, 50, "b");
+        assert!(stronger.beats(&weaker));
+        assert!(
+            agent_io_ver(stronger.depth, stronger.input_tokens)
+                > agent_io_ver(weaker.depth, weaker.input_tokens)
+        );
     }
 
     #[test]
@@ -369,29 +388,37 @@ mod tests {
     }
 
     #[test]
-    fn output_lock_shallower_wins_then_later_end() {
+    fn output_lock_shallower_wins_then_later_end_at_ms_granularity() {
+        const MS: i64 = 1_000_000;
         let prev = OutputLockState {
             depth: 3,
-            end_time_ns: 100,
+            end_time_ns: 100 * MS,
         };
         // Strictly shallower always overrides.
         assert!(prev.should_override(&OutputLockState {
             depth: 2,
-            end_time_ns: 50
+            end_time_ns: 50 * MS
         }));
         // Equal depth: only a strictly LATER end overrides.
         assert!(prev.should_override(&OutputLockState {
             depth: 3,
-            end_time_ns: 200
+            end_time_ns: 200 * MS
         }));
         assert!(!prev.should_override(&OutputLockState {
             depth: 3,
-            end_time_ns: 100
+            end_time_ns: 100 * MS
+        }));
+        // Sub-millisecond-later end: equal at ver granularity, no
+        // override — `agent_io_ver` encodes millis, so a ns-level win
+        // would produce a CH row that only ties the one it replaced.
+        assert!(!prev.should_override(&OutputLockState {
+            depth: 3,
+            end_time_ns: 100 * MS + 999_999
         }));
         // Deeper never overrides.
         assert!(!prev.should_override(&OutputLockState {
             depth: 4,
-            end_time_ns: 200
+            end_time_ns: 200 * MS
         }));
     }
 }
