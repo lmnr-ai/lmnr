@@ -2,7 +2,7 @@ import { and, desc, eq, ne } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
-import { type Filter, FilterSchema } from "@/lib/actions/common/filters";
+import { type Filter, FilterSchema } from "@/lib/actions/common/filter-schemas";
 import { Operator } from "@/lib/actions/common/operators";
 import { FiltersSchema } from "@/lib/actions/common/types";
 import { cache, SIGNAL_TRIGGERS_CACHE_KEY } from "@/lib/cache.ts";

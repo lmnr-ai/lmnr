@@ -1,6 +1,6 @@
 import { isEqual } from "lodash";
 
-import { type Filter, FilterSchemaRelaxed } from "@/lib/actions/common/filters";
+import { type Filter, FilterSchemaRelaxed } from "@/lib/actions/common/filter-schemas";
 
 // View-managed runtime params. The form area of a view — columns are tracked
 // separately in `TableConfigStore`.

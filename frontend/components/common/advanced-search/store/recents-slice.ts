@@ -1,4 +1,4 @@
-import { FilterSchema } from "@/lib/actions/common/filters";
+import { FilterSchema } from "@/lib/actions/common/filter-schemas";
 
 import type { RecentSearch, RecentsSlice, SliceCreator } from "./types";
 
