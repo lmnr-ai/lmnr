@@ -9,8 +9,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use super::{
-    lock::{UserTaskLockState, lock_cache_key},
-    metadata::build_metadata_patch,
+    lock::{UserTaskLockState, lock_cache_key, write_lock_merged},
+    metadata::extraction_outcome_value,
     queue::InputExtractionMessage,
     regex::{
         ApplyRegexResult, generate_and_apply_regex, is_passthrough_regex, regex_cache_key,
@@ -21,10 +21,9 @@ use super::{
 use crate::{
     cache::{Cache, CacheTrait},
     db::DB,
-    env::user_task::USER_TASK_LOCK_TTL_SECONDS,
     llm::LlmClient,
     mq::MessageQueue,
-    traces::metadata::publish_trace_metadata_patch,
+    traces::metadata::publish_trace_input_update,
     worker::{HandlerError, MessageHandler},
 };
 
@@ -137,11 +136,11 @@ impl MessageHandler for InputExtractionHandler {
             }
         }
 
-        let patch = build_metadata_patch(&result);
-        publish_trace_metadata_patch(
+        let value = extraction_outcome_value(&result);
+        publish_trace_input_update(
             message.trace_id,
             message.project_id,
-            patch,
+            value,
             self.queue.clone(),
             self.db.clone(),
             self.cache.clone(),
@@ -152,24 +151,14 @@ impl MessageHandler for InputExtractionHandler {
         // Re-assert the winner lock for the state whose extraction just
         // published — retries the producer lock write that may have
         // failed after the enqueue, so future arbitration compares
-        // against the actual metadata owner. Guarded by a re-read: a
-        // genuinely newer lock written while this message was in flight
-        // must not be clobbered with the older snapshot. Best-effort
-        // like every lock write.
+        // against the actual metadata owner. `write_lock_merged` re-reads
+        // and merges, so a genuinely newer lock written while this
+        // message was in flight keeps its stronger winner. Best-effort.
         if let Some(snapshot) = &message.winner_state {
             let lock_key = lock_cache_key(message.project_id, message.trace_id);
-            let current: Option<UserTaskLockState> = self.cache.get(&lock_key).await.ok().flatten();
-            if !current.is_some_and(|c| c.supersedes(snapshot))
-                && let Err(e) = self
-                    .cache
-                    .insert_with_ttl(&lock_key, snapshot, USER_TASK_LOCK_TTL_SECONDS.get())
-                    .await
-            {
-                log::error!(
-                    "user-task: lock state write failed for trace [{}]: {e:?}",
-                    message.trace_id
-                );
-            }
+            let mut local = UserTaskLockState::new(snapshot.depth);
+            local.winner = Some(snapshot.clone());
+            write_lock_merged(&self.cache, &lock_key, &local, message.trace_id).await;
         }
 
         Ok(())

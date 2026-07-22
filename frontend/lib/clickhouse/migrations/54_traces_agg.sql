@@ -11,6 +11,11 @@
 -- fallback set by a batch without the root) so max(String) always prefers the
 -- root-derived name regardless of arrival order; the view strips it with
 -- substring(_, 2).
+-- Extracted agent input/output (LAM-1953) live OUTSIDE traces_agg in the
+-- supplementary `trace_agent_input`/`trace_agent_output` RMT tables (mutable
+-- latest-wins strings, which SimpleAggregateFunction(max) can't express) and
+-- are surfaced via the view joins. `internal_metadata` is a reserved maxMap
+-- column (no writer yet), same encoding as `metadata`.
 CREATE TABLE IF NOT EXISTS default.traces_agg
 (
     `id` UUID,
@@ -41,8 +46,8 @@ CREATE TABLE IF NOT EXISTS default.traces_agg
         Array(Enum8('DEFAULT' = 0, 'EVALUATION' = 1, 'EVENT' = 2, 'PLAYGROUND' = 3))),
     -- debug-only: insert wall-clock, folds to first-seen; not exposed in the view
     `created_at` SimpleAggregateFunction(min, DateTime64(9, 'UTC')) DEFAULT now64(9),
-    `agent_input` SimpleAggregateFunction(max, String),
-    `agent_output` SimpleAggregateFunction(max, String),
+    -- reserved, no writer yet; raw JSON value per key like `metadata`
+    `internal_metadata` SimpleAggregateFunction(maxMap, Map(String, String)),
     PROJECTION p_start_time
     (
         SELECT *
@@ -53,6 +58,33 @@ ENGINE = AggregatingMergeTree
 PARTITION BY toYYYYMM(start_time)
 ORDER BY (project_id, id)
 SETTINGS index_granularity = 8192, deduplicate_merge_projection_mode = 'rebuild';
+
+-- Extracted agent input/output (LAM-1953): one row per trace per table,
+-- versioned on `updated_at` so the latest-arriving qualifying write wins.
+-- The producer-side cache arbitration gate decides which spans qualify to
+-- write here; ReplacingMergeTree(updated_at) then converges on the newest
+-- of those. `value` is the raw JSON value (string or `false`).
+CREATE TABLE IF NOT EXISTS default.trace_agent_input
+(
+    `project_id` UUID,
+    `trace_id` UUID,
+    `value` String,
+    `updated_at` DateTime64(9, 'UTC') DEFAULT now64(9)
+)
+ENGINE = ReplacingMergeTree(updated_at)
+ORDER BY (project_id, trace_id)
+SETTINGS index_granularity = 8192;
+
+CREATE TABLE IF NOT EXISTS default.trace_agent_output
+(
+    `project_id` UUID,
+    `trace_id` UUID,
+    `value` String,
+    `updated_at` DateTime64(9, 'UTC') DEFAULT now64(9)
+)
+ENGINE = ReplacingMergeTree(updated_at)
+ORDER BY (project_id, trace_id)
+SETTINGS index_granularity = 8192;
 
 -- Time-bound params are load-bearing for correctness, not just pruning: the
 -- inner scan must include every partial of a qualifying trace, and the outer
@@ -116,8 +148,23 @@ SELECT
     toBool(t.has_browser_session) AS has_browser_session,
     t.id AS id,
     t.span_names AS span_names,
-    t.agent_input AS agent_input,
-    t.agent_output AS agent_output
+    if(
+        length(mapKeys(t.internal_metadata)) = 0,
+        '',
+        concat(
+            '{',
+            arrayStringConcat(
+                arrayMap(
+                    (k, v) -> concat(toJSONString(k), ':', v),
+                    mapKeys(t.internal_metadata), mapValues(t.internal_metadata)
+                ),
+                ','
+            ),
+            '}'
+        )
+    ) AS internal_metadata,
+    ifNull(ai.value, '') AS agent_input,
+    ifNull(ao.value, '') AS agent_output
 FROM (
     SELECT
         project_id,
@@ -144,8 +191,7 @@ FROM (
         groupUniqArrayArray(tags) AS tags,
         max(has_browser_session) AS has_browser_session,
         groupUniqArrayArray(span_names) AS span_names,
-        max(agent_input) AS agent_input,
-        max(agent_output) AS agent_output
+        maxMap(internal_metadata) AS internal_metadata
     FROM (
         SELECT *
         FROM default.traces_agg
@@ -159,5 +205,13 @@ LEFT JOIN (
     SELECT * FROM default.trace_tags FINAL WHERE project_id = {project_id:UUID}
 ) AS tt
     ON t.project_id = tt.project_id AND t.id = tt.trace_id
+LEFT JOIN (
+    SELECT * FROM default.trace_agent_input FINAL WHERE project_id = {project_id:UUID}
+) AS ai
+    ON t.project_id = ai.project_id AND t.id = ai.trace_id
+LEFT JOIN (
+    SELECT * FROM default.trace_agent_output FINAL WHERE project_id = {project_id:UUID}
+) AS ao
+    ON t.project_id = ao.project_id AND t.id = ao.trace_id
 WHERE t.start_time >= {min_start_time:DateTime64(9)}
     AND t.start_time <= {max_start_time:DateTime64(9)};

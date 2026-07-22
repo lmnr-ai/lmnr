@@ -12,9 +12,9 @@
 //!     arrive in unknown order);
 //!   - a generation run that produces no usable pattern (call budget or
 //!     LLM retries exhausted) falls back to the passthrough regex
-//!     `(?s)(.*)` — the full reconstructed input beats a wrong `false`;
-//!     `false` is written only when an applied regex says the input is
-//!     scaffolding-only (or a cached regex stops extracting);
+//!     `(?s)(.*)` — the full reconstructed input beats a wrong empty
+//!     value; an empty string is written only when an applied regex says
+//!     the input is scaffolding-only (or a cached regex stops extracting);
 //!   - caches generated regexes per project + prompt hash + fingerprint
 //!     (`USER_TASK_REGEX_CACHE_KEY`) so traces with the same scaffolding
 //!     shape share one LLM call.
@@ -40,11 +40,13 @@ pub mod input;
 pub mod lock;
 pub mod messages;
 pub mod metadata;
+pub mod output;
 pub mod producer;
 pub mod queue;
 pub mod regex;
 pub mod self_tracing;
 
+pub use output::{OutputCandidate, capture_output_candidate};
 pub use producer::{
     UserTaskCandidate, UserTaskSpanContext, capture_user_task_candidate,
     process_user_task_candidates,

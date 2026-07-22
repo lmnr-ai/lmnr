@@ -30,19 +30,6 @@ const REGEX_INPUT_CAP_CHARS: usize = 200_000;
 /// better extraction quality.
 pub const HAS_HISTORY_FINGERPRINT_PREFIX: &str = "has_history|";
 
-/// The winner-lock `user_sig` for a fingerprint: the history prefix
-/// stripped. The prefix forks the REGEX cache key only — for lock
-/// arbitration, turn 1 (`plain`) and turn 2 (`has_history|plain`) of a
-/// conversation are the SAME agent, and equal-depth override requires an
-/// exact sig match, so keeping the prefix would block every follow-up
-/// turn from overriding the first prompt's lock and freeze
-/// `lmnr_user_task` on it for the lock TTL.
-pub fn lock_user_sig(fingerprint: &str) -> &str {
-    fingerprint
-        .strip_prefix(HAS_HISTORY_FINGERPRINT_PREFIX)
-        .unwrap_or(fingerprint)
-}
-
 // ---------------------------------------------------------------------------
 // Last-turn extraction
 // ---------------------------------------------------------------------------
@@ -143,8 +130,8 @@ fn truncate_for_regex(mut text: String) -> String {
 // Prepared input
 // ---------------------------------------------------------------------------
 
-/// The two derived values every pipeline stage needs. Producer computes
-/// once and threads both through the queue so the consumer applies the
+/// The derived values every pipeline stage needs. Producer computes
+/// once and threads them through the queue so the consumer applies the
 /// regex to byte-identical text.
 #[derive(Debug, Clone, PartialEq)]
 pub struct UserTaskInput {
@@ -155,6 +142,13 @@ pub struct UserTaskInput {
     /// key), prefixed with [`HAS_HISTORY_FINGERPRINT_PREFIX`] when the
     /// last turn follows assistant/model history.
     pub fingerprint: String,
+    /// Full hash of the joined last-turn user parts (hex BLAKE3). Unlike
+    /// `fingerprint` (a structural signature that intentionally collapses
+    /// different content into the same regex cache key), this changes
+    /// whenever the actual user content changes — the winner gate skips
+    /// re-extraction when a strictly stronger challenger carries the same
+    /// content as the published winner.
+    pub content_hash: String,
 }
 
 pub fn prepare_user_task_input(input: &Value) -> Option<UserTaskInput> {
@@ -166,9 +160,14 @@ pub fn prepare_user_task_input(input: &Value) -> Option<UserTaskInput> {
     if has_prior_assistant(input) {
         fingerprint = format!("{HAS_HISTORY_FINGERPRINT_PREFIX}{fingerprint}");
     }
+    // Hash the canonical joined text: `user_text` is already
+    // permutation-invariant (parts canonicalized before joining), so the
+    // hash is stable across arrival order.
+    let content_hash = hex::encode(blake3::hash(user_text.as_bytes()).as_bytes());
     Some(UserTaskInput {
         signposted_text: truncate_for_regex(user_text),
         fingerprint,
+        content_hash,
     })
 }
 
@@ -389,17 +388,16 @@ mod tests {
     }
 
     #[test]
-    fn lock_user_sig_strips_history_prefix() {
-        // First-turn and follow-up fingerprints of the same conversation
-        // must map to one lock sig, or equal-depth override (exact sig
-        // match required) would freeze `lmnr_user_task` on the first
-        // prompt for the whole lock TTL.
-        assert_eq!(lock_user_sig("plain"), "plain");
-        assert_eq!(lock_user_sig("has_history|plain"), "plain");
-        assert_eq!(
-            lock_user_sig("has_history|context,/context|plain"),
-            "context,/context|plain"
-        );
+    fn content_hash_is_content_sensitive() {
+        // Different content, same structural shape → different hash
+        // (whereas the fingerprint collapses them into one cache key).
+        let c = json!([{"role": "user", "content": "a totally different task"}]);
+        let d = json!([{"role": "user", "content": "yet another task entirely"}]);
+        let pc = prepare_user_task_input(&c).unwrap();
+        let pd = prepare_user_task_input(&d).unwrap();
+        assert_eq!(pc.fingerprint, pd.fingerprint);
+        assert_ne!(pc.content_hash, pd.content_hash);
+        assert!(!pc.content_hash.is_empty());
     }
 
     #[test]

@@ -101,7 +101,7 @@ pub fn is_passthrough_regex(pattern: &str) -> bool {
 
 /// Render an application result as the FINAL user-visible outcome: the
 /// extracted text is signpost-stripped exactly like the stored metadata
-/// (`build_metadata_patch` applies the same strip). Serves both as the
+/// (`extraction_outcome_value` applies the same strip). Serves both as the
 /// probe-tool response shown to the generation model and as the tool-span
 /// output, so what the model judges is what the user gets.
 pub fn apply_result_to_json(result: &ApplyRegexResult) -> serde_json::Value {
@@ -221,7 +221,7 @@ pub async fn try_apply_cached_regex(
 /// own sample is not worth caching). Infallible by design: the message
 /// finishes on the first pass instead of looping through an LLM call
 /// per requeue. Every no-pattern ending falls back to the passthrough
-/// regex — the full reconstructed input beats a wrong `false`:
+/// regex — the full reconstructed input beats a wrong empty value:
 /// - an exhausted call budget means the model never delivered an
 ///   accepted submit;
 /// - an LLM failure (per-call retry budget exhausted or a non-retryable
