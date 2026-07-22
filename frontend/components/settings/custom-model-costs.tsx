@@ -33,6 +33,7 @@ import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow
 const COST_FIELDS: readonly { key: string; label: string; required?: boolean }[] = [
   { key: "input_cost_per_token", label: "Input" },
   { key: "output_cost_per_token", label: "Output" },
+  { key: "cache_read_input_token_cost", label: "Cache read" },
 ];
 
 const PER_MILLION = 1_000_000;
