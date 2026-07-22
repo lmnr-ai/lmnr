@@ -21,7 +21,7 @@ use uuid::Uuid;
 
 use super::input::prepare_user_task_input;
 use super::lock::{
-    RosterEntry, UserTaskLockState, WinnerState, lock_cache_key, write_lock_merged,
+    RosterEntry, UserTaskLockState, WinnerState, lock_cache_key, roster_span_key, write_lock_merged,
 };
 use super::metadata::extraction_outcome_value;
 use super::output::{OutputCandidate, process_trace_output_candidate};
@@ -177,15 +177,19 @@ pub async fn process_user_task_candidates(
             &project_id,
         )
         .await;
-        // Non-cached input tokens: cache-read-heavy calls are later
-        // same-conversation turns replaying context; fresh first calls
-        // read no cache. (Tokens, not cost — cost is zero whenever the
-        // model doesn't resolve in the pricing tables.)
+        // Total input tokens (cached + uncached). The real main-agent span
+        // carries a large context; small helper spans (title/routing) carry
+        // little. Subtracting cache-read was tried and reverted: it penalized
+        // the true first span — its system prompt is often cache-read from
+        // prior conversations, while tiny helper spans have too few tokens to
+        // cache at all (providers need ~1024+), so uncached-tokens ranked the
+        // helper above the main agent. (Tokens, not cost — cost is zero when
+        // the model doesn't resolve in the pricing tables.)
         let state = WinnerState {
             depth: *depth,
-            input_tokens: usage.input_tokens - usage.cache_read_input_tokens,
+            input_tokens: usage.input_tokens,
             start_time_ns: ctx.start_time_ns,
-            span_id: ctx.span_id.simple().to_string(),
+            span_id: roster_span_key(ctx.span_id),
             content_hash,
         };
         contenders

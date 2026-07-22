@@ -4,7 +4,7 @@
 //!
 //! Input arbitration is roster-based: the winner must be among the first
 //! [`ROSTER_CAP`] spans (by start time) at the shallowest observed depth,
-//! and among those the one with the most non-cached input tokens wins.
+//! and among those the one with the most total input tokens wins.
 //! The first few shallow spans of a trace are often secondary helpers
 //! (title generation, routing) — token mass is what singles out the real
 //! main-agent call, while the roster cap stops later main-loop turns
@@ -36,6 +36,16 @@ pub fn trace_output_lock_cache_key(project_id: Uuid, trace_id: Uuid) -> String {
     format!("{TRACE_OUTPUT_LOCK_CACHE_KEY}:{project_id}:{trace_id}")
 }
 
+/// Roster span-id key: the last 16 hex chars of a span UUID's simple form.
+/// Span ids are 8-byte OTLP ids left-padded to 16 bytes, so the first 16
+/// hex chars are almost always zeros — dropping them halves the stored key
+/// while staying collision-free within a trace. Used only for roster dedup
+/// and `is_eligible` equality, so any consistent shortening is safe.
+pub fn roster_span_key(span_id: Uuid) -> String {
+    let simple = span_id.simple().to_string();
+    simple[simple.len().saturating_sub(16)..].to_string()
+}
+
 fn unknown_time_ns() -> i64 {
     i64::MAX
 }
@@ -48,19 +58,23 @@ pub struct WinnerState {
     /// Span path depth.
     #[serde(rename = "d")]
     pub depth: usize,
-    /// Non-cached input tokens (`input_tokens.total() - cache_read`).
-    /// Cache-read-heavy turns are later same-conversation turns; a fresh
-    /// first call reads no cache, so this discriminates "big new context"
-    /// from "big replayed context". Tokens (not cost) on purpose: cost is
-    /// only derivable when the model resolves in the pricing tables.
+    /// Total input tokens (cached + uncached). The real main-agent span
+    /// carries a large context; tiny helper spans (title/routing) carry
+    /// little, so this singles out the main agent among same-depth spans.
+    /// Total, NOT uncached: the true first span's system prompt is often
+    /// cache-read from prior conversations while helper spans are too small
+    /// to cache at all, so subtracting cache-read wrongly ranks the helper
+    /// higher. Tokens (not cost) on purpose: cost is only derivable when the
+    /// model resolves in the pricing tables.
     #[serde(rename = "k", default)]
     pub input_tokens: i64,
     /// Start time (ns since epoch); `i64::MAX` = unknown. Also the default
     /// for legacy lock JSON without `t`.
     #[serde(rename = "t", default = "unknown_time_ns")]
     pub start_time_ns: i64,
-    /// Simple-form span id — dedups roster re-registration on redelivery
-    /// and breaks full ties deterministically.
+    /// Shortened span id (`roster_span_key`) — dedups roster
+    /// re-registration on redelivery and identifies roster membership in
+    /// `is_eligible`. Not a `beats` tie-break.
     #[serde(rename = "id", default)]
     pub span_id: String,
     /// Full hash of the joined last-turn user parts. Two spans with the
@@ -74,7 +88,7 @@ pub struct WinnerState {
 
 impl WinnerState {
     /// Partial order: shallower depth wins; at equal depth, more
-    /// non-cached input tokens wins. Equal depth + tokens is a tie
+    /// total input tokens wins. Equal depth + tokens is a tie
     /// (neither beats) so the first published winner stays — start time /
     /// span id are deliberately NOT tie-breaks. Content is NOT part of
     /// this order; it gates whether the effect re-runs, not which
@@ -287,6 +301,19 @@ mod tests {
             trace_output_lock_cache_key(p, t),
             format!("trace_output_lock:{p}:{t}")
         );
+    }
+
+    #[test]
+    fn roster_span_key_takes_last_16_hex_chars() {
+        // 8-byte OTLP span id left-padded to 16 bytes: leading 16 hex
+        // chars are zeros and get dropped.
+        let id = Uuid::parse_str("00000000-0000-0000-d2c3-61d0ea548a38").unwrap();
+        assert_eq!(roster_span_key(id), "d2c361d0ea548a38");
+        // Full-entropy uuid still yields exactly 16 chars (its tail).
+        let full = Uuid::new_v4();
+        let key = roster_span_key(full);
+        assert_eq!(key.len(), 16);
+        assert!(full.simple().to_string().ends_with(&key));
     }
 
     #[test]
