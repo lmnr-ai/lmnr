@@ -209,7 +209,11 @@ pub fn error_response(e: CrudError) -> actix_web::HttpResponse {
     use actix_web::HttpResponse;
     match e {
         CrudError::Validation(m) => HttpResponse::BadRequest().json(json!({ "error": m })),
-        CrudError::DuplicateName(m) => HttpResponse::Conflict().json(json!({ "error": m })),
+        // The variant holds the bare name; the actionable "already exists"
+        // message is the Display impl — format the error, not the payload.
+        e @ CrudError::DuplicateName(_) => {
+            HttpResponse::Conflict().json(json!({ "error": e.to_string() }))
+        }
         CrudError::Internal(err) => {
             // Don't leak internal error details (DB errors carry schema info).
             log::error!("signal crud error: {err:?}");
