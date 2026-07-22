@@ -70,7 +70,7 @@ const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(({ className, children, position = "popper", ...props }, ref) => {
-  const { level, className: surface } = useElevated(SURFACE_OFFSET.menu, SHADOW_LEVEL.popover);
+  const { level, className: surface } = useElevated(SURFACE_OFFSET.popover, SHADOW_LEVEL.popover);
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content

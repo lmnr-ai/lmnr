@@ -10,8 +10,7 @@ import { MAX_SURFACE, SurfaceProvider, useSurface } from "./context";
 // Conventional offsets, so call sites read intent rather than magic numbers.
 export const SURFACE_OFFSET = {
   inline: 1, // cards, panels, anything that lifts a hair off its container
-  menu: 1, // dropdown / select / context menu — one-step lift
-  popover: 2, // popover / tooltip
+  popover: 2, // popover / dropdown / select / tooltip
   dialog: 2, // dialog / modal / sheet — surface-300 over the base page
 } as const;
 

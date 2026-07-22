@@ -50,8 +50,8 @@ export default function SurfacesDemo() {
             <Elevated offset={SURFACE_OFFSET.popover} shadowLevel={3} className="rounded-lg p-4">
               <LevelLabel>Popover · offset popover (+2)</LevelLabel>
 
-              <Elevated offset={SURFACE_OFFSET.menu} shadowLevel={3} className="rounded-lg p-4">
-                <LevelLabel>Dropdown · offset menu (+1)</LevelLabel>
+              <Elevated offset={SURFACE_OFFSET.popover} shadowLevel={3} className="rounded-lg p-4">
+                <LevelLabel>Dropdown · offset popover (+2)</LevelLabel>
                 <div className="text-sm text-muted-foreground">Still distinct from every layer beneath it.</div>
               </Elevated>
             </Elevated>
