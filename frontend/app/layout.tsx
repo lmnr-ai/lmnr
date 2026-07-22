@@ -68,27 +68,23 @@ export default async function RootLayout({ children }: PropsWithChildren) {
   const session = posthogEnabled ? await getServerSession().catch(() => null) : null;
   const email = session?.user?.email ?? undefined;
 
-  const body = (
-    <body className="flex flex-col h-full">
-      <BasePathFetchShim />
-      <NuqsAdapter>
-        <div className="flex">
-          <div className="flex flex-col grow max-w-full min-h-screen">
-            <main className="z-10 flex flex-col grow">{children}</main>
-            <Toaster />
-          </div>
-        </div>
-      </NuqsAdapter>
-    </body>
-  );
-
   return (
     <html lang="en" className={cn("h-full antialiased", sans.variable, manrope.variable, sansLanding.variable)}>
-      <FeatureFlagsProvider flags={featureFlags}>
-        <PostHogProvider telemetryEnabled={posthogEnabled} email={email}>
-          {body}
-        </PostHogProvider>
-      </FeatureFlagsProvider>
+      <body className="flex flex-col h-full">
+        <BasePathFetchShim />
+        <FeatureFlagsProvider flags={featureFlags}>
+          <PostHogProvider telemetryEnabled={posthogEnabled} email={email}>
+            <NuqsAdapter>
+              <div className="flex">
+                <div className="flex flex-col grow max-w-full min-h-screen">
+                  <main className="z-10 flex flex-col grow">{children}</main>
+                  <Toaster />
+                </div>
+              </div>
+            </NuqsAdapter>
+          </PostHogProvider>
+        </FeatureFlagsProvider>
+      </body>
     </html>
   );
 }

@@ -41,6 +41,7 @@ export const init = (telemetryEnabled: boolean) => {
   if (posthog.__loaded) return;
   posthog.init(POSTHOG_KEY, {
     api_host: POSTHOG_HOST,
+    external_scripts_inject_target: "head",
     person_profiles: "identified_only",
     capture_pageview: "history_change",
     session_recording: {
