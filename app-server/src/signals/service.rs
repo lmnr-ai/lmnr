@@ -418,11 +418,15 @@ fn normalize_trigger_filter(filter: Value) -> Result<Value, CrudError> {
             match &value {
                 Value::Number(_) => value,
                 Value::String(s) => {
-                    // Trim before validating AND storing (see fn docs).
+                    // Trim before validating AND storing (see fn docs). Finite
+                    // only: Rust's parse accepts "NaN"/"inf" (JS's Number.isFinite
+                    // rejected them), and a NaN threshold makes every comparison
+                    // false (or always-true for ne) in the evaluator.
                     let trimmed = s.trim();
                     require(
-                        !trimmed.is_empty() && trimmed.parse::<f64>().is_ok(),
-                        "total_token_count value must be a number",
+                        !trimmed.is_empty()
+                            && trimmed.parse::<f64>().is_ok_and(|v| v.is_finite()),
+                        "total_token_count value must be a finite number",
                     )?;
                     Value::String(trimmed.to_string())
                 }
