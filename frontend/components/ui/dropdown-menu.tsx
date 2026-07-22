@@ -25,7 +25,7 @@ function DropdownMenuContent({
   children,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
-  const { level, className: surface } = useElevated(SURFACE_OFFSET.popover, SHADOW_LEVEL.popover);
+  const { level, className: surface } = useElevated(SURFACE_OFFSET.menu, SHADOW_LEVEL.popover);
   return (
     <DropdownMenuPrimitive.Portal>
       <DropdownMenuPrimitive.Content
@@ -199,7 +199,7 @@ function DropdownMenuSubContent({
   children,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
-  const { level, className: surface } = useElevated(SURFACE_OFFSET.popover, SHADOW_LEVEL.popover);
+  const { level, className: surface } = useElevated(SURFACE_OFFSET.menu, SHADOW_LEVEL.popover);
   return (
     <DropdownMenuPrimitive.SubContent
       data-slot="dropdown-menu-sub-content"
