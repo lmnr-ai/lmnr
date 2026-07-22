@@ -7,6 +7,7 @@
 
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
+import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
@@ -14,9 +15,41 @@ import { Button } from "@/components/ui/button";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { AlertTriangle, Check, Plus, Search, Sparkles } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
+import { surfaceClasses, SurfaceProvider } from "@/components/ui/surface";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { SpanType } from "@/lib/traces/types";
+import { cn } from "@/lib/utils";
 
 import * as S from "./samples";
+
+// A mini component cluster painted at one surface level, used to show how the primitives read as
+// elevation changes. Wrapped in SurfaceProvider so hover (--surface-raise) tracks the level too.
+function LevelSample({ level }: { level: number }) {
+  return (
+    <SurfaceProvider value={level}>
+      <div className={cn("flex flex-col gap-2 rounded-lg border p-3", surfaceClasses(level))}>
+        <span className="font-mono text-[10px] text-muted-foreground">surface-{level * 100}</span>
+        <Button size="sm" variant="secondary">
+          Button
+        </Button>
+        <div className="flex flex-wrap gap-1">
+          <Badge variant="secondary">Badge</Badge>
+          <Badge variant="outline">Tag</Badge>
+        </div>
+        <Input placeholder="Input" className="h-7" />
+      </div>
+    </SurfaceProvider>
+  );
+}
+
+// The span-type tokens (llm/subagent/tool/…) shown as the real span badge the trace views render.
+const SPAN_TOKENS: { type: SpanType; label: string }[] = [
+  { type: SpanType.LLM, label: "llm" },
+  { type: SpanType.TOOL, label: "tool" },
+  { type: SpanType.EVALUATOR, label: "subagent" },
+  { type: SpanType.EXECUTOR, label: "executor" },
+  { type: SpanType.DEFAULT, label: "default" },
+];
 
 // One card in the masonry grid. `break-inside-avoid` keeps a card from splitting across columns.
 function Cell({ title, children }: { title: string; children: React.ReactNode }) {
@@ -52,6 +85,25 @@ const ROWS = [
 export default function Assorted() {
   return (
     <div className="columns-1 gap-4 sm:columns-2 xl:columns-3">
+      <Cell title="Across surface levels">
+        <div className="grid grid-cols-2 gap-2">
+          {[2, 4, 6, 8].map((n) => (
+            <LevelSample key={n} level={n} />
+          ))}
+        </div>
+      </Cell>
+
+      <Cell title="Span types (in situ)">
+        <div className="flex flex-col gap-2">
+          {SPAN_TOKENS.map((s) => (
+            <div key={s.label} className="flex items-center gap-2">
+              <SpanTypeIcon spanType={s.type} />
+              <span className="text-sm text-foreground">{s.label}</span>
+            </div>
+          ))}
+        </div>
+      </Cell>
+
       <Cell title="Buttons">
         <div className="flex flex-wrap gap-2">
           <Button size="sm">Default</Button>

@@ -10,7 +10,8 @@ export type IconLib = "lucide" | "tabler" | "phosphor" | "hugeicons" | "remix";
 
 export const ICON_LIBS: IconLib[] = ["lucide", "tabler", "phosphor", "hugeicons", "remix"];
 
-let current: IconLib = "lucide";
+// Committed default icon library (#4 baked from the tuned style-explorer state).
+let current: IconLib = "phosphor";
 // Global default icon stroke width (lucide's native default is 2). Per-call
 // strokeWidth props still win; the wrapper falls back to this when none is passed.
 export const DEFAULT_ICON_STROKE = 2;
@@ -42,10 +43,10 @@ function subscribe(cb: () => void): () => void {
   return () => listeners.delete(cb);
 }
 
-// Server snapshot is always "lucide" so SSR + first client paint match the
-// current app; switching happens client-side only.
+// Server snapshot matches the committed default so SSR + first client paint agree;
+// switching happens client-side only.
 export function useIconLib(): IconLib {
-  return useSyncExternalStore(subscribe, getIconLib, () => "lucide");
+  return useSyncExternalStore(subscribe, getIconLib, () => "phosphor");
 }
 
 export function useIconStroke(): number {

@@ -5,11 +5,11 @@
 // the `style` URL param (nuqs), so sharing is just copying the URL — no JSON export needed.
 
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Palette, Trash2, X } from "@/components/ui/icon-lib";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { toast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 import ColorTab from "./color-tab";
@@ -36,7 +36,7 @@ export default function PanelShell() {
 
   const handleReset = () => {
     resetAll();
-    toast({ title: "Reset to defaults — cleared the shared style" });
+    toast("Reset to defaults — cleared the shared style");
   };
 
   return (

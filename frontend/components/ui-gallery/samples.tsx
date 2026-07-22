@@ -5,6 +5,7 @@
 // self-contained demo the gallery renders as-is. TEMPORARY tooling.
 
 import { useState } from "react";
+import { toast } from "sonner";
 
 import {
   Accordion,
@@ -84,7 +85,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useToast } from "@/lib/hooks/use-toast";
 
 export const InputSample = (
   <div className="flex w-64 flex-col gap-2">
@@ -400,16 +400,12 @@ function ComboboxDemo() {
 export const ComboboxSample = <ComboboxDemo />;
 
 function ToastDemo() {
-  const { toast } = useToast();
   return (
     <div className="flex gap-2">
-      <Button variant="outline" onClick={() => toast({ title: "Saved", description: "Your changes were saved." })}>
+      <Button variant="outline" onClick={() => toast("Saved", { description: "Your changes were saved." })}>
         Show toast
       </Button>
-      <Button
-        variant="destructiveOutline"
-        onClick={() => toast({ variant: "destructive", title: "Something went wrong" })}
-      >
+      <Button variant="destructiveOutline" onClick={() => toast.error("Something went wrong")}>
         Error toast
       </Button>
     </div>

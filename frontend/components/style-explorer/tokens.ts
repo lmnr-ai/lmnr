@@ -20,14 +20,14 @@ export type CurveKey = "surfaceCurve" | "foregroundCurve";
 // Bucket 1 — OKLCH @theme surface scale (curve editor target). Lightness seeds,
 // ordered surface-100 (base/darkest) .. surface-800 (most elevated/lightest).
 export const SURFACE_SEED: { key: string; l: number }[] = [
-  { key: "surface-100", l: 0.2046 },
-  { key: "surface-200", l: 0.2354 },
-  { key: "surface-300", l: 0.2661 },
-  { key: "surface-400", l: 0.2969 },
-  { key: "surface-500", l: 0.3277 },
-  { key: "surface-600", l: 0.3585 },
-  { key: "surface-700", l: 0.3892 },
-  { key: "surface-800", l: 0.42 },
+  { key: "surface-100", l: 0.1879 },
+  { key: "surface-200", l: 0.2181 },
+  { key: "surface-300", l: 0.2483 },
+  { key: "surface-400", l: 0.2785 },
+  { key: "surface-500", l: 0.3088 },
+  { key: "surface-600", l: 0.339 },
+  { key: "surface-700", l: 0.3692 },
+  { key: "surface-800", l: 0.3994 },
 ];
 
 export const SURFACE_KEYS: string[] = SURFACE_SEED.map((s) => s.key);
@@ -35,12 +35,12 @@ export const SURFACE_KEYS: string[] = SURFACE_SEED.map((s) => s.key);
 // Bucket 1b — OKLCH @theme foreground (text) scale. Lightness seeds, ordered 50..600.
 export const FOREGROUND_SEED: { key: string; l: number }[] = [
   { key: "foreground-50", l: 1 },
-  { key: "foreground-100", l: 0.9249 },
-  { key: "foreground-200", l: 0.7731 },
-  { key: "foreground-300", l: 0.696 },
-  { key: "foreground-400", l: 0.6167 },
-  { key: "foreground-500", l: 0.4962 },
-  { key: "foreground-600", l: 0.3904 },
+  { key: "foreground-100", l: 0.891 },
+  { key: "foreground-200", l: 0.782 },
+  { key: "foreground-300", l: 0.673 },
+  { key: "foreground-400", l: 0.564 },
+  { key: "foreground-500", l: 0.455 },
+  { key: "foreground-600", l: 0.346 },
 ];
 
 export const DEFAULT_ENDPOINTS: SurfaceEndpoints = { cStart: 0, hStart: 0, cEnd: 0, hEnd: 0 };
@@ -101,18 +101,18 @@ export const RAW_SEED: Record<string, string> = {
   "--yellow": "30 80% 55%",
   "--green": "142.1 76.2% 36.3%",
   "--aqua": "187 94% 43%",
-  "--blue": "160 60% 45%",
+  "--blue": "220 70% 50%",
   "--purple": "262 83% 58%",
-  "--pink": "280 65% 60%",
+  "--pink": "330 75% 58%",
 };
 
 export const RAW_KEYS: string[] = Object.keys(RAW_SEED);
 
-// Bucket 3 — HSL-triplet :root tokens. Bare "H S% L%" (consumed via hsl(var(--x))). Raw hues lead;
-// the 7 semantic tokens that now alias a raw hue (destructive/success/subagent/llm/chart-2/3/4) are
-// omitted — they're edited via their raw hue, not directly.
+// Bucket 3 — HSL-triplet :root tokens. Bare "H S% L%" (consumed via hsl(var(--x))). The semantic
+// tokens that now alias a raw hue — destructive/success/subagent/llm and ALL five charts — are
+// omitted (editing them here would override the alias); the raw hues live in the OKLCH accent
+// bucket (#9), not here.
 export const HSL_SEED: Record<string, string> = {
-  ...RAW_SEED,
   "--background": "0 0% 4%",
   "--foreground": "0 8% 90%",
   "--card": "0 0% 7%",
@@ -134,8 +134,6 @@ export const HSL_SEED: Record<string, string> = {
   "--border": "240 6% 18%",
   "--input": "240 6% 18%",
   "--ring": "212 96% 78%",
-  "--chart-1": "220 70% 50%",
-  "--chart-5": "340 75% 55%",
   "--sidebar-background": "0 0% 7%",
   "--sidebar-foreground": "240 4.8% 95.9%",
   "--sidebar-primary": "224.3 76.3% 48%",
@@ -149,6 +147,31 @@ export const HSL_SEED: Record<string, string> = {
 };
 
 export const HSL_KEYS: string[] = Object.keys(HSL_SEED);
+
+// ---- #11 edge-treatment configurator ----
+// UNWIRE: three swappable rim looks for raised surfaces. Each bundle sets the four :root edge
+// alphas (see globals.css). To commit to one variant, inline its numbers and delete this map + the
+// explorer control + the `edge` state bucket. Micka alphas start from the fluidfunctionalism recipe
+// (top highlight / inner white ~2-6%, outer black ~12-22%) and are tunable via the sliders.
+export type EdgeVariant = "none" | "border" | "micka";
+
+export interface EdgeState {
+  variant: EdgeVariant;
+  highlight: number; // white top-highlight inset (Micka)
+  inner: number; // white inner ring inset (Micka)
+  outer: number; // black outer ring (Micka)
+  border: number; // flat white rim on raised surfaces (Border)
+}
+
+export const EDGE_VARIANTS: Record<EdgeVariant, Omit<EdgeState, "variant">> = {
+  none: { highlight: 0, inner: 0, outer: 0, border: 0 },
+  border: { highlight: 0, inner: 0, outer: 0, border: 0.04 },
+  micka: { highlight: 0.05, inner: 0.05, outer: 0.18, border: 0 },
+};
+
+export const DEFAULT_EDGE_VARIANT: EdgeVariant = "border";
+
+export const seedEdge = (): EdgeState => ({ variant: DEFAULT_EDGE_VARIANT, ...EDGE_VARIANTS[DEFAULT_EDGE_VARIANT] });
 
 // ---- HSL triplet helpers (bare "H S% L%" <-> react-colorful {h,s,l}) ----
 
@@ -187,18 +210,7 @@ export function clamp(n: number, min: number, max: number): number {
 
 // oklch (L 0..1, C, H°) -> gamma-encoded sRGB [r,g,b] in 0..255, gamut-clipped.
 export function oklchToSrgb(L: number, C: number, H: number): [number, number, number] {
-  const hr = (H * Math.PI) / 180;
-  const a = C * Math.cos(hr);
-  const b = C * Math.sin(hr);
-  const l_ = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
-  const m_ = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;
-  const s_ = (L - 0.0894841775 * a - 1.291485548 * b) ** 3;
-  const lin = [
-    4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_,
-    -1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_,
-    -0.0041960863 * l_ - 0.7034186147 * m_ + 1.707614701 * s_,
-  ];
-  return lin.map((x) => {
+  return oklchToLinearSrgb(L, C, H).map((x) => {
     const c = clamp(x, 0, 1);
     const g = c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055;
     return Math.round(g * 255);
@@ -213,4 +225,172 @@ export function computeSurfaceColor(point: SurfacePoint, endpoints: SurfaceEndpo
   const end = oklchToSrgb(point.l, endpoints.cEnd, endpoints.hEnd);
   const [r, g, b] = start.map((s, i) => Math.round(lerp(s, end[i], point.t)));
   return `rgb(${r} ${g} ${b})`;
+}
+
+// ---- OKLCH accent-curve helpers (#9) ----
+
+// oklch (L 0..1, C, H°) -> linear-sRGB [r,g,b] WITHOUT gamut clipping, so callers can tell
+// whether the color falls outside sRGB (any channel <0 or >1).
+function oklchToLinearSrgb(L: number, C: number, H: number): [number, number, number] {
+  const hr = (H * Math.PI) / 180;
+  const a = C * Math.cos(hr);
+  const b = C * Math.sin(hr);
+  const l_ = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+  const m_ = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+  const s_ = (L - 0.0894841775 * a - 1.291485548 * b) ** 3;
+  return [
+    4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_,
+    -1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_,
+    -0.0041960863 * l_ - 0.7034186147 * m_ + 1.707614701 * s_,
+  ];
+}
+
+// True when the oklch triple lands inside sRGB (before clamping).
+export function oklchInGamut(L: number, C: number, H: number): boolean {
+  const eps = 0.0005;
+  return oklchToLinearSrgb(L, C, H).every((v) => v >= -eps && v <= 1 + eps);
+}
+
+// Highest lightness that stays in sRGB for a given chroma+hue, used to draw the gamut ceiling.
+// The in-gamut lightness for a fixed chroma/hue is a BAND [Lmin, Lmax] (black isn't in gamut at
+// nonzero chroma), so a naive [0,1] bisection is wrong — scan from white downward and return the
+// first in-gamut L (the ceiling), then refine.
+export function maxLInGamut(C: number, H: number): number {
+  for (let L = 1; L >= 0; L -= 0.01) {
+    if (oklchInGamut(L, C, H)) {
+      let lo = L;
+      let hi = Math.min(1, L + 0.01);
+      for (let i = 0; i < 8; i++) {
+        const mid = (lo + hi) / 2;
+        if (oklchInGamut(mid, C, H)) lo = mid;
+        else hi = mid;
+      }
+      return lo;
+    }
+  }
+  return 0;
+}
+
+const gammaToLin = (c: number): number => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+
+// gamma sRGB (0..255) -> oklch {L, C, H°}. Inverse of oklchToSrgb.
+export function srgbToOklch(r: number, g: number, b: number): { L: number; C: number; H: number } {
+  const lr = gammaToLin(r / 255);
+  const lg = gammaToLin(g / 255);
+  const lb = gammaToLin(b / 255);
+  const l = Math.cbrt(0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb);
+  const m = Math.cbrt(0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb);
+  const s = Math.cbrt(0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb);
+  const L = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s;
+  const a = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s;
+  const bb = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s;
+  const C = Math.hypot(a, bb);
+  let H = (Math.atan2(bb, a) * 180) / Math.PI;
+  if (H < 0) H += 360;
+  return { L, C, H };
+}
+
+// hsl triplet {h, s%, l%} -> gamma sRGB (0..255).
+export function hslToSrgb({ h, s, l }: Hsl): [number, number, number] {
+  const S = s / 100;
+  const Lp = l / 100;
+  const k = (n: number) => (n + h / 30) % 12;
+  const aa = S * Math.min(Lp, 1 - Lp);
+  const f = (n: number) => Lp - aa * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
+  return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255)];
+}
+
+// gamma sRGB (0..255) -> bare "H S% L%" triplet (so oklch picks store like every other :root token).
+export function srgbToHslTriplet(r: number, g: number, b: number): string {
+  const rn = r / 255;
+  const gn = g / 255;
+  const bn = b / 255;
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  const d = max - min;
+  const l = (max + min) / 2;
+  let h = 0;
+  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  if (d !== 0) {
+    if (max === rn) h = ((gn - bn) / d) % 6;
+    else if (max === gn) h = (bn - rn) / d + 2;
+    else h = (rn - gn) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  const r1 = (n: number) => Math.round(n * 10) / 10;
+  return `${r1(h)} ${r1(s * 100)}% ${r1(l * 100)}%`;
+}
+
+// oklch -> bare "H S% L%" triplet (gamut-clamped through oklchToSrgb).
+export function oklchToHslTriplet(L: number, C: number, H: number): string {
+  const [r, g, b] = oklchToSrgb(L, C, H);
+  return srgbToHslTriplet(r, g, b);
+}
+
+// Catmull-Rom spline value at x, over points sorted by x. Flat-extrapolates past the ends.
+// Used to draw the smooth "cubic" accent lightness curve and to sample L at any hue.
+export function catmullRom(points: { x: number; y: number }[], x: number): number {
+  const pts = [...points].sort((a, b) => a.x - b.x);
+  if (pts.length === 0) return 0;
+  if (x <= pts[0].x) return pts[0].y;
+  if (x >= pts[pts.length - 1].x) return pts[pts.length - 1].y;
+  let i = 0;
+  while (i < pts.length - 1 && pts[i + 1].x < x) i++;
+  const p0 = pts[i - 1] ?? pts[i];
+  const p1 = pts[i];
+  const p2 = pts[i + 1];
+  const p3 = pts[i + 2] ?? p2;
+  const t = (x - p1.x) / (p2.x - p1.x || 1);
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return (
+    0.5 *
+    (2 * p1.y +
+      (-p0.y + p2.y) * t +
+      (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+      (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3)
+  );
+}
+
+// ---- OKLCH accent family state (#9) ----
+// A single cubic lightness-by-hue curve (draggable anchors) + one vertical line per raw hue
+// (movable in hue only). Each color is sampled where its line crosses the curve: L = curve(hue),
+// chroma = shared chroma + the color's nudge.
+export interface AccentCurvePoint {
+  hue: number; // X, 0..360
+  l: number; // Y, OKLCH lightness 0..1
+}
+
+export interface AccentColor {
+  key: string; // the raw token, e.g. "--red"
+  hue: number; // OKLCH hue 0..360 (the vertical line position)
+  nudge: number; // per-hue chroma delta added to the shared chroma
+}
+
+export interface AccentState {
+  chroma: number; // shared OKLCH chroma
+  curve: AccentCurvePoint[]; // the draggable cubic (independent of the color lines)
+  colors: AccentColor[];
+}
+
+// Curve control anchors: a few points across the hue axis form the cubic (Catmull-Rom).
+const CURVE_ANCHOR_HUES = [30, 140, 230, 330];
+
+// Seed the accent family from the raw HSL palette so the editor opens on today's colors: color
+// lines sit at each hue, and the curve is fitted through the palette's lightness profile so
+// sampling reproduces (close to) today's lightness. The user then retunes the curve/hues.
+export function seedAccent(): AccentState {
+  const oklch = RAW_KEYS.map((key) => {
+    const [r, g, b] = hslToSrgb(parseHslTriplet(RAW_SEED[key]));
+    return { key, ...srgbToOklch(r, g, b) };
+  });
+  const chroma = [...oklch.map((o) => o.C)].sort((a, b) => a - b)[Math.floor(oklch.length / 2)];
+  // Fit the curve anchors to the palette's (hue -> L) profile so the default sampling ≈ today.
+  const profile = oklch.map((o) => ({ x: o.H, y: o.L })).sort((a, b) => a.x - b.x);
+  return {
+    chroma: Math.round(chroma * 1000) / 1000,
+    curve: CURVE_ANCHOR_HUES.map((hue) => ({ hue, l: catmullRom(profile, hue) })),
+    colors: oklch.map((o) => ({ key: o.key, hue: o.H, nudge: o.C - chroma })),
+  };
 }

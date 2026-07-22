@@ -48,7 +48,7 @@
 
   /* A single flat translucent-white rim, the same on every surface. `* { @apply border-border }`
      in the reset gives every element this edge; the style-explorer border-alpha slider live-tunes it. */
-  --color-border: oklch(1 0 0 / 0.16);
+  --color-border: oklch(1 0 0 / 0.04);
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
   --color-background: var(--color-surface-100);
@@ -110,38 +110,43 @@
   /* Relative elevation ramp (surface-100 = base/darkest .. surface-800 = most
      elevated/lightest), OKLCH, dark-only. Consumed via <Elevated> + the
      bg-surface-N00 / shadow-elevation-N00 utilities. */
-  --color-surface-100: oklch(0.2046 0 0); /* #171717 */
-  --color-surface-200: oklch(0.2354 0 0); /* #1e1e1e */
-  --color-surface-300: oklch(0.2661 0 0); /* #262626 */
-  --color-surface-400: oklch(0.2969 0 0); /* #2d2d2d */
-  --color-surface-500: oklch(0.3277 0 0); /* #353535 */
-  --color-surface-600: oklch(0.3585 0 0); /* #3c3c3c */
-  --color-surface-700: oklch(0.3892 0 0); /* #434343 */
-  --color-surface-800: oklch(0.42 0 0); /* #4b4b4b */
+  --color-surface-100: oklch(0.1879 0 0);
+  --color-surface-200: oklch(0.2181 0 0);
+  --color-surface-300: oklch(0.2483 0 0);
+  --color-surface-400: oklch(0.2785 0 0);
+  --color-surface-500: oklch(0.3088 0 0);
+  --color-surface-600: oklch(0.339 0 0);
+  --color-surface-700: oklch(0.3692 0 0);
+  --color-surface-800: oklch(0.3994 0 0);
 
   /* Layered dark elevation shadows; shadow-elevation-100 is lightest, -800 heaviest.
      Namespaced apart from the surface COLORS so `shadow-surface-N` stays free to mean
      a surface-tinted shadow color (Tailwind resolves --shadow-* before a color). */
   --dm-drop: rgba(0, 0, 0, 0.18);
-  /* Inset rim + top-highlight (the reference's inner glow) are removed for now — depth is
-     carried by the outer drop shadows + dark hairline, and the edge by the alpha border. */
+  /* UNWIRE (#11 edge-treatment configurator): the rim is a shared prefix on every raised level,
+     driven by the :root --edge-*-alpha vars (top highlight, inner white ring, outer black ring).
+     The variant control swaps those alphas. To commit to one look, inline the winning variant's
+     rim here and delete the :root alphas + the explorer control + EDGE_VARIANTS. Drop layers
+     below are the "this floats" cue and stay in every variant. */
+  --edge-rim: inset 0 1px 0 0 oklch(1 0 0 / var(--edge-highlight-alpha)),
+    inset 0 0 0 1px oklch(1 0 0 / var(--edge-inner-alpha)), 0 0 0 1px oklch(0 0 0 / var(--edge-outer-alpha));
   --shadow-elevation-100: none;
-  --shadow-elevation-200: 0 1px 1px -0.5px var(--dm-drop);
-  --shadow-elevation-300: 0 0 0 1px rgba(0, 0, 0, 0.12), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop);
-  --shadow-elevation-400: 0 0 0 1px rgba(0, 0, 0, 0.14), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop);
-  --shadow-elevation-500: 0 0 0 1px rgba(0, 0, 0, 0.16), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop);
-  --shadow-elevation-600: 0 0 0 1px rgba(0, 0, 0, 0.18), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop);
-  --shadow-elevation-700: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop), 0 48px 48px -24px var(--dm-drop);
-  --shadow-elevation-800: 0 0 0 1px rgba(0, 0, 0, 0.22), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop), 0 48px 48px -24px var(--dm-drop), 0 96px 96px -48px var(--dm-drop);
+  --shadow-elevation-200: var(--edge-rim), 0 1px 1px -0.5px var(--dm-drop);
+  --shadow-elevation-300: var(--edge-rim), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop);
+  --shadow-elevation-400: var(--edge-rim), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop);
+  --shadow-elevation-500: var(--edge-rim), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop);
+  --shadow-elevation-600: var(--edge-rim), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop);
+  --shadow-elevation-700: var(--edge-rim), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop), 0 48px 48px -24px var(--dm-drop);
+  --shadow-elevation-800: var(--edge-rim), 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop), 0 48px 48px -24px var(--dm-drop), 0 96px 96px -48px var(--dm-drop);
 
   /* Foreground (text) ramp — neutral, dark-theme */
-  --color-foreground-50: oklch(1 0 0); /* #ffffff */
-  --color-foreground-100: oklch(0.9249 0 0); /* #e6e6e6 */
-  --color-foreground-200: oklch(0.7731 0 0); /* #b5b5b5 */
-  --color-foreground-300: oklch(0.696 0 0); /* #9d9d9d */
-  --color-foreground-400: oklch(0.6167 0 0); /* #858585 */
-  --color-foreground-500: oklch(0.4962 0 0); /* #626262 */
-  --color-foreground-600: oklch(0.3904 0 0); /* #454545 */
+  --color-foreground-50: oklch(1 0 0);
+  --color-foreground-100: oklch(0.891 0 0);
+  --color-foreground-200: oklch(0.782 0 0);
+  --color-foreground-300: oklch(0.673 0 0);
+  --color-foreground-400: oklch(0.564 0 0);
+  --color-foreground-500: oklch(0.455 0 0);
+  --color-foreground-600: oklch(0.346 0 0);
 
   /* Primary brand ramp — 400 is the canonical brand orange (= --color-primary). */
   --color-primary-200: oklch(0.7019 0.1158 46.05); /* rgb(218 135 95) */
@@ -524,6 +529,17 @@
        themselves via raiseVar()/surfaceClasses so hover tracks their own level. */
     --surface-raise: var(--color-surface-300);
 
+    /* UNWIRE (#11 edge-treatment configurator): rim alphas for RAISED surfaces only. The shadow
+       ladder reads the ring alphas; surfaceClasses colors the raised border from --edge-border-color.
+       Flat elements use --color-border and never these, so they don't move when the variant changes.
+       Defaults below = the "Border" variant (today's look). The explorer's Edge control overwrites
+       these via EDGE_VARIANTS. To commit: pick a variant, inline its values, delete the control. */
+    --edge-highlight-alpha: 0; /* Micka: white top-highlight inset */
+    --edge-inner-alpha: 0; /* Micka: white inner ring inset */
+    --edge-outer-alpha: 0; /* Micka: black outer ring */
+    --edge-border-alpha: 0.04; /* Border: flat white rim on raised surfaces */
+    --edge-border-color: oklch(1 0 0 / var(--edge-border-alpha));
+
     /* Raw hue-named accent palette (bare HSL triplets, source of truth). Semantic tokens
        reference these — destructive/success/subagent/llm and chart-2/3/4 all alias a raw hue,
        so retuning a hue here flows everywhere. Orange lives in @theme as the OKLCH brand ramp. */
@@ -531,9 +547,9 @@
     --yellow: 30 80% 55%;
     --green: 142.1 76.2% 36.3%;
     --aqua: 187 94% 43%;
-    --blue: 160 60% 45%;
+    --blue: 220 70% 50%;
     --purple: 262 83% 58%;
-    --pink: 280 65% 60%;
+    --pink: 330 75% 58%;
 
     --background: 0 0% 4%;
     --foreground: 0 8% 90%;
@@ -568,11 +584,11 @@
     --input: 240 6% 18%;
     --ring: 212 96% 78%;
 
-    --chart-1: 220 70% 50%;
-    --chart-2: var(--blue);
+    --chart-1: var(--blue);
+    --chart-2: var(--aqua);
     --chart-3: var(--yellow);
-    --chart-4: var(--pink);
-    --chart-5: 340 75% 55%;
+    --chart-4: var(--purple);
+    --chart-5: var(--pink);
 
     --sidebar-background: 0 0% 7%;
     --sidebar-foreground: 240 4.8% 95.9%;

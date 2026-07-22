@@ -58,8 +58,12 @@ export function raiseVar(level: number): string {
 
 /** Returns "bg-surface-N shadow-elevation-M" plus the raise var, clamped to 1..8 and
  *  rounded so a fractional level can't index out of the tables. shadow defaults to bg's level.
- *  Borders are a single flat token (--color-border), not per-surface, so nothing is published here. */
+ *  Borders are a single flat token (--color-border), not per-surface, so nothing is published here.
+ *  UNWIRE (#11 edge-treatment configurator): `border-[color:var(--edge-border-color)]` makes a
+ *  raised surface's border track the edge variant (None/Border/Micka) instead of the flat
+ *  --color-border, so flat elements stay put. To commit to one variant, drop this token and let
+ *  raised borders fall back to --color-border. */
 export function surfaceClasses(bgLevel: number, shadowLevel: number = bgLevel): string {
   const b = clampLevel(bgLevel);
-  return `${SURFACE_BG[b]} ${SURFACE_SHADOW[clampLevel(shadowLevel)]} ${SURFACE_RAISE[b]}`;
+  return `${SURFACE_BG[b]} ${SURFACE_SHADOW[clampLevel(shadowLevel)]} ${SURFACE_RAISE[b]} border-[color:var(--edge-border-color)]`;
 }

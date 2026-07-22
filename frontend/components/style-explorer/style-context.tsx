@@ -28,17 +28,28 @@ import {
 } from "@/components/ui/icon-lib/store";
 
 import {
+  type AccentColor,
+  type AccentCurvePoint,
+  type AccentState,
   BINDING_KEYS,
   BINDINGS_SEED,
+  catmullRom,
   computeSurfaceColor,
   type CurveKey,
   DEFAULT_ENDPOINTS,
+  EDGE_VARIANTS,
+  type EdgeState,
+  type EdgeVariant,
   FOREGROUND_KEYS,
   HSL_KEYS,
   HSL_SEED,
   initialForegroundPoints,
   initialPoints,
   OKLCH_SEED,
+  oklchToHslTriplet,
+  RAW_KEYS,
+  seedAccent,
+  seedEdge,
   SURFACE_KEYS,
   type SurfaceEndpoints,
   type SurfacePoint,
@@ -52,6 +63,11 @@ const MANAGED_PROPERTIES: string[] = [
   ...HSL_KEYS,
   ...BINDING_KEYS.map((t) => `--color-${t}`),
   "--color-border",
+  ...RAW_KEYS,
+  "--edge-highlight-alpha",
+  "--edge-inner-alpha",
+  "--edge-outer-alpha",
+  "--edge-border-alpha",
 ];
 
 interface Curve {
@@ -61,7 +77,7 @@ interface Curve {
 
 // Flat translucent-white border rim alpha (--color-border). Single value, no per-surface
 // modulation — mirrors the committed default in globals.css.
-export const DEFAULT_BORDER_ALPHA = 0.16;
+export const DEFAULT_BORDER_ALPHA = 0.04;
 
 export interface StyleState {
   version: 1;
@@ -71,6 +87,8 @@ export interface StyleState {
   hsl: Record<string, string>;
   bindings: Record<string, string>; // semantic token -> ramp stop key
   borderAlpha: number; // --color-border = oklch(1 0 0 / borderAlpha)
+  accent: AccentState; // OKLCH raw hue family (#9) — owns --red..--pink
+  edge: EdgeState; // #11 edge-treatment variant + its rim alphas
 }
 
 function freshState(): StyleState {
@@ -82,6 +100,8 @@ function freshState(): StyleState {
     hsl: { ...HSL_SEED },
     bindings: { ...BINDINGS_SEED },
     borderAlpha: DEFAULT_BORDER_ALPHA,
+    accent: seedAccent(),
+    edge: seedEdge(),
   };
 }
 
@@ -94,6 +114,13 @@ interface StyleContextValue {
   setHsl: (varName: string, value: string) => void;
   setBinding: (token: string, stop: string) => void;
   setBorderAlpha: (value: number) => void;
+  setAccentChroma: (value: number) => void;
+  setAccentColor: (key: string, patch: Partial<Omit<AccentColor, "key">>) => void;
+  setAccentAnchor: (index: number, patch: Partial<AccentCurvePoint>) => void;
+  addAccentAnchor: (point: AccentCurvePoint) => void;
+  removeAccentAnchor: (index: number) => void;
+  setEdgeVariant: (variant: EdgeVariant) => void;
+  setEdgeAlpha: (which: keyof Omit<EdgeState, "variant">, value: number) => void;
   replaceState: (next: StyleState) => void;
   resetAll: () => void;
 }
@@ -129,6 +156,18 @@ function applyState(state: StyleState): void {
   }
   // Flat border rim alpha.
   root.style.setProperty("--color-border", `oklch(1 0 0 / ${state.borderAlpha})`);
+  // Raw hue accent family: each color's L is sampled where its vertical hue line crosses the
+  // shared cubic curve; chroma is the shared value plus its nudge. Written as bare HSL triplets.
+  const curve = state.accent.curve.map((p) => ({ x: p.hue, y: p.l }));
+  for (const c of state.accent.colors) {
+    const l = catmullRom(curve, c.hue);
+    root.style.setProperty(c.key, oklchToHslTriplet(l, Math.max(0, state.accent.chroma + c.nudge), c.hue));
+  }
+  // #11 edge treatment: rim alphas for raised surfaces (--edge-border-color derives from these).
+  root.style.setProperty("--edge-highlight-alpha", String(state.edge.highlight));
+  root.style.setProperty("--edge-inner-alpha", String(state.edge.inner));
+  root.style.setProperty("--edge-outer-alpha", String(state.edge.outer));
+  root.style.setProperty("--edge-border-alpha", String(state.edge.border));
 }
 
 function validateState(parsed: unknown): StyleState {
@@ -153,6 +192,16 @@ function validateState(parsed: unknown): StyleState {
   s.oklch = { ...OKLCH_SEED, ...s.oklch };
   s.hsl = { ...HSL_SEED, ...s.hsl };
   s.bindings = { ...BINDINGS_SEED, ...s.bindings };
+  // accent (OKLCH raw hues) was added later — seed it for links minted before #9.
+  if (
+    !s.accent ||
+    !Array.isArray(s.accent.colors) ||
+    !Array.isArray(s.accent.curve) ||
+    typeof s.accent.chroma !== "number"
+  )
+    s.accent = seedAccent();
+  // edge (#11) added later — seed it for links minted before the configurator.
+  if (!s.edge || typeof s.edge.variant !== "string") s.edge = seedEdge();
   return s as StyleState;
 }
 
@@ -170,13 +219,13 @@ function encodePayload(state: StyleState, iconLib: IconLib, iconStroke: number):
 
 // Decode + validate the `style` param; fall back to fresh defaults on missing/corrupt input.
 function decodePayload(param: string | null): DecodedPayload {
-  const fallback: DecodedPayload = { state: freshState(), iconLib: "lucide", iconStroke: DEFAULT_ICON_STROKE };
+  const fallback: DecodedPayload = { state: freshState(), iconLib: "phosphor", iconStroke: DEFAULT_ICON_STROKE };
   if (!param) return fallback;
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const obj = JSON.parse(decodeURIComponent(atob(param))) as any;
     const state = validateState(obj);
-    const iconLib: IconLib = ICON_LIBS.includes(obj.iconLib) ? obj.iconLib : "lucide";
+    const iconLib: IconLib = ICON_LIBS.includes(obj.iconLib) ? obj.iconLib : "phosphor";
     const iconStroke = typeof obj.iconStroke === "number" ? obj.iconStroke : DEFAULT_ICON_STROKE;
     return { state, iconLib, iconStroke };
   } catch {
@@ -235,7 +284,7 @@ export function StyleProvider({ children }: PropsWithChildren) {
     }
     skipSyncRef.current = true; // don't let the sync effect re-write the default over the cleared param
     setState(freshState());
-    setIconLib("lucide");
+    setIconLib("phosphor");
     setIconStroke(DEFAULT_ICON_STROKE);
   }, [setStyleParam]);
 
@@ -295,6 +344,50 @@ export function StyleProvider({ children }: PropsWithChildren) {
     setState((prev) => ({ ...prev, borderAlpha: value }));
   }, []);
 
+  const setAccentChroma = useCallback((value: number) => {
+    setState((prev) => ({ ...prev, accent: { ...prev.accent, chroma: value } }));
+  }, []);
+
+  const setAccentColor = useCallback((key: string, patch: Partial<Omit<AccentColor, "key">>) => {
+    setState((prev) => ({
+      ...prev,
+      accent: {
+        ...prev.accent,
+        colors: prev.accent.colors.map((c) => (c.key === key ? { ...c, ...patch } : c)),
+      },
+    }));
+  }, []);
+
+  // Move a curve anchor (the cubic that colors are sampled against).
+  const setAccentAnchor = useCallback((index: number, patch: Partial<AccentCurvePoint>) => {
+    setState((prev) => ({
+      ...prev,
+      accent: { ...prev.accent, curve: prev.accent.curve.map((p, i) => (i === index ? { ...p, ...patch } : p)) },
+    }));
+  }, []);
+
+  const addAccentAnchor = useCallback((point: AccentCurvePoint) => {
+    setState((prev) => ({ ...prev, accent: { ...prev.accent, curve: [...prev.accent.curve, point] } }));
+  }, []);
+
+  // Keep at least two anchors so the Catmull-Rom always has a segment to interpolate.
+  const removeAccentAnchor = useCallback((index: number) => {
+    setState((prev) =>
+      prev.accent.curve.length <= 2
+        ? prev
+        : { ...prev, accent: { ...prev.accent, curve: prev.accent.curve.filter((_, i) => i !== index) } }
+    );
+  }, []);
+
+  // #11: picking a variant resets the four rim alphas to its bundle; the alpha sliders tweak from there.
+  const setEdgeVariant = useCallback((variant: EdgeVariant) => {
+    setState((prev) => ({ ...prev, edge: { variant, ...EDGE_VARIANTS[variant] } }));
+  }, []);
+
+  const setEdgeAlpha = useCallback((which: keyof Omit<EdgeState, "variant">, value: number) => {
+    setState((prev) => ({ ...prev, edge: { ...prev.edge, [which]: value } }));
+  }, []);
+
   const replaceState = useCallback((next: StyleState) => setState(next), []);
 
   const value = useMemo<StyleContextValue>(
@@ -307,6 +400,13 @@ export function StyleProvider({ children }: PropsWithChildren) {
       setHsl,
       setBinding,
       setBorderAlpha,
+      setAccentChroma,
+      setAccentColor,
+      setAccentAnchor,
+      addAccentAnchor,
+      removeAccentAnchor,
+      setEdgeVariant,
+      setEdgeAlpha,
       replaceState,
       resetAll,
     }),
@@ -319,6 +419,13 @@ export function StyleProvider({ children }: PropsWithChildren) {
       setHsl,
       setBinding,
       setBorderAlpha,
+      setAccentChroma,
+      setAccentColor,
+      setAccentAnchor,
+      addAccentAnchor,
+      removeAccentAnchor,
+      setEdgeVariant,
+      setEdgeAlpha,
       replaceState,
       resetAll,
     ]
