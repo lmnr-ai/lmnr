@@ -32,8 +32,8 @@ import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow
 
 const COST_FIELDS: readonly { key: string; label: string; required?: boolean }[] = [
   { key: "input_cost_per_token", label: "Input" },
-  { key: "output_cost_per_token", label: "Output" },
   { key: "cache_read_input_token_cost", label: "Cache read" },
+  { key: "output_cost_per_token", label: "Output" },
 ];
 
 const PER_MILLION = 1_000_000;
@@ -205,9 +205,9 @@ function ModelCostDialog({
               <Label>Costs per 1M tokens ($)</Label>
               <p className="text-xs text-muted-foreground mt-1">Enter prices in dollars per million tokens.</p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-row gap-3">
               {COST_FIELDS.map(({ key, label, required }) => (
-                <div key={key} className="flex flex-col gap-1">
+                <div key={key} className="flex flex-1 flex-col gap-1">
                   <Label className="text-xs text-muted-foreground">
                     {label}
                     {required && " *"}
