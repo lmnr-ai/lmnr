@@ -114,7 +114,8 @@ export default function ProjectCreateDialog({
         setNewProjectName("");
       }}
     >
-      <DialogTrigger render={trigger} />
+      {/* DropdownMenuItem isn't a <button>; omit when trigger is our default Button. */}
+      <DialogTrigger render={trigger} nativeButton={children == null} />
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>New project</DialogTitle>

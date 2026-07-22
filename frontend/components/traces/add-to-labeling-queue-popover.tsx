@@ -166,10 +166,13 @@ export default function AddToLabelingQueuePopover({
                   </SelectItem>
                 ))}
               <CreateQueueDialog>
-                <div className="relative flex w-full cursor-pointer hover:bg-secondary items-center rounded-sm py-1.5 pl-2 pr-8 text-sm">
+                <Button
+                  variant="ghost"
+                  className="relative flex h-auto w-full cursor-pointer justify-start rounded-sm py-1.5 pl-2 pr-8 text-sm font-normal hover:bg-secondary"
+                >
                   <Plus className="w-3 h-3 mr-2" />
                   <span className="text-xs">Create queue</span>
-                </div>
+                </Button>
               </CreateQueueDialog>
             </SelectContent>
           </Select>

@@ -530,7 +530,7 @@ export function AlertForm({
                       <SelectTrigger className={cn(fieldState.error && "border-destructive")}>
                         <SelectValue placeholder="Select a signal" />
                       </SelectTrigger>
-                      <SelectContent className="max-w-[var(--radix-select-trigger-width)]">
+                      <SelectContent className="max-w-(--anchor-width)">
                         {signalOptions.map((s) => (
                           <SelectItem key={s.id} value={s.name} description={s.prompt}>
                             {s.name}

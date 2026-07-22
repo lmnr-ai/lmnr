@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -166,7 +167,9 @@ const EvaluationDatapointsTable = ({
                 <SettingsIcon className="h-4 w-4 text-secondary-foreground" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-64">
-                <DropdownMenuLabel className="text-xs font-medium">Settings</DropdownMenuLabel>
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel className="text-xs font-medium">Settings</DropdownMenuLabel>
+                </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <div className="flex items-center justify-between px-2 py-2">
                   <div className="flex flex-col">

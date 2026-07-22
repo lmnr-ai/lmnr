@@ -16,6 +16,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -228,72 +229,76 @@ export default function ViewsPicker({
 
           {dirty && (
             <>
-              <DropdownMenuLabel className={SECTION_LABEL_CLASS}>Unsaved changes</DropdownMenuLabel>
-              {currentViewId !== null && onSaveCurrent && (
-                <DropdownMenuItem onClick={onSaveCurrent} disabled={isSaving} className="text-xs">
-                  <Save className="size-3.5" />
-                  <span className="flex-1 truncate">Save changes</span>
-                </DropdownMenuItem>
-              )}
-              {onSaveAsNew && (
-                <DropdownMenuItem onClick={onSaveAsNew} disabled={isSaving} className="text-xs">
-                  <FilePlus2 className="size-3.5" />
-                  <span className="flex-1 truncate">Save as new view</span>
-                </DropdownMenuItem>
-              )}
-              {onDiscard && (
-                <DropdownMenuItem variant="destructive" onClick={onDiscard} disabled={isSaving} className="text-xs">
-                  <Undo2 className="size-3.5" />
-                  <span className="flex-1 truncate">Discard changes</span>
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className={SECTION_LABEL_CLASS}>Unsaved changes</DropdownMenuLabel>
+                {currentViewId !== null && onSaveCurrent && (
+                  <DropdownMenuItem onClick={onSaveCurrent} disabled={isSaving} className="text-xs">
+                    <Save className="size-3.5" />
+                    <span className="flex-1 truncate">Save changes</span>
+                  </DropdownMenuItem>
+                )}
+                {onSaveAsNew && (
+                  <DropdownMenuItem onClick={onSaveAsNew} disabled={isSaving} className="text-xs">
+                    <FilePlus2 className="size-3.5" />
+                    <span className="flex-1 truncate">Save as new view</span>
+                  </DropdownMenuItem>
+                )}
+                {onDiscard && (
+                  <DropdownMenuItem variant="destructive" onClick={onDiscard} disabled={isSaving} className="text-xs">
+                    <Undo2 className="size-3.5" />
+                    <span className="flex-1 truncate">Discard changes</span>
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuGroup>
               <DropdownMenuSeparator />
             </>
           )}
 
-          <DropdownMenuLabel className={SECTION_LABEL_CLASS}>Views</DropdownMenuLabel>
-          {showDefault && (
-            <DropdownMenuItem onClick={handleReset} className="text-xs">
-              <span className="flex-1 truncate">{DEFAULT_LABEL}</span>
-              {currentViewId === null && <Check className="size-3.5 shrink-0" />}
-            </DropdownMenuItem>
-          )}
-          {filteredViews.map((view) => {
-            const active = currentViewId === view.id;
-            return (
-              <DropdownMenuItem key={view.id} onClick={() => handlePick(view)} className="group text-xs">
-                <span className="flex-1 truncate">{view.name}</span>
-                <span className="relative inline-flex h-5 w-11 shrink-0 items-center justify-end">
-                  {active && (
-                    <Check className="absolute inset-y-0 right-0 my-auto size-3.5 transition-opacity group-hover:opacity-0 group-focus-within:opacity-0" />
-                  )}
-                  <button
-                    type="button"
-                    aria-label={`Rename ${view.name}`}
-                    onClick={(e) => handleManage(view, "rename", e)}
-                    className={cn(
-                      "absolute right-6 inline-flex size-5 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity",
-                      "group-hover:opacity-100 focus-visible:opacity-100"
-                    )}
-                  >
-                    <Pencil className="size-3.5 shrink-0" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Delete ${view.name}`}
-                    onClick={(e) => handleManage(view, "delete", e)}
-                    className={cn(
-                      "absolute right-0 inline-flex size-5 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity",
-                      "group-hover:opacity-100 focus-visible:opacity-100"
-                    )}
-                  >
-                    <Trash2 className="size-3.5 shrink-0" />
-                  </button>
-                </span>
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className={SECTION_LABEL_CLASS}>Views</DropdownMenuLabel>
+            {showDefault && (
+              <DropdownMenuItem onClick={handleReset} className="text-xs">
+                <span className="flex-1 truncate">{DEFAULT_LABEL}</span>
+                {currentViewId === null && <Check className="size-3.5 shrink-0" />}
               </DropdownMenuItem>
-            );
-          })}
-          {noMatches && <div className="px-2 py-3 text-center text-xs text-muted-foreground">No matches.</div>}
+            )}
+            {filteredViews.map((view) => {
+              const active = currentViewId === view.id;
+              return (
+                <DropdownMenuItem key={view.id} onClick={() => handlePick(view)} className="group text-xs">
+                  <span className="flex-1 truncate">{view.name}</span>
+                  <span className="relative inline-flex h-5 w-11 shrink-0 items-center justify-end">
+                    {active && (
+                      <Check className="absolute inset-y-0 right-0 my-auto size-3.5 transition-opacity group-hover:opacity-0 group-focus-within:opacity-0" />
+                    )}
+                    <button
+                      type="button"
+                      aria-label={`Rename ${view.name}`}
+                      onClick={(e) => handleManage(view, "rename", e)}
+                      className={cn(
+                        "absolute right-6 inline-flex size-5 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity",
+                        "group-hover:opacity-100 focus-visible:opacity-100"
+                      )}
+                    >
+                      <Pencil className="size-3.5 shrink-0" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Delete ${view.name}`}
+                      onClick={(e) => handleManage(view, "delete", e)}
+                      className={cn(
+                        "absolute right-0 inline-flex size-5 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity",
+                        "group-hover:opacity-100 focus-visible:opacity-100"
+                      )}
+                    >
+                      <Trash2 className="size-3.5 shrink-0" />
+                    </button>
+                  </span>
+                </DropdownMenuItem>
+              );
+            })}
+            {noMatches && <div className="px-2 py-3 text-center text-xs text-muted-foreground">No matches.</div>}
+          </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
       {showQuickSave && (

@@ -58,7 +58,7 @@ export default function WorkspaceCreateDialog({ children }: PropsWithChildren) {
 
   return (
     <Dialog>
-      <DialogTrigger render={children as React.ReactElement} />
+      <DialogTrigger render={children as React.ReactElement} nativeButton={false} />
       <DialogContent className="sm:max-w-96">
         <DialogHeader>
           <DialogTitle>New workspace</DialogTitle>

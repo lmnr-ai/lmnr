@@ -89,7 +89,7 @@ export default function ExportJobDialog({ sqlQuery, children }: PropsWithChildre
 
   return (
     <Dialog open={isExportDialogOpen} onOpenChange={handleDialogOpen}>
-      <DialogTrigger render={children as React.ReactElement} />
+      <DialogTrigger render={children as React.ReactElement} nativeButton={false} />
       <DialogContent className="max-w-md bg-background">
         <DialogHeader className="flex flex-row justify-between items-center">
           <DialogTitle>Export SQL Results as Job</DialogTitle>

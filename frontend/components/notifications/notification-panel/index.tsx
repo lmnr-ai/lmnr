@@ -155,12 +155,12 @@ const NotificationPanel = () => {
             animate={{ x: 0 }}
             exit={{ x: "-100%" }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="absolute inset-y-0 left-0 z-50 w-104 max-w-full bg-background border-r shadow-lg"
+            className="absolute inset-y-0 left-0 z-50 flex w-104 max-w-full min-w-0 flex-col bg-background border-r shadow-lg"
             onClickCapture={(e) => {
               if ((e.target as HTMLElement).closest("a")) close();
             }}
           >
-            <div className="flex flex-col h-full">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               <div className="flex items-center justify-between pl-3 pr-2 py-2 shrink-0">
                 <span className="text-sm font-medium">Notifications</span>
                 <div className="flex items-center gap-1">
@@ -185,21 +185,17 @@ const NotificationPanel = () => {
               {hasAnyNotifications && (
                 <SeverityFilter value={severityFilter} onChange={setSeverityFilter} counts={counts} />
               )}
-              {/* Radix Viewport wraps children in `display: table; min-width: 100%`, which auto-sizes to
-                  max-content and lets unbreakable strings (URLs, IDs) push past 100%. The clipped overflow
-                  reads as "text going off the right edge." Forcing the inner wrapper to `display: block`
-                  re-anchors width to the viewport so children wrap normally. */}
-              <ScrollArea className="flex-1 [&_[data-slot=scroll-area-viewport]>div]:!block">
+              <ScrollArea className="min-h-0 min-w-0 flex-1">
                 {!hasAnyNotifications ? (
-                  <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+                  <div className="flex w-full min-w-0 items-center justify-center px-3 py-8 text-center text-sm text-muted-foreground">
                     No notifications yet
                   </div>
                 ) : !hasVisibleNotifications ? (
-                  <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+                  <div className="flex w-full min-w-0 items-center justify-center px-3 py-8 text-center text-sm text-muted-foreground">
                     No notifications match this filter
                   </div>
                 ) : (
-                  <div className="flex flex-col">
+                  <div className="flex min-w-0 flex-col">
                     {visibleNotifications.map(({ notification, formatted }) => (
                       <NotificationItem
                         key={notification.id}

@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import useSWR from "swr";
 
 import CreateDatasetDialog from "@/components/datasets/create-dataset-dialog";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { type Dataset, type DatasetInfo } from "@/lib/dataset/types";
 import { type PaginatedResponse } from "@/lib/types";
@@ -61,10 +62,13 @@ export default function DatasetSelect({ onChange, value, className }: DatasetSel
           </SelectItem>
         ))}
         <CreateDatasetDialog onUpdate={onDatasetCreated}>
-          <div className="relative flex w-full cursor-pointer hover:bg-secondary items-center rounded-sm py-1.5 pl-2 pr-8 text-sm">
+          <Button
+            variant="ghost"
+            className="relative flex h-auto w-full cursor-pointer justify-start rounded-sm py-1.5 pl-2 pr-8 text-sm font-normal hover:bg-secondary"
+          >
             <Plus className="w-3 h-3 mr-2" />
             <span className="text-xs">Create new dataset</span>
-          </div>
+          </Button>
         </CreateDatasetDialog>
       </SelectContent>
     </Select>

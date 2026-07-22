@@ -116,7 +116,7 @@ function ExportDatasetDialog({ results, children }: PropsWithChildren<Pick<Expor
 
   return (
     <Dialog open={isExportDialogOpen} onOpenChange={handleDialogOpen}>
-      <DialogTrigger render={children as React.ReactElement} />
+      <DialogTrigger render={children as React.ReactElement} nativeButton={false} />
       <DialogContent className="max-w-4xl bg-background">
         <DialogHeader className="flex flex-row justify-between items-center">
           <DialogTitle>Export SQL Results to Dataset</DialogTitle>
@@ -223,7 +223,7 @@ function ExportQueueDialog({
 
   return (
     <Dialog open={isExportDialogOpen} onOpenChange={handleDialogOpen}>
-      <DialogTrigger render={children as React.ReactElement} />
+      <DialogTrigger render={children as React.ReactElement} nativeButton={false} />
       <DialogContent className="max-w-4xl bg-background">
         <DialogHeader className="flex flex-row justify-between items-center">
           <DialogTitle>Export SQL Results to Labeling Queue</DialogTitle>
