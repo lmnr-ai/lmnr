@@ -52,9 +52,18 @@ pub async fn create_signal_trigger(
 ) -> actix_web::Result<HttpResponse> {
     let (project_id, signal_id) = path.into_inner();
 
-    let result =
-        service::create_trigger(&db.pool, cache.get_ref(), project_id, signal_id, body.into_inner())
-            .await;
+    // Drawer default mode is 0 (batch). `create_trigger` scope-checks the
+    // caller-supplied signal id against the project (404 on miss) — proxy.ts
+    // only proves project membership, not that the signal belongs to it.
+    let result = service::create_trigger(
+        &db.pool,
+        cache.get_ref(),
+        project_id,
+        signal_id,
+        body.into_inner(),
+        0,
+    )
+    .await;
     Ok(match result {
         Ok(resp) => HttpResponse::Ok().json(resp),
         Err(e) => service::error_response(e),

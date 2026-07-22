@@ -107,25 +107,20 @@ pub async fn create_signal_trigger(
     let project_id = auth.project_id;
     let signal_id = path.into_inner();
 
-    // The signal id is caller-supplied (unlike create_signal, where we just
-    // inserted it) — scope-check it so a trigger can't attach to another
-    // project's signal.
-    let signal = db::signals::get_signal(&db.pool, signal_id, project_id)
-        .await
-        .map_err(actix_web::error::ErrorInternalServerError)?;
-    if signal.is_none() {
-        return Ok(HttpResponse::NotFound().json(json!({ "error": "Signal not found" })));
-    }
-
-    let normalized = match service::normalize_trigger(body.into_inner()) {
-        Ok(t) => t,
-        Err(e) => return Ok(service::error_response(e)),
-    };
-
-    match service::insert_trigger(&db.pool, cache.get_ref(), project_id, signal_id, normalized, 1)
-        .await
-    {
-        Ok(t) => Ok(HttpResponse::Ok().json(t)),
-        Err(e) => Ok(service::error_response(e)),
-    }
+    // `create_trigger` scope-checks the caller-supplied signal id against the
+    // project (404 on miss) — shared with the trusted route. CLI default mode
+    // is 1 (realtime).
+    let result = service::create_trigger(
+        &db.pool,
+        cache.get_ref(),
+        project_id,
+        signal_id,
+        body.into_inner(),
+        1,
+    )
+    .await;
+    Ok(match result {
+        Ok(t) => HttpResponse::Ok().json(t),
+        Err(e) => service::error_response(e),
+    })
 }

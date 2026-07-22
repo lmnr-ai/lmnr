@@ -34,6 +34,8 @@ pub enum CrudError {
     Validation(String),
     #[error("A signal named \"{0}\" already exists in this project")]
     DuplicateName(String),
+    #[error("Signal not found")]
+    SignalNotFound,
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
 }
@@ -200,17 +202,30 @@ pub async fn insert_trigger(
     })
 }
 
-/// Validate + insert one trigger in a single call (the browser-drawer path,
-/// which posts triggers one at a time). Drawer default mode is 0 (batch).
+/// Validate + insert one trigger in a single call — the standalone-trigger
+/// path (drawer proxy + CLI retry route), where `signal_id` is CALLER-supplied.
+/// Scope-checks the signal against the project first: `signal_triggers` has no
+/// composite FK on `(project_id, signal_id)`, so without this a project member
+/// could attach a trigger to another project's signal (and a missing signal
+/// would surface as a generic error instead of 404). `create_signal`'s batch
+/// path skips this via `insert_trigger` — it just inserted the signal itself.
 pub async fn create_trigger(
     pool: &PgPool,
     cache: &Cache,
     project_id: Uuid,
     signal_id: Uuid,
     input: TriggerInput,
+    default_mode: i16,
 ) -> Result<TriggerResponse, CrudError> {
     let normalized = normalize_trigger(input)?;
-    insert_trigger(pool, cache, project_id, signal_id, normalized, 0).await
+    if signals::get_signal(pool, signal_id, project_id)
+        .await
+        .map_err(CrudError::Internal)?
+        .is_none()
+    {
+        return Err(CrudError::SignalNotFound);
+    }
+    insert_trigger(pool, cache, project_id, signal_id, normalized, default_mode).await
 }
 
 /// Map a `CrudError` to an HTTP response with a JSON `{ error }` body, matching
@@ -223,6 +238,9 @@ pub fn error_response(e: CrudError) -> actix_web::HttpResponse {
         // message is the Display impl — format the error, not the payload.
         e @ CrudError::DuplicateName(_) => {
             HttpResponse::Conflict().json(json!({ "error": e.to_string() }))
+        }
+        e @ CrudError::SignalNotFound => {
+            HttpResponse::NotFound().json(json!({ "error": e.to_string() }))
         }
         CrudError::Internal(err) => {
             // Don't leak internal error details (DB errors carry schema info).
