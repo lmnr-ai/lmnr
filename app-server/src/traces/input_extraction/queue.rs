@@ -9,7 +9,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::lock::UserTaskLockState;
+use super::lock::WinnerState;
 use crate::mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload};
 
 pub const INPUT_EXTRACTION_QUEUE: &str = "input_extraction_queue";
@@ -29,11 +29,11 @@ pub struct InputExtractionMessage {
     /// Order-insensitive fingerprint of the user parts, part of the
     /// regex cache key.
     pub fingerprint: String,
-    /// Winner-lock state at enqueue time; the consumer drops the
-    /// message when the current lock no longer matches (a later batch
-    /// superseded this candidate).
+    /// Winning-candidate snapshot at enqueue time; the consumer drops the
+    /// message when the current lock's published winner strictly beats it
+    /// (a later batch superseded this candidate).
     #[serde(default)]
-    pub winner_state: Option<UserTaskLockState>,
+    pub winner_state: Option<WinnerState>,
 }
 
 /// Returns `Ok(true)` when the message was enqueued, `Ok(false)` when it

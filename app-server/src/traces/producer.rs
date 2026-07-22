@@ -49,6 +49,7 @@ struct DedupVerdicts {
     /// message — feeds static-part regex extraction (LAM-1899).
     system_prompt: Option<(String, String)>,
     user_task: Option<crate::traces::input_extraction::UserTaskCandidate>,
+    output_candidate: Option<crate::traces::input_extraction::OutputCandidate>,
 }
 
 /// Run the producer-side preprocessing pipeline that the consumer would
@@ -82,9 +83,10 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
         }
     }
 
-    // Capture the user-task candidate while `span.input` is still populated
-    // (the dedup strip below may null it).
+    // Capture the user-task + output candidates while `span.input` /
+    // `span.output` are still populated (the dedup strip below may null them).
     let user_task = crate::traces::input_extraction::capture_user_task_candidate(span);
+    let output_candidate = crate::traces::input_extraction::capture_output_candidate(span);
 
     // Tool dedup runs first so its source attributes are stripped before
     // anything else looks at `raw_attributes`.
@@ -118,6 +120,7 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
         tools,
         system_prompt,
         user_task,
+        output_candidate,
     }
 }
 
@@ -138,7 +141,13 @@ pub async fn publish_span_messages(
     // because each Redis check is cheap and we don't want to flood Redis with
     // a thundering herd on large batches. Most ingest calls carry 1-N spans.
     let mut static_prompt_candidates: Vec<StaticPromptCandidate> = Vec::new();
-    let mut user_task_candidates = Vec::new();
+    // (span idx, input candidate, output candidate) for spans carrying
+    // either — the input/output extraction passes run after publish.
+    let mut extraction_candidates: Vec<(
+        usize,
+        Option<crate::traces::input_extraction::UserTaskCandidate>,
+        Option<crate::traces::input_extraction::OutputCandidate>,
+    )> = Vec::new();
     for (idx, msg) in messages.iter_mut().enumerate() {
         if msg.pre_processed {
             continue;
@@ -156,8 +165,8 @@ pub async fn publish_span_messages(
                 system_prompt,
             });
         }
-        if let Some(candidate) = verdicts.user_task {
-            user_task_candidates.push((idx, candidate));
+        if verdicts.user_task.is_some() || verdicts.output_candidate.is_some() {
+            extraction_candidates.push((idx, verdicts.user_task, verdicts.output_candidate));
         }
     }
 
@@ -207,15 +216,18 @@ pub async fn publish_span_messages(
 
     // Runs after the batch is on the wire so attribute mutation inside the
     // hook can't affect the published payload. Never fails ingestion.
-    let contexts = user_task_candidates
+    let contexts = extraction_candidates
         .into_iter()
-        .filter_map(|(idx, candidate)| {
+        .filter_map(|(idx, candidate, output_candidate)| {
             let msg = messages.get_mut(idx)?;
             Some(crate::traces::input_extraction::UserTaskSpanContext {
                 trace_id: msg.span.trace_id,
+                span_id: msg.span.span_id,
                 span_name: msg.span.name.clone(),
+                start_time_ns: msg.span.start_time.timestamp_nanos_opt().unwrap_or(i64::MAX),
                 attributes: std::mem::take(&mut msg.span.attributes),
                 candidate,
+                output_candidate,
             })
         })
         .collect();

@@ -60,6 +60,7 @@ pub const SPAN_KEEP_DEFAULT_RULES_CACHE_KEY: &str = "signals_span_keep_default_r
 pub const TRACE_EVALUATION_ID_CACHE_KEY: &str = "trace_evaluation_id";
 pub const USER_TASK_REGEX_CACHE_KEY: &str = "user_task_regex";
 pub const USER_TASK_LOCK_CACHE_KEY: &str = "user_task_lock";
+pub const TRACE_OUTPUT_LOCK_CACHE_KEY: &str = "trace_output_lock";
 
 pub const INGESTION_RATE_LIMIT_PROJECT_ID_CACHE_KEY: &str = "ingestion_rate_limit_project_id";
 /// Per-project override N for the /v1/sql rate limit, set out-of-band via

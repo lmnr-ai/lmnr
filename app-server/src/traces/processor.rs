@@ -14,6 +14,7 @@ use crate::{
         ClickhouseTrait,
         deduped_content::CHDedupedContent,
         spans::CHSpan,
+        trace_agent_io::{CHTraceAgentInput, CHTraceAgentOutput},
         traces::{CHTrace, TraceAggregation},
         traces_agg::CHTraceAgg,
         utils::chrono_to_nanoseconds,
@@ -37,11 +38,13 @@ use crate::{
     },
     traces::{
         input_dedup::{DedupBatch, MessageDedup, build_dedup_batch, mark_seen},
+        input_extraction::metadata::{TRACE_OUTPUT_METADATA_KEY, USER_TASK_METADATA_KEY},
         provider::convert_span_to_provider_format,
         realtime::{
             RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_trace,
             send_span_updates, send_trace_updates,
         },
+        span_attributes::{SPAN_TRACE_INPUT, SPAN_TRACE_OUTPUT, SPAN_TRACE_OUTPUT_END_TIME},
         spans::SpanUsage,
         tool_dedup::{ToolDedup, resolve_tool_dedup},
         utils::{get_llm_usage_for_span, prepare_span_for_recording},
@@ -107,6 +110,58 @@ fn tool_bytes(
     }
 }
 
+/// Raw extracted trace io carried on a metadata-only virtual span, split
+/// out before the regular pipeline. The values are the verbatim JSON the
+/// façades put on `SPAN_TRACE_INPUT` / `SPAN_TRACE_OUTPUT` — no metadata
+/// key. The new `traces_agg` path stores them directly in the
+/// supplementary RMT tables; the deprecated path folds them into a
+/// metadata patch before this point.
+struct RawTraceIo {
+    project_id: Uuid,
+    trace_id: Uuid,
+    input: Option<Value>,
+    output: Option<Value>,
+    /// Winning span end time (ns) for the output — the RMT version. `None`
+    /// only for legacy/malformed spans missing the attribute.
+    output_end_time_ns: Option<i64>,
+}
+
+/// Build supplementary-table rows from the raw extracted io. `value` is the
+/// raw JSON string (matching the traces_agg metadata encoding). The input
+/// row leaves `updated_at` to the server default (`now64()`); the output
+/// row versions on the winning span's END TIME so FINAL converges on the
+/// latest-ending answer regardless of insert arrival order. The end time is
+/// clamped to `now_ns` — a missing/absurd (e.g. `i64::MAX` unknown-time
+/// sentinel) value would overflow `DateTime64(9)`; clamping to now still
+/// ranks it "latest" (real end times are ≤ now), preserving the lock's
+/// "unknown = latest" ordering.
+fn collect_agent_io_rows(
+    io: &[RawTraceIo],
+    now_ns: i64,
+) -> (Vec<CHTraceAgentInput>, Vec<CHTraceAgentOutput>) {
+    let mut inputs = Vec::new();
+    let mut outputs = Vec::new();
+    for entry in io {
+        if let Some(value) = &entry.input {
+            inputs.push(CHTraceAgentInput {
+                project_id: entry.project_id,
+                trace_id: entry.trace_id,
+                value: value.to_string(),
+            });
+        }
+        if let Some(value) = &entry.output {
+            let updated_at = entry.output_end_time_ns.unwrap_or(now_ns).min(now_ns);
+            outputs.push(CHTraceAgentOutput {
+                project_id: entry.project_id,
+                trace_id: entry.trace_id,
+                value: value.to_string(),
+                updated_at,
+            });
+        }
+    }
+    (inputs, outputs)
+}
+
 #[instrument(skip(
     messages,
     db,
@@ -143,42 +198,83 @@ pub async fn process_span_messages(
         })
         .collect();
 
-    // Split metadata-only virtual spans (POST /v1/traces/metadata) out before
-    // the regular pipeline. They don't contribute span / token / time stats,
-    // they aren't recorded to ClickHouse, and their PG path is a metadata
-    // merge upsert against the trace row (creating a virtual row when the
-    // span batch hasn't landed yet).
-    let metadata_patches: Vec<TraceMetadataPatch> = messages
+    // Split metadata-only virtual spans out before the regular pipeline. They
+    // don't contribute span / token / time stats and aren't recorded to
+    // ClickHouse. Two flavours share the marker:
+    //   - genuine metadata patches (POST /v1/traces/metadata): merged into the
+    //     trace row (creating a virtual row when the span batch hasn't landed);
+    //   - extracted trace io (LAM-1953): the RAW value on `SPAN_TRACE_INPUT` /
+    //     `SPAN_TRACE_OUTPUT`, routed to the supplementary RMT tables (new path)
+    //     or folded into a metadata key for `traces_replacing` (deprecated path).
+    let mut raw_trace_io: Vec<RawTraceIo> = Vec::new();
+    let mut metadata_patches: Vec<TraceMetadataPatch> = Vec::new();
+    for m in messages
         .iter()
         .filter(|m| m.span.attributes.is_metadata_only())
-        .filter_map(|m| {
-            let Some(metadata) = m.span.attributes.metadata() else {
-                log::warn!(
-                    "metadata-only span {} (trace {}) has no metadata attributes; patch dropped",
-                    m.span.span_id,
-                    m.span.trace_id
-                );
-                return None;
-            };
-            match serde_json::to_value(&metadata) {
-                Ok(metadata_value) => Some(TraceMetadataPatch {
-                    trace_id: m.span.trace_id,
-                    project_id: m.span.project_id,
-                    metadata: metadata_value,
-                }),
-                Err(e) => {
-                    log::warn!(
-                        "metadata-only span {} (trace {}): failed to serialize metadata; patch dropped: {:?}",
-                        m.span.span_id,
-                        m.span.trace_id,
-                        e
-                    );
-                    None
-                }
-            }
-        })
-        .collect();
+    {
+        let attrs = &m.span.attributes.raw_attributes;
+        let input = attrs.get(SPAN_TRACE_INPUT).cloned();
+        let output = attrs.get(SPAN_TRACE_OUTPUT).cloned();
+        if input.is_some() || output.is_some() {
+            raw_trace_io.push(RawTraceIo {
+                project_id: m.span.project_id,
+                trace_id: m.span.trace_id,
+                input,
+                output,
+                output_end_time_ns: attrs
+                    .get(SPAN_TRACE_OUTPUT_END_TIME)
+                    .and_then(Value::as_i64),
+            });
+            continue;
+        }
+        let Some(metadata) = m.span.attributes.metadata() else {
+            log::warn!(
+                "metadata-only span {} (trace {}) has no metadata attributes; patch dropped",
+                m.span.span_id,
+                m.span.trace_id
+            );
+            continue;
+        };
+        match serde_json::to_value(&metadata) {
+            Ok(metadata_value) => metadata_patches.push(TraceMetadataPatch {
+                trace_id: m.span.trace_id,
+                project_id: m.span.project_id,
+                metadata: metadata_value,
+            }),
+            Err(e) => log::warn!(
+                "metadata-only span {} (trace {}): failed to serialize metadata; patch dropped: {:?}",
+                m.span.span_id,
+                m.span.trace_id,
+                e
+            ),
+        }
+    }
     messages.retain(|m| !m.span.attributes.is_metadata_only());
+
+    // `traces_replacing` path: surface extracted io as trace metadata keys
+    // so it lands in `traces_replacing.metadata` (the current read path).
+    // Written on BOTH flag states for now — while `WRITE_TRACES_AGG` is a
+    // migration bridge, io lives in both `traces_replacing.metadata` AND the
+    // `trace_agent_input`/`_output` supplementary tables. Once the read path
+    // cuts over to `traces_agg_v0`, gate this fold on `!WRITE_TRACES_AGG` (or
+    // drop it) — all metadata-key knowledge of io lives here and dies with
+    // the old table.
+    for io in &raw_trace_io {
+        let mut map = serde_json::Map::new();
+        if let Some(value) = &io.input {
+            map.insert(USER_TASK_METADATA_KEY.to_string(), value.clone());
+        }
+        if let Some(value) = &io.output {
+            map.insert(TRACE_OUTPUT_METADATA_KEY.to_string(), value.clone());
+        }
+        if !map.is_empty() {
+            metadata_patches.push(TraceMetadataPatch {
+                trace_id: io.trace_id,
+                project_id: io.project_id,
+                metadata: Value::Object(map),
+            });
+        }
+    }
 
     // Enrich spans with usage info
     let mut span_usage_vec = Vec::with_capacity(messages.len());
@@ -468,9 +564,7 @@ pub async fn process_span_messages(
         if !metadata_patches.is_empty() {
             match merge_trace_metadata_batch(&db.pool, &metadata_patches).await {
                 Ok(patched) => patched_traces = patched,
-                Err(e) => {
-                    log::error!("Failed to merge trace metadata patches: {:?}", e);
-                }
+                Err(e) => log::error!("Failed to merge trace metadata patches: {:?}", e),
             }
         }
         // Stub rows (patch beat the span batch) carry `now()` placeholder
@@ -566,6 +660,23 @@ pub async fn process_span_messages(
                         e
                     );
                 }
+            }
+
+            // Extracted agent input/output: store the RAW value directly in
+            // the supplementary latest-wins RMT tables. On this path io never
+            // rides PG metadata (the deprecated fold is skipped when the flag
+            // is on), so there's no PG counterpart to gate on.
+            let (agent_input_rows, agent_output_rows) =
+                collect_agent_io_rows(&raw_trace_io, now_ns);
+            if !agent_input_rows.is_empty()
+                && let Err(e) = ch.insert_batch(&agent_input_rows, config).await
+            {
+                log::error!("Failed to insert trace_agent_input rows to ClickHouse: {e:?}");
+            }
+            if !agent_output_rows.is_empty()
+                && let Err(e) = ch.insert_batch(&agent_output_rows, config).await
+            {
+                log::error!("Failed to insert trace_agent_output rows to ClickHouse: {e:?}");
             }
         }
 
