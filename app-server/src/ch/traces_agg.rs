@@ -10,6 +10,9 @@ use super::{
     ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS, Table,
 };
 use crate::db::trace::Trace;
+use crate::traces::input_extraction::metadata::{
+    TRACE_OUTPUT_METADATA_KEY, USER_TASK_METADATA_KEY,
+};
 
 /// `statuses` Enum8 values; must match the DDL enum
 /// `Enum8('success' = 1, 'error' = 2)` in the traces_agg migration.
@@ -71,6 +74,14 @@ fn encode_metadata(metadata: Option<&Value>) -> Vec<(String, String)> {
         return Vec::new();
     };
     map.iter()
+        // Extracted io lives in the `trace_agent_input`/`trace_agent_output`
+        // supplementary tables, not the traces_agg maxMap. The metadata
+        // patch that carries these keys is written to `traces_replacing`
+        // (the current read path) AND flows here via `from_patched_trace`,
+        // so strip them to keep the two stores from diverging.
+        .filter(|(k, _)| {
+            k.as_str() != USER_TASK_METADATA_KEY && k.as_str() != TRACE_OUTPUT_METADATA_KEY
+        })
         .map(|(k, v)| (k.clone(), v.to_string()))
         .collect()
 }
@@ -226,6 +237,22 @@ mod tests {
         assert_eq!(b.1, "\"x\"");
         let c = encoded.iter().find(|(k, _)| k == "c").unwrap();
         assert_eq!(c.1, "{\"nested\":true}");
+    }
+
+    #[test]
+    fn extracted_io_keys_are_stripped_from_metadata() {
+        // The patch that carries these keys also lands in traces_replacing;
+        // here (traces_agg) they must NOT appear — io lives in the
+        // supplementary RMT tables.
+        let metadata = json!({
+            "user_key": "keep",
+            "lmnr_user_task": "the task",
+            "lmnr_trace_output": "the answer",
+        });
+        let encoded = encode_metadata(Some(&metadata));
+        assert!(encoded.iter().any(|(k, _)| k == "user_key"));
+        assert!(!encoded.iter().any(|(k, _)| k == "lmnr_user_task"));
+        assert!(!encoded.iter().any(|(k, _)| k == "lmnr_trace_output"));
     }
 
     #[test]
