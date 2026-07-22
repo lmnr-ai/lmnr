@@ -147,6 +147,16 @@ pub struct NormalizedTrigger {
 /// Validate + normalize a trigger's filters WITHOUT touching the DB, so callers
 /// (the CLI) can reject a bad trigger with a 400 before creating the signal.
 pub fn normalize_trigger(input: TriggerInput) -> Result<NormalizedTrigger, CrudError> {
+    // Same range the deleted Zod schema enforced (`mode: min(0).max(1)`). An
+    // out-of-range value would persist a trigger outside both evaluator paths
+    // (SignalMode::from_u8 folds anything != 1 into Batch).
+    if let Some(mode) = input.mode
+        && !(0..=1).contains(&mode)
+    {
+        return Err(CrudError::Validation(
+            "mode must be 0 (batch) or 1 (realtime)".to_string(),
+        ));
+    }
     Ok(NormalizedTrigger {
         filters: validate_and_normalize_trigger_filters(input.filters)?,
         mode: input.mode,
