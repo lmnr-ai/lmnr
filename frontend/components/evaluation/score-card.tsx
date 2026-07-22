@@ -38,7 +38,12 @@ export default function ScoreCard({
         <Skeleton className="h-full w-full" />
       ) : (
         <>
-          <Select value={selectedScore} onValueChange={setSelectedScore}>
+          <Select
+            value={selectedScore}
+            onValueChange={(v) => {
+              if (v != null) setSelectedScore(v);
+            }}
+          >
             <SelectTrigger className="w-fit font-medium text-secondary-foreground h-7">
               <SelectValue placeholder="Select score" className="text-lg" />
             </SelectTrigger>

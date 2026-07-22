@@ -95,11 +95,7 @@ export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDa
         setData(DEFAULT_DATA);
       }}
     >
-      <DialogTrigger asChild>
-        <Button icon="rows2" variant="secondary">
-          Add row
-        </Button>
-      </DialogTrigger>
+      <DialogTrigger render={<Button icon="rows2" variant="secondary" />}>Add row</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create datapoint</DialogTitle>

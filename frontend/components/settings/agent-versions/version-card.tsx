@@ -51,38 +51,41 @@ export default function VersionCard({ version, previous, versionNumber, isLatest
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="border rounded-md">
-      <CollapsibleTrigger asChild>
-        <div
-          role="button"
-          tabIndex={0}
-          className="flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left hover:bg-muted/50 transition-colors"
-        >
-          <ChevronRight
-            className={cn("size-3.5 flex-shrink-0 text-muted-foreground transition-transform", open && "rotate-90")}
+      <CollapsibleTrigger
+        nativeButton={false}
+        render={
+          <div
+            role="button"
+            tabIndex={0}
+            className="flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left hover:bg-muted/50 transition-colors"
           />
-          <span className="text-sm font-medium">Version {versionNumber}</span>
-          {isLatest && <span className="text-xs font-medium text-primary">Latest</span>}
-          <span className="text-xs text-muted-foreground">{formatTimestamp(version.createdAt)}</span>
-          <div className="flex-1" />
-          <span className="font-mono text-xs text-muted-foreground">{version.model}</span>
-          <div className="flex items-center gap-1.5">
-            {previous ? (
-              changes.length > 0 ? (
-                <>
-                  <span className="text-xs text-muted-foreground">Changed</span>
-                  {changes.map((c) => (
-                    <Badge key={c} variant="outline" className="h-5 font-normal text-muted-foreground">
-                      {c}
-                    </Badge>
-                  ))}
-                </>
-              ) : (
-                <span className="text-xs text-muted-foreground">No changes</span>
-              )
+        }
+      >
+        <ChevronRight
+          className={cn("size-3.5 flex-shrink-0 text-muted-foreground transition-transform", open && "rotate-90")}
+        />
+        <span className="text-sm font-medium">Version {versionNumber}</span>
+        {isLatest && <span className="text-xs font-medium text-primary">Latest</span>}
+        <span className="text-xs text-muted-foreground">{formatTimestamp(version.createdAt)}</span>
+        <div className="flex-1" />
+        <span className="font-mono text-xs text-muted-foreground">{version.model}</span>
+        <div className="flex items-center gap-1.5">
+          {previous ? (
+            changes.length > 0 ? (
+              <>
+                <span className="text-xs text-muted-foreground">Changed</span>
+                {changes.map((c) => (
+                  <Badge key={c} variant="outline" className="h-5 font-normal text-muted-foreground">
+                    {c}
+                  </Badge>
+                ))}
+              </>
             ) : (
-              <span className="text-xs text-muted-foreground">Initial version</span>
-            )}
-          </div>
+              <span className="text-xs text-muted-foreground">No changes</span>
+            )
+          ) : (
+            <span className="text-xs text-muted-foreground">Initial version</span>
+          )}
         </div>
       </CollapsibleTrigger>
       <CollapsibleContent>

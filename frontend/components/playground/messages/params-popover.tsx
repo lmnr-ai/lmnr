@@ -1,4 +1,3 @@
-import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { SlidersHorizontal } from "lucide-react";
 import { Controller, useFormContext } from "react-hook-form";
 
@@ -22,21 +21,23 @@ const ParamsPopover = ({ className }: ParamsPopoverProps) => {
   return (
     <Popover>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <Button
-              size="icon"
-              disabled={!watch("model")}
-              variant="outline"
-              className={cn(className, "self-end size-7")}
-            >
-              <SlidersHorizontal className="size-3.5" />
-            </Button>
-          </PopoverTrigger>
+        <TooltipTrigger
+          render={
+            <PopoverTrigger
+              render={
+                <Button
+                  size="icon"
+                  disabled={!watch("model")}
+                  variant="outline"
+                  className={cn(className, "self-end size-7")}
+                />
+              }
+            />
+          }
+        >
+          <SlidersHorizontal className="size-3.5" />
         </TooltipTrigger>
-        <TooltipPortal>
-          <TooltipContent>Model Parameters</TooltipContent>
-        </TooltipPortal>
+        <TooltipContent>Model Parameters</TooltipContent>
       </Tooltip>
       <PopoverContent align="start" className="flex flex-col gap-6 w-80 p-4">
         <div className="flex flex-col gap-2">

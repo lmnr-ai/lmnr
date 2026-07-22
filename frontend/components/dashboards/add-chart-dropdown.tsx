@@ -69,9 +69,7 @@ const AddChartDropdown = ({ onChartCreated }: { onChartCreated?: () => void }) =
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button icon="plus">Chart</Button>
-      </PopoverTrigger>
+      <PopoverTrigger render={<Button icon="plus" />}>Chart</PopoverTrigger>
       <PopoverContent align="end" className="w-64 p-0">
         <div className="p-1 border-b">
           <Link href={{ pathname: "dashboards/new" }} onClick={() => setOpen(false)}>

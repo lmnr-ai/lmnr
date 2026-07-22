@@ -1,5 +1,4 @@
 "use client";
-import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { Globe, Link, Loader2, Lock, Share } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
@@ -69,19 +68,17 @@ const ShareEvalButton = ({ evaluationId, projectId }: ShareEvalButtonProps) => {
   };
 
   return (
-    <TooltipProvider delayDuration={0}>
+    <TooltipProvider delay={0}>
       <Popover>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <PopoverTrigger asChild>
-              <Button className="relative hover:bg-secondary px-1.5" variant="secondary">
-                {visibility === "public" ? <Globe className="h-4 w-4" /> : <Share className="h-4 w-4" />}
-              </Button>
-            </PopoverTrigger>
+          <TooltipTrigger
+            render={
+              <PopoverTrigger render={<Button className="relative hover:bg-secondary px-1.5" variant="secondary" />} />
+            }
+          >
+            {visibility === "public" ? <Globe className="h-4 w-4" /> : <Share className="h-4 w-4" />}
           </TooltipTrigger>
-          <TooltipPortal>
-            <TooltipContent>Share Evaluation</TooltipContent>
-          </TooltipPortal>
+          <TooltipContent>Share Evaluation</TooltipContent>
         </Tooltip>
         <PopoverContent className="flex flex-col gap-3 w-80" align="end">
           {visibility === "public" ? (

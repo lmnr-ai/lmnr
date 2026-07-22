@@ -37,10 +37,10 @@ export default function EvalsPagePlaceholder() {
               <TabsTrigger value="agent">Coding agent</TabsTrigger>
               <TabsTrigger value="manual">Manual</TabsTrigger>
             </TabsList>
-            <TabsContent asChild value="agent">
+            <TabsContent value="agent">
               <AgentTab />
             </TabsContent>
-            <TabsContent asChild value="manual">
+            <TabsContent value="manual">
               <ManualTab />
             </TabsContent>
           </Tabs>

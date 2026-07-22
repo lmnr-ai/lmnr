@@ -1,6 +1,5 @@
 "use client";
 
-import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { Loader2, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -10,7 +9,7 @@ import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipPortal, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 import SignalDetails from "./signal-details";
@@ -98,10 +97,8 @@ export default function PanelBody({ traceId, onClose }: Props) {
 
   const closeButton = (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Button variant="ghost" className="h-6 w-6 p-0 shrink-0" onClick={onClose}>
-          <X className="size-3.5" />
-        </Button>
+      <TooltipTrigger render={<Button variant="ghost" className="h-6 w-6 p-0 shrink-0" onClick={onClose} />}>
+        <X className="size-3.5" />
       </TooltipTrigger>
       <TooltipPortal>
         <TooltipContent side="top">Close</TooltipContent>
@@ -117,7 +114,7 @@ export default function PanelBody({ traceId, onClose }: Props) {
         </div>
       ) : (
         <Tabs value={effectiveTabId} onValueChange={setActiveSignalTabId} className="flex flex-col gap-0">
-          <TooltipProvider delayDuration={300}>
+          <TooltipProvider delay={300}>
             <div className="shrink-0 flex items-center gap-2 justify-between px-2 py-1 bg-blue-400/12">
               {isSingleSignal && activeSignal ? (
                 <span className="flex items-center min-w-0 pl-1 text-xs font-medium">
@@ -131,7 +128,7 @@ export default function PanelBody({ traceId, onClose }: Props) {
                       value={signal.signalId}
                       className={cn(
                         "flex-1 min-w-0 h-auto px-2 py-1 text-xs rounded-md",
-                        "data-[state=active]:bg-gray-900 data-[state=active]:shadow-none data-[state=active]:text-foreground",
+                        "data-active:bg-gray-900 data-active:shadow-none data-active:text-foreground",
                         "text-secondary-foreground hover:text-foreground"
                       )}
                     >
@@ -144,7 +141,7 @@ export default function PanelBody({ traceId, onClose }: Props) {
             </div>
           </TooltipProvider>
           <ScrollArea
-            className="[&>div>div]:!block [&>[data-radix-scroll-area-viewport]]:!h-full"
+            className="[&>div>div]:!block [&>[data-slot=scroll-area-viewport]]:!h-full"
             style={bodyHeight !== null ? { height: bodyHeight } : undefined}
           >
             <div ref={contentRef}>

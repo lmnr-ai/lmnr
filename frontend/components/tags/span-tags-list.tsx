@@ -155,11 +155,11 @@ const SpanTagsList = ({ spanId, className }: SpanTagsListProps) => {
         onDetach={onDetach}
         onCreateAndAttach={onCreateAndAttach}
       >
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" className={cn("h-6 text-xs px-1.5 gap-1.5", className)}>
-            <Tag className="size-3.5" />
-            Tags
-          </Button>
+        <DropdownMenuTrigger
+          render={<Button variant="outline" className={cn("h-6 text-xs px-1.5 gap-1.5", className)} />}
+        >
+          <Tag className="size-3.5" />
+          Tags
         </DropdownMenuTrigger>
       </TagsDropdown>
       {tags.map(({ name, color, id }) => (

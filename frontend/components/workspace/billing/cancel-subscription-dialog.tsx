@@ -2,7 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { type ReactNode, useState, useTransition } from "react";
+import React, { type ReactNode, useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -83,7 +83,7 @@ export default function CancelSubscriptionDialog({
         setOpen(value);
       }}
     >
-      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogTrigger render={children as React.ReactElement} />
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Cancel subscription</DialogTitle>

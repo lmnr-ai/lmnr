@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useProjectContext } from "@/contexts/project-context";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -95,33 +95,29 @@ export default function DeleteProject() {
         description="Permanently delete this project and all of its data. This action cannot be undone."
       />
       <Dialog open={isDialogOpen} onOpenChange={resetAndClose}>
-        <DialogTrigger asChild>
-          <TooltipProvider delayDuration={0}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                {/* Span wrapper so the tooltip still receives pointer events when the button is disabled. */}
-                <span className="w-fit">
-                  <Button
-                    icon="trash"
-                    onClick={() => setIsDialogOpen(true)}
-                    variant="outline"
-                    disabled={isOnlyProject}
-                    className="w-fit text-destructive border-destructive"
-                  >
-                    Delete project
-                  </Button>
-                </span>
-              </TooltipTrigger>
-              {isOnlyProject && (
-                <TooltipContent>
-                  This is the only project in the workspace.
-                  <br />
-                  Create another project before deleting this one.
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
-        </DialogTrigger>
+        <TooltipProvider delay={0}>
+          <Tooltip>
+            <TooltipTrigger render={<span className="w-fit" />}>
+              {/* Span wrapper so the tooltip still receives pointer events when the button is disabled. */}
+              <Button
+                icon="trash"
+                onClick={() => setIsDialogOpen(true)}
+                variant="outline"
+                disabled={isOnlyProject}
+                className="w-fit text-destructive border-destructive"
+              >
+                Delete project
+              </Button>
+            </TooltipTrigger>
+            {isOnlyProject && (
+              <TooltipContent>
+                This is the only project in the workspace.
+                <br />
+                Create another project before deleting this one.
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
 
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

@@ -230,7 +230,12 @@ const ToolResultOutput = ({
       <span className="text-secondary-foreground text-xs">Result</span>
       <Controller
         render={({ field: { value, onChange } }) => (
-          <Select value={value} onValueChange={onChange}>
+          <Select
+            value={value}
+            onValueChange={(v) => {
+              if (v != null) onChange(v);
+            }}
+          >
             <SelectTrigger className="w-fit border-none pl-1">
               <SelectValue />
             </SelectTrigger>

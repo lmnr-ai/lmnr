@@ -22,13 +22,13 @@ export default function Toolbar() {
     <>
       <div className="flex items-center gap-3">
         <NavigatorBar />
-        <TooltipProvider delayDuration={200}>
+        <TooltipProvider delay={200}>
           <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="secondary" onClick={() => setPushOpen(true)} disabled={triggerDisabled}>
-                <Database className="size-3.5 mr-1" />
-                Push to dataset
-              </Button>
+            <TooltipTrigger
+              render={<Button variant="secondary" onClick={() => setPushOpen(true)} disabled={triggerDisabled} />}
+            >
+              <Database className="size-3.5 mr-1" />
+              Push to dataset
             </TooltipTrigger>
             {triggerHint && <TooltipContent>{triggerHint}</TooltipContent>}
           </Tooltip>

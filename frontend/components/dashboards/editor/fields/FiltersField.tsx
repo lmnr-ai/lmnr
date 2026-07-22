@@ -40,6 +40,7 @@ const FilterRow = ({ index, control, table, setValue, remove }: FilterRowProps) 
           <Select
             value={value}
             onValueChange={(newField) => {
+              if (newField == null) return;
               const newColumn = getAvailableColumns(table).find((col) => col.name === newField);
               const isNowNumeric = newColumn?.type === "number";
 
@@ -89,7 +90,12 @@ const FilterRow = ({ index, control, table, setValue, remove }: FilterRowProps) 
         name={`filters.${index}.op`}
         control={control}
         render={({ field: { onChange, value } }) => (
-          <Select value={value} onValueChange={onChange}>
+          <Select
+            value={value}
+            onValueChange={(v) => {
+              if (v != null) onChange(v);
+            }}
+          >
             <SelectTrigger className="w-fit font-medium text-xs px-3">
               <SelectValue />
             </SelectTrigger>

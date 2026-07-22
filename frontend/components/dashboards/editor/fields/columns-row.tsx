@@ -67,7 +67,12 @@ const ColumnsRow = ({ index, table, disabledColumnNames, onRemove, canRemove }: 
   return (
     <div className={cn("grid gap-2", isCustom && "border rounded p-2 bg-secondary/50")}>
       <div className="flex gap-2 items-center">
-        <Select value={sourceValue} onValueChange={handleSourceChange}>
+        <Select
+          value={sourceValue}
+          onValueChange={(v) => {
+            if (v != null) handleSourceChange(v);
+          }}
+        >
           <SelectTrigger className="text-xs flex-1">
             <SelectValue placeholder="Select column">
               {sourceValue === CUSTOM_OPTION_VALUE ? "Custom SQL" : sourceValue}

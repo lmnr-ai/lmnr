@@ -71,7 +71,12 @@ export default function SchemaFieldRow({
               name={`schemaFields.${index}.type`}
               control={control}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={handleTypeChange}>
+                <Select
+                  value={field.value}
+                  onValueChange={(v) => {
+                    if (v != null) handleTypeChange(v);
+                  }}
+                >
                   <SelectTrigger className="w-28">
                     <SelectValue />
                   </SelectTrigger>
@@ -92,7 +97,12 @@ export default function SchemaFieldRow({
             name={`schemaFields.${index}.type`}
             control={control}
             render={({ field }) => (
-              <Select value={field.value} onValueChange={handleTypeChange}>
+              <Select
+                value={field.value}
+                onValueChange={(v) => {
+                  if (v != null) handleTypeChange(v);
+                }}
+              >
                 <SelectTrigger className="w-28">
                   <SelectValue />
                 </SelectTrigger>

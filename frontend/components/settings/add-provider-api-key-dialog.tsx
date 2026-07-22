@@ -35,11 +35,7 @@ export default function AddProviderApiKeyVarDialog({ existingKeyNames, onAdd }: 
         setEnvVarValue("");
       }}
     >
-      <DialogTrigger asChild>
-        <Button icon="plus" variant="outline" className="w-fit">
-          API Key
-        </Button>
-      </DialogTrigger>
+      <DialogTrigger render={<Button icon="plus" variant="outline" className="w-fit" />}>API Key</DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Add API key</DialogTitle>
@@ -49,6 +45,7 @@ export default function AddProviderApiKeyVarDialog({ existingKeyNames, onAdd }: 
             <Label>Name</Label>
             <Select
               onValueChange={(value) => {
+                if (typeof value !== "string") return;
                 setEnvVarType(value);
                 if (value !== "custom") {
                   setEnvVarName(value);
@@ -95,21 +92,23 @@ export default function AddProviderApiKeyVarDialog({ existingKeyNames, onAdd }: 
           </div>
         </div>
         <DialogFooter>
-          <DialogClose asChild>
-            <Button
-              disabled={
-                envVarValue === "" || envVarName === "" || envVarType === "" || existingKeyNames.includes(envVarName)
-              }
-              onClick={() => {
-                setEnvVarName("");
-                setEnvVarType("");
-                setEnvVarValue("");
-                onAdd(envVarName, envVarValue);
-              }}
-              handleEnter
-            >
-              Add
-            </Button>
+          <DialogClose
+            render={
+              <Button
+                disabled={
+                  envVarValue === "" || envVarName === "" || envVarType === "" || existingKeyNames.includes(envVarName)
+                }
+                onClick={() => {
+                  setEnvVarName("");
+                  setEnvVarType("");
+                  setEnvVarValue("");
+                  onAdd(envVarName, envVarValue);
+                }}
+                handleEnter
+              />
+            }
+          >
+            Add
           </DialogClose>
         </DialogFooter>
       </DialogContent>

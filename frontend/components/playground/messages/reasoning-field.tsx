@@ -25,7 +25,12 @@ const ReasoningField = () => {
         <span className="text-sm">Reasoning Effort</span>
         <Controller
           render={({ field: { value, onChange } }) => (
-            <Select value={value} onValueChange={onChange}>
+            <Select
+              value={value}
+              onValueChange={(v) => {
+                if (v != null) onChange(v);
+              }}
+            >
               <SelectTrigger className="w-fit">
                 <SelectValue placeholder="Select reasoning" />
               </SelectTrigger>
@@ -54,7 +59,12 @@ const ReasoningField = () => {
           <span className="text-sm font-medium">Effort</span>
           <Controller
             render={({ field: { value, onChange } }) => (
-              <Select value={value} onValueChange={onChange}>
+              <Select
+                value={value}
+                onValueChange={(v) => {
+                  if (v != null) onChange(v);
+                }}
+              >
                 <SelectTrigger className="w-fit">
                   <SelectValue placeholder="Select effort" />
                 </SelectTrigger>
@@ -109,7 +119,12 @@ const ReasoningField = () => {
 
           <Controller
             render={({ field: { value, onChange } }) => (
-              <Select value={value} onValueChange={onChange}>
+              <Select
+                value={value}
+                onValueChange={(v) => {
+                  if (v != null) onChange(v);
+                }}
+              >
                 <SelectTrigger className="w-fit">
                   <SelectValue placeholder="Reasoning type" />
                 </SelectTrigger>
@@ -140,7 +155,12 @@ const ReasoningField = () => {
             <span className="text-sm font-medium">Thinking Level</span>
             <Controller
               render={({ field: { value, onChange } }) => (
-                <Select value={value} onValueChange={onChange}>
+                <Select
+                  value={value}
+                  onValueChange={(v) => {
+                    if (v != null) onChange(v);
+                  }}
+                >
                   <SelectTrigger className="w-fit">
                     <SelectValue placeholder="Select level" />
                   </SelectTrigger>

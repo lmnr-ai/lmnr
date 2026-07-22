@@ -59,14 +59,16 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
         <div className="flex flex-none items-center space-x-2">
           <SpanTypeIcon spanType={span.spanType} />
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                className="h-6 px-1 text-base font-medium focus-visible:outline-0 truncate text-left min-w-0"
-              >
-                <span className="truncate">{span.name}</span>
-                <ChevronDown className="ml-1 min-w-3.5 size-3.5" />
-              </Button>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  className="h-6 px-1 text-base font-medium focus-visible:outline-0 truncate text-left min-w-0"
+                />
+              }
+            >
+              <span className="truncate">{span.name}</span>
+              <ChevronDown className="ml-1 min-w-3.5 size-3.5" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
               <DropdownMenuItem onClick={handleCopySpanId}>

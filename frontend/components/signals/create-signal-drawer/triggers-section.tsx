@@ -1,6 +1,5 @@
 "use client";
 
-import { SelectValue } from "@radix-ui/react-select";
 import { Info, Plus, Trash2, X } from "lucide-react";
 import { Controller, useFieldArray, useFormContext } from "react-hook-form";
 
@@ -9,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select.tsx";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { Feature } from "@/lib/features/features";
@@ -54,7 +53,12 @@ function TriggerFilterRow({
         name={`triggers.${triggerIndex}.filters.${filterIndex}.column`}
         control={control}
         render={({ field }) => (
-          <Select value={field.value} onValueChange={(value) => handleColumnChange(value, field.onChange)}>
+          <Select
+            value={field.value}
+            onValueChange={(value) => {
+              if (value != null) handleColumnChange(value, field.onChange);
+            }}
+          >
             <SelectTrigger className="w-48 truncate">
               <span className="truncate">
                 {SIGNAL_TRIGGER_COLUMNS.find((c) => c.key === field.value)?.name || "Select column..."}
@@ -74,7 +78,12 @@ function TriggerFilterRow({
         name={`triggers.${triggerIndex}.filters.${filterIndex}.operator`}
         control={control}
         render={({ field }) => (
-          <Select value={field.value} onValueChange={field.onChange}>
+          <Select
+            value={field.value}
+            onValueChange={(v) => {
+              if (v != null) field.onChange(v);
+            }}
+          >
             <SelectTrigger className="w-12">
               <span>{operations.find((op) => op.key === field.value)?.label || field.value}</span>
             </SelectTrigger>
@@ -94,7 +103,12 @@ function TriggerFilterRow({
         rules={{ required: "Value is required" }}
         render={({ field }) =>
           dataType === "enum" && column && "options" in column ? (
-            <Select value={field.value as string} onValueChange={field.onChange}>
+            <Select
+              value={field.value as string}
+              onValueChange={(v) => {
+                if (v != null) field.onChange(v);
+              }}
+            >
               <SelectTrigger className="flex-1">
                 <span>{column.options.find((opt) => opt.value === field.value)?.label || "Select value..."}</span>
               </SelectTrigger>
@@ -165,7 +179,12 @@ function TriggerCard({ triggerIndex, onRemove }: { triggerIndex: number; onRemov
             render={({ field }) => (
               <div className="flex items-center gap-3">
                 <div>
-                  <Select value={String(field.value ?? 0)} onValueChange={(v) => field.onChange(Number(v))}>
+                  <Select
+                    value={String(field.value ?? 0)}
+                    onValueChange={(v) => {
+                      if (v != null) field.onChange(Number(v));
+                    }}
+                  >
                     <SelectTrigger className="h-7 text-xs">
                       <SelectValue placeholder="Select processing mode" />
                     </SelectTrigger>
@@ -201,13 +220,11 @@ export default function TriggersSection() {
   return (
     <div className="grid gap-1.5">
       <div className="flex items-center justify-between">
-        <TooltipProvider delayDuration={200}>
+        <TooltipProvider delay={200}>
           <div className="flex items-center gap-1.5">
             <Label className="text-sm font-medium">Triggers</Label>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
-              </TooltipTrigger>
+              <TooltipTrigger render={<Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />} />
               <TooltipContent side="right" className="max-w-60">
                 <p>Signal will run when the following conditions on trace are met.</p>
               </TooltipContent>

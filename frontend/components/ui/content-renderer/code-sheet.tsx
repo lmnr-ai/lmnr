@@ -44,10 +44,8 @@ const PureCodeSheet = ({ mode, modes, renderedValue, extensions, onModeChange, p
 
   return (
     <Sheet>
-      <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="text-foreground/80">
-          <Maximize className="h-3.5 w-3.5" />
-        </Button>
+      <SheetTrigger render={<Button variant="ghost" size="icon" className="text-foreground/80" />}>
+        <Maximize className="h-3.5 w-3.5" />
       </SheetTrigger>
       <SheetContent side="right" className="flex flex-col gap-0 min-w-[50vw]">
         <div className="flex flex-col h-full bg-muted/50">
@@ -66,10 +64,8 @@ const PureCodeSheet = ({ mode, modes, renderedValue, extensions, onModeChange, p
                 variant="ghost"
                 text={sheetMode === "markdown" ? getMarkdownSource(renderedValue) : renderedValue}
               />
-              <SheetClose asChild>
-                <Button variant="ghost" size="icon">
-                  <Minimize className="h-4 w-4" />
-                </Button>
+              <SheetClose render={<Button variant="ghost" size="icon" />}>
+                <Minimize className="h-4 w-4" />
               </SheetClose>
             </div>
           </div>

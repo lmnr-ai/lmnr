@@ -25,11 +25,9 @@ function PayloadFieldHeader({ name, description }: { name: string; description: 
   }
 
   return (
-    <TooltipProvider delayDuration={300}>
+    <TooltipProvider delay={300}>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <span className="cursor-default">{name}</span>
-        </TooltipTrigger>
+        <TooltipTrigger render={<span className="cursor-default" />}>{name}</TooltipTrigger>
         <TooltipContent side="bottom" className="max-w-[250px]">
           <p>{description}</p>
         </TooltipContent>
@@ -267,7 +265,7 @@ const staticColumnsAfterPayload: ColumnDef<EventRow>[] = [
       const traceId = String(row.getValue());
       return (
         <div className="flex items-center min-w-0">
-          <CopyTooltip value={traceId} delayDuration={300} className="min-w-0 truncate">
+          <CopyTooltip value={traceId} delay={300} className="min-w-0 truncate">
             <span className="font-mono text-xs truncate" dir="rtl">
               {traceId}
             </span>

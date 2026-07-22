@@ -37,16 +37,18 @@ export const Combobox: FC<ComboboxProps> = ({
   const [open, setOpen] = React.useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className={cn("justify-between", triggerClassName)}
-        >
-          {value ? items.find((item) => item.value === value)?.label : placeholder}
-          <ChevronsUpDown className="opacity-50 w-4" />
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className={cn("justify-between", triggerClassName)}
+          />
+        }
+      >
+        {value ? items.find((item) => item.value === value)?.label : placeholder}
+        <ChevronsUpDown className="opacity-50 w-4" />
       </PopoverTrigger>
       <PopoverContent align="start" className={cn("p-0 ", className)} onWheel={(e) => e.stopPropagation()}>
         <Command>

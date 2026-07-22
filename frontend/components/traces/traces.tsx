@@ -82,13 +82,13 @@ function TracesContent() {
             Sessions
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="traces" asChild>
+        <TabsContent value="traces">
           <TracesTable />
         </TabsContent>
-        <TabsContent value="spans" asChild>
+        <TabsContent value="spans">
           <SpansTable />
         </TabsContent>
-        <TabsContent value="sessions" asChild>
+        <TabsContent value="sessions">
           <SessionsTable />
         </TabsContent>
       </Tabs>

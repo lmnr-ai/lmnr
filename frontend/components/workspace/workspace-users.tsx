@@ -117,7 +117,9 @@ export default function WorkspaceUsers({ invitations, workspace, isOwner, curren
         return (
           <Select
             value={user.role}
-            onValueChange={(newRole: WorkspaceRole) => handleRoleChange(user.id, newRole)}
+            onValueChange={(newRole) => {
+              if (newRole != null) handleRoleChange(user.id, newRole);
+            }}
             disabled={updatingRoleUserId === user.id}
           >
             <SelectTrigger className="w-24">
@@ -205,14 +207,12 @@ export default function WorkspaceUsers({ invitations, workspace, isOwner, curren
           />
           {canManageUsers &&
             (featureFlags[Feature.SUBSCRIPTION] && isFreeTier ? (
-              <TooltipProvider delayDuration={0}>
+              <TooltipProvider delay={0}>
                 <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span tabIndex={0}>
-                      <Button icon="plus" variant="outline" disabled>
-                        Invite member
-                      </Button>
-                    </span>
+                  <TooltipTrigger render={<span tabIndex={0} />}>
+                    <Button icon="plus" variant="outline" disabled>
+                      Invite member
+                    </Button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="flex flex-col gap-1 p-2">
                     <p className="text-xs">Inviting members is not available on the Free plan.</p>

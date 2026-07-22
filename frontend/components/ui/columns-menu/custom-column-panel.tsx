@@ -136,7 +136,12 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn, config }: Cus
           </div>
           <div className="grid gap-1.5">
             <Label className="text-xs">Data type</Label>
-            <Select value={dataType} onValueChange={(v) => setDataType(v as "string" | "number")}>
+            <Select
+              value={dataType}
+              onValueChange={(v) => {
+                if (v != null) setDataType(v as "string" | "number");
+              }}
+            >
               <SelectTrigger className="h-8 text-sm">
                 <SelectValue />
               </SelectTrigger>

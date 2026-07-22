@@ -3,7 +3,7 @@
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type ReactNode, useCallback, useState } from "react";
+import { type ReactElement, type ReactNode, useCallback, useState } from "react";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -74,20 +74,24 @@ export default function ProjectCreateDialog({
 
   const hasReachedFreeLimit = isFreeTier && (projectCount ?? 0) >= 1;
 
+  const trigger = (children as ReactElement) ?? (
+    <Button icon="plus" className={cn("w-fit", className)}>
+      Project
+    </Button>
+  );
+
   if (hasReachedFreeLimit) {
     return (
-      <TooltipProvider delayDuration={0}>
+      <TooltipProvider delay={0}>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <span tabIndex={0} className={cn("w-fit", className)} aria-disabled>
-              {children ? (
-                <span className="pointer-events-none opacity-50">{children}</span>
-              ) : (
-                <Button icon="plus" className={cn("w-fit", className)} disabled>
-                  Project
-                </Button>
-              )}
-            </span>
+          <TooltipTrigger render={<span tabIndex={0} className={cn("w-fit", className)} aria-disabled />}>
+            {children ? (
+              <span className="pointer-events-none opacity-50">{children}</span>
+            ) : (
+              <Button icon="plus" className={cn("w-fit", className)} disabled>
+                Project
+              </Button>
+            )}
           </TooltipTrigger>
           <TooltipContent side="bottom" className="flex flex-col gap-1 p-2">
             <p className="text-xs">Free plan is limited to 1 project per workspace.</p>
@@ -110,13 +114,7 @@ export default function ProjectCreateDialog({
         setNewProjectName("");
       }}
     >
-      <DialogTrigger asChild>
-        {children ?? (
-          <Button icon="plus" className={cn("w-fit", className)}>
-            Project
-          </Button>
-        )}
-      </DialogTrigger>
+      <DialogTrigger render={trigger} />
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>New project</DialogTitle>

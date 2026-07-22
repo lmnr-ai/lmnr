@@ -132,7 +132,13 @@ export function CreateFirstProject({ userCode, workspaces, onApproved, onDenied 
               </Field>
             ) : workspaces.length > 1 ? (
               <Field label="Workspace">
-                <Select value={workspaceId} onValueChange={setWorkspaceId} disabled={busy}>
+                <Select
+                  value={workspaceId}
+                  onValueChange={(v) => {
+                    if (v != null) setWorkspaceId(v);
+                  }}
+                  disabled={busy}
+                >
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="Select a workspace" />
                   </SelectTrigger>

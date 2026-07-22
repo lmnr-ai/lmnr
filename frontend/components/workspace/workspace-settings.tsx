@@ -175,11 +175,18 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
           description="Update the name of your workspace. Changes will take effect immediately."
         />
         <Dialog open={isRenameDialogOpen} onOpenChange={resetAndCloseRenameDialog}>
-          <DialogTrigger asChild>
-            <Button disabled={!isOwner} onClick={() => setIsRenameDialogOpen(true)} variant="outline" className="w-fit">
-              <Edit className="w-4 h-4 mr-2" />
-              Rename
-            </Button>
+          <DialogTrigger
+            render={
+              <Button
+                disabled={!isOwner}
+                onClick={() => setIsRenameDialogOpen(true)}
+                variant="outline"
+                className="w-fit"
+              />
+            }
+          >
+            <Edit className="w-4 h-4 mr-2" />
+            Rename
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
@@ -228,16 +235,18 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
           description="Permanently delete this workspace and all of its data, including all projects. This action cannot be undone."
         />
         <Dialog open={isDeleteDialogOpen} onOpenChange={resetAndCloseDeleteDialog}>
-          <DialogTrigger asChild>
-            <Button
-              disabled={!isOwner}
-              onClick={() => setIsDeleteDialogOpen(true)}
-              variant="outline"
-              className="w-fit text-destructive border-destructive"
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Delete
-            </Button>
+          <DialogTrigger
+            render={
+              <Button
+                disabled={!isOwner}
+                onClick={() => setIsDeleteDialogOpen(true)}
+                variant="outline"
+                className="w-fit text-destructive border-destructive"
+              />
+            }
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Delete
           </DialogTrigger>
 
           <DialogContent className="sm:max-w-md">

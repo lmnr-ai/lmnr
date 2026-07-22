@@ -189,7 +189,7 @@ const NotificationPanel = () => {
                   max-content and lets unbreakable strings (URLs, IDs) push past 100%. The clipped overflow
                   reads as "text going off the right edge." Forcing the inner wrapper to `display: block`
                   re-anchors width to the viewport so children wrap normally. */}
-              <ScrollArea className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block">
+              <ScrollArea className="flex-1 [&_[data-slot=scroll-area-viewport]>div]:!block">
                 {!hasAnyNotifications ? (
                   <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
                     No notifications yet

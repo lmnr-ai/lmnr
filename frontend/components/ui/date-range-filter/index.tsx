@@ -102,9 +102,9 @@ const QuickRangesList = ({
 
           if (exceedsRetention) {
             return (
-              <TooltipProvider key={range.value} delayDuration={0}>
+              <TooltipProvider key={range.value} delay={0}>
                 <Tooltip>
-                  <TooltipTrigger asChild>{item}</TooltipTrigger>
+                  <TooltipTrigger render={item} />
                   <TooltipContent side="right" className="flex flex-col gap-1 p-2">
                     <p className="text-xs">
                       Data retention is limited to {maxHours != null ? Math.floor(maxHours / 24) : 0} days on your
@@ -270,15 +270,17 @@ export const DateRangeFilterInner = ({
 
   return (
     <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          disabled={buttonDisabled}
-          variant="outline"
-          className={cn("justify-between text-left font-normal text-xs", className)}
-        >
-          <DateRangeButton displayRange={getDisplayRange()} />
-          <CalendarIcon className="ml-2 size-3.5 opacity-50" />
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            disabled={buttonDisabled}
+            variant="outline"
+            className={cn("justify-between text-left font-normal text-xs", className)}
+          />
+        }
+      >
+        <DateRangeButton displayRange={getDisplayRange()} />
+        <CalendarIcon className="ml-2 size-3.5 opacity-50" />
       </PopoverTrigger>
       <PopoverContent className="p-0 overflow-hidden w-auto" align="start">
         <AnimatePresence mode="wait" initial={false}>

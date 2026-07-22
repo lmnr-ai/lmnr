@@ -1,10 +1,9 @@
-import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { Plus } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
 import useSWR from "swr";
 
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipPortal, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type TagClass } from "@/lib/traces/types";
 import { cn, swrFetcher } from "@/lib/utils";
 
@@ -33,28 +32,26 @@ const TagsCell = ({ tags }: TagsCellProps) => {
   const count = resolvedTags.length;
 
   return (
-    <TooltipProvider delayDuration={500}>
+    <TooltipProvider delay={500}>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="flex items-center gap-1.5">
-            <div className="flex flex-row items-center -space-x-2">
-              {resolvedTags.slice(0, MAX_VISIBLE_CIRCLES).map((tag) => (
-                <div
-                  key={tag.name}
-                  className={cn("size-4 rounded-full border-2 border-secondary", !tag.color && "bg-gray-300")}
-                  style={tag.color ? { backgroundColor: tag.color } : undefined}
-                />
-              ))}
-              {resolvedTags.length > MAX_VISIBLE_CIRCLES && (
-                <div className="size-4 rounded-full border-2 border-border bg-muted flex items-center justify-center">
-                  <Plus className="size-2" />
-                </div>
-              )}
-            </div>
-            <span className="text-secondary-foreground text-xs">
-              {count} tag{count === 1 ? "" : "s"}
-            </span>
+        <TooltipTrigger render={<div className="flex items-center gap-1.5" />}>
+          <div className="flex flex-row items-center -space-x-2">
+            {resolvedTags.slice(0, MAX_VISIBLE_CIRCLES).map((tag) => (
+              <div
+                key={tag.name}
+                className={cn("size-4 rounded-full border-2 border-secondary", !tag.color && "bg-gray-300")}
+                style={tag.color ? { backgroundColor: tag.color } : undefined}
+              />
+            ))}
+            {resolvedTags.length > MAX_VISIBLE_CIRCLES && (
+              <div className="size-4 rounded-full border-2 border-border bg-muted flex items-center justify-center">
+                <Plus className="size-2" />
+              </div>
+            )}
           </div>
+          <span className="text-secondary-foreground text-xs">
+            {count} tag{count === 1 ? "" : "s"}
+          </span>
         </TooltipTrigger>
         <TooltipPortal>
           <TooltipContent side="bottom" className="px-3 py-2 border max-h-48 overflow-y-auto">

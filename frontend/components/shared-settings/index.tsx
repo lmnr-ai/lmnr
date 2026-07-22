@@ -263,15 +263,13 @@ const SharedSettings = ({
                   {projectMenus.map((m) => (
                     <SidebarMenuItem className="h-7" key={m.section}>
                       <SidebarMenuButton
-                        asChild
-                        className="flex items-center flex-1 hover:bg-surface-700 active:bg-surface-600 data-[active=true]:bg-surface-600"
+                        render={<Link href={sectionHref(m.section)} />}
+                        className="flex items-center flex-1 hover:bg-surface-700 active:bg-surface-600 data-active:bg-surface-600"
                         isActive={activeSection === m.section}
                         tooltip={m.label}
                       >
-                        <Link href={sectionHref(m.section)}>
-                          <m.icon />
-                          <span className="mr-2">{m.label}</span>
-                        </Link>
+                        <m.icon />
+                        <span className="mr-2">{m.label}</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   ))}
@@ -284,15 +282,13 @@ const SharedSettings = ({
                   {workspaceMenus.map((m) => (
                     <SidebarMenuItem className="h-7" key={m.section}>
                       <SidebarMenuButton
-                        asChild
-                        className="flex items-center flex-1 hover:bg-surface-700 active:bg-surface-600 data-[active=true]:bg-surface-600"
+                        render={<Link href={sectionHref(m.section)} />}
+                        className="flex items-center flex-1 hover:bg-surface-700 active:bg-surface-600 data-active:bg-surface-600"
                         isActive={activeSection === m.section}
                         tooltip={m.label}
                       >
-                        <Link href={sectionHref(m.section)}>
-                          <m.icon />
-                          <span className="mr-2">{m.label}</span>
-                        </Link>
+                        <m.icon />
+                        <span className="mr-2">{m.label}</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   ))}

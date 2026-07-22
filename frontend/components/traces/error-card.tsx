@@ -45,7 +45,7 @@ const ErrorCard = ({ attributes }: ErrorCardProps) => {
                 text={`${errorType || "Exception"}: ${errorMessage || "No message"}\n\n${errorTrace || "No stacktrace"}`}
               />
               <Button className="w-8 h-8" size="icon" variant="ghost">
-                <ChevronRight className="w-3 h-3 text-muted-foreground group-data-[state=open]:rotate-90 transition-transform duration-200" />
+                <ChevronRight className="w-3 h-3 text-muted-foreground group-data-open:rotate-90 transition-transform duration-200" />
               </Button>
             </div>
           </div>

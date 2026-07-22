@@ -30,7 +30,7 @@ const CreateTag = ({ name, onCreateAndAttach }: CreateTagProps) => {
       <DropdownMenuSeparator />
       <DropdownMenuGroup>
         {colors.map((c) => (
-          <DropdownMenuItem onSelect={() => onCreateAndAttach(name, c.color)} key={c.name}>
+          <DropdownMenuItem onClick={() => onCreateAndAttach(name, c.color)} key={c.name}>
             <div style={{ background: c.color }} className="w-2 h-2 rounded-full" />
             <span className="ml-1.5">{c.name}</span>
           </DropdownMenuItem>

@@ -119,7 +119,13 @@ export default function SlackChannelProjects({ workspaceId, className }: SlackCh
       <div className="flex items-end gap-2">
         <div className="flex flex-col gap-1 flex-1">
           <Label className="text-xs text-muted-foreground">Channel</Label>
-          <Select value={channelId} onValueChange={setChannelId} disabled={channelsLoading}>
+          <Select
+            value={channelId}
+            onValueChange={(v) => {
+              if (v != null) setChannelId(v);
+            }}
+            disabled={channelsLoading}
+          >
             <SelectTrigger className="h-8">
               <SelectValue placeholder={channelsLoading ? "Loading channels…" : "Select a channel"} />
             </SelectTrigger>
@@ -134,7 +140,12 @@ export default function SlackChannelProjects({ workspaceId, className }: SlackCh
         </div>
         <div className="flex flex-col gap-1 flex-1">
           <Label className="text-xs text-muted-foreground">Project</Label>
-          <Select value={projectId} onValueChange={setProjectId}>
+          <Select
+            value={projectId}
+            onValueChange={(v) => {
+              if (v != null) setProjectId(v);
+            }}
+          >
             <SelectTrigger className="h-8">
               <SelectValue placeholder="Select a project" />
             </SelectTrigger>

@@ -85,7 +85,12 @@ function FilterRow({ index, onRemove }: { index: number; onRemove: () => void })
           control={control}
           rules={{ required: "Column is required" }}
           render={({ field }) => (
-            <Select value={field.value} onValueChange={(value) => handleColumnChange(value, field.onChange)}>
+            <Select
+              value={field.value}
+              onValueChange={(value) => {
+                if (value != null) handleColumnChange(value, field.onChange);
+              }}
+            >
               <SelectTrigger className="w-48 truncate">
                 <span className="truncate">
                   {SIGNAL_TRIGGER_COLUMNS.find((c) => c.key === field.value)?.name || "Select column..."}
@@ -106,7 +111,12 @@ function FilterRow({ index, onRemove }: { index: number; onRemove: () => void })
           control={control}
           rules={{ required: "Operator is required" }}
           render={({ field }) => (
-            <Select value={field.value} onValueChange={field.onChange}>
+            <Select
+              value={field.value}
+              onValueChange={(v) => {
+                if (v != null) field.onChange(v);
+              }}
+            >
               <SelectTrigger className="w-12">
                 <span>{operations.find((op) => op.key === field.value)?.label || field.value}</span>
               </SelectTrigger>
@@ -126,7 +136,12 @@ function FilterRow({ index, onRemove }: { index: number; onRemove: () => void })
           rules={{ required: "Value is required" }}
           render={({ field }) =>
             dataType === "enum" && column && "options" in column ? (
-              <Select value={field.value as string} onValueChange={field.onChange}>
+              <Select
+                value={field.value as string}
+                onValueChange={(v) => {
+                  if (v != null) field.onChange(v);
+                }}
+              >
                 <SelectTrigger className="flex-1">
                   <span>{column.options.find((opt) => opt.value === field.value)?.label || "Select value..."}</span>
                 </SelectTrigger>

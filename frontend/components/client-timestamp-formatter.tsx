@@ -1,6 +1,5 @@
 "use client";
 
-import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { differenceInDays, differenceInHours, differenceInMinutes, differenceInSeconds, format } from "date-fns";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -54,16 +53,14 @@ export default function ClientTimestampFormatter({
   const tooltipText = format(date, "MMMM d, yyyy, h:mm:ss a O");
 
   return (
-    <TooltipProvider>
-      <Tooltip delayDuration={300}>
-        <TooltipTrigger asChild>
-          <span className={cn("text-sm cursor-pointer", className)}>{displayText}</span>
+    <TooltipProvider delay={300}>
+      <Tooltip>
+        <TooltipTrigger render={<span className={cn("text-sm cursor-pointer", className)} />}>
+          {displayText}
         </TooltipTrigger>
-        <TooltipPortal>
-          <TooltipContent className="border">
-            <span>{tooltipText}</span>
-          </TooltipContent>
-        </TooltipPortal>
+        <TooltipContent className="border">
+          <span>{tooltipText}</span>
+        </TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );

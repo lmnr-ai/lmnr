@@ -199,7 +199,7 @@ export default function PlaygroundPanel({
                     <span className="font-medium text-sm text-secondary-foreground p-2 rounded-t mr-auto">
                       Reasoning
                     </span>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground mr-2 group-data-[state=open]:rotate-90 transition-transform duration-200" />
+                    <ChevronRight className="w-4 h-4 text-muted-foreground mr-2 group-data-open:rotate-90 transition-transform duration-200" />
                   </CollapsibleTrigger>
                   <CollapsibleContent className="flex flex-1 overflow-hidden max-h-40">
                     <ContentRenderer

@@ -117,7 +117,7 @@ const SignalEventClustersMock = ({ className }: Props) => {
   }, []);
 
   return (
-    <TooltipProvider delayDuration={200}>
+    <TooltipProvider delay={200}>
       <div className={cn("w-[720px] min-w-[600px] rounded-lg border bg-background p-3 flex flex-col gap-2", className)}>
         <ClusterBreadcrumb
           breadcrumb={breadcrumb}

@@ -57,18 +57,20 @@ export default function BottomControls() {
   return (
     <div className="flex items-center justify-center">
       <div className="inline-flex items-center gap-3 rounded-lg bg-secondary border px-3 py-2">
-        <TooltipProvider delayDuration={200}>
+        <TooltipProvider delay={200}>
           <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => step(-1)}
-                disabled={currentIndex <= 0}
-                aria-label="previous"
-              >
-                <ChevronLeft className="size-4" />
-              </Button>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => step(-1)}
+                  disabled={currentIndex <= 0}
+                  aria-label="previous"
+                />
+              }
+            >
+              <ChevronLeft className="size-4" />
             </TooltipTrigger>
             <TooltipContent>⌘ ←</TooltipContent>
           </Tooltip>
@@ -83,18 +85,20 @@ export default function BottomControls() {
           <span>of {itemsLen}</span>
         </span>
 
-        <TooltipProvider delayDuration={200}>
+        <TooltipProvider delay={200}>
           <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => step(1)}
-                disabled={currentIndex >= itemsLen - 1}
-                aria-label="next"
-              >
-                <ChevronRight className="size-4" />
-              </Button>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => step(1)}
+                  disabled={currentIndex >= itemsLen - 1}
+                  aria-label="next"
+                />
+              }
+            >
+              <ChevronRight className="size-4" />
             </TooltipTrigger>
             <TooltipContent>⌘ →</TooltipContent>
           </Tooltip>

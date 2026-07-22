@@ -3,7 +3,7 @@
 import { isEmpty } from "lodash";
 import { AlertTriangle, Copy, Pencil, Trash2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import React, { useState } from "react";
 import useSWR from "swr";
 
 import { useProjectContext } from "@/contexts/project-context.tsx";
@@ -172,7 +172,7 @@ function ModelCostDialog({
         }
       }}
     >
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogTrigger render={trigger as React.ReactElement} />
       <DialogContent className="sm:max-w-[550px] max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{mode === "edit" ? "Edit custom model cost" : "Add custom model cost"}</DialogTitle>
@@ -231,9 +231,7 @@ function ModelCostDialog({
           )}
         </div>
         <DialogFooter>
-          <DialogClose asChild>
-            <Button variant="outline">Cancel</Button>
-          </DialogClose>
+          <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
           <Button disabled={!model.trim() || isSaving} onClick={handleSave}>
             {isSaving ? "Saving..." : "Save"}
           </Button>
@@ -263,11 +261,9 @@ function CopyModelCostsDialog({ onCopy }: { onCopy: (targetProjectId: string) =>
         if (!isOpen) setTargetProjectId("");
       }}
     >
-      <DialogTrigger asChild>
-        <Button variant="outline" className="w-fit">
-          <Copy size={14} className="mr-1" />
-          Copy to project
-        </Button>
+      <DialogTrigger render={<Button variant="outline" className="w-fit" />}>
+        <Copy size={14} className="mr-1" />
+        Copy to project
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
@@ -279,7 +275,11 @@ function CopyModelCostsDialog({ onCopy }: { onCopy: (targetProjectId: string) =>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label>Target project</Label>
-            <Select onValueChange={setTargetProjectId}>
+            <Select
+              onValueChange={(v) => {
+                if (typeof v === "string") setTargetProjectId(v);
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select a project" />
               </SelectTrigger>
@@ -298,9 +298,7 @@ function CopyModelCostsDialog({ onCopy }: { onCopy: (targetProjectId: string) =>
           </div>
         </div>
         <DialogFooter>
-          <DialogClose asChild>
-            <Button variant="outline">Cancel</Button>
-          </DialogClose>
+          <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
           <Button
             disabled={!targetProjectId || isCopying}
             onClick={async () => {
@@ -456,12 +454,12 @@ export default function CustomModelCosts() {
                 </div>
               </td>
               <td className="px-4">
-                <TooltipProvider delayDuration={200}>
+                <TooltipProvider delay={200}>
                   <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="text-xs text-muted-foreground font-mono cursor-default line-clamp-2">
-                        {display.length > 60 ? display.slice(0, 60) + "..." : display}
-                      </span>
+                    <TooltipTrigger
+                      render={<span className="text-xs text-muted-foreground font-mono cursor-default line-clamp-2" />}
+                    >
+                      {display.length > 60 ? display.slice(0, 60) + "..." : display}
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="max-w-md">
                       <div className="text-xs font-mono space-y-0.5">

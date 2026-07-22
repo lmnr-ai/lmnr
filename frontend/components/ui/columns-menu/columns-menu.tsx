@@ -79,24 +79,23 @@ export default function ColumnsMenu({ columnLabels = [], panelConfig, columnActi
   };
 
   return (
-    <Popover open={isOpen} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
-        <Button className="text-secondary-foreground" icon="columns2" variant="outline">
-          Columns
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        className="p-0 overflow-hidden w-auto"
-        align="start"
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        onInteractOutside={(e) => {
-          // Prevent closing when interacting with CodeMirror autocomplete tooltips
-          const target = e.target as HTMLElement | null;
-          if (target?.closest(".cm-tooltip-autocomplete")) {
-            e.preventDefault();
+    <Popover
+      open={isOpen}
+      onOpenChange={(open, details) => {
+        if (!open) {
+          const target = details.event?.target as HTMLElement | null;
+          if (target?.closest?.(".cm-tooltip-autocomplete")) {
+            details.cancel();
+            return;
           }
-        }}
-      >
+        }
+        handleOpenChange(open);
+      }}
+    >
+      <PopoverTrigger render={<Button className="text-secondary-foreground" icon="columns2" variant="outline" />}>
+        Columns
+      </PopoverTrigger>
+      <PopoverContent className="p-0 overflow-hidden w-auto" align="start" initialFocus={false}>
         <AnimatePresence mode="wait" initial={false}>
           {activePanel === "list" || !supportsCustomColumns ? (
             <ColumnsListPanel

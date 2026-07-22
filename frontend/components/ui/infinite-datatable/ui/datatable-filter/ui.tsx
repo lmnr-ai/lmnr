@@ -1,7 +1,6 @@
-import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { find, get, head, isEmpty, isEqual, map } from "lodash";
 import { ListFilter, X } from "lucide-react";
-import { memo, type PropsWithChildren, useCallback, useMemo, useState } from "react";
+import { memo, type PropsWithChildren, type ReactElement, useCallback, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
@@ -112,13 +111,16 @@ const FilterPopover = ({
 
   return (
     <Popover>
-      <PopoverTrigger asChild className={cn("text-secondary-foreground", className)}>
-        {children || (
-          <Button icon="filter" variant="outline">
-            Add filter
-          </Button>
-        )}
-      </PopoverTrigger>
+      <PopoverTrigger
+        className={cn("text-secondary-foreground", className)}
+        render={
+          (children as ReactElement) || (
+            <Button icon="filter" variant="outline">
+              Add filter
+            </Button>
+          )
+        }
+      />
       <PopoverContent className="z-30 p-0 w-96" side="bottom" align="start">
         {!isEmpty(presetFilters) && (
           <>
@@ -138,19 +140,22 @@ const FilterPopover = ({
                   );
 
                   return (
-                    <PopoverClose key={`preset-${index}`} asChild>
-                      <Button
-                        variant={isApplied ? "secondary" : "outline"}
-                        size="sm"
-                        className={cn(
-                          "h-7 text-xs font-mono px-2 py-1",
-                          isApplied && "bg-primary/10 border-primary text-primary cursor-default"
-                        )}
-                        onClick={() => handleApplyFilters(presetFilter)}
-                        disabled={isApplied}
-                      >
-                        {column?.name || presetFilter.column} {operatorLabel} {presetFilter.value}
-                      </Button>
+                    <PopoverClose
+                      key={`preset-${index}`}
+                      render={
+                        <Button
+                          variant={isApplied ? "secondary" : "outline"}
+                          size="sm"
+                          className={cn(
+                            "h-7 text-xs font-mono px-2 py-1",
+                            isApplied && "bg-primary/10 border-primary text-primary cursor-default"
+                          )}
+                          onClick={() => handleApplyFilters(presetFilter)}
+                          disabled={isApplied}
+                        />
+                      }
+                    >
+                      {column?.name || presetFilter.column} {operatorLabel} {presetFilter.value}
                     </PopoverClose>
                   );
                 })}
@@ -161,7 +166,12 @@ const FilterPopover = ({
         <div className="p-3">
           <p className="text-xs font-medium text-muted-foreground mb-2">Custom filter</p>
           <div className="flex gap-2">
-            <Select value={filter.column} onValueChange={(value) => handleValueChange({ field: "column", value })}>
+            <Select
+              value={filter.column}
+              onValueChange={(value) => {
+                if (value != null) handleValueChange({ field: "column", value });
+              }}
+            >
               <SelectTrigger className="flex truncate font-medium max-w-32">
                 <SelectValue placeholder="Choose column..." />
               </SelectTrigger>
@@ -178,16 +188,18 @@ const FilterPopover = ({
         </div>
 
         <div className="flex flex-row-reverse border-t p-2">
-          <PopoverClose asChild>
-            <Button
-              disabled={!filter.column || !filter.value || !filter.operator}
-              onClick={() => handleApplyFilters(filter)}
-              variant="secondary"
-              handleEnter
-              className="ml-auto"
-            >
-              Add filter
-            </Button>
+          <PopoverClose
+            render={
+              <Button
+                disabled={!filter.column || !filter.value || !filter.operator}
+                onClick={() => handleApplyFilters(filter)}
+                variant="secondary"
+                handleEnter
+                className="ml-auto"
+              />
+            }
+          >
+            Add filter
           </PopoverClose>
         </div>
       </PopoverContent>
@@ -219,7 +231,12 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
 
   const renderOperatorSelect = useCallback(
     () => (
-      <Select value={filter.operator} onValueChange={(value) => onValueChange({ field: "operator", value })}>
+      <Select
+        value={filter.operator}
+        onValueChange={(value) => {
+          if (value != null) onValueChange({ field: "operator", value });
+        }}
+      >
         <SelectTrigger className="font-medium w-fit">
           <SelectValue />
         </SelectTrigger>
@@ -266,7 +283,12 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
       return (
         <>
           {renderOperatorSelect()}
-          <Select value={String(filter.value)} onValueChange={(value) => onValueChange({ field: "value", value })}>
+          <Select
+            value={String(filter.value)}
+            onValueChange={(value) => {
+              if (value != null) onValueChange({ field: "value", value });
+            }}
+          >
             <SelectTrigger className="font-medium flex-1">
               <SelectValue placeholder="Select option..." />
             </SelectTrigger>
@@ -289,7 +311,12 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
       return (
         <>
           {renderOperatorSelect()}
-          <Select value={String(filter.value)} onValueChange={(value) => onValueChange({ field: "value", value })}>
+          <Select
+            value={String(filter.value)}
+            onValueChange={(value) => {
+              if (value != null) onValueChange({ field: "value", value });
+            }}
+          >
             <SelectTrigger className="font-medium flex-1">
               <SelectValue placeholder="Select value..." />
             </SelectTrigger>
@@ -349,31 +376,16 @@ const PureFilterList = ({
       {filters.map((f, index) => (
         <TooltipProvider key={`${index}-${f.column}-${f.value}-${f.operator}`}>
           <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge
-                className={cn("flex gap-2 border-primary bg-primary/10 py-1 px-2 min-w-8", className)}
-                variant="outline"
-              >
-                <ListFilter className="w-3 h-3 text-primary" />
-                <span className="text-xs text-primary truncate font-mono">
-                  {f.column}{" "}
-                  {get(
-                    find(
-                      [...STRING_OPERATIONS, ...NUMBER_OPERATIONS, ...JSON_OPERATIONS, ...BOOLEAN_OPERATIONS],
-                      ["key", f.operator]
-                    ),
-                    "label",
-                    f.operator
-                  )}{" "}
-                  {f.value}
-                </span>
-                <Button onClick={() => onRemoveFilter(f)} className="p-0 h-fit group" variant="ghost">
-                  <X className="w-3 h-3 text-primary/70 group-hover:text-primary" />
-                </Button>
-              </Badge>
-            </TooltipTrigger>
-            <TooltipPortal>
-              <TooltipContent>
+            <TooltipTrigger
+              render={
+                <Badge
+                  className={cn("flex gap-2 border-primary bg-primary/10 py-1 px-2 min-w-8", className)}
+                  variant="outline"
+                />
+              }
+            >
+              <ListFilter className="w-3 h-3 text-primary" />
+              <span className="text-xs text-primary truncate font-mono">
                 {f.column}{" "}
                 {get(
                   find(
@@ -384,8 +396,23 @@ const PureFilterList = ({
                   f.operator
                 )}{" "}
                 {f.value}
-              </TooltipContent>
-            </TooltipPortal>
+              </span>
+              <Button onClick={() => onRemoveFilter(f)} className="p-0 h-fit group" variant="ghost">
+                <X className="w-3 h-3 text-primary/70 group-hover:text-primary" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {f.column}{" "}
+              {get(
+                find(
+                  [...STRING_OPERATIONS, ...NUMBER_OPERATIONS, ...JSON_OPERATIONS, ...BOOLEAN_OPERATIONS],
+                  ["key", f.operator]
+                ),
+                "label",
+                f.operator
+              )}{" "}
+              {f.value}
+            </TooltipContent>
           </Tooltip>
         </TooltipProvider>
       ))}

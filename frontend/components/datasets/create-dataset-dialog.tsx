@@ -1,6 +1,6 @@
 import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { type PropsWithChildren, useCallback, useState } from "react";
+import React, { type PropsWithChildren, useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -72,7 +72,7 @@ export default function CreateDatasetDialog({
           setNewDatasetName("");
         }}
       >
-        <DialogTrigger asChild>{children}</DialogTrigger>
+        <DialogTrigger render={children as React.ReactElement} />
         <DialogContent className="sm:max-w-96">
           <DialogHeader>
             <DialogTitle>Create dataset</DialogTitle>

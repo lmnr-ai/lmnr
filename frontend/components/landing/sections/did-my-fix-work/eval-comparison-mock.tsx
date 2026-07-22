@@ -138,9 +138,14 @@ const EvalPillSelect = ({
 }) => {
   const item = EVALS[selected];
   return (
-    <Select value={selected} onValueChange={(v) => onChange(v as EvalKey)}>
+    <Select
+      value={selected}
+      onValueChange={(v) => {
+        if (v != null) onChange(v as EvalKey);
+      }}
+    >
       <SelectTrigger className="h-7 w-fit gap-1.5 border-border px-2.5 py-1 text-xs">
-        <SelectValue asChild>
+        <SelectValue>
           <span className="flex items-center gap-1.5">
             <span className="font-medium text-foreground mr-2">{item.label}</span>
             <span className="text-muted-foreground">{item.ts}</span>

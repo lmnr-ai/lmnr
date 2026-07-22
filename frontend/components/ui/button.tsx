@@ -1,6 +1,6 @@
 "use client";
 
-import { Slot } from "@radix-ui/react-slot";
+import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva, type VariantProps } from "class-variance-authority";
 import {
   Activity,
@@ -152,13 +152,11 @@ export interface ButtonProps
   icon?: keyof typeof iconMap;
 }
 
-const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+const Button = React.forwardRef<HTMLElement, ButtonProps>(
   (
     { className, variant, size, asChild = false, handleEnter, handleKeys, icon, children, type = "button", ...props },
     ref
   ) => {
-    const Comp = asChild ? Slot : "button";
-
     const handleKeysUp = React.useMemo(() => {
       const handleKeysUp = new Set<HandledKey>();
       if (handleEnter !== undefined) {
@@ -206,28 +204,29 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       };
     }, [props.onClick, props.disabled, isHandledKey, handleKeyDown, handleKeysUp]);
 
-    // Get the icon component from the map
     const IconComponent = icon ? iconMap[icon] : null;
 
-    // When asChild is true, Comp is Radix Slot which requires exactly one React
-    // element child. Injecting IconComponent alongside children would create two
-    // children (even if IconComponent is null), which causes React.Children.only
-    // to throw in React 19 where Children.count includes null entries.
+    // asChild compat: map single child element to Base UI `render` prop
     if (asChild) {
+      const child = React.Children.only(children) as React.ReactElement;
       return (
-        <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props}>
-          {children}
-        </Comp>
+        <ButtonPrimitive
+          className={cn(buttonVariants({ variant, size, className }))}
+          ref={ref}
+          render={child}
+          nativeButton={false}
+          {...props}
+        />
       );
     }
 
     return (
-      <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} type={type} {...props}>
+      <ButtonPrimitive className={cn(buttonVariants({ variant, size, className }))} ref={ref} type={type} {...props}>
         {IconComponent && (
           <IconComponent className={cn(size === "sm" ? "size-3" : "size-3.5", { "mr-1": !!children })} />
         )}
         {children}
-      </Comp>
+      </ButtonPrimitive>
     );
   }
 );

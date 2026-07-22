@@ -97,7 +97,7 @@ export default function StepShell({
           <ScrollArea
             className={cn(
               "flex-1 min-h-0 px-4 py-4 sm:py-6 xl:py-8",
-              centerContent && "[&>[data-radix-scroll-area-viewport]>div]:!h-full"
+              centerContent && "[&>[data-slot=scroll-area-viewport]>div]:!h-full"
             )}
           >
             <div

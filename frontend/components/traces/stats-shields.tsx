@@ -1,4 +1,3 @@
-import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { pick } from "lodash";
 import { CircleDollarSign, Clock3, Coins } from "lucide-react";
 import { memo, useMemo } from "react";
@@ -6,7 +5,7 @@ import { memo, useMemo } from "react";
 import { CostBreakdown, TokensBreakdown } from "@/components/traces/cells";
 import { InputTokenBreakdown } from "@/components/traces/token-breakdown";
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipPortal, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   durationMsBetween,
   formatCostNumber,
@@ -188,7 +187,7 @@ interface StatsShieldsProps {
 export function StatsShields({ stats, className, variant = "filled", labelPrefix, span }: StatsShieldsProps) {
   const durationMs = durationMsBetween(stats.startTime, stats.endTime);
   const durationContent = (
-    <TooltipProvider delayDuration={250}>
+    <TooltipProvider delay={250}>
       <Tooltip>
         <TooltipTrigger className="min-w-8">
           <div className="flex space-x-1 items-center">
@@ -206,7 +205,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
   );
 
   const tokensContent = (
-    <TooltipProvider delayDuration={250}>
+    <TooltipProvider delay={250}>
       <Tooltip>
         <TooltipTrigger className="min-w-8">
           <div className="flex space-x-1 items-center">
@@ -230,7 +229,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
   );
 
   const costContent = (
-    <TooltipProvider delayDuration={250}>
+    <TooltipProvider delay={250}>
       <Tooltip>
         <TooltipTrigger className="min-w-8">
           <div className="flex space-x-1 items-center">

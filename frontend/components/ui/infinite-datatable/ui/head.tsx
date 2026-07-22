@@ -98,16 +98,14 @@ export function InfiniteTableHead<TData extends RowData>({
           {isControllable &&
             (header.column.getCanSort() || onHideColumn || header.column.columnDef.meta?.customDropdownItems) && (
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="w-fit cursor-pointer">
-                    {header.column.getIsSorted() === "asc" ? (
-                      <ArrowUp className="size-3" />
-                    ) : header.column.getIsSorted() === "desc" ? (
-                      <ArrowDown className="size-3" />
-                    ) : (
-                      <ChevronDown className="size-3" />
-                    )}
-                  </Button>
+                <DropdownMenuTrigger render={<Button variant="ghost" className="w-fit cursor-pointer" />}>
+                  {header.column.getIsSorted() === "asc" ? (
+                    <ArrowUp className="size-3" />
+                  ) : header.column.getIsSorted() === "desc" ? (
+                    <ArrowDown className="size-3" />
+                  ) : (
+                    <ChevronDown className="size-3" />
+                  )}
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="end"

@@ -38,17 +38,19 @@ export default function ApprovalStatus({ className }: { className?: string }) {
       {dirty && (
         <TooltipProvider>
           <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-5 text-amber-500 hover:text-amber-600 hover:bg-amber-500/10"
-                disabled={!canRevert}
-                onClick={() => revertCurrent()}
-                aria-label="Revert edits"
-              >
-                <Undo2 className="size-3" />
-              </Button>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-5 text-amber-500 hover:text-amber-600 hover:bg-amber-500/10"
+                  disabled={!canRevert}
+                  onClick={() => revertCurrent()}
+                  aria-label="Revert edits"
+                />
+              }
+            >
+              <Undo2 className="size-3" />
             </TooltipTrigger>
             <TooltipContent side="bottom">Revert edits to original target</TooltipContent>
           </Tooltip>

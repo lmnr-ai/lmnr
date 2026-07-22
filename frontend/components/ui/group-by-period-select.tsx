@@ -19,6 +19,7 @@ export function GroupByPeriodSelect() {
       <Select
         value={groupByInterval}
         onValueChange={(value) => {
+          if (value == null) return;
           searchParams.set("groupByInterval", value);
           router.push(`?${searchParams.toString()}`);
         }}

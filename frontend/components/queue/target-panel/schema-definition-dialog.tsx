@@ -170,10 +170,8 @@ export default function SchemaDefinitionDialog({
       }}
     >
       {showTrigger && (
-        <DialogTrigger asChild>
-          <Button className="outline-0" variant="secondary" icon="settings">
-            Annotation schema
-          </Button>
+        <DialogTrigger render={<Button className="outline-0" variant="secondary" icon="settings" />}>
+          Annotation schema
         </DialogTrigger>
       )}
       <DialogContent className="h-[80vh] overflow-hidden max-w-[60vw]">

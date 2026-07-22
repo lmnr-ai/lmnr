@@ -3,7 +3,7 @@
 import { get } from "lodash";
 import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { type PropsWithChildren, useCallback, useEffect, useState } from "react";
+import React, { type PropsWithChildren, useCallback, useEffect, useState } from "react";
 import { Controller, FormProvider, useForm, useFormContext, useWatch } from "react-hook-form";
 
 import { getDefaultFilter, TriggerFiltersField } from "@/components/signals/trigger-filter-field";
@@ -196,7 +196,7 @@ export default function ManageTriggerDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      {children && <DialogTrigger asChild>{children}</DialogTrigger>}
+      {children && <DialogTrigger render={children as React.ReactElement} />}
       <FormProvider {...form}>
         <ManageTriggerDialogContent setOpen={setOpen} isNew={isNew} signalId={signalId} onSuccess={onSuccess} />
       </FormProvider>

@@ -130,7 +130,13 @@ export function ProjectPicker({ userCode, projects, workspaces, onApproved, onDe
           <CardDescription>Choose the project the CLI should use in this directory.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <Select value={selectedId ?? undefined} onValueChange={onSelectChange} disabled={submitting}>
+          <Select
+            value={selectedId ?? undefined}
+            onValueChange={(v) => {
+              if (v != null) onSelectChange(v);
+            }}
+            disabled={submitting}
+          >
             <SelectTrigger className="h-9">
               <SelectValue placeholder="Select a project" />
             </SelectTrigger>

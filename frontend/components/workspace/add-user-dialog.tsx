@@ -77,10 +77,8 @@ const AddUserDialog = ({ open, onOpenChange, workspace }: AddUserDialogProps) =>
         setUser("");
       }}
     >
-      <DialogTrigger asChild>
-        <Button icon="plus" onClick={() => onOpenChange(true)} variant="outline">
-          Invite member
-        </Button>
+      <DialogTrigger render={<Button icon="plus" onClick={() => onOpenChange(true)} variant="outline" />}>
+        Invite member
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>

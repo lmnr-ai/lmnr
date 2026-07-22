@@ -162,10 +162,8 @@ const EvaluationDatapointsTable = ({
           {viewsResource && <ViewsToolbar projectId={projectId} resource={viewsResource} />}
           {onHeatmapEnabledChange && (
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button className="h-7 w-7" variant="outline" size="icon">
-                  <SettingsIcon className="h-4 w-4 text-secondary-foreground" />
-                </Button>
+              <DropdownMenuTrigger render={<Button className="h-7 w-7" variant="outline" size="icon" />}>
+                <SettingsIcon className="h-4 w-4 text-secondary-foreground" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-64">
                 <DropdownMenuLabel className="text-xs font-medium">Settings</DropdownMenuLabel>

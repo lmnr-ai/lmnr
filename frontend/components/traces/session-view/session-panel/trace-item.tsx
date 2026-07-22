@@ -134,16 +134,19 @@ export default function TraceItem({
                 Trace
               </span>
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => e.stopPropagation()}
-                    onKeyDown={(e) => e.stopPropagation()}
-                    className="inline-flex items-center justify-center rounded hover:bg-secondary cursor-pointer"
-                  >
-                    <ChevronDown className="size-3.5 text-secondary-foreground" />
-                  </span>
+                <DropdownMenuTrigger
+                  render={
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      className="inline-flex items-center justify-center rounded hover:bg-secondary cursor-pointer"
+                    />
+                  }
+                  nativeButton={false}
+                >
+                  <ChevronDown className="size-3.5 text-secondary-foreground" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
                   <DropdownMenuItem onClick={handleCopyTraceId}>

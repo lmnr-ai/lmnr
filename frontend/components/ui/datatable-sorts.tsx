@@ -1,10 +1,9 @@
-import { PopoverClose } from "@radix-ui/react-popover";
 import { AlignJustify, List, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
@@ -66,16 +65,18 @@ const DataTableSorts = ({ columns }: DataTableSortsProps) => {
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          className={cn("text-secondary-foreground", { "text-primary": sortParams?.length > 0 })}
-        >
-          <List size={16} className="mr-2" />
-          {sortParams?.length > 0
-            ? `Sorted by ${sortParams.length} ${pluralize(sortParams.length, "rule", "rules")}`
-            : "Sort"}
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="outline"
+            className={cn("text-secondary-foreground", { "text-primary": sortParams?.length > 0 })}
+          />
+        }
+      >
+        <List size={16} className="mr-2" />
+        {sortParams?.length > 0
+          ? `Sorted by ${sortParams.length} ${pluralize(sortParams.length, "rule", "rules")}`
+          : "Sort"}
       </PopoverTrigger>
       <PopoverContent className="z-30 p-0 w-fit" side="bottom" align="start">
         <div className={cn("flex flex-col gap-1 py-2 px-3", { "gap-2": fields?.length > 0 })}>
@@ -110,6 +111,7 @@ const DataTableSorts = ({ columns }: DataTableSortsProps) => {
             <Select
               value=""
               onValueChange={(v) => {
+                if (v == null) return;
                 setFields((prev) => [...prev, { field: v, asc: false }]);
               }}
             >
@@ -127,11 +129,7 @@ const DataTableSorts = ({ columns }: DataTableSortsProps) => {
           ) : (
             <p className="text-sm text-secondary-foreground">All columns have been added</p>
           )}
-          <PopoverClose asChild>
-            <Button variant="secondary" onClick={handleApply}>
-              Apply sorting
-            </Button>
-          </PopoverClose>
+          <PopoverClose render={<Button variant="secondary" onClick={handleApply} />}>Apply sorting</PopoverClose>
         </div>
       </PopoverContent>
     </Popover>

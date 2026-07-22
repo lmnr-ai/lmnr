@@ -210,12 +210,17 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
   const title = `${mode === "edit" ? "Edit" : "Create a"} custom render template`;
 
   return (
-    <Dialog open={mode !== null} onOpenChange={handleOpenChange}>
-      <DialogContent
-        className="flex h-[85vh] max-h-[900px] w-[90vw] max-w-[1400px] flex-col overflow-hidden rounded-lg border p-0 outline-0"
-        onPointerDownOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
-      >
+    <Dialog
+      open={mode !== null}
+      onOpenChange={(open, details) => {
+        if (!open && (details.reason === "outside-press" || details.reason === "escape-key")) {
+          details.cancel();
+          return;
+        }
+        handleOpenChange(open);
+      }}
+    >
+      <DialogContent className="flex h-[85vh] max-h-[900px] w-[90vw] max-w-[1400px] flex-col overflow-hidden rounded-lg border p-0 outline-0">
         <DialogDescription className="sr-only">
           Generate or write custom JSX to render your data however you want.
         </DialogDescription>

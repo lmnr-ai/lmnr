@@ -1,11 +1,10 @@
-import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { Loader2 } from "lucide-react";
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { defaultRehypePlugins, Streamdown } from "streamdown";
 
 import { CopyButton } from "@/components/ui/copy-button.tsx";
 import { ScrollArea } from "@/components/ui/scroll-area.tsx";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipPortal, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, isValidJsonObject } from "@/lib/utils";
 
 interface JsonTooltipProps {
@@ -166,21 +165,24 @@ const JsonTooltip = ({ data, columnSize, className, onOpen }: JsonTooltipProps) 
   const isObject = typeof tooltipData === "object" && tooltipData !== null && !Array.isArray(tooltipData);
 
   return (
-    <TooltipProvider delayDuration={100}>
+    <TooltipProvider delay={100}>
       <Tooltip onOpenChange={handleOpenChange}>
-        <TooltipTrigger asChild className="relative p-0">
-          <pre
-            style={{
-              ...(columnSize
-                ? {
-                    width: columnSize - 32,
-                  }
-                : {}),
-            }}
-            className={cn("font-mono text-secondary-foreground overflow-hidden text-xs truncate", className)}
-          >
-            {displayValue}
-          </pre>
+        <TooltipTrigger
+          className="relative p-0"
+          render={
+            <pre
+              style={{
+                ...(columnSize
+                  ? {
+                      width: columnSize - 32,
+                    }
+                  : {}),
+              }}
+              className={cn("font-mono text-secondary-foreground overflow-hidden text-xs truncate", className)}
+            />
+          }
+        >
+          {displayValue}
         </TooltipTrigger>
         <TooltipPortal>
           <TooltipContent

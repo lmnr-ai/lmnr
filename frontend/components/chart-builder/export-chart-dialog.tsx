@@ -81,7 +81,7 @@ const ExportChartDialog = ({ children }: PropsWithChildren) => {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogTrigger render={children as React.ReactElement} />
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-left">Export Chart to Dashboards</DialogTitle>

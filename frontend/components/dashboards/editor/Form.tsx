@@ -314,7 +314,9 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
             <Label className="text-xs text-secondary-foreground/80">Group by</Label>
             <Select
               value={String(parameters.find((p) => p.name === "interval_unit")?.value ?? "HOUR")}
-              onValueChange={(value) => setParameterValue("interval_unit", value)}
+              onValueChange={(value) => {
+                if (value != null) setParameterValue("interval_unit", value);
+              }}
             >
               <SelectTrigger className="w-fit text-secondary-foreground">
                 <SelectValue />

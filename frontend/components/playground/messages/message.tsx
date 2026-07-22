@@ -1,4 +1,3 @@
-import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { capitalize } from "lodash";
 import { Bolt, ChevronRight, CircleMinus, CirclePlus, ImagePlus, MessageCirclePlus } from "lucide-react";
 import React from "react";
@@ -14,7 +13,7 @@ import MessageParts from "@/components/playground/messages/message-parts";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipPortal, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   type ImagePart,
   type PlaygroundForm,
@@ -86,10 +85,15 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
 
   return (
     <Collapsible defaultOpen className="px-2 py-3 rounded-md border bg-muted/50 group">
-      <div className="flex items-center gap-1 group-data-[state=open]:mb-2">
+      <div className="flex items-center gap-1 group-data-open:mb-2">
         <Controller
           render={({ field: { value, onChange } }) => (
-            <Select value={value} onValueChange={handleUpdateRole(onChange)}>
+            <Select
+              value={value}
+              onValueChange={(v) => {
+                if (v != null) handleUpdateRole(onChange)(v);
+              }}
+            >
               <SelectTrigger className="w-fit border-none pl-1">
                 <SelectValue />
               </SelectTrigger>
@@ -111,30 +115,34 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
               <TooltipPortal>
                 <TooltipContent>Add text message part</TooltipContent>
               </TooltipPortal>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={() => append(defaultTextPart)}
-                  className={buttonClassName}
-                  variant="outline"
-                  size="icon"
-                >
-                  <MessageCirclePlus size={12} />
-                </Button>
+              <TooltipTrigger
+                render={
+                  <Button
+                    onClick={() => append(defaultTextPart)}
+                    className={buttonClassName}
+                    variant="outline"
+                    size="icon"
+                  />
+                }
+              >
+                <MessageCirclePlus size={12} />
               </TooltipTrigger>
             </Tooltip>
             <Tooltip>
               <TooltipPortal>
                 <TooltipContent>Add image message part</TooltipContent>
               </TooltipPortal>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={() => append(defaultImagePart)}
-                  className={buttonClassName}
-                  variant="outline"
-                  size="icon"
-                >
-                  <ImagePlus size={12} />
-                </Button>
+              <TooltipTrigger
+                render={
+                  <Button
+                    onClick={() => append(defaultImagePart)}
+                    className={buttonClassName}
+                    variant="outline"
+                    size="icon"
+                  />
+                }
+              >
+                <ImagePlus size={12} />
               </TooltipTrigger>
             </Tooltip>
           </>
@@ -144,15 +152,17 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
             <TooltipPortal>
               <TooltipContent>Add tool result part</TooltipContent>
             </TooltipPortal>
-            <TooltipTrigger asChild>
-              <Button
-                onClick={() => append(defaultToolResultPart)}
-                className={buttonClassName}
-                variant="outline"
-                size="icon"
-              >
-                <Bolt size={12} />
-              </Button>
+            <TooltipTrigger
+              render={
+                <Button
+                  onClick={() => append(defaultToolResultPart)}
+                  className={buttonClassName}
+                  variant="outline"
+                  size="icon"
+                />
+              }
+            >
+              <Bolt size={12} />
             </TooltipTrigger>
           </Tooltip>
         )}
@@ -161,15 +171,17 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
             <TooltipPortal>
               <TooltipContent>Add tool call part</TooltipContent>
             </TooltipPortal>
-            <TooltipTrigger asChild>
-              <Button
-                onClick={() => append(defaultToolCallPart)}
-                className={buttonClassName}
-                variant="outline"
-                size="icon"
-              >
-                <Bolt size={12} />
-              </Button>
+            <TooltipTrigger
+              render={
+                <Button
+                  onClick={() => append(defaultToolCallPart)}
+                  className={buttonClassName}
+                  variant="outline"
+                  size="icon"
+                />
+              }
+            >
+              <Bolt size={12} />
             </TooltipTrigger>
           </Tooltip>
         )}
@@ -177,15 +189,17 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
           <TooltipPortal>
             <TooltipContent>Add message</TooltipContent>
           </TooltipPortal>
-          <TooltipTrigger asChild>
-            <Button
-              onClick={() => insert(index + 1, defaultMessage)}
-              className={buttonClassName}
-              variant="outline"
-              size="icon"
-            >
-              <CirclePlus className="text-muted-foreground" size={12} />
-            </Button>
+          <TooltipTrigger
+            render={
+              <Button
+                onClick={() => insert(index + 1, defaultMessage)}
+                className={buttonClassName}
+                variant="outline"
+                size="icon"
+              />
+            }
+          >
+            <CirclePlus className="text-muted-foreground" size={12} />
           </TooltipTrigger>
         </Tooltip>
         {deletable && (
@@ -193,17 +207,17 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
             <TooltipPortal>
               <TooltipContent>Remove message</TooltipContent>
             </TooltipPortal>
-            <TooltipTrigger asChild>
-              <Button onClick={() => remove(index)} className={buttonClassName} variant="outline" size="icon">
-                <CircleMinus className="text-muted-foreground" size={12} />
-              </Button>
+            <TooltipTrigger
+              render={
+                <Button onClick={() => remove(index)} className={buttonClassName} variant="outline" size="icon" />
+              }
+            >
+              <CircleMinus className="text-muted-foreground" size={12} />
             </TooltipTrigger>
           </Tooltip>
         )}
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" size="icon" className="w-6 h-6 ml-auto">
-            <ChevronRight className="w-4 h-4 text-muted-foreground mr-2 group-data-[state=open]:rotate-90 transition-transform duration-200" />
-          </Button>
+        <CollapsibleTrigger render={<Button variant="ghost" size="icon" className="w-6 h-6 ml-auto" />}>
+          <ChevronRight className="w-4 h-4 text-muted-foreground mr-2 group-data-open:rotate-90 transition-transform duration-200" />
         </CollapsibleTrigger>
       </div>
       <CollapsibleContent>

@@ -93,7 +93,7 @@ export default function Pricing() {
           {/* FAQ — constrained to the landing column */}
           <div className={cn("w-full mt-[160px] flex flex-col gap-10", LANDING_COLUMN_MAX_W)}>
             <h2 className={cn(subSection, "text-white")}>Frequently asked questions</h2>
-            <Accordion type="single" collapsible className="w-full">
+            <Accordion className="w-full">
               {faqItems.map((item) => (
                 <AccordionItem key={item.id} value={item.id} className="border-surface-400">
                   <AccordionTrigger

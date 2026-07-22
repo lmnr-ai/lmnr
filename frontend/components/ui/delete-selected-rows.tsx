@@ -1,10 +1,18 @@
-'use client';
+"use client";
 
-import { Loader2, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { Loader2, Trash2 } from "lucide-react";
+import { useState } from "react";
 
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 interface DeleteSelectedRowsProps {
   selectedRowIds: string[];
@@ -12,7 +20,11 @@ interface DeleteSelectedRowsProps {
   entityName?: string;
 }
 
-export default function DeleteSelectedRows({ selectedRowIds, onDelete, entityName = 'datapoints', }: DeleteSelectedRowsProps) {
+export default function DeleteSelectedRows({
+  selectedRowIds,
+  onDelete,
+  entityName = "datapoints",
+}: DeleteSelectedRowsProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -25,10 +37,8 @@ export default function DeleteSelectedRows({ selectedRowIds, onDelete, entityNam
 
   return (
     <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost">
-          <Trash2 size={12} />
-        </Button>
+      <DialogTrigger render={<Button variant="ghost" />}>
+        <Trash2 size={12} />
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

@@ -52,11 +52,13 @@ function UpcomingInvoiceCard({ upcomingInvoice }: { upcomingInvoice: UpcomingInv
         <div className="flex items-center justify-between">
           <CardTitle className="text-base">Upcoming invoice</CardTitle>
           <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="text-xs px-2 py-0.5 rounded bg-secondary text-muted-foreground font-medium flex items-center gap-1 cursor-help">
-                <Info className="h-3 w-3" />
-                Estimated
-              </span>
+            <TooltipTrigger
+              render={
+                <span className="text-xs px-2 py-0.5 rounded bg-secondary text-muted-foreground font-medium flex items-center gap-1 cursor-help" />
+              }
+            >
+              <Info className="h-3 w-3" />
+              Estimated
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-[200px] text-center">
               <p>This is an estimate. The final amount may change based on your usage.</p>
@@ -70,11 +72,13 @@ function UpcomingInvoiceCard({ upcomingInvoice }: { upcomingInvoice: UpcomingInv
           {groups.map((group, gi) => (
             <div key={group.key} className={cn(gi > 0 && "border-t")}>
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex items-center gap-1.5 px-3 pt-2 pb-1.5 bg-secondary/40 text-[11px] font-medium text-muted-foreground cursor-default w-fit">
-                    <Calendar className="h-3 w-3 shrink-0 mb-0.5" />
-                    {formatShortDate(group.periodStart)} – {formatShortDate(group.periodEnd)}
-                  </div>
+                <TooltipTrigger
+                  render={
+                    <div className="flex items-center gap-1.5 px-3 pt-2 pb-1.5 bg-secondary/40 text-[11px] font-medium text-muted-foreground cursor-default w-fit" />
+                  }
+                >
+                  <Calendar className="h-3 w-3 shrink-0 mb-0.5" />
+                  {formatShortDate(group.periodStart)} – {formatShortDate(group.periodEnd)}
                 </TooltipTrigger>
                 <TooltipContent side="top" align="start" className="bg-background">
                   {formatDate(group.periodStart)} – {formatDate(group.periodEnd)}
@@ -100,16 +104,16 @@ function UpcomingInvoiceCard({ upcomingInvoice }: { upcomingInvoice: UpcomingInv
           ))}
           {appliedCredit > 0 && (
             <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex justify-between items-center px-3 py-1.5 border-t text-xs cursor-help">
-                  <span className="text-emerald-500 font-medium flex items-center gap-1">
-                    <Info className="h-3 w-3" />
-                    Applied credit
-                  </span>
-                  <span className="font-mono text-emerald-500">
-                    −{formatCurrency(appliedCredit, upcomingInvoice.currency)}
-                  </span>
-                </div>
+              <TooltipTrigger
+                render={<div className="flex justify-between items-center px-3 py-1.5 border-t text-xs cursor-help" />}
+              >
+                <span className="text-emerald-500 font-medium flex items-center gap-1">
+                  <Info className="h-3 w-3" />
+                  Applied credit
+                </span>
+                <span className="font-mono text-emerald-500">
+                  −{formatCurrency(appliedCredit, upcomingInvoice.currency)}
+                </span>
               </TooltipTrigger>
               <TooltipContent side="top" align="start" className="bg-background max-w-60">
                 <p>Credit from prorated refund of your previous plan, applied to this invoice.</p>

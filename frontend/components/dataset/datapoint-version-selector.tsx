@@ -59,7 +59,12 @@ export default function DatapointVersionSelector({
   }
 
   return (
-    <Select value={selectedVersionCreatedAt || latestVersion?.createdAt || ""} onValueChange={onVersionChange}>
+    <Select
+      value={selectedVersionCreatedAt || latestVersion?.createdAt || ""}
+      onValueChange={(v) => {
+        if (v != null) onVersionChange(v);
+      }}
+    >
       <SelectTrigger className="w-[200px]">
         <SelectValue>{selectedVersion ? selectedVersion.label : "Select version"}</SelectValue>
       </SelectTrigger>

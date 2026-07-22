@@ -114,11 +114,13 @@ const ProjectSidebarContent = ({ details }: { details: ProjectDetails }) => {
           <SidebarMenu>
             {options.map((option) => (
               <SidebarMenuItem className="h-7" key={option.name}>
-                <SidebarMenuButton asChild isActive={pathname.startsWith(option.href)} tooltip={option.name}>
-                  <Link href={option.href}>
-                    <option.icon />
-                    <span>{option.name}</span>
-                  </Link>
+                <SidebarMenuButton
+                  render={<Link href={option.href} />}
+                  isActive={pathname.startsWith(option.href)}
+                  tooltip={option.name}
+                >
+                  <option.icon />
+                  <span>{option.name}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}

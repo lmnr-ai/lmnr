@@ -3,7 +3,7 @@
 import { ChevronDown, Database, ListChecks, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { type PropsWithChildren, useCallback, useState } from "react";
+import React, { type PropsWithChildren, type ReactElement, useCallback, useState } from "react";
 
 import ColumnAssignmentDnd, {
   buildInitialColumns,
@@ -116,7 +116,7 @@ function ExportDatasetDialog({ results, children }: PropsWithChildren<Pick<Expor
 
   return (
     <Dialog open={isExportDialogOpen} onOpenChange={handleDialogOpen}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogTrigger render={children as React.ReactElement} />
       <DialogContent className="max-w-4xl bg-background">
         <DialogHeader className="flex flex-row justify-between items-center">
           <DialogTitle>Export SQL Results to Dataset</DialogTitle>
@@ -223,7 +223,7 @@ function ExportQueueDialog({
 
   return (
     <Dialog open={isExportDialogOpen} onOpenChange={handleDialogOpen}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogTrigger render={children as React.ReactElement} />
       <DialogContent className="max-w-4xl bg-background">
         <DialogHeader className="flex flex-row justify-between items-center">
           <DialogTitle>Export SQL Results to Labeling Queue</DialogTitle>
@@ -260,30 +260,32 @@ export default function ExportSqlDialog({
 }: PropsWithChildren<ExportResultsDialogProps>) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        {children || (
-          <Button disabled={!sqlQuery?.trim()} variant="secondary" className="w-fit px-2">
-            <Database className="size-3.5 mr-2" />
-            Export
-            <ChevronDown className="size-3.5 ml-2" />
-          </Button>
-        )}
-      </DropdownMenuTrigger>
+      {children ? (
+        <DropdownMenuTrigger render={children as ReactElement} />
+      ) : (
+        <DropdownMenuTrigger
+          render={<Button disabled={!sqlQuery?.trim()} variant="secondary" className="w-fit px-2" />}
+        >
+          <Database className="size-3.5 mr-2" />
+          Export
+          <ChevronDown className="size-3.5 ml-2" />
+        </DropdownMenuTrigger>
+      )}
       <DropdownMenuContent align="end">
         <ExportDatasetDialog results={results}>
-          <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+          <DropdownMenuItem closeOnClick={false}>
             <Database className="w-4 h-4 mr-2" />
             Export to Dataset
           </DropdownMenuItem>
         </ExportDatasetDialog>
         <ExportJobDialog sqlQuery={sqlQuery}>
-          <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+          <DropdownMenuItem closeOnClick={false}>
             <Database className="w-4 h-4 mr-2" />
             Export to Dataset as Job
           </DropdownMenuItem>
         </ExportJobDialog>
         <ExportQueueDialog results={results} sqlTemplateId={sqlTemplateId}>
-          <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+          <DropdownMenuItem closeOnClick={false}>
             <ListChecks className="w-4 h-4 mr-2" />
             Export to Labeling Queue
           </DropdownMenuItem>

@@ -247,67 +247,59 @@ export default function EditorPanel() {
               </ExportSqlDialog>
             </div>
           </div>
-          <TabsContent asChild value="table">
-            <div className="flex overflow-hidden h-full">
-              {renderContent({
-                success: (
-                  <ResultsTable
-                    results={results || []}
-                    storageKey={`sql-results-column-sizing-${projectId}-${resultsTemplateId ?? "draft"}`}
-                  />
-                ),
-                loadingText: "Executing query...",
-                default: (
-                  <div className="flex flex-col w-full items-center justify-center h-full text-muted-foreground space-y-3">
-                    <TableProperties className="w-8 h-8 opacity-50" />
-                    <p className="text">Execute a query to see table results</p>
-                  </div>
-                ),
-              })}
-            </div>
+          <TabsContent value="table" className="flex overflow-hidden h-full">
+            {renderContent({
+              success: (
+                <ResultsTable
+                  results={results || []}
+                  storageKey={`sql-results-column-sizing-${projectId}-${resultsTemplateId ?? "draft"}`}
+                />
+              ),
+              loadingText: "Executing query...",
+              default: (
+                <div className="flex flex-col w-full items-center justify-center h-full text-muted-foreground space-y-3">
+                  <TableProperties className="w-8 h-8 opacity-50" />
+                  <p className="text">Execute a query to see table results</p>
+                </div>
+              ),
+            })}
           </TabsContent>
 
-          <TabsContent asChild value="json">
-            <div className="flex flex-col flex-1 overflow-hidden">
-              {renderContent({
-                success: (
-                  <ContentRenderer
-                    readOnly
-                    className="rounded"
-                    value={JSON.stringify(results, null, 2)}
-                    defaultMode="json"
-                  />
-                ),
-                loadingText: "Processing results...",
-                default: (
-                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-3">
-                    <FileJson2 className="w-8 h-8 opacity-50" />
-                    <p className="text">Execute a query to see JSON results</p>
-                  </div>
-                ),
-              })}
-            </div>
+          <TabsContent value="json" className="flex flex-col flex-1 overflow-hidden">
+            {renderContent({
+              success: (
+                <ContentRenderer
+                  readOnly
+                  className="rounded"
+                  value={JSON.stringify(results, null, 2)}
+                  defaultMode="json"
+                />
+              ),
+              loadingText: "Processing results...",
+              default: (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-3">
+                  <FileJson2 className="w-8 h-8 opacity-50" />
+                  <p className="text">Execute a query to see JSON results</p>
+                </div>
+              ),
+            })}
           </TabsContent>
 
-          <TabsContent asChild value="chart">
-            <div className="flex flex-col flex-1 overflow-hidden">
-              {renderContent({
-                success: <ChartBuilder query={template?.query || ""} data={results || []} storageKey={template?.id} />,
-                loadingText: "Generating chart...",
-                default: (
-                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-3">
-                    <ChartArea className="w-8 h-8 opacity-50" />
-                    <p className="text">Execute a query to visualize results as charts</p>
-                  </div>
-                ),
-              })}
-            </div>
+          <TabsContent value="chart" className="flex flex-col flex-1 overflow-hidden">
+            {renderContent({
+              success: <ChartBuilder query={template?.query || ""} data={results || []} storageKey={template?.id} />,
+              loadingText: "Generating chart...",
+              default: (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-3">
+                  <ChartArea className="w-8 h-8 opacity-50" />
+                  <p className="text">Execute a query to visualize results as charts</p>
+                </div>
+              ),
+            })}
           </TabsContent>
 
-          <TabsContent asChild value="parameters">
-            <div className="flex flex-col flex-1 overflow-hidden">
-              <ParametersPanel parameters={parameters} onChange={onChange} />
-            </div>
+          <TabsContent value="parameters" className="flex flex-col flex-1 overflow-hidden">
+            <ParametersPanel parameters={parameters} onChange={onChange} />
           </TabsContent>
         </Tabs>
       </ResizablePanel>

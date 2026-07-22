@@ -19,11 +19,9 @@ export default function RevokeDialog({ apiKey, onRevoke, entity }: RevokeApiKeyD
   const [isLoading, setIsLoading] = useState(false);
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost">
-          {" "}
-          <Trash2 size={14} />
-        </Button>
+      <DialogTrigger render={<Button variant="ghost" />}>
+        {" "}
+        <Trash2 size={14} />
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

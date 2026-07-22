@@ -58,13 +58,11 @@ const AccountMenu = () => {
         </div>
       </div>
       {showUpgrade && (
-        <DropdownMenuItem asChild className="cursor-pointer gap-2">
-          <Link href={settingsHref("billing")}>
-            <span className="flex size-6 items-center justify-center shrink-0">
-              <Sparkles className="size-4" />
-            </span>
-            <span>Upgrade plan</span>
-          </Link>
+        <DropdownMenuItem className="cursor-pointer gap-2" render={<Link href={settingsHref("billing")} />}>
+          <span className="flex size-6 items-center justify-center shrink-0">
+            <Sparkles className="size-4" />
+          </span>
+          <span>Upgrade plan</span>
         </DropdownMenuItem>
       )}
       <DropdownMenuItem onClick={handleLogout} className="cursor-pointer gap-2">

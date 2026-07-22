@@ -194,7 +194,7 @@ export default function ClustersSection({ className }: Props) {
   }
 
   return (
-    <TooltipProvider delayDuration={200}>
+    <TooltipProvider delay={200}>
       <ResizablePanelGroup
         id="clusters-section"
         orientation="horizontal"

@@ -1,7 +1,7 @@
 import { Loader2, Plus } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { type PropsWithChildren, useCallback, useState } from "react";
+import { type PropsWithChildren, type ReactElement, useCallback, useState } from "react";
 import useSWR from "swr";
 
 import CreateQueueDialog from "@/components/queues/create-queue-dialog";
@@ -135,18 +135,26 @@ export default function AddToLabelingQueuePopover({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        {children || (
-          <Button size={buttonSize} icon="pen" className="w-fit" variant={buttonVariant}>
-            <span className="text-xs truncate block min-w-0">Add to labeling queue</span>
-          </Button>
-        )}
-      </PopoverTrigger>
+      <PopoverTrigger
+        render={
+          (children as ReactElement) || (
+            <Button size={buttonSize} icon="pen" className="w-fit" variant={buttonVariant}>
+              <span className="text-xs truncate block min-w-0">Add to labeling queue</span>
+            </Button>
+          )
+        }
+      />
 
       <PopoverContent className="w-80" align="start" side="bottom">
         <div className="flex flex-col space-y-4">
           <span className="font-medium">Add to Queue</span>
-          <Select disabled={isQueuesLoading} value={selectedQueue} onValueChange={setSelectedQueue}>
+          <Select
+            disabled={isQueuesLoading}
+            value={selectedQueue}
+            onValueChange={(v) => {
+              if (v != null) setSelectedQueue(v);
+            }}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Select a labeling queue" />
             </SelectTrigger>

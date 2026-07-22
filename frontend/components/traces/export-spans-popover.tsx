@@ -1,7 +1,7 @@
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { type PropsWithChildren, useCallback, useState } from "react";
+import { type PropsWithChildren, type ReactElement, useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -81,13 +81,15 @@ export default function ExportSpansPopover({ children, span }: PropsWithChildren
           }
         }}
       >
-        <PopoverTrigger asChild>
-          {children || (
-            <Button icon="database" size="sm" variant="secondary">
-              <span>Add to dataset</span>
-            </Button>
-          )}
-        </PopoverTrigger>
+        <PopoverTrigger
+          render={
+            (children as ReactElement) || (
+              <Button icon="database" size="sm" variant="secondary">
+                <span>Add to dataset</span>
+              </Button>
+            )
+          }
+        />
         <PopoverContent className="w-80" align="end" side="bottom">
           <div className="flex flex-col space-y-4">
             <span className="font-medium">Export span to dataset</span>

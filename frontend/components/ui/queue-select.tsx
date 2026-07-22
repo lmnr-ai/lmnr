@@ -23,7 +23,8 @@ export default function QueueSelect({ onChange, value, className }: QueueSelectP
   );
 
   const onValueChange = useCallback(
-    (id: string) => {
+    (id: string | null) => {
+      if (id == null) return;
       const queue = data?.items?.find((q) => q.id === id);
       if (queue) onChange(queue);
     },

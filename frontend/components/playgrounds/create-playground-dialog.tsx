@@ -53,11 +53,7 @@ export default function CreatePlaygroundDialog() {
           setNewPlaygroundName("");
         }}
       >
-        <DialogTrigger asChild>
-          <Button icon="plus" className="w-fit">
-            Playground
-          </Button>
-        </DialogTrigger>
+        <DialogTrigger render={<Button icon="plus" className="w-fit" />}>Playground</DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Create new playground</DialogTitle>

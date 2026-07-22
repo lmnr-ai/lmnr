@@ -23,7 +23,8 @@ export default function DatasetSelect({ onChange, value, className }: DatasetSel
   );
 
   const onValueChange = useCallback(
-    (id: string) => {
+    (id: string | null) => {
+      if (id == null) return;
       const dataset = data?.items?.find((dataset) => dataset.id === id);
       if (dataset) onChange(dataset);
     },

@@ -143,15 +143,17 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
       )}
       {!editing && (
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="opacity-0 group-hover:opacity-100 h-6 w-6 min-w-6 p-0 ml-auto focus-visible:ring-0 hover:bg-muted"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <EllipsisVertical className="h-3 w-3" />
-            </Button>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="sm"
+                className="opacity-0 group-hover:opacity-100 h-6 w-6 min-w-6 p-0 ml-auto focus-visible:ring-0 hover:bg-muted"
+                onClick={(e) => e.stopPropagation()}
+              />
+            }
+          >
+            <EllipsisVertical className="h-3 w-3" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-32">
             <DropdownMenuItem

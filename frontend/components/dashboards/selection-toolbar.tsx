@@ -3,13 +3,13 @@
 import { format } from "date-fns";
 import { X } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 
 import { parseUtcTimestamp } from "@/components/chart-builder/charts/utils";
 import { normalizeTimeRange } from "@/components/charts/time-series-chart/utils";
 import { useDashboardSelectionStore } from "@/components/dashboards/dashboard-selection-store";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { Popover, PopoverContent } from "@/components/ui/popover";
 
 const formatRange = (startTs: string, endTs: string) => {
   const start = parseUtcTimestamp(startTs);
@@ -38,6 +38,7 @@ export default function SelectionToolbar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { projectId } = useParams();
+  const anchorRef = useRef<HTMLDivElement>(null);
 
   const { startLabel, endLabel, isDragging, clearSelection } = useDashboardSelectionStore((s) => ({
     startLabel: s.startLabel,
@@ -73,17 +74,19 @@ export default function SelectionToolbar() {
   const isVisible = !!startLabel && !!endLabel && !isDragging && !!normalized;
 
   return (
-    <Popover open={isVisible}>
-      <PopoverAnchor asChild>
-        <div className="absolute inset-x-0 bottom-0 h-0" />
-      </PopoverAnchor>
+    <Popover
+      open={isVisible}
+      onOpenChange={(open) => {
+        if (!open) clearSelection();
+      }}
+    >
+      <div ref={anchorRef} className="absolute inset-x-0 bottom-0 h-0" />
       <PopoverContent
+        anchor={anchorRef}
         side="bottom"
         align="center"
         sideOffset={8}
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        onPointerDownOutside={clearSelection}
-        onEscapeKeyDown={clearSelection}
+        initialFocus={false}
         className="w-auto p-0 border-border bg-muted shadow-lg"
       >
         <div className="flex items-center justify-between gap-4 pl-4 pr-3 py-2 whitespace-nowrap">

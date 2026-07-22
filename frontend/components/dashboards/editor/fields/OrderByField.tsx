@@ -65,7 +65,12 @@ const OrderByField = () => {
           <div key={field.id} className="flex gap-2">
             <Controller
               render={({ field: { value, onChange } }) => (
-                <Select value={value} onValueChange={onChange}>
+                <Select
+                  value={value}
+                  onValueChange={(v) => {
+                    if (v != null) onChange(v);
+                  }}
+                >
                   <SelectTrigger className="text-xs flex-1">
                     <SelectValue placeholder="Select field">{value}</SelectValue>
                   </SelectTrigger>
@@ -101,7 +106,12 @@ const OrderByField = () => {
             />
             <Controller
               render={({ field: { value, onChange } }) => (
-                <Select value={value} onValueChange={onChange}>
+                <Select
+                  value={value}
+                  onValueChange={(v) => {
+                    if (v != null) onChange(v);
+                  }}
+                >
                   <SelectTrigger className="text-xs w-32">
                     <SelectValue />
                   </SelectTrigger>

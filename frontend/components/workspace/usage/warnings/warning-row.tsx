@@ -140,11 +140,9 @@ export function AddWarningPopover({ workspaceId, usageItem, unit, toRawValue, on
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-xs">
-          <Plus className="h-3 w-3" />
-          Add
-        </Button>
+      <PopoverTrigger render={<Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-xs" />}>
+        <Plus className="h-3 w-3" />
+        Add
       </PopoverTrigger>
       <PopoverContent align="start" className="w-56 p-3">
         <form onSubmit={onSubmit} className="flex flex-col gap-2">

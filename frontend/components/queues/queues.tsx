@@ -277,10 +277,8 @@ const QueuesContent = () => {
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
               <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="ghost">
-                    <Trash2 size={12} />
-                  </Button>
+                <DialogTrigger render={<Button variant="ghost" />}>
+                  <Trash2 size={12} />
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>

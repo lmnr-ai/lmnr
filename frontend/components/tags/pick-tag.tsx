@@ -70,8 +70,8 @@ const PickTag = ({ tags, tagClasses, query, setQuery, setStep, onAttach, onDetac
           <DropdownMenuGroup>
             <DropdownMenuItem
               className="gap-1"
-              onSelect={(e) => {
-                e.preventDefault();
+              closeOnClick={false}
+              onClick={() => {
                 setStep(1);
               }}
             >
@@ -90,7 +90,7 @@ export default PickTag;
 const AvailableTags = ({ tags, onAttach }: { tags: TagClass[]; onAttach: (tagClassName: string) => Promise<void> }) => (
   <DropdownMenuGroup>
     {tags.map((tag) => (
-      <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={tag.name}>
+      <DropdownMenuItem closeOnClick={false} key={tag.name}>
         <Checkbox
           checked={false}
           onCheckedChange={(checked) => {
@@ -111,7 +111,7 @@ const AvailableTags = ({ tags, onAttach }: { tags: TagClass[]; onAttach: (tagCla
 const SelectedTags = ({ tags, onDetach }: { tags: Tag[]; onDetach: (tag: Tag) => Promise<void> }) => (
   <DropdownMenuGroup>
     {tags.map((tag) => (
-      <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={tag.name}>
+      <DropdownMenuItem closeOnClick={false} key={tag.name}>
         <Checkbox
           onCheckedChange={(checked) => {
             if (!checked) onDetach(tag);

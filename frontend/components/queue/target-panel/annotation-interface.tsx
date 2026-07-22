@@ -98,7 +98,7 @@ const FieldOptions = ({
   onNavigate: (direction: "next" | "prev") => void;
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
-  const sliderRef = useRef<HTMLSpanElement>(null);
+  const sliderRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (field.type === "string" && inputRef.current) {

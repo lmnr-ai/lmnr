@@ -271,16 +271,18 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
             <span className={HEADER_ITEM_CLS}>
               <TooltipProvider>
                 <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      onClick={handleOpenSession}
-                      variant="outline"
-                      className="h-6 text-xs px-1.5 hover:bg-secondary max-w-56"
-                    >
-                      <Layers size={14} className="mr-1 flex-shrink-0" />
-                      <span className="truncate">{sessionId}</span>
-                      <ArrowUpRight size={16} className="ml-1 flex-shrink-0 text-muted-foreground" />
-                    </Button>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        onClick={handleOpenSession}
+                        variant="outline"
+                        className="h-6 text-xs px-1.5 hover:bg-secondary max-w-56"
+                      />
+                    }
+                  >
+                    <Layers size={14} className="mr-1 flex-shrink-0" />
+                    <span className="truncate">{sessionId}</span>
+                    <ArrowUpRight size={16} className="ml-1 flex-shrink-0 text-muted-foreground" />
                   </TooltipTrigger>
                   <TooltipContent side="bottom">Open session in a new tab</TooltipContent>
                 </Tooltip>
@@ -291,16 +293,18 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
             <span className={HEADER_ITEM_CLS}>
               <TooltipProvider>
                 <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      onClick={handleOpenUserTraces}
-                      variant="outline"
-                      className="h-6 text-xs px-1.5 hover:bg-secondary max-w-40"
-                    >
-                      <User size={14} className="mr-1 flex-shrink-0" />
-                      <span className="truncate">{userId}</span>
-                      <ArrowUpRight size={16} className="ml-1 flex-shrink-0 text-muted-foreground" />
-                    </Button>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        onClick={handleOpenUserTraces}
+                        variant="outline"
+                        className="h-6 text-xs px-1.5 hover:bg-secondary max-w-40"
+                      />
+                    }
+                  >
+                    <User size={14} className="mr-1 flex-shrink-0" />
+                    <span className="truncate">{userId}</span>
+                    <ArrowUpRight size={16} className="ml-1 flex-shrink-0 text-muted-foreground" />
                   </TooltipTrigger>
                   <TooltipContent side="bottom">See user traces in a new tab</TooltipContent>
                 </Tooltip>

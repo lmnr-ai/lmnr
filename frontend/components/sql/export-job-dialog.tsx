@@ -3,7 +3,7 @@
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { type PropsWithChildren, useState } from "react";
+import React, { type PropsWithChildren, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import DatasetSelect from "@/components/ui/dataset-select";
@@ -89,7 +89,7 @@ export default function ExportJobDialog({ sqlQuery, children }: PropsWithChildre
 
   return (
     <Dialog open={isExportDialogOpen} onOpenChange={handleDialogOpen}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogTrigger render={children as React.ReactElement} />
       <DialogContent className="max-w-md bg-background">
         <DialogHeader className="flex flex-row justify-between items-center">
           <DialogTitle>Export SQL Results as Job</DialogTitle>

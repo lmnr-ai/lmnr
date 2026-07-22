@@ -1,12 +1,11 @@
-import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { BracesIcon, X } from "lucide-react";
-import { type PropsWithChildren, useCallback } from "react";
+import React, { type PropsWithChildren, useCallback } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipPortal, TooltipTrigger } from "@/components/ui/tooltip";
 import { type PlaygroundForm } from "@/lib/playground/types";
 import { cn } from "@/lib/utils";
 
@@ -45,30 +44,34 @@ export default function StructuredOutputSheet({
   const renderTrigger = useCallback(() => {
     if (!structuredOutput) {
       return (
-        <SheetTrigger asChild>
-          <Button
-            disabled={!model}
-            variant="outline"
-            size="icon"
-            className={cn("focus-visible:ring-0 size-7", className)}
-          >
-            <BracesIcon className="size-3.5" />
-          </Button>
+        <SheetTrigger
+          render={
+            <Button
+              disabled={!model}
+              variant="outline"
+              size="icon"
+              className={cn("focus-visible:ring-0 size-7", className)}
+            />
+          }
+        >
+          <BracesIcon className="size-3.5" />
         </SheetTrigger>
       );
     }
 
     return (
       <div className="flex flex-row [&>*:first-child]:border-r-0 [&>*:first-child]:rounded-l [&>*:first-child]:rounded-r-none [&>*:last-child]:rounded-r [&>*:last-child]:rounded-l-none">
-        <SheetTrigger asChild>
-          <Button
-            disabled={!model}
-            variant="outlinePrimary"
-            size="icon"
-            className={cn("focus-visible:ring-0 size-7", className)}
-          >
-            <BracesIcon className="size-4" />
-          </Button>
+        <SheetTrigger
+          render={
+            <Button
+              disabled={!model}
+              variant="outlinePrimary"
+              size="icon"
+              className={cn("focus-visible:ring-0 size-7", className)}
+            />
+          }
+        >
+          <BracesIcon className="size-4" />
         </SheetTrigger>
         <Button
           onClick={() => setValue("structuredOutput", undefined)}
@@ -85,7 +88,7 @@ export default function StructuredOutputSheet({
   return (
     <Sheet>
       <Tooltip>
-        <TooltipTrigger asChild>{children || renderTrigger()}</TooltipTrigger>
+        <TooltipTrigger render={(children || renderTrigger()) as React.ReactElement} />
         <TooltipPortal>
           <TooltipContent>Structured Output</TooltipContent>
         </TooltipPortal>

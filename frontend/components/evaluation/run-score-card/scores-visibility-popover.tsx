@@ -58,12 +58,14 @@ export default function ScoresVisibilityPopover({
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button className="bg-secondary text-secondary-foreground" icon="slidersHorizontal" variant="outline">
-          Scores
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button className="bg-secondary text-secondary-foreground" icon="slidersHorizontal" variant="outline" />
+        }
+      >
+        Scores
       </PopoverTrigger>
-      <PopoverContent className="w-56 overflow-hidden p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+      <PopoverContent className="w-56 overflow-hidden p-0" align="start" initialFocus={false}>
         <ScrollArea type="always" className="max-h-72">
           <div className="flex flex-col p-1">
             {scoreOrder.length === 0 ? (

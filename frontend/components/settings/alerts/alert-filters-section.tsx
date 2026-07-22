@@ -92,7 +92,12 @@ function FilterConditionRow({
         name={`alertFilters.${groupIndex}.filters.${conditionIndex}.column`}
         control={control}
         render={({ field }) => (
-          <Select value={field.value} onValueChange={(value) => handleColumnChange(value, field.onChange)}>
+          <Select
+            value={field.value}
+            onValueChange={(value) => {
+              if (value != null) handleColumnChange(value, field.onChange);
+            }}
+          >
             <SelectTrigger className="w-48 truncate">
               <span className="truncate">{columns.find((c) => c.key === field.value)?.name || "Select field..."}</span>
             </SelectTrigger>
@@ -110,7 +115,12 @@ function FilterConditionRow({
         name={`alertFilters.${groupIndex}.filters.${conditionIndex}.operator`}
         control={control}
         render={({ field }) => (
-          <Select value={field.value} onValueChange={field.onChange}>
+          <Select
+            value={field.value}
+            onValueChange={(v) => {
+              if (v != null) field.onChange(v);
+            }}
+          >
             <SelectTrigger className="w-12">
               <span>{operations.find((op) => op.key === field.value)?.label || field.value}</span>
             </SelectTrigger>
@@ -130,7 +140,12 @@ function FilterConditionRow({
         rules={{ required: "Value is required" }}
         render={({ field }) =>
           dataType === "enum" && column && "options" in column ? (
-            <Select value={field.value as string} onValueChange={field.onChange}>
+            <Select
+              value={field.value as string}
+              onValueChange={(v) => {
+                if (v != null) field.onChange(v);
+              }}
+            >
               <SelectTrigger className="flex-1">
                 <span>{column.options.find((opt) => opt.value === field.value)?.label || "Select value..."}</span>
               </SelectTrigger>
@@ -216,13 +231,11 @@ export default function AlertFiltersSection({ schema }: { schema: unknown }) {
   return (
     <div className="grid gap-2">
       <div className="flex items-center justify-between">
-        <TooltipProvider delayDuration={200}>
+        <TooltipProvider delay={200}>
           <div className="flex items-center gap-1.5">
             <Label className="text-sm font-medium">Output schema filters</Label>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
-              </TooltipTrigger>
+              <TooltipTrigger render={<Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />} />
               <TooltipContent side="right" className="max-w-60">
                 <p>Only notify when an event&apos;s extracted output matches one of these filters.</p>
               </TooltipContent>

@@ -68,7 +68,12 @@ const ChartBuilderCore = () => {
         <div className="flex flex-col flex-1 gap-3">
           <div>
             <label className="text-sm font-medium mb-1 block">Chart type</label>
-            <Select value={chartConfig.type || ""} onValueChange={setChartType}>
+            <Select
+              value={chartConfig.type || ""}
+              onValueChange={(v) => {
+                if (v != null) setChartType(v as ChartType);
+              }}
+            >
               <SelectTrigger className="focus:ring-0">
                 <SelectValue placeholder="Select Chart Type" />
               </SelectTrigger>
@@ -91,6 +96,7 @@ const ChartBuilderCore = () => {
               <Select
                 value={selectedBreakdownColumn?.name || "none"}
                 onValueChange={(value) => {
+                  if (value == null) return;
                   setBreakdownColumn(value === "none" ? undefined : value);
                 }}
               >
@@ -156,16 +162,14 @@ const ChartBuilderCore = () => {
                           <TableCell className="w-20 text-center">
                             <TooltipProvider>
                               <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div>
-                                    <Switch
-                                      checked={isColumnSelected(column.name, "y")}
-                                      onCheckedChange={(checked) => setYColumn(checked ? column.name : undefined)}
-                                      disabled={
-                                        !canSelectForYAxis(column.name) || isColumnSelected(column.name, "breakdown")
-                                      }
-                                    />
-                                  </div>
+                                <TooltipTrigger render={<div />}>
+                                  <Switch
+                                    checked={isColumnSelected(column.name, "y")}
+                                    onCheckedChange={(checked) => setYColumn(checked ? column.name : undefined)}
+                                    disabled={
+                                      !canSelectForYAxis(column.name) || isColumnSelected(column.name, "breakdown")
+                                    }
+                                  />
                                 </TooltipTrigger>
                                 {(!canSelectForYAxis(column.name) || isColumnSelected(column.name, "breakdown")) && (
                                   <TooltipContent>

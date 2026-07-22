@@ -22,19 +22,21 @@ export default function Controls({
 }: ControlsProps) {
   return (
     <div className="absolute bottom-1.5 right-1.5 z-40 flex items-center gap-1 h-[24px]">
-      <TooltipProvider delayDuration={300}>
+      <TooltipProvider delay={300}>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              className={cn(
-                "flex items-center gap-0.5 h-[24px] px-1.5 rounded-md bg-muted text-xs text-muted-foreground hover:bg-secondary transition-colors border",
-                isCostHeatmapVisible && "border-primary/50 text-primary bg-muted"
-              )}
-              onClick={() => onToggleCostHeatmap(!isCostHeatmapVisible)}
-            >
-              <DollarSign className="size-3" />
-              <span>Cost heatmap</span>
-            </button>
+          <TooltipTrigger
+            render={
+              <button
+                className={cn(
+                  "flex items-center gap-0.5 h-[24px] px-1.5 rounded-md bg-muted text-xs text-muted-foreground hover:bg-secondary transition-colors border",
+                  isCostHeatmapVisible && "border-primary/50 text-primary bg-muted"
+                )}
+                onClick={() => onToggleCostHeatmap(!isCostHeatmapVisible)}
+              />
+            }
+          >
+            <DollarSign className="size-3" />
+            <span>Cost heatmap</span>
           </TooltipTrigger>
           <TooltipContent className="border">Toggle cost heatmap</TooltipContent>
         </Tooltip>

@@ -279,24 +279,22 @@ const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Change data residency mode?</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-3">
-                {mode === DeploymentType.HYBRID ? (
-                  <>
-                    <p>
-                      Switching to <strong>Hybrid</strong> means all new data will be written to and read from your
-                      self-hosted data plane.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p>
-                      Switching to <strong>Cloud</strong> means all new data will be written to and read from
-                      Laminar&apos;s managed infrastructure.
-                    </p>
-                  </>
-                )}
-              </div>
+            <AlertDialogDescription render={<div className="space-y-3" />}>
+              {mode === DeploymentType.HYBRID ? (
+                <>
+                  <p>
+                    Switching to <strong>Hybrid</strong> means all new data will be written to and read from your
+                    self-hosted data plane.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    Switching to <strong>Cloud</strong> means all new data will be written to and read from
+                    Laminar&apos;s managed infrastructure.
+                  </p>
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

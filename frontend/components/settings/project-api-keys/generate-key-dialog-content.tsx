@@ -1,5 +1,4 @@
-import { InfoCircledIcon } from "@radix-ui/react-icons";
-import { Loader2 } from "lucide-react";
+import { Info, Loader2 } from "lucide-react";
 
 import { KEY_EXPIRATION_OPTIONS, type KeyExpiration } from "@/lib/api-keys/types";
 import { cn } from "@/lib/utils";
@@ -42,9 +41,7 @@ export function GenerateKeyDialogContent({
             <Label className="text-sm">Key Type</Label>
             <TooltipProvider>
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <InfoCircledIcon className="h-3 w-3 text-muted-foreground cursor-pointer" />
-                </TooltipTrigger>
+                <TooltipTrigger render={<Info className="h-3 w-3 text-muted-foreground cursor-pointer" />} />
                 <TooltipContent side="bottom">
                   <p className="max-w-xs">
                     Ingest-only keys can write trace and browser session recording data but cannot access any other
@@ -54,7 +51,12 @@ export function GenerateKeyDialogContent({
               </Tooltip>
             </TooltipProvider>
           </div>
-          <Select value={keyType} onValueChange={(value) => onKeyTypeChange(value as "default" | "ingest_only")}>
+          <Select
+            value={keyType}
+            onValueChange={(value) => {
+              if (value != null) onKeyTypeChange(value as "default" | "ingest_only");
+            }}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -66,7 +68,12 @@ export function GenerateKeyDialogContent({
         </div>
         <div className="flex flex-col gap-2">
           <Label className="text-sm">Expiration</Label>
-          <Select value={expiration} onValueChange={(value) => onExpirationChange(value as KeyExpiration)}>
+          <Select
+            value={expiration}
+            onValueChange={(value) => {
+              if (value != null) onExpirationChange(value as KeyExpiration);
+            }}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>

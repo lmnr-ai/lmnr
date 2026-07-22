@@ -74,7 +74,7 @@ const RenameEvaluationDialog = ({
         setName("");
       }}
     >
-      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogTrigger render={children as React.ReactElement} />
       <DialogContent className="sm:max-w-96">
         <DialogHeader>
           <DialogTitle>Rename evaluation</DialogTitle>

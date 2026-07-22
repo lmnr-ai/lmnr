@@ -1,9 +1,7 @@
 "use client";
 
-import { TooltipPortal } from "@radix-ui/react-tooltip";
-
 import { CostBreakdown } from "@/components/traces/cells/cost-breakdown";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipPortal, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type CostStats, currencyFormatter } from "@/lib/traces/format";
 import { cn } from "@/lib/utils";
 
@@ -20,10 +18,10 @@ export function CostCell({ stats, className }: CostCellProps) {
   }
 
   return (
-    <TooltipProvider delayDuration={250}>
+    <TooltipProvider delay={250}>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <span className={cn("truncate", className)}>{currencyFormatter.format(totalCost)}</span>
+        <TooltipTrigger render={<span className={cn("truncate", className)} />}>
+          {currencyFormatter.format(totalCost)}
         </TooltipTrigger>
         <TooltipPortal>
           <TooltipContent className="flex flex-col border gap-1 p-2">

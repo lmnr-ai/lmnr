@@ -318,20 +318,22 @@ export const TemplatePickerView = ({ mode, onModeChange, modes, triggerClassName
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          size="sm"
-          variant="ghost"
-          className={cn(
-            "h-5 gap-1 rounded-md border border-secondary-foreground/20 bg-muted px-1.5 text-[0.7rem] font-medium text-secondary-foreground hover:bg-muted",
-            triggerClassName
-          )}
-        >
-          <span className={cn("truncate max-w-[160px]")}>
-            {triggerLabel} {inCustomMode && <span className="font-semibold">(custom)</span>}
-          </span>
-          <ChevronDown className="size-3 shrink-0 opacity-60" />
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            size="sm"
+            variant="ghost"
+            className={cn(
+              "h-5 gap-1 rounded-md border border-secondary-foreground/20 bg-muted px-1.5 text-[0.7rem] font-medium text-secondary-foreground hover:bg-muted",
+              triggerClassName
+            )}
+          />
+        }
+      >
+        <span className={cn("truncate max-w-[160px]")}>
+          {triggerLabel} {inCustomMode && <span className="font-semibold">(custom)</span>}
+        </span>
+        <ChevronDown className="size-3 shrink-0 opacity-60" />
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[280px] p-0" onWheel={(e) => e.stopPropagation()}>
         <Command shouldFilter={false}>

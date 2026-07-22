@@ -48,10 +48,8 @@ export default function TraceDropdown({ traceId }: TraceDropdownProps) {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-6 px-1 hover:bg-secondary">
-          <ChevronDown className="size-3.5" />
-        </Button>
+      <DropdownMenuTrigger render={<Button variant="ghost" className="h-6 px-1 hover:bg-secondary" />}>
+        <ChevronDown className="size-3.5" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         <DropdownMenuItem onClick={handleCopyTraceId}>

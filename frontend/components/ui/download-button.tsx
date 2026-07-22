@@ -83,10 +83,12 @@ function DownloadButtonMultipleFormats({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className={cn(className)} asChild disabled={isDownloading}>
-        <Button icon="download" variant="secondary">
-          Download
-        </Button>
+      <DropdownMenuTrigger
+        className={cn(className)}
+        disabled={isDownloading}
+        render={<Button icon="download" variant="secondary" />}
+      >
+        Download
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"

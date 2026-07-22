@@ -3,9 +3,8 @@
 import "rrweb-player/dist/style.css";
 import "@/lib/styles/session-player.css";
 
-import { PauseIcon, PlayIcon } from "@radix-ui/react-icons";
 import { truncate } from "lodash";
-import { Loader2, X } from "lucide-react";
+import { Loader2, Pause, Play, X } from "lucide-react";
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import rrwebPlayer from "rrweb-player";
@@ -238,7 +237,7 @@ const SessionPlayer = ({ traceId, onClose }: SessionPlayerProps) => {
         <div ref={browserContentRef} className="h-full flex flex-col">
           <div className="flex flex-row items-center justify-center gap-2 px-4 h-8 border-b shrink-0">
             <button onClick={handlePlayPause} className="text-white py-1 rounded">
-              {isPlaying ? <PauseIcon strokeWidth={1.5} /> : <PlayIcon strokeWidth={1.5} />}
+              {isPlaying ? <Pause strokeWidth={1.5} /> : <Play strokeWidth={1.5} />}
             </button>
 
             <DropdownMenu>

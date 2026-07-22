@@ -117,17 +117,19 @@ export default function TemplateViewToggle({
   return (
     <div className="flex items-center min-w-0">
       <Popover open={open} onOpenChange={handleOpenChange}>
-        <PopoverTrigger asChild>
-          <button
-            className={cn(
-              "flex items-center h-6 px-1.5 text-xs border rounded-md focus-visible:outline-0",
-              isTreeView && "rounded-r-none border-r-0 outline-inset -outline-offset-1 hover:bg-secondary"
-            )}
-          >
-            <CurrentIcon size={14} className="mr-1 flex-shrink-0" />
-            <span className={cn("truncate max-w-[160px]", !isCustom && "capitalize")}>{current.label}</span>
-            <ChevronDown size={14} className="ml-1 flex-shrink-0" />
-          </button>
+        <PopoverTrigger
+          render={
+            <button
+              className={cn(
+                "flex items-center h-6 px-1.5 text-xs border rounded-md focus-visible:outline-0",
+                isTreeView && "rounded-r-none border-r-0 outline-inset -outline-offset-1 hover:bg-secondary"
+              )}
+            />
+          }
+        >
+          <CurrentIcon size={14} className="mr-1 flex-shrink-0" />
+          <span className={cn("truncate max-w-[160px]", !isCustom && "capitalize")}>{current.label}</span>
+          <ChevronDown size={14} className="ml-1 flex-shrink-0" />
         </PopoverTrigger>
         <PopoverContent align="start" className="w-[280px] p-0" onWheel={(e) => e.stopPropagation()}>
           <Command shouldFilter={false}>

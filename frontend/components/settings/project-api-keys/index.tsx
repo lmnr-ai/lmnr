@@ -97,25 +97,28 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
       />
       <Dialog
         open={isGenerateKeyDialogOpen}
-        onOpenChange={() => {
-          setIsGenerateKeyDialogOpen(!isGenerateKeyDialogOpen);
-          setNewApiKeyName("");
-          setKeyType("default");
-          setExpiration("30");
-          setNewApiKey(null);
-          setIsGenerated(false);
+        onOpenChange={(open, details) => {
+          if (
+            !open &&
+            isGenerated &&
+            newApiKey &&
+            (details.reason === "outside-press" || details.reason === "focus-out")
+          ) {
+            details.cancel();
+            return;
+          }
+          setIsGenerateKeyDialogOpen(open);
+          if (!open) {
+            setNewApiKeyName("");
+            setKeyType("default");
+            setExpiration("30");
+            setNewApiKey(null);
+            setIsGenerated(false);
+          }
         }}
       >
-        <DialogTrigger asChild>
-          <Button icon="plus" variant="outline" className="w-fit">
-            API Key
-          </Button>
-        </DialogTrigger>
-        <DialogContent
-          className="sm:max-w-[425px]"
-          // prevent closing dialog when clicking outside when copying api key
-          onInteractOutside={(e) => isGenerated && newApiKey && e.preventDefault()}
-        >
+        <DialogTrigger render={<Button icon="plus" variant="outline" className="w-fit" />}>API Key</DialogTrigger>
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>{isGenerated && newApiKey ? "API key generated" : "Generate API key"}</DialogTitle>
           </DialogHeader>

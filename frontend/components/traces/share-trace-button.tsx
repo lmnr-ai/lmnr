@@ -1,5 +1,4 @@
 "use client";
-import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { Globe, Link, Loader2, Lock, Share } from "lucide-react";
 import React, { useState } from "react";
 
@@ -60,19 +59,17 @@ const ShareTraceButton = ({ projectId }: { projectId: string; refetch?: () => vo
   }
 
   return (
-    <TooltipProvider delayDuration={0}>
+    <TooltipProvider delay={0}>
       <Popover>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <PopoverTrigger asChild>
-              <Button className="relative hover:bg-secondary px-1.5" variant="ghost">
-                {trace.visibility === "public" ? <Globe className="h-4 w-4" /> : <Share className="h-4 w-4" />}
-              </Button>
-            </PopoverTrigger>
+          <TooltipTrigger
+            render={
+              <PopoverTrigger render={<Button className="relative hover:bg-secondary px-1.5" variant="ghost" />} />
+            }
+          >
+            {trace.visibility === "public" ? <Globe className="h-4 w-4" /> : <Share className="h-4 w-4" />}
           </TooltipTrigger>
-          <TooltipPortal>
-            <TooltipContent>Share Trace</TooltipContent>
-          </TooltipPortal>
+          <TooltipContent>Share Trace</TooltipContent>
         </Tooltip>
         <PopoverContent className="flex flex-col gap-4 w-96" align="end">
           <div>
@@ -80,7 +77,12 @@ const ShareTraceButton = ({ projectId }: { projectId: string; refetch?: () => vo
             <span className="text-sm text-secondary-foreground mt-2">Configure who has access to this trace.</span>
           </div>
           <div className="flex items-center space-x-2">
-            <Select value={trace.visibility || "private"} onValueChange={handleChangeVisibility}>
+            <Select
+              value={trace.visibility || "private"}
+              onValueChange={(v) => {
+                if (v != null) handleChangeVisibility(v);
+              }}
+            >
               <SelectTrigger
                 disabled={isLoading}
                 value={trace.visibility || "private"}
@@ -130,9 +132,7 @@ const ShareTraceButton = ({ projectId }: { projectId: string; refetch?: () => vo
             </Select>
           </div>
           <div className="flex flex-row-reverse gap-2">
-            <PopoverClose asChild>
-              <Button variant="outline">Done</Button>
-            </PopoverClose>
+            <PopoverClose render={<Button variant="outline" />}>Done</PopoverClose>
             {trace.visibility === "public" && (
               <CopyButton
                 variant="lightSecondary"

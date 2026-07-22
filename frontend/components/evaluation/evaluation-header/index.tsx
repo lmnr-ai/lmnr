@@ -57,7 +57,13 @@ const EvaluationHeader = ({ evaluations, name, urlKey }: EvaluationHeader) => {
         </Link>
         <div className="text-secondary-foreground/40">/</div>
         <div>
-          <Select key={targetId} value={targetId ?? undefined} onValueChange={handleChange}>
+          <Select
+            key={targetId}
+            value={targetId ?? undefined}
+            onValueChange={(v) => {
+              if (v != null) handleChange(v);
+            }}
+          >
             <SelectTrigger disabled={evaluations.length <= 1} className="flex font-medium truncate">
               <SelectValue placeholder="Select compared evaluation" />
             </SelectTrigger>
@@ -83,6 +89,7 @@ const EvaluationHeader = ({ evaluations, name, urlKey }: EvaluationHeader) => {
             key={String(evaluationId)}
             value={String(evaluationId)}
             onValueChange={(value) => {
+              if (value == null) return;
               router.push(`/project/${projectId}/evaluations/${value}?${searchParams.toString()}`);
             }}
           >
@@ -111,14 +118,12 @@ const EvaluationHeader = ({ evaluations, name, urlKey }: EvaluationHeader) => {
       </div>
       <div className="flex items-center gap-2">
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="secondary" className="h-7 w-7 p-0">
-              <Ellipsis className="w-3" />
-            </Button>
+          <DropdownMenuTrigger render={<Button variant="secondary" className="h-7 w-7 p-0" />}>
+            <Ellipsis className="w-3" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
             <RenameEvaluationDialog defaultValue={name} urlKey={urlKey}>
-              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+              <DropdownMenuItem closeOnClick={false}>
                 <Edit className="size-3.5" />
                 <span className="text-xs">Rename</span>
               </DropdownMenuItem>
@@ -139,7 +144,7 @@ const EvaluationHeader = ({ evaluations, name, urlKey }: EvaluationHeader) => {
               </DropdownMenuItem>
             ))}
             <DeleteEvaluationDialog>
-              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+              <DropdownMenuItem closeOnClick={false}>
                 <Trash className="size-3.5 text-destructive" />
                 <span className="text-destructive text-xs">Delete</span>
               </DropdownMenuItem>

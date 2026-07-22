@@ -40,7 +40,12 @@ const TableSelect = () => {
         control={control}
         name="table"
         render={({ field }) => (
-          <Select value={field.value} onValueChange={handleTableChange}>
+          <Select
+            value={field.value}
+            onValueChange={(v) => {
+              if (v != null) handleTableChange(v);
+            }}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Select table" />
             </SelectTrigger>

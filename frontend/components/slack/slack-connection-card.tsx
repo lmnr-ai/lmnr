@@ -162,10 +162,10 @@ export default function SlackConnectionCard({
               </a>
             )}
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
-                  <EllipsisVertical size={14} />
-                </Button>
+              <DropdownMenuTrigger
+                render={<Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" />}
+              >
+                <EllipsisVertical size={14} />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <p className="px-2 py-1.5 text-xs text-muted-foreground">
@@ -173,11 +173,9 @@ export default function SlackConnectionCard({
                 </p>
                 <div className="flex flex-col gap-1">
                   {!hideSettingsLink && (
-                    <DropdownMenuItem asChild>
-                      <Link href={settingsHref("integrations")}>
-                        <Settings className="h-3.5 w-3.5" />
-                        Settings
-                      </Link>
+                    <DropdownMenuItem render={<Link href={settingsHref("integrations")} />}>
+                      <Settings className="h-3.5 w-3.5" />
+                      Settings
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem variant="destructive" onClick={() => setConfirmOpen(true)}>

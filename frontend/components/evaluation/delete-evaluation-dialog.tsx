@@ -57,7 +57,7 @@ const DeleteEvaluationDialog = ({ children }: PropsWithChildren) => {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogTrigger render={children as React.ReactElement} />
       <DialogContent className="sm:max-w-96">
         <DialogHeader>
           <DialogTitle>Delete Evaluation</DialogTitle>

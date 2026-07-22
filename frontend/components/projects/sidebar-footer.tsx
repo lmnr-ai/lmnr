@@ -48,11 +48,12 @@ const SidebarFooterComponent = () => {
         <SidebarGroupContent>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton tooltip="Docs" asChild>
-                <Link href="https://laminar.sh/docs" target="_blank" rel="noopener noreferrer">
-                  <Book size={16} />
-                  <span>Docs</span>
-                </Link>
+              <SidebarMenuButton
+                tooltip="Docs"
+                render={<Link href="https://laminar.sh/docs" target="_blank" rel="noopener noreferrer" />}
+              >
+                <Book size={16} />
+                <span>Docs</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem className="mt-4 mx-0 px-2">

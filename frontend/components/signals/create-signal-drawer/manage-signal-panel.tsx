@@ -210,15 +210,13 @@ export default function ManageSignalPanel({
                 {tabs.map((tab) => (
                   <SidebarMenuItem className="h-7" key={tab.id}>
                     <SidebarMenuButton
-                      asChild
-                      className="flex items-center flex-1 hover:bg-surface-700 active:bg-surface-600 data-[active=true]:bg-surface-600"
+                      render={<Link href={buildSectionHref(tab.id)} />}
+                      className="flex items-center flex-1 hover:bg-surface-700 active:bg-surface-600 data-active:bg-surface-600"
                       isActive={activeTab === tab.id}
                       tooltip={tab.label}
                     >
-                      <Link href={buildSectionHref(tab.id)}>
-                        {tab.icon}
-                        <span className="mr-2">{tab.label}</span>
-                      </Link>
+                      {tab.icon}
+                      <span className="mr-2">{tab.label}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}

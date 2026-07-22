@@ -18,13 +18,11 @@ export default function SamplingSection() {
   return (
     <div className="grid gap-1.5">
       <div className="flex items-center justify-between">
-        <TooltipProvider delayDuration={200}>
+        <TooltipProvider delay={200}>
           <div className="flex items-center gap-1.5">
             <Label className="text-sm font-medium">Sampling</Label>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
-              </TooltipTrigger>
+              <TooltipTrigger render={<Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />} />
               <TooltipContent side="right" className="max-w-60">
                 <p>
                   When enabled, only a percentage of traces will be analyzed. Traces are sampled per user to ensure

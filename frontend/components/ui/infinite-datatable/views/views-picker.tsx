@@ -192,21 +192,23 @@ export default function ViewsPicker({
   return (
     <div className="flex items-center">
       <DropdownMenu open={open} onOpenChange={handleOpenChange}>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            className={cn("text-secondary-foreground gap-1 outline-0", showQuickSave && "rounded-r-none border-r-0")}
-            disabled={isLoading}
-          >
-            <Layers2 className="size-3.5 shrink-0 opacity-70" />
-            {isLoading ? (
-              <Skeleton className="h-3.5 w-12" />
-            ) : (
-              <span className="truncate max-w-[180px]">{triggerLabel}</span>
-            )}
-            {dirty && <span aria-label="Unsaved changes" className="size-1.5 shrink-0 rounded-full bg-amber-500" />}
-            <ChevronDown className="size-3.5 shrink-0 opacity-60" />
-          </Button>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="outline"
+              className={cn("text-secondary-foreground gap-1 outline-0", showQuickSave && "rounded-r-none border-r-0")}
+              disabled={isLoading}
+            />
+          }
+        >
+          <Layers2 className="size-3.5 shrink-0 opacity-70" />
+          {isLoading ? (
+            <Skeleton className="h-3.5 w-12" />
+          ) : (
+            <span className="truncate max-w-[180px]">{triggerLabel}</span>
+          )}
+          {dirty && <span aria-label="Unsaved changes" className="size-1.5 shrink-0 rounded-full bg-amber-500" />}
+          <ChevronDown className="size-3.5 shrink-0 opacity-60" />
         </DropdownMenuTrigger>
         <DropdownMenuContent ref={contentRef} align="start" className="w-64 p-1">
           <div className="px-0.5 py-0.5 pb-1">
@@ -228,19 +230,19 @@ export default function ViewsPicker({
             <>
               <DropdownMenuLabel className={SECTION_LABEL_CLASS}>Unsaved changes</DropdownMenuLabel>
               {currentViewId !== null && onSaveCurrent && (
-                <DropdownMenuItem onSelect={onSaveCurrent} disabled={isSaving} className="text-xs">
+                <DropdownMenuItem onClick={onSaveCurrent} disabled={isSaving} className="text-xs">
                   <Save className="size-3.5" />
                   <span className="flex-1 truncate">Save changes</span>
                 </DropdownMenuItem>
               )}
               {onSaveAsNew && (
-                <DropdownMenuItem onSelect={onSaveAsNew} disabled={isSaving} className="text-xs">
+                <DropdownMenuItem onClick={onSaveAsNew} disabled={isSaving} className="text-xs">
                   <FilePlus2 className="size-3.5" />
                   <span className="flex-1 truncate">Save as new view</span>
                 </DropdownMenuItem>
               )}
               {onDiscard && (
-                <DropdownMenuItem variant="destructive" onSelect={onDiscard} disabled={isSaving} className="text-xs">
+                <DropdownMenuItem variant="destructive" onClick={onDiscard} disabled={isSaving} className="text-xs">
                   <Undo2 className="size-3.5" />
                   <span className="flex-1 truncate">Discard changes</span>
                 </DropdownMenuItem>
@@ -251,7 +253,7 @@ export default function ViewsPicker({
 
           <DropdownMenuLabel className={SECTION_LABEL_CLASS}>Views</DropdownMenuLabel>
           {showDefault && (
-            <DropdownMenuItem onSelect={handleReset} className="text-xs">
+            <DropdownMenuItem onClick={handleReset} className="text-xs">
               <span className="flex-1 truncate">{DEFAULT_LABEL}</span>
               {currentViewId === null && <Check className="size-3.5 shrink-0" />}
             </DropdownMenuItem>
@@ -259,7 +261,7 @@ export default function ViewsPicker({
           {filteredViews.map((view) => {
             const active = currentViewId === view.id;
             return (
-              <DropdownMenuItem key={view.id} onSelect={() => handlePick(view)} className="group text-xs">
+              <DropdownMenuItem key={view.id} onClick={() => handlePick(view)} className="group text-xs">
                 <span className="flex-1 truncate">{view.name}</span>
                 <span className="relative inline-flex h-5 w-11 shrink-0 items-center justify-end">
                   {active && (

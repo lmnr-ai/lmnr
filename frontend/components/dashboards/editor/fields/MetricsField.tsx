@@ -43,7 +43,12 @@ const RawSqlMetricRow = ({ index, table }: { index: number; table: string }) => 
 
   return (
     <div className="grid gap-2 border rounded p-2 bg-secondary/50">
-      <Select value={getMetricFunctionValue(field)} onValueChange={handleFnChange}>
+      <Select
+        value={getMetricFunctionValue(field)}
+        onValueChange={(v) => {
+          if (v != null) handleFnChange(v);
+        }}
+      >
         <SelectTrigger className="w-28">
           <SelectValue />
         </SelectTrigger>
@@ -101,7 +106,12 @@ const StandardMetricRow = ({ index, table }: { index: number; table: string }) =
 
   return (
     <div className="flex gap-2">
-      <Select value={getMetricFunctionValue(field)} onValueChange={handleFnChange}>
+      <Select
+        value={getMetricFunctionValue(field)}
+        onValueChange={(v) => {
+          if (v != null) handleFnChange(v);
+        }}
+      >
         <SelectTrigger className="w-28">
           <SelectValue />
         </SelectTrigger>
@@ -116,6 +126,7 @@ const StandardMetricRow = ({ index, table }: { index: number; table: string }) =
       <Select
         value={field.column}
         onValueChange={(column) => {
+          if (column == null) return;
           const alias = getMetricAlias(getMetricFunctionValue(field), column);
           setValue(`metrics.${index}`, { ...field, column, alias }, { shouldValidate: true });
         }}

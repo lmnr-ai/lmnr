@@ -119,13 +119,11 @@ function formatDataSize(gb: number): string {
 // tier is recommended" explanation.
 function RecommendedBadge({ tooltip }: { tooltip: string }) {
   return (
-    <TooltipProvider delayDuration={0}>
+    <TooltipProvider delay={0}>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <Badge variant="default" className="text-xs shrink-0 cursor-help gap-1">
-            Recommended
-            <Info size={11} />
-          </Badge>
+        <TooltipTrigger render={<Badge variant="default" className="text-xs shrink-0 cursor-help gap-1" />}>
+          Recommended
+          <Info size={11} />
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-56 text-xs leading-relaxed">
           {tooltip}

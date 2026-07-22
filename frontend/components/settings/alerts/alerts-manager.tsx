@@ -149,7 +149,7 @@ export default function AlertsManager({ projectId, workspaceId, userEmail, fixed
           </div>
         </div>
       ) : (
-        <TooltipProvider delayDuration={300}>
+        <TooltipProvider delay={300}>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {alerts?.map((alert) => {
               const visibleTargets = alert.targets.filter((t) => t.type !== "EMAIL" || t.email === userEmail);
@@ -211,19 +211,21 @@ export default function AlertsManager({ projectId, workspaceId, userEmail, fixed
                         <Trash2 size={14} />
                       </Button>
                       <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div
-                            onClick={(e) => e.stopPropagation()}
-                            onKeyDown={(e) => e.stopPropagation()}
-                            className="flex items-center"
-                          >
-                            <Switch
-                              checked={!isDisabled}
-                              disabled={isToggling}
-                              onCheckedChange={(checked) => handleToggleDisabled(alert, !checked)}
-                              aria-label={isDisabled ? "Enable alert" : "Disable alert"}
+                        <TooltipTrigger
+                          render={
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => e.stopPropagation()}
+                              className="flex items-center"
                             />
-                          </div>
+                          }
+                        >
+                          <Switch
+                            checked={!isDisabled}
+                            disabled={isToggling}
+                            onCheckedChange={(checked) => handleToggleDisabled(alert, !checked)}
+                            aria-label={isDisabled ? "Enable alert" : "Disable alert"}
+                          />
                         </TooltipTrigger>
                         <TooltipPortal>
                           <TooltipContent>{isDisabled ? "Enable alert" : "Disable alert"}</TooltipContent>

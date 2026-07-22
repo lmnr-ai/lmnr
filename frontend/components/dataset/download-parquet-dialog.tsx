@@ -243,11 +243,7 @@ export default function DownloadParquetDialog({ datasetId, publicApiBaseUrl }: D
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-      <DialogTrigger asChild>
-        <Button icon="rows4" variant="secondary">
-          Parquets
-        </Button>
-      </DialogTrigger>
+      <DialogTrigger render={<Button icon="rows4" variant="secondary" />}>Parquets</DialogTrigger>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Parquet Files</DialogTitle>

@@ -83,13 +83,11 @@ export default function TestSection() {
 
   return (
     <div className="grid gap-1.5">
-      <TooltipProvider delayDuration={200}>
+      <TooltipProvider delay={200}>
         <div className="flex items-center gap-1.5">
           <Label className="text-sm font-medium">Test</Label>
           <Tooltip>
-            <TooltipTrigger asChild>
-              <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
-            </TooltipTrigger>
+            <TooltipTrigger render={<Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />} />
             <TooltipContent side="right" className="max-w-60">
               <p>Test the current signal against a selected trace. Nothing is saved.</p>
             </TooltipContent>
@@ -101,14 +99,12 @@ export default function TestSection() {
         {selectedTrace ? (
           <TraceChip trace={selectedTrace} onClear={() => setSelectedTrace(null)} disabled={isExecuting} />
         ) : (
-          <TooltipProvider delayDuration={200}>
+          <TooltipProvider delay={200}>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <span className={!canSelectTrace ? "cursor-not-allowed" : undefined}>
-                  <Button type="button" variant="outline" onClick={handleOpenPicker} disabled={!canSelectTrace}>
-                    Select trace
-                  </Button>
-                </span>
+              <TooltipTrigger render={<span className={!canSelectTrace ? "cursor-not-allowed" : undefined} />}>
+                <Button type="button" variant="outline" onClick={handleOpenPicker} disabled={!canSelectTrace}>
+                  Select trace
+                </Button>
               </TooltipTrigger>
               {selectDisabledReason && (
                 <TooltipContent side="top">

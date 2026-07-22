@@ -1,4 +1,3 @@
-import { TooltipPortal } from "@radix-ui/react-tooltip";
 import {
   Activity,
   ArrowRight,
@@ -13,7 +12,7 @@ import {
 } from "lucide-react";
 import { type ReactNode } from "react";
 
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipPortal, TooltipTrigger } from "@/components/ui/tooltip";
 import { SpanType } from "@/lib/traces/types";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
@@ -97,7 +96,7 @@ export default function SpanTypeIcon({
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>{icon}</TooltipTrigger>
+      <TooltipTrigger render={icon} />
       <TooltipPortal>
         <TooltipContent side="left" className="text-xs">
           Replayed from source trace

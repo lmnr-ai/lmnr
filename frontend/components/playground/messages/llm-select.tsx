@@ -54,14 +54,20 @@ const LlmSelect = ({ apiKeys, disabled, onChange, value, className }: LlmSelectN
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger value={value} asChild>
-        <Button disabled={disabled} className={cn("focus-visible:ring-0 text-xs px-2", className)} variant="outline">
-          <span className="mr-1">{providerIconMap[value.split(":")[0] as Provider]}</span>
-          <span className="truncate mr-1 py-0.5">
-            {providers.flatMap((p) => p.models).find((m) => m.id === value)?.label ?? "Select model"}
-          </span>
-          <ChevronDown className="ml-auto w-3.5 h-3.5" size={16} />
-        </Button>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            disabled={disabled}
+            className={cn("focus-visible:ring-0 text-xs px-2", className)}
+            variant="outline"
+          />
+        }
+      >
+        <span className="mr-1">{providerIconMap[value.split(":")[0] as Provider]}</span>
+        <span className="truncate mr-1 py-0.5">
+          {providers.flatMap((p) => p.models).find((m) => m.id === value)?.label ?? "Select model"}
+        </span>
+        <ChevronDown className="ml-auto w-3.5 h-3.5" size={16} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         <div className="flex items-center px-2" onKeyDown={(e) => e.stopPropagation()}>
@@ -84,7 +90,7 @@ const LlmSelect = ({ apiKeys, disabled, onChange, value, className }: LlmSelectN
                 <DropdownMenuPortal>
                   <DropdownMenuSubContent>
                     {provider.models.map((model) => (
-                      <DropdownMenuItem key={model.id} onSelect={() => onChange(model.id)}>
+                      <DropdownMenuItem key={model.id} onClick={() => onChange(model.id)}>
                         <span title={model.id} className="mr-2">
                           {providerIconMap[provider.provider]}
                         </span>

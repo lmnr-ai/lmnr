@@ -103,37 +103,39 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                 }
               }}
             >
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton
-                  className={cn("flex items-center justify-center px-1.5", { border: !open && !openMobile })}
-                >
-                  <AnimatePresence mode="wait" initial={false}>
-                    {!open && !openMobile ? (
-                      <motion.span
-                        key="collapsed"
-                        initial={{ opacity: 0, scale: 0.5, width: 0 }}
-                        animate={{ opacity: 1, scale: 1, width: "auto" }}
-                        exit={{ opacity: 0, scale: 0.5, width: 0 }}
-                        transition={{ duration: 0.1 }}
-                        className="flex items-center justify-center"
-                      >
-                        {project?.name?.at(0)?.toUpperCase()}
-                      </motion.span>
-                    ) : (
-                      <motion.div
-                        key="expanded"
-                        initial={{ opacity: 0, scale: 0.5 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.5 }}
-                        transition={{ duration: 0.1 }}
-                        className="flex items-center w-full"
-                      >
-                        <span className="truncate font-medium leading-tight">{project?.name}</span>
-                        <ChevronsUpDown className="ml-auto size-4 shrink-0 text-secondary-foreground" />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </SidebarMenuButton>
+              <DropdownMenuTrigger
+                render={
+                  <SidebarMenuButton
+                    className={cn("flex items-center justify-center px-1.5", { border: !open && !openMobile })}
+                  />
+                }
+              >
+                <AnimatePresence mode="wait" initial={false}>
+                  {!open && !openMobile ? (
+                    <motion.span
+                      key="collapsed"
+                      initial={{ opacity: 0, scale: 0.5, width: 0 }}
+                      animate={{ opacity: 1, scale: 1, width: "auto" }}
+                      exit={{ opacity: 0, scale: 0.5, width: 0 }}
+                      transition={{ duration: 0.1 }}
+                      className="flex items-center justify-center"
+                    >
+                      {project?.name?.at(0)?.toUpperCase()}
+                    </motion.span>
+                  ) : (
+                    <motion.div
+                      key="expanded"
+                      initial={{ opacity: 0, scale: 0.5 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.5 }}
+                      transition={{ duration: 0.1 }}
+                      className="flex items-center w-full"
+                    >
+                      <span className="truncate font-medium leading-tight">{project?.name}</span>
+                      <ChevronsUpDown className="ml-auto size-4 shrink-0 text-secondary-foreground" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 className="w-(--radix-dropdown-menu-trigger-width) min-w-64 rounded-lg text-xs bg-surface-600 p-0"
@@ -211,7 +213,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                               isFreeTier={selectedIsFreeTier}
                               projectCount={displayedProjects.length}
                             >
-                              <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
+                              <DropdownMenuItem closeOnClick={false} className="cursor-pointer">
                                 <Plus className="size-4" />
                                 <span>Create project</span>
                               </DropdownMenuItem>
@@ -238,9 +240,9 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                             {workspaces?.map((w) => (
                               <DropdownMenuItem
                                 key={w.id}
-                                onSelect={(e) => {
+                                closeOnClick={false}
+                                onClick={() => {
                                   // Select within the picker only — slide back to this workspace's projects.
-                                  e.preventDefault();
                                   setSelectedWorkspaceId(w.id);
                                   setDirection(1);
                                   setView("projects");
@@ -265,7 +267,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                         <DropdownMenuSeparator className="m-0" />
                         <div className="p-1">
                           <WorkspaceCreateDialog>
-                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
+                            <DropdownMenuItem closeOnClick={false} className="cursor-pointer">
                               <Plus className="size-4" />
                               <span>Create workspace</span>
                             </DropdownMenuItem>

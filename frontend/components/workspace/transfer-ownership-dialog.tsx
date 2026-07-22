@@ -87,11 +87,9 @@ const TransferOwnershipDialog = ({ open, onOpenChange, workspace, workspaceUsers
         setWorkspaceNameInput("");
       }}
     >
-      <DialogTrigger asChild>
-        <Button onClick={() => onOpenChange(true)} variant="warningOutline">
-          <ArrowLeftRight className="w-4 h-4 mr-2" />
-          Transfer ownership
-        </Button>
+      <DialogTrigger render={<Button onClick={() => onOpenChange(true)} variant="warningOutline" />}>
+        <ArrowLeftRight className="w-4 h-4 mr-2" />
+        Transfer ownership
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>

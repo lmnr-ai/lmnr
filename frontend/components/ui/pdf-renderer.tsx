@@ -171,10 +171,8 @@ export default function PdfRenderer({ url, base64, className }: PdfRendererProps
           </Button>
         </div>
         <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <Maximize className="h-3.5 w-3.5" />
-            </Button>
+          <SheetTrigger render={<Button variant="ghost" size="icon" />}>
+            <Maximize className="h-3.5 w-3.5" />
           </SheetTrigger>
           <SheetContent side="right" className="flex flex-col overflow-auto gap-0 min-w-[50vw]">
             <SheetTitle className="sr-only">Full-screen PDF View</SheetTitle>

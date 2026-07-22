@@ -70,17 +70,19 @@ export default function RenameProject() {
           setNewProjectName("");
         }}
       >
-        <DialogTrigger asChild>
-          <Button
-            icon="edit"
-            onClick={() => {
-              setIsRenameDialogOpen(true);
-            }}
-            variant="outline"
-            className="w-fit"
-          >
-            Rename project
-          </Button>
+        <DialogTrigger
+          render={
+            <Button
+              icon="edit"
+              onClick={() => {
+                setIsRenameDialogOpen(true);
+              }}
+              variant="outline"
+              className="w-fit"
+            />
+          }
+        >
+          Rename project
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>

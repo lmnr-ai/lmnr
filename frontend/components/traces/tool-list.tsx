@@ -122,12 +122,14 @@ export const ToolList = ({ tools }: { tools: Tool[] }) => {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button className="flex h-6 w-fit items-center gap-1 text-xs font-mono border rounded-md px-2 border-tool bg-tool/20 text-tool hover:bg-tool/30 transition-colors">
-          <Bolt size={12} className="min-w-3" />
-          <span>{pluralize(tools.length, "tool", "tools")}</span>
-          <ChevronDown size={12} />
-        </button>
+      <DropdownMenuTrigger
+        render={
+          <button className="flex h-6 w-fit items-center gap-1 text-xs font-mono border rounded-md px-2 border-tool bg-tool/20 text-tool hover:bg-tool/30 transition-colors" />
+        }
+      >
+        <Bolt size={12} className="min-w-3" />
+        <span>{pluralize(tools.length, "tool", "tools")}</span>
+        <ChevronDown size={12} />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="max-w-96 p-0" align="start" side="bottom">
         <ScrollArea className="pb-2">

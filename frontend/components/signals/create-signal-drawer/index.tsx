@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { type PropsWithChildren, useCallback, useEffect, useMemo } from "react";
+import React, { type PropsWithChildren, useCallback, useEffect, useMemo } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -77,7 +77,7 @@ export default function CreateSignalDrawer({
   return (
     <FormProvider {...form}>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        {children && <SheetTrigger asChild>{children}</SheetTrigger>}
+        {children && <SheetTrigger render={children as React.ReactElement} />}
         <SheetContent side="right" className="sm:max-w-none! p-0 flex flex-col w-[45vw]">
           <ManageSignalContent
             variant="sheet"

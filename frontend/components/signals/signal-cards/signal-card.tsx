@@ -1,6 +1,5 @@
 "use client";
 
-import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { isNil } from "lodash";
 import Link from "next/link";
 
@@ -69,17 +68,15 @@ export default function SignalCard({
           </div>
         </CardHeader>
         <CardContent className={cn("px-3 pt-0 pb-2 space-y-2", signal.disabled && "opacity-60")}>
-          <TooltipProvider delayDuration={300}>
+          <TooltipProvider delay={300}>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <p className="text-xs text-muted-foreground line-clamp-2 min-h-[2lh]">{signal.prompt}</p>
+              <TooltipTrigger render={<p className="text-xs text-muted-foreground line-clamp-2 min-h-[2lh]" />}>
+                {signal.prompt}
               </TooltipTrigger>
               {signal.prompt && (
-                <TooltipPrimitive.Portal>
-                  <TooltipContent side="bottom" align="start" className="max-w-[350px] border">
-                    <p className="text-muted-foreground whitespace-pre-wrap">{signal.prompt}</p>
-                  </TooltipContent>
-                </TooltipPrimitive.Portal>
+                <TooltipContent side="bottom" align="start" className="max-w-[350px] border">
+                  <p className="text-muted-foreground whitespace-pre-wrap">{signal.prompt}</p>
+                </TooltipContent>
               )}
             </Tooltip>
           </TooltipProvider>

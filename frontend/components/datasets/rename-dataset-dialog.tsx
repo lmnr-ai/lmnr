@@ -2,7 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import React, { type PropsWithChildren, useState } from "react";
+import { type PropsWithChildren, type ReactElement, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -77,13 +77,15 @@ export default function RenameDatasetDialog({ dataset, children }: PropsWithChil
   return (
     <div onClick={(e) => e.stopPropagation()}>
       <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-        <DialogTrigger asChild>
-          {children || (
-            <Button icon="edit" variant="secondary">
-              Rename
-            </Button>
-          )}
-        </DialogTrigger>
+        <DialogTrigger
+          render={
+            (children as ReactElement) || (
+              <Button icon="edit" variant="secondary">
+                Rename
+              </Button>
+            )
+          }
+        />
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Rename dataset</DialogTitle>

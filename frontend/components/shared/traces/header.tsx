@@ -70,10 +70,8 @@ const Header = ({ onClose, isHideTimelineControls = false }: HeaderProps) => {
             <div className="flex">
               <span className="text-base font-medium ml-2 flex-shrink-0">Trace</span>
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="h-6 px-1 hover:bg-secondary">
-                    <ChevronDown className="size-3.5" />
-                  </Button>
+                <DropdownMenuTrigger render={<Button variant="ghost" className="h-6 px-1 hover:bg-secondary" />}>
+                  <ChevronDown className="size-3.5" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
                   <DropdownMenuItem onClick={handleCopyTraceId}>

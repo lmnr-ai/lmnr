@@ -1,6 +1,6 @@
 import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { type PropsWithChildren, useCallback, useState } from "react";
+import React, { type PropsWithChildren, useCallback, useState } from "react";
 import { useSWRConfig } from "swr";
 
 import { Button } from "@/components/ui/button";
@@ -80,7 +80,7 @@ export default function CreateQueueDialog({
         setNewQueueName("");
       }}
     >
-      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogTrigger render={children as React.ReactElement} />
       <DialogContent className="sm:max-w-96">
         <DialogHeader>
           <DialogTitle>Create queue</DialogTitle>

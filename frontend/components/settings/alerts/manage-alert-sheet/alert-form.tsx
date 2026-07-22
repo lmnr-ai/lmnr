@@ -521,7 +521,12 @@ export function AlertForm({
                 render={({ field, fieldState }) => (
                   <div className="grid gap-2">
                     <Label>Signal</Label>
-                    <Select value={field.value} onValueChange={(value) => field.onChange(value)}>
+                    <Select
+                      value={field.value}
+                      onValueChange={(value) => {
+                        if (value != null) field.onChange(value);
+                      }}
+                    >
                       <SelectTrigger className={cn(fieldState.error && "border-destructive")}>
                         <SelectValue placeholder="Select a signal" />
                       </SelectTrigger>
@@ -595,13 +600,13 @@ export function AlertForm({
                         };
                         return (
                           <div className="grid gap-2">
-                            <TooltipProvider delayDuration={200}>
+                            <TooltipProvider delay={200}>
                               <div className="flex items-center gap-1.5">
                                 <Label>Severity</Label>
                                 <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <HelpCircle className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
-                                  </TooltipTrigger>
+                                  <TooltipTrigger
+                                    render={<HelpCircle className="w-3.5 h-3.5 text-muted-foreground cursor-help" />}
+                                  />
                                   <TooltipContent side="right" className="max-w-72">
                                     <p>
                                       Laminar assigns a severity (info, warning, or critical) to every event when the

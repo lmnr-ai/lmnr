@@ -15,11 +15,7 @@ export default function AddDatapointsDialog({ datasetId, onUpdate }: AddDatapoin
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-      <DialogTrigger asChild>
-        <Button icon="file" variant="secondary">
-          Import file
-        </Button>
-      </DialogTrigger>
+      <DialogTrigger render={<Button icon="file" variant="secondary" />}>Import file</DialogTrigger>
       <DialogContent className="sm:max-w-96">
         <DialogHeader>
           <DialogTitle>Add datapoints from source</DialogTitle>

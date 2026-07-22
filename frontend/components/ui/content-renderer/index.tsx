@@ -247,7 +247,7 @@ const PureContentRenderer = ({
     <>
       <CopyButton
         className={cn(
-          "text-foreground/80 transition-opacity data-[state=open]:opacity-100",
+          "text-foreground/80 transition-opacity data-popup-open:opacity-100",
           isHovered || isSettingsOpen ? "opacity-100" : "opacity-0"
         )}
         iconClassName="h-3.5 w-3.5"
@@ -257,7 +257,7 @@ const PureContentRenderer = ({
       />
       <div
         className={cn(
-          "transition-opacity data-[state=open]:opacity-100",
+          "transition-opacity data-popup-open:opacity-100",
           isHovered || isSettingsOpen ? "opacity-100" : "opacity-0"
         )}
       >
@@ -272,17 +272,19 @@ const PureContentRenderer = ({
       </div>
       {isCodeMode && (
         <Popover onOpenChange={setIsSettingsOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "text-foreground/70 transition-opacity data-[state=open]:opacity-100",
-                isHovered || isSettingsOpen ? "opacity-100" : "opacity-0"
-              )}
-            >
-              <Settings size={16} />
-            </Button>
+          <PopoverTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "text-foreground/70 transition-opacity data-popup-open:opacity-100",
+                  isHovered || isSettingsOpen ? "opacity-100" : "opacity-0"
+                )}
+              />
+            }
+          >
+            <Settings size={16} />
           </PopoverTrigger>
           <PopoverContent align="end" className="p-2 space-y-2">
             <div className="flex items-center justify-between">
@@ -354,7 +356,7 @@ const PureContentRenderer = ({
               {mode === "custom" && (
                 <TemplatePickerActions
                   className={cn(
-                    "transition-opacity data-[state=open]:opacity-100",
+                    "transition-opacity data-popup-open:opacity-100",
                     isHovered || isSettingsOpen ? "opacity-100" : "opacity-0"
                   )}
                 />
