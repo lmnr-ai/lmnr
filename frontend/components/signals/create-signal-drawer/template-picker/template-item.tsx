@@ -30,7 +30,7 @@ export default function TemplateItem({
       className={cn(
         "flex flex-col items-center justify-center gap-1 px-2 h-[72px] rounded-md border bg-background transition-colors text-center",
         dashed ? "border-dashed border-input" : "border-input",
-        hovered && "bg-accent border-accent-foreground/20"
+        hovered && "bg-[var(--surface-raise)] border-accent-foreground/20"
       )}
     >
       {hovered ? (

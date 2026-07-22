@@ -75,7 +75,7 @@ const AddChartDropdown = ({ onChartCreated }: { onChartCreated?: () => void }) =
       <PopoverContent align="end" className="w-64 p-0">
         <div className="p-1 border-b">
           <Link href={{ pathname: "dashboards/new" }} onClick={() => setOpen(false)}>
-            <button className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer">
+            <button className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-[var(--surface-raise)] cursor-pointer">
               <Pen className="size-3.5 text-muted-foreground" />
               Custom
             </button>
@@ -99,7 +99,7 @@ const AddChartDropdown = ({ onChartCreated }: { onChartCreated?: () => void }) =
               <button
                 key={preset.name}
                 onClick={() => handleSelect(preset)}
-                className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent text-left cursor-pointer"
+                className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-[var(--surface-raise)] text-left cursor-pointer"
               >
                 <Icon className="size-3.5 text-muted-foreground shrink-0" />
                 {preset.name}

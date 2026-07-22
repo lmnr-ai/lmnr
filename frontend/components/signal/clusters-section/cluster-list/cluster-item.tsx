@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
-import { borderVar, raiseVar, SURFACE_BG, useSurface } from "@/components/ui/surface";
+import { raiseVar, SURFACE_BG, useSurface } from "@/components/ui/surface";
 import { withOpacity } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
@@ -141,7 +141,6 @@ export default function ClusterItem({
           "flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left transition-colors text-secondary-foreground w-full min-w-0",
           SURFACE_BG[restingLevel],
           raiseVar(restingLevel),
-          borderVar(restingLevel),
           isPaywall ? "cursor-default" : "cursor-pointer",
           !isPaywall && hovered && "bg-[var(--surface-raise)]",
           isSelected && "bg-sidebar-accent font-medium text-primary-foreground"

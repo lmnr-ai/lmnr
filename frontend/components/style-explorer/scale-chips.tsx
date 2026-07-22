@@ -3,6 +3,7 @@
 // TEMPORARY style exploration tooling — safe to delete this folder + the mount in layout.tsx.
 // Live preview swatches for a scale's stops, recomputed from the curve state.
 
+import ColorCount from "./color-count";
 import { useStyleContext } from "./style-context";
 import { computeSurfaceColor, type CurveKey } from "./tokens";
 
@@ -18,7 +19,8 @@ export default function ScaleChips({ curve }: { curve: CurveKey }) {
           <div key={p.key} className="flex items-center gap-2 text-xs">
             <div className="size-6 shrink-0 rounded border border-border" style={{ backgroundColor: color }} />
             <span className="w-24 shrink-0 text-foreground">{p.key}</span>
-            <span className="truncate font-mono text-muted-foreground">{color}</span>
+            <span className="flex-1 truncate font-mono text-muted-foreground">{color}</span>
+            <ColorCount name={p.key} />
           </div>
         );
       })}

@@ -99,7 +99,7 @@ export const ColumnsListPanel = ({
       <div className="h-px bg-border my-1" />
       <div className="px-1 pb-1">
         <div
-          className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+          className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-xs transition-colors hover:bg-[var(--surface-raise)] hover:text-accent-foreground"
           onClick={onReset}
         >
           <ListRestart className="w-3.5 h-3.5 text-secondary-foreground mr-2" />
@@ -107,7 +107,7 @@ export const ColumnsListPanel = ({
         </div>
         {showCreateButton && (
           <div
-            className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+            className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-xs transition-colors hover:bg-[var(--surface-raise)] hover:text-accent-foreground"
             onClick={onCustomColumnClick}
           >
             <Plus className="w-3.5 h-3.5 text-secondary-foreground mr-2" />

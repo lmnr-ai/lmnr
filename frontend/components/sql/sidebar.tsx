@@ -118,7 +118,7 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
 
   return (
     <div
-      className={cn("group flex items-center px-2 py-1 rounded-md hover:bg-accent cursor-pointer transition-colors", {
+      className={cn("group flex items-center px-2 py-1 rounded-md hover:bg-[var(--surface-raise)] cursor-pointer transition-colors", {
         "bg-accent": selected,
       })}
       onClick={handleQueryClick}

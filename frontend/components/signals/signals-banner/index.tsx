@@ -72,7 +72,7 @@ export default function SignalsBanner({ onCreateSignal }: SignalsBannerProps) {
                     href="https://laminar.sh/docs/signals"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-xs font-medium px-2 border border-input bg-background hover:bg-accent transition-colors h-[22px]"
+                    className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-xs font-medium px-2 border border-input bg-background hover:bg-[var(--surface-raise)] transition-colors h-[22px]"
                   >
                     Docs
                   </a>

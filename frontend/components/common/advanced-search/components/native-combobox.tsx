@@ -199,7 +199,7 @@ const NativeCombobox = ({
               onMouseEnter={() => setHighlightedIndex(index)}
               className={cn(
                 "relative flex cursor-default items-center rounded-sm px-2 py-1.5 text-xs outline-none select-none",
-                "hover:bg-accent hover:text-accent-foreground",
+                "hover:bg-[var(--surface-raise)] hover:text-accent-foreground",
                 index === highlightedIndex && "bg-accent text-accent-foreground",
                 optionClassName
               )}

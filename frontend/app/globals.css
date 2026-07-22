@@ -46,25 +46,34 @@
   --font-sans-landing: var(--font-general-sans);
   --font-manrope: var(--font-manrope);
 
-  /* A thin light rim composited over the surface behind it. Reads the per-surface slot
-     `--surface-border` (published by surfaceClasses/borderVar), so each elevation gets its
-     own edge strength; falls back to the level-3 value for anything not under a surface. */
-  --color-border: var(--surface-border, var(--surface-border-3));
+  /* A single flat translucent-white rim, the same on every surface. `* { @apply border-border }`
+     in the reset gives every element this edge; the style-explorer border-alpha slider live-tunes it. */
+  --color-border: oklch(1 0 0 / 0.16);
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
   --color-background: var(--color-surface-100);
   --color-foreground: hsl(var(--foreground));
 
-  --color-primary: var(--color-primary-400);
+  /* Raw hue-named accent palette (source of truth); semantic tokens below alias these. */
+  --color-red: hsl(var(--red));
+  --color-orange: var(--color-primary-400);
+  --color-yellow: hsl(var(--yellow));
+  --color-green: hsl(var(--green));
+  --color-aqua: hsl(var(--aqua));
+  --color-blue: hsl(var(--blue));
+  --color-purple: hsl(var(--purple));
+  --color-pink: hsl(var(--pink));
+
+  --color-primary: var(--color-orange);
   --color-primary-foreground: var(--color-foreground-100);
 
   --color-secondary: var(--color-surface-200);
   --color-secondary-foreground: var(--color-foreground-200);
 
-  --color-success: hsl(var(--success));
+  --color-success: var(--color-green);
   --color-success-foreground: hsl(var(--success-foreground));
 
-  --color-destructive: hsl(var(--destructive));
+  --color-destructive: var(--color-red);
   --color-destructive-foreground: hsl(var(--destructive-foreground));
 
   --color-success-bright: hsl(var(--success-bright));
@@ -93,10 +102,10 @@
 
   --color-tool: hsl(var(--tool));
 
-  --color-llm: hsl(var(--llm));
+  --color-llm: var(--color-purple);
   --color-llm-foreground: hsl(var(--llm-foreground));
 
-  --color-subagent: hsl(var(--subagent));
+  --color-subagent: var(--color-aqua);
 
   /* Relative elevation ramp (surface-100 = base/darkest .. surface-800 = most
      elevated/lightest), OKLCH, dark-only. Consumed via <Elevated> + the
@@ -109,18 +118,6 @@
   --color-surface-600: oklch(0.3585 0 0); /* #3c3c3c */
   --color-surface-700: oklch(0.3892 0 0); /* #434343 */
   --color-surface-800: oklch(0.42 0 0); /* #4b4b4b */
-
-  /* Per-elevation border palette: translucent white, rising with level so a rim on a
-     lighter (more elevated) surface stays legible. The active edge is picked per surface
-     via the --surface-border slot (see --color-border above). */
-  --surface-border-1: oklch(1 0 0 / 0.1);
-  --surface-border-2: oklch(1 0 0 / 0.12);
-  --surface-border-3: oklch(1 0 0 / 0.14);
-  --surface-border-4: oklch(1 0 0 / 0.16);
-  --surface-border-5: oklch(1 0 0 / 0.18);
-  --surface-border-6: oklch(1 0 0 / 0.2);
-  --surface-border-7: oklch(1 0 0 / 0.22);
-  --surface-border-8: oklch(1 0 0 / 0.24);
 
   /* Layered dark elevation shadows; shadow-elevation-100 is lightest, -800 heaviest.
      Namespaced apart from the surface COLORS so `shadow-surface-N` stays free to mean
@@ -527,6 +524,17 @@
        themselves via raiseVar()/surfaceClasses so hover tracks their own level. */
     --surface-raise: var(--color-surface-300);
 
+    /* Raw hue-named accent palette (bare HSL triplets, source of truth). Semantic tokens
+       reference these — destructive/success/subagent/llm and chart-2/3/4 all alias a raw hue,
+       so retuning a hue here flows everywhere. Orange lives in @theme as the OKLCH brand ramp. */
+    --red: 0 60% 50%;
+    --yellow: 30 80% 55%;
+    --green: 142.1 76.2% 36.3%;
+    --aqua: 187 94% 43%;
+    --blue: 160 60% 45%;
+    --purple: 262 83% 58%;
+    --pink: 280 65% 60%;
+
     --background: 0 0% 4%;
     --foreground: 0 8% 90%;
 
@@ -548,11 +556,11 @@
     --accent: 232 9% 17%;
     --accent-foreground: 210 100% 100%;
 
-    --destructive: 0 60% 50%;
+    --destructive: var(--red);
     --destructive-foreground: 210 40% 98%;
     --destructive-bright: 0 72% 60%;
 
-    --success: 142.1 76.2% 36.3%;
+    --success: var(--green);
     --success-foreground: 355.7 100% 97.3%;
     --success-bright: 158 64% 52%;
 
@@ -561,9 +569,9 @@
     --ring: 212 96% 78%;
 
     --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
+    --chart-2: var(--blue);
+    --chart-3: var(--yellow);
+    --chart-4: var(--pink);
     --chart-5: 340 75% 55%;
 
     --sidebar-background: 0 0% 7%;
@@ -576,9 +584,9 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
 
     --tool: 42 93% 46%;
-    --llm: 262 83% 58%;
+    --llm: var(--purple);
     --llm-foreground: 272 100% 74%;
-    --subagent: 187 94% 43%;
+    --subagent: var(--aqua);
   }
 
   .dark {

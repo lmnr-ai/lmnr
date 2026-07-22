@@ -97,7 +97,7 @@ export function InfiniteDatatableBody<TData extends RowData>({
                 ) : (
                   <Button
                     variant="ghost"
-                    className="hover:bg-accent text-secondary-foreground"
+                    className="hover:bg-[var(--surface-raise)] text-secondary-foreground"
                     onClick={fetchNextPage}
                     disabled={isFetching}
                   >

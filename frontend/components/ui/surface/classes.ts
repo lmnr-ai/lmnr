@@ -49,20 +49,6 @@ export const SURFACE_RAISE: Record<number, string> = {
   8: "[--surface-raise:var(--color-surface-800)]",
 };
 
-// Each surface also publishes `--surface-border` = the edge color for its own level, which
-// `--color-border` (and thus every `border`/`border-border`) reads. So a surface's descendants
-// get an elevation-appropriate rim with no per-element wiring — same cascade trick as the raise.
-export const SURFACE_BORDER: Record<number, string> = {
-  1: "[--surface-border:var(--surface-border-1)]",
-  2: "[--surface-border:var(--surface-border-2)]",
-  3: "[--surface-border:var(--surface-border-3)]",
-  4: "[--surface-border:var(--surface-border-4)]",
-  5: "[--surface-border:var(--surface-border-5)]",
-  6: "[--surface-border:var(--surface-border-6)]",
-  7: "[--surface-border:var(--surface-border-7)]",
-  8: "[--surface-border:var(--surface-border-8)]",
-};
-
 const clampLevel = (n: number): number => Math.round(Math.max(MIN_SURFACE, Math.min(MAX_SURFACE, n)));
 
 /** The arbitrary-property class that publishes `--surface-raise` for a surface at `level`. */
@@ -70,14 +56,10 @@ export function raiseVar(level: number): string {
   return SURFACE_RAISE[clampLevel(level)];
 }
 
-/** The arbitrary-property class that publishes `--surface-border` for a surface at `level`. */
-export function borderVar(level: number): string {
-  return SURFACE_BORDER[clampLevel(level)];
-}
-
-/** Returns "bg-surface-N shadow-elevation-M" plus the raise + border vars, clamped to 1..8 and
- *  rounded so a fractional level can't index out of the tables. shadow defaults to bg's level. */
+/** Returns "bg-surface-N shadow-elevation-M" plus the raise var, clamped to 1..8 and
+ *  rounded so a fractional level can't index out of the tables. shadow defaults to bg's level.
+ *  Borders are a single flat token (--color-border), not per-surface, so nothing is published here. */
 export function surfaceClasses(bgLevel: number, shadowLevel: number = bgLevel): string {
   const b = clampLevel(bgLevel);
-  return `${SURFACE_BG[b]} ${SURFACE_SHADOW[clampLevel(shadowLevel)]} ${SURFACE_RAISE[b]} ${SURFACE_BORDER[b]}`;
+  return `${SURFACE_BG[b]} ${SURFACE_SHADOW[clampLevel(shadowLevel)]} ${SURFACE_RAISE[b]}`;
 }

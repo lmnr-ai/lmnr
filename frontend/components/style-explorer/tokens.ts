@@ -68,7 +68,6 @@ export const BINDINGS_SEED: Record<string, string> = {
   muted: "surface-200",
   "sidebar-accent": "surface-300",
   accent: "surface-300",
-  border: "surface-300",
   primary: "primary-400",
   "primary-foreground": "foreground-100",
   "secondary-foreground": "foreground-200",
@@ -94,8 +93,26 @@ export const OKLCH_SEED: Record<string, string> = {
   "--color-primary-400-50": "oklch(0.6559 0.1262 43.33 / 0.5)",
 };
 
-// Bucket 3 — HSL-triplet :root semantic tokens. Bare "H S% L%" (consumed via hsl(var(--x))).
+// Raw hue-named accent palette (bare "H S% L%" triplets). Source of truth for the saturated
+// colors; the semantic tokens below alias these in globals.css (destructive→red, chart-3→yellow, …).
+// Orange = the OKLCH brand ramp (edited via the primary OKLCH stops), so it's not a raw HSL triplet.
+export const RAW_SEED: Record<string, string> = {
+  "--red": "0 60% 50%",
+  "--yellow": "30 80% 55%",
+  "--green": "142.1 76.2% 36.3%",
+  "--aqua": "187 94% 43%",
+  "--blue": "160 60% 45%",
+  "--purple": "262 83% 58%",
+  "--pink": "280 65% 60%",
+};
+
+export const RAW_KEYS: string[] = Object.keys(RAW_SEED);
+
+// Bucket 3 — HSL-triplet :root tokens. Bare "H S% L%" (consumed via hsl(var(--x))). Raw hues lead;
+// the 7 semantic tokens that now alias a raw hue (destructive/success/subagent/llm/chart-2/3/4) are
+// omitted — they're edited via their raw hue, not directly.
 export const HSL_SEED: Record<string, string> = {
+  ...RAW_SEED,
   "--background": "0 0% 4%",
   "--foreground": "0 8% 90%",
   "--card": "0 0% 7%",
@@ -110,19 +127,14 @@ export const HSL_SEED: Record<string, string> = {
   "--muted-foreground": "0 0% 52%",
   "--accent": "232 9% 17%",
   "--accent-foreground": "210 100% 100%",
-  "--destructive": "0 60% 50%",
   "--destructive-foreground": "210 40% 98%",
   "--destructive-bright": "0 72% 60%",
-  "--success": "142.1 76.2% 36.3%",
   "--success-foreground": "355.7 100% 97.3%",
   "--success-bright": "158 64% 52%",
   "--border": "240 6% 18%",
   "--input": "240 6% 18%",
   "--ring": "212 96% 78%",
   "--chart-1": "220 70% 50%",
-  "--chart-2": "160 60% 45%",
-  "--chart-3": "30 80% 55%",
-  "--chart-4": "280 65% 60%",
   "--chart-5": "340 75% 55%",
   "--sidebar-background": "0 0% 7%",
   "--sidebar-foreground": "240 4.8% 95.9%",
@@ -133,9 +145,7 @@ export const HSL_SEED: Record<string, string> = {
   "--sidebar-border": "240 3.7% 15.9%",
   "--sidebar-ring": "217.2 91.2% 59.8%",
   "--tool": "42 93% 46%",
-  "--llm": "262 83% 58%",
   "--llm-foreground": "272 100% 74%",
-  "--subagent": "187 94% 43%",
 };
 
 export const HSL_KEYS: string[] = Object.keys(HSL_SEED);
@@ -148,7 +158,8 @@ export interface Hsl {
   l: number;
 }
 
-export function parseHslTriplet(triplet: string): Hsl {
+export function parseHslTriplet(triplet: string | undefined): Hsl {
+  if (!triplet) return { h: 0, s: 0, l: 0 };
   const [h, s, l] = triplet.trim().replace(/%/g, "").split(/\s+/).map(Number);
   return { h: h || 0, s: s || 0, l: l || 0 };
 }

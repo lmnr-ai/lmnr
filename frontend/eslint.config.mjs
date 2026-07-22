@@ -120,6 +120,20 @@ export default tseslint.config(
     },
   },
 
+  // CommonJS generator/codegen scripts (*.cjs) — CommonJS globals, require(), and console
+  // for progress logging.
+  {
+    files: ["**/*.cjs"],
+    plugins: { ...defaultPlugins },
+    languageOptions: languageOptionsCommonJs,
+    rules: {
+      ...eslintRulesCommon,
+      ...eslintRulesImports,
+      "@typescript-eslint/no-require-imports": "off",
+      "no-console": "off",
+    },
+  },
+
   // Config files - allow require imports
   {
     files: ["*.config.ts", "*.config.js", "instrumentation.ts"],

@@ -91,7 +91,7 @@ const QuickRangesList = ({
                 "relative flex w-full select-none items-center rounded-sm py-1.5 px-2 text-xs outline-none transition-colors",
                 exceedsRetention
                   ? "cursor-not-allowed text-muted-foreground opacity-50"
-                  : "cursor-pointer hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
+                  : "cursor-pointer hover:bg-[var(--surface-raise)] hover:text-accent-foreground focus:bg-[var(--surface-raise)] focus:text-accent-foreground",
                 pastHours === range.value && "bg-accent text-accent-foreground"
               )}
               onClick={exceedsRetention ? undefined : () => onSelect(range.value)}
@@ -125,7 +125,7 @@ const QuickRangesList = ({
         })}
         {!hideAbsoluteDate && (
           <div
-            className="relative flex w-full cursor-pointer select-none items-center justify-between rounded-sm py-1.5 px-2 text-xs outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+            className="relative flex w-full cursor-pointer select-none items-center justify-between rounded-sm py-1.5 px-2 text-xs outline-none transition-colors hover:bg-[var(--surface-raise)] hover:text-accent-foreground focus:bg-[var(--surface-raise)] focus:text-accent-foreground"
             onClick={onAbsoluteClick}
           >
             <span className="font-medium">Absolute date</span>

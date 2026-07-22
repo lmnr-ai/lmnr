@@ -7,7 +7,7 @@ import {
   type PreviewMap,
 } from "@/components/traces/trace-view/transcript/item/collapsed-preview-block";
 import { Bot, ChevronRight } from "@/components/ui/icon-lib";
-import { borderVar, raiseVar, SURFACE_BG, useSurface } from "@/components/ui/surface";
+import { raiseVar, SURFACE_BG, useSurface } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
 export interface AgentGroupHeaderProps {
@@ -68,7 +68,6 @@ export function AgentGroupHeader({
         "mx-2 border overflow-hidden cursor-pointer transition-colors hover:bg-[var(--surface-raise)]",
         SURFACE_BG[cardLevel],
         raiseVar(cardLevel),
-        borderVar(cardLevel),
         collapsed ? "rounded-lg" : "rounded-t-lg",
         className
       )}

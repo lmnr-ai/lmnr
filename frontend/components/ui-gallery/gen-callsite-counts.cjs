@@ -21,7 +21,7 @@ const names = [...new Set([...registry.matchAll(/name:\s*"([A-Za-z]+)"/g)].map((
 
 const counts = {};
 for (const name of names) {
-  let n = 0;
+  let n;
   try {
     const out = execSync(`rg -oN --no-filename -g '!components/ui-gallery/**' '<${name}[\\s/>]' app components lib`, {
       cwd: FE,

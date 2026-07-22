@@ -329,7 +329,7 @@ function ModeCard({ icon, title, description, isSelected, isActive, disabled, on
       onClick={onClick}
       className={cn(
         "relative flex flex-col gap-2 rounded-lg border-2 p-4 text-left transition-colors",
-        "hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "hover:bg-[var(--surface-raise)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         "disabled:pointer-events-none disabled:opacity-90",
         isSelected ? "border-primary bg-primary/5" : "border-border"
       )}

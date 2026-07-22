@@ -161,7 +161,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                               setDirection(-1);
                               setView("workspaces");
                             }}
-                            className="flex w-full items-center gap-1 rounded-sm p-1 text-secondary-foreground hover:bg-accent"
+                            className="flex w-full items-center gap-1 rounded-sm p-1 text-secondary-foreground hover:bg-[var(--surface-raise)]"
                           >
                             <ArrowLeft className="size-3 shrink-0" />
                             <span className="truncate">All workspaces</span>

@@ -51,12 +51,17 @@ const MANAGED_PROPERTIES: string[] = [
   ...Object.keys(OKLCH_SEED),
   ...HSL_KEYS,
   ...BINDING_KEYS.map((t) => `--color-${t}`),
+  "--color-border",
 ];
 
 interface Curve {
   endpoints: SurfaceEndpoints;
   points: SurfacePoint[];
 }
+
+// Flat translucent-white border rim alpha (--color-border). Single value, no per-surface
+// modulation — mirrors the committed default in globals.css.
+export const DEFAULT_BORDER_ALPHA = 0.16;
 
 export interface StyleState {
   version: 1;
@@ -65,6 +70,7 @@ export interface StyleState {
   oklch: Record<string, string>;
   hsl: Record<string, string>;
   bindings: Record<string, string>; // semantic token -> ramp stop key
+  borderAlpha: number; // --color-border = oklch(1 0 0 / borderAlpha)
 }
 
 function freshState(): StyleState {
@@ -75,6 +81,7 @@ function freshState(): StyleState {
     oklch: { ...OKLCH_SEED },
     hsl: { ...HSL_SEED },
     bindings: { ...BINDINGS_SEED },
+    borderAlpha: DEFAULT_BORDER_ALPHA,
   };
 }
 
@@ -86,6 +93,7 @@ interface StyleContextValue {
   setOklch: (varName: string, value: string) => void;
   setHsl: (varName: string, value: string) => void;
   setBinding: (token: string, stop: string) => void;
+  setBorderAlpha: (value: number) => void;
   replaceState: (next: StyleState) => void;
   resetAll: () => void;
 }
@@ -119,6 +127,8 @@ function applyState(state: StyleState): void {
   for (const [token, stop] of Object.entries(state.bindings)) {
     root.style.setProperty(`--color-${token}`, `var(--color-${stop})`);
   }
+  // Flat border rim alpha.
+  root.style.setProperty("--color-border", `oklch(1 0 0 / ${state.borderAlpha})`);
 }
 
 function validateState(parsed: unknown): StyleState {
@@ -135,6 +145,14 @@ function validateState(parsed: unknown): StyleState {
   if (!s.oklch || typeof s.oklch !== "object") throw new Error("Missing oklch bucket");
   if (!s.hsl || typeof s.hsl !== "object") throw new Error("Missing hsl bucket");
   if (!s.bindings || typeof s.bindings !== "object") throw new Error("Missing bindings");
+  // borderAlpha was added later — tolerate its absence in older shared links.
+  if (typeof s.borderAlpha !== "number") s.borderAlpha = DEFAULT_BORDER_ALPHA;
+  // Backfill any token buckets with seed defaults so keys added after a shared link was minted
+  // (e.g. the raw hue palette) are always present — otherwise a stale payload renders a swatch
+  // for a missing key and parseHslTriplet gets undefined.
+  s.oklch = { ...OKLCH_SEED, ...s.oklch };
+  s.hsl = { ...HSL_SEED, ...s.hsl };
+  s.bindings = { ...BINDINGS_SEED, ...s.bindings };
   return s as StyleState;
 }
 
@@ -273,6 +291,10 @@ export function StyleProvider({ children }: PropsWithChildren) {
     setState((prev) => ({ ...prev, bindings: { ...prev.bindings, [token]: stop } }));
   }, []);
 
+  const setBorderAlpha = useCallback((value: number) => {
+    setState((prev) => ({ ...prev, borderAlpha: value }));
+  }, []);
+
   const replaceState = useCallback((next: StyleState) => setState(next), []);
 
   const value = useMemo<StyleContextValue>(
@@ -284,6 +306,7 @@ export function StyleProvider({ children }: PropsWithChildren) {
       setOklch,
       setHsl,
       setBinding,
+      setBorderAlpha,
       replaceState,
       resetAll,
     }),
@@ -295,6 +318,7 @@ export function StyleProvider({ children }: PropsWithChildren) {
       setOklch,
       setHsl,
       setBinding,
+      setBorderAlpha,
       replaceState,
       resetAll,
     ]
