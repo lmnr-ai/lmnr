@@ -574,11 +574,11 @@
 
     --destructive: var(--red);
     --destructive-foreground: 210 40% 98%;
-    --destructive-bright: 0 72% 60%;
+    --destructive-bright: var(--red);
 
     --success: var(--green);
     --success-foreground: 355.7 100% 97.3%;
-    --success-bright: 158 64% 52%;
+    --success-bright: var(--green);
 
     --border: 240 6% 18%;
     --input: 240 6% 18%;
