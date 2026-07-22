@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { track } from "@/lib/posthog";
 import { type LabelingQueue } from "@/lib/queue/types";
 import { type PaginatedResponse } from "@/lib/types";
@@ -20,7 +20,6 @@ export default function CreateQueueDialog({
   const [newQueueName, setNewQueueName] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const { toast } = useToast();
   const { projectId } = useParams();
   const { mutate } = useSWRConfig();
   const createNewQueue = useCallback(async () => {

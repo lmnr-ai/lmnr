@@ -8,12 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 
 const ExportChartDialog = ({ children }: PropsWithChildren) => {
   const { projectId } = useParams();
   const [open, setOpen] = useState(false);
-  const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const { query, chartConfig, setChartName, name, isValidChartConfiguration } = useChartBuilderStoreContext(
     (state) => ({

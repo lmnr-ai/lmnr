@@ -19,10 +19,10 @@ import {
 } from "@/components/ui/alert-dialog.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
+import { toast } from "@/components/ui/sonner";
 import HybridSetup from "@/components/workspace/deployment-settings/hybrid-setup.tsx";
 import { type DeploymentManagementForm } from "@/components/workspace/deployment-settings/types";
 import { useProjectContext } from "@/contexts/project-context";
-import { useToast } from "@/lib/hooks/use-toast.ts";
 import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils.ts";
 import {
@@ -49,7 +49,6 @@ const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
   const isEnabled = isPro && hasDataPlaneAddon;
   const methods = useForm<DeploymentManagementForm>();
   const { reset, watch, setValue } = methods;
-  const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);

@@ -10,8 +10,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toast } from "@/components/ui/sonner";
 import { type TemplateScope } from "@/components/ui/template-renderer";
-import { useToast } from "@/lib/hooks/use-toast";
 
 interface TemplateInfo {
   id: string;
@@ -27,7 +27,6 @@ interface Props {
 
 export default function DeleteRenderTemplateDialog({ template, onClose, onDeleted }: Props) {
   const { projectId } = useParams();
-  const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDelete = useCallback(async () => {

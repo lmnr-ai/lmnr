@@ -3,8 +3,8 @@ import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { toast } from "@/components/ui/sonner";
 import { type GenerateProjectApiKeyResponse, type KeyExpiration, type ProjectApiKey } from "@/lib/api-keys/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 import { Button } from "../../ui/button";
@@ -27,7 +27,6 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
   const [newApiKey, setNewApiKey] = useState<GenerateProjectApiKeyResponse | null>(null);
   const [isGenerated, setIsGenerated] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
   const { projectId } = useParams();
 
   const generateNewAPIKey = useCallback(

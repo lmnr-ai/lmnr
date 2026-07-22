@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { swrFetcher } from "@/lib/utils";
 
 interface EvaluationScore {
@@ -59,7 +59,6 @@ const HumanEvaluationScore = ({
   traceId,
   resultId,
 }: HumanEvaluationScoreProps) => {
-  const { toast } = useToast();
   const hasOptions = options && options.length > 0;
 
   const { data, mutate, isLoading, isValidating } = useSWR<EvaluationScore>(

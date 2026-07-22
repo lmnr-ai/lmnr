@@ -8,7 +8,7 @@ import CreateQueueDialog from "@/components/queues/create-queue-dialog";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { track } from "@/lib/posthog";
 import { type LabelingQueue } from "@/lib/queue/types";
 import { type PaginatedResponse } from "@/lib/types";
@@ -45,7 +45,6 @@ export default function AddToLabelingQueuePopover({
   const [isLoading, setIsLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const { projectId } = useParams();
-  const { toast } = useToast();
 
   const isDatapointMode = datapointIds && datasetId;
   const isSpanMode = !!spanId;

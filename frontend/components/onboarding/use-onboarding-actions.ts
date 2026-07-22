@@ -5,7 +5,7 @@ import { useFormContext } from "react-hook-form";
 
 import { useOnboardingContext } from "@/components/onboarding/context";
 import { type OnboardingFormValues } from "@/components/onboarding/types";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { track } from "@/lib/posthog";
 
 export interface CreateWorkspaceOptions {
@@ -44,7 +44,6 @@ const persistOnboardingStep = (projectId: string, step: number) =>
 
 export function useOnboardingActions(): UseOnboardingActions {
   const { resources, setResources } = useOnboardingContext();
-  const { toast } = useToast();
   const form = useFormContext<OnboardingFormValues>();
   const [isSubmitting, setIsSubmitting] = useState(false);
 

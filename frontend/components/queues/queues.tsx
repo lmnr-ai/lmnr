@@ -18,8 +18,8 @@ import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-fil
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import Mono from "@/components/ui/mono";
+import { toast } from "@/components/ui/sonner";
 import { TableCell, TableRow } from "@/components/ui/table";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { EMPTY_PROGRESS, type LabelingQueueWithProgress } from "@/lib/queue/types";
 
@@ -150,7 +150,6 @@ const EmptyRow = (
 const QueuesContent = () => {
   const { projectId } = useParams();
   const router = useRouter();
-  const { toast } = useToast();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();

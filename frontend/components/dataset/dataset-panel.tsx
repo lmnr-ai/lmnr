@@ -5,8 +5,8 @@ import useSWR from "swr";
 
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import ContentRenderer from "@/components/ui/content-renderer/index";
+import { toast } from "@/components/ui/sonner";
 import { type Datapoint } from "@/lib/dataset/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { isValidJsonObject, swrFetcher } from "@/lib/utils";
 
 import { Button } from "../ui/button";
@@ -85,7 +85,6 @@ export default function DatasetPanel({
   const [isValidJsonData, setIsValidJsonData] = useState(true);
   const [isValidJsonTarget, setIsValidJsonTarget] = useState(true);
   const [isValidJsonMetadata, setIsValidJsonMetadata] = useState(true);
-  const { toast } = useToast();
   const [saving, setSaving] = useState<boolean>(false);
 
   // Track original values to detect changes

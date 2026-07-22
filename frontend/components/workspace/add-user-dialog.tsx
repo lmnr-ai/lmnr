@@ -14,9 +14,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { toast } from "@/components/ui/sonner";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { Feature } from "@/lib/features/features";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type Workspace } from "@/lib/workspaces/types";
 
@@ -29,7 +29,6 @@ interface AddUserDialogProps {
 const AddUserDialog = ({ open, onOpenChange, workspace }: AddUserDialogProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [user, setUser] = useState("");
-  const { toast } = useToast();
   const featureFlags = useFeatureFlags();
   const isSendEmailEnabled = featureFlags[Feature.SEND_EMAIL];
   const showError = useCallback(

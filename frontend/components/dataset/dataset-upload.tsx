@@ -4,8 +4,8 @@ import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { toast } from "@/components/ui/sonner";
 import { uploadFile } from "@/lib/dataset/utils";
-import { useToast } from "@/lib/hooks/use-toast";
 
 interface DatasetUploadProps {
   datasetId: string;
@@ -16,7 +16,6 @@ export default function DatasetUpload({ datasetId, onSuccessfulUpload }: Dataset
   const { projectId } = useParams();
   const hiddenInput = useRef<HTMLInputElement>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
 
   return (
     <div className="grid gap-4">

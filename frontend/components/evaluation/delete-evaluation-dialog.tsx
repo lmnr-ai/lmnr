@@ -3,7 +3,7 @@ import { useParams, useRouter } from "next/navigation";
 import React, { type PropsWithChildren, useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 
 import {
   Dialog,
@@ -20,7 +20,6 @@ const DeleteEvaluationDialog = ({ children }: PropsWithChildren) => {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
 
   const handleDelete = useCallback(async () => {
     try {

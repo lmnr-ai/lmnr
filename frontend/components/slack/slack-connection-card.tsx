@@ -25,8 +25,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "@/components/ui/sonner";
 import { useProjectContext } from "@/contexts/project-context";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
 
@@ -73,7 +73,6 @@ export default function SlackConnectionCard({
   const { data: slackIntegration, isLoading, mutate } = useSlackIntegration(workspaceId, !disabled);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
-  const { toast } = useToast();
 
   // Re-running the OAuth flow upserts the bot token in place (merging newly-added scopes),
   // so an already-connected workspace can pick up new scopes without delete-then-reconnect.

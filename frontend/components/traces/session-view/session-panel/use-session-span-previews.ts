@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { fetchSpanPreviewsForTrace } from "@/components/traces/trace-view/transcript/fetch-span-previews";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { SimpleLRU } from "@/lib/simple-lru";
 
 /** Trace metadata needed to issue a preview request. */
@@ -61,7 +61,6 @@ export function useSessionSpanPreviews({
   options,
 }: UseSessionSpanPreviewsInput): UseSessionSpanPreviewsResult {
   const { debounceMs = 150, maxEntries = 500, isShared = false } = options ?? {};
-  const { toast } = useToast();
 
   const cache = useRef(new SimpleLRU<string, any>(maxEntries));
   const inputCache = useRef(new SimpleLRU<string, string | null>(maxEntries));

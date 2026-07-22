@@ -9,8 +9,8 @@ import { Button } from "@/components/ui/button";
 import DatasetSelect from "@/components/ui/dataset-select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { toast } from "@/components/ui/sonner";
 import { type Dataset } from "@/lib/dataset/types";
-import { useToast } from "@/lib/hooks/use-toast";
 
 interface ExportJobDialogProps {
   sqlQuery: string;
@@ -22,7 +22,6 @@ export default function ExportJobDialog({ sqlQuery, children }: PropsWithChildre
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [batchSize, setBatchSize] = useState(1000);
-  const { toast } = useToast();
 
   const handleDialogOpen = (open: boolean) => {
     if (!open) {

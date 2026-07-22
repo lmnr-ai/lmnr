@@ -5,8 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { toast } from "@/components/ui/sonner";
 import { useProjectContext } from "@/contexts/project-context";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +23,6 @@ export default function RenameProject() {
   const [newProjectName, setNewProjectName] = useState<string>("");
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const { toast } = useToast();
 
   const renameProject = async () => {
     setIsLoading(true);

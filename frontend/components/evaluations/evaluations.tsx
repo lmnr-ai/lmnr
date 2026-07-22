@@ -31,12 +31,12 @@ import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-fil
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar.tsx";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
+import { toast } from "@/components/ui/sonner";
 import { Switch } from "@/components/ui/switch";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
 import { type ScoreRange } from "@/lib/colors";
 import { type Evaluation } from "@/lib/evaluation/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { swrFetcher } from "@/lib/utils";
 
@@ -181,7 +181,6 @@ export default function Evaluations() {
 function EvaluationsContent() {
   const params = useParams<{ projectId: string }>();
   const router = useRouter();
-  const { toast } = useToast();
   const searchParams = useSearchParams();
   const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
   const searchValue = useMemo(

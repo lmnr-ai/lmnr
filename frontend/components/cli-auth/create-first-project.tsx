@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "@/components/ui/sonner";
 import { type SessionWorkspace } from "@/lib/actions/cli-auth";
 import { authClient } from "@/lib/auth-client";
-import { useToast } from "@/lib/hooks/use-toast";
 
 import { createProjectInWorkspace, createWorkspaceWithProject } from "./create-project";
 import { Centered, Field } from "./shared";
@@ -24,7 +24,6 @@ interface Props {
 // the (empty) picker and lands here. The primary action creates the project and
 // THEN authorizes the device — strictly sequential (see onSubmit). Cancel denies.
 export function CreateFirstProject({ userCode, workspaces, onApproved, onDenied }: Props) {
-  const { toast } = useToast();
   const hasWorkspace = workspaces.length > 0;
   const [projectName, setProjectName] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");

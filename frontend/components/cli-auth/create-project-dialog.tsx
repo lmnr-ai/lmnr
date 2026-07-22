@@ -13,8 +13,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "@/components/ui/sonner";
 import { type SessionProject, type SessionWorkspace } from "@/lib/actions/cli-auth";
-import { useToast } from "@/lib/hooks/use-toast";
 
 import { createProjectInWorkspace, createWorkspaceWithProject } from "./create-project";
 import { Field } from "./shared";
@@ -27,7 +27,6 @@ interface Props {
 }
 
 export function CreateProjectDialog({ open, onOpenChange, workspaces, onCreated }: Props) {
-  const { toast } = useToast();
   const hasWorkspace = workspaces.length > 0;
   const [projectName, setProjectName] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");

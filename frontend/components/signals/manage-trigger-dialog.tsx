@@ -19,11 +19,11 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { toast } from "@/components/ui/sonner";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type Filter } from "@/lib/actions/common/filters";
 import { type Trigger } from "@/lib/actions/signal-triggers";
 import { Feature } from "@/lib/features/features";
-import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 export type TriggerFormValues = {
@@ -42,7 +42,6 @@ interface ManageTriggerDialogContentProps {
 function ManageTriggerDialogContent({ setOpen, isNew, signalId, onSuccess }: ManageTriggerDialogContentProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { projectId } = useParams();
-  const { toast } = useToast();
 
   const {
     handleSubmit,

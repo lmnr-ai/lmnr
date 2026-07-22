@@ -9,6 +9,7 @@ import useSWR from "swr";
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
+import { toast } from "@/components/ui/sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import AddUserDialog from "@/components/workspace/add-user-dialog";
 import InvitationsTable from "@/components/workspace/invitations-table";
@@ -19,7 +20,6 @@ import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
 import { Feature } from "@/lib/features/features";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 import {
@@ -47,7 +47,6 @@ type DialogState = {
 
 export default function WorkspaceUsers({ invitations, workspace, isOwner, currentUserRole }: WorkspaceUsersProps) {
   const user = useUserContext();
-  const { toast } = useToast();
   const router = useRouter();
   const { settingsHref } = useProjectContext();
   const featureFlags = useFeatureFlags();

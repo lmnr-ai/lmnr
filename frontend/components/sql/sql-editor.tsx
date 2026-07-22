@@ -9,9 +9,9 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { createExtensions, type SQLSchemaConfig, theme } from "@/components/sql/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "@/components/ui/sonner";
 import { Textarea } from "@/components/ui/textarea";
 import type { GenerationMode } from "@/lib/actions/sql";
-import { toast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 export interface SQLEditorProps {

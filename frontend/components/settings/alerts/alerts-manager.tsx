@@ -10,10 +10,10 @@ import { useSlackIntegration } from "@/components/slack/slack-connection-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "@/components/ui/sonner";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipPortal, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ALERT_TYPE_LABELS, type AlertType, type AlertWithDetails } from "@/lib/actions/alerts/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { cn, swrFetcher } from "@/lib/utils";
 
 import DeleteAlertDialog from "./delete-alert-dialog";
@@ -47,7 +47,6 @@ function DetailRow({ label, children }: { label: string; children: ReactNode }) 
 }
 
 export default function AlertsManager({ projectId, workspaceId, userEmail, fixedSignalId }: AlertsManagerProps) {
-  const { toast } = useToast();
   const { data: slackIntegration } = useSlackIntegration(workspaceId);
 
   const {

@@ -5,9 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "@/components/ui/sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useProjectContext } from "@/contexts/project-context";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +20,6 @@ export default function DeleteProject() {
   const { project, projects } = useProjectContext();
   const { projectId } = useParams();
   const router = useRouter();
-  const { toast } = useToast();
 
   // A workspace must keep at least one project — deleting the last one would strand the user with
   // no project to anchor the sidebar/settings. Gate the UI here; the API enforces it too.

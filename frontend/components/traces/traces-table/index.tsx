@@ -31,10 +31,10 @@ import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-fil
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
+import { toast } from "@/components/ui/sonner";
 import { Switch } from "@/components/ui/switch";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { useRealtime } from "@/lib/hooks/use-realtime";
-import { useToast } from "@/lib/hooks/use-toast";
 import { type RealtimeTracePayload, type SpanType, type TraceRow } from "@/lib/traces/types";
 
 const FETCH_SIZE = 50;
@@ -90,7 +90,6 @@ function TracesTableContent() {
   const pathName = usePathname();
   const router = useRouter();
   const { projectId } = useParams();
-  const { toast } = useToast();
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const { mutate: globalMutate } = useSWRConfig();
 

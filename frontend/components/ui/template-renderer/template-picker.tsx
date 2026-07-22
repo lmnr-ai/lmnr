@@ -25,9 +25,9 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast } from "@/components/ui/sonner";
 import JsxRenderer from "@/components/ui/template-renderer/jsx-renderer";
 import ManageTemplateDialog from "@/components/ui/template-renderer/manage-template-dialog";
-import { useToast } from "@/lib/hooks/use-toast";
 import { cn, swrFetcher } from "@/lib/utils";
 
 import {
@@ -86,7 +86,6 @@ export const TemplatePickerProvider = ({
   children,
 }: PropsWithChildren<TemplatePickerProviderProps>) => {
   const { projectId } = useParams<{ projectId?: string }>();
-  const { toast } = useToast();
 
   // Shared pages have no projectId; fetching would 401 → sign-in via swrFetcher.
   const templatesBaseUrl = projectId ? `/api/projects/${projectId}/render-templates` : null;

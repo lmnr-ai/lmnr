@@ -12,8 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "@/components/ui/sonner";
 import { type QueryStructure } from "@/lib/actions/sql/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 import ChartTypeField from "./ChartTypeField";
@@ -71,7 +71,6 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
   const { projectId } = useParams();
   const router = useRouter();
   const { mutate } = useSWRConfig();
-  const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 

@@ -7,9 +7,9 @@ import React, { useCallback, useState } from "react";
 
 import { theme } from "@/components/ui/content-renderer/utils";
 import { Label } from "@/components/ui/label.tsx";
+import { toast } from "@/components/ui/sonner";
 import { isValidJsonObject } from "@/lib/utils";
 
-import { useToast } from "../../lib/hooks/use-toast";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 
@@ -24,7 +24,6 @@ interface TypeDatapointDialogProps {
 export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDatapointDialogProps) {
   const { projectId } = useParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [data, setData] = useState(DEFAULT_DATA);
 

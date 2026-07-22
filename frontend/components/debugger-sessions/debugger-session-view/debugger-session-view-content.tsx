@@ -8,9 +8,9 @@ import { shallow } from "zustand/shallow";
 import SessionSpanPanel from "@/components/traces/session-view/session-span-panel";
 import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "@/components/ui/sonner";
 import { type SessionBlock } from "@/lib/actions/debugger-sessions";
 import { useRealtime } from "@/lib/hooks/use-realtime";
-import { useToast } from "@/lib/hooks/use-toast";
 import { type RealtimeSpan } from "@/lib/traces/types";
 
 import DebuggerList from "./debugger-list";
@@ -45,7 +45,6 @@ const summarizeBlocks = (blocks: SessionBlockView[]) => {
 export default function DebuggerSessionViewContent({ sessionId }: { sessionId: string }) {
   const { projectId } = useParams<{ projectId: string }>();
   const router = useRouter();
-  const { toast } = useToast();
   const storeApi = useDebuggerSessionViewStoreRaw();
 
   const { spanPanelOpen, isTracesLoading, tracesError } = useSessionViewBaseStore(

@@ -4,9 +4,9 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { toast } from "@/components/ui/sonner";
 import { type DeviceApprovalContext, type SessionProject, type SessionWorkspace } from "@/lib/actions/cli-auth";
 import { authClient } from "@/lib/auth-client";
-import { useToast } from "@/lib/hooks/use-toast";
 
 import { CreateFirstProject } from "./create-first-project";
 import { ProjectPicker } from "./project-picker";
@@ -22,7 +22,6 @@ interface Props {
 }
 
 export function ApprovalForm({ userEmail, rawUserCode, context, projects, workspaces, claimFailed }: Props) {
-  const { toast } = useToast();
   const [denying, setDenying] = useState(false);
   const [step, setStep] = useState<"approve" | "pick-project">("approve");
   const [completed, setCompleted] = useState<null | "approved" | "denied">(null);

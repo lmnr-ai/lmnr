@@ -13,10 +13,10 @@ import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter/ui";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
+import { toast } from "@/components/ui/sonner";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { type Filter } from "@/lib/actions/common/filters";
 import { type SignalRunRow } from "@/lib/actions/signal-runs";
-import { useToast } from "@/lib/hooks/use-toast";
 
 import { defaultRunsColumnOrder, getSignalRunsColumns, signalRunsFilters } from "./columns";
 
@@ -53,7 +53,6 @@ const getEmptyRow = ({
 };
 
 function RunsTableContent() {
-  const { toast } = useToast();
   const params = useParams<{ projectId: string; signalId: string }>();
   const { signal, runsFilters, setRunsFilters } = useSignalStoreContext((state) => ({
     signal: state.signal,

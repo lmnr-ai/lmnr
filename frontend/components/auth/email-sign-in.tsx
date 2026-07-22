@@ -3,8 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { toast } from "@/components/ui/sonner";
 import { signInLocalEmail } from "@/lib/auth-client";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +23,6 @@ const validateEmailAddress = (email: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s
 export function EmailSignInButton({ callbackUrl, action = "sign_in_attempted", className }: EmailSignInProps) {
   const [email, setEmail] = useState("");
   const router = useRouter();
-  const { toast } = useToast();
 
   const handleSignIn = async () => {
     track("auth", action, { provider: "email" }, { sendInstantly: true });

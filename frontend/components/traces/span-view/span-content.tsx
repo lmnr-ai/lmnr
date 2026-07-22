@@ -4,8 +4,8 @@ import Messages from "@/components/traces/span-view/messages";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "@/components/ui/sonner";
 import { PAYLOAD_URL_REGEX } from "@/lib/actions/trace/utils";
-import { useToast } from "@/lib/hooks/use-toast.ts";
 import { type Span, SpanType } from "@/lib/traces/types";
 import { tryParseJson } from "@/lib/utils";
 
@@ -24,7 +24,6 @@ const extractPayloadUrl = (data: any): string | null => {
 
 const SpanContent = ({ span, type }: SpanContentProps) => {
   const initialData = type === "input" ? span.input : span.output;
-  const { toast } = useToast();
   const [spanData, setSpanData] = useState(initialData);
   const [isLoading, setIsLoading] = useState(false);
 

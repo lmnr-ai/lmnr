@@ -6,8 +6,8 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button.tsx";
 import CodeHighlighter from "@/components/ui/code-highlighter.tsx";
+import { toast } from "@/components/ui/sonner";
 import { type GenerateProjectApiKeyResponse } from "@/lib/api-keys/types.ts";
-import { useToast } from "@/lib/hooks/use-toast.ts";
 import { cn } from "@/lib/utils.ts";
 
 interface ApiKeyGeneratorProps {
@@ -29,7 +29,6 @@ export default function ApiKeyGenerator({
   const projectId = projectIdProp ?? params.projectId;
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
 
   const apiKeyName = `${context}-setup-api-key`;
   const displayValue = generatedKey ? `LMNR_PROJECT_API_KEY=${generatedKey}` : "LMNR_PROJECT_API_KEY=<your_api_key>";

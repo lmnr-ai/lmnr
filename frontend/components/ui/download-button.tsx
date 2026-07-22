@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-import { toast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 
 import { Button, type ButtonProps } from "./button";

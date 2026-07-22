@@ -7,7 +7,7 @@ import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
 import { DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { type TagClass } from "@/lib/traces/types";
 import { cn, swrFetcher } from "@/lib/utils";
 
@@ -47,7 +47,6 @@ interface TraceTagsProps {
 
 export const TraceTagsButton = ({ traceId, className }: TraceTagsProps) => {
   const { projectId, tagClasses, rawTags, tags, mutateTagClasses, mutateTags } = useTraceTags(traceId);
-  const { toast } = useToast();
 
   const onAttach = async (tagClassName: string) => {
     try {

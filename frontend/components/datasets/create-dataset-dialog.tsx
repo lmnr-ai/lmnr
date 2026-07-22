@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { toast } from "@/components/ui/sonner";
 import { type DatasetInfo } from "@/lib/dataset/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +20,6 @@ export default function CreateDatasetDialog({
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const { projectId } = useParams();
-  const { toast } = useToast();
 
   const createNewDataset = useCallback(async () => {
     try {

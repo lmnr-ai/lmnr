@@ -12,7 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 
 interface HeaderProps {
@@ -26,8 +26,6 @@ const Header = ({ onClose, isHideTimelineControls = false }: HeaderProps) => {
     condensedTimelineEnabled: state.condensedTimelineEnabled,
     setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
   }));
-
-  const { toast } = useToast();
 
   const handleCopyTraceId = useCallback(async () => {
     if (trace?.id) {

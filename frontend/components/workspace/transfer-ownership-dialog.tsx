@@ -16,8 +16,8 @@ import {
 } from "@/components/ui/dialog.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
+import { toast } from "@/components/ui/sonner";
 import { useUserContext } from "@/contexts/user-context.tsx";
-import { useToast } from "@/lib/hooks/use-toast.ts";
 import { cn } from "@/lib/utils.ts";
 import { type Workspace, type WorkspaceUser } from "@/lib/workspaces/types.ts";
 
@@ -52,7 +52,6 @@ const TransferOwnershipDialog = ({ open, onOpenChange, workspace, workspaceUsers
   const user = useUserContext();
   const [newOwner, setNewOwner] = useState<string | null>(null);
   const [workspaceNameInput, setWorkspaceNameInput] = useState<string>("");
-  const { toast } = useToast();
   const { mutate } = useSWRConfig();
   const router = useRouter();
   const { trigger, isMutating } = useSWRMutation(

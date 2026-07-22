@@ -23,10 +23,10 @@ import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/mo
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
+import { toast } from "@/components/ui/sonner";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { type EventRow } from "@/lib/events/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 import { buildEventsColumns } from "./columns";
@@ -60,7 +60,6 @@ const getEmptyRow = ({
 };
 
 function PureEventsTable() {
-  const { toast } = useToast();
   const params = useParams<{ projectId: string }>();
 
   const [clusterId] = useClusterId();

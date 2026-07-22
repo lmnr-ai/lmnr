@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { type PropsWithChildren } from "react";
 
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 
 // Minimal "flag" copy button poking out of a row's right edge, revealed on row
 // hover: the wrapper's whileHover propagates variants to the flag (framer's
@@ -38,8 +38,6 @@ export default function CopyFlag({
   value,
   children,
 }: PropsWithChildren<{ label: string; description?: string; toastTitle: string; value: string }>) {
-  const { toast } = useToast();
-
   return (
     <motion.div className="relative flex w-full" initial="hidden" whileHover="visible">
       <span className="absolute left-full top-1/2 z-10 ml-3 -translate-y-1/2">

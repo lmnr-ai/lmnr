@@ -3,8 +3,8 @@
 import { useEffect, useRef } from "react";
 import useSWR from "swr";
 
+import { toast } from "@/components/ui/sonner";
 import { type QueueItemStateRow } from "@/lib/actions/queue";
-import { useToast } from "@/lib/hooks/use-toast";
 import { type LabelingQueueItem } from "@/lib/queue/types";
 import { swrFetcher } from "@/lib/utils";
 
@@ -19,7 +19,6 @@ interface QueueWindowResponse {
 }
 
 export default function QueueDataLoader() {
-  const { toast } = useToast();
   const projectId = useQueueStore((s) => s.projectId);
   const queueId = useQueueStore((s) => s.queue.id);
   const idsListLength = useQueueStore((s) => s.idsList.length);

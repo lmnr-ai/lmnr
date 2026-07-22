@@ -8,11 +8,10 @@ import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-clu
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/sonner";
 import { Tooltip, TooltipContent, TooltipPortal, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useToast } from "@/lib/hooks/use-toast";
 
 export default function EmergingClusterBreadcrumbs() {
-  const { toast } = useToast();
   const params = useParams<{ projectId: string }>();
   const signal = useSignalStoreContext((state) => state.signal);
   const [emergingClusterId, setEmergingClusterId] = useEmergingClusterId();

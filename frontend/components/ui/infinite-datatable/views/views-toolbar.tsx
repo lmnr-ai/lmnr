@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
 import { shallow } from "zustand/shallow";
 
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 
 import { useTableConfigStore, useTableConfigStoreApi, useTableView } from "../model/table-config-store";
 import { normalizeViewConfig } from "./normalize";
@@ -18,7 +18,6 @@ interface ViewsToolbarProps {
 }
 
 export default function ViewsToolbar({ projectId, resource }: ViewsToolbarProps) {
-  const { toast } = useToast();
   const { mutate } = useSWRConfig();
 
   const configStore = useTableConfigStoreApi();

@@ -10,10 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { toast } from "@/components/ui/sonner";
 import { Switch } from "@/components/ui/switch";
 import { REPORT_TARGET_TYPE, type ReportWithDetails } from "@/lib/actions/reports/types";
 import { type SlackChannel } from "@/lib/actions/slack";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
 
@@ -39,7 +39,6 @@ export default function ManageReportSheet({
   userEmail,
 }: ManageReportSheetProps) {
   const hasSlackIntegration = !!integrationId;
-  const { toast } = useToast();
 
   const [isSaving, setIsSaving] = useState(false);
 

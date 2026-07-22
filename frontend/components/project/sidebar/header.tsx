@@ -25,12 +25,12 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar.tsx";
+import { toast } from "@/components/ui/sonner";
 import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
 import { useProjectContext } from "@/contexts/project-context.tsx";
 import { tierDisplayName } from "@/lib/billing/tiers";
 import { LAST_ID_COOKIE_MAX_AGE, LAST_PROJECT_ID, LAST_WORKSPACE_ID } from "@/lib/cookies";
 import { Feature } from "@/lib/features/features";
-import { useToast } from "@/lib/hooks/use-toast.ts";
 import { cn, swrFetcher } from "@/lib/utils.ts";
 import { type Project, type Workspace, WorkspaceTier } from "@/lib/workspaces/types.ts";
 
@@ -52,7 +52,6 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
   const { isMobile, openMobile, open } = useSidebar();
   const { projects, project } = useProjectContext();
   const { data: workspaces, error } = useSWR<Workspace[]>("/api/workspaces", swrFetcher);
-  const { toast } = useToast();
   const featureFlags = useFeatureFlags();
 
   const [view, setView] = useState<"projects" | "workspaces">("projects");

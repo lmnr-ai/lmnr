@@ -17,7 +17,7 @@ import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/mo
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { type SpanRow } from "@/lib/traces/types";
 
 const FETCH_SIZE = 50;
@@ -42,7 +42,6 @@ function SpansTableContent() {
   const pathName = usePathname();
   const router = useRouter();
   const { projectId } = useParams();
-  const { toast } = useToast();
   const { setTraceId, setSpanId, spanId } = useTracesStoreContext((state) => ({
     setTraceId: state.setTraceId,
     spanId: state.spanId,

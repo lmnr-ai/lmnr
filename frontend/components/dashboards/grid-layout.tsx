@@ -10,7 +10,7 @@ import useSWR from "swr";
 import Chart from "@/components/dashboards/chart";
 import { type DashboardChart, dragHandleKey } from "@/components/dashboards/types";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/lib/hooks/use-toast.ts";
+import { toast } from "@/components/ui/sonner";
 import { swrFetcher } from "@/lib/utils";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
@@ -30,8 +30,6 @@ const GridLayout = () => {
     mutate,
     error,
   } = useSWR<DashboardChart[]>(`/api/projects/${projectId}/dashboard-charts`, swrFetcher);
-
-  const { toast } = useToast();
 
   useEffect(() => {
     if (error) {

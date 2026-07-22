@@ -4,8 +4,8 @@ import React, { useCallback, useState } from "react";
 import useSWR from "swr";
 
 import { CopyButton } from "@/components/ui/copy-button.tsx";
+import { toast } from "@/components/ui/sonner";
 import { type ExportJob } from "@/lib/actions/dataset-export-jobs";
-import { useToast } from "@/lib/hooks/use-toast";
 import { swrFetcher } from "@/lib/utils";
 
 import { Button } from "../ui/button";
@@ -133,7 +133,6 @@ export default function DownloadParquetDialog({ datasetId, publicApiBaseUrl }: D
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [downloadingIndex, setDownloadingIndex] = useState<number | null>(null);
   const [isExportLoading, setIsExportLoading] = useState(false);
-  const { toast } = useToast();
 
   const { data: parquets, isLoading: isLoadingParquets } = useSWR<Parquet[]>(
     isDialogOpen ? `/api/projects/${projectId}/datasets/${datasetId}/parquets` : null,

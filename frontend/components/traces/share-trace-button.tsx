@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "@/components/ui/sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 const ShareTraceButton = ({ projectId }: { projectId: string; refetch?: () => void }) => {
@@ -20,7 +20,6 @@ const ShareTraceButton = ({ projectId }: { projectId: string; refetch?: () => vo
   const url = typeof window !== "undefined" ? `${window.location.origin}/shared/traces/${trace?.id}` : "";
   const [isLoading, setIsLoading] = useState(false);
 
-  const { toast } = useToast();
   const handleChangeVisibility = async (value: "private" | "public") => {
     try {
       setIsLoading(true);

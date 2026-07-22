@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 
 interface WarningChipProps {
@@ -20,7 +20,6 @@ interface WarningChipProps {
 }
 
 export default function WarningChip({ workspaceId, id, displayValue, unit, onRemove }: WarningChipProps) {
-  const { toast } = useToast();
   const [isRemoving, setIsRemoving] = useState(false);
 
   const handleRemove = async () => {
@@ -86,7 +85,6 @@ interface AddWarningFormData {
 }
 
 export function AddWarningPopover({ workspaceId, usageItem, unit, toRawValue, onAdd }: AddWarningPopoverProps) {
-  const { toast } = useToast();
   const [open, setOpen] = useState(false);
 
   const form = useForm<AddWarningFormData>({

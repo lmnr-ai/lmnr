@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 import React, { type PropsWithChildren, useState } from "react";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { track } from "@/lib/posthog";
 
 import { Button } from "../ui/button";
@@ -16,7 +16,6 @@ export default function WorkspaceCreateDialog({ children }: PropsWithChildren) {
 
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { toast } = useToast();
 
   const createNewWorkspace = async () => {
     setIsLoading(true);

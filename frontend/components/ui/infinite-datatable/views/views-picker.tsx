@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { cn, swrFetcher } from "@/lib/utils";
 
 import { useLastViewStore } from "./last-view-store";
@@ -58,7 +58,6 @@ export default function ViewsPicker({
   onSaveAsNew,
   onDiscard,
 }: ViewsPickerProps) {
-  const { toast } = useToast();
   const { mutate } = useSWRConfig();
 
   const listKey = `/api/projects/${projectId}/views?resource=${resource}`;

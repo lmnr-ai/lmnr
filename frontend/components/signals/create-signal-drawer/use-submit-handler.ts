@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 
 import { schemaFieldsToJsonSchema } from "@/components/signals/utils";
-import { type useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { track } from "@/lib/posthog";
 
 import { type ManageSignalForm, type TriggerFormItem } from "./types";
@@ -117,7 +117,6 @@ class SyncError extends Error {
 
 export default function useSubmitHandler({
   projectId,
-  toast,
   onSubmitComplete,
   onSuccess,
   setIsLoading,
@@ -126,7 +125,6 @@ export default function useSubmitHandler({
   setFormTriggers,
 }: {
   projectId: string;
-  toast: ReturnType<typeof useToast>["toast"];
   onSubmitComplete: (data: ManageSignalForm) => void;
   onSuccess?: (signal: ManageSignalForm) => Promise<void>;
   setIsLoading: (loading: boolean) => void;
@@ -212,6 +210,6 @@ export default function useSubmitHandler({
         setIsLoading(false);
       }
     },
-    [projectId, toast, onSubmitComplete, onSuccess, setIsLoading, previousTriggerIds, setFormId, setFormTriggers]
+    [projectId, onSubmitComplete, onSuccess, setIsLoading, previousTriggerIds, setFormId, setFormTriggers]
   );
 }

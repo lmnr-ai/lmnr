@@ -15,9 +15,9 @@ import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/mo
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
+import { toast } from "@/components/ui/sonner";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { type DatasetInfo } from "@/lib/dataset/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
@@ -109,7 +109,6 @@ const EmptyRow = (
 function DatasetsContent() {
   const { projectId } = useParams();
   const router = useRouter();
-  const { toast } = useToast();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   useEffect(() => {

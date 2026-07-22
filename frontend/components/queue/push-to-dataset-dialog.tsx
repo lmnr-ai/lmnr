@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 
 import { isApproved as isApprovedItem, useQueueStore } from "./queue-store";
@@ -30,7 +30,6 @@ interface PushToDatasetDialogProps {
 }
 
 export default function PushToDatasetDialog({ open, onOpenChange }: PushToDatasetDialogProps) {
-  const { toast } = useToast();
   const { projectId } = useParams<{ projectId: string }>();
   const dataset = useQueueStore((s) => s.dataset);
   const setDataset = useQueueStore((s) => s.setDataset);

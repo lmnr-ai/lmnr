@@ -5,8 +5,8 @@ import { type PropsWithChildren, type ReactElement, useCallback, useState } from
 
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { toast } from "@/components/ui/sonner";
 import { type Dataset } from "@/lib/dataset/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type Span } from "@/lib/traces/types";
 
@@ -21,8 +21,6 @@ export default function ExportSpansPopover({ children, span }: PropsWithChildren
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
-
-  const { toast } = useToast();
 
   const exportSpan = useCallback(async () => {
     try {

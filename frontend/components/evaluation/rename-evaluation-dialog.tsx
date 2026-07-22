@@ -5,8 +5,8 @@ import { useSWRConfig } from "swr";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toast } from "@/components/ui/sonner";
 import { type EvaluationResultsInfo } from "@/lib/evaluation/types";
-import { useToast } from "@/lib/hooks/use-toast";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 
@@ -21,7 +21,6 @@ const RenameEvaluationDialog = ({
   const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { mutate } = useSWRConfig();
-  const { toast } = useToast();
 
   const submit = useCallback(async () => {
     try {

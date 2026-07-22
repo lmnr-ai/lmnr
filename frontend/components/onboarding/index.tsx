@@ -12,10 +12,10 @@ import SignalsStep from "@/components/onboarding/steps/signals-step";
 import SlackStep from "@/components/onboarding/steps/slack-step";
 import WorkspaceStep from "@/components/onboarding/steps/workspace-step";
 import { ONBOARDING_STEPS, type OnboardingFormValues } from "@/components/onboarding/types";
+import { toast } from "@/components/ui/sonner";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useUserContext } from "@/contexts/user-context";
 import { Feature } from "@/lib/features/features";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 const TOTAL_STEPS = ONBOARDING_STEPS.length;
@@ -36,7 +36,6 @@ interface OnboardingWizardProps {
 export default function OnboardingWizard({ initial, slackClientId, slackRedirectUri }: OnboardingWizardProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { toast } = useToast();
   const user = useUserContext();
 
   const form = useForm<OnboardingFormValues>({

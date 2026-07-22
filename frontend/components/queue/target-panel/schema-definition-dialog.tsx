@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { theme } from "@/components/ui/content-renderer/utils";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { track } from "@/lib/posthog";
 
 import { useQueueStore } from "../queue-store";
@@ -65,7 +65,6 @@ export default function SchemaDefinitionDialog({
   showTrigger = true,
 }: SchemaDefinitionDialogProps = {}) {
   const { projectId } = useParams();
-  const { toast } = useToast();
   const { annotationSchema, setAnnotationSchema, queue } = useQueueStore((state) => ({
     annotationSchema: state.annotationSchema,
     setAnnotationSchema: state.setAnnotationSchema,

@@ -25,8 +25,8 @@ import TemplateEditor from "@/components/sql/template-editor";
 import { Button } from "@/components/ui/button";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { toast } from "@/components/ui/sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 export default function EditorPanel() {
@@ -39,7 +39,6 @@ export default function EditorPanel() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const { toast } = useToast();
 
   const { template, getFormattedParameters, parameters, onChange } = useSqlEditorStore((state) => ({
     template: state.currentTemplate,

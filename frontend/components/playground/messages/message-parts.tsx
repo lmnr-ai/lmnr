@@ -9,7 +9,7 @@ import DefaultTextarea from "@/components/ui/default-textarea";
 import { IconMessage } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { type PlaygroundForm, type ToolResultPart } from "@/lib/playground/types";
 import { cn } from "@/lib/utils";
 
@@ -26,7 +26,6 @@ const MAX_FILE_SIZE = 2.5 * 1024 * 1024; // 2.5MB in bytes
 const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
   const { register, control } = useFormContext<PlaygroundForm>();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { toast } = useToast();
   const handleFileSelect = useCallback(
     (onChange: (value: string) => void) => async (event: ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];

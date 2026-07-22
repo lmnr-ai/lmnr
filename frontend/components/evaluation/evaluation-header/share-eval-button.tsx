@@ -5,8 +5,8 @@ import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { toast } from "@/components/ui/sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useToast } from "@/lib/hooks/use-toast";
 
 type EvalVisibility = "private" | "public";
 
@@ -19,7 +19,6 @@ const ShareEvalButton = ({ evaluationId, projectId }: ShareEvalButtonProps) => {
   const url = typeof window !== "undefined" ? `${window.location.origin}/shared/evals/${evaluationId}` : "";
   const [visibility, setVisibility] = useState<EvalVisibility>("private");
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
 
   useEffect(() => {
     fetch(`/api/projects/${projectId}/evaluations/${evaluationId}/visibility`)

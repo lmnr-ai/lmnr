@@ -9,8 +9,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toast } from "@/components/ui/sonner";
 import { type AlertWithDetails } from "@/lib/actions/alerts/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 interface DeleteAlertDialogProps {
@@ -21,7 +21,6 @@ interface DeleteAlertDialogProps {
 }
 
 export default function DeleteAlertDialog({ projectId, alert, onClose, onDeleted }: DeleteAlertDialogProps) {
-  const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDelete = useCallback(async () => {

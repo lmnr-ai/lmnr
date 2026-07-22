@@ -4,7 +4,7 @@ import { Info, Loader2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 
 interface LimitRowProps {
@@ -32,7 +32,6 @@ export default function LimitRow({
   toRawValue,
   onUpdate,
 }: LimitRowProps) {
-  const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
   const displayValue = currentValue !== null ? toDisplayValue(currentValue) : null;

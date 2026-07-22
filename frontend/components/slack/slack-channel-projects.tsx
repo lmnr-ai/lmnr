@@ -9,10 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "@/components/ui/sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { SlackChannel } from "@/lib/actions/slack";
 import type { SlackChannelProjectBinding } from "@/lib/actions/slack/channel-projects";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
 
@@ -30,7 +30,6 @@ interface SlackChannelProjectsProps {
 // Only rendered once Slack is connected (the channel list needs the bot token).
 export default function SlackChannelProjects({ workspaceId, className }: SlackChannelProjectsProps) {
   const { data: integration } = useSlackIntegration(workspaceId);
-  const { toast } = useToast();
 
   const {
     data: bindings,

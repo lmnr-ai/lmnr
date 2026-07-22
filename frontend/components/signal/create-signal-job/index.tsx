@@ -21,10 +21,10 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store.tsx";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
+import { toast } from "@/components/ui/sonner";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import type { Filter } from "@/lib/actions/common/filters.ts";
 import { Feature } from "@/lib/features/features";
-import { useToast } from "@/lib/hooks/use-toast.ts";
 import type { TraceRow } from "@/lib/traces/types.ts";
 
 const FETCH_SIZE = 50;
@@ -34,7 +34,6 @@ const CreateSignalJobContent = () => {
   const pathName = usePathname();
   const router = useRouter();
   const { projectId } = useParams<{ projectId: string }>();
-  const { toast } = useToast();
 
   const signal = useSignalStoreContext((state) => state.signal);
   const { rowSelection, onRowSelectionChange } = useSelection();

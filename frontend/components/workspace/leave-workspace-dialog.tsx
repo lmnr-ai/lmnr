@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { type Workspace, type WorkspaceUser } from "@/lib/workspaces/types";
 
 interface LeaveWorkspaceDialog {
@@ -23,7 +23,6 @@ interface LeaveWorkspaceDialog {
 
 const LeaveWorkspaceDialog = ({ open, onOpenChange, workspace, user }: LeaveWorkspaceDialog) => {
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
   const router = useRouter();
 
   const handleRemoveUser = async () => {

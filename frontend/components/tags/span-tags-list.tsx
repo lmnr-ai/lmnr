@@ -7,7 +7,7 @@ import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
 import { DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { type SpanTag, type TagClass } from "@/lib/traces/types";
 import { cn, swrFetcher } from "@/lib/utils";
 
@@ -21,7 +21,6 @@ interface SpanTagsListProps {
 
 const SpanTagsList = ({ spanId, className }: SpanTagsListProps) => {
   const { projectId } = useParams();
-  const { toast } = useToast();
 
   const { data: tagClasses = [], mutate: mutateTagClasses } = useSWR<TagClass[]>(
     `/api/projects/${projectId}/tag-classes`,

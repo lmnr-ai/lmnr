@@ -13,13 +13,13 @@ import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
 import { type TraceSignal, type TraceSignalClusterNode } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
 import { type Filter } from "@/lib/actions/common/filters";
 import { type EventRow } from "@/lib/events/types";
 import { Feature } from "@/lib/features/features";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
@@ -44,7 +44,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   const params = useParams();
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
-  const { toast } = useToast();
   const { project } = useProjectContext();
   const featureFlags = useFeatureFlags();
   const agentOpen = useLaminarAgentStore((s) => s.viewMode === "open");

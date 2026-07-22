@@ -14,7 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { track } from "@/lib/posthog";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
@@ -50,7 +50,6 @@ export default function TraceItem({
 }: TraceItemProps) {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId;
-  const { toast } = useToast();
 
   // `spans` lets handleToggle skip a redundant fetch; the timeline flags drive
   // the debugger-only condensed timeline. The expanded body owns load/empty/error.

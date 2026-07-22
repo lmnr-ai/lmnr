@@ -22,8 +22,8 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { toast } from "@/components/ui/sonner";
 import { type PlaygroundChatResult } from "@/lib/actions/chat";
-import { useToast } from "@/lib/hooks/use-toast";
 import { type PlaygroundForm } from "@/lib/playground/types";
 import { parseSystemMessages } from "@/lib/playground/utils";
 import { type ProviderApiKey } from "@/lib/settings/types";
@@ -38,7 +38,6 @@ export default function PlaygroundPanel({
   onTraceSelect?: (traceId: string) => void;
 }) {
   const params = useParams();
-  const { toast } = useToast();
   const {
     setText,
     setUsage,

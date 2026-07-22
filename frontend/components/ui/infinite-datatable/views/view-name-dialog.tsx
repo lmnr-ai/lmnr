@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 
 interface ViewNameDialogProps {
   open: boolean;
@@ -35,7 +35,6 @@ export default function ViewNameDialog({
   submitLabel = "Save",
   onSave,
 }: ViewNameDialogProps) {
-  const { toast } = useToast();
   const [name, setName] = useState(initialName);
   const [isSaving, setIsSaving] = useState(false);
 

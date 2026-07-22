@@ -15,7 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { track } from "@/lib/posthog";
 import { type Span, SpanType } from "@/lib/traces/types";
 import { type ErrorEventAttributes } from "@/lib/types";
@@ -40,7 +40,6 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
     [span.events]
   );
 
-  const { toast } = useToast();
   const { openInSql, isLoading } = useOpenInSql({
     projectId: projectId as string,
     params: { type: "span", spanId: span.spanId, traceId: span.traceId },

@@ -20,10 +20,10 @@ import DeleteSelectedRows from "@/components/ui/delete-selected-rows";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store.tsx";
 import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter/ui";
+import { toast } from "@/components/ui/sonner";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { type Filter } from "@/lib/actions/common/filters.ts";
 import { type Trigger } from "@/lib/actions/signal-triggers";
-import { useToast } from "@/lib/hooks/use-toast.ts";
 import { swrFetcher } from "@/lib/utils";
 
 const EmptyRow = (
@@ -43,7 +43,6 @@ const EmptyRow = (
 );
 
 function TriggersTableContent() {
-  const { toast } = useToast();
   const params = useParams<{ projectId: string }>();
 
   const { signal } = useSignalStoreContext((state) => ({

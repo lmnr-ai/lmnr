@@ -20,8 +20,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import QueueSelect from "@/components/ui/queue-select";
+import { toast } from "@/components/ui/sonner";
 import { type Dataset } from "@/lib/dataset/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type LabelingQueue } from "@/lib/queue/types";
 
@@ -56,7 +56,6 @@ function ExportDatasetDialog({ results, children }: PropsWithChildren<Pick<Expor
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [columnsByCategory, setColumnsByCategory] = useState<CategorizedColumns>(EMPTY_CATEGORIZED_COLUMNS);
-  const { toast } = useToast();
 
   const handleDialogOpen = (open: boolean) => {
     if (open && results && results.length > 0) {
@@ -151,7 +150,6 @@ function ExportQueueDialog({
   const [selectedQueue, setSelectedQueue] = useState<LabelingQueue | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [columnsByCategory, setColumnsByCategory] = useState<CategorizedColumns>(EMPTY_CATEGORIZED_COLUMNS);
-  const { toast } = useToast();
 
   const handleDialogOpen = (open: boolean) => {
     if (open && results && results.length > 0) {

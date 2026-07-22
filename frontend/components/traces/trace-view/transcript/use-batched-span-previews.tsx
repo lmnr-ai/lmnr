@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { useToast } from "@/lib/hooks/use-toast.ts";
+import { toast } from "@/components/ui/sonner";
 import { convertToTimeParameters } from "@/lib/time.ts";
 
 export interface BatchedPreviewsHook {
@@ -32,7 +32,6 @@ export function useBatchedSpanPreviews(
   promptHashes?: Record<string, string>
 ): BatchedPreviewsHook {
   const { debounceMs = 150, isShared = false } = options;
-  const { toast } = useToast();
 
   // Union of "pending + in-flight + successfully fetched" per role. The React
   // state objects below are the fetched-set (keyed by `id in previews`). These

@@ -15,9 +15,9 @@ import Header from "@/components/ui/header.tsx";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast } from "@/components/ui/sonner";
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SignalSparklineData } from "@/lib/actions/signals/stats";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 const SIGNAL_QUICK_RANGES: DateRange[] = [
@@ -41,7 +41,6 @@ export default function Signals() {
 function SignalsContent() {
   const { projectId } = useParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const { toast } = useToast();
 
   useEffect(() => {
     track("signals", "page_viewed");

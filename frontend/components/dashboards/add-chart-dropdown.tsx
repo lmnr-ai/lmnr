@@ -9,8 +9,8 @@ import { useSWRConfig } from "swr";
 import { CHART_PRESETS, type ChartPreset, type PresetTable } from "@/components/dashboards/chart-presets";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { toast } from "@/components/ui/sonner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/lib/hooks/use-toast";
 
 const CHART_TYPE_ICONS: Record<string, typeof ChartLine> = {
   line: ChartLine,
@@ -28,7 +28,6 @@ const TABLE_FILTERS: { label: string; value: PresetTable }[] = [
 const AddChartDropdown = ({ onChartCreated }: { onChartCreated?: () => void }) => {
   const { projectId } = useParams();
   const { mutate } = useSWRConfig();
-  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [activeTable, setActiveTable] = useState<PresetTable>("traces");
 

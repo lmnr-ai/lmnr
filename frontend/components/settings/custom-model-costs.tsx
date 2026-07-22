@@ -6,9 +6,9 @@ import { useParams } from "next/navigation";
 import React, { useState } from "react";
 import useSWR from "swr";
 
+import { toast } from "@/components/ui/sonner";
 import { useProjectContext } from "@/contexts/project-context.tsx";
 import { type CustomModelCost } from "@/lib/actions/custom-model-costs";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { swrFetcher } from "@/lib/utils";
 
@@ -324,7 +324,6 @@ function CopyModelCostsDialog({ onCopy }: { onCopy: (targetProjectId: string) =>
 
 export default function CustomModelCosts() {
   const { projectId } = useParams();
-  const { toast } = useToast();
   const {
     data: customModelCosts,
     mutate,

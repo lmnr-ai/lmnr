@@ -10,8 +10,8 @@ import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/d
 import { Form } from "@/components/dashboards/editor/Form";
 import { getTimeColumn } from "@/components/dashboards/editor/table-schemas";
 import { convertSqlToJson, getDefaultFormValues } from "@/components/dashboards/editor/utils";
+import { toast } from "@/components/ui/sonner";
 import { type QueryStructure, QueryStructureSchema } from "@/lib/actions/sql/types";
-import { useToast } from "@/lib/hooks/use-toast";
 
 const ChartBuilder = () => {
   const { projectId } = useParams();
@@ -19,7 +19,6 @@ const ChartBuilder = () => {
     chart: state.chart,
     setLoadError: state.setLoadError,
   }));
-  const { toast } = useToast();
   const [isLoadingForm, setIsLoadingForm] = useState(true); // Start as true!
 
   const methods = useForm<QueryStructure>({

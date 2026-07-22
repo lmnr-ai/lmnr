@@ -10,7 +10,7 @@ import { v4 } from "uuid";
 import SQLEditor from "@/components/sql/sql-editor";
 import { type SQLTemplate, useSqlEditorStore } from "@/components/sql/sql-editor-store";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 
 interface TemplateEditorProps {
   className?: string;
@@ -19,7 +19,6 @@ interface TemplateEditorProps {
 export default function TemplateEditor({ className }: TemplateEditorProps) {
   const { projectId, id } = useParams();
   const router = useRouter();
-  const { toast } = useToast();
   const { mutate } = useSWRConfig();
   const { template, onChange } = useSqlEditorStore((state) => ({
     template: state.currentTemplate,

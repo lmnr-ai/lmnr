@@ -1,8 +1,8 @@
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useToast } from "@/lib/hooks/use-toast";
 import { formatTimestamp } from "@/lib/utils";
 import { type WorkspaceInvitation } from "@/lib/workspaces/types";
 
@@ -11,8 +11,6 @@ interface InvitationsTableProps {
   invitations: WorkspaceInvitation[];
 }
 const InvitationsTable = ({ workspaceId, invitations }: InvitationsTableProps) => {
-  const { toast } = useToast();
-
   const router = useRouter();
   const handleRevokeInvitation = async (id: string, email: string) => {
     try {

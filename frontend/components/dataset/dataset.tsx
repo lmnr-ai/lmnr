@@ -18,8 +18,8 @@ import { useTableConfigStore, useTableView } from "@/components/ui/infinite-data
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import Mono from "@/components/ui/mono";
+import { toast } from "@/components/ui/sonner";
 import { type Datapoint, type Dataset as DatasetType } from "@/lib/dataset/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
@@ -102,7 +102,6 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   useReportAgentContextName("dataset", dataset.name);
   const { projectId } = useParams();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const { toast } = useToast();
   const [totalCount, setTotalCount] = useState(0);
 
   const { effective, setFilters } = useTableView();

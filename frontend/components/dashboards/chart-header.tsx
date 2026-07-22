@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
@@ -38,7 +38,6 @@ const updateChart = async (id: string, projectId: string, name: string) => {
 };
 
 const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
-  const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const { mutate } = useSWRConfig();

@@ -8,7 +8,7 @@ import { useSWRConfig } from "swr";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 import { type Workspace, type WorkspaceWithProjects } from "@/lib/workspaces/types";
@@ -32,7 +32,6 @@ interface WorkspaceSettingsProps {
 
 export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSettingsProps) {
   const router = useRouter();
-  const { toast } = useToast();
   const { mutate } = useSWRConfig();
 
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);

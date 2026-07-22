@@ -6,7 +6,7 @@ import useSWR, { useSWRConfig } from "swr";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { swrFetcher } from "@/lib/utils";
 
 import { type ManageTemplateForm, type Template, type TemplateScope } from "../index";
@@ -26,7 +26,6 @@ interface Props {
 
 const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved }: Props) => {
   const { projectId } = useParams();
-  const { toast } = useToast();
   const { mutate } = useSWRConfig();
 
   const { control, handleSubmit, reset, getValues, setValue } = useFormContext<ManageTemplateForm>();

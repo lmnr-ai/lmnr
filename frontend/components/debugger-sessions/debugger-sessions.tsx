@@ -14,8 +14,8 @@ import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks/use-
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import Mono from "@/components/ui/mono";
+import { toast } from "@/components/ui/sonner";
 import { type DebuggerSession } from "@/lib/actions/debugger-sessions";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 const FETCH_SIZE = 50;
@@ -80,7 +80,6 @@ const defaultDebuggerSessionsColumnOrder = ["id", "name", "traceCount", "evalCou
 
 function DebuggerSessionsContent() {
   const { projectId } = useParams();
-  const { toast } = useToast();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   useEffect(() => {

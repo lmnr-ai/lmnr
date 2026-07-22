@@ -11,7 +11,7 @@ import PlaygroundPanel from "@/components/playground/playground-panel";
 import { getDefaultThinkingModelProviderOptions } from "@/components/playground/utils";
 import TraceView from "@/components/traces/trace-view";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { type Message, type Playground as PlaygroundType, type PlaygroundForm } from "@/lib/playground/types";
 import { transformFromLegacy } from "@/lib/playground/utils.ts";
 import { type ProviderApiKey } from "@/lib/settings/types";
@@ -31,7 +31,6 @@ export default function Playground({ playground }: { playground: PlaygroundType 
   const params = useParams();
   const searchParams = useSearchParams();
   const [isUpdating, setIsUpdating] = useState(false);
-  const { toast } = useToast();
 
   // Trace view state (not synced with URL)
   const [traceId, setTraceId] = useState<string | null>(null);

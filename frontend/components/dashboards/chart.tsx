@@ -15,8 +15,8 @@ import SelectionToolbar from "@/components/dashboards/selection-toolbar";
 import { type DashboardChart } from "@/components/dashboards/types";
 import { IconResizeHandle } from "@/components/ui/icons";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "@/components/ui/sonner";
 import { type GroupByInterval } from "@/lib/clickhouse/modifiers";
-import { useToast } from "@/lib/hooks/use-toast";
 import { convertToTimeParameters } from "@/lib/time";
 
 const TABLE_PAGE_SIZE = 50;
@@ -46,7 +46,6 @@ const Chart = ({ chart }: ChartProps) => {
   const [tableIsFetching, setTableIsFetching] = useState(false);
   const tablePageRef = useRef(0);
   const openTrace = useDashboardTraceStore((s) => s.openTrace);
-  const { toast } = useToast();
   const { mutate: swrMutate } = useSWRConfig();
   const isTable = settings.config.type === ChartType.Table;
   const {

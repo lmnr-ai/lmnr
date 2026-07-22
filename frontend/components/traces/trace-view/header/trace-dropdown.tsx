@@ -11,7 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 
 interface TraceDropdownProps {
   traceId: string;
@@ -21,7 +21,6 @@ export default function TraceDropdown({ traceId }: TraceDropdownProps) {
   const params = useParams();
   const projectId = params?.projectId as string;
   const trace = useTraceViewStore((state) => state.trace);
-  const { toast } = useToast();
   const { openInSql, isLoading: isSqlLoading } = useOpenInSql({
     projectId,
     params: { type: "trace", traceId },

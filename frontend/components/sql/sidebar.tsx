@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 
 import { type SQLTemplate, useSqlEditorStore } from "./sql-editor-store";
@@ -53,7 +53,6 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
   const { id, projectId } = useParams();
   const router = useRouter();
   const { mutate } = useSWRConfig();
-  const { toast } = useToast();
 
   const { editTemplate, setEditTemplate } = useSqlEditorStore((state) => ({
     editTemplate: state.editTemplate,
@@ -187,7 +186,6 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
   const { projectId, id } = useParams();
   const { mutate } = useSWRConfig();
   const router = useRouter();
-  const { toast } = useToast();
 
   const setCurrentTemplate = useSqlEditorStore((state) => state.setCurrentTemplate);
 

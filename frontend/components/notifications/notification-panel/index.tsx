@@ -14,9 +14,9 @@ import {
 import { formatNotification, type FormattedNotification } from "@/components/notifications/notification-panel/utils";
 import { useNotificationPanelStore } from "@/components/notifications/notification-store";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast } from "@/components/ui/sonner";
 import { useProjectContext } from "@/contexts/project-context";
 import { type WebNotification } from "@/lib/actions/notifications";
-import { useToast } from "@/lib/hooks/use-toast";
 import { swrFetcher } from "@/lib/utils";
 
 // Re-exported so existing `@/components/notifications/notification-panel`
@@ -26,7 +26,6 @@ export { formatNotification } from "@/components/notifications/notification-pane
 const NotificationPanel = () => {
   const { isOpen, close } = useNotificationPanelStore();
   const { workspace, project } = useProjectContext();
-  const { toast } = useToast();
 
   const swrKey = workspace && project ? `/api/workspaces/${workspace.id}/notifications?projectId=${project.id}` : null;
 

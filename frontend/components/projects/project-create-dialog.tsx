@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { type ReactElement, type ReactNode, useCallback, useState } from "react";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { toast } from "@/components/ui/sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 import { type Project } from "@/lib/workspaces/types";
@@ -39,7 +39,6 @@ export default function ProjectCreateDialog({
   const [isCreatingProject, setIsCreatingProject] = useState(false);
 
   const router = useRouter();
-  const { toast } = useToast();
 
   const createNewProject = useCallback(async () => {
     setIsCreatingProject(true);

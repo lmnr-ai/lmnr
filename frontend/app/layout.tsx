@@ -6,7 +6,7 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { type PropsWithChildren } from "react";
 
 import BasePathFetchShim from "@/components/common/base-path-fetch-shim";
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster } from "@/components/ui/sonner";
 import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flags-context";
 import { getServerSession } from "@/lib/auth-session";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";

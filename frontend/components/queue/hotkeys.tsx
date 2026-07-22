@@ -3,7 +3,7 @@
 import { type KeyboardEvent } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 
 import { isApproved as isApprovedItem, useQueueStore } from "./queue-store";
 
@@ -12,7 +12,6 @@ import { isApproved as isApprovedItem, useQueueStore } from "./queue-store";
  * Renders nothing — every shortcut delegates to a store action.
  */
 export default function QueueHotkeys() {
-  const { toast } = useToast();
   const approveCurrent = useQueueStore((s) => s.approveCurrent);
   const unapproveCurrent = useQueueStore((s) => s.unapproveCurrent);
   const discardCurrent = useQueueStore((s) => s.discardCurrent);

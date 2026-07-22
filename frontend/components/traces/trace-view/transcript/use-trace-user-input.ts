@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { MAIN_AGENT_SEARCH_WINDOW } from "@/components/traces/trace-view/store/utils";
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 
 interface UseTraceUserInputResult {
   userInput: string | null;
@@ -14,7 +14,6 @@ export function useTraceUserInput(
   isShared: boolean,
   llmSpanCount: number
 ): UseTraceUserInputResult {
-  const { toast } = useToast();
   const [userInput, setUserInput] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   // Track the span count we resolved against so we can refetch until the

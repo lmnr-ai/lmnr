@@ -4,14 +4,12 @@ import { Check, ChevronLeft, ChevronRight, Loader2, RotateCcw, Trash2 } from "lu
 import { useCallback } from "react";
 
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useToast } from "@/lib/hooks/use-toast";
 
 import { isApproved as isApprovedItem, useQueueStore } from "./queue-store";
 
 export default function BottomControls() {
-  const { toast } = useToast();
-
   const itemsLen = useQueueStore((s) => s.idsList.length);
   const currentIndex = useQueueStore((s) => s.currentIndex);
   const ioState = useQueueStore((s) => s.ioState);

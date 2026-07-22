@@ -10,8 +10,8 @@ import {
 } from "@/components/traces/session-view/store/base";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
+import { toast } from "@/components/ui/sonner";
 import { type SessionBlock } from "@/lib/actions/debugger-sessions";
-import { toast } from "@/lib/hooks/use-toast";
 import { createIdBatchLoader } from "@/lib/id-batch-loader";
 import { type RealtimeSpan, type SpanType, type TraceRow } from "@/lib/traces/types";
 import { tryParseJson } from "@/lib/utils";

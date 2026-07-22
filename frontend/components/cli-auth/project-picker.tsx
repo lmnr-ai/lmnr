@@ -14,9 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "@/components/ui/sonner";
 import { type SessionProject, type SessionWorkspace } from "@/lib/actions/cli-auth";
 import { authClient } from "@/lib/auth-client";
-import { useToast } from "@/lib/hooks/use-toast";
 
 import { CreateProjectDialog } from "./create-project-dialog";
 import { Centered } from "./shared";
@@ -54,7 +54,6 @@ function groupByWorkspace(
 }
 
 export function ProjectPicker({ userCode, projects, workspaces, onApproved, onDenied }: Props) {
-  const { toast } = useToast();
   const [options, setOptions] = useState<SessionProject[]>(projects);
   // Auto-select when there's only one project — nothing to choose between.
   const [selectedId, setSelectedId] = useState<string | null>(projects.length === 1 ? projects[0].id : null);

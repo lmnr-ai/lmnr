@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "@/components/ui/sonner";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
@@ -33,7 +34,6 @@ import { type FilterDataType } from "@/lib/actions/common/filters";
 import { type Signal, type SignalRow } from "@/lib/actions/signals";
 import { type SlackChannel } from "@/lib/actions/slack";
 import { Feature } from "@/lib/features/features";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
 
@@ -83,8 +83,6 @@ export function AlertForm({
   });
   const [chartContainerWidth, setChartContainerWidth] = useState<number | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
-
-  const { toast } = useToast();
 
   const form = useForm<AlertFormValues>({ defaultValues, mode: "onChange" });
   const {
