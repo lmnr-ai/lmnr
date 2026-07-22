@@ -251,27 +251,28 @@ pub async fn process_span_messages(
     }
     messages.retain(|m| !m.span.attributes.is_metadata_only());
 
-    // Deprecated `traces_replacing` path: surface extracted io as trace
-    // metadata keys so it lands in `traces_replacing.metadata`. On the new
-    // (`traces_agg`) path io goes to the supplementary RMT tables instead, so
-    // this fold — and all metadata-key knowledge of io — is skipped and dies
-    // with the flag.
-    if !env::clickhouse::WRITE_TRACES_AGG.get() {
-        for io in &raw_trace_io {
-            let mut map = serde_json::Map::new();
-            if let Some(value) = &io.input {
-                map.insert(USER_TASK_METADATA_KEY.to_string(), value.clone());
-            }
-            if let Some(value) = &io.output {
-                map.insert(TRACE_OUTPUT_METADATA_KEY.to_string(), value.clone());
-            }
-            if !map.is_empty() {
-                metadata_patches.push(TraceMetadataPatch {
-                    trace_id: io.trace_id,
-                    project_id: io.project_id,
-                    metadata: Value::Object(map),
-                });
-            }
+    // `traces_replacing` path: surface extracted io as trace metadata keys
+    // so it lands in `traces_replacing.metadata` (the current read path).
+    // Written on BOTH flag states for now — while `WRITE_TRACES_AGG` is a
+    // migration bridge, io lives in both `traces_replacing.metadata` AND the
+    // `trace_agent_input`/`_output` supplementary tables. Once the read path
+    // cuts over to `traces_agg_v0`, gate this fold on `!WRITE_TRACES_AGG` (or
+    // drop it) — all metadata-key knowledge of io lives here and dies with
+    // the old table.
+    for io in &raw_trace_io {
+        let mut map = serde_json::Map::new();
+        if let Some(value) = &io.input {
+            map.insert(USER_TASK_METADATA_KEY.to_string(), value.clone());
+        }
+        if let Some(value) = &io.output {
+            map.insert(TRACE_OUTPUT_METADATA_KEY.to_string(), value.clone());
+        }
+        if !map.is_empty() {
+            metadata_patches.push(TraceMetadataPatch {
+                trace_id: io.trace_id,
+                project_id: io.project_id,
+                metadata: Value::Object(map),
+            });
         }
     }
 
