@@ -23,13 +23,6 @@ export const GetSignalTriggersSchema = z.object({
   ...FiltersSchema.shape,
 });
 
-export const CreateSignalTriggerSchema = z.object({
-  projectId: z.guid(),
-  signalId: z.guid(),
-  filters: z.array(FilterSchema),
-  mode: z.number().int().min(0).max(1).default(0),
-});
-
 export const UpdateSignalTriggerSchema = z.object({
   projectId: z.guid(),
   signalId: z.guid(),
