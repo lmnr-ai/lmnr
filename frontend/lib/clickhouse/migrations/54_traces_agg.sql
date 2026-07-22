@@ -60,10 +60,21 @@ ORDER BY (project_id, id)
 SETTINGS index_granularity = 8192, deduplicate_merge_projection_mode = 'rebuild';
 
 -- Extracted agent input/output (LAM-1953): one row per trace per table,
--- versioned on `updated_at` so the latest-arriving qualifying write wins.
+-- versioned on `updated_at`, ReplacingMergeTree converging on the largest.
 -- The producer-side cache arbitration gate decides which spans qualify to
--- write here; ReplacingMergeTree(updated_at) then converges on the newest
--- of those. `value` is the raw JSON value (string or `false`).
+-- write here; the version then breaks ties between qualifying writes.
+-- `value` is the raw JSON value (string or empty).
+--   - OUTPUT: `updated_at` = the winning span's END TIME (clamped to insert
+--     wall-clock). Output strength IS "latest end time at the shallowest
+--     depth" (see `OutputLockState::should_override`), so versioning on end
+--     time makes FINAL converge on exactly what the lock picks — arrival
+--     order can't reverse it. Writers MUST set `updated_at` explicitly.
+--   - INPUT: `updated_at` defaults to `now64(9)` (insert wall-clock). Input
+--     strength is depth+tokens with no timestamp axis, so there's no content
+--     order to version on; the cache gate is the selector and a get-then-set
+--     race can (rarely) let a weaker last-arriving write win. Accepted:
+--     encoding depth+tokens into a version was the manual machinery this
+--     design deliberately dropped.
 CREATE TABLE IF NOT EXISTS default.trace_agent_input
 (
     `project_id` UUID,

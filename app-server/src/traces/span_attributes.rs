@@ -41,6 +41,10 @@ pub const SPAN_METADATA_ONLY: &str = "lmnr.internal.metadata_only";
 /// store the raw value directly.
 pub const SPAN_TRACE_INPUT: &str = "lmnr.internal.trace_input";
 pub const SPAN_TRACE_OUTPUT: &str = "lmnr.internal.trace_output";
+/// Winning span's end time (ns since epoch) accompanying `SPAN_TRACE_OUTPUT`:
+/// the RMT version for the `trace_agent_output` row, so FINAL converges on
+/// the latest-ending answer regardless of insert arrival order.
+pub const SPAN_TRACE_OUTPUT_END_TIME: &str = "lmnr.internal.trace_output_end_time";
 /// Marker on the checkpoints pipeline's own tracing spans, skipped by its producer.
 pub const CHECKPOINT_INTERNAL_SPAN: &str = "lmnr.internal.checkpoint";
 

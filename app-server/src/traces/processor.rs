@@ -44,7 +44,7 @@ use crate::{
             RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_trace,
             send_span_updates, send_trace_updates,
         },
-        span_attributes::{SPAN_TRACE_INPUT, SPAN_TRACE_OUTPUT},
+        span_attributes::{SPAN_TRACE_INPUT, SPAN_TRACE_OUTPUT, SPAN_TRACE_OUTPUT_END_TIME},
         spans::SpanUsage,
         tool_dedup::{ToolDedup, resolve_tool_dedup},
         utils::{get_llm_usage_for_span, prepare_span_for_recording},
@@ -121,13 +121,24 @@ struct RawTraceIo {
     trace_id: Uuid,
     input: Option<Value>,
     output: Option<Value>,
+    /// Winning span end time (ns) for the output — the RMT version. `None`
+    /// only for legacy/malformed spans missing the attribute.
+    output_end_time_ns: Option<i64>,
 }
 
-/// Build supplementary-table rows from the raw extracted io. `value` is
-/// stored as the raw JSON string (matching the traces_agg metadata
-/// encoding); `updated_at` is left to the server default (`now64()`), the
-/// RMT version.
-fn collect_agent_io_rows(io: &[RawTraceIo]) -> (Vec<CHTraceAgentInput>, Vec<CHTraceAgentOutput>) {
+/// Build supplementary-table rows from the raw extracted io. `value` is the
+/// raw JSON string (matching the traces_agg metadata encoding). The input
+/// row leaves `updated_at` to the server default (`now64()`); the output
+/// row versions on the winning span's END TIME so FINAL converges on the
+/// latest-ending answer regardless of insert arrival order. The end time is
+/// clamped to `now_ns` — a missing/absurd (e.g. `i64::MAX` unknown-time
+/// sentinel) value would overflow `DateTime64(9)`; clamping to now still
+/// ranks it "latest" (real end times are ≤ now), preserving the lock's
+/// "unknown = latest" ordering.
+fn collect_agent_io_rows(
+    io: &[RawTraceIo],
+    now_ns: i64,
+) -> (Vec<CHTraceAgentInput>, Vec<CHTraceAgentOutput>) {
     let mut inputs = Vec::new();
     let mut outputs = Vec::new();
     for entry in io {
@@ -139,10 +150,12 @@ fn collect_agent_io_rows(io: &[RawTraceIo]) -> (Vec<CHTraceAgentInput>, Vec<CHTr
             });
         }
         if let Some(value) = &entry.output {
+            let updated_at = entry.output_end_time_ns.unwrap_or(now_ns).min(now_ns);
             outputs.push(CHTraceAgentOutput {
                 project_id: entry.project_id,
                 trace_id: entry.trace_id,
                 value: value.to_string(),
+                updated_at,
             });
         }
     }
@@ -195,7 +208,10 @@ pub async fn process_span_messages(
     //     or folded into a metadata key for `traces_replacing` (deprecated path).
     let mut raw_trace_io: Vec<RawTraceIo> = Vec::new();
     let mut metadata_patches: Vec<TraceMetadataPatch> = Vec::new();
-    for m in messages.iter().filter(|m| m.span.attributes.is_metadata_only()) {
+    for m in messages
+        .iter()
+        .filter(|m| m.span.attributes.is_metadata_only())
+    {
         let attrs = &m.span.attributes.raw_attributes;
         let input = attrs.get(SPAN_TRACE_INPUT).cloned();
         let output = attrs.get(SPAN_TRACE_OUTPUT).cloned();
@@ -205,6 +221,9 @@ pub async fn process_span_messages(
                 trace_id: m.span.trace_id,
                 input,
                 output,
+                output_end_time_ns: attrs
+                    .get(SPAN_TRACE_OUTPUT_END_TIME)
+                    .and_then(Value::as_i64),
             });
             continue;
         }
@@ -646,7 +665,8 @@ pub async fn process_span_messages(
             // the supplementary latest-wins RMT tables. On this path io never
             // rides PG metadata (the deprecated fold is skipped when the flag
             // is on), so there's no PG counterpart to gate on.
-            let (agent_input_rows, agent_output_rows) = collect_agent_io_rows(&raw_trace_io);
+            let (agent_input_rows, agent_output_rows) =
+                collect_agent_io_rows(&raw_trace_io, now_ns);
             if !agent_input_rows.is_empty()
                 && let Err(e) = ch.insert_batch(&agent_input_rows, config).await
             {

@@ -24,8 +24,12 @@ pub struct CHTraceAgentInput {
     pub value: String,
 }
 
-/// A `trace_agent_output` row. Same shape and semantics as
-/// [`CHTraceAgentInput`], separate table.
+/// A `trace_agent_output` row. Unlike [`CHTraceAgentInput`], `updated_at`
+/// (the RMT version) is set EXPLICITLY to the winning span's end time in
+/// nanoseconds — output strength is "latest end time", so versioning on it
+/// makes FINAL converge on the lock's winner regardless of arrival order.
+/// Field order MUST match the CREATE TABLE column order (positional
+/// RowBinary): `(project_id, trace_id, value, updated_at)`.
 #[derive(Debug, Clone, Serialize, Deserialize, Row)]
 pub struct CHTraceAgentOutput {
     #[serde(with = "clickhouse::serde::uuid")]
@@ -33,6 +37,8 @@ pub struct CHTraceAgentOutput {
     #[serde(with = "clickhouse::serde::uuid")]
     pub trace_id: Uuid,
     pub value: String,
+    /// Winning span end time, nanoseconds since epoch (CH `DateTime64(9)`).
+    pub updated_at: i64,
 }
 
 impl ClickhouseInsertable for CHTraceAgentInput {

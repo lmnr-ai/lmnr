@@ -20,6 +20,7 @@ use crate::{
         producer::publish_span_messages,
         span_attributes::{
             ASSOCIATION_PROPERTIES_PREFIX, SPAN_METADATA_ONLY, SPAN_TRACE_INPUT, SPAN_TRACE_OUTPUT,
+            SPAN_TRACE_OUTPUT_END_TIME,
         },
         spans::SpanAttributes,
     },
@@ -122,11 +123,14 @@ pub async fn publish_trace_input_update(
 }
 
 /// Set the extracted trace output. Same raw-transport contract as
-/// [`publish_trace_input_update`], on [`SPAN_TRACE_OUTPUT`].
+/// [`publish_trace_input_update`], on [`SPAN_TRACE_OUTPUT`], plus the
+/// winning span's `end_time_ns` on [`SPAN_TRACE_OUTPUT_END_TIME`] — the
+/// processor uses it as the `trace_agent_output` RMT version.
 pub async fn publish_trace_output_update(
     trace_id: Uuid,
     project_id: Uuid,
     text: String,
+    end_time_ns: i64,
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -134,6 +138,10 @@ pub async fn publish_trace_output_update(
     let attributes = HashMap::from([
         (SPAN_METADATA_ONLY.to_string(), Value::Bool(true)),
         (SPAN_TRACE_OUTPUT.to_string(), Value::String(text)),
+        (
+            SPAN_TRACE_OUTPUT_END_TIME.to_string(),
+            Value::Number(end_time_ns.into()),
+        ),
     ]);
     publish_metadata_only_span(trace_id, project_id, attributes, queue, db, cache).await
 }

@@ -75,6 +75,7 @@ pub async fn process_trace_output_candidate(
         trace_id,
         project_id,
         candidate.text.clone(),
+        candidate.end_time_ns,
         queue,
         db,
         cache.clone(),
