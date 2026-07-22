@@ -187,6 +187,7 @@ fn main() -> anyhow::Result<()> {
             environment: Some(Cow::Owned(
                 std::env::var(env::connections::ENVIRONMENT).unwrap_or("development".to_string()),
             )),
+            before_send: Some(std::sync::Arc::new(instrumentation::sentry_before_send)),
             ..Default::default()
         },
     ));
