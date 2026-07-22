@@ -10,6 +10,7 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH || undefined;
 
 const nextConfig: NextConfig = {
   basePath,
+  deploymentId: process.env.NEXT_DEPLOYMENT_ID || undefined,
   env: {
     LAMINAR_CLOUD: process.env.LAMINAR_CLOUD,
   },

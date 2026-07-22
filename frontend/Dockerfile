@@ -22,6 +22,10 @@ COPY . .
 ARG NEXT_PUBLIC_APP_VERSION
 ENV NEXT_PUBLIC_APP_VERSION=$NEXT_PUBLIC_APP_VERSION
 
+# Commit SHA used by Next.js for deployment skew protection.
+ARG NEXT_DEPLOYMENT_ID
+ENV NEXT_DEPLOYMENT_ID=$NEXT_DEPLOYMENT_ID
+
 # Sub-path the app is served under (e.g. /lmnr), baked into next.config.ts at
 # build time. Empty => root-served. The frontend-ee-basepath image sets /lmnr.
 ARG NEXT_PUBLIC_BASE_PATH

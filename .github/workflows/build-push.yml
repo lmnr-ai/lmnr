@@ -22,6 +22,7 @@ jobs:
             image: ghcr.io/lmnr-ai/frontend
             build-args: |
               NEXT_PUBLIC_APP_VERSION=${{ github.event.release.tag_name }}
+              NEXT_DEPLOYMENT_ID=${{ github.sha }}
     permissions:
       contents: read
       packages: write
