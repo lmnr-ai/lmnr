@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "@/components/ui/icon-lib";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { type Dataset } from "@/lib/dataset/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type Span } from "@/lib/traces/types";
 
@@ -22,7 +22,6 @@ export default function ExportSpansPopover({ children, span }: PropsWithChildren
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
 
-  const { toast } = useToast();
 
   const exportSpan = useCallback(async () => {
     try {
@@ -40,34 +39,25 @@ export default function ExportSpansPopover({ children, span }: PropsWithChildren
       });
 
       if (!res.ok) {
-        toast({
-          description: "Failed to export span. Please try again.",
-          variant: "destructive",
-        });
+        toast.error("Failed to export span. Please try again.");
       } else {
         track("datasets", "span_added", { source: "span_view" });
-        toast({
-          title: `Added span to dataset`,
-          description: (
+        toast(`Added span to dataset`, { description: (
             <span>
               Successfully added to dataset.{" "}
               <Link className="text-primary" href={`/project/${projectId}/datasets/${selectedDataset.id}`}>
                 Go to dataset.
               </Link>
             </span>
-          ),
-        });
+          ) });
       }
       setOpen(false);
     } catch (e) {
-      toast({
-        title: e instanceof Error ? e.message : "Failed to export span. Please try again.",
-        variant: "destructive",
-      });
+      toast.error(e instanceof Error ? e.message : "Failed to export span. Please try again.");
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, selectedDataset, span.spanId, toast]);
+  }, [projectId, selectedDataset, span.spanId]);
 
   return (
     <>

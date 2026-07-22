@@ -1,7 +1,7 @@
 import { useCallback } from "react";
+import { toast } from "sonner";
 
 import { schemaFieldsToJsonSchema } from "@/components/signals/utils";
-import { type useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 import { type ManageSignalForm, type TriggerFormItem } from "./types";
@@ -117,7 +117,6 @@ class SyncError extends Error {
 
 export default function useSubmitHandler({
   projectId,
-  toast,
   onSubmitComplete,
   onSuccess,
   setIsLoading,
@@ -126,7 +125,6 @@ export default function useSubmitHandler({
   setFormTriggers,
 }: {
   projectId: string;
-  toast: ReturnType<typeof useToast>["toast"];
   onSubmitComplete: (data: ManageSignalForm) => void;
   onSuccess?: (signal: ManageSignalForm) => Promise<void>;
   setIsLoading: (loading: boolean) => void;
@@ -164,11 +162,7 @@ export default function useSubmitHandler({
           } catch {
             // Response was not JSON
           }
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: errorMessage,
-          });
+          toast.error("Error", { description: errorMessage });
           return;
         }
 
@@ -194,7 +188,7 @@ export default function useSubmitHandler({
         }
         const savedData: ManageSignalForm = { ...data, id: signalId, triggers: syncedTriggers };
         if (onSuccess) await onSuccess(savedData);
-        toast({ title: `Successfully ${isUpdate ? "updated" : "created"} signal` });
+        toast(`Successfully ${isUpdate ? "updated" : "created"} signal`);
         onSubmitComplete(savedData);
       } catch (e) {
         // On partial trigger sync failure, write successfully created trigger IDs back to form
@@ -202,9 +196,7 @@ export default function useSubmitHandler({
         if (e instanceof SyncError) {
           setFormTriggers(e.partialTriggers);
         }
-        toast({
-          variant: "destructive",
-          title: "Error",
+        toast.error("Error", {
           description:
             e instanceof Error ? e.message : `Failed to ${data.id ? "update" : "create"} the signal. Please try again.`,
         });
@@ -212,6 +204,6 @@ export default function useSubmitHandler({
         setIsLoading(false);
       }
     },
-    [projectId, toast, onSubmitComplete, onSuccess, setIsLoading, previousTriggerIds, setFormId, setFormTriggers]
+    [projectId, onSubmitComplete, onSuccess, setIsLoading, previousTriggerIds, setFormId, setFormTriggers]
   );
 }

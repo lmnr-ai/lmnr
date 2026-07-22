@@ -1,13 +1,13 @@
 "use client";
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import React, { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Globe, Link, Loader2, Lock, Share } from "@/components/ui/icon-lib";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useToast } from "@/lib/hooks/use-toast";
 
 type EvalVisibility = "private" | "public";
 
@@ -20,7 +20,6 @@ const ShareEvalButton = ({ evaluationId, projectId }: ShareEvalButtonProps) => {
   const url = typeof window !== "undefined" ? `${window.location.origin}/shared/evals/${evaluationId}` : "";
   const [visibility, setVisibility] = useState<EvalVisibility>("private");
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
 
   useEffect(() => {
     fetch(`/api/projects/${projectId}/evaluations/${evaluationId}/visibility`)
@@ -50,19 +49,15 @@ const ShareEvalButton = ({ evaluationId, projectId }: ShareEvalButtonProps) => {
       });
 
       if (res.ok) {
-        toast({ title: "Evaluation visibility updated." });
+        toast("Evaluation visibility updated.");
       } else {
         setVisibility(visibility); // revert
         const text = await res.json();
-        toast({ variant: "destructive", title: "Error", description: String(text.error) });
+        toast.error("Error", { description: String(text.error) });
       }
     } catch {
       setVisibility(visibility); // revert
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to update evaluation visibility. Please try again.",
-      });
+      toast.error("Error", { description: "Failed to update evaluation visibility. Please try again." });
     } finally {
       setIsLoading(false);
     }

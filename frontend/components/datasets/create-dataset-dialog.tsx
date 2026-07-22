@@ -1,5 +1,6 @@
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -7,7 +8,6 @@ import { Loader2 } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { type DatasetInfo } from "@/lib/dataset/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +20,6 @@ export default function CreateDatasetDialog({
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const { projectId } = useParams();
-  const { toast } = useToast();
 
   const createNewDataset = useCallback(async () => {
     try {
@@ -37,7 +36,7 @@ export default function CreateDatasetDialog({
       });
 
       if (!res.ok) {
-        toast({ variant: "destructive", title: "Error", description: "Failed to create the dataset" });
+        toast.error("Error", { description: "Failed to create the dataset" });
         return;
       }
 
@@ -50,18 +49,14 @@ export default function CreateDatasetDialog({
       }
 
       track("datasets", "created");
-      toast({ title: "Successfully created dataset" });
+      toast("Successfully created dataset");
       setIsDialogOpen(false);
     } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to create the dataset. Please try again.",
-      });
+      toast.error("Error", { description: e instanceof Error ? e.message : "Failed to create the dataset. Please try again." });
     } finally {
       setIsLoading(false);
     }
-  }, [newDatasetName, onUpdate, projectId, toast]);
+  }, [newDatasetName, onUpdate, projectId]);
 
   return (
     <>

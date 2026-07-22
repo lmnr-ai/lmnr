@@ -4,6 +4,7 @@ import { type Extension } from "@codemirror/state";
 import CodeMirror from "@uiw/react-codemirror";
 import { motion } from "framer-motion";
 import { useCallback, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { createExtensions, type SQLSchemaConfig, theme } from "@/components/sql/utils";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,6 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Loader2, Sparkles } from "@/components/ui/icon-lib";
 import { Textarea } from "@/components/ui/textarea";
 import type { GenerationMode } from "@/lib/actions/sql";
-import { toast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 export interface SQLEditorProps {
@@ -72,11 +72,7 @@ export default function SQLEditor({
       const data = await response.json();
 
       if (!response.ok) {
-        toast({
-          title: "Generation failed",
-          description: data?.error || "Failed to generate SQL",
-          variant: "destructive",
-        });
+        toast.error("Generation failed", { description: data?.error || "Failed to generate SQL" });
         return;
       }
 
@@ -85,11 +81,7 @@ export default function SQLEditor({
         track("sql_editor", "ai_generated", { mode: generationMode });
       }
     } catch (error) {
-      toast({
-        title: "Generation failed",
-        description: error instanceof Error ? error.message : "An unexpected error occurred",
-        variant: "destructive",
-      });
+      toast.error("Generation failed", { description: error instanceof Error ? error.message : "An unexpected error occurred" });
     } finally {
       setIsAiLoading(false);
     }

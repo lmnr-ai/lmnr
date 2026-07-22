@@ -1,5 +1,6 @@
 import { useParams } from "next/navigation";
 import { useCallback } from "react";
+import { toast } from "sonner";
 
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
@@ -11,7 +12,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown, Copy, Database, Loader } from "@/components/ui/icon-lib";
-import { useToast } from "@/lib/hooks/use-toast";
 
 interface TraceDropdownProps {
   traceId: string;
@@ -21,7 +21,6 @@ export default function TraceDropdown({ traceId }: TraceDropdownProps) {
   const params = useParams();
   const projectId = params?.projectId as string;
   const trace = useTraceViewStore((state) => state.trace);
-  const { toast } = useToast();
   const { openInSql, isLoading: isSqlLoading } = useOpenInSql({
     projectId,
     params: { type: "trace", traceId },
@@ -30,9 +29,9 @@ export default function TraceDropdown({ traceId }: TraceDropdownProps) {
   const handleCopyTraceId = useCallback(async () => {
     if (trace?.id) {
       await navigator.clipboard.writeText(trace.id);
-      toast({ title: "Copied trace ID", duration: 1000 });
+      toast("Copied trace ID", { duration: 1000 });
     }
-  }, [trace?.id, toast]);
+  }, [trace?.id]);
 
   const sessionId = trace?.sessionId;
   const hasSession = sessionId && sessionId !== "<null>" && sessionId !== "";
@@ -40,9 +39,9 @@ export default function TraceDropdown({ traceId }: TraceDropdownProps) {
   const handleCopySessionId = useCallback(async () => {
     if (sessionId) {
       await navigator.clipboard.writeText(sessionId);
-      toast({ title: "Copied session ID", duration: 1000 });
+      toast("Copied session ID", { duration: 1000 });
     }
-  }, [sessionId, toast]);
+  }, [sessionId]);
 
   // TODO: add userId to TraceViewTrace to enable "Copy user ID"
 

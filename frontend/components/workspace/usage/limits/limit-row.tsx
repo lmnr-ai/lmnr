@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Info, Loader2, X } from "@/components/ui/icon-lib";
-import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 interface LimitRowProps {
@@ -32,7 +32,6 @@ export default function LimitRow({
   toRawValue,
   onUpdate,
 }: LimitRowProps) {
-  const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
   const displayValue = currentValue !== null ? toDisplayValue(currentValue) : null;
@@ -64,25 +63,14 @@ export default function LimitRow({
 
       if (!res.ok) {
         const err = await res.json();
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: err.error || "Something went wrong. Please try again later.",
-        });
+        toast.error("Error", { description: err.error || "Something went wrong. Please try again later." });
         return;
       }
 
-      toast({
-        title: "Limit updated",
-        description: `${label} hard limit set to ${parsedInput} ${unit}.`,
-      });
+      toast("Limit updated", { description: `${label} hard limit set to ${parsedInput} ${unit}.` });
       onUpdate();
     } catch {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Something went wrong. Please try again later.",
-      });
+      toast.error("Error", { description: "Something went wrong. Please try again later." });
     } finally {
       setIsSaving(false);
     }
@@ -99,26 +87,15 @@ export default function LimitRow({
 
       if (!res.ok) {
         const err = await res.json();
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: err.error || "Something went wrong. Please try again later.",
-        });
+        toast.error("Error", { description: err.error || "Something went wrong. Please try again later." });
         return;
       }
 
       setInputText("");
-      toast({
-        title: "Limit removed",
-        description: `${label} hard limit has been removed.`,
-      });
+      toast("Limit removed", { description: `${label} hard limit has been removed.` });
       onUpdate();
     } catch {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Something went wrong. Please try again later.",
-      });
+      toast.error("Error", { description: "Something went wrong. Please try again later." });
     } finally {
       setIsRemoving(false);
     }

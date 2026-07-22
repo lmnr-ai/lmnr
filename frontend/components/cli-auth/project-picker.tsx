@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +17,6 @@ import {
 } from "@/components/ui/select";
 import { type SessionProject, type SessionWorkspace } from "@/lib/actions/cli-auth";
 import { authClient } from "@/lib/auth-client";
-import { useToast } from "@/lib/hooks/use-toast";
 
 import { CreateProjectDialog } from "./create-project-dialog";
 import { Centered } from "./index";
@@ -54,7 +54,6 @@ function groupByWorkspace(
 }
 
 export function ProjectPicker({ userCode, projects, workspaces, onApproved, onDenied }: Props) {
-  const { toast } = useToast();
   const [options, setOptions] = useState<SessionProject[]>(projects);
   // Auto-select when there's only one project — nothing to choose between.
   const [selectedId, setSelectedId] = useState<string | null>(projects.length === 1 ? projects[0].id : null);
@@ -69,12 +68,12 @@ export function ProjectPicker({ userCode, projects, workspaces, onApproved, onDe
     try {
       const { error } = await authClient.device.deny({ userCode });
       if (error) {
-        toast({ variant: "destructive", title: error.error_description ?? "Failed to cancel" });
+        toast.error(error.error_description ?? "Failed to cancel");
         return;
       }
       onDenied();
     } catch {
-      toast({ variant: "destructive", title: "Something went wrong" });
+      toast.error("Something went wrong");
     } finally {
       setDenying(false);
     }
@@ -95,12 +94,12 @@ export function ProjectPicker({ userCode, projects, workspaces, onApproved, onDe
           .json()
           .then((d) => d?.error)
           .catch(() => null);
-        toast({ variant: "destructive", title: errMessage ?? "Failed to authorize device" });
+        toast.error(errMessage ?? "Failed to authorize device");
         return;
       }
       onApproved();
     } catch {
-      toast({ variant: "destructive", title: "Something went wrong" });
+      toast.error("Something went wrong");
     } finally {
       setSubmitting(false);
     }

@@ -1,11 +1,11 @@
 import { useParams } from "next/navigation";
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "@/components/ui/icon-lib";
 import { Label } from "@/components/ui/label";
 import { uploadFile } from "@/lib/dataset/utils";
-import { useToast } from "@/lib/hooks/use-toast";
 
 interface DatasetUploadProps {
   datasetId: string;
@@ -16,7 +16,6 @@ export default function DatasetUpload({ datasetId, onSuccessfulUpload }: Dataset
   const { projectId } = useParams();
   const hiddenInput = useRef<HTMLInputElement>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
 
   return (
     <div className="grid gap-4">
@@ -39,10 +38,7 @@ export default function DatasetUpload({ datasetId, onSuccessfulUpload }: Dataset
               onSuccessfulUpload?.();
             })
             .catch((error) => {
-              toast({
-                title: "Error",
-                description: "Error uploading file" + error,
-              });
+              toast("Error", { description: "Error uploading file" + error });
             })
             .finally(() => {
               setIsLoading(false);

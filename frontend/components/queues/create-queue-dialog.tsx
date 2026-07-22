@@ -1,5 +1,6 @@
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useState } from "react";
+import { toast } from "sonner";
 import { useSWRConfig } from "swr";
 
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,6 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Loader2 } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type LabelingQueue } from "@/lib/queue/types";
 import { type PaginatedResponse } from "@/lib/types";
@@ -20,7 +20,6 @@ export default function CreateQueueDialog({
   const [newQueueName, setNewQueueName] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const { toast } = useToast();
   const { projectId } = useParams();
   const { mutate } = useSWRConfig();
   const createNewQueue = useCallback(async () => {
@@ -38,7 +37,7 @@ export default function CreateQueueDialog({
       });
 
       if (!res.ok) {
-        toast({ variant: "destructive", title: "Error", description: "Failed to create the queue" });
+        toast.error("Error", { description: "Failed to create the queue" });
         setIsLoading(false);
         return;
       }
@@ -59,18 +58,14 @@ export default function CreateQueueDialog({
       }
 
       track("labeling_queues", "created");
-      toast({ title: "Successfully created queue" });
+      toast("Successfully created queue");
       setIsDialogOpen(false);
     } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to create the queue. Please try again.",
-      });
+      toast.error("Error", { description: e instanceof Error ? e.message : "Failed to create the queue. Please try again." });
     } finally {
       setIsLoading(false);
     }
-  }, [mutate, newQueueName, onSuccess, projectId, toast]);
+  }, [mutate, newQueueName, onSuccess, projectId]);
 
   return (
     <Dialog

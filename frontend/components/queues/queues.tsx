@@ -3,6 +3,7 @@
 import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import AdvancedSearch from "@/components/common/advanced-search";
@@ -19,7 +20,6 @@ import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatab
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import Mono from "@/components/ui/mono";
 import { TableCell, TableRow } from "@/components/ui/table";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { EMPTY_PROGRESS, type LabelingQueueWithProgress } from "@/lib/queue/types";
 
@@ -150,7 +150,6 @@ const EmptyRow = (
 const QueuesContent = () => {
   const { projectId } = useParams();
   const router = useRouter();
-  const { toast } = useToast();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
@@ -194,14 +193,11 @@ const QueuesContent = () => {
         const data = await res.json();
         return { items: data.items, count: data.totalCount };
       } catch (error) {
-        toast({
-          title: error instanceof Error ? error.message : "Failed to load queues. Please try again.",
-          variant: "destructive",
-        });
+        toast.error(error instanceof Error ? error.message : "Failed to load queues. Please try again.");
         throw error;
       }
     },
-    [projectId, toast, filter, search]
+    [projectId, filter, search]
   );
 
   const {
@@ -231,19 +227,12 @@ const QueuesContent = () => {
         updateData((currentData) => currentData.filter((queue) => !queueIds.includes(queue.id)));
         setRowSelection({});
         track("labeling_queues", "deleted", { count: queueIds.length });
-        toast({
-          title: "Queues deleted",
-          description: `Successfully deleted ${queueIds.length} queue(s).`,
-        });
+        toast("Queues deleted", { description: `Successfully deleted ${queueIds.length} queue(s).` });
       } else {
         throw new Error("Failed to delete queues");
       }
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete queues. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: "Failed to delete queues. Please try again." });
     }
     setIsDeleting(false);
     setIsDeleteDialogOpen(false);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +15,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { type SessionProject, type SessionWorkspace } from "@/lib/actions/cli-auth";
-import { useToast } from "@/lib/hooks/use-toast";
 
 import { createProjectInWorkspace, createWorkspaceWithProject } from "./create-project";
 import { Field } from "./index";
@@ -27,7 +27,6 @@ interface Props {
 }
 
 export function CreateProjectDialog({ open, onOpenChange, workspaces, onCreated }: Props) {
-  const { toast } = useToast();
   const hasWorkspace = workspaces.length > 0;
   const [projectName, setProjectName] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
@@ -58,13 +57,13 @@ export function CreateProjectDialog({ open, onOpenChange, workspaces, onCreated 
         : await createWorkspaceWithProject(project, workspaceName.trim());
 
       if (!created) {
-        toast({ variant: "destructive", title: "Project was created without an id" });
+        toast.error("Project was created without an id");
         return;
       }
       onCreated(created);
       reset();
     } catch (err) {
-      toast({ variant: "destructive", title: err instanceof Error ? err.message : "Something went wrong" });
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setCreating(false);
     }

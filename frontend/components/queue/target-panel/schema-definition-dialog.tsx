@@ -4,12 +4,12 @@ import { json } from "@codemirror/lang-json";
 import CodeMirror from "@uiw/react-codemirror";
 import { useParams } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { theme } from "@/components/ui/content-renderer/utils";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 import { useQueueStore } from "../queue-store";
@@ -65,7 +65,6 @@ export default function SchemaDefinitionDialog({
   showTrigger = true,
 }: SchemaDefinitionDialogProps = {}) {
   const { projectId } = useParams();
-  const { toast } = useToast();
   const { annotationSchema, setAnnotationSchema, queue } = useQueueStore((state) => ({
     annotationSchema: state.annotationSchema,
     setAnnotationSchema: state.setAnnotationSchema,
@@ -118,16 +117,9 @@ export default function SchemaDefinitionDialog({
         track("labeling_queues", "annotation_schema_cleared");
       }
       setIsOpen(false);
-      toast({
-        title: "Success",
-        description: "Annotation schema saved",
-      });
+      toast("Success", { description: "Annotation schema saved" });
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to save annotation schema.",
-      });
+      toast.error("Error", { description: error instanceof Error ? error.message : "Failed to save annotation schema." });
     } finally {
       setIsSaving(false);
     }

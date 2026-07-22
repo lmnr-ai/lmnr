@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { type TraceViewListSpan } from "@/components/traces/trace-view/store/base";
-import { useToast } from "@/lib/hooks/use-toast";
 import { SimpleLRU } from "@/lib/simple-lru";
 
 export type TraceIOEntry = {
@@ -26,7 +26,6 @@ export function useBatchedTraceIO(
   options: UseBatchedTraceIOOptions = {}
 ) {
   const { debounceMs = 200, maxEntries = 200 } = options;
-  const { toast } = useToast();
   const cache = useRef(new SimpleLRU<string, TraceIOEntry | null>(maxEntries));
   const fetching = useRef(new Set<string>());
   const pendingFetch = useRef(new Set<string>());
@@ -68,17 +67,14 @@ export function useBatchedTraceIO(
           return next;
         });
       } catch (error) {
-        toast({
-          variant: "destructive",
-          title: error instanceof Error ? error.message : "Failed to fetch trace previews",
-        });
+        toast.error(error instanceof Error ? error.message : "Failed to fetch trace previews");
 
         for (const id of traceIds) {
           fetching.current.delete(id);
         }
       }
     },
-    [projectId, toast]
+    [projectId]
   );
 
   const scheduleFetch = useCallback(async () => {

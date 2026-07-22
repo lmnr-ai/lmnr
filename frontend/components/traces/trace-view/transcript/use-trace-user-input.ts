@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { MAIN_AGENT_SEARCH_WINDOW } from "@/components/traces/trace-view/store/utils";
-import { useToast } from "@/lib/hooks/use-toast";
 
 interface UseTraceUserInputResult {
   userInput: string | null;
@@ -14,7 +14,6 @@ export function useTraceUserInput(
   isShared: boolean,
   llmSpanCount: number
 ): UseTraceUserInputResult {
-  const { toast } = useToast();
   const [userInput, setUserInput] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   // Track the span count we resolved against so we can refetch until the
@@ -64,10 +63,7 @@ export function useTraceUserInput(
         resolvedRef.current = { traceId, input: data.input, llmSpanCount };
       } catch (error) {
         if (controller.signal.aborted) return;
-        toast({
-          variant: "destructive",
-          title: error instanceof Error ? error.message : "Failed to fetch user input",
-        });
+        toast.error(error instanceof Error ? error.message : "Failed to fetch user input");
         setUserInput(null);
       } finally {
         setIsLoading(false);
@@ -77,7 +73,7 @@ export function useTraceUserInput(
     fetchUserInput();
 
     return () => controller.abort();
-  }, [projectId, traceId, isShared, llmSpanCount, toast]);
+  }, [projectId, traceId, isShared, llmSpanCount]);
 
   return { userInput, isLoading };
 }

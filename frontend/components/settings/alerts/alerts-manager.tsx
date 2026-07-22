@@ -2,6 +2,7 @@
 
 import { isEmpty, isNil } from "lodash";
 import { type ReactNode, useMemo, useState } from "react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
@@ -13,7 +14,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipPortal, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ALERT_TYPE_LABELS, type AlertType, type AlertWithDetails } from "@/lib/actions/alerts/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { cn, swrFetcher } from "@/lib/utils";
 
 import DeleteAlertDialog from "./delete-alert-dialog";
@@ -47,7 +47,6 @@ function DetailRow({ label, children }: { label: string; children: ReactNode }) 
 }
 
 export default function AlertsManager({ projectId, workspaceId, userEmail, fixedSignalId }: AlertsManagerProps) {
-  const { toast } = useToast();
   const { data: slackIntegration } = useSlackIntegration(workspaceId);
 
   const {
@@ -97,13 +96,9 @@ export default function AlertsManager({ projectId, workspaceId, userEmail, fixed
         },
         { optimisticData: applyToggle, rollbackOnError: true, revalidate: false }
       );
-      toast({
-        title: disabled ? "Alert disabled" : "Alert enabled",
-        description: `"${alert.name}" will ${disabled ? "no longer send" : "now send"} notifications.`,
-        duration: 1500,
-      });
+      toast(disabled ? "Alert disabled" : "Alert enabled", { description: `"${alert.name}" will ${disabled ? "no longer send" : "now send"} notifications.`, duration: 1500 });
     } catch (error) {
-      toast({ variant: "destructive", title: error instanceof Error ? error.message : "Something went wrong" });
+      toast.error(error instanceof Error ? error.message : "Something went wrong");
     } finally {
       setTogglingIds((prev) => {
         const next = new Set(prev);

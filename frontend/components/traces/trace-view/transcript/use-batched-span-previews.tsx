@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
-import { useToast } from "@/lib/hooks/use-toast.ts";
 import { convertToTimeParameters } from "@/lib/time.ts";
 
 export interface BatchedPreviewsHook {
@@ -32,7 +32,6 @@ export function useBatchedSpanPreviews(
   promptHashes?: Record<string, string>
 ): BatchedPreviewsHook {
   const { debounceMs = 150, isShared = false } = options;
-  const { toast } = useToast();
 
   // Union of "pending + in-flight + successfully fetched" per role. The React
   // state objects below are the fetched-set (keyed by `id in previews`). These
@@ -127,11 +126,7 @@ export function useBatchedSpanPreviews(
         }
       }
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to fetch span previews.",
-      });
+      toast.error("Error", { description: error instanceof Error ? error.message : "Failed to fetch span previews." });
       if (outputIds.length > 0) {
         setPreviews((prev) => {
           const next = { ...prev };
@@ -147,7 +142,7 @@ export function useBatchedSpanPreviews(
         });
       }
     }
-  }, [projectId, toast, trace, isShared]);
+  }, [projectId, trace, isShared]);
 
   useEffect(() => {
     let queued = false;

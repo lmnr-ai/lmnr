@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import React, { useCallback, useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { toast } from "sonner";
 import useSWR from "swr";
 import { z } from "zod";
 
@@ -10,7 +11,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/lib/hooks/use-toast";
 import { swrFetcher } from "@/lib/utils";
 
 interface EvaluationScore {
@@ -59,7 +59,6 @@ const HumanEvaluationScore = ({
   traceId,
   resultId,
 }: HumanEvaluationScoreProps) => {
-  const { toast } = useToast();
   const hasOptions = options && options.length > 0;
 
   const { data, mutate, isLoading, isValidating } = useSWR<EvaluationScore>(
@@ -169,18 +168,12 @@ const HumanEvaluationScore = ({
         //   { revalidate: true }
         // );
 
-        toast({
-          description: "Score saved successfully",
-        });
+        toast("Score saved successfully");
       } catch (error) {
-        toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to save evaluation score",
-          variant: "destructive",
-        });
+        toast.error("Error", { description: error instanceof Error ? error.message : "Failed to save evaluation score" });
       }
     },
-    [projectId, resultId, data?.name, spanId, mutate, toast, evaluationId]
+    [projectId, resultId, data?.name, spanId, mutate, evaluationId]
   );
 
   if (isLoading || !data) {

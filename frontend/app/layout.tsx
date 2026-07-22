@@ -7,7 +7,7 @@ import { type PropsWithChildren } from "react";
 
 import BasePathFetchShim from "@/components/common/base-path-fetch-shim";
 import StyleExplorer from "@/components/style-explorer";
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster } from "@/components/ui/sonner-toaster";
 import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flags-context";
 import { getServerSession } from "@/lib/auth-session";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";

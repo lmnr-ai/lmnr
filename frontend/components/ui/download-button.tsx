@@ -1,6 +1,6 @@
 import React, { useState } from "react";
+import { toast } from "sonner";
 
-import { toast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 import { Button, type ButtonProps } from "./button";
@@ -32,10 +32,7 @@ export const downloadFile = async (uri: string, filenameFallback: string, fileFo
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
   } catch (error) {
-    toast({
-      title: `Error downloading ${fileFormat || "file"}`,
-      variant: "destructive",
-    });
+    toast.error(`Error downloading ${fileFormat || "file"}`);
   }
 };
 

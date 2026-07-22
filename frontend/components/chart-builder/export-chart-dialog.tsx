@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import React, { type PropsWithChildren, useState } from "react";
+import { toast } from "sonner";
 
 import { useChartBuilderStoreContext } from "@/components/chart-builder/chart-builder-store";
 import { Button } from "@/components/ui/button";
@@ -8,12 +9,10 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Loader2 } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/lib/hooks/use-toast";
 
 const ExportChartDialog = ({ children }: PropsWithChildren) => {
   const { projectId } = useParams();
   const [open, setOpen] = useState(false);
-  const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const { query, chartConfig, setChartName, name, isValidChartConfiguration } = useChartBuilderStoreContext(
     (state) => ({
@@ -50,28 +49,21 @@ const ExportChartDialog = ({ children }: PropsWithChildren) => {
           .json()
           .then((d) => d?.error)
           .catch(() => null);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: errMessage ?? "Failed to export chart. Please try again.",
-        });
+        toast.error("Error", { description: errMessage ?? "Failed to export chart. Please try again." });
         return;
       }
 
       setOpen(false);
-      toast({
-        title: "Success",
-        description: (
+      toast("Success", { description: (
           <span>
             Successfully exported chart to Dashboards.{" "}
             <Link className="text-primary" href={`/project/${projectId}/dashboards`}>
               Go to Dashboards.
             </Link>
           </span>
-        ),
-      });
+        ) });
     } catch {
-      toast({ variant: "destructive", title: "Error", description: "Failed to export chart. Please try again." });
+      toast.error("Error", { description: "Failed to export chart. Please try again." });
     } finally {
       setIsLoading(false);
     }

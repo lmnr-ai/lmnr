@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { type DeviceApprovalContext, type SessionProject, type SessionWorkspace } from "@/lib/actions/cli-auth";
 import { authClient } from "@/lib/auth-client";
-import { useToast } from "@/lib/hooks/use-toast";
 
 import { CreateFirstProject } from "./create-first-project";
 import { Centered, CompletionScreen, UserCodeDisplay } from "./index";
@@ -22,7 +22,6 @@ interface Props {
 }
 
 export function ApprovalForm({ userEmail, rawUserCode, context, projects, workspaces, claimFailed }: Props) {
-  const { toast } = useToast();
   const [denying, setDenying] = useState(false);
   const [step, setStep] = useState<"approve" | "pick-project">("approve");
   const [completed, setCompleted] = useState<null | "approved" | "denied">(null);
@@ -74,12 +73,12 @@ export function ApprovalForm({ userEmail, rawUserCode, context, projects, worksp
     try {
       const { error } = await authClient.device.deny({ userCode: context.userCode });
       if (error) {
-        toast({ variant: "destructive", title: error.error_description ?? "Failed to deny device" });
+        toast.error(error.error_description ?? "Failed to deny device");
         return;
       }
       setCompleted("denied");
     } catch {
-      toast({ variant: "destructive", title: "Something went wrong" });
+      toast.error("Something went wrong");
     } finally {
       setDenying(false);
     }

@@ -1,12 +1,12 @@
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { ChevronsRight, Loader2, Save } from "@/components/ui/icon-lib";
 import { type Datapoint } from "@/lib/dataset/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { isValidJsonObject, swrFetcher } from "@/lib/utils";
 
 import { Button } from "../ui/button";
@@ -85,7 +85,6 @@ export default function DatasetPanel({
   const [isValidJsonData, setIsValidJsonData] = useState(true);
   const [isValidJsonTarget, setIsValidJsonTarget] = useState(true);
   const [isValidJsonMetadata, setIsValidJsonMetadata] = useState(true);
-  const { toast } = useToast();
   const [saving, setSaving] = useState<boolean>(false);
 
   // Track original values to detect changes
@@ -184,17 +183,11 @@ export default function DatasetPanel({
     });
     setSaving(false);
     if (!res.ok) {
-      toast({
-        title: "Failed to save changes",
-        variant: "destructive",
-      });
+      toast.error("Failed to save changes");
       return;
     }
 
-    toast({
-      title: "Changes saved",
-      description: "A new version of the datapoint has been created.",
-    });
+    toast("Changes saved", { description: "A new version of the datapoint has been created." });
 
     // Create updated datapoint with the timestamp we sent to the backend
     const updatedDatapoint: Datapoint = {
@@ -240,7 +233,6 @@ export default function DatasetPanel({
     datasetId,
     datapointId,
     datapoint,
-    toast,
     mutate,
     mutateVersions,
     onDatapointUpdate,

@@ -3,6 +3,7 @@ import { type Row } from "@tanstack/react-table";
 import { isEmpty, map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef } from "react";
+import { toast } from "sonner";
 import { useSWRConfig } from "swr";
 import { shallow } from "zustand/shallow";
 
@@ -34,7 +35,6 @@ import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar
 import { Switch } from "@/components/ui/switch";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { useRealtime } from "@/lib/hooks/use-realtime";
-import { useToast } from "@/lib/hooks/use-toast";
 import { type TraceRow } from "@/lib/traces/types";
 
 const FETCH_SIZE = 50;
@@ -60,7 +60,6 @@ function TracesTableContent() {
   const pathName = usePathname();
   const router = useRouter();
   const { projectId } = useParams();
-  const { toast } = useToast();
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const { mutate: globalMutate } = useSWRConfig();
 
@@ -230,11 +229,7 @@ function TracesTableContent() {
 
         return { items: data.items, count: 0 };
       } catch (error) {
-        toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to load traces. Please try again.",
-          variant: "destructive",
-        });
+        toast.error("Error", { description: error instanceof Error ? error.message : "Failed to load traces. Please try again." });
         throw error;
       }
     },
@@ -249,7 +244,6 @@ function TracesTableContent() {
       sortDirection,
       startDate,
       textSearchFilter,
-      toast,
       globalMutate,
     ]
   );

@@ -1,5 +1,6 @@
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -11,7 +12,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { type TemplateScope } from "@/components/ui/template-renderer";
-import { useToast } from "@/lib/hooks/use-toast";
 
 interface TemplateInfo {
   id: string;
@@ -27,7 +27,6 @@ interface Props {
 
 export default function DeleteRenderTemplateDialog({ template, onClose, onDeleted }: Props) {
   const { projectId } = useParams();
-  const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDelete = useCallback(async () => {
@@ -44,19 +43,15 @@ export default function DeleteRenderTemplateDialog({ template, onClose, onDelete
         throw new Error(err?.error ?? "Failed to delete template");
       }
 
-      toast({ title: "Template deleted" });
+      toast("Template deleted");
       onDeleted();
     } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to delete template",
-      });
+      toast.error("Error", { description: e instanceof Error ? e.message : "Failed to delete template" });
     } finally {
       setIsDeleting(false);
       onClose();
     }
-  }, [template, projectId, onDeleted, onClose, toast]);
+  }, [template, projectId, onDeleted, onClose]);
 
   return (
     <Dialog

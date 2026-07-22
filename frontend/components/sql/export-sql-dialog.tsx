@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useState } from "react";
+import { toast } from "sonner";
 
 import ColumnAssignmentDnd, {
   buildInitialColumns,
@@ -21,7 +22,6 @@ import {
 import { ChevronDown, Database, ListChecks, Loader2 } from "@/components/ui/icon-lib";
 import QueueSelect from "@/components/ui/queue-select";
 import { type Dataset } from "@/lib/dataset/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type LabelingQueue } from "@/lib/queue/types";
 
@@ -56,7 +56,6 @@ function ExportDatasetDialog({ results, children }: PropsWithChildren<Pick<Expor
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [columnsByCategory, setColumnsByCategory] = useState<CategorizedColumns>(EMPTY_CATEGORIZED_COLUMNS);
-  const { toast } = useToast();
 
   const handleDialogOpen = (open: boolean) => {
     if (open && results && results.length > 0) {
@@ -86,29 +85,22 @@ function ExportDatasetDialog({ results, children }: PropsWithChildren<Pick<Expor
       }
 
       track("sql_editor", "exported_to_dataset", { count: datapoints.length });
-      toast({
-        title: `Exported to dataset`,
-        description: (
+      toast(`Exported to dataset`, { description: (
           <span>
             Successfully exported {datapoints.length} results to dataset.{" "}
             <Link className="text-primary" href={`/project/${projectId}/datasets/${selectedDataset.id}`}>
               Go to dataset.
             </Link>
           </span>
-        ),
-      });
+        ) });
 
       setIsExportDialogOpen(false);
     } catch (err) {
-      toast({
-        title: "Failed to export data",
-        description: err instanceof Error ? err.message : "An unexpected error occurred",
-        variant: "destructive",
-      });
+      toast.error("Failed to export data", { description: err instanceof Error ? err.message : "An unexpected error occurred" });
     } finally {
       setIsExporting(false);
     }
-  }, [columnsByCategory, projectId, results, selectedDataset, toast]);
+  }, [columnsByCategory, projectId, results, selectedDataset]);
 
   if (!results || results.length === 0) {
     return null;
@@ -151,7 +143,6 @@ function ExportQueueDialog({
   const [selectedQueue, setSelectedQueue] = useState<LabelingQueue | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [columnsByCategory, setColumnsByCategory] = useState<CategorizedColumns>(EMPTY_CATEGORIZED_COLUMNS);
-  const { toast } = useToast();
 
   const handleDialogOpen = (open: boolean) => {
     if (open && results && results.length > 0) {
@@ -193,29 +184,22 @@ function ExportQueueDialog({
       }
 
       track("sql_editor", "exported_to_queue", { count: items.length });
-      toast({
-        title: "Exported to labeling queue",
-        description: (
+      toast("Exported to labeling queue", { description: (
           <span>
             Successfully added {items.length} items to queue.{" "}
             <Link className="text-primary" href={`/project/${projectId}/labeling-queues/${selectedQueue.id}`}>
               Go to queue.
             </Link>
           </span>
-        ),
-      });
+        ) });
 
       setIsExportDialogOpen(false);
     } catch (err) {
-      toast({
-        title: "Failed to export to labeling queue",
-        description: err instanceof Error ? err.message : "An unexpected error occurred",
-        variant: "destructive",
-      });
+      toast.error("Failed to export to labeling queue", { description: err instanceof Error ? err.message : "An unexpected error occurred" });
     } finally {
       setIsExporting(false);
     }
-  }, [columnsByCategory, projectId, results, selectedQueue, sqlTemplateId, toast]);
+  }, [columnsByCategory, projectId, results, selectedQueue, sqlTemplateId]);
 
   if (!results || results.length === 0) {
     return null;

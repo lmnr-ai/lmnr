@@ -2,6 +2,7 @@
 import { type ColumnDef, type Row } from "@tanstack/react-table";
 import { useParams } from "next/navigation";
 import { useCallback } from "react";
+import { toast } from "sonner";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
@@ -11,7 +12,6 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import Mono from "@/components/ui/mono";
-import { useToast } from "@/lib/hooks/use-toast";
 import { type Trace } from "@/lib/traces/types";
 
 // ... existing columns definition (unchanged) ...
@@ -156,7 +156,6 @@ export default function PlaygroundHistoryTable(props: PlaygroundHistoryTableProp
 
 function PlaygroundHistoryTableContent({ playgroundId, onRowClick, onTraceSelect }: PlaygroundHistoryTableProps) {
   const { projectId } = useParams();
-  const { toast } = useToast();
 
   const fetchTraces = useCallback(
     async (pageNumber: number) => {
@@ -194,14 +193,11 @@ function PlaygroundHistoryTableContent({ playgroundId, onRowClick, onTraceSelect
         const data = await res.json();
         return { items: data.items, count: 0 };
       } catch (error) {
-        toast({
-          title: "Failed to load playground history. Please try again.",
-          variant: "destructive",
-        });
+        toast.error("Failed to load playground history. Please try again.");
         throw error;
       }
     },
-    [projectId, playgroundId, toast]
+    [projectId, playgroundId]
   );
 
   const {

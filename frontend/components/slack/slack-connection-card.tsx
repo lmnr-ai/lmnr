@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { type ReactNode, useMemo, useState } from "react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import slackLogo from "@/assets/logo/slack.png";
@@ -26,7 +27,6 @@ import {
 import { EllipsisVertical, Loader2, RefreshCw, Settings, Trash2 } from "@/components/ui/icon-lib";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjectContext } from "@/contexts/project-context";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
 
@@ -73,7 +73,6 @@ export default function SlackConnectionCard({
   const { data: slackIntegration, isLoading, mutate } = useSlackIntegration(workspaceId, !disabled);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
-  const { toast } = useToast();
 
   // Re-running the OAuth flow upserts the bot token in place (merging newly-added scopes),
   // so an already-connected workspace can pick up new scopes without delete-then-reconnect.
@@ -92,16 +91,9 @@ export default function SlackConnectionCard({
       }
       await mutate(null);
       track("integrations", "slack_disconnected");
-      toast({
-        title: "Slack integration removed",
-        description: "You will no longer receive Slack notifications from this workspace.",
-      });
+      toast("Slack integration removed", { description: "You will no longer receive Slack notifications from this workspace." });
     } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to remove Slack integration. Please try again.",
-      });
+      toast.error("Error", { description: e instanceof Error ? e.message : "Failed to remove Slack integration. Please try again." });
     } finally {
       setIsRemoving(false);
       setConfirmOpen(false);

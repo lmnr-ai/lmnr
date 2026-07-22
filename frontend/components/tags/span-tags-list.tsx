@@ -2,12 +2,12 @@
 
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
 import { DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tag } from "@/components/ui/icon-lib";
-import { useToast } from "@/lib/hooks/use-toast";
 import { type SpanTag, type TagClass } from "@/lib/traces/types";
 import { cn, swrFetcher } from "@/lib/utils";
 
@@ -21,7 +21,6 @@ interface SpanTagsListProps {
 
 const SpanTagsList = ({ spanId, className }: SpanTagsListProps) => {
   const { projectId } = useParams();
-  const { toast } = useToast();
 
   const { data: tagClasses = [], mutate: mutateTagClasses } = useSWR<TagClass[]>(
     `/api/projects/${projectId}/tag-classes`,
@@ -56,7 +55,7 @@ const SpanTagsList = ({ spanId, className }: SpanTagsListProps) => {
         });
       }
     } catch (e) {
-      toast({ variant: "destructive", title: e instanceof Error ? e.message : "Failed to create tag classes" });
+      toast.error(e instanceof Error ? e.message : "Failed to create tag classes");
     }
     mutateTagClasses();
   }, [rawTags, tagClasses, projectId, mutateTagClasses]);
@@ -81,7 +80,7 @@ const SpanTagsList = ({ spanId, className }: SpanTagsListProps) => {
       const data = (await res.json()) as SpanTag;
       await mutateTags([...rawTags, data], { revalidate: false });
     } catch (e) {
-      toast({ variant: "destructive", title: e instanceof Error ? e.message : "Something went wrong" });
+      toast.error(e instanceof Error ? e.message : "Something went wrong");
     }
   };
 
@@ -108,7 +107,7 @@ const SpanTagsList = ({ spanId, className }: SpanTagsListProps) => {
         }
       );
     } catch (e) {
-      toast({ variant: "destructive", title: e instanceof Error ? e.message : "Something went wrong" });
+      toast.error(e instanceof Error ? e.message : "Something went wrong");
     }
   };
 
@@ -142,7 +141,7 @@ const SpanTagsList = ({ spanId, className }: SpanTagsListProps) => {
       const newTag = (await tagRes.json()) as SpanTag;
       await mutateTags([...rawTags, newTag], { revalidate: false });
     } catch (e) {
-      toast({ variant: "destructive", title: e instanceof Error ? e.message : "Something went wrong" });
+      toast.error(e instanceof Error ? e.message : "Something went wrong");
     }
   };
 

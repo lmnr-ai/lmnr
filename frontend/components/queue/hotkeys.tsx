@@ -2,8 +2,7 @@
 
 import { type KeyboardEvent } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
-
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "sonner";
 
 import { isApproved as isApprovedItem, useQueueStore } from "./queue-store";
 
@@ -12,7 +11,6 @@ import { isApproved as isApprovedItem, useQueueStore } from "./queue-store";
  * Renders nothing — every shortcut delegates to a store action.
  */
 export default function QueueHotkeys() {
-  const { toast } = useToast();
   const approveCurrent = useQueueStore((s) => s.approveCurrent);
   const unapproveCurrent = useQueueStore((s) => s.unapproveCurrent);
   const discardCurrent = useQueueStore((s) => s.discardCurrent);
@@ -34,7 +32,7 @@ export default function QueueHotkeys() {
         result.error !== "No item or invalid JSON" &&
         result.error !== "Item is not approved"
       ) {
-        toast({ variant: "destructive", title: result.error });
+        toast.error(result.error);
       }
     },
     submitScope
@@ -46,7 +44,7 @@ export default function QueueHotkeys() {
       e.preventDefault();
       const result = await discardCurrent();
       if (!result.ok && result.error !== "Busy" && result.error !== "No item") {
-        toast({ variant: "destructive", title: result.error });
+        toast.error(result.error);
       }
     },
     { enabled: !dialogOpen }

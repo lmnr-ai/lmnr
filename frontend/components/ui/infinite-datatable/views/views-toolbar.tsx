@@ -1,10 +1,9 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useSWRConfig } from "swr";
 import { shallow } from "zustand/shallow";
-
-import { useToast } from "@/lib/hooks/use-toast";
 
 import { useTableConfigStore, useTableConfigStoreApi, useTableView } from "../model/table-config-store";
 import { normalizeViewConfig } from "./normalize";
@@ -18,7 +17,6 @@ interface ViewsToolbarProps {
 }
 
 export default function ViewsToolbar({ projectId, resource }: ViewsToolbarProps) {
-  const { toast } = useToast();
   const { mutate } = useSWRConfig();
 
   const configStore = useTableConfigStoreApi();
@@ -67,7 +65,7 @@ export default function ViewsToolbar({ projectId, resource }: ViewsToolbarProps)
           .json()
           .then((d) => d?.error)
           .catch(() => null);
-        toast({ variant: "destructive", title: errMessage ?? "Failed to save view" });
+        toast.error(errMessage ?? "Failed to save view");
         return;
       }
       const savedView = (await res.json()) as View;
@@ -83,17 +81,14 @@ export default function ViewsToolbar({ projectId, resource }: ViewsToolbarProps)
       void mutate(listKey);
     } catch (e) {
       if (controller.signal.aborted) return;
-      toast({
-        variant: "destructive",
-        title: e instanceof Error ? e.message : "Failed to save view",
-      });
+      toast.error(e instanceof Error ? e.message : "Failed to save view");
     } finally {
       if (saveAbortRef.current === controller) {
         saveAbortRef.current = null;
         setIsSaving(false);
       }
     }
-  }, [viewId, projectId, configStore, toast, mutate, listKey, markColumnsSaved, markSavedAs, effective]);
+  }, [viewId, projectId, configStore, mutate, listKey, markColumnsSaved, markSavedAs, effective]);
 
   const handleSaveAsNew = useCallback(
     async (name: string): Promise<{ ok: true } | { ok: false; message?: string }> => {

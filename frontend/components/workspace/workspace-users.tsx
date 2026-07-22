@@ -4,6 +4,7 @@ import { isEmpty } from "lodash";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
@@ -19,7 +20,6 @@ import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
 import { Feature } from "@/lib/features/features";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 import {
@@ -47,7 +47,6 @@ type DialogState = {
 
 export default function WorkspaceUsers({ invitations, workspace, isOwner, currentUserRole }: WorkspaceUsersProps) {
   const user = useUserContext();
-  const { toast } = useToast();
   const router = useRouter();
   const { settingsHref } = useProjectContext();
   const featureFlags = useFeatureFlags();
@@ -94,21 +93,16 @@ export default function WorkspaceUsers({ invitations, workspace, isOwner, curren
           throw new Error(error.error || "Failed to update role");
         }
 
-        toast({
-          title: "Role updated successfully",
-        });
+        toast("Role updated successfully");
         mutate();
         router.refresh();
       } catch (error) {
-        toast({
-          title: error instanceof Error ? error.message : "Failed to update role",
-          variant: "destructive",
-        });
+        toast.error(error instanceof Error ? error.message : "Failed to update role");
       } finally {
         setUpdatingRoleUserId(null);
       }
     },
-    [workspace.id, toast, mutate, router]
+    [workspace.id, mutate, router]
   );
 
   const renderRoleCell = useCallback(

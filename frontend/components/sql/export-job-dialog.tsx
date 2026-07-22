@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import DatasetSelect from "@/components/ui/dataset-select";
@@ -10,7 +11,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Loader2 } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { type Dataset } from "@/lib/dataset/types";
-import { useToast } from "@/lib/hooks/use-toast";
 
 interface ExportJobDialogProps {
   sqlQuery: string;
@@ -22,7 +22,6 @@ export default function ExportJobDialog({ sqlQuery, children }: PropsWithChildre
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [batchSize, setBatchSize] = useState(1000);
-  const { toast } = useToast();
 
   const handleDialogOpen = (open: boolean) => {
     if (!open) {
@@ -59,25 +58,18 @@ export default function ExportJobDialog({ sqlQuery, children }: PropsWithChildre
         throw new Error(`Failed to export data as job: ${errorText}`);
       }
 
-      toast({
-        title: `Export job started`,
-        description: (
+      toast(`Export job started`, { description: (
           <span>
             Successfully started export job to process SQL query.{" "}
             <Link className="text-primary" href={`/project/${projectId}/datasets/${selectedDataset.id}`}>
               Go to dataset.
             </Link>
           </span>
-        ),
-      });
+        ) });
 
       setIsExportDialogOpen(false);
     } catch (err) {
-      toast({
-        title: "Failed to export data as job",
-        description: err instanceof Error ? err.message : "An unexpected error occurred",
-        variant: "destructive",
-      });
+      toast.error("Failed to export data as job", { description: err instanceof Error ? err.message : "An unexpected error occurred" });
     } finally {
       setIsExporting(false);
     }

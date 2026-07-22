@@ -2,8 +2,8 @@
 
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
-import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 const PLACEHOLDER = "Set session name";
@@ -29,7 +29,6 @@ interface EditableSessionTitleProps {
  */
 export default function EditableSessionTitle({ name, sessionId, onRenamed }: EditableSessionTitleProps) {
   const { projectId } = useParams<{ projectId: string }>();
-  const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState(name ?? "");
   const [editing, setEditing] = useState(false);
@@ -81,11 +80,7 @@ export default function EditableSessionTitle({ name, sessionId, onRenamed }: Edi
       onRenamed(trimmed);
     } catch (e) {
       setValue(name ?? "");
-      toast({
-        variant: "destructive",
-        title: "Could not rename session",
-        description: e instanceof Error ? e.message : "Please try again.",
-      });
+      toast.error("Could not rename session", { description: e instanceof Error ? e.message : "Please try again." });
     }
   };
 

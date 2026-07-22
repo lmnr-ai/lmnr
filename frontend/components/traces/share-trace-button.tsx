@@ -1,6 +1,7 @@
 "use client";
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import React, { useState } from "react";
+import { toast } from "sonner";
 
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,6 @@ import { Globe, Link, Loader2, Lock, Share } from "@/components/ui/icon-lib";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 const ShareTraceButton = ({ projectId }: { projectId: string; refetch?: () => void }) => {
@@ -21,7 +21,6 @@ const ShareTraceButton = ({ projectId }: { projectId: string; refetch?: () => vo
   const url = typeof window !== "undefined" ? `${window.location.origin}/shared/traces/${trace?.id}` : "";
   const [isLoading, setIsLoading] = useState(false);
 
-  const { toast } = useToast();
   const handleChangeVisibility = async (value: "private" | "public") => {
     try {
       setIsLoading(true);
@@ -33,23 +32,17 @@ const ShareTraceButton = ({ projectId }: { projectId: string; refetch?: () => vo
       });
 
       if (res.ok) {
-        toast({
-          title: "Trace privacy updated.",
-        });
+        toast("Trace privacy updated.");
         updateTraceVisibility(value);
         track("traces", "visibility_changed", { visibility: value });
       } else {
         const text = await res.json();
         if ("error" in text) {
-          toast({ variant: "destructive", title: "Error", description: String(text.error) });
+          toast.error("Error", { description: String(text.error) });
         }
       }
     } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to update trace privacy. Please try again.",
-      });
+      toast.error("Error", { description: "Failed to update trace privacy. Please try again." });
     } finally {
       setIsLoading(false);
     }

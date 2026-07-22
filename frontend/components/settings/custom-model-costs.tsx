@@ -3,12 +3,12 @@
 import { isEmpty } from "lodash";
 import { useParams } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { AlertTriangle, Copy, Pencil, Trash2 } from "@/components/ui/icon-lib";
 import { useProjectContext } from "@/contexts/project-context.tsx";
 import { type CustomModelCost } from "@/lib/actions/custom-model-costs";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { swrFetcher } from "@/lib/utils";
 
@@ -326,7 +326,6 @@ function CopyModelCostsDialog({ onCopy }: { onCopy: (targetProjectId: string) =>
 
 export default function CustomModelCosts() {
   const { projectId } = useParams();
-  const { toast } = useToast();
   const {
     data: customModelCosts,
     mutate,
@@ -352,7 +351,7 @@ export default function CustomModelCosts() {
       });
       if (res.ok) {
         mutate();
-        toast({ title: id ? `Model cost updated for ${model}` : `Model cost saved for ${model}` });
+        toast(id ? `Model cost updated for ${model}` : `Model cost saved for ${model}`);
         track("model_costs", id ? "updated" : "created", { model, provider });
         return true;
       }
@@ -361,16 +360,13 @@ export default function CustomModelCosts() {
         .then((d) => d?.error)
         .catch(() => null);
       if (res.status === 409) {
-        toast({
-          variant: "destructive",
-          title: errMessage ?? "A cost entry for this provider and model already exists",
-        });
+        toast.error(errMessage ?? "A cost entry for this provider and model already exists");
         return false;
       }
-      toast({ variant: "destructive", title: errMessage ?? "Failed to save model cost" });
+      toast.error(errMessage ?? "Failed to save model cost");
       return false;
     } catch {
-      toast({ variant: "destructive", title: "Failed to save model cost" });
+      toast.error("Failed to save model cost");
       return false;
     }
   };
@@ -382,16 +378,16 @@ export default function CustomModelCosts() {
       });
       if (res.ok) {
         mutate();
-        toast({ title: "Model cost deleted" });
+        toast("Model cost deleted");
       } else {
         const errMessage = await res
           .json()
           .then((d) => d?.error)
           .catch(() => null);
-        toast({ variant: "destructive", title: errMessage ?? "Failed to delete model cost" });
+        toast.error(errMessage ?? "Failed to delete model cost");
       }
     } catch {
-      toast({ variant: "destructive", title: "Failed to delete model cost" });
+      toast.error("Failed to delete model cost");
     }
   };
 
@@ -404,17 +400,17 @@ export default function CustomModelCosts() {
       });
       if (res.ok) {
         mutate();
-        toast({ title: "Model costs copied to project" });
+        toast("Model costs copied to project");
         return true;
       }
       const errMessage = await res
         .json()
         .then((d) => d?.error)
         .catch(() => null);
-      toast({ variant: "destructive", title: errMessage ?? "Failed to copy model costs" });
+      toast.error(errMessage ?? "Failed to copy model costs");
       return false;
     } catch {
-      toast({ variant: "destructive", title: "Failed to copy model costs" });
+      toast.error("Failed to copy model costs");
       return false;
     }
   };

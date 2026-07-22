@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -10,7 +11,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { type AlertWithDetails } from "@/lib/actions/alerts/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 interface DeleteAlertDialogProps {
@@ -21,7 +21,6 @@ interface DeleteAlertDialogProps {
 }
 
 export default function DeleteAlertDialog({ projectId, alert, onClose, onDeleted }: DeleteAlertDialogProps) {
-  const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDelete = useCallback(async () => {
@@ -40,20 +39,16 @@ export default function DeleteAlertDialog({ projectId, alert, onClose, onDeleted
         throw new Error(error?.error ?? "Failed to delete alert");
       }
 
-      toast({ title: "Alert deleted", description: "You will no longer receive notifications for this alert." });
+      toast("Alert deleted", { description: "You will no longer receive notifications for this alert." });
       track("alerts", "deleted");
       onDeleted();
     } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to delete alert. Please try again.",
-      });
+      toast.error("Error", { description: e instanceof Error ? e.message : "Failed to delete alert. Please try again." });
     } finally {
       setIsDeleting(false);
       onClose();
     }
-  }, [alert, projectId, onDeleted, onClose, toast]);
+  }, [alert, projectId, onDeleted, onClose]);
 
   return (
     <Dialog

@@ -1,10 +1,10 @@
 import { isEmpty } from "lodash";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { type GenerateProjectApiKeyResponse, type KeyExpiration, type ProjectApiKey } from "@/lib/api-keys/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 import { Button } from "../../ui/button";
@@ -27,7 +27,6 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
   const [newApiKey, setNewApiKey] = useState<GenerateProjectApiKeyResponse | null>(null);
   const [isGenerated, setIsGenerated] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
   const { projectId } = useParams();
 
   const generateNewAPIKey = useCallback(
@@ -83,11 +82,11 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
       setIsGenerated(true);
       track("api_keys", "generated", { key_type: keyType, expiration });
     } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to generate API key" });
+      toast.error("Error", { description: "Failed to generate API key" });
     } finally {
       setIsLoading(false);
     }
-  }, [newApiKeyName, keyType, expiration, generateNewAPIKey, toast]);
+  }, [newApiKeyName, keyType, expiration, generateNewAPIKey]);
 
   return (
     <SettingsSection>

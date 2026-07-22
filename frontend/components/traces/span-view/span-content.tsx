@@ -1,10 +1,10 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PAYLOAD_URL_REGEX } from "@/lib/actions/trace/utils";
-import { useToast } from "@/lib/hooks/use-toast.ts";
 import { type Span, SpanType } from "@/lib/traces/types";
 
 interface SpanContentProps {
@@ -22,7 +22,6 @@ const extractPayloadUrl = (data: any): string | null => {
 
 const SpanContent = ({ span, type }: SpanContentProps) => {
   const initialData = type === "input" ? span.input : span.output;
-  const { toast } = useToast();
   const [spanData, setSpanData] = useState(initialData);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -38,12 +37,12 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
         const data = await response.json();
         setSpanData(data);
       } catch (e) {
-        toast({ title: "Error", description: "Failed to load span data.", variant: "destructive" });
+        toast.error("Error", { description: "Failed to load span data." });
       } finally {
         setIsLoading(false);
       }
     }
-  }, [span.input, span.output, toast, type]);
+  }, [span.input, span.output, type]);
 
   useEffect(() => {
     loadData();

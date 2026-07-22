@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
+import { toast } from "sonner";
 import { shallow } from "zustand/shallow";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
@@ -14,7 +15,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown, Copy, ExternalLink } from "@/components/ui/icon-lib";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
@@ -50,7 +50,6 @@ export default function TraceItem({
 }: TraceItemProps) {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId;
-  const { toast } = useToast();
 
   // `spans` lets handleToggle skip a redundant fetch; the timeline flags drive
   // the debugger-only condensed timeline. The expanded body owns load/empty/error.
@@ -88,8 +87,8 @@ export default function TraceItem({
 
   const handleCopyTraceId = useCallback(async () => {
     await navigator.clipboard.writeText(trace.id);
-    toast({ title: "Copied trace ID", duration: 1000 });
-  }, [trace.id, toast]);
+    toast("Copied trace ID", { duration: 1000 });
+  }, [trace.id]);
 
   // "Open trace view": open the full-screen trace page in a new tab (both surfaces).
   const handleOpenInTraceView = useCallback(() => {

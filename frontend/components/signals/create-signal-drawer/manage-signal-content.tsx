@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Loader2, X } from "@/components/ui/icon-lib";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SheetTitle } from "@/components/ui/sheet";
-import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 import SignalFormFields from "./signal-form-fields";
@@ -37,7 +36,6 @@ export default function ManageSignalContent({
   const [isLoading, setIsLoading] = useState(false);
 
   const { projectId } = useParams();
-  const { toast } = useToast();
   const {
     handleSubmit,
     watch,
@@ -51,7 +49,6 @@ export default function ManageSignalContent({
 
   const submit = useSubmitHandler({
     projectId: String(projectId),
-    toast,
     onSubmitComplete,
     onSuccess,
     setIsLoading,

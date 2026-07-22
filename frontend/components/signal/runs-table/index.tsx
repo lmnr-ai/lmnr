@@ -3,6 +3,7 @@
 import { isEqual } from "lodash";
 import { useParams } from "next/navigation";
 import React, { useCallback, useState } from "react";
+import { toast } from "sonner";
 
 import { useSignalStoreContext } from "@/components/signal/store";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
@@ -16,7 +17,6 @@ import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { type Filter } from "@/lib/actions/common/filters";
 import { type SignalRunRow } from "@/lib/actions/signal-runs";
-import { useToast } from "@/lib/hooks/use-toast";
 
 import { defaultRunsColumnOrder, getSignalRunsColumns, signalRunsFilters } from "./columns";
 
@@ -53,7 +53,6 @@ const getEmptyRow = ({
 };
 
 function RunsTableContent() {
-  const { toast } = useToast();
   const params = useParams<{ projectId: string; signalId: string }>();
   const { signal, runsFilters, setRunsFilters } = useSignalStoreContext((state) => ({
     signal: state.signal,
@@ -119,14 +118,11 @@ function RunsTableContent() {
         const data: { items: SignalRunRow[] } = await response.json();
         return { items: data.items };
       } catch (error) {
-        toast({
-          title: error instanceof Error ? error.message : "Failed to load signal runs. Please try again.",
-          variant: "destructive",
-        });
+        toast.error(error instanceof Error ? error.message : "Failed to load signal runs. Please try again.");
       }
       return { items: [] };
     },
-    [dateRange.pastHours, dateRange.startDate, dateRange.endDate, filter, params.projectId, signal.id, toast]
+    [dateRange.pastHours, dateRange.startDate, dateRange.endDate, filter, params.projectId, signal.id]
   );
 
   const {

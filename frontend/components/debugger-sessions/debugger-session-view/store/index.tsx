@@ -1,5 +1,6 @@
 import { useParams } from "next/navigation";
 import { createContext, type PropsWithChildren, useContext, useState } from "react";
+import { toast } from "sonner";
 import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -11,7 +12,6 @@ import {
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import { type SessionBlock } from "@/lib/actions/debugger-sessions";
-import { toast } from "@/lib/hooks/use-toast";
 import { createIdBatchLoader } from "@/lib/id-batch-loader";
 import { type RealtimeSpan, type SpanType, type TraceRow } from "@/lib/traces/types";
 import { tryParseJson } from "@/lib/utils";
@@ -371,11 +371,7 @@ export const createDebuggerSessionViewStore = (options: {
                     traceSpansError: { ...s.traceSpansError, [trace.id]: "Failed to load spans" },
                   }) as Partial<DebuggerSessionViewStore>
               );
-              toast({
-                variant: "destructive",
-                title: "Failed to load spans",
-                description: "Collapse and expand the run to retry.",
-              });
+              toast.error("Failed to load spans", { description: "Collapse and expand the run to retry." });
             } finally {
               set(
                 (s) =>
@@ -640,11 +636,7 @@ export const createDebuggerSessionViewStore = (options: {
               }
             } catch {
               // The UI keeps whatever streamed; re-expand retries.
-              toast({
-                variant: "destructive",
-                title: "Failed to load run data",
-                description: "Collapse and expand the run to retry.",
-              });
+              toast.error("Failed to load run data", { description: "Collapse and expand the run to retry." });
             } finally {
               // Unconditional — the skeleton must always resolve (the old P1).
               set(

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { type SessionWorkspace } from "@/lib/actions/cli-auth";
 import { authClient } from "@/lib/auth-client";
-import { useToast } from "@/lib/hooks/use-toast";
 
 import { createProjectInWorkspace, createWorkspaceWithProject } from "./create-project";
 import { Centered, Field } from "./index";
@@ -24,7 +24,6 @@ interface Props {
 // the (empty) picker and lands here. The primary action creates the project and
 // THEN authorizes the device — strictly sequential (see onSubmit). Cancel denies.
 export function CreateFirstProject({ userCode, workspaces, onApproved, onDenied }: Props) {
-  const { toast } = useToast();
   const hasWorkspace = workspaces.length > 0;
   const [projectName, setProjectName] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
@@ -57,7 +56,7 @@ export function CreateFirstProject({ userCode, workspaces, onApproved, onDenied 
           ? await createProjectInWorkspace(project, workspaceId, selectedWorkspace?.name ?? "")
           : await createWorkspaceWithProject(project, workspaceName.trim());
         if (!created) {
-          toast({ variant: "destructive", title: "Project was created without an id" });
+          toast.error("Project was created without an id");
           return;
         }
         projectId = created.id;
@@ -78,12 +77,12 @@ export function CreateFirstProject({ userCode, workspaces, onApproved, onDenied 
           .json()
           .then((d) => d?.error)
           .catch(() => null);
-        toast({ variant: "destructive", title: errMessage ?? "Failed to authorize device" });
+        toast.error(errMessage ?? "Failed to authorize device");
         return;
       }
       onApproved();
     } catch (err) {
-      toast({ variant: "destructive", title: err instanceof Error ? err.message : "Something went wrong" });
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSubmitting(false);
     }
@@ -96,12 +95,12 @@ export function CreateFirstProject({ userCode, workspaces, onApproved, onDenied 
     try {
       const { error } = await authClient.device.deny({ userCode });
       if (error) {
-        toast({ variant: "destructive", title: error.error_description ?? "Failed to cancel" });
+        toast.error(error.error_description ?? "Failed to cancel");
         return;
       }
       onDenied();
     } catch {
-      toast({ variant: "destructive", title: "Something went wrong" });
+      toast.error("Something went wrong");
     } finally {
       setDenying(false);
     }

@@ -3,13 +3,13 @@ import { EditorView } from "@codemirror/view";
 import CodeMirror from "@uiw/react-codemirror";
 import { useParams } from "next/navigation";
 import React, { useCallback, useState } from "react";
+import { toast } from "sonner";
 
 import { theme } from "@/components/ui/content-renderer/utils";
 import { Loader2 } from "@/components/ui/icon-lib";
 import { Label } from "@/components/ui/label.tsx";
 import { isValidJsonObject } from "@/lib/utils";
 
-import { useToast } from "../../lib/hooks/use-toast";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 
@@ -24,7 +24,6 @@ interface TypeDatapointDialogProps {
 export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDatapointDialogProps) {
   const { projectId } = useParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [data, setData] = useState(DEFAULT_DATA);
 
@@ -45,14 +44,9 @@ export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDa
 
   const showError = useCallback(
     (message: string) => {
-      toast({
-        title: "Add datapoint error",
-        variant: "destructive",
-        description: message,
-        duration: 10000,
-      });
+      toast.error("Add datapoint error", { description: message, duration: 10000 });
     },
-    [toast]
+    []
   );
 
   const addDatapoint = async () => {
@@ -73,9 +67,7 @@ export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDa
         return;
       }
 
-      toast({
-        title: "Successfully added datapoint",
-      });
+      toast("Successfully added datapoint");
 
       onUpdate?.();
       setIsLoading(false);

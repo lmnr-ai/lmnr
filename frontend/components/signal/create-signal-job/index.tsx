@@ -3,6 +3,7 @@
 import type { Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import ConfirmSignalJobDialog from "@/components/signal/create-signal-job/confirm-signal-job-dialog";
@@ -24,7 +25,6 @@ import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import type { Filter } from "@/lib/actions/common/filters.ts";
 import { Feature } from "@/lib/features/features";
-import { useToast } from "@/lib/hooks/use-toast.ts";
 import type { TraceRow } from "@/lib/traces/types.ts";
 
 const FETCH_SIZE = 50;
@@ -34,7 +34,6 @@ const CreateSignalJobContent = () => {
   const pathName = usePathname();
   const router = useRouter();
   const { projectId } = useParams<{ projectId: string }>();
-  const { toast } = useToast();
 
   const signal = useSignalStoreContext((state) => state.signal);
   const { rowSelection, onRowSelectionChange } = useSelection();
@@ -119,11 +118,7 @@ const CreateSignalJobContent = () => {
         }
         return { items: tracesData.items, count: countData.count };
       } catch (error) {
-        toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to load traces. Please try again.",
-          variant: "destructive",
-        });
+        toast.error("Error", { description: error instanceof Error ? error.message : "Failed to load traces. Please try again." });
         setTraceCount(0);
         throw error;
       }
@@ -138,7 +133,6 @@ const CreateSignalJobContent = () => {
       projectId,
       rowSelection,
       selectionMode,
-      toast,
     ]
   );
 
@@ -219,16 +213,9 @@ const CreateSignalJobContent = () => {
 
       setConfirmDialogOpen(false);
       router.push(`/project/${projectId}/signals/${signal.id}?tab=settings&section=activity`);
-      toast({
-        title: "Backfill created",
-        description: `Backfill for "${signal.name}" has been queued for ${selectedCount?.toLocaleString() ?? "selected"} traces.`,
-      });
+      toast("Backfill created", { description: `Backfill for "${signal.name}" has been queued for ${selectedCount?.toLocaleString() ?? "selected"} traces.` });
     } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create backfill. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: error instanceof Error ? error.message : "Failed to create backfill. Please try again." });
     } finally {
       setIsCreating(false);
     }
@@ -246,7 +233,6 @@ const CreateSignalJobContent = () => {
     dateRange.endDate,
     jobMode,
     router,
-    toast,
   ]);
 
   const traceIdFromUrl = searchParams.get("traceId");

@@ -2,8 +2,7 @@
 
 import { motion } from "framer-motion";
 import { type PropsWithChildren } from "react";
-
-import { useToast } from "@/lib/hooks/use-toast";
+import { toast } from "sonner";
 
 // Minimal "flag" copy button poking out of a row's right edge, revealed on row
 // hover: the wrapper's whileHover propagates variants to the flag (framer's
@@ -38,7 +37,6 @@ export default function CopyFlag({
   value,
   children,
 }: PropsWithChildren<{ label: string; description?: string; toastTitle: string; value: string }>) {
-  const { toast } = useToast();
 
   return (
     <motion.div className="relative flex w-full" initial="hidden" whileHover="visible">
@@ -53,10 +51,10 @@ export default function CopyFlag({
               e.stopPropagation();
               try {
                 await navigator.clipboard.writeText(value);
-                toast({ title: toastTitle, duration: 1000 });
+                toast(toastTitle, { duration: 1000 });
               } catch {
                 // navigator.clipboard throws on non-https/non-localhost origins.
-                toast({ variant: "destructive", title: "Failed to copy" });
+                toast.error("Failed to copy");
               }
             }}
           >

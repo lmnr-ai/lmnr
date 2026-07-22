@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
+import { toast } from "sonner";
 
 import { ChartType } from "@/components/chart-builder/types";
 import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/dashboard-editor-store";
@@ -11,7 +12,6 @@ import { Form } from "@/components/dashboards/editor/Form";
 import { getTimeColumn } from "@/components/dashboards/editor/table-schemas";
 import { convertSqlToJson, getDefaultFormValues } from "@/components/dashboards/editor/utils";
 import { type QueryStructure, QueryStructureSchema } from "@/lib/actions/sql/types";
-import { useToast } from "@/lib/hooks/use-toast";
 
 const ChartBuilder = () => {
   const { projectId } = useParams();
@@ -19,7 +19,6 @@ const ChartBuilder = () => {
     chart: state.chart,
     setLoadError: state.setLoadError,
   }));
-  const { toast } = useToast();
   const [isLoadingForm, setIsLoadingForm] = useState(true); // Start as true!
 
   const methods = useForm<QueryStructure>({
@@ -93,11 +92,7 @@ const ChartBuilder = () => {
         console.error("Failed to load chart:", error);
         const message = error instanceof Error ? error.message : "Failed to load chart";
         setLoadError(message);
-        toast({
-          variant: "destructive",
-          title: "Couldn't load chart",
-          description: "This chart's saved query couldn't be parsed. Saving is disabled to prevent overwriting it.",
-        });
+        toast.error("Couldn't load chart", { description: "This chart's saved query couldn't be parsed. Saving is disabled to prevent overwriting it." });
       } finally {
         setIsLoadingForm(false);
       }

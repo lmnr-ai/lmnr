@@ -2,6 +2,7 @@
 
 import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import CreateSignalDrawer from "@/components/signals/create-signal-drawer";
 import SignalCards from "@/components/signals/signal-cards";
@@ -17,7 +18,6 @@ import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/mo
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SignalSparklineData } from "@/lib/actions/signals/stats";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 const SIGNAL_QUICK_RANGES: DateRange[] = [
@@ -41,7 +41,6 @@ export default function Signals() {
 function SignalsContent() {
   const { projectId } = useParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const { toast } = useToast();
 
   useEffect(() => {
     track("signals", "page_viewed");
@@ -78,14 +77,11 @@ function SignalsContent() {
         const data = (await response.json()) as { items: SignalRow[] };
         return { items: data.items };
       } catch (error) {
-        toast({
-          title: error instanceof Error ? error.message : "Failed to load signals.",
-          variant: "destructive",
-        });
+        toast.error(error instanceof Error ? error.message : "Failed to load signals.");
         throw error;
       }
     },
-    [filterKey, projectId, search, toast]
+    [filterKey, projectId, search]
   );
 
   const {
@@ -138,15 +134,11 @@ function SignalsContent() {
           }
           return updated;
         });
-        toast({
-          title: "Failed to load sparkline data",
-          description: err instanceof Error ? err.message : "Unknown error",
-          variant: "destructive",
-        });
+        toast.error("Failed to load sparkline data", { description: err instanceof Error ? err.message : "Unknown error" });
       });
 
     return () => abortController.abort();
-  }, [signalIdsCacheKey, sparklineData, pastHours, projectId, toast]);
+  }, [signalIdsCacheKey, sparklineData, pastHours, projectId]);
 
   const handleSuccess = useCallback(async () => {
     await refetch();
@@ -171,19 +163,12 @@ function SignalsContent() {
         setRowSelection({});
         track("signals", "deleted");
 
-        toast({
-          title: "Signals deleted",
-          description: `Successfully deleted ${selectedRowIds.length} signal(s).`,
-        });
+        toast("Signals deleted", { description: `Successfully deleted ${selectedRowIds.length} signal(s).` });
       } catch (error) {
-        toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to delete signals. Please try again.",
-          variant: "destructive",
-        });
+        toast.error("Error", { description: error instanceof Error ? error.message : "Failed to delete signals. Please try again." });
       }
     },
-    [projectId, toast, updateData]
+    [projectId, updateData]
   );
 
   const sparklineMaxCount = useMemo(() => {

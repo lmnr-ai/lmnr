@@ -1,9 +1,9 @@
 import { useParams, useRouter } from "next/navigation";
 import React, { type PropsWithChildren, useCallback, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "@/components/ui/icon-lib";
-import { useToast } from "@/lib/hooks/use-toast";
 
 import {
   Dialog,
@@ -20,7 +20,6 @@ const DeleteEvaluationDialog = ({ children }: PropsWithChildren) => {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
 
   const handleDelete = useCallback(async () => {
     try {
@@ -34,26 +33,18 @@ const DeleteEvaluationDialog = ({ children }: PropsWithChildren) => {
       });
 
       if (!response.ok) {
-        toast({
-          title: "Error",
-          description: "Failed to delete evaluation. Please try again.",
-          variant: "destructive",
-        });
+        toast.error("Error", { description: "Failed to delete evaluation. Please try again." });
       } else {
-        toast({ title: "Successfully deleted evaluation." });
+        toast("Successfully deleted evaluation.");
         router.push(`/project/${projectId}/evaluations`);
       }
     } catch (e) {
-      toast({
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to delete evaluation. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: e instanceof Error ? e.message : "Failed to delete evaluation. Please try again." });
     } finally {
       setIsLoading(false);
       setOpen(false);
     }
-  }, [evaluationId, projectId, router, toast]);
+  }, [evaluationId, projectId, router]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

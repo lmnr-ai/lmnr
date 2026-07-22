@@ -1,16 +1,15 @@
 "use client";
 
 import { useCallback } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Check, ChevronLeft, ChevronRight, Loader2, RotateCcw, Trash2 } from "@/components/ui/icon-lib";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useToast } from "@/lib/hooks/use-toast";
 
 import { isApproved as isApprovedItem, useQueueStore } from "./queue-store";
 
 export default function BottomControls() {
-  const { toast } = useToast();
 
   const itemsLen = useQueueStore((s) => s.idsList.length);
   const currentIndex = useQueueStore((s) => s.currentIndex);
@@ -31,9 +30,9 @@ export default function BottomControls() {
   const onApprove = useCallback(async () => {
     const result = await approveCurrent();
     if (!result.ok && result.error !== "Busy" && result.error !== "No item or invalid JSON") {
-      toast({ variant: "destructive", title: result.error });
+      toast.error(result.error);
     }
-  }, [approveCurrent, toast]);
+  }, [approveCurrent]);
 
   const onUnapprove = useCallback(async () => {
     const result = await unapproveCurrent();
@@ -43,16 +42,16 @@ export default function BottomControls() {
       result.error !== "No item" &&
       result.error !== "Item is not approved"
     ) {
-      toast({ variant: "destructive", title: result.error });
+      toast.error(result.error);
     }
-  }, [unapproveCurrent, toast]);
+  }, [unapproveCurrent]);
 
   const onDiscard = useCallback(async () => {
     const result = await discardCurrent();
     if (!result.ok && result.error !== "Busy" && result.error !== "No item") {
-      toast({ variant: "destructive", title: result.error });
+      toast.error(result.error);
     }
-  }, [discardCurrent, toast]);
+  }, [discardCurrent]);
 
   return (
     <div className="flex items-center justify-center">

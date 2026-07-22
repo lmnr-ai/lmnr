@@ -4,6 +4,7 @@ import { type Row, type RowSelectionState } from "@tanstack/react-table";
 import { isEqual } from "lodash";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import useSWR, { mutate } from "swr";
 
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
@@ -23,7 +24,6 @@ import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui
 import { TableCell, TableRow } from "@/components/ui/table";
 import { type Filter } from "@/lib/actions/common/filters.ts";
 import { type Trigger } from "@/lib/actions/signal-triggers";
-import { useToast } from "@/lib/hooks/use-toast.ts";
 import { swrFetcher } from "@/lib/utils";
 
 const EmptyRow = (
@@ -43,7 +43,6 @@ const EmptyRow = (
 );
 
 function TriggersTableContent() {
-  const { toast } = useToast();
   const params = useParams<{ projectId: string }>();
 
   const { signal } = useSignalStoreContext((state) => ({
@@ -85,12 +84,9 @@ function TriggersTableContent() {
 
   useEffect(() => {
     if (error) {
-      toast({
-        title: error instanceof Error ? error.message : "Failed to load triggers.",
-        variant: "destructive",
-      });
+      toast.error(error instanceof Error ? error.message : "Failed to load triggers.");
     }
-  }, [error, toast]);
+  }, [error]);
 
   const handleRowClick = useCallback((row: Row<TriggerRow>) => {
     setEditingTrigger(row.original);
@@ -118,19 +114,12 @@ function TriggersTableContent() {
 
         await mutate(triggersUrl);
         setRowSelection({});
-        toast({
-          title: "Triggers deleted",
-          description: `Successfully deleted ${selectedRowIds.length} trigger(s).`,
-        });
+        toast("Triggers deleted", { description: `Successfully deleted ${selectedRowIds.length} trigger(s).` });
       } catch (error) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to delete triggers",
-        });
+        toast.error("Error", { description: error instanceof Error ? error.message : "Failed to delete triggers" });
       }
     },
-    [params.projectId, signal.id, triggersUrl, toast]
+    [params.projectId, signal.id, triggersUrl]
   );
 
   return (

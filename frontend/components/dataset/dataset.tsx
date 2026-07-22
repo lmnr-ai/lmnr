@@ -4,6 +4,7 @@ import { type ColumnDef, type Row, type RowSelectionState } from "@tanstack/reac
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { shallow } from "zustand/shallow";
 
 import { useReportAgentContextName } from "@/components/agent";
@@ -19,7 +20,6 @@ import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/mo
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import Mono from "@/components/ui/mono";
 import { type Datapoint, type Dataset as DatasetType } from "@/lib/dataset/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
@@ -102,7 +102,6 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   useReportAgentContextName("dataset", dataset.name);
   const { projectId } = useParams();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const { toast } = useToast();
   const [totalCount, setTotalCount] = useState(0);
 
   const { effective, setFilters } = useTableView();
@@ -193,14 +192,11 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
         const data = await res.json();
         return { items: data.items, count: data.totalCount };
       } catch (error) {
-        toast({
-          title: error instanceof Error ? error.message : "Failed to load datapoints. Please try again.",
-          variant: "destructive",
-        });
+        toast.error(error instanceof Error ? error.message : "Failed to load datapoints. Please try again.");
         throw error;
       }
     },
-    [projectId, dataset.id, filter, columnDefs, toast]
+    [projectId, dataset.id, filter, columnDefs]
   );
 
   const {
@@ -273,10 +269,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
         updateData((currentData) => currentData.filter((datapoint) => !datapointIds.includes(datapoint.id)));
 
         setRowSelection({});
-        toast({
-          title: "Datapoints deleted",
-          description: `Successfully deleted ${datapointIds.length} datapoint(s).`,
-        });
+        toast("Datapoints deleted", { description: `Successfully deleted ${datapointIds.length} datapoint(s).` });
 
         if (selectedDatapoint && datapointIds.includes(selectedDatapoint.id)) {
           setSelectedDatapoint(null);
@@ -285,13 +278,10 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
           router.push(`${pathName}?${params.toString()}`);
         }
       } catch (error) {
-        toast({
-          title: "Failed to delete datapoints",
-          variant: "destructive",
-        });
+        toast.error("Failed to delete datapoints");
       }
     },
-    [dataset.id, pathName, projectId, router, searchParams, selectedDatapoint, toast, updateData]
+    [dataset.id, pathName, projectId, router, searchParams, selectedDatapoint, updateData]
   );
 
   const revalidateDatapoints = useCallback(() => {

@@ -5,12 +5,12 @@ import { compact, debounce, isEqual, pick } from "lodash";
 import { useParams } from "next/navigation";
 import React, { memo, useCallback, useEffect, useMemo } from "react";
 import { Responsive, type ResponsiveProps, WidthProvider } from "react-grid-layout";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import Chart from "@/components/dashboards/chart";
 import { type DashboardChart, dragHandleKey } from "@/components/dashboards/types";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/lib/hooks/use-toast.ts";
 import { swrFetcher } from "@/lib/utils";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
@@ -31,13 +31,12 @@ const GridLayout = () => {
     error,
   } = useSWR<DashboardChart[]>(`/api/projects/${projectId}/dashboard-charts`, swrFetcher);
 
-  const { toast } = useToast();
 
   useEffect(() => {
     if (error) {
-      toast({ variant: "destructive", title: "Error", description: error.message });
+      toast.error("Error", { description: error.message });
     }
-  }, [error, toast]);
+  }, [error]);
 
   const layout = (data || []).map((chart) => ({
     i: chart.id,

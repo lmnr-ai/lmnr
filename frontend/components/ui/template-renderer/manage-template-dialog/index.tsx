@@ -1,12 +1,12 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
+import { toast } from "sonner";
 import useSWR, { useSWRConfig } from "swr";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Loader2 } from "@/components/ui/icon-lib";
-import { useToast } from "@/lib/hooks/use-toast";
 import { swrFetcher } from "@/lib/utils";
 
 import { type ManageTemplateForm, type Template, type TemplateScope } from "../index";
@@ -26,7 +26,6 @@ interface Props {
 
 const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved }: Props) => {
   const { projectId } = useParams();
-  const { toast } = useToast();
   const { mutate } = useSWRConfig();
 
   const { control, handleSubmit, reset, getValues, setValue } = useFormContext<ManageTemplateForm>();
@@ -69,7 +68,7 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
 
   const handleGenerate = useCallback(async () => {
     if (!describeText.trim()) {
-      toast({ variant: "destructive", title: "Describe what you want the template to render first." });
+      toast.error("Describe what you want the template to render first.");
       return;
     }
     generateAbortRef.current?.abort();
@@ -100,7 +99,7 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
           .json()
           .then((d) => d?.error)
           .catch(() => null);
-        toast({ variant: "destructive", title: "Error", description: errMessage ?? "Failed to generate template" });
+        toast.error("Error", { description: errMessage ?? "Failed to generate template" });
         return;
       }
       const result = (await res.json()) as { code: string; whereClause?: string };
@@ -129,11 +128,7 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
     } catch (e) {
       // Aborted by cancel — silent, whoever cancelled owns the next state.
       if (controller.signal.aborted) return;
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to generate template",
-      });
+      toast.error("Error", { description: e instanceof Error ? e.message : "Failed to generate template" });
     } finally {
       // Only the current request may clear the flag/ref — a newer one owns them.
       if (generateAbortRef.current === controller) {
@@ -141,7 +136,7 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
         setIsGenerating(false);
       }
     }
-  }, [projectId, effectiveScope, traceId, describeText, getValues, setValue, spanOutline, toast]);
+  }, [projectId, effectiveScope, traceId, describeText, getValues, setValue, spanOutline]);
 
   // Abort any in-flight generate before delegating to the parent's cancel — used
   // by both close affordances (overlay/escape and the panel's X button).
@@ -173,11 +168,7 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
             .json()
             .then((d) => d?.error)
             .catch(() => null);
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: errMessage ?? `Failed to ${isUpdate ? "update" : "create"} the template`,
-          });
+          toast.error("Error", { description: errMessage ?? `Failed to ${isUpdate ? "update" : "create"} the template` });
           return;
         }
 
@@ -185,19 +176,15 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
         const result = (await res.json()) as Template;
         await mutate((key) => typeof key === "string" && key.startsWith(baseUrl));
         reset({ ...result, scope: dataScope, testData: data.testData });
-        toast({ title: `Template ${isUpdate ? "updated" : "created"}` });
+        toast(`Template ${isUpdate ? "updated" : "created"}`);
         onSaved();
       } catch (e) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: e instanceof Error ? e.message : `Failed to ${isUpdate ? "update" : "create"} the template`,
-        });
+        toast.error("Error", { description: e instanceof Error ? e.message : `Failed to ${isUpdate ? "update" : "create"} the template` });
       } finally {
         setIsSaving(false);
       }
     },
-    [projectId, mutate, toast, reset, onSaved, scope]
+    [projectId, mutate, reset, onSaved, scope]
   );
 
   const handleOpenChange = useCallback(

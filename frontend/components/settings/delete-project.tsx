@@ -2,12 +2,12 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
+import { toast } from "sonner";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Loader2 } from "@/components/ui/icon-lib";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useProjectContext } from "@/contexts/project-context";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +20,6 @@ export default function DeleteProject() {
   const { project, projects } = useProjectContext();
   const { projectId } = useParams();
   const router = useRouter();
-  const { toast } = useToast();
 
   // A workspace must keep at least one project — deleting the last one would strand the user with
   // no project to anchor the sidebar/settings. Gate the UI here; the API enforces it too.
@@ -36,11 +35,7 @@ export default function DeleteProject() {
     }
 
     if (inputProjectName !== project?.name) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Project name does not match",
-      });
+      toast.error("Error", { description: "Project name does not match" });
       return;
     }
 
@@ -53,32 +48,21 @@ export default function DeleteProject() {
 
       if (!res.ok) {
         const errorText = await res.text();
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: errorText || "Failed to delete the project",
-        });
+        toast.error("Error", { description: errorText || "Failed to delete the project" });
         return;
       }
 
-      toast({
-        title: "Project deleted successfully",
-        description: "Redirecting to projects page...",
-      });
+      toast("Project deleted successfully", { description: "Redirecting to projects page..." });
       track("project", "deleted");
 
       router.push("/projects");
     } catch (error) {
       console.error(error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to delete the project. Please try again.",
-      });
+      toast.error("Error", { description: error instanceof Error ? error.message : "Failed to delete the project. Please try again." });
     } finally {
       setIsLoading(false);
     }
-  }, [isOnlyProject, inputProjectName, project?.name, toast, projectId, router]);
+  }, [isOnlyProject, inputProjectName, project?.name, projectId, router]);
 
   const resetAndClose = useCallback((open: boolean) => {
     setIsDialogOpen(open);

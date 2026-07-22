@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { useSWRConfig } from "swr";
 
 import { CHART_PRESETS, type ChartPreset, type PresetTable } from "@/components/dashboards/chart-presets";
@@ -10,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { ChartBar, ChartColumn, ChartLine, Pen, Table2 } from "@/components/ui/icon-lib";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/lib/hooks/use-toast";
 
 const CHART_TYPE_ICONS: Record<string, typeof ChartLine> = {
   line: ChartLine,
@@ -28,7 +28,6 @@ const TABLE_FILTERS: { label: string; value: PresetTable }[] = [
 const AddChartDropdown = ({ onChartCreated }: { onChartCreated?: () => void }) => {
   const { projectId } = useParams();
   const { mutate } = useSWRConfig();
-  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [activeTable, setActiveTable] = useState<PresetTable>("traces");
 
@@ -53,7 +52,7 @@ const AddChartDropdown = ({ onChartCreated }: { onChartCreated?: () => void }) =
             .json()
             .then((d) => d?.error)
             .catch(() => null);
-          toast({ variant: "destructive", title: err ?? "Failed to create chart" });
+          toast.error(err ?? "Failed to create chart");
           return;
         }
 
@@ -61,10 +60,10 @@ const AddChartDropdown = ({ onChartCreated }: { onChartCreated?: () => void }) =
         setOpen(false);
         requestAnimationFrame(() => onChartCreated?.());
       } catch {
-        toast({ variant: "destructive", title: "Something went wrong" });
+        toast.error("Something went wrong");
       }
     },
-    [projectId, mutate, toast, onChartCreated]
+    [projectId, mutate, onChartCreated]
   );
 
   return (

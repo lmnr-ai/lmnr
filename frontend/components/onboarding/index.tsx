@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
+import { toast } from "sonner";
 
 import { OnboardingProvider } from "@/components/onboarding/context";
 import ConnectStep from "@/components/onboarding/steps/connect-step";
@@ -15,7 +16,6 @@ import { ONBOARDING_STEPS, type OnboardingFormValues } from "@/components/onboar
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useUserContext } from "@/contexts/user-context";
 import { Feature } from "@/lib/features/features";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 const TOTAL_STEPS = ONBOARDING_STEPS.length;
@@ -36,7 +36,6 @@ interface OnboardingWizardProps {
 export default function OnboardingWizard({ initial, slackClientId, slackRedirectUri }: OnboardingWizardProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { toast } = useToast();
   const user = useUserContext();
 
   const form = useForm<OnboardingFormValues>({
@@ -60,13 +59,9 @@ export default function OnboardingWizard({ initial, slackClientId, slackRedirect
     const slackResult = searchParams.get("slack");
     if (slackResult === "success") {
       form.setValue("slackConnected", true);
-      toast({ title: "Slack connected", description: "You'll receive signal alerts in Slack." });
+      toast("Slack connected", { description: "You'll receive signal alerts in Slack." });
     } else if (slackResult === "error") {
-      toast({
-        variant: "destructive",
-        title: "Slack connection failed",
-        description: "Please try again or skip for now.",
-      });
+      toast.error("Slack connection failed", { description: "Please try again or skip for now." });
     }
     if (slackResult) {
       const params = new URLSearchParams(searchParams);

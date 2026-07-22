@@ -1,5 +1,6 @@
 import React, { type ChangeEvent, useCallback, useRef } from "react";
 import { Controller, type FieldArrayWithId, type UseFieldArrayRemove, useFormContext } from "react-hook-form";
+import { toast } from "sonner";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,6 @@ import { Bolt, Image as IconImage, Paperclip, X } from "@/components/ui/icon-lib
 import { IconMessage } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
-import { useToast } from "@/lib/hooks/use-toast";
 import { type PlaygroundForm, type ToolResultPart } from "@/lib/playground/types";
 import { cn } from "@/lib/utils";
 
@@ -26,13 +26,12 @@ const MAX_FILE_SIZE = 2.5 * 1024 * 1024; // 2.5MB in bytes
 const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
   const { register, control } = useFormContext<PlaygroundForm>();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { toast } = useToast();
   const handleFileSelect = useCallback(
     (onChange: (value: string) => void) => async (event: ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (file) {
         if (file.size > MAX_FILE_SIZE) {
-          toast({ title: "File is too big.", description: "File size must be less than 2.5MB" });
+          toast("File is too big.", { description: "File size must be less than 2.5MB" });
           return;
         }
 
@@ -47,11 +46,11 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
           reader.readAsDataURL(file);
         } catch (error) {
           const message = error instanceof Error ? error.message : "Failed to upload image.";
-          toast({ variant: "destructive", title: "Error", description: message });
+          toast.error("Error", { description: message });
         }
       }
     },
-    [toast]
+    []
   );
 
   return (

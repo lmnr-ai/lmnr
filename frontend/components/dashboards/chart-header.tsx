@@ -1,5 +1,6 @@
 import Link from "next/link";
 import React, { type FocusEvent, type KeyboardEventHandler, useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useSWRConfig } from "swr";
 
 import { type DashboardChart, dragHandleKey } from "@/components/dashboards/types";
@@ -12,7 +13,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Edit, Ellipsis, GripVertical, Pen, Trash2 } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
@@ -38,7 +38,6 @@ const updateChart = async (id: string, projectId: string, name: string) => {
 };
 
 const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
-  const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const { mutate } = useSWRConfig();
@@ -59,12 +58,9 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
       );
       track("dashboards", "chart_deleted");
     } catch (e) {
-      toast({
-        title: "Failed to delete chart. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Failed to delete chart. Please try again.");
     }
-  }, [id, mutate, projectId, toast]);
+  }, [id, mutate, projectId]);
 
   const handleUpdateChart = useCallback(
     async (newName: string) => {
@@ -87,13 +83,10 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
           );
         }
       } catch (e) {
-        toast({
-          title: "Failed to update chart. Please try again.",
-          variant: "destructive",
-        });
+        toast.error("Failed to update chart. Please try again.");
       }
     },
-    [id, mutate, name, projectId, toast]
+    [id, mutate, name, projectId]
   );
 
   const handleOnBlur = async (e: FocusEvent<HTMLInputElement>) => {

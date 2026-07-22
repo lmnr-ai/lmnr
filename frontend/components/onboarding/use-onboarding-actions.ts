@@ -2,10 +2,10 @@
 
 import { useCallback, useState } from "react";
 import { useFormContext } from "react-hook-form";
+import { toast } from "sonner";
 
 import { useOnboardingContext } from "@/components/onboarding/context";
 import { type OnboardingFormValues } from "@/components/onboarding/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 export interface CreateWorkspaceOptions {
@@ -44,13 +44,12 @@ const persistOnboardingStep = (projectId: string, step: number) =>
 
 export function useOnboardingActions(): UseOnboardingActions {
   const { resources, setResources } = useOnboardingContext();
-  const { toast } = useToast();
   const form = useFormContext<OnboardingFormValues>();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const errorToast = useCallback(
-    (title: string, description?: string) => toast({ variant: "destructive", title, description }),
-    [toast]
+    (title: string, description?: string) => toast.error(title, { description }),
+    []
   );
 
   const createWorkspace = useCallback(

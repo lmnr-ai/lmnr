@@ -3,6 +3,7 @@
 import Link from "next/link";
 import React, { useCallback, useEffect, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { SettingsSectionHeader } from "@/components/settings/settings-section.tsx";
@@ -21,7 +22,6 @@ import { Cloud, Loader2, Lock, Server } from "@/components/ui/icon-lib";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import HybridSetup from "@/components/workspace/deployment-settings/hybrid-setup.tsx";
 import { useProjectContext } from "@/contexts/project-context";
-import { useToast } from "@/lib/hooks/use-toast.ts";
 import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils.ts";
 import {
@@ -49,7 +49,6 @@ const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
   const isEnabled = isPro && hasDataPlaneAddon;
   const methods = useForm<DeploymentManagementForm>();
   const { reset, watch, setValue } = methods;
-  const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
@@ -129,21 +128,21 @@ const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
 
       if (!response.ok) {
         const error = (await response.json()) as { error: string };
-        toast({ variant: "destructive", title: "Error", description: error.error });
+        toast.error("Error", { description: error.error });
         return;
       }
 
       track("deployment", "mode_saved", { mode });
-      toast({ title: "Configuration saved" });
+      toast("Configuration saved");
       mutate();
     } catch (e) {
       if (e instanceof Error) {
-        toast({ variant: "destructive", title: "Error", description: e.message });
+        toast.error("Error", { description: e.message });
       }
     } finally {
       setIsSaving(false);
     }
-  }, [mode, dataPlaneUrl, toast, workspaceId, mutate]);
+  }, [mode, dataPlaneUrl, workspaceId, mutate]);
 
   const handleSaveClick = useCallback(() => {
     if (isModeChanged) {

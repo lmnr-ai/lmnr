@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { useFormContext } from "react-hook-form";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button.tsx";
 import { CopyButton } from "@/components/ui/copy-button.tsx";
@@ -7,7 +8,6 @@ import { CheckCircle2, CircleDot, ExternalLink, Loader2 } from "@/components/ui/
 import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
 import { type DeploymentManagementForm } from "@/components/workspace/deployment-settings/workspace-deployment.tsx";
-import { useToast } from "@/lib/hooks/use-toast.ts";
 import { cn } from "@/lib/utils.ts";
 
 interface HybridSetupProps {
@@ -20,7 +20,6 @@ interface HybridSetupProps {
 
 const HybridSetup = ({ workspaceId, isSaving, isVerified, onVerifiedChange }: HybridSetupProps) => {
   const { watch, setValue } = useFormContext<DeploymentManagementForm>();
-  const { toast } = useToast();
   const publicKey = watch("publicKey");
   const dataPlaneUrl = watch("dataPlaneUrl");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -35,21 +34,21 @@ const HybridSetup = ({ workspaceId, isSaving, isVerified, onVerifiedChange }: Hy
 
       if (!response.ok) {
         const error = (await response.json()) as { error: string };
-        toast({ variant: "destructive", title: "Error", description: error.error });
+        toast.error("Error", { description: error.error });
         return;
       }
 
       const result = (await response.json()) as { publicKey: string };
       setValue("publicKey", result.publicKey);
-      toast({ title: "Keys generated successfully" });
+      toast("Keys generated successfully");
     } catch (e) {
       if (e instanceof Error) {
-        toast({ variant: "destructive", title: "Error", description: e.message });
+        toast.error("Error", { description: e.message });
       }
     } finally {
       setIsGenerating(false);
     }
-  }, [setValue, toast, workspaceId]);
+  }, [setValue, workspaceId]);
 
   const handleVerifyDeployment = useCallback(async () => {
     try {
@@ -65,7 +64,7 @@ const HybridSetup = ({ workspaceId, isSaving, isVerified, onVerifiedChange }: Hy
 
       if (!response.ok) {
         const error = (await response.json()) as { error: string };
-        toast({ variant: "destructive", title: "Verification failed", description: error.error });
+        toast.error("Verification failed", { description: error.error });
         onVerifiedChange(false);
         return;
       }
@@ -73,17 +72,17 @@ const HybridSetup = ({ workspaceId, isSaving, isVerified, onVerifiedChange }: Hy
       const result = (await response.json()) as { success: boolean };
       if (result.success) {
         onVerifiedChange(true);
-        toast({ title: "Deployment verified successfully" });
+        toast("Deployment verified successfully");
       }
     } catch (e) {
       if (e instanceof Error) {
-        toast({ variant: "destructive", title: "Error", description: e.message });
+        toast.error("Error", { description: e.message });
       }
       onVerifiedChange(false);
     } finally {
       setIsVerifying(false);
     }
-  }, [dataPlaneUrl, toast, workspaceId, onVerifiedChange]);
+  }, [dataPlaneUrl, workspaceId, onVerifiedChange]);
 
   const keysComplete = Boolean(publicKey);
   const urlComplete = isVerified;

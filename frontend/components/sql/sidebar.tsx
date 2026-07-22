@@ -4,6 +4,7 @@ import { isEmpty } from "lodash";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import React, { type KeyboardEvent, memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { toast } from "sonner";
 import { useSWRConfig } from "swr";
 import { v4 } from "uuid";
 
@@ -17,7 +18,6 @@ import {
 import { Edit, EllipsisVertical, FileText, Plus, Trash2 } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 import { type SQLTemplate, useSqlEditorStore } from "./sql-editor-store";
@@ -53,7 +53,6 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
   const { id, projectId } = useParams();
   const router = useRouter();
   const { mutate } = useSWRConfig();
-  const { toast } = useToast();
 
   const { editTemplate, setEditTemplate } = useSqlEditorStore((state) => ({
     editTemplate: state.editTemplate,
@@ -92,12 +91,12 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
       );
     } catch (e) {
       if (e instanceof Error) {
-        toast({ variant: "destructive", title: "Error", description: e.message });
+        toast.error("Error", { description: e.message });
       }
     } finally {
       setEditTemplate(undefined);
     }
-  }, [editTemplate, mutate, projectId, setEditTemplate, template, toast]);
+  }, [editTemplate, mutate, projectId, setEditTemplate, template]);
 
   const handleKeyDown = useCallback(
     async (e: KeyboardEvent<HTMLInputElement>) => {
@@ -185,7 +184,6 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
   const { projectId, id } = useParams();
   const { mutate } = useSWRConfig();
   const router = useRouter();
-  const { toast } = useToast();
 
   const setCurrentTemplate = useSqlEditorStore((state) => state.setCurrentTemplate);
 
@@ -225,12 +223,12 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
           .json()
           .then((d) => d?.error)
           .catch(() => null);
-        toast({ variant: "destructive", title: errMessage ?? "Failed to create query" });
+        toast.error(errMessage ?? "Failed to create query");
       }
     } catch {
-      toast({ variant: "destructive", title: "Failed to create query" });
+      toast.error("Failed to create query");
     }
-  }, [mutate, projectId, router, toast]);
+  }, [mutate, projectId, router]);
 
   const handleDelete = useCallback(
     async (template: SQLTemplate) => {
@@ -250,11 +248,11 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
         setCurrentTemplate(undefined);
       } catch (e) {
         if (e instanceof Error) {
-          toast({ variant: "destructive", title: "Error", description: e.message });
+          toast.error("Error", { description: e.message });
         }
       }
     },
-    [mutate, projectId, router, setCurrentTemplate, toast]
+    [mutate, projectId, router, setCurrentTemplate]
   );
 
   useEffect(() => {

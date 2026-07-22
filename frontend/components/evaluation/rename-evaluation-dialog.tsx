@@ -1,12 +1,12 @@
 import { useParams, useRouter } from "next/navigation";
 import React, { type PropsWithChildren, useCallback, useState } from "react";
+import { toast } from "sonner";
 import { useSWRConfig } from "swr";
 
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { type EvaluationResultsInfo } from "@/lib/evaluation/types";
-import { useToast } from "@/lib/hooks/use-toast";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 
@@ -21,7 +21,6 @@ const RenameEvaluationDialog = ({
   const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { mutate } = useSWRConfig();
-  const { toast } = useToast();
 
   const submit = useCallback(async () => {
     try {
@@ -35,11 +34,7 @@ const RenameEvaluationDialog = ({
       });
 
       if (!response.ok) {
-        toast({
-          title: "Error",
-          description: "Failed to rename evaluation. Please try again.",
-          variant: "destructive",
-        });
+        toast.error("Error", { description: "Failed to rename evaluation. Please try again." });
       } else {
         await mutate<EvaluationResultsInfo>(
           urlKey,
@@ -51,20 +46,16 @@ const RenameEvaluationDialog = ({
           },
           { revalidate: false, populateCache: true, rollbackOnError: true }
         );
-        toast({ title: "Successfully renamed evaluation." });
+        toast("Successfully renamed evaluation.");
         router.refresh();
       }
       setOpen(false);
     } catch (e) {
-      toast({
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to rename evaluation. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: e instanceof Error ? e.message : "Failed to rename evaluation. Please try again." });
     } finally {
       setIsLoading(false);
     }
-  }, [evaluationId, mutate, name, projectId, router, toast, urlKey]);
+  }, [evaluationId, mutate, name, projectId, router, urlKey]);
 
   return (
     <Dialog

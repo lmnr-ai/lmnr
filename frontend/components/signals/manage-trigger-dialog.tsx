@@ -4,6 +4,7 @@ import { get } from "lodash";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useEffect, useState } from "react";
 import { Controller, FormProvider, useForm, useFormContext, useWatch } from "react-hook-form";
+import { toast } from "sonner";
 
 import { getDefaultFilter, TriggerFiltersField } from "@/components/signals/trigger-filter-field";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,6 @@ import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type Filter } from "@/lib/actions/common/filters";
 import { type Trigger } from "@/lib/actions/signal-triggers";
 import { Feature } from "@/lib/features/features";
-import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 export type TriggerFormValues = {
@@ -42,7 +42,6 @@ interface ManageTriggerDialogContentProps {
 function ManageTriggerDialogContent({ setOpen, isNew, signalId, onSuccess }: ManageTriggerDialogContentProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { projectId } = useParams();
-  const { toast } = useToast();
 
   const {
     handleSubmit,
@@ -74,11 +73,7 @@ function ManageTriggerDialogContent({ setOpen, isNew, signalId, onSuccess }: Man
 
         if (!res.ok) {
           const error = (await res.json()) as { error: string };
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: get(error, "error", `Failed to ${isUpdate ? "update" : "create"} the trigger`),
-          });
+          toast.error("Error", { description: get(error, "error", `Failed to ${isUpdate ? "update" : "create"} the trigger`) });
           return;
         }
 
@@ -86,22 +81,17 @@ function ManageTriggerDialogContent({ setOpen, isNew, signalId, onSuccess }: Man
           await onSuccess();
         }
 
-        toast({ title: `Successfully ${isUpdate ? "updated" : "created"} trigger` });
+        toast(`Successfully ${isUpdate ? "updated" : "created"} trigger`);
         setOpen(false);
       } catch (e) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description:
-            e instanceof Error
+        toast.error("Error", { description: e instanceof Error
               ? e.message
-              : `Failed to ${data.id ? "update" : "create"} the trigger. Please try again.`,
-        });
+              : `Failed to ${data.id ? "update" : "create"} the trigger. Please try again.` });
       } finally {
         setIsLoading(false);
       }
     },
-    [projectId, signalId, toast, setOpen, onSuccess]
+    [projectId, signalId, setOpen, onSuccess]
   );
 
   return (

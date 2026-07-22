@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { memo, useCallback } from "react";
+import { toast } from "sonner";
 
 import CondensedTimelineControls from "@/components/traces/trace-view/header/timeline-toggle";
 import Metadata from "@/components/traces/trace-view/metadata";
@@ -12,7 +13,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown, ChevronsRight, Copy, Maximize } from "@/components/ui/icon-lib";
-import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 interface HeaderProps {
@@ -27,14 +27,13 @@ const Header = ({ onClose, isHideTimelineControls = false }: HeaderProps) => {
     setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
   }));
 
-  const { toast } = useToast();
 
   const handleCopyTraceId = useCallback(async () => {
     if (trace?.id) {
       await navigator.clipboard.writeText(trace.id);
-      toast({ title: "Copied trace ID", duration: 1000 });
+      toast("Copied trace ID", { duration: 1000 });
     }
-  }, [trace?.id, toast]);
+  }, [trace?.id]);
 
   if (!onClose) {
     if (isHideTimelineControls) return null;

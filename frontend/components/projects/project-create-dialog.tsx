@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useCallback, useState } from "react";
+import { toast } from "sonner";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Loader2 } from "@/components/ui/icon-lib";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 import { type Project } from "@/lib/workspaces/types";
@@ -39,7 +39,6 @@ export default function ProjectCreateDialog({
   const [isCreatingProject, setIsCreatingProject] = useState(false);
 
   const router = useRouter();
-  const { toast } = useToast();
 
   const createNewProject = useCallback(async () => {
     setIsCreatingProject(true);
@@ -62,15 +61,11 @@ export default function ProjectCreateDialog({
       router.push(`/project/${newProject.id}/traces`);
       setIsDialogOpen(false);
     } catch (e) {
-      toast({
-        title: "Error creating project",
-        variant: "destructive",
-        description: e instanceof Error ? e.message : "Failed to create project",
-      });
+      toast.error("Error creating project", { description: e instanceof Error ? e.message : "Failed to create project" });
     } finally {
       setIsCreatingProject(false);
     }
-  }, [newProjectName, workspaceId, onProjectCreate, router, toast]);
+  }, [newProjectName, workspaceId, onProjectCreate, router]);
 
   const hasReachedFreeLimit = isFreeTier && (projectCount ?? 0) >= 1;
 

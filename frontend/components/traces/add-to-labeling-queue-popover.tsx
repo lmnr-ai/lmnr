@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useState } from "react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import CreateQueueDialog from "@/components/queues/create-queue-dialog";
@@ -8,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Plus } from "@/components/ui/icon-lib";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type LabelingQueue } from "@/lib/queue/types";
 import { type PaginatedResponse } from "@/lib/types";
@@ -45,7 +45,6 @@ export default function AddToLabelingQueuePopover({
   const [isLoading, setIsLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const { projectId } = useParams();
-  const { toast } = useToast();
 
   const isDatapointMode = datapointIds && datasetId;
   const isSpanMode = !!spanId;
@@ -101,37 +100,26 @@ export default function AddToLabelingQueuePopover({
         track("labeling_queues", "added", {
           source: isSpanMode ? "span" : isDatapointMode ? "datapoint" : "queue",
         });
-        toast({
-          title: "Success",
-          description: (
+        toast("Success", { description: (
             <span>
               Successfully added to queue.{" "}
               <Link className="text-primary" href={`/project/${projectId}/labeling-queues/${selectedQueue}`}>
                 Go to queue.
               </Link>
             </span>
-          ),
-        });
+          ) });
         setOpen(false);
       } else {
-        toast({
-          title: "Error",
-          description: "Failed to add to labeling queue",
-          variant: "destructive",
-        });
+        toast.error("Error", { description: "Failed to add to labeling queue" });
         console.error("Failed to add to labeling queue:", response.statusText);
       }
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to add to labeling queue",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: "Failed to add to labeling queue" });
       console.error("Failed to add to labeling queue:", error);
     } finally {
       setIsLoading(false);
     }
-  }, [data, datapointIds, datasetId, spanId, traceId, projectId, selectedQueue, toast, isDatapointMode, isSpanMode]);
+  }, [data, datapointIds, datasetId, spanId, traceId, projectId, selectedQueue, isDatapointMode, isSpanMode]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

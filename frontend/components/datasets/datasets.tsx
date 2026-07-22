@@ -3,6 +3,7 @@
 import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,6 @@ import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatab
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { type DatasetInfo } from "@/lib/dataset/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
@@ -109,7 +109,6 @@ const EmptyRow = (
 function DatasetsContent() {
   const { projectId } = useParams();
   const router = useRouter();
-  const { toast } = useToast();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   useEffect(() => {
@@ -153,14 +152,11 @@ function DatasetsContent() {
         const data = await res.json();
         return { items: data.items, count: data.totalCount };
       } catch (error) {
-        toast({
-          title: error instanceof Error ? error.message : "Failed to load datasets. Please try again.",
-          variant: "destructive",
-        });
+        toast.error(error instanceof Error ? error.message : "Failed to load datasets. Please try again.");
         throw error;
       }
     },
-    [projectId, toast, filter, search]
+    [projectId, filter, search]
   );
 
   const {
@@ -198,19 +194,12 @@ function DatasetsContent() {
 
         setRowSelection({});
         track("datasets", "deleted", { count: datasetIds.length });
-        toast({
-          title: "Datasets deleted",
-          description: `Successfully deleted ${datasetIds.length} dataset(s).`,
-        });
+        toast("Datasets deleted", { description: `Successfully deleted ${datasetIds.length} dataset(s).` });
       } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to delete datasets. Please try again.",
-          variant: "destructive",
-        });
+        toast.error("Error", { description: "Failed to delete datasets. Please try again." });
       }
     },
-    [projectId, toast, updateData]
+    [projectId, updateData]
   );
 
   return (

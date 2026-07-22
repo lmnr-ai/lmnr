@@ -2,12 +2,12 @@
 
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
 import { DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tag } from "@/components/ui/icon-lib";
-import { useToast } from "@/lib/hooks/use-toast";
 import { type TagClass } from "@/lib/traces/types";
 import { cn, swrFetcher } from "@/lib/utils";
 
@@ -47,7 +47,6 @@ interface TraceTagsProps {
 
 export const TraceTagsButton = ({ traceId, className }: TraceTagsProps) => {
   const { projectId, tagClasses, rawTags, tags, mutateTagClasses, mutateTags } = useTraceTags(traceId);
-  const { toast } = useToast();
 
   const onAttach = async (tagClassName: string) => {
     try {
@@ -73,7 +72,7 @@ export const TraceTagsButton = ({ traceId, className }: TraceTagsProps) => {
         }
       );
     } catch (e) {
-      toast({ variant: "destructive", title: e instanceof Error ? e.message : "Something went wrong" });
+      toast.error(e instanceof Error ? e.message : "Something went wrong");
     }
   };
 
@@ -100,7 +99,7 @@ export const TraceTagsButton = ({ traceId, className }: TraceTagsProps) => {
         }
       );
     } catch (e) {
-      toast({ variant: "destructive", title: e instanceof Error ? e.message : "Something went wrong" });
+      toast.error(e instanceof Error ? e.message : "Something went wrong");
     }
   };
 
@@ -142,7 +141,7 @@ export const TraceTagsButton = ({ traceId, className }: TraceTagsProps) => {
         }
       );
     } catch (e) {
-      toast({ variant: "destructive", title: e instanceof Error ? e.message : "Something went wrong" });
+      toast.error(e instanceof Error ? e.message : "Something went wrong");
     }
   };
 

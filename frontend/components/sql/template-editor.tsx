@@ -3,6 +3,7 @@
 import { debounce } from "lodash";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
+import { toast } from "sonner";
 import { useSWRConfig } from "swr";
 import { v4 } from "uuid";
 
@@ -10,7 +11,6 @@ import SQLEditor from "@/components/sql/sql-editor";
 import { type SQLTemplate, useSqlEditorStore } from "@/components/sql/sql-editor-store";
 import { Button } from "@/components/ui/button";
 import { Plus, SquareTerminal } from "@/components/ui/icon-lib";
-import { useToast } from "@/lib/hooks/use-toast";
 
 interface TemplateEditorProps {
   className?: string;
@@ -19,7 +19,6 @@ interface TemplateEditorProps {
 export default function TemplateEditor({ className }: TemplateEditorProps) {
   const { projectId, id } = useParams();
   const router = useRouter();
-  const { toast } = useToast();
   const { mutate } = useSWRConfig();
   const { template, onChange } = useSqlEditorStore((state) => ({
     template: state.currentTemplate,
@@ -48,14 +47,10 @@ export default function TemplateEditor({ className }: TemplateEditorProps) {
           });
         }
       } catch (error) {
-        toast({
-          title: "Save failed",
-          description: "Failed to save template. Please try again.",
-          variant: "destructive",
-        });
+        toast.error("Save failed", { description: "Failed to save template. Please try again." });
       }
     },
-    [projectId, templateId, templateName, id, toast]
+    [projectId, templateId, templateName, id]
   );
 
   const handleCreate = useCallback(async () => {
@@ -94,12 +89,12 @@ export default function TemplateEditor({ className }: TemplateEditorProps) {
           .json()
           .then((d) => d?.error)
           .catch(() => null);
-        toast({ variant: "destructive", title: errMessage ?? "Failed to create query" });
+        toast.error(errMessage ?? "Failed to create query");
       }
     } catch {
-      toast({ variant: "destructive", title: "Failed to create query" });
+      toast.error("Failed to create query");
     }
-  }, [mutate, projectId, router, toast]);
+  }, [mutate, projectId, router]);
 
   const debouncedAutoSave = useMemo(() => debounce(autoSaveTemplate, 500), [autoSaveTemplate]);
 

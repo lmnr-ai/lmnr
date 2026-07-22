@@ -3,6 +3,7 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-cluster-id";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
@@ -10,10 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Layers, X } from "@/components/ui/icon-lib";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useToast } from "@/lib/hooks/use-toast";
 
 export default function EmergingClusterBreadcrumbs() {
-  const { toast } = useToast();
   const params = useParams<{ projectId: string }>();
   const signal = useSignalStoreContext((state) => state.signal);
   const [emergingClusterId, setEmergingClusterId] = useEmergingClusterId();
@@ -44,7 +43,7 @@ export default function EmergingClusterBreadcrumbs() {
             .json()
             .then((d) => d?.error)
             .catch(() => null);
-          toast({ variant: "destructive", title: errMessage ?? "Failed to load emerging cluster" });
+          toast.error(errMessage ?? "Failed to load emerging cluster");
           setName(null);
           return;
         }
@@ -55,7 +54,7 @@ export default function EmergingClusterBreadcrumbs() {
         if (error instanceof DOMException && error.name === "AbortError") {
           return;
         }
-        toast({ variant: "destructive", title: "Failed to load emerging cluster" });
+        toast.error("Failed to load emerging cluster");
         setName(null);
       } finally {
         setIsLoading(false);
@@ -65,7 +64,7 @@ export default function EmergingClusterBreadcrumbs() {
     fetchName();
 
     return () => controller.abort();
-  }, [emergingClusterId, params.projectId, signal.id, toast]);
+  }, [emergingClusterId, params.projectId, signal.id]);
 
   const label = isLoading && !name ? "Loading..." : (name ?? "Similar events");
   const prefix = "Emerging cluster:";

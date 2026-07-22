@@ -3,12 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { useSWRConfig } from "swr";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Edit, Loader2, Trash2 } from "@/components/ui/icon-lib";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 import { type Workspace, type WorkspaceWithProjects } from "@/lib/workspaces/types";
@@ -32,7 +32,6 @@ interface WorkspaceSettingsProps {
 
 export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSettingsProps) {
   const router = useRouter();
-  const { toast } = useToast();
   const { mutate } = useSWRConfig();
 
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
@@ -72,27 +71,16 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
         );
 
         track("workspace", "renamed");
-        toast({
-          title: "Workspace Renamed",
-          description: "Workspace renamed successfully!",
-        });
+        toast("Workspace Renamed", { description: "Workspace renamed successfully!" });
         router.refresh();
         setIsRenameDialogOpen(false);
         renameForm.reset();
       } else {
         const errorData = await res.json();
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: errorData.error || "Something went wrong. Please try again later.",
-        });
+        toast.error("Error", { description: errorData.error || "Something went wrong. Please try again later." });
       }
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Something went wrong. Please try again later.",
-      });
+      toast.error("Error", { description: "Something went wrong. Please try again later." });
     }
   });
 
@@ -104,11 +92,7 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
 
       if (!res.ok) {
         const errorData = await res.json();
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: errorData.error || "Failed to delete the workspace",
-        });
+        toast.error("Error", { description: errorData.error || "Failed to delete the workspace" });
         return;
       }
 
@@ -119,19 +103,12 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
       );
 
       track("workspace", "deleted");
-      toast({
-        title: "Workspace deleted successfully",
-        description: "Redirecting to workspaces page...",
-      });
+      toast("Workspace deleted successfully", { description: "Redirecting to workspaces page..." });
 
       router.push("/projects");
     } catch (error) {
       console.error(error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to delete the workspace. Please try again.",
-      });
+      toast.error("Error", { description: error instanceof Error ? error.message : "Failed to delete the workspace. Please try again." });
     }
   });
 

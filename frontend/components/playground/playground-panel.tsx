@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import React, { useCallback, useRef } from "react";
 import { Controller, type ControllerRenderProps, type SubmitHandler, useFormContext } from "react-hook-form";
 import { useHotkeys } from "react-hotkeys-hook";
+import { toast } from "sonner";
 import { prettifyError } from "zod/v4";
 
 import Messages from "@/components/playground/messages";
@@ -23,7 +24,6 @@ import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Bolt, ChevronRight, Loader, Square } from "@/components/ui/icon-lib";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { type PlaygroundChatResult } from "@/lib/actions/chat";
-import { useToast } from "@/lib/hooks/use-toast";
 import { type PlaygroundForm } from "@/lib/playground/types";
 import { parseSystemMessages } from "@/lib/playground/utils";
 import { type ProviderApiKey } from "@/lib/settings/types";
@@ -38,7 +38,6 @@ export default function PlaygroundPanel({
   onTraceSelect?: (traceId: string) => void;
 }) {
   const params = useParams();
-  const { toast } = useToast();
   const {
     setText,
     setUsage,
@@ -94,17 +93,9 @@ export default function PlaygroundPanel({
           const errorData = await response.json();
 
           if (errorData?.name === "ZodError") {
-            toast({
-              title: "Validation Error",
-              description: `Validation failed: ${prettifyError(errorData)}`,
-              variant: "destructive",
-            });
+            toast.error("Validation Error", { description: `Validation failed: ${prettifyError(errorData)}` });
           } else if (errorData instanceof Error) {
-            toast({
-              title: "Error",
-              description: errorData.message || "Request failed. Please try again.",
-              variant: "destructive",
-            });
+            toast.error("Error", { description: errorData.message || "Request failed. Please try again." });
           } else {
             throw new Error(errorData?.error || "Request failed. Please try again.");
           }
@@ -119,14 +110,14 @@ export default function PlaygroundPanel({
         setUsage(result.usage);
       } catch (e) {
         if (e instanceof Error && e.name !== "AbortError") {
-          toast({ title: "Error", description: e.message, variant: "destructive" });
+          toast.error("Error", { description: e.message });
         }
       } finally {
         setIsLoading(false);
         abortControllerRef.current = null;
       }
     },
-    [reset, setIsLoading, params?.projectId, id, setText, setToolCalls, setReasoning, setUsage, toast]
+    [reset, setIsLoading, params?.projectId, id, setText, setToolCalls, setReasoning, setUsage]
   );
 
   useHotkeys("meta+enter,ctrl+enter", () => handleSubmit(submit)(), {

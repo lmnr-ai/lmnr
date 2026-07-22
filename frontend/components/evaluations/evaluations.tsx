@@ -4,6 +4,7 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { type LayoutStorage, useDefaultLayout } from "react-resizable-panels";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import AdvancedSearch from "@/components/common/advanced-search";
@@ -35,7 +36,6 @@ import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
 import { type ScoreRange } from "@/lib/colors";
 import { type Evaluation } from "@/lib/evaluation/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { swrFetcher } from "@/lib/utils";
 
@@ -180,7 +180,6 @@ export default function Evaluations() {
 function EvaluationsContent() {
   const params = useParams<{ projectId: string }>();
   const router = useRouter();
-  const { toast } = useToast();
   const searchParams = useSearchParams();
   const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
   const searchValue = useMemo(
@@ -264,14 +263,11 @@ function EvaluationsContent() {
         const data = (await res.json()) as { items: Evaluation[]; totalCount: number };
         return { items: data.items, count: data.totalCount };
       } catch (error) {
-        toast({
-          title: error instanceof Error ? error.message : "Failed to load evaluations. Please try again.",
-          variant: "destructive",
-        });
+        toast.error(error instanceof Error ? error.message : "Failed to load evaluations. Please try again.");
         throw error;
       }
     },
-    [filter, groupId, params?.projectId, search, toast]
+    [filter, groupId, params?.projectId, search]
   );
 
   const {
@@ -388,19 +384,12 @@ function EvaluationsContent() {
       if (response.ok) {
         await refetch();
 
-        toast({
-          title: "Evaluations deleted",
-          description: `Successfully deleted ${evaluationIds.length} evaluation(s).`,
-        });
+        toast("Evaluations deleted", { description: `Successfully deleted ${evaluationIds.length} evaluation(s).` });
       } else {
         throw new Error("Failed to delete evaluations");
       }
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete evaluations. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: "Failed to delete evaluations. Please try again." });
     }
   };
 

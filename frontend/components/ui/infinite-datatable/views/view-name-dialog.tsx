@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +15,6 @@ import {
 import { Loader2 } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/lib/hooks/use-toast";
 
 interface ViewNameDialogProps {
   open: boolean;
@@ -35,7 +35,6 @@ export default function ViewNameDialog({
   submitLabel = "Save",
   onSave,
 }: ViewNameDialogProps) {
-  const { toast } = useToast();
   const [name, setName] = useState(initialName);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -63,12 +62,12 @@ export default function ViewNameDialog({
           onOpenChange(false);
           return;
         }
-        toast({ variant: "destructive", title: result.message ?? "Failed to save" });
+        toast.error(result.message ?? "Failed to save");
       } finally {
         setIsSaving(false);
       }
     },
-    [canSubmit, trimmed, onSave, onOpenChange, toast]
+    [canSubmit, trimmed, onSave, onOpenChange]
   );
 
   return (

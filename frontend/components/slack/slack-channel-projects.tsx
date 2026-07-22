@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { useSlackIntegration } from "@/components/slack/slack-connection-card";
@@ -12,7 +13,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { SlackChannel } from "@/lib/actions/slack";
 import type { SlackChannelProjectBinding } from "@/lib/actions/slack/channel-projects";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
 
@@ -30,7 +30,6 @@ interface SlackChannelProjectsProps {
 // Only rendered once Slack is connected (the channel list needs the bot token).
 export default function SlackChannelProjects({ workspaceId, className }: SlackChannelProjectsProps) {
   const { data: integration } = useSlackIntegration(workspaceId);
-  const { toast } = useToast();
 
   const {
     data: bindings,
@@ -82,7 +81,7 @@ export default function SlackChannelProjects({ workspaceId, className }: SlackCh
       setProjectId("");
       await mutate();
     } catch (e) {
-      toast({ variant: "destructive", title: e instanceof Error ? e.message : "Something went wrong" });
+      toast.error(e instanceof Error ? e.message : "Something went wrong");
     } finally {
       setSaving(false);
     }
@@ -103,7 +102,7 @@ export default function SlackChannelProjects({ workspaceId, className }: SlackCh
       }
       await mutate();
     } catch (e) {
-      toast({ variant: "destructive", title: e instanceof Error ? e.message : "Something went wrong" });
+      toast.error(e instanceof Error ? e.message : "Something went wrong");
     }
   };
 

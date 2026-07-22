@@ -3,6 +3,7 @@
 import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,6 @@ import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-fil
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { TableCell, TableRow } from "@/components/ui/table";
-import { useToast } from "@/lib/hooks/use-toast";
 import { type PlaygroundInfo } from "@/lib/playground/types";
 import { track } from "@/lib/posthog";
 
@@ -101,7 +101,6 @@ const EmptyRow = (
 const PlaygroundsContent = () => {
   const { projectId } = useParams();
   const router = useRouter();
-  const { toast } = useToast();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
@@ -145,14 +144,11 @@ const PlaygroundsContent = () => {
         const data = await res.json();
         return { items: data.items, count: data.totalCount };
       } catch (error) {
-        toast({
-          title: error instanceof Error ? error.message : "Failed to load playgrounds. Please try again.",
-          variant: "destructive",
-        });
+        toast.error(error instanceof Error ? error.message : "Failed to load playgrounds. Please try again.");
         throw error;
       }
     },
-    [projectId, toast, filter, search]
+    [projectId, filter, search]
   );
 
   const {
@@ -182,19 +178,12 @@ const PlaygroundsContent = () => {
         updateData((currentData) => currentData.filter((playground) => !playgroundIds.includes(playground.id)));
         setRowSelection({});
         track("playgrounds", "deleted", { count: playgroundIds.length });
-        toast({
-          title: "Playgrounds deleted",
-          description: `Successfully deleted ${playgroundIds.length} playground(s).`,
-        });
+        toast("Playgrounds deleted", { description: `Successfully deleted ${playgroundIds.length} playground(s).` });
       } else {
         throw new Error("Failed to delete playgrounds");
       }
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete playgrounds. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: "Failed to delete playgrounds. Please try again." });
     }
     setIsDeleting(false);
     setIsDeleteDialogOpen(false);

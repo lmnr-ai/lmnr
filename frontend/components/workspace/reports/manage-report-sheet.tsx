@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import SlackChannelPicker, { type SlackChannelSelection } from "@/components/settings/alerts/slack-channel-picker";
@@ -13,7 +14,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Switch } from "@/components/ui/switch";
 import { REPORT_TARGET_TYPE, type ReportWithDetails } from "@/lib/actions/reports/types";
 import { type SlackChannel } from "@/lib/actions/slack";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
 
@@ -39,7 +39,6 @@ export default function ManageReportSheet({
   userEmail,
 }: ManageReportSheetProps) {
   const hasSlackIntegration = !!integrationId;
-  const { toast } = useToast();
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -74,12 +73,9 @@ export default function ManageReportSheet({
 
   useEffect(() => {
     if (channelsResult?.rateLimited) {
-      toast({
-        title: "Slack channel list may be incomplete",
-        description: "Slack rate-limited the request. Some channels may not appear in the picker.",
-      });
+      toast("Slack channel list may be incomplete", { description: "Slack rate-limited the request. Some channels may not appear in the picker." });
     }
-  }, [channelsResult, toast]);
+  }, [channelsResult]);
 
   const slackChanged = useMemo(() => {
     if (slackChannels.length !== currentSlackChannels.length) return true;
@@ -134,10 +130,7 @@ export default function ManageReportSheet({
         anyChangeCommitted = true;
       }
 
-      toast({
-        title: "Report updated",
-        description: "Notification targets have been updated.",
-      });
+      toast("Report updated", { description: "Notification targets have been updated." });
       track("reports", "edited", {
         has_slack: slackChannels.length > 0,
         slack_channel_count: slackChannels.length,
@@ -149,11 +142,7 @@ export default function ManageReportSheet({
       // Refresh cache if any change was committed before the failure,
       // so the UI reflects the actual state in the database.
       if (anyChangeCommitted) onSaved();
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to update report. Please try again.",
-      });
+      toast.error("Error", { description: e instanceof Error ? e.message : "Failed to update report. Please try again." });
     } finally {
       setIsSaving(false);
     }
@@ -169,7 +158,6 @@ export default function ManageReportSheet({
     userEmail,
     onSaved,
     onOpenChange,
-    toast,
   ]);
 
   return (

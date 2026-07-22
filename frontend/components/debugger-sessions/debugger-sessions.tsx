@@ -3,6 +3,7 @@
 import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SessionsPlaceholder from "@/components/debugger-sessions/sessions-placeholder";
@@ -15,7 +16,6 @@ import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/mo
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import Mono from "@/components/ui/mono";
 import { type DebuggerSession } from "@/lib/actions/debugger-sessions";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 const FETCH_SIZE = 50;
@@ -80,7 +80,6 @@ const defaultDebuggerSessionsColumnOrder = ["id", "name", "traceCount", "evalCou
 
 function DebuggerSessionsContent() {
   const { projectId } = useParams();
-  const { toast } = useToast();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   useEffect(() => {
@@ -111,14 +110,11 @@ function DebuggerSessionsContent() {
         const data = (await res.json()) as { items: DebuggerSession[] };
         return { items: data.items, count: 0 };
       } catch (error) {
-        toast({
-          title: error instanceof Error ? error.message : "Failed to load debugger sessions. Please try again.",
-          variant: "destructive",
-        });
+        toast.error(error instanceof Error ? error.message : "Failed to load debugger sessions. Please try again.");
         throw error;
       }
     },
-    [projectId, toast]
+    [projectId]
   );
 
   const {

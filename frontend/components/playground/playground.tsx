@@ -4,6 +4,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
 import { useCallback, useEffect, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { usePlaygroundOutput } from "@/components/playground/playground-output";
@@ -11,7 +12,6 @@ import PlaygroundPanel from "@/components/playground/playground-panel";
 import { getDefaultThinkingModelProviderOptions } from "@/components/playground/utils";
 import TraceView from "@/components/traces/trace-view";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/lib/hooks/use-toast";
 import { type Message, type Playground as PlaygroundType, type PlaygroundForm } from "@/lib/playground/types";
 import { transformFromLegacy } from "@/lib/playground/utils.ts";
 import { type ProviderApiKey } from "@/lib/settings/types";
@@ -31,7 +31,6 @@ export default function Playground({ playground }: { playground: PlaygroundType 
   const params = useParams();
   const searchParams = useSearchParams();
   const [isUpdating, setIsUpdating] = useState(false);
-  const { toast } = useToast();
 
   // Trace view state (not synced with URL)
   const [traceId, setTraceId] = useState<string | null>(null);
@@ -93,13 +92,13 @@ export default function Playground({ playground }: { playground: PlaygroundType 
         });
       } catch (e) {
         if (e instanceof Error) {
-          toast({ title: e.message, variant: "destructive" });
+          toast.error(e.message);
         }
       } finally {
         setIsUpdating(false);
       }
     },
-    [toast]
+    []
   );
 
   useEffect(() => {

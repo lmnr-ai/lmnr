@@ -3,6 +3,7 @@
 import { type Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
+import { toast } from "sonner";
 import { useSWRConfig } from "swr";
 import { shallow } from "zustand/shallow";
 
@@ -26,7 +27,6 @@ import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { type EventRow } from "@/lib/events/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 import { buildEventsColumns } from "./columns";
@@ -60,7 +60,6 @@ const getEmptyRow = ({
 };
 
 function PureEventsTable() {
-  const { toast } = useToast();
   const params = useParams<{ projectId: string }>();
 
   const [clusterId] = useClusterId();
@@ -163,10 +162,7 @@ function PureEventsTable() {
         const data: { items: EventRow[]; count: number } = await response.json();
         return { items: data.items, count: data.count };
       } catch (error) {
-        toast({
-          title: error instanceof Error ? error.message : "Failed to load events. Please try again.",
-          variant: "destructive",
-        });
+        toast.error(error instanceof Error ? error.message : "Failed to load events. Please try again.");
       }
       return { items: [], count: 0 };
     },
@@ -184,7 +180,6 @@ function PureEventsTable() {
       signal.id,
       signal.schemaFields,
       params.projectId,
-      toast,
     ]
   );
 

@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo } from "react";
+import { toast } from "sonner";
 import { shallow } from "zustand/shallow";
 
 import { useLaminarAgentStore } from "@/components/agent";
@@ -19,7 +20,6 @@ import { useProjectContext } from "@/contexts/project-context";
 import { type Filter } from "@/lib/actions/common/filters";
 import { type EventRow } from "@/lib/events/types";
 import { Feature } from "@/lib/features/features";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
@@ -44,7 +44,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   const params = useParams();
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
-  const { toast } = useToast();
   const { project } = useProjectContext();
   const featureFlags = useFeatureFlags();
   const agentOpen = useLaminarAgentStore((s) => s.viewMode === "open");
@@ -96,7 +95,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
             .json()
             .then((d) => d?.error)
             .catch(() => null);
-          toast({ variant: "destructive", title: errMessage ?? "Failed to load trace signals" });
+          toast.error(errMessage ?? "Failed to load trace signals");
           return;
         }
 
@@ -146,7 +145,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           setActiveSignalTabId(owner?.signalId ?? preferred?.signalId ?? mapped[0].signalId);
         }
       } catch {
-        toast({ variant: "destructive", title: "Failed to load trace signals" });
+        toast.error("Failed to load trace signals");
       } finally {
         setIsTraceSignalsLoading(false);
       }

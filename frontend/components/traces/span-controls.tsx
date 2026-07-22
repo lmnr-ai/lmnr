@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useMemo } from "react";
+import { toast } from "sonner";
 
 import SpanTagsList from "@/components/tags/span-tags-list";
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
@@ -15,7 +16,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown, Copy, Database, Loader, PlayCircle, X } from "@/components/ui/icon-lib";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type Span, SpanType } from "@/lib/traces/types";
 import { type ErrorEventAttributes } from "@/lib/types";
@@ -40,7 +40,6 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
     [span.events]
   );
 
-  const { toast } = useToast();
   const { openInSql, isLoading } = useOpenInSql({
     projectId: projectId as string,
     params: { type: "span", spanId: span.spanId, traceId: span.traceId },
@@ -49,9 +48,9 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
   const handleCopySpanId = useCallback(async () => {
     if (span?.spanId) {
       await navigator.clipboard.writeText(span.spanId);
-      toast({ title: "Copied span ID", duration: 1000 });
+      toast("Copied span ID", { duration: 1000 });
     }
-  }, [span?.spanId, toast]);
+  }, [span?.spanId]);
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">

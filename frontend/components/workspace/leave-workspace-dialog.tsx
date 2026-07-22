@@ -1,5 +1,6 @@
 import { useRouter } from "next/navigation";
 import React, { useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -11,7 +12,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Loader2 } from "@/components/ui/icon-lib";
-import { useToast } from "@/lib/hooks/use-toast";
 import { type Workspace, type WorkspaceUser } from "@/lib/workspaces/types";
 
 interface LeaveWorkspaceDialog {
@@ -23,7 +23,6 @@ interface LeaveWorkspaceDialog {
 
 const LeaveWorkspaceDialog = ({ open, onOpenChange, workspace, user }: LeaveWorkspaceDialog) => {
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
   const router = useRouter();
 
   const handleRemoveUser = async () => {
@@ -35,18 +34,14 @@ const LeaveWorkspaceDialog = ({ open, onOpenChange, workspace, user }: LeaveWork
         });
 
         if (!res.ok) {
-          toast({
-            title: "Error",
-            variant: "destructive",
-            description: "Failed to leave workspace. Please try again.",
-          });
+          toast.error("Error", { description: "Failed to leave workspace. Please try again." });
         } else {
           onOpenChange(false);
           router.push("/projects");
-          toast({ variant: "default", description: "Workspace left successfully." });
+          toast("Workspace left successfully.");
         }
       } catch (e) {
-        toast({ variant: "destructive", title: "Error", description: "Failed to leave workspace. Please try again." });
+        toast.error("Error", { description: "Failed to leave workspace. Please try again." });
       } finally {
         setIsLoading(false);
       }

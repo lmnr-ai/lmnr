@@ -1,11 +1,11 @@
 import { useParams } from "next/navigation";
 import React, { useCallback, useState } from "react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { CopyButton } from "@/components/ui/copy-button.tsx";
 import { Download, Loader2 } from "@/components/ui/icon-lib";
 import { type ExportJob } from "@/lib/actions/dataset-export-jobs";
-import { useToast } from "@/lib/hooks/use-toast";
 import { swrFetcher } from "@/lib/utils";
 
 import { Button } from "../ui/button";
@@ -133,7 +133,6 @@ export default function DownloadParquetDialog({ datasetId, publicApiBaseUrl }: D
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [downloadingIndex, setDownloadingIndex] = useState<number | null>(null);
   const [isExportLoading, setIsExportLoading] = useState(false);
-  const { toast } = useToast();
 
   const { data: parquets, isLoading: isLoadingParquets } = useSWR<Parquet[]>(
     isDialogOpen ? `/api/projects/${projectId}/datasets/${datasetId}/parquets` : null,
@@ -168,21 +167,14 @@ export default function DownloadParquetDialog({ datasetId, publicApiBaseUrl }: D
         link.click();
         document.body.removeChild(link);
 
-        toast({
-          title: "Download started",
-          description: `${fileName} should start downloading shortly`,
-        });
+        toast("Download started", { description: `${fileName} should start downloading shortly` });
       } catch (error) {
-        toast({
-          title: "Download failed",
-          description: "Please try again later",
-          variant: "destructive",
-        });
+        toast.error("Download failed", { description: "Please try again later" });
       } finally {
         setTimeout(() => setDownloadingIndex(null), 1000);
       }
     },
-    [datasetId, projectId, toast]
+    [datasetId, projectId]
   );
 
   const startExportJob = useCallback(async () => {
@@ -199,20 +191,13 @@ export default function DownloadParquetDialog({ datasetId, publicApiBaseUrl }: D
       const job = (await response.json()) as Omit<ExportJob, "createdAt">;
       await mutateExportJob({ ...job, createdAt: new Date().toISOString() }, false);
 
-      toast({
-        title: "Export job started",
-        description: "Your dataset is being exported to parquet files",
-      });
+      toast("Export job started", { description: "Your dataset is being exported to parquet files" });
     } catch (error) {
-      toast({
-        title: "Error starting export job",
-        description: "Please try again later",
-        variant: "destructive",
-      });
+      toast.error("Error starting export job", { description: "Please try again later" });
     } finally {
       setIsExportLoading(false);
     }
-  }, [datasetId, mutateExportJob, projectId, toast]);
+  }, [datasetId, mutateExportJob, projectId]);
 
   const renderContent = () => {
     if (isLoading) {

@@ -3,6 +3,7 @@ import { type Row } from "@tanstack/react-table";
 import { map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
+import { toast } from "sonner";
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import { columns, defaultSpansColumnOrder, filters } from "@/components/traces/spans-table/columns";
@@ -17,7 +18,6 @@ import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/mo
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
-import { useToast } from "@/lib/hooks/use-toast";
 import { type SpanRow } from "@/lib/traces/types";
 
 const FETCH_SIZE = 50;
@@ -42,7 +42,6 @@ function SpansTableContent() {
   const pathName = usePathname();
   const router = useRouter();
   const { projectId } = useParams();
-  const { toast } = useToast();
   const { setTraceId, setSpanId, spanId } = useTracesStoreContext((state) => ({
     setTraceId: state.setTraceId,
     spanId: state.spanId,
@@ -98,14 +97,11 @@ function SpansTableContent() {
         const data = (await res.json()) as { items: SpanRow[] };
         return { items: data.items, count: 0 };
       } catch (error) {
-        toast({
-          title: error instanceof Error ? error.message : "Failed to load spans. Please try again.",
-          variant: "destructive",
-        });
+        toast.error(error instanceof Error ? error.message : "Failed to load spans. Please try again.");
         throw error;
       }
     },
-    [endDate, filter, pastHours, projectId, startDate, textSearchFilter, toast]
+    [endDate, filter, pastHours, projectId, startDate, textSearchFilter]
   );
 
   const {

@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, Plus, X } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 interface WarningChipProps {
@@ -20,7 +20,6 @@ interface WarningChipProps {
 }
 
 export default function WarningChip({ workspaceId, id, displayValue, unit, onRemove }: WarningChipProps) {
-  const { toast } = useToast();
   const [isRemoving, setIsRemoving] = useState(false);
 
   const handleRemove = async () => {
@@ -34,25 +33,14 @@ export default function WarningChip({ workspaceId, id, displayValue, unit, onRem
 
       if (!res.ok) {
         const err = await res.json();
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: err.error || "Something went wrong. Please try again later.",
-        });
+        toast.error("Error", { description: err.error || "Something went wrong. Please try again later." });
         return;
       }
 
-      toast({
-        title: "Warning removed",
-        description: `${displayValue} ${unit} threshold has been removed.`,
-      });
+      toast("Warning removed", { description: `${displayValue} ${unit} threshold has been removed.` });
       onRemove();
     } catch {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Something went wrong. Please try again later.",
-      });
+      toast.error("Error", { description: "Something went wrong. Please try again later." });
     } finally {
       setIsRemoving(false);
     }
@@ -86,7 +74,6 @@ interface AddWarningFormData {
 }
 
 export function AddWarningPopover({ workspaceId, usageItem, unit, toRawValue, onAdd }: AddWarningPopoverProps) {
-  const { toast } = useToast();
   const [open, setOpen] = useState(false);
 
   const form = useForm<AddWarningFormData>({
@@ -97,11 +84,7 @@ export function AddWarningPopover({ workspaceId, usageItem, unit, toRawValue, on
   const onSubmit = form.handleSubmit(async (data) => {
     const displayVal = parseFloat(data.value);
     if (isNaN(displayVal) || displayVal <= 0) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Please enter a positive number.",
-      });
+      toast.error("Error", { description: "Please enter a positive number." });
       return;
     }
 
@@ -114,27 +97,16 @@ export function AddWarningPopover({ workspaceId, usageItem, unit, toRawValue, on
 
       if (!res.ok) {
         const err = await res.json();
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: err.error || "Something went wrong. Please try again later.",
-        });
+        toast.error("Error", { description: err.error || "Something went wrong. Please try again later." });
         return;
       }
 
       form.reset({ value: "" });
       setOpen(false);
-      toast({
-        title: "Warning added",
-        description: `You'll be notified when usage reaches ${displayVal} ${unit}.`,
-      });
+      toast("Warning added", { description: `You'll be notified when usage reaches ${displayVal} ${unit}.` });
       onAdd();
     } catch {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Something went wrong. Please try again later.",
-      });
+      toast.error("Error", { description: "Something went wrong. Please try again later." });
     }
   });
 

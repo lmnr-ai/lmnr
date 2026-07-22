@@ -1,8 +1,8 @@
 import { useCallback, useState } from "react";
+import { toast } from "sonner";
 import { v4 } from "uuid";
 
 import { type SQLTemplate } from "@/components/sql/sql-editor-store.ts";
-import { useToast } from "@/lib/hooks/use-toast.ts";
 
 type Params = { type: "span"; spanId: string; traceId: string } | { type: "trace"; traceId: string };
 
@@ -23,7 +23,6 @@ function buildQuery(params: Params): { query: string; name: string } {
 
 export const useOpenInSql = ({ projectId, params }: { projectId: string; params: Params }) => {
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
   const { query, name } = buildQuery(params);
 
   const openInSql = useCallback(async () => {
@@ -49,18 +48,14 @@ export const useOpenInSql = ({ projectId, params }: { projectId: string; params:
 
       if (!res.ok) {
         const errorData = await res.json();
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: errorData.error || "Failed to open in sql.",
-        });
+        toast.error("Error", { description: errorData.error || "Failed to open in sql." });
         return;
       }
 
       window.open(`/project/${projectId}/sql/${optimisticData.id}`, "_blank");
     } catch (e) {
       if (e instanceof Error) {
-        toast({ variant: "destructive", title: "Error", description: e.message });
+        toast.error("Error", { description: e.message });
       }
     } finally {
       setIsLoading(false);

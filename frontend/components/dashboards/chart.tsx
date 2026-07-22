@@ -2,6 +2,7 @@ import { debounce } from "lodash";
 import { useParams, useSearchParams } from "next/navigation";
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
+import { toast } from "sonner";
 import { useSWRConfig } from "swr";
 
 import { ChartRendererCore } from "@/components/chart-builder/charts";
@@ -16,7 +17,6 @@ import { type DashboardChart } from "@/components/dashboards/types";
 import { IconResizeHandle } from "@/components/ui/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type GroupByInterval } from "@/lib/clickhouse/modifiers";
-import { useToast } from "@/lib/hooks/use-toast";
 import { convertToTimeParameters } from "@/lib/time";
 
 const TABLE_PAGE_SIZE = 50;
@@ -46,7 +46,6 @@ const Chart = ({ chart }: ChartProps) => {
   const [tableIsFetching, setTableIsFetching] = useState(false);
   const tablePageRef = useRef(0);
   const openTrace = useDashboardTraceStore((s) => s.openTrace);
-  const { toast } = useToast();
   const { mutate: swrMutate } = useSWRConfig();
   const isTable = settings.config.type === ChartType.Table;
   const {
@@ -275,10 +274,10 @@ const Chart = ({ chart }: ChartProps) => {
             }
           );
         } catch {
-          toast({ variant: "destructive", title: "Failed to save column layout" });
+          toast.error("Failed to save column layout");
         }
       }, 500),
-    [id, projectId, toast, swrMutate]
+    [id, projectId, swrMutate]
   );
 
   const handleBarClick = useCallback(

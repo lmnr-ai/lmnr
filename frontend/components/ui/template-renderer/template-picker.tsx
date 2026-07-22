@@ -11,6 +11,7 @@ import {
   useState,
 } from "react";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import JsxRenderer from "@/components/ui/template-renderer/jsx-renderer";
 import ManageTemplateDialog from "@/components/ui/template-renderer/manage-template-dialog";
-import { useToast } from "@/lib/hooks/use-toast";
 import { cn, swrFetcher } from "@/lib/utils";
 
 import {
@@ -85,7 +85,6 @@ export const TemplatePickerProvider = ({
   children,
 }: PropsWithChildren<TemplatePickerProviderProps>) => {
   const { projectId } = useParams();
-  const { toast } = useToast();
 
   const templatesBaseUrl = `/api/projects/${projectId}/render-templates`;
 
@@ -123,15 +122,11 @@ export const TemplatePickerProvider = ({
         }
         return (await res.json()) as Template;
       } catch (e) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: e instanceof Error ? e.message : "Failed to fetch template",
-        });
+        toast.error("Error", { description: e instanceof Error ? e.message : "Failed to fetch template" });
         return null;
       }
     },
-    [templatesBaseUrl, toast]
+    [templatesBaseUrl]
   );
 
   // Hydrate from persisted preset once templates load. `testData` omitted intentionally —

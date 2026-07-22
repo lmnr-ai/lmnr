@@ -1,8 +1,8 @@
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useToast } from "@/lib/hooks/use-toast";
 import { formatTimestamp } from "@/lib/utils";
 import { type WorkspaceInvitation } from "@/lib/workspaces/types";
 
@@ -11,7 +11,6 @@ interface InvitationsTableProps {
   invitations: WorkspaceInvitation[];
 }
 const InvitationsTable = ({ workspaceId, invitations }: InvitationsTableProps) => {
-  const { toast } = useToast();
 
   const router = useRouter();
   const handleRevokeInvitation = async (id: string, email: string) => {
@@ -29,29 +28,17 @@ const InvitationsTable = ({ workspaceId, invitations }: InvitationsTableProps) =
       if (!response.ok) {
         const text = await response.json();
         if (text) {
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: text,
-          });
+          toast.error("Error", { description: text });
         } else {
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Failed to revoke invitation. Please try again.",
-          });
+          toast.error("Error", { description: "Failed to revoke invitation. Please try again." });
         }
         return;
       }
 
-      toast({ title: "Invite revoked successfully." });
+      toast("Invite revoked successfully.");
       router.refresh();
     } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to revoke invitation. Please try again.",
-      });
+      toast.error("Error", { description: "Failed to revoke invitation. Please try again." });
     }
   };
 

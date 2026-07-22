@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Controller, FormProvider, useForm, useWatch } from "react-hook-form";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import TimeSeriesChart from "@/components/charts/time-series-chart";
@@ -33,7 +34,6 @@ import { type FilterDataType } from "@/lib/actions/common/filters";
 import { type Signal, type SignalRow } from "@/lib/actions/signals";
 import { type SlackChannel } from "@/lib/actions/slack";
 import { Feature } from "@/lib/features/features";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
 
@@ -84,7 +84,6 @@ export function AlertForm({
   const [chartContainerWidth, setChartContainerWidth] = useState<number | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
 
-  const { toast } = useToast();
 
   const form = useForm<AlertFormValues>({ defaultValues, mode: "onChange" });
   const {
@@ -217,12 +216,9 @@ export function AlertForm({
 
   useEffect(() => {
     if (channelsResult?.rateLimited) {
-      toast({
-        title: "Slack channel list may be incomplete",
-        description: "Slack rate-limited the request. Some channels may not appear in the picker.",
-      });
+      toast("Slack channel list may be incomplete", { description: "Slack rate-limited the request. Some channels may not appear in the picker." });
     }
-  }, [channelsResult, toast]);
+  }, [channelsResult]);
 
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
@@ -349,22 +345,17 @@ export function AlertForm({
           }
         }
 
-        toast(
-          filterSyncError
-            ? {
-                variant: "destructive",
-                title: isEditMode
-                  ? "Alert updated, but filters failed to sync"
-                  : "Alert created, but filters failed to sync",
-                description: `${filterSyncError} Reopen the alert to retry configuring filters.`,
-              }
-            : {
-                title: isEditMode ? "Alert updated" : "Alert created",
-                description: isEditMode
-                  ? `"${data.name.trim()}" has been updated.`
-                  : `"${data.name.trim()}" is now active and will send notifications.`,
-              }
-        );
+        if (filterSyncError) {
+          toast.error(isEditMode ? "Alert updated, but filters failed to sync" : "Alert created, but filters failed to sync", {
+            description: `${filterSyncError} Reopen the alert to retry configuring filters.`,
+          });
+        } else {
+          toast(isEditMode ? "Alert updated" : "Alert created", {
+            description: isEditMode
+              ? `"${data.name.trim()}" has been updated.`
+              : `"${data.name.trim()}" is now active and will send notifications.`,
+          });
+        }
         track("alerts", isEditMode ? "updated" : "created", {
           has_slack: data.slackChannels.length > 0,
           slack_channel_count: data.slackChannels.length,
@@ -373,12 +364,7 @@ export function AlertForm({
         onSaved();
         onOpenChange(false);
       } catch (e) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description:
-            e instanceof Error ? e.message : `Failed to ${isEditMode ? "update" : "create"} alert. Please try again.`,
-        });
+        toast.error("Error", { description: e instanceof Error ? e.message : `Failed to ${isEditMode ? "update" : "create"} alert. Please try again.` });
       }
     },
     [
@@ -388,7 +374,6 @@ export function AlertForm({
       selectedSignal,
       userEmail,
       onSaved,
-      toast,
       isEditMode,
       alert,
       onOpenChange,
@@ -420,34 +405,22 @@ export function AlertForm({
       const failures = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
 
       if (failures.length === 0) {
-        toast({
-          title: "Test sent",
-          description:
-            slackChannels.length === 1
+        toast("Test sent", { description: slackChannels.length === 1
               ? "A test notification was sent to the selected channel."
-              : `Test notifications were sent to ${slackChannels.length} channels.`,
-        });
+              : `Test notifications were sent to ${slackChannels.length} channels.` });
       } else if (failures.length === slackChannels.length) {
         throw new Error(
           failures[0].reason instanceof Error ? failures[0].reason.message : "Failed to send test notifications"
         );
       } else {
-        toast({
-          variant: "destructive",
-          title: "Some tests failed",
-          description: `${failures.length} of ${slackChannels.length} test notifications failed to send.`,
-        });
+        toast.error("Some tests failed", { description: `${failures.length} of ${slackChannels.length} test notifications failed to send.` });
       }
     } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to send test notification. Please try again.",
-      });
+      toast.error("Error", { description: e instanceof Error ? e.message : "Failed to send test notification. Please try again." });
     } finally {
       setIsTesting(false);
     }
-  }, [workspaceId, slackChannels, signalName, toast]);
+  }, [workspaceId, slackChannels, signalName]);
 
   return (
     <FormProvider {...form}>

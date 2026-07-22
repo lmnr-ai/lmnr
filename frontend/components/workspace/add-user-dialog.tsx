@@ -1,5 +1,6 @@
 import { useRouter } from "next/navigation";
 import React, { useCallback, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -16,7 +17,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { Feature } from "@/lib/features/features";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type Workspace } from "@/lib/workspaces/types";
 
@@ -29,19 +29,13 @@ interface AddUserDialogProps {
 const AddUserDialog = ({ open, onOpenChange, workspace }: AddUserDialogProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [user, setUser] = useState("");
-  const { toast } = useToast();
   const featureFlags = useFeatureFlags();
   const isSendEmailEnabled = featureFlags[Feature.SEND_EMAIL];
   const showError = useCallback(
     (message: string) => {
-      toast({
-        title: "Error",
-        variant: "destructive",
-        description: message,
-        duration: 10000,
-      });
+      toast.error("Error", { description: message, duration: 10000 });
     },
-    [toast]
+    []
   );
 
   const router = useRouter();
@@ -59,7 +53,7 @@ const AddUserDialog = ({ open, onOpenChange, workspace }: AddUserDialogProps) =>
       }
 
       onOpenChange(false);
-      toast({ description: "Invitation sent successfully." });
+      toast("Invitation sent successfully.");
       track("team", "invitation_sent");
       router.refresh();
     } catch (e) {

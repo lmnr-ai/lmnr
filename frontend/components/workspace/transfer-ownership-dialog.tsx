@@ -1,5 +1,6 @@
 import { useRouter } from "next/navigation";
 import React, { useState } from "react";
+import { toast } from "sonner";
 import { useSWRConfig } from "swr";
 import useSWRMutation from "swr/mutation";
 
@@ -17,7 +18,6 @@ import { ArrowLeftRight, Loader2 } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
 import { useUserContext } from "@/contexts/user-context.tsx";
-import { useToast } from "@/lib/hooks/use-toast.ts";
 import { cn } from "@/lib/utils.ts";
 import { type Workspace, type WorkspaceUser } from "@/lib/workspaces/types.ts";
 
@@ -52,7 +52,6 @@ const TransferOwnershipDialog = ({ open, onOpenChange, workspace, workspaceUsers
   const user = useUserContext();
   const [newOwner, setNewOwner] = useState<string | null>(null);
   const [workspaceNameInput, setWorkspaceNameInput] = useState<string>("");
-  const { toast } = useToast();
   const { mutate } = useSWRConfig();
   const router = useRouter();
   const { trigger, isMutating } = useSWRMutation(
@@ -61,16 +60,12 @@ const TransferOwnershipDialog = ({ open, onOpenChange, workspace, workspaceUsers
     {
       onSuccess: () => {
         onOpenChange(false);
-        toast({ description: "Ownership transferred successfully." });
+        toast("Ownership transferred successfully.");
         mutate(`/api/workspaces/${workspace.id}/users`);
         router.refresh();
       },
       onError: (error) => {
-        toast({
-          title: "Error",
-          variant: "destructive",
-          description: error instanceof Error ? error.message : "Failed to transfer ownership.",
-        });
+        toast.error("Error", { description: error instanceof Error ? error.message : "Failed to transfer ownership." });
       },
     }
   );

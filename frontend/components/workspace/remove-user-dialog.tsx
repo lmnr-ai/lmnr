@@ -1,5 +1,6 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -11,7 +12,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Loader2 } from "@/components/ui/icon-lib";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type Workspace, type WorkspaceUser } from "@/lib/workspaces/types";
 
@@ -24,7 +24,6 @@ interface RemoveUserDialogProps {
 
 const RemoveUserDialog = ({ open, onOpenChange, workspace, user }: RemoveUserDialogProps) => {
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
   const router = useRouter();
 
   const handleRemoveUser = async () => {
@@ -36,19 +35,15 @@ const RemoveUserDialog = ({ open, onOpenChange, workspace, user }: RemoveUserDia
         });
 
         if (!res.ok) {
-          toast({
-            title: "Error",
-            variant: "destructive",
-            description: "Failed to remove user. Please try again.",
-          });
+          toast.error("Error", { description: "Failed to remove user. Please try again." });
         } else {
           onOpenChange(false);
           router.refresh();
           track("team", "user_removed");
-          toast({ variant: "default", description: "User removed successfully." });
+          toast("User removed successfully.");
         }
       } catch (e) {
-        toast({ variant: "destructive", title: "Error", description: "Failed to remove user. Please try again." });
+        toast.error("Error", { description: "Failed to remove user. Please try again." });
       } finally {
         setIsLoading(false);
       }

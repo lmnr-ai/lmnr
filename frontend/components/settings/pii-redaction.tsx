@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { ArrowUpRight, Lock } from "@/components/ui/icon-lib";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
 import { Feature } from "@/lib/features/features";
-import { useToast } from "@/lib/hooks/use-toast";
 import { WorkspaceTier } from "@/lib/workspaces/types";
 
 import { Button } from "../ui/button";
@@ -21,7 +21,6 @@ export default function PiiRedaction() {
   const { project, workspace, settingsHref } = useProjectContext();
   const { projectId } = useParams();
   const router = useRouter();
-  const { toast } = useToast();
   const flags = useFeatureFlags();
 
   const [enabled, setEnabled] = useState<boolean>(project?.settings.removePii ?? false);
@@ -52,16 +51,13 @@ export default function PiiRedaction() {
           .json()
           .then((d) => d?.error)
           .catch(() => null);
-        toast({
-          variant: "destructive",
-          title: errMessage ?? "Failed to update PII redaction setting",
-        });
+        toast.error(errMessage ?? "Failed to update PII redaction setting");
         setEnabled(previous);
         return;
       }
       router.refresh();
     } catch {
-      toast({ variant: "destructive", title: "Failed to update PII redaction setting" });
+      toast.error("Failed to update PII redaction setting");
       setEnabled(previous);
     } finally {
       setIsLoading(false);

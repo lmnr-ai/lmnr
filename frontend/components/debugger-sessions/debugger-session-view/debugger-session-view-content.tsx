@@ -2,6 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { shallow } from "zustand/shallow";
 
 import SessionSpanPanel from "@/components/traces/session-view/session-span-panel";
@@ -10,7 +11,6 @@ import { AlertTriangle } from "@/components/ui/icon-lib";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type SessionBlock } from "@/lib/actions/debugger-sessions";
 import { useRealtime } from "@/lib/hooks/use-realtime";
-import { useToast } from "@/lib/hooks/use-toast";
 import { type RealtimeSpan } from "@/lib/traces/types";
 
 import DebuggerList from "./debugger-list";
@@ -45,7 +45,6 @@ const summarizeBlocks = (blocks: SessionBlockView[]) => {
 export default function DebuggerSessionViewContent({ sessionId }: { sessionId: string }) {
   const { projectId } = useParams<{ projectId: string }>();
   const router = useRouter();
-  const { toast } = useToast();
   const storeApi = useDebuggerSessionViewStoreRaw();
 
   const { spanPanelOpen, isTracesLoading, tracesError } = useSessionViewBaseStore(
@@ -134,11 +133,11 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId: s
       session_deleted: (event: MessageEvent) => {
         const payload = JSON.parse(event.data) as { session_id?: string };
         if (payload.session_id && payload.session_id !== sessionId) return;
-        toast({ variant: "destructive", title: "Session deleted" });
+        toast.error("Session deleted");
         router.push(`/project/${projectId}/debugger-sessions`);
       },
     }),
-    [storeApi, sessionId, projectId, router, toast, backfillPendingEvalScores]
+    [storeApi, sessionId, projectId, router, backfillPendingEvalScores]
   );
 
   useRealtime({

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import DatasetSelect from "@/components/ui/dataset-select";
@@ -17,7 +18,6 @@ import {
 import { ArrowRight, Database, Loader2, TriangleAlert } from "@/components/ui/icon-lib";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 import { isApproved as isApprovedItem, useQueueStore } from "./queue-store";
@@ -30,7 +30,6 @@ interface PushToDatasetDialogProps {
 }
 
 export default function PushToDatasetDialog({ open, onOpenChange }: PushToDatasetDialogProps) {
-  const { toast } = useToast();
   const { projectId } = useParams<{ projectId: string }>();
   const dataset = useQueueStore((s) => s.dataset);
   const setDataset = useQueueStore((s) => s.setDataset);
@@ -76,7 +75,7 @@ export default function PushToDatasetDialog({ open, onOpenChange }: PushToDatase
 
   const onPush = useCallback(async () => {
     if (!dataset) {
-      toast({ variant: "destructive", title: "Pick a dataset first" });
+      toast.error("Pick a dataset first");
       return;
     }
     const result =
@@ -86,30 +85,27 @@ export default function PushToDatasetDialog({ open, onOpenChange }: PushToDatase
           await pushCurrentToDataset({ includeUnlabelled: !currentIsLabelled })
         : await pushAllToDataset({ includeUnlabelled: scope === "all" });
     if (!result.ok) {
-      toast({ variant: "destructive", title: result.error });
+      toast.error(result.error);
       return;
     }
     // `pushItemsToDataset` returns 200 with `{ pushed: 0 }` when nothing matched
     // (e.g. caller asked for `current` on an unapproved item). The CLAUDE.md
     // contract says we must gate success UI on `pushed > 0` — not just `res.ok`.
     if ((result.pushed ?? 0) === 0) {
-      toast({ variant: "destructive", title: "Nothing was pushed — check the selected scope" });
+      toast.error("Nothing was pushed — check the selected scope");
       return;
     }
     const noun = result.pushed === 1 ? "item" : "items";
-    toast({
-      title: `Pushed ${result.pushed} ${noun} to dataset`,
-      description: (
+    toast(`Pushed ${result.pushed} ${noun} to dataset`, { description: (
         <span>
           {result.pushed} {noun} added to the dataset and removed from the queue.{" "}
           <Link className="text-primary" href={`/project/${projectId}/datasets/${dataset}`}>
             Go to dataset.
           </Link>
         </span>
-      ),
-    });
+      ) });
     onOpenChange(false);
-  }, [dataset, scope, currentIsLabelled, pushAllToDataset, pushCurrentToDataset, toast, projectId, onOpenChange]);
+  }, [dataset, scope, currentIsLabelled, pushAllToDataset, pushCurrentToDataset, projectId, onOpenChange]);
 
   const ctaLabel =
     scope === "current"

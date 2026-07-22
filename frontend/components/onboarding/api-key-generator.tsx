@@ -2,12 +2,12 @@
 
 import { useParams } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button.tsx";
 import CodeHighlighter from "@/components/ui/code-highlighter.tsx";
 import { Loader2 } from "@/components/ui/icon-lib";
 import { type GenerateProjectApiKeyResponse } from "@/lib/api-keys/types.ts";
-import { useToast } from "@/lib/hooks/use-toast.ts";
 import { cn } from "@/lib/utils.ts";
 
 interface ApiKeyGeneratorProps {
@@ -29,7 +29,6 @@ export default function ApiKeyGenerator({
   const projectId = projectIdProp ?? params.projectId;
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
 
   const apiKeyName = `${context}-setup-api-key`;
   const displayValue = generatedKey ? `LMNR_PROJECT_API_KEY=${generatedKey}` : "LMNR_PROJECT_API_KEY=<your_api_key>";
@@ -53,11 +52,7 @@ export default function ApiKeyGenerator({
       setGeneratedKey(data.value);
     } catch (error) {
       console.error("Error generating API key:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to generate API key. Please try again.",
-      });
+      toast.error("Error", { description: "Failed to generate API key. Please try again." });
     } finally {
       setIsLoading(false);
     }

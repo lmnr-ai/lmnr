@@ -1,4 +1,5 @@
 import { memo, useMemo } from "react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { buildOverview } from "@/components/traces/span-view/span-overview-utils";
@@ -6,7 +7,6 @@ import ContentRenderer from "@/components/ui/content-renderer/index";
 import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PAYLOAD_URL_REGEX } from "@/lib/actions/trace/utils";
-import { useToast } from "@/lib/hooks/use-toast";
 import { type Span } from "@/lib/traces/types";
 import { swrFetcher } from "@/lib/utils.ts";
 
@@ -19,12 +19,11 @@ const extractPayloadUrl = (data: unknown): string | null => {
 };
 
 const PureSpanOverview = ({ span }: { span: Span }) => {
-  const { toast } = useToast();
 
   const inputUrl = extractPayloadUrl(span.input);
   const outputUrl = extractPayloadUrl(span.output);
   const toFull = (u: string | null) => (u ? (u.startsWith("/") ? `${u}?payloadType=raw` : u) : null);
-  const onError = () => toast({ title: "Error", description: "Failed to load span data.", variant: "destructive" });
+  const onError = () => toast.error("Error", { description: "Failed to load span data." });
 
   const { data: fetchedInput, isLoading: loadingInput } = useSWR(toFull(inputUrl), swrFetcher, {
     revalidateOnFocus: false,

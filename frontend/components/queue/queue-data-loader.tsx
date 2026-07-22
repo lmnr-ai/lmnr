@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { type QueueItemStateRow } from "@/lib/actions/queue";
-import { useToast } from "@/lib/hooks/use-toast";
 import { type LabelingQueueItem } from "@/lib/queue/types";
 import { swrFetcher } from "@/lib/utils";
 
@@ -19,7 +19,6 @@ interface QueueWindowResponse {
 }
 
 export default function QueueDataLoader() {
-  const { toast } = useToast();
   const projectId = useQueueStore((s) => s.projectId);
   const queueId = useQueueStore((s) => s.queue.id);
   const idsListLength = useQueueStore((s) => s.idsList.length);
@@ -44,8 +43,8 @@ export default function QueueDataLoader() {
   }, [data, hydrateIndex]);
 
   useEffect(() => {
-    if (error) toast({ variant: "destructive", title: "Failed to load queue items" });
-  }, [error, toast]);
+    if (error) toast.error("Failed to load queue items");
+  }, [error]);
 
   // Window fetch — re-runs whenever the focused index moves into a new window
   // OR when a revalidate (post-mutation) lengthens / shifts idsList. The

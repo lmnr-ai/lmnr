@@ -2,6 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import React, { type PropsWithChildren, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -9,7 +10,6 @@ import { Loader2 } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { type Dataset } from "@/lib/dataset/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 interface RenameDatasetDialogProps {
@@ -19,7 +19,6 @@ interface RenameDatasetDialogProps {
 export default function RenameDatasetDialog({ dataset, children }: PropsWithChildren<RenameDatasetDialogProps>) {
   const { projectId } = useParams();
   const router = useRouter();
-  const { toast } = useToast();
 
   const [newName, setNewName] = useState("");
   const [isOpen, setIsOpen] = useState(false);
@@ -48,20 +47,13 @@ export default function RenameDatasetDialog({ dataset, children }: PropsWithChil
 
       const updatedDataset = await response.json();
 
-      toast({
-        title: "Dataset Renamed",
-        description: `Dataset renamed to "${updatedDataset.name}" successfully!`,
-      });
+      toast("Dataset Renamed", { description: `Dataset renamed to "${updatedDataset.name}" successfully!` });
 
       setIsOpen(false);
       setNewName("");
       router.refresh();
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error instanceof Error ? error.message : "Something went wrong. Please try again later.",
-      });
+      toast.error("Error", { description: error instanceof Error ? error.message : "Something went wrong. Please try again later." });
     } finally {
       setIsLoading(false);
     }

@@ -1,6 +1,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { useFormContext } from "react-hook-form";
+import { toast } from "sonner";
 import { useSWRConfig } from "swr";
 
 import { ChartType, type DisplayMode, resolveDisplayMode } from "@/components/chart-builder/types";
@@ -13,7 +14,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { type QueryStructure } from "@/lib/actions/sql/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 import ChartTypeField from "./ChartTypeField";
@@ -71,7 +71,6 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
   const { projectId } = useParams();
   const router = useRouter();
   const { mutate } = useSWRConfig();
-  const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -128,7 +127,7 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
       );
 
       track("dashboards", id ? "chart_updated" : "chart_created", { chart_type: chart.settings.config?.type });
-      toast({ title: `Successfully ${id ? "updated" : "created"} chart` });
+      toast(`Successfully ${id ? "updated" : "created"} chart`);
       router.push(`/project/${projectId}/dashboards${chart.id ? "" : "?newChart=1"}`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to save chart";
@@ -146,7 +145,6 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
     mutate,
     projectId,
     router,
-    toast,
   ]);
 
   return (

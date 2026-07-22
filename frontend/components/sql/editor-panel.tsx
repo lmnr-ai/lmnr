@@ -6,6 +6,7 @@ import { isEmpty, isNil, isObject } from "lodash";
 import { useParams } from "next/navigation";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
+import { toast } from "sonner";
 
 import ExportSqlDialog from "@/components/sql/export-sql-dialog";
 import ParametersPanel from "@/components/sql/parameters-panel";
@@ -29,7 +30,6 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store.tsx";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 export default function EditorPanel() {
@@ -38,7 +38,6 @@ export default function EditorPanel() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const { toast } = useToast();
 
   const { template, getFormattedParameters, parameters, onChange } = useSqlEditorStore((state) => ({
     template: state.currentTemplate,
@@ -78,20 +77,14 @@ export default function EditorPanel() {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
       setIsLoading(false);
-      toast({
-        title: "Query cancelled.",
-      });
+      toast("Query cancelled.");
     }
-  }, [toast]);
+  }, []);
 
   const executeQuery = useCallback(async () => {
     const query = template?.query?.trim();
     if (!query) {
-      toast({
-        title: "No query to execute",
-        description: "Please enter a SQL query first.",
-        variant: "destructive",
-      });
+      toast.error("No query to execute", { description: "Please enter a SQL query first." });
       return;
     }
 
@@ -156,7 +149,7 @@ export default function EditorPanel() {
         setIsLoading(false);
       }
     }
-  }, [projectId, template?.query, toast, getFormattedParameters]);
+  }, [projectId, template?.query, getFormattedParameters]);
 
   useHotkeys("meta+enter,ctrl+enter", executeQuery, {
     enableOnFormTags: ["input"],

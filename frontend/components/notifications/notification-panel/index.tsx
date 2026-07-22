@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { NotificationItem } from "@/components/notifications/notification-panel/notification-item";
@@ -16,7 +17,6 @@ import { Settings, X } from "@/components/ui/icon-lib";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useProjectContext } from "@/contexts/project-context";
 import { type WebNotification } from "@/lib/actions/notifications";
-import { useToast } from "@/lib/hooks/use-toast";
 import { swrFetcher } from "@/lib/utils";
 
 // Re-exported so existing `@/components/notifications/notification-panel`
@@ -26,7 +26,6 @@ export { formatNotification } from "@/components/notifications/notification-pane
 const NotificationPanel = () => {
   const { isOpen, close } = useNotificationPanelStore();
   const { workspace, project } = useProjectContext();
-  const { toast } = useToast();
 
   const swrKey = workspace && project ? `/api/workspaces/${workspace.id}/notifications?projectId=${project.id}` : null;
 
@@ -104,14 +103,14 @@ const NotificationPanel = () => {
       .then((res) => {
         if (!res.ok) {
           mutate();
-          toast({ variant: "destructive", title: "Failed to mark notifications as read" });
+          toast.error("Failed to mark notifications as read");
         }
       })
       .catch(() => {
         mutate();
-        toast({ variant: "destructive", title: "Failed to mark notifications as read" });
+        toast.error("Failed to mark notifications as read");
       });
-  }, [workspace, project, mutate, toast]);
+  }, [workspace, project, mutate]);
 
   useEffect(() => {
     if (!isOpen) {

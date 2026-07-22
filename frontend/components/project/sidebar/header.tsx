@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import NotificationTrigger from "@/components/notifications/notification-trigger";
@@ -30,7 +31,6 @@ import { useProjectContext } from "@/contexts/project-context.tsx";
 import { tierDisplayName } from "@/lib/billing/tiers";
 import { LAST_ID_COOKIE_MAX_AGE, LAST_PROJECT_ID, LAST_WORKSPACE_ID } from "@/lib/cookies";
 import { Feature } from "@/lib/features/features";
-import { useToast } from "@/lib/hooks/use-toast.ts";
 import { cn, swrFetcher } from "@/lib/utils.ts";
 import { type Project, type Workspace, WorkspaceTier } from "@/lib/workspaces/types.ts";
 
@@ -52,7 +52,6 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
   const { isMobile, openMobile, open } = useSidebar();
   const { projects, project } = useProjectContext();
   const { data: workspaces, error } = useSWR<Workspace[]>("/api/workspaces", swrFetcher);
-  const { toast } = useToast();
   const featureFlags = useFeatureFlags();
 
   const [view, setView] = useState<"projects" | "workspaces">("projects");
@@ -77,16 +76,16 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
 
   useEffect(() => {
     if (error) {
-      toast({ variant: "destructive", title: "Error", description: error.message });
+      toast.error("Error", { description: error.message });
     }
-  }, [error, toast]);
+  }, [error]);
 
   // A failed other-workspace fetch otherwise looks like an empty project list.
   useEffect(() => {
     if (otherProjectsError) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to load projects for this workspace." });
+      toast.error("Error", { description: "Failed to load projects for this workspace." });
     }
-  }, [otherProjectsError, toast]);
+  }, [otherProjectsError]);
 
   return (
     <SidebarHeader className="px-0 mt-2">

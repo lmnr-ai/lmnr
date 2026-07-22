@@ -3,6 +3,7 @@
 import { type Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
+import { toast } from "sonner";
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import { columns, defaultSessionsColumnOrder, filters } from "@/components/traces/sessions-table/columns";
@@ -15,7 +16,6 @@ import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/mo
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type SessionRow } from "@/lib/traces/types";
 
@@ -40,7 +40,6 @@ function SessionsTableContent() {
   const pathName = usePathname();
   const router = useRouter();
   const { projectId } = useParams();
-  const { toast } = useToast();
 
   const { effective, isLoading: isViewLoading, setSort, setSearchAndFilters, setFilters } = useTableView();
   const searchValue = useMemo(
@@ -98,14 +97,11 @@ function SessionsTableContent() {
         const data = (await res.json()) as { items: SessionRow[] };
         return { items: data.items, count: 0 };
       } catch (error) {
-        toast({
-          title: error instanceof Error ? error.message : "Failed to load sessions. Please try again.",
-          variant: "destructive",
-        });
+        toast.error(error instanceof Error ? error.message : "Failed to load sessions. Please try again.");
         throw error;
       }
     },
-    [endDate, filter, pastHours, projectId, sortBy, sortDirection, startDate, textSearchFilter, toast]
+    [endDate, filter, pastHours, projectId, sortBy, sortDirection, startDate, textSearchFilter]
   );
 
   const {

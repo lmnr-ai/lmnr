@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useParams } from "next/navigation";
 import { useEffect } from "react";
 import { FormProvider, useForm } from "react-hook-form";
+import { toast } from "sonner";
 
 import {
   defaultTemplateValues,
@@ -13,7 +14,6 @@ import {
   type TemplateScope,
 } from "@/components/ui/template-renderer";
 import ManageTemplateDialog from "@/components/ui/template-renderer/manage-template-dialog";
-import { useToast } from "@/lib/hooks/use-toast";
 
 interface Props {
   open: boolean;
@@ -24,7 +24,6 @@ interface Props {
 
 export default function RenderTemplateDialog({ open, onOpenChange, templateId, scope = "span" }: Props) {
   const { projectId } = useParams();
-  const { toast } = useToast();
   const methods = useForm<ManageTemplateForm>({
     resolver: zodResolver(manageTemplateSchema),
     defaultValues: defaultTemplateValues,
@@ -53,17 +52,13 @@ export default function RenderTemplateDialog({ open, onOpenChange, templateId, s
         methods.reset({ ...template, scope: template.type ?? scope, testData: "" });
       } catch (e) {
         if (controller.signal.aborted) return;
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: e instanceof Error ? e.message : "Failed to load template",
-        });
+        toast.error("Error", { description: e instanceof Error ? e.message : "Failed to load template" });
         onOpenChange(false);
       }
     };
     load();
     return () => controller.abort();
-  }, [open, templateId, projectId, scope, methods, toast, onOpenChange]);
+  }, [open, templateId, projectId, scope, methods, onOpenChange]);
 
   const mode = open ? (templateId ? "edit" : "create") : null;
   const close = () => onOpenChange(false);

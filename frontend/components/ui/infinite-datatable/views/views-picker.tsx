@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import useSWR, { useSWRConfig } from "swr";
 
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,6 @@ import {
 import { Check, ChevronDown, FilePlus2, Layers2, Loader2, Pencil, Save, Search, Trash2, Undo2 } from "@/components/ui/icon-lib";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/lib/hooks/use-toast";
 import { cn, swrFetcher } from "@/lib/utils";
 
 import { useLastViewStore } from "./last-view-store";
@@ -57,7 +57,6 @@ export default function ViewsPicker({
   onSaveAsNew,
   onDiscard,
 }: ViewsPickerProps) {
-  const { toast } = useToast();
   const { mutate } = useSWRConfig();
 
   const listKey = `/api/projects/${projectId}/views?resource=${resource}`;
@@ -129,7 +128,7 @@ export default function ViewsPicker({
           .json()
           .then((d) => d?.error)
           .catch(() => null);
-        toast({ variant: "destructive", title: errMessage ?? "Failed to delete view" });
+        toast.error(errMessage ?? "Failed to delete view");
         return;
       }
       await mutate(listKey);
@@ -139,11 +138,11 @@ export default function ViewsPicker({
       }
       setPending(null);
     } catch {
-      toast({ variant: "destructive", title: "Failed to delete view" });
+      toast.error("Failed to delete view");
     } finally {
       setIsDeleting(false);
     }
-  }, [pending, projectId, listKey, mutate, currentViewId, onSelect, setLastViewId, resource, toast]);
+  }, [pending, projectId, listKey, mutate, currentViewId, onSelect, setLastViewId, resource]);
 
   const handleRename = useCallback(
     async (name: string): Promise<{ ok: true } | { ok: false; message?: string }> => {
