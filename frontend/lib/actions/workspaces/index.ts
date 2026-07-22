@@ -1,9 +1,11 @@
 import { desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { type Filter } from "@/lib/actions/common/filters";
 import { createProject } from "@/lib/actions/projects";
 import { REPORT_TARGET_TYPE } from "@/lib/actions/reports/types";
-import { createSignal } from "@/lib/actions/signals";
+import { createSignalTriggerOnAppServer } from "@/lib/actions/signal-triggers";
+import { createSignalOnAppServer } from "@/lib/actions/signals";
 import { getServerSession } from "@/lib/auth-session";
 import { defaultReports } from "@/lib/db/default-charts.ts";
 import { DEFAULT_SIGNAL, DEFAULT_SIGNAL_TRIGGER_VALUE } from "@/lib/db/default-signals.ts";
@@ -12,7 +14,6 @@ import {
   membersOfWorkspaces,
   reports,
   reportTargets,
-  signalTriggers,
   subscriptionTiers,
   workspaceAddons,
   workspaces,
@@ -87,22 +88,26 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
     projectId = project.id;
 
     if (isFirstProject && projectId) {
-      // Route through createSignal so the default Failure Detector signal gets
-      // the same SIGNAL_EVENT alert + creator email target as a UI-created signal.
-      const signal = await createSignal({
-        projectId,
+      // Seed the default Failure Detector signal + trigger via app-server — the
+      // single owner of signal creation (same SIGNAL_EVENT alert + creator email
+      // target + trigger as a UI/CLI-created signal). No shared DB transaction
+      // here, so these are plain awaited HTTP calls like the rest of the flow.
+      const signalRes = await createSignalOnAppServer(projectId, {
         name: DEFAULT_SIGNAL.name,
         prompt: DEFAULT_SIGNAL.prompt,
         structuredOutput: DEFAULT_SIGNAL.structuredOutputSchema,
         subscriberEmail: userEmail ?? undefined,
       });
+      if (!signalRes.ok) {
+        throw new Error(`Failed to seed default signal (HTTP ${signalRes.status})`);
+      }
+      const signal = (await signalRes.json()) as { id: string };
 
-      if (signal) {
-        await db.insert(signalTriggers).values({
-          projectId,
-          signalId: signal.id,
-          value: DEFAULT_SIGNAL_TRIGGER_VALUE,
-        });
+      const triggerRes = await createSignalTriggerOnAppServer(projectId, signal.id, {
+        filters: DEFAULT_SIGNAL_TRIGGER_VALUE as Filter[],
+      });
+      if (!triggerRes.ok) {
+        throw new Error(`Failed to seed default signal trigger (HTTP ${triggerRes.status})`);
       }
 
       if (userEmail && insertedReports.length > 0) {

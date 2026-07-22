@@ -87,27 +87,22 @@ export async function getSignalTriggers(input: z.infer<typeof GetSignalTriggersS
   };
 }
 
-export async function createSignalTrigger(input: z.infer<typeof CreateSignalTriggerSchema>) {
-  const { projectId, signalId, filters, mode } = CreateSignalTriggerSchema.parse(input);
-
-  const [result] = await db
-    .insert(signalTriggers)
-    .values({
-      projectId,
-      signalId,
-      value: filters,
-      mode,
-    })
-    .returning();
-
-  await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
-
-  return {
-    id: result.id,
-    filters: result.value as Filter[],
-    createdAt: result.createdAt,
-    mode: result.mode,
-  };
+// Signal trigger creation is owned by app-server (shared by the CLI, the browser
+// drawer, and workspace seeding). Thin proxy to the trusted
+// `/api/v1/projects/{id}/signals/{id}/triggers` route; returns the raw Response
+// so callers forward the status or throw. Update/delete stay in Drizzle below —
+// no other client needs them.
+export async function createSignalTriggerOnAppServer(
+  projectId: string,
+  signalId: string,
+  body: { filters: Filter[]; mode?: number }
+): Promise<Response> {
+  return fetch(`${process.env.BACKEND_URL}/api/v1/projects/${projectId}/signals/${signalId}/triggers`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify(body),
+  });
 }
 
 export async function updateSignalTrigger(input: z.infer<typeof UpdateSignalTriggerSchema>) {

@@ -2,7 +2,13 @@ import { type NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils";
-import { createSignal, deleteSignals, getSignals, GetSignalsSchema, setTemplateSignals } from "@/lib/actions/signals";
+import {
+  createSignalOnAppServer,
+  deleteSignals,
+  getSignals,
+  GetSignalsSchema,
+  setTemplateSignals,
+} from "@/lib/actions/signals";
 import { getServerSession } from "@/lib/auth-session";
 
 export async function GET(request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
@@ -38,17 +44,14 @@ export async function POST(request: NextRequest, props: { params: Promise<{ proj
     const subscriberEmail = session?.user?.email ?? undefined;
     const body = await request.json();
 
-    const result = await createSignal({ ...body, projectId, subscriberEmail });
-
-    return NextResponse.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to create signal." },
-      { status: 500 }
-    );
+    // Signal creation is owned by app-server (shared with the CLI). Membership
+    // is enforced by proxy.ts before this route runs; we resolve the session
+    // email here and forward it as the alert-target subscriber.
+    const res = await createSignalOnAppServer(projectId, { ...body, subscriberEmail });
+    const data = await res.json().catch(() => null);
+    return NextResponse.json(data ?? { error: "Failed to create signal." }, { status: res.status });
+  } catch {
+    return NextResponse.json({ error: "Failed to create signal." }, { status: 500 });
   }
 }
 

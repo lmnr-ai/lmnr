@@ -55,18 +55,6 @@ const GetSignalSchema = z.object({
   id: z.guid(),
 });
 
-const CreateSignalSchema = z.object({
-  projectId: z.guid(),
-  name: z.string().min(1, "Name is required").max(255, { error: "Name must be less than 255 characters" }),
-  prompt: z.string(),
-  structuredOutput: z.record(z.string(), z.unknown()),
-  sampleRate: z.number().int().min(1).max(95).nullable().optional(),
-  disabled: z.boolean().optional(),
-  // When provided, the creator is auto-subscribed via EMAIL alert targets on
-  // every alert created for this signal.
-  subscriberEmail: z.email().optional(),
-});
-
 const UpdateSignalSchema = z.object({
   projectId: z.guid(),
   id: z.guid(),
@@ -403,71 +391,28 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
   };
 }
 
-export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
-  const { projectId, name, prompt, structuredOutput, sampleRate, disabled, subscriberEmail } =
-    CreateSignalSchema.parse(input);
+// Signal creation is owned by app-server (shared by the browser drawer, the
+// CLI, and workspace seeding). This is the thin proxy client: it forwards to
+// the trusted `/api/v1/projects/{id}/signals` route (membership already gated by
+// proxy.ts / the server caller) and returns the raw Response so callers can
+// forward the status code (the drawer needs 409/400 fidelity) or throw. There is
+// no TS reimplementation of the transaction — the single impl is `signals::service`.
+export type CreateSignalProxyBody = {
+  name: string;
+  prompt: string;
+  structuredOutput: Record<string, unknown>;
+  sampleRate?: number | null;
+  disabled?: boolean;
+  subscriberEmail?: string;
+};
 
-  const metadata: SignalMetadata = {};
-  if (sampleRate != null) metadata.sampleRate = sampleRate;
-  // Only persist `disabled` when deactivated; absence means active.
-  if (disabled === true) metadata.disabled = true;
-
-  const result = await db.transaction(async (tx) => {
-    const [signal] = await tx
-      .insert(signals)
-      .values({
-        projectId,
-        name,
-        prompt,
-        structuredOutputSchema: structuredOutput,
-        metadata,
-      })
-      .returning();
-
-    const clusteringEnabled = isFeatureEnabled(Feature.CLUSTERING);
-
-    const alertsToInsert: (typeof alerts.$inferInsert)[] = [
-      {
-        projectId,
-        name: `${name} alert`,
-        type: "SIGNAL_EVENT",
-        sourceId: signal.id,
-        metadata: {
-          severities: [SEVERITY_LEVEL.CRITICAL],
-          // skipSimilar depends on the clustering service; default to false when
-          // clustering is disabled so the backend doesn't silently drop notifications.
-          skipSimilar: clusteringEnabled,
-        },
-      },
-    ];
-
-    if (clusteringEnabled) {
-      alertsToInsert.push({
-        projectId,
-        name: `${name} cluster alert`,
-        type: "NEW_CLUSTER",
-        sourceId: signal.id,
-        metadata: {},
-      });
-    }
-
-    const insertedAlerts = await tx.insert(alerts).values(alertsToInsert).returning({ id: alerts.id });
-
-    if (subscriberEmail && insertedAlerts.length > 0) {
-      await tx.insert(alertTargets).values(
-        insertedAlerts.map((a) => ({
-          alertId: a.id,
-          projectId,
-          type: "EMAIL",
-          email: subscriberEmail,
-        }))
-      );
-    }
-
-    return signal;
+export async function createSignalOnAppServer(projectId: string, body: CreateSignalProxyBody): Promise<Response> {
+  return fetch(`${process.env.BACKEND_URL}/api/v1/projects/${projectId}/signals`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify(body),
   });
-
-  return result;
 }
 
 export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {

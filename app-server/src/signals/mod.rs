@@ -4,6 +4,11 @@
 //! feature. With the feature off, `public.rs` provides no-op stubs so the OSS
 //! build keeps compiling and behaves as if signals never fire.
 
+/// Signal creation service (validation + orchestration over the db layer).
+/// Ungated: creating signal rows is a plain DB write (signal *processing* is
+/// what the `signals` feature gates) shared by the CLI and the browser drawer.
+pub mod service;
+
 #[cfg(feature = "signals")]
 pub mod private;
 
