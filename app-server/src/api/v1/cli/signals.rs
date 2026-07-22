@@ -1,12 +1,17 @@
-//! CLI signal creation (`POST /v1/cli/signals`). User-token authed via
+//! CLI signal creation (`POST /v1/cli/signals` and
+//! `POST /v1/cli/signals/{signal_id}/triggers`). User-token authed via
 //! `CliProjectAuth` (JWT + `x-lmnr-project-id` header + membership check). Unlike
 //! the browser drawer (two calls: signal then triggers), the CLI creates the
-//! signal AND its triggers in one request. Shares `signals::service`, so the
-//! validation + write path is identical to the drawer's.
+//! signal AND its triggers in one request; the standalone trigger route exists
+//! so a partial failure (signal committed, trigger insert failed) is recoverable
+//! from the CLI without re-creating the signal (which would 409 on the unique
+//! name). Shares `signals::service`, so the validation + write path is identical
+//! to the drawer's.
 
 use actix_web::{HttpResponse, post, web};
 use serde::Deserialize;
 use serde_json::json;
+use uuid::Uuid;
 
 use crate::auth::cli_user::CliProjectAuth;
 use crate::cache::Cache;
@@ -84,4 +89,43 @@ pub async fn create_signal(
         "createdAt": signal_resp.created_at,
         "triggers": created_triggers,
     })))
+}
+
+/// `POST /v1/cli/signals/{signal_id}/triggers` — CLI twin of the trusted
+/// trigger route. This is the recovery path for a partial create (the 500 above
+/// returns the `signalId` and says "retry triggers"); without it a CLI caller
+/// would be stuck: re-creating the signal 409s and no CLI route could add the
+/// missing triggers. CLI default mode is 1 (realtime), same as `create_signal`.
+#[post("signals/{signal_id}/triggers")]
+pub async fn create_signal_trigger(
+    auth: CliProjectAuth,
+    path: web::Path<Uuid>,
+    body: web::Json<TriggerInput>,
+    db: web::Data<DB>,
+    cache: web::Data<Cache>,
+) -> actix_web::Result<HttpResponse> {
+    let project_id = auth.project_id;
+    let signal_id = path.into_inner();
+
+    // The signal id is caller-supplied (unlike create_signal, where we just
+    // inserted it) — scope-check it so a trigger can't attach to another
+    // project's signal.
+    let signal = db::signals::get_signal(&db.pool, signal_id, project_id)
+        .await
+        .map_err(actix_web::error::ErrorInternalServerError)?;
+    if signal.is_none() {
+        return Ok(HttpResponse::NotFound().json(json!({ "error": "Signal not found" })));
+    }
+
+    let normalized = match service::normalize_trigger(body.into_inner()) {
+        Ok(t) => t,
+        Err(e) => return Ok(service::error_response(e)),
+    };
+
+    match service::insert_trigger(&db.pool, cache.get_ref(), project_id, signal_id, normalized, 1)
+        .await
+    {
+        Ok(t) => Ok(HttpResponse::Ok().json(t)),
+        Err(e) => Ok(service::error_response(e)),
+    }
 }

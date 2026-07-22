@@ -1912,7 +1912,8 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::rollouts::register_session)
                             .service(api::v1::cli::rollouts::list_blocks)
                             .service(api::v1::cli::rollouts::add_block)
-                            .service(api::v1::cli::signals::create_signal);
+                            .service(api::v1::cli::signals::create_signal)
+                            .service(api::v1::cli::signals::create_signal_trigger);
                         #[cfg(feature = "signals")]
                         let cli_scope = cli_scope
                             .service(web::scope("/agent").service(api::v1::cli::agent::agent_chat));
