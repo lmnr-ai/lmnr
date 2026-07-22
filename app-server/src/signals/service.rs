@@ -101,9 +101,9 @@ pub async fn create_signal(
     pool: &PgPool,
     project_id: Uuid,
     subscriber_email: Option<&str>,
-    input: SignalInput,
+    mut input: SignalInput,
 ) -> Result<SignalResponse, CrudError> {
-    validate_signal_input(&input)?;
+    validate_signal_input(&mut input)?;
 
     let sample_rate = input.sample_rate;
     let disabled = input.disabled.unwrap_or(false);
@@ -275,10 +275,16 @@ fn build_signal_metadata(sample_rate: Option<i64>, disabled: bool) -> Value {
     Value::Object(map)
 }
 
-fn validate_signal_input(input: &SignalInput) -> Result<(), CrudError> {
-    let name = input.name.trim();
-    if name.is_empty() {
+fn validate_signal_input(input: &mut SignalInput) -> Result<(), CrudError> {
+    // Trim the name for STORAGE, not just the empty check — otherwise " Foo"
+    // and "Foo" are distinct to the unique constraint and the derived alert
+    // name renders as " Foo alert".
+    let trimmed = input.name.trim();
+    if trimmed.is_empty() {
         return Err(CrudError::Validation("Name is required".to_string()));
+    }
+    if trimmed.len() != input.name.len() {
+        input.name = trimmed.to_string();
     }
     if input.name.len() > 255 {
         return Err(CrudError::Validation(
