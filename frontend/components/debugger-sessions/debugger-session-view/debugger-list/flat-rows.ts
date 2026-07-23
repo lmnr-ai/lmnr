@@ -22,7 +22,7 @@ export const withTraceIndex = (blocks: SessionBlockView[]): TimelineItem[] => {
 // map scroll position ↔ block. Trace rows also carry `traceId`.
 export type DebuggerFlatRow =
   | { type: "text"; blockId: string; text: string }
-  | { type: "command"; blockId: string; command: CommandBlockContent }
+  | { type: "command"; blockId: string; createdAt: string; command: CommandBlockContent }
   | { type: "evaluation"; blockId: string; evaluation: SessionEvaluationRef; createdAt: string }
   | { type: "trace-skeleton"; blockId: string; traceId: string }
   | { type: "trace-header"; blockId: string; traceId: string; trace: TraceRow; traceIndex: number; expanded: boolean }
@@ -86,7 +86,7 @@ export function buildDebuggerFlatRows(opts: BuildDebuggerFlatRowsOpts): Debugger
       continue;
     }
     if (block.type === "command") {
-      rows.push({ type: "command", blockId: block.id, command: block.command });
+      rows.push({ type: "command", blockId: block.id, createdAt: block.createdAt, command: block.command });
       continue;
     }
     if (block.type === "evaluation") {

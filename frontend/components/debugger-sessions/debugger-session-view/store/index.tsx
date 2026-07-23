@@ -206,6 +206,10 @@ interface DebuggerSessionViewState {
   // Expanded `command` blocks (collapsed by default). Store-held (like
   // expandedTraceIds) so state survives the row virtualizing out and back.
   expandedCommandBlockIds: Set<string>;
+
+  // Collapsed `evaluation` blocks (expanded by default — the inverse of the
+  // command set). Store-held so the state survives the row virtualizing out.
+  collapsedEvaluationBlockIds: Set<string>;
 }
 
 interface DebuggerSessionViewActions {
@@ -264,6 +268,9 @@ interface DebuggerSessionViewActions {
 
   // Expand/collapse a command block (the outer virtualizer re-measures).
   toggleCommandBlockExpanded: (blockId: string) => void;
+
+  // Collapse/expand an evaluation block (expanded by default).
+  toggleEvaluationBlock: (blockId: string) => void;
 
   // Span type for a loaded span (drives the span-ref chip icon).
   getSpanType: (traceId: string, spanId: string) => SpanType | undefined;
@@ -347,6 +354,7 @@ export const createDebuggerSessionViewStore = (options: {
           newBlockNotice: null,
           isInitialTracesLoaded: false,
           expandedCommandBlockIds: new Set<string>(),
+          collapsedEvaluationBlockIds: new Set<string>(),
 
           fetchTraceSpans: async (trace) => {
             if (get().traceSpansFetching[trace.id]) return;
@@ -685,6 +693,14 @@ export const createDebuggerSessionViewStore = (options: {
               if (next.has(blockId)) next.delete(blockId);
               else next.add(blockId);
               return { expandedCommandBlockIds: next } as Partial<DebuggerSessionViewStore>;
+            }),
+
+          toggleEvaluationBlock: (blockId) =>
+            set((s) => {
+              const next = new Set(s.collapsedEvaluationBlockIds);
+              if (next.has(blockId)) next.delete(blockId);
+              else next.add(blockId);
+              return { collapsedEvaluationBlockIds: next } as Partial<DebuggerSessionViewStore>;
             }),
 
           getSpanType: (traceId, spanId) => get().traceSpans[traceId]?.find((s) => s.spanId === spanId)?.spanType,

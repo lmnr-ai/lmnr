@@ -19,7 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatDuration } from "@/lib/utils";
 
 import CopyFlag from "../copy-flag";
-import { computeScoreDeltas } from "../session-evaluations";
+import { buildSessionEvalProgression, computeScoreDeltas, type SessionEvalProgression } from "../session-evaluations";
 import { traceAnchorId } from "../session-outline/utils";
 import { useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "../store";
 import { useBlockScrollSync } from "../use-block-scroll-sync";
@@ -52,6 +52,9 @@ export default function DebuggerList({ scrollEl, projectId, sessionId }: Debugge
   const blocks = useDebuggerSessionViewStore((s) => s.blocks);
   const traceRowStates = useDebuggerSessionViewStore((s) => s.traceRowStates);
   const traceSpansFetching = useDebuggerSessionViewStore((s) => s.traceSpansFetching);
+  const collapsedEvaluationBlockIds = useDebuggerSessionViewStore((s) => s.collapsedEvaluationBlockIds);
+  const toggleEvaluationBlock = useDebuggerSessionViewStore((s) => s.toggleEvaluationBlock);
+  const requestScrollToBlock = useDebuggerSessionViewStore((s) => s.requestScrollToBlock);
 
   const {
     traces,
@@ -101,6 +104,35 @@ export default function DebuggerList({ scrollEl, projectId, sessionId }: Debugge
   const scoreDeltasById = useMemo(
     () => computeScoreDeltas(blocks.flatMap((b) => (b.type === "evaluation" ? [b.evaluation] : []))),
     [blocks]
+  );
+
+  // The session-wide eval progression — one dataset shared by every eval card;
+  // each card highlights its own run. Rebuilt only when the block set changes.
+  const evalProgression = useMemo<SessionEvalProgression>(
+    () =>
+      buildSessionEvalProgression(
+        blocks.flatMap((b) =>
+          b.type === "evaluation"
+            ? [{ id: b.evaluation.id, name: b.evaluation.name, createdAt: b.createdAt, scores: b.evaluation.scores }]
+            : []
+        )
+      ),
+    [blocks]
+  );
+
+  // evaluationId → owning block id, so a graph-point click can scroll the
+  // timeline to that run's block (reusing the outline's scroll mechanism).
+  const evalBlockIdByEvaluationId = useMemo(
+    () => new Map(blocks.flatMap((b) => (b.type === "evaluation" ? [[b.evaluation.id, b.id] as const] : []))),
+    [blocks]
+  );
+
+  const onEvalPointClick = useCallback(
+    (evaluationId: string) => {
+      const blockId = evalBlockIdByEvaluationId.get(evaluationId);
+      if (blockId) requestScrollToBlock(blockId);
+    },
+    [evalBlockIdByEvaluationId, requestScrollToBlock]
   );
 
   const flatRows = useMemo(
@@ -403,6 +435,10 @@ export default function DebuggerList({ scrollEl, projectId, sessionId }: Debugge
               selectedSpanId={selectedSpan?.spanId}
               selectedTraceId={selectedSpan?.traceId}
               scoreDeltasById={scoreDeltasById}
+              progression={evalProgression}
+              collapsedEvaluationBlockIds={collapsedEvaluationBlockIds}
+              onToggleEvaluation={toggleEvaluationBlock}
+              onEvalPointClick={onEvalPointClick}
               traceSpansFetching={traceSpansFetching}
               onToggleTrace={toggleTraceExpanded}
               onToggleGroup={toggleTranscriptGroup}
@@ -428,6 +464,10 @@ interface FlatRowContentProps {
   selectedSpanId?: string;
   selectedTraceId?: string;
   scoreDeltasById: ReturnType<typeof computeScoreDeltas>;
+  progression: SessionEvalProgression;
+  collapsedEvaluationBlockIds: Set<string>;
+  onToggleEvaluation: (blockId: string) => void;
+  onEvalPointClick: (evaluationId: string) => void;
   traceSpansFetching: Record<string, boolean>;
   onToggleTrace: (traceId: string) => void;
   onToggleGroup: (traceId: string, groupId: string) => void;
@@ -449,6 +489,10 @@ function FlatRowContent({
   selectedSpanId,
   selectedTraceId,
   scoreDeltasById,
+  progression,
+  collapsedEvaluationBlockIds,
+  onToggleEvaluation,
+  onEvalPointClick,
   traceSpansFetching,
   onToggleTrace,
   onToggleGroup,
@@ -461,7 +505,7 @@ function FlatRowContent({
     case "text":
       return <TextBlockItem id={row.blockId} text={row.text} />;
     case "command":
-      return <CommandBlock id={row.blockId} command={row.command} />;
+      return <CommandBlock id={row.blockId} createdAt={row.createdAt} command={row.command} />;
     case "evaluation":
       return (
         <EvaluationBlockItem
@@ -469,6 +513,10 @@ function FlatRowContent({
           evaluation={row.evaluation}
           scores={scoreDeltasById.get(row.evaluation.id) ?? []}
           createdAt={row.createdAt}
+          expanded={!collapsedEvaluationBlockIds.has(row.blockId)}
+          onToggle={() => onToggleEvaluation(row.blockId)}
+          progression={progression}
+          onPointClick={onEvalPointClick}
         />
       );
     case "trace-skeleton":
