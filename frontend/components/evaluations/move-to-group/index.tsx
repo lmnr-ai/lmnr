@@ -17,8 +17,9 @@ interface MoveToGroupProps {
   currentGroupId: string | null;
   /** All groups in the project (from the shared evaluation-groups SWR). */
   groups: { groupId: string }[];
-  /** Fired after a successful move: parent clears selection + refetches table/groups. */
-  onMoved: () => void;
+  /** Fired after a successful move with the destination group id: parent navigates
+   * to it, clears selection, and revalidates the groups list. */
+  onMoved: (destinationGroupId: string) => void;
 }
 
 export default function MoveToGroup({ projectId, selectedRowIds, currentGroupId, groups, onMoved }: MoveToGroupProps) {
@@ -54,7 +55,7 @@ export default function MoveToGroup({ projectId, selectedRowIds, currentGroupId,
       });
       setPopoverOpen(false);
       setDialogOpen(false);
-      onMoved();
+      onMoved(groupId);
     } catch {
       toast({ variant: "destructive", title: "Failed to move evaluations" });
     } finally {
