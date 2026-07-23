@@ -21,7 +21,8 @@ use uuid::Uuid;
 
 use super::input::prepare_user_task_input;
 use super::lock::{
-    RosterEntry, UserTaskLockState, WinnerState, lock_cache_key, roster_span_key, write_lock_merged,
+    RosterEntry, UserTaskLockState, WinnerState, lock_cache_key, main_agent_path_cache_key,
+    roster_span_key, write_lock_merged, write_main_agent_path,
 };
 use super::metadata::extraction_outcome_value;
 use super::output::{OutputCandidate, process_trace_output_candidate};
@@ -82,24 +83,15 @@ pub fn capture_user_task_candidate(span: &Span) -> Option<UserTaskCandidate> {
     })
 }
 
-/// Depth as the ingest pipeline will record it. This hook runs BEFORE the
-/// consumer's `prepare_span_for_recording` extends `lmnr.span.path` with
-/// the span's own name, and only auto-instrumented spans lack that final
-/// segment — so comparing raw lengths would let an auto-instrumented
-/// subagent span (true depth N+1, raw length N) tie with an SDK-created
-/// main-agent span (depth N) and hold the winner lock against it. Run the
-/// same extension here for exact parity; extending is idempotent and the
-/// consumer re-derives the path on its own copy.
-fn span_depth(attributes: &mut SpanAttributes, span_name: &str) -> usize {
-    attributes.extend_span_path(span_name);
-    attributes.path().map(|p| p.len()).unwrap_or(0)
-}
-
 /// One trace's input candidate after stats collection: owns the candidate
 /// (moved out of its context) plus the arbitration state derived from it.
+/// `path` is the candidate span's own full name-path — needed to derive the
+/// main-agent path prefix cached for trace-output matching once this
+/// candidate wins (see `super::lock::main_agent_path_cache_key`).
 struct InputContender {
     candidate: UserTaskCandidate,
     state: WinnerState,
+    path: Vec<String>,
 }
 
 /// Producer-side extraction pipeline, run after the batch is published.
@@ -133,34 +125,31 @@ pub async fn process_user_task_candidates(
         return;
     }
 
-    // Depth is computed once up front (`span_depth` mutates the span
-    // path); contexts are sorted by start time so roster registration
+    // Path is computed once up front. `extend_span_path` runs BEFORE the
+    // consumer's `prepare_span_for_recording` does the same, so depth here
+    // matches what ingest records (an auto-instrumented span otherwise
+    // lacks its own trailing segment and would tie one level shallower than
+    // it should). Contexts are sorted by start time so roster registration
     // order within the batch is deterministic.
-    let mut contexts: Vec<(UserTaskSpanContext, usize)> = contexts
+    let mut contexts: Vec<(UserTaskSpanContext, Vec<String>)> = contexts
         .into_iter()
         .map(|mut ctx| {
-            let depth = span_depth(&mut ctx.attributes, &ctx.span_name);
-            (ctx, depth)
+            ctx.attributes.extend_span_path(&ctx.span_name);
+            let path = ctx.attributes.path().unwrap_or_default();
+            (ctx, path)
         })
         .collect();
     contexts.sort_by_key(|(ctx, _)| ctx.start_time_ns);
 
-    // Pass 1: user-task inputs. Gated on `llm_client_available()` — this
-    // is the only pass that can enqueue LLM-backed regex generation, and
-    // without a client the extraction workers never spawn, so enqueueing
-    // would strand messages. Pass 2 (trace outputs) is fully inline with
-    // no LLM/queue and deliberately runs regardless.
-    // Collect per-trace contenders first (usage lookup needs &mut
-    // attributes), then arbitrate one trace at a time — registering EVERY
-    // batch candidate in the roster but attempting the effect only for
-    // the strongest, so a small trace arriving in one batch publishes
-    // once instead of once per ascending-token span.
-    let inputs_enabled = llm_client_available();
+    // Pass 1: user-task inputs. Winner/roster arbitration and main-agent
+    // path caching run UNCONDITIONALLY — depth + token comparison needs no
+    // LLM, and Pass 2 (trace outputs) depends on the path this pass
+    // establishes. Only the extraction EFFECT (publishing `lmnr_user_task`
+    // via a cached-regex apply, or enqueueing LLM-backed regex generation
+    // on a cache miss) is gated on `llm_client_available()` inside
+    // `process_trace_inputs`.
     let mut contenders: HashMap<Uuid, Vec<InputContender>> = HashMap::new();
-    for (ctx, depth) in contexts.iter_mut() {
-        if !inputs_enabled {
-            continue;
-        }
+    for (ctx, path) in contexts.iter_mut() {
         // Move the candidate out of the context — Pass 2 (outputs) only
         // reads `output_candidate`, so the input candidate can be owned
         // here, which drops the index-into-`contexts` indirection and the
@@ -186,7 +175,7 @@ pub async fn process_user_task_candidates(
         // helper above the main agent. (Tokens, not cost — cost is zero when
         // the model doesn't resolve in the pricing tables.)
         let state = WinnerState {
-            depth: *depth,
+            depth: path.len(),
             input_tokens: usage.input_tokens,
             start_time_ns: ctx.start_time_ns,
             span_id: roster_span_key(ctx.span_id),
@@ -195,7 +184,11 @@ pub async fn process_user_task_candidates(
         contenders
             .entry(ctx.trace_id)
             .or_default()
-            .push(InputContender { candidate, state });
+            .push(InputContender {
+                candidate,
+                state,
+                path: path.clone(),
+            });
     }
 
     for (trace_id, trace_contenders) in contenders {
@@ -203,6 +196,7 @@ pub async fn process_user_task_candidates(
             trace_id,
             trace_contenders,
             project_id,
+            llm_client_available(),
             queue.clone(),
             db.clone(),
             cache.clone(),
@@ -210,37 +204,61 @@ pub async fn process_user_task_candidates(
         .await;
     }
 
-    // Pass 2: trace outputs. Pre-arbitrate within the batch (shallowest
-    // depth, then latest end time) so one trace publishes at most one
-    // output per batch; the lock gate arbitrates across batches.
-    let mut best_outputs: HashMap<Uuid, (usize, i64, &OutputCandidate)> = HashMap::new();
-    for (ctx, depth) in &contexts {
+    // Pass 2: trace outputs. Every LLM span on the trace's main-agent path
+    // (the current input winner's stripped path, cached by Pass 1 above)
+    // is a candidate; among this batch's matches per trace, only the one
+    // with the latest `end_time_ns` publishes — "latest wins" beyond that
+    // is enforced by the `trace_agent_output` RMT version, not a lock.
+    // When no path is cached yet for a trace (no input winner established
+    // yet, or a cache miss/error), every LLM span in the batch is treated
+    // as matching so a trace's output is visible from its very first span.
+    let mut path_cache: HashMap<Uuid, Option<Vec<String>>> = HashMap::new();
+    let mut best_outputs: HashMap<Uuid, (i64, &OutputCandidate)> = HashMap::new();
+    for (ctx, path) in &contexts {
         let Some(output_candidate) = ctx.output_candidate.as_ref() else {
             continue;
         };
-        let entry = best_outputs.entry(ctx.trace_id).or_insert((
-            *depth,
-            output_candidate.end_time_ns,
-            output_candidate,
-        ));
-        if *depth < entry.0 || (*depth == entry.0 && output_candidate.end_time_ns > entry.1) {
-            *entry = (*depth, output_candidate.end_time_ns, output_candidate);
+        let cached_prefix = match path_cache.entry(ctx.trace_id) {
+            std::collections::hash_map::Entry::Occupied(e) => e.get().clone(),
+            std::collections::hash_map::Entry::Vacant(e) => {
+                let key = main_agent_path_cache_key(project_id, ctx.trace_id);
+                let prefix: Option<Vec<String>> = cache.get(&key).await.ok().flatten();
+                e.insert(prefix.clone());
+                prefix
+            }
+        };
+        let matches = match &cached_prefix {
+            // Must strip the last segment the same way the input side does.
+            Some(prefix) => &path[..path.len().saturating_sub(1)] == prefix.as_slice(),
+            // No winner established yet for this trace — every LLM span
+            // qualifies so output is visible before arbitration catches up.
+            None => true,
+        };
+        if !matches {
+            continue;
+        }
+        let entry = best_outputs
+            .entry(ctx.trace_id)
+            .or_insert((output_candidate.end_time_ns, output_candidate));
+        if output_candidate.end_time_ns > entry.0 {
+            *entry = (output_candidate.end_time_ns, output_candidate);
         }
     }
-    for (ctx, _) in &contexts {
-        let Some((depth, _, candidate)) = best_outputs.remove(&ctx.trace_id) else {
-            continue;
-        };
+    for (trace_id, (_, candidate)) in best_outputs {
         process_trace_output_candidate(
             candidate,
-            depth,
-            ctx.trace_id,
+            trace_id,
             project_id,
             queue.clone(),
             db.clone(),
             cache.clone(),
         )
         .await;
+        // Refresh the path cache TTL on every match so a long-running
+        // trace's cached prefix doesn't expire mid-flight.
+        if let Some(Some(prefix)) = path_cache.get(&trace_id) {
+            write_main_agent_path(&cache, project_id, trace_id, prefix).await;
+        }
     }
 }
 
@@ -276,14 +294,22 @@ fn should_run_effect(challenger: &WinnerState, winner: Option<&WinnerState>) -> 
 /// roster and winner were subagent-level); register every contender at
 /// the lock's depth (the roster keeps the [`super::lock::ROSTER_CAP`]
 /// earliest starters); the strongest eligible contender (see
-/// [`is_eligible`]) challenges the published winner and runs the effect
-/// only when [`should_run_effect`] holds. The lock is written back
-/// merge-guarded regardless of publish; the winner field moves only
-/// after the effect lands.
+/// [`is_eligible`]) challenges the published winner via
+/// [`should_run_effect`] (pure depth/token/content comparison — no LLM
+/// involved). Winning the challenge ALWAYS caches the winner's path (Pass 2
+/// needs this to find the main-agent spine even when no LLM client is
+/// configured). The LLM-backed extraction effect (cached-regex apply, or
+/// enqueue for regex generation) additionally runs only when
+/// `user_task_agent_enabled` — without a client the extraction workers never
+/// spawn, so enqueueing would strand messages. The lock is written back
+/// merge-guarded regardless; `lock.winner` moves as soon as the challenge is
+/// won (independent of whether the LLM effect itself lands, since there may
+/// be none to land).
 async fn process_trace_inputs(
     trace_id: Uuid,
     trace_contenders: Vec<InputContender>,
     project_id: Uuid,
+    user_task_agent_enabled: bool,
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -345,6 +371,19 @@ async fn process_trace_inputs(
     {
         let state = challenger.state.clone();
         let candidate = &challenger.candidate;
+
+        // Cache the challenger's stripped path UNCONDITIONALLY — this is
+        // pure heuristic arbitration (depth/tokens/roster, no LLM involved),
+        // so Pass 2 (trace outputs) can find the main-agent spine even when
+        // no LLM client is configured. Must stay the same "drop own
+        // segment" heuristic as Pass 2's match check above.
+        let prefix = &challenger.path[..challenger.path.len().saturating_sub(1)];
+        write_main_agent_path(&cache, project_id, trace_id, prefix).await;
+
+        if !user_task_agent_enabled {
+            write_lock_merged(&cache, &lock_key, &lock, trace_id).await;
+            return;
+        }
 
         let regex_key = regex_cache_key(
             project_id,
@@ -449,24 +488,32 @@ mod tests {
         }
     }
 
+    fn extended_path(mut attrs: SpanAttributes, span_name: &str) -> Vec<String> {
+        attrs.extend_span_path(span_name);
+        attrs.path().unwrap_or_default()
+    }
+
     #[test]
-    fn span_depth_matches_ingest_extended_path() {
+    fn span_path_matches_ingest_extended_path() {
         // Auto-instrumented span: path lacks its own name — the extension
-        // appends it, so depth matches what ingest records.
-        let mut attrs = SpanAttributes::new(HashMap::from([(
+        // appends it, so the path matches what ingest records.
+        let attrs = SpanAttributes::new(HashMap::from([(
             SPAN_PATH.to_string(),
             json!(["agent", "subagent"]),
         )]));
-        assert_eq!(span_depth(&mut attrs, "llm_call"), 3);
+        assert_eq!(
+            extended_path(attrs, "llm_call"),
+            vec!["agent", "subagent", "llm_call"]
+        );
         // SDK span whose path already ends with its own name: idempotent.
-        let mut attrs = SpanAttributes::new(HashMap::from([(
+        let attrs = SpanAttributes::new(HashMap::from([(
             SPAN_PATH.to_string(),
             json!(["agent", "llm_call"]),
         )]));
-        assert_eq!(span_depth(&mut attrs, "llm_call"), 2);
+        assert_eq!(extended_path(attrs, "llm_call"), vec!["agent", "llm_call"]);
         // Missing path attribute: seeded as a 1-element array.
-        let mut attrs = SpanAttributes::new(HashMap::new());
-        assert_eq!(span_depth(&mut attrs, "llm_call"), 1);
+        let attrs = SpanAttributes::new(HashMap::new());
+        assert_eq!(extended_path(attrs, "llm_call"), vec!["llm_call"]);
     }
 
     #[test]

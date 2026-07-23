@@ -13,7 +13,7 @@
 -- substring(_, 2).
 -- Extracted agent input/output (LAM-1953) live OUTSIDE traces_agg in the
 -- supplementary `trace_agent_input`/`trace_agent_output` RMT tables (mutable
--- latest-wins strings, which SimpleAggregateFunction(max) can't express) and
+-- latest-wins values, which SimpleAggregateFunction(max) can't express) and
 -- are surfaced via the view joins. `internal_metadata` is a reserved maxMap
 -- column (no writer yet), same encoding as `metadata`.
 CREATE TABLE IF NOT EXISTS default.traces_agg
@@ -59,22 +59,27 @@ PARTITION BY toYYYYMM(start_time)
 ORDER BY (project_id, id)
 SETTINGS index_granularity = 8192, deduplicate_merge_projection_mode = 'rebuild';
 
--- Extracted agent input/output (LAM-1953): one row per trace per table,
--- versioned on `updated_at`, ReplacingMergeTree converging on the largest.
--- The producer-side cache arbitration gate decides which spans qualify to
--- write here; the version then breaks ties between qualifying writes.
--- `value` is the raw JSON value (string or empty).
---   - OUTPUT: `updated_at` = the winning span's END TIME (clamped to insert
---     wall-clock). Output strength IS "latest end time at the shallowest
---     depth" (see `OutputLockState::should_override`), so versioning on end
---     time makes FINAL converge on exactly what the lock picks — arrival
---     order can't reverse it. Writers MUST set `updated_at` explicitly.
---   - INPUT: `updated_at` defaults to `now64(9)` (insert wall-clock). Input
---     strength is depth+tokens with no timestamp axis, so there's no content
---     order to version on; the cache gate is the selector and a get-then-set
---     race can (rarely) let a weaker last-arriving write win. Accepted:
---     encoding depth+tokens into a version was the manual machinery this
---     design deliberately dropped.
+-- Extracted agent input/output (LAM-1953, output storage reworked to
+-- hashes): one row per trace per table, versioned on `updated_at`,
+-- ReplacingMergeTree converging on the largest.
+--   - INPUT: `value` is the raw JSON value (string or empty). `updated_at`
+--     defaults to `now64(9)` (insert wall-clock). Input strength is
+--     depth+tokens with no timestamp axis, so there's no content order to
+--     version on; the producer-side cache arbitration gate is the selector
+--     and a get-then-set race can (rarely) let a weaker last-arriving write
+--     win. Accepted: encoding depth+tokens into a version was the manual
+--     machinery this design deliberately dropped.
+--   - OUTPUT: `hashes` are per-message hashes into `deduped_content` — every
+--     output message is already content-hashed by the dedup pipeline, so
+--     storing hashes (instead of a rendered string) avoids duplicating
+--     bytes that already live there and keeps merges small/predictable.
+--     `updated_at` = the winning span's END TIME (clamped to insert
+--     wall-clock). Every LLM span on the trace's main-agent path (the
+--     current user-task input winner's path, see
+--     `input_extraction::lock::main_agent_path_cache_key`) publishes a row;
+--     versioning on end time makes FINAL converge on the latest-ending
+--     answer regardless of arrival order. Writers MUST set `updated_at`
+--     explicitly.
 CREATE TABLE IF NOT EXISTS default.trace_agent_input
 (
     `project_id` UUID,
@@ -91,7 +96,7 @@ CREATE TABLE IF NOT EXISTS default.trace_agent_output
 (
     `project_id` UUID,
     `trace_id` UUID,
-    `value` String,
+    `hashes` Array(FixedString(32)),
     `updated_at` DateTime64(9, 'UTC') DEFAULT now64(9)
 )
 ENGINE = ReplacingMergeTree(updated_at)
@@ -164,7 +169,35 @@ SELECT
     t.span_names AS span_names,
     t.internal_metadata AS internal_metadata,
     ifNull(ai.value, '') AS agent_input,
-    ifNull(ao.value, '') AS agent_output
+    if(
+        empty(ao.hashes),
+        '',
+        arrayStringConcat(
+            arrayMap(
+                h -> multiIf(
+                    notEmpty(simpleJSONExtractRaw(
+                        dictGetOrDefault('deduped_content_dict', 'content', tuple(t.project_id, h), ''),
+                        'parts'
+                    )),
+                    simpleJSONExtractRaw(
+                        dictGetOrDefault('deduped_content_dict', 'content', tuple(t.project_id, h), ''),
+                        'parts'
+                    ),
+                    notEmpty(simpleJSONExtractRaw(
+                        dictGetOrDefault('deduped_content_dict', 'content', tuple(t.project_id, h), ''),
+                        'content'
+                    )),
+                    simpleJSONExtractRaw(
+                        dictGetOrDefault('deduped_content_dict', 'content', tuple(t.project_id, h), ''),
+                        'content'
+                    ),
+                    dictGetOrDefault('deduped_content_dict', 'content', tuple(t.project_id, h), '')
+                ),
+                ao.hashes
+            ),
+            '\n\n'
+        )
+    ) AS agent_output
 FROM (
     SELECT
         project_id,

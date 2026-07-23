@@ -27,16 +27,19 @@ pub struct CHTraceAgentInput {
 /// A `trace_agent_output` row. Unlike [`CHTraceAgentInput`], `updated_at`
 /// (the RMT version) is set EXPLICITLY to the winning span's end time in
 /// nanoseconds — output strength is "latest end time", so versioning on it
-/// makes FINAL converge on the lock's winner regardless of arrival order.
-/// Field order MUST match the CREATE TABLE column order (positional
-/// RowBinary): `(project_id, trace_id, value, updated_at)`.
+/// makes FINAL converge on the latest-ending answer regardless of arrival
+/// order. `hashes` are per-message hashes into `deduped_content` (LAM-1953
+/// rework — was a rendered `value: String`; every output message is already
+/// content-hashed by the dedup pipeline, so storing hashes avoids
+/// duplicating bytes). Field order MUST match the CREATE TABLE column order
+/// (positional RowBinary): `(project_id, trace_id, hashes, updated_at)`.
 #[derive(Debug, Clone, Serialize, Deserialize, Row)]
 pub struct CHTraceAgentOutput {
     #[serde(with = "clickhouse::serde::uuid")]
     pub project_id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
     pub trace_id: Uuid,
-    pub value: String,
+    pub hashes: Vec<[u8; 32]>,
     /// Winning span end time, nanoseconds since epoch (CH `DateTime64(9)`).
     pub updated_at: i64,
 }

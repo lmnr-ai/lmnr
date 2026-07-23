@@ -1,6 +1,5 @@
 //! Winner arbitration state: the per-trace record that arbitrates which
-//! LLM span's input owns the trace's user task, and which span's output
-//! owns the trace output.
+//! LLM span's input owns the trace's user task.
 //!
 //! Input arbitration is roster-based: the winner must be among the first
 //! [`ROSTER_CAP`] spans (by start time) at the shallowest observed depth,
@@ -14,13 +13,22 @@
 //! on `updated_at = now64()`, so a later qualifying write wins. This cache
 //! gate is the ONLY thing that decides which spans qualify — no manual
 //! version encoding, no clamping, no write mutex.
+//!
+//! Trace-output arbitration (LAM-1953 rework) does NOT have its own
+//! independent lock. Instead, whenever the input winner above is
+//! established, its stripped path (ancestor names, own segment removed) is
+//! cached under [`main_agent_path_cache_key`]. Every LLM span whose own
+//! stripped path equals that cached prefix is treated as being on the
+//! main-agent path and is eligible to update the trace output; the RMT
+//! version (`updated_at` = the span's end time) is what makes "latest wins"
+//! hold, so no separate depth/end-time gate is needed here.
 
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::cache::keys::{TRACE_OUTPUT_LOCK_CACHE_KEY, USER_TASK_LOCK_CACHE_KEY};
+use crate::cache::keys::{MAIN_AGENT_PATH_CACHE_KEY, USER_TASK_LOCK_CACHE_KEY};
 use crate::cache::{Cache, CacheTrait};
 use crate::env::user_task::USER_TASK_LOCK_TTL_SECONDS;
 
@@ -32,8 +40,14 @@ pub fn lock_cache_key(project_id: Uuid, trace_id: Uuid) -> String {
     format!("{USER_TASK_LOCK_CACHE_KEY}:{project_id}:{trace_id}")
 }
 
-pub fn trace_output_lock_cache_key(project_id: Uuid, trace_id: Uuid) -> String {
-    format!("{TRACE_OUTPUT_LOCK_CACHE_KEY}:{project_id}:{trace_id}")
+/// Cache key for the current user-task input winner's stripped path
+/// (ancestor names, own segment removed). Every LLM span whose own stripped
+/// path equals this value is on the winning main-agent path and is a
+/// trace-output candidate (LAM-1953 rework: replaces the independent
+/// `OutputLockState` depth/end-time arbitration with reuse of the input
+/// winner).
+pub fn main_agent_path_cache_key(project_id: Uuid, trace_id: Uuid) -> String {
+    format!("{MAIN_AGENT_PATH_CACHE_KEY}:{project_id}:{trace_id}")
 }
 
 /// Roster span-id key: the last 16 hex chars of a span UUID's simple form.
@@ -225,49 +239,23 @@ pub async fn write_lock_merged(
     }
 }
 
-/// Winning-output state for the trace-output lock: the agent's final
-/// answer sits on the shallowest spine and is the LAST such message, so
-/// strictly shallower wins; at equal depth, strictly later end wins.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct OutputLockState {
-    /// Span path depth of the winning span.
-    #[serde(rename = "d")]
-    pub depth: usize,
-    /// End time (ns since epoch) of the winning span.
-    #[serde(rename = "t")]
-    pub end_time_ns: i64,
-}
-
-impl OutputLockState {
-    pub fn should_override(&self, candidate: &Self) -> bool {
-        if candidate.depth < self.depth {
-            return true;
-        }
-        candidate.depth == self.depth && candidate.end_time_ns > self.end_time_ns
-    }
-}
-
-/// Post-publish output-lock write: guarded (a stronger winner already in
-/// the lock is never rolled back). The output path has no queued consumer
-/// to re-assert a lock the producer failed to write, but the RMT row
-/// versions on `updated_at`, so a missed lock write only risks a
-/// redundant re-publish, not a wrong stored value. Best-effort (logged).
-pub(super) async fn write_output_lock_guarded(
+/// Write (or refresh the TTL of) the main-agent path cache for a trace.
+/// Called both when the input winner is (re-)established and, as a cheap
+/// keep-alive, whenever an output candidate matches the cached prefix — so
+/// a long-running trace's path cache doesn't expire mid-flight. Best-effort
+/// (logged).
+pub async fn write_main_agent_path(
     cache: &Arc<Cache>,
-    lock_key: &str,
-    state: &OutputLockState,
+    project_id: Uuid,
     trace_id: Uuid,
+    prefix: &[String],
 ) {
-    let current: Option<OutputLockState> = cache.get(lock_key).await.ok().flatten();
-    if current.is_some_and(|c| !c.should_override(state)) {
-        // A newer winner took the lock mid-flight: nothing to write.
-        return;
-    }
+    let key = main_agent_path_cache_key(project_id, trace_id);
     if let Err(e) = cache
-        .insert_with_ttl(lock_key, state, USER_TASK_LOCK_TTL_SECONDS.get())
+        .insert_with_ttl(&key, prefix, USER_TASK_LOCK_TTL_SECONDS.get())
         .await
     {
-        log::error!("trace-output: lock write failed for trace [{trace_id}]: {e:?}");
+        log::error!("trace-output: main-agent path write failed for trace [{trace_id}]: {e:?}");
     }
 }
 
@@ -298,8 +286,8 @@ mod tests {
         let t = Uuid::new_v4();
         assert_eq!(lock_cache_key(p, t), format!("user_task_lock:{p}:{t}"));
         assert_eq!(
-            trace_output_lock_cache_key(p, t),
-            format!("trace_output_lock:{p}:{t}")
+            main_agent_path_cache_key(p, t),
+            format!("main_agent_path:{p}:{t}")
         );
     }
 
@@ -498,29 +486,6 @@ mod tests {
         assert_eq!(stored.roster.len(), 2);
     }
 
-    #[tokio::test]
-    async fn write_output_lock_guarded_keeps_stronger_winner() {
-        use crate::cache::in_memory::InMemoryCache;
-        let cache: Arc<Cache> = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
-        let trace_id = Uuid::new_v4();
-        let lock_key = format!("test_out_lock:{trace_id}");
-
-        // Stronger (later-ending) state lands first; a weaker write-back
-        // must not roll it back.
-        let strong = OutputLockState {
-            depth: 2,
-            end_time_ns: 200_000_000,
-        };
-        write_output_lock_guarded(&cache, &lock_key, &strong, trace_id).await;
-        let weak = OutputLockState {
-            depth: 2,
-            end_time_ns: 100_000_000,
-        };
-        write_output_lock_guarded(&cache, &lock_key, &weak, trace_id).await;
-        let stored: OutputLockState = cache.get(&lock_key).await.unwrap().unwrap();
-        assert_eq!(stored, strong);
-    }
-
     #[test]
     fn legacy_winner_snapshot_decodes_with_defaults() {
         // A queued pre-roster message's winner_state ({c,d,s,t}) decodes:
@@ -534,31 +499,18 @@ mod tests {
         assert_eq!(back.content_hash, "");
     }
 
-    #[test]
-    fn output_lock_shallower_wins_then_later_end() {
-        const MS: i64 = 1_000_000;
-        let prev = OutputLockState {
-            depth: 3,
-            end_time_ns: 100 * MS,
-        };
-        // Strictly shallower always overrides.
-        assert!(prev.should_override(&OutputLockState {
-            depth: 2,
-            end_time_ns: 50 * MS
-        }));
-        // Equal depth: only a strictly LATER end overrides.
-        assert!(prev.should_override(&OutputLockState {
-            depth: 3,
-            end_time_ns: 200 * MS
-        }));
-        assert!(!prev.should_override(&OutputLockState {
-            depth: 3,
-            end_time_ns: 100 * MS
-        }));
-        // Deeper never overrides.
-        assert!(!prev.should_override(&OutputLockState {
-            depth: 4,
-            end_time_ns: 200 * MS
-        }));
+    #[tokio::test]
+    async fn write_main_agent_path_roundtrips() {
+        use crate::cache::in_memory::InMemoryCache;
+        let cache: Arc<Cache> = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+        let project_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+        let prefix = vec!["agent".to_string()];
+
+        write_main_agent_path(&cache, project_id, trace_id, &prefix).await;
+
+        let key = main_agent_path_cache_key(project_id, trace_id);
+        let stored: Vec<String> = cache.get(&key).await.unwrap().unwrap();
+        assert_eq!(stored, prefix);
     }
 }

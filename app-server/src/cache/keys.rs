@@ -60,7 +60,10 @@ pub const SPAN_KEEP_DEFAULT_RULES_CACHE_KEY: &str = "signals_span_keep_default_r
 pub const TRACE_EVALUATION_ID_CACHE_KEY: &str = "trace_evaluation_id";
 pub const USER_TASK_REGEX_CACHE_KEY: &str = "user_task_regex";
 pub const USER_TASK_LOCK_CACHE_KEY: &str = "user_task_lock";
-pub const TRACE_OUTPUT_LOCK_CACHE_KEY: &str = "trace_output_lock";
+/// Stripped path (ancestor names, own segment removed) of the current
+/// user-task input winner span — every LLM span on this same stripped path
+/// is a trace-output candidate. See `input_extraction::lock::main_agent_path_cache_key`.
+pub const MAIN_AGENT_PATH_CACHE_KEY: &str = "main_agent_path";
 
 pub const INGESTION_RATE_LIMIT_PROJECT_ID_CACHE_KEY: &str = "ingestion_rate_limit_project_id";
 /// Per-project override N for the /v1/sql rate limit, set out-of-band via

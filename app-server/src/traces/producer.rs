@@ -83,16 +83,24 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
         }
     }
 
-    // Capture the user-task + output candidates while `span.input` /
-    // `span.output` are still populated (the dedup strip below may null them).
+    // Capture the user-task candidate while `span.input` is still
+    // populated (the dedup strip below may null it).
     let user_task = crate::traces::input_extraction::capture_user_task_candidate(span);
-    let output_candidate = crate::traces::input_extraction::capture_output_candidate(span);
 
     // Tool dedup runs first so its source attributes are stripped before
     // anything else looks at `raw_attributes`.
     let tools = build_tool_dedup(span, cache.clone()).await;
     let input = build_message_dedup(span, span.input.as_ref(), cache.clone()).await;
     let output = build_message_dedup(span, span.output.as_ref(), cache).await;
+
+    // Output-candidate capture runs AFTER the output dedup verdict exists —
+    // it needs the per-message hashes (`output.hashes`), not the raw
+    // `span.output` value (LAM-1953 rework: output is stored as hashes into
+    // `deduped_content`, not a rendered string).
+    let output_candidate = crate::traces::input_extraction::capture_output_candidate(
+        output.as_ref(),
+        span.end_time.timestamp_nanos_opt().unwrap_or(i64::MAX),
+    );
 
     let keep_root_payload = span.parent_span_id.is_none() || is_top_span(span, &span.attributes);
 
@@ -224,7 +232,11 @@ pub async fn publish_span_messages(
                 trace_id: msg.span.trace_id,
                 span_id: msg.span.span_id,
                 span_name: msg.span.name.clone(),
-                start_time_ns: msg.span.start_time.timestamp_nanos_opt().unwrap_or(i64::MAX),
+                start_time_ns: msg
+                    .span
+                    .start_time
+                    .timestamp_nanos_opt()
+                    .unwrap_or(i64::MAX),
                 attributes: std::mem::take(&mut msg.span.attributes),
                 candidate,
                 output_candidate,
