@@ -11,6 +11,7 @@ import {
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import { type SessionBlock } from "@/lib/actions/debugger-sessions";
+import { parseCommandBlockContent } from "@/lib/actions/debugger-sessions/command-content";
 import { toast } from "@/lib/hooks/use-toast";
 import { createIdBatchLoader } from "@/lib/id-batch-loader";
 import { type RealtimeSpan, type SpanType, type TraceRow } from "@/lib/traces/types";
@@ -201,6 +202,10 @@ interface DebuggerSessionViewState {
   // Prevents the pill from flashing on page load (blocks arriving from the
   // initial fetch must not count as "new").
   isInitialTracesLoaded: boolean;
+
+  // Expanded `command` blocks (collapsed by default). Store-held (like
+  // expandedTraceIds) so state survives the row virtualizing out and back.
+  expandedCommandBlockIds: Set<string>;
 }
 
 interface DebuggerSessionViewActions {
@@ -256,6 +261,9 @@ interface DebuggerSessionViewActions {
 
   // Hide the new-block pill (pill click or its X).
   dismissNewBlockNotice: () => void;
+
+  // Expand/collapse a command block (the outer virtualizer re-measures).
+  toggleCommandBlockExpanded: (blockId: string) => void;
 
   // Span type for a loaded span (drives the span-ref chip icon).
   getSpanType: (traceId: string, spanId: string) => SpanType | undefined;
@@ -338,6 +346,7 @@ export const createDebuggerSessionViewStore = (options: {
           traceSpansFetching: {},
           newBlockNotice: null,
           isInitialTracesLoaded: false,
+          expandedCommandBlockIds: new Set<string>(),
 
           fetchTraceSpans: async (trace) => {
             if (get().traceSpansFetching[trace.id]) return;
@@ -573,12 +582,19 @@ export const createDebuggerSessionViewStore = (options: {
 
           applyBlockUpdate: (block) => {
             if (block.type === "trace") return;
-            const view: SessionBlockView =
-              block.type === "evaluation"
-                ? { id: block.id, type: "evaluation", createdAt: block.createdAt, evaluation: block.evaluation }
-                : block.type === "command"
-                  ? { id: block.id, type: "command", createdAt: block.createdAt, command: block.command }
-                  : { id: block.id, type: "text", createdAt: block.createdAt, text: block.text };
+            let view: SessionBlockView;
+            if (block.type === "evaluation") {
+              view = { id: block.id, type: "evaluation", createdAt: block.createdAt, evaluation: block.evaluation };
+            } else if (block.type === "command") {
+              // Realtime payloads are raw JSON.parse output — run the same
+              // validator as the fetch path so a malformed `command` content
+              // can't poison the store (and crash commandSummary) verbatim.
+              const command = parseCommandBlockContent(block.command);
+              if (!command) return;
+              view = { id: block.id, type: "command", createdAt: block.createdAt, command };
+            } else {
+              view = { id: block.id, type: "text", createdAt: block.createdAt, text: block.text };
+            }
             // Pill for a genuinely new eval OR note, after the initial fetch
             // settles (so it can't flash on load). Don't overwrite an existing
             // notice — the first unseen block the user hasn't scrolled to wins.
@@ -662,6 +678,14 @@ export const createDebuggerSessionViewStore = (options: {
             set({ sessionName: name, sessionNameRaw: name } as Partial<DebuggerSessionViewStore>),
 
           dismissNewBlockNotice: () => set({ newBlockNotice: null } as Partial<DebuggerSessionViewStore>),
+
+          toggleCommandBlockExpanded: (blockId) =>
+            set((s) => {
+              const next = new Set(s.expandedCommandBlockIds);
+              if (next.has(blockId)) next.delete(blockId);
+              else next.add(blockId);
+              return { expandedCommandBlockIds: next } as Partial<DebuggerSessionViewStore>;
+            }),
 
           getSpanType: (traceId, spanId) => get().traceSpans[traceId]?.find((s) => s.spanId === spanId)?.spanType,
 

@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { FileText, FlaskConical, MessageCircle, SquareTerminal } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
+import { type CommandBlockContent, commandSummary } from "@/lib/actions/debugger-sessions/command-content";
 import { cn } from "@/lib/utils";
 
 import { type SessionBlockView, type TraceRowState, useDebuggerSessionViewStore } from "../store";
@@ -37,9 +38,10 @@ const textBlockTitle = (text: string): string => {
   return oneLine.length > TEXT_BLOCK_TITLE_LEN ? `${oneLine.slice(0, TEXT_BLOCK_TITLE_LEN)}…` : oneLine || "Note";
 };
 
-// Short label for a command block: the subcommand (or raw string), truncated.
-const commandBlockTitle = (command: { command: string; raw?: string }): string => {
-  const oneLine = (command.raw ?? command.command).replace(/\s+/g, " ").trim();
+// Short label for a command block: the shared one-line summary (raw, or
+// command + args — args included so no-raw blocks don't all read identically).
+const commandBlockTitle = (command: CommandBlockContent): string => {
+  const oneLine = commandSummary(command);
   return oneLine.length > TEXT_BLOCK_TITLE_LEN ? `${oneLine.slice(0, TEXT_BLOCK_TITLE_LEN)}…` : oneLine || "Command";
 };
 

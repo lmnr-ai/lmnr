@@ -2,11 +2,14 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { PaginationSchema } from "@/lib/actions/common/types";
+import { type CommandBlockContent, parseCommandBlockContent } from "@/lib/actions/debugger-sessions/command-content";
 import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle";
 import { debuggerSessionBlocks, debuggerSessions, evaluations } from "@/lib/db/migrations/schema";
 import { NotFoundError } from "@/lib/errors";
 import { type TraceRow } from "@/lib/traces/types";
+
+export { type CommandBlockContent } from "@/lib/actions/debugger-sessions/command-content";
 
 export type DebuggerSession = {
   id: string;
@@ -203,30 +206,6 @@ async function fetchSessionBlockRows(projectId: string, sessionId: string): Prom
 const blockText = (block: SessionBlockRow): string | null =>
   typeof block.content.text === "string" ? block.content.text : null;
 
-// Content of a `command` block — a CLI command an agent ran. Only `command` is
-// guaranteed; everything else is optional on the wire.
-export type CommandBlockContent = {
-  command: string;
-  args?: string[];
-  exitCode?: number;
-  output?: string;
-  raw?: string;
-};
-
-// Defensive field-by-field extraction (NOT a strict zod parse): a malformed
-// optional field must degrade to "absent", never drop the whole block.
-const blockCommandContent = (block: SessionBlockRow): CommandBlockContent | null => {
-  const c = block.content;
-  if (typeof c.command !== "string" || c.command.length === 0) return null;
-  return {
-    command: c.command,
-    ...(Array.isArray(c.args) ? { args: c.args.filter((a): a is string => typeof a === "string") } : {}),
-    ...(typeof c.exitCode === "number" && Number.isFinite(c.exitCode) ? { exitCode: c.exitCode } : {}),
-    ...(typeof c.output === "string" ? { output: c.output } : {}),
-    ...(typeof c.raw === "string" ? { raw: c.raw } : {}),
-  };
-};
-
 // Per-batch ceiling for trace-row fetches.
 const MAX_SESSION_TRACES = 200;
 
@@ -318,7 +297,7 @@ export async function getSessionBlocks(input: z.infer<typeof GetSessionBlocksSch
       const text = blockText(block);
       if (text) resolved.push({ id: block.id, type: "text", createdAt: block.createdAt, text });
     } else if (block.type === COMMAND_BLOCK_TYPE) {
-      const command = blockCommandContent(block);
+      const command = parseCommandBlockContent(block.content);
       if (command) resolved.push({ id: block.id, type: "command", createdAt: block.createdAt, command });
     }
     // Unknown block types are intentionally skipped (open `type` string on the wire).

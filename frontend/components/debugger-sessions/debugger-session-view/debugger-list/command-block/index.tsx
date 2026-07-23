@@ -1,18 +1,15 @@
 "use client";
 
 import { ChevronRight, SquareTerminal } from "lucide-react";
-import { useState } from "react";
+import { useMemo } from "react";
 
 import { type CommandBlockContent } from "@/lib/actions/debugger-sessions";
+import { commandSummary } from "@/lib/actions/debugger-sessions/command-content";
 import { cn } from "@/lib/utils";
 
 import { commandAnchorId } from "../../session-outline/utils";
+import { useDebuggerSessionViewStore } from "../../store";
 import CommandBlockBody from "./command-block-body";
-
-// One-line summary of the invocation: prefer the full raw string, fall back to
-// the subcommand + its args. Collapsed to a single line for the compact header.
-export const commandSummary = (content: CommandBlockContent): string =>
-  (content.raw ?? [content.command, ...(content.args ?? [])].join(" ")).replace(/\s+/g, " ").trim();
 
 interface CommandBlockProps {
   id: string;
@@ -22,11 +19,15 @@ interface CommandBlockProps {
 /**
  * A `command` block in the timeline — a CLI command an agent ran. Collapsed by
  * default to a compact terminal-style line (icon + command summary + exit
- * status); click toggles the full command-specific rendering. The outer
- * virtualizer re-measures via `measureElement`'s ResizeObserver on toggle.
+ * status); click toggles the full command-specific rendering. Expanded state
+ * lives in the session store (like `expandedTraceIds`) so it survives the row
+ * virtualizing out and back; the outer virtualizer re-measures via
+ * `measureElement`'s ResizeObserver on toggle.
  */
 export default function CommandBlock({ id, command }: CommandBlockProps) {
-  const [expanded, setExpanded] = useState(false);
+  const expanded = useDebuggerSessionViewStore((s) => s.expandedCommandBlockIds.has(id));
+  const toggleExpanded = useDebuggerSessionViewStore((s) => s.toggleCommandBlockExpanded);
+  const summary = useMemo(() => commandSummary(command), [command]);
   const failed = command.exitCode !== undefined && command.exitCode !== 0;
 
   return (
@@ -40,7 +41,7 @@ export default function CommandBlock({ id, command }: CommandBlockProps) {
         <button
           type="button"
           aria-expanded={expanded}
-          onClick={() => setExpanded((prev) => !prev)}
+          onClick={() => toggleExpanded(id)}
           className={cn(
             "flex h-[40px] w-full items-center gap-2 pl-2 pr-3 text-left transition-colors",
             failed ? "bg-destructive/10 hover:bg-destructive/15" : "bg-muted/75 hover:bg-muted/90"
@@ -51,7 +52,7 @@ export default function CommandBlock({ id, command }: CommandBlockProps) {
           />
           <SquareTerminal className={cn("size-4 shrink-0", failed ? "text-destructive" : "text-muted-foreground")} />
           <span className="min-w-0 flex-1 truncate font-mono text-[13px] leading-[17px] text-primary-foreground">
-            {commandSummary(command)}
+            {summary}
           </span>
           {command.exitCode !== undefined && (
             <span

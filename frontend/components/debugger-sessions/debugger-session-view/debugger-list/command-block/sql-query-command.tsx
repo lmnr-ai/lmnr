@@ -1,8 +1,19 @@
-import SQLEditor from "@/components/sql/sql-editor";
+"use client";
+
+import dynamic from "next/dynamic";
+
+import { Skeleton } from "@/components/ui/skeleton";
 import { type CommandBlockContent } from "@/lib/actions/debugger-sessions";
 
 import CommandOutput from "./command-output";
 import GenericCommand from "./generic-command";
+
+// Defer the CodeMirror SQL bundle (schema + autocomplete payload) to first
+// expand of an sql-query block — same pattern as pdf-renderer.tsx.
+const SQLEditor = dynamic(() => import("@/components/sql/sql-editor.tsx").then((mod) => mod.default), {
+  ssr: false,
+  loading: () => <Skeleton className="m-2 h-16" />,
+});
 
 // Expanded `sql query` command: the SQL payload (first positional arg) rendered
 // read-only in the shared CodeMirror SQL editor, then the query result below.

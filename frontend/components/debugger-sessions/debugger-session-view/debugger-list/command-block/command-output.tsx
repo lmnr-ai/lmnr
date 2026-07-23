@@ -1,25 +1,53 @@
+"use client";
+
+import { useState } from "react";
+
 import { cn } from "@/lib/utils";
+
+// Rendered-length cap: a multi-MB output as one DOM text node stalls layout
+// even when max-h clips it visually. The rest renders on explicit request.
+const OUTPUT_CHAR_BUDGET = 20_000;
 
 interface CommandOutputProps {
   output?: string;
   failed?: boolean;
 }
 
-// A command's stdout/result text. The full string renders (no truncation) but
-// the box caps at max-h-80 with internal scroll so a huge output can't swallow
-// the timeline. `whitespace-pre` keeps table-ish output aligned.
+/**
+ * A command's stdout/result text. Renders up to OUTPUT_CHAR_BUDGET chars with a
+ * "Show full output" affordance for the remainder (nothing is silently
+ * truncated). The box caps at max-h-80 with internal scroll; `pre-wrap` +
+ * `break-words` keep one long line from creating a huge scroll width.
+ */
 export default function CommandOutput({ output, failed }: CommandOutputProps) {
+  const [showFull, setShowFull] = useState(false);
+
   if (output === undefined || output.length === 0) {
     return <div className="px-3 py-2 text-xs text-muted-foreground">No output</div>;
   }
+
+  const overBudget = output.length > OUTPUT_CHAR_BUDGET;
+  const visible = showFull || !overBudget ? output : output.slice(0, OUTPUT_CHAR_BUDGET);
+
   return (
-    <pre
-      className={cn(
-        "max-h-80 overflow-auto whitespace-pre px-3 py-2 font-mono text-xs leading-5",
-        failed ? "text-destructive" : "text-secondary-foreground"
+    <div className="flex max-h-80 flex-col overflow-auto">
+      <pre
+        className={cn(
+          "whitespace-pre-wrap break-words px-3 py-2 font-mono text-xs leading-5",
+          failed ? "text-destructive" : "text-secondary-foreground"
+        )}
+      >
+        {visible}
+      </pre>
+      {overBudget && !showFull && (
+        <button
+          type="button"
+          onClick={() => setShowFull(true)}
+          className="self-start px-3 pb-2 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+        >
+          Show full output ({output.length.toLocaleString()} chars)
+        </button>
       )}
-    >
-      {output}
-    </pre>
+    </div>
   );
 }
