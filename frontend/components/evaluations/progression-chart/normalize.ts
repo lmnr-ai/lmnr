@@ -1,5 +1,10 @@
-/** Per-score numeric range over the observed values. Empty set → default [0,1]. */
-export function computeScoreRange(values: number[]): { min: number; max: number } {
+/**
+ * Per-score numeric range over the observed values. Empty set → default [0,1].
+ * When `pinUnitRange` is true, a score whose values all sit in [0,1] keeps a
+ * fixed 0–1 range (so a small change reads as small instead of being stretched
+ * to fill the plot); otherwise every score uses its own observed min/max.
+ */
+export function computeScoreRange(values: number[], pinUnitRange = false): { min: number; max: number } {
   let min = Infinity;
   let max = -Infinity;
   for (const v of values) {
@@ -7,6 +12,7 @@ export function computeScoreRange(values: number[]): { min: number; max: number 
     if (v > max) max = v;
   }
   if (min === Infinity) return { min: 0, max: 1 };
+  if (pinUnitRange && min >= 0 && max <= 1) return { min: 0, max: 1 };
   return { min, max };
 }
 

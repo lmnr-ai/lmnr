@@ -24,6 +24,9 @@ interface CombinedChartProps {
   hoveredScore?: string | null;
   onPointClick?: (evaluationId: string) => void;
   className?: string;
+  // On: every score stretched to its own min/max (fills full height). Off: 0–1
+  // scores keep a fixed 0–1 range, others use their own min/max.
+  fillHeight?: boolean;
 }
 
 type Row = {
@@ -46,10 +49,11 @@ export default function CombinedChart({
   hoveredScore,
   onPointClick,
   className,
+  fillHeight = false,
 }: CombinedChartProps) {
   const { rows, ranks } = useMemo(() => {
-    // Per-score min-max, no 0–1 special-case: every score fills the full plot
-    // height. Dot clipping at the extremes is handled by the YAxis pixel padding.
+    // fillHeight off → pin 0–1 scores to a fixed 0–1 range; on → every score
+    // uses its own min/max so it fills the full plot height.
     const ranges: Record<string, { min: number; max: number }> = {};
     for (const score of scores) {
       const values: number[] = [];
@@ -57,7 +61,7 @@ export default function CombinedChart({
         const v = point.values[score];
         if (typeof v === "number" && !isNaN(v)) values.push(v);
       }
-      ranges[score] = computeScoreRange(values);
+      ranges[score] = computeScoreRange(values, !fillHeight);
     }
 
     // Sort chronologically — line segments cross over themselves otherwise.
@@ -99,7 +103,7 @@ export default function CombinedChart({
     }
 
     return { rows, ranks };
-  }, [data, scores]);
+  }, [data, scores, fillHeight]);
 
   // Day-level ticks for multi-day ranges, time-of-day otherwise; maps slot index → timestamp.
   const tickFormatter = useMemo(() => {
@@ -128,12 +132,18 @@ export default function CombinedChart({
     return () => observer.disconnect();
   }, []);
 
-  // Domain [0, maxSlots]: count-1 fills the width; the pixel budget wins for few points (clusters left).
   const ticks = useMemo(() => rows.map((r) => r.x), [rows]);
-  const maxSlots = useMemo(() => {
+  // Points sit at x = 0..lastIndex. With few points the budget gives more slots
+  // than we need, so we split the spare slots evenly as domain padding on both
+  // sides — the points stay at a bounded gap AND centered (not clustered left).
+  const domain = useMemo<[number, number]>(() => {
+    const lastIndex = rows.length - 1;
+    if (lastIndex < 0) return [0, 1];
     const plotWidth = Math.max(0, containerWidth - HORIZONTAL_MARGIN_PX);
     const budgetSlots = plotWidth > 0 ? Math.floor(plotWidth / MAX_POINT_GAP_PX) : 0;
-    return Math.max(rows.length - 1, budgetSlots, 1);
+    const maxSlots = Math.max(lastIndex, budgetSlots);
+    const pad = (maxSlots - lastIndex) / 2;
+    return [-pad, lastIndex + pad];
   }, [containerWidth, rows.length]);
 
   const visible = scores.filter((s) => visibleScores.includes(s));
@@ -162,7 +172,7 @@ export default function CombinedChart({
           <XAxis
             type="number"
             dataKey="x"
-            domain={[0, maxSlots]}
+            domain={domain}
             allowDataOverflow
             ticks={ticks}
             interval="preserveStartEnd"

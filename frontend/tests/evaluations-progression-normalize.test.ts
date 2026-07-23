@@ -5,9 +5,16 @@ import { computeScoreRange, normalizeValue } from "@/components/evaluations/prog
 
 describe("progression chart normalization", () => {
   describe("computeScoreRange", () => {
-    it("returns the observed min/max with no 0–1 special-case", () => {
-      // A 0.8–0.9 score keeps its own tight range (used to be pinned to [0,1]).
+    it("fill-height mode (default): uses observed min/max even for 0–1 scores", () => {
       assert.deepEqual(computeScoreRange([0.8, 0.85, 0.9]), { min: 0.8, max: 0.9 });
+    });
+
+    it("pinUnitRange: a 0–1 score keeps a fixed 0–1 range", () => {
+      assert.deepEqual(computeScoreRange([0.8, 0.85, 0.9], true), { min: 0, max: 1 });
+    });
+
+    it("pinUnitRange: a score outside 0–1 still uses its own min/max", () => {
+      assert.deepEqual(computeScoreRange([120, 300, 90], true), { min: 90, max: 300 });
     });
 
     it("handles large-magnitude scores (durations, counts)", () => {
@@ -16,6 +23,7 @@ describe("progression chart normalization", () => {
 
     it("defaults to [0,1] when there are no values", () => {
       assert.deepEqual(computeScoreRange([]), { min: 0, max: 1 });
+      assert.deepEqual(computeScoreRange([], true), { min: 0, max: 1 });
     });
   });
 
