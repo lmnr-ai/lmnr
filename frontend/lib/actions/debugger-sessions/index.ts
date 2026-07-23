@@ -170,6 +170,7 @@ export async function getDebuggerSession(input: z.infer<typeof GetDebuggerSessio
 export const TRACE_BLOCK_TYPE = "trace";
 export const EVALUATION_BLOCK_TYPE = "evaluation";
 export const TEXT_BLOCK_TYPE = "text";
+export const COMMAND_BLOCK_TYPE = "command";
 
 // Raw `debugger_session_blocks` row. `content` is jsonb: trace blocks carry
 // `{ traceId, note? }`, evaluation blocks `{ evaluationId, note? }`, text
@@ -201,6 +202,30 @@ async function fetchSessionBlockRows(projectId: string, sessionId: string): Prom
 // `text` per the shared `TextBlockContent` contract.
 const blockText = (block: SessionBlockRow): string | null =>
   typeof block.content.text === "string" ? block.content.text : null;
+
+// Content of a `command` block — a CLI command an agent ran. Only `command` is
+// guaranteed; everything else is optional on the wire.
+export type CommandBlockContent = {
+  command: string;
+  args?: string[];
+  exitCode?: number;
+  output?: string;
+  raw?: string;
+};
+
+// Defensive field-by-field extraction (NOT a strict zod parse): a malformed
+// optional field must degrade to "absent", never drop the whole block.
+const blockCommandContent = (block: SessionBlockRow): CommandBlockContent | null => {
+  const c = block.content;
+  if (typeof c.command !== "string" || c.command.length === 0) return null;
+  return {
+    command: c.command,
+    ...(Array.isArray(c.args) ? { args: c.args.filter((a): a is string => typeof a === "string") } : {}),
+    ...(typeof c.exitCode === "number" && Number.isFinite(c.exitCode) ? { exitCode: c.exitCode } : {}),
+    ...(typeof c.output === "string" ? { output: c.output } : {}),
+    ...(typeof c.raw === "string" ? { raw: c.raw } : {}),
+  };
+};
 
 // Per-batch ceiling for trace-row fetches.
 const MAX_SESSION_TRACES = 200;
@@ -246,7 +271,8 @@ export type SessionEvaluationRef = {
 export type SessionBlock =
   | { id: string; type: "trace"; createdAt: string; traceId: string }
   | { id: string; type: "evaluation"; createdAt: string; evaluation: SessionEvaluationRef }
-  | { id: string; type: "text"; createdAt: string; text: string };
+  | { id: string; type: "text"; createdAt: string; text: string }
+  | { id: string; type: "command"; createdAt: string; command: CommandBlockContent };
 
 const GetSessionBlocksSchema = z.object({
   projectId: z.guid(),
@@ -291,7 +317,11 @@ export async function getSessionBlocks(input: z.infer<typeof GetSessionBlocksSch
     } else if (block.type === TEXT_BLOCK_TYPE) {
       const text = blockText(block);
       if (text) resolved.push({ id: block.id, type: "text", createdAt: block.createdAt, text });
+    } else if (block.type === COMMAND_BLOCK_TYPE) {
+      const command = blockCommandContent(block);
+      if (command) resolved.push({ id: block.id, type: "command", createdAt: block.createdAt, command });
     }
+    // Unknown block types are intentionally skipped (open `type` string on the wire).
   }
   return resolved;
 }

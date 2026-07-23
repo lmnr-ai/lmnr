@@ -5,7 +5,7 @@ import {
   type TranscriptListGroup,
 } from "@/components/traces/trace-view/store/base";
 import { computePathInfoMap, transformSpansToTree } from "@/components/traces/trace-view/store/utils";
-import { type SessionEvaluationRef } from "@/lib/actions/debugger-sessions";
+import { type CommandBlockContent, type SessionEvaluationRef } from "@/lib/actions/debugger-sessions";
 import { SpanType, type TraceRow } from "@/lib/traces/types";
 
 import { type SessionBlockView, type TraceRowState } from "../store";
@@ -22,6 +22,7 @@ export const withTraceIndex = (blocks: SessionBlockView[]): TimelineItem[] => {
 // map scroll position ↔ block. Trace rows also carry `traceId`.
 export type DebuggerFlatRow =
   | { type: "text"; blockId: string; text: string }
+  | { type: "command"; blockId: string; command: CommandBlockContent }
   | { type: "evaluation"; blockId: string; evaluation: SessionEvaluationRef; createdAt: string }
   | { type: "trace-skeleton"; blockId: string; traceId: string }
   | { type: "trace-header"; blockId: string; traceId: string; trace: TraceRow; traceIndex: number; expanded: boolean }
@@ -82,6 +83,10 @@ export function buildDebuggerFlatRows(opts: BuildDebuggerFlatRowsOpts): Debugger
 
     if (block.type === "text") {
       rows.push({ type: "text", blockId: block.id, text: block.text });
+      continue;
+    }
+    if (block.type === "command") {
+      rows.push({ type: "command", blockId: block.id, command: block.command });
       continue;
     }
     if (block.type === "evaluation") {
@@ -193,6 +198,8 @@ export const flatRowKey = (row: DebuggerFlatRow): string => {
   switch (row.type) {
     case "text":
       return `x::${row.blockId}`;
+    case "command":
+      return `c::${row.blockId}`;
     case "evaluation":
       return `e::${row.blockId}`;
     case "trace-skeleton":
@@ -245,6 +252,9 @@ export const flatRowEstimate = (row: DebuggerFlatRow, showTreeContent: boolean):
       return 80;
     case "text":
       return 180;
+    // Collapsed one-liner; expanding re-measures via measureElement.
+    case "command":
+      return 48;
     case "evaluation":
       return 200;
     case "user-input":

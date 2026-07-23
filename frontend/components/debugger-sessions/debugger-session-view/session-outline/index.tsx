@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { FileText, FlaskConical, MessageCircle } from "lucide-react";
+import { FileText, FlaskConical, MessageCircle, SquareTerminal } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
@@ -14,7 +14,7 @@ import { type SessionBlockView, type TraceRowState, useDebuggerSessionViewStore 
 type OutlineRow = {
   blockId: string;
   text: string;
-  kind: "trace" | "eval" | "text";
+  kind: "trace" | "eval" | "text" | "command";
 };
 
 // Text blocks are markdown, so a raw slice surfaces syntax like "## text…".
@@ -37,6 +37,12 @@ const textBlockTitle = (text: string): string => {
   return oneLine.length > TEXT_BLOCK_TITLE_LEN ? `${oneLine.slice(0, TEXT_BLOCK_TITLE_LEN)}…` : oneLine || "Note";
 };
 
+// Short label for a command block: the subcommand (or raw string), truncated.
+const commandBlockTitle = (command: { command: string; raw?: string }): string => {
+  const oneLine = (command.raw ?? command.command).replace(/\s+/g, " ").trim();
+  return oneLine.length > TEXT_BLOCK_TITLE_LEN ? `${oneLine.slice(0, TEXT_BLOCK_TITLE_LEN)}…` : oneLine || "Command";
+};
+
 const buildRows = (blocks: SessionBlockView[], traceRowStates: Record<string, TraceRowState>): OutlineRow[] => {
   const rows: OutlineRow[] = [];
   let traceIndex = 0;
@@ -45,6 +51,8 @@ const buildRows = (blocks: SessionBlockView[], traceRowStates: Record<string, Tr
       rows.push({ blockId: block.id, text: block.evaluation.name, kind: "eval" });
     } else if (block.type === "text") {
       rows.push({ blockId: block.id, text: textBlockTitle(block.text), kind: "text" });
+    } else if (block.type === "command") {
+      rows.push({ blockId: block.id, text: commandBlockTitle(block.command), kind: "command" });
     } else if (block.type === "trace") {
       // Count missing traces so numbering stays in lockstep with the timeline
       // (which indexes every trace block), but omit them from the outline: a
@@ -201,6 +209,14 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
                     className={cn(
                       "mr-1.5 size-3 shrink-0 transition-colors",
                       isActive ? "text-emerald-500" : "text-emerald-500/70 group-hover:text-emerald-500"
+                    )}
+                  />
+                )}
+                {row.kind === "command" && (
+                  <SquareTerminal
+                    className={cn(
+                      "mr-1.5 size-3 shrink-0 transition-colors",
+                      isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
                     )}
                   />
                 )}

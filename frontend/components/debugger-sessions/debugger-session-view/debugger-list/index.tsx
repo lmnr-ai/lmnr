@@ -24,6 +24,7 @@ import { traceAnchorId } from "../session-outline/utils";
 import { useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "../store";
 import { useBlockScrollSync } from "../use-block-scroll-sync";
 import { useScrollMargin } from "../use-scroll-margin";
+import CommandBlock from "./command-block";
 import EvaluationBlockItem from "./evaluation-block-item";
 import {
   buildDebuggerFlatRows,
@@ -459,6 +460,8 @@ function FlatRowContent({
   switch (row.type) {
     case "text":
       return <TextBlockItem id={row.blockId} text={row.text} />;
+    case "command":
+      return <CommandBlock id={row.blockId} command={row.command} />;
     case "evaluation":
       return (
         <EvaluationBlockItem

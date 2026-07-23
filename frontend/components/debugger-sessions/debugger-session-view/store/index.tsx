@@ -158,8 +158,8 @@ const minimalTraceRow = (traceId: string, metadata: Record<string, string> = {})
 export type TraceRowState = "loading" | "loaded" | "missing";
 
 // Which kind of block arrived live — drives the "New trace" / "New eval" /
-// "New note" pill.
-export type NewBlockNotice = "trace" | "evaluation" | "text";
+// "New note" / "New command" pill.
+export type NewBlockNotice = "trace" | "evaluation" | "text" | "command";
 
 interface DebuggerSessionViewState {
   // The ordered timeline: trace / evaluation / text blocks. Single source of
@@ -576,7 +576,9 @@ export const createDebuggerSessionViewStore = (options: {
             const view: SessionBlockView =
               block.type === "evaluation"
                 ? { id: block.id, type: "evaluation", createdAt: block.createdAt, evaluation: block.evaluation }
-                : { id: block.id, type: "text", createdAt: block.createdAt, text: block.text };
+                : block.type === "command"
+                  ? { id: block.id, type: "command", createdAt: block.createdAt, command: block.command }
+                  : { id: block.id, type: "text", createdAt: block.createdAt, text: block.text };
             // Pill for a genuinely new eval OR note, after the initial fetch
             // settles (so it can't flash on load). Don't overwrite an existing
             // notice — the first unseen block the user hasn't scrolled to wins.
