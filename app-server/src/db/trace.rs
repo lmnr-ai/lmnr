@@ -147,6 +147,57 @@ impl Trace {
             .unwrap_or_default()
     }
 
+    /// True when this row has never been touched by a real span batch —
+    /// `span_names` is set by every aggregation upsert and never by a
+    /// metadata-only patch, so `NULL` means the row is either a freshly
+    /// created stub (patch beat the trace's span batch) or, on the RETURNING
+    /// path, still is one after this very patch. Placeholder `now()`
+    /// start/end times on such a row must never be treated as real.
+    pub fn is_stub(&self) -> bool {
+        self.span_names.is_none()
+    }
+
+    /// Test-only constructor so other modules' tests (e.g. `ch::traces_agg`)
+    /// can build a `Trace` without reaching into its private fields.
+    #[cfg(test)]
+    pub fn test_new(
+        id: Uuid,
+        project_id: Uuid,
+        start_time: Option<DateTime<Utc>>,
+        end_time: Option<DateTime<Utc>>,
+        span_names: Option<Value>,
+    ) -> Self {
+        Trace {
+            id,
+            start_time,
+            end_time,
+            trace_type: 0,
+            top_span_id: None,
+            top_span_name: None,
+            top_span_type: None,
+            session_id: None,
+            metadata: None,
+            user_id: None,
+            input_token_count: 0,
+            output_token_count: 0,
+            total_token_count: 0,
+            cache_read_input_tokens: Some(0),
+            cache_creation_input_tokens: Some(0),
+            reasoning_tokens: Some(0),
+            input_cost: 0.0,
+            output_cost: 0.0,
+            cost: 0.0,
+            project_id,
+            status: None,
+            tags: vec![],
+            num_spans: 1,
+            has_browser_session: None,
+            span_names,
+            root_span_input: None,
+            root_span_output: None,
+        }
+    }
+
     #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     pub fn matches_filters(&self, spans: &[Span], filters: &[Filter]) -> bool {
         if filters.is_empty() {
