@@ -128,41 +128,49 @@ export const EvaluationCard = ({
       id={evalAnchorId(evaluation.id)}
       className="group scroll-mt-4 overflow-hidden rounded-lg border border-[rgba(232,232,232,0.1)] bg-surface-800"
     >
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={expanded}
-        className="flex h-[40px] w-full items-center justify-between gap-2 bg-muted/75 pl-2 pr-3 text-left transition-colors hover:bg-muted/90"
-      >
-        <div className="flex min-w-0 items-center gap-2">
-          <FlaskConical className="size-4 shrink-0 text-emerald-500" />
-          <span className="truncate text-[13px] font-medium leading-[17px] text-primary-foreground">
-            {evaluation.name}
-          </span>
-          {evaluation.datapointCount > 0 && (
-            <span
-              className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs text-muted-foreground"
-              title={`${evaluation.datapointCount} ${evaluation.datapointCount === 1 ? "datapoint" : "datapoints"}`}
-            >
-              <Database className="size-3" />
-              <span className="tabular-nums">{evaluation.datapointCount}</span>
+      {/* The collapse toggle is a full-cover button rendered BEHIND the header
+          content, so the open-eval Link can be a sibling (not an anchor nested
+          in a button — invalid interactive nesting). The content row is
+          pointer-events-none so clicks fall through to the toggle; only the Link
+          re-enables pointer events. */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          aria-label={`${expanded ? "Collapse" : "Expand"} evaluation ${evaluation.name}`}
+          className="absolute inset-0 h-full w-full bg-muted/75 transition-colors hover:bg-muted/90"
+        />
+        <div className="pointer-events-none relative flex h-[40px] w-full items-center justify-between gap-2 pl-2 pr-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <FlaskConical className="size-4 shrink-0 text-emerald-500" />
+            <span className="truncate text-[13px] font-medium leading-[17px] text-primary-foreground">
+              {evaluation.name}
             </span>
-          )}
-          {/* Explicit open-eval affordance — the header click now toggles collapse,
-              so navigation gets its own control (stops the toggle from firing). */}
-          <Link
-            href={`/project/${projectId}/evaluations/${evaluation.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="inline-flex shrink-0 items-center rounded p-0.5 text-secondary-foreground opacity-0 transition-opacity hover:bg-secondary group-hover:opacity-100"
-            title="Open evaluation"
-          >
-            <ArrowUpRight className="size-4 shrink-0" />
-          </Link>
+            {evaluation.datapointCount > 0 && (
+              <span
+                className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs text-muted-foreground"
+                title={`${evaluation.datapointCount} ${evaluation.datapointCount === 1 ? "datapoint" : "datapoints"}`}
+              >
+                <Database className="size-3" />
+                <span className="tabular-nums">{evaluation.datapointCount}</span>
+              </span>
+            )}
+            {/* Sibling of the toggle (not nested); pointer-events re-enabled and
+                revealed on hover OR keyboard focus so it's reachable without a mouse. */}
+            <Link
+              href={`/project/${projectId}/evaluations/${evaluation.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="pointer-events-auto inline-flex shrink-0 items-center rounded p-0.5 text-secondary-foreground opacity-0 transition-opacity hover:bg-secondary focus-visible:opacity-100 group-hover:opacity-100"
+              title="Open evaluation"
+            >
+              <ArrowUpRight className="size-4 shrink-0" />
+            </Link>
+          </div>
+          <CardExpandIndicator expanded={expanded} relativeTime={relativeTime} />
         </div>
-        <CardExpandIndicator expanded={expanded} relativeTime={relativeTime} />
-      </button>
+      </div>
 
       {expanded && (
         <>

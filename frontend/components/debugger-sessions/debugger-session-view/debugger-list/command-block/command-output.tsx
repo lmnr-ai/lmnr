@@ -30,20 +30,26 @@ export default function CommandOutput({ output, failed }: CommandOutputProps) {
   const visible = showFull || !overBudget ? output : output.slice(0, OUTPUT_CHAR_BUDGET);
 
   return (
-    <div className="flex max-h-80 flex-col overflow-auto">
-      <pre
-        className={cn(
-          "whitespace-pre-wrap break-words px-3 py-2 font-mono text-xs leading-5",
-          failed ? "text-destructive" : "text-secondary-foreground"
-        )}
-      >
-        {visible}
-      </pre>
+    <div className="flex flex-col">
+      {/* Only the text scrolls; the "show full" control lives OUTSIDE the
+          scroller so it stays visible for an over-budget payload (whose
+          truncated text is far taller than max-h-80) instead of being buried
+          at the bottom of the inner scroll. */}
+      <div className="max-h-80 overflow-auto">
+        <pre
+          className={cn(
+            "whitespace-pre-wrap break-words px-3 py-2 font-mono text-xs leading-5",
+            failed ? "text-destructive" : "text-secondary-foreground"
+          )}
+        >
+          {visible}
+        </pre>
+      </div>
       {overBudget && !showFull && (
         <button
           type="button"
           onClick={() => setShowFull(true)}
-          className="self-start px-3 pb-2 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          className="self-start px-3 py-2 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
         >
           Show full output ({output.length.toLocaleString()} chars)
         </button>
