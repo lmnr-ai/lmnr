@@ -25,8 +25,13 @@ export default function GroupsList() {
   const [groupId, setGroupId] = useQueryState("groupId");
 
   useEffect(() => {
-    if (groups && groups.length > 0 && !groupId) {
-      // Default to the first group; replace (not push) so it isn't a history entry.
+    if (!groups || groups.length === 0) return;
+    // Fall back to the first group when nothing is selected OR the selected group
+    // no longer exists — e.g. a move emptied it, so it dropped out of the derived
+    // list and the stale groupId would otherwise strand the page on a dead group.
+    const selectedExists = !!groupId && groups.some((g) => g.groupId === groupId);
+    if (!selectedExists) {
+      // replace (not push) so it isn't a history entry.
       setGroupId(groups[0].groupId, { history: "replace" });
     }
   }, [groups, groupId, setGroupId]);

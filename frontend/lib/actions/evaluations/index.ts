@@ -24,6 +24,12 @@ export const DeleteEvaluationsSchema = z.object({
   evaluationIds: z.array(z.guid()),
 });
 
+export const MoveEvaluationsSchema = z.object({
+  projectId: z.guid(),
+  evaluationIds: z.array(z.guid()).min(1),
+  groupId: z.string().trim().min(1),
+});
+
 export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>) {
   const { projectId, groupId, pageSize, pageNumber, search, filter } = input;
 
@@ -185,6 +191,55 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
     ...result,
     items: itemsWithCounts,
   };
+}
+
+export async function moveEvaluations(input: z.infer<typeof MoveEvaluationsSchema>) {
+  const { projectId, evaluationIds, groupId } = MoveEvaluationsSchema.parse(input);
+
+  // Postgres is the source of truth for group membership; update it first. If it
+  // throws we've changed nothing and bail cleanly.
+  await db
+    .update(evaluations)
+    .set({ groupId })
+    .where(and(inArray(evaluations.id, evaluationIds), eq(evaluations.projectId, projectId)));
+
+  // Datapoints carry a denormalized group_id that the group progression chart
+  // reads (WHERE group_id = ...), so it must follow. evaluation_datapoints is a
+  // ReplacingMergeTree(updated_at): re-insert the latest (FINAL) version of each
+  // row with the new group_id + a fresh updated_at so it wins on the next merge /
+  // FINAL read. Unlike deleteEvaluations we do NOT swallow errors here — a stale
+  // group_id is *visible* (chart drift), so we fail loud and let the caller surface
+  // it; a retry is idempotent (Postgres update is a no-op, the re-insert re-wins).
+  //
+  // NOTE: the column list is hardcoded and MUST stay in sync with the
+  // evaluation_datapoints schema — INSERT ... SELECT maps positionally, so a new
+  // column added to the table without updating this list will corrupt re-inserted
+  // rows. Cross-check against app-server CHEvaluationDatapoint when the schema changes.
+  await clickhouseClient.command({
+    query: `
+      INSERT INTO evaluation_datapoints
+        (id, evaluation_id, project_id, trace_id, updated_at, data, target, metadata,
+         executor_output, index, dataset_id, dataset_datapoint_id, dataset_datapoint_created_at,
+         group_id, scores)
+      SELECT
+        id, evaluation_id, project_id, trace_id, now64(9) AS updated_at, data, target, metadata,
+        executor_output, index, dataset_id, dataset_datapoint_id, dataset_datapoint_created_at,
+        {groupId: String} AS group_id, scores
+      FROM evaluation_datapoints FINAL
+      WHERE project_id = {projectId: UUID}
+        AND evaluation_id IN ({evaluationIds: Array(UUID)})
+    `,
+    query_params: {
+      projectId,
+      evaluationIds,
+      groupId,
+    },
+    // Re-insert must be durable before we report success (shared client defaults
+    // to wait_for_async_insert: 0).
+    clickhouse_settings: {
+      wait_for_async_insert: 1,
+    },
+  });
 }
 
 export async function deleteEvaluations(input: z.infer<typeof DeleteEvaluationsSchema>) {
