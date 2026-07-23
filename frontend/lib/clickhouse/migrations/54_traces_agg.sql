@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS default.trace_agent_input
 )
 ENGINE = ReplacingMergeTree(updated_at)
 ORDER BY (project_id, trace_id)
-PARTITION BY toYYYYMM(start_time)
+PARTITION BY toYYYYMM(updated_at)
 SETTINGS index_granularity = 8192;
 
 CREATE TABLE IF NOT EXISTS default.trace_agent_output
@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS default.trace_agent_output
     `updated_at` DateTime64(9, 'UTC') DEFAULT now64(9)
 )
 ENGINE = ReplacingMergeTree(updated_at)
-PARTITION BY toYYYYMM(start_time)
+PARTITION BY toYYYYMM(updated_at)
 ORDER BY (project_id, trace_id)
 SETTINGS index_granularity = 8192;
 
