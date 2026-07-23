@@ -42,9 +42,12 @@ export const parseCommandBlockContent = (content: unknown): CommandBlockContent 
 const SUMMARY_BUDGET = 200;
 
 // One-line summary of the invocation: prefer the full raw string, fall back to
-// the subcommand + its args.
+// the subcommand + its args. `trimStart` before slicing (it only scans the
+// leading whitespace run) — a 200+ char whitespace prefix would otherwise fill
+// the whole budget and trim away to a blank summary.
 export const commandSummary = (content: CommandBlockContent): string =>
   (content.raw ?? [content.command, ...(content.args ?? [])].join(" "))
+    .trimStart()
     .slice(0, SUMMARY_BUDGET)
     .replace(/\s+/g, " ")
     .trim();
