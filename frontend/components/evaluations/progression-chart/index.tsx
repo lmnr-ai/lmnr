@@ -1,4 +1,5 @@
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
+import { useQueryState } from "nuqs";
 import { useCallback, useMemo, useState } from "react";
 
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
@@ -37,8 +38,7 @@ export default function ProgressionChart({
   hoveredEvaluationId,
   onPointClick,
 }: ProgressionChartProps) {
-  const searchParams = useSearchParams();
-  const groupId = searchParams.get("groupId");
+  const [groupId] = useQueryState("groupId");
   const params = useParams();
   const [hoveredScore, setHoveredScore] = useState<string | null>(null);
 

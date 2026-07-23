@@ -1,7 +1,7 @@
-import { ArrowRight, Download, Edit, Ellipsis, Trash } from "lucide-react";
+import { ArrowRight, Database, Download, Edit, Ellipsis, Trash } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { memo } from "react";
+import { memo } from "react";
 
 import { AgentHeaderToggle } from "@/components/agent";
 import DeleteEvaluationDialog from "@/components/evaluation/delete-evaluation-dialog";
@@ -17,23 +17,26 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { type Evaluation as EvaluationType } from "@/lib/evaluation/types";
+import { type Evaluation as EvaluationType, type LinkedDataset } from "@/lib/evaluation/types";
 import { formatTimestamp } from "@/lib/utils";
 
 interface EvaluationHeader {
   evaluations: EvaluationType[];
   name?: string;
   urlKey: string;
+  datasets: LinkedDataset[];
 }
 
 const DOWNLOAD_FORMATS = ["csv", "json"] as const;
 
-const EvaluationHeader = ({ evaluations, name, urlKey }: EvaluationHeader) => {
+const EvaluationHeader = ({ evaluations, name, urlKey, datasets }: EvaluationHeader) => {
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const { projectId, evaluationId } = useParams();
   const router = useRouter();
   const targetId = searchParams.get("targetId");
+  // All runs in this view share one group (queried by group_id server-side).
+  const groupId = evaluations[0]?.groupId;
 
   const handleChange = (value?: string) => {
     const params = new URLSearchParams(searchParams);
@@ -55,6 +58,17 @@ const EvaluationHeader = ({ evaluations, name, urlKey }: EvaluationHeader) => {
         >
           evaluations
         </Link>
+        {groupId && (
+          <>
+            <div className="text-secondary-foreground/40">/</div>
+            <Link
+              href={`/project/${projectId}/evaluations?groupId=${encodeURIComponent(groupId)}`}
+              className="hover:bg-muted rounded-lg px-2 p-0.5 text-secondary-foreground truncate max-w-40"
+            >
+              {groupId}
+            </Link>
+          </>
+        )}
         <div className="text-secondary-foreground/40">/</div>
         <div>
           <Select key={targetId} value={targetId ?? undefined} onValueChange={handleChange}>
@@ -108,6 +122,17 @@ const EvaluationHeader = ({ evaluations, name, urlKey }: EvaluationHeader) => {
             Reset
           </Button>
         )}
+        {datasets.map((dataset) => (
+          <Link
+            key={dataset.id}
+            href={`/project/${projectId}/datasets/${dataset.id}`}
+            title={`Dataset: ${dataset.name}`}
+            className="inline-flex items-center gap-1 rounded-full border border-blue-400/30 bg-blue-400/10 px-2 py-0.5 text-xs text-secondary-foreground hover:bg-blue-400/20"
+          >
+            <Database size={12} className="flex-none" />
+            <span className="truncate max-w-32">{dataset.name}</span>
+          </Link>
+        ))}
       </div>
       <div className="flex items-center gap-2">
         <DropdownMenu>

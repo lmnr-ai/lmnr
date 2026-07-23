@@ -1,6 +1,7 @@
 "use client";
 
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
+import { useQueryState } from "nuqs";
 import { useCallback, useEffect } from "react";
 import useSWR from "swr";
 
@@ -13,32 +14,28 @@ import type { EvaluationGroup } from "./types";
 
 export default function GroupsList() {
   const { projectId } = useParams();
-  const router = useRouter();
-  const searchParams = useSearchParams();
 
   const { data: groups, isLoading } = useSWR<EvaluationGroup[]>(
     `/api/projects/${projectId}/evaluation-groups`,
     swrFetcher
   );
 
-  const groupId = searchParams.get("groupId");
+  // Canonical group selection — nuqs merges into the URL without clobbering the
+  // other query params (filters/search/view state).
+  const [groupId, setGroupId] = useQueryState("groupId");
 
   useEffect(() => {
     if (groups && groups.length > 0 && !groupId) {
-      // Merge (don't clobber) existing query params — filters/search/view state.
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("groupId", groups[0].groupId);
-      router.replace(`/project/${projectId}/evaluations?${params.toString()}`);
+      // Default to the first group; replace (not push) so it isn't a history entry.
+      setGroupId(groups[0].groupId, { history: "replace" });
     }
-  }, [groups, groupId, router, projectId, searchParams]);
+  }, [groups, groupId, setGroupId]);
 
   const onSelect = useCallback(
     (selectedGroupId: string) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("groupId", selectedGroupId);
-      router.push(`/project/${projectId}/evaluations?${params.toString()}`);
+      setGroupId(selectedGroupId, { history: "push" });
     },
-    [projectId, router, searchParams]
+    [setGroupId]
   );
 
   return (

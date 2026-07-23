@@ -1,13 +1,19 @@
 "use client";
 
-import { type Key, useMemo } from "react";
+import { type Key, useEffect, useMemo, useRef, useState } from "react";
 import { CartesianGrid, Line, LineChart, Tooltip, XAxis, YAxis } from "recharts";
 
 import { parseUtcTimestamp } from "@/components/chart-builder/charts/utils";
 import { cn, formatTimestamp } from "@/lib/utils";
 
 import { type ChartConfig, ChartContainer } from "../../ui/chart";
+import { computeScoreRange, normalizeValue } from "./normalize";
 import { type ProgressionPoint } from "./shared";
+
+// Max px gap between points — caps spacing when few points (recharts has no native prop).
+const MAX_POINT_GAP_PX = 72;
+// LineChart margin.left + margin.right.
+const HORIZONTAL_MARGIN_PX = 24;
 
 interface CombinedChartProps {
   data: ProgressionPoint[];
@@ -25,6 +31,9 @@ type Row = {
   name: string;
   timestamp: string;
   ts: number;
+  // Numeric slot index (0-based) — drives the number X axis so point spacing
+  // can be bounded independently of the container width.
+  x: number;
   __raw: Record<string, number | null>;
 } & Record<string, number | string | null | Record<string, number | null>>;
 
@@ -39,41 +48,29 @@ export default function CombinedChart({
   className,
 }: CombinedChartProps) {
   const { rows, ranks } = useMemo(() => {
+    // Per-score min-max, no 0–1 special-case: every score fills the full plot
+    // height. Dot clipping at the extremes is handled by the YAxis pixel padding.
     const ranges: Record<string, { min: number; max: number }> = {};
     for (const score of scores) {
-      let min = Infinity;
-      let max = -Infinity;
+      const values: number[] = [];
       for (const point of data) {
         const v = point.values[score];
-        if (typeof v === "number" && !isNaN(v)) {
-          if (v < min) min = v;
-          if (v > max) max = v;
-        }
+        if (typeof v === "number" && !isNaN(v)) values.push(v);
       }
-      if (min === Infinity) {
-        ranges[score] = { min: 0, max: 1 };
-      } else if (min >= 0 && max <= 1) {
-        // Scores that already live on a 0–1 scale (rates, accuracies) plot on a
-        // fixed 0–1 axis, so a small absolute change reads as a small change
-        // instead of being min-max stretched to fill the plot.
-        ranges[score] = { min: 0, max: 1 };
-      } else {
-        // Other scales (durations, counts, costs) keep per-score min-max
-        // normalization so their trend is still visible.
-        ranges[score] = { min, max };
-      }
+      ranges[score] = computeScoreRange(values);
     }
 
     // Sort chronologically — line segments cross over themselves otherwise.
     const sorted = data.slice().sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 
-    const rows: Row[] = sorted.map((point) => {
+    const rows: Row[] = sorted.map((point, index) => {
       const raw: Record<string, number | null> = {};
       const row: Row = {
         evaluationId: point.evaluationId,
         name: point.name,
         timestamp: point.timestamp,
         ts: parseUtcTimestamp(point.timestamp).getTime(),
+        x: index,
         __raw: raw,
       };
       for (const score of scores) {
@@ -81,17 +78,7 @@ export default function CombinedChart({
         const numeric = typeof v === "number" && !isNaN(v) ? v : null;
         raw[score] = numeric;
         const { min, max } = ranges[score];
-        let normalized: number | null;
-        if (numeric === null) {
-          normalized = null;
-        } else if (max === min) {
-          // A score that never changes has no range — draw it mid-chart instead
-          // of pinning it to the top/bottom edge.
-          normalized = 0.5;
-        } else {
-          normalized = (numeric - min) / (max - min);
-        }
-        (row as Record<string, unknown>)[score] = normalized;
+        (row as Record<string, unknown>)[score] = numeric === null ? null : normalizeValue(numeric, min, max);
       }
       return row;
     });
@@ -114,8 +101,7 @@ export default function CombinedChart({
     return { rows, ranks };
   }, [data, scores]);
 
-  // Range-aware label format for run ticks: day-level for multi-day ranges,
-  // time-of-day when all runs land within a day.
+  // Day-level ticks for multi-day ranges, time-of-day otherwise; maps slot index → timestamp.
   const tickFormatter = useMemo(() => {
     if (rows.length === 0) return () => "";
     const spansDays = rows[rows.length - 1].ts - rows[0].ts > 24 * 60 * 60 * 1000;
@@ -123,96 +109,121 @@ export default function CombinedChart({
       "en-US",
       spansDays ? { month: "short", day: "numeric" } : { hour: "numeric", minute: "2-digit" }
     );
-    const byId = new Map(rows.map((r) => [r.evaluationId, r.ts]));
-    return (id: string) => {
-      const ts = byId.get(id);
-      return ts === undefined ? "" : fmt.format(new Date(ts));
+    return (index: number) => {
+      const row = rows[index];
+      return row ? fmt.format(new Date(row.ts)) : "";
     };
   }, [rows]);
+
+  // Measure width to turn MAX_POINT_GAP_PX into a slot budget; full width until measured.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) setContainerWidth(entry.contentRect.width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Domain [0, maxSlots]: count-1 fills the width; the pixel budget wins for few points (clusters left).
+  const ticks = useMemo(() => rows.map((r) => r.x), [rows]);
+  const maxSlots = useMemo(() => {
+    const plotWidth = Math.max(0, containerWidth - HORIZONTAL_MARGIN_PX);
+    const budgetSlots = plotWidth > 0 ? Math.floor(plotWidth / MAX_POINT_GAP_PX) : 0;
+    return Math.max(rows.length - 1, budgetSlots, 1);
+  }, [containerWidth, rows.length]);
 
   const visible = scores.filter((s) => visibleScores.includes(s));
 
   return (
-    <ChartContainer
-      config={chartConfig}
-      className={cn("aspect-auto h-full w-full", onPointClick && "cursor-pointer", className)}
-    >
-      <LineChart
-        margin={{ top: 4, right: 12, bottom: 4, left: 12 }}
-        data={rows}
-        accessibilityLayer
-        onClick={
-          onPointClick
-            ? (state: { activePayload?: Array<{ payload?: Row }> }) => {
-                const id = state?.activePayload?.[0]?.payload?.evaluationId;
-                if (typeof id === "string") onPointClick(id);
-              }
-            : undefined
-        }
+    <div ref={containerRef} className="h-full w-full">
+      <ChartContainer
+        config={chartConfig}
+        className={cn("aspect-auto h-full w-full", onPointClick && "cursor-pointer", className)}
       >
-        <CartesianGrid vertical={false} />
-        {/* Category axis: one equally-spaced slot per run (spacing is per-run,
-            deliberately NOT proportional to elapsed time between runs). */}
-        <XAxis
-          dataKey="evaluationId"
-          interval="preserveStartEnd"
-          minTickGap={48}
-          tickFormatter={tickFormatter}
-          tickLine={false}
-          axisLine={false}
-          tickMargin={6}
-          height={20}
-          tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-        />
-        {/* Padding keeps min/max dots (y = 0 / 1) from being clipped at the plot edges. */}
-        <YAxis hide domain={[0, 1]} padding={{ top: 10, bottom: 10 }} />
-        <Tooltip
-          cursor={{ stroke: "hsl(var(--muted-foreground))", strokeOpacity: 0.4 }}
-          content={<NormalizedTooltip ranks={ranks} chartConfig={chartConfig} />}
-        />
-        {visible.map((score) => {
-          // Legend hover spotlights one score's line; the others fade back.
-          const scoreDimmed = !!hoveredScore && score !== hoveredScore;
-          return (
-            <Line
-              key={score}
-              dataKey={score}
-              name={score}
-              stroke={chartConfig[score]?.color}
-              strokeWidth={hoveredScore === score ? 2 : 1.5}
-              strokeOpacity={scoreDimmed ? 0.15 : hoveredEvaluationId ? 0.35 : 1}
-              dot={(props: { cx?: number | null; cy?: number | null; payload?: Row; key?: Key | null }) => {
-                const { cx, cy, payload, key } = props;
-                // Null values still get a dot callback with cy=null — an SVG circle
-                // without cy renders at 0 (pinned to the top edge). Skip them.
-                if (typeof cx !== "number" || typeof cy !== "number" || Number.isNaN(cx) || Number.isNaN(cy)) {
-                  return <g key={key ?? undefined} />;
+        <LineChart
+          margin={{ top: 4, right: 12, bottom: 4, left: 12 }}
+          data={rows}
+          accessibilityLayer
+          onClick={
+            onPointClick
+              ? (state: { activePayload?: Array<{ payload?: Row }> }) => {
+                  const id = state?.activePayload?.[0]?.payload?.evaluationId;
+                  if (typeof id === "string") onPointClick(id);
                 }
-                const isHovered = payload?.evaluationId === hoveredEvaluationId;
-                const r = isHovered ? 5 : 2.5;
-                const opacity = scoreDimmed ? 0.15 : hoveredEvaluationId ? (isHovered ? 1 : 0.35) : 1;
-                return (
-                  <circle
-                    key={key ?? undefined}
-                    cx={cx}
-                    cy={cy}
-                    r={r}
-                    fill={chartConfig[score]?.color}
-                    fillOpacity={opacity}
-                    stroke={isHovered ? "hsl(var(--background))" : "none"}
-                    strokeWidth={isHovered ? 1.5 : 0}
-                  />
-                );
-              }}
-              activeDot={{ r: 4 }}
-              isAnimationActive={false}
-              connectNulls
-              type="linear"
-            />
-          );
-        })}
-      </LineChart>
-    </ChartContainer>
+              : undefined
+          }
+        >
+          <CartesianGrid vertical={false} />
+          {/* Numeric slot axis; spacing is per-run, deliberately NOT proportional to elapsed time. */}
+          <XAxis
+            type="number"
+            dataKey="x"
+            domain={[0, maxSlots]}
+            allowDataOverflow
+            ticks={ticks}
+            interval="preserveStartEnd"
+            minTickGap={48}
+            tickFormatter={tickFormatter}
+            tickLine={false}
+            axisLine={false}
+            tickMargin={6}
+            height={20}
+            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+          />
+          {/* Padding keeps min/max dots (y = 0 / 1) from being clipped at the plot edges. */}
+          <YAxis hide domain={[0, 1]} padding={{ top: 10, bottom: 10 }} />
+          <Tooltip
+            cursor={{ stroke: "hsl(var(--muted-foreground))", strokeOpacity: 0.4 }}
+            content={<NormalizedTooltip ranks={ranks} chartConfig={chartConfig} />}
+          />
+          {visible.map((score) => {
+            // Legend hover spotlights one score's line; the others fade back.
+            const scoreDimmed = !!hoveredScore && score !== hoveredScore;
+            return (
+              <Line
+                key={score}
+                dataKey={score}
+                name={score}
+                stroke={chartConfig[score]?.color}
+                strokeWidth={hoveredScore === score ? 2 : 1.5}
+                strokeOpacity={scoreDimmed ? 0.15 : hoveredEvaluationId ? 0.35 : 1}
+                dot={(props: { cx?: number | null; cy?: number | null; payload?: Row; key?: Key | null }) => {
+                  const { cx, cy, payload, key } = props;
+                  // Null values still get a dot callback with cy=null — an SVG circle
+                  // without cy renders at 0 (pinned to the top edge). Skip them.
+                  if (typeof cx !== "number" || typeof cy !== "number" || Number.isNaN(cx) || Number.isNaN(cy)) {
+                    return <g key={key ?? undefined} />;
+                  }
+                  const isHovered = payload?.evaluationId === hoveredEvaluationId;
+                  const r = isHovered ? 5 : 2.5;
+                  const opacity = scoreDimmed ? 0.15 : hoveredEvaluationId ? (isHovered ? 1 : 0.35) : 1;
+                  return (
+                    <circle
+                      key={key ?? undefined}
+                      cx={cx}
+                      cy={cy}
+                      r={r}
+                      fill={chartConfig[score]?.color}
+                      fillOpacity={opacity}
+                      stroke={isHovered ? "hsl(var(--background))" : "none"}
+                      strokeWidth={isHovered ? 1.5 : 0}
+                    />
+                  );
+                }}
+                activeDot={{ r: 4 }}
+                isAnimationActive={false}
+                connectNulls
+                type="linear"
+              />
+            );
+          })}
+        </LineChart>
+      </ChartContainer>
+    </div>
   );
 }
 
