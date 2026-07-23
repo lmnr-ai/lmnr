@@ -115,7 +115,10 @@ export default function CombinedChart({
     );
     return (index: number) => {
       const row = rows[index];
-      return row ? fmt.format(new Date(row.ts)) : "";
+      // Guard NaN too: an unparseable timestamp yields NaN, and
+      // `fmt.format(new Date(NaN))` THROWS (RangeError), taking down the whole
+      // chart. A bad tick degrades to blank instead.
+      return row && !Number.isNaN(row.ts) ? fmt.format(new Date(row.ts)) : "";
     };
   }, [rows]);
 
