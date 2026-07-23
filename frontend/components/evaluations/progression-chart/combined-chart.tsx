@@ -11,7 +11,7 @@ import { computeScoreRange, normalizeValue } from "./normalize";
 import { type ProgressionPoint } from "./shared";
 
 // Max px gap between points — caps spacing when few points (recharts has no native prop).
-const MAX_POINT_GAP_PX = 72;
+const MAX_POINT_GAP_PX = 120;
 // LineChart margin.left + margin.right.
 const HORIZONTAL_MARGIN_PX = 24;
 
