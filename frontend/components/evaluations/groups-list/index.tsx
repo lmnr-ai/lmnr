@@ -39,8 +39,8 @@ export default function GroupsList() {
   );
 
   return (
-    <div className="flex h-full w-full flex-col gap-2 overflow-hidden">
-      <div className="flex-1 overflow-y-auto pr-1">
+    <div className="flex h-full w-full min-w-0 flex-col gap-2 overflow-hidden">
+      <div className="min-w-0 flex-1 overflow-y-auto pr-1">
         {isLoading ? (
           <div className="flex flex-col gap-1.5 py-1">
             {[0, 1, 2, 3, 4].map((i) => (
@@ -54,12 +54,12 @@ export default function GroupsList() {
             {groups.map((g) => {
               const isSelected = g.groupId === groupId;
               return (
-                <li key={g.groupId}>
+                <li key={g.groupId} className="w-full min-w-0">
                   <button
                     type="button"
                     onClick={() => onSelect(g.groupId)}
                     className={cn(
-                      "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors",
+                      "flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors",
                       // Match the settings sidebar nav hover/active colors.
                       isSelected ? "bg-surface-600" : "hover:bg-surface-700 active:bg-surface-600"
                     )}
