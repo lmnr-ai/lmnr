@@ -37,6 +37,11 @@ export interface BaseSessionViewState {
   traceSpansLoading: Record<string, boolean>;
   traceSpansError: Record<string, string | undefined>;
 
+  /** Fallback trace-output text, keyed by trace id, resolved from the last LLM
+   *  span on the main-agent path. Only fetched for traces whose ingestion-time
+   *  `agentOutput` is empty. Absent = not fetched; null = fetched, none found. */
+  agentOutputFallback: Record<string, string | null>;
+
   // UI state
   expandedTraceIds: Set<string>;
   /** Namespaced `${traceId}::${groupId}` set — EXPANDED transcript groups (default collapsed). */
@@ -92,6 +97,11 @@ export interface BaseSessionViewActions {
   /** Fetch spans for a trace if not already loaded or currently loading.
    *  Idempotent: safe to call repeatedly on mount of TraceItem. */
   fetchTraceSpans: (trace: TraceRow) => Promise<void>;
+
+  /** Fetch the fallback output text for the given traces (batched + debounced).
+   *  Skips ids already resolved or in-flight. Caller passes only traces whose
+   *  `agentOutput` is empty. Fire-and-forget; fills `agentOutputFallback`. */
+  fetchAgentOutputFallback: (traceIds: string[]) => void;
 
   toggleTraceExpanded: (traceId: string) => void;
   setTraceExpanded: (traceId: string, expanded: boolean) => void;
@@ -201,6 +211,52 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
   // No options needed today; keep the signature for parity with trace-view's base.
   _options?: Record<string, never>
 ): BaseSessionViewStore {
+  // Closure-scoped per-store batching state for the fallback-output fetch.
+  // Not part of the store's reactive state — pure fetch bookkeeping.
+  const outputFallbackFetching = new Set<string>();
+  const outputFallbackPending = new Set<string>();
+  let outputFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const flushAgentOutputFallback = async () => {
+    const projectId = get().projectId;
+    if (!projectId || outputFallbackPending.size === 0) return;
+
+    const toFetch = Array.from(outputFallbackPending);
+    outputFallbackPending.clear();
+    for (const id of toFetch) outputFallbackFetching.add(id);
+
+    // Server caps each request at 100 ids.
+    for (let i = 0; i < toFetch.length; i += 100) {
+      const chunk = toFetch.slice(i, i + 100);
+      try {
+        const res = await fetch(`/api/projects/${projectId}/traces/output`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ traceIds: chunk }),
+        });
+        if (!res.ok) throw new Error("Failed to fetch trace output");
+        const data = (await res.json()) as Record<string, string | null>;
+        set({
+          agentOutputFallback: {
+            ...get().agentOutputFallback,
+            ...Object.fromEntries(chunk.map((id) => [id, data[id] ?? null])),
+          },
+        } as Partial<T>);
+      } catch {
+        // Mark as resolved-with-nothing so we don't retry in a loop; the
+        // collapsed body already degrades to "no output" gracefully.
+        set({
+          agentOutputFallback: {
+            ...get().agentOutputFallback,
+            ...Object.fromEntries(chunk.map((id) => [id, null])),
+          },
+        } as Partial<T>);
+      } finally {
+        for (const id of chunk) outputFallbackFetching.delete(id);
+      }
+    }
+  };
+
   return {
     traces: [],
     isTracesLoading: false,
@@ -209,6 +265,8 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
     traceSpans: {},
     traceSpansLoading: {},
     traceSpansError: {},
+
+    agentOutputFallback: {},
 
     expandedTraceIds: new Set<string>(),
     transcriptExpandedGroups: new Set<string>(),
@@ -290,6 +348,19 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
           traceSpansLoading: { ...get().traceSpansLoading, [trace.id]: false },
         } as Partial<T>);
       }
+    },
+
+    fetchAgentOutputFallback: (traceIds) => {
+      const resolved = get().agentOutputFallback;
+      let added = false;
+      for (const id of traceIds) {
+        if (id in resolved || outputFallbackFetching.has(id) || outputFallbackPending.has(id)) continue;
+        outputFallbackPending.add(id);
+        added = true;
+      }
+      if (!added) return;
+      if (outputFallbackTimer) clearTimeout(outputFallbackTimer);
+      outputFallbackTimer = setTimeout(() => void flushAgentOutputFallback(), 150);
     },
 
     // open recursion: delegates to get().fetchTraceSpans — a derived store's override wins.

@@ -1,6 +1,6 @@
-import { ArrowLeft } from "lucide-react";
-
+import SpanTypeIcon from "@/components/traces/span-type-icon.tsx";
 import { CollapsedTextWithMore } from "@/components/traces/trace-view/transcript/collapsed-text-with-more";
+import { SpanType } from "@/lib/traces/types.ts";
 import { cn } from "@/lib/utils.ts";
 
 interface OutputItemProps {
@@ -26,9 +26,7 @@ export function OutputItem({ text, inGroup, className }: OutputItemProps) {
         )}
       >
         <div className="flex gap-2 items-center min-w-0">
-          <div className="flex items-center justify-center z-10 rounded shrink-0 bg-muted-foreground/40 w-5 h-5 min-w-5 min-h-5">
-            <ArrowLeft size={14} />
-          </div>
+          <SpanTypeIcon size={14} containerWidth={20} containerHeight={20} spanType={SpanType.LLM} />
           <span className="font-medium text-sm whitespace-nowrap shrink-0">Output</span>
         </div>
         <div className="pl-7">

@@ -58,6 +58,7 @@ export default function SessionList() {
     consumeScrollToGroup,
     scrollToTraceId,
     consumeScrollToTrace,
+    fetchAgentOutputFallback,
   } = useSessionViewBaseStore(
     (s) => ({
       projectId: s.projectId,
@@ -80,6 +81,7 @@ export default function SessionList() {
       consumeScrollToGroup: s.consumeScrollToGroup,
       scrollToTraceId: s.scrollToTraceId,
       consumeScrollToTrace: s.consumeScrollToTrace,
+      fetchAgentOutputFallback: s.fetchAgentOutputFallback,
     }),
     shallow
   );
@@ -374,8 +376,9 @@ export default function SessionList() {
   // Derive the set of span IDs currently visible in the virtualizer window,
   // grouped by trace. We include visible "span" / "group-span" rows and
   // "group-header" firstLlmSpanId (as an input-span for userInputs).
-  // Collapsed trace-headers don't need per-span previews — the `/traces/io`
-  // endpoint delivers the output text + span payload directly.
+  // Collapsed trace-headers render their input/output from the trace row's
+  // ingestion-time `agentInput`/`agentOutput`; only when `agentOutput` is empty
+  // do we lazily fetch the fallback output (below).
   const rangeStart = items[0]?.index ?? 0;
   const rangeEnd = items[items.length - 1]?.index ?? -1;
 
@@ -431,6 +434,24 @@ export default function SessionList() {
     inputSpanIdsByTrace,
     spanTypesByTrace,
   });
+
+  // Fallback output: for collapsed-body rows in view whose trace has no
+  // ingestion-time `agentOutput`, request the fallback (resolved from the last
+  // main-agent LLM span). The store batches, debounces, and dedups.
+  const fallbackOutputTraceIds = useMemo(() => {
+    const ids: string[] = [];
+    for (let i = rangeStart; i <= rangeEnd; i++) {
+      const row = flatRows[i];
+      if (row?.type !== "trace-collapsed-body") continue;
+      const t = traceById.get(row.traceId);
+      if (t && !t.agentOutput) ids.push(row.traceId);
+    }
+    return ids;
+  }, [rangeStart, rangeEnd, flatRows, traceById]);
+
+  useEffect(() => {
+    if (fallbackOutputTraceIds.length > 0) fetchAgentOutputFallback(fallbackOutputTraceIds);
+  }, [fallbackOutputTraceIds, fetchAgentOutputFallback]);
 
   return (
     <div

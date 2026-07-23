@@ -69,6 +69,7 @@ export default function DebuggerList({ scrollEl, projectId, sessionId }: Debugge
     consumeScrollToGroup,
     scrollToTraceId,
     consumeScrollToTrace,
+    fetchAgentOutputFallback,
   } = useSessionViewBaseStore(
     (s) => ({
       traces: s.traces,
@@ -87,6 +88,7 @@ export default function DebuggerList({ scrollEl, projectId, sessionId }: Debugge
       consumeScrollToGroup: s.consumeScrollToGroup,
       scrollToTraceId: s.scrollToTraceId,
       consumeScrollToTrace: s.consumeScrollToTrace,
+      fetchAgentOutputFallback: s.fetchAgentOutputFallback,
     }),
     shallow
   );
@@ -291,6 +293,23 @@ export default function DebuggerList({ scrollEl, projectId, sessionId }: Debugge
     inputSpanIdsByTrace,
     spanTypesByTrace,
   });
+
+  // Fallback output: for collapsed-body rows in view whose trace has no
+  // ingestion-time `agentOutput`, request the fallback (resolved from the last
+  // main-agent LLM span). The store batches, debounces, and dedups.
+  const fallbackOutputTraceIds = useMemo(() => {
+    const ids: string[] = [];
+    for (let i = rangeStart; i <= rangeEnd; i++) {
+      const row = flatRows[i];
+      if (row?.type !== "trace-collapsed-body") continue;
+      if (!row.trace.agentOutput) ids.push(row.traceId);
+    }
+    return ids;
+  }, [rangeStart, rangeEnd, flatRows]);
+
+  useEffect(() => {
+    if (fallbackOutputTraceIds.length > 0) fetchAgentOutputFallback(fallbackOutputTraceIds);
+  }, [fallbackOutputTraceIds, fetchAgentOutputFallback]);
 
   // Scroll selected span (once per selection) to center.
   const lastScrolledSpanIdRef = useRef<string | null>(null);
