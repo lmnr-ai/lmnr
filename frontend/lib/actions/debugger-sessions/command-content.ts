@@ -29,7 +29,10 @@ export const parseCommandBlockContent = (content: unknown): CommandBlockContent 
     ...(args ? { args } : {}),
     ...(typeof c.exitCode === "number" && Number.isInteger(c.exitCode) ? { exitCode: c.exitCode } : {}),
     ...(typeof c.output === "string" ? { output: c.output } : {}),
-    ...(typeof c.raw === "string" ? { raw: c.raw } : {}),
+    // Empty/whitespace-only `raw` degrades to absent — `commandSummary` and the
+    // expanded body prefer `raw` via `??`, so keeping it would blank both even
+    // when `command`/`args` are valid.
+    ...(typeof c.raw === "string" && c.raw.trim().length > 0 ? { raw: c.raw } : {}),
   };
 };
 
