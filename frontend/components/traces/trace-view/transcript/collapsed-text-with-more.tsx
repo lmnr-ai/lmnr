@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 
+import Markdown from "@/components/traces/trace-view/transcript/markdown";
 import { cn } from "@/lib/utils";
 
 interface CollapsedTextWithMoreProps {
@@ -9,39 +10,39 @@ interface CollapsedTextWithMoreProps {
   className?: string;
 }
 
-const LINE_CLAMP_CLASS: Record<number, string> = {
-  1: "line-clamp-1",
-  2: "line-clamp-2",
-  3: "line-clamp-3",
-  4: "line-clamp-4",
-  5: "line-clamp-5",
-  6: "line-clamp-6",
-};
-
 export function CollapsedTextWithMore({ text, lineHeight, maxLines = 4, className }: CollapsedTextWithMoreProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
-  const measuredRef = useRef(false);
-  const textRef = useRef<HTMLParagraphElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Rendered markdown can lay out asynchronously (fonts, mermaid, etc.), so
+  // re-measure on every content change rather than only once on mount.
+  const collapsedMaxHeight = (lineHeight + 4) * maxLines;
 
   useLayoutEffect(() => {
-    if (measuredRef.current) return;
-    const el = textRef.current;
+    const el = contentRef.current;
     if (!el) return;
-    setIsOverflowing(el.scrollHeight > el.clientHeight + 1);
-    measuredRef.current = true;
-  }, []);
 
-  const clampClass = LINE_CLAMP_CLASS[maxLines] ?? LINE_CLAMP_CLASS[4];
+    const measure = () => setIsOverflowing(el.scrollHeight > collapsedMaxHeight + 1);
+    measure();
+
+    const resizeObserver = new ResizeObserver(measure);
+    resizeObserver.observe(el);
+    return () => resizeObserver.disconnect();
+  }, [text, collapsedMaxHeight]);
 
   return (
-    <div
-      className={cn("text-[13px] text-secondary-foreground/95 whitespace-pre-wrap break-words", className)}
-      style={{ lineHeight: `${lineHeight + 4}px` }}
-    >
-      <p ref={textRef} className={isExpanded ? undefined : clampClass}>
-        {text}
-      </p>
+    <div className={cn("text-[13px] text-secondary-foreground/95 break-words", className)}>
+      <div
+        ref={contentRef}
+        className={cn(
+          "overflow-hidden",
+          !isExpanded && isOverflowing && "[mask-image:linear-gradient(to_bottom,black_calc(100%-16px),transparent)]"
+        )}
+        style={isExpanded ? undefined : { maxHeight: `${collapsedMaxHeight}px` }}
+      >
+        <Markdown output={text} className="text-secondary-foreground/95 [&_*]:!text-[13px]" contentClassName="pb-0" />
+      </div>
       {(isOverflowing || isExpanded) && (
         <button
           className="text-muted-foreground hover:text-primary-foreground transition-colors cursor-pointer"

@@ -245,6 +245,16 @@ export const filters: ColumnFilter[] = [
     dataType: "array",
   },
   {
+    name: "Input",
+    key: "agent_input",
+    dataType: "string",
+  },
+  {
+    name: "Output",
+    key: "agent_output",
+    dataType: "string",
+  },
+  {
     name: "Input cost",
     key: "input_cost",
     dataType: "number",

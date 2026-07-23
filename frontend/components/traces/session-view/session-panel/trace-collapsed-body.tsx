@@ -1,9 +1,7 @@
 "use client";
 
-import { InputItem } from "@/components/traces/trace-view/transcript/item";
-import { CollapsedPreviewBlock } from "@/components/traces/trace-view/transcript/item/collapsed-preview-block";
+import { InputItem, OutputItem } from "@/components/traces/trace-view/transcript/item";
 import { type TraceRow } from "@/lib/traces/types";
-import { cn } from "@/lib/utils.ts";
 
 import { useSessionViewBaseStore } from "../store";
 
@@ -28,7 +26,7 @@ export default function TraceCollapsedBody({ trace }: TraceCollapsedBodyProps) {
   return (
     <div
       data-collapsed-body
-      className="flex flex-col overflow-hidden rounded-b-lg border-x border-b border-[rgba(232,232,232,0.1)] bg-muted/75"
+      className="flex flex-col overflow-hidden rounded-b-lg border-x border-b border-[rgba(232,232,232,0.1)] bg-muted/75 divide-y divide-[rgba(232,232,232,0.1)]"
     >
       {spansError ? (
         <div className="px-3 py-2 text-xs text-destructive text-center">{spansError}</div>
@@ -38,20 +36,8 @@ export default function TraceCollapsedBody({ trace }: TraceCollapsedBodyProps) {
         </div>
       ) : (
         <>
-          {agentInput && (
-            <div
-              className={cn("border-[rgba(232,232,232,0.1)]", {
-                "border-b": agentOutput,
-              })}
-            >
-              <InputItem text={agentInput} isLoading={false} className="bg-transparent" />
-            </div>
-          )}
-          {agentOutput && (
-            <div className="px-3 py-2">
-              <CollapsedPreviewBlock text={agentOutput} isLoading={false} label="Output" variant="collapsed" />
-            </div>
-          )}
+          {agentInput && <InputItem text={agentInput} isLoading={false} className="bg-transparent" />}
+          {agentOutput && <OutputItem text={agentOutput} isLoading={false} className="bg-transparent" />}
         </>
       )}
     </div>

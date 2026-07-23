@@ -36,7 +36,7 @@ const Markdown = ({ output, className, contentClassName, spanRefCallbacks }: Mar
           rehypePlugins={[defaultRehypePlugins.harden]}
           components={{
             h1: ({ children, className, ...props }) => (
-              <h1 {...props} className={cn(className, "text-base")}>
+              <h1 {...props} className={cn(className, "text-sm")}>
                 {children}
               </h1>
             ),
