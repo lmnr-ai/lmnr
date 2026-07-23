@@ -165,15 +165,41 @@ impl CHTraceAgg {
     /// standpoint, so this is best-effort, not LWW) and `num_spans` (+1,
     /// matching the PG counter bump that pays for the virtual metadata-only
     /// span). `now_ns` is the fallback timestamp.
+    ///
+    /// A patch that beats the trace's real span batch creates a stub row with
+    /// `now()` placeholder start/end times (`Trace::is_stub`). In
+    /// `traces_replacing`, the later aggregation upsert explicitly discards a
+    /// stub's placeholder times before applying `LEAST`/`GREATEST`, so the
+    /// placeholder is harmless there. `traces_agg`'s `end_time` is a
+    /// `SimpleAggregateFunction(max, ...)` with no such correction — once a
+    /// too-late placeholder is merged in, no later, earlier, correct partial
+    /// can ever lower it back down. So for a stub row this emits `end_time =
+    /// 0` (the `max` identity) instead of the placeholder, making this
+    /// partial a no-op on `end_time` until a real span batch's own partial
+    /// supplies the true value.
+    ///
+    /// `start_time` can't use the `min` identity (epoch 0 / `i64::MAX`) the
+    /// same way: `traces_agg` is `PARTITION BY toYYYYMM(start_time)`, so an
+    /// epoch or far-future value would land this partial in a different
+    /// partition than the real span batch's — and the two partials would
+    /// never merge together. Instead use `now_ns + 1h`: any real trace's
+    /// `start_time` is at or before ingest time, so `min` still always picks
+    /// the real value once it arrives, while staying in the same (or an
+    /// adjacent) monthly partition as `now_ns` so the merge is local.
     pub fn from_patched_trace(trace: &Trace, now_ns: i64) -> Self {
-        let start_time = trace
-            .start_time()
-            .map(chrono_to_nanoseconds)
-            .unwrap_or(now_ns);
-        let end_time = trace
-            .end_time()
-            .map(chrono_to_nanoseconds)
-            .unwrap_or(now_ns);
+        const STUB_START_TIME_OFFSET_NS: i64 = 60 * 60 * 1_000_000_000;
+
+        let (start_time, end_time) = if trace.is_stub() {
+            (now_ns + STUB_START_TIME_OFFSET_NS, 0)
+        } else {
+            (
+                trace
+                    .start_time()
+                    .map(chrono_to_nanoseconds)
+                    .unwrap_or(now_ns),
+                trace.end_time().map(chrono_to_nanoseconds).unwrap_or(now_ns),
+            )
+        };
 
         CHTraceAgg {
             id: trace.id(),
@@ -222,9 +248,63 @@ impl ClickhouseInsertable for CHTraceAgg {
 
 #[cfg(test)]
 mod tests {
+    use chrono::Utc;
     use serde_json::json;
 
     use super::*;
+
+    #[test]
+    fn from_patched_trace_stub_row_avoids_placeholder_times() {
+        // A patch that beats the real span batch creates a stub row
+        // (span_names still NULL) with `now()` placeholder start/end times.
+        // Those placeholders must never ride into traces_agg's min/max
+        // aggregates as-is — otherwise a too-late placeholder `end_time`
+        // would permanently inflate the aggregate via `max`, since no later,
+        // correct, earlier partial can ever lower it back down.
+        let now_ns = 1_000_000_000;
+        let trace = Trace::test_new(
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            Some(Utc::now()),
+            Some(Utc::now()),
+            None, // span_names: None => stub
+        );
+        assert!(trace.is_stub());
+
+        let row = CHTraceAgg::from_patched_trace(&trace, now_ns);
+        // end_time uses the true `max` identity: harmless no-op until a real
+        // span batch supplies the actual value.
+        assert_eq!(row.end_time, 0, "max identity for end_time");
+        // start_time can't use the `min` identity (epoch/i64::MAX) because
+        // traces_agg partitions on toYYYYMM(start_time) — an epoch or
+        // far-future value would land this partial in a different partition
+        // than the real span batch's, and the two would never merge. Instead
+        // it's nudged 1h into the future of ingest time: still a `min`
+        // no-op against any real (past-or-present) start_time, while staying
+        // in the same/adjacent monthly partition.
+        assert_eq!(row.start_time, now_ns + 60 * 60 * 1_000_000_000);
+    }
+
+    #[test]
+    fn from_patched_trace_real_row_keeps_its_times() {
+        // A patch against an already-real row (span_names populated by a
+        // prior aggregation upsert) must propagate the real times verbatim —
+        // only the stub case is special-cased.
+        let start = Utc::now();
+        let end = Utc::now();
+        let trace = Trace::test_new(
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            Some(start),
+            Some(end),
+            Some(json!({"some_span": true})),
+        );
+        assert!(!trace.is_stub());
+
+        let row = CHTraceAgg::from_patched_trace(&trace, 0);
+        assert_eq!(row.start_time, chrono_to_nanoseconds(start));
+        assert_eq!(row.end_time, chrono_to_nanoseconds(end));
+    }
 
     #[test]
     fn metadata_values_are_raw_json() {
