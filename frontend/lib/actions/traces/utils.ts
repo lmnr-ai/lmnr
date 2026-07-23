@@ -108,8 +108,8 @@ export const tracesSelectColumns = [
   "trace_type as traceType",
   "status",
   "user_id as userId",
-  "root_span_input as rootSpanInput",
-  "root_span_output as rootSpanOutput",
+  "agent_input as agentInput",
+  "agent_output as agentOutput",
 ];
 
 export const DEFAULT_SEARCH_MAX_HITS = 500;

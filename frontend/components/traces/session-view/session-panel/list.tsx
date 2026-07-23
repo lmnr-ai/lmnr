@@ -4,7 +4,6 @@ import { defaultRangeExtractor, type Range, useVirtualizer } from "@tanstack/rea
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
-import { useBatchedTraceIO } from "@/components/traces/sessions-table/use-batched-trace-io";
 import { type TranscriptListGroup } from "@/components/traces/trace-view/store/base";
 import {
   AgentGroupHeader,
@@ -433,13 +432,6 @@ export default function SessionList() {
     spanTypesByTrace,
   });
 
-  // Main-agent input/output text + output span, fetched in one batched call
-  // per session. Reuses the `/traces/io` endpoint + hook that powers the
-  // sessions-table trace cards. Sessions can have many traces, so we pass
-  // every traceId; the hook caches (LRU 200) and chunks into 100-ID batches.
-  const traceIds = useMemo(() => traces.map((t) => t.id), [traces]);
-  const { previews: traceIO } = useBatchedTraceIO(projectId, traceIds);
-
   return (
     <div
       ref={scrollRef}
@@ -489,7 +481,7 @@ export default function SessionList() {
               ) : row.type === "trace-collapsed-body" ? (
                 (() => {
                   const t = traceById.get(row.traceId);
-                  return t ? <TraceCollapsedBody trace={t} traceIO={traceIO[row.traceId]} /> : null;
+                  return t ? <TraceCollapsedBody trace={t} /> : null;
                 })()
               ) : row.type === "trace-loading" ? (
                 <div className="flex flex-col gap-2 py-2 px-2">
@@ -516,8 +508,8 @@ export default function SessionList() {
                 </div>
               ) : row.type === "user-input" ? (
                 <InputItem
-                  text={traceIO[row.traceId]?.inputPreview ?? null}
-                  isLoading={traceIO[row.traceId] === undefined}
+                  text={traceById.get(row.traceId)?.agentInput ?? null}
+                  isLoading={false}
                   className="rounded-lg"
                 />
               ) : row.type === "group-header" ? (

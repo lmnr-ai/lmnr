@@ -29,7 +29,7 @@ export type DebuggerFlatRow =
   | { type: "trace-loading"; blockId: string; traceId: string }
   | { type: "trace-error"; blockId: string; traceId: string; error: string }
   | { type: "trace-empty"; blockId: string; traceId: string }
-  | { type: "user-input"; blockId: string; traceId: string }
+  | { type: "user-input"; blockId: string; traceId: string; trace: TraceRow }
   | { type: "span"; blockId: string; traceId: string; span: TraceViewListSpan }
   | { type: "group-header"; blockId: string; traceId: string; group: TranscriptListGroup; collapsed: boolean }
   | { type: "group-span"; blockId: string; traceId: string; span: TraceViewListSpan; isLast: boolean }
@@ -119,7 +119,7 @@ export function buildDebuggerFlatRows(opts: BuildDebuggerFlatRowsOpts): Debugger
             : { type: "trace-empty", blockId: block.id, traceId }
         );
       } else {
-        rows.push({ type: "user-input", blockId: block.id, traceId });
+        rows.push({ type: "user-input", blockId: block.id, traceId, trace });
         appendSpanRows(
           rows,
           block.id,

@@ -372,8 +372,8 @@ const computeSubagentBoundaries = (spans: TraceViewSpan[]): SubagentLlmGrouping 
     const spanPathAttr = span.attributes?.["lmnr.span.path"];
     const spanPathArr = Array.isArray(spanPathAttr) ? spanPathAttr : [];
     // Drop the trailing leaf — it can be dynamic (e.g. tool name per call) while
-    // still being the same agent step. Must stay in sync with `arrayPopBack(splitByChar('.', path))`
-    // in lib/actions/sessions/trace-io.ts (TOP_PATH_QUERY) and useTraceUserInput.
+    // still being the same agent step (mirrors the app-server compression
+    // boundary logic in signals/private/compression/boundaries.rs).
     const parentSpanPath = spanPathArr.slice(0, -1).join(".");
 
     llmSpans.push({

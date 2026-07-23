@@ -68,8 +68,12 @@ const realtimeTraceToRow = (trace: RealtimeTracePayload): TraceRow => ({
   userId: trace.userId ?? undefined,
   spanTags: trace.tags ?? [],
   traceTags: [],
-  rootSpanInput: trace.rootSpanInput ?? undefined,
-  rootSpanOutput: trace.rootSpanOutput ?? undefined,
+  // Agent IO is extracted asynchronously and lives in traces_agg, which the
+  // realtime SSE payload doesn't carry. Use the payload's root-span IO as a
+  // transient live stand-in; the true agent_input/agent_output replaces it on
+  // the next full fetch of the row.
+  agentInput: trace.rootSpanInput ?? undefined,
+  agentOutput: trace.rootSpanOutput ?? undefined,
 });
 
 export default function TracesTable() {

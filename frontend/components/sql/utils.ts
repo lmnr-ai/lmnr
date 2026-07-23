@@ -183,14 +183,14 @@ export const tableSchemas: Record<string, TableSchema> = {
         description: "De-duplicated list of span names produced anywhere in the trace",
       },
       {
-        name: "root_span_input",
+        name: "agent_input",
         type: "String",
-        description: "Input of the trace's top span as stringified JSON or raw string",
+        description: "Extracted agent task / user input for the trace as stringified JSON or raw string",
       },
       {
-        name: "root_span_output",
+        name: "agent_output",
         type: "String",
-        description: "Output of the trace's top span as stringified JSON or raw string",
+        description: "Extracted final agent output for the trace as stringified JSON or raw string",
       },
       { name: "has_browser_session", type: "Bool", description: "Whether the trace has a browser session" },
     ],

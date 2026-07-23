@@ -44,7 +44,9 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
         top_span_name as topSpanName,
         top_span_type as topSpanType,
         has_browser_session as hasBrowserSession,
-        user_id as userId
+        user_id as userId,
+        agent_input as agentInput,
+        agent_output as agentOutput
       FROM traces
       WHERE id = {traceId: UUID}
       LIMIT 1

@@ -23,12 +23,11 @@ use sqlparser::tokenizer::{Span, Token, Tokenizer};
 
 const VIEW_VERSION: &str = "v0";
 
-/// The `traces_v0` view is parameterized by `min_start_time` / `max_start_time`
-/// which are pushed to a PREWHERE on `traces_replacing` (before FINAL), so the
-/// start_time range narrows the scan before the expensive dedup/merge. These
-/// bounds are derived from the user's WHERE filters on `start_time` / `end_time`
-/// (padded ±3h, see [`START_TIME_PADDING`]); when the query has no time filter
-/// on traces, the broad epoch defaults below are used so every trace is visible.
+/// The `traces_v0` view is parameterized by `min_start_time` / `max_start_time`,
+/// which narrow the scan before the trace rows are materialized. These bounds are
+/// derived from the user's WHERE filters on `start_time` / `end_time` (padded ±3h,
+/// see [`START_TIME_PADDING`]); when the query has no time filter on traces, the
+/// broad epoch defaults below are used so every trace is visible.
 const TRACES_TABLE: &str = "traces";
 /// 1970-01-01 UTC — the lower default when the query has no lower time bound.
 const DEFAULT_MIN_START_TIME: &str = "1970-01-01 00:00:00";
@@ -445,8 +444,9 @@ impl TableRegistry {
             "tags",
             "trace_tags",
             "span_names",
-            "root_span_input",
-            "root_span_output",
+            "agent_input",
+            "agent_output",
+            "internal_metadata",
         ];
 
         let dataset_datapoints_columns = [
@@ -1047,8 +1047,8 @@ impl VisitorMut for ViewRewriter<'_> {
             *name = ObjectName(vec![ObjectNamePart::Identifier(Ident::new(view_name))]);
             let mut view_args = vec![named_arg("project_id", string_expr(self.project_id))];
             // Only `traces_v0` is parameterized by start_time bounds; derive them
-            // from the enclosing WHERE so the PREWHERE narrows the scan before
-            // FINAL. Columns are matched against this relation's alias (or the
+            // from the enclosing WHERE so the view narrows its scan. Columns are
+            // matched against this relation's alias (or the
             // bare table name) so a joined table's `start_time` is not confused
             // for the traces one. `where_stack` only ever carries the enclosing
             // SELECT's WHERE (see `pre_visit_select`), so post-aggregation HAVING

@@ -54,7 +54,9 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
         trace_type as traceType,
         has_browser_session as hasBrowserSession,
         session_id as sessionId,
-        user_id as userId
+        user_id as userId,
+        agent_input as agentInput,
+        agent_output as agentOutput
       FROM traces
       WHERE id = {traceId: UUID}
       LIMIT 1

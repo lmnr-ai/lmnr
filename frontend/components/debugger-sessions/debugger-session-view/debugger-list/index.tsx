@@ -8,7 +8,6 @@ import TraceCollapsedBody from "@/components/traces/session-view/session-panel/t
 import TraceItem from "@/components/traces/session-view/session-panel/trace-item";
 import { useSessionSpanPreviews } from "@/components/traces/session-view/session-panel/use-session-span-previews";
 import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
-import { type TraceIOEntry, useBatchedTraceIO } from "@/components/traces/sessions-table/use-batched-trace-io";
 import {
   AgentGroupHeader,
   GroupChildWrapper,
@@ -293,9 +292,6 @@ export default function DebuggerList({ scrollEl, projectId, sessionId }: Debugge
     spanTypesByTrace,
   });
 
-  const traceIds = useMemo(() => traces.map((t) => t.id), [traces]);
-  const { previews: traceIO } = useBatchedTraceIO(projectId, traceIds);
-
   // Scroll selected span (once per selection) to center.
   const lastScrolledSpanIdRef = useRef<string | null>(null);
   useEffect(() => {
@@ -380,7 +376,6 @@ export default function DebuggerList({ scrollEl, projectId, sessionId }: Debugge
               sessionId={sessionId}
               projectId={projectId}
               totalTraces={totalTraces}
-              traceIO={traceIO}
               previews={previews}
               userInputs={userInputs}
               agentNames={agentNames}
@@ -406,7 +401,6 @@ interface FlatRowContentProps {
   sessionId: string;
   projectId?: string;
   totalTraces: number;
-  traceIO: Record<string, TraceIOEntry | null | undefined>;
   previews: Record<string, string | null>;
   userInputs: Record<string, string | null>;
   agentNames: Record<string, string | null>;
@@ -428,7 +422,6 @@ function FlatRowContent({
   sessionId,
   projectId,
   totalTraces,
-  traceIO,
   previews,
   userInputs,
   agentNames,
@@ -481,7 +474,7 @@ function FlatRowContent({
         </div>
       );
     case "trace-collapsed-body":
-      return <TraceCollapsedBody trace={row.trace} traceIO={traceIO[row.traceId]} />;
+      return <TraceCollapsedBody trace={row.trace} />;
     case "trace-loading":
       return (
         <div className="flex flex-col gap-2 px-2 py-2">
@@ -495,13 +488,7 @@ function FlatRowContent({
     case "trace-empty":
       return <div className="px-2 py-4 text-sm text-muted-foreground">No spans found for this trace.</div>;
     case "user-input":
-      return (
-        <InputItem
-          text={traceIO[row.traceId]?.inputPreview ?? null}
-          isLoading={traceIO[row.traceId] === undefined}
-          className="rounded-lg"
-        />
-      );
+      return <InputItem text={row.trace?.agentInput ?? null} isLoading={false} className="rounded-lg" />;
     case "group-header":
       return (
         <AgentGroupHeader

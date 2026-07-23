@@ -53,6 +53,9 @@ export type TraceViewTrace = {
   hasBrowserSession: boolean;
   sessionId?: string;
   userId?: string;
+  // Ingestion-time-extracted agent task / final output (from traces_agg_v0).
+  agentInput?: string | null;
+  agentOutput?: string | null;
 };
 
 export type TraceSignalClusterNode = {

@@ -160,14 +160,14 @@ const TABLES: &[Table] = &[
                 "De-duplicated span names in the trace",
             ),
             col(
-                "root_span_input",
+                "agent_input",
                 "String",
-                "Top span input as stringified JSON / raw string",
+                "Extracted agent task / user input for the trace (stringified JSON / raw string)",
             ),
             col(
-                "root_span_output",
+                "agent_output",
                 "String",
-                "Top span output as stringified JSON / raw string",
+                "Extracted final agent output for the trace (stringified JSON / raw string)",
             ),
         ],
     },
