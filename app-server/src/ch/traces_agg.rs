@@ -173,13 +173,24 @@ impl CHTraceAgg {
     /// placeholder is harmless there. `traces_agg`'s `end_time` is a
     /// `SimpleAggregateFunction(max, ...)` with no such correction — once a
     /// too-late placeholder is merged in, no later, earlier, correct partial
-    /// can ever lower it back down. So for a stub row this emits the `min`/
-    /// `max` identities (epoch / `i64::MAX` ns) instead of the placeholder,
-    /// making this partial a no-op on both aggregates until a real span
-    /// batch's own partial supplies the true times.
+    /// can ever lower it back down. So for a stub row this emits `end_time =
+    /// 0` (the `max` identity) instead of the placeholder, making this
+    /// partial a no-op on `end_time` until a real span batch's own partial
+    /// supplies the true value.
+    ///
+    /// `start_time` can't use the `min` identity (epoch 0 / `i64::MAX`) the
+    /// same way: `traces_agg` is `PARTITION BY toYYYYMM(start_time)`, so an
+    /// epoch or far-future value would land this partial in a different
+    /// partition than the real span batch's — and the two partials would
+    /// never merge together. Instead use `now_ns + 1h`: any real trace's
+    /// `start_time` is at or before ingest time, so `min` still always picks
+    /// the real value once it arrives, while staying in the same (or an
+    /// adjacent) monthly partition as `now_ns` so the merge is local.
     pub fn from_patched_trace(trace: &Trace, now_ns: i64) -> Self {
+        const STUB_START_TIME_OFFSET_NS: i64 = 60 * 60 * 1_000_000_000;
+
         let (start_time, end_time) = if trace.is_stub() {
-            (i64::MAX, 0)
+            (now_ns + STUB_START_TIME_OFFSET_NS, 0)
         } else {
             (
                 trace
@@ -243,12 +254,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn from_patched_trace_stub_row_emits_identity_times() {
+    fn from_patched_trace_stub_row_avoids_placeholder_times() {
         // A patch that beats the real span batch creates a stub row
         // (span_names still NULL) with `now()` placeholder start/end times.
         // Those placeholders must never ride into traces_agg's min/max
-        // aggregates — otherwise a too-late placeholder `end_time` would
-        // permanently inflate the aggregate via `max`, since no later,
+        // aggregates as-is — otherwise a too-late placeholder `end_time`
+        // would permanently inflate the aggregate via `max`, since no later,
         // correct, earlier partial can ever lower it back down.
         let now_ns = 1_000_000_000;
         let trace = Trace::test_new(
@@ -261,8 +272,17 @@ mod tests {
         assert!(trace.is_stub());
 
         let row = CHTraceAgg::from_patched_trace(&trace, now_ns);
-        assert_eq!(row.start_time, i64::MAX, "min identity for start_time");
+        // end_time uses the true `max` identity: harmless no-op until a real
+        // span batch supplies the actual value.
         assert_eq!(row.end_time, 0, "max identity for end_time");
+        // start_time can't use the `min` identity (epoch/i64::MAX) because
+        // traces_agg partitions on toYYYYMM(start_time) — an epoch or
+        // far-future value would land this partial in a different partition
+        // than the real span batch's, and the two would never merge. Instead
+        // it's nudged 1h into the future of ingest time: still a `min`
+        // no-op against any real (past-or-present) start_time, while staying
+        // in the same/adjacent monthly partition.
+        assert_eq!(row.start_time, now_ns + 60 * 60 * 1_000_000_000);
     }
 
     #[test]

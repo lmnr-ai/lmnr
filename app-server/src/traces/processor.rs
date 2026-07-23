@@ -251,32 +251,28 @@ pub async fn process_span_messages(
     }
     messages.retain(|m| !m.span.attributes.is_metadata_only());
 
-    // `traces_replacing` path: surface extracted io as trace metadata keys so
-    // it lands in `traces_replacing.metadata` (the current read path). Only
-    // needed while that table is the read path — once `WRITE_TRACES_AGG` is
-    // on, io is already fully served by the `trace_agent_input`/`_output`
-    // supplementary tables (written unconditionally below), so this fold is
-    // skipped entirely. It MUST be skipped, not just redundant: folding it in
-    // also feeds `CHTraceAgg::from_patched_trace` (below), whose stub-row
-    // placeholder `now()` times can otherwise permanently inflate
-    // `traces_agg.end_time` via its `max` aggregate — a real bug independent
-    // of the metadata-key duplication.
-    if !env::clickhouse::WRITE_TRACES_AGG.get() {
-        for io in &raw_trace_io {
-            let mut map = serde_json::Map::new();
-            if let Some(value) = &io.input {
-                map.insert(USER_TASK_METADATA_KEY.to_string(), value.clone());
-            }
-            if let Some(value) = &io.output {
-                map.insert(TRACE_OUTPUT_METADATA_KEY.to_string(), value.clone());
-            }
-            if !map.is_empty() {
-                metadata_patches.push(TraceMetadataPatch {
-                    trace_id: io.trace_id,
-                    project_id: io.project_id,
-                    metadata: Value::Object(map),
-                });
-            }
+    // `traces_replacing` path: surface extracted io as trace metadata keys
+    // so it lands in `traces_replacing.metadata` (the current read path).
+    // Written on BOTH flag states for now — while `WRITE_TRACES_AGG` is a
+    // migration bridge, io lives in both `traces_replacing.metadata` AND the
+    // `trace_agent_input`/`_output` supplementary tables. Once the read path
+    // cuts over to `traces_agg_v0`, gate this fold on `!WRITE_TRACES_AGG` (or
+    // drop it) — all metadata-key knowledge of io lives here and dies with
+    // the old table.
+    for io in &raw_trace_io {
+        let mut map = serde_json::Map::new();
+        if let Some(value) = &io.input {
+            map.insert(USER_TASK_METADATA_KEY.to_string(), value.clone());
+        }
+        if let Some(value) = &io.output {
+            map.insert(TRACE_OUTPUT_METADATA_KEY.to_string(), value.clone());
+        }
+        if !map.is_empty() {
+            metadata_patches.push(TraceMetadataPatch {
+                trace_id: io.trace_id,
+                project_id: io.project_id,
+                metadata: Value::Object(map),
+            });
         }
     }
 
