@@ -40,3 +40,6 @@ pub const FLEX_LLM_TIMEOUT_SECS: NumEnv<u64> = NumEnv::new("SIGNALS_FLEX_LLM_TIM
 /// default, so it's raised and made configurable. Gemini flex-tier requests
 /// override this per-request with `FLEX_LLM_TIMEOUT_SECS`.
 pub const HTTP_TIMEOUT_SECS: NumEnv<u64> = NumEnv::new("LLM_HTTP_TIMEOUT_SECS", 300);
+
+pub const OPENAI_ALLOW_REASONING_WITH_TOOLS: BoolEnv =
+    BoolEnv::new("OPENAI_ALLOW_REASONING_WITH_TOOLS", false);
