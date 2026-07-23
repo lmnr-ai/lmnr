@@ -1038,7 +1038,15 @@ impl VisitorMut for ViewRewriter<'_> {
                 return ControlFlow::Continue(());
             }
 
-            let view_name = format!("{table_name}_{VIEW_VERSION}");
+            // TEMP (remove later): route `traces` at the aggregating `traces_agg_v0`
+            // view instead of `traces_v0` to test the traces_agg read path. Same 3
+            // params (project_id + min/max start_time), so the arg injection below
+            // is unchanged. All other tables keep the `<name>_v0` convention.
+            let view_name = if table_name == TRACES_TABLE {
+                "traces_agg_v0".to_string()
+            } else {
+                format!("{table_name}_{VIEW_VERSION}")
+            };
             let alias_ident = alias
                 .as_ref()
                 .map(|a| a.name.clone())
