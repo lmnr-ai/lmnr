@@ -104,7 +104,7 @@ fn has_llm_provider() -> bool {
         && std::env::var(env::secrets::AWS_SECRET_ACCESS_KEY).is_ok_and(|s| !s.is_empty())
         && std::env::var(env::secrets::AWS_REGION).is_ok_and(|s| !s.is_empty());
     match provider.as_str() {
-        "gemini" | "openai" => has_llm_api_key,
+        "gemini" | "openai" | "openai_responses" => has_llm_api_key,
         "bedrock" => has_aws,
         "mock" => true,
         _ => false,

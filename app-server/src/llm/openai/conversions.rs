@@ -101,7 +101,7 @@ pub fn provider_request_to_openai_stream_body(model: &str, request: &ProviderReq
     body
 }
 
-fn thinking_level_to_effort(level: &ProviderThinkingLevel) -> Option<&'static str> {
+pub(crate) fn thinking_level_to_effort(level: &ProviderThinkingLevel) -> Option<&'static str> {
     match level {
         ProviderThinkingLevel::ThinkingLevelUnspecified => None,
         ProviderThinkingLevel::Minimal => Some("minimal"),
@@ -229,6 +229,22 @@ pub fn parse_openai_response(value: Value) -> Result<ProviderResponse, OpenAIErr
 
         let mut parts: Vec<ProviderPart> = Vec::new();
 
+        // OpenAI-compatible proxies return reasoning under `reasoning_content`
+        // (DeepSeek/vLLM/Fireworks) or `reasoning` (OpenRouter); official OpenAI
+        // exposes none here. Mirror the streaming accumulator's field names.
+        if let Some(reasoning) = message
+            .and_then(|m| m.get("reasoning_content").or_else(|| m.get("reasoning")))
+            .and_then(|r| r.as_str())
+        {
+            if !reasoning.is_empty() {
+                parts.push(ProviderPart {
+                    text: Some(reasoning.to_string()),
+                    thought: Some(true),
+                    ..Default::default()
+                });
+            }
+        }
+
         if let Some(content_val) = message.and_then(|m| m.get("content")) {
             if let Some(text) = content_val.as_str() {
                 if !text.is_empty() {
@@ -346,6 +362,7 @@ pub(super) fn parse_usage(usage: &Value) -> ProviderUsageMetadata {
         total_token_count: total_tokens,
         cache_read_input_tokens: cached_tokens,
         cache_creation_input_tokens: None,
+        reasoning_token_count: None,
     }
 }
 
@@ -574,6 +591,32 @@ mod tests {
         assert_eq!(usage.cache_read_input_tokens, Some(4));
         assert_eq!(usage.cache_creation_input_tokens, None);
         assert_eq!(resp.model_version.as_deref(), Some("gpt-5-mini"));
+    }
+
+    #[test]
+    fn parses_reasoning_content_as_thought() {
+        // OpenAI-compatible gateways (Fireworks GLM, DeepSeek) return reasoning
+        // under `message.reasoning_content` on non-streaming responses.
+        let value = json!({
+            "model": "glm-4.6",
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "reasoning_content": "let me think",
+                    "content": "answer"
+                },
+                "finish_reason": "stop"
+            }]
+        });
+        let resp = parse_openai_response(value).unwrap();
+        let cand = &resp.candidates.as_ref().unwrap()[0];
+        let parts = cand.content.as_ref().unwrap().parts.as_ref().unwrap();
+        assert!(
+            parts
+                .iter()
+                .any(|p| p.thought == Some(true) && p.text.as_deref() == Some("let me think"))
+        );
+        assert!(parts.iter().any(|p| p.text.as_deref() == Some("answer")));
     }
 
     #[test]
