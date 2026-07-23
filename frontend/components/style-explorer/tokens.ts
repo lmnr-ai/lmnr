@@ -97,13 +97,13 @@ export const OKLCH_SEED: Record<string, string> = {
 // colors; the semantic tokens below alias these in globals.css (destructive→red, chart-3→yellow, …).
 // Orange = the OKLCH brand ramp (edited via the primary OKLCH stops), so it's not a raw HSL triplet.
 export const RAW_SEED: Record<string, string> = {
-  "--red": "0 60% 50%",
-  "--yellow": "30 80% 55%",
-  "--green": "142.1 76.2% 36.3%",
-  "--aqua": "187 94% 43%",
-  "--blue": "220 70% 50%",
-  "--purple": "262 83% 58%",
-  "--pink": "330 75% 58%",
+  "--red": "0 100% 63.1%",
+  "--yellow": "28.2 100% 45.5%",
+  "--green": "152.8 100% 34.1%",
+  "--aqua": "178.6 100% 34.3%",
+  "--blue": "216.1 100% 60.6%",
+  "--purple": "259.9 100% 68.6%",
+  "--pink": "325.8 100% 60.8%",
 };
 
 export const RAW_KEYS: string[] = Object.keys(RAW_SEED);
@@ -167,7 +167,7 @@ export const EDGE_VARIANTS: Record<EdgeVariant, Omit<EdgeState, "variant">> = {
   micka: { highlight: 0.05, inner: 0.05, outer: 0.18, border: 0 },
 };
 
-export const DEFAULT_EDGE_VARIANT: EdgeVariant = "border";
+export const DEFAULT_EDGE_VARIANT: EdgeVariant = "micka";
 
 export const seedEdge = (): EdgeState => ({ variant: DEFAULT_EDGE_VARIANT, ...EDGE_VARIANTS[DEFAULT_EDGE_VARIANT] });
 
@@ -372,23 +372,26 @@ export interface AccentState {
   colors: AccentColor[];
 }
 
-// Curve control anchors: a few points across the hue axis form the cubic (Catmull-Rom).
-const CURVE_ANCHOR_HUES = [30, 140, 230, 330];
-
-// Seed the accent family from the raw HSL palette so the editor opens on today's colors: color
-// lines sit at each hue, and the curve is fitted through the palette's lightness profile so
-// sampling reproduces (close to) today's lightness. The user then retunes the curve/hues.
+// Baked default accent family (the tuned state committed as the app default). The editor opens
+// on this; applyState feeds curve+hue+nudge through oklchToHslTriplet to produce --red..--pink,
+// which must match the RAW_SEED triplets and the globals.css :root values.
 export function seedAccent(): AccentState {
-  const oklch = RAW_KEYS.map((key) => {
-    const [r, g, b] = hslToSrgb(parseHslTriplet(RAW_SEED[key]));
-    return { key, ...srgbToOklch(r, g, b) };
-  });
-  const chroma = [...oklch.map((o) => o.C)].sort((a, b) => a - b)[Math.floor(oklch.length / 2)];
-  // Fit the curve anchors to the palette's (hue -> L) profile so the default sampling ≈ today.
-  const profile = oklch.map((o) => ({ x: o.H, y: o.L })).sort((a, b) => a.x - b.x);
   return {
-    chroma: Math.round(chroma * 1000) / 1000,
-    curve: CURVE_ANCHOR_HUES.map((hue) => ({ hue, l: catmullRom(profile, hue) })),
-    colors: oklch.map((o) => ({ key: o.key, hue: o.H, nudge: o.C - chroma })),
+    chroma: 0.24,
+    curve: [
+      { hue: 0, l: 0.6767810833400886 },
+      { hue: 143.30152279055136, l: 0.6524937040062071 },
+      { hue: 252.21432240118202, l: 0.6612130678741169 },
+      { hue: 356.1764685409278, l: 0.6999270434476365 },
+    ],
+    colors: [
+      { key: "--red", hue: 25.862511090201107, nudge: -0.01 },
+      { key: "--yellow", hue: 60.57993248294484, nudge: -0.03975955678600182 },
+      { key: "--green", hue: 156.4626453262263, nudge: -0.06 },
+      { key: "--aqua", hue: 191.89973754483782, nudge: -0.06368383627492008 },
+      { key: "--blue", hue: 262.04932403807396, nudge: 0.0031893895758517976 },
+      { key: "--purple", hue: 286.48180485809144, nudge: 0.055674010109454636 },
+      { key: "--pink", hue: 354.0410237236758, nudge: 0.017965258931504635 },
+    ],
   };
 }

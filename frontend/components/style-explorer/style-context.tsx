@@ -77,7 +77,7 @@ interface Curve {
 
 // Flat translucent-white border rim alpha (--color-border). Single value, no per-surface
 // modulation — mirrors the committed default in globals.css.
-export const DEFAULT_BORDER_ALPHA = 0.04;
+export const DEFAULT_BORDER_ALPHA = 0.06;
 
 export interface StyleState {
   version: 1;

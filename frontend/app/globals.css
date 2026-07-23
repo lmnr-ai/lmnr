@@ -48,7 +48,7 @@
 
   /* A single flat translucent-white rim, the same on every surface. `* { @apply border-border }`
      in the reset gives every element this edge; the style-explorer border-alpha slider live-tunes it. */
-  --color-border: oklch(1 0 0 / 0.04);
+  --color-border: oklch(1 0 0 / 0.06);
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
   --color-background: var(--color-surface-100);
@@ -534,22 +534,22 @@
        Flat elements use --color-border and never these, so they don't move when the variant changes.
        Defaults below = the "Border" variant (today's look). The explorer's Edge control overwrites
        these via EDGE_VARIANTS. To commit: pick a variant, inline its values, delete the control. */
-    --edge-highlight-alpha: 0; /* Micka: white top-highlight inset */
-    --edge-inner-alpha: 0; /* Micka: white inner ring inset */
-    --edge-outer-alpha: 0; /* Micka: black outer ring */
-    --edge-border-alpha: 0.04; /* Border: flat white rim on raised surfaces */
+    --edge-highlight-alpha: 0.05; /* Micka: white top-highlight inset */
+    --edge-inner-alpha: 0.05; /* Micka: white inner ring inset */
+    --edge-outer-alpha: 0.18; /* Micka: black outer ring */
+    --edge-border-alpha: 0; /* Border: flat white rim on raised surfaces */
     --edge-border-color: oklch(1 0 0 / var(--edge-border-alpha));
 
     /* Raw hue-named accent palette (bare HSL triplets, source of truth). Semantic tokens
        reference these — destructive/success/subagent/llm and chart-2/3/4 all alias a raw hue,
        so retuning a hue here flows everywhere. Orange lives in @theme as the OKLCH brand ramp. */
-    --red: 0 60% 50%;
-    --yellow: 30 80% 55%;
-    --green: 142.1 76.2% 36.3%;
-    --aqua: 187 94% 43%;
-    --blue: 220 70% 50%;
-    --purple: 262 83% 58%;
-    --pink: 330 75% 58%;
+    --red: 0 100% 63.1%;
+    --yellow: 28.2 100% 45.5%;
+    --green: 152.8 100% 34.1%;
+    --aqua: 178.6 100% 34.3%;
+    --blue: 216.1 100% 60.6%;
+    --purple: 259.9 100% 68.6%;
+    --pink: 325.8 100% 60.8%;
 
     --background: 0 0% 4%;
     --foreground: 0 8% 90%;
