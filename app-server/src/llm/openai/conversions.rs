@@ -77,8 +77,10 @@ pub fn provider_request_to_openai_body(model: &str, request: &ProviderRequest) -
         // gpt-5 reasoning models reject `reasoning_effort` + function tools on
         // /v1/chat/completions (400, "use /v1/responses instead") — true for both
         // OpenAI direct and some OpenAI-compatible gateways (LAM-1771: Signals),
-        // so only forward `reasoning_effort` when no tools are present.
-        if !has_tools {
+        // so only forward `reasoning_effort` when no tools are present, unless the
+        // endpoint is known to support the combination.
+        let allow_reasoning_with_tools = crate::env::llm::OPENAI_ALLOW_REASONING_WITH_TOOLS.get();
+        if !has_tools || allow_reasoning_with_tools {
             if let Some(tc) = gc.thinking_config.as_ref() {
                 if let Some(level) = tc.thinking_level.as_ref() {
                     if let Some(effort) = thinking_level_to_effort(level) {
