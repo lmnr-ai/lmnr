@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS default.trace_agent_input
 )
 ENGINE = ReplacingMergeTree(updated_at)
 ORDER BY (project_id, trace_id)
+PARTITION BY toYYYYMM(start_time)
 SETTINGS index_granularity = 8192;
 
 CREATE TABLE IF NOT EXISTS default.trace_agent_output
@@ -94,6 +95,7 @@ CREATE TABLE IF NOT EXISTS default.trace_agent_output
     `updated_at` DateTime64(9, 'UTC') DEFAULT now64(9)
 )
 ENGINE = ReplacingMergeTree(updated_at)
+PARTITION BY toYYYYMM(start_time)
 ORDER BY (project_id, trace_id)
 SETTINGS index_granularity = 8192;
 
@@ -132,6 +134,7 @@ SELECT
             '}'
         )
     ) AS metadata,
+    t.metadata as metadata_map,
     t.session_id AS session_id,
     t.user_id AS user_id,
     -- no status-bearing spans resolves to 'success', matching traces_v0's two-value contract
@@ -159,21 +162,7 @@ SELECT
     toBool(t.has_browser_session) AS has_browser_session,
     t.id AS id,
     t.span_names AS span_names,
-    if(
-        length(mapKeys(t.internal_metadata)) = 0,
-        '',
-        concat(
-            '{',
-            arrayStringConcat(
-                arrayMap(
-                    (k, v) -> concat(toJSONString(k), ':', v),
-                    mapKeys(t.internal_metadata), mapValues(t.internal_metadata)
-                ),
-                ','
-            ),
-            '}'
-        )
-    ) AS internal_metadata,
+    t.internal_metadata AS internal_metadata,
     ifNull(ai.value, '') AS agent_input,
     ifNull(ao.value, '') AS agent_output
 FROM (
