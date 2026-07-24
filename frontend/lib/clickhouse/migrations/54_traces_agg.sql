@@ -168,36 +168,7 @@ SELECT
     t.id AS id,
     t.span_names AS span_names,
     t.internal_metadata AS internal_metadata,
-    ifNull(ai.value, '') AS agent_input,
-    if(
-        empty(ao.hashes),
-        '',
-        arrayStringConcat(
-            arrayMap(
-                h -> multiIf(
-                    notEmpty(simpleJSONExtractRaw(
-                        dictGetOrDefault('deduped_content_dict', 'content', tuple(t.project_id, h), ''),
-                        'parts'
-                    )),
-                    simpleJSONExtractRaw(
-                        dictGetOrDefault('deduped_content_dict', 'content', tuple(t.project_id, h), ''),
-                        'parts'
-                    ),
-                    notEmpty(simpleJSONExtractRaw(
-                        dictGetOrDefault('deduped_content_dict', 'content', tuple(t.project_id, h), ''),
-                        'content'
-                    )),
-                    simpleJSONExtractRaw(
-                        dictGetOrDefault('deduped_content_dict', 'content', tuple(t.project_id, h), ''),
-                        'content'
-                    ),
-                    dictGetOrDefault('deduped_content_dict', 'content', tuple(t.project_id, h), '')
-                ),
-                ao.hashes
-            ),
-            '\n\n'
-        )
-    ) AS agent_output
+    ifNull(ai.value, '') AS agent_input
 FROM (
     SELECT
         project_id,
@@ -242,9 +213,18 @@ LEFT JOIN (
     SELECT * FROM default.trace_agent_input FINAL WHERE project_id = {project_id:UUID}
 ) AS ai
     ON t.project_id = ai.project_id AND t.id = ai.trace_id
-LEFT JOIN (
-    SELECT * FROM default.trace_agent_output FINAL WHERE project_id = {project_id:UUID}
-) AS ao
-    ON t.project_id = ao.project_id AND t.id = ao.trace_id
 WHERE t.start_time >= {min_start_time:DateTime64(9)}
     AND t.start_time <= {max_start_time:DateTime64(9)};
+
+DROP VIEW IF EXISTS trace_outputs_v0;
+CREATE VIEW IF NOT EXISTS trace_outputs_v0 SQL SECURITY INVOKER AS
+SELECT
+    project_id,
+    trace_id,
+    updated_at,
+    arrayMap(
+        h -> dictGetOrDefault('deduped_content_dict', 'content', tuple(project_id, h), ''),
+        hashes
+    ) AS agent_output
+FROM trace_agent_output FINAL
+WHERE project_id = {project_id:UUID};

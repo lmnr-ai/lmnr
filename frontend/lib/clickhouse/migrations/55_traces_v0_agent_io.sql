@@ -33,8 +33,10 @@ SELECT
             '}'
         )
     ) AS metadata,
+    t.metadata as metadata_map,
     t.session_id AS session_id,
     t.user_id AS user_id,
+    -- no status-bearing spans resolves to 'success', matching traces_v0's two-value contract
     if(has(t.statuses, 'error'), 'error', 'success') AS status,
     t.top_span_id AS top_span_id,
     substring(t.top_span_name, 2) AS top_span_name,
@@ -59,23 +61,8 @@ SELECT
     toBool(t.has_browser_session) AS has_browser_session,
     t.id AS id,
     t.span_names AS span_names,
-    if(
-        length(mapKeys(t.internal_metadata)) = 0,
-        '',
-        concat(
-            '{',
-            arrayStringConcat(
-                arrayMap(
-                    (k, v) -> concat(toJSONString(k), ':', v),
-                    mapKeys(t.internal_metadata), mapValues(t.internal_metadata)
-                ),
-                ','
-            ),
-            '}'
-        )
-    ) AS internal_metadata,
-    ifNull(ai.value, '') AS agent_input,
-    ifNull(ao.value, '') AS agent_output
+    t.internal_metadata AS internal_metadata,
+    ifNull(ai.value, '') AS agent_input
 FROM (
     SELECT
         project_id,
@@ -120,9 +107,5 @@ LEFT JOIN (
     SELECT * FROM default.trace_agent_input FINAL WHERE project_id = {project_id:UUID}
 ) AS ai
     ON t.project_id = ai.project_id AND t.id = ai.trace_id
-LEFT JOIN (
-    SELECT * FROM default.trace_agent_output FINAL WHERE project_id = {project_id:UUID}
-) AS ao
-    ON t.project_id = ao.project_id AND t.id = ao.trace_id
 WHERE t.start_time >= {min_start_time:DateTime64(9)}
     AND t.start_time <= {max_start_time:DateTime64(9)};
