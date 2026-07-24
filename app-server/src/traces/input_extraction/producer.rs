@@ -293,18 +293,15 @@ fn should_run_effect(challenger: &WinnerState, winner: Option<&WinnerState>) -> 
 /// depth; a strictly shallower batch resets it — the previous depth's
 /// roster and winner were subagent-level); register every contender at
 /// the lock's depth (the roster keeps the [`super::lock::ROSTER_CAP`]
-/// earliest starters); the strongest eligible contender (see
-/// [`is_eligible`]) challenges the published winner via
-/// [`should_run_effect`] (pure depth/token/content comparison — no LLM
-/// involved). Winning the challenge ALWAYS caches the winner's path (Pass 2
-/// needs this to find the main-agent spine even when no LLM client is
-/// configured). The LLM-backed extraction effect (cached-regex apply, or
-/// enqueue for regex generation) additionally runs only when
-/// `user_task_agent_enabled` — without a client the extraction workers never
-/// spawn, so enqueueing would strand messages. The lock is written back
-/// merge-guarded regardless; `lock.winner` moves as soon as the challenge is
-/// won (independent of whether the LLM effect itself lands, since there may
-/// be none to land).
+/// earliest starters); pick the strongest eligible contender (see
+/// [`is_eligible`]) and cache its path unconditionally — that's pure
+/// depth/token arbitration, no LLM involved, and Pass 2 needs it regardless
+/// of whether the text extraction below runs. The LLM-backed extraction
+/// effect (cached-regex apply, or enqueue for regex generation) only runs
+/// when [`should_run_effect`] holds AND `user_task_agent_enabled` — without
+/// a client the extraction workers never spawn, so enqueueing would strand
+/// messages. The lock is written back merge-guarded regardless;
+/// `lock.winner` moves as soon as that effect lands.
 async fn process_trace_inputs(
     trace_id: Uuid,
     trace_contenders: Vec<InputContender>,
@@ -366,19 +363,23 @@ async fn process_trace_inputs(
 
     let challenger = eligible.reduce(|best, c| if c.state.beats(&best.state) { c } else { best });
 
+    if let Some(challenger) = challenger {
+        // Cache the strongest eligible span's path whenever it wins the
+        // depth/token comparison — independent of `should_run_effect` below,
+        // which only gates the LLM-backed text extraction. Otherwise a
+        // same-content shallower span (should_run_effect = false, since
+        // content didn't change) would leave Pass 2 matching against a
+        // stale, deeper path until the cache entry expires. Must stay the
+        // same "drop own segment" heuristic as Pass 2's match check above.
+        let prefix = &challenger.path[..challenger.path.len().saturating_sub(1)];
+        write_main_agent_path(&cache, project_id, trace_id, prefix).await;
+    }
+
     if let Some(challenger) = challenger
         && should_run_effect(&challenger.state, lock.winner.as_ref())
     {
         let state = challenger.state.clone();
         let candidate = &challenger.candidate;
-
-        // Cache the challenger's stripped path UNCONDITIONALLY — this is
-        // pure heuristic arbitration (depth/tokens/roster, no LLM involved),
-        // so Pass 2 (trace outputs) can find the main-agent spine even when
-        // no LLM client is configured. Must stay the same "drop own
-        // segment" heuristic as Pass 2's match check above.
-        let prefix = &challenger.path[..challenger.path.len().saturating_sub(1)];
-        write_main_agent_path(&cache, project_id, trace_id, prefix).await;
 
         if !user_task_agent_enabled {
             write_lock_merged(&cache, &lock_key, &lock, trace_id).await;
