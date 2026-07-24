@@ -219,14 +219,24 @@ pub async fn process_span_messages(
         let attrs = &m.span.attributes.raw_attributes;
         let input = attrs.get(SPAN_TRACE_INPUT).cloned();
         let output_hashes = attrs.get(SPAN_TRACE_OUTPUT_HASHES).and_then(|v| {
-            v.as_array().map(|arr| {
-                arr.iter()
+            v.as_array().and_then(|arr| {
+                let decoded: Vec<[u8; 32]> = arr
+                    .iter()
                     .filter_map(Value::as_str)
                     .filter_map(|s| {
                         let bytes = hex::decode(s).ok()?;
                         <[u8; 32]>::try_from(bytes).ok()
                     })
-                    .collect::<Vec<[u8; 32]>>()
+                    .collect();
+                if decoded.len() < arr.len() {
+                    log::warn!(
+                        "trace-output: {} of {} hashes failed to decode on span {}",
+                        arr.len() - decoded.len(),
+                        arr.len(),
+                        m.span.span_id,
+                    );
+                }
+                (!decoded.is_empty()).then_some(decoded)
             })
         });
         if input.is_some() || output_hashes.is_some() {
