@@ -1,5 +1,5 @@
-import NoteContent from "../note-content";
-import { textAnchorId } from "../session-outline/utils";
+import NoteContent from "../../note-content";
+import { textAnchorId } from "../../session-outline/utils";
 
 // A standalone note block in the timeline.
 export default function TextBlockItem({ id, text }: { id: string; text: string }) {

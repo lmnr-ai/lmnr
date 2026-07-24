@@ -1,6 +1,7 @@
 import { type SessionEvaluationRef } from "@/lib/actions/debugger-sessions";
 
-import { EvaluationCard, type ScoreWithDelta, type SessionEvalProgression } from "../session-evaluations";
+import { EvaluationCard } from "./card";
+import { type ScoreWithDelta, type SessionEvalProgression } from "./utils";
 
 interface EvaluationBlockItemProps {
   projectId?: string;

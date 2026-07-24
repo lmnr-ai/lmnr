@@ -19,13 +19,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatDuration } from "@/lib/utils";
 
 import CopyFlag from "../copy-flag";
-import { buildSessionEvalProgression, computeScoreDeltas, type SessionEvalProgression } from "../session-evaluations";
 import { traceAnchorId } from "../session-outline/utils";
 import { useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "../store";
 import { useBlockScrollSync } from "../use-block-scroll-sync";
 import { useScrollMargin } from "../use-scroll-margin";
 import CommandBlock from "./command-block";
-import EvaluationBlockItem from "./evaluation-block-item";
+import EvaluationBlockItem from "./eval-block";
+import { buildSessionEvalProgression, computeScoreDeltas, type SessionEvalProgression } from "./eval-block/utils";
 import {
   buildDebuggerFlatRows,
   type DebuggerFlatRow,
@@ -34,7 +34,7 @@ import {
   spanFlagProps,
   withTraceIndex,
 } from "./flat-rows";
-import TextBlockItem from "./text-block-item";
+import TextBlockItem from "./text-block";
 
 interface DebuggerListProps {
   scrollEl: HTMLElement | null;
