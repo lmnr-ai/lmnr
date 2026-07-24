@@ -219,7 +219,6 @@ WHERE t.start_time >= {min_start_time:DateTime64(9)}
 DROP VIEW IF EXISTS trace_outputs_v0;
 CREATE VIEW IF NOT EXISTS trace_outputs_v0 SQL SECURITY INVOKER AS
 SELECT
-    project_id,
     trace_id,
     updated_at,
     arrayMap(

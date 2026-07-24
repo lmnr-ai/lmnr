@@ -377,6 +377,23 @@ const TABLES: &[Table] = &[
             col("updated_at", "DateTime64(9,'UTC')", "When last updated"),
         ],
     },
+    Table {
+        name: "trace_outputs",
+        desc: "Full intermediate or final messages of the last LLM span on the main agent path in the trace.",
+        columns: &[
+            col("trace_id", "UUID", "Unique id of the trace"),
+            col(
+                "updated_at",
+                "DateTime64(9,'UTC')",
+                "end time of the source span or timestamp of the latest update",
+            ),
+            col(
+                "agent_output",
+                "Array(String)",
+                "array of stringified JSON messages",
+            ),
+        ],
+    },
 ];
 
 /// Render the full schema block (`<tables>…</tables><enums>…</enums>`). Compact, one line per column.
