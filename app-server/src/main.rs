@@ -1994,6 +1994,7 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::datasets::create_datapoints)
                                     .service(api::v1::datasets::get_parquet)
                                     .service(api::v1::evals::init_eval)
+                                    .service(api::v1::evals::update_eval)
                                     .service(api::v1::evals::save_eval_datapoints)
                                     .service(api::v1::evals::update_eval_datapoint)
                                     // Debugger session lifecycle — SDK-driven
