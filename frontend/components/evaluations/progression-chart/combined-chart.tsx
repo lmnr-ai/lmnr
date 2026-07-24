@@ -203,7 +203,10 @@ export default function CombinedChart({
                 name={score}
                 stroke={chartConfig[score]?.color}
                 strokeWidth={hoveredScore === score ? 2 : 1.5}
-                strokeOpacity={scoreDimmed ? 0.15 : hoveredEvaluationId ? 0.35 : 1}
+                // A hovered score wins full opacity even when a run is selected
+                // (hoveredEvaluationId dims all lines to 0.35) — so hovering a
+                // score below a debugger eval card lights up its line.
+                strokeOpacity={hoveredScore === score ? 1 : scoreDimmed ? 0.15 : hoveredEvaluationId ? 0.35 : 1}
                 dot={(props: { cx?: number | null; cy?: number | null; payload?: Row; key?: Key | null }) => {
                   const { cx, cy, payload, key } = props;
                   // Null values still get a dot callback with cy=null — an SVG circle
