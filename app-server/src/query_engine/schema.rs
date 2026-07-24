@@ -164,10 +164,23 @@ const TABLES: &[Table] = &[
                 "String",
                 "Extracted agent task / user input for the trace (stringified JSON / raw string)",
             ),
+        ],
+    },
+    Table {
+        name: "trace_outputs",
+        desc: "Extracted final agent output per trace: the output-message array of the \
+               last LLM call on the trace's main-agent path.",
+        columns: &[
+            col("trace_id", "UUID", "Id of the trace"),
+            col(
+                "updated_at",
+                "DateTime64(9,'UTC')",
+                "End time of the span the output was extracted from",
+            ),
             col(
                 "agent_output",
-                "String",
-                "Extracted final agent output for the trace (stringified JSON / raw string)",
+                "Array(String)",
+                "Output messages of the trace's final LLM call, one stringified JSON message per element",
             ),
         ],
     },
@@ -375,23 +388,6 @@ const TABLES: &[Table] = &[
             ),
             col("created_at", "DateTime64(9,'UTC')", "When created"),
             col("updated_at", "DateTime64(9,'UTC')", "When last updated"),
-        ],
-    },
-    Table {
-        name: "trace_outputs",
-        desc: "Full intermediate or final messages of the last LLM span on the main agent path in the trace.",
-        columns: &[
-            col("trace_id", "UUID", "Unique id of the trace"),
-            col(
-                "updated_at",
-                "DateTime64(9,'UTC')",
-                "end time of the source span or timestamp of the latest update",
-            ),
-            col(
-                "agent_output",
-                "Array(String)",
-                "array of stringified JSON messages",
-            ),
         ],
     },
 ];

@@ -11,10 +11,9 @@ interface TraceCollapsedBodyProps {
 }
 
 /**
- * The collapsed-trace card body — the trace's extracted agent input + output
- * (from `traces_v0.agent_input` / `agent_output`, carried on the trace row).
- * When `agentOutput` is empty, falls back to the output text resolved from the
- * last main-agent LLM span (`agentOutputFallback` in the store).
+ * The collapsed-trace card body — the trace's extracted agent input (from
+ * `traces_v0.agent_input`, carried on the trace row) + output (from the
+ * `trace_outputs` view, lazily fetched into the store's `agentOutputs`).
  * Rendered as its OWN virtual row (`trace-collapsed-body`) so the trace-header
  * row above it stays a uniform sticky ~40px header. Visually stitches under the
  * header card: side + bottom borders + bottom rounding continue the card whose
@@ -22,16 +21,15 @@ interface TraceCollapsedBodyProps {
  */
 export default function TraceCollapsedBody({ trace }: TraceCollapsedBodyProps) {
   const spansError = useSessionViewBaseStore((s) => s.traceSpansError[trace.id]);
-  // Fallback output (resolved from the last main-agent LLM span) when the
-  // ingestion-time `agent_output` is empty. `undefined` = not yet fetched.
-  const outputFallback = useSessionViewBaseStore((s) => s.agentOutputFallback[trace.id]);
+  // Extracted output from the trace_outputs view. `undefined` = not yet fetched.
+  const output = useSessionViewBaseStore((s) => s.agentOutputs[trace.id]);
 
   const agentInput = trace.agentInput || null;
-  const agentOutput = trace.agentOutput || outputFallback || null;
-  // Fallback output not resolved yet (undefined) → show a skeleton output row.
+  const agentOutput = output || null;
+  // Output not resolved yet (undefined) → show a skeleton output row.
   // Suppresses the "nothing extracted" message while the fetch is in flight so
   // it doesn't flash before the output lands.
-  const outputPending = !trace.agentOutput && outputFallback === undefined;
+  const outputPending = output === undefined;
 
   return (
     <div

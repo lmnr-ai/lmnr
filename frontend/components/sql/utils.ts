@@ -187,12 +187,24 @@ export const tableSchemas: Record<string, TableSchema> = {
         type: "String",
         description: "Extracted agent task / user input for the trace as stringified JSON or raw string",
       },
+      { name: "has_browser_session", type: "Bool", description: "Whether the trace has a browser session" },
+    ],
+  },
+  trace_outputs: {
+    description:
+      "Extracted final agent output per trace: the output messages of the last LLM call on the trace's main-agent path",
+    columns: [
+      { name: "trace_id", type: "UUID", description: "ID of the trace" },
+      {
+        name: "updated_at",
+        type: "DateTime64(9, 'UTC')",
+        description: "End time of the span the output was extracted from",
+      },
       {
         name: "agent_output",
-        type: "String",
-        description: "Extracted final agent output for the trace as stringified JSON or raw string",
+        type: "Array(String)",
+        description: "Output messages of the trace's final LLM call, one stringified JSON message per element",
       },
-      { name: "has_browser_session", type: "Bool", description: "Whether the trace has a browser session" },
     ],
   },
   dataset_datapoints: {

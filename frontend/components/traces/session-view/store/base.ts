@@ -37,10 +37,10 @@ export interface BaseSessionViewState {
   traceSpansLoading: Record<string, boolean>;
   traceSpansError: Record<string, string | undefined>;
 
-  /** Fallback trace-output text, keyed by trace id, resolved from the last LLM
-   *  span on the main-agent path. Only fetched for traces whose ingestion-time
-   *  `agentOutput` is empty. Absent = not fetched; null = fetched, none found. */
-  agentOutputFallback: Record<string, string | null>;
+  /** Extracted trace-output text, keyed by trace id, read from the
+   *  `trace_outputs` view via `/traces/output` (with a legacy last-LLM-span
+   *  fallback server-side). Absent = not fetched; null = fetched, none found. */
+  agentOutputs: Record<string, string | null>;
 
   // UI state
   expandedTraceIds: Set<string>;
@@ -98,10 +98,10 @@ export interface BaseSessionViewActions {
    *  Idempotent: safe to call repeatedly on mount of TraceItem. */
   fetchTraceSpans: (trace: TraceRow) => Promise<void>;
 
-  /** Fetch the fallback output text for the given traces (batched + debounced).
-   *  Skips ids already resolved or in-flight. Caller passes only traces whose
-   *  `agentOutput` is empty. Fire-and-forget; fills `agentOutputFallback`. */
-  fetchAgentOutputFallback: (traceIds: string[]) => void;
+  /** Fetch the extracted output text for the given traces (batched +
+   *  debounced). Skips ids already resolved or in-flight. Fire-and-forget;
+   *  fills `agentOutputs`. */
+  fetchAgentOutputs: (traceIds: string[]) => void;
 
   toggleTraceExpanded: (traceId: string) => void;
   setTraceExpanded: (traceId: string, expanded: boolean) => void;
@@ -211,19 +211,19 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
   // No options needed today; keep the signature for parity with trace-view's base.
   _options?: Record<string, never>
 ): BaseSessionViewStore {
-  // Closure-scoped per-store batching state for the fallback-output fetch.
+  // Closure-scoped per-store batching state for the output fetch.
   // Not part of the store's reactive state — pure fetch bookkeeping.
-  const outputFallbackFetching = new Set<string>();
-  const outputFallbackPending = new Set<string>();
-  let outputFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+  const outputFetching = new Set<string>();
+  const outputPending = new Set<string>();
+  let outputTimer: ReturnType<typeof setTimeout> | null = null;
 
-  const flushAgentOutputFallback = async () => {
+  const flushAgentOutputs = async () => {
     const projectId = get().projectId;
-    if (!projectId || outputFallbackPending.size === 0) return;
+    if (!projectId || outputPending.size === 0) return;
 
-    const toFetch = Array.from(outputFallbackPending);
-    outputFallbackPending.clear();
-    for (const id of toFetch) outputFallbackFetching.add(id);
+    const toFetch = Array.from(outputPending);
+    outputPending.clear();
+    for (const id of toFetch) outputFetching.add(id);
 
     // Server caps each request at 100 ids.
     for (let i = 0; i < toFetch.length; i += 100) {
@@ -237,8 +237,8 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
         if (!res.ok) throw new Error("Failed to fetch trace output");
         const data = (await res.json()) as Record<string, string | null>;
         set({
-          agentOutputFallback: {
-            ...get().agentOutputFallback,
+          agentOutputs: {
+            ...get().agentOutputs,
             ...Object.fromEntries(chunk.map((id) => [id, data[id] ?? null])),
           },
         } as Partial<T>);
@@ -246,13 +246,13 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
         // Mark as resolved-with-nothing so we don't retry in a loop; the
         // collapsed body already degrades to "no output" gracefully.
         set({
-          agentOutputFallback: {
-            ...get().agentOutputFallback,
+          agentOutputs: {
+            ...get().agentOutputs,
             ...Object.fromEntries(chunk.map((id) => [id, null])),
           },
         } as Partial<T>);
       } finally {
-        for (const id of chunk) outputFallbackFetching.delete(id);
+        for (const id of chunk) outputFetching.delete(id);
       }
     }
   };
@@ -266,7 +266,7 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
     traceSpansLoading: {},
     traceSpansError: {},
 
-    agentOutputFallback: {},
+    agentOutputs: {},
 
     expandedTraceIds: new Set<string>(),
     transcriptExpandedGroups: new Set<string>(),
@@ -350,17 +350,17 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
       }
     },
 
-    fetchAgentOutputFallback: (traceIds) => {
-      const resolved = get().agentOutputFallback;
+    fetchAgentOutputs: (traceIds) => {
+      const resolved = get().agentOutputs;
       let added = false;
       for (const id of traceIds) {
-        if (id in resolved || outputFallbackFetching.has(id) || outputFallbackPending.has(id)) continue;
-        outputFallbackPending.add(id);
+        if (id in resolved || outputFetching.has(id) || outputPending.has(id)) continue;
+        outputPending.add(id);
         added = true;
       }
       if (!added) return;
-      if (outputFallbackTimer) clearTimeout(outputFallbackTimer);
-      outputFallbackTimer = setTimeout(() => void flushAgentOutputFallback(), 150);
+      if (outputTimer) clearTimeout(outputTimer);
+      outputTimer = setTimeout(() => void flushAgentOutputs(), 150);
     },
 
     // open recursion: delegates to get().fetchTraceSpans — a derived store's override wins.

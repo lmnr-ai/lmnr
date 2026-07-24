@@ -53,7 +53,8 @@ export type TraceViewTrace = {
   hasBrowserSession: boolean;
   sessionId?: string;
   userId?: string;
-  // Ingestion-time-extracted agent task / final output (from traces_agg_v0).
+  // Ingestion-time-extracted agent task (traces_v0.agent_input) / final
+  // output (trace_outputs_v0, resolved server-side by getTrace/getSharedTrace).
   agentInput?: string | null;
   agentOutput?: string | null;
 };

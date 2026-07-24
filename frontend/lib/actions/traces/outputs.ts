@@ -3,12 +3,23 @@ import { z } from "zod/v4";
 import { MAIN_AGENT_SEARCH_WINDOW } from "@/components/traces/trace-view/store/utils";
 import { processSpanPreviews } from "@/lib/actions/spans/previews";
 import { executeQuery } from "@/lib/actions/sql";
+import { extractAgentOutput } from "@/lib/traces/agent-output";
 
 const bodySchema = z.object({
   traceIds: z.array(z.guid()).min(1).max(100),
 });
 
-// The main-agent LLM path within a trace: the shallowest parent path with the
+// Primary source: the `trace_outputs` view (backed by the ingestion-time
+// `trace_agent_output` RMT). `agent_output` is the winning LLM span's full
+// output-message array, one raw message JSON per element.
+const OUTPUTS_QUERY = `
+  SELECT trace_id AS traceId, agent_output AS agentOutput
+  FROM trace_outputs
+  WHERE trace_id IN ({traceIds: Array(UUID)})
+`;
+
+// Fallback for traces ingested before `trace_agent_output` existed: the
+// main-agent LLM path within a trace — the shallowest parent path with the
 // most input tokens among the first N LLM spans. Mirrors the app-server
 // compression boundary heuristic (arrayPopBack of the '.'-split span path).
 const TOP_PATH_QUERY = `
@@ -54,13 +65,14 @@ interface OutputSpanRow {
 }
 
 /**
- * Fallback trace-output resolver used when the ingestion-time-extracted
- * `agent_output` (`traces_v0.agent_output`) is empty. Resolves the output TEXT
- * only (no span payload) from the last LLM span on the trace's main-agent path,
- * mirroring the pre-`agent_output` behaviour. Batched (one query pair per
- * trace, in parallel). Returns a map traceId -> output text (or null).
+ * Resolve trace-output text for a batch of traces. Primary path is one
+ * query-engine read over the `trace_outputs` view + `extractAgentOutput`
+ * (text / thinking / tool calls); traces without a row (ingested before the
+ * `trace_agent_output` table existed) fall back to the output of the last
+ * LLM span on the trace's main-agent path. Returns a map
+ * traceId -> output text (or null).
  */
-export async function getTraceOutputTextBatch({
+export async function getAgentOutputsBatch({
   traceIds,
   projectId,
 }: {
@@ -69,11 +81,26 @@ export async function getTraceOutputTextBatch({
 }): Promise<Record<string, string | null>> {
   const parsed = bodySchema.parse({ traceIds });
 
-  const entries = await Promise.all(
-    parsed.traceIds.map(async (traceId) => [traceId, await resolveTraceOutputText(traceId, projectId)] as const)
-  );
+  const rows = await executeQuery<{ traceId: string; agentOutput: string[] }>({
+    query: OUTPUTS_QUERY,
+    parameters: { traceIds: parsed.traceIds },
+    projectId,
+  });
 
-  return Object.fromEntries(entries);
+  const results: Record<string, string | null> = {};
+  for (const row of rows) {
+    results[row.traceId] = extractAgentOutput(row.agentOutput);
+  }
+
+  const missing = parsed.traceIds.filter((id) => !results[id]);
+  const fallbackEntries = await Promise.all(
+    missing.map(async (traceId) => [traceId, await resolveTraceOutputText(traceId, projectId)] as const)
+  );
+  for (const [traceId, text] of fallbackEntries) {
+    results[traceId] = text;
+  }
+
+  return results;
 }
 
 async function resolveTraceOutputText(traceId: string, projectId: string): Promise<string | null> {

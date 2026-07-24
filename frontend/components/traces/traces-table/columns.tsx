@@ -110,15 +110,6 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     size: 150,
   },
   {
-    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
-    accessorKey: "agentOutput",
-    header: "Output",
-    id: "agent_output",
-    enableSorting: true,
-    meta: { sql: "agent_output" },
-    size: 150,
-  },
-  {
     accessorFn: (row) => row.startTime,
     header: "Timestamp",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
@@ -250,11 +241,6 @@ export const filters: ColumnFilter[] = [
     dataType: "string",
   },
   {
-    name: "Output",
-    key: "agent_output",
-    dataType: "string",
-  },
-  {
     name: "Input cost",
     key: "input_cost",
     dataType: "number",
@@ -320,7 +306,6 @@ export const defaultTracesColumnOrder = [
   "id",
   "top_span_type",
   "agent_input",
-  "agent_output",
   "start_time",
   "duration",
   "cost",

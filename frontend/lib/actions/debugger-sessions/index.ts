@@ -216,7 +216,6 @@ const debuggerTraceSelectColumns = [
   "total_cost as totalCost",
   "metadata",
   "agent_input as agentInput",
-  "agent_output as agentOutput",
 ];
 
 export type SessionEvaluationScore = {

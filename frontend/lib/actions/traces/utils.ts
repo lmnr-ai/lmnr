@@ -21,11 +21,11 @@ import { type TracesStatsDataPoint } from "@/lib/actions/traces/stats-types";
 import { type TimeRange } from "@/lib/clickhouse/utils.ts";
 
 /**
- * eq/ne filter for the stringified-JSON agent_input / agent_output columns.
- * `eq` matches when EITHER the raw column OR its JSON-decoded string equals the
- * value; `ne` requires BOTH to differ (so negation excludes both encodings).
+ * eq/ne filter for the stringified-JSON agent_input column. `eq` matches when
+ * EITHER the raw column OR its JSON-decoded string equals the value; `ne`
+ * requires BOTH to differ (so negation excludes both encodings).
  */
-const createAgentIoFilter = (column: "agent_input" | "agent_output"): ColumnFilterProcessor =>
+const createAgentIoFilter = (column: "agent_input"): ColumnFilterProcessor =>
   createCustomFilter(
     (filter, paramKey) => {
       if (filter.operator === "ne") {
@@ -97,12 +97,12 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
     ["top_span_type", createStringFilter],
     ["top_span_name", createStringFilter],
     ["span_names", createArrayColumnFilter("String")],
-    // agent_input / agent_output are stored as stringified JSON (a top-level
-    // JSON string for plain-text tasks/answers, or a JSON object). Match both
-    // the raw stored value AND the JSON-decoded string form so a user can
-    // filter by the human-readable text without typing the surrounding quotes.
+    // agent_input is stored as stringified JSON (a top-level JSON string for
+    // plain-text tasks, or a JSON object). Match both the raw stored value AND
+    // the JSON-decoded string form so a user can filter by the human-readable
+    // text without typing the surrounding quotes. (agent_output lives in the
+    // separate trace_outputs view and is not filterable here.)
     ["agent_input", createAgentIoFilter("agent_input")],
-    ["agent_output", createAgentIoFilter("agent_output")],
   ]),
 };
 
@@ -131,7 +131,6 @@ export const tracesSelectColumns = [
   "status",
   "user_id as userId",
   "agent_input as agentInput",
-  "agent_output as agentOutput",
 ];
 
 export const DEFAULT_SEARCH_MAX_HITS = 500;

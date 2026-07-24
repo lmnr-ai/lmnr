@@ -445,9 +445,15 @@ impl TableRegistry {
             "trace_tags",
             "span_names",
             "agent_input",
-            "agent_output",
             "internal_metadata",
         ];
+
+        // Extracted agent outputs live in their own view (`trace_outputs_v0`,
+        // backed by the `trace_agent_output` RMT): the dict-resolving join was
+        // too expensive to keep inside the hot traces view. `agent_output` is
+        // the winning span's full output-message array (Array(String), one raw
+        // message JSON per element).
+        let trace_outputs_columns = ["trace_id", "updated_at", "agent_output"];
 
         let dataset_datapoints_columns = [
             "id",
@@ -574,6 +580,7 @@ impl TableRegistry {
 
         tables.insert("spans", schema(&spans_columns));
         tables.insert("traces", schema(&traces_columns));
+        tables.insert("trace_outputs", schema(&trace_outputs_columns));
         tables.insert("dataset_datapoints", schema(&dataset_datapoints_columns));
         // same columns as dataset_datapoints, but the _v0 view only exposes the
         // latest version of each datapoint

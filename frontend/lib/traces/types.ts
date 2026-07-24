@@ -150,7 +150,6 @@ export type TraceRow = {
   spanTags: string[];
   traceTags: string[];
   agentInput?: string;
-  agentOutput?: string;
   inputSnippet?: { text: string; highlight: [number, number] };
   outputSnippet?: { text: string; highlight: [number, number] };
   attributesSnippet?: { text: string; highlight: [number, number] };

@@ -15,6 +15,7 @@ import {
   AgentGroupHeader,
   GroupChildWrapper,
   InputItem,
+  OutputItem,
   SpanItem,
 } from "@/components/traces/trace-view/transcript/item";
 import { useBatchedSpanPreviews } from "@/components/traces/trace-view/transcript/use-batched-span-previews";
@@ -32,7 +33,7 @@ interface TranscriptProps {
   isShared?: boolean;
 }
 
-type FlatRow = { type: "user-input" } | TranscriptListEntry;
+type FlatRow = { type: "user-input" } | { type: "agent-output" } | TranscriptListEntry;
 
 const isGroupChildType = (type: FlatRow["type"]): boolean => type === "group-span" || type === "group-input";
 
@@ -119,10 +120,12 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trace?.id, spans.length]);
 
-  // Agent input/task is extracted at ingestion and read straight off the trace
-  // object (traces_agg_v0.agent_input) — no separate fetch.
+  // Agent input/output are extracted at ingestion and read straight off the
+  // trace object (traces_v0.agent_input / trace_outputs_v0, both resolved by
+  // the trace fetch) — no separate client fetch.
   const userInput = trace?.agentInput ?? null;
   const hasUserInput = !!userInput;
+  const agentOutput = trace?.agentOutput ?? null;
 
   const flatRows = useMemo(() => {
     const rows: FlatRow[] = [];
@@ -140,8 +143,11 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
         rows.push(entry);
       }
     }
+    if (agentOutput) {
+      rows.push({ type: "agent-output" });
+    }
     return rows;
-  }, [transcriptEntries, transcriptExpandedGroups, hasUserInput]);
+  }, [transcriptEntries, transcriptExpandedGroups, hasUserInput, agentOutput]);
 
   const spanTypes = useMemo(() => {
     const types: Record<string, string> = {};
@@ -379,6 +385,9 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
         case "user-input":
           return <InputItem text={userInput} isLoading={false} />;
 
+        case "agent-output":
+          return <OutputItem text={agentOutput} isLoading={false} />;
+
         case "group": {
           const isCollapsed = !transcriptExpandedGroups.has(row.groupId);
           return (
@@ -432,6 +441,7 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
     },
     [
       userInput,
+      agentOutput,
       transcriptExpandedGroups,
       toggleTranscriptGroup,
       previews,
