@@ -19,8 +19,8 @@ use crate::{
     traces::{
         producer::publish_span_messages,
         span_attributes::{
-            ASSOCIATION_PROPERTIES_PREFIX, SPAN_METADATA_ONLY, SPAN_TRACE_INPUT, SPAN_TRACE_OUTPUT,
-            SPAN_TRACE_OUTPUT_END_TIME,
+            ASSOCIATION_PROPERTIES_PREFIX, SPAN_METADATA_ONLY, SPAN_TRACE_INPUT,
+            SPAN_TRACE_OUTPUT_END_TIME, SPAN_TRACE_OUTPUT_HASHES,
         },
         spans::SpanAttributes,
     },
@@ -122,22 +122,33 @@ pub async fn publish_trace_input_update(
     publish_metadata_only_span(trace_id, project_id, attributes, queue, db, cache).await
 }
 
-/// Set the extracted trace output. Same raw-transport contract as
-/// [`publish_trace_input_update`], on [`SPAN_TRACE_OUTPUT`], plus the
-/// winning span's `end_time_ns` on [`SPAN_TRACE_OUTPUT_END_TIME`] — the
-/// processor uses it as the `trace_agent_output` RMT version.
+/// Set the extracted trace output. Same virtual-span transport as
+/// [`publish_trace_input_update`], but carries per-message output HASHES
+/// (hex-encoded, into `deduped_content`) on [`SPAN_TRACE_OUTPUT_HASHES`]
+/// rather than a rendered string — every output message is already
+/// content-hashed by the dedup pipeline, so storing hashes avoids
+/// duplicating bytes that already live in `deduped_content`. The winning
+/// span's `end_time_ns` on [`SPAN_TRACE_OUTPUT_END_TIME`] is the
+/// `trace_agent_output` RMT version.
 pub async fn publish_trace_output_update(
     trace_id: Uuid,
     project_id: Uuid,
-    text: String,
+    hashes: Vec<[u8; 32]>,
     end_time_ns: i64,
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
 ) -> Result<()> {
+    let hex_hashes: Vec<Value> = hashes
+        .iter()
+        .map(|h| Value::String(hex::encode(h)))
+        .collect();
     let attributes = HashMap::from([
         (SPAN_METADATA_ONLY.to_string(), Value::Bool(true)),
-        (SPAN_TRACE_OUTPUT.to_string(), Value::String(text)),
+        (
+            SPAN_TRACE_OUTPUT_HASHES.to_string(),
+            Value::Array(hex_hashes),
+        ),
         (
             SPAN_TRACE_OUTPUT_END_TIME.to_string(),
             Value::Number(end_time_ns.into()),

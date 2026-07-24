@@ -10,10 +10,11 @@ use super::regex::ApplyRegexResult;
 /// match) — "never ran" is the key being absent.
 pub const USER_TASK_METADATA_KEY: &str = "lmnr_user_task";
 
-/// The extracted trace output (the agent's final answer). Written by the
-/// inline output pass; no LLM/regex — the latest toolless assistant text
-/// from the shallowest LLM span.
-pub const TRACE_OUTPUT_METADATA_KEY: &str = "lmnr_trace_output";
+// There is no `TRACE_OUTPUT_METADATA_KEY` equivalent (LAM-1953 rework):
+// trace output is stored as per-message hashes into `deduped_content`
+// (`trace_agent_output` supplementary table), which aren't self-renderable
+// without a `deduped_content` lookup, so the output side is never folded
+// into `traces_replacing.metadata`.
 
 /// Map an extraction outcome onto the raw trace-input value (fed to
 /// `publish_trace_input_update`). Extracted text is signpost-split and

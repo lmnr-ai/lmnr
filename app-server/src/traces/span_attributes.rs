@@ -34,16 +34,21 @@ pub const SPAN_PROMPT_HASH: &str = "lmnr.span.prompt_hash";
 /// the row is not written to `spans`, doesn't index in Quickwit, and
 /// contributes nothing to trace stats (start/end/tokens/num_spans/top_span/etc.).
 pub const SPAN_METADATA_ONLY: &str = "lmnr.internal.metadata_only";
-/// Raw extracted trace input / output carried verbatim on a metadata-only
-/// virtual span (LAM-1953). Unlike association-property metadata, these hold
-/// the raw JSON value with NO predefined key — the key is added only on the
-/// deprecated `traces_replacing` merge path; the supplementary RMT tables
-/// store the raw value directly.
+/// Raw extracted trace input carried verbatim on a metadata-only virtual
+/// span (LAM-1953). Unlike association-property metadata, this holds the
+/// raw JSON value with NO predefined key — the key is added only on the
+/// deprecated `traces_replacing` merge path; the supplementary RMT table
+/// stores the raw value directly.
 pub const SPAN_TRACE_INPUT: &str = "lmnr.internal.trace_input";
-pub const SPAN_TRACE_OUTPUT: &str = "lmnr.internal.trace_output";
-/// Winning span's end time (ns since epoch) accompanying `SPAN_TRACE_OUTPUT`:
-/// the RMT version for the `trace_agent_output` row, so FINAL converges on
-/// the latest-ending answer regardless of insert arrival order.
+/// Hex-encoded per-message output hashes (into `deduped_content`) carried
+/// verbatim on a metadata-only virtual span (LAM-1953 rework). The output
+/// path stores hashes, not a rendered string, because every output message
+/// is already content-hashed by the existing dedup pipeline.
+pub const SPAN_TRACE_OUTPUT_HASHES: &str = "lmnr.internal.trace_output_hashes";
+/// Winning span's end time (ns since epoch) accompanying
+/// `SPAN_TRACE_OUTPUT_HASHES`: the RMT version for the `trace_agent_output`
+/// row, so FINAL converges on the latest-ending answer regardless of
+/// insert arrival order.
 pub const SPAN_TRACE_OUTPUT_END_TIME: &str = "lmnr.internal.trace_output_end_time";
 /// Marker on the checkpoints pipeline's own tracing spans, skipped by its producer.
 pub const CHECKPOINT_INTERNAL_SPAN: &str = "lmnr.internal.checkpoint";
