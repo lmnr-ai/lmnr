@@ -28,6 +28,7 @@ use crate::{
     },
     ch::deduped_content,
     db::{DB, agents},
+    env,
     llm::LlmClient,
     mq::MessageQueue,
     traces::metadata::publish_trace_metadata_patch,
@@ -211,13 +212,21 @@ impl CheckpointsHandler {
         };
 
         // No exact match — ask the LLM whether this is a brand-new agent or
-        // a modified version of an existing one, using the project's existing
-        // agent system prompts as context.
-        let existing_agents =
-            agents::list_latest_agent_versions(&self.db.pool, message.project_id).await?;
+        // another version of an existing one, comparing against several recent
+        // versions of EVERY agent rather than one latest version per agent:
+        // concurrent variants (A/B tests, subversions) aren't the newest row, so
+        // comparing only against the newest one files each variant as its own
+        // agent.
+        let existing_versions = agents::list_recent_agent_versions(
+            &self.db.pool,
+            message.project_id,
+            env::checkpoints::CLASSIFY_VERSIONS_PER_AGENT.get(),
+            env::checkpoints::CLASSIFY_MAX_VERSIONS.get(),
+        )
+        .await?;
         let classification = classifier::classify_agent(
             &stable_system_prompt,
-            &existing_agents,
+            &existing_versions,
             self.llm_client.clone(),
             root,
         )

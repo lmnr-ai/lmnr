@@ -39,22 +39,45 @@ pub async fn get_agent_by_version_hash(
     Ok(agent_id)
 }
 
-/// List the project's agents, each with its most recently created version.
-pub async fn list_latest_agent_versions(
+/// The project's recent agent versions: up to `per_agent_limit` newest versions
+/// of each agent, capped overall at `total_limit`.
+///
+/// Returns MULTIPLE versions per agent, not just each agent's latest — variants
+/// that run side by side (A/B tests, subversions) sit behind the newest row, and
+/// a classifier that can't see them files an incoming variant as a brand-new
+/// agent.
+///
+/// Rows come back ordered by rank-within-agent first, then recency, so when
+/// `total_limit` truncates it drops an agent's extra versions before dropping
+/// any agent entirely: one busy agent churning versions can never crowd its
+/// peers out of the comparison set (which would reintroduce the same bug).
+pub async fn list_recent_agent_versions(
     pool: &PgPool,
     project_id: Uuid,
+    per_agent_limit: i64,
+    total_limit: i64,
 ) -> Result<Vec<AgentVersion>> {
-    let agents = sqlx::query_as::<_, AgentVersion>(
-        "SELECT DISTINCT ON (agent_id)
-            project_id, agent_id, version_hash, system_prompt, tool_definitions, model, created_at
-         FROM agent_versions
-         WHERE project_id = $1
-         ORDER BY agent_id, created_at DESC, version_hash DESC",
+    let versions = sqlx::query_as::<_, AgentVersion>(
+        "SELECT project_id, agent_id, version_hash, system_prompt, tool_definitions, model, created_at
+         FROM (
+             SELECT project_id, agent_id, version_hash, system_prompt, tool_definitions, model,
+                    created_at,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY agent_id ORDER BY created_at DESC, version_hash DESC
+                    ) AS rank_in_agent
+             FROM agent_versions
+             WHERE project_id = $1
+         ) ranked
+         WHERE rank_in_agent <= $2
+         ORDER BY rank_in_agent, created_at DESC, version_hash DESC
+         LIMIT $3",
     )
     .bind(project_id)
+    .bind(per_agent_limit)
+    .bind(total_limit)
     .fetch_all(pool)
     .await?;
-    Ok(agents)
+    Ok(versions)
 }
 
 /// Create a brand-new agent and its first version. Returns the new agent id.

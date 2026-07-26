@@ -1,6 +1,6 @@
 //! LLM-based agent classification for checkpoints.
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use serde_json::Value;
 use uuid::Uuid;
@@ -35,10 +35,11 @@ enum ClassifyError {
     Rejected(anyhow::Error),
 }
 
-const CLASSIFY_INSTRUCTION: &str =
-    "You classify AI agent system prompts. Given an incoming agent's system prompt and a list of \
-     existing agents (each with an id and its system prompt), decide whether the incoming prompt is \
-     a completely new agent or a modified version of one of the existing agents.\n\n\
+const CLASSIFY_INSTRUCTION: &str = "You classify AI agent system prompts. Given an incoming agent's system prompt and a list of \
+     existing agents (each with an id and one or more known versions of its system prompt, since \
+     several versions of one agent can run at the same time), decide whether the incoming prompt is \
+     a completely new agent or another version of one of the existing agents. Matching ANY ONE of an \
+     agent's listed versions means the incoming prompt belongs to that agent.\n\n\
      Base your decision ONLY on the agent's specific ROLE and PURPOSE — the sentence(s) describing \
      who the agent is and what job it does (e.g. 'senior research analyst gathering data' vs \
      'portfolio manager orchestrating subagents'). IGNORE shared boilerplate that appears in most \
@@ -56,25 +57,28 @@ const CLASSIFY_INSTRUCTION: &str =
 const INCOMING_PROMPT_LIMIT: usize = 4000;
 const EXISTING_PROMPT_LIMIT: usize = 1000;
 
-/// Decide whether `non_dynamic_system_prompt` is a new agent or a variant of an
-/// existing one. With no LLM provider, or on a transport failure, falls back to
-/// the latest existing agent (`fallback_classification`, which errors rather
-/// than mint a nameless agent). A rejected verdict (e.g. new agent with no name)
-/// is NOT eligible for fallback and propagates so the checkpoint is dropped.
+/// Decide whether `non_dynamic_system_prompt` is a new agent or another version
+/// of an existing one. `existing_versions` carries EVERY known version of the
+/// project's agents (newest first, capped by the caller), not just each agent's
+/// latest — see [`crate::db::agents::list_recent_agent_versions`]. With no LLM
+/// provider, or on a transport failure, falls back to the most recently created
+/// version's agent (`fallback_classification`, which errors rather than mint a
+/// nameless agent). A rejected verdict (e.g. new agent with no name) is NOT
+/// eligible for fallback and propagates so the checkpoint is dropped.
 pub async fn classify_agent(
     non_dynamic_system_prompt: &str,
-    existing_agents: &[AgentVersion],
+    existing_versions: &[AgentVersion],
     llm_client: Option<Arc<LlmClient>>,
     root: &CheckpointRoot,
 ) -> anyhow::Result<AgentClassification> {
     let Some(llm_client) = llm_client else {
-        return fallback_classification(existing_agents);
+        return fallback_classification(existing_versions);
     };
 
     match classify_with_llm(
         &llm_client,
         non_dynamic_system_prompt,
-        existing_agents,
+        existing_versions,
         root,
     )
     .await
@@ -82,7 +86,7 @@ pub async fn classify_agent(
         Ok(classification) => Ok(classification),
         Err(ClassifyError::Transport(e)) => {
             log::warn!("[CHECKPOINTS] Agent classification failed, falling back: {e:?}");
-            fallback_classification(existing_agents)
+            fallback_classification(existing_versions)
         }
         Err(ClassifyError::Rejected(e)) => {
             log::warn!("[CHECKPOINTS] Agent classification rejected, dropping checkpoint: {e:?}");
@@ -94,14 +98,14 @@ pub async fn classify_agent(
 async fn classify_with_llm(
     llm_client: &LlmClient,
     system_prompt: &str,
-    existing_agents: &[AgentVersion],
+    existing_versions: &[AgentVersion],
     root: &CheckpointRoot,
 ) -> Result<AgentClassification, ClassifyError> {
     let request = ProviderRequest {
         contents: vec![ProviderContent {
             role: Some("user".to_string()),
             parts: Some(vec![ProviderPart {
-                text: Some(build_context(system_prompt, existing_agents)),
+                text: Some(build_context(system_prompt, existing_versions)),
                 ..Default::default()
             }]),
         }],
@@ -122,11 +126,16 @@ async fn classify_with_llm(
         model_size: Some(ModelSize::Small),
     };
 
-    let response = run_llm(root, llm_client, &request, || {
-        tracing::info_span!(target: "lmnr::internal", "classify_agent")
-    })
+    let response = run_llm(
+        root,
+        llm_client,
+        &request,
+        || tracing::info_span!(target: "lmnr::internal", "classify_agent"),
+    )
     .await
-    .map_err(|e| ClassifyError::Transport(anyhow::anyhow!("classify_agent LLM call failed: {e:?}")))?;
+    .map_err(|e| {
+        ClassifyError::Transport(anyhow::anyhow!("classify_agent LLM call failed: {e:?}"))
+    })?;
 
     let args = response
         .candidates
@@ -143,7 +152,9 @@ async fn classify_with_llm(
 
     match args {
         // An invalid verdict is a rejection (drop), not a transport failure.
-        Some(args) => parse_classification(&args, existing_agents).map_err(ClassifyError::Rejected),
+        Some(args) => {
+            parse_classification(&args, existing_versions).map_err(ClassifyError::Rejected)
+        }
         // No tool call: nothing usable, let the caller fall back.
         None => Err(ClassifyError::Transport(anyhow::anyhow!(
             "classify_agent returned no tool call"
@@ -157,7 +168,7 @@ async fn classify_with_llm(
 /// agent, so the checkpoint is dropped (and re-triggered later) instead.
 fn parse_classification(
     args: &Value,
-    existing_agents: &[AgentVersion],
+    existing_versions: &[AgentVersion],
 ) -> anyhow::Result<AgentClassification> {
     let is_new = args
         .get("is_new_agent")
@@ -170,7 +181,7 @@ fn parse_classification(
             .and_then(|v| v.as_str())
             .and_then(|s| Uuid::parse_str(s).ok())
         {
-            if existing_agents.iter().any(|a| a.agent_id == agent_id) {
+            if existing_versions.iter().any(|v| v.agent_id == agent_id) {
                 return Ok(AgentClassification::ExistingAgent { agent_id });
             }
         }
@@ -189,32 +200,59 @@ fn parse_classification(
 }
 
 fn fallback_classification(
-    existing_agents: &[AgentVersion],
+    existing_versions: &[AgentVersion],
 ) -> anyhow::Result<AgentClassification> {
-    match existing_agents.iter().max_by_key(|a| a.created_at) {
+    match existing_versions.iter().max_by_key(|v| v.created_at) {
         None => anyhow::bail!(
             "cannot classify a new agent without an LLM provider (no existing agents to attribute to)"
         ),
-        Some(agent) => Ok(AgentClassification::ExistingAgent {
-            agent_id: agent.agent_id,
+        Some(version) => Ok(AgentClassification::ExistingAgent {
+            agent_id: version.agent_id,
         }),
     }
 }
 
-fn build_context(system_prompt: &str, existing_agents: &[AgentVersion]) -> String {
+/// Render the incoming prompt plus every existing version, grouped under its
+/// agent. Versions of one agent are listed together so the model sees that
+/// concurrently-live variants (A/B tests, subversions) belong to the same agent
+/// instead of treating each as an unrelated candidate. Versions whose prompt is
+/// identical after truncation collapse into one entry — they'd differ only in
+/// tools/model, which classification ignores.
+fn build_context(system_prompt: &str, existing_versions: &[AgentVersion]) -> String {
     let mut ctx = format!(
         "Incoming agent system prompt:\n{}\n\nExisting agents in this project:\n",
         crate::utils::truncate_chars(system_prompt, INCOMING_PROMPT_LIMIT)
     );
-    if existing_agents.is_empty() {
+    if existing_versions.is_empty() {
         ctx.push_str("(none)\n");
-    } else {
-        for agent in existing_agents {
-            ctx.push_str(&format!(
-                "\n[agent_id={}]\n{}\n",
-                agent.agent_id,
-                crate::utils::truncate_chars(&agent.system_prompt, EXISTING_PROMPT_LIMIT)
-            ));
+        return ctx;
+    }
+
+    // First-seen order wins. The caller orders rank-within-agent first, so
+    // agents appear in order of their newest version and each agent's versions
+    // stay newest-first.
+    let mut order: Vec<Uuid> = Vec::new();
+    let mut prompts_by_agent: HashMap<Uuid, Vec<String>> = HashMap::new();
+    for version in existing_versions {
+        let prompts = prompts_by_agent.entry(version.agent_id).or_insert_with(|| {
+            order.push(version.agent_id);
+            Vec::new()
+        });
+        let prompt = crate::utils::truncate_chars(&version.system_prompt, EXISTING_PROMPT_LIMIT);
+        if !prompts.contains(&prompt) {
+            prompts.push(prompt);
+        }
+    }
+
+    for agent_id in order {
+        ctx.push_str(&format!("\n[agent_id={agent_id}]\n"));
+        let prompts = &prompts_by_agent[&agent_id];
+        for (i, prompt) in prompts.iter().enumerate() {
+            if prompts.len() > 1 {
+                ctx.push_str(&format!("(version {} of {})\n", i + 1, prompts.len()));
+            }
+            ctx.push_str(prompt);
+            ctx.push('\n');
         }
     }
     ctx
@@ -268,6 +306,49 @@ mod tests {
     fn new_agent_with_missing_name_is_error() {
         let args = serde_json::json!({ "is_new_agent": true });
         assert!(parse_classification(&args, &[]).is_err());
+    }
+
+    fn version(agent_id: Uuid, system_prompt: &str) -> AgentVersion {
+        AgentVersion {
+            project_id: Uuid::nil(),
+            agent_id,
+            version_hash: system_prompt.to_string(),
+            system_prompt: system_prompt.to_string(),
+            tool_definitions: String::new(),
+            model: "model".to_string(),
+            created_at: chrono::Utc::now(),
+        }
+    }
+
+    #[test]
+    fn context_groups_concurrent_versions_under_one_agent() {
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let ctx = build_context(
+            "incoming",
+            &[
+                version(a, "researcher v2"),
+                version(b, "planner"),
+                version(a, "researcher v1"),
+            ],
+        );
+
+        // Both of agent A's live versions are listed once, under a single id.
+        assert_eq!(ctx.matches(&format!("[agent_id={a}]")).count(), 1);
+        assert!(ctx.contains("researcher v2"));
+        assert!(ctx.contains("researcher v1"));
+        assert!(ctx.contains("(version 1 of 2)"));
+        // A single-version agent gets no version labels.
+        assert_eq!(ctx.matches("(version 1 of 1)").count(), 0);
+        assert!(ctx.contains(&format!("[agent_id={b}]")));
+    }
+
+    #[test]
+    fn context_collapses_duplicate_prompts_of_one_agent() {
+        let a = Uuid::new_v4();
+        let ctx = build_context("incoming", &[version(a, "same"), version(a, "same")]);
+        assert_eq!(ctx.matches("same").count(), 1);
+        assert_eq!(ctx.matches("(version").count(), 0);
     }
 
     #[test]
