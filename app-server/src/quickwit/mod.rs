@@ -41,47 +41,50 @@ pub struct QuickwitIndexedSpan {
     pub attributes: Option<String>,
 }
 
+/// Join already-serialized JSON message strings into a JSON array literal
+/// without parsing them — each string is known-valid JSON text (it was
+/// produced by serializing a `Value` upstream), so no deserialize/reserialize
+/// round trip is needed just to concatenate them.
+fn join_message_contents(msgs: &[String]) -> String {
+    format!("[{}]", msgs.join(","))
+}
+
 impl QuickwitIndexedSpan {
     /// Build a span document for Quickwit indexing.
     ///
     /// `new_input_messages` / `new_output_messages`: when provided (LLM spans
-    /// only), `input` / `output` is the JSON array of just those messages —
-    /// the search index sees only the new turn, so older repeated history
-    /// doesn't dominate matches. Pass `None` for non-LLM spans / non-array
-    /// inputs to fall through to raw `span.input` / `span.output`. Output is
-    /// dedup'd the same way input is: post-LAM-1608 `span.output` is `None`
-    /// on the wire for dedup'd LLM spans, so the indexer must reconstruct the
-    /// trace-new output array from the dedup verdict, not read `span.output`.
+    /// only), `input` / `output` is the JSON array of just those messages'
+    /// already-serialized JSON text — the search index sees only the new
+    /// turn, so older repeated history doesn't dominate matches. Pass `None`
+    /// for non-LLM spans / non-array inputs to fall through to raw
+    /// `span.input` / `span.output`. Output is dedup'd the same way input is:
+    /// post-LAM-1608 `span.output` is `None` on the wire for dedup'd LLM
+    /// spans, so the indexer must reconstruct the trace-new output array from
+    /// the dedup verdict, not read `span.output`.
     ///
     /// Cleaning runs here (base64 / signature stripping, role-key stripping
     /// for LLM input/output, whitespace collapse) so the Quickwit consumer
     /// doesn't have to know about provider-specific shapes.
     pub fn from_span(
         span: &Span,
-        new_input_messages: Option<&[Value]>,
-        new_output_messages: Option<&[Value]>,
+        new_input_messages: Option<&[String]>,
+        new_output_messages: Option<&[String]>,
     ) -> Self {
         // `is_llm_span()` matches the dedup / new-messages-subset predicate so
         // cached LLM spans get role-key stripping like regular LLM spans.
         let is_llm = span.is_llm_span();
 
         let raw_input = match new_input_messages {
-            Some(msgs) => Some(Value::Array(msgs.to_vec())),
-            None => span.input.clone(),
+            Some(msgs) => Some(join_message_contents(msgs)),
+            None => span.input.as_ref().map(json_value_to_string),
         };
-        let input = raw_input
-            .as_ref()
-            .map(json_value_to_string)
-            .map(|s| clean_for_indexing(&s, is_llm));
+        let input = raw_input.map(|s| clean_for_indexing(&s, is_llm));
 
         let raw_output = match new_output_messages {
-            Some(msgs) => Some(Value::Array(msgs.to_vec())),
-            None => span.output.clone(),
+            Some(msgs) => Some(join_message_contents(msgs)),
+            None => span.output.as_ref().map(json_value_to_string),
         };
-        let output = raw_output
-            .as_ref()
-            .map(json_value_to_string)
-            .map(|s| clean_for_indexing(&s, is_llm));
+        let output = raw_output.map(|s| clean_for_indexing(&s, is_llm));
 
         let attributes = if span.attributes.raw_attributes.is_empty() {
             None
@@ -253,5 +256,66 @@ impl IndexerQueuePayload {
                 .map(QuickwitDocument::SignalEvent)
                 .collect(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::spans::{Span, SpanType};
+
+    #[test]
+    fn join_message_contents_builds_array_literal() {
+        let msgs = vec![
+            r#"{"role":"user","content":"hi"}"#.to_string(),
+            r#"{"role":"assistant","content":"hello"}"#.to_string(),
+        ];
+        assert_eq!(
+            join_message_contents(&msgs),
+            r#"[{"role":"user","content":"hi"},{"role":"assistant","content":"hello"}]"#
+        );
+    }
+
+    #[test]
+    fn join_message_contents_empty() {
+        assert_eq!(join_message_contents(&[]), "[]");
+    }
+
+    #[test]
+    fn from_span_uses_dedup_content_strings_directly_without_reparsing() {
+        // The dedup content strings arrive already-serialized (as they do on
+        // the wire from `MessageDedup::trace_new_contents`); `from_span` must
+        // splice them into the indexed `input`/`output` verbatim rather than
+        // parsing to `Value` and re-serializing.
+        let span = Span {
+            span_type: SpanType::LLM,
+            ..Default::default()
+        };
+        let new_input = vec![r#"{"role":"user","content":"hi"}"#.to_string()];
+        let new_output = vec![r#"{"role":"assistant","content":"hello"}"#.to_string()];
+
+        let doc = QuickwitIndexedSpan::from_span(&span, Some(&new_input), Some(&new_output));
+
+        assert_eq!(
+            doc.input.unwrap(),
+            r#"[{"content":"hi"}]"#,
+            "role key is stripped for LLM spans by clean_for_indexing"
+        );
+        assert_eq!(doc.output.unwrap(), r#"[{"content":"hello"}]"#);
+    }
+
+    #[test]
+    fn from_span_falls_through_to_raw_span_input_when_no_dedup() {
+        let span = Span {
+            span_type: SpanType::LLM,
+            input: Some(Value::Array(vec![])),
+            output: None,
+            ..Default::default()
+        };
+
+        let doc = QuickwitIndexedSpan::from_span(&span, None, None);
+
+        assert_eq!(doc.input.unwrap(), "[]");
+        assert_eq!(doc.output, None);
     }
 }
