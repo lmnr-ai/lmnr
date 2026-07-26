@@ -1,6 +1,9 @@
 //! LLM-based agent classification for checkpoints.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use serde_json::Value;
 use uuid::Uuid;
@@ -83,9 +86,10 @@ fn existing_prompt_budget(version_count: usize) -> usize {
         .clamp(MIN_EXISTING_PROMPT_CHARS, EXISTING_PROMPT_LIMIT)
 }
 
-/// How many versions fit at the floor. Past this the block is truncated — the
-/// only case where an agent can be missing from a classification, so it is
-/// logged rather than silently dropped.
+/// How many versions fit at the floor. Past this the block is truncated: extra
+/// versions go first, and only once this cap falls below the project's agent
+/// count do whole agents drop out (the one case where classification can mint a
+/// duplicate). Either outcome is logged, never silently dropped.
 const MAX_LISTED_VERSIONS: usize = EXISTING_CONTEXT_CHAR_BUDGET / MIN_EXISTING_PROMPT_CHARS;
 
 /// Decide whether `non_dynamic_system_prompt` is a new agent or another version
@@ -271,15 +275,32 @@ fn build_context(system_prompt: &str, existing_versions: &[AgentVersion]) -> Str
         return ctx;
     }
 
-    // The caller orders newest-per-agent first, so truncating the tail sheds
-    // extra versions before it sheds any agent.
+    // The caller orders newest-per-agent first, so the tail we shed is extra
+    // versions until the cap drops below the agent count itself — only then do
+    // whole agents fall off. Report which case happened: dropped versions merely
+    // cost detail, but a dropped agent can be duplicated by the classifier, and
+    // that distinction is what someone greps for after a misclassification.
     let listed = existing_versions.len().min(MAX_LISTED_VERSIONS);
     if listed < existing_versions.len() {
-        log::warn!(
-            "[CHECKPOINTS] Classification context truncated: listing {listed} of {} versions; \
-             agents beyond the cap can be duplicated",
-            existing_versions.len()
-        );
+        let distinct_agents =
+            |vs: &[AgentVersion]| vs.iter().map(|v| v.agent_id).collect::<HashSet<_>>().len();
+        let agents_total = distinct_agents(existing_versions);
+        let agents_dropped =
+            agents_total.saturating_sub(distinct_agents(&existing_versions[..listed]));
+        let total = existing_versions.len();
+        if agents_dropped == 0 {
+            log::warn!(
+                "[CHECKPOINTS] Classification context truncated: listing {listed} of {total} \
+                 versions; all {agents_total} agents still appear via their newest version, only \
+                 older versions were excluded"
+            );
+        } else {
+            log::warn!(
+                "[CHECKPOINTS] Classification context truncated: listing {listed} of {total} \
+                 versions, and {agents_dropped} of {agents_total} agents are ABSENT entirely; \
+                 incoming shapes belonging to them can be minted as duplicate agents"
+            );
+        }
     }
     let per_version = existing_prompt_budget(listed);
 
@@ -373,6 +394,38 @@ mod tests {
             model: "model".to_string(),
             created_at: chrono::Utc::now(),
         }
+    }
+
+    /// Truncation has two distinct outcomes and the log must not conflate them:
+    /// shedding extra versions is harmless, whereas shedding a whole agent is
+    /// what lets the classifier mint a duplicate.
+    #[test]
+    fn truncation_drops_versions_before_agents_but_can_drop_agents() {
+        // More versions than the cap, yet few enough agents that every agent's
+        // rank-1 row still fits — no agent lost.
+        let ids: Vec<Uuid> = (0..400).map(|_| Uuid::new_v4()).collect();
+        let mut many_versions = Vec::new();
+        for rank in 0..3 {
+            for (i, id) in ids.iter().enumerate() {
+                many_versions.push(version(*id, &format!("agent {i} v{rank}")));
+            }
+        }
+        assert!(many_versions.len() > MAX_LISTED_VERSIONS);
+        let ctx = build_context("incoming", &many_versions);
+        for id in &ids {
+            assert!(
+                ctx.contains(&format!("[agent_id={id}]")),
+                "agent {id} dropped"
+            );
+        }
+
+        // More AGENTS than the cap: here whole agents genuinely fall off, so the
+        // "all agents still appear" phrasing would be wrong.
+        let single: Vec<AgentVersion> = (0..MAX_LISTED_VERSIONS + 100)
+            .map(|i| version(Uuid::new_v4(), &format!("agent {i}")))
+            .collect();
+        let ctx = build_context("incoming", &single);
+        assert_eq!(ctx.matches("[agent_id=").count(), MAX_LISTED_VERSIONS);
     }
 
     #[test]
