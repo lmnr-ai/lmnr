@@ -1678,6 +1678,19 @@ fn main() -> anyhow::Result<()> {
                     // Spawn checkpoints workers. Gated behind
                     // CHECKPOINTS_ENABLED (LAM-1987, default off).
                     if is_feature_enabled(Feature::Checkpoints) {
+                        // Stable-prompt resolution reads the static-prompt
+                        // extraction pipeline's regex cache (LAM-2010), which
+                        // only fills when the shared LLM client exists (the
+                        // static-prompt workers gate on it below). Without it,
+                        // every checkpoint drops at the cache-miss branch —
+                        // surface that loudly instead of per-message debug logs.
+                        if llm_provider_client.is_none() {
+                            log::warn!(
+                                "CHECKPOINTS_ENABLED is set but no LLM provider is configured - \
+                                static-prompt extraction cannot run, so checkpoints will be \
+                                dropped until an LLM provider is configured"
+                            );
+                        }
                         let db = db_for_consumer.clone();
                         let cache = cache_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
