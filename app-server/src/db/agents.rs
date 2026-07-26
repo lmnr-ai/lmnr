@@ -39,27 +39,32 @@ pub async fn get_agent_by_version_hash(
     Ok(agent_id)
 }
 
-/// The project's recent agent versions: up to `per_agent_limit` newest versions
-/// of each agent, capped overall at `total_limit`.
+/// Recent agent versions for a project: EVERY agent's newest version, plus up
+/// to `extra_versions_limit` additional older-but-still-live versions.
 ///
 /// Returns MULTIPLE versions per agent, not just each agent's latest — variants
 /// that run side by side (A/B tests, subversions) sit behind the newest row, and
 /// a classifier that can't see them files an incoming variant as a brand-new
 /// agent.
 ///
-/// Rows come back ordered by rank-within-agent first, then recency, so when
-/// `total_limit` truncates it drops an agent's extra versions before dropping
-/// any agent entirely: one busy agent churning versions can never crowd its
-/// peers out of the comparison set (which would reintroduce the same bug).
+/// The one-per-agent half is deliberately UNBOUNDED, matching the unbounded
+/// `DISTINCT ON (agent_id)` query this replaced: capping it would hide whole
+/// agents from classification once a project's agent count exceeded the cap,
+/// which is the very duplication bug this function exists to fix. Only the
+/// *extra* versions are budgeted, so the bound on the classifier's context is
+/// additive rather than a ceiling that can evict an agent.
+///
+/// Extras are taken rank-major (every agent's 2nd version before any agent's
+/// 3rd), so a single agent churning versions can't consume the whole budget,
+/// and are capped per agent at `per_agent_limit` total versions.
 pub async fn list_recent_agent_versions(
     pool: &PgPool,
     project_id: Uuid,
     per_agent_limit: i64,
-    total_limit: i64,
+    extra_versions_limit: i64,
 ) -> Result<Vec<AgentVersion>> {
     let versions = sqlx::query_as::<_, AgentVersion>(
-        "SELECT project_id, agent_id, version_hash, system_prompt, tool_definitions, model, created_at
-         FROM (
+        "WITH ranked AS (
              SELECT project_id, agent_id, version_hash, system_prompt, tool_definitions, model,
                     created_at,
                     ROW_NUMBER() OVER (
@@ -67,14 +72,29 @@ pub async fn list_recent_agent_versions(
                     ) AS rank_in_agent
              FROM agent_versions
              WHERE project_id = $1
-         ) ranked
-         WHERE rank_in_agent <= $2
-         ORDER BY rank_in_agent, created_at DESC, version_hash DESC
-         LIMIT $3",
+         ),
+         extras AS (
+             SELECT *,
+                    ROW_NUMBER() OVER (
+                        ORDER BY rank_in_agent, created_at DESC, version_hash DESC
+                    ) AS extra_seq
+             FROM ranked
+             WHERE rank_in_agent > 1 AND rank_in_agent <= $2
+         )
+         SELECT project_id, agent_id, version_hash, system_prompt, tool_definitions, model,
+                created_at, rank_in_agent
+         FROM ranked
+         WHERE rank_in_agent = 1
+         UNION ALL
+         SELECT project_id, agent_id, version_hash, system_prompt, tool_definitions, model,
+                created_at, rank_in_agent
+         FROM extras
+         WHERE extra_seq <= $3
+         ORDER BY rank_in_agent, created_at DESC, version_hash DESC",
     )
     .bind(project_id)
     .bind(per_agent_limit)
-    .bind(total_limit)
+    .bind(extra_versions_limit)
     .fetch_all(pool)
     .await?;
     Ok(versions)

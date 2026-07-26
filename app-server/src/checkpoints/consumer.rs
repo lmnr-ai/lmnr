@@ -212,16 +212,16 @@ impl CheckpointsHandler {
         };
 
         // No exact match — ask the LLM whether this is a brand-new agent or
-        // another version of an existing one, comparing against several recent
-        // versions of EVERY agent rather than one latest version per agent:
-        // concurrent variants (A/B tests, subversions) aren't the newest row, so
-        // comparing only against the newest one files each variant as its own
-        // agent.
+        // another version of an existing one, comparing against EVERY agent's
+        // newest version plus a budget of older-but-live ones, rather than one
+        // latest version per agent: concurrent variants (A/B tests, subversions)
+        // aren't the newest row, so comparing only against the newest one files
+        // each variant as its own agent.
         let existing_versions = agents::list_recent_agent_versions(
             &self.db.pool,
             message.project_id,
-            env::checkpoints::CLASSIFY_VERSIONS_PER_AGENT.get(),
-            env::checkpoints::CLASSIFY_MAX_VERSIONS.get(),
+            env::checkpoints::classify_versions_per_agent(),
+            env::checkpoints::classify_max_extra_versions(),
         )
         .await?;
         let classification = classifier::classify_agent(
