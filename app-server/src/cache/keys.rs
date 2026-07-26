@@ -72,7 +72,6 @@ pub const INGESTION_RATE_LIMIT_PROJECT_ID_CACHE_KEY: &str = "ingestion_rate_limi
 pub const SQL_RATE_LIMIT_CACHE_KEY: &str = "sql_rate_limit";
 pub const PROJECT_MEMBERSHIP_CACHE_KEY: &str = "project_membership";
 pub const AGENT_VERSION_HASH_CACHE_KEY: &str = "agent_version_hash";
-pub const AGENT_STABLE_PROMPT_REGEX_CACHE_KEY: &str = "agent_stable_prompt_regex";
 pub const AGENT_CLASSIFY_LOCK_CACHE_KEY: &str = "agent_classify_lock";
 
 // Static system-prompt extraction (LAM-1899). All three are namespaced by
