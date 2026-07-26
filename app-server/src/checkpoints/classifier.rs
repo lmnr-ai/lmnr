@@ -86,10 +86,11 @@ fn existing_prompt_budget(version_count: usize) -> usize {
         .clamp(MIN_EXISTING_PROMPT_CHARS, EXISTING_PROMPT_LIMIT)
 }
 
-/// How many versions fit at the floor. Past this the block is truncated: extra
-/// versions go first, and only once this cap falls below the project's agent
-/// count do whole agents drop out (the one case where classification can mint a
-/// duplicate). Either outcome is logged, never silently dropped.
+/// How many versions fit at the floor, and so the maximum number of agents that
+/// can be listed. Past this the block is truncated: extra versions go first, and
+/// only once the AGENT count alone exceeds this are agents excluded — by lowest
+/// relevance to the incoming prompt, with a warning, since that's the one case
+/// where classification can mint a duplicate.
 const MAX_LISTED_VERSIONS: usize = EXISTING_CONTEXT_CHAR_BUDGET / MIN_EXISTING_PROMPT_CHARS;
 
 /// Decide whether `non_dynamic_system_prompt` is a new agent or another version
@@ -259,12 +260,17 @@ fn fallback_classification(
 /// identical after truncation collapse into one entry — they'd differ only in
 /// tools/model, which classification ignores.
 ///
-/// The rendered block is bounded by [`EXISTING_CONTEXT_CHAR_BUDGET`]: the
-/// per-version allotment shrinks as the version count grows, and only past
-/// [`MAX_LISTED_VERSIONS`] are versions dropped outright. Trading prompt detail
-/// for agent coverage is deliberate — a missing agent causes a duplicate agent,
-/// whereas a shorter prompt usually still carries the role statement that
-/// classification keys on.
+/// The rendered block is bounded by [`EXISTING_CONTEXT_CHAR_BUDGET`], and the
+/// budget is spent in a fixed priority order, because a missing agent is what
+/// causes a duplicate agent while a shorter prompt usually still carries the role
+/// statement classification keys on:
+///  1. every agent's newest version (all of them, when the agent count fits),
+///  2. older versions, rank-major, filling whatever room is left,
+///  3. per-version prompt detail, shrunk via [`existing_prompt_budget`].
+///
+/// Only when a project has more than [`MAX_LISTED_VERSIONS`] agents — so not even
+/// one version each fits — are agents excluded, and then by lowest word overlap
+/// with the incoming prompt rather than by age, so the likely match survives.
 fn build_context(system_prompt: &str, existing_versions: &[AgentVersion]) -> String {
     let mut ctx = format!(
         "Incoming agent system prompt:\n{}\n\nExisting agents in this project:\n",
@@ -275,54 +281,96 @@ fn build_context(system_prompt: &str, existing_versions: &[AgentVersion]) -> Str
         return ctx;
     }
 
-    // The caller orders newest-per-agent first, so the tail we shed is extra
-    // versions until the cap drops below the agent count itself — only then do
-    // whole agents fall off. Report which case happened: dropped versions merely
-    // cost detail, but a dropped agent can be duplicated by the classifier, and
-    // that distinction is what someone greps for after a misclassification.
-    let listed = existing_versions.len().min(MAX_LISTED_VERSIONS);
-    if listed < existing_versions.len() {
-        let distinct_agents =
-            |vs: &[AgentVersion]| vs.iter().map(|v| v.agent_id).collect::<HashSet<_>>().len();
-        let agents_total = distinct_agents(existing_versions);
-        let agents_dropped =
-            agents_total.saturating_sub(distinct_agents(&existing_versions[..listed]));
-        let total = existing_versions.len();
-        if agents_dropped == 0 {
-            log::warn!(
-                "[CHECKPOINTS] Classification context truncated: listing {listed} of {total} \
-                 versions; all {agents_total} agents still appear via their newest version, only \
-                 older versions were excluded"
-            );
-        } else {
-            log::warn!(
-                "[CHECKPOINTS] Classification context truncated: listing {listed} of {total} \
-                 versions, and {agents_dropped} of {agents_total} agents are ABSENT entirely; \
-                 incoming shapes belonging to them can be minted as duplicate agents"
-            );
-        }
-    }
-    let per_version = existing_prompt_budget(listed);
-
-    // First-seen order wins. The caller orders rank-within-agent first, so
-    // agents appear in order of their newest version and each agent's versions
-    // stay newest-first.
+    // Group by agent, preserving the caller's newest-per-agent-first order so
+    // each agent's versions stay newest-first.
     let mut order: Vec<Uuid> = Vec::new();
-    let mut prompts_by_agent: HashMap<Uuid, Vec<String>> = HashMap::new();
-    for version in existing_versions.iter().take(listed) {
-        let prompts = prompts_by_agent.entry(version.agent_id).or_insert_with(|| {
-            order.push(version.agent_id);
-            Vec::new()
-        });
-        let prompt = crate::utils::truncate_chars(&version.system_prompt, per_version);
-        if !prompts.contains(&prompt) {
-            prompts.push(prompt);
-        }
+    let mut versions_by_agent: HashMap<Uuid, Vec<&str>> = HashMap::new();
+    for version in existing_versions {
+        let prompts = versions_by_agent
+            .entry(version.agent_id)
+            .or_insert_with(|| {
+                order.push(version.agent_id);
+                Vec::new()
+            });
+        prompts.push(version.system_prompt.as_str());
     }
 
-    for agent_id in order {
+    // Past the cap something must go. Dropping the tail by recency would omit
+    // whole agents once the agent count alone exceeds the cap, and an omitted
+    // agent is exactly what gets re-minted as a duplicate. So when the project is
+    // that large, keep the agents whose prompts most resemble the incoming one —
+    // the real match is overwhelmingly likely to be among them, whereas recency
+    // says nothing about relevance.
+    if order.len() > MAX_LISTED_VERSIONS {
+        let needle = word_set(system_prompt);
+        let mut scored: Vec<(usize, Uuid)> = order
+            .iter()
+            .map(|id| {
+                let best = versions_by_agent[id]
+                    .iter()
+                    .map(|p| overlap_score(&needle, p))
+                    .max()
+                    .unwrap_or(0);
+                (best, *id)
+            })
+            .collect();
+        // Descending by score; ties keep the newer agent (stable sort on the
+        // already newest-first order).
+        scored.sort_by(|a, b| b.0.cmp(&a.0));
+        let kept: HashSet<Uuid> = scored
+            .iter()
+            .take(MAX_LISTED_VERSIONS)
+            .map(|(_, id)| *id)
+            .collect();
+        log::warn!(
+            "[CHECKPOINTS] {} agents exceed the classification context cap; comparing against the \
+             {MAX_LISTED_VERSIONS} most similar to the incoming prompt. Shapes belonging to an \
+             excluded agent can be minted as duplicates.",
+            order.len()
+        );
+        order.retain(|id| kept.contains(id));
+        versions_by_agent.retain(|id, _| kept.contains(id));
+    }
+
+    // Every listed agent keeps its newest version; extras fill the remaining
+    // budget rank-major, so no single agent's history crowds out another agent's
+    // variants.
+    let mut per_agent_keep: HashMap<Uuid, usize> = order.iter().map(|id| (*id, 1usize)).collect();
+    let mut listed: usize = order.len();
+    let mut rank = 1usize;
+    while listed < MAX_LISTED_VERSIONS {
+        let mut added = false;
+        for id in &order {
+            if listed >= MAX_LISTED_VERSIONS {
+                break;
+            }
+            if versions_by_agent[id].len() > rank {
+                *per_agent_keep.get_mut(id).unwrap() += 1;
+                listed += 1;
+                added = true;
+            }
+        }
+        if !added {
+            break;
+        }
+        rank += 1;
+    }
+
+    let per_version = existing_prompt_budget(listed);
+    for agent_id in &order {
         ctx.push_str(&format!("\n[agent_id={agent_id}]\n"));
-        let prompts = &prompts_by_agent[&agent_id];
+        // Truncation can make two versions identical; they'd differ only in
+        // tools/model, which classification ignores, so collapse them.
+        let mut prompts: Vec<String> = Vec::new();
+        for prompt in versions_by_agent[agent_id]
+            .iter()
+            .take(per_agent_keep[agent_id])
+        {
+            let prompt = crate::utils::truncate_chars(prompt, per_version);
+            if !prompts.contains(&prompt) {
+                prompts.push(prompt);
+            }
+        }
         for (i, prompt) in prompts.iter().enumerate() {
             if prompts.len() > 1 {
                 ctx.push_str(&format!("(version {} of {})\n", i + 1, prompts.len()));
@@ -332,6 +380,24 @@ fn build_context(system_prompt: &str, existing_versions: &[AgentVersion]) -> Str
         }
     }
     ctx
+}
+
+/// Lowercased alphanumeric words of length >= 4, deduplicated. Short tokens are
+/// dropped because they're dominated by boilerplate glue ("the", "you", "and")
+/// that every system prompt shares and which therefore carries no signal.
+fn word_set(text: &str) -> HashSet<String> {
+    text.split(|c: char| !c.is_alphanumeric())
+        .filter(|w| w.len() >= 4)
+        .map(|w| w.to_lowercase())
+        .collect()
+}
+
+/// Count of `needle` words present in `text` — a cheap relevance proxy used ONLY
+/// to choose which agents to show the model when a project has more agents than
+/// fit. It never decides the classification itself, so a crude score is fine.
+fn overlap_score(needle: &HashSet<String>, text: &str) -> usize {
+    let candidate = word_set(text);
+    needle.iter().filter(|w| candidate.contains(*w)).count()
 }
 
 fn build_classify_tool() -> ProviderTool {
@@ -396,13 +462,10 @@ mod tests {
         }
     }
 
-    /// Truncation has two distinct outcomes and the log must not conflate them:
-    /// shedding extra versions is harmless, whereas shedding a whole agent is
-    /// what lets the classifier mint a duplicate.
+    /// Versions are shed before agents: more versions than the cap still leaves
+    /// every agent present via its newest version.
     #[test]
-    fn truncation_drops_versions_before_agents_but_can_drop_agents() {
-        // More versions than the cap, yet few enough agents that every agent's
-        // rank-1 row still fits — no agent lost.
+    fn truncation_sheds_versions_before_agents() {
         let ids: Vec<Uuid> = (0..400).map(|_| Uuid::new_v4()).collect();
         let mut many_versions = Vec::new();
         for rank in 0..3 {
@@ -418,14 +481,51 @@ mod tests {
                 "agent {id} dropped"
             );
         }
+    }
 
-        // More AGENTS than the cap: here whole agents genuinely fall off, so the
-        // "all agents still appear" phrasing would be wrong.
-        let single: Vec<AgentVersion> = (0..MAX_LISTED_VERSIONS + 100)
-            .map(|i| version(Uuid::new_v4(), &format!("agent {i}")))
-            .collect();
-        let ctx = build_context("incoming", &single);
-        assert_eq!(ctx.matches("[agent_id=").count(), MAX_LISTED_VERSIONS);
+    /// Past the agent cap something must be excluded — but the agent the incoming
+    /// prompt actually belongs to must survive, or it gets minted as a duplicate.
+    /// This is the case a recency-ordered truncation got wrong.
+    #[test]
+    fn over_agent_cap_keeps_the_relevant_agent() {
+        let target = Uuid::new_v4();
+        let mut versions = vec![version(
+            target,
+            "senior portfolio manager orchestrating subagent research delegation",
+        )];
+        // Far more unrelated agents than the cap, all ahead of the target in list
+        // order, so a pure recency truncation would evict it.
+        for i in 0..(MAX_LISTED_VERSIONS + 200) {
+            versions.insert(
+                0,
+                version(
+                    Uuid::new_v4(),
+                    &format!("unrelated cooking recipe generator number {i}"),
+                ),
+            );
+        }
+        assert!(versions.len() > MAX_LISTED_VERSIONS);
+
+        let ctx = build_context(
+            "senior portfolio manager orchestrating subagent research delegation",
+            &versions,
+        );
+        assert!(
+            ctx.contains(&format!("[agent_id={target}]")),
+            "the matching agent was excluded — it would be duplicated"
+        );
+        assert!(ctx.matches("[agent_id=").count() <= MAX_LISTED_VERSIONS);
+    }
+
+    #[test]
+    fn overlap_score_ranks_similar_prompts_higher() {
+        let needle = word_set("portfolio manager orchestrating subagent research");
+        let similar = overlap_score(&needle, "portfolio manager orchestrating research tasks");
+        let unrelated = overlap_score(&needle, "cooking recipe generator for desserts");
+        assert!(
+            similar > unrelated,
+            "similar={similar} unrelated={unrelated}"
+        );
     }
 
     #[test]
