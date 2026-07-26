@@ -150,6 +150,24 @@ export async function exportSpanToDataset(input: z.infer<typeof ExportSpanSchema
   });
 }
 
+// Unwrap OpenAI-style message arrays so the labeling queue target matches the
+// content shown in the trace view (which runs output through transformMessages).
+function normalizeSpanOutput(output: unknown): unknown {
+  if (!Array.isArray(output) || output.length === 0) return output;
+  const isOpenAIMessages = output.every(
+    (msg) => typeof msg === "object" && msg !== null && "role" in msg && "content" in msg
+  );
+  if (!isOpenAIMessages) return output;
+  const lastAssistant = [...output].reverse().find((msg: any) => msg.role === "assistant");
+  if (!lastAssistant) return output;
+  const content = (lastAssistant as any).content;
+  if (typeof content === "string") {
+    const parsed = tryParseJson(content);
+    return parsed !== null && parsed !== undefined ? parsed : content;
+  }
+  return content;
+}
+
 export async function pushSpanToLabelingQueue(input: z.infer<typeof PushSpanSchema>) {
   const { queueId, spanId, metadata, projectId } = PushSpanSchema.parse(input);
 
@@ -163,7 +181,7 @@ export async function pushSpanToLabelingQueue(input: z.infer<typeof PushSpanSche
         metadata,
         payload: {
           data: processedInput,
-          target: span.output,
+          target: normalizeSpanOutput(span.output),
           metadata: {},
         },
       },
