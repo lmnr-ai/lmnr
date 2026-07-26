@@ -55,15 +55,51 @@ const CLASSIFY_INSTRUCTION: &str = "You classify AI agent system prompts. Given 
      unrelated, classify as a new agent. Respond ONLY by calling the classify_agent tool.";
 
 const INCOMING_PROMPT_LIMIT: usize = 4000;
+/// Per-version budget when the whole set fits comfortably. Shrinks toward
+/// [`MIN_EXISTING_PROMPT_CHARS`] as the version count grows — see
+/// [`existing_prompt_budget`].
 const EXISTING_PROMPT_LIMIT: usize = 1000;
 
+/// Floor on a listed version's prompt. Below this a prompt stops carrying enough
+/// of its role statement to classify against, so we drop versions instead of
+/// shrinking further.
+const MIN_EXISTING_PROMPT_CHARS: usize = 200;
+
+/// Char budget for the "existing agents" block. A project's agent count is
+/// unbounded, so without this the request grows with it until the provider
+/// rejects it — and a rejection is a transport error, which falls back to
+/// "most recently created agent" and silently misattributes the checkpoint.
+/// Bounding the prompt keeps the classification honest instead. Roughly 30k
+/// tokens at ~4 chars/token, well inside every provider's input window.
+const EXISTING_CONTEXT_CHAR_BUDGET: usize = 120_000;
+
+/// Per-version char allotment that keeps `version_count` versions inside
+/// [`EXISTING_CONTEXT_CHAR_BUDGET`], clamped to the floor.
+fn existing_prompt_budget(version_count: usize) -> usize {
+    if version_count == 0 {
+        return EXISTING_PROMPT_LIMIT;
+    }
+    (EXISTING_CONTEXT_CHAR_BUDGET / version_count)
+        .clamp(MIN_EXISTING_PROMPT_CHARS, EXISTING_PROMPT_LIMIT)
+}
+
+/// How many versions fit at the floor. Past this the block is truncated — the
+/// only case where an agent can be missing from a classification, so it is
+/// logged rather than silently dropped.
+const MAX_LISTED_VERSIONS: usize = EXISTING_CONTEXT_CHAR_BUDGET / MIN_EXISTING_PROMPT_CHARS;
+
 /// Decide whether `non_dynamic_system_prompt` is a new agent or another version
-/// of an existing one. `existing_versions` carries EVERY known version of the
-/// project's agents (newest first, capped by the caller), not just each agent's
-/// latest — see [`crate::db::agents::list_recent_agent_versions`]. With no LLM
-/// provider, or on a transport failure, falls back to the most recently created
-/// version's agent (`fallback_classification`, which errors rather than mint a
-/// nameless agent). A rejected verdict (e.g. new agent with no name) is NOT
+/// of an existing one. `existing_versions` carries every agent's newest version
+/// plus a budget of older-but-live ones (newest-per-agent first), not just each
+/// agent's latest — see [`crate::db::agents::list_recent_agent_versions`]. The
+/// rendered request is size-bounded in `build_context`, since a project's agent
+/// count itself is unbounded.
+///
+/// With no LLM provider, or on a transport failure, falls back to the most
+/// recently created version's agent (`fallback_classification`, which errors
+/// rather than mint a nameless agent). That fallback is a coarse guess, which is
+/// why the request must stay inside the provider's input window instead of
+/// relying on it. A rejected verdict (e.g. new agent with no name) is NOT
 /// eligible for fallback and propagates so the checkpoint is dropped.
 pub async fn classify_agent(
     non_dynamic_system_prompt: &str,
@@ -212,12 +248,19 @@ fn fallback_classification(
     }
 }
 
-/// Render the incoming prompt plus every existing version, grouped under its
+/// Render the incoming prompt plus the existing versions, grouped under their
 /// agent. Versions of one agent are listed together so the model sees that
 /// concurrently-live variants (A/B tests, subversions) belong to the same agent
 /// instead of treating each as an unrelated candidate. Versions whose prompt is
 /// identical after truncation collapse into one entry — they'd differ only in
 /// tools/model, which classification ignores.
+///
+/// The rendered block is bounded by [`EXISTING_CONTEXT_CHAR_BUDGET`]: the
+/// per-version allotment shrinks as the version count grows, and only past
+/// [`MAX_LISTED_VERSIONS`] are versions dropped outright. Trading prompt detail
+/// for agent coverage is deliberate — a missing agent causes a duplicate agent,
+/// whereas a shorter prompt usually still carries the role statement that
+/// classification keys on.
 fn build_context(system_prompt: &str, existing_versions: &[AgentVersion]) -> String {
     let mut ctx = format!(
         "Incoming agent system prompt:\n{}\n\nExisting agents in this project:\n",
@@ -228,17 +271,29 @@ fn build_context(system_prompt: &str, existing_versions: &[AgentVersion]) -> Str
         return ctx;
     }
 
+    // The caller orders newest-per-agent first, so truncating the tail sheds
+    // extra versions before it sheds any agent.
+    let listed = existing_versions.len().min(MAX_LISTED_VERSIONS);
+    if listed < existing_versions.len() {
+        log::warn!(
+            "[CHECKPOINTS] Classification context truncated: listing {listed} of {} versions; \
+             agents beyond the cap can be duplicated",
+            existing_versions.len()
+        );
+    }
+    let per_version = existing_prompt_budget(listed);
+
     // First-seen order wins. The caller orders rank-within-agent first, so
     // agents appear in order of their newest version and each agent's versions
     // stay newest-first.
     let mut order: Vec<Uuid> = Vec::new();
     let mut prompts_by_agent: HashMap<Uuid, Vec<String>> = HashMap::new();
-    for version in existing_versions {
+    for version in existing_versions.iter().take(listed) {
         let prompts = prompts_by_agent.entry(version.agent_id).or_insert_with(|| {
             order.push(version.agent_id);
             Vec::new()
         });
-        let prompt = crate::utils::truncate_chars(&version.system_prompt, EXISTING_PROMPT_LIMIT);
+        let prompt = crate::utils::truncate_chars(&version.system_prompt, per_version);
         if !prompts.contains(&prompt) {
             prompts.push(prompt);
         }
@@ -349,6 +404,61 @@ mod tests {
         let ctx = build_context("incoming", &[version(a, "same"), version(a, "same")]);
         assert_eq!(ctx.matches("same").count(), 1);
         assert_eq!(ctx.matches("(version").count(), 0);
+    }
+
+    /// A large project must not grow the request without bound — that's what
+    /// gets the provider to reject it and silently trip the fallback.
+    #[test]
+    fn context_stays_within_budget_for_many_agents() {
+        for agent_count in [1usize, 50, 500, 5_000] {
+            let versions: Vec<AgentVersion> = (0..agent_count)
+                .map(|i| version(Uuid::new_v4(), &"x".repeat(4_000 + i % 7)))
+                .collect();
+            let ctx = build_context("incoming", &versions);
+            // Budget covers prompt text; headings/labels add a bounded overhead
+            // per listed version, so allow a modest margin over the raw budget.
+            let ceiling = EXISTING_CONTEXT_CHAR_BUDGET
+                + INCOMING_PROMPT_LIMIT
+                + 200 * MAX_LISTED_VERSIONS.min(agent_count)
+                + 1_000;
+            assert!(
+                ctx.chars().count() <= ceiling,
+                "{agent_count} agents produced {} chars, over ceiling {ceiling}",
+                ctx.chars().count()
+            );
+        }
+    }
+
+    /// Every agent stays represented well past the point where a fixed
+    /// per-version budget would have blown the context.
+    #[test]
+    fn context_keeps_every_agent_when_budget_shrinks() {
+        let ids: Vec<Uuid> = (0..400).map(|_| Uuid::new_v4()).collect();
+        let versions: Vec<AgentVersion> = ids
+            .iter()
+            .map(|id| version(*id, &"role statement ".repeat(200)))
+            .collect();
+        let ctx = build_context("incoming", &versions);
+        for id in &ids {
+            assert!(
+                ctx.contains(&format!("[agent_id={id}]")),
+                "agent {id} dropped"
+            );
+        }
+    }
+
+    #[test]
+    fn per_version_budget_shrinks_but_never_below_floor() {
+        assert_eq!(existing_prompt_budget(0), EXISTING_PROMPT_LIMIT);
+        assert_eq!(existing_prompt_budget(1), EXISTING_PROMPT_LIMIT);
+        // Shrinks once the set no longer fits at the full allotment.
+        assert!(existing_prompt_budget(1_000) < EXISTING_PROMPT_LIMIT);
+        assert!(existing_prompt_budget(1_000) >= MIN_EXISTING_PROMPT_CHARS);
+        // Never below the floor, however large the project.
+        assert_eq!(
+            existing_prompt_budget(usize::MAX / 2),
+            MIN_EXISTING_PROMPT_CHARS
+        );
     }
 
     #[test]
