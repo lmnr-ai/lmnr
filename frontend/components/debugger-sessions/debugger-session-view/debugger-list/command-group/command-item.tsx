@@ -3,7 +3,6 @@
 import { ChevronDown } from "lucide-react";
 import { useMemo } from "react";
 
-import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
 import { type CommandBlockContent } from "@/lib/actions/debugger-sessions";
 import { commandLabel } from "@/lib/actions/debugger-sessions/command-content";
 import { cn } from "@/lib/utils";
@@ -14,7 +13,6 @@ import { commandIcon } from "../command-block/command-icon";
 interface CommandItemProps {
   id: string;
   command: CommandBlockContent;
-  createdAt: string;
   expanded: boolean;
   isFirst: boolean;
   isLast: boolean;
@@ -26,22 +24,14 @@ interface CommandItemProps {
  * itself expandable to a detail card ({@link CommandItemDetail}). Modeled on a
  * trace's spans: borderless (no wrapping card — the group header is the only
  * bordered element), flowing below the header. The label prefers the agent's
- * reasoning when given, else the command summary. The right cluster (static time
- * + plain chevron) is inlined with the same geometry as the group header (`pr-3`
- * + `ml-auto`) so the row's "2h ago ›" lines up vertically with the header's;
- * only the chevron reacts to hover (via this row's own `group/row`), so it never
- * touches the header.
+ * reasoning when given, else the command summary. No timestamp on rows (only the
+ * group header carries one); just a plain chevron that recolors on this row's
+ * hover. The chevron keeps the SAME `py-0.5 pl-1 pr-1` the header's
+ * CardExpandIndicator pill uses so it lines up vertically with the header's.
  */
-export default function CommandItem({ id, command, createdAt, expanded, isFirst, isLast }: CommandItemProps) {
+export default function CommandItem({ id, command, expanded, isFirst, isLast }: CommandItemProps) {
   const toggle = useDebuggerSessionViewStore((s) => s.toggleCommandBlockExpanded);
   const label = useMemo(() => commandLabel(command), [command]);
-  const relativeTime = useMemo(() => {
-    try {
-      return formatShortRelativeTime(new Date(createdAt));
-    } catch {
-      return "";
-    }
-  }, [createdAt]);
   const failed = command.exitCode !== undefined && command.exitCode !== 0;
 
   return (
@@ -69,27 +59,15 @@ export default function CommandItem({ id, command, createdAt, expanded, isFirst,
         <span className="min-w-0 flex-1 truncate font-mono text-[13px] leading-[17px] text-secondary-foreground transition-colors group-hover/row:text-primary-foreground">
           {label}
         </span>
-        {/* Inline right cluster. The chevron is wrapped in the SAME `py-0.5 pl-1
-            pr-1` the header's CardExpandIndicator pill uses (minus its border /
-            bg / label / hover-reveal) so the row's time AND chevron land at the
-            exact same x as the header's — just a plain chevron that recolors on
-            hover, no animation. */}
-        <div className="ml-auto flex shrink-0 items-center gap-2">
-          {relativeTime && (
-            <span className="whitespace-nowrap text-[13px] leading-[17px] text-secondary-foreground">
-              {relativeTime}
-            </span>
-          )}
-          <span className="flex items-center py-0.5 pl-1 pr-1">
-            <ChevronDown
-              size={16}
-              className={cn(
-                "shrink-0 text-muted-foreground transition-colors group-hover/row:text-foreground",
-                !expanded && "-rotate-90"
-              )}
-            />
-          </span>
-        </div>
+        <span className="ml-auto flex items-center py-0.5 pl-1 pr-1">
+          <ChevronDown
+            size={16}
+            className={cn(
+              "shrink-0 text-muted-foreground transition-colors group-hover/row:text-foreground",
+              !expanded && "-rotate-90"
+            )}
+          />
+        </span>
       </button>
     </div>
   );

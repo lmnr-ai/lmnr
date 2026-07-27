@@ -49,7 +49,6 @@ export type DebuggerFlatRow =
       blockId: string;
       commandId: string;
       command: CommandBlockContent;
-      createdAt: string;
       expanded: boolean;
       isFirst: boolean;
       isLast: boolean;
@@ -258,7 +257,6 @@ function emitCommands(
       blockId: groupId,
       commandId: c.id,
       command: c.command,
-      createdAt: c.createdAt,
       expanded: cmdExpanded,
       isFirst: idx === 0,
       isLast,

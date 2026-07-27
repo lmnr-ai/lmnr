@@ -529,7 +529,6 @@ function FlatRowContent({
         <CommandItem
           id={row.commandId}
           command={row.command}
-          createdAt={row.createdAt}
           expanded={row.expanded}
           isFirst={row.isFirst}
           isLast={row.isLast}
