@@ -50,7 +50,7 @@ const EvaluationHeader = ({ evaluations, name, urlKey, datasets }: EvaluationHea
 
   return (
     <div className="font-medium flex-none flex gap-2 items-center justify-between w-full h-12 pl-2.5 pr-4">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 w-full">
         <SidebarTrigger className="hover:bg-secondary size-7" />
         <Link
           href={`/project/${projectId}/evaluations`}
@@ -63,7 +63,7 @@ const EvaluationHeader = ({ evaluations, name, urlKey, datasets }: EvaluationHea
             <div className="text-secondary-foreground/40">/</div>
             <Link
               href={`/project/${projectId}/evaluations?groupId=${encodeURIComponent(groupId)}`}
-              className="hover:bg-muted rounded-lg px-2 p-0.5 text-secondary-foreground truncate max-w-40"
+              className="hover:bg-muted rounded-lg px-2 p-0.5 text-secondary-foreground truncate shrink-1"
             >
               {groupId}
             </Link>
@@ -122,17 +122,6 @@ const EvaluationHeader = ({ evaluations, name, urlKey, datasets }: EvaluationHea
             Reset
           </Button>
         )}
-        {datasets.map((dataset) => (
-          <Link
-            key={dataset.id}
-            href={`/project/${projectId}/datasets/${dataset.id}`}
-            title={`Dataset: ${dataset.name}`}
-            className="inline-flex items-center gap-1 rounded-full border border-blue-400/30 bg-blue-400/10 px-2 py-0.5 text-xs text-secondary-foreground hover:bg-blue-400/20"
-          >
-            <Database size={12} className="flex-none" />
-            <span className="truncate max-w-32">{dataset.name}</span>
-          </Link>
-        ))}
       </div>
       <div className="flex items-center gap-2">
         <DropdownMenu>
@@ -148,6 +137,14 @@ const EvaluationHeader = ({ evaluations, name, urlKey, datasets }: EvaluationHea
                 <span className="text-xs">Rename</span>
               </DropdownMenuItem>
             </RenameEvaluationDialog>
+            {datasets.map((dataset) => (
+              <DropdownMenuItem key={dataset.id} asChild>
+                <Link href={`/project/${projectId}/datasets/${dataset.id}`} target="_blank" rel="noopener noreferrer">
+                  <Database className="size-3.5" />
+                  <span className="text-xs truncate">{dataset.name}</span>
+                </Link>
+              </DropdownMenuItem>
+            ))}
             {DOWNLOAD_FORMATS.map((format) => (
               <DropdownMenuItem
                 key={format}
