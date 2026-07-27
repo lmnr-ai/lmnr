@@ -12,7 +12,6 @@ import {
 } from "@/components/traces/trace-view/store/base";
 import { TranscriptRow, type TranscriptRowData } from "@/components/traces/trace-view/transcript/item/transcript-row";
 import { useBatchedSpanPreviews } from "@/components/traces/trace-view/transcript/use-batched-span-previews";
-import { useTraceUserInput } from "@/components/traces/trace-view/transcript/use-trace-user-input";
 import {
   filterToViewport,
   useReportVisibleTimeRange,
@@ -98,11 +97,6 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
     [getTranscriptListData, spans, condensedTimelineVisibleSpanIds]
   );
 
-  const llmSpanCount = useMemo(
-    () => spans.filter((s) => s.spanType === "LLM" || s.spanType === "CACHED").length,
-    [spans]
-  );
-
   const trackedTraceIdRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     const traceId = trace?.id;
@@ -119,7 +113,9 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trace?.id, spans.length]);
 
-  const { userInput, isLoading: isUserInputLoading } = useTraceUserInput(projectId, trace?.id, isShared, llmSpanCount);
+  // Agent input/task is extracted at ingestion and read straight off the trace
+  // object (traces_v0.agent_input) — no separate fetch.
+  const userInput = trace?.agentInput ?? null;
   const hasUserInput = !!userInput;
 
   const flatRows = useMemo(() => {
@@ -475,7 +471,6 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
                 inputPreviews={inputPreviews}
                 agentNames={agentNames}
                 userInput={userInput}
-                isUserInputLoading={isUserInputLoading}
                 selectedSpanId={selectedSpanId}
                 expandedGroupIds={transcriptExpandedGroups}
                 onSpanSelect={handleSpanSelect}

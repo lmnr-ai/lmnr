@@ -1,13 +1,13 @@
 import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { getMainAgentIOBatch } from "@/lib/actions/sessions/trace-io";
+import { getAgentOutputsBatch } from "@/lib/actions/traces/outputs";
 
 export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const { projectId } = await props.params;
   try {
     const body = await req.json();
-    const result = await getMainAgentIOBatch({ ...body, projectId });
+    const result = await getAgentOutputsBatch({ ...body, projectId });
     return Response.json(result);
   } catch (error) {
     if (error instanceof ZodError) {
