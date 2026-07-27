@@ -49,7 +49,7 @@ export default function TraceDropdown({ traceId }: TraceDropdownProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-6 px-1 hover:bg-secondary">
+        <Button aria-label="Expand" variant="ghost" className="h-6 px-1 hover:bg-secondary">
           <ChevronDown className="size-3.5" />
         </Button>
       </DropdownMenuTrigger>

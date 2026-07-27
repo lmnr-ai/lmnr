@@ -55,12 +55,12 @@ const Header = ({ onClose, isHideTimelineControls = false }: HeaderProps) => {
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center min-w-0 gap-2">
           <div className="flex items-center flex-shrink-0 gap-0.5">
-            <Button variant="ghost" className="px-0.5" onClick={onClose}>
+            <Button aria-label="Collapse panel" variant="ghost" className="px-0.5" onClick={onClose}>
               <ChevronsRight className="w-5 h-5" />
             </Button>
             {trace && (
               <Link passHref href={`/shared/traces/${trace.id}`}>
-                <Button variant="ghost" className="px-0.5">
+                <Button aria-label="Expand" variant="ghost" className="px-0.5">
                   <Maximize className="w-4 h-4" />
                 </Button>
               </Link>
@@ -71,7 +71,7 @@ const Header = ({ onClose, isHideTimelineControls = false }: HeaderProps) => {
               <span className="text-base font-medium ml-2 flex-shrink-0">Trace</span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="h-6 px-1 hover:bg-secondary">
+                  <Button aria-label="Expand" variant="ghost" className="h-6 px-1 hover:bg-secondary">
                     <ChevronDown className="size-3.5" />
                   </Button>
                 </DropdownMenuTrigger>

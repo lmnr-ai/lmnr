@@ -225,6 +225,7 @@ export default function AskAi() {
                 maxRows={6}
               />
               <Button
+                aria-label="Up"
                 type="submit"
                 size="icon"
                 className="h-7 w-7 rounded-full border bg-primary flex-shrink-0 mr-1 mb-1"

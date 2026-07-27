@@ -20,7 +20,7 @@ export default function RevokeDialog({ apiKey, onRevoke, entity }: RevokeApiKeyD
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost">
+        <Button aria-label="Delete" variant="ghost">
           {" "}
           <Trash2 size={14} />
         </Button>

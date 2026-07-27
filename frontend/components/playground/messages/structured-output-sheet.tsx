@@ -47,6 +47,7 @@ export default function StructuredOutputSheet({
       return (
         <SheetTrigger asChild>
           <Button
+            aria-label="Edit JSON"
             disabled={!model}
             variant="outline"
             size="icon"
@@ -62,6 +63,7 @@ export default function StructuredOutputSheet({
       <div className="flex flex-row [&>*:first-child]:border-r-0 [&>*:first-child]:rounded-l [&>*:first-child]:rounded-r-none [&>*:last-child]:rounded-r [&>*:last-child]:rounded-l-none">
         <SheetTrigger asChild>
           <Button
+            aria-label="Edit JSON"
             disabled={!model}
             variant="outlinePrimary"
             size="icon"
@@ -71,6 +73,7 @@ export default function StructuredOutputSheet({
           </Button>
         </SheetTrigger>
         <Button
+          aria-label="Close"
           onClick={() => setValue("structuredOutput", undefined)}
           className="size-7"
           variant="outlinePrimary"

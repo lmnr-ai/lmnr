@@ -92,7 +92,7 @@ const DataTableSorts = ({ columns }: DataTableSortsProps) => {
                   <p className="text-secondary-foreground">ascending:</p>
                   <Switch onCheckedChange={handleAsc(field)} checked={field.asc} />
                 </div>
-                <Button onClick={() => handleRemove(field.field)} variant="ghost">
+                <Button aria-label="Close" onClick={() => handleRemove(field.field)} variant="ghost">
                   <X className="text-secondary-foreground" size={16} />
                 </Button>
               </div>

@@ -136,6 +136,7 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
+              aria-label="More options"
               variant="ghost"
               size="sm"
               className="h-6 w-6 text-muted-foreground p-0 ml-auto focus-visible:ring-0"
