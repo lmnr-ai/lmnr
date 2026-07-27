@@ -54,8 +54,15 @@ export default function ConfirmSignalJobDialog({
 
         {batchEnabled && (
           <div className="flex flex-col gap-3">
-            <Label className="text-sm font-medium">Processing mode</Label>
-            <RadioGroup value={String(mode)} onValueChange={(v) => onModeChange(Number(v))} className="grid gap-3">
+            <Label id="signal-job-processing-mode-label" className="text-sm font-medium">
+              Processing mode
+            </Label>
+            <RadioGroup
+              value={String(mode)}
+              onValueChange={(v) => onModeChange(Number(v))}
+              className="grid gap-3"
+              aria-labelledby="signal-job-processing-mode-label"
+            >
               <label className="flex items-start gap-3 cursor-pointer">
                 <RadioGroupItem value="0" className="mt-0.5" />
                 <div className="flex flex-col gap-0.5">

@@ -123,6 +123,7 @@ function ManageTriggerDialogContent({ setOpen, isNew, signalId, onSuccess }: Man
                   value={String(field.value)}
                   onValueChange={(v) => field.onChange(Number(v))}
                   className="grid gap-3"
+                  aria-label="Processing mode"
                 >
                   <label className="flex items-start gap-3 cursor-pointer">
                     <RadioGroupItem value="0" className="mt-0.5" />

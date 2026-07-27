@@ -105,6 +105,7 @@ export default function CancelSubscriptionDialog({
                 setCancelReason(value as CancellationReason);
                 if (value !== "other") setCancelComment("");
               }}
+              aria-label="Reason for canceling"
             >
               {(Object.entries(CANCELLATION_REASON_LABELS) as [CancellationReason, string][]).map(([value, label]) => (
                 <div key={value} className="flex items-center gap-2">

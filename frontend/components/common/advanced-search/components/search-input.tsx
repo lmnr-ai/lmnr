@@ -371,8 +371,10 @@ const FilterSearchInput = ({
           onKeyDown={handleKeyDown}
           disabled={disabled}
           placeholder={tags.length === 0 ? placeholder : ""}
+          aria-label="Search filters"
           className={cn(
-            "flex-1 min-w-[100px] h-6 bg-transparent text-xs outline-none",
+            "flex-1 min-w-[100px] h-6 bg-transparent text-xs outline-none rounded-sm",
+            "focus-visible:ring-1 focus-visible:ring-ring",
             "placeholder:text-muted-foreground"
           )}
         />

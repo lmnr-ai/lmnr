@@ -67,6 +67,8 @@ function CodeEntryForm({ userEmail }: { userEmail: string }) {
           <form onSubmit={onSubmit} className="flex flex-col gap-4">
             <Input
               autoFocus
+              required
+              aria-label="Device code"
               placeholder="e.g. ABCD-EFGH"
               value={code}
               onChange={(e) => setCode(e.target.value)}

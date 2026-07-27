@@ -94,7 +94,7 @@ const ChartBuilderCore = () => {
                   setBreakdownColumn(value === "none" ? undefined : value);
                 }}
               >
-                <SelectTrigger className="focus:ring-0">
+                <SelectTrigger className="focus:ring-0" aria-label="Break down lines by">
                   <SelectValue placeholder="Select column for multiple lines" />
                 </SelectTrigger>
                 <SelectContent>
@@ -204,7 +204,7 @@ const ChartBuilderCore = () => {
               disabled={!hasChartType || !isValidChartConfiguration()}
               className="self-end"
             >
-              <Upload className="w-4 h-4 mr-2" />
+              <Upload data-icon="inline-start" className="w-4 h-4 mr-2" />
               Export to Dashboards
             </Button>
           </ExportChartDialog>

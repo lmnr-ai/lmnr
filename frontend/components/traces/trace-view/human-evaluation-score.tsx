@@ -208,6 +208,7 @@ const HumanEvaluationScore = ({
                   handleSubmit(onSubmit)();
                 }}
                 disabled={isValidating || isSubmitting}
+                aria-label="Score options"
               >
                 {options.map((option) => (
                   <div key={`${option.label}-${option.value}`} className="flex items-center space-x-2">

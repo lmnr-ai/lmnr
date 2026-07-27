@@ -195,15 +195,12 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     );
 
     React.useEffect(() => {
-      if (handleKeysUp.length > 0) {
-        window.addEventListener("keydown", handleKeyDown as any);
+      if (handleKeysUp.length === 0) {
+        return;
       }
-
-      return () => {
-        if (handleKeysUp.length > 0) {
-          window.removeEventListener("keydown", handleKeyDown as any);
-        }
-      };
+      const controller = new AbortController();
+      window.addEventListener("keydown", handleKeyDown as any, { signal: controller.signal });
+      return () => controller.abort();
     }, [props.onClick, props.disabled, isHandledKey, handleKeyDown, handleKeysUp]);
 
     // Get the icon component from the map

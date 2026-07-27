@@ -84,6 +84,8 @@ export function CreateProjectDialog({ open, onOpenChange, workspaces, onCreated 
             <Field label="Workspace name">
               <Input
                 autoFocus
+                required
+                aria-label="Workspace name"
                 placeholder="Workspace name"
                 value={workspaceName}
                 onChange={(e) => setWorkspaceName(e.target.value)}
@@ -108,6 +110,8 @@ export function CreateProjectDialog({ open, onOpenChange, workspaces, onCreated 
           <Field label="Project name">
             <Input
               autoFocus={hasWorkspace}
+              required
+              aria-label="Project name"
               placeholder="Project name"
               value={projectName}
               onChange={(e) => setProjectName(e.target.value)}

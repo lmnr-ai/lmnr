@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useEffect, useMemo } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { Feature } from "@/lib/features/features";
 
@@ -79,6 +79,7 @@ export default function CreateSignalDrawer({
       <Sheet open={open} onOpenChange={onOpenChange}>
         {children && <SheetTrigger asChild>{children}</SheetTrigger>}
         <SheetContent side="right" className="sm:max-w-none! p-0 flex flex-col w-[45vw]">
+          <SheetTitle className="sr-only">Manage signal</SheetTitle>
           <ManageSignalContent
             variant="sheet"
             onClose={onClose}

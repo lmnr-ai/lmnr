@@ -74,11 +74,13 @@ const AddChartDropdown = ({ onChartCreated }: { onChartCreated?: () => void }) =
       </PopoverTrigger>
       <PopoverContent align="end" className="w-64 p-0">
         <div className="p-1 border-b">
-          <Link href={{ pathname: "dashboards/new" }} onClick={() => setOpen(false)}>
-            <button className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer">
-              <Pen className="size-3.5 text-muted-foreground" />
-              Custom
-            </button>
+          <Link
+            href={{ pathname: "dashboards/new" }}
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
+          >
+            <Pen className="size-3.5 text-muted-foreground" />
+            Custom
           </Link>
         </div>
         <div className="px-1.5 py-1.5 border-b">
