@@ -177,9 +177,8 @@ export default function SchemaDefinitionDialog({
         </DialogTrigger>
       )}
       <DialogContent className="h-[80vh] overflow-hidden max-w-[60vw]">
-        <DialogTitle className="hidden invisible" />
         <div className="flex flex-1 flex-col gap-4 overflow-hidden">
-          <span className="text-lg font-medium">Define Annotation Schema</span>
+          <DialogTitle className="text-lg font-medium">Define Annotation Schema</DialogTitle>
           <p className="text-xs text-muted-foreground">
             Define a JSON Schema to render interactive target fields. Maximum 9 fields supported.
             <br />

@@ -288,6 +288,7 @@ const TagInput = ({
             <button
               type="button"
               tabIndex={-1}
+              aria-label={`Remove ${value}`}
               onClick={(e) => {
                 e.stopPropagation();
                 handleRemoveValue(value);

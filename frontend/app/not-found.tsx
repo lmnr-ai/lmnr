@@ -27,12 +27,12 @@ export default function NotFound() {
             <ArrowLeft className="mr-2 size-4" />
             Back
           </Button>
-          <Link href="/" passHref>
-            <Button className="px-4" size="lg" variant="outlinePrimary">
+          <Button asChild className="px-4" size="lg" variant="outlinePrimary">
+            <Link href="/">
               <Home className="mr-2 size-4" />
               Home
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         </div>
       </div>
     </div>

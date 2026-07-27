@@ -42,9 +42,13 @@ export function EmailSignInButton({ callbackUrl, action = "sign_in_attempted", c
   return (
     <div className={cn("h-full flex flex-col gap-4", className)}>
       <div className="flex flex-col gap-2">
-        <Label className="text-sm text-muted-foreground text-left">Sign in with email (local only)</Label>
+        <Label htmlFor="email-sign-in" className="text-sm text-muted-foreground text-left">
+          Sign in with email (local only)
+        </Label>
         <Input
+          id="email-sign-in"
           type="email"
+          autoComplete="email"
           placeholder="Email"
           size="md"
           value={email}

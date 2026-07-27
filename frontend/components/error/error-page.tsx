@@ -10,9 +10,11 @@ interface ErrorPageProps {
   error: Error & { digest?: string };
   backAction: () => void;
   backLabel: string;
+  // Retry callback (e.g. the Next.js error-boundary `reset`); falls back to a full reload.
+  retry?: () => void;
 }
 
-export default function ErrorPage({ error, backAction, backLabel }: ErrorPageProps) {
+export default function ErrorPage({ error, backAction, backLabel, retry }: ErrorPageProps) {
   const refreshIconRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
@@ -24,8 +26,8 @@ export default function ErrorPage({ error, backAction, backLabel }: ErrorPagePro
       duration: 400,
       easing: "ease-in-out",
     });
-    setTimeout(() => window.location.reload(), 400);
-  }, []);
+    setTimeout(() => (retry ? retry() : window.location.reload()), 400);
+  }, [retry]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen px-4">

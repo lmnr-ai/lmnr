@@ -5,15 +5,7 @@ import { createPortal } from "react-dom";
 
 type LightboxImageProps = React.ImgHTMLAttributes<HTMLImageElement>;
 
-const Overlay = ({
-  src,
-  alt,
-  onClose,
-}: {
-  src?: string;
-  alt?: string;
-  onClose: () => void;
-}) => {
+const Overlay = ({ src, alt, onClose }: { src?: string; alt?: string; onClose: () => void }) => {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -26,7 +18,11 @@ const Overlay = ({
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 px-4"
       onClick={onClose}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") onClose();
+      }}
       role="button"
+      tabIndex={0}
       aria-label="Close image"
     >
       <img
@@ -42,13 +38,14 @@ const Overlay = ({
 
 export default function LightboxImage(props: LightboxImageProps) {
   const [open, setOpen] = useState(false);
-  const { className, onClick, ...rest } = props;
+  const { className, onClick, alt, ...rest } = props;
   const source: string | undefined = typeof rest.src === "string" ? rest.src : undefined;
 
   return (
     <>
       <img
         {...rest}
+        alt={alt ?? ""}
         className={`${className ?? ""} cursor-zoom-in transition-transform duration-150 hover:scale-[1.01]`}
         onClick={(e) => {
           onClick?.(e);

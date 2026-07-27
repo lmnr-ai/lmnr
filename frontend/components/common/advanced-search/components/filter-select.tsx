@@ -184,7 +184,7 @@ const FilterSelect = ({
         aria-controls={listboxId}
         className={cn(
           "flex items-center justify-center gap-1 cursor-pointer select-none w-fit font-medium",
-          "outline-none",
+          "outline-none rounded-sm focus-visible:ring-1 focus-visible:ring-ring",
           triggerClassName
         )}
         onClick={() => onOpenChange(!open)}

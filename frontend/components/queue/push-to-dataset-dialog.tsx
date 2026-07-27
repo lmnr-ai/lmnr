@@ -135,8 +135,13 @@ export default function PushToDatasetDialog({ open, onOpenChange }: PushToDatase
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label>What to push</Label>
-            <RadioGroup value={scope} onValueChange={(v) => setScope(v as Scope)} className="gap-2">
+            <Label id="push-scope-label">What to push</Label>
+            <RadioGroup
+              value={scope}
+              onValueChange={(v) => setScope(v as Scope)}
+              className="gap-2"
+              aria-labelledby="push-scope-label"
+            >
               <ScopeOption
                 value="approved"
                 label="All approved items"
