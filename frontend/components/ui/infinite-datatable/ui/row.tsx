@@ -21,7 +21,6 @@ function InfiniteDatatableRowInner<TData extends RowData>({
 
   const handleOnClick = useCallback(
     (event: MouseEvent<HTMLTableRowElement>) => {
-      // handle meta key - opening link in new tab.
       if (href && (event.metaKey || event.ctrlKey)) {
         window.open(href, "_blank");
         return;
@@ -80,4 +79,26 @@ function InfiniteDatatableRowInner<TData extends RowData>({
   );
 }
 
-export const InfiniteDatatableRow = memo(InfiniteDatatableRowInner) as typeof InfiniteDatatableRowInner;
+function areRowPropsEqual<TData extends RowData>(
+  prev: InfiniteDataTableRowProps<TData>,
+  next: InfiniteDataTableRowProps<TData>
+) {
+  return (
+    prev.virtualRow.index === next.virtualRow.index &&
+    prev.virtualRow.start === next.virtualRow.start &&
+    prev.virtualRow.size === next.virtualRow.size &&
+    prev.row.id === next.row.id &&
+    prev.row.original === next.row.original &&
+    prev.row.getIsSelected() === next.row.getIsSelected() &&
+    prev.focusedRowId === next.focusedRowId &&
+    prev.href === next.href &&
+    prev.className === next.className &&
+    prev.onRowClick === next.onRowClick &&
+    prev.onHoveredRowChange === next.onHoveredRowChange
+  );
+}
+
+export const InfiniteDatatableRow = memo(
+  InfiniteDatatableRowInner,
+  areRowPropsEqual
+) as typeof InfiniteDatatableRowInner;

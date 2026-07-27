@@ -3,7 +3,7 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 
 import { TokensBreakdown } from "@/components/traces/cells/tokens-breakdown";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatTokensCompact, type TokenStats } from "@/lib/traces/format";
 import { cn } from "@/lib/utils";
 
@@ -24,24 +24,22 @@ export function TokensCell({ stats, className, showCacheInline = false }: Tokens
   }
 
   return (
-    <TooltipProvider delayDuration={250}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span className={cn("truncate", className)}>
-            {formatTokensCompact(stats.inputTokens)}
-            {showCacheInline && cacheReadInputTokens > 0 && (
-              <span className="text-success-bright"> ({formatTokensCompact(cacheReadInputTokens)})</span>
-            )}{" "}
-            {"→"} {formatTokensCompact(stats.outputTokens)} <span className="text-muted-foreground">/ </span>
-            <span className="text-muted-foreground">{formatTokensCompact(totalTokens)}</span>
-          </span>
-        </TooltipTrigger>
-        <TooltipPortal>
-          <TooltipContent className="flex flex-col border gap-1 p-2">
-            <TokensBreakdown stats={stats} />
-          </TooltipContent>
-        </TooltipPortal>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip delayDuration={250}>
+      <TooltipTrigger asChild>
+        <span className={cn("truncate", className)}>
+          {formatTokensCompact(stats.inputTokens)}
+          {showCacheInline && cacheReadInputTokens > 0 && (
+            <span className="text-success-bright"> ({formatTokensCompact(cacheReadInputTokens)})</span>
+          )}{" "}
+          {"→"} {formatTokensCompact(stats.outputTokens)} <span className="text-muted-foreground">/ </span>
+          <span className="text-muted-foreground">{formatTokensCompact(totalTokens)}</span>
+        </span>
+      </TooltipTrigger>
+      <TooltipPortal>
+        <TooltipContent className="flex flex-col border gap-1 p-2">
+          <TokensBreakdown stats={stats} />
+        </TooltipContent>
+      </TooltipPortal>
+    </Tooltip>
   );
 }

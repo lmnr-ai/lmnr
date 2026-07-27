@@ -7,6 +7,7 @@ import { type PropsWithChildren } from "react";
 
 import BasePathFetchShim from "@/components/common/base-path-fetch-shim";
 import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flags-context";
 import { getServerSession } from "@/lib/auth-session";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
@@ -74,14 +75,16 @@ export default async function RootLayout({ children }: PropsWithChildren) {
         <BasePathFetchShim />
         <FeatureFlagsProvider flags={featureFlags}>
           <PostHogProvider telemetryEnabled={posthogEnabled} email={email}>
-            <NuqsAdapter>
-              <div className="flex">
-                <div className="flex flex-col grow max-w-full min-h-screen">
-                  <main className="z-10 flex flex-col grow">{children}</main>
-                  <Toaster />
+            <TooltipProvider delayDuration={0}>
+              <NuqsAdapter>
+                <div className="flex">
+                  <div className="flex flex-col grow max-w-full min-h-screen">
+                    <main className="z-10 flex flex-col grow">{children}</main>
+                    <Toaster />
+                  </div>
                 </div>
-              </div>
-            </NuqsAdapter>
+              </NuqsAdapter>
+            </TooltipProvider>
           </PostHogProvider>
         </FeatureFlagsProvider>
       </body>

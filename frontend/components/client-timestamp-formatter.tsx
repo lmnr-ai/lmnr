@@ -3,7 +3,7 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { differenceInDays, differenceInHours, differenceInMinutes, differenceInSeconds, format } from "date-fns";
 
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, formatTimestamp } from "@/lib/utils.ts";
 
 export function formatShortRelativeTime(date: Date): string {
@@ -54,17 +54,15 @@ export default function ClientTimestampFormatter({
   const tooltipText = format(date, "MMMM d, yyyy, h:mm:ss a O");
 
   return (
-    <TooltipProvider>
-      <Tooltip delayDuration={300}>
-        <TooltipTrigger asChild>
-          <span className={cn("text-sm cursor-pointer", className)}>{displayText}</span>
-        </TooltipTrigger>
-        <TooltipPortal>
-          <TooltipContent className="border">
-            <span>{tooltipText}</span>
-          </TooltipContent>
-        </TooltipPortal>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip delayDuration={300}>
+      <TooltipTrigger asChild>
+        <span className={cn("text-sm cursor-pointer", className)}>{displayText}</span>
+      </TooltipTrigger>
+      <TooltipPortal>
+        <TooltipContent className="border">
+          <span>{tooltipText}</span>
+        </TooltipContent>
+      </TooltipPortal>
+    </Tooltip>
   );
 }

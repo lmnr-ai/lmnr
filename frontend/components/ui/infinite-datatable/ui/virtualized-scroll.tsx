@@ -16,7 +16,7 @@ import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
 import { arrayMove } from "@dnd-kit/sortable";
 import { type Row, type RowData, type Table as TanstackTable } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
+import { type ReactNode, type RefObject, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { Skeleton } from "@/components/ui/skeleton.tsx";
@@ -50,6 +50,107 @@ interface VirtualizedScrollProps<TData extends RowData> {
   scrollContentClassName?: string;
 }
 
+interface VirtualizedRowsProps<TData extends RowData> {
+  table: TanstackTable<TData>;
+  tableContainerRef: RefObject<HTMLDivElement | null>;
+  estimatedRowHeight: number;
+  overscan: number;
+  hasMore: boolean;
+  isFetching: boolean;
+  isLoading: boolean;
+  fetchNextPage: () => void;
+  onRowClick?: (row: Row<TData>) => void;
+  onHoveredRowChange?: (row: Row<TData> | null) => void;
+  focusedRowId?: string | null;
+  emptyRow?: ReactNode;
+  loadingRow?: ReactNode;
+  getRowHref?: (row: Row<TData>) => string;
+  getRowClassName?: (row: Row<TData>) => string;
+  loadMoreButton?: boolean | ((props: LoadMoreButtonProps) => ReactNode);
+}
+
+function VirtualizedRows<TData extends RowData>({
+  table,
+  tableContainerRef,
+  estimatedRowHeight,
+  overscan,
+  hasMore,
+  isFetching,
+  isLoading,
+  fetchNextPage,
+  onRowClick,
+  onHoveredRowChange,
+  focusedRowId,
+  emptyRow,
+  loadingRow,
+  getRowHref,
+  getRowClassName,
+  loadMoreButton,
+}: VirtualizedRowsProps<TData>) {
+  const loadMoreRef = useRef<HTMLTableRowElement>(null);
+  const { rows } = table.getRowModel();
+
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => tableContainerRef.current,
+    estimateSize: () => estimatedRowHeight,
+    overscan,
+    directDomUpdates: true,
+  });
+
+  const virtualItems = rowVirtualizer.getVirtualItems();
+
+  useEffect(() => {
+    if (loadMoreButton) return;
+
+    const loadMoreElement = loadMoreRef.current;
+    const scrollContainer = tableContainerRef.current;
+
+    if (!loadMoreElement || !scrollContainer) return;
+    if (!hasMore || isFetching || isLoading) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasMore && !isFetching) {
+          fetchNextPage();
+        }
+      },
+      {
+        root: scrollContainer,
+        rootMargin: "420px",
+        threshold: 0,
+      }
+    );
+
+    observer.observe(loadMoreElement);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [fetchNextPage, hasMore, isFetching, isLoading, loadMoreButton, tableContainerRef]);
+
+  return (
+    <InfiniteDatatableBody
+      table={table}
+      rowVirtualizer={rowVirtualizer}
+      virtualItems={virtualItems}
+      isLoading={isLoading}
+      isFetching={isFetching}
+      hasMore={hasMore}
+      onRowClick={onRowClick}
+      onHoveredRowChange={onHoveredRowChange}
+      focusedRowId={focusedRowId}
+      loadMoreRef={loadMoreRef}
+      emptyRow={emptyRow}
+      loadingRow={loadingRow}
+      getRowHref={getRowHref}
+      getRowClassName={getRowClassName}
+      loadMoreButton={loadMoreButton}
+      fetchNextPage={fetchNextPage}
+    />
+  );
+}
+
 export function VirtualizedScroll<TData extends RowData>({
   table,
   effectiveColumnOrder,
@@ -75,22 +176,8 @@ export function VirtualizedScroll<TData extends RowData>({
   const draggingColumnId = useStore(tableStore, (s) => s.draggingColumnId);
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
-  const loadMoreRef = useRef<HTMLTableRowElement>(null);
   const headerRef = useRef<HTMLTableSectionElement>(null);
   const [headerTop, setHeaderTop] = useState(0);
-
-  const { rows } = table.getRowModel();
-
-  const rowVirtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => tableContainerRef.current,
-    estimateSize: () => estimatedRowHeight,
-    overscan,
-    // Fixed-height rows (truncate + estimatedRowHeight) — skip measureElement
-    // so scroll doesn't force a layout read per mounted row.
-  });
-
-  const virtualItems = rowVirtualizer.getVirtualItems();
 
   const dndContextId = useId();
 
@@ -136,35 +223,6 @@ export function VirtualizedScroll<TData extends RowData>({
     return header ?? null;
   }, [draggingColumnId, table]);
 
-  useEffect(() => {
-    if (loadMoreButton) return;
-
-    const loadMoreElement = loadMoreRef.current;
-    const scrollContainer = tableContainerRef.current;
-
-    if (!loadMoreElement || !scrollContainer) return;
-    if (!hasMore || isFetching || isLoading) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting && hasMore && !isFetching) {
-          fetchNextPage();
-        }
-      },
-      {
-        root: scrollContainer,
-        rootMargin: "420px",
-        threshold: 0,
-      }
-    );
-
-    observer.observe(loadMoreElement);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [fetchNextPage, hasMore, isFetching, isLoading, loadMoreButton]);
-
   const tableWidth = table.getHeaderGroups()[0]?.headers.reduce((acc, header) => acc + header.getSize(), 0) || "100%";
 
   return (
@@ -183,23 +241,23 @@ export function VirtualizedScroll<TData extends RowData>({
         >
           <Table className="grid border-collapse border-spacing-0 rounded bg-secondary" style={{ width: tableWidth }}>
             <InfiniteDatatableHeader ref={headerRef} table={table as TanstackTable<RowData>} />
-            <InfiniteDatatableBody
+            <VirtualizedRows
               table={table}
-              rowVirtualizer={rowVirtualizer}
-              virtualItems={virtualItems}
-              isLoading={isLoading}
-              isFetching={isFetching}
+              tableContainerRef={tableContainerRef}
+              estimatedRowHeight={estimatedRowHeight}
+              overscan={overscan}
               hasMore={hasMore}
+              isFetching={isFetching}
+              isLoading={isLoading}
+              fetchNextPage={fetchNextPage}
               onRowClick={onRowClick}
               onHoveredRowChange={onHoveredRowChange}
               focusedRowId={focusedRowId}
-              loadMoreRef={loadMoreRef}
               emptyRow={emptyRow}
               loadingRow={loadingRow}
               getRowHref={getRowHref}
               getRowClassName={getRowClassName}
               loadMoreButton={loadMoreButton}
-              fetchNextPage={fetchNextPage}
             />
           </Table>
           <DragOverlay

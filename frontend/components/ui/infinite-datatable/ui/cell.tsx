@@ -8,11 +8,6 @@ interface InfiniteTableCellProps<TData extends RowData> {
   cell: Cell<TData, unknown>;
 }
 
-/**
- * Body cells intentionally do NOT use `@dnd-kit/sortable`.
- * Column drag lives on the header only — registering useSortable per visible
- * cell (rows × columns) dominated scroll FPS in virtualized tables.
- */
 function InfiniteTableCellInner<TData extends RowData>({ cell }: InfiniteTableCellProps<TData>) {
   const isPinned = cell.column.getIsPinned() === "left";
 
@@ -28,8 +23,6 @@ function InfiniteTableCellInner<TData extends RowData>({ cell }: InfiniteTableCe
     <TableCell
       className={cn(
         "relative px-4 m-0 truncate h-full my-auto",
-        // Opaque baseline + row-state overlays (named `group/row` on TableRow)
-        // so the pinned cell reads correctly as OTHER columns scroll underneath it.
         isPinned &&
           "bg-secondary border-r shadow-[2px_0_6px_-2px_rgba(0,0,0,0.35)] group-hover/row:bg-muted/50 group-data-[state=selected]/row:bg-primary/15 group-data-[focused=true]/row:bg-muted"
       )}
@@ -40,4 +33,17 @@ function InfiniteTableCellInner<TData extends RowData>({ cell }: InfiniteTableCe
   );
 }
 
-export const InfiniteTableCell = memo(InfiniteTableCellInner) as typeof InfiniteTableCellInner;
+function areCellPropsEqual<TData extends RowData>(
+  prev: InfiniteTableCellProps<TData>,
+  next: InfiniteTableCellProps<TData>
+) {
+  return (
+    prev.cell.id === next.cell.id &&
+    prev.cell.row.original === next.cell.row.original &&
+    prev.cell.column.getSize() === next.cell.column.getSize() &&
+    prev.cell.column.getIsPinned() === next.cell.column.getIsPinned() &&
+    prev.cell.row.getIsSelected() === next.cell.row.getIsSelected()
+  );
+}
+
+export const InfiniteTableCell = memo(InfiniteTableCellInner, areCellPropsEqual) as typeof InfiniteTableCellInner;
