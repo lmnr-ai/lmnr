@@ -84,9 +84,29 @@ pub async fn handle_trace_metadata(
     // queried first so that on cloud (flag on) the common case short-circuits
     // there and the PG arm is only paid for traces the new store doesn't have.
     // Drop the PG arm in phase 3 (LAM-2020).
-    let exists = traces_agg::trace_exists(clickhouse.as_ref(), project_id, req.trace_id).await?
-        || trace::trace_exists(&db.pool, project_id, req.trace_id).await?;
+    //
+    // A ClickHouse error must NOT short-circuit the Postgres arm: this endpoint
+    // was PG-only before the migration, so propagating a CH blip here would
+    // newly fail patches for traces PG can still prove exist. Hold the error
+    // instead and only surface it if neither store found the trace — then we
+    // genuinely can't tell absent from unavailable, and a 500 (retryable) is
+    // the honest answer rather than a 404 (permanent).
+    let agg_lookup = traces_agg::trace_exists(clickhouse.as_ref(), project_id, req.trace_id).await;
+    let exists = match agg_lookup {
+        Ok(true) => true,
+        Ok(false) | Err(_) => trace::trace_exists(&db.pool, project_id, req.trace_id).await?,
+    };
     if !exists {
+        if let Err(e) = agg_lookup {
+            log::error!(
+                "traces_agg existence check failed for trace {} in project {}; \
+                 Postgres did not have it either, so absence is unproven: {:?}",
+                req.trace_id,
+                project_id,
+                e
+            );
+            return Err(e.into());
+        }
         return Ok(HttpResponse::NotFound().json("Trace not found"));
     }
 
