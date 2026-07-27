@@ -160,7 +160,7 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
                         variant="outline"
                         onClick={() => setBrowserSession(!browserSession)}
                       >
-                        <CirclePlay size={14} className="flex-shrink-0" />
+                        <CirclePlay data-icon="inline-start" size={14} className="flex-shrink-0" />
                         <span className="ml-1 truncate">Media</span>
                       </Button>
                     )}

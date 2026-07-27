@@ -41,7 +41,7 @@ export default function RevokeDialog({ apiKey, onRevoke, entity }: RevokeApiKeyD
               setIsOpen(false);
             }}
           >
-            <Loader2 className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
+            <Loader2 data-icon="inline-start" className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
             Revoke
           </Button>
         </DialogFooter>

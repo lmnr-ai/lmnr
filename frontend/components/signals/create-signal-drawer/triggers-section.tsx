@@ -84,7 +84,7 @@ function SpanNamesInput() {
         </div>
       ))}
       <Button type="button" variant="outline" size="sm" className="w-fit" onClick={() => write([...rows, ""])}>
-        <Plus className="w-3.5 h-3.5 mr-1" />
+        <Plus data-icon="inline-start" className="w-3.5 h-3.5 mr-1" />
         Add span name
       </Button>
       {hasName ? (
@@ -247,7 +247,7 @@ function FiltersSection() {
           hint="Once triggered, the signal only runs on traces matching all of these conditions."
         />
         <Button type="button" variant="outline" className="w-fit" onClick={() => append(getDefaultFilter())}>
-          <Plus className="w-3.5 h-3.5 mr-1" />
+          <Plus data-icon="inline-start" className="w-3.5 h-3.5 mr-1" />
           Add filter
         </Button>
       </div>

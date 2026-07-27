@@ -266,7 +266,7 @@ function CopyModelCostsDialog({ onCopy }: { onCopy: (targetProjectId: string) =>
     >
       <DialogTrigger asChild>
         <Button variant="outline" className="w-fit">
-          <Copy size={14} className="mr-1" />
+          <Copy data-icon="inline-start" size={14} className="mr-1" />
           Copy to project
         </Button>
       </DialogTrigger>

@@ -201,7 +201,7 @@ function FilterCard({
         disabled={columns.length === 0}
         onClick={() => append(getDefaultFilter(columns))}
       >
-        <Plus className="w-3.5 h-3.5 mr-1" />
+        <Plus data-icon="inline-start" className="w-3.5 h-3.5 mr-1" />
         Add condition
       </Button>
     </div>
@@ -236,7 +236,7 @@ export default function AlertFiltersSection({ schema }: { schema: unknown }) {
           disabled={columns.length === 0}
           onClick={() => append({ filters: [getDefaultFilter(columns)] })}
         >
-          <Plus className="w-3.5 h-3.5 mr-1" />
+          <Plus data-icon="inline-start" className="w-3.5 h-3.5 mr-1" />
           Add filter
         </Button>
       </div>

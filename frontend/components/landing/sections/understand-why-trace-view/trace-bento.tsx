@@ -109,7 +109,7 @@ const TraceViewHeaderRow1 = ({
         disabled
         className={cn("h-6 text-xs px-1.5 disabled:opacity-100", chatActive && "border-primary text-primary")}
       >
-        <Sparkles size={14} className="mr-1" />
+        <Sparkles data-icon="inline-start" size={14} className="mr-1" />
         Chat
       </Button>
     </span>
@@ -120,7 +120,7 @@ const TraceViewHeaderRow1 = ({
         onClick={onSignalsToggle}
         className={cn("h-6 text-xs px-1.5", signalsActive && "border-primary text-primary")}
       >
-        <Radio size={14} className="mr-1" />
+        <Radio data-icon="inline-start" size={14} className="mr-1" />
         Signals (1)
       </Button>
     </span>
