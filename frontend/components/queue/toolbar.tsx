@@ -26,7 +26,7 @@ export default function Toolbar() {
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="secondary" onClick={() => setPushOpen(true)} disabled={triggerDisabled}>
-                <Database className="size-3.5 mr-1" />
+                <Database data-icon="inline-start" className="size-3.5 mr-1" />
                 Push to dataset
               </Button>
             </TooltipTrigger>

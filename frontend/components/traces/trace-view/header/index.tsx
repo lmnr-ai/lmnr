@@ -250,7 +250,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                   agentOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
                 )}
               >
-                <Sparkles size={14} className="mr-1" />
+                <Sparkles data-icon="inline-start" size={14} className="mr-1" />
                 Chat
               </Button>
             </span>

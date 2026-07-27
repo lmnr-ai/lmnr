@@ -97,7 +97,7 @@ export default function RenameProject() {
           </div>
           <DialogFooter>
             <Button disabled={!newProjectName.trim() || isLoading} onClick={renameProject} handleEnter={true}>
-              <Loader2 className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
+              <Loader2 data-icon="inline-start" className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
               Rename
             </Button>
           </DialogFooter>

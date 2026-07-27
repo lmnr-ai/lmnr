@@ -93,7 +93,7 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn, config }: Cus
       <div className="w-md">
         <div className="px-3 py-2 border-b flex items-center">
           <Button variant="ghost" size="sm" className="p-0 h-auto hover:bg-transparent" onClick={onBack}>
-            <ArrowLeft className="size-3.5 mr-1" />
+            <ArrowLeft data-icon="inline-start" className="size-3.5 mr-1" />
             <span>Back</span>
           </Button>
         </div>

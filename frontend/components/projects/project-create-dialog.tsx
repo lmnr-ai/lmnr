@@ -132,7 +132,7 @@ export default function ProjectCreateDialog({
         </div>
         <DialogFooter>
           <Button onClick={createNewProject} handleEnter={true} disabled={!newProjectName || isCreatingProject}>
-            <Loader2
+            <Loader2 data-icon="inline-start"
               className={cn("mr-2 hidden", {
                 "animate-spin block": isCreatingProject,
               })}

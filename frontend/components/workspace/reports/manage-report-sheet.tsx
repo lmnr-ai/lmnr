@@ -230,7 +230,7 @@ export default function ManageReportSheet({
         </ScrollArea>
         <div className="flex justify-end px-4 py-3 border-t">
           <Button onClick={handleSave} disabled={isSaving || !hasChanges}>
-            <Loader2 className={cn("mr-2 hidden", { "animate-spin block": isSaving })} size={16} />
+            <Loader2 data-icon="inline-start" className={cn("mr-2 hidden", { "animate-spin block": isSaving })} size={16} />
             Save
           </Button>
         </div>

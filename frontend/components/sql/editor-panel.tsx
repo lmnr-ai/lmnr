@@ -224,7 +224,7 @@ export default function EditorPanel() {
             <div className="ml-auto">
               {isLoading ? (
                 <Button onClick={cancelQuery} className="rounded-tr-none rounded-br-none border-r-0">
-                  <Square size={14} className="mr-1" fill="currentColor" />
+                  <Square data-icon="inline-start" size={14} className="mr-1" fill="currentColor" />
                   <span className="mr-2">Cancel</span>
                 </Button>
               ) : (
@@ -233,16 +233,16 @@ export default function EditorPanel() {
                   onClick={executeQuery}
                   className="rounded-tr-none rounded-br-none border-r-0"
                 >
-                  <PlayIcon size={14} className="mr-1" />
+                  <PlayIcon data-icon="inline-start" size={14} className="mr-1" />
                   <span className="mr-2">Run</span>
                   <div className="text-center text-xs opacity-75">⌘ + ⏎</div>
                 </Button>
               )}
               <ExportSqlDialog results={results} sqlQuery={template?.query || ""} sqlTemplateId={template?.id}>
                 <Button disabled={!hasQuery} variant="secondary" className="rounded-tl-none rounded-bl-none">
-                  <Database className="size-3.5 mr-2" />
+                  <Database data-icon="inline-start" className="size-3.5 mr-2" />
                   Export
-                  <ChevronDown className="size-3.5 ml-2" />
+                  <ChevronDown data-icon="inline-end" className="size-3.5 ml-2" />
                 </Button>
               </ExportSqlDialog>
             </div>

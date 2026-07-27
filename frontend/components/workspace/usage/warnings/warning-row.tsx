@@ -142,7 +142,7 @@ export function AddWarningPopover({ workspaceId, usageItem, unit, toRawValue, on
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-xs">
-          <Plus className="h-3 w-3" />
+          <Plus data-icon="inline-start" className="h-3 w-3" />
           Add
         </Button>
       </PopoverTrigger>
@@ -185,7 +185,7 @@ export function AddWarningPopover({ workspaceId, usageItem, unit, toRawValue, on
             className="w-full"
             disabled={!form.formState.isDirty || form.formState.isSubmitting}
           >
-            <Loader2 className={cn("mr-1 h-3 w-3", form.formState.isSubmitting ? "animate-spin" : "hidden")} />
+            <Loader2 data-icon="inline-start" className={cn("mr-1 h-3 w-3", form.formState.isSubmitting ? "animate-spin" : "hidden")} />
             Add threshold
           </Button>
         </form>

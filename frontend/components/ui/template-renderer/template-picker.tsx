@@ -420,7 +420,7 @@ export const TemplatePickerActions = ({ className }: { className?: string }) => 
         onClick={openEdit}
         title="Edit template"
       >
-        <PencilIcon className="size-3.5" />
+        <PencilIcon data-icon="inline-start" className="size-3.5" />
         Edit template
       </Button>
     </div>
@@ -453,7 +453,7 @@ export const TemplatePickerPreview = ({ data, className, onSelectSpan }: Templat
             : "Create a template to render this content as a custom view."}
         </p>
         <Button variant="secondary" onClick={openCreate}>
-          <Plus className="mr-1.5 size-3.5" />
+          <Plus data-icon="inline-start" className="mr-1.5 size-3.5" />
           Template
         </Button>
       </div>

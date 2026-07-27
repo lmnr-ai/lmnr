@@ -82,7 +82,7 @@ export function GenerateKeyDialogContent({
       </div>
       <DialogFooter>
         <Button onClick={onClick} handleEnter disabled={isLoading}>
-          <Loader2 className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
+          <Loader2 data-icon="inline-start" className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
           Create
         </Button>
       </DialogFooter>

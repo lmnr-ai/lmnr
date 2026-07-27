@@ -177,7 +177,7 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
         <Dialog open={isRenameDialogOpen} onOpenChange={resetAndCloseRenameDialog}>
           <DialogTrigger asChild>
             <Button disabled={!isOwner} onClick={() => setIsRenameDialogOpen(true)} variant="outline" className="w-fit">
-              <Edit className="w-4 h-4 mr-2" />
+              <Edit data-icon="inline-start" className="w-4 h-4 mr-2" />
               Rename
             </Button>
           </DialogTrigger>
@@ -210,7 +210,7 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
               </div>
               <DialogFooter className="mt-4">
                 <Button type="submit" disabled={!renameForm.formState.isValid || renameForm.formState.isSubmitting}>
-                  <Loader2
+                  <Loader2 data-icon="inline-start"
                     className={cn("mr-2 h-4 w-4", renameForm.formState.isSubmitting ? "animate-spin" : "hidden")}
                   />
                   Rename
@@ -235,7 +235,7 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
               variant="outline"
               className="w-fit text-destructive border-destructive"
             >
-              <Trash2 className="w-4 h-4 mr-2" />
+              <Trash2 data-icon="inline-start" className="w-4 h-4 mr-2" />
               Delete
             </Button>
           </DialogTrigger>
@@ -289,7 +289,7 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
                   Cancel
                 </Button>
                 <Button type="submit" variant="destructive" disabled={!isDeleteEnabled}>
-                  <Loader2
+                  <Loader2 data-icon="inline-start"
                     className={cn("mr-2 h-4 w-4", deleteForm.formState.isSubmitting ? "animate-spin" : "hidden")}
                   />
                   Delete

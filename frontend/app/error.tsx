@@ -25,11 +25,11 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
         </div>
         <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto mt-2">
           <Button onClick={() => window.history.back()} className="gap-2 pl-3 pr-5" size="lg" variant="outline">
-            <ArrowLeft className="size-4" />
+            <ArrowLeft data-icon="inline-start" className="size-4" />
             Back
           </Button>
           <Button onClick={() => reset()} className="gap-2 pl-3 pr-5" size="lg" variant="default">
-            <RefreshCw className="size-4" />
+            <RefreshCw data-icon="inline-start" className="size-4" />
             Try again
           </Button>
         </div>

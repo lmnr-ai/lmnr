@@ -480,7 +480,7 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
               setTab("tree");
             }}
           >
-            <ListTree size={14} className="mr-1" />
+            <ListTree data-icon="inline-start" size={14} className="mr-1" />
             Switch to tree
           </Button>
         )}

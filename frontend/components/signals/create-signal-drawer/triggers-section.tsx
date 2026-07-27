@@ -154,7 +154,7 @@ function TriggerCard({ triggerIndex, onRemove }: { triggerIndex: number; onRemov
         ))}
       </div>
       <Button type="button" variant="outline" size="sm" onClick={() => append(getDefaultFilter())}>
-        <Plus className="w-3.5 h-3.5 mr-1" />
+        <Plus data-icon="inline-start" className="w-3.5 h-3.5 mr-1" />
         Add condition
       </Button>
       {batchEnabled && (
@@ -220,7 +220,7 @@ export default function TriggersSection() {
           className="w-fit"
           onClick={() => append({ filters: [getDefaultFilter()], mode: batchEnabled ? 0 : 1 })}
         >
-          <Plus className="w-3.5 h-3.5 mr-1" />
+          <Plus data-icon="inline-start" className="w-3.5 h-3.5 mr-1" />
           Add trigger
         </Button>
       </div>
