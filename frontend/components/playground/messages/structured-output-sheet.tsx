@@ -46,12 +46,7 @@ export default function StructuredOutputSheet({
     if (!structuredOutput) {
       return (
         <SheetTrigger asChild>
-          <Button
-            disabled={!model}
-            variant="outline"
-            size="icon"
-            className={cn("focus-visible:ring-0 size-7", className)}
-          >
+          <Button disabled={!model} variant="outline" size="icon" className={cn("focus-visible:ring-0", className)}>
             <BracesIcon className="size-3.5" />
           </Button>
         </SheetTrigger>
@@ -65,17 +60,12 @@ export default function StructuredOutputSheet({
             disabled={!model}
             variant="outlinePrimary"
             size="icon"
-            className={cn("focus-visible:ring-0 size-7", className)}
+            className={cn("focus-visible:ring-0", className)}
           >
             <BracesIcon className="size-4" />
           </Button>
         </SheetTrigger>
-        <Button
-          onClick={() => setValue("structuredOutput", undefined)}
-          className="size-7"
-          variant="outlinePrimary"
-          size="icon"
-        >
+        <Button onClick={() => setValue("structuredOutput", undefined)} variant="outlinePrimary" size="icon">
           <X className="size-4" />
         </Button>
       </div>
@@ -99,8 +89,8 @@ export default function StructuredOutputSheet({
             <span className="text-sm">JSON Schema</span>
             <Button
               onClick={() => setValue("structuredOutput", JSON.stringify(exampleStructuredOutput, null, 2))}
-              className="text-primary text-sm p-0"
-              variant="ghost"
+              className="h-auto p-0"
+              variant="link"
             >
               <span className="text-sm">Insert example</span>
             </Button>

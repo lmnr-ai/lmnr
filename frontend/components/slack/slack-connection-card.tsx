@@ -163,7 +163,7 @@ export default function SlackConnectionCard({
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
+                <Button variant="ghost" size="icon" className="text-muted-foreground">
                   <EllipsisVertical size={14} />
                 </Button>
               </DropdownMenuTrigger>

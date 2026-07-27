@@ -120,7 +120,7 @@ function StartExportButton({ isLoading, hasError, onStart }: StartExportButtonPr
   return (
     <div className="flex flex-col items-start gap-4">
       {hasError && <div className="text-sm text-destructive">Previous export failed. Please try again.</div>}
-      <Button className="h-8" disabled={isLoading} variant="outline" onClick={onStart}>
+      <Button size="md" disabled={isLoading} variant="outline" onClick={onStart}>
         {isLoading && <Loader2 className="size-4 animate-spin text-muted-foreground mr-2" />}
         Start export job
       </Button>

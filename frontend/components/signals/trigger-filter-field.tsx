@@ -149,7 +149,7 @@ function FilterRow({ index, onRemove }: { index: number; onRemove: () => void })
             )
           }
         />
-        <Button type="button" variant="ghost" onClick={onRemove} className="py-[7px] shrink-0">
+        <Button type="button" variant="ghost" size="icon" onClick={onRemove} className="shrink-0">
           <X className="w-3.5 h-3.5" />
         </Button>
       </div>

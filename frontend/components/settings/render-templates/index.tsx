@@ -67,7 +67,6 @@ export default function RenderTemplates() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7"
                   onClick={() => setEditingTemplate({ id: template.id, scope: template.scope })}
                   title="Edit template"
                 >
@@ -76,7 +75,7 @@ export default function RenderTemplates() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                  className="text-muted-foreground hover:text-destructive"
                   onClick={() => setTemplateToDelete(template)}
                   title="Delete template"
                 >

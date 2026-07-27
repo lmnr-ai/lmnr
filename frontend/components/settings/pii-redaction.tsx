@@ -85,7 +85,7 @@ export default function PiiRedaction() {
               Pro plan required
             </span>
             {workspace && (
-              <Button asChild size="sm" variant="outline" className="h-7">
+              <Button asChild variant="outline">
                 <Link href={settingsHref("billing")}>
                   Upgrade plan
                   <ArrowUpRight className="ml-1 size-3" />

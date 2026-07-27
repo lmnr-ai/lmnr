@@ -167,8 +167,7 @@ const FiltersField = () => {
         <Button
           icon="plus"
           size="sm"
-          className="text-primary hover:text-primary/80"
-          variant="ghost"
+          variant="link"
           onClick={() => {
             const availableColumns = getAvailableColumns(table).filter((col) => col.name !== "*");
             const firstColumn = availableColumns[0];

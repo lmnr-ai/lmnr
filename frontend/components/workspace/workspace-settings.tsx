@@ -232,8 +232,8 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
             <Button
               disabled={!isOwner}
               onClick={() => setIsDeleteDialogOpen(true)}
-              variant="outline"
-              className="w-fit text-destructive border-destructive"
+              variant="destructiveOutline"
+              className="w-fit"
             >
               <Trash2 className="w-4 h-4 mr-2" />
               Delete

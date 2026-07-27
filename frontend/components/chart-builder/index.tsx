@@ -12,6 +12,7 @@ import { ChartType } from "@/components/chart-builder/types";
 import { type ColumnInfo } from "@/components/chart-builder/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -67,7 +68,7 @@ const ChartBuilderCore = () => {
       <ScrollArea className="col-span-1">
         <div className="flex flex-col flex-1 gap-3">
           <div>
-            <label className="text-sm font-medium mb-1 block">Chart type</label>
+            <Label className="font-medium mb-1 block text-foreground">Chart type</Label>
             <Select value={chartConfig.type || ""} onValueChange={setChartType}>
               <SelectTrigger className="focus:ring-0">
                 <SelectValue placeholder="Select Chart Type" />
@@ -87,7 +88,7 @@ const ChartBuilderCore = () => {
           </div>
           {hasChartType && chartConfig.type === ChartType.LineChart && availableBreakdownColumns.length > 0 && (
             <div>
-              <label className="text-sm font-medium mb-1 block">Break down lines by</label>
+              <Label className="font-medium mb-1 block text-foreground">Break down lines by</Label>
               <Select
                 value={selectedBreakdownColumn?.name || "none"}
                 onValueChange={(value) => {
@@ -114,7 +115,7 @@ const ChartBuilderCore = () => {
 
           {hasChartType && (
             <div>
-              <label className="text-sm font-medium mb-1 block">Axes</label>
+              <Label className="font-medium mb-1 block text-foreground">Axes</Label>
               <div className="rounded-lg border min-h-fit mt-2">
                 <Table>
                   <TableHeader className="sticky top-0 bg-background z-10">
@@ -195,7 +196,9 @@ const ChartBuilderCore = () => {
               checked={chartConfig.total || false}
               onCheckedChange={setShowTotal}
             />
-            <label className="text-sm font-medium block">Show Total</label>
+            <Label htmlFor="show-total" className="font-medium block text-foreground">
+              Show Total
+            </Label>
           </div>
 
           <ExportChartDialog>

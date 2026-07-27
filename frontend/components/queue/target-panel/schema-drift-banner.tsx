@@ -38,7 +38,7 @@ export default function SchemaDriftBanner({ targetIsObject, targetType, extras, 
             Selecting a field below will replace the existing value with a new object.
           </div>
         </div>
-        <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0" onClick={onViewJson}>
+        <Button variant="ghost" className="shrink-0" onClick={onViewJson}>
           View JSON
           <ArrowRight className="size-3 ml-1" />
         </Button>
@@ -64,7 +64,7 @@ export default function SchemaDriftBanner({ targetIsObject, targetType, extras, 
           {" — preserved on save, but not editable here."}
         </div>
       </div>
-      <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0" onClick={onViewJson}>
+      <Button variant="ghost" className="shrink-0" onClick={onViewJson}>
         View JSON
         <ArrowRight className="size-3 ml-1" />
       </Button>

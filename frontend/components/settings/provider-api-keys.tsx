@@ -81,8 +81,7 @@ export default function ProviderApiKeys() {
               <div className="flex justify-end">
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0"
+                  size="icon"
                   onClick={() => {
                     deleteProviderApiKey(apiKey.name);
                   }}

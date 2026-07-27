@@ -125,7 +125,7 @@ const ShareEvalButton = ({ evaluationId, projectId }: ShareEvalButtonProps) => {
                   <p className="text-xs text-secondary-foreground">Only project members can access this evaluation.</p>
                 </div>
               </div>
-              <Button variant="default" className="w-full" disabled={isLoading} onClick={handleToggleVisibility}>
+              <Button className="w-full" disabled={isLoading} onClick={handleToggleVisibility}>
                 {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Globe className="h-4 w-4 mr-2" />}
                 Share publicly
               </Button>

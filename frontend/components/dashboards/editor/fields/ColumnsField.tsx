@@ -30,13 +30,7 @@ const ColumnsField = () => {
     <div className="grid gap-2">
       <div className="flex items-center justify-between">
         <Label className="font-semibold text-xs">Columns</Label>
-        <Button
-          icon="plus"
-          size="sm"
-          className="text-primary hover:text-primary/80 h-auto py-0.5 px-1"
-          variant="ghost"
-          onClick={handleAdd}
-        >
+        <Button icon="plus" size="sm" variant="link" onClick={handleAdd}>
           Add
         </Button>
       </div>

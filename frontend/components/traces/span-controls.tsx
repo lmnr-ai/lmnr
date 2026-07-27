@@ -85,7 +85,7 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
               passHref
               onClick={() => track("playgrounds", "experiment_clicked", { source: "span_view" })}
             >
-              <Button variant="outlinePrimary" className="px-1.5 text-xs h-6 font-mono bg-primary/10">
+              <Button variant="outlinePrimary" size="sm" className="font-mono bg-primary/10">
                 <PlayCircle className="mr-1" size={14} />
                 Experiment in playground
               </Button>
@@ -94,7 +94,8 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
           {!isAlwaysSelectSpan && onClose && (
             <Button
               variant="ghost"
-              className="ml-auto px-0.5 h-6 w-6 flex-shrink-0"
+              size="icon-sm"
+              className="ml-auto flex-shrink-0"
               onClick={onClose}
               aria-label="Close span panel"
             >

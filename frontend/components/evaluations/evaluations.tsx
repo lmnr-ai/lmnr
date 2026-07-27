@@ -495,7 +495,7 @@ function EvaluationsContent() {
                   {scoreNames.length > 0 && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button className="h-7 w-7" variant="outline" size="icon">
+                        <Button variant="outline" size="icon">
                           <SettingsIcon className="h-4 w-4 text-secondary-foreground" />
                         </Button>
                       </DropdownMenuTrigger>

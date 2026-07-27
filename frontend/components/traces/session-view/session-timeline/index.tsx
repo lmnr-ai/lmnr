@@ -229,7 +229,7 @@ function SessionTimeline() {
 
       {/* Close button — top-right, styled as a flush tab */}
       <div className="absolute top-0 right-0 z-40 h-6 w-7 bg-muted border-b border-l rounded-bl flex items-end overflow-hidden">
-        <Button onClick={() => setSessionTimelineEnabled(false)} variant="ghost" size="icon" className="size-5 min-w-5">
+        <Button onClick={() => setSessionTimelineEnabled(false)} variant="ghost" size="icon-xs" className="min-w-5">
           <X className="size-3.5" />
         </Button>
       </div>

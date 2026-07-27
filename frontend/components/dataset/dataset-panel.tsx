@@ -338,7 +338,7 @@ export default function DatasetPanel({
       <>
         <div className="flex flex-col h-full w-full">
           <div className="h-12 flex flex-none space-x-2 px-3 items-center border-b">
-            <Button variant="ghost" className="px-1" onClick={handleClose}>
+            <Button variant="ghost" size="icon" onClick={handleClose}>
               <ChevronsRight />
             </Button>
             <div>Row</div>
@@ -360,7 +360,7 @@ export default function DatasetPanel({
             )}
             {(isEditing || isViewingOldVersion) && !saving && (
               <>
-                <Button variant="default" onClick={saveChanges} disabled={!canSave} className="gap-1">
+                <Button onClick={saveChanges} disabled={!canSave} className="gap-1">
                   <Save className="h-4 w-4" />
                   {isViewingOldVersion ? "Save as new version" : "Save"}
                 </Button>

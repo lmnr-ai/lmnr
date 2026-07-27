@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { type PropsWithChildren } from "react";
 
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/lib/hooks/use-toast";
 
 // Minimal "flag" copy button poking out of a row's right edge, revealed on row
@@ -45,9 +46,10 @@ export default function CopyFlag({
       <span className="absolute left-full top-1/2 z-10 ml-3 -translate-y-1/2">
         <motion.div variants={flagVariants} className="flex flex-col gap-2 max-w-[120px]">
           {description && <p className="text-xs text-muted-foreground w-full">{description}</p>}
-          <button
-            type="button"
-            className="self-start whitespace-nowrap rounded-md border bg-secondary px-3 py-1 text-xs text-secondary-foreground hover:bg-muted"
+          <Button
+            variant="secondary"
+            size="sm"
+            className="self-start whitespace-nowrap hover:bg-muted"
             onClick={async (e) => {
               // Rows have their own click behavior (expand toggle / span select).
               e.stopPropagation();
@@ -61,7 +63,7 @@ export default function CopyFlag({
             }}
           >
             {label}
-          </button>
+          </Button>
         </motion.div>
       </span>
       <div className="min-w-0 flex-1">{children}</div>

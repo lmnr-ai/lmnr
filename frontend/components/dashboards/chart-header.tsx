@@ -137,8 +137,8 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
-              size="sm"
-              className="h-6 w-6 text-muted-foreground p-0 ml-auto focus-visible:ring-0"
+              size="icon-sm"
+              className="text-muted-foreground ml-auto focus-visible:ring-0"
               onClick={(e) => e.stopPropagation()}
             >
               <Ellipsis className="size-4" />

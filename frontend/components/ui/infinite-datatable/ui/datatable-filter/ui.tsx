@@ -141,9 +141,8 @@ const FilterPopover = ({
                     <PopoverClose key={`preset-${index}`} asChild>
                       <Button
                         variant={isApplied ? "secondary" : "outline"}
-                        size="sm"
                         className={cn(
-                          "h-7 text-xs font-mono px-2 py-1",
+                          "font-mono",
                           isApplied && "bg-primary/10 border-primary text-primary cursor-default"
                         )}
                         onClick={() => handleApplyFilters(presetFilter)}

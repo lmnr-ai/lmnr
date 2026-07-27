@@ -20,18 +20,18 @@ export default function SessionTimelineControls() {
       <div className="flex items-center border rounded-md bg-muted px-0.5 h-[24px]">
         <Button
           disabled={zoom >= MAX_ZOOM}
-          className="size-5 min-w-5"
+          className="min-w-5"
           variant="ghost"
-          size="icon"
+          size="icon-xs"
           onClick={() => setZoom(zoom + ZOOM_INCREMENT)}
         >
           <Plus className="size-3" />
         </Button>
         <Button
           disabled={zoom <= MIN_ZOOM}
-          className="size-5 min-w-5"
+          className="min-w-5"
           variant="ghost"
-          size="icon"
+          size="icon-xs"
           onClick={() => setZoom(zoom - ZOOM_INCREMENT)}
         >
           <Minus className="size-3" />

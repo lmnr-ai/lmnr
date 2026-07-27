@@ -99,7 +99,7 @@ export default function PanelBody({ traceId, onClose }: Props) {
   const closeButton = (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button variant="ghost" className="h-6 w-6 p-0 shrink-0" onClick={onClose}>
+        <Button variant="ghost" size="icon-sm" className="shrink-0" onClick={onClose}>
           <X className="size-3.5" />
         </Button>
       </TooltipTrigger>

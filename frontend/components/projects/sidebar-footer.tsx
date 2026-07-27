@@ -7,6 +7,7 @@ import laminarIcon from "@/assets/logo/icon.svg";
 import laminarWordmark from "@/assets/logo/laminar-wordmark.svg";
 import VersionBadge from "@/components/common/version-badge.tsx";
 import GitHubStarsButton from "@/components/landing/header/github-stars-button.tsx";
+import { Button } from "@/components/ui/button.tsx";
 import {
   SidebarFooter,
   SidebarGroup,
@@ -35,9 +36,14 @@ const SidebarFooterComponent = () => {
             <div className={cn("flex flex-col rounded-lg border bg-muted relative p-2")}>
               <div className="flex justify-between items-start">
                 <p className="text-xs text-muted-foreground mb-2">Laminar is fully open source</p>
-                <button onClick={() => setShowStarCard(false)} className="text-muted-foreground hover:text-foreground">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setShowStarCard(false)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
                   <X size={16} />
-                </button>
+                </Button>
               </div>
               <GitHubStarsButton owner="lmnr-ai" repo="lmnr" className="w-fit" />
             </div>

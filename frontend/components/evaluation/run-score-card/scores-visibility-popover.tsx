@@ -59,7 +59,7 @@ export default function ScoresVisibilityPopover({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button className="bg-secondary text-secondary-foreground" icon="slidersHorizontal" variant="outline">
+        <Button icon="slidersHorizontal" variant="secondary">
           Scores
         </Button>
       </PopoverTrigger>

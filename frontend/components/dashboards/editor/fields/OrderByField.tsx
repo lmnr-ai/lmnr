@@ -123,14 +123,7 @@ const OrderByField = () => {
             />
           </div>
         ))}
-        <Button
-          icon="plus"
-          size="sm"
-          className="text-primary hover:text-primary/80"
-          variant="ghost"
-          onClick={addOrderBy}
-          disabled={unselectedFields.length === 0}
-        >
+        <Button icon="plus" size="sm" variant="link" onClick={addOrderBy} disabled={unselectedFields.length === 0}>
           Add order by
         </Button>
       </div>

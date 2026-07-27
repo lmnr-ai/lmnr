@@ -78,11 +78,9 @@ export default function TraceControlBar({ trace, analyticsFeature = "sessions" }
       {isDebugger && (
         <Button
           onClick={handleToggleTimeline}
-          variant="outline"
-          className={cn(
-            "h-6 text-xs px-1.5 bg-transparent",
-            isTimelineOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
-          )}
+          variant={isTimelineOpen ? "outlinePrimary" : "outline"}
+          size="sm"
+          className={cn("bg-transparent", !isTimelineOpen && "hover:bg-secondary")}
         >
           <GanttChart size={14} className="mr-1" />
           Timeline

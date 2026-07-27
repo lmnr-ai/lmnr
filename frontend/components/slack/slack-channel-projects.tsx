@@ -147,7 +147,7 @@ export default function SlackChannelProjects({ workspaceId, className }: SlackCh
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={handleAdd} disabled={!channelId || !projectId || saving} className="h-8">
+        <Button onClick={handleAdd} disabled={!channelId || !projectId || saving} size="md">
           {saving && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
           Connect
         </Button>
@@ -180,8 +180,8 @@ export default function SlackChannelProjects({ workspaceId, className }: SlackCh
                 <TableCell className="px-2 py-1">
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                    size="icon-sm"
+                    className="text-muted-foreground hover:text-destructive"
                     onClick={() => handleRemove(b)}
                   >
                     <Trash2 className="h-3.5 w-3.5" />

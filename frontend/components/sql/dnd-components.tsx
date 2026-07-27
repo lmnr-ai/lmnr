@@ -24,8 +24,8 @@ const PureDraggableColumn = ({ column, category, onRemove }: DraggableColumnProp
 
   const style = transform
     ? {
-      transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-    }
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+      }
     : undefined;
 
   return (
@@ -36,11 +36,11 @@ const PureDraggableColumn = ({ column, category, onRemove }: DraggableColumnProp
       className={cn("mb-2", isDragging ? "opacity-30" : "opacity-100")}
     >
       <div className="flex items-center p-1 border rounded bg-card shadow-md">
-        <Button ref={setActivatorNodeRef} {...listeners} className="p-1 h-fit" variant="ghost">
-          <GripVertical className="h-4 w-4 mr-2 shrink-0 text-muted-foreground" />
+        <Button ref={setActivatorNodeRef} {...listeners} size="icon-sm" variant="ghost">
+          <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />
         </Button>
         <span className="truncate font-mono text-sm">{column}</span>
-        <Button onClick={onRemove} variant="ghost" className="ml-auto p-1 h-fit">
+        <Button onClick={onRemove} variant="ghost" size="icon-sm" className="ml-auto">
           <X className="w-4 h-4" />
         </Button>
       </div>

@@ -58,7 +58,7 @@ function SharedEvalTraceViewContent({ traceId, onClose }: SharedEvalTraceViewPro
     return (
       <div className="flex flex-col h-full">
         <div className="flex items-center border-b px-2 py-1.5">
-          <Button variant="ghost" className="px-0.5" onClick={onClose}>
+          <Button variant="ghost" size="icon" onClick={onClose}>
             <ChevronsRight className="w-5 h-5" />
           </Button>
         </div>
@@ -71,7 +71,7 @@ function SharedEvalTraceViewContent({ traceId, onClose }: SharedEvalTraceViewPro
     return (
       <div className="flex flex-col h-full">
         <div className="flex items-center border-b px-2 py-1.5">
-          <Button variant="ghost" className="px-0.5" onClick={onClose}>
+          <Button variant="ghost" size="icon" onClick={onClose}>
             <ChevronsRight className="w-5 h-5" />
           </Button>
         </div>

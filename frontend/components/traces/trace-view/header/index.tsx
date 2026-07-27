@@ -199,13 +199,13 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           {!params?.traceId && (
             <span className={cn(HEADER_ITEM_CLS, "gap-0.5")}>
               {handleClose && (
-                <Button variant="ghost" className="h-7 px-0.5" onClick={handleClose}>
+                <Button variant="ghost" size="icon" onClick={handleClose}>
                   <ChevronsRight className="w-5 h-5" />
                 </Button>
               )}
               {trace && (
                 <NextLink passHref href={`/project/${projectId}/traces/${trace?.id}?${fullScreenParams.toString()}`}>
-                  <Button variant="ghost" className="h-7 px-0.5">
+                  <Button variant="ghost" size="icon">
                     <Maximize className="w-4 h-4" />
                   </Button>
                 </NextLink>
@@ -222,11 +222,9 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
             <span className={HEADER_ITEM_CLS}>
               <Button
                 onClick={() => setSignalsPanelOpen(!signalsPanelOpen)}
-                variant="outline"
-                className={cn(
-                  "h-6 text-xs px-1.5",
-                  signalsPanelOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
-                )}
+                variant={signalsPanelOpen ? "outlinePrimary" : "outline"}
+                size="sm"
+                className={cn(!signalsPanelOpen && "hover:bg-secondary")}
               >
                 <Radio size={14} className="mr-1" />
                 Signals ({signalCount})
@@ -244,11 +242,9 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                     openAgent();
                   }
                 }}
-                variant="outline"
-                className={cn(
-                  "h-6 text-xs px-1.5",
-                  agentOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
-                )}
+                variant={agentOpen ? "outlinePrimary" : "outline"}
+                size="sm"
+                className={cn(!agentOpen && "hover:bg-secondary")}
               >
                 <Sparkles size={14} className="mr-1" />
                 Chat
@@ -275,7 +271,8 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                     <Button
                       onClick={handleOpenSession}
                       variant="outline"
-                      className="h-6 text-xs px-1.5 hover:bg-secondary max-w-56"
+                      size="sm"
+                      className="hover:bg-secondary max-w-56"
                     >
                       <Layers size={14} className="mr-1 flex-shrink-0" />
                       <span className="truncate">{sessionId}</span>
@@ -295,7 +292,8 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                     <Button
                       onClick={handleOpenUserTraces}
                       variant="outline"
-                      className="h-6 text-xs px-1.5 hover:bg-secondary max-w-40"
+                      size="sm"
+                      className="hover:bg-secondary max-w-40"
                     >
                       <User size={14} className="mr-1 flex-shrink-0" />
                       <span className="truncate">{userId}</span>

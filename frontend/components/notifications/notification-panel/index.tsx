@@ -13,6 +13,7 @@ import {
 } from "@/components/notifications/notification-panel/severity-filter";
 import { formatNotification, type FormattedNotification } from "@/components/notifications/notification-panel/utils";
 import { useNotificationPanelStore } from "@/components/notifications/notification-store";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useProjectContext } from "@/contexts/project-context";
 import { type WebNotification } from "@/lib/actions/notifications";
@@ -174,12 +175,14 @@ const NotificationPanel = () => {
                       <Settings className="size-4" />
                     </Link>
                   )}
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
                     onClick={close}
-                    className="flex items-center justify-center rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
+                    className="text-muted-foreground hover:text-foreground hover:bg-secondary/60"
                   >
                     <X className="size-4" />
-                  </button>
+                  </Button>
                 </div>
               </div>
               {hasAnyNotifications && (

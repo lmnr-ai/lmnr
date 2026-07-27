@@ -496,15 +496,14 @@ export default function CustomModelCosts() {
                     initialCosts={costObj}
                     onSave={upsertCost}
                     trigger={
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <Button variant="ghost" size="icon">
                         <Pencil size={14} />
                       </Button>
                     }
                   />
                   <Button
                     variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0"
+                    size="icon"
                     onClick={() => setDeleteTarget({ id: cost.id, model: cost.model })}
                   >
                     <Trash2 size={14} />
