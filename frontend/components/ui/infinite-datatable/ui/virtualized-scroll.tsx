@@ -95,7 +95,10 @@ function VirtualizedRows<TData extends RowData>({
     getScrollElement: () => tableContainerRef.current,
     estimateSize: () => estimatedRowHeight,
     overscan,
-    directDomUpdates: true,
+    measureElement:
+      typeof window !== "undefined" && navigator.userAgent.indexOf("Firefox") === -1
+        ? (element) => element?.getBoundingClientRect().height
+        : undefined,
   });
 
   const virtualItems = rowVirtualizer.getVirtualItems();

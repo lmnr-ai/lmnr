@@ -16,6 +16,8 @@ function InfiniteDatatableRowInner<TData extends RowData>({
   focusedRowId,
   href,
   className,
+  measureElement,
+  isSelected,
 }: InfiniteDataTableRowProps<TData>) {
   const router = useRouter();
 
@@ -48,6 +50,7 @@ function InfiniteDatatableRowInner<TData extends RowData>({
   return (
     <TableRow
       data-index={virtualRow.index}
+      ref={measureElement}
       className={cn(
         "flex min-w-full border-b last:border-b-0 group/row relative",
         (!!onRowClick || !!href) && "cursor-pointer",
@@ -56,7 +59,7 @@ function InfiniteDatatableRowInner<TData extends RowData>({
         className
       )}
       key={row.id}
-      data-state={row.getIsSelected() && "selected"}
+      data-state={isSelected && "selected"}
       data-focused={focusedRowId === row.id || undefined}
       onClick={handleOnClick}
       onAuxClick={handleAuxClick}
@@ -67,13 +70,13 @@ function InfiniteDatatableRowInner<TData extends RowData>({
         top: 0,
         left: 0,
         width: "100%",
-        height: `${virtualRow.size}px`,
         transform: `translateY(${virtualRow.start}px)`,
+        willChange: "transform",
       }}
     >
-      {row.getIsSelected() && <td className="border-l-2 border-l-primary absolute h-full left-0 top-0 z-10" />}
+      {isSelected && <td className="border-l-2 border-l-primary absolute h-full left-0 top-0 z-10" />}
       {row.getVisibleCells().map((cell) => (
-        <InfiniteTableCell key={cell.id} cell={cell} />
+        <InfiniteTableCell key={cell.id} cell={cell} isSelected={isSelected} />
       ))}
     </TableRow>
   );
@@ -89,7 +92,7 @@ function areRowPropsEqual<TData extends RowData>(
     prev.virtualRow.size === next.virtualRow.size &&
     prev.row.id === next.row.id &&
     prev.row.original === next.row.original &&
-    prev.row.getIsSelected() === next.row.getIsSelected() &&
+    prev.isSelected === next.isSelected &&
     prev.focusedRowId === next.focusedRowId &&
     prev.href === next.href &&
     prev.className === next.className &&

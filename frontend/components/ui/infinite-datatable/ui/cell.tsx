@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils.ts";
 
 interface InfiniteTableCellProps<TData extends RowData> {
   cell: Cell<TData, unknown>;
+  // Primitive so the memo comparator sees selection changes; TanStack reuses the same Cell across renders.
+  isSelected: boolean;
 }
 
 function InfiniteTableCellInner<TData extends RowData>({ cell }: InfiniteTableCellProps<TData>) {
@@ -42,7 +44,7 @@ function areCellPropsEqual<TData extends RowData>(
     prev.cell.row.original === next.cell.row.original &&
     prev.cell.column.getSize() === next.cell.column.getSize() &&
     prev.cell.column.getIsPinned() === next.cell.column.getIsPinned() &&
-    prev.cell.row.getIsSelected() === next.cell.row.getIsSelected()
+    prev.isSelected === next.isSelected
   );
 }
 

@@ -91,6 +91,10 @@ export interface InfiniteDataTableRowProps<TData extends RowData> {
   focusedRowId?: string | null;
   /** Extra className merged onto the row's own classes. */
   className?: string;
+  /** Virtualizer ref callback for dynamic row-height measurement. */
+  measureElement: (node: Element | null) => void;
+  // Primitive so the memo comparator sees selection changes; TanStack reuses the same Row across renders.
+  isSelected: boolean;
 }
 
 export interface SelectionPanelProps {

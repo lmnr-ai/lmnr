@@ -79,6 +79,8 @@ export function InfiniteDatatableBody<TData extends RowData>({
                 focusedRowId={focusedRowId}
                 href={getRowHref?.(row)}
                 className={getRowClassName?.(row)}
+                measureElement={rowVirtualizer.measureElement}
+                isSelected={row.getIsSelected()}
               />
             );
           })}
