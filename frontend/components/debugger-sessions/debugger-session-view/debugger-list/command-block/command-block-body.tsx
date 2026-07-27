@@ -2,6 +2,7 @@ import { type CommandBlockContent } from "@/lib/actions/debugger-sessions";
 
 import CommandOutput from "./command-output";
 import GenericCommand from "./generic-command";
+import { SectionLabel } from "./section-label";
 import SqlQueryCommand from "./sql-query-command";
 
 // Expanded body of a command block: the subcommand-specific rendering (stdout
@@ -17,7 +18,7 @@ export default function CommandBlockBody({ command }: { command: CommandBlockCon
       {command.command === "sql query" ? <SqlQueryCommand command={command} /> : <GenericCommand command={command} />}
       {command.stderr !== undefined && command.stderr.length > 0 && (
         <div className="border-t border-[rgba(232,232,232,0.1)]">
-          <div className="px-3 pt-2 font-mono text-[11px] uppercase tracking-wide text-muted-foreground">stderr</div>
+          <SectionLabel>stderr</SectionLabel>
           <CommandOutput output={command.stderr} failed={failed} />
         </div>
       )}

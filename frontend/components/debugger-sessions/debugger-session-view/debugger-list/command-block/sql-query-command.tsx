@@ -7,6 +7,7 @@ import { type CommandBlockContent } from "@/lib/actions/debugger-sessions";
 
 import CommandOutput from "./command-output";
 import GenericCommand from "./generic-command";
+import { SectionLabel } from "./section-label";
 
 // Defer the CodeMirror SQL bundle (schema + autocomplete payload) to first
 // expand of an sql-query block — same pattern as pdf-renderer.tsx.
@@ -26,10 +27,12 @@ export default function SqlQueryCommand({ command }: { command: CommandBlockCont
 
   return (
     <div className="flex flex-col border-t border-[rgba(232,232,232,0.1)]">
+      <SectionLabel>query</SectionLabel>
       <div className="max-h-80 overflow-auto">
         <SQLEditor value={sqlText} editable={false} className="text-xs" />
       </div>
       <div className="border-t border-[rgba(232,232,232,0.1)]">
+        <SectionLabel>stdout</SectionLabel>
         <CommandOutput output={command.output} failed={failed} />
       </div>
     </div>
