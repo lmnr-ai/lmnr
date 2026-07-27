@@ -160,14 +160,27 @@ const TABLES: &[Table] = &[
                 "De-duplicated span names in the trace",
             ),
             col(
-                "root_span_input",
+                "agent_input",
                 "String",
-                "Top span input as stringified JSON / raw string",
+                "Extracted agent task / user input for the trace (stringified JSON / raw string)",
+            ),
+        ],
+    },
+    Table {
+        name: "trace_outputs",
+        desc: "Extracted final agent output per trace: the output-message array of the \
+               last LLM call on the trace's main-agent path.",
+        columns: &[
+            col("trace_id", "UUID", "Id of the trace"),
+            col(
+                "updated_at",
+                "DateTime64(9,'UTC')",
+                "End time of the span the output was extracted from",
             ),
             col(
-                "root_span_output",
-                "String",
-                "Top span output as stringified JSON / raw string",
+                "agent_output",
+                "Array(String)",
+                "Output messages of the trace's final LLM call, one stringified JSON message per element",
             ),
         ],
     },

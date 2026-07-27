@@ -215,6 +215,7 @@ const debuggerTraceSelectColumns = [
   "cache_read_input_tokens as cacheReadInputTokens",
   "total_cost as totalCost",
   "metadata",
+  "agent_input as agentInput",
 ];
 
 export type SessionEvaluationScore = {

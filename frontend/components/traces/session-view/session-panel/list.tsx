@@ -4,7 +4,6 @@ import { defaultRangeExtractor, type Range, useVirtualizer } from "@tanstack/rea
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
-import { useBatchedTraceIO } from "@/components/traces/sessions-table/use-batched-trace-io";
 import { type TranscriptListGroup } from "@/components/traces/trace-view/store/base";
 import {
   AgentGroupHeader,
@@ -59,6 +58,7 @@ export default function SessionList() {
     consumeScrollToGroup,
     scrollToTraceId,
     consumeScrollToTrace,
+    fetchAgentOutputs,
   } = useSessionViewBaseStore(
     (s) => ({
       projectId: s.projectId,
@@ -81,6 +81,7 @@ export default function SessionList() {
       consumeScrollToGroup: s.consumeScrollToGroup,
       scrollToTraceId: s.scrollToTraceId,
       consumeScrollToTrace: s.consumeScrollToTrace,
+      fetchAgentOutputs: s.fetchAgentOutputs,
     }),
     shallow
   );
@@ -375,8 +376,9 @@ export default function SessionList() {
   // Derive the set of span IDs currently visible in the virtualizer window,
   // grouped by trace. We include visible "span" / "group-span" rows and
   // "group-header" firstLlmSpanId (as an input-span for userInputs).
-  // Collapsed trace-headers don't need per-span previews — the `/traces/io`
-  // endpoint delivers the output text + span payload directly.
+  // Collapsed trace-headers render input from the trace row's ingestion-time
+  // `agentInput`; output is lazily fetched from the trace_outputs view for
+  // rows in view (below).
   const rangeStart = items[0]?.index ?? 0;
   const rangeEnd = items[items.length - 1]?.index ?? -1;
 
@@ -433,12 +435,22 @@ export default function SessionList() {
     spanTypesByTrace,
   });
 
-  // Main-agent input/output text + output span, fetched in one batched call
-  // per session. Reuses the `/traces/io` endpoint + hook that powers the
-  // sessions-table trace cards. Sessions can have many traces, so we pass
-  // every traceId; the hook caches (LRU 200) and chunks into 100-ID batches.
-  const traceIds = useMemo(() => traces.map((t) => t.id), [traces]);
-  const { previews: traceIO } = useBatchedTraceIO(projectId, traceIds);
+  // Agent output: for collapsed-body rows in view, request the extracted
+  // output from the trace_outputs view. The store batches, debounces, and
+  // dedups.
+  const outputTraceIds = useMemo(() => {
+    const ids: string[] = [];
+    for (let i = rangeStart; i <= rangeEnd; i++) {
+      const row = flatRows[i];
+      if (row?.type !== "trace-collapsed-body") continue;
+      ids.push(row.traceId);
+    }
+    return ids;
+  }, [rangeStart, rangeEnd, flatRows]);
+
+  useEffect(() => {
+    if (outputTraceIds.length > 0) fetchAgentOutputs(outputTraceIds);
+  }, [outputTraceIds, fetchAgentOutputs]);
 
   return (
     <div
@@ -489,7 +501,7 @@ export default function SessionList() {
               ) : row.type === "trace-collapsed-body" ? (
                 (() => {
                   const t = traceById.get(row.traceId);
-                  return t ? <TraceCollapsedBody trace={t} traceIO={traceIO[row.traceId]} /> : null;
+                  return t ? <TraceCollapsedBody trace={t} /> : null;
                 })()
               ) : row.type === "trace-loading" ? (
                 <div className="flex flex-col gap-2 py-2 px-2">
@@ -516,8 +528,8 @@ export default function SessionList() {
                 </div>
               ) : row.type === "user-input" ? (
                 <InputItem
-                  text={traceIO[row.traceId]?.inputPreview ?? null}
-                  isLoading={traceIO[row.traceId] === undefined}
+                  text={traceById.get(row.traceId)?.agentInput ?? null}
+                  isLoading={false}
                   className="rounded-lg"
                 />
               ) : row.type === "group-header" ? (

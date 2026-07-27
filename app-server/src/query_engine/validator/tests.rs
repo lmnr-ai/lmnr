@@ -105,6 +105,19 @@ fn test_validate_basic_traces_select() {
 }
 
 #[test]
+fn test_validate_trace_outputs_select() {
+    // Not time-parameterized — only project_id is injected.
+    let result = validate_ok("SELECT trace_id, agent_output FROM trace_outputs");
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM trace_outputs_v0(project_id = '{SAMPLE_PROJECT_ID}') AS trace_outputs")
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
 fn test_validate_evaluation_datapoints_select() {
     let result = validate_ok("SELECT id, evaluation_id FROM evaluation_datapoints");
     assert!(

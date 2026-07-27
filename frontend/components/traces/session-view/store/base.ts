@@ -37,6 +37,11 @@ export interface BaseSessionViewState {
   traceSpansLoading: Record<string, boolean>;
   traceSpansError: Record<string, string | undefined>;
 
+  /** Extracted trace-output text, keyed by trace id, read from the
+   *  `trace_outputs` view via `/traces/output` (with a legacy last-LLM-span
+   *  fallback server-side). Absent = not fetched; null = fetched, none found. */
+  agentOutputs: Record<string, string | null>;
+
   // UI state
   expandedTraceIds: Set<string>;
   /** Namespaced `${traceId}::${groupId}` set — EXPANDED transcript groups (default collapsed). */
@@ -92,6 +97,11 @@ export interface BaseSessionViewActions {
   /** Fetch spans for a trace if not already loaded or currently loading.
    *  Idempotent: safe to call repeatedly on mount of TraceItem. */
   fetchTraceSpans: (trace: TraceRow) => Promise<void>;
+
+  /** Fetch the extracted output text for the given traces (batched +
+   *  debounced). Skips ids already resolved or in-flight. Fire-and-forget;
+   *  fills `agentOutputs`. */
+  fetchAgentOutputs: (traceIds: string[]) => void;
 
   toggleTraceExpanded: (traceId: string) => void;
   setTraceExpanded: (traceId: string, expanded: boolean) => void;
@@ -201,6 +211,52 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
   // No options needed today; keep the signature for parity with trace-view's base.
   _options?: Record<string, never>
 ): BaseSessionViewStore {
+  // Closure-scoped per-store batching state for the output fetch.
+  // Not part of the store's reactive state — pure fetch bookkeeping.
+  const outputFetching = new Set<string>();
+  const outputPending = new Set<string>();
+  let outputTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const flushAgentOutputs = async () => {
+    const projectId = get().projectId;
+    if (!projectId || outputPending.size === 0) return;
+
+    const toFetch = Array.from(outputPending);
+    outputPending.clear();
+    for (const id of toFetch) outputFetching.add(id);
+
+    // Server caps each request at 100 ids.
+    for (let i = 0; i < toFetch.length; i += 100) {
+      const chunk = toFetch.slice(i, i + 100);
+      try {
+        const res = await fetch(`/api/projects/${projectId}/traces/output`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ traceIds: chunk }),
+        });
+        if (!res.ok) throw new Error("Failed to fetch trace output");
+        const data = (await res.json()) as Record<string, string | null>;
+        set({
+          agentOutputs: {
+            ...get().agentOutputs,
+            ...Object.fromEntries(chunk.map((id) => [id, data[id] ?? null])),
+          },
+        } as Partial<T>);
+      } catch {
+        // Mark as resolved-with-nothing so we don't retry in a loop; the
+        // collapsed body already degrades to "no output" gracefully.
+        set({
+          agentOutputs: {
+            ...get().agentOutputs,
+            ...Object.fromEntries(chunk.map((id) => [id, null])),
+          },
+        } as Partial<T>);
+      } finally {
+        for (const id of chunk) outputFetching.delete(id);
+      }
+    }
+  };
+
   return {
     traces: [],
     isTracesLoading: false,
@@ -209,6 +265,8 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
     traceSpans: {},
     traceSpansLoading: {},
     traceSpansError: {},
+
+    agentOutputs: {},
 
     expandedTraceIds: new Set<string>(),
     transcriptExpandedGroups: new Set<string>(),
@@ -290,6 +348,19 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
           traceSpansLoading: { ...get().traceSpansLoading, [trace.id]: false },
         } as Partial<T>);
       }
+    },
+
+    fetchAgentOutputs: (traceIds) => {
+      const resolved = get().agentOutputs;
+      let added = false;
+      for (const id of traceIds) {
+        if (id in resolved || outputFetching.has(id) || outputPending.has(id)) continue;
+        outputPending.add(id);
+        added = true;
+      }
+      if (!added) return;
+      if (outputTimer) clearTimeout(outputTimer);
+      outputTimer = setTimeout(() => void flushAgentOutputs(), 150);
     },
 
     // open recursion: delegates to get().fetchTraceSpans — a derived store's override wins.
