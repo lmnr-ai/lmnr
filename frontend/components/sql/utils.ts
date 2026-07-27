@@ -245,7 +245,6 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "metadata", type: "String", description: "Additional metadata as stringified JSON" },
       { name: "executor_output", type: "String", description: "Output from the executor" },
       { name: "index", type: "UInt64", description: "Index of the evaluation datapoint within the evaluation" },
-      { name: "group_id", type: "String", description: "Group identifier of the evaluation run" },
       {
         name: "scores",
         type: "String",

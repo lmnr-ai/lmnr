@@ -113,7 +113,6 @@ pub async fn insert_evaluation_datapoints(
     evaluation_datapoints: Vec<EvaluationDatapointResult>,
     evaluation_id: Uuid,
     project_id: Uuid,
-    group_name: &String,
 ) -> Result<Vec<CHEvaluationDatapoint>> {
     if evaluation_datapoints.is_empty() {
         return Ok(Vec::new());
@@ -135,12 +134,7 @@ pub async fn insert_evaluation_datapoints(
     let ch_rows: Vec<CHEvaluationDatapoint> = evaluation_datapoints
         .into_iter()
         .map(|dp| {
-            CHEvaluationDatapoint::from_evaluation_datapoint_result(
-                dp,
-                evaluation_id,
-                project_id,
-                group_name,
-            )
+            CHEvaluationDatapoint::from_evaluation_datapoint_result(dp, evaluation_id, project_id)
         })
         .collect();
 
@@ -158,7 +152,6 @@ pub async fn update_evaluation_datapoint(
     evaluation_id: Uuid,
     project_id: Uuid,
     datapoint_id: Uuid,
-    group_id: &String,
     executor_output: Option<Value>,
     scores: HashMap<String, Option<f64>>,
     trace_id: Option<Uuid>,
@@ -211,7 +204,7 @@ pub async fn update_evaluation_datapoint(
             id, evaluation_id, project_id, trace_id, updated_at,
             data, target, metadata, executor_output, `index`,
             dataset_id, dataset_datapoint_id, dataset_datapoint_created_at,
-            group_id, scores
+            scores
         )
         SELECT
             existing.id,
@@ -227,7 +220,6 @@ pub async fn update_evaluation_datapoint(
             existing.dataset_id,
             existing.dataset_datapoint_id,
             existing.dataset_datapoint_created_at,
-            ?,
             if(empty(?),
                 existing.scores,
                 if(notEmpty(existing.scores),
@@ -247,8 +239,7 @@ pub async fn update_evaluation_datapoint(
                 scores,
                 dataset_id,
                 dataset_datapoint_id,
-                dataset_datapoint_created_at,
-                group_id
+                dataset_datapoint_created_at
             FROM evaluation_datapoints FINAL
             PREWHERE id = ?
             WHERE project_id = ? AND evaluation_id = ?
@@ -261,7 +252,6 @@ pub async fn update_evaluation_datapoint(
         .bind(now_nanos)
         .bind(new_executor_output.as_str())
         .bind(new_executor_output.as_str())
-        .bind(group_id.as_str())
         .bind(new_scores.as_str())
         .bind(new_scores.as_str())
         .bind(new_scores.as_str())

@@ -201,7 +201,6 @@ const TABLES: &[Table] = &[
             col("metadata", "String", "Metadata as stringified JSON"),
             col("executor_output", "String", "Executor output"),
             col("index", "UInt64", "Index within the evaluation"),
-            col("group_id", "String", "Group id of the evaluation run"),
             col(
                 "scores",
                 "String",

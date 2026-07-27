@@ -1,5 +1,9 @@
+import { and, eq, inArray } from "drizzle-orm";
+
 import { executeQuery } from "@/lib/actions/sql";
 import { type AggregationFunction } from "@/lib/clickhouse/types";
+import { db } from "@/lib/db/drizzle";
+import { evaluations } from "@/lib/db/migrations/schema";
 
 import { type EvaluationTimeProgression } from "../evaluation/types";
 
@@ -11,7 +15,22 @@ export const getEvaluationTimeProgression = async (
   // trend, not just the table's loaded page). Scoped by id only when provided.
   ids?: string[]
 ): Promise<EvaluationTimeProgression[]> => {
-  const scopeById = !!ids && ids.length > 0;
+  // Group membership lives in Postgres `evaluations.group_id`; datapoints only
+  // carry `evaluation_id` (a sort-key prefix, unlike the old `group_id` scan).
+  const groupRuns = await db
+    .select({ id: evaluations.id })
+    .from(evaluations)
+    .where(
+      and(
+        eq(evaluations.projectId, projectId),
+        eq(evaluations.groupId, groupId),
+        ...(ids && ids.length > 0 ? [inArray(evaluations.id, ids)] : [])
+      )
+    );
+
+  const evaluationIds = groupRuns.map((run) => run.id);
+  if (evaluationIds.length === 0) return [];
+
   // Query all datapoints with their scores for the given evaluations
   const datapoints = await executeQuery<{
     evaluation_id: string;
@@ -25,14 +44,12 @@ export const getEvaluationTimeProgression = async (
         created_at,
         scores
       FROM evaluation_datapoints FINAL
-      WHERE group_id = {groupId: String}
-        ${scopeById ? "AND evaluation_id IN {ids: Array(UUID)}" : ""}
+      WHERE evaluation_id IN {evaluationIds: Array(UUID)}
       ORDER BY created_at ASC
     `,
     parameters: {
       projectId,
-      groupId,
-      ...(scopeById ? { ids } : {}),
+      evaluationIds,
     },
   });
 

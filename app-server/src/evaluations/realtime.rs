@@ -195,7 +195,6 @@ mod tests {
             dataset_id: Uuid::nil(),
             dataset_datapoint_id: Uuid::nil(),
             dataset_datapoint_created_at: 0,
-            group_id: "default".into(),
             scores: r#"{"accuracy":0.9}"#.into(),
         }
     }

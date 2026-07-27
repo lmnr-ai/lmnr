@@ -65,6 +65,18 @@ fn test_traces_table_schema() {
 }
 
 #[test]
+fn test_evaluation_datapoints_schema_has_no_group_id() {
+    // Group membership lives in Postgres `evaluations.group_id`; datapoints
+    // resolve their group via `evaluation_id`.
+    let reg = TableRegistry::new();
+    let dps = reg
+        .get_table_schema("evaluation_datapoints")
+        .expect("evaluation_datapoints schema");
+    assert!(dps.allowed_columns.contains("evaluation_id"));
+    assert!(!dps.is_column_allowed("group_id"));
+}
+
+#[test]
 fn test_column_validation() {
     let reg = TableRegistry::new();
     let spans = reg.get_table_schema("spans").expect("spans schema");

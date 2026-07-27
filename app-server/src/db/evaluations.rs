@@ -5,8 +5,6 @@ use serde_json::Value;
 use sqlx::{PgPool, prelude::FromRow};
 use uuid::Uuid;
 
-use crate::evaluations::DEFAULT_GROUP_NAME;
-
 #[derive(Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct Evaluation {
@@ -19,11 +17,6 @@ pub struct Evaluation {
     /// Conceptually, evaluations with different group ids are used to test different features.
     pub group_id: String,
     pub metadata: Option<Value>,
-}
-
-#[derive(FromRow)]
-pub struct EvaluationInfo {
-    pub group_id: String,
 }
 
 pub async fn create_evaluation(
@@ -86,27 +79,6 @@ pub async fn update_evaluation(
     .await?;
 
     Ok(evaluation)
-}
-
-/// Get evaluation group_id for ClickHouse operations
-pub async fn get_evaluation_group_id(
-    pool: &PgPool,
-    evaluation_id: Uuid,
-    project_id: Uuid,
-) -> Result<String> {
-    let eval_info = sqlx::query_as::<_, EvaluationInfo>(
-        "SELECT group_id 
-         FROM evaluations
-         WHERE id = $1 AND project_id = $2 LIMIT 1",
-    )
-    .bind(evaluation_id)
-    .bind(project_id)
-    .fetch_optional(pool)
-    .await?;
-
-    Ok(eval_info
-        .map(|e| e.group_id)
-        .unwrap_or(DEFAULT_GROUP_NAME.to_string()))
 }
 
 pub async fn is_shared_evaluation(

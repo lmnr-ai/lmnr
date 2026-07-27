@@ -530,7 +530,6 @@ impl TableRegistry {
             "executor_output",
             "index",
             "trace_id",
-            "group_id",
             "scores",
             "updated_at",
             "created_at",

@@ -6,16 +6,9 @@ use clickhouse::Row;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    evaluations::{DEFAULT_GROUP_NAME, EvaluationDatapointResult},
-    utils::json_value_to_string,
-};
+use crate::{evaluations::EvaluationDatapointResult, utils::json_value_to_string};
 
 use super::utils::chrono_to_nanoseconds;
-
-fn default_group_id() -> String {
-    DEFAULT_GROUP_NAME.to_string()
-}
 
 #[derive(Row, Serialize, Deserialize, Debug)]
 pub struct CHEvaluationDatapoint {
@@ -38,8 +31,6 @@ pub struct CHEvaluationDatapoint {
     #[serde(with = "clickhouse::serde::uuid")]
     pub dataset_datapoint_id: Uuid,
     pub dataset_datapoint_created_at: i64,
-    #[serde(default = "default_group_id")]
-    pub group_id: String,
     pub scores: String, // Stringified JSON object from score name to float value
 }
 
@@ -48,7 +39,6 @@ impl CHEvaluationDatapoint {
         result: EvaluationDatapointResult,
         evaluation_id: Uuid,
         project_id: Uuid,
-        group_name: &String,
     ) -> Self {
         CHEvaluationDatapoint {
             id: result.id,
@@ -82,7 +72,6 @@ impl CHEvaluationDatapoint {
                 .executor_output
                 .map(|output| json_value_to_string(&output))
                 .unwrap_or_default(),
-            group_id: group_name.clone(),
             scores: json_value_to_string(
                 &serde_json::to_value(
                     result

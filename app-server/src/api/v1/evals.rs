@@ -5,7 +5,8 @@ use crate::{
     cache::Cache,
     db::{self, DB, project_api_keys::ProjectApiKey},
     evaluations::{
-        EvaluationDatapointResult, UpdatedDatapointStrings, insert_evaluation_datapoints,
+        DEFAULT_GROUP_NAME, EvaluationDatapointResult, UpdatedDatapointStrings,
+        insert_evaluation_datapoints,
         realtime::{RealtimeDatapoint, cache_inserted_datapoint_trace_ids, send_datapoint_updates},
         update_evaluation_datapoint,
     },
@@ -39,7 +40,9 @@ pub async fn init_eval(
     project_api_key: ProjectApiKey,
 ) -> ResponseResult {
     let req = req.into_inner();
-    let group_name = req.group_name.unwrap_or("default".to_string());
+    let group_name = req
+        .group_name
+        .unwrap_or_else(|| DEFAULT_GROUP_NAME.to_string());
     let project_id = project_api_key.project_id;
     let metadata = req.metadata;
     let name = if let Some(name) = req.name {
@@ -112,7 +115,6 @@ pub async fn update_eval(
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveEvalDatapointsRequest {
-    pub group_name: Option<String>,
     pub points: Vec<EvaluationDatapointResult>,
 }
 
@@ -130,18 +132,10 @@ pub async fn save_eval_datapoints(
     let req = req.into_inner();
     let project_id = project_api_key.project_id;
     let points = req.points;
-    let group_name = req.group_name.unwrap_or("default".to_string());
     let clickhouse = clickhouse.into_inner().as_ref().clone();
 
-    let ch_rows = insert_evaluation_datapoints(
-        &db.pool,
-        clickhouse,
-        points,
-        eval_id,
-        project_id,
-        &group_name,
-    )
-    .await?;
+    let ch_rows =
+        insert_evaluation_datapoints(&db.pool, clickhouse, points, eval_id, project_id).await?;
 
     cache_inserted_datapoint_trace_ids(cache.into_inner(), &project_id, &eval_id, &ch_rows).await;
 
@@ -184,8 +178,6 @@ pub async fn update_eval_datapoint(
     let clickhouse = clickhouse.into_inner().as_ref().clone();
     let project_id = project_api_key.project_id;
 
-    let group_id = db::evaluations::get_evaluation_group_id(&db.pool, eval_id, project_id).await?;
-
     let UpdatedDatapointStrings {
         executor_output: ch_executor_output,
         scores: ch_scores,
@@ -195,7 +187,6 @@ pub async fn update_eval_datapoint(
         eval_id,
         project_id,
         datapoint_id,
-        &group_id,
         req.executor_output,
         req.scores,
         req.trace_id,
