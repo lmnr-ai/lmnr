@@ -3,12 +3,8 @@
 //! — share ONE implementation. Ungated by the `signals` cargo feature: creating
 //! a signal row is a plain DB write (signal processing is what's enterprise); it
 //! is gated at runtime by the frontend's `Feature.SIGNALS`, same as before.
-//!
-//! Strict validation mirrors the create-signal drawer's client-side constraints
-//! (identifier field names, string/number/boolean property types, enum on
-//! strings only, `required` = all property names, and the four UI trigger
-//! columns with their pinned operators/values). Enforcing them here means both
-//! clients get the same guarantees the drawer used to enforce only in the browser.
+//! Strict validation mirrors the drawer's client-side constraints so both
+//! clients get the same guarantees.
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -253,10 +249,13 @@ pub fn error_response(e: CrudError) -> actix_web::HttpResponse {
 /// The frontend `getDefaultTriggers` seed (realtime; batch is feature-disabled),
 /// used when the CLI omits `triggers`.
 pub fn default_triggers() -> Vec<TriggerInput> {
+    // Byte-identical to the frontend `DEFAULT_SIGNAL_TRIGGER_VALUE` (order +
+    // string `"1000"`) so a CLI-seeded default signal's stored `value` jsonb
+    // matches a UI-seeded one.
     vec![TriggerInput {
         filters: vec![
+            json!({ "column": "total_token_count", "operator": "gt", "value": "1000" }),
             json!({ "column": "root_span_finished", "operator": "eq", "value": "true" }),
-            json!({ "column": "total_token_count", "operator": "gt", "value": 1000 }),
         ],
         mode: Some(1),
     }]
@@ -316,6 +315,17 @@ fn validate_structured_output(schema: &Value) -> Result<(), CrudError> {
         ));
     }
 
+    // Reject unknown keys, matching the drawer's `.strict()` zod schema so a
+    // UI-rejected payload can't be accepted (and stored verbatim) via app-server.
+    if let Some(k) = obj
+        .keys()
+        .find(|k| !matches!(k.as_str(), "type" | "properties" | "required"))
+    {
+        return Err(CrudError::Validation(format!(
+            "structuredOutput has unexpected key \"{k}\""
+        )));
+    }
+
     let properties = obj
         .get("properties")
         .and_then(Value::as_object)
@@ -336,6 +346,15 @@ fn validate_structured_output(schema: &Value) -> Result<(), CrudError> {
         let prop = prop.as_object().ok_or_else(|| {
             CrudError::Validation(format!("Property \"{field_name}\" must be an object"))
         })?;
+
+        if let Some(k) = prop
+            .keys()
+            .find(|k| !matches!(k.as_str(), "type" | "description" | "enum"))
+        {
+            return Err(CrudError::Validation(format!(
+                "Property \"{field_name}\" has unexpected key \"{k}\""
+            )));
+        }
 
         let ty = prop.get("type").and_then(Value::as_str).ok_or_else(|| {
             CrudError::Validation(format!("Property \"{field_name}\" is missing a type"))
@@ -361,13 +380,22 @@ fn validate_structured_output(schema: &Value) -> Result<(), CrudError> {
             let arr = enum_val.as_array().ok_or_else(|| {
                 CrudError::Validation(format!("Property \"{field_name}\" enum must be an array"))
             })?;
-            if arr.is_empty()
-                || !arr
-                    .iter()
-                    .all(|v| v.as_str().is_some_and(|s| !s.is_empty()))
-            {
+            // Non-empty array of non-empty, already-trimmed strings — mirrors
+            // both the drawer's EnumValuesInput (trims on input) and the CLI's
+            // validate.ts, so all three enforce the same enum shape.
+            let values: Option<Vec<&str>> = arr.iter().map(Value::as_str).collect();
+            let values = values.filter(|vs| {
+                !vs.is_empty() && vs.iter().all(|s| !s.is_empty() && *s == s.trim())
+            });
+            let Some(values) = values else {
                 return Err(CrudError::Validation(format!(
-                    "Property \"{field_name}\" enum must be a non-empty array of non-empty strings"
+                    "Property \"{field_name}\" enum must be a non-empty array of non-empty, trimmed strings"
+                )));
+            };
+            let mut seen = std::collections::HashSet::new();
+            if !values.iter().all(|s| seen.insert(*s)) {
+                return Err(CrudError::Validation(format!(
+                    "Property \"{field_name}\" enum values must be unique"
                 )));
             }
         }
