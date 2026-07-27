@@ -196,20 +196,21 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
 export async function moveEvaluations(input: z.infer<typeof MoveEvaluationsSchema>) {
   const { projectId, evaluationIds, groupId } = MoveEvaluationsSchema.parse(input);
 
-  // Postgres is the source of truth for group membership; update it first. If it
-  // throws we've changed nothing and bail cleanly.
-  await db
-    .update(evaluations)
-    .set({ groupId })
-    .where(and(inArray(evaluations.id, evaluationIds), eq(evaluations.projectId, projectId)));
-
-  // Datapoints carry a denormalized group_id that the group progression chart
-  // reads (WHERE group_id = ...), so it must follow. evaluation_datapoints is a
-  // ReplacingMergeTree(updated_at): re-insert the latest (FINAL) version of each
-  // row with the new group_id + a fresh updated_at so it wins on the next merge /
-  // FINAL read. Unlike deleteEvaluations we do NOT swallow errors here — a stale
-  // group_id is *visible* (chart drift), so we fail loud and let the caller surface
-  // it; a retry is idempotent (Postgres update is a no-op, the re-insert re-wins).
+  // This move spans two stores (Postgres eval-header group_id + ClickHouse datapoint
+  // group_id) with no distributed transaction. We do the FLAKIER, slower step first —
+  // the ClickHouse re-insert — so the common failure mode (a CH blip) leaves BOTH stores
+  // untouched and the move simply didn't happen. Postgres, the near-reliable step that
+  // decides group-list membership, goes last: if CH throws, we bail before mutating PG,
+  // so no eval ever appears in the destination group without its datapoints. The tiny
+  // residual window (CH ok, PG throws) heals on retry — both steps are idempotent (the
+  // re-insert re-wins by updated_at, the PG update is a no-op). We do NOT swallow errors
+  // (unlike deleteEvaluations): partial state here is *visible* (chart drift), so we fail
+  // loud and let the caller surface it and retry.
+  //
+  // Datapoints carry a denormalized group_id that the group progression chart reads
+  // (WHERE group_id = ...), so it must follow the header. evaluation_datapoints is a
+  // ReplacingMergeTree(updated_at): re-insert the latest (FINAL) version of each row with
+  // the new group_id + a fresh updated_at so it wins on the next merge / FINAL read.
   //
   // NOTE: the column list is hardcoded and MUST stay in sync with the
   // evaluation_datapoints schema — INSERT ... SELECT maps positionally, so a new
@@ -234,12 +235,18 @@ export async function moveEvaluations(input: z.infer<typeof MoveEvaluationsSchem
       evaluationIds,
       groupId,
     },
-    // Re-insert must be durable before we report success (shared client defaults
+    // Re-insert must be durable before we touch Postgres (shared client defaults
     // to wait_for_async_insert: 0).
     clickhouse_settings: {
       wait_for_async_insert: 1,
     },
   });
+
+  // Postgres last: it decides group-list membership, and it's the reliable step.
+  await db
+    .update(evaluations)
+    .set({ groupId })
+    .where(and(inArray(evaluations.id, evaluationIds), eq(evaluations.projectId, projectId)));
 }
 
 export async function deleteEvaluations(input: z.infer<typeof DeleteEvaluationsSchema>) {

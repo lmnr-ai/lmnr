@@ -67,8 +67,9 @@ export default function MoveToGroup({ projectId, selectedRowIds, currentGroupId,
     <>
       <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
         <PopoverTrigger asChild>
-          <Button variant="ghost" aria-label="Move to group">
+          <Button variant="ghost">
             <FolderInput size={12} />
+            Move
           </Button>
         </PopoverTrigger>
         <PopoverContent align="center" className="w-64 p-1">
