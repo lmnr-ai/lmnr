@@ -71,7 +71,7 @@ const SearchInput = ({ onSearch, placeholder, className }: SearchInputProps) => 
           onChange={(e) => setInputValue(e.target.value)}
         />
         {inputValue && (
-          <Button onClick={handleClearInput} variant="ghost" className="h-4 w-4" size="icon">
+          <Button aria-label="Close" onClick={handleClearInput} variant="ghost" className="h-4 w-4" size="icon">
             <X size={16} className="text-secondary-foreground cursor-pointer" />
           </Button>
         )}

@@ -367,7 +367,7 @@ const PureFilterList = ({
                   )}{" "}
                   {f.value}
                 </span>
-                <Button onClick={() => onRemoveFilter(f)} className="p-0 h-fit group" variant="ghost">
+                <Button aria-label="Close" onClick={() => onRemoveFilter(f)} className="p-0 h-fit group" variant="ghost">
                   <X className="w-3 h-3 text-primary/70 group-hover:text-primary" />
                 </Button>
               </Badge>

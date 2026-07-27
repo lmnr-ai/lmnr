@@ -79,7 +79,7 @@ export default function ProviderApiKeys() {
             <td className="px-4 text-sm text-muted-foreground">{formatTimestamp(apiKey.createdAt)}</td>
             <td className="px-4">
               <div className="flex justify-end">
-                <Button
+                <Button aria-label="Delete"
                   variant="ghost"
                   size="sm"
                   className="h-8 w-8 p-0"

@@ -273,7 +273,7 @@ const PureContentRenderer = ({
       {isCodeMode && (
         <Popover onOpenChange={setIsSettingsOpen}>
           <PopoverTrigger asChild>
-            <Button
+            <Button aria-label="Settings"
               variant="ghost"
               size="icon"
               className={cn(

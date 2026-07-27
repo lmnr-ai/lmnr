@@ -271,7 +271,7 @@ export const DateRangeFilterInner = ({
   return (
     <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
       <PopoverTrigger asChild>
-        <Button
+        <Button aria-label="Date range button"
           disabled={buttonDisabled}
           variant="outline"
           className={cn("justify-between text-left font-normal text-xs", className)}

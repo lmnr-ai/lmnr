@@ -62,7 +62,7 @@ export default function EnumValuesInput({
           className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs bg-muted text-secondary-foreground rounded"
         >
           {value}
-          <button
+          <button aria-label="Close"
             type="button"
             onClick={() => removeValue(value)}
             className="hover:text-destructive text-muted-foreground transition-colors"

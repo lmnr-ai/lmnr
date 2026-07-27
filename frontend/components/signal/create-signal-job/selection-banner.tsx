@@ -40,7 +40,7 @@ const SelectionBanner = ({
         <div className="flex-1 text-sm text-secondary-foreground">
           All <span className="font-medium">{traceCount.toLocaleString()}</span> matching traces selected
         </div>
-        <Button variant="ghost" size="icon" onClick={onClearSelection}>
+        <Button aria-label="Close" variant="ghost" size="icon" onClick={onClearSelection}>
           <X className="size-3.5" />
         </Button>
       </div>
@@ -60,7 +60,7 @@ const SelectionBanner = ({
           </Button>
         )}
       </div>
-      <Button variant="ghost" size="icon" onClick={onClearSelection}>
+      <Button aria-label="Close" variant="ghost" size="icon" onClick={onClearSelection}>
         <X className="size-3.5" />
       </Button>
     </div>

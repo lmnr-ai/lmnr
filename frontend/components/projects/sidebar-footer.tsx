@@ -35,7 +35,7 @@ const SidebarFooterComponent = () => {
             <div className={cn("flex flex-col rounded-lg border bg-muted relative p-2")}>
               <div className="flex justify-between items-start">
                 <p className="text-xs text-muted-foreground mb-2">Laminar is fully open source</p>
-                <button onClick={() => setShowStarCard(false)} className="text-muted-foreground hover:text-foreground">
+                <button aria-label="Close" onClick={() => setShowStarCard(false)} className="text-muted-foreground hover:text-foreground">
                   <X size={16} />
                 </button>
               </div>

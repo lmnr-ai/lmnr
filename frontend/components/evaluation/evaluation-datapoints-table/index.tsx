@@ -163,7 +163,7 @@ const EvaluationDatapointsTable = ({
           {onHeatmapEnabledChange && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button className="h-7 w-7" variant="outline" size="icon">
+                <Button aria-label="Settings" className="h-7 w-7" variant="outline" size="icon">
                   <SettingsIcon className="h-4 w-4 text-secondary-foreground" />
                 </Button>
               </DropdownMenuTrigger>

@@ -119,7 +119,7 @@ export default function SchemaFieldRow({
             />
           )}
         />
-        <Button type="button" variant="ghost" onClick={onRemove} disabled={!canRemove} className="py-[7px] shrink-0">
+        <Button aria-label="Close" type="button" variant="ghost" onClick={onRemove} disabled={!canRemove} className="py-[7px] shrink-0">
           <X className="w-3.5 h-3.5" />
         </Button>
       </div>

@@ -78,7 +78,7 @@ export default function ToolsSheet({
     if (toolsCount === 0) {
       return (
         <SheetTrigger asChild>
-          <Button disabled={!model} variant="outline" size="icon" className={cn("focus-visible:ring-0", className)}>
+          <Button aria-label="Settings" disabled={!model} variant="outline" size="icon" className={cn("focus-visible:ring-0", className)}>
             <Bolt className="size-4" />
           </Button>
         </SheetTrigger>
@@ -93,7 +93,7 @@ export default function ToolsSheet({
             <span className="ml-1 text-xs ">{pluralize(toolsCount, "tool", "tools")}</span>
           </Button>
         </SheetTrigger>
-        <Button onClick={() => setValue("tools", "")} className="size-7" variant="outlinePrimary" size="icon">
+        <Button aria-label="Close" onClick={() => setValue("tools", "")} className="size-7" variant="outlinePrimary" size="icon">
           <X className="size-4" />
         </Button>
       </div>

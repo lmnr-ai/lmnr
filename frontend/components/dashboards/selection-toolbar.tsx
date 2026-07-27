@@ -112,7 +112,7 @@ export default function SelectionToolbar() {
             >
               Open in traces
             </Button>
-            <button
+            <button aria-label="Close"
               onClick={clearSelection}
               className="text-muted-foreground hover:text-primary-foreground transition-colors"
             >

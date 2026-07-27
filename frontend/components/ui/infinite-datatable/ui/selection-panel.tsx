@@ -14,7 +14,7 @@ export function SelectionPanel({ selectedRowIds, onClearSelection, selectionPane
         {`${selectedRowIds.length} ${selectedRowIds.length === 1 ? "row " : "rows "}`}
         selected
       </Label>
-      <Button variant="ghost" onClick={onClearSelection}>
+      <Button aria-label="Close" variant="ghost" onClick={onClearSelection}>
         <X size={12} />
       </Button>
       {selectionPanel?.(selectedRowIds)}

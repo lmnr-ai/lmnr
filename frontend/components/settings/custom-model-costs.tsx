@@ -496,12 +496,12 @@ export default function CustomModelCosts() {
                     initialCosts={costObj}
                     onSave={upsertCost}
                     trigger={
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <Button aria-label="Edit" variant="ghost" size="sm" className="h-8 w-8 p-0">
                         <Pencil size={14} />
                       </Button>
                     }
                   />
-                  <Button
+                  <Button aria-label="Delete"
                     variant="ghost"
                     size="sm"
                     className="h-8 w-8 p-0"

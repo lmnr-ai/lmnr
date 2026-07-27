@@ -44,7 +44,7 @@ const PureCodeSheet = ({ mode, modes, renderedValue, extensions, onModeChange, p
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="text-foreground/80">
+        <Button aria-label="Expand" variant="ghost" size="icon" className="text-foreground/80">
           <Maximize className="h-3.5 w-3.5" />
         </Button>
       </SheetTrigger>
@@ -66,7 +66,7 @@ const PureCodeSheet = ({ mode, modes, renderedValue, extensions, onModeChange, p
                 text={sheetMode === "markdown" ? getMarkdownSource(renderedValue) : renderedValue}
               />
               <SheetClose asChild>
-                <Button variant="ghost" size="icon">
+                <Button aria-label="Collapse" variant="ghost" size="icon">
                   <Minimize className="h-4 w-4" />
                 </Button>
               </SheetClose>

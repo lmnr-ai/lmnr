@@ -54,7 +54,7 @@ export const ColumnsMenuItem = ({
 
       <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
         {onEdit && (
-          <button
+          <button aria-label="Edit"
             className="text-muted-foreground hover:text-foreground"
             onClick={(e) => {
               e.stopPropagation();
@@ -65,7 +65,7 @@ export const ColumnsMenuItem = ({
           </button>
         )}
         {onDelete && (
-          <button
+          <button aria-label="Delete"
             className="text-muted-foreground hover:text-destructive"
             onClick={(e) => {
               e.stopPropagation();

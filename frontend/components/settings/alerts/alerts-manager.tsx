@@ -194,7 +194,7 @@ export default function AlertsManager({ projectId, workspaceId, userEmail, fixed
                       )}
                     </div>
                     <div className="flex shrink-0 items-center">
-                      <Button
+                      <Button aria-label="Delete"
                         variant="ghost"
                         size="icon"
                         className={cn(

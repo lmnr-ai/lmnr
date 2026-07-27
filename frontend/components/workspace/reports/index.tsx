@@ -87,7 +87,7 @@ export default function WorkspaceReports({ workspaceId, slackClientId, slackRedi
               </td>
               <td className="px-4 w-1/10">
                 <div className="flex justify-end">
-                  <Button
+                  <Button aria-label="Edit"
                     variant="ghost"
                     size="icon"
                     onClick={() => {

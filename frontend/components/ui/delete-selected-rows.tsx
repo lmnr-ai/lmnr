@@ -26,7 +26,7 @@ export default function DeleteSelectedRows({ selectedRowIds, onDelete, entityNam
   return (
     <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost">
+        <Button aria-label="Delete" variant="ghost">
           <Trash2 size={12} />
         </Button>
       </DialogTrigger>

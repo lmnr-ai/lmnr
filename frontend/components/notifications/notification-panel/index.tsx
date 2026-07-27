@@ -174,7 +174,7 @@ const NotificationPanel = () => {
                       <Settings className="size-4" />
                     </Link>
                   )}
-                  <button
+                  <button aria-label="Close"
                     onClick={close}
                     className="flex items-center justify-center rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
                   >

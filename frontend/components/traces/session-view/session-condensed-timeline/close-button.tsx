@@ -12,7 +12,7 @@ interface CloseButtonProps {
 export default function CloseButton({ onClose }: CloseButtonProps) {
   return (
     <div className="absolute z-40 top-0 right-0 flex items-end overflow-hidden h-6 w-7 bg-muted border-b border-l rounded-none rounded-bl">
-      <Button onClick={onClose} variant="ghost" size="icon" className="size-5 min-w-5">
+      <Button aria-label="Close" onClick={onClose} variant="ghost" size="icon" className="size-5 min-w-5">
         <X className="size-3.5" />
       </Button>
     </div>
