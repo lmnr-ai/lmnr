@@ -1,6 +1,6 @@
 import { type RowData } from "@tanstack/react-table";
 import { useRouter } from "next/navigation";
-import { type MouseEvent, useCallback } from "react";
+import { memo, type MouseEvent, useCallback } from "react";
 
 import { TableRow } from "@/components/ui/table.tsx";
 import { cn } from "@/lib/utils.ts";
@@ -8,10 +8,9 @@ import { cn } from "@/lib/utils.ts";
 import { type InfiniteDataTableRowProps } from "../model/types.ts";
 import { InfiniteTableCell } from "./cell.tsx";
 
-export function InfiniteDatatableRow<TData extends RowData>({
+function InfiniteDatatableRowInner<TData extends RowData>({
   virtualRow,
   row,
-  rowVirtualizer,
   onRowClick,
   onHoveredRowChange,
   focusedRowId,
@@ -50,7 +49,6 @@ export function InfiniteDatatableRow<TData extends RowData>({
   return (
     <TableRow
       data-index={virtualRow.index}
-      ref={(node) => rowVirtualizer.measureElement(node)}
       className={cn(
         "flex min-w-full border-b last:border-b-0 group/row relative",
         (!!onRowClick || !!href) && "cursor-pointer",
@@ -70,8 +68,8 @@ export function InfiniteDatatableRow<TData extends RowData>({
         top: 0,
         left: 0,
         width: "100%",
+        height: `${virtualRow.size}px`,
         transform: `translateY(${virtualRow.start}px)`,
-        willChange: "transform",
       }}
     >
       {row.getIsSelected() && <td className="border-l-2 border-l-primary absolute h-full left-0 top-0 z-10" />}
@@ -81,3 +79,5 @@ export function InfiniteDatatableRow<TData extends RowData>({
     </TableRow>
   );
 }
+
+export const InfiniteDatatableRow = memo(InfiniteDatatableRowInner) as typeof InfiniteDatatableRowInner;

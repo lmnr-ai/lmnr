@@ -1,24 +1,18 @@
 "use client";
 
-import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
+import { type ColumnDef } from "@tanstack/react-table";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
-import SessionsPlaceholder from "@/components/debugger-sessions/sessions-placeholder";
-import { ColumnsMenu } from "@/components/ui/columns-menu";
+import { DebuggerSessionsChrome } from "@/components/debugger-sessions/chrome";
+import { DebuggerSessionsGrid } from "@/components/debugger-sessions/grid";
 import CopyTooltip from "@/components/ui/copy-tooltip";
-import Header from "@/components/ui/header";
-import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks/use-infinite-scroll";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import Mono from "@/components/ui/mono";
 import { type DebuggerSession } from "@/lib/actions/debugger-sessions";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
-const FETCH_SIZE = 50;
 const RESOURCE = "debugger-sessions";
 
 const columns: ColumnDef<DebuggerSession>[] = [
@@ -80,102 +74,22 @@ const defaultDebuggerSessionsColumnOrder = ["id", "name", "traceCount", "evalCou
 
 function DebuggerSessionsContent() {
   const { projectId } = useParams();
-  const { toast } = useToast();
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   useEffect(() => {
     track("debugger_sessions", "page_viewed");
   }, []);
 
-  const fetchDebuggerSessions = useCallback(
-    async (pageNumber: number) => {
-      try {
-        const urlParams = new URLSearchParams();
-        urlParams.set("pageNumber", pageNumber.toString());
-        urlParams.set("pageSize", FETCH_SIZE.toString());
-
-        const url = `/api/projects/${projectId}/debugger-sessions?${urlParams.toString()}`;
-
-        const res = await fetch(url, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!res.ok) {
-          const text = (await res.json()) as { error: string };
-          throw new Error(text.error);
-        }
-
-        const data = (await res.json()) as { items: DebuggerSession[] };
-        return { items: data.items, count: 0 };
-      } catch (error) {
-        toast({
-          title: error instanceof Error ? error.message : "Failed to load debugger sessions. Please try again.",
-          variant: "destructive",
-        });
-        throw error;
-      }
-    },
-    [projectId, toast]
+  const chrome = (
+    <DebuggerSessionsChrome
+      projectId={String(projectId)}
+      columnLabels={columns.map((column) => ({
+        id: column.id!,
+        label: typeof column.header === "string" ? column.header : column.id!,
+      }))}
+    />
   );
 
-  const {
-    data: debuggerSessions,
-    hasMore,
-    isFetching,
-    isLoading,
-    fetchNextPage,
-  } = useInfiniteScroll<DebuggerSession>({
-    fetchFn: fetchDebuggerSessions,
-    enabled: true,
-    deps: [projectId],
-  });
-
-  // Show the stylized startup page (not the table) once we know the project has
-  // no sessions.
-  const showPlaceholder = !isLoading && (debuggerSessions?.length ?? 0) === 0;
-
-  if (showPlaceholder) {
-    // SessionsPlaceholder renders its own Header.
-    return <SessionsPlaceholder />;
-  }
-
-  return (
-    <>
-      <Header path="debugger sessions" />
-      <div className="flex px-4 pb-4 flex-col gap-4 overflow-hidden flex-1">
-        <div className="flex overflow-hidden flex-1">
-          <InfiniteDataTable
-            getRowId={(row: DebuggerSession) => row.id}
-            columns={columns}
-            data={debuggerSessions ?? []}
-            hasMore={hasMore}
-            getRowHref={(row) => `debugger-sessions/${row.id}`}
-            onRowClick={() => track("debugger_sessions", "session_opened")}
-            isFetching={isFetching}
-            isLoading={isLoading}
-            fetchNextPage={fetchNextPage}
-            state={{
-              rowSelection,
-            }}
-            onRowSelectionChange={setRowSelection}
-          >
-            <div className="flex flex-1 w-full space-x-2 pt-1">
-              <ColumnsMenu
-                columnLabels={columns.map((column) => ({
-                  id: column.id!,
-                  label: typeof column.header === "string" ? column.header : column.id!,
-                }))}
-              />
-              <ViewsToolbar projectId={String(projectId)} resource={RESOURCE} />
-            </div>
-          </InfiniteDataTable>
-        </div>
-      </div>
-    </>
-  );
+  return <DebuggerSessionsGrid chrome={chrome} columns={columns} />;
 }
 
 export default function DebuggerSessions() {

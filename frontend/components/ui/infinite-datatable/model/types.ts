@@ -85,7 +85,6 @@ export interface InfiniteDataTableBodyProps<TData extends RowData> {
 export interface InfiniteDataTableRowProps<TData extends RowData> {
   virtualRow: VirtualItem;
   row: Row<TData>;
-  rowVirtualizer: Virtualizer<HTMLDivElement, Element>;
   onRowClick?: (row: Row<TData>) => void;
   onHoveredRowChange?: (row: Row<TData> | null) => void;
   href?: string;

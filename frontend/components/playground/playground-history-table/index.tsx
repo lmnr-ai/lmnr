@@ -1,24 +1,19 @@
 "use client";
-import { type ColumnDef, type Row } from "@tanstack/react-table";
+
+import { type ColumnDef } from "@tanstack/react-table";
 import { ArrowRight, Check, X } from "lucide-react";
-import { useParams } from "next/navigation";
-import { useCallback } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
-import { ColumnsMenu } from "@/components/ui/columns-menu";
-import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import Mono from "@/components/ui/mono";
-import { useToast } from "@/lib/hooks/use-toast";
 import { type Trace } from "@/lib/traces/types";
 
-// ... existing columns definition (unchanged) ...
+import { PlaygroundHistoryChrome } from "./chrome";
+import { PlaygroundHistoryGrid } from "./grid";
+
 const renderCost = (val: any) => {
-  if (val == null) {
-    return "-";
-  }
+  if (val == null) return "-";
   const parsed = parseFloat(val);
   return isNaN(parsed) ? "-" : `$${parsed.toFixed(5)}`;
 };
@@ -93,11 +88,8 @@ const columns: ColumnDef<Trace, any>[] = [
     accessorFn: (row) => {
       const start = new Date(row.startTime);
       const end = new Date(row.endTime);
-      if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
-        return "-";
-      }
-      const duration = end.getTime() - start.getTime();
-      return `${(duration / 1000).toFixed(2)}s`;
+      if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return "-";
+      return `${((end.getTime() - start.getTime()) / 1000).toFixed(2)}s`;
     },
     header: "Latency",
     id: "latency",
@@ -144,104 +136,12 @@ interface PlaygroundHistoryTableProps {
   onTraceSelect?: (traceId: string) => void;
 }
 
-const FETCH_SIZE = 50;
-
 export default function PlaygroundHistoryTable(props: PlaygroundHistoryTableProps) {
+  const chrome = <PlaygroundHistoryChrome columns={columns} />;
+
   return (
     <InfiniteDataTableProvider uniqueKey="id" defaults={{ columnOrder: defaultPlaygroundHistoryColumnOrder }}>
-      <PlaygroundHistoryTableContent {...props} />
+      <PlaygroundHistoryGrid chrome={chrome} columns={columns} {...props} />
     </InfiniteDataTableProvider>
-  );
-}
-
-function PlaygroundHistoryTableContent({ playgroundId, onRowClick, onTraceSelect }: PlaygroundHistoryTableProps) {
-  const { projectId } = useParams();
-  const { toast } = useToast();
-
-  const fetchTraces = useCallback(
-    async (pageNumber: number) => {
-      if (!projectId || !playgroundId) {
-        return { items: [], count: 0 };
-      }
-
-      try {
-        const urlParams = new URLSearchParams();
-        urlParams.set("pageNumber", pageNumber.toString());
-        urlParams.set("pageSize", FETCH_SIZE.toString());
-        urlParams.set("pastHours", "168");
-        urlParams.set("traceType", "PLAYGROUND");
-
-        urlParams.append(
-          "filter",
-          JSON.stringify({
-            column: "metadata",
-            operator: "eq",
-            value: `playgroundId=${playgroundId}`,
-          })
-        );
-
-        const res = await fetch(`/api/projects/${projectId}/traces?${urlParams.toString()}`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!res.ok) {
-          throw new Error(`Failed to fetch traces: ${res.status} ${res.statusText}`);
-        }
-
-        const data = await res.json();
-        return { items: data.items, count: 0 };
-      } catch (error) {
-        toast({
-          title: "Failed to load playground history. Please try again.",
-          variant: "destructive",
-        });
-        throw error;
-      }
-    },
-    [projectId, playgroundId, toast]
-  );
-
-  const {
-    data: traces,
-    hasMore,
-    isFetching,
-    isLoading,
-    fetchNextPage,
-  } = useInfiniteScroll<Trace>({
-    fetchFn: fetchTraces,
-    enabled: !!projectId && !!playgroundId,
-    deps: [projectId, playgroundId],
-  });
-
-  const handleRowClick = useCallback(
-    (row: Row<Trace>) => {
-      onRowClick?.(row.original);
-      onTraceSelect?.(row.original.id);
-    },
-    [onRowClick, onTraceSelect]
-  );
-
-  return (
-    <InfiniteDataTable<Trace>
-      className="w-full"
-      columns={columns}
-      data={traces}
-      getRowId={(trace) => trace.id}
-      onRowClick={handleRowClick}
-      hasMore={hasMore}
-      isFetching={isFetching}
-      isLoading={isLoading}
-      fetchNextPage={fetchNextPage}
-    >
-      <ColumnsMenu
-        columnLabels={columns.map((column) => ({
-          id: column.id!,
-          label: typeof column.header === "string" ? column.header : column.id!,
-        }))}
-      />
-    </InfiniteDataTable>
   );
 }

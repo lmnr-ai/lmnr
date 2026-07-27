@@ -1,33 +1,19 @@
 "use client";
 
-import type { Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import AdvancedSearch from "@/components/common/advanced-search";
+import { CreateSignalJobChrome } from "@/components/signal/create-signal-job/chrome";
 import ConfirmSignalJobDialog from "@/components/signal/create-signal-job/confirm-signal-job-dialog";
-import SelectionBanner from "@/components/signal/create-signal-job/selection-banner.tsx";
-import { useSignalStoreContext } from "@/components/signal/store.tsx";
+import { CreateSignalJobGrid, type PendingJobState } from "@/components/signal/create-signal-job/grid";
+import { useSignalStoreContext } from "@/components/signal/store";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
-import {
-  columns,
-  defaultTracesColumnOrder,
-  filters as tableFilters,
-} from "@/components/traces/traces-table/columns.tsx";
-import { Button } from "@/components/ui/button.tsx";
-import { ColumnsMenu } from "@/components/ui/columns-menu";
-import DateRangeFilter from "@/components/ui/date-range-filter";
-import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
-import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store.tsx";
-import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
+import { columns, defaultTracesColumnOrder } from "@/components/traces/traces-table/columns";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
-import type { Filter } from "@/lib/actions/common/filters.ts";
+import { type Filter } from "@/lib/actions/common/filters";
 import { Feature } from "@/lib/features/features";
-import { useToast } from "@/lib/hooks/use-toast.ts";
-import type { TraceRow } from "@/lib/traces/types.ts";
-
-const FETCH_SIZE = 50;
+import { useToast } from "@/lib/hooks/use-toast";
 
 const CreateSignalJobContent = () => {
   const searchParams = useSearchParams();
@@ -37,25 +23,21 @@ const CreateSignalJobContent = () => {
   const { toast } = useToast();
 
   const signal = useSignalStoreContext((state) => state.signal);
-  const { rowSelection, onRowSelectionChange } = useSelection();
   const featureFlags = useFeatureFlags();
 
   const [isCreating, setIsCreating] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [pendingJob, setPendingJob] = useState<PendingJobState | null>(null);
   const [jobMode, setJobMode] = useState(featureFlags[Feature.BATCH_SIGNALS] ? 0 : 1);
-  const [filters, setFilters] = useState<{ filters: Filter[]; search: string }>({ filters: [], search: "" });
+  const [searchValue, setSearchValue] = useState<{ filters: Filter[]; search: string }>({
+    filters: [],
+    search: "",
+  });
   const [dateRange, setDateRange] = useState<{
     pastHours?: string;
     startDate?: string;
     endDate?: string;
-  }>({
-    pastHours: "24",
-    startDate: undefined,
-    endDate: undefined,
-  });
-
-  const [traceCount, setTraceCount] = useState(0);
-  const [selectionMode, setSelectionMode] = useState<"none" | "page" | "all">("none");
+  }>({ pastHours: "24" });
 
   const { traceId, spanId, setTraceId, setSpanId } = useSignalStoreContext((state) => ({
     traceId: state.traceId,
@@ -64,150 +46,38 @@ const CreateSignalJobContent = () => {
     setSpanId: state.setSpanId,
   }));
 
-  const fetchTraces = useCallback(
-    async (pageNumber: number) => {
-      try {
-        const urlParams = new URLSearchParams();
-        urlParams.set("traceType", "DEFAULT");
+  const refetchRef = useRef<() => void>(() => {});
 
-        if (dateRange.pastHours) urlParams.set("pastHours", dateRange.pastHours);
-        if (dateRange.startDate) urlParams.set("startDate", dateRange.startDate);
-        if (dateRange.endDate) urlParams.set("endDate", dateRange.endDate);
+  const handleRefresh = useCallback(() => {
+    refetchRef.current();
+  }, []);
 
-        filters.filters.forEach((filter) => {
-          urlParams.append("filter", JSON.stringify(filter));
-        });
+  const filter = useMemo(() => searchValue.filters.map((f) => JSON.stringify(f)), [searchValue.filters]);
+  const search = searchValue.search.length > 0 ? searchValue.search : null;
 
-        if (filters.search.length > 0) {
-          urlParams.set("search", filters.search);
-        }
-
-        const tracesParams = new URLSearchParams(urlParams);
-        tracesParams.set("pageNumber", pageNumber.toString());
-        tracesParams.set("pageSize", FETCH_SIZE.toString());
-
-        const [tracesRes, countRes] = await Promise.all([
-          fetch(`/api/projects/${projectId}/traces?${tracesParams.toString()}`),
-          fetch(`/api/projects/${projectId}/traces/count?${urlParams.toString()}`),
-        ]);
-
-        if (!tracesRes.ok) {
-          const text = (await tracesRes.json()) as { error: string };
-          throw new Error(text.error);
-        }
-
-        if (!countRes.ok) {
-          throw new Error("Failed to count traces");
-        }
-
-        const [tracesData, countData] = await Promise.all([
-          tracesRes.json() as Promise<{ items: TraceRow[] }>,
-          countRes.json() as Promise<{ count: number }>,
-        ]);
-
-        setTraceCount(countData.count);
-
-        if (selectionMode === "all") {
-          const newKeys = tracesData.items.reduce(
-            (previousValue, currentValue) => ({
-              ...previousValue,
-              [currentValue.id]: true,
-            }),
-            rowSelection
-          );
-          onRowSelectionChange(newKeys);
-        }
-        return { items: tracesData.items, count: countData.count };
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to load traces. Please try again.",
-          variant: "destructive",
-        });
-        setTraceCount(0);
-        throw error;
-      }
-    },
-    [
-      dateRange.endDate,
-      dateRange.pastHours,
-      dateRange.startDate,
-      filters.filters,
-      filters.search,
-      onRowSelectionChange,
-      projectId,
-      rowSelection,
-      selectionMode,
-      toast,
-    ]
-  );
-
-  const {
-    data: traces,
-    hasMore,
-    isFetching,
-    isLoading,
-    fetchNextPage,
-    refetch,
-  } = useInfiniteScroll<TraceRow>({
-    fetchFn: fetchTraces,
-    enabled: !!(dateRange.pastHours || (dateRange.startDate && dateRange.endDate)),
-    deps: [dateRange, filters, projectId],
-  });
-
-  const getRowHref = useCallback(
-    (row: Row<TraceRow>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("traceId", row.id);
-      params.delete("spanId");
-      return `${pathName}?${params.toString()}`;
-    },
-    [pathName, searchParams]
-  );
-
-  useEffect(() => {
-    const selectedCount = Object.keys(rowSelection).length;
-
-    if (selectedCount === 0) {
-      setSelectionMode("none");
-    } else if (selectedCount > 0 && selectionMode === "none") {
-      setSelectionMode("page");
-    }
-  }, [rowSelection, selectionMode]);
-
-  const handleSelectAll = useCallback(() => {
-    setSelectionMode("all");
-    const allTraceIds = traces.reduce(
-      (acc, trace) => {
-        acc[trace.id] = true;
-        return acc;
-      },
-      {} as Record<string, boolean>
-    );
-    onRowSelectionChange(allTraceIds);
-  }, [onRowSelectionChange, traces]);
-
-  const handleOpenConfirmDialog = useCallback(() => {
+  const handleOpenConfirmDialog = useCallback((state: PendingJobState) => {
+    setPendingJob(state);
     setConfirmDialogOpen(true);
   }, []);
 
   const handleCreateSignalJob = useCallback(async () => {
+    if (!pendingJob) return;
     try {
       setIsCreating(true);
-      const selectedTraceIds = selectionMode === "all" ? undefined : Object.keys(rowSelection);
-      const selectedCount = selectionMode === "all" ? traceCount : (selectedTraceIds?.length ?? 0);
+      const { selectionMode, selectedIds, traceCount, selectedCount } = pendingJob;
+      const traceIds = selectionMode === "all" ? undefined : selectedIds;
+      const count = selectionMode === "all" ? traceCount : selectedCount;
 
       const response = await fetch(`/api/projects/${projectId}/signals/${signal.id}/jobs`, {
         method: "POST",
         body: JSON.stringify({
-          // Zod expects filters to be stringified
-          filter: filters.filters.map((filter) => JSON.stringify(filter)),
-          search: filters.search || undefined,
+          filter: searchValue.filters.map((f) => JSON.stringify(f)),
+          search: searchValue.search || undefined,
           pastHours: dateRange.pastHours,
           startDate: dateRange.startDate,
           endDate: dateRange.endDate,
-          traceIds: selectedTraceIds,
-          tracesCount: selectedCount,
+          traceIds,
+          tracesCount: count,
           mode: jobMode,
         }),
       });
@@ -221,7 +91,7 @@ const CreateSignalJobContent = () => {
       router.push(`/project/${projectId}/signals/${signal.id}?tab=settings&section=activity`);
       toast({
         title: "Backfill created",
-        description: `Backfill for "${signal.name}" has been queued for ${selectedCount?.toLocaleString() ?? "selected"} traces.`,
+        description: `Backfill for "${signal.name}" has been queued for ${count?.toLocaleString() ?? "selected"} traces.`,
       });
     } catch (error) {
       toast({
@@ -232,26 +102,16 @@ const CreateSignalJobContent = () => {
     } finally {
       setIsCreating(false);
     }
-  }, [
-    selectionMode,
-    rowSelection,
-    traceCount,
-    projectId,
-    signal.id,
-    signal.name,
-    filters.filters,
-    filters.search,
-    dateRange.pastHours,
-    dateRange.startDate,
-    dateRange.endDate,
-    jobMode,
-    router,
-    toast,
-  ]);
+  }, [pendingJob, projectId, signal.id, signal.name, searchValue, dateRange, jobMode, router, toast]);
 
-  const traceIdFromUrl = searchParams.get("traceId");
-
-  const selectedCount = Object.keys(rowSelection).length;
+  const chrome = (
+    <CreateSignalJobChrome
+      columns={columns}
+      dateRange={dateRange}
+      onDateRangeChange={setDateRange}
+      onRefresh={handleRefresh}
+    />
+  );
 
   return (
     <>
@@ -260,7 +120,9 @@ const CreateSignalJobContent = () => {
         onOpenChange={setConfirmDialogOpen}
         isCreating={isCreating}
         onConfirm={handleCreateSignalJob}
-        traceCount={selectionMode === "all" ? traceCount : selectedCount}
+        traceCount={
+          pendingJob ? (pendingJob.selectionMode === "all" ? pendingJob.traceCount : pendingJob.selectedCount) : 0
+        }
         mode={jobMode}
         onModeChange={setJobMode}
       />
@@ -271,67 +133,18 @@ const CreateSignalJobContent = () => {
           all matching traces based on your current filters and time range.
         </p>
       </div>
-
       <div className="flex flex-1 overflow-hidden px-4 pb-4">
-        <InfiniteDataTable<TraceRow>
-          className="w-full"
-          columns={columns}
-          data={traces}
-          enableRowSelection
-          getRowId={(trace) => trace.id}
-          onRowClick={(r) => setTraceId(r.id)}
-          focusedRowId={traceIdFromUrl}
-          hasMore={!filters.search && hasMore}
-          isFetching={isFetching}
-          isLoading={isLoading}
-          fetchNextPage={fetchNextPage}
-          hideSelectionPanel
-          state={{
-            rowSelection,
-          }}
-          onRowSelectionChange={onRowSelectionChange}
-          getRowHref={getRowHref}
-        >
-          <div className="flex flex-1 w-full h-full items-center justify-between gap-2">
-            <div className="flex gap-2">
-              <ColumnsMenu
-                columnLabels={columns.map((column) => ({
-                  id: column.id!,
-                  label: typeof column.header === "string" ? column.header : column.id!,
-                }))}
-              />
-              <DateRangeFilter mode="state" value={dateRange} onChange={setDateRange} />
-              <RefreshButton onClick={refetch} variant="outline" />
-            </div>
-            <Button onClick={handleOpenConfirmDialog} disabled={selectionMode === "none"}>
-              {selectionMode === "none"
-                ? "Create backfill"
-                : `Create backfill (${selectionMode === "all" ? traceCount.toLocaleString() : selectedCount.toLocaleString()} traces)`}
-            </Button>
-          </div>
-          <div className="w-full px-px">
-            <AdvancedSearch
-              storageKey="traces"
-              filters={tableFilters}
-              resource="traces"
-              value={filters}
-              onChange={({ filters, search }) => setFilters({ filters, search })}
-              placeholder="Search by root span name, tokens, tags, full text and more..."
-              className="w-full flex-1"
-            />
-          </div>
-          <SelectionBanner
-            selectionMode={selectionMode}
-            selectedCount={selectedCount}
-            traceCount={traceCount}
-            loadedTraceCount={traces.length}
-            onSelectAll={handleSelectAll}
-            onClearSelection={() => {
-              setSelectionMode("none");
-              onRowSelectionChange({});
-            }}
-          />
-        </InfiniteDataTable>
+        <CreateSignalJobGrid
+          chrome={chrome}
+          filter={filter}
+          search={search}
+          dateRange={dateRange}
+          refetchRef={refetchRef}
+          searchValue={searchValue}
+          onSearchChange={setSearchValue}
+          onOpenConfirmDialog={handleOpenConfirmDialog}
+          onTraceIdSelect={setTraceId}
+        />
       </div>
       {traceId && (
         <TraceViewSidePanel

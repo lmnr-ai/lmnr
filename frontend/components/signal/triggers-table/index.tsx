@@ -1,96 +1,40 @@
 "use client";
 
-import { type Row, type RowSelectionState } from "@tanstack/react-table";
+import { type Row } from "@tanstack/react-table";
 import { isEqual } from "lodash";
-import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import useSWR, { mutate } from "swr";
+import { useCallback, useRef, useState } from "react";
 
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
+import { TriggersTableChrome } from "@/components/signal/triggers-table/chrome";
 import {
   defaultTriggersColumnOrder,
   getTriggersTableColumns,
   type TriggerRow,
   triggersFilters,
 } from "@/components/signal/triggers-table/columns.tsx";
+import { TriggersTableGrid } from "@/components/signal/triggers-table/grid";
 import ManageTriggerDialog from "@/components/signals/manage-trigger-dialog";
 import { Button } from "@/components/ui/button.tsx";
-import { ColumnsMenu } from "@/components/ui/columns-menu";
-import DeleteSelectedRows from "@/components/ui/delete-selected-rows";
-import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store.tsx";
-import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter/ui";
-import { TableCell, TableRow } from "@/components/ui/table";
 import { type Filter } from "@/lib/actions/common/filters.ts";
 import { type Trigger } from "@/lib/actions/signal-triggers";
-import { useToast } from "@/lib/hooks/use-toast.ts";
-import { swrFetcher } from "@/lib/utils";
-
-const EmptyRow = (
-  <TableRow className="flex">
-    <TableCell className="text-center p-4 rounded-b w-full h-auto">
-      <div className="flex flex-1 justify-center">
-        <div className="flex flex-col gap-2 items-center max-w-md">
-          <h3 className="text-base font-medium text-secondary-foreground">No triggers yet</h3>
-          <p className="text-sm text-muted-foreground text-center">
-            Triggers are used to automatically execute signals when certain conditions are met. Create your first
-            trigger to start automating signal execution.
-          </p>
-        </div>
-      </div>
-    </TableCell>
-  </TableRow>
-);
 
 function TriggersTableContent() {
-  const { toast } = useToast();
-  const params = useParams<{ projectId: string }>();
-
-  const { signal } = useSignalStoreContext((state) => ({
-    signal: state.signal,
-  }));
-
-  const [storeTriggersFilters, setTriggersFilters] = useState<Filter[]>([]);
-
-  const triggersUrl = useMemo(() => {
-    const urlParams = new URLSearchParams();
-    storeTriggersFilters.forEach((f) => urlParams.append("filter", JSON.stringify(f)));
-    const queryString = urlParams.toString();
-    return `/api/projects/${params.projectId}/signals/${signal.id}/triggers${queryString ? `?${queryString}` : ""}`;
-  }, [params.projectId, signal.id, storeTriggersFilters]);
-
-  const { data, isLoading, error } = useSWR<{ items: Trigger[] }>(triggersUrl, swrFetcher);
-
+  const { signal } = useSignalStoreContext((state) => ({ signal: state.signal }));
+  const revalidateRef = useRef<() => void>(() => {});
+  const [filters, setFilters] = useState<Filter[]>([]);
   const [editingTrigger, setEditingTrigger] = useState<Trigger>();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-
-  const triggers: TriggerRow[] = data?.items || [];
 
   const columns = getTriggersTableColumns();
 
-  const handleAddFilter = useCallback(
-    (filter: Filter) => {
-      setTriggersFilters((prev) => [...prev, filter]);
-    },
-    [setTriggersFilters]
-  );
+  const handleAddFilter = useCallback((filter: Filter) => {
+    setFilters((prev) => [...prev, filter]);
+  }, []);
 
-  const handleRemoveFilter = useCallback(
-    (filter: Filter) => {
-      setTriggersFilters((prev) => prev.filter((f) => !isEqual(f, filter)));
-    },
-    [setTriggersFilters]
-  );
-
-  useEffect(() => {
-    if (error) {
-      toast({
-        title: error instanceof Error ? error.message : "Failed to load triggers.",
-        variant: "destructive",
-      });
-    }
-  }, [error, toast]);
+  const handleRemoveFilter = useCallback((filter: Filter) => {
+    setFilters((prev) => prev.filter((f) => !isEqual(f, filter)));
+  }, []);
 
   const handleRowClick = useCallback((row: Row<TriggerRow>) => {
     setEditingTrigger(row.original);
@@ -98,39 +42,21 @@ function TriggersTableContent() {
   }, []);
 
   const handleTriggerSuccess = useCallback(async () => {
-    await mutate(triggersUrl);
+    revalidateRef.current();
     setEditingTrigger(undefined);
-  }, [triggersUrl]);
+  }, []);
 
-  const handleDeleteTriggers = useCallback(
-    async (selectedRowIds: string[]) => {
-      try {
-        const response = await fetch(`/api/projects/${params.projectId}/signals/${signal.id}/triggers`, {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ triggerIds: selectedRowIds }),
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || "Failed to delete triggers");
-        }
-
-        await mutate(triggersUrl);
-        setRowSelection({});
-        toast({
-          title: "Triggers deleted",
-          description: `Successfully deleted ${selectedRowIds.length} trigger(s).`,
-        });
-      } catch (error) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to delete triggers",
-        });
-      }
-    },
-    [params.projectId, signal.id, triggersUrl, toast]
+  const chrome = (
+    <TriggersTableChrome
+      filterColumns={triggersFilters}
+      columnLabels={columns.map((column) => ({
+        id: column.id!,
+        label: typeof column.header === "string" ? column.header : column.id!,
+      }))}
+      filters={filters}
+      onAddFilter={handleAddFilter}
+      onRemoveFilter={handleRemoveFilter}
+    />
   );
 
   return (
@@ -146,39 +72,7 @@ function TriggersTableContent() {
           Add Trigger
         </Button>
       </ManageTriggerDialog>
-      <InfiniteDataTable<TriggerRow>
-        className="w-full"
-        columns={columns}
-        data={triggers}
-        getRowId={(trigger) => trigger.id}
-        hasMore={false}
-        isFetching={isLoading}
-        isLoading={isLoading}
-        fetchNextPage={() => {}}
-        onRowClick={handleRowClick}
-        enableRowSelection
-        state={{ rowSelection }}
-        onRowSelectionChange={setRowSelection}
-        selectionPanel={(selectedRowIds) => (
-          <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDeleteTriggers} entityName="triggers" />
-        )}
-        emptyRow={EmptyRow}
-      >
-        <div className="flex flex-1 w-full space-x-2">
-          <FilterPopover columns={triggersFilters} filters={storeTriggersFilters} onAddFilter={handleAddFilter} />
-          <ColumnsMenu
-            columnLabels={columns.map((column) => ({
-              id: column.id!,
-              label: typeof column.header === "string" ? column.header : column.id!,
-            }))}
-          />
-        </div>
-        <FilterList
-          className="py-[3px] text-xs px-1"
-          filters={storeTriggersFilters}
-          onRemoveFilter={handleRemoveFilter}
-        />
-      </InfiniteDataTable>
+      <TriggersTableGrid chrome={chrome} filters={filters} onRowClick={handleRowClick} revalidateRef={revalidateRef} />
     </>
   );
 }

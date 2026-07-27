@@ -1,116 +1,25 @@
 "use client";
 
-import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
-import { SquareArrowOutUpRight } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
+import { useEffect, useMemo, useRef } from "react";
 
-import AdvancedSearch from "@/components/common/advanced-search";
+import { DatasetsChrome } from "@/components/datasets/chrome";
+import { datasetsColumnLabels, DatasetsGrid } from "@/components/datasets/grid";
 import { Button } from "@/components/ui/button";
-import { ColumnsMenu } from "@/components/ui/columns-menu";
-import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
-import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
-import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
-import { TableCell, TableRow } from "@/components/ui/table";
 import { type DatasetInfo } from "@/lib/dataset/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
-import ClientTimestampFormatter from "../client-timestamp-formatter";
-import CopyTooltip from "../ui/copy-tooltip";
 import Header from "../ui/header";
-import { InfiniteDataTable } from "../ui/infinite-datatable";
-import Mono from "../ui/mono";
+import { RESOURCE } from "./constants";
 import CreateDatasetDialog from "./create-dataset-dialog";
-
-const columns: ColumnDef<DatasetInfo>[] = [
-  {
-    cell: ({ row }) => (
-      <CopyTooltip value={row.original.id} className="block truncate">
-        <Mono className="text-xs">{row.original.id}</Mono>
-      </CopyTooltip>
-    ),
-    size: 300,
-    header: "ID",
-    id: "id",
-  },
-  {
-    accessorKey: "name",
-    header: "Name",
-    size: 300,
-    id: "name",
-  },
-  {
-    accessorKey: "datapointsCount",
-    header: "Datapoints Count",
-    size: 300,
-    id: "datapointsCount",
-  },
-  {
-    header: "Created",
-    accessorKey: "createdAt",
-    cell: (row) => <ClientTimestampFormatter absolute timestamp={String(row.getValue())} />,
-    id: "createdAt",
-  },
-];
 
 const defaultDatasetsColumnOrder = ["__row_selection", "id", "name", "datapointsCount", "createdAt"];
 
-const datasetsTableFilters: ColumnFilter[] = [
-  {
-    name: "ID",
-    key: "id",
-    dataType: "string",
-  },
-  {
-    name: "Name",
-    key: "name",
-    dataType: "string",
-  },
-  {
-    name: "Datapoints count",
-    key: "count",
-    dataType: "number",
-  },
-];
-
-const FETCH_SIZE = 50;
-const RESOURCE = "datasets";
-
-const EmptyRow = (
-  <TableRow className="flex">
-    <TableCell className="text-center p-4 rounded-b w-full h-auto">
-      <div className="flex flex-1 justify-center">
-        <div className="flex flex-col gap-2 items-center max-w-md">
-          <h3 className="text-base font-medium text-secondary-foreground">No datasets yet</h3>
-          <p className="text-sm text-muted-foreground text-center">
-            Datasets store collections of datapoints for evaluations and fine-tuning. Click + Dataset above to create
-            one.
-          </p>
-          <a
-            href="https://laminar.sh/docs/datasets/introduction"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-          >
-            Learn more
-            <SquareArrowOutUpRight className="h-3.5 w-3.5" />
-          </a>
-        </div>
-      </div>
-    </TableCell>
-  </TableRow>
-);
-
 function DatasetsContent() {
   const { projectId } = useParams();
-  const router = useRouter();
-  const { toast } = useToast();
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const updateDataRef = useRef<((fn: (data: DatasetInfo[]) => DatasetInfo[]) => void) | null>(null);
 
   useEffect(() => {
     track("datasets", "page_viewed");
@@ -124,155 +33,38 @@ function DatasetsContent() {
   const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
   const search = effective.search.length > 0 ? effective.search : null;
 
-  const fetchDatasets = useCallback(
-    async (pageNumber: number) => {
-      try {
-        const urlParams = new URLSearchParams();
-        urlParams.set("pageNumber", pageNumber.toString());
-        urlParams.set("pageSize", FETCH_SIZE.toString());
+  const handleCreateDataset = (newDataset: DatasetInfo) => {
+    updateDataRef.current?.((currentData) => [newDataset, ...currentData]);
+  };
 
-        filter.forEach((f) => urlParams.append("filter", f));
-
-        if (typeof search === "string" && search.length > 0) {
-          urlParams.set("search", search);
-        }
-
-        const url = `/api/projects/${projectId}/datasets?${urlParams.toString()}`;
-        const res = await fetch(url, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!res.ok) {
-          const text = await res.json();
-          throw new Error(text.error || "Failed to fetch datasets");
-        }
-
-        const data = await res.json();
-        return { items: data.items, count: data.totalCount };
-      } catch (error) {
-        toast({
-          title: error instanceof Error ? error.message : "Failed to load datasets. Please try again.",
-          variant: "destructive",
-        });
-        throw error;
-      }
-    },
-    [projectId, toast, filter, search]
-  );
-
-  const {
-    data: datasets,
-    hasMore,
-    isFetching,
-    isLoading,
-    fetchNextPage,
-    updateData,
-  } = useInfiniteScroll<DatasetInfo>({
-    fetchFn: fetchDatasets,
-    enabled: !isViewLoading,
-    deps: [projectId, filter, search],
-  });
-
-  const handleCreateDataset = useCallback(
-    (newDataset: DatasetInfo) => {
-      updateData((currentData) => [newDataset, ...currentData]);
-    },
-    [updateData]
-  );
-
-  const handleDeleteDatasets = useCallback(
-    async (datasetIds: string[]) => {
-      try {
-        const res = await fetch(`/api/projects/${projectId}/datasets?datasetIds=${datasetIds.join(",")}`, {
-          method: "DELETE",
-        });
-
-        if (!res.ok) {
-          throw new Error("Failed to delete datasets");
-        }
-
-        updateData((currentData) => currentData.filter((dataset) => !datasetIds.includes(dataset.id)));
-
-        setRowSelection({});
-        track("datasets", "deleted", { count: datasetIds.length });
-        toast({
-          title: "Datasets deleted",
-          description: `Successfully deleted ${datasetIds.length} dataset(s).`,
-        });
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to delete datasets. Please try again.",
-          variant: "destructive",
-        });
-      }
-    },
-    [projectId, toast, updateData]
+  const chrome = (
+    <DatasetsChrome
+      projectId={String(projectId)}
+      filters={effective.filters}
+      onFiltersChange={setFilters}
+      searchValue={searchValue}
+      onSearchChange={setSearchAndFilters}
+      columnLabels={datasetsColumnLabels}
+    />
   );
 
   return (
     <>
       <Header path="datasets" />
-      <div className="flex px-4 pb-4 flex-col gap-4 overflow-hidden flex-1">
+      <div className="flex flex-1 flex-col gap-4 px-4 pb-4 overflow-hidden">
         <CreateDatasetDialog onUpdate={handleCreateDataset}>
           <Button icon="plus" className="w-fit">
             Dataset
           </Button>
         </CreateDatasetDialog>
-        <div className="flex overflow-hidden flex-1">
-          <InfiniteDataTable
-            enableRowSelection={true}
-            getRowHref={(row) => `/project/${projectId}/datasets/${row.original.id}`}
-            getRowId={(row: DatasetInfo) => row.id}
-            columns={columns}
-            data={datasets}
-            hasMore={hasMore}
-            isFetching={isFetching}
-            isLoading={isLoading || isViewLoading}
-            fetchNextPage={fetchNextPage}
-            state={{
-              rowSelection,
-            }}
-            onRowSelectionChange={setRowSelection}
-            emptyRow={filter.length === 0 && !search ? EmptyRow : undefined}
-            selectionPanel={(selectedRowIds) => (
-              <div className="flex flex-col space-y-2">
-                <DeleteSelectedRows
-                  selectedRowIds={selectedRowIds}
-                  onDelete={handleDeleteDatasets}
-                  entityName="datasets"
-                />
-              </div>
-            )}
-          >
-            <div className="flex flex-1 w-full space-x-2 pt-1">
-              <DataTableFilter
-                columns={datasetsTableFilters}
-                filters={effective.filters}
-                onFiltersChange={setFilters}
-              />
-              <ColumnsMenu
-                columnLabels={columns.map((column) => ({
-                  id: column.id!,
-                  label: typeof column.header === "string" ? column.header : column.id!,
-                }))}
-              />
-              <ViewsToolbar projectId={String(projectId)} resource={RESOURCE} />
-            </div>
-            <div className="w-full">
-              <AdvancedSearch
-                value={searchValue}
-                onChange={setSearchAndFilters}
-                storageKey={`datasets-${projectId}`}
-                filters={datasetsTableFilters}
-                placeholder="Search by dataset name..."
-                className="w-full flex-1"
-              />
-            </div>
-          </InfiniteDataTable>
+        <div className="flex flex-1 overflow-hidden">
+          <DatasetsGrid
+            chrome={chrome}
+            updateDataRef={updateDataRef}
+            filter={filter}
+            search={search}
+            isViewLoading={isViewLoading}
+          />
         </div>
       </div>
     </>

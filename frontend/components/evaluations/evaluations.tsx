@@ -1,41 +1,27 @@
 "use client";
 
 import { type ColumnDef } from "@tanstack/react-table";
-import { Eye, EyeOff, Settings as SettingsIcon } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { type LayoutStorage, useDefaultLayout } from "react-resizable-panels";
 import useSWR from "swr";
 
-import AdvancedSearch from "@/components/common/advanced-search";
 import HeatmapValue from "@/components/evaluation/heatmap-value";
 import { formatScoreValue, isValidScore } from "@/components/evaluation/utils";
+import { EvaluationsChrome } from "@/components/evaluations/chrome";
+import { EvaluationsGrid } from "@/components/evaluations/grid";
 import ProgressionChart from "@/components/evaluations/progression-chart";
 import { Button } from "@/components/ui/button";
-import { ColumnsMenu } from "@/components/ui/columns-menu";
 import CopyTooltip from "@/components/ui/copy-tooltip";
-import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
+import { useSelection } from "@/components/ui/infinite-datatable/hooks";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
-import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar.tsx";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
-import { Switch } from "@/components/ui/switch";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
 import { type ScoreRange } from "@/lib/colors";
 import { type Evaluation } from "@/lib/evaluation/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { swrFetcher } from "@/lib/utils";
 
@@ -44,6 +30,7 @@ import Header from "../ui/header";
 import Mono from "../ui/mono";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { defaultEvaluationsColumnOrder, RESOURCE } from "./constants";
 import GroupsList from "./groups-list";
 import { useEvaluationsProgression } from "./use-evaluations-progression";
 
@@ -111,58 +98,18 @@ function buildScoreColumns(
   }));
 }
 
-export const defaultEvaluationsColumnOrder = [
-  "__row_selection",
-  "__chart_visibility",
-  "id",
-  "name",
-  "dataPointsCount",
-  "metadata",
-  "createdAt",
-];
-
-const filters: ColumnFilter[] = [
-  {
-    name: "ID",
-    key: "id",
-    dataType: "string",
-  },
-  {
-    name: "Name",
-    key: "name",
-    dataType: "string",
-  },
-  {
-    name: "Datapoints Count",
-    key: "dataPointsCount",
-    dataType: "number",
-  },
-  {
-    name: "Metadata",
-    key: "metadata",
-    dataType: "json",
-  },
-];
-
-const FETCH_SIZE = 50;
-const RESOURCE = "evaluations";
-
-const EMPTY_HIDDEN_IDS: string[] = [];
-
-// useDefaultLayout's default storage dereferences `localStorage` at call time,
-// which throws during SSR — guard it behind a window check.
 const layoutStorage: LayoutStorage = {
   getItem: (key) => (typeof window === "undefined" ? null : localStorage.getItem(key)),
   setItem: (key, value) => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(key, value);
-    }
+    if (typeof window !== "undefined") localStorage.setItem(key, value);
   },
 };
 
 const emptySubscribe = () => () => {};
 const getClientSnapshot = () => true;
 const getServerSnapshot = () => false;
+
+const EMPTY_HIDDEN_IDS: string[] = [];
 
 export default function Evaluations() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -180,9 +127,10 @@ export default function Evaluations() {
 function EvaluationsContent() {
   const params = useParams<{ projectId: string }>();
   const router = useRouter();
-  const { toast } = useToast();
   const searchParams = useSearchParams();
   const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
+  const { rowSelection, onRowSelectionChange } = useSelection();
+
   const searchValue = useMemo(
     () => ({ filters: effective.filters, search: effective.search }),
     [effective.filters, effective.search]
@@ -191,8 +139,6 @@ function EvaluationsContent() {
   const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
   const search = effective.search.length > 0 ? effective.search : null;
 
-  // The groups list defaults groupId to the first group on load. Until that default
-  // resolves, hold off fetching so the table never flashes the unfiltered (all-groups) list.
   const { data: groups, isLoading: isGroupsLoading } = useSWR<{ groupId: string }[]>(
     `/api/projects/${params?.projectId}/evaluation-groups`,
     swrFetcher
@@ -206,6 +152,7 @@ function EvaluationsContent() {
   const [aggregationFunction, setAggregationFunction] = useState<AggregationFunction>(AggregationFunction.AVG);
   const [hoveredEvaluationId, setHoveredEvaluationId] = useState<string | undefined>(undefined);
   const [heatmapEnabled, setHeatmapEnabled] = useState(true);
+  const [chartEvaluations, setChartEvaluations] = useState<{ id: string; name: string }[]>([]);
 
   const [hiddenEvaluationIds, setHiddenEvaluationIds] = useLocalStorage<string[]>(
     `evaluations-chart-hidden:${params?.projectId}:${groupId ?? ""}`,
@@ -226,79 +173,8 @@ function EvaluationsContent() {
     storage: layoutStorage,
   });
 
-  // Mount the panel group only on the client so the persisted layout is
-  // available at Group registration time (same pattern as queue-content.tsx).
   const isClient = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
 
-  const fetchEvaluations = useCallback(
-    async (pageNumber: number) => {
-      try {
-        const urlParams = new URLSearchParams();
-        urlParams.set("pageNumber", pageNumber.toString());
-        urlParams.set("pageSize", FETCH_SIZE.toString());
-
-        if (groupId) {
-          urlParams.set("groupId", groupId);
-        }
-
-        if (search && search.trim() !== "") {
-          urlParams.set("search", search);
-        }
-
-        filter.forEach((f) => urlParams.append("filter", f));
-
-        const url = `/api/projects/${params?.projectId}/evaluations?${urlParams.toString()}`;
-
-        const res = await fetch(url, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!res.ok) {
-          const text = (await res.json()) as { error: string };
-          throw new Error(text.error);
-        }
-
-        const data = (await res.json()) as { items: Evaluation[]; totalCount: number };
-        return { items: data.items, count: data.totalCount };
-      } catch (error) {
-        toast({
-          title: error instanceof Error ? error.message : "Failed to load evaluations. Please try again.",
-          variant: "destructive",
-        });
-        throw error;
-      }
-    },
-    [filter, groupId, params?.projectId, search, toast]
-  );
-
-  const {
-    data: evaluations,
-    hasMore,
-    isFetching,
-    isLoading,
-    fetchNextPage,
-    refetch,
-  } = useInfiniteScroll<Evaluation>({
-    fetchFn: fetchEvaluations,
-    enabled: !isViewLoading && !isGroupDefaultPending,
-    deps: [filter, groupId, params?.projectId, search],
-  });
-
-  const { rowSelection, onRowSelectionChange } = useSelection();
-
-  // When exactly one (or more — we take the first) eval is row-selected, the progression
-  // charts subtract that run's scores from every other run so it becomes the zero baseline.
-  const selectedEvaluationId = useMemo(() => {
-    const ids = Object.keys(rowSelection).filter((id) => rowSelection[id]);
-    return ids.length > 0 ? ids[0] : undefined;
-  }, [rowSelection]);
-
-  // Single source for the group-scoped progression (no `ids` ⇒ every run in the
-  // group). Drives the table's per-score columns, the heatmap ranges, and the
-  // full run set for the chart's Hide-all / visibility — all parsed once.
   const {
     progression,
     isLoading: isProgressionLoading,
@@ -313,14 +189,10 @@ function EvaluationsContent() {
       {
         id: "__chart_visibility",
         enableResizing: false,
-        // Cells render with px-4 padding inside an overflow-hidden wrapper,
-        // so the 28px icon button needs at least 28 + 32 = 60px of column width.
         size: 64,
         header: () => {
           const allHidden = allRunIds.length > 0 && allRunIds.every((id) => hiddenEvaluationIds.includes(id));
           return (
-            // pr-4 mirrors the cell's symmetric px-4 (the header wrapper only has
-            // left padding), so the header icon centers over the cell icons.
             <div className="flex items-center justify-center pr-4">
               <Button
                 variant="ghost"
@@ -373,36 +245,30 @@ function EvaluationsContent() {
     ]
   );
 
-  const handleDeleteEvaluations = async (evaluationIds: string[]) => {
-    try {
-      const response = await fetch(`/api/projects/${params?.projectId}/evaluations`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          evaluationIds,
-        }),
-      });
+  const selectedEvaluationId = useMemo(() => {
+    const ids = Object.keys(rowSelection).filter((id) => rowSelection[id]);
+    return ids.length > 0 ? ids[0] : undefined;
+  }, [rowSelection]);
 
-      if (response.ok) {
-        await refetch();
+  const refetchRef = useRef<() => void>(() => {});
 
-        toast({
-          title: "Evaluations deleted",
-          description: `Successfully deleted ${evaluationIds.length} evaluation(s).`,
-        });
-      } else {
-        throw new Error("Failed to delete evaluations");
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete evaluations. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
+  const onEvaluationsChange = useCallback((evals: { id: string; name: string }[]) => {
+    setChartEvaluations(evals);
+  }, []);
+
+  const chrome = (
+    <EvaluationsChrome
+      projectId={params.projectId}
+      activeFilters={effective.filters}
+      onFiltersChange={setFilters}
+      columns={columns}
+      scoreNames={scoreNames}
+      heatmapEnabled={heatmapEnabled}
+      onHeatmapEnabledChange={setHeatmapEnabled}
+      searchValue={searchValue}
+      onSearchChange={setSearchAndFilters}
+    />
+  );
 
   if (!isClient) {
     return <Header path="evaluations" />;
@@ -446,7 +312,7 @@ function EvaluationsContent() {
               <ProgressionChart
                 data={progression}
                 isLoading={isProgressionLoading}
-                evaluations={evaluations.map(({ id, name }) => ({ id, name }))}
+                evaluations={chartEvaluations}
                 hiddenEvaluationIds={hiddenEvaluationIds}
                 className="h-full"
                 baselineEvaluationId={selectedEvaluationId}
@@ -456,74 +322,21 @@ function EvaluationsContent() {
             </ResizablePanel>
             <ResizableHandle className="my-2 bg-transparent transition-colors duration-200" />
             <ResizablePanel className="flex flex-1 w-full overflow-hidden" minSize={40} defaultSize={40}>
-              <InfiniteDataTable<Evaluation>
-                className="w-full"
-                enableRowSelection
+              <EvaluationsGrid
+                chrome={chrome}
+                filter={filter}
+                search={search}
+                groupId={groupId}
+                isViewLoading={isViewLoading}
+                isGroupDefaultPending={isGroupDefaultPending}
                 columns={columns}
-                data={evaluations}
-                getRowId={(evaluation) => evaluation.id}
-                getRowHref={(row) => `/project/${params?.projectId}/evaluations/${row.original.id}`}
-                getRowClassName={(row) => (hiddenEvaluationIds.includes(row.original.id) ? "opacity-40" : "")}
-                hasMore={hasMore}
-                isFetching={isFetching}
-                isLoading={isLoading || isViewLoading || isGroupDefaultPending}
-                fetchNextPage={fetchNextPage}
-                state={{ rowSelection }}
+                hiddenEvaluationIds={hiddenEvaluationIds}
+                rowSelection={rowSelection}
                 onRowSelectionChange={onRowSelectionChange}
-                onHoveredRowChange={(row) => setHoveredEvaluationId(row?.original.id)}
-                selectionPanel={(selectedRowIds) => (
-                  <div className="flex flex-col space-y-2">
-                    <DeleteSelectedRows
-                      selectedRowIds={selectedRowIds}
-                      onDelete={handleDeleteEvaluations}
-                      entityName="evaluations"
-                    />
-                  </div>
-                )}
-              >
-                <div className="flex flex-1 w-full space-x-2">
-                  <DataTableFilter columns={filters} filters={effective.filters} onFiltersChange={setFilters} />
-                  <ColumnsMenu
-                    columnLabels={columns
-                      .filter((column) => column.id !== "__chart_visibility")
-                      .map((column) => ({
-                        id: column.id!,
-                        label: typeof column.header === "string" ? column.header : column.id!,
-                      }))}
-                  />
-                  <ViewsToolbar projectId={params.projectId} resource={RESOURCE} />
-                  {scoreNames.length > 0 && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button className="h-7 w-7" variant="outline" size="icon">
-                          <SettingsIcon className="h-4 w-4 text-secondary-foreground" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="w-64">
-                        <DropdownMenuLabel className="text-xs font-medium">Settings</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <div className="flex items-center justify-between px-2 py-2">
-                          <div className="flex flex-col">
-                            <span className="text-xs">Scores Heatmap</span>
-                            <span className="text-xs text-muted-foreground">Color-code score values</span>
-                          </div>
-                          <Switch checked={heatmapEnabled} onCheckedChange={setHeatmapEnabled} />
-                        </div>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                </div>
-                <div className="w-full">
-                  <AdvancedSearch
-                    value={searchValue}
-                    onChange={setSearchAndFilters}
-                    storageKey={`evaluations-${params?.projectId}`}
-                    filters={filters}
-                    placeholder="Search evaluations..."
-                    className="w-full flex-1"
-                  />
-                </div>
-              </InfiniteDataTable>
+                onHoveredRowChange={setHoveredEvaluationId}
+                refetchRef={refetchRef}
+                onEvaluationsChange={onEvaluationsChange}
+              />
             </ResizablePanel>
           </ResizablePanelGroup>
         </ResizablePanel>

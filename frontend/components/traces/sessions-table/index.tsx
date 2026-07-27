@@ -1,37 +1,28 @@
 "use client";
 
-import { type Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo } from "react";
+import { type ComponentProps, useCallback, useEffect, useMemo, useRef } from "react";
 
-import AdvancedSearch from "@/components/common/advanced-search";
-import { columns, defaultSessionsColumnOrder, filters } from "@/components/traces/sessions-table/columns";
-import { ColumnsMenu } from "@/components/ui/columns-menu";
-import DateRangeFilter from "@/components/ui/date-range-filter";
-import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { SessionsTableChrome } from "@/components/traces/sessions-table/chrome";
+import { defaultSessionsColumnOrder } from "@/components/traces/sessions-table/columns";
+import { RESOURCE } from "@/components/traces/sessions-table/constants";
+import { SessionsTableGrid } from "@/components/traces/sessions-table/grid";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
-import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
-import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
-import { useToast } from "@/lib/hooks/use-toast";
-import { track } from "@/lib/posthog";
-import { type SessionRow } from "@/lib/traces/types";
+import { cn } from "@/lib/utils";
 
-const FETCH_SIZE = 50;
-const RESOURCE = "sessions";
-
-export default function SessionsTable() {
+export default function SessionsTable({ className, ...props }: ComponentProps<"div">) {
   const { projectId } = useParams();
   return (
-    <InfiniteDataTableProvider
-      uniqueKey="sessionId"
-      defaults={{ columnOrder: defaultSessionsColumnOrder }}
-      views={{ projectId: String(projectId), resource: RESOURCE }}
-    >
-      <SessionsTableContent />
-    </InfiniteDataTableProvider>
+    <div className={cn("flex flex-1 min-h-0 overflow-hidden", className)} {...props}>
+      <InfiniteDataTableProvider
+        uniqueKey="sessionId"
+        defaults={{ columnOrder: defaultSessionsColumnOrder }}
+        views={{ projectId: String(projectId), resource: RESOURCE }}
+      >
+        <SessionsTableContent />
+      </InfiniteDataTableProvider>
+    </div>
   );
 }
 
@@ -40,7 +31,7 @@ function SessionsTableContent() {
   const pathName = usePathname();
   const router = useRouter();
   const { projectId } = useParams();
-  const { toast } = useToast();
+  const refetchRef = useRef<() => void>(() => {});
 
   const { effective, isLoading: isViewLoading, setSort, setSearchAndFilters, setFilters } = useTableView();
   const searchValue = useMemo(
@@ -63,73 +54,9 @@ function SessionsTableContent() {
     }
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
 
-  const shouldFetch = !!(pastHours || startDate || endDate);
-
-  const fetchSessions = useCallback(
-    async (pageNumber: number) => {
-      try {
-        const urlParams = new URLSearchParams();
-        urlParams.set("pageNumber", pageNumber.toString());
-        urlParams.set("pageSize", FETCH_SIZE.toString());
-
-        if (pastHours != null) urlParams.set("pastHours", pastHours);
-        if (startDate != null) urlParams.set("startDate", startDate);
-        if (endDate != null) urlParams.set("endDate", endDate);
-
-        filter.forEach((f) => urlParams.append("filter", f));
-
-        if (typeof textSearchFilter === "string" && textSearchFilter.length > 0) {
-          urlParams.set("search", textSearchFilter);
-        }
-
-        if (sortBy) {
-          urlParams.set("sortColumn", sortBy);
-          if (sortDirection) urlParams.set("sortDirection", sortDirection.toUpperCase());
-        }
-
-        const url = `/api/projects/${projectId}/sessions?${urlParams.toString()}`;
-        const res = await fetch(url, { method: "GET", headers: { "Content-Type": "application/json" } });
-
-        if (!res.ok) {
-          const text = (await res.json()) as { error: string };
-          throw new Error(text.error);
-        }
-
-        const data = (await res.json()) as { items: SessionRow[] };
-        return { items: data.items, count: 0 };
-      } catch (error) {
-        toast({
-          title: error instanceof Error ? error.message : "Failed to load sessions. Please try again.",
-          variant: "destructive",
-        });
-        throw error;
-      }
-    },
-    [endDate, filter, pastHours, projectId, sortBy, sortDirection, startDate, textSearchFilter, toast]
-  );
-
-  const {
-    data: sessions,
-    hasMore,
-    isFetching,
-    isLoading,
-    error,
-    fetchNextPage,
-    refetch,
-  } = useInfiniteScroll<SessionRow>({
-    fetchFn: fetchSessions,
-    enabled: shouldFetch && !isViewLoading,
-    deps: [endDate, filter, pastHours, projectId, sortBy, sortDirection, startDate, textSearchFilter],
-  });
-
-  const handleRowClick = useCallback(
-    (row: Row<SessionRow>) => {
-      const encodedSessionId = row.original.sessionId.split("/").map(encodeURIComponent).join("/");
-      router.push(`/project/${projectId}/sessions/${encodedSessionId}`);
-      track("sessions", "detail_opened", { source: "table" });
-    },
-    [projectId, router]
-  );
+  const handleRefresh = useCallback(() => {
+    refetchRef.current();
+  }, []);
 
   const handleSort = useCallback(
     (columnId: string, direction: "asc" | "desc") => {
@@ -138,47 +65,32 @@ function SessionsTableContent() {
     [setSort]
   );
 
+  const chrome = (
+    <SessionsTableChrome
+      projectId={String(projectId)}
+      filters={effective.filters}
+      onFiltersChange={setFilters}
+      onRefresh={handleRefresh}
+      searchValue={searchValue}
+      onSearchChange={setSearchAndFilters}
+    />
+  );
+
   return (
     <div className="flex flex-1 overflow-hidden px-4 pb-4">
-      <InfiniteDataTable<SessionRow>
-        className="w-full"
-        columns={columns}
-        data={sessions}
-        getRowId={(session) => session.sessionId}
-        onRowClick={handleRowClick}
-        hasMore={hasMore}
-        isFetching={isFetching}
-        isLoading={isLoading || !shouldFetch || isViewLoading}
-        fetchNextPage={fetchNextPage}
-        error={error}
+      <SessionsTableGrid
+        chrome={chrome}
+        refetchRef={refetchRef}
+        filter={filter}
+        textSearchFilter={textSearchFilter}
         sortBy={sortBy}
         sortDirection={sortDirection}
         onSort={handleSort}
-      >
-        <div className="flex flex-1 w-full h-full gap-2">
-          <DataTableFilter columns={filters} filters={effective.filters} onFiltersChange={setFilters} />
-          <ColumnsMenu
-            columnLabels={columns.map((column) => ({
-              id: column.id!,
-              label: typeof column.header === "string" ? column.header : column.id!,
-            }))}
-          />
-          <ViewsToolbar projectId={String(projectId)} resource={RESOURCE} />
-          <DateRangeFilter />
-          <RefreshButton onClick={refetch} variant="outline" />
-        </div>
-        <div className="w-full px-px">
-          <AdvancedSearch
-            value={searchValue}
-            onChange={setSearchAndFilters}
-            filters={filters}
-            placeholder="Search by session ID, duration, cost, tokens and more..."
-            className="w-full flex-1"
-            storageKey={`sessions-${projectId}`}
-            resource="sessions"
-          />
-        </div>
-      </InfiniteDataTable>
+        pastHours={pastHours}
+        startDate={startDate}
+        endDate={endDate}
+        isViewLoading={isViewLoading}
+      />
     </div>
   );
 }

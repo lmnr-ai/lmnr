@@ -1,39 +1,30 @@
 "use client";
-import { type Row } from "@tanstack/react-table";
-import { map } from "lodash";
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo } from "react";
 
-import AdvancedSearch from "@/components/common/advanced-search";
-import { columns, defaultSpansColumnOrder, filters } from "@/components/traces/spans-table/columns";
-import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { type ComponentProps, useCallback, useEffect, useMemo, useRef } from "react";
+
+import { SpansTableChrome } from "@/components/traces/spans-table/chrome";
+import { defaultSpansColumnOrder } from "@/components/traces/spans-table/columns";
+import { RESOURCE } from "@/components/traces/spans-table/constants";
+import { SpansTableGrid } from "@/components/traces/spans-table/grid";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
-import { ColumnsMenu } from "@/components/ui/columns-menu";
-import DateRangeFilter from "@/components/ui/date-range-filter";
-import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
-import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
-import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
-import { useToast } from "@/lib/hooks/use-toast";
-import { type SpanRow } from "@/lib/traces/types";
+import { cn } from "@/lib/utils";
 
-const FETCH_SIZE = 50;
-const RESOURCE = "spans";
-
-export default function SpansTable() {
+export default function SpansTable({ className, ...props }: ComponentProps<"div">) {
   const { projectId } = useParams();
   return (
-    <InfiniteDataTableProvider
-      uniqueKey="spanId"
-      defaults={{ columnOrder: defaultSpansColumnOrder }}
-      lockedColumns={["status"]}
-      views={{ projectId: String(projectId), resource: RESOURCE }}
-    >
-      <SpansTableContent />
-    </InfiniteDataTableProvider>
+    <div className={cn("flex flex-1 min-h-0 overflow-hidden", className)} {...props}>
+      <InfiniteDataTableProvider
+        uniqueKey="spanId"
+        defaults={{ columnOrder: defaultSpansColumnOrder }}
+        lockedColumns={["status"]}
+        views={{ projectId: String(projectId), resource: RESOURCE }}
+      >
+        <SpansTableContent />
+      </InfiniteDataTableProvider>
+    </div>
   );
 }
 
@@ -42,12 +33,8 @@ function SpansTableContent() {
   const pathName = usePathname();
   const router = useRouter();
   const { projectId } = useParams();
-  const { toast } = useToast();
-  const { setTraceId, setSpanId, spanId } = useTracesStoreContext((state) => ({
-    setTraceId: state.setTraceId,
-    spanId: state.spanId,
-    setSpanId: state.setSpanId,
-  }));
+  const refetchRef = useRef<() => void>(() => {});
+  const setSpanId = useTracesStoreContext((s) => s.setSpanId);
 
   const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
   const searchValue = useMemo(
@@ -60,76 +47,10 @@ function SpansTableContent() {
   const endDate = searchParams.get("endDate");
   const pastHours = searchParams.get("pastHours");
 
-  const { setNavigationRefList } = useTraceViewNavigation();
-
-  const shouldFetch = !!(pastHours || startDate || endDate);
-
-  const fetchSpans = useCallback(
-    async (pageNumber: number) => {
-      try {
-        const urlParams = new URLSearchParams();
-        urlParams.set("pageNumber", pageNumber.toString());
-        urlParams.set("pageSize", FETCH_SIZE.toString());
-
-        if (pastHours != null) urlParams.set("pastHours", pastHours);
-        if (startDate != null) urlParams.set("startDate", startDate);
-        if (endDate != null) urlParams.set("endDate", endDate);
-
-        filter.forEach((filter) => urlParams.append("filter", filter));
-
-        if (typeof textSearchFilter === "string" && textSearchFilter.length > 0) {
-          urlParams.set("search", textSearchFilter);
-        }
-
-        const url = `/api/projects/${projectId}/spans?${urlParams.toString()}`;
-
-        const res = await fetch(url, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!res.ok) {
-          const text = (await res.json()) as { error: string };
-          throw new Error(text.error);
-        }
-
-        const data = (await res.json()) as { items: SpanRow[] };
-        return { items: data.items, count: 0 };
-      } catch (error) {
-        toast({
-          title: error instanceof Error ? error.message : "Failed to load spans. Please try again.",
-          variant: "destructive",
-        });
-        throw error;
-      }
-    },
-    [endDate, filter, pastHours, projectId, startDate, textSearchFilter, toast]
-  );
-
-  const {
-    data: spans,
-    hasMore,
-    isFetching,
-    isLoading,
-    fetchNextPage,
-    refetch,
-  } = useInfiniteScroll<SpanRow>({
-    fetchFn: fetchSpans,
-    enabled: shouldFetch && !isViewLoading,
-    deps: [endDate, filter, pastHours, projectId, startDate, textSearchFilter],
-  });
-
-  useEffect(() => {
-    setNavigationRefList(map(spans, (s) => ({ spanId: s.spanId, traceId: s.traceId })));
-  }, [setNavigationRefList, spans]);
-
   useEffect(() => {
     setSpanId(searchParams.get("spanId") ?? null);
   }, [searchParams, setSpanId]);
 
-  // Initialize with default time range if needed
   useEffect(() => {
     if (!pastHours && !startDate && !endDate) {
       const sp = new URLSearchParams(searchParams.toString());
@@ -138,63 +59,33 @@ function SpansTableContent() {
     }
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
 
-  const handleRowClick = useCallback(
-    (row: Row<SpanRow>) => {
-      setTraceId(row.original.traceId);
-      setSpanId(row.original.spanId);
-    },
-    [setSpanId, setTraceId]
-  );
+  const handleRefresh = useCallback(() => {
+    refetchRef.current();
+  }, []);
 
-  const getRowHref = useCallback(
-    (row: Row<SpanRow>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("traceId", row.original.traceId);
-      params.set("spanId", row.original.spanId);
-      return `${pathName}?${params.toString()}`;
-    },
-    [pathName, searchParams]
+  const chrome = (
+    <SpansTableChrome
+      projectId={String(projectId)}
+      filters={effective.filters}
+      onFiltersChange={setFilters}
+      onRefresh={handleRefresh}
+      searchValue={searchValue}
+      onSearchChange={setSearchAndFilters}
+    />
   );
 
   return (
     <div className="flex flex-1 overflow-hidden px-4 pb-6">
-      <InfiniteDataTable<SpanRow>
-        className="w-full"
-        columns={columns}
-        data={spans}
-        getRowId={(span) => span.spanId}
-        onRowClick={handleRowClick}
-        getRowHref={getRowHref}
-        focusedRowId={spanId || searchParams.get("spanId")}
-        hasMore={!textSearchFilter && hasMore}
-        isFetching={isFetching}
-        isLoading={isLoading || isViewLoading}
-        fetchNextPage={fetchNextPage}
-      >
-        <div className="flex flex-1 w-full h-full gap-2">
-          <DataTableFilter columns={filters} filters={effective.filters} onFiltersChange={setFilters} />
-          <ColumnsMenu
-            columnLabels={columns.map((column) => ({
-              id: column.id!,
-              label: typeof column.header === "string" ? column.header : column.id!,
-            }))}
-          />
-          <ViewsToolbar projectId={String(projectId)} resource={RESOURCE} />
-          <DateRangeFilter />
-          <RefreshButton onClick={refetch} variant="outline" />
-        </div>
-        <div className="w-full px-px">
-          <AdvancedSearch
-            value={searchValue}
-            onChange={setSearchAndFilters}
-            storageKey={`spans-${projectId}`}
-            filters={filters}
-            resource="spans"
-            placeholder="Search by span name, tokens, tags, full text and more..."
-            className="w-full flex-1"
-          />
-        </div>
-      </InfiniteDataTable>
+      <SpansTableGrid
+        chrome={chrome}
+        refetchRef={refetchRef}
+        filter={filter}
+        textSearchFilter={textSearchFilter}
+        pastHours={pastHours}
+        startDate={startDate}
+        endDate={endDate}
+        isViewLoading={isViewLoading}
+      />
     </div>
   );
 }

@@ -74,7 +74,6 @@ export function InfiniteDatatableBody<TData extends RowData>({
                 key={row.id}
                 virtualRow={virtualRow}
                 row={row}
-                rowVirtualizer={rowVirtualizer}
                 onRowClick={onRowClick}
                 onHoveredRowChange={onHoveredRowChange}
                 focusedRowId={focusedRowId}

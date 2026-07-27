@@ -1,108 +1,26 @@
 "use client";
 
-import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
-import { Loader2, SquareArrowOutUpRight, Trash2 } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
+import { useEffect, useMemo } from "react";
 
-import AdvancedSearch from "@/components/common/advanced-search";
-import { Button } from "@/components/ui/button";
-import { ColumnsMenu } from "@/components/ui/columns-menu";
-import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { PlaygroundsChrome } from "@/components/playgrounds/chrome";
+import { playgroundsColumnLabels, PlaygroundsGrid } from "@/components/playgrounds/grid";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
-import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
-import { TableCell, TableRow } from "@/components/ui/table";
-import { useToast } from "@/lib/hooks/use-toast";
-import { type PlaygroundInfo } from "@/lib/playground/types";
 import { track } from "@/lib/posthog";
 
-import ClientTimestampFormatter from "../client-timestamp-formatter";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "../ui/dialog";
 import Header from "../ui/header";
-import Mono from "../ui/mono";
+import { RESOURCE } from "./constants";
 import CreatePlaygroundDialog from "./create-playground-dialog";
-
-const columns: ColumnDef<PlaygroundInfo>[] = [
-  {
-    cell: ({ row }) => <Mono>{row.original.id}</Mono>,
-    size: 300,
-    header: "ID",
-    id: "id",
-  },
-  {
-    id: "name",
-    accessorKey: "name",
-    header: "Name",
-    size: 300,
-  },
-  {
-    id: "createdAt",
-    header: "Created",
-    accessorKey: "createdAt",
-    cell: (row) => <ClientTimestampFormatter absolute timestamp={String(row.getValue())} />,
-  },
-];
 
 export const defaultPlaygroundsColumnOrder = ["__row_selection", "id", "name", "createdAt"];
 
-const playgroundsTableFilters: ColumnFilter[] = [
-  {
-    name: "ID",
-    key: "id",
-    dataType: "string",
-  },
-  {
-    name: "Name",
-    key: "name",
-    dataType: "string",
-  },
-];
-
-const FETCH_SIZE = 50;
-const RESOURCE = "playgrounds";
-
-const EmptyRow = (
-  <TableRow className="flex">
-    <TableCell className="text-center p-4 rounded-b w-full h-auto">
-      <div className="flex flex-1 justify-center">
-        <div className="flex flex-col gap-2 items-center max-w-md">
-          <h3 className="text-base font-medium text-secondary-foreground">No playgrounds yet</h3>
-          <p className="text-sm text-muted-foreground text-center">
-            Playgrounds let you experiment with prompts, models, and tools interactively. Click + Playground above to
-            create one, or open one directly from a traced span.
-          </p>
-          <a
-            href="https://laminar.sh/docs/playground"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-          >
-            Learn more
-            <SquareArrowOutUpRight className="h-3.5 w-3.5" />
-          </a>
-        </div>
-      </div>
-    </TableCell>
-  </TableRow>
-);
-
-const PlaygroundsContent = () => {
+function PlaygroundsContent() {
   const { projectId } = useParams();
-  const router = useRouter();
-  const { toast } = useToast();
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+  useEffect(() => {
+    track("playgrounds", "page_viewed");
+  }, []);
 
   const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
   const searchValue = useMemo(
@@ -112,173 +30,29 @@ const PlaygroundsContent = () => {
   const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
   const search = effective.search.length > 0 ? effective.search : null;
 
-  useEffect(() => {
-    track("playgrounds", "page_viewed");
-  }, []);
-
-  const fetchPlaygrounds = useCallback(
-    async (pageNumber: number) => {
-      try {
-        const urlParams = new URLSearchParams();
-        urlParams.set("pageNumber", pageNumber.toString());
-        urlParams.set("pageSize", FETCH_SIZE.toString());
-
-        filter.forEach((f) => urlParams.append("filter", f));
-
-        if (typeof search === "string" && search.length > 0) {
-          urlParams.set("search", search);
-        }
-
-        const url = `/api/projects/${projectId}/playgrounds?${urlParams.toString()}`;
-        const res = await fetch(url, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!res.ok) {
-          const text = await res.json();
-          throw new Error(text.error || "Failed to fetch playgrounds");
-        }
-
-        const data = await res.json();
-        return { items: data.items, count: data.totalCount };
-      } catch (error) {
-        toast({
-          title: error instanceof Error ? error.message : "Failed to load playgrounds. Please try again.",
-          variant: "destructive",
-        });
-        throw error;
-      }
-    },
-    [projectId, toast, filter, search]
+  const chrome = (
+    <PlaygroundsChrome
+      projectId={String(projectId)}
+      filters={effective.filters}
+      onFiltersChange={setFilters}
+      searchValue={searchValue}
+      onSearchChange={setSearchAndFilters}
+      columnLabels={playgroundsColumnLabels}
+    />
   );
-
-  const {
-    data: playgrounds,
-    hasMore,
-    isFetching,
-    isLoading,
-    fetchNextPage,
-    updateData,
-  } = useInfiniteScroll<PlaygroundInfo>({
-    fetchFn: fetchPlaygrounds,
-    enabled: !isViewLoading,
-    deps: [projectId, filter, search],
-  });
-
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  const handleDeletePlaygrounds = async (playgroundIds: string[]) => {
-    setIsDeleting(true);
-    try {
-      const res = await fetch(`/api/projects/${projectId}/playgrounds?playgroundIds=${playgroundIds.join(",")}`, {
-        method: "DELETE",
-      });
-
-      if (res.ok) {
-        updateData((currentData) => currentData.filter((playground) => !playgroundIds.includes(playground.id)));
-        setRowSelection({});
-        track("playgrounds", "deleted", { count: playgroundIds.length });
-        toast({
-          title: "Playgrounds deleted",
-          description: `Successfully deleted ${playgroundIds.length} playground(s).`,
-        });
-      } else {
-        throw new Error("Failed to delete playgrounds");
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete playgrounds. Please try again.",
-        variant: "destructive",
-      });
-    }
-    setIsDeleting(false);
-    setIsDeleteDialogOpen(false);
-  };
 
   return (
     <>
       <Header path="playgrounds" />
-      <div className="flex flex-col gap-4 px-4 pb-4 overflow-hidden">
+      <div className="flex flex-1 flex-col gap-4 px-4 pb-4 overflow-hidden">
         <CreatePlaygroundDialog />
-        <InfiniteDataTable
-          enableRowSelection={true}
-          getRowHref={(row) => `/project/${projectId}/playgrounds/${row.original.id}`}
-          getRowId={(row) => row.id}
-          columns={columns}
-          data={playgrounds ?? []}
-          hasMore={hasMore}
-          isFetching={isFetching}
-          isLoading={isLoading || isViewLoading}
-          fetchNextPage={fetchNextPage}
-          state={{
-            rowSelection,
-          }}
-          onRowSelectionChange={setRowSelection}
-          emptyRow={filter.length === 0 && !search ? EmptyRow : undefined}
-          selectionPanel={(selectedRowIds) => (
-            <div className="flex flex-col space-y-2">
-              <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="ghost">
-                    <Trash2 size={12} />
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Delete Playgrounds</DialogTitle>
-                    <DialogDescription>
-                      Are you sure you want to delete {selectedRowIds.length} playground(s)? This action cannot be
-                      undone.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
-                      Cancel
-                    </Button>
-                    <Button onClick={() => handleDeletePlaygrounds(selectedRowIds)} disabled={isDeleting}>
-                      {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Delete
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
-          )}
-        >
-          <div className="flex flex-1 w-full space-x-2 pt-1">
-            <DataTableFilter
-              columns={playgroundsTableFilters}
-              filters={effective.filters}
-              onFiltersChange={setFilters}
-            />
-            <ColumnsMenu
-              columnLabels={columns.map((column) => ({
-                id: column.id!,
-                label: typeof column.header === "string" ? column.header : column.id!,
-              }))}
-            />
-            <ViewsToolbar projectId={String(projectId)} resource={RESOURCE} />
-          </div>
-          <div className="w-full">
-            <AdvancedSearch
-              value={searchValue}
-              onChange={setSearchAndFilters}
-              storageKey={`playgrounds-${projectId}`}
-              filters={playgroundsTableFilters}
-              placeholder="Search by playground name..."
-              className="w-full flex-1"
-            />
-          </div>
-        </InfiniteDataTable>
+        <div className="flex flex-1 overflow-hidden">
+          <PlaygroundsGrid chrome={chrome} filter={filter} search={search} isViewLoading={isViewLoading} />
+        </div>
       </div>
     </>
   );
-};
+}
 
 export default function Playgrounds() {
   const { projectId } = useParams();
