@@ -61,6 +61,27 @@ impl GeminiErrorStatus {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn http_499_maps_to_cancelled_and_is_retryable() {
+        let status = GeminiErrorStatus::from_http(499, "Cancelled");
+        assert_eq!(status, GeminiErrorStatus::Cancelled);
+        assert!(status.is_retryable());
+    }
+
+    #[test]
+    fn unmapped_status_code_stays_unknown_and_non_retryable() {
+        // Regression guard: an unrecognized code (e.g. a future/other transient
+        // status) must not silently fall into a retryable variant.
+        let status = GeminiErrorStatus::from_http(418, "Teapot");
+        assert_eq!(status, GeminiErrorStatus::Unknown("Teapot".to_string()));
+        assert!(!status.is_retryable());
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum GeminiError {
     #[error("Request failed: {0}")]
