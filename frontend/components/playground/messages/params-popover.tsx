@@ -45,14 +45,14 @@ const ParamsPopover = ({ className }: ParamsPopoverProps) => {
               <>
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium">Max Output Tokens</span>
-                  <Input
+                  <Input aria-label="Input"
                     onChange={(e) => onChange(Number(e.target.value))}
                     value={value ?? defaultMaxTokens}
                     type="number"
                     className="text-sm font-medium w-16 text-right hide-arrow px-1 py-0 h-fit"
                   />
                 </div>
-                <Slider
+                <Slider aria-label="Adjust value"
                   value={[value ?? defaultMaxTokens]}
                   defaultValue={[defaultMaxTokens]}
                   min={50}
@@ -72,14 +72,14 @@ const ParamsPopover = ({ className }: ParamsPopoverProps) => {
               <>
                 <div className="flex justify-between">
                   <span className="text-sm font-medium">Temperature</span>
-                  <Input
+                  <Input aria-label="Input"
                     onChange={(e) => onChange(Number(e.target.value))}
                     value={value ?? defaultTemperature}
                     type="number"
                     className="text-sm font-medium w-16 text-right hide-arrow px-1 py-0 h-fit"
                   />
                 </div>
-                <Slider
+                <Slider aria-label="Adjust value"
                   defaultValue={[defaultTemperature]}
                   value={[value ?? defaultTemperature]}
                   min={0}

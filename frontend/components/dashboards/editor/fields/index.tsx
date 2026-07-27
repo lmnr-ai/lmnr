@@ -153,7 +153,7 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
     <div className="flex flex-col gap-4 p-4">
       <div className="grid gap-1">
         <Label className="font-semibold text-xs">Chart Name</Label>
-        <Input value={chart.name} onChange={(e) => setName(e.target.value)} placeholder="Enter chart name..." />
+        <Input aria-label="Enter chart name..." value={chart.name} onChange={(e) => setName(e.target.value)} placeholder="Enter chart name..." />
       </div>
 
       <ChartTypeField />
@@ -168,7 +168,7 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
         <div className="grid gap-1">
           <Label className="font-semibold text-xs">Display Value</Label>
           <Select value={displayMode} onValueChange={(value) => setDisplayMode(value as DisplayMode)}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Display Value">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

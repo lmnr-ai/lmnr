@@ -34,7 +34,7 @@ export default function SamplingSection() {
             </Tooltip>
           </div>
         </TooltipProvider>
-        <Switch
+        <Switch aria-label="Sampling"
           checked={isEnabled}
           onCheckedChange={(checked) => {
             setValue("sampleRate", checked ? 25 : null, { shouldDirty: true });
@@ -48,7 +48,7 @@ export default function SamplingSection() {
             control={control}
             render={({ field }) => (
               <div className="flex items-center gap-3">
-                <Slider
+                <Slider aria-label="Adjust value"
                   className="flex-1"
                   min={5}
                   max={95}

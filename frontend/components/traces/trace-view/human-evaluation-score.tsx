@@ -232,7 +232,7 @@ const HumanEvaluationScore = ({
               name="score"
               control={control}
               render={({ field: { value, onChange, onBlur } }) => (
-                <Input
+                <Input aria-label="Enter numeric score"
                   disabled={isValidating}
                   id="score"
                   type="number"

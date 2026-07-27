@@ -79,7 +79,7 @@ export default function CreateDatasetDialog({
           </DialogHeader>
           <div className="grid gap-2">
             <Label>Name</Label>
-            <Input
+            <Input aria-label="Enter name..."
               autoFocus
               placeholder="Enter name..."
               value={newDatasetName}

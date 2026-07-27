@@ -66,7 +66,7 @@ const OrderByField = () => {
             <Controller
               render={({ field: { value, onChange } }) => (
                 <Select value={value} onValueChange={onChange}>
-                  <SelectTrigger className="text-xs flex-1">
+                  <SelectTrigger aria-label="Select field" className="text-xs flex-1">
                     <SelectValue placeholder="Select field">{value}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -102,7 +102,7 @@ const OrderByField = () => {
             <Controller
               render={({ field: { value, onChange } }) => (
                 <Select value={value} onValueChange={onChange}>
-                  <SelectTrigger className="text-xs w-32">
+                  <SelectTrigger aria-label="Select option" className="text-xs w-32">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

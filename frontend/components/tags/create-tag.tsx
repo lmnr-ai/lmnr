@@ -20,7 +20,7 @@ const CreateTag = ({ name, onCreateAndAttach }: CreateTagProps) => {
 
   return (
     <>
-      <Input
+      <Input aria-label="Pick a color for tag..."
         autoFocus
         onKeyDown={(e) => e.stopPropagation()}
         onChange={(e) => setQuery(e.target.value)}

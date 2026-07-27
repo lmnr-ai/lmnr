@@ -129,7 +129,7 @@ const HybridSetup = ({ workspaceId, isSaving, isVerified, onVerifiedChange }: Hy
             <div className="ml-9 space-y-1.5">
               <Label className="text-xs text-muted-foreground">Public Key</Label>
               <div className="flex gap-2 max-w-xl">
-                <Input value={publicKey} readOnly className="font-mono text-xs bg-muted h-8" />
+                <Input aria-label="Public Key" value={publicKey} readOnly className="font-mono text-xs bg-muted h-8" />
                 <CopyButton text={publicKey} />
               </div>
             </div>
@@ -155,7 +155,7 @@ const HybridSetup = ({ workspaceId, isSaving, isVerified, onVerifiedChange }: Hy
             </div>
           </div>
           <div className="ml-9 flex gap-2 max-w-xl">
-            <Input
+            <Input aria-label="https://your-deployment.example.com"
               placeholder="https://your-deployment.example.com"
               value={dataPlaneUrl || ""}
               onChange={(e) => {

@@ -39,7 +39,7 @@ export default function ScoreCard({
       ) : (
         <>
           <Select value={selectedScore} onValueChange={setSelectedScore}>
-            <SelectTrigger className="w-fit font-medium text-secondary-foreground h-7">
+            <SelectTrigger aria-label="Select score" className="w-fit font-medium text-secondary-foreground h-7">
               <SelectValue placeholder="Select score" className="text-lg" />
             </SelectTrigger>
             <SelectContent>

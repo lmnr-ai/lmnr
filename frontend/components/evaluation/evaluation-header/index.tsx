@@ -58,7 +58,7 @@ const EvaluationHeader = ({ evaluations, name, urlKey }: EvaluationHeader) => {
         <div className="text-secondary-foreground/40">/</div>
         <div>
           <Select key={targetId} value={targetId ?? undefined} onValueChange={handleChange}>
-            <SelectTrigger disabled={evaluations.length <= 1} className="flex font-medium truncate">
+            <SelectTrigger aria-label="Select compared evaluation" disabled={evaluations.length <= 1} className="flex font-medium truncate">
               <SelectValue placeholder="Select compared evaluation" />
             </SelectTrigger>
             <SelectContent>
@@ -86,7 +86,7 @@ const EvaluationHeader = ({ evaluations, name, urlKey }: EvaluationHeader) => {
               router.push(`/project/${projectId}/evaluations/${value}?${searchParams.toString()}`);
             }}
           >
-            <SelectTrigger className="flex font-medium">
+            <SelectTrigger aria-label="Select evaluation" className="flex font-medium">
               <SelectValue placeholder="Select evaluation" />
             </SelectTrigger>
             <SelectContent>

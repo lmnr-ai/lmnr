@@ -55,7 +55,7 @@ const FilterRow = ({ index, control, table, setValue, remove }: FilterRowProps) 
               onChange(newField);
             }}
           >
-            <SelectTrigger className="w-fit text-xs">
+            <SelectTrigger aria-label="Column" className="w-fit text-xs">
               <SelectValue placeholder="Column">{value}</SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -90,7 +90,7 @@ const FilterRow = ({ index, control, table, setValue, remove }: FilterRowProps) 
         control={control}
         render={({ field: { onChange, value } }) => (
           <Select value={value} onValueChange={onChange}>
-            <SelectTrigger className="w-fit font-medium text-xs px-3">
+            <SelectTrigger aria-label="Select option" className="w-fit font-medium text-xs px-3">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -108,7 +108,7 @@ const FilterRow = ({ index, control, table, setValue, remove }: FilterRowProps) 
           name={`filters.${index}.numberValue` as any}
           control={control}
           render={({ field: { value, onChange } }) => (
-            <Input
+            <Input aria-label="Enter number"
               type="number"
               placeholder="Enter number"
               value={value ?? ""}
@@ -125,7 +125,7 @@ const FilterRow = ({ index, control, table, setValue, remove }: FilterRowProps) 
           name={`filters.${index}.stringValue` as any}
           control={control}
           render={({ field: { value, onChange } }) => (
-            <Input
+            <Input aria-label="Enter value"
               type="text"
               placeholder="Enter value"
               value={value ?? ""}

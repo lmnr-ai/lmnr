@@ -86,7 +86,7 @@ function FilterRow({ index, onRemove }: { index: number; onRemove: () => void })
           rules={{ required: "Column is required" }}
           render={({ field }) => (
             <Select value={field.value} onValueChange={(value) => handleColumnChange(value, field.onChange)}>
-              <SelectTrigger className="w-48 truncate">
+              <SelectTrigger aria-label="Select option" className="w-48 truncate">
                 <span className="truncate">
                   {SIGNAL_TRIGGER_COLUMNS.find((c) => c.key === field.value)?.name || "Select column..."}
                 </span>
@@ -107,7 +107,7 @@ function FilterRow({ index, onRemove }: { index: number; onRemove: () => void })
           rules={{ required: "Operator is required" }}
           render={({ field }) => (
             <Select value={field.value} onValueChange={field.onChange}>
-              <SelectTrigger className="w-12">
+              <SelectTrigger aria-label="Select option" className="w-12">
                 <span>{operations.find((op) => op.key === field.value)?.label || field.value}</span>
               </SelectTrigger>
               <SelectContent>
@@ -127,7 +127,7 @@ function FilterRow({ index, onRemove }: { index: number; onRemove: () => void })
           render={({ field }) =>
             dataType === "enum" && column && "options" in column ? (
               <Select value={field.value as string} onValueChange={field.onChange}>
-                <SelectTrigger className="flex-1">
+                <SelectTrigger aria-label="Select option" className="flex-1">
                   <span>{column.options.find((opt) => opt.value === field.value)?.label || "Select value..."}</span>
                 </SelectTrigger>
                 <SelectContent>
@@ -139,7 +139,7 @@ function FilterRow({ index, onRemove }: { index: number; onRemove: () => void })
                 </SelectContent>
               </Select>
             ) : (
-              <Input
+              <Input aria-label="Enter value..."
                 {...field}
                 type={dataType === "number" ? "number" : "text"}
                 placeholder="Enter value..."

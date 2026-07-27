@@ -164,7 +164,7 @@ const NativeCombobox = ({
 
   return (
     <div className={cn("relative flex items-center", className)}>
-      <input
+      <input aria-label="Input"
         ref={combinedRef}
         type="text"
         value={value}

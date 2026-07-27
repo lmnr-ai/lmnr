@@ -162,7 +162,7 @@ export function AddWarningPopover({ workspaceId, usageItem, unit, toRawValue, on
             render={({ field, fieldState }) => (
               <div className="flex flex-col gap-1">
                 <div className="relative">
-                  <Input
+                  <Input aria-label="e.g. 5"
                     {...field}
                     type="number"
                     step="any"

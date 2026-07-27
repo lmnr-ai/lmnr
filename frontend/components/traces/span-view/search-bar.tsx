@@ -81,7 +81,7 @@ const SpanViewSearchBar = ({ open, setOpen, ref }: SpanViewSearchBarProps) => {
     <div className="flex items-center gap-1 p-2">
       <div className="relative flex-1">
         <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-        <Input
+        <Input aria-label="Search in span..."
           ref={ref}
           placeholder="Search in span..."
           value={inputValue}

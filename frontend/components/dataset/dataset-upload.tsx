@@ -25,7 +25,7 @@ export default function DatasetUpload({ datasetId, onSuccessfulUpload }: Dataset
         {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
         Select file
       </Button>
-      <input
+      <input aria-label="Datapoints file formats: .jsonl, .json, .csv."
         className="hidden"
         type="file"
         name="file"

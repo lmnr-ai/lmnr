@@ -135,7 +135,7 @@ export function CreateFirstProject({ userCode, workspaces, onApproved, onDenied 
             ) : workspaces.length > 1 ? (
               <Field label="Workspace">
                 <Select value={workspaceId} onValueChange={setWorkspaceId} disabled={busy}>
-                  <SelectTrigger className="h-9">
+                  <SelectTrigger aria-label="Select a workspace" className="h-9">
                     <SelectValue placeholder="Select a workspace" />
                   </SelectTrigger>
                   <SelectContent>

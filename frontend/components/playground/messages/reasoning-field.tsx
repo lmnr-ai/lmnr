@@ -26,7 +26,7 @@ const ReasoningField = () => {
         <Controller
           render={({ field: { value, onChange } }) => (
             <Select value={value} onValueChange={onChange}>
-              <SelectTrigger className="w-fit">
+              <SelectTrigger aria-label="Select reasoning" className="w-fit">
                 <SelectValue placeholder="Select reasoning" />
               </SelectTrigger>
               <SelectContent>
@@ -55,7 +55,7 @@ const ReasoningField = () => {
           <Controller
             render={({ field: { value, onChange } }) => (
               <Select value={value} onValueChange={onChange}>
-                <SelectTrigger className="w-fit">
+                <SelectTrigger aria-label="Select effort" className="w-fit">
                   <SelectValue placeholder="Select effort" />
                 </SelectTrigger>
                 <SelectContent>
@@ -83,14 +83,14 @@ const ReasoningField = () => {
               <>
                 <div className="flex justify-between">
                   <span className="text-sm font-medium">Thinking Tokens</span>
-                  <Input
+                  <Input aria-label="Input"
                     onChange={(e) => onChange(Number(e.target.value))}
                     value={tokens}
                     type="number"
                     className="text-sm font-medium w-16 text-right hide-arrow px-1 py-0 h-fit"
                   />
                 </div>
-                <Slider
+                <Slider aria-label="Adjust value"
                   value={[tokens]}
                   min={config.min}
                   max={watch("maxTokens")}
@@ -110,7 +110,7 @@ const ReasoningField = () => {
           <Controller
             render={({ field: { value, onChange } }) => (
               <Select value={value} onValueChange={onChange}>
-                <SelectTrigger className="w-fit">
+                <SelectTrigger aria-label="Reasoning type" className="w-fit">
                   <SelectValue placeholder="Reasoning type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -141,7 +141,7 @@ const ReasoningField = () => {
             <Controller
               render={({ field: { value, onChange } }) => (
                 <Select value={value} onValueChange={onChange}>
-                  <SelectTrigger className="w-fit">
+                  <SelectTrigger aria-label="Select level" className="w-fit">
                     <SelectValue placeholder="Select level" />
                   </SelectTrigger>
                   <SelectContent>
@@ -161,7 +161,7 @@ const ReasoningField = () => {
             render={({ field: { onChange, value } }) => (
               <div className="flex flex-col gap-2">
                 <span className="text-sm font-medium">Include Thoughts</span>
-                <Switch checked={value || undefined} onCheckedChange={onChange} />
+                <Switch aria-label="Toggle" checked={value || undefined} onCheckedChange={onChange} />
               </div>
             )}
             name="providerOptions.google.thinkingConfig.includeThoughts"
@@ -178,14 +178,14 @@ const ReasoningField = () => {
             <>
               <div className="flex justify-between">
                 <span className="text-sm font-medium">Thinking Tokens</span>
-                <Input
+                <Input aria-label="Input"
                   onChange={(e) => onChange(Number(e.target.value))}
                   value={Number(value)}
                   type="number"
                   className="text-sm font-medium w-16 text-right hide-arrow px-1 py-0 h-fit"
                 />
               </div>
-              <Slider
+              <Slider aria-label="Adjust value"
                 value={[Number(value)]}
                 min={config.min}
                 max={config.max}
@@ -201,7 +201,7 @@ const ReasoningField = () => {
           render={({ field: { onChange, value } }) => (
             <div className="flex flex-col gap-2">
               <span className="text-sm font-medium">Include Thoughts</span>
-              <Switch checked={value || undefined} onCheckedChange={onChange} />
+              <Switch aria-label="Toggle" checked={value || undefined} onCheckedChange={onChange} />
             </div>
           )}
           name="providerOptions.google.thinkingConfig.includeThoughts"

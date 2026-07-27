@@ -260,7 +260,7 @@ const SessionPlayer = ({ traceId, onClose }: SessionPlayerProps) => {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <Slider
+            <Slider aria-label="Adjust value"
               min={0}
               step={0.1}
               max={duration}

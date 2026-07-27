@@ -63,7 +63,7 @@ export default function SchemaFieldRow({
               message: "Name must be a valid identifier",
             },
           }}
-          render={({ field }) => <Input {...field} placeholder="Field name" className="w-32 text-sm" />}
+          render={({ field }) => <Input aria-label="Field name" {...field} placeholder="Field name" className="w-32 text-sm" />}
         />
         {fieldType === "enum" ? (
           <div className="flex flex-col gap-1 w-28">
@@ -72,7 +72,7 @@ export default function SchemaFieldRow({
               control={control}
               render={({ field }) => (
                 <Select value={field.value} onValueChange={handleTypeChange}>
-                  <SelectTrigger className="w-28">
+                  <SelectTrigger aria-label="Select option" className="w-28">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -93,7 +93,7 @@ export default function SchemaFieldRow({
             control={control}
             render={({ field }) => (
               <Select value={field.value} onValueChange={handleTypeChange}>
-                <SelectTrigger className="w-28">
+                <SelectTrigger aria-label="Select option" className="w-28">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -111,7 +111,7 @@ export default function SchemaFieldRow({
           name={`schemaFields.${index}.description`}
           control={control}
           render={({ field }) => (
-            <Textarea
+            <Textarea aria-label="Description of the field"
               {...field}
               placeholder="Description of the field"
               rows={0}

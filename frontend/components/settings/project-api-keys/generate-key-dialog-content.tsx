@@ -35,7 +35,7 @@ export function GenerateKeyDialogContent({
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
           <Label className="text-sm">Name</Label>
-          <Input autoFocus placeholder="API key name" onChange={(e) => onNameChange(e.target.value)} />
+          <Input aria-label="API key name" autoFocus placeholder="API key name" onChange={(e) => onNameChange(e.target.value)} />
         </div>
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-1">
@@ -55,7 +55,7 @@ export function GenerateKeyDialogContent({
             </TooltipProvider>
           </div>
           <Select value={keyType} onValueChange={(value) => onKeyTypeChange(value as "default" | "ingest_only")}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Key Type">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -67,7 +67,7 @@ export function GenerateKeyDialogContent({
         <div className="flex flex-col gap-2">
           <Label className="text-sm">Expiration</Label>
           <Select value={expiration} onValueChange={(value) => onExpirationChange(value as KeyExpiration)}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Expiration">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

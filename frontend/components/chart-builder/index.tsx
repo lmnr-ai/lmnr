@@ -147,7 +147,7 @@ const ChartBuilderCore = () => {
                             </div>
                           </TableCell>
                           <TableCell className="w-20 text-center">
-                            <Switch
+                            <Switch aria-label="Toggle"
                               checked={isColumnSelected(column.name, "x")}
                               onCheckedChange={(checked) => setXColumn(checked ? column.name : undefined)}
                               disabled={isColumnSelected(column.name, "breakdown")}
@@ -158,7 +158,7 @@ const ChartBuilderCore = () => {
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <div>
-                                    <Switch
+                                    <Switch aria-label="Toggle"
                                       checked={isColumnSelected(column.name, "y")}
                                       onCheckedChange={(checked) => setYColumn(checked ? column.name : undefined)}
                                       disabled={
@@ -189,7 +189,7 @@ const ChartBuilderCore = () => {
           )}
 
           <div className="flex items-center space-x-2">
-            <Checkbox
+            <Checkbox aria-label="Show Total"
               disabled={!hasChartType}
               id="show-total"
               checked={chartConfig.total || false}

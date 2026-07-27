@@ -94,7 +94,7 @@ export function CreateProjectDialog({ open, onOpenChange, workspaces, onCreated 
           ) : workspaces.length > 1 ? (
             <Field label="Workspace">
               <Select value={workspaceId} onValueChange={setWorkspaceId}>
-                <SelectTrigger className="h-9">
+                <SelectTrigger aria-label="Select a workspace" className="h-9">
                   <SelectValue placeholder="Select a workspace" />
                 </SelectTrigger>
                 <SelectContent>

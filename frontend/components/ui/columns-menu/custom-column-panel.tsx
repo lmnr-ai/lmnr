@@ -100,7 +100,7 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn, config }: Cus
         <div className="p-3 grid gap-3">
           <div className="grid gap-1.5">
             <Label className="text-xs">Name</Label>
-            <Input
+            <Input aria-label="Name"
               autoFocus
               placeholder={config.namePlaceholder ?? "e.g. Span Count"}
               value={name}

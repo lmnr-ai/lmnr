@@ -147,7 +147,7 @@ export default function AddToLabelingQueuePopover({
         <div className="flex flex-col space-y-4">
           <span className="font-medium">Add to Queue</span>
           <Select disabled={isQueuesLoading} value={selectedQueue} onValueChange={setSelectedQueue}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Select a labeling queue">
               <SelectValue placeholder="Select a labeling queue" />
             </SelectTrigger>
             <SelectContent>

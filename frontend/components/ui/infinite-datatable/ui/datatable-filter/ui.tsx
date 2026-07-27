@@ -239,7 +239,7 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
     case "json":
       return (
         <>
-          <Input
+          <Input aria-label="key"
             type="text"
             className="h-7 hide-arrow"
             placeholder="key"
@@ -249,7 +249,7 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
               onValueChange({ field: "value", value: newValue });
             }}
           />
-          <Input
+          <Input aria-label="value"
             type="text"
             className="h-7 hide-arrow"
             placeholder="value"
@@ -305,7 +305,7 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
       return (
         <>
           {renderOperatorSelect()}
-          <Input
+          <Input aria-label="value"
             type="number"
             className="h-7 hide-arrow"
             placeholder="value"
@@ -319,7 +319,7 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
       return (
         <>
           {renderOperatorSelect()}
-          <Input
+          <Input aria-label="value"
             type="text"
             className="h-7 hide-arrow"
             placeholder="value"

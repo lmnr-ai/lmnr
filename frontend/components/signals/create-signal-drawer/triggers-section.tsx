@@ -55,7 +55,7 @@ function TriggerFilterRow({
         control={control}
         render={({ field }) => (
           <Select value={field.value} onValueChange={(value) => handleColumnChange(value, field.onChange)}>
-            <SelectTrigger className="w-48 truncate">
+            <SelectTrigger aria-label="Select option" className="w-48 truncate">
               <span className="truncate">
                 {SIGNAL_TRIGGER_COLUMNS.find((c) => c.key === field.value)?.name || "Select column..."}
               </span>
@@ -75,7 +75,7 @@ function TriggerFilterRow({
         control={control}
         render={({ field }) => (
           <Select value={field.value} onValueChange={field.onChange}>
-            <SelectTrigger className="w-12">
+            <SelectTrigger aria-label="Select option" className="w-12">
               <span>{operations.find((op) => op.key === field.value)?.label || field.value}</span>
             </SelectTrigger>
             <SelectContent>
@@ -95,7 +95,7 @@ function TriggerFilterRow({
         render={({ field }) =>
           dataType === "enum" && column && "options" in column ? (
             <Select value={field.value as string} onValueChange={field.onChange}>
-              <SelectTrigger className="flex-1">
+              <SelectTrigger aria-label="Select option" className="flex-1">
                 <span>{column.options.find((opt) => opt.value === field.value)?.label || "Select value..."}</span>
               </SelectTrigger>
               <SelectContent>
@@ -107,7 +107,7 @@ function TriggerFilterRow({
               </SelectContent>
             </Select>
           ) : (
-            <Input
+            <Input aria-label="Enter value..."
               {...field}
               type={dataType === "number" ? "number" : "text"}
               placeholder="Enter value..."
@@ -166,7 +166,7 @@ function TriggerCard({ triggerIndex, onRemove }: { triggerIndex: number; onRemov
               <div className="flex items-center gap-3">
                 <div>
                   <Select value={String(field.value ?? 0)} onValueChange={(v) => field.onChange(Number(v))}>
-                    <SelectTrigger className="h-7 text-xs">
+                    <SelectTrigger aria-label="Select processing mode" className="h-7 text-xs">
                       <SelectValue placeholder="Select processing mode" />
                     </SelectTrigger>
                     <SelectContent>

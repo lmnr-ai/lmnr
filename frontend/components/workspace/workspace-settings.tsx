@@ -197,7 +197,7 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
                   }}
                   render={({ field, fieldState }) => (
                     <div className="space-y-1">
-                      <Input
+                      <Input aria-label="Input"
                         {...field}
                         autoFocus
                         placeholder={workspace.name}
@@ -265,7 +265,7 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
                     }}
                     render={({ field, fieldState }) => (
                       <div className="space-y-1">
-                        <Input
+                        <Input aria-label="Workspace name input"
                           {...field}
                           id="workspace-name-input"
                           autoFocus

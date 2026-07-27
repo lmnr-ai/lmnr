@@ -316,7 +316,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
               value={String(parameters.find((p) => p.name === "interval_unit")?.value ?? "HOUR")}
               onValueChange={(value) => setParameterValue("interval_unit", value)}
             >
-              <SelectTrigger className="w-fit text-secondary-foreground">
+              <SelectTrigger aria-label="Group by" className="w-fit text-secondary-foreground">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

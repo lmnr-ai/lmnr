@@ -221,7 +221,7 @@ export default function ManageReportSheet({
                         <p className="text-xs text-muted-foreground">{userEmail}</p>
                       </div>
                     </div>
-                    <Switch checked={emailEnabled} onCheckedChange={setEmailEnabled} />
+                    <Switch aria-label="Notification targets" checked={emailEnabled} onCheckedChange={setEmailEnabled} />
                   </div>
                 </div>
               </>

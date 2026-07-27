@@ -95,7 +95,7 @@ const AddUserDialog = ({ open, onOpenChange, workspace }: AddUserDialogProps) =>
           <Label>Email</Label>
           <div className="relative">
             <User className="w-4 h-4 absolute left-2 top-1.5" />
-            <Input className="pl-8" autoFocus placeholder="Enter email" onChange={(e) => setUser(e.target.value)} />
+            <Input aria-label="Enter email" className="pl-8" autoFocus placeholder="Enter email" onChange={(e) => setUser(e.target.value)} />
           </div>
         </div>
         <DialogFooter>

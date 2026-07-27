@@ -168,7 +168,7 @@ const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
 
   return (
     <div className="flex items-center divide-x divide-primary/20">
-      <input
+      <input aria-label="key"
         ref={combinedKeyRef}
         type="text"
         value={jsonKey}
@@ -179,7 +179,7 @@ const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
         className={inputClassName}
         tabIndex={mode === "edit" ? 0 : -1}
       />
-      <input
+      <input aria-label="value"
         ref={combinedValueRef}
         type="text"
         value={jsonValue}

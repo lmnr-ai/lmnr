@@ -66,7 +66,7 @@ const LlmSelect = ({ apiKeys, disabled, onChange, value, className }: LlmSelectN
       <DropdownMenuContent align="start">
         <div className="flex items-center px-2" onKeyDown={(e) => e.stopPropagation()}>
           <Search size={12} />
-          <Input
+          <Input aria-label="Search model..."
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search model..."
             className="border-none bg-transparent focus-visible:ring-0 flex-1 h-fit rounded-none"

@@ -16,7 +16,7 @@ const LimitField = () => {
         control={control}
         name="limit"
         render={({ field }) => (
-          <Input
+          <Input aria-label="Enter numeric limit"
             type="number"
             min={1}
             placeholder="Enter numeric limit"

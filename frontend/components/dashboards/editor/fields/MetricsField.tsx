@@ -44,7 +44,7 @@ const RawSqlMetricRow = ({ index, table }: { index: number; table: string }) => 
   return (
     <div className="grid gap-2 border rounded p-2 bg-secondary/50">
       <Select value={getMetricFunctionValue(field)} onValueChange={handleFnChange}>
-        <SelectTrigger className="w-28">
+        <SelectTrigger aria-label="SQL expression" className="w-28">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -102,7 +102,7 @@ const StandardMetricRow = ({ index, table }: { index: number; table: string }) =
   return (
     <div className="flex gap-2">
       <Select value={getMetricFunctionValue(field)} onValueChange={handleFnChange}>
-        <SelectTrigger className="w-28">
+        <SelectTrigger aria-label="Select option" className="w-28">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -121,7 +121,7 @@ const StandardMetricRow = ({ index, table }: { index: number; table: string }) =
         }}
         disabled={field.fn === "count"}
       >
-        <SelectTrigger className="text-xs">
+        <SelectTrigger aria-label="Select column" className="text-xs">
           <SelectValue placeholder="Select column">{field.column}</SelectValue>
         </SelectTrigger>
         <SelectContent>

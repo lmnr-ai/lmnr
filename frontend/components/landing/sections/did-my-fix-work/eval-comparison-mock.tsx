@@ -139,7 +139,7 @@ const EvalPillSelect = ({
   const item = EVALS[selected];
   return (
     <Select value={selected} onValueChange={(v) => onChange(v as EvalKey)}>
-      <SelectTrigger className="h-7 w-fit gap-1.5 border-border px-2.5 py-1 text-xs">
+      <SelectTrigger aria-label="Select option" className="h-7 w-fit gap-1.5 border-border px-2.5 py-1 text-xs">
         <SelectValue asChild>
           <span className="flex items-center gap-1.5">
             <span className="font-medium text-foreground mr-2">{item.label}</span>
@@ -216,7 +216,7 @@ const EvalComparisonMock = ({ className }: Props) => {
       <div className="flex flex-row items-start gap-6 rounded-md border bg-secondary p-4">
         <div className="flex flex-col gap-1.5">
           <Select value={metric} onValueChange={(v) => setMetric(v as Metric)}>
-            <SelectTrigger className="h-7 w-fit gap-2 px-2 text-xs font-medium text-secondary-foreground">
+            <SelectTrigger aria-label="Select option" className="h-7 w-fit gap-2 px-2 text-xs font-medium text-secondary-foreground">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

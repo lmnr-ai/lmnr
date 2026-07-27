@@ -188,7 +188,7 @@ export default function ToolsSheet({
                   }
                   onValueChange={handleToolChoiceChange(onChange)}
                 >
-                  <SelectTrigger className="w-fit">
+                  <SelectTrigger aria-label="Select a tool choice" className="w-fit">
                     <SelectValue placeholder="Select a tool choice" />
                   </SelectTrigger>
                   <SelectContent>
@@ -207,7 +207,7 @@ export default function ToolsSheet({
               <Controller
                 control={control}
                 render={({ field: { value, onChange } }) => (
-                  <Input placeholder="name" className="h-7" defaultValue={value} onBlur={onChange} />
+                  <Input aria-label="name" placeholder="name" className="h-7" defaultValue={value} onBlur={onChange} />
                 )}
                 name="toolChoice.toolName"
               />

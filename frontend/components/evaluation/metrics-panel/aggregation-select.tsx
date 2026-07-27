@@ -19,7 +19,7 @@ export function AggregationSelect() {
   const [aggregation, setAggregation] = useAggregation();
   return (
     <Select value={aggregation} onValueChange={(v) => setAggregation(v as AggregationKind)}>
-      <SelectTrigger className="h-7 w-fit gap-1 text-xs bg-secondary text-secondary-foreground">
+      <SelectTrigger aria-label="Select option" className="h-7 w-fit gap-1 text-xs bg-secondary text-secondary-foreground">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

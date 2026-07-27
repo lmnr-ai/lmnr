@@ -108,7 +108,7 @@ const TransferOwnershipDialog = ({ open, onOpenChange, workspace, workspaceUsers
             <Label htmlFor="new-owner-select" className="text-secondary-foreground">
               Select new owner
             </Label>
-            <Combobox
+            <Combobox aria-label="Choose an owner"
               items={workspaceUsers.map((u) => ({ value: u.email, label: u.name }))}
               value={newOwner}
               setValue={setNewOwner}

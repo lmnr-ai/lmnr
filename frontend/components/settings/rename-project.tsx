@@ -88,7 +88,7 @@ export default function RenameProject() {
           </DialogHeader>
           <div className="flex flex-col gap-2 py-4">
             <Label>Enter new project name</Label>
-            <Input
+            <Input aria-label="Enter new project name"
               autoFocus
               placeholder={project?.name}
               value={newProjectName}

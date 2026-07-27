@@ -112,7 +112,7 @@ const NumberValueInput = ({ tagId, mode, ref }: NumberValueInputProps) => {
   if (!tag) return null;
 
   return (
-    <input
+    <input aria-label="Input"
       ref={combinedRef}
       type="number"
       value={tag.value}

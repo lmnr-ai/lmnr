@@ -73,7 +73,7 @@ export default function WorkspaceStep({ stepIndex, totalSteps, isCloud = false, 
             }}
             render={({ field, fieldState }) => (
               <>
-                <Input
+                <Input aria-label="e.g. Acme Inc."
                   {...field}
                   id="workspace-name"
                   placeholder="e.g. Acme Inc."
@@ -97,7 +97,7 @@ export default function WorkspaceStep({ stepIndex, totalSteps, isCloud = false, 
             }}
             render={({ field, fieldState }) => (
               <>
-                <Input
+                <Input aria-label="e.g. My AI Agent"
                   {...field}
                   id="project-name"
                   placeholder="e.g. My AI Agent"

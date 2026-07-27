@@ -79,7 +79,7 @@ const RenameEvaluationDialog = ({
         <DialogHeader>
           <DialogTitle>Rename evaluation</DialogTitle>
         </DialogHeader>
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={defaultValue} />
+        <Input aria-label="Input" value={name} onChange={(e) => setName(e.target.value)} placeholder={defaultValue} />
         <DialogFooter>
           <Button variant="secondary" onClick={() => setOpen(false)}>
             Cancel

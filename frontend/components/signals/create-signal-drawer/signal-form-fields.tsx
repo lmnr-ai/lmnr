@@ -119,7 +119,7 @@ export default function SignalFormFields({
           name="name"
           control={control}
           render={({ field }) => (
-            <Input
+            <Input aria-label="Signal name"
               disabled={Boolean(getValues("id"))}
               id="name"
               placeholder="Signal name"
@@ -153,7 +153,7 @@ export default function SignalFormFields({
           rules={{ required: "Prompt is required" }}
           control={control}
           render={({ field }) => (
-            <Textarea
+            <Textarea aria-label="Analyze this trace for failures, errors, or things that w..."
               className="min-h-24 max-h-48 text-sm"
               id="prompt"
               placeholder="Analyze this trace for failures, errors, or things that went wrong..."

@@ -64,7 +64,7 @@ export default function CreatePlaygroundDialog() {
           </DialogHeader>
           <div className="grid gap-2">
             <Label>Name</Label>
-            <Input autoFocus placeholder="Enter name..." onChange={(e) => setNewPlaygroundName(e.target.value)} />
+            <Input aria-label="Enter name..." autoFocus placeholder="Enter name..." onChange={(e) => setNewPlaygroundName(e.target.value)} />
           </div>
           <DialogFooter>
             <Button onClick={createNewPlayground} disabled={!newPlaygroundName || isLoading} handleEnter>

@@ -74,7 +74,7 @@ const CellRenderer = ({
 
     case "string":
       return (
-        <Input
+        <Input aria-label="Input"
           className="hide-arrow h-7"
           type="text"
           value={parameter.value}
@@ -84,7 +84,7 @@ const CellRenderer = ({
 
     case "number":
       return (
-        <Input
+        <Input aria-label="Input"
           className="hide-arrow h-7"
           type="number"
           value={parameter.value}

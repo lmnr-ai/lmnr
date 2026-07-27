@@ -93,7 +93,7 @@ function FilterConditionRow({
         control={control}
         render={({ field }) => (
           <Select value={field.value} onValueChange={(value) => handleColumnChange(value, field.onChange)}>
-            <SelectTrigger className="w-48 truncate">
+            <SelectTrigger aria-label="Select option" className="w-48 truncate">
               <span className="truncate">{columns.find((c) => c.key === field.value)?.name || "Select field..."}</span>
             </SelectTrigger>
             <SelectContent>
@@ -111,7 +111,7 @@ function FilterConditionRow({
         control={control}
         render={({ field }) => (
           <Select value={field.value} onValueChange={field.onChange}>
-            <SelectTrigger className="w-12">
+            <SelectTrigger aria-label="Select option" className="w-12">
               <span>{operations.find((op) => op.key === field.value)?.label || field.value}</span>
             </SelectTrigger>
             <SelectContent>
@@ -131,7 +131,7 @@ function FilterConditionRow({
         render={({ field }) =>
           dataType === "enum" && column && "options" in column ? (
             <Select value={field.value as string} onValueChange={field.onChange}>
-              <SelectTrigger className="flex-1">
+              <SelectTrigger aria-label="Select option" className="flex-1">
                 <span>{column.options.find((opt) => opt.value === field.value)?.label || "Select value..."}</span>
               </SelectTrigger>
               <SelectContent>
@@ -143,7 +143,7 @@ function FilterConditionRow({
               </SelectContent>
             </Select>
           ) : (
-            <Input
+            <Input aria-label="Enter value..."
               {...field}
               type={dataType === "number" ? "number" : "text"}
               placeholder="Enter value..."

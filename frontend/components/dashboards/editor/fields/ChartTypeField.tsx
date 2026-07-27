@@ -50,7 +50,7 @@ const ChartTypeField = () => {
     <div className="grid gap-1">
       <Label className="font-semibold text-xs">Type</Label>
       <Select value={chartType || ""} onValueChange={(value) => handleChartTypeChange(value as ChartType)}>
-        <SelectTrigger>
+        <SelectTrigger aria-label="Select chart type">
           <SelectValue placeholder="Select chart type" />
         </SelectTrigger>
         <SelectContent>

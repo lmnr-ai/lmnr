@@ -76,7 +76,7 @@ export default function PiiRedaction() {
         description="When enabled, every span ingested for this project is run through the PII redactor before storage. Names, emails, phone numbers, and other detected PII are replaced with placeholders in inputs and outputs."
       />
       <div className="flex items-center gap-3">
-        <Switch checked={enabled} onCheckedChange={onToggle} disabled={!isProTier || isLoading} />
+        <Switch aria-label="Toggle" checked={enabled} onCheckedChange={onToggle} disabled={!isProTier || isLoading} />
         <span className="text-sm text-muted-foreground">{enabled ? "Enabled" : "Disabled"}</span>
         {!isProTier && (
           <>

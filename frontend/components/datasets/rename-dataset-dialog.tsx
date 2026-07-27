@@ -90,7 +90,7 @@ export default function RenameDatasetDialog({ dataset, children }: PropsWithChil
           </DialogHeader>
           <div className="grid gap-2">
             <Label>Name</Label>
-            <Input
+            <Input aria-label="Name"
               autoFocus
               placeholder={dataset.name}
               value={newName}

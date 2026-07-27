@@ -186,7 +186,7 @@ function ModelCostDialog({
         <div className="flex flex-col gap-4 overflow-y-auto pr-2">
           <div className="flex flex-col gap-2">
             <Label>Provider (optional)</Label>
-            <Input
+            <Input aria-label="e.g. openai, anthropic"
               placeholder="e.g. openai, anthropic"
               value={provider}
               onChange={(e) => setProvider(e.target.value)}
@@ -194,7 +194,7 @@ function ModelCostDialog({
           </div>
           <div className="flex flex-col gap-2">
             <Label>Model *</Label>
-            <Input
+            <Input aria-label="e.g. gpt-4o, claude-sonnet-4-20250514"
               placeholder="e.g. gpt-4o, claude-sonnet-4-20250514"
               value={model}
               onChange={(e) => setModel(e.target.value)}
@@ -212,7 +212,7 @@ function ModelCostDialog({
                     {label}
                     {required && " *"}
                   </Label>
-                  <Input
+                  <Input aria-label="Input"
                     type="number"
                     min="0"
                     step="any"
@@ -281,7 +281,7 @@ function CopyModelCostsDialog({ onCopy }: { onCopy: (targetProjectId: string) =>
           <div className="flex flex-col gap-2">
             <Label>Target project</Label>
             <Select onValueChange={setTargetProjectId}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Select a project">
                 <SelectValue placeholder="Select a project" />
               </SelectTrigger>
               <SelectContent>

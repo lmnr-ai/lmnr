@@ -120,7 +120,7 @@ export default function WorkspaceUsers({ invitations, workspace, isOwner, curren
             onValueChange={(newRole: WorkspaceRole) => handleRoleChange(user.id, newRole)}
             disabled={updatingRoleUserId === user.id}
           >
-            <SelectTrigger className="w-24">
+            <SelectTrigger aria-label="Select option" className="w-24">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

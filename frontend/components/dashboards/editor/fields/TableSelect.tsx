@@ -41,7 +41,7 @@ const TableSelect = () => {
         name="table"
         render={({ field }) => (
           <Select value={field.value} onValueChange={handleTableChange}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Select table">
               <SelectValue placeholder="Select table" />
             </SelectTrigger>
             <SelectContent>

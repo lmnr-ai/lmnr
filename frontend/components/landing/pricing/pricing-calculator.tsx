@@ -285,7 +285,7 @@ const SliderBlock = ({ label, value, sliderValue, max, onChange, className }: Sl
       <span className="text-white">{label}</span>
       <span className="text-white">{value}</span>
     </div>
-    <Slider value={[sliderValue]} max={max} min={0} step={1} onValueChange={(v) => onChange(v[0])} className="w-full" />
+    <Slider aria-label="Adjust value" value={[sliderValue]} max={max} min={0} step={1} onValueChange={(v) => onChange(v[0])} className="w-full" />
   </div>
 );
 

@@ -20,7 +20,7 @@ export function DisplayKeyDialogContent({ apiKey, onClose }: DisplayKeyDialogCon
           safe.{" "}
         </p>
         <div className="flex gap-x-2">
-          <Input className="flex text-sm" value={apiKey.value} readOnly />
+          <Input aria-label="Input" className="flex text-sm" value={apiKey.value} readOnly />
           <CopyButton size="icon" className="min-w-8 h-8" text={apiKey.value} />
         </div>
       </div>

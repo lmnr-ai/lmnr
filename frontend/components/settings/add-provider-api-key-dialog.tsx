@@ -57,7 +57,7 @@ export default function AddProviderApiKeyVarDialog({ existingKeyNames, onAdd }: 
                 }
               }}
             >
-              <SelectTrigger>
+              <SelectTrigger aria-label="API key provider">
                 <SelectValue placeholder="API key provider" />
               </SelectTrigger>
               <SelectContent>
@@ -75,7 +75,7 @@ export default function AddProviderApiKeyVarDialog({ existingKeyNames, onAdd }: 
             </Select>
           </div>
           {envVarType === "custom" && (
-            <Input
+            <Input aria-label="Name"
               placeholder="Name"
               onChange={(e) => {
                 setEnvVarName(e.target.value);
@@ -84,7 +84,7 @@ export default function AddProviderApiKeyVarDialog({ existingKeyNames, onAdd }: 
           )}
           <div className="flex flex-col gap-2">
             <Label>Value</Label>
-            <Input
+            <Input aria-label="API key"
               placeholder="API key"
               spellCheck={false}
               onChange={(e) => {

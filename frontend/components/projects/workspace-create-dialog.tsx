@@ -65,11 +65,11 @@ export default function WorkspaceCreateDialog({ children }: PropsWithChildren) {
         </DialogHeader>
         <div className="grid gap-2">
           <Label>Workspace name</Label>
-          <Input autoFocus placeholder="Enter name..." onChange={(e) => setNewWorkspaceName(e.target.value)} />
+          <Input aria-label="Enter name..." autoFocus placeholder="Enter name..." onChange={(e) => setNewWorkspaceName(e.target.value)} />
         </div>
         <div className="grid gap-2">
           <Label>Project name</Label>
-          <Input placeholder="Enter name..." onChange={(e) => setNewProjectName(e.target.value)} />
+          <Input aria-label="Enter name..." placeholder="Enter name..." onChange={(e) => setNewProjectName(e.target.value)} />
         </div>
         <DialogFooter>
           <Button

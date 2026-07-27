@@ -303,7 +303,7 @@ const TagInput = ({
       </>
       {(open || values.length === 0) && (
         <div className="relative">
-          <input
+          <input aria-label="Input"
             ref={combinedInputRef}
             type="text"
             value={inputValue}

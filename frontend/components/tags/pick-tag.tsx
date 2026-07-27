@@ -47,7 +47,7 @@ const PickTag = ({ tags, tagClasses, query, setQuery, setStep, onAttach, onDetac
 
   return (
     <>
-      <Input
+      <Input aria-label="Add tags..."
         autoFocus
         onKeyDown={(e) => e.stopPropagation()}
         onChange={(e) => setQuery(e.target.value)}
@@ -91,7 +91,7 @@ const AvailableTags = ({ tags, onAttach }: { tags: TagClass[]; onAttach: (tagCla
   <DropdownMenuGroup>
     {tags.map((tag) => (
       <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={tag.name}>
-        <Checkbox
+        <Checkbox aria-label="Toggle option"
           checked={false}
           onCheckedChange={(checked) => {
             if (checked) onAttach(tag.name);
@@ -112,7 +112,7 @@ const SelectedTags = ({ tags, onDetach }: { tags: Tag[]; onDetach: (tag: Tag) =>
   <DropdownMenuGroup>
     {tags.map((tag) => (
       <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={tag.name}>
-        <Checkbox
+        <Checkbox aria-label="Toggle option"
           onCheckedChange={(checked) => {
             if (!checked) onDetach(tag);
           }}

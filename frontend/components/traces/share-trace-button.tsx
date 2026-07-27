@@ -81,7 +81,7 @@ const ShareTraceButton = ({ projectId }: { projectId: string; refetch?: () => vo
           </div>
           <div className="flex items-center space-x-2">
             <Select value={trace.visibility || "private"} onValueChange={handleChangeVisibility}>
-              <SelectTrigger
+              <SelectTrigger aria-label="Select access"
                 disabled={isLoading}
                 value={trace.visibility || "private"}
                 className="text-sm min-w-4 h-8 focus:ring-0"

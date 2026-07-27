@@ -87,7 +87,7 @@ export default function CreateQueueDialog({
         </DialogHeader>
         <div className="grid gap-2">
           <Label>Name</Label>
-          <Input autoFocus placeholder="Enter name..." onChange={(e) => setNewQueueName(e.target.value)} />
+          <Input aria-label="Enter name..." autoFocus placeholder="Enter name..." onChange={(e) => setNewQueueName(e.target.value)} />
         </div>
         <DialogFooter>
           <Button onClick={createNewQueue} disabled={!newQueueName || isLoading} handleEnter>

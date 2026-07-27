@@ -150,7 +150,7 @@ const TimeSelector = ({
 }) => (
   <div className="flex items-center gap-2">
     <Label className="text-xs">{label}</Label>
-    <Input
+    <Input aria-label="Input"
       type="time"
       value={time}
       onChange={(e) => onChange(e.target.value)}

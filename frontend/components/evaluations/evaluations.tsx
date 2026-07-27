@@ -429,7 +429,7 @@ function EvaluationsContent() {
               value={aggregationFunction}
               onValueChange={(value) => setAggregationFunction(value as AggregationFunction)}
             >
-              <SelectTrigger className="w-fit">
+              <SelectTrigger aria-label="Aggregate" className="w-fit">
                 <SelectValue placeholder="Aggregate" />
               </SelectTrigger>
               <SelectContent>
@@ -507,7 +507,7 @@ function EvaluationsContent() {
                             <span className="text-xs">Scores Heatmap</span>
                             <span className="text-xs text-muted-foreground">Color-code score values</span>
                           </div>
-                          <Switch checked={heatmapEnabled} onCheckedChange={setHeatmapEnabled} />
+                          <Switch aria-label="Toggle" checked={heatmapEnabled} onCheckedChange={setHeatmapEnabled} />
                         </div>
                       </DropdownMenuContent>
                     </DropdownMenu>

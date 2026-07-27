@@ -212,7 +212,7 @@ export default function ViewsPicker({
           <div className="px-0.5 py-0.5 pb-1">
             <div className="relative">
               <Search className="pointer-events-none absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
-              <Input
+              <Input aria-label="Search views…"
                 size="xs"
                 placeholder="Search views…"
                 value={search}

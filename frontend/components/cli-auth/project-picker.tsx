@@ -131,7 +131,7 @@ export function ProjectPicker({ userCode, projects, workspaces, onApproved, onDe
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <Select value={selectedId ?? undefined} onValueChange={onSelectChange} disabled={submitting}>
-            <SelectTrigger className="h-9">
+            <SelectTrigger aria-label="Select a project" className="h-9">
               <SelectValue placeholder="Select a project" />
             </SelectTrigger>
             <SelectContent>

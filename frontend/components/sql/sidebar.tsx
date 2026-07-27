@@ -124,7 +124,7 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
       onClick={handleQueryClick}
     >
       {editing ? (
-        <Input
+        <Input aria-label="Input"
           ref={inputRef}
           defaultValue={editTemplate?.name}
           onBlur={handleEdit}

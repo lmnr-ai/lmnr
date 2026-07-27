@@ -254,7 +254,7 @@ const SessionPlayer = ({ traceId, onClose }: SessionPlayerProps) => {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <input
+            <input aria-label="Input"
               type="range"
               className="grow cursor-pointer"
               min="0"

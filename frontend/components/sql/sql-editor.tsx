@@ -157,7 +157,7 @@ export default function SQLEditor({
             </DialogTitle>
             {value && <p className="text-xs text-secondary-foreground">AI has context of your current query.</p>}
           </DialogHeader>
-          <Textarea
+          <Textarea aria-label="Text"
             ref={inputRef}
             placeholder={inputPlaceholder}
             value={aiPrompt}

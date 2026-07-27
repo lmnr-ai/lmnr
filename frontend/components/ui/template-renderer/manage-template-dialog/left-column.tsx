@@ -41,7 +41,7 @@ const LeftColumn = ({ isGenerating, describeText, onDescribeChange, onGenerate }
             generation we hide the real text and overlay a shimmering copy that
             mirrors its padding/typography. */}
         <div className="relative flex min-h-0 flex-1 flex-col">
-          <Textarea
+          <Textarea aria-label="Text"
             value={describeText}
             onChange={(e) => onDescribeChange(e.target.value)}
             disabled={isGenerating}

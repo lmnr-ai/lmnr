@@ -60,7 +60,7 @@ const SearchInput = ({ onSearch, placeholder, className }: SearchInputProps) => 
     <div className="flex flex-1 relative">
       <div className={cn("flex items-center gap-x-1 border px-2 h-7 rounded-md bg-secondary w-full", className)}>
         <Search size={16} className="text-secondary-foreground" />
-        <Input
+        <Input aria-label="Input"
           defaultValue={searchParams.get("search") ?? ""}
           className="focus-visible:ring-0 border-none max-h-8 px-1 text-xs placeholder:text-xs bg-transparent"
           type="text"

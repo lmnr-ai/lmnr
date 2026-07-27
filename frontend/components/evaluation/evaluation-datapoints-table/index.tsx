@@ -175,7 +175,7 @@ const EvaluationDatapointsTable = ({
                     <span className="text-xs">Scores Heatmap</span>
                     <span className="text-xs text-muted-foreground">Color-code score values</span>
                   </div>
-                  <Switch checked={heatmapEnabled ?? false} onCheckedChange={onHeatmapEnabledChange} />
+                  <Switch aria-label="Toggle" checked={heatmapEnabled ?? false} onCheckedChange={onHeatmapEnabledChange} />
                 </div>
               </DropdownMenuContent>
             </DropdownMenu>

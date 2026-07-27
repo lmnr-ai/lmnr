@@ -503,7 +503,7 @@ export function AlertForm({
               render={({ field, fieldState }) => (
                 <div className="grid gap-2">
                   <Label>Name</Label>
-                  <Input
+                  <Input aria-label="e.g. High error rate alert"
                     {...field}
                     placeholder="e.g. High error rate alert"
                     className={cn(fieldState.error && "border-destructive focus-visible:ring-destructive")}
@@ -522,7 +522,7 @@ export function AlertForm({
                   <div className="grid gap-2">
                     <Label>Signal</Label>
                     <Select value={field.value} onValueChange={(value) => field.onChange(value)}>
-                      <SelectTrigger className={cn(fieldState.error && "border-destructive")}>
+                      <SelectTrigger aria-label="Select a signal" className={cn(fieldState.error && "border-destructive")}>
                         <SelectValue placeholder="Select a signal" />
                       </SelectTrigger>
                       <SelectContent className="max-w-[var(--radix-select-trigger-width)]">
@@ -650,7 +650,7 @@ export function AlertForm({
                                 trigger a notification. Subsequent events in the same group are ignored.
                               </p>
                             </div>
-                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            <Switch aria-label="Toggle" checked={field.value} onCheckedChange={field.onChange} />
                           </div>
                         )}
                       />
@@ -704,7 +704,7 @@ export function AlertForm({
                               <p className="text-xs text-muted-foreground">{userEmail}</p>
                             </div>
                           </div>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          <Switch aria-label="Toggle" checked={field.value} onCheckedChange={field.onChange} />
                         </div>
                       )}
                     />

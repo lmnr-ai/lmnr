@@ -86,7 +86,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                 <div className="flex flex-1 flex-col gap-2">
                   <div className="flex flex-col gap-1">
                     <span className="text-secondary-foreground text-xs">Tool name</span>
-                    <Input
+                    <Input aria-label="Enter tool name"
                       placeholder="Enter tool name"
                       {...register(`messages.${parentIndex}.content.${index}.toolName` as const)}
                       className="bg-transparent focus-visible:ring-0 flex-1 h-fit max-h-96"
@@ -94,7 +94,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className="text-secondary-foreground text-xs">Tool ID</span>
-                    <Input
+                    <Input aria-label="Enter text message"
                       placeholder="Enter text message"
                       {...register(`messages.${parentIndex}.content.${index}.toolCallId` as const)}
                       className="bg-transparent focus-visible:ring-0 flex-1 h-fit max-h-96"
@@ -139,7 +139,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                 <div className="flex flex-1 flex-col gap-2">
                   <div className="flex flex-col gap-1">
                     <span className="text-secondary-foreground text-xs">Tool name</span>
-                    <Input
+                    <Input aria-label="Enter tool name"
                       placeholder="Enter tool name"
                       {...register(`messages.${parentIndex}.content.${index}.toolName` as const)}
                       className="bg-transparent focus-visible:ring-0 flex-1 h-fit max-h-96"
@@ -147,7 +147,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className="text-secondary-foreground text-xs">Tool ID</span>
-                    <Input
+                    <Input aria-label="Enter text message"
                       placeholder="Enter text message"
                       {...register(`messages.${parentIndex}.content.${index}.toolCallId` as const)}
                       className="bg-transparent focus-visible:ring-0 flex-1 h-fit max-h-96"
@@ -173,7 +173,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                       <span>
                         <IconImage className="size-3" />
                       </span>
-                      <input
+                      <input aria-label="Input"
                         type="file"
                         ref={fileInputRef}
                         className="hidden"
@@ -231,7 +231,7 @@ const ToolResultOutput = ({
       <Controller
         render={({ field: { value, onChange } }) => (
           <Select value={value} onValueChange={onChange}>
-            <SelectTrigger className="w-fit border-none pl-1">
+            <SelectTrigger aria-label="Select option" className="w-fit border-none pl-1">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

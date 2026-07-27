@@ -44,7 +44,7 @@ const DimensionsField = () => {
         {dimensions.map((dimension, index) => (
           <div key={index} className="flex gap-2">
             <Select value={dimension} onValueChange={(value) => updateDimension(index, value)}>
-              <SelectTrigger className="text-xs">
+              <SelectTrigger aria-label="Select column" className="text-xs">
                 <SelectValue placeholder="Select column">{dimension}</SelectValue>
               </SelectTrigger>
               <SelectContent>

@@ -71,7 +71,7 @@ export default function EnumValuesInput({
           </button>
         </span>
       ))}
-      <input
+      <input aria-label="Input"
         type="text"
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}

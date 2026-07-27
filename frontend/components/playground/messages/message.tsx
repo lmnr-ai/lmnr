@@ -90,7 +90,7 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
         <Controller
           render={({ field: { value, onChange } }) => (
             <Select value={value} onValueChange={handleUpdateRole(onChange)}>
-              <SelectTrigger className="w-fit border-none pl-1">
+              <SelectTrigger aria-label="Select option" className="w-fit border-none pl-1">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

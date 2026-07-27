@@ -118,7 +118,7 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
     <div className="flex gap-2 items-center">
       <GripVertical className={cn("w-4 h-4 min-w-4 min-h-4 cursor-pointer text-muted-foreground", dragHandleKey)} />
       {isEditing ? (
-        <Input
+        <Input aria-label="Input"
           ref={inputRef}
           type="text"
           defaultValue={name}

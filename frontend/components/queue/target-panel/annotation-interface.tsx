@@ -129,7 +129,7 @@ const FieldOptions = ({
 
   if (field.type === "string") {
     return (
-      <Input
+      <Input aria-label="Input text..."
         ref={inputRef}
         type="text"
         placeholder="Input text..."
@@ -153,7 +153,7 @@ const FieldOptions = ({
           <span className="text-muted-foreground">Value:</span>
           <span className="font-medium">{currentValue}</span>
         </div>
-        <Slider
+        <Slider aria-label="Adjust value"
           ref={sliderRef}
           value={[currentValue]}
           onValueChange={(values) => updateTargetField(field.key, values[0])}
