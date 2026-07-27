@@ -199,7 +199,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
           </div>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent className="border">{formatDurationExact(durationMs)}</TooltipContent>
+          <TooltipContent>{formatDurationExact(durationMs)}</TooltipContent>
         </TooltipPortal>
       </Tooltip>
     </TooltipProvider>
@@ -217,7 +217,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
           </div>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent side="bottom" className="flex flex-col border gap-1 min-w-55 p-2">
+          <TooltipContent side="bottom" className="flex flex-col gap-1 min-w-55 p-2">
             {span && (span.spanType === SpanType.LLM || span?.spanType === SpanType.CACHED) ? (
               <InputTokenBreakdown span={span} />
             ) : (
@@ -241,7 +241,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
           </div>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent className="flex flex-col border gap-1 p-2">
+          <TooltipContent className="flex flex-col gap-1 p-2">
             <CostBreakdown stats={stats} labelPrefix={labelPrefix} />
           </TooltipContent>
         </TooltipPortal>

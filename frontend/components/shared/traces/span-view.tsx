@@ -82,19 +82,11 @@ export function SpanView({ spanId, traceId, onClose }: SpanViewProps) {
       </div>
       <Tabs className="flex flex-col grow overflow-hidden gap-0" defaultValue="span-input">
         <div className="px-2 pb-2 mt-2 border-b w-full">
-          <TabsList className="border-none text-xs h-7">
-            <TabsTrigger value="span-input" className="text-xs">
-              Span Input
-            </TabsTrigger>
-            <TabsTrigger value="span-output" className="text-xs">
-              Span Output
-            </TabsTrigger>
-            <TabsTrigger value="attributes" className="text-xs">
-              Attributes
-            </TabsTrigger>
-            <TabsTrigger value="events" className="text-xs">
-              Events
-            </TabsTrigger>
+          <TabsList size="sm">
+            <TabsTrigger value="span-input">Span Input</TabsTrigger>
+            <TabsTrigger value="span-output">Span Output</TabsTrigger>
+            <TabsTrigger value="attributes">Attributes</TabsTrigger>
+            <TabsTrigger value="events">Events</TabsTrigger>
           </TabsList>
         </div>
         <div className="grow flex overflow-hidden">

@@ -57,7 +57,7 @@ const TagsCell = ({ tags }: TagsCellProps) => {
           </div>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent side="bottom" className="px-3 py-2 border max-h-48 overflow-y-auto">
+          <TooltipContent side="bottom" className="px-3 py-2 max-h-48 overflow-y-auto">
             <div className="flex flex-col gap-1.5 items-start text-secondary-foreground">
               {resolvedTags.map((tag) => (
                 <div key={tag.name} className="flex flex-row items-center gap-2">

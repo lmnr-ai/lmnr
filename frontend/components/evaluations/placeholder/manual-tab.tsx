@@ -61,7 +61,7 @@ export function ManualTab() {
           </p>
         </div>
         <Tabs value={tabValue} onValueChange={setTabValue} defaultValue="typescript">
-          <TabsList className="border-none flex">
+          <TabsList className="flex">
             <TabsTrigger value="typescript">TypeScript</TabsTrigger>
             <TabsTrigger value="python">Python</TabsTrigger>
           </TabsList>

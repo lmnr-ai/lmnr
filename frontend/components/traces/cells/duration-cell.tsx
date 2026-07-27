@@ -32,7 +32,7 @@ export function DurationCell({ durationMs, startTime, endTime, className }: Dura
           <span className={cn("truncate", className)}>{formatDurationMs(ms)}</span>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent className="border p-2">{formatDurationExact(ms)}</TooltipContent>
+          <TooltipContent className="p-2">{formatDurationExact(ms)}</TooltipContent>
         </TooltipPortal>
       </Tooltip>
     </TooltipProvider>

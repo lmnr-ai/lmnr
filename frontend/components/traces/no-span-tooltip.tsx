@@ -6,7 +6,7 @@ export function NoSpanTooltip({ children, className }: { children: React.ReactNo
     <TooltipProvider delayDuration={100}>
       <Tooltip>
         <TooltipTrigger>{children}</TooltipTrigger>
-        <TooltipContent side="bottom" className={cn("p-0 border", className)}>
+        <TooltipContent side="bottom" className={cn("p-0", className)}>
           <div className="p-1 whitespace-pre-wrap text-secondary-foreground">Top level span was not received</div>
         </TooltipContent>
       </Tooltip>

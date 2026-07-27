@@ -36,7 +36,7 @@ export default function Controls({
               <span>Cost heatmap</span>
             </button>
           </TooltipTrigger>
-          <TooltipContent className="border">Toggle cost heatmap</TooltipContent>
+          <TooltipContent>Toggle cost heatmap</TooltipContent>
         </Tooltip>
       </TooltipProvider>
       <div className="flex items-center border rounded-md bg-muted px-0.5 h-[24px]">

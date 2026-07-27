@@ -60,7 +60,7 @@ export default function ClientTimestampFormatter({
           <span className={cn("text-sm cursor-pointer", className)}>{displayText}</span>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent className="border">
+          <TooltipContent>
             <span>{tooltipText}</span>
           </TooltipContent>
         </TooltipPortal>

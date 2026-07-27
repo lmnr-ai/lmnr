@@ -1,9 +1,9 @@
 "use client";
 
-import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { Check, Circle, Pencil } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { Tooltip, TooltipContent, TooltipPortal, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type QueueItemState } from "@/lib/actions/queue";
 import { cn } from "@/lib/utils";
 
@@ -132,9 +132,9 @@ export default function NavigatorBar() {
           }
         }}
       >
-        <TooltipPrimitive.Provider delayDuration={0}>
-          <TooltipPrimitive.Root open={hoverIndex !== null && !isDragging}>
-            <TooltipPrimitive.Trigger asChild>
+        <TooltipProvider delayDuration={0}>
+          <Tooltip open={hoverIndex !== null && !isDragging}>
+            <TooltipTrigger asChild>
               <div
                 className="pointer-events-none absolute top-0 bottom-0"
                 style={{
@@ -143,18 +143,18 @@ export default function NavigatorBar() {
                   transform: "translateX(-0.5px)",
                 }}
               />
-            </TooltipPrimitive.Trigger>
-            <TooltipPrimitive.Portal>
-              <TooltipPrimitive.Content
+            </TooltipTrigger>
+            <TooltipPortal>
+              <TooltipContent
                 side="top"
                 sideOffset={8}
-                className="z-50 whitespace-nowrap rounded-md border bg-popover px-1.5 py-0.5 text-[10px] tabular-nums text-popover-foreground shadow-sm"
+                className="whitespace-nowrap px-1.5 py-0.5 text-[10px] tabular-nums shadow-sm"
               >
                 {(hoverIndex ?? 0) + 1}
-              </TooltipPrimitive.Content>
-            </TooltipPrimitive.Portal>
-          </TooltipPrimitive.Root>
-        </TooltipPrimitive.Provider>
+              </TooltipContent>
+            </TooltipPortal>
+          </Tooltip>
+        </TooltipProvider>
 
         <div className="flex h-2.5 w-full overflow-hidden rounded-sm bg-border" style={{ gap: `${SEGMENT_GAP_PX}px` }}>
           {idsList.map((id) => {

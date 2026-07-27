@@ -37,7 +37,7 @@ export function TokensCell({ stats, className, showCacheInline = false }: Tokens
           </span>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent className="flex flex-col border gap-1 p-2">
+          <TooltipContent className="flex flex-col gap-1 p-2">
             <TokensBreakdown stats={stats} />
           </TooltipContent>
         </TooltipPortal>

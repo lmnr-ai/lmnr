@@ -2,6 +2,7 @@ import { times } from "lodash";
 import { type PropsWithChildren, type ReactNode } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 interface SettingsSectionHeaderProps {
@@ -44,38 +45,38 @@ export function SettingsTable({
 }: SettingsTableProps) {
   return (
     <div className="border rounded-md overflow-x-auto">
-      <table className="w-full">
+      <Table>
         {headers && (
-          <thead>
-            <tr className="border-b h-10">
+          <TableHeader>
+            <TableRow className="h-10 hover:bg-transparent">
               {headers.map((h, i) => (
-                <th key={i} className="px-4 text-left text-xs font-medium text-muted-foreground">
+                <TableHead key={i} className="px-4 text-xs">
                   {h}
-                </th>
+                </TableHead>
               ))}
-            </tr>
-          </thead>
+            </TableRow>
+          </TableHeader>
         )}
-        <tbody>
+        <TableBody>
           {isLoading ? (
             times(loadingRowCount, (i) => (
               <SettingsTableRow key={i}>
-                <td colSpan={colSpan} className="p-2">
+                <TableCell colSpan={colSpan}>
                   <Skeleton className="h-8 w-full" />
-                </td>
+                </TableCell>
               </SettingsTableRow>
             ))
           ) : isEmpty ? (
             <SettingsTableRow>
-              <td colSpan={colSpan} align="center" className="p-2">
+              <TableCell colSpan={colSpan} align="center">
                 <span className="text-center text-secondary-foreground text-sm font-medium">{emptyMessage}</span>
-              </td>
+              </TableCell>
             </SettingsTableRow>
           ) : (
             children
           )}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }
@@ -87,8 +88,12 @@ interface SettingsTableRowProps extends PropsWithChildren {
 
 export function SettingsTableRow({ children, className, onClick }: SettingsTableRowProps) {
   return (
-    <tr className={cn("border-b last:border-b-0 h-12", className)} onClick={onClick}>
+    <TableRow
+      // Non-clickable rows keep the flat look; clickable rows get the primitive's hover affordance.
+      className={cn("border-b last:border-b-0 h-12", !onClick && "hover:bg-transparent", className)}
+      onClick={onClick}
+    >
       {children}
-    </tr>
+    </TableRow>
   );
 }
