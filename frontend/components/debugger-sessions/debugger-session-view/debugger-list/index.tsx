@@ -24,6 +24,9 @@ import { useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "../
 import { useBlockScrollSync } from "../use-block-scroll-sync";
 import { useScrollMargin } from "../use-scroll-margin";
 import CommandBlock from "./command-block";
+import CommandItem from "./command-group/command-item";
+import CommandItemDetail from "./command-group/command-item-detail";
+import CommandGroupHeader from "./command-group/group-header";
 import EvaluationBlockItem from "./eval-block";
 import { buildSessionEvalProgression, computeScoreDeltas, type SessionEvalProgression } from "./eval-block/utils";
 import {
@@ -55,6 +58,8 @@ export default function DebuggerList({ scrollEl, projectId, sessionId }: Debugge
   const collapsedEvaluationBlockIds = useDebuggerSessionViewStore((s) => s.collapsedEvaluationBlockIds);
   const toggleEvaluationBlock = useDebuggerSessionViewStore((s) => s.toggleEvaluationBlock);
   const requestScrollToBlock = useDebuggerSessionViewStore((s) => s.requestScrollToBlock);
+  const expandedCommandGroupIds = useDebuggerSessionViewStore((s) => s.expandedCommandGroupIds);
+  const expandedCommandBlockIds = useDebuggerSessionViewStore((s) => s.expandedCommandBlockIds);
 
   const {
     traces,
@@ -147,6 +152,8 @@ export default function DebuggerList({ scrollEl, projectId, sessionId }: Debugge
         expandedTraceIds,
         transcriptExpandedGroups,
         traceViewModes,
+        expandedCommandGroupIds,
+        expandedCommandBlockIds,
       }),
     [
       items,
@@ -158,6 +165,8 @@ export default function DebuggerList({ scrollEl, projectId, sessionId }: Debugge
       expandedTraceIds,
       transcriptExpandedGroups,
       traceViewModes,
+      expandedCommandGroupIds,
+      expandedCommandBlockIds,
     ]
   );
 
@@ -506,6 +515,28 @@ function FlatRowContent({
       return <TextBlockItem id={row.blockId} text={row.text} />;
     case "command":
       return <CommandBlock id={row.blockId} createdAt={row.createdAt} command={row.command} />;
+    case "command-group-header":
+      return (
+        <CommandGroupHeader
+          id={row.blockId}
+          count={row.count}
+          lastCreatedAt={row.lastCreatedAt}
+          expanded={row.expanded}
+        />
+      );
+    case "command-item":
+      return (
+        <CommandItem
+          id={row.commandId}
+          command={row.command}
+          createdAt={row.createdAt}
+          expanded={row.expanded}
+          isFirst={row.isFirst}
+          isLast={row.isLast}
+        />
+      );
+    case "command-item-detail":
+      return <CommandItemDetail command={row.command} isLastRow={row.isLastRow} />;
     case "evaluation":
       return (
         <EvaluationBlockItem

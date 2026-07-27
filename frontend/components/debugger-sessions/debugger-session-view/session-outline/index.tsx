@@ -9,14 +9,23 @@ import { cn } from "@/lib/utils";
 
 import { type SessionBlockView, type TraceRowState, useDebuggerSessionViewStore } from "../store";
 
+// TODO: shouldn't most of this stuff go to the utils file?
+
 // A row per block (trace / eval / text), in timeline order (blocks are ordered
 // by created_at). Keyed by block id — the same key the virtualized list tracks
-// as `activeBlockId` and accepts in scroll requests.
+// as `activeBlockId` and accepts in scroll requests. A collapsed command group
+// keys off its first member; `memberIds` holds every block it stands in for so
+// the active indicator can match any of them (singletons carry just their own).
 type OutlineRow = {
   blockId: string;
   text: string;
   kind: "trace" | "eval" | "text" | "command";
+  memberIds: string[];
 };
+
+// An agent can fire many CLI commands back-to-back; a run of this many
+// contiguous command blocks collapses into one "CLI commands (N)" row.
+const COMMAND_GROUP_MIN = 2;
 
 // Text blocks are markdown, so a raw slice surfaces syntax like "## text…".
 // Strip it down to plain text: drop leading block markers (headings, bullets,
@@ -45,27 +54,55 @@ const commandBlockTitle = (command: CommandBlockContent): string => {
   return oneLine.length > TEXT_BLOCK_TITLE_LEN ? `${oneLine.slice(0, TEXT_BLOCK_TITLE_LEN)}…` : oneLine || "Command";
 };
 
+// TODO: shouldn't this go in the ./utils.ts file?
 const buildRows = (blocks: SessionBlockView[], traceRowStates: Record<string, TraceRowState>): OutlineRow[] => {
   const rows: OutlineRow[] = [];
   let traceIndex = 0;
+  // Accumulate a run of contiguous command blocks. A run flushes into one row
+  // (grouped when ≥ COMMAND_GROUP_MIN, otherwise the single command's summary).
+  let pending: { id: string; command: CommandBlockContent }[] = [];
+  const flushCommands = () => {
+    if (pending.length === 0) return;
+    if (pending.length >= COMMAND_GROUP_MIN) {
+      rows.push({
+        blockId: pending[0].id,
+        text: `CLI commands (${pending.length})`,
+        kind: "command",
+        memberIds: pending.map((c) => c.id),
+      });
+    } else {
+      const only = pending[0];
+      rows.push({ blockId: only.id, text: commandBlockTitle(only.command), kind: "command", memberIds: [only.id] });
+    }
+    pending = [];
+  };
+
   for (const block of blocks) {
-    if (block.type === "evaluation") {
-      rows.push({ blockId: block.id, text: block.evaluation.name, kind: "eval" });
-    } else if (block.type === "text") {
-      rows.push({ blockId: block.id, text: textBlockTitle(block.text), kind: "text" });
-    } else if (block.type === "command") {
-      rows.push({ blockId: block.id, text: commandBlockTitle(block.command), kind: "command" });
-    } else if (block.type === "trace") {
-      // Count missing traces so numbering stays in lockstep with the timeline
-      // (which indexes every trace block), but omit them from the outline: a
-      // missing trace renders no timeline row, so a listed entry would consume
-      // the scroll click without scrolling and strand the active highlight over
-      // an empty gap.
+    if (block.type === "command") {
+      pending.push({ id: block.id, command: block.command });
+      continue;
+    }
+    // A missing trace is transparent: it renders no timeline/outline row, so it
+    // neither breaks a command run nor emits an entry — but numbering still
+    // advances so it stays in lockstep with the timeline (which indexes every
+    // trace block). A listed missing-trace entry would consume a scroll click
+    // without scrolling and strand the active highlight over an empty gap.
+    if (block.type === "trace" && traceRowStates[block.traceId] === "missing") {
       traceIndex += 1;
-      if (traceRowStates[block.traceId] === "missing") continue;
-      rows.push({ blockId: block.id, text: `Trace ${traceIndex}`, kind: "trace" });
+      continue;
+    }
+    // Any other rendered block ends the current command run before its own row.
+    flushCommands();
+    if (block.type === "evaluation") {
+      rows.push({ blockId: block.id, text: block.evaluation.name, kind: "eval", memberIds: [block.id] });
+    } else if (block.type === "text") {
+      rows.push({ blockId: block.id, text: textBlockTitle(block.text), kind: "text", memberIds: [block.id] });
+    } else if (block.type === "trace") {
+      traceIndex += 1;
+      rows.push({ blockId: block.id, text: `Trace ${traceIndex}`, kind: "trace", memberIds: [block.id] });
     }
   }
+  flushCommands();
   return rows;
 };
 
@@ -119,11 +156,16 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
   const rowRefs = useRef<Map<string, HTMLAnchorElement>>(new Map());
   const [indicator, setIndicator] = useState<{ top: number; height: number } | null>(null);
 
-  // `requestScrollToBlock` sets `activeBlockId` on click; fall back to the first row.
-  const active = useMemo(
-    () => (activeBlockId && rows.some((r) => r.blockId === activeBlockId) ? activeBlockId : (rows[0]?.blockId ?? null)),
-    [activeBlockId, rows]
-  );
+  // `requestScrollToBlock` sets `activeBlockId` on click; fall back to the first
+  // row. Map through `memberIds` so a collapsed command group stays active while
+  // any of its member blocks is the in-view block (not just its first).
+  const active = useMemo(() => {
+    if (activeBlockId) {
+      const owner = rows.find((r) => r.memberIds.includes(activeBlockId));
+      if (owner) return owner.blockId;
+    }
+    return rows[0]?.blockId ?? null;
+  }, [activeBlockId, rows]);
 
   // Re-derive the edge state when rows change (content height moved without a
   // scroll event) and when the nav resizes. Keyed on `rows` so the observer

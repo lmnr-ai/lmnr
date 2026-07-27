@@ -1,17 +1,17 @@
 "use client";
 
-import { SquareTerminal } from "lucide-react";
 import { useMemo } from "react";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
 import { CardExpandIndicator } from "@/components/ui/card-expand-indicator";
 import { type CommandBlockContent } from "@/lib/actions/debugger-sessions";
-import { commandSummary } from "@/lib/actions/debugger-sessions/command-content";
+import { commandLabel } from "@/lib/actions/debugger-sessions/command-content";
 import { cn } from "@/lib/utils";
 
 import { commandAnchorId } from "../../session-outline/utils";
 import { useDebuggerSessionViewStore } from "../../store";
 import CommandBlockBody from "./command-block-body";
+import { commandIcon } from "./command-icon";
 
 interface CommandBlockProps {
   id: string;
@@ -35,7 +35,7 @@ interface CommandBlockProps {
 export default function CommandBlock({ id, createdAt, command }: CommandBlockProps) {
   const expanded = useDebuggerSessionViewStore((s) => s.expandedCommandBlockIds.has(id));
   const toggleExpanded = useDebuggerSessionViewStore((s) => s.toggleCommandBlockExpanded);
-  const summary = useMemo(() => commandSummary(command), [command]);
+  const summary = useMemo(() => commandLabel(command), [command]);
   const relativeTime = useMemo(() => {
     try {
       return formatShortRelativeTime(new Date(createdAt));
@@ -45,8 +45,10 @@ export default function CommandBlock({ id, createdAt, command }: CommandBlockPro
   }, [createdAt]);
   const failed = command.exitCode !== undefined && command.exitCode !== 0;
 
+  // Top-only gap (like a trace's `h-2`) so it doesn't stack with the next block's
+  // top gap into an uneven double gap.
   return (
-    <div id={commandAnchorId(id)} className="scroll-mt-4 py-2">
+    <div id={commandAnchorId(id)} className="scroll-mt-4 pt-2">
       <div className="group overflow-hidden rounded-lg border border-[rgba(232,232,232,0.1)]">
         <button
           type="button"
@@ -56,13 +58,15 @@ export default function CommandBlock({ id, createdAt, command }: CommandBlockPro
         >
           {/* The icon carries the failure signal (bright-red) — there is no
               separate exit-code badge and the header keeps the neutral bg. */}
-          <SquareTerminal
-            className={cn("size-4 shrink-0", failed ? "text-destructive-bright" : "text-muted-foreground")}
-          />
+          {commandIcon(command, cn("size-4 shrink-0", failed ? "text-destructive-bright" : "text-muted-foreground"))}
           <span className="min-w-0 flex-1 truncate font-mono text-[13px] leading-[17px] text-primary-foreground">
             {summary}
           </span>
-          <CardExpandIndicator expanded={expanded} relativeTime={relativeTime} className="ml-auto" />
+          <CardExpandIndicator
+            expanded={expanded}
+            relativeTime={relativeTime}
+            className="ml-auto text-muted-foreground"
+          />
         </button>
         {expanded && (
           <div className="bg-surface-800">

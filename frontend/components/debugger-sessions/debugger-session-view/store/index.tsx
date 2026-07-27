@@ -205,7 +205,12 @@ interface DebuggerSessionViewState {
 
   // Expanded `command` blocks (collapsed by default). Store-held (like
   // expandedTraceIds) so state survives the row virtualizing out and back.
+  // Doubles as the per-command expand state INSIDE a command-group card.
   expandedCommandBlockIds: Set<string>;
+
+  // Expanded `command-group` cards (collapsed by default), keyed by the group's
+  // first command id (its stable blockId). Store-held for the same reason.
+  expandedCommandGroupIds: Set<string>;
 
   // Collapsed `evaluation` blocks (expanded by default — the inverse of the
   // command set). Store-held so the state survives the row virtualizing out.
@@ -266,8 +271,12 @@ interface DebuggerSessionViewActions {
   // Hide the new-block pill (pill click or its X).
   dismissNewBlockNotice: () => void;
 
-  // Expand/collapse a command block (the outer virtualizer re-measures).
+  // Expand/collapse a command block (the outer virtualizer re-measures). Also
+  // toggles a single command's detail INSIDE a command-group card.
   toggleCommandBlockExpanded: (blockId: string) => void;
+
+  // Expand/collapse a command-group card (the outer virtualizer re-measures).
+  toggleCommandGroupExpanded: (blockId: string) => void;
 
   // Collapse/expand an evaluation block (expanded by default).
   toggleEvaluationBlock: (blockId: string) => void;
@@ -354,6 +363,7 @@ export const createDebuggerSessionViewStore = (options: {
           newBlockNotice: null,
           isInitialTracesLoaded: false,
           expandedCommandBlockIds: new Set<string>(),
+          expandedCommandGroupIds: new Set<string>(),
           collapsedEvaluationBlockIds: new Set<string>(),
 
           fetchTraceSpans: async (trace) => {
@@ -693,6 +703,14 @@ export const createDebuggerSessionViewStore = (options: {
               if (next.has(blockId)) next.delete(blockId);
               else next.add(blockId);
               return { expandedCommandBlockIds: next } as Partial<DebuggerSessionViewStore>;
+            }),
+
+          toggleCommandGroupExpanded: (blockId) =>
+            set((s) => {
+              const next = new Set(s.expandedCommandGroupIds);
+              if (next.has(blockId)) next.delete(blockId);
+              else next.add(blockId);
+              return { expandedCommandGroupIds: next } as Partial<DebuggerSessionViewStore>;
             }),
 
           toggleEvaluationBlock: (blockId) =>

@@ -20,9 +20,41 @@ export const withTraceIndex = (blocks: SessionBlockView[]): TimelineItem[] => {
 
 // One virtualized row. Every row carries the owning `blockId` so the outline can
 // map scroll position ↔ block. Trace rows also carry `traceId`.
+// A single command inside a collapsed command-group card.
+export type CommandGroupItem = { id: string; createdAt: string; command: CommandBlockContent };
+
 export type DebuggerFlatRow =
   | { type: "text"; blockId: string; text: string }
   | { type: "command"; blockId: string; createdAt: string; command: CommandBlockContent }
+  // ≥2 contiguous command blocks collapse into a group, flattened into the
+  // virtualizer exactly like a trace's header + spans: a self-contained rounded
+  // header card, then (when expanded) borderless bead rows flowing below on a
+  // vertical connector line — NOT one continuous bordered card. Each row measures
+  // independently (no inline-expand reflow bug) and the header never goes sticky.
+  // `blockId` on every group row is the first command's id (matching the
+  // outline's group row) so scroll targeting agrees.
+  | { type: "command-group-header"; blockId: string; count: number; lastCreatedAt: string; expanded: boolean }
+  // `isFirst`/`isLast` shape the connector line: the first bead's line reaches UP
+  // to the header, the last bead's line stops AT the bead (no dangling segment
+  // below it). `isLastRow` on a detail means it is the group's final row, so its
+  // line is suppressed (nothing below to connect to).
+  | {
+      type: "command-item";
+      blockId: string;
+      commandId: string;
+      command: CommandBlockContent;
+      createdAt: string;
+      expanded: boolean;
+      isFirst: boolean;
+      isLast: boolean;
+    }
+  | {
+      type: "command-item-detail";
+      blockId: string;
+      commandId: string;
+      command: CommandBlockContent;
+      isLastRow: boolean;
+    }
   | { type: "evaluation"; blockId: string; evaluation: SessionEvaluationRef; createdAt: string }
   | { type: "trace-skeleton"; blockId: string; traceId: string }
   | { type: "trace-header"; blockId: string; traceId: string; trace: TraceRow; traceIndex: number; expanded: boolean }
@@ -55,6 +87,8 @@ interface BuildDebuggerFlatRowsOpts {
   expandedTraceIds: Set<string>;
   transcriptExpandedGroups: Set<string>;
   traceViewModes: Record<string, "tree" | "transcript">;
+  expandedCommandGroupIds: Set<string>;
+  expandedCommandBlockIds: Set<string>;
 }
 
 // Flatten the interleaved block timeline into virtualizer rows. A single pass so
@@ -74,19 +108,81 @@ export function buildDebuggerFlatRows(opts: BuildDebuggerFlatRowsOpts): Debugger
     expandedTraceIds,
     transcriptExpandedGroups,
     traceViewModes,
+    expandedCommandGroupIds,
+    expandedCommandBlockIds,
   } = opts;
 
   const rows: DebuggerFlatRow[] = [];
 
+  // Accumulate a run of contiguous command blocks; flush as one command-group
+  // card (≥2) or a single command block (1). Mirrors the outline's grouping so
+  // the two agree on membership and scroll targets. A ≥2 run flattens to a
+  // header row plus (when the group is expanded) a bead row per command and a
+  // detail row per expanded command — one virtualizer row each.
+  let pendingCommands: CommandGroupItem[] = [];
+  const flushCommands = () => {
+    if (pendingCommands.length === 0) return;
+    if (pendingCommands.length >= 2) {
+      const groupId = pendingCommands[0].id;
+      const groupExpanded = expandedCommandGroupIds.has(groupId);
+      rows.push({
+        type: "command-group-header",
+        blockId: groupId,
+        count: pendingCommands.length,
+        lastCreatedAt: pendingCommands[pendingCommands.length - 1].createdAt,
+        expanded: groupExpanded,
+      });
+      if (groupExpanded) {
+        pendingCommands.forEach((c, idx) => {
+          const isLast = idx === pendingCommands.length - 1;
+          const cmdExpanded = expandedCommandBlockIds.has(c.id);
+          rows.push({
+            type: "command-item",
+            blockId: groupId,
+            commandId: c.id,
+            command: c.command,
+            createdAt: c.createdAt,
+            expanded: cmdExpanded,
+            isFirst: idx === 0,
+            isLast,
+          });
+          if (cmdExpanded) {
+            rows.push({
+              type: "command-item-detail",
+              blockId: groupId,
+              commandId: c.id,
+              command: c.command,
+              isLastRow: isLast,
+            });
+          }
+        });
+      }
+    } else {
+      const only = pendingCommands[0];
+      rows.push({ type: "command", blockId: only.id, createdAt: only.createdAt, command: only.command });
+    }
+    pendingCommands = [];
+  };
+
   for (let i = 0; i < items.length; i++) {
     const { block, traceIndex } = items[i];
 
-    if (block.type === "text") {
-      rows.push({ type: "text", blockId: block.id, text: block.text });
+    if (block.type === "command") {
+      pendingCommands.push({ id: block.id, createdAt: block.createdAt, command: block.command });
       continue;
     }
-    if (block.type === "command") {
-      rows.push({ type: "command", blockId: block.id, createdAt: block.createdAt, command: block.command });
+
+    // A missing trace renders no row AND is transparent to a command run — it
+    // neither flushes nor breaks the group (matching the outline). Caught before
+    // the flush below; every OTHER block ends the run before its own row(s).
+    if (block.type === "trace" && !tracesById.get(block.traceId) && traceRowStates[block.traceId] === "missing") {
+      continue;
+    }
+
+    flushCommands();
+
+    if (block.type === "text") {
+      rows.push({ type: "text", blockId: block.id, text: block.text });
       continue;
     }
     if (block.type === "evaluation") {
@@ -98,11 +194,9 @@ export function buildDebuggerFlatRows(opts: BuildDebuggerFlatRowsOpts): Debugger
     const traceId = block.traceId;
     const trace = tracesById.get(traceId);
     if (!trace) {
-      // Server confirmed absent → drop it; otherwise skeleton (also what makes the
-      // window request it via ensureTraceRows).
-      if (traceRowStates[traceId] !== "missing") {
-        rows.push({ type: "trace-skeleton", blockId: block.id, traceId });
-      }
+      // Not yet loaded (missing was handled above) → skeleton, which also makes
+      // the window request it via ensureTraceRows.
+      rows.push({ type: "trace-skeleton", blockId: block.id, traceId });
       continue;
     }
 
@@ -146,6 +240,7 @@ export function buildDebuggerFlatRows(opts: BuildDebuggerFlatRowsOpts): Debugger
     }
   }
 
+  flushCommands();
   return rows;
 }
 
@@ -200,6 +295,12 @@ export const flatRowKey = (row: DebuggerFlatRow): string => {
       return `x::${row.blockId}`;
     case "command":
       return `c::${row.blockId}`;
+    case "command-group-header":
+      return `cgh::${row.blockId}`;
+    case "command-item":
+      return `ci::${row.commandId}`;
+    case "command-item-detail":
+      return `cid::${row.commandId}`;
     case "evaluation":
       return `e::${row.blockId}`;
     case "trace-skeleton":
@@ -254,7 +355,13 @@ export const flatRowEstimate = (row: DebuggerFlatRow, showTreeContent: boolean):
       return 180;
     // Collapsed one-liner; expanding re-measures via measureElement.
     case "command":
+    case "command-group-header":
       return 48;
+    // Bead row (one line); detail card re-measures via measureElement.
+    case "command-item":
+      return 34;
+    case "command-item-detail":
+      return 200;
     case "evaluation":
       return 200;
     case "user-input":

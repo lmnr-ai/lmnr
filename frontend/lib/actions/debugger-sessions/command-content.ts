@@ -11,6 +11,9 @@ export type CommandBlockContent = {
   output?: string;
   stderr?: string;
   raw?: string;
+  // Optional free-text explanation the agent gave for running the command
+  // (CLI `--reasoning`). Untrusted, variable-length; null/absent = none.
+  reasoning?: string | null;
 };
 
 /**
@@ -35,6 +38,8 @@ export const parseCommandBlockContent = (content: unknown): CommandBlockContent 
     // expanded body prefer `raw` via `??`, so keeping it would blank both even
     // when `command`/`args` are valid.
     ...(typeof c.raw === "string" && c.raw.trim().length > 0 ? { raw: c.raw } : {}),
+    // Only keep a non-empty string; wire `null`/absent both degrade to absent.
+    ...(typeof c.reasoning === "string" && c.reasoning.trim().length > 0 ? { reasoning: c.reasoning } : {}),
   };
 };
 
@@ -53,3 +58,13 @@ export const commandSummary = (content: CommandBlockContent): string =>
     .slice(0, SUMMARY_BUDGET)
     .replace(/\s+/g, " ")
     .trim();
+
+// The one-line label shown next to a command's icon: the agent's reasoning when
+// it gave any, else the invocation summary. Reasoning is untrusted, uncapped
+// prose, so it gets the same single-line budget/whitespace collapse as the
+// summary (the full command is still visible in the expanded detail).
+export const commandLabel = (content: CommandBlockContent): string => {
+  const reasoning = content.reasoning?.trim();
+  if (reasoning) return reasoning.slice(0, SUMMARY_BUDGET).replace(/\s+/g, " ").trim();
+  return commandSummary(content);
+};
