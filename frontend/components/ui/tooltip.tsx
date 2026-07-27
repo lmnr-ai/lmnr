@@ -3,7 +3,6 @@
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import * as React from "react";
 
-import { ElevatedSurface } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
 const TooltipProvider = TooltipPrimitive.Provider;
@@ -14,27 +13,19 @@ const TooltipTrigger = TooltipPrimitive.Trigger;
 
 const TooltipPortal = TooltipPrimitive.Portal;
 
-// asChild: the ElevatedSurface is the positioned tooltip node (offset three above the trigger).
 const TooltipContent = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content> & {
-    /** Steps above the elevation the tooltip opened from. Raise it where the
-     *  trigger already sits on a raised surface and the default three no longer
-     *  separates the two. */
-    elevationOffset?: number;
-  }
->(({ className, sideOffset = 4, elevationOffset = 3, children, ...props }, ref) => (
-  <TooltipPrimitive.Content asChild ref={ref} sideOffset={sideOffset} {...props}>
-    <ElevatedSurface
-      offset={elevationOffset}
-      className={cn(
-        "z-50 overflow-hidden rounded-md px-3 py-1.5 text-xs text-popover-foreground animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-        className
-      )}
-    >
-      {children}
-    </ElevatedSurface>
-  </TooltipPrimitive.Content>
+  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
+>(({ className, sideOffset = 4, ...props }, ref) => (
+  <TooltipPrimitive.Content
+    ref={ref}
+    sideOffset={sideOffset}
+    className={cn(
+      "z-50 overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-xs text-popover-foreground animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+      className
+    )}
+    {...props}
+  />
 ));
 TooltipContent.displayName = TooltipPrimitive.Content.displayName;
 

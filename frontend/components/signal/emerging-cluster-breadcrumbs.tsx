@@ -30,9 +30,7 @@ export default function EmergingClusterBreadcrumbs() {
             </Badge>
           </TooltipTrigger>
           <TooltipPortal>
-            <TooltipContent className="border">
-              Group of similar events, not yet enough volume to form a cluster
-            </TooltipContent>
+            <TooltipContent>Group of similar events, not yet enough volume to form a cluster</TooltipContent>
           </TooltipPortal>
         </Tooltip>
       </TooltipProvider>
