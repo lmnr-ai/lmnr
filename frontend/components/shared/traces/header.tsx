@@ -59,11 +59,11 @@ const Header = ({ onClose, isHideTimelineControls = false }: HeaderProps) => {
               <ChevronsRight className="w-5 h-5" />
             </Button>
             {trace && (
-              <Link passHref href={`/shared/traces/${trace.id}`}>
-                <Button aria-label="Expand" variant="ghost" className="px-0.5">
+              <Button asChild aria-label="Expand" variant="ghost" className="px-0.5">
+                <Link passHref aria-label="Expand" href={`/shared/traces/${trace.id}`}>
                   <Maximize className="w-4 h-4" />
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             )}
           </div>
           {trace && (

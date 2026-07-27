@@ -84,12 +84,12 @@ const UsageDisplay = ({ usageDetails, open }: { usageDetails: ProjectDetails; op
         />
       </div>
 
-      <Link href={settingsHref("billing")}>
-        <Button className="w-full">
+      <Button asChild className="w-full">
+        <Link href={settingsHref("billing")}>
           <span>Upgrade</span>
           <SquareArrowOutUpRight className="ml-1 h-3.5 w-3.5" />
-        </Button>
-      </Link>
+        </Link>
+      </Button>
     </div>
   );
 };

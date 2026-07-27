@@ -49,6 +49,7 @@ const LogoStrip = ({ className }: Props) => (
         href={href}
         target="_blank"
         rel="noopener noreferrer"
+        aria-label={id}
         className="group flex items-center justify-center h-10 sm:h-13 rounded bg-surface-500 transition-colors hover:bg-surface-400"
       >
         <Component className={cn("opacity-50 scale-90 transition-opacity group-hover:opacity-80", logoClassName)} />

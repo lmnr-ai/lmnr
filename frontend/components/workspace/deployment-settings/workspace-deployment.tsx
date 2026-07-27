@@ -216,11 +216,11 @@ const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
                     : "Your workspace is on the Pro plan, but the Data Plane addon is required to enable hybrid data residency."}
                 </p>
               </div>
-              <Link passHref href={settingsHref("billing")}>
-                <Button className="bg-secondary" variant="outline">
+              <Button asChild className="bg-secondary" variant="outline">
+                <Link passHref href={settingsHref("billing")}>
                   {!isPro ? "View pricing" : "Go to billing settings"}
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             </div>
           </div>
         )}

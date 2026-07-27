@@ -56,7 +56,7 @@ const SidebarFooterComponent = () => {
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem className="mt-4 mx-0 px-2">
-              <Link passHref href="/projects" className="flex items-center">
+              <Link passHref href="/projects" aria-label="Laminar home" className="flex items-center">
                 {/* mask + bg tint: the SVGs are hard fill="white", so next/image can't be recolored */}
                 <span
                   aria-label="Laminar"

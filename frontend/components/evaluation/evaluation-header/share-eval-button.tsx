@@ -100,7 +100,7 @@ const ShareEvalButton = ({ evaluationId, projectId }: ShareEvalButtonProps) => {
                   className="flex-1 basis-0"
                   variant="lightSecondary"
                   disabled={isLoading}
-                  icon={<Link className="h-4 w-4 mr-2" />}
+                  icon={<Link aria-label="Copy link" className="h-4 w-4 mr-2" />}
                   text={url}
                 >
                   <span>Copy link</span>

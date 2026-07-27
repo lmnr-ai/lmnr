@@ -219,9 +219,9 @@ export default function ClustersSection({ className }: Props) {
                 <span className="text-xs text-muted-foreground flex-1 min-w-0">
                   Event clusters for high-level insights
                 </span>
-                <Link href={billingHref}>
-                  <Button size="sm">Upgrade to Pro</Button>
-                </Link>
+                <Button asChild size="sm">
+                  <Link href={billingHref}>Upgrade to Pro</Link>
+                </Button>
               </div>
             )}
           </div>

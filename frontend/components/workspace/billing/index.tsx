@@ -195,15 +195,15 @@ export default function WorkspaceBilling({
 
     if (tierKey === "enterprise") {
       return (
-        <Link
-          href="mailto:founders@lmnr.ai?subject=Enterprise%20Inquiry"
-          className="block"
-          onClick={() => track("billing", "contact_us_clicked")}
-        >
-          <Button variant="outline" className="w-full h-8 text-xs">
+        <Button asChild variant="outline" className="w-full h-8 text-xs">
+          <Link
+            href="mailto:founders@lmnr.ai?subject=Enterprise%20Inquiry"
+            className="block"
+            onClick={() => track("billing", "contact_us_clicked")}
+          >
             Contact us
-          </Button>
-        </Link>
+          </Link>
+        </Button>
       );
     }
 
@@ -219,15 +219,15 @@ export default function WorkspaceBilling({
 
     if (isFree) {
       return (
-        <Link
-          href={`/checkout?lookupKey=${TIER_CONFIG[tierKey as PaidTier].lookupKey}&workspaceId=${workspace.id}&workspaceName=${encodeURIComponent(workspace.name)}`}
-          className="block"
-          onClick={() => track("billing", "upgrade_clicked", { from_tier: currentTierKey, to_tier: tierKey })}
-        >
-          <Button variant={tierKey === "pro" ? "default" : "outline"} className="w-full h-8 text-xs">
+        <Button asChild variant={tierKey === "pro" ? "default" : "outline"} className="w-full h-8 text-xs">
+          <Link
+            href={`/checkout?lookupKey=${TIER_CONFIG[tierKey as PaidTier].lookupKey}&workspaceId=${workspace.id}&workspaceName=${encodeURIComponent(workspace.name)}`}
+            className="block"
+            onClick={() => track("billing", "upgrade_clicked", { from_tier: currentTierKey, to_tier: tierKey })}
+          >
             Upgrade
-          </Button>
-        </Link>
+          </Link>
+        </Button>
       );
     }
 

@@ -136,7 +136,7 @@ const ShareTraceButton = ({ projectId }: { projectId: string; refetch?: () => vo
             {trace.visibility === "public" && (
               <CopyButton
                 variant="lightSecondary"
-                icon={<Link className="h-4 w-4 mr-2" />}
+                icon={<Link aria-label="Copy link" className="h-4 w-4 mr-2" />}
                 text={url}
                 onCopy={() => track("traces", "share_link_copied")}
               >

@@ -68,8 +68,10 @@ export default function SlackConnectButton({
   if (!slackURL) return null;
 
   return (
-    <a href={slackURL} onClick={() => track("integrations", "slack_connect_clicked")}>
-      <Button variant="outlinePrimary">Connect to Slack</Button>
-    </a>
+    <Button asChild variant="outlinePrimary">
+      <a href={slackURL} onClick={() => track("integrations", "slack_connect_clicked")}>
+        Connect to Slack
+      </a>
+    </Button>
   );
 }

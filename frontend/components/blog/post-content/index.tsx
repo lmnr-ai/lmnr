@@ -86,8 +86,10 @@ export default function PostContent({ data, content, backHref, slug, routePrefix
           }
           return <p className="pt-4 text-white/85" {...props} />;
         },
-        a: (props) => (
-          <a className="text-white underline hover:text-primary" target="_blank" rel="noopener noreferrer" {...props} />
+        a: ({ children, ...props }) => (
+          <a className="text-white underline hover:text-primary" target="_blank" rel="noopener noreferrer" {...props}>
+            {children}
+          </a>
         ),
         blockquote: (props) => <blockquote className="border-l-2 border-primary pl-4" {...props} />,
         pre: (props) => <PreHighlighter className="pl-4 py-4" {...props} />,
