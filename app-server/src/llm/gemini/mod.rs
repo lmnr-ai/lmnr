@@ -26,6 +26,10 @@ pub enum GeminiErrorStatus {
     Internal,
     Unavailable,
     DeadlineExceeded,
+    /// gRPC CANCELLED (code 1) surfaced over HTTP as 499. Transient — the
+    /// operation was cancelled before completing (client/proxy/deadline drop or
+    /// server-side shed), so it's safe to retry.
+    Cancelled,
     Unknown(String),
 }
 
@@ -37,6 +41,7 @@ impl GeminiErrorStatus {
                 | GeminiErrorStatus::Unavailable
                 | GeminiErrorStatus::DeadlineExceeded
                 | GeminiErrorStatus::ResourceExhausted
+                | GeminiErrorStatus::Cancelled
         )
     }
 
@@ -47,6 +52,7 @@ impl GeminiErrorStatus {
             (403, _) => Self::PermissionDenied,
             (404, _) => Self::NotFound,
             (429, _) => Self::ResourceExhausted,
+            (499, _) => Self::Cancelled,
             (500, _) => Self::Internal,
             (503, _) => Self::Unavailable,
             (504, _) => Self::DeadlineExceeded,
