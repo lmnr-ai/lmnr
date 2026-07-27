@@ -13,6 +13,7 @@ import TracesChart from "@/components/traces/traces-chart";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import {
   defaultTracesColumnOrder,
+  defaultTracesColumnVisibility,
   filters as staticFilters,
   PREVIEW_COLUMN,
 } from "@/components/traces/traces-table/columns";
@@ -32,7 +33,9 @@ import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatab
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { Switch } from "@/components/ui/switch";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
+import { Feature } from "@/lib/features/features";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type RealtimeTracePayload, type SpanType, type TraceRow } from "@/lib/traces/types";
@@ -74,9 +77,20 @@ const realtimeTraceToRow = (trace: RealtimeTracePayload): TraceRow => ({
 
 export default function TracesTable() {
   const { projectId } = useParams();
+  const signalsEnabled = useFeatureFlags()[Feature.SIGNALS];
+  // Drop "signals" from the default order when the feature is off — the order
+  // seeds the columns menu, which would otherwise list a ghost entry whose
+  // column def doesn't exist (reconcileConfig also purges it from saved views).
+  const defaults = useMemo(
+    () => ({
+      columnOrder: signalsEnabled ? defaultTracesColumnOrder : defaultTracesColumnOrder.filter((c) => c !== "signals"),
+      columnVisibility: defaultTracesColumnVisibility,
+    }),
+    [signalsEnabled]
+  );
   return (
     <InfiniteDataTableProvider
-      defaults={{ columnOrder: defaultTracesColumnOrder }}
+      defaults={defaults}
       lockedColumns={["status", "preview"]}
       views={{ projectId: String(projectId), resource: RESOURCE }}
     >
@@ -138,7 +152,11 @@ function TracesTableContent() {
     shallow
   );
 
-  const columnDefs = useMemo(() => buildColumnDefs(customColumns), [customColumns]);
+  const signalsEnabled = useFeatureFlags()[Feature.SIGNALS];
+  const columnDefs = useMemo(
+    () => buildColumnDefs(customColumns, { signals: signalsEnabled }),
+    [customColumns, signalsEnabled]
+  );
 
   // Merge static filter definitions with custom column filters.
   const allFilters = useMemo<ColumnFilter[]>(() => {
@@ -333,7 +351,8 @@ function TracesTableContent() {
 
         if (existingTraceIndex !== -1) {
           const newTraces = [...currentTraces];
-          newTraces[existingTraceIndex] = traceData;
+          // Realtime payloads never carry signals; keep the fetched chips.
+          newTraces[existingTraceIndex] = { ...traceData, signals: currentTraces[existingTraceIndex].signals };
           return newTraces;
         } else {
           const newTraces = [traceData, ...currentTraces];

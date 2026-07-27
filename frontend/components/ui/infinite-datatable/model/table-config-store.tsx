@@ -73,6 +73,14 @@ function isDynamicColumnId(id: string): boolean {
 // System column ids (`__`-prefixed) are stripped from persisted view configs
 // by `normalizeViewConfig`, so they always show up as "new defaults" on load.
 // Restore them at their default-order position instead of appending.
+// normalizeViewConfig drops all-visible maps from persisted views, so a saved
+// view WITHOUT `columnVisibility` means "all visible" — NOT "use defaults".
+// Make that explicit before reconciling, or non-empty default visibility
+// would silently hide columns in views saved before the default existed.
+export function asSavedViewConfig(config: Partial<TableConfig>): Partial<TableConfig> {
+  return { columnVisibility: {}, ...config };
+}
+
 export function reconcileConfig(
   loaded: Partial<TableConfig>,
   defaults: Partial<TableConfig>
@@ -176,7 +184,7 @@ export function createTableConfigStore({
   initialViewSeed,
 }: CreateOptions): StoreApi<TableConfigStore> {
   return createStore<TableConfigStore>()((set, get) => {
-    const seedColumnConfig = initialViewSeed?.view?.config ?? defaults;
+    const seedColumnConfig = initialViewSeed?.view?.config ? asSavedViewConfig(initialViewSeed.view.config) : defaults;
     const initial = reconcileConfig(seedColumnConfig, defaults).config;
     return {
       config: initial,
@@ -254,7 +262,7 @@ export function createTableConfigStore({
           config: {
             ...get().config,
             columnOrder: defaults.columnOrder ?? [],
-            columnVisibility: {},
+            columnVisibility: defaults.columnVisibility ?? {},
             columnSizing: {},
           },
         });

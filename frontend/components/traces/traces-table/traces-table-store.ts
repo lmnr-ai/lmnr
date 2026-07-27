@@ -29,7 +29,7 @@ export function toColumnsPayload(columnDefs: ColumnDef<TraceRow>[]): TracesQuery
     }));
 }
 
-export function buildColumnDefs(customColumns: CustomColumn[]): ColumnDef<TraceRow>[] {
+export function buildColumnDefs(customColumns: CustomColumn[], options?: { signals?: boolean }): ColumnDef<TraceRow>[] {
   const customCols: ColumnDef<TraceRow>[] = customColumns.map((cc) => ({
     id: `custom:${cc.name}`,
     accessorFn: (row) => (row as Record<string, unknown>)[`custom:${cc.name}`],
@@ -42,7 +42,8 @@ export function buildColumnDefs(customColumns: CustomColumn[]): ColumnDef<TraceR
       isCustom: true,
     },
   }));
-  return [...columns, ...customCols];
+  const staticCols = options?.signals ? columns : columns.filter((c) => c.id !== "signals");
+  return [...staticCols, ...customCols];
 }
 
 export function buildFetchParams(

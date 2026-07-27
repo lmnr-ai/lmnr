@@ -557,7 +557,7 @@ export async function deleteSignals(input: z.infer<typeof DeleteSignalsSchema>) 
 }
 
 export { executeSignal } from "./execute";
-export { getTraceSignals, GetTraceSignalsSchema } from "./trace";
+export { getTraceRowSignals, GetTraceRowSignalsSchema, getTraceSignals, GetTraceSignalsSchema } from "./trace";
 
 export const getLastEvent = async (input: z.infer<typeof GetLastEventSchema>) => {
   const { projectId, signalId } = GetLastEventSchema.parse(input);

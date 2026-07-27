@@ -7,6 +7,7 @@ import TraceTagsCell from "@/components/tags/trace-tags-cell";
 import { CostCell, DurationCell, TokensCell } from "@/components/traces/cells";
 import { SnippetPreview } from "@/components/traces/snippet-preview";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
+import SignalsCell from "@/components/traces/traces-table/signals-cell";
 import CopyTooltip from "@/components/ui/copy-tooltip.tsx";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import JsonTooltip from "@/components/ui/json-tooltip";
@@ -174,6 +175,14 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     meta: { sql: "trace_tags" },
   },
   {
+    // Display-only decoration (attached server-side when Feature.SIGNALS is on);
+    // no meta.sql so it never enters the query builder / filters / sorting.
+    cell: (row) => <SignalsCell signals={row.row.original.signals} />,
+    header: "Signals",
+    id: "signals",
+    size: 220,
+  },
+  {
     accessorFn: (row) => row.metadata,
     header: "Metadata",
     id: "metadata",
@@ -315,9 +324,16 @@ export const defaultTracesColumnOrder = [
   "duration",
   "cost",
   "total_tokens",
+  "signals",
   "trace_tags",
   "span_tags",
   "metadata",
   "session_id",
   "user_id",
 ];
+
+export const defaultTracesColumnVisibility: Record<string, boolean> = {
+  id: false,
+  root_span_input: false,
+  root_span_output: false,
+};
