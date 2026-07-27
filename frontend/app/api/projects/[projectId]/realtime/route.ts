@@ -1,9 +1,6 @@
 import { fetcherRealTime } from "@/lib/utils";
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ projectId: string }> }
-) {
+export async function GET(request: Request, { params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
 
   try {
@@ -12,18 +9,18 @@ export async function GET(
 
     // Forward the client's abort signal to our controller
     if (request.signal) {
-      request.signal.addEventListener('abort', () => {
+      request.signal.addEventListener("abort", () => {
         abortController.abort();
       });
     }
 
     // Parse query parameters from the incoming request
     const url = new URL(request.url);
-    const key = url.searchParams.get('key') || 'traces'; // Default to 'traces'
+    const key = url.searchParams.get("key") || "traces"; // Default to 'traces'
 
     // Build query string for app-server
     const queryParams = new URLSearchParams();
-    queryParams.set('key', key);
+    queryParams.set("key", key);
 
     const queryString = queryParams.toString();
     const endpoint = `/projects/${projectId}/realtime?${queryString}`;
@@ -32,9 +29,9 @@ export async function GET(
     const response = await fetcherRealTime(endpoint, {
       method: "GET",
       headers: {
-        "Accept": "text/event-stream",
+        Accept: "text/event-stream",
         "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
+        Connection: "keep-alive",
       },
       signal: abortController.signal,
     });
@@ -54,24 +51,39 @@ export async function GET(
 
         const reader = response.body.getReader();
 
+        // Ending the stream is always graceful, never `controller.error`: Next's
+        // `pipeToNodeResponse` rethrows any non-abort stream error as
+        // "failed to pipe response", which `onRequestError` reports to Sentry.
+        // Every way this stream can break is a normal connection lifecycle event
+        // (app-server pod rolled, client navigated away), and closing lets the
+        // browser's EventSource reconnect on its own.
+        const endStream = () => {
+          try {
+            controller.close();
+          } catch {
+            // Already closed or cancelled by the client.
+          }
+        };
+
         const pump = async () => {
           try {
             while (true) {
               const { done, value } = await reader.read();
 
               if (done) {
-                console.log(`Stream ended for project ${projectId}`);
-                controller.close();
                 break;
               }
 
               controller.enqueue(value);
             }
           } catch (error) {
-            controller.error(error);
+            if (!abortController.signal.aborted) {
+              // Upstream went away mid-stream (pod rollout, idle timeout).
+              console.warn(`Realtime stream for project ${projectId} ended early:`, error);
+            }
           } finally {
-            // Ensure reader is released
             reader.releaseLock();
+            endStream();
           }
         };
 
@@ -79,7 +91,7 @@ export async function GET(
       },
       cancel() {
         abortController.abort();
-      }
+      },
     });
 
     return new Response(stream, {
@@ -87,13 +99,18 @@ export async function GET(
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
+        Connection: "keep-alive",
         "X-Accel-Buffering": "no",
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Cache-Control",
       },
     });
   } catch (error) {
+    if (request.signal?.aborted) {
+      // Client hung up before the upstream connection was established. Nothing
+      // to report and nobody to report it to.
+      return new Response(null, { status: 499 });
+    }
     console.error("Error connecting to realtime service:", error);
     return new Response("Internal server error", { status: 500 });
   }
