@@ -139,12 +139,15 @@ enum SignalTraceSource {
     /// No signal evaluation: nothing aggregated, or the write that would have
     /// produced the cumulative state failed.
     None,
-    /// `WRITE_TRACES_AGG` off — `traces_agg` has no partials for this batch, so
-    /// the PG-merged rows are the only cumulative source. Dies with the PG
-    /// write in phase 3 (LAM-2020).
+    /// The PG-merged rows are the only cumulative source reachable: either
+    /// `WRITE_TRACES_AGG` is off (no partials written at all), or this is a
+    /// HYBRID workspace whose partials went to the customer's ClickHouse while
+    /// the read-back client points at central. Dies with the PG write in
+    /// phase 3 (LAM-2020).
     Postgres(Vec<Trace>),
-    /// `WRITE_TRACES_AGG` on and this batch's partials landed, so the
-    /// re-aggregated read-back includes this batch's deltas.
+    /// `WRITE_TRACES_AGG` on, this batch's partials landed, and they landed in
+    /// the same ClickHouse the read-back queries — so the re-aggregated totals
+    /// include this batch's deltas.
     TracesAgg,
 }
 
@@ -744,9 +747,22 @@ pub async fn process_span_messages(
         // evaluating: the next batch for the trace re-evaluates with correct
         // cumulative state, since the filters are level-triggered on totals
         // rather than edge-triggered on a single batch.
+        //
+        // The read-back is only usable when the partials landed in the SAME
+        // ClickHouse the read hits. `config.is_some()` marks the data-plane
+        // path: there `ch` is a `DataPlaneClickhouse` that POSTs every batch to
+        // the customer's CH, while `clickhouse` (the read-back client) is
+        // always central — so the read would see nothing. Keyed on the config's
+        // presence rather than `mode == HYBRID` because it's the `ch` impl, not
+        // the mode value, that decides where the write lands (a mode flip
+        // between publish and consume must not silently re-enable the
+        // read-back). Postgres is central in both modes, so the data-plane path
+        // keeps using the PG rows until the read-back can route per deployment
+        // (phase 3 concern).
+        let read_back_is_same_ch = config.is_none();
         if !had_aggregations {
             SignalTraceSource::None
-        } else if write_traces_agg {
+        } else if write_traces_agg && read_back_is_same_ch {
             if traces_agg_current {
                 SignalTraceSource::TracesAgg
             } else {
