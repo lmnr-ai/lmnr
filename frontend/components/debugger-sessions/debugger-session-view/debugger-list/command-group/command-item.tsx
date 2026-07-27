@@ -69,21 +69,26 @@ export default function CommandItem({ id, command, createdAt, expanded, isFirst,
         <span className="min-w-0 flex-1 truncate font-mono text-[13px] leading-[17px] text-secondary-foreground transition-colors group-hover/row:text-primary-foreground">
           {label}
         </span>
-        {/* Inline right cluster — identical geometry to the group header so the
-            row's time/chevron align vertically with the header's. */}
+        {/* Inline right cluster. The chevron is wrapped in the SAME `py-0.5 pl-1
+            pr-1` the header's CardExpandIndicator pill uses (minus its border /
+            bg / label / hover-reveal) so the row's time AND chevron land at the
+            exact same x as the header's — just a plain chevron that recolors on
+            hover, no animation. */}
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {relativeTime && (
             <span className="whitespace-nowrap text-[13px] leading-[17px] text-secondary-foreground">
               {relativeTime}
             </span>
           )}
-          <ChevronDown
-            size={16}
-            className={cn(
-              "shrink-0 text-muted-foreground transition-colors group-hover/row:text-foreground",
-              !expanded && "-rotate-90"
-            )}
-          />
+          <span className="flex items-center py-0.5 pl-1 pr-1">
+            <ChevronDown
+              size={16}
+              className={cn(
+                "shrink-0 text-muted-foreground transition-colors group-hover/row:text-foreground",
+                !expanded && "-rotate-90"
+              )}
+            />
+          </span>
         </div>
       </button>
     </div>
