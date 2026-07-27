@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { executeQuery } from "@/lib/actions/sql";
 import { type AggregationFunction } from "@/lib/clickhouse/types";
@@ -6,6 +6,11 @@ import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
 
 import { type EvaluationTimeProgression } from "../evaluation/types";
+
+// The resolved ids travel to ClickHouse as a bound query parameter, which the
+// client sends in the URI — past ~1450 ids the query fails with "uri too long".
+// Cap well below that and keep the most recent runs (this is a time progression).
+const MAX_PROGRESSION_RUNS = 1000;
 
 export const getEvaluationTimeProgression = async (
   projectId: string,
@@ -26,10 +31,17 @@ export const getEvaluationTimeProgression = async (
         eq(evaluations.groupId, groupId),
         ...(ids && ids.length > 0 ? [inArray(evaluations.id, ids)] : [])
       )
-    );
+    )
+    .orderBy(desc(evaluations.createdAt))
+    .limit(MAX_PROGRESSION_RUNS);
 
   const evaluationIds = groupRuns.map((run) => run.id);
   if (evaluationIds.length === 0) return [];
+  if (evaluationIds.length === MAX_PROGRESSION_RUNS) {
+    console.warn(
+      `Evaluation progression for group "${groupId}" capped at the ${MAX_PROGRESSION_RUNS} most recent runs.`
+    );
+  }
 
   // Query all datapoints with their scores for the given evaluations
   const datapoints = await executeQuery<{
