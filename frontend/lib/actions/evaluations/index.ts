@@ -210,7 +210,15 @@ export async function moveEvaluations(input: z.infer<typeof MoveEvaluationsSchem
   // Datapoints carry a denormalized group_id that the group progression chart reads
   // (WHERE group_id = ...), so it must follow the header. evaluation_datapoints is a
   // ReplacingMergeTree(updated_at): re-insert the latest (FINAL) version of each row with
-  // the new group_id + a fresh updated_at so it wins on the next merge / FINAL read.
+  // the new group_id, versioned so it wins on the next merge / FINAL read.
+  //
+  // updated_at DOUBLES as the run's creation time — evaluation_datapoints_v0 aliases both
+  // `updated_at` AND `created_at` to this one physical column (there is no separate
+  // created_at). So we must NOT stamp now64(9) (that jumps every moved run to "now" on the
+  // progression chart, scrambling chronological order). Instead bump by the smallest
+  // representable step: version = old + 1 nanosecond (via the underlying Int64 nanos). That
+  // strictly beats the prior version so RMT keeps the moved row, while the run's chart time
+  // shifts by 1ns — imperceptible, and order-preserving.
   //
   // NOTE: the column list is hardcoded and MUST stay in sync with the
   // evaluation_datapoints schema — INSERT ... SELECT maps positionally, so a new
@@ -223,7 +231,9 @@ export async function moveEvaluations(input: z.infer<typeof MoveEvaluationsSchem
          executor_output, index, dataset_id, dataset_datapoint_id, dataset_datapoint_created_at,
          group_id, scores)
       SELECT
-        id, evaluation_id, project_id, trace_id, now64(9) AS updated_at, data, target, metadata,
+        id, evaluation_id, project_id, trace_id,
+        fromUnixTimestamp64Nano(toUnixTimestamp64Nano(updated_at) + 1, 'UTC') AS updated_at,
+        data, target, metadata,
         executor_output, index, dataset_id, dataset_datapoint_id, dataset_datapoint_created_at,
         {groupId: String} AS group_id, scores
       FROM evaluation_datapoints FINAL
