@@ -23,8 +23,8 @@ import {
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import React, { type PropsWithChildren, useEffect, useId, useMemo, useRef, useState } from "react";
-import { useStore } from "zustand";
 import { shallow } from "zustand/shallow";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { DraggingTableHeadOverlay } from "@/components/ui/infinite-datatable/ui/head.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
@@ -113,10 +113,14 @@ export function InfiniteDataTable<TData extends RowData>({
     );
 
   const tableStore = useTableStore();
-  const { draggingColumnId, setDraggingColumnId } = useStore(tableStore, (state) => ({
-    draggingColumnId: state.draggingColumnId,
-    setDraggingColumnId: state.setDraggingColumnId,
-  }));
+  const { draggingColumnId, setDraggingColumnId } = useStoreWithEqualityFn(
+    tableStore,
+    (state) => ({
+      draggingColumnId: state.draggingColumnId,
+      setDraggingColumnId: state.setDraggingColumnId,
+    }),
+    shallow
+  );
 
   // Sticky-left columns must also render first, or their `getStart('left')`
   // offset (computed assuming they're the leading columns) would be wrong.

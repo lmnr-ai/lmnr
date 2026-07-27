@@ -4,7 +4,9 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { format, subDays } from "date-fns";
 import { isDate, isEmpty, isNil, isObject } from "lodash";
 import { createContext, type PropsWithChildren, useContext, useState } from "react";
-import { createStore, useStore } from "zustand";
+import { createStore } from "zustand";
+import { shallow } from "zustand/shallow";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { ChartType, type DisplayMode } from "@/components/chart-builder/types.ts";
 import { TABLE_PAGE_SIZE } from "@/components/dashboards/editor/constants";
@@ -336,7 +338,7 @@ export const useDashboardEditorStoreContext = <T,>(selector: (store: DashboardEd
   if (!store) {
     throw new Error("useDashboardEditorStoreContext must be used within a DashboardEditorStoreProvider");
   }
-  return useStore(store, selector);
+  return useStoreWithEqualityFn(store, selector, shallow);
 };
 
 export const DashboardEditorStoreProvider = ({ children, ...props }: PropsWithChildren<DashboardEditorProps>) => {
