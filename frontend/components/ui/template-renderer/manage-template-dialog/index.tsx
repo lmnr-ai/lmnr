@@ -224,20 +224,13 @@ const ManageTemplateDialog = ({ mode, scope = "span", traceId, onCancel, onSaved
           <div className="flex h-14 shrink-0 items-center justify-between border-b px-5">
             <DialogTitle className="text-base font-medium text-foreground">{title}</DialogTitle>
             <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="default"
-                onClick={handleCancel}
-                className="rounded px-4 text-xs"
-              >
+              <Button type="button" variant="outline" onClick={handleCancel} className="rounded px-4">
                 Cancel
               </Button>
               <Button
                 type="submit"
-                size="default"
                 disabled={isSaving || isGenerating || !code?.trim()}
-                className="gap-1.5 rounded px-4 text-xs"
+                className="gap-1.5 rounded px-4"
               >
                 {isSaving && <Loader2 className="size-3.5 animate-spin" />}
                 Save

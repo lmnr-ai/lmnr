@@ -155,8 +155,8 @@ export const TraceTagsButton = ({ traceId, className }: TraceTagsProps) => {
       onCreateAndAttach={onCreateAndAttach}
     >
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className={cn("h-6 text-xs px-1.5 gap-1.5", className)}>
-          <Tag data-icon="inline-start" className="size-3.5" />
+        <Button variant="outline" size="sm" className={cn("gap-1.5", className)}>
+          <Tag className="size-3.5" />
           Tags
         </Button>
       </DropdownMenuTrigger>

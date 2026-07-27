@@ -266,7 +266,7 @@ function CopyModelCostsDialog({ onCopy }: { onCopy: (targetProjectId: string) =>
     >
       <DialogTrigger asChild>
         <Button variant="outline" className="w-fit">
-          <Copy data-icon="inline-start" size={14} className="mr-1" />
+          <Copy size={14} className="mr-1" />
           Copy to project
         </Button>
       </DialogTrigger>
@@ -496,16 +496,14 @@ export default function CustomModelCosts() {
                     initialCosts={costObj}
                     onSave={upsertCost}
                     trigger={
-                      <Button aria-label="Edit" variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <Button variant="ghost" size="icon">
                         <Pencil size={14} />
                       </Button>
                     }
                   />
                   <Button
-                    aria-label="Delete"
                     variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0"
+                    size="icon"
                     onClick={() => setDeleteTarget({ id: cost.id, model: cost.model })}
                   >
                     <Trash2 size={14} />

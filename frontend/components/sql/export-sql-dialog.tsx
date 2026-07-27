@@ -262,10 +262,10 @@ export default function ExportSqlDialog({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         {children || (
-          <Button disabled={!sqlQuery?.trim()} variant="secondary" className="w-fit px-2">
-            <Database data-icon="inline-start" className="size-3.5 mr-2" />
+          <Button disabled={!sqlQuery?.trim()} variant="secondary" className="w-fit">
+            <Database className="size-3.5 mr-2" />
             Export
-            <ChevronDown data-icon="inline-end" className="size-3.5 ml-2" />
+            <ChevronDown className="size-3.5 ml-2" />
           </Button>
         )}
       </DropdownMenuTrigger>

@@ -80,14 +80,7 @@ const DimensionsField = () => {
             />
           </div>
         ))}
-        <Button
-          icon="plus"
-          size="sm"
-          className="text-primary hover:text-primary/80"
-          variant="ghost"
-          onClick={addDimension}
-          disabled={unselectedColumns.length === 0}
-        >
+        <Button icon="plus" size="sm" variant="link" onClick={addDimension} disabled={unselectedColumns.length === 0}>
           Add dimension
         </Button>
       </div>

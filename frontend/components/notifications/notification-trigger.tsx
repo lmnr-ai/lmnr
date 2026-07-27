@@ -5,6 +5,7 @@ import useSWR from "swr";
 
 import { formatNotification } from "@/components/notifications/notification-panel";
 import { useNotificationPanelStore } from "@/components/notifications/notification-store";
+import { Button } from "@/components/ui/button";
 import { useProjectContext } from "@/contexts/project-context";
 import { type WebNotification } from "@/lib/actions/notifications";
 import { track } from "@/lib/posthog";
@@ -28,17 +29,15 @@ const NotificationTrigger = () => {
   };
 
   return (
-    <button
+    <Button
       onClick={handleClick}
-      className={cn(
-        "relative flex items-center justify-center rounded-md p-1",
-        "text-secondary-foreground hover:bg-secondary/60 transition-colors",
-        isOpen && "bg-secondary/60"
-      )}
+      variant="ghost"
+      size="icon-sm"
+      className={cn("relative text-secondary-foreground hover:bg-secondary/60", isOpen && "bg-secondary/60")}
     >
       <Bell className="size-4" />
       {hasUnread && <span className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-orange-500" />}
-    </button>
+    </Button>
   );
 };
 

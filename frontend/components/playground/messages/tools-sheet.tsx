@@ -78,13 +78,7 @@ export default function ToolsSheet({
     if (toolsCount === 0) {
       return (
         <SheetTrigger asChild>
-          <Button
-            aria-label="Tools"
-            disabled={!model}
-            variant="outline"
-            size="icon"
-            className={cn("focus-visible:ring-0", className)}
-          >
+          <Button disabled={!model} variant="outline" size="icon" className={cn("focus-visible:ring-0", className)}>
             <Bolt className="size-4" />
           </Button>
         </SheetTrigger>
@@ -99,13 +93,7 @@ export default function ToolsSheet({
             <span className="ml-1 text-xs ">{pluralize(toolsCount, "tool", "tools")}</span>
           </Button>
         </SheetTrigger>
-        <Button
-          aria-label="Clear tools"
-          onClick={() => setValue("tools", "")}
-          className="size-7"
-          variant="outlinePrimary"
-          size="icon"
-        >
+        <Button onClick={() => setValue("tools", "")} variant="outlinePrimary" size="icon">
           <X className="size-4" />
         </Button>
       </div>
@@ -129,8 +117,8 @@ export default function ToolsSheet({
             <span className="text-sm">Tools definition</span>
             <Button
               onClick={() => setValue("tools", JSON.stringify(exampleTools, null, 2))}
-              className="text-primary text-sm p-0"
-              variant="ghost"
+              className="h-auto p-0"
+              variant="link"
             >
               <span className="text-sm">Insert example</span>
             </Button>

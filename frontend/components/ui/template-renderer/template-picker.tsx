@@ -416,7 +416,7 @@ export const TemplatePickerActions = ({ className }: { className?: string }) => 
       <Button
         size="sm"
         variant="ghost"
-        className="h-6 gap-1 px-1.5 text-xs text-muted-foreground"
+        className="gap-1 text-muted-foreground"
         onClick={openEdit}
         title="Edit template"
       >

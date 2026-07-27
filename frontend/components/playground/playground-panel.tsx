@@ -173,10 +173,10 @@ export default function PlaygroundPanel({
           History
         </Button>
         {isLoading ? (
-          <Button variant="outlinePrimary" onClick={abortRequest} className="ml-auto h-7 w-fit px-2">
-            <Square data-icon="inline-start" className="w-4 h-4 mr-1" />
+          <Button variant="outlinePrimary" onClick={abortRequest} className="ml-auto w-fit">
+            <Square className="w-4 h-4 mr-1" />
             <span className="mr-2 text-xs">Stop</span>
-            <Loader data-icon="inline-end" className="animate-spin w-4 h-4" />
+            <Loader className="animate-spin w-4 h-4" />
           </Button>
         ) : (
           <Button icon="playIcon" onClick={handleSubmit(submit)} className="ml-auto w-fit">

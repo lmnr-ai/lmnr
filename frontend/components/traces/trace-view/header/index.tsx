@@ -2,7 +2,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUpRight, ChevronsRight, Layers, Maximize, Radio, Sparkles, User } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { createSerializer, parseAsArrayOf, parseAsString } from "nuqs";
 import { memo, useCallback, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -18,7 +17,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
 import { type Filter } from "@/lib/actions/common/filters";
-import { Operator } from "@/lib/actions/common/operators";
 import { type EventRow } from "@/lib/events/types";
 import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -33,14 +31,6 @@ import TraceDropdown from "./trace-dropdown";
 const HEADER_ITEM_CLS = "flex items-center h-7";
 
 const FREE_TIER_RETENTION_DAYS = 7;
-
-// The traces table reads `filter` through nuqs `parseAsArrayOf(parseAsString)`, which
-// splits on unescaped commas — so hand-built `URLSearchParams` shred the filter JSON.
-// Serialize with nuqs so the escaping matches the reader.
-const serializeTracesFilterQuery = createSerializer({
-  filter: parseAsArrayOf(parseAsString),
-  pastHours: parseAsString,
-});
 
 interface HeaderProps {
   // Undefined ⇒ the close button is hidden (always-open panel).
@@ -115,7 +105,8 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           signalName: string;
           prompt: string;
           structuredOutput: Record<string, unknown>;
-          events: Array<EventRow & { leafClusters?: TraceSignalClusterNode[] | null }>;
+          leafCluster?: TraceSignalClusterNode | null;
+          events: Array<EventRow & { leafCluster?: TraceSignalClusterNode | null }>;
         }>;
         if (!Array.isArray(data)) return;
 
@@ -123,6 +114,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           signalId: s.signalId,
           signalName: s.signalName,
           prompt: s.prompt ?? "",
+          leafCluster: s.leafCluster ?? null,
           schemaFields: jsonSchemaToSchemaFields(s.structuredOutput).map((f) => ({
             name: f.name,
             type: f.type,
@@ -136,7 +128,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                 payload: e.payload,
                 timestamp: e.timestamp,
                 severity: e.severity,
-                leafClusters: e.leafClusters ?? [],
+                leafCluster: e.leafCluster ?? null,
               }))
             : [],
         }));
@@ -192,12 +184,11 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
 
   const handleOpenUserTraces = useCallback(() => {
     if (!hasUser) return;
+    const params = new URLSearchParams();
+    params.append("filter", JSON.stringify({ column: "user_id", value: userId, operator: "eq" }));
     const retentionDays = project?.logRetentionDays ?? FREE_TIER_RETENTION_DAYS;
-    const query = serializeTracesFilterQuery({
-      filter: [JSON.stringify({ column: "user_id", operator: Operator.Eq, value: userId, dataType: "string" })],
-      pastHours: String(retentionDays * 24),
-    });
-    window.open(`/project/${projectId}/traces${query}`, "_blank");
+    params.set("pastHours", String(retentionDays * 24));
+    window.open(`/project/${projectId}/traces?${params.toString()}`, "_blank");
   }, [hasUser, userId, projectId, project?.logRetentionDays]);
 
   return (
@@ -208,13 +199,13 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           {!params?.traceId && (
             <span className={cn(HEADER_ITEM_CLS, "gap-0.5")}>
               {handleClose && (
-                <Button aria-label="Collapse panel" variant="ghost" className="h-7 px-0.5" onClick={handleClose}>
+                <Button variant="ghost" size="icon" onClick={handleClose}>
                   <ChevronsRight className="w-5 h-5" />
                 </Button>
               )}
               {trace && (
                 <NextLink passHref href={`/project/${projectId}/traces/${trace?.id}?${fullScreenParams.toString()}`}>
-                  <Button aria-label="Expand" variant="ghost" className="h-7 px-0.5">
+                  <Button variant="ghost" size="icon">
                     <Maximize className="w-4 h-4" />
                   </Button>
                 </NextLink>
@@ -231,11 +222,9 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
             <span className={HEADER_ITEM_CLS}>
               <Button
                 onClick={() => setSignalsPanelOpen(!signalsPanelOpen)}
-                variant="outline"
-                className={cn(
-                  "h-6 text-xs px-1.5",
-                  signalsPanelOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
-                )}
+                variant={signalsPanelOpen ? "outlinePrimary" : "outline"}
+                size="sm"
+                className={cn(!signalsPanelOpen && "hover:bg-secondary")}
               >
                 <Radio size={14} className="mr-1" />
                 Signals ({signalCount})
@@ -253,13 +242,11 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                     openAgent();
                   }
                 }}
-                variant="outline"
-                className={cn(
-                  "h-6 text-xs px-1.5",
-                  agentOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
-                )}
+                variant={agentOpen ? "outlinePrimary" : "outline"}
+                size="sm"
+                className={cn(!agentOpen && "hover:bg-secondary")}
               >
-                <Sparkles data-icon="inline-start" size={14} className="mr-1" />
+                <Sparkles size={14} className="mr-1" />
                 Chat
               </Button>
             </span>
@@ -284,7 +271,8 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                     <Button
                       onClick={handleOpenSession}
                       variant="outline"
-                      className="h-6 text-xs px-1.5 hover:bg-secondary max-w-56"
+                      size="sm"
+                      className="hover:bg-secondary max-w-56"
                     >
                       <Layers size={14} className="mr-1 flex-shrink-0" />
                       <span className="truncate">{sessionId}</span>
@@ -304,7 +292,8 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                     <Button
                       onClick={handleOpenUserTraces}
                       variant="outline"
-                      className="h-6 text-xs px-1.5 hover:bg-secondary max-w-40"
+                      size="sm"
+                      className="hover:bg-secondary max-w-40"
                     >
                       <User size={14} className="mr-1 flex-shrink-0" />
                       <span className="truncate">{userId}</span>

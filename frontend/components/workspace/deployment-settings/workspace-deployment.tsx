@@ -217,9 +217,7 @@ const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
                 </p>
               </div>
               <Link passHref href={settingsHref("billing")}>
-                <Button className="bg-secondary" variant="outline">
-                  {!isPro ? "View pricing" : "Go to billing settings"}
-                </Button>
+                <Button variant="secondary">{!isPro ? "View pricing" : "Go to billing settings"}</Button>
               </Link>
             </div>
           </div>

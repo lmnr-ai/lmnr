@@ -143,8 +143,8 @@ export default function WorkspaceAddons({
                   </p>
                   {canManageBilling && (
                     <Button
-                      variant="outline"
-                      className="bg-secondary ml-auto"
+                      variant="secondary"
+                      className="ml-auto"
                       disabled={isThisPending || !hasActiveSubscription}
                       onClick={() => setDialog({ lookupKey, action: isActive ? "remove" : "add" })}
                     >

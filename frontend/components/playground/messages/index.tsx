@@ -85,8 +85,8 @@ const Messages = () => {
         </div>
       </ScrollArea>
       <div className="px-4">
-        <Button onClick={() => append(defaultMessage)} variant="outline" className="self-start h-8">
-          <Plus data-icon="inline-start" className="mr-2" size={12} />
+        <Button onClick={() => append(defaultMessage)} variant="outline" size="md" className="self-start">
+          <Plus className="mr-2" size={12} />
           Add message
         </Button>
       </div>
