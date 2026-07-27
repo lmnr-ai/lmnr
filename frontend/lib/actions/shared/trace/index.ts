@@ -3,7 +3,6 @@ import { z } from "zod/v4";
 
 import { type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { executeQuery } from "@/lib/actions/sql";
-import { getAgentOutputsBatch } from "@/lib/actions/traces/outputs";
 import { db } from "@/lib/db/drizzle";
 import { sharedTraces } from "@/lib/db/migrations/schema";
 
@@ -24,9 +23,8 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
 
   const projectId = sharedTrace.projectId;
 
-  const [[trace], agentOutputs] = await Promise.all([
-    executeQuery<Omit<TraceViewTrace, "visibility">>({
-      query: `
+  const [trace] = await executeQuery<Omit<TraceViewTrace, "visibility">>({
+    query: `
         SELECT
           id,
           formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
@@ -52,14 +50,11 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
         WHERE id = {traceId: UUID}
         LIMIT 1
       `,
-      projectId,
-      parameters: {
-        traceId,
-      },
-    }),
-    // agent_output lives in its own view (trace_outputs), not on the trace row.
-    getAgentOutputsBatch({ traceIds: [traceId], projectId }),
-  ]);
+    projectId,
+    parameters: {
+      traceId,
+    },
+  });
 
   if (!trace) {
     return undefined;
@@ -67,7 +62,6 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
 
   return {
     ...trace,
-    agentOutput: agentOutputs[traceId] ?? null,
     visibility: "public",
   };
 }
