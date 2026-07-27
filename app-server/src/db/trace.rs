@@ -176,7 +176,10 @@ impl Trace {
             id: state.id,
             start_time: None,
             end_time: None,
-            trace_type: state.trace_type,
+            // `Trace::trace_type` is `i16` only because the PG `traces.type`
+            // column is `smallint`; the CH-side value is `u8`. Widening is
+            // lossless, and the field follows the PG write out in phase 3.
+            trace_type: state.trace_type.into(),
             top_span_id: (!state.top_span_id.is_nil()).then_some(state.top_span_id),
             top_span_name: (!state.top_span_name.is_empty()).then(|| state.top_span_name.clone()),
             top_span_type: None,

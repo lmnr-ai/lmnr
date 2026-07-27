@@ -251,7 +251,10 @@ pub struct CHTraceState {
     #[serde(with = "clickhouse::serde::uuid")]
     pub top_span_id: Uuid,
     pub top_span_name: String,
-    pub trace_type: i16,
+    /// Matches the DDL's `Enum8`/`UInt8` width and `Into<u8> for TraceType`.
+    /// The PG `traces.type smallint` that forced `i16` is on its way out
+    /// (LAM-2020) — don't widen this back to a signed type.
+    pub trace_type: u8,
     pub tags: Vec<String>,
     pub span_names: Vec<String>,
 }
@@ -299,7 +302,7 @@ pub async fn fetch_trace_states(
             ) AS status,
             CAST(max(top_span_id), 'UUID') AS top_span_id,
             substring(max(top_span_name), 2) AS top_span_name,
-            toInt16(multiIf(
+            toUInt8(multiIf(
                 has(groupUniqArrayArray(trace_types), 'PLAYGROUND'), 3,
                 has(groupUniqArrayArray(trace_types), 'EVALUATION'), 1,
                 has(groupUniqArrayArray(trace_types), 'EVENT'), 2,
