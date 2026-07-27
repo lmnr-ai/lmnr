@@ -2,45 +2,42 @@
 // free of server-only imports so the realtime path in the session store can
 // run the exact same validation as the server block index.
 
-// Content of a `command` block — a CLI command an agent ran. Only `command` is
-// guaranteed; everything else is optional on the wire.
-export type CommandBlockContent = {
-  command: string;
-  args?: string[];
-  exitCode?: number;
-  output?: string;
-  stderr?: string;
-  raw?: string;
-  // Optional free-text explanation the agent gave for running the command
-  // (CLI `--reasoning`). Untrusted, variable-length; null/absent = none.
-  reasoning?: string | null;
-};
+import { z } from "zod/v4";
 
-/**
- * Defensive field-by-field extraction (NOT a strict zod parse): a malformed
- * optional field must degrade to "absent", never drop the whole block. `args`
- * is all-or-nothing — compacting non-string elements out would shift
- * positional meaning (e.g. render the wrong arg as SQL).
- */
+// A `command` block — a CLI command an agent ran. Only `command` is guaranteed;
+// every other field independently degrades to "absent" when malformed (per-field
+// `.catch`), so one bad optional never drops the whole block. Only an invalid or
+// missing `command` fails the whole parse.
+const nonBlankString = z
+  .string()
+  .refine((s) => s.trim().length > 0)
+  .optional()
+  .catch(undefined);
+
+export const CommandBlockContentSchema = z.object({
+  command: z.string().min(1),
+  // All-or-nothing: a non-string element fails the whole array (→ absent) rather
+  // than compacting, which would shift positional meaning (e.g. render the wrong
+  // arg as SQL).
+  args: z.array(z.string()).optional().catch(undefined),
+  exitCode: z.number().int().optional().catch(undefined),
+  output: z.string().optional().catch(undefined),
+  stderr: z.string().optional().catch(undefined),
+  // Keep the ORIGINAL string, but only when it has non-whitespace content —
+  // `commandSummary`/the expanded body prefer `raw` via `??`, so an empty raw
+  // would blank both even with a valid `command`/`args`. Reasoning is untrusted
+  // free-text (CLI `--reasoning`); wire `null`/absent/blank all degrade to absent.
+  raw: nonBlankString,
+  reasoning: nonBlankString,
+});
+
+export type CommandBlockContent = z.infer<typeof CommandBlockContentSchema>;
+
+// A malformed optional field degrades to "absent"; only an invalid/missing
+// `command` (or a non-object) drops the whole block (→ null).
 export const parseCommandBlockContent = (content: unknown): CommandBlockContent | null => {
-  if (!content || typeof content !== "object") return null;
-  const c = content as Record<string, unknown>;
-  if (typeof c.command !== "string" || c.command.length === 0) return null;
-  const args =
-    Array.isArray(c.args) && c.args.every((a): a is string => typeof a === "string") ? (c.args as string[]) : undefined;
-  return {
-    command: c.command,
-    ...(args ? { args } : {}),
-    ...(typeof c.exitCode === "number" && Number.isInteger(c.exitCode) ? { exitCode: c.exitCode } : {}),
-    ...(typeof c.output === "string" ? { output: c.output } : {}),
-    ...(typeof c.stderr === "string" ? { stderr: c.stderr } : {}),
-    // Empty/whitespace-only `raw` degrades to absent — `commandSummary` and the
-    // expanded body prefer `raw` via `??`, so keeping it would blank both even
-    // when `command`/`args` are valid.
-    ...(typeof c.raw === "string" && c.raw.trim().length > 0 ? { raw: c.raw } : {}),
-    // Only keep a non-empty string; wire `null`/absent both degrade to absent.
-    ...(typeof c.reasoning === "string" && c.reasoning.trim().length > 0 ? { reasoning: c.reasoning } : {}),
-  };
+  const result = CommandBlockContentSchema.safeParse(content);
+  return result.success ? result.data : null;
 };
 
 // The summary only ever renders as a single truncated line, so collapse at most

@@ -31,6 +31,44 @@ export type SessionBlockView = SessionBlock;
 const sortBlocks = (blocks: SessionBlockView[]): SessionBlockView[] =>
   [...blocks].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
+// --- Command run grouping (shared with the debugger-list flat-rows builder) ---
+// Contiguous command blocks collapse into ONE visual group; there is no stored
+// group entity, so its identity is derived from block order. These two helpers
+// are the single source of that rule so the render-time grouping and the store's
+// live auto-expand can never disagree on where a run starts.
+
+// A missing trace block renders nothing and is TRANSPARENT to a command run — it
+// neither joins nor breaks it. The one subtle bit of the grouping rule.
+export const isRunTransparentBlock = (
+  block: SessionBlockView,
+  tracesById: Map<string, TraceRow>,
+  traceRowStates: Record<string, TraceRowState>
+): boolean => block.type === "trace" && !tracesById.get(block.traceId) && traceRowStates[block.traceId] === "missing";
+
+// The group KEY for a command block: the first command in its maximal contiguous
+// run (transparent blocks skipped), matching the group id the flat-rows builder
+// emits. Returns `id` itself when it heads its run (run of one / the first one).
+export const firstCommandIdOfRun = (
+  blocks: SessionBlockView[],
+  id: string,
+  tracesById: Map<string, TraceRow>,
+  traceRowStates: Record<string, TraceRowState>
+): string => {
+  const idx = blocks.findIndex((b) => b.id === id);
+  if (idx < 0) return id;
+  let firstId = id;
+  for (let i = idx - 1; i >= 0; i--) {
+    const b = blocks[i];
+    if (b.type === "command") {
+      firstId = b.id;
+      continue;
+    }
+    if (isRunTransparentBlock(b, tracesById, traceRowStates)) continue;
+    break;
+  }
+  return firstId;
+};
+
 const MAX_LOADED_TRACE_SPANS = 25;
 
 // Normalize metadata (object OR JSON string) into TraceRow's Record<string,string>.
@@ -613,17 +651,30 @@ export const createDebuggerSessionViewStore = (options: {
             } else {
               view = { id: block.id, type: "text", createdAt: block.createdAt, text: block.text };
             }
-            // Pill for a genuinely new eval OR note, after the initial fetch
-            // settles (so it can't flash on load). Don't overwrite an existing
-            // notice — the first unseen block the user hasn't scrolled to wins.
-            const isNewBlock =
-              get().isInitialTracesLoaded && !get().newBlockNotice && !get().blocks.some((b) => b.id === view.id);
+            // Genuinely new (not the initial fetch, not already present). Drives
+            // BOTH the pill and command auto-expand — kept separate from the pill's
+            // own "don't overwrite an existing notice" gate so a new command still
+            // auto-expands even when a notice for an earlier unseen block stands.
+            const isNew = get().isInitialTracesLoaded && !get().blocks.some((b) => b.id === view.id);
+            // Live command blocks auto-expand, mirroring live trace runs: open the
+            // run's group (keyed by its first command) so the new row is visible,
+            // plus this command's own detail. Idempotent — appending to an
+            // already-open run re-adds the same stable group key (a no-op).
+            const autoExpandCommand = isNew && view.type === "command";
             set((s) => {
               const rest = s.blocks.filter((b) => b.id !== view.id);
-              return {
-                blocks: sortBlocks([...rest, view]),
-                ...(isNewBlock ? { newBlockNotice: view.type } : {}),
-              } as Partial<DebuggerSessionViewStore>;
+              const blocks = sortBlocks([...rest, view]);
+              const patch: Partial<DebuggerSessionViewStore> = {
+                blocks,
+                ...(isNew && !s.newBlockNotice ? { newBlockNotice: view.type } : {}),
+              };
+              if (autoExpandCommand) {
+                const tracesById = new Map(s.traces.map((t) => [t.id, t]));
+                const groupKey = firstCommandIdOfRun(blocks, view.id, tracesById, s.traceRowStates);
+                patch.expandedCommandGroupIds = new Set(s.expandedCommandGroupIds).add(groupKey);
+                patch.expandedCommandBlockIds = new Set(s.expandedCommandBlockIds).add(view.id);
+              }
+              return patch as Partial<DebuggerSessionViewStore>;
             });
           },
 

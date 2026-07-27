@@ -114,6 +114,8 @@ export const EvaluationCard = ({
                 // This card's run is ALWAYS the highlighted/selected one.
                 hoveredEvaluationId={evaluation.id}
                 hoveredScore={hoveredScore}
+                // Fade the other runs hard so this card's run stands out.
+                dimmedOpacity={0.12}
                 onPointClick={onPointClick}
                 // Stretch to each score's actual min/max — a session's short
                 // series would otherwise sit pinned near the top of a 0–1 axis.

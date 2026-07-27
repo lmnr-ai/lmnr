@@ -27,6 +27,10 @@ interface CombinedChartProps {
   // On: every score stretched to its own min/max (fills full height). Off: 0–1
   // scores keep a fixed 0–1 range, others use their own min/max.
   fillHeight?: boolean;
+  // Opacity of non-selected lines/points when a run is selected
+  // (hoveredEvaluationId set). Default matches the evaluations page's hover-dim;
+  // the debugger eval card overrides it lower so its selected run pops harder.
+  dimmedOpacity?: number;
 }
 
 type Row = {
@@ -50,6 +54,7 @@ export default function CombinedChart({
   onPointClick,
   className,
   fillHeight = false,
+  dimmedOpacity = 0.35,
 }: CombinedChartProps) {
   const { rows, ranks } = useMemo(() => {
     // fillHeight off → pin 0–1 scores to a fixed 0–1 range; on → every score
@@ -211,7 +216,9 @@ export default function CombinedChart({
                 // A hovered score wins full opacity even when a run is selected
                 // (hoveredEvaluationId dims all lines to 0.35) — so hovering a
                 // score below a debugger eval card lights up its line.
-                strokeOpacity={hoveredScore === score ? 1 : scoreDimmed ? 0.15 : hoveredEvaluationId ? 0.35 : 1}
+                strokeOpacity={
+                  hoveredScore === score ? 1 : scoreDimmed ? 0.15 : hoveredEvaluationId ? dimmedOpacity : 1
+                }
                 dot={(props: { cx?: number | null; cy?: number | null; payload?: Row; key?: Key | null }) => {
                   const { cx, cy, payload, key } = props;
                   // Null values still get a dot callback with cy=null — an SVG circle
@@ -221,7 +228,7 @@ export default function CombinedChart({
                   }
                   const isHovered = payload?.evaluationId === hoveredEvaluationId;
                   const r = isHovered ? 5 : 2.5;
-                  const opacity = scoreDimmed ? 0.15 : hoveredEvaluationId ? (isHovered ? 1 : 0.35) : 1;
+                  const opacity = scoreDimmed ? 0.15 : hoveredEvaluationId ? (isHovered ? 1 : dimmedOpacity) : 1;
                   return (
                     <circle
                       key={key ?? undefined}

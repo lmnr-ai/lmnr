@@ -8,7 +8,7 @@ import { computePathInfoMap, transformSpansToTree } from "@/components/traces/tr
 import { type CommandBlockContent, type SessionEvaluationRef } from "@/lib/actions/debugger-sessions";
 import { SpanType, type TraceRow } from "@/lib/traces/types";
 
-import { type SessionBlockView, type TraceRowState } from "../store";
+import { isRunTransparentBlock, type SessionBlockView, type TraceRowState } from "../store";
 
 // The one inter-block spacing unit (px) — the single density knob for the whole
 // timeline. Spacing between top-level blocks is owned by dedicated seam rows (see
@@ -139,7 +139,7 @@ export function buildDebuggerFlatRows(opts: BuildDebuggerFlatRowsOpts): Debugger
     }
     // A missing trace renders nothing AND is transparent to a command run — it
     // neither flushes nor breaks it (matching the outline's grouping).
-    if (block.type === "trace" && !tracesById.get(block.traceId) && traceRowStates[block.traceId] === "missing") {
+    if (isRunTransparentBlock(block, tracesById, traceRowStates)) {
       continue;
     }
     flushCommands();
