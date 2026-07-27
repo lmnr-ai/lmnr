@@ -55,29 +55,29 @@ describe("extractAgentOutput", () => {
     assert.equal(extractAgentOutput([JSON.stringify(msg)]), "GenAI text");
   });
 
-  it("extracts Anthropic tool_use parts as name(payload)", () => {
+  it("renders Anthropic tool_use parts as Tool: <name> without arguments", () => {
     const msg = {
       role: "assistant",
       content: [{ type: "tool_use", name: "get_weather", input: { city: "Paris" } }],
     };
-    assert.equal(extractAgentOutput([JSON.stringify(msg)]), 'get_weather({"city":"Paris"})');
+    assert.equal(extractAgentOutput([JSON.stringify(msg)]), "Tool: get_weather");
   });
 
-  it("extracts OpenAI message-level tool_calls", () => {
+  it("renders OpenAI message-level tool_calls as Tool: <name>", () => {
     const msg = {
       role: "assistant",
       content: null,
       tool_calls: [{ id: "1", type: "function", function: { name: "search", arguments: '{"q":"laminar"}' } }],
     };
-    assert.equal(extractAgentOutput([JSON.stringify(msg)]), 'search({"q":"laminar"})');
+    assert.equal(extractAgentOutput([JSON.stringify(msg)]), "Tool: search");
   });
 
-  it("extracts AI SDK dash-typed tool-call parts", () => {
+  it("renders AI SDK dash-typed tool-call parts as Tool: <name>", () => {
     const msg = {
       role: "assistant",
       content: [{ type: "tool-call", toolName: "bash", args: { cmd: "ls" } }],
     };
-    assert.equal(extractAgentOutput([JSON.stringify(msg)]), 'bash({"cmd":"ls"})');
+    assert.equal(extractAgentOutput([JSON.stringify(msg)]), "Tool: bash");
   });
 
   it("keeps an unnamed tool call whole rather than dropping it", () => {
@@ -120,10 +120,14 @@ describe("extractAgentOutput", () => {
     assert.equal(extractAgentOutput(["just text"]), "just text");
   });
 
-  it("skips empty elements (dict misses) and returns null when nothing valuable", () => {
+  it("skips empty elements (dict misses) and returns null when truly empty", () => {
     assert.equal(extractAgentOutput(["", "  "]), null);
     assert.equal(extractAgentOutput([]), null);
-    assert.equal(extractAgentOutput([JSON.stringify({ role: "assistant", content: [] })]), null);
+  });
+
+  it("dumps the raw message when nothing valuable was extracted", () => {
+    const raw = JSON.stringify({ role: "assistant", content: [{ type: "image", source: { data: "b64" } }] });
+    assert.equal(extractAgentOutput([raw]), raw);
   });
 
   it("handles OpenAI Responses-style nested message items", () => {

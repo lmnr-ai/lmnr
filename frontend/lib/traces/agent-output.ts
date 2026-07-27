@@ -4,10 +4,11 @@
  * element, usually `{role, content}` or `{role, parts}`).
  *
  * Per part we keep: non-empty `thinking` / `reasoning`, non-empty `text`
- * (or GenAI-style `content`), and tool calls (rendered as name + payload).
- * The walk is deliberately permissive: a RECOGNIZED but empty part yields
- * nothing, while a completely unknown part is stringified verbatim — better
- * to extract more than to extract nothing.
+ * (or GenAI-style `content`), and tool calls (rendered as `Tool: <name>`,
+ * no arguments). The walk is deliberately permissive: a RECOGNIZED but empty
+ * part yields nothing, an unknown part is stringified verbatim, and when the
+ * whole array yields nothing the raw messages are dumped as-is — better to
+ * extract more than to extract nothing.
  */
 
 const CONTAINER_KEYS = ["content", "parts", "summary"] as const;
@@ -54,15 +55,13 @@ const stringifyLoose = (v: unknown): string | null => {
   }
 };
 
-/** Resolve a tool-call part's name + payload (arguments), across formats:
- *  OpenAI `{function: {name, arguments}}`, flat `{name, arguments|args|input}`. */
+/** Resolve a tool-call part's name across formats (OpenAI nested
+ *  `{function: {name}}`, flat `{name|tool_name|toolName}`) and render it as
+ *  `Tool: <name>` — arguments are deliberately not shown. */
 const renderToolCall = (obj: Record<string, unknown>): string | null => {
   const fn = isRecord(obj.function) ? obj.function : undefined;
   const name = [fn?.name, obj.name, obj.tool_name, obj.toolName].find(nonEmptyString);
-  const payload = [fn?.arguments, obj.arguments, obj.args, obj.input].find((v) => v !== undefined && v !== null);
-  const payloadStr = stringifyLoose(payload);
-  if (name && payloadStr) return `${name}(${payloadStr})`;
-  if (name) return `${name}()`;
+  if (name) return `Tool: ${name.trim()}`;
   // No name — keep the whole part rather than dropping the call.
   return stringifyLoose(obj);
 };
@@ -157,10 +156,12 @@ const joinNonEmpty = (parts: (string | null)[]): string | null => {
 /**
  * Extract display text from an LLM span's output-message array. Elements may
  * be raw JSON strings (as returned by `trace_outputs_v0`) or already-parsed
- * message objects. Returns null when nothing valuable was found.
+ * message objects. When nothing valuable was extracted from ANY message,
+ * falls back to dumping the raw messages verbatim — better than nothing.
+ * Returns null only for an entirely empty array.
  */
-export const extractAgentOutput = (messages: unknown[]): string | null =>
-  joinNonEmpty(
+export const extractAgentOutput = (messages: unknown[]): string | null => {
+  const extracted = joinNonEmpty(
     messages.map((raw) => {
       if (typeof raw === "string") {
         const trimmed = raw.trim();
@@ -175,3 +176,6 @@ export const extractAgentOutput = (messages: unknown[]): string | null =>
       return extractFromMessage(raw);
     })
   );
+  if (extracted) return extracted;
+  return joinNonEmpty(messages.map(stringifyLoose));
+};
