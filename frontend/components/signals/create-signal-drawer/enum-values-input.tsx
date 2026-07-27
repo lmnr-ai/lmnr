@@ -78,7 +78,7 @@ export default function EnumValuesInput({
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
         placeholder={values?.length ? "" : "Add values..."}
-        className="flex-1 min-w-16 text-xs bg-transparent outline-none placeholder:text-muted-foreground"
+        className="flex-1 min-w-16 text-xs bg-transparent outline-none focus-visible:ring-1 focus-visible:ring-ring placeholder:text-muted-foreground"
       />
     </div>
   );

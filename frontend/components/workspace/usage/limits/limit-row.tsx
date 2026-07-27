@@ -150,7 +150,7 @@ export default function LimitRow({
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="flex-1 min-w-0 bg-transparent px-3 text-sm tabular-nums text-left placeholder:text-muted-foreground outline-none hide-arrow"
+            className="flex-1 min-w-0 bg-transparent px-3 text-sm tabular-nums text-left placeholder:text-muted-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring hide-arrow"
           />
         </label>
         {hasChanged ? (

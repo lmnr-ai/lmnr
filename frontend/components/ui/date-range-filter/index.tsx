@@ -88,7 +88,7 @@ const QuickRangesList = ({
             <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
               key={range.value}
               className={cn(
-                "relative flex w-full select-none items-center rounded-sm py-1.5 px-2 text-xs outline-none transition-colors",
+                "relative flex w-full select-none items-center rounded-sm py-1.5 px-2 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors",
                 exceedsRetention
                   ? "cursor-not-allowed text-muted-foreground opacity-50"
                   : "cursor-pointer hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
@@ -125,7 +125,7 @@ const QuickRangesList = ({
         })}
         {!hideAbsoluteDate && (
           <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
-            className="relative flex w-full cursor-pointer select-none items-center justify-between rounded-sm py-1.5 px-2 text-xs outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+            className="relative flex w-full cursor-pointer select-none items-center justify-between rounded-sm py-1.5 px-2 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
             onClick={onAbsoluteClick}
           >
             <span className="font-medium">Absolute date</span>

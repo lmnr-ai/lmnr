@@ -280,7 +280,7 @@ const TagInput = ({
             onFocus={() => setFocusedTagIndex(index)}
             onBlur={() => setFocusedTagIndex(null)}
             className={cn(
-              "inline-flex items-center gap-0.5 px-1 py-0.25 text-xs rounded bg-muted text-secondary-foreground outline-none",
+              "inline-flex items-center gap-0.5 px-1 py-0.25 text-xs rounded bg-muted text-secondary-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring",
               focusedTagIndex === index && "ring-1 ring-primary"
             )}
           >
@@ -311,7 +311,7 @@ const TagInput = ({
             onKeyDown={handleInputKeyDown}
             placeholder={placeholder}
             className={cn(
-              "h-5 py-0 text-xs bg-transparent outline-none text-primary",
+              "h-5 py-0 text-xs bg-transparent outline-none focus-visible:ring-1 focus-visible:ring-ring text-primary",
               "placeholder:text-primary/50 min-w-4 px-1"
             )}
             {...props}

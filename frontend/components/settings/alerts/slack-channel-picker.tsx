@@ -156,7 +156,7 @@ const SlackChannelPicker = ({
               onKeyDown={handleInputKeyDown}
               disabled={disabled}
               placeholder={value.length === 0 ? placeholder : ""}
-              className="flex-1 min-w-0 bg-transparent outline-none placeholder:text-muted-foreground"
+              className="flex-1 min-w-0 bg-transparent outline-none focus-visible:ring-1 focus-visible:ring-ring placeholder:text-muted-foreground"
             />
             {isLoading && <Loader2 className="size-3 animate-spin text-muted-foreground" />}
           </div>
