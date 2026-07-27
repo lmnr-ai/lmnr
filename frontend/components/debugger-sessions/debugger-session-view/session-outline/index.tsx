@@ -4,107 +4,10 @@ import { motion } from "framer-motion";
 import { FileText, FlaskConical, MessageCircle, SquareTerminal } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { type CommandBlockContent, commandSummary } from "@/lib/actions/debugger-sessions/command-content";
 import { cn } from "@/lib/utils";
 
-import { type SessionBlockView, type TraceRowState, useDebuggerSessionViewStore } from "../store";
-
-// TODO: shouldn't most of this stuff go to the utils file?
-
-// A row per block (trace / eval / text), in timeline order (blocks are ordered
-// by created_at). Keyed by block id — the same key the virtualized list tracks
-// as `activeBlockId` and accepts in scroll requests. A collapsed command group
-// keys off its first member; `memberIds` holds every block it stands in for so
-// the active indicator can match any of them (singletons carry just their own).
-type OutlineRow = {
-  blockId: string;
-  text: string;
-  kind: "trace" | "eval" | "text" | "command";
-  memberIds: string[];
-};
-
-// An agent can fire many CLI commands back-to-back; a run of this many
-// contiguous command blocks collapses into one "CLI commands (N)" row.
-const COMMAND_GROUP_MIN = 2;
-
-// Text blocks are markdown, so a raw slice surfaces syntax like "## text…".
-// Strip it down to plain text: drop leading block markers (headings, bullets,
-// blockquotes), unwrap inline emphasis/code, and reduce links to their label.
-const MARKDOWN_RULES: [RegExp, string][] = [
-  [/```[\s\S]*?```/g, " "], // fenced code blocks
-  [/^\s*(?:#{1,6}|>+|[-*+]|\d+\.)\s+/gm, ""], // leading block markers
-  [/!?\[([^\]]*)\]\([^)]*\)/g, "$1"], // links / images -> label
-  [/(\*\*|__|\*|_|~~|`)(.*?)\1/g, "$2"], // bold / italic / strikethrough / inline code
-];
-
-// A short plain-text label for a standalone text block: markdown stripped,
-// whitespace collapsed, truncated with an ellipsis.
-const TEXT_BLOCK_TITLE_LEN = 40;
-const textBlockTitle = (text: string): string => {
-  const oneLine = MARKDOWN_RULES.reduce((s, [re, to]) => s.replace(re, to), text)
-    .replace(/\s+/g, " ")
-    .trim();
-  return oneLine.length > TEXT_BLOCK_TITLE_LEN ? `${oneLine.slice(0, TEXT_BLOCK_TITLE_LEN)}…` : oneLine || "Note";
-};
-
-// Short label for a command block: the shared one-line summary (raw, or
-// command + args — args included so no-raw blocks don't all read identically).
-const commandBlockTitle = (command: CommandBlockContent): string => {
-  const oneLine = commandSummary(command);
-  return oneLine.length > TEXT_BLOCK_TITLE_LEN ? `${oneLine.slice(0, TEXT_BLOCK_TITLE_LEN)}…` : oneLine || "Command";
-};
-
-// TODO: shouldn't this go in the ./utils.ts file?
-const buildRows = (blocks: SessionBlockView[], traceRowStates: Record<string, TraceRowState>): OutlineRow[] => {
-  const rows: OutlineRow[] = [];
-  let traceIndex = 0;
-  // Accumulate a run of contiguous command blocks. A run flushes into one row
-  // (grouped when ≥ COMMAND_GROUP_MIN, otherwise the single command's summary).
-  let pending: { id: string; command: CommandBlockContent }[] = [];
-  const flushCommands = () => {
-    if (pending.length === 0) return;
-    if (pending.length >= COMMAND_GROUP_MIN) {
-      rows.push({
-        blockId: pending[0].id,
-        text: `CLI commands (${pending.length})`,
-        kind: "command",
-        memberIds: pending.map((c) => c.id),
-      });
-    } else {
-      const only = pending[0];
-      rows.push({ blockId: only.id, text: commandBlockTitle(only.command), kind: "command", memberIds: [only.id] });
-    }
-    pending = [];
-  };
-
-  for (const block of blocks) {
-    if (block.type === "command") {
-      pending.push({ id: block.id, command: block.command });
-      continue;
-    }
-    // A missing trace is transparent: it renders no timeline/outline row, so it
-    // neither breaks a command run nor emits an entry — but numbering still
-    // advances so it stays in lockstep with the timeline (which indexes every
-    // trace block). A listed missing-trace entry would consume a scroll click
-    // without scrolling and strand the active highlight over an empty gap.
-    if (block.type === "trace" && traceRowStates[block.traceId] === "missing") {
-      traceIndex += 1;
-      continue;
-    }
-    // Any other rendered block ends the current command run before its own row.
-    flushCommands();
-    if (block.type === "evaluation") {
-      rows.push({ blockId: block.id, text: block.evaluation.name, kind: "eval", memberIds: [block.id] });
-    } else if (block.type === "text") {
-      rows.push({ blockId: block.id, text: textBlockTitle(block.text), kind: "text", memberIds: [block.id] });
-    } else if (block.type === "trace") {
-      traceIndex += 1;
-      rows.push({ blockId: block.id, text: `Trace ${traceIndex}`, kind: "trace", memberIds: [block.id] });
-    }
-  }
-  flushCommands();
-  return rows;
-};
+import { useDebuggerSessionViewStore } from "../store";
+import { buildRows } from "./utils";
 
 interface SessionOutlineProps {
   className?: string;
@@ -244,7 +147,7 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
                   <MessageCircle
                     className={cn(
                       "mr-1.5 size-3 shrink-0 transition-colors",
-                      isActive ? "text-llm" : "text-llm/70 group-hover:text-llm"
+                      isActive ? "text-violet-500" : "text-violet-500/70 group-hover:text-llm"
                     )}
                   />
                 )}

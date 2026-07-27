@@ -21,8 +21,8 @@ export default function CommandItemDetail({ command, isLastRow }: CommandItemDet
     <div className="relative">
       {/* Continue the connector behind the indent — unless this is the group's
           final row, where a trailing segment would dangle with nothing below. */}
-      {!isLastRow && <div className="absolute bottom-0 left-[24px] top-0 w-px bg-border" />}
-      <div className="relative mb-1.5 ml-[44px] mr-3 overflow-hidden rounded-lg border border-border bg-surface-800 [&>*:first-child]:border-t-0">
+      {!isLastRow && <div className="absolute bottom-0 left-[24px] top-0 w-px bg-foreground-600" />}
+      <div className="relative ml-[44px] mr-3 overflow-hidden rounded-lg border border-border bg-surface-800 [&>*:first-child]:border-t-0">
         <CommandBlockBody command={command} />
       </div>
     </div>

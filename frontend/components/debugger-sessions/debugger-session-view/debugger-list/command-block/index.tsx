@@ -61,9 +61,6 @@ export default function CommandBlock({ id, createdAt, command }: CommandBlockPro
           <span className="min-w-0 flex-1 truncate font-mono text-[13px] leading-[17px] text-primary-foreground">
             {summary}
           </span>
-          {/* Inline right cluster: static time (never reacts to hover) + a plain
-              chevron that only changes color on card hover. Kept identical in the
-              command-group header/rows so their time/chevron align vertically. */}
           <div className="ml-auto flex shrink-0 items-center gap-2">
             {relativeTime && (
               <span className="whitespace-nowrap text-[13px] leading-[17px] text-secondary-foreground">

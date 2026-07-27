@@ -14,7 +14,7 @@ import { type SessionBlockView, type TraceRowState } from "../store";
 // timeline. Spacing between top-level blocks is owned by dedicated seam rows (see
 // buildDebuggerFlatRows), never by per-block padding, so blocks stay spacing-
 // agnostic and gaps can never double up. Bump this to loosen/tighten everything.
-export const SEAM = 12;
+export const SEAM = 32;
 
 // A block paired with its 1-based trace index (trace blocks only) for "run N of M".
 export type TimelineItem = { block: SessionBlockView; traceIndex: number };

@@ -1,9 +1,10 @@
 "use client";
 
-import { ChevronDown, SquareTerminal } from "lucide-react";
+import { SquareTerminal } from "lucide-react";
 import { useMemo } from "react";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
+import { CardExpandIndicator } from "@/components/ui/card-expand-indicator";
 import { cn } from "@/lib/utils";
 
 import { commandAnchorId } from "../../session-outline/utils";
@@ -24,7 +25,9 @@ interface CommandGroupHeaderProps {
  * continuous card). NOT sticky (excluded from `headerIndexByRow`). The `group`
  * class lives on THIS button only, so hovering the bead rows below never reveals
  * the header's expand label. `SquareTerminal` is the group identity; individual
- * commands use per-command icons (see `command-icon`).
+ * commands use per-command icons (see `command-icon`). Uses the shared
+ * `CardExpandIndicator` (like the trace/eval card headers) — the group header is
+ * a card header; the bead rows below use a plainer inline chevron.
  */
 export default function CommandGroupHeader({ id, count, lastCreatedAt, expanded }: CommandGroupHeaderProps) {
   const toggle = useDebuggerSessionViewStore((s) => s.toggleCommandGroupExpanded);
@@ -50,22 +53,7 @@ export default function CommandGroupHeader({ id, count, lastCreatedAt, expanded 
         <span className="min-w-0 flex-1 truncate text-[13px] leading-[17px] text-primary-foreground">
           CLI commands ({count})
         </span>
-        {/* Inline right cluster — kept identical to the command rows so the
-            header's time/chevron align vertically with theirs. */}
-        <div className="ml-auto flex shrink-0 items-center gap-2">
-          {relativeTime && (
-            <span className="whitespace-nowrap text-[13px] leading-[17px] text-secondary-foreground">
-              {relativeTime}
-            </span>
-          )}
-          <ChevronDown
-            size={16}
-            className={cn(
-              "shrink-0 text-muted-foreground transition-colors group-hover:text-foreground",
-              !expanded && "-rotate-90"
-            )}
-          />
-        </div>
+        <CardExpandIndicator expanded={expanded} relativeTime={relativeTime} className="ml-auto" />
       </button>
     </div>
   );

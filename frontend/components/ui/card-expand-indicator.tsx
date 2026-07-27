@@ -25,13 +25,11 @@ interface CardExpandIndicatorProps {
  */
 export function CardExpandIndicator({ expanded, relativeTime, siblingBodyHover, className }: CardExpandIndicatorProps) {
   return (
-    <div className={cn("flex shrink-0 items-center gap-2", className)}>
-      {relativeTime && (
-        <span className="whitespace-nowrap text-[13px] leading-[17px] text-secondary-foreground">{relativeTime}</span>
-      )}
+    <div className={cn("flex shrink-0 items-center gap-2 text-secondary-foreground", className)}>
+      {relativeTime && <span className="whitespace-nowrap text-[13px] leading-[17px] ">{relativeTime}</span>}
       <span
         className={cn(
-          "flex items-center justify-center whitespace-nowrap rounded-full py-0.5 pl-1 pr-1 text-xs font-medium leading-[17px] text-secondary-foreground",
+          "flex items-center justify-center whitespace-nowrap rounded-full py-0.5 pl-1 pr-1 text-xs font-medium leading-[17px]",
           "border-[rgba(232,232,232,0.1)] group-hover:gap-1 group-hover:border group-hover:bg-[rgba(232,232,232,0.05)] group-hover:pl-2.5",
           siblingBodyHover &&
             "sibling-body-hover:gap-1 sibling-body-hover:border sibling-body-hover:bg-[rgba(232,232,232,0.05)] sibling-body-hover:pl-2.5"
@@ -45,10 +43,7 @@ export function CardExpandIndicator({ expanded, relativeTime, siblingBodyHover, 
         >
           {expanded ? "Collapse" : "Expand"}
         </span>
-        <ChevronDown
-          size={16}
-          className={cn("text-secondary-foreground transition-transform", !expanded && "-rotate-90")}
-        />
+        <ChevronDown size={16} className={cn("transition-transform", !expanded && "-rotate-90")} />
       </span>
     </div>
   );

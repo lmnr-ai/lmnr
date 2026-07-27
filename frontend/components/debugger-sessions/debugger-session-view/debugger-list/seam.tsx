@@ -14,7 +14,7 @@ import { SEAM } from "./flat-rows";
  *   unknown (e.g. a not-yet-loaded trace) or non-positive.
  */
 export function SeamSpacer() {
-  return <div aria-hidden style={{ height: SEAM }} />;
+  return <div aria-hidden className="" style={{ height: SEAM }} />;
 }
 
 export function SeamDivider({ gapMs }: { gapMs?: number }) {

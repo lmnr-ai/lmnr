@@ -52,7 +52,7 @@ export default function CommandItem({ id, command, createdAt, expanded, isFirst,
           either end. 18px = py-1.5 + half the size-6 bead (the bead center). */}
       <div
         className={cn(
-          "absolute left-[24px] w-px bg-border",
+          "absolute left-[24px] w-px bg-foreground-600",
           isFirst ? "top-[18px]" : "top-0",
           isLast ? "h-[18px]" : "bottom-0"
         )}
