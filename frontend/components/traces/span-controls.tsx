@@ -13,6 +13,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -69,6 +71,10 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
+              <DropdownMenuLabel className="text-xs font-normal font-mono text-muted-foreground">
+                {new Date(span.startTime).toLocaleString()}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleCopySpanId}>
                 <Copy size={14} />
                 Copy span ID
@@ -77,20 +83,19 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
                 {isLoading ? <Loader className="size-3.5" /> : <Database className="size-3.5" />}
                 Open in SQL editor
               </DropdownMenuItem>
+              {span.spanType === SpanType.LLM && (
+                <DropdownMenuItem asChild>
+                  <Link
+                    href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
+                    onClick={() => track("playgrounds", "experiment_clicked", { source: "span_view" })}
+                  >
+                    <PlayCircle className="size-3.5" />
+                    Experiment in playground
+                  </Link>
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
-          {span.spanType === SpanType.LLM && (
-            <Link
-              href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
-              passHref
-              onClick={() => track("playgrounds", "experiment_clicked", { source: "span_view" })}
-            >
-              <Button variant="outlinePrimary" size="sm" className="font-mono bg-primary/10">
-                <PlayCircle className="mr-1" size={14} />
-                Experiment in playground
-              </Button>
-            </Link>
-          )}
           {!isAlwaysSelectSpan && onClose && (
             <Button
               variant="ghost"
@@ -106,11 +111,6 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
         <div className="flex flex-col flex-wrap gap-1.5">
           <div className="flex items-center gap-2 flex-wrap">
             <SpanStatsShields span={span} variant="outline" />
-            <div className="text-xs font-mono rounded-md py-0.5 truncate px-2 border border-muted">
-              {new Date(span.startTime).toLocaleString()}
-            </div>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
             <ModelIndicator attributes={span.attributes} />
             <ToolList tools={resolveTools(span)} />
             <StructuredOutputSchema
@@ -119,8 +119,8 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
           </div>
 
           <div className="flex gap-2 gap-y-1 flex-wrap items-center">
-            <AddToLabelingQueuePopover spanId={span.spanId} traceId={span.traceId} />
-            <ExportSpansPopover span={span} />
+            <AddToLabelingQueuePopover spanId={span.spanId} traceId={span.traceId} buttonVariant="ghost" />
+            <ExportSpansPopover span={span} buttonVariant="ghost" />
             <SpanTagsList spanId={span.spanId} />
           </div>
         </div>
