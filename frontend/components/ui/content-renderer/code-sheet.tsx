@@ -6,9 +6,8 @@ import { Button } from "@/components/ui/button";
 import { getMarkdownSource, MarkdownRenderer } from "@/components/ui/content-renderer/markdown";
 import { createImageDecorationPlugin, renderText, theme } from "@/components/ui/content-renderer/utils";
 import { CopyButton } from "@/components/ui/copy-button";
-import { DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sheet, SheetClose, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
   TemplatePickerActions,
   TemplatePickerPreview,
@@ -51,7 +50,7 @@ const PureCodeSheet = ({ mode, modes, renderedValue, extensions, onModeChange, p
       </SheetTrigger>
       <SheetContent side="right" className="flex flex-col gap-0 min-w-[50vw]">
         <div className="flex flex-col h-full bg-muted/50">
-          <DialogTitle className="hidden"></DialogTitle>
+          <SheetTitle className="sr-only">Expanded content</SheetTitle>
           <div className="flex-none items-center flex px-2 justify-between">
             <div className="flex items-center gap-1">
               {sheetModes.length > 1 && (
