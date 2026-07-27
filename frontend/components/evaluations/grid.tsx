@@ -2,7 +2,7 @@
 
 import { type ColumnDef } from "@tanstack/react-table";
 import { useParams } from "next/navigation";
-import { memo, type MutableRefObject, type ReactNode, useCallback, useEffect, useRef } from "react";
+import { memo, type MutableRefObject, type ReactNode, useCallback, useEffect, useMemo } from "react";
 
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
@@ -99,17 +99,16 @@ export const EvaluationsGrid = memo(function EvaluationsGrid({
     refetchRef.current = refetch;
   }, [refetch, refetchRef]);
 
-  // Notify parent of the evaluation list only when the query changes, not on pagination,
-  // so the chart above doesn't re-render as the user scrolls.
-  const queryKeyRef = useRef("");
-  const currentQueryKey = `${groupId ?? ""}:${filter.join(",")}:${search ?? ""}`;
+  // id→name list for the chart's point labels. Filter to the current groupId so the store's
+  // stale rows (it refetches async on group switch) can't feed the chart a previous group's names.
+  const chartEvaluations = useMemo(
+    () => evaluations.filter((e) => e.groupId === groupId).map(({ id, name }) => ({ id, name })),
+    [evaluations, groupId]
+  );
   useEffect(() => {
-    if (evaluations.length === 0) return;
-    if (currentQueryKey !== queryKeyRef.current) {
-      queryKeyRef.current = currentQueryKey;
-      onEvaluationsChange(evaluations.map(({ id, name }) => ({ id, name })));
-    }
-  }, [evaluations, currentQueryKey, onEvaluationsChange]);
+    if (chartEvaluations.length === 0) return;
+    onEvaluationsChange(chartEvaluations);
+  }, [chartEvaluations, onEvaluationsChange]);
 
   const handleDeleteEvaluations = useCallback(
     async (evaluationIds: string[]) => {

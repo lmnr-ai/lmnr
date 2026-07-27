@@ -253,7 +253,13 @@ function EvaluationsContent() {
   const refetchRef = useRef<() => void>(() => {});
 
   const onEvaluationsChange = useCallback((evals: { id: string; name: string }[]) => {
-    setChartEvaluations(evals);
+    // Bail when the id→name set is unchanged so the chart doesn't recompute needlessly.
+    setChartEvaluations((prev) => {
+      if (prev.length === evals.length && prev.every((p, i) => p.id === evals[i].id && p.name === evals[i].name)) {
+        return prev;
+      }
+      return evals;
+    });
   }, []);
 
   const chrome = (
