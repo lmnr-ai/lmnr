@@ -2,6 +2,7 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { Globe, Link, Loader2, Lock, Share } from "lucide-react";
 import React, { useState } from "react";
+import { shallow } from "zustand/shallow";
 
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
@@ -13,10 +14,13 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 const ShareTraceButton = ({ projectId }: { projectId: string; refetch?: () => void }) => {
-  const { trace, updateTraceVisibility } = useTraceViewStore((state) => ({
-    trace: state.trace,
-    updateTraceVisibility: state.updateTraceVisibility,
-  }));
+  const { trace, updateTraceVisibility } = useTraceViewStore(
+    (state) => ({
+      trace: state.trace,
+      updateTraceVisibility: state.updateTraceVisibility,
+    }),
+    shallow
+  );
 
   const url = typeof window !== "undefined" ? `${window.location.origin}/shared/traces/${trace?.id}` : "";
   const [isLoading, setIsLoading] = useState(false);
