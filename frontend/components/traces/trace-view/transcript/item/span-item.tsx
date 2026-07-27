@@ -110,7 +110,7 @@ export default function SpanItem({
   const showInlinePreview = !isLLMType && !isPending && !hasSnippet;
 
   return (
-    <div
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
       className={cn(
         "flex group/message cursor-pointer transition-all border-l-2",
         inGroup ? "hover:bg-muted/80 bg-muted/60" : "hover:bg-secondary",

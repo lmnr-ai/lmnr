@@ -212,7 +212,7 @@ export default function AlertsManager({ projectId, workspaceId, userEmail, fixed
                       </Button>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <div
+                          <div role="button" tabIndex={0}
                             onClick={(e) => e.stopPropagation()}
                             onKeyDown={(e) => e.stopPropagation()}
                             className="flex items-center"

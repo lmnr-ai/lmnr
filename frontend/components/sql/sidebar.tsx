@@ -117,7 +117,7 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
   }, [editing]);
 
   return (
-    <div
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
       className={cn("group flex items-center px-2 py-1 rounded-md hover:bg-accent cursor-pointer transition-colors", {
         "bg-accent": selected,
       })}

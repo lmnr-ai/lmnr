@@ -59,7 +59,7 @@ export function AgentGroupHeader({
   const outputText = typeof outputPreview === "string" && outputPreview !== "" ? outputPreview : null;
 
   return (
-    <div
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
       className={cn(
         "mx-2 border bg-muted/80 overflow-hidden cursor-pointer transition-colors hover:bg-muted",
         collapsed ? "rounded-lg" : "rounded-t-lg",

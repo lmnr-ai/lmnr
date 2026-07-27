@@ -19,7 +19,7 @@ const SessionTimelineTraceBarElement = ({ bar, onClick }: SessionTimelineTraceBa
   };
 
   return (
-    <div
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
       className={cn(
         "absolute rounded-xs cursor-pointer hover:brightness-125 bg-muted-foreground/50",
         // Shimmer while spans are loading after a click. `animate-pulse`

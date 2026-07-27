@@ -72,7 +72,7 @@ export default function CopyTooltip({
     <TooltipProvider delayDuration={delayDuration}>
       <Tooltip open={open} onOpenChange={handleOpenChange}>
         <TooltipTrigger asChild>
-          <span onClick={handleCopy} className={cn("cursor-pointer", className)}>
+          <span role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }} onClick={handleCopy} className={cn("cursor-pointer", className)}>
             {children}
           </span>
         </TooltipTrigger>

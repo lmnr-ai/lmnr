@@ -22,7 +22,7 @@ const ErrorCard = ({ attributes }: ErrorCardProps) => {
   return (
     <Collapsible className="group" open={isOpen} onOpenChange={setIsOpen}>
       <div className="text-destructive max-h-48 overflow-x-hidden no-scrollbar bg-card rounded-md border">
-        <div
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
           onClick={() => setIsOpen((prev) => !prev)}
           className="flex items-start gap-2 w-full p-2 text-left rounded-md cursor-pointer"
         >

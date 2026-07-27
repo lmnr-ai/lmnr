@@ -75,7 +75,7 @@ export default function RenameDatasetDialog({ dataset, children }: PropsWithChil
   };
 
   return (
-    <div onClick={(e) => e.stopPropagation()}>
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()}>
       <Dialog open={isOpen} onOpenChange={handleOpenChange}>
         <DialogTrigger asChild>
           {children || (

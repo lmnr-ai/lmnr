@@ -335,7 +335,7 @@ const FilterSearchInput = ({
   const hasContent = tags.length > 0 || inputValue.length > 0;
 
   return (
-    <div
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
       ref={containerRef}
       className={cn(
         "flex items-start gap-2 px-1 rounded-md border border-input relative",

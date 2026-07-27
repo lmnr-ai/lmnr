@@ -87,7 +87,7 @@ export function InfiniteTableHead<TData extends RowData>({
         <div className="flex-1 min-w-0 text-ellipsis overflow-hidden whitespace-nowrap text-secondary-foreground">
           {flexRender(header.column.columnDef.header, header.getContext())}
         </div>
-        <div
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
           className={cn(
             "transition-opacity duration-150",
             header.column.getIsSorted() ? "opacity-100" : "opacity-0 group-hover:opacity-100"

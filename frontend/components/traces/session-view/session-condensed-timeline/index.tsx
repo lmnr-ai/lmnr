@@ -326,7 +326,7 @@ function SessionCondensedTimeline({ trace, isLoading }: SessionCondensedTimeline
   };
 
   return (
-    <div
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
       className="relative flex flex-col h-[90px] w-full overflow-hidden border-t"
       onClick={(e) => e.stopPropagation()}
     >

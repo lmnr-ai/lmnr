@@ -98,7 +98,7 @@ export const ColumnsListPanel = ({
       </ScrollArea>
       <div className="h-px bg-border my-1" />
       <div className="px-1 pb-1">
-        <div
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
           className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-xs transition-colors hover:bg-accent hover:text-accent-foreground"
           onClick={onReset}
         >
@@ -106,7 +106,7 @@ export const ColumnsListPanel = ({
           Reset columns
         </div>
         {showCreateButton && (
-          <div
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
             className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-xs transition-colors hover:bg-accent hover:text-accent-foreground"
             onClick={onCustomColumnClick}
           >

@@ -85,7 +85,7 @@ const QuickRangesList = ({
         {ranges.map((range) => {
           const exceedsRetention = maxHours != null && parseInt(range.value) > maxHours;
           const item = (
-            <div
+            <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
               key={range.value}
               className={cn(
                 "relative flex w-full select-none items-center rounded-sm py-1.5 px-2 text-xs outline-none transition-colors",
@@ -124,7 +124,7 @@ const QuickRangesList = ({
           return item;
         })}
         {!hideAbsoluteDate && (
-          <div
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
             className="relative flex w-full cursor-pointer select-none items-center justify-between rounded-sm py-1.5 px-2 text-xs outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
             onClick={onAbsoluteClick}
           >

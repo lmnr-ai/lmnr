@@ -63,7 +63,7 @@ export default function TraceControlBar({ trace, analyticsFeature = "sessions" }
   const metaString = metadataToString(trace.metadata as TraceRow["metadata"] | string | undefined);
 
   return (
-    <div className="flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()}>
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }} className="flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()}>
       <div className="flex">
         <ViewToggle
           tab={mode}

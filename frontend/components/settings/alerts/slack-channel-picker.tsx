@@ -109,7 +109,7 @@ const SlackChannelPicker = ({
           return 0;
         }}
       >
-        <div
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
           onClick={() => {
             if (disabled) return;
             setOpen(true);

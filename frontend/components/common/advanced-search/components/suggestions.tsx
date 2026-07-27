@@ -90,7 +90,7 @@ const RecentSearchChip = ({
   const tags = recentSearch.filters.map(createTagFromFilter);
 
   return (
-    <div
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
       ref={ref}
       className={cn(
         "inline-flex items-center rounded-md border h-6 text-xs divide-x px-0.5 cursor-pointer shrink-0 transition-colors",
@@ -258,7 +258,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
 
                 if (suggestion.type === "field") {
                   return (
-                    <div
+                    <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
                       key={`field-${suggestion.filter.key}`}
                       ref={(el) => {
                         if (el) suggestionRefs.current.set(idx, el);
@@ -283,7 +283,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
                   const displayName = filterForField?.name || suggestion.field;
 
                   return (
-                    <div
+                    <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
                       key={`value-${suggestion.field}-${suggestion.value}-${idx}`}
                       ref={(el) => {
                         if (el) suggestionRefs.current.set(idx, el);
@@ -305,7 +305,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
                 }
 
                 return (
-                  <div
+                  <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
                     key="raw-search"
                     ref={(el) => {
                       if (el) suggestionRefs.current.set(idx, el);

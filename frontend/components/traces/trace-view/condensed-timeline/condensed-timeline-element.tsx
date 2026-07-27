@@ -51,7 +51,7 @@ const CondensedTimelineElement = ({
   }, [span.status, span.spanType, isCostHeatmapVisible]);
 
   return (
-    <div
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
       className={cn("absolute rounded-xs cursor-pointer", "hover:brightness-110", opacity, {
         "border border-white/70 z-20": isSelected,
         "bg-muted": isCostHeatmapVisible,

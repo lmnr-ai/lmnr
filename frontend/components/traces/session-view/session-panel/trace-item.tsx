@@ -117,7 +117,7 @@ export default function TraceItem({
           two virtual rows. The header button's own `border-b` (collapsed) is the
           single divider. When expanded the body rows below are borderless spans. */}
       <div className={cn("overflow-hidden w-full border border-x border-t", expanded ? "rounded-lg" : "rounded-t-lg")}>
-        <div onClick={handleToggle} className={cn("w-full flex flex-col transition-all ease-in-out")}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }} onClick={handleToggle} className={cn("w-full flex flex-col transition-all ease-in-out")}>
           <button
             type="button"
             className={cn(

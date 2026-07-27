@@ -116,7 +116,7 @@ export function InfiniteDatatableBody<TData extends RowData>({
             <TableCell colSpan={columns.length} className="text-center p-4 text-secondary-foreground rounded-b w-full">
               {searchParams.get("filter") !== null ? "Applied filters returned no results. " : "No results"}
               {searchParams.get("filter") !== null && (
-                <span className="text-primary hover:cursor-pointer" onClick={clearFilters}>
+                <span role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }} className="text-primary hover:cursor-pointer" onClick={clearFilters}>
                   Clear filters
                 </span>
               )}

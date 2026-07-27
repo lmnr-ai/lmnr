@@ -63,7 +63,7 @@ const ValueInput = ({ tagId, columnFilter, suggestions, focused, mode, ref }: Va
   };
 
   return (
-    <div className={wrapperClassName} onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }} className={wrapperClassName} onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
       {renderInput()}
     </div>
   );

@@ -48,7 +48,7 @@ export default function SignalCard({
         <CardHeader className="px-3 pt-3 pb-1">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 min-w-0">
-              <div
+              <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
                 onClick={(e) => {
                   e.stopPropagation();
                   e.preventDefault();

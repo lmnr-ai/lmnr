@@ -45,7 +45,7 @@ const SessionTimelineSpanContainerElement = ({
   };
 
   return (
-    <div
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
       className="absolute rounded-xs border border-muted-foreground/30 bg-muted/50 cursor-pointer"
       style={{
         boxSizing: "content-box",
@@ -75,7 +75,7 @@ const SessionTimelineSpanContainerElement = ({
       {container.groupBoxes.map((box) => {
         const collapsed = !transcriptExpandedGroups.has(`${container.traceId}::${box.groupId}`);
         return (
-          <div
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
             key={box.groupId}
             className={cn(
               "absolute rounded-xs border border-subagent/70",

@@ -27,7 +27,7 @@ function SubagentGroupElement({
   const height = rowSpan * ROW_HEIGHT - 2;
 
   return (
-    <div
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); } }}
       className={cn(
         "absolute rounded-xs border",
         collapsed
