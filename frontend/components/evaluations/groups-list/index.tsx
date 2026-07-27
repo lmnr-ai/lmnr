@@ -6,6 +6,7 @@ import { useCallback, useEffect } from "react";
 import useSWR from "swr";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn, swrFetcher } from "@/lib/utils";
 
@@ -40,7 +41,10 @@ export default function GroupsList() {
 
   return (
     <div className="flex h-full w-full min-w-0 flex-col gap-2 overflow-hidden">
-      <div className="min-w-0 flex-1 overflow-y-auto pr-1">
+      {/* [&>div]:block! forces Radix's injected `display:table` content wrapper back to
+          block so it stays viewport-width — otherwise it grows to content width and the
+          group-name `truncate` never bites (text clips on the right). */}
+      <ScrollArea className="min-w-0 flex-1" viewportClassName="scroll-fade-y pr-1 [&>div]:block!">
         {isLoading ? (
           <div className="flex flex-col gap-1.5 py-1">
             {[0, 1, 2, 3, 4].map((i) => (
@@ -85,7 +89,7 @@ export default function GroupsList() {
             })}
           </ul>
         )}
-      </div>
+      </ScrollArea>
     </div>
   );
 }
