@@ -498,6 +498,23 @@ pub async fn upsert_trace_statistics_batch(
     Ok(traces)
 }
 
+/// Whether the trace exists in the Postgres `traces` table.
+///
+/// Still the authority for traces ingested before `WRITE_TRACES_AGG` was
+/// enabled, and the only one when it's off (default) — `traces_agg` gets no
+/// writes at all then. `POST /v1/traces/metadata` consults this alongside the
+/// `traces_agg` check; dies with the PG write in phase 3 (LAM-2020).
+pub async fn trace_exists(pool: &PgPool, project_id: Uuid, trace_id: Uuid) -> Result<bool> {
+    let exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM traces WHERE id = $1 AND project_id = $2)",
+    )
+    .bind(trace_id)
+    .bind(project_id)
+    .fetch_one(pool)
+    .await?;
+    Ok(exists)
+}
+
 /// A post-factum metadata patch applied to a trace by the
 /// `POST /v1/traces/metadata` endpoint via a virtual metadata-only span.
 #[derive(Debug, Clone)]
