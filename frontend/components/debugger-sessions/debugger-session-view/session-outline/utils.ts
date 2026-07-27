@@ -1,4 +1,4 @@
-import { type CommandBlockContent, commandSummary } from "@/lib/actions/debugger-sessions/command-content";
+import { type CommandBlockContent } from "@/lib/actions/debugger-sessions/command-content";
 
 import { type SessionBlockView, type TraceRowState } from "../store";
 
@@ -20,10 +20,6 @@ export type OutlineRow = {
   kind: "trace" | "eval" | "text" | "command";
   memberIds: string[];
 };
-
-// An agent can fire many CLI commands back-to-back; a run of this many contiguous
-// command blocks collapses into one "CLI commands (N)" row.
-const COMMAND_GROUP_MIN = 2;
 
 const TEXT_BLOCK_TITLE_LEN = 40;
 
@@ -50,30 +46,27 @@ const textBlockTitle = (text: string): string =>
     "Note"
   );
 
-// Short label for a command block: the shared one-line summary (raw, or command +
-// args — args included so no-raw blocks don't all read identically).
-const commandBlockTitle = (command: CommandBlockContent): string => ellipsize(commandSummary(command), "Command");
+// Outline label for a command run (always a group, even of one) — singular copy
+// for a lone command so it doesn't read "CLI commands (1)".
+const commandGroupTitle = (count: number): string => (count === 1 ? "CLI command" : `CLI commands (${count})`);
 
-// Build the outline rows from the timeline blocks. Contiguous command blocks
-// collapse into one row (grouped when ≥ COMMAND_GROUP_MIN, else the single
-// command's summary); missing traces are transparent (see inline note).
+// Build the outline rows from the timeline blocks. Every contiguous command run
+// collapses into one group row (even a run of one); missing traces are
+// transparent (see inline note).
 export const buildRows = (blocks: SessionBlockView[], traceRowStates: Record<string, TraceRowState>): OutlineRow[] => {
   const rows: OutlineRow[] = [];
   let traceIndex = 0;
   let pending: { id: string; command: CommandBlockContent }[] = [];
   const flushCommands = () => {
     if (pending.length === 0) return;
-    if (pending.length >= COMMAND_GROUP_MIN) {
-      rows.push({
-        blockId: pending[0].id,
-        text: `CLI commands (${pending.length})`,
-        kind: "command",
-        memberIds: pending.map((c) => c.id),
-      });
-    } else {
-      const only = pending[0];
-      rows.push({ blockId: only.id, text: commandBlockTitle(only.command), kind: "command", memberIds: [only.id] });
-    }
+    // Every command run — even one command — is a group row, mirroring the
+    // timeline (flat-rows always groups). Keep this in lockstep with emitCommands.
+    rows.push({
+      blockId: pending[0].id,
+      text: commandGroupTitle(pending.length),
+      kind: "command",
+      memberIds: pending.map((c) => c.id),
+    });
     pending = [];
   };
 

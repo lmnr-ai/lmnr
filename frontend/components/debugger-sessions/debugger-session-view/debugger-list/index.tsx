@@ -22,7 +22,6 @@ import { traceAnchorId } from "../session-outline/utils";
 import { useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "../store";
 import { useBlockScrollSync } from "../use-block-scroll-sync";
 import { useScrollMargin } from "../use-scroll-margin";
-import CommandBlock from "./command-block";
 import CommandItem from "./command-group/command-item";
 import CommandItemDetail from "./command-group/command-item-detail";
 import CommandGroupHeader from "./command-group/group-header";
@@ -513,8 +512,6 @@ function FlatRowContent({
   switch (row.type) {
     case "text":
       return <TextBlockItem id={row.blockId} text={row.text} />;
-    case "command":
-      return <CommandBlock id={row.blockId} createdAt={row.createdAt} command={row.command} />;
     case "command-group-header":
       return (
         <CommandGroupHeader

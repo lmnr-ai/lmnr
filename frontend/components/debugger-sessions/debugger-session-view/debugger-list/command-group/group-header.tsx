@@ -18,7 +18,8 @@ interface CommandGroupHeaderProps {
 }
 
 /**
- * Header row of a run of ≥2 CLI commands ("CLI commands (N)"). Modeled on a trace
+ * Header row of a CLI command run — one or many ("CLI command" / "CLI commands
+ * (N)"); every run is a group, even of one. Modeled on a trace
  * in the debugger: a SELF-CONTAINED rounded, bordered header card — when expanded
  * the bead rows flow BELOW it borderless (like a trace's spans), so the header
  * stays fully `rounded-lg` in both states (never `rounded-t` / stitched into a
@@ -51,7 +52,7 @@ export default function CommandGroupHeader({ id, count, lastCreatedAt, expanded 
       >
         <SquareTerminal className="size-4 shrink-0 text-muted-foreground" />
         <span className="min-w-0 flex-1 truncate text-[13px] leading-[17px] text-primary-foreground">
-          CLI commands ({count})
+          {count === 1 ? "CLI command" : `CLI commands (${count})`}
         </span>
         <CardExpandIndicator expanded={expanded} relativeTime={relativeTime} className="ml-auto" />
       </button>

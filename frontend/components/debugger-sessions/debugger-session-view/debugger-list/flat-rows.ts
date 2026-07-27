@@ -31,8 +31,7 @@ export type CommandGroupItem = { id: string; createdAt: string; command: Command
 
 export type DebuggerFlatRow =
   | { type: "text"; blockId: string; text: string }
-  | { type: "command"; blockId: string; createdAt: string; command: CommandBlockContent }
-  // ≥2 contiguous command blocks collapse into a group, flattened into the
+  // A contiguous command run (even one command) collapses into a group, flattened into the
   // virtualizer exactly like a trace's header + spans: a self-contained rounded
   // header card, then (when expanded) borderless bead rows flowing below on a
   // vertical connector line — NOT one continuous bordered card. Each row measures
@@ -227,19 +226,17 @@ function emitBlock(rows: DebuggerFlatRow[], vb: VisibleBlock, opts: BuildDebugge
   }
 }
 
-// A command run: ≥2 → a collapsible group (header + optional bead/detail rows),
-// exactly 1 → a single command block.
+// A command run always renders as a collapsible group (header + optional
+// bead/detail rows) — even a run of ONE. Rendering a singleton differently split
+// its expand state across two sets, so a singleton later absorbed into a group
+// lost its open bit and collapsed (LAM-2004 bot finding). One model, one bug-free
+// path; a lone command is just a group of one.
 function emitCommands(
   rows: DebuggerFlatRow[],
   groupId: string,
   commands: CommandGroupItem[],
   { expandedCommandGroupIds, expandedCommandBlockIds }: BuildDebuggerFlatRowsOpts
 ): void {
-  if (commands.length < 2) {
-    const only = commands[0];
-    rows.push({ type: "command", blockId: only.id, createdAt: only.createdAt, command: only.command });
-    return;
-  }
   const groupExpanded = expandedCommandGroupIds.has(groupId);
   rows.push({
     type: "command-group-header",
@@ -366,8 +363,6 @@ export const flatRowKey = (row: DebuggerFlatRow): string => {
   switch (row.type) {
     case "text":
       return `x::${row.blockId}`;
-    case "command":
-      return `c::${row.blockId}`;
     case "command-group-header":
       return `cgh::${row.blockId}`;
     case "command-item":
@@ -429,7 +424,6 @@ export const flatRowEstimate = (row: DebuggerFlatRow, showTreeContent: boolean):
     case "text":
       return 180;
     // Collapsed one-liner; expanding re-measures via measureElement.
-    case "command":
     case "command-group-header":
       return 48;
     // Bead row (one line); detail card re-measures via measureElement.
