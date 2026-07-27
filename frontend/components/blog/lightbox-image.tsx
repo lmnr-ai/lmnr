@@ -46,10 +46,19 @@ export default function LightboxImage(props: LightboxImageProps) {
       <img
         {...rest}
         alt={alt ?? ""}
+        role="button"
+        tabIndex={0}
+        aria-label={alt ? `Zoom image: ${alt}` : "Zoom image"}
         className={`${className ?? ""} cursor-zoom-in transition-transform duration-150 hover:scale-[1.01]`}
         onClick={(e) => {
           onClick?.(e);
           if (!e.defaultPrevented) {
+            setOpen(true);
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
             setOpen(true);
           }
         }}
