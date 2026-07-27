@@ -101,7 +101,10 @@ export const EvaluationCard = ({
 
       {expanded && (
         <>
-          {progression && progression.points.length > 0 && (
+          {/* Gate on scores, not points: a point exists for every eval block even
+              with empty scores (a live eval before backfill), so points.length
+              alone would mount a blank plot. */}
+          {progression && progression.scores.length > 0 && (
             <div className="h-32 px-2 py-1 bg-surface-900 border-t">
               <CombinedChart
                 data={progression.points}

@@ -1,6 +1,6 @@
 "use client";
 
-import { type Key, useEffect, useMemo, useRef, useState } from "react";
+import { type Key, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CartesianGrid, Line, LineChart, Tooltip, XAxis, YAxis } from "recharts";
 
 import { parseUtcTimestamp } from "@/components/chart-builder/charts/utils";
@@ -122,12 +122,17 @@ export default function CombinedChart({
     };
   }, [rows]);
 
-  // Measure width to turn MAX_POINT_GAP_PX into a slot budget; full width until measured.
+  // Measure width to turn MAX_POINT_GAP_PX into a slot budget. Measure
+  // SYNCHRONOUSLY before first paint (useLayoutEffect) so the padding is right on
+  // the initial render — a `useState(0)` start would paint once with pad=0
+  // (points edge-to-edge / a single point on a degenerate [0,0] domain) and then
+  // visibly shift when the ResizeObserver fires a frame later.
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+    setContainerWidth(el.getBoundingClientRect().width);
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) setContainerWidth(entry.contentRect.width);
     });
