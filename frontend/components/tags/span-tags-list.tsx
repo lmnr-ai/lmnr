@@ -156,7 +156,7 @@ const SpanTagsList = ({ spanId, className }: SpanTagsListProps) => {
         onCreateAndAttach={onCreateAndAttach}
       >
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className={cn("gap-1.5", className)}>
+          <Button variant="ghost" size="sm" className={cn("gap-1.5 hover:bg-secondary", className)}>
             <Tag className="size-3.5" />
             Tags
           </Button>

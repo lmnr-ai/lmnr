@@ -12,7 +12,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type LabelingQueue } from "@/lib/queue/types";
 import { type PaginatedResponse } from "@/lib/types";
-import { swrFetcher } from "@/lib/utils";
+import { cn, swrFetcher } from "@/lib/utils";
 
 interface AddToLabelingQueuePopoverProps {
   data?: {
@@ -137,7 +137,12 @@ export default function AddToLabelingQueuePopover({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         {children || (
-          <Button size={buttonSize} icon="pen" className="w-fit" variant={buttonVariant}>
+          <Button
+            size={buttonSize}
+            icon="pen"
+            className={cn("w-fit", buttonVariant === "ghost" && "hover:bg-secondary")}
+            variant={buttonVariant}
+          >
             <span className="text-xs truncate block min-w-0">Add to labeling queue</span>
           </Button>
         )}

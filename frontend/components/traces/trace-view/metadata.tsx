@@ -17,7 +17,7 @@ const Metadata = ({ metadata }: MetadataProps) => {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant="ghost" size="sm" className="hover:bg-secondary">
           <FileText size={14} className="mr-1" />
           <span>Metadata</span>
         </Button>

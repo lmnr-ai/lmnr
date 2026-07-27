@@ -9,14 +9,20 @@ import { type Dataset } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type Span } from "@/lib/traces/types";
+import { cn } from "@/lib/utils";
 
 import DatasetSelect from "../ui/dataset-select";
 
 interface ExportSpansDialogProps {
   span: Span;
+  buttonVariant?: "default" | "secondary" | "outline" | "ghost" | "link" | "destructive";
 }
 
-export default function ExportSpansPopover({ children, span }: PropsWithChildren<ExportSpansDialogProps>) {
+export default function ExportSpansPopover({
+  children,
+  span,
+  buttonVariant = "secondary",
+}: PropsWithChildren<ExportSpansDialogProps>) {
   const { projectId } = useParams();
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -83,7 +89,12 @@ export default function ExportSpansPopover({ children, span }: PropsWithChildren
       >
         <PopoverTrigger asChild>
           {children || (
-            <Button icon="database" size="sm" variant="secondary">
+            <Button
+              icon="database"
+              size="sm"
+              variant={buttonVariant}
+              className={cn(buttonVariant === "ghost" && "hover:bg-secondary")}
+            >
               <span>Add to dataset</span>
             </Button>
           )}

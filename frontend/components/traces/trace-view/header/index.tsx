@@ -222,7 +222,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
             <span className={HEADER_ITEM_CLS}>
               <Button
                 onClick={() => setSignalsPanelOpen(!signalsPanelOpen)}
-                variant={signalsPanelOpen ? "outlinePrimary" : "outline"}
+                variant={signalsPanelOpen ? "outlinePrimary" : "ghost"}
                 size="sm"
                 className={cn(!signalsPanelOpen && "hover:bg-secondary")}
               >
@@ -242,7 +242,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                     openAgent();
                   }
                 }}
-                variant={agentOpen ? "outlinePrimary" : "outline"}
+                variant={agentOpen ? "outlinePrimary" : "ghost"}
                 size="sm"
                 className={cn(!agentOpen && "hover:bg-secondary")}
               >
@@ -270,7 +270,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                   <TooltipTrigger asChild>
                     <Button
                       onClick={handleOpenSession}
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       className="hover:bg-secondary max-w-56"
                     >
@@ -291,7 +291,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                   <TooltipTrigger asChild>
                     <Button
                       onClick={handleOpenUserTraces}
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       className="hover:bg-secondary max-w-40"
                     >
