@@ -78,6 +78,7 @@ pub async fn init_eval(
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateEvalRequest {
+    #[serde(default)]
     pub name: Option<String>,
     #[serde(default)]
     pub metadata: Option<Value>,
