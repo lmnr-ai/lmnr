@@ -106,7 +106,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ proj
       },
     });
   } catch (error) {
-    if (request.signal?.aborted) {
+    // Classify on the error, not on `request.signal.aborted`: a real upstream
+    // failure (`fetcherRealTime` throws on non-2xx too) can race a client
+    // disconnect, and keying off the signal alone would swallow it as a 499.
+    if (error instanceof Error && error.name === "AbortError") {
       // Client hung up before the upstream connection was established. Nothing
       // to report and nobody to report it to.
       return new Response(null, { status: 499 });
