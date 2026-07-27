@@ -1,9 +1,9 @@
 "use client";
 
+import { ChevronDown } from "lucide-react";
 import { useMemo } from "react";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
-import { CardExpandIndicator } from "@/components/ui/card-expand-indicator";
 import { type CommandBlockContent } from "@/lib/actions/debugger-sessions";
 import { commandLabel } from "@/lib/actions/debugger-sessions/command-content";
 import { cn } from "@/lib/utils";
@@ -45,10 +45,9 @@ export default function CommandBlock({ id, createdAt, command }: CommandBlockPro
   }, [createdAt]);
   const failed = command.exitCode !== undefined && command.exitCode !== 0;
 
-  // Top-only gap (like a trace's `h-2`) so it doesn't stack with the next block's
-  // top gap into an uneven double gap.
+  // No vertical padding — inter-block spacing is owned by seam rows (see flat-rows).
   return (
-    <div id={commandAnchorId(id)} className="scroll-mt-4 pt-2">
+    <div id={commandAnchorId(id)} className="scroll-mt-4">
       <div className="group overflow-hidden rounded-lg border border-[rgba(232,232,232,0.1)]">
         <button
           type="button"
@@ -62,11 +61,23 @@ export default function CommandBlock({ id, createdAt, command }: CommandBlockPro
           <span className="min-w-0 flex-1 truncate font-mono text-[13px] leading-[17px] text-primary-foreground">
             {summary}
           </span>
-          <CardExpandIndicator
-            expanded={expanded}
-            relativeTime={relativeTime}
-            className="ml-auto text-muted-foreground"
-          />
+          {/* Inline right cluster: static time (never reacts to hover) + a plain
+              chevron that only changes color on card hover. Kept identical in the
+              command-group header/rows so their time/chevron align vertically. */}
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            {relativeTime && (
+              <span className="whitespace-nowrap text-[13px] leading-[17px] text-secondary-foreground">
+                {relativeTime}
+              </span>
+            )}
+            <ChevronDown
+              size={16}
+              className={cn(
+                "shrink-0 text-muted-foreground transition-colors group-hover:text-foreground",
+                !expanded && "-rotate-90"
+              )}
+            />
+          </div>
         </button>
         {expanded && (
           <div className="bg-surface-800">

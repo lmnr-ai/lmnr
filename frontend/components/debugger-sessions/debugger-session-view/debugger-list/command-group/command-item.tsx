@@ -1,9 +1,9 @@
 "use client";
 
+import { ChevronDown } from "lucide-react";
 import { useMemo } from "react";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
-import { CardExpandIndicator } from "@/components/ui/card-expand-indicator";
 import { type CommandBlockContent } from "@/lib/actions/debugger-sessions";
 import { commandLabel } from "@/lib/actions/debugger-sessions/command-content";
 import { cn } from "@/lib/utils";
@@ -26,10 +26,11 @@ interface CommandItemProps {
  * itself expandable to a detail card ({@link CommandItemDetail}). Modeled on a
  * trace's spans: borderless (no wrapping card — the group header is the only
  * bordered element), flowing below the header. The label prefers the agent's
- * reasoning when given, else the command summary. The right cluster reuses the
- * header's `CardExpandIndicator` (same `pr-3` + `ml-auto`) so the child's
- * "2h ago ›" lines up vertically with the header's. The `group` scope is this
- * button's own, so its expand affordance reveals on this row's hover only.
+ * reasoning when given, else the command summary. The right cluster (static time
+ * + plain chevron) is inlined with the same geometry as the group header (`pr-3`
+ * + `ml-auto`) so the row's "2h ago ›" lines up vertically with the header's;
+ * only the chevron reacts to hover (via this row's own `group/row`), so it never
+ * touches the header.
  */
 export default function CommandItem({ id, command, createdAt, expanded, isFirst, isLast }: CommandItemProps) {
   const toggle = useDebuggerSessionViewStore((s) => s.toggleCommandBlockExpanded);
@@ -45,13 +46,14 @@ export default function CommandItem({ id, command, createdAt, expanded, isFirst,
 
   return (
     <div className="relative">
-      {/* Vertical thread through the beads (bead's solid bg covers it where they
-          overlap). First reaches UP into the header gap; last stops AT its bead
-          (h-[18px] = py-1.5 + half the size-6 bead) so nothing dangles below. */}
+      {/* Vertical thread strung between the beads (bead's solid bg covers it
+          where they overlap). It spans exactly first bead → last bead: the first
+          starts AT its bead, the last ends AT its bead, so nothing dangles at
+          either end. 18px = py-1.5 + half the size-6 bead (the bead center). */}
       <div
         className={cn(
           "absolute left-[24px] w-px bg-border",
-          isFirst ? "top-[-6px]" : "top-0",
+          isFirst ? "top-[18px]" : "top-0",
           isLast ? "h-[18px]" : "bottom-0"
         )}
       />
@@ -59,7 +61,7 @@ export default function CommandItem({ id, command, createdAt, expanded, isFirst,
         type="button"
         aria-expanded={expanded}
         onClick={() => toggle(id)}
-        className="group group/row relative flex w-full items-center gap-2 py-1.5 pl-3 pr-3 text-left"
+        className="group/row relative flex w-full items-center gap-2 py-1.5 pl-3 pr-3 text-left"
       >
         <span className="z-10 flex size-6 shrink-0 items-center justify-center rounded-full bg-background">
           {commandIcon(command, cn("size-3.5", failed ? "text-destructive-bright" : "text-muted-foreground"))}
@@ -67,7 +69,22 @@ export default function CommandItem({ id, command, createdAt, expanded, isFirst,
         <span className="min-w-0 flex-1 truncate font-mono text-[13px] leading-[17px] text-secondary-foreground transition-colors group-hover/row:text-primary-foreground">
           {label}
         </span>
-        <CardExpandIndicator expanded={expanded} relativeTime={relativeTime} className="ml-auto" />
+        {/* Inline right cluster — identical geometry to the group header so the
+            row's time/chevron align vertically with the header's. */}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {relativeTime && (
+            <span className="whitespace-nowrap text-[13px] leading-[17px] text-secondary-foreground">
+              {relativeTime}
+            </span>
+          )}
+          <ChevronDown
+            size={16}
+            className={cn(
+              "shrink-0 text-muted-foreground transition-colors group-hover/row:text-foreground",
+              !expanded && "-rotate-90"
+            )}
+          />
+        </div>
       </button>
     </div>
   );

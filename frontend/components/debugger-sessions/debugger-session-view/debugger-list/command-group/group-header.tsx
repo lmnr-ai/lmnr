@@ -1,10 +1,9 @@
 "use client";
 
-import { SquareTerminal } from "lucide-react";
+import { ChevronDown, SquareTerminal } from "lucide-react";
 import { useMemo } from "react";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
-import { CardExpandIndicator } from "@/components/ui/card-expand-indicator";
 import { cn } from "@/lib/utils";
 
 import { commandAnchorId } from "../../session-outline/utils";
@@ -37,10 +36,10 @@ export default function CommandGroupHeader({ id, count, lastCreatedAt, expanded 
     }
   }, [lastCreatedAt]);
 
-  // Top-only gap (like a trace's `h-2`) so it doesn't stack with the next block's
-  // top gap; `pb-1` when open is the internal header→beads gap.
+  // No block padding — inter-block spacing is owned by seam rows (see flat-rows).
+  // `pb-1` when open is the INTERNAL header→beads gap, not an inter-block gap.
   return (
-    <div id={commandAnchorId(id)} className={cn("scroll-mt-4", expanded ? "pt-2 pb-1" : "pt-2")}>
+    <div id={commandAnchorId(id)} className={cn("scroll-mt-4", expanded && "pb-1")}>
       <button
         type="button"
         aria-expanded={expanded}
@@ -51,7 +50,22 @@ export default function CommandGroupHeader({ id, count, lastCreatedAt, expanded 
         <span className="min-w-0 flex-1 truncate text-[13px] leading-[17px] text-primary-foreground">
           CLI commands ({count})
         </span>
-        <CardExpandIndicator expanded={expanded} relativeTime={relativeTime} className="ml-auto" />
+        {/* Inline right cluster — kept identical to the command rows so the
+            header's time/chevron align vertically with theirs. */}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {relativeTime && (
+            <span className="whitespace-nowrap text-[13px] leading-[17px] text-secondary-foreground">
+              {relativeTime}
+            </span>
+          )}
+          <ChevronDown
+            size={16}
+            className={cn(
+              "shrink-0 text-muted-foreground transition-colors group-hover:text-foreground",
+              !expanded && "-rotate-90"
+            )}
+          />
+        </div>
       </button>
     </div>
   );

@@ -26,8 +26,9 @@ export default function EvaluationBlockItem({
   progression,
   onPointClick,
 }: EvaluationBlockItemProps) {
+  // No vertical padding — inter-block spacing is owned by seam rows (see flat-rows).
   return (
-    <div className="py-5">
+    <div>
       <EvaluationCard
         projectId={projectId ?? ""}
         evaluation={evaluation}

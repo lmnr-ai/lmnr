@@ -10,6 +10,12 @@ import { SpanType, type TraceRow } from "@/lib/traces/types";
 
 import { type SessionBlockView, type TraceRowState } from "../store";
 
+// The one inter-block spacing unit (px) — the single density knob for the whole
+// timeline. Spacing between top-level blocks is owned by dedicated seam rows (see
+// buildDebuggerFlatRows), never by per-block padding, so blocks stay spacing-
+// agnostic and gaps can never double up. Bump this to loosen/tighten everything.
+export const SEAM = 12;
+
 // A block paired with its 1-based trace index (trace blocks only) for "run N of M".
 export type TimelineItem = { block: SessionBlockView; traceIndex: number };
 
@@ -75,7 +81,12 @@ export type DebuggerFlatRow =
       branchMask: boolean[];
       hasChildren: boolean;
     }
-  | { type: "trace-divider"; blockId: string; gapMs?: number };
+  // A seam OWNS the space between two top-level blocks (blocks carry no vertical
+  // padding of their own). `divider` sits between two timeline blocks (trace /
+  // eval / command) and shows the elapsed-time gap; `spacer` is the plain SEAM
+  // gap used wherever a text block is on either side. `blockId` is the PREVIOUS
+  // block's id so the seam never claims the next block's outline first-index.
+  | { type: "seam"; blockId: string; variant: "divider" | "spacer"; gapMs?: number };
 
 interface BuildDebuggerFlatRowsOpts {
   items: TimelineItem[];
@@ -91,157 +102,221 @@ interface BuildDebuggerFlatRowsOpts {
   expandedCommandBlockIds: Set<string>;
 }
 
-// Flatten the interleaved block timeline into virtualizer rows. A single pass so
-// one virtualizer drives the whole timeline (headers stay sticky per trace, spans
-// stream in, eval/text blocks sit inline). A trace block emits: header → body OR
-// (user-input + span/group/tree rows) → divider-to-next-run. Not-yet-loaded trace
-// blocks emit a skeleton row (so the window still requests them); `missing` ones
-// emit nothing.
+// One top-level block as the user perceives it, after collapsing a contiguous
+// command run into a single unit. Carries just enough to emit its rows and to
+// compute its start/end time for seam gaps; `text` has no time (never a divider).
+type VisibleBlock =
+  | { kind: "trace"; blockId: string; traceId: string; traceIndex: number }
+  | { kind: "eval"; blockId: string; evaluation: SessionEvaluationRef; createdAt: string }
+  | { kind: "text"; blockId: string; text: string }
+  | { kind: "commands"; blockId: string; commands: CommandGroupItem[] };
+
+// Flatten the interleaved block timeline into virtualizer rows. Two phases:
+//   1. Reduce raw items to VisibleBlocks (contiguous commands → one unit; missing
+//      traces skipped and transparent to a command run).
+//   2. Emit each block's rows, inserting ONE seam row between adjacent blocks:
+//      timeline↔timeline → an elapsed-time divider, anything touching text → a
+//      plain spacer. Blocks own no vertical padding — the seam owns all spacing,
+//      so gaps are uniform and can never double up.
+// Not-yet-loaded trace blocks emit a skeleton row (so the window still requests
+// them via ensureTraceRows).
 export function buildDebuggerFlatRows(opts: BuildDebuggerFlatRowsOpts): DebuggerFlatRow[] {
+  // Phase 1 only needs these three; the rest of opts is threaded into the
+  // per-block emit helpers below.
+  const { items, tracesById, traceRowStates } = opts;
+
+  // --- Phase 1: raw items → visible blocks ---
+  const visible: VisibleBlock[] = [];
+  let pendingCommands: CommandGroupItem[] = [];
+  const flushCommands = () => {
+    if (pendingCommands.length === 0) return;
+    visible.push({ kind: "commands", blockId: pendingCommands[0].id, commands: pendingCommands });
+    pendingCommands = [];
+  };
+  for (const { block, traceIndex } of items) {
+    if (block.type === "command") {
+      pendingCommands.push({ id: block.id, createdAt: block.createdAt, command: block.command });
+      continue;
+    }
+    // A missing trace renders nothing AND is transparent to a command run — it
+    // neither flushes nor breaks it (matching the outline's grouping).
+    if (block.type === "trace" && !tracesById.get(block.traceId) && traceRowStates[block.traceId] === "missing") {
+      continue;
+    }
+    flushCommands();
+    if (block.type === "text") visible.push({ kind: "text", blockId: block.id, text: block.text });
+    else if (block.type === "evaluation")
+      visible.push({ kind: "eval", blockId: block.id, evaluation: block.evaluation, createdAt: block.createdAt });
+    else visible.push({ kind: "trace", blockId: block.id, traceId: block.traceId, traceIndex });
+  }
+  flushCommands();
+
+  // --- Phase 2: emit block rows + the seams between them ---
+  const rows: DebuggerFlatRow[] = [];
+  visible.forEach((vb, i) => {
+    if (i > 0) emitSeam(rows, visible[i - 1], vb, tracesById);
+    emitBlock(rows, vb, opts);
+  });
+  return rows;
+}
+
+// Epoch ms for a date string, or undefined if absent/unparseable.
+const toMs = (iso?: string): number | undefined => {
+  if (!iso) return undefined;
+  const t = new Date(iso).getTime();
+  return Number.isNaN(t) ? undefined : t;
+};
+
+const blockStartMs = (vb: VisibleBlock, tracesById: Map<string, TraceRow>): number | undefined => {
+  switch (vb.kind) {
+    case "trace":
+      return toMs(tracesById.get(vb.traceId)?.startTime);
+    case "eval":
+      return toMs(vb.createdAt);
+    case "commands":
+      return toMs(vb.commands[0].createdAt);
+    case "text":
+      return undefined;
+  }
+};
+
+const blockEndMs = (vb: VisibleBlock, tracesById: Map<string, TraceRow>): number | undefined => {
+  switch (vb.kind) {
+    case "trace":
+      return toMs(tracesById.get(vb.traceId)?.endTime);
+    case "eval":
+      return toMs(vb.createdAt);
+    case "commands":
+      return toMs(vb.commands[vb.commands.length - 1].createdAt);
+    case "text":
+      return undefined;
+  }
+};
+
+// A seam between two timeline blocks is an elapsed-time divider; any seam touching
+// a text block is a plain spacer. `blockId` = previous block's id (see the row type).
+function emitSeam(
+  rows: DebuggerFlatRow[],
+  prev: VisibleBlock,
+  cur: VisibleBlock,
+  tracesById: Map<string, TraceRow>
+): void {
+  if (prev.kind !== "text" && cur.kind !== "text") {
+    const start = blockStartMs(cur, tracesById);
+    const end = blockEndMs(prev, tracesById);
+    const gapMs = start !== undefined && end !== undefined && start > end ? start - end : undefined;
+    rows.push({ type: "seam", blockId: prev.blockId, variant: "divider", gapMs });
+  } else {
+    rows.push({ type: "seam", blockId: prev.blockId, variant: "spacer" });
+  }
+}
+
+function emitBlock(rows: DebuggerFlatRow[], vb: VisibleBlock, opts: BuildDebuggerFlatRowsOpts): void {
+  switch (vb.kind) {
+    case "text":
+      rows.push({ type: "text", blockId: vb.blockId, text: vb.text });
+      return;
+    case "eval":
+      rows.push({ type: "evaluation", blockId: vb.blockId, evaluation: vb.evaluation, createdAt: vb.createdAt });
+      return;
+    case "commands":
+      emitCommands(rows, vb.blockId, vb.commands, opts);
+      return;
+    case "trace":
+      emitTrace(rows, vb.blockId, vb.traceId, vb.traceIndex, opts);
+      return;
+  }
+}
+
+// A command run: ≥2 → a collapsible group (header + optional bead/detail rows),
+// exactly 1 → a single command block.
+function emitCommands(
+  rows: DebuggerFlatRow[],
+  groupId: string,
+  commands: CommandGroupItem[],
+  { expandedCommandGroupIds, expandedCommandBlockIds }: BuildDebuggerFlatRowsOpts
+): void {
+  if (commands.length < 2) {
+    const only = commands[0];
+    rows.push({ type: "command", blockId: only.id, createdAt: only.createdAt, command: only.command });
+    return;
+  }
+  const groupExpanded = expandedCommandGroupIds.has(groupId);
+  rows.push({
+    type: "command-group-header",
+    blockId: groupId,
+    count: commands.length,
+    lastCreatedAt: commands[commands.length - 1].createdAt,
+    expanded: groupExpanded,
+  });
+  if (!groupExpanded) return;
+  commands.forEach((c, idx) => {
+    const isLast = idx === commands.length - 1;
+    const cmdExpanded = expandedCommandBlockIds.has(c.id);
+    rows.push({
+      type: "command-item",
+      blockId: groupId,
+      commandId: c.id,
+      command: c.command,
+      createdAt: c.createdAt,
+      expanded: cmdExpanded,
+      isFirst: idx === 0,
+      isLast,
+    });
+    if (cmdExpanded) {
+      rows.push({
+        type: "command-item-detail",
+        blockId: groupId,
+        commandId: c.id,
+        command: c.command,
+        isLastRow: isLast,
+      });
+    }
+  });
+}
+
+function emitTrace(
+  rows: DebuggerFlatRow[],
+  blockId: string,
+  traceId: string,
+  traceIndex: number,
+  opts: BuildDebuggerFlatRowsOpts
+): void {
   const {
-    items,
     tracesById,
-    traceRowStates,
     traceSpans,
     traceSpansFetching,
     traceSpansError,
     expandedTraceIds,
     transcriptExpandedGroups,
     traceViewModes,
-    expandedCommandGroupIds,
-    expandedCommandBlockIds,
   } = opts;
-
-  const rows: DebuggerFlatRow[] = [];
-
-  // Accumulate a run of contiguous command blocks; flush as one command-group
-  // card (≥2) or a single command block (1). Mirrors the outline's grouping so
-  // the two agree on membership and scroll targets. A ≥2 run flattens to a
-  // header row plus (when the group is expanded) a bead row per command and a
-  // detail row per expanded command — one virtualizer row each.
-  let pendingCommands: CommandGroupItem[] = [];
-  const flushCommands = () => {
-    if (pendingCommands.length === 0) return;
-    if (pendingCommands.length >= 2) {
-      const groupId = pendingCommands[0].id;
-      const groupExpanded = expandedCommandGroupIds.has(groupId);
-      rows.push({
-        type: "command-group-header",
-        blockId: groupId,
-        count: pendingCommands.length,
-        lastCreatedAt: pendingCommands[pendingCommands.length - 1].createdAt,
-        expanded: groupExpanded,
-      });
-      if (groupExpanded) {
-        pendingCommands.forEach((c, idx) => {
-          const isLast = idx === pendingCommands.length - 1;
-          const cmdExpanded = expandedCommandBlockIds.has(c.id);
-          rows.push({
-            type: "command-item",
-            blockId: groupId,
-            commandId: c.id,
-            command: c.command,
-            createdAt: c.createdAt,
-            expanded: cmdExpanded,
-            isFirst: idx === 0,
-            isLast,
-          });
-          if (cmdExpanded) {
-            rows.push({
-              type: "command-item-detail",
-              blockId: groupId,
-              commandId: c.id,
-              command: c.command,
-              isLastRow: isLast,
-            });
-          }
-        });
-      }
-    } else {
-      const only = pendingCommands[0];
-      rows.push({ type: "command", blockId: only.id, createdAt: only.createdAt, command: only.command });
-    }
-    pendingCommands = [];
-  };
-
-  for (let i = 0; i < items.length; i++) {
-    const { block, traceIndex } = items[i];
-
-    if (block.type === "command") {
-      pendingCommands.push({ id: block.id, createdAt: block.createdAt, command: block.command });
-      continue;
-    }
-
-    // A missing trace renders no row AND is transparent to a command run — it
-    // neither flushes nor breaks the group (matching the outline). Caught before
-    // the flush below; every OTHER block ends the run before its own row(s).
-    if (block.type === "trace" && !tracesById.get(block.traceId) && traceRowStates[block.traceId] === "missing") {
-      continue;
-    }
-
-    flushCommands();
-
-    if (block.type === "text") {
-      rows.push({ type: "text", blockId: block.id, text: block.text });
-      continue;
-    }
-    if (block.type === "evaluation") {
-      rows.push({ type: "evaluation", blockId: block.id, evaluation: block.evaluation, createdAt: block.createdAt });
-      continue;
-    }
-
-    // trace block
-    const traceId = block.traceId;
-    const trace = tracesById.get(traceId);
-    if (!trace) {
-      // Not yet loaded (missing was handled above) → skeleton, which also makes
-      // the window request it via ensureTraceRows.
-      rows.push({ type: "trace-skeleton", blockId: block.id, traceId });
-      continue;
-    }
-
-    const expanded = expandedTraceIds.has(traceId);
-    rows.push({ type: "trace-header", blockId: block.id, traceId, trace, traceIndex, expanded });
-
-    if (!expanded) {
-      rows.push({ type: "trace-collapsed-body", blockId: block.id, traceId, trace });
-    } else {
-      const error = traceSpansError[traceId];
-      const spans = traceSpans[traceId];
-      const fetching = !!traceSpansFetching[traceId];
-      if (error) {
-        rows.push({ type: "trace-error", blockId: block.id, traceId, error });
-      } else if (!spans || spans.length === 0) {
-        rows.push(
-          !spans || fetching
-            ? { type: "trace-loading", blockId: block.id, traceId }
-            : { type: "trace-empty", blockId: block.id, traceId }
-        );
-      } else {
-        rows.push({ type: "user-input", blockId: block.id, traceId, trace });
-        appendSpanRows(
-          rows,
-          block.id,
-          traceId,
-          spans,
-          traceViewModes[traceId] ?? "transcript",
-          transcriptExpandedGroups
-        );
-      }
-    }
-
-    // Gap divider between consecutive runs (only when THIS run is loaded, matching
-    // the old per-cell divider). Duration shown once the next run's row loads.
-    const nextBlock = items[i + 1]?.block;
-    if (nextBlock?.type === "trace") {
-      const nextTrace = tracesById.get(nextBlock.traceId);
-      const gapMs = nextTrace ? new Date(nextTrace.startTime).getTime() - new Date(trace.endTime).getTime() : undefined;
-      rows.push({ type: "trace-divider", blockId: block.id, gapMs });
-    }
+  const trace = tracesById.get(traceId);
+  if (!trace) {
+    rows.push({ type: "trace-skeleton", blockId, traceId });
+    return;
   }
-
-  flushCommands();
-  return rows;
+  const expanded = expandedTraceIds.has(traceId);
+  rows.push({ type: "trace-header", blockId, traceId, trace, traceIndex, expanded });
+  if (!expanded) {
+    rows.push({ type: "trace-collapsed-body", blockId, traceId, trace });
+    return;
+  }
+  const error = traceSpansError[traceId];
+  const spans = traceSpans[traceId];
+  const fetching = !!traceSpansFetching[traceId];
+  if (error) {
+    rows.push({ type: "trace-error", blockId, traceId, error });
+    return;
+  }
+  if (!spans || spans.length === 0) {
+    rows.push(
+      !spans || fetching ? { type: "trace-loading", blockId, traceId } : { type: "trace-empty", blockId, traceId }
+    );
+    return;
+  }
+  rows.push({ type: "user-input", blockId, traceId, trace });
+  appendSpanRows(rows, blockId, traceId, spans, traceViewModes[traceId] ?? "transcript", transcriptExpandedGroups);
 }
 
 function appendSpanRows(
@@ -325,8 +400,9 @@ export const flatRowKey = (row: DebuggerFlatRow): string => {
       return `gs::${row.traceId}::${row.span.spanId}`;
     case "tree-span":
       return `ts::${row.traceId}::${row.span.spanId}`;
-    case "trace-divider":
-      return `div::${row.blockId}`;
+    case "seam":
+      // One seam per block (the one after it), so the prev block's id is unique.
+      return `seam::${row.blockId}`;
   }
 };
 
@@ -349,8 +425,9 @@ export const flatRowEstimate = (row: DebuggerFlatRow, showTreeContent: boolean):
       return 36;
     case "tree-span":
       return showTreeContent ? 56 : 36;
-    case "trace-divider":
-      return 80;
+    case "seam":
+      // Divider carries a hairline + label (SEAM padding each side); spacer is bare.
+      return row.variant === "divider" ? SEAM * 2 + 18 : SEAM;
     case "text":
       return 180;
     // Collapsed one-liner; expanding re-measures via measureElement.

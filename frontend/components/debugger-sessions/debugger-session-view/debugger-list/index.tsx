@@ -16,7 +16,6 @@ import {
 } from "@/components/traces/trace-view/transcript/item";
 import { SpanCard } from "@/components/traces/trace-view/tree/span-card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatDuration } from "@/lib/utils";
 
 import CopyFlag from "../copy-flag";
 import { traceAnchorId } from "../session-outline/utils";
@@ -37,6 +36,7 @@ import {
   spanFlagProps,
   withTraceIndex,
 } from "./flat-rows";
+import { SeamDivider, SeamSpacer } from "./seam";
 import TextBlockItem from "./text-block";
 
 interface DebuggerListProps {
@@ -560,7 +560,6 @@ function FlatRowContent({
     case "trace-header":
       return (
         <div id={traceAnchorId(row.traceId)} className="flex flex-col bg-background">
-          <div className="h-2 w-full bg-background" />
           <CopyFlag label="Copy trace ID" toastTitle="Copied trace ID" value={row.traceId}>
             <TraceItem
               trace={row.trace}
@@ -641,15 +640,7 @@ function FlatRowContent({
           />
         </CopyFlag>
       );
-    case "trace-divider":
-      return (
-        <div className="flex h-20 items-center justify-center px-2">
-          <div className="w-full border-b" />
-          {formatDuration(row.gapMs) && (
-            <span className="shrink-0 px-2 text-xs text-muted-foreground">{formatDuration(row.gapMs)}</span>
-          )}
-          <div className="w-full border-b" />
-        </div>
-      );
+    case "seam":
+      return row.variant === "divider" ? <SeamDivider gapMs={row.gapMs} /> : <SeamSpacer />;
   }
 }
