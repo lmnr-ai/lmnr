@@ -7,6 +7,7 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use crate::ch::traces::TraceAggregation;
+use crate::ch::traces_agg::CHTraceState;
 use crate::db::spans::Span;
 use crate::db::utils::{
     Filter, FilterOperator, evaluate_array_contains_filter, evaluate_number_filter,
@@ -155,6 +156,57 @@ impl Trace {
     /// start/end times on such a row must never be treated as real.
     pub fn is_stub(&self) -> bool {
         self.span_names.is_none()
+    }
+
+    /// Build the trace shape signal triggers evaluate from the cumulative
+    /// `traces_agg` read-back instead of the Postgres `RETURNING` row.
+    ///
+    /// Only the fields `matches_filters` / `processor_hook` actually read are
+    /// populated; the rest keep their identity values. Notably absent:
+    /// `metadata` (no filter reads it) and start/end times (ditto) — so this
+    /// is NOT a general-purpose `Trace` and must not be handed to
+    /// `CHTrace::from_db_trace` or the realtime projection.
+    ///
+    /// `span_names` is stored as a JSONB object keyed by name in Postgres, so
+    /// the `Some(_)` here also keeps `is_stub()` false — correct, since a row
+    /// only exists in `traces_agg` once a real span batch landed.
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    pub fn from_agg_state(state: &CHTraceState, project_id: Uuid) -> Self {
+        Trace {
+            id: state.id,
+            start_time: None,
+            end_time: None,
+            trace_type: state.trace_type,
+            top_span_id: (!state.top_span_id.is_nil()).then_some(state.top_span_id),
+            top_span_name: (!state.top_span_name.is_empty()).then(|| state.top_span_name.clone()),
+            top_span_type: None,
+            session_id: (!state.session_id.is_empty()).then(|| state.session_id.clone()),
+            metadata: None,
+            user_id: (!state.user_id.is_empty()).then(|| state.user_id.clone()),
+            input_token_count: state.input_tokens,
+            output_token_count: state.output_tokens,
+            total_token_count: state.total_tokens,
+            cache_read_input_tokens: None,
+            cache_creation_input_tokens: None,
+            reasoning_tokens: None,
+            input_cost: state.input_cost,
+            output_cost: state.output_cost,
+            cost: state.total_cost,
+            project_id,
+            status: (!state.status.is_empty()).then(|| state.status.clone()),
+            tags: state.tags.clone(),
+            num_spans: state.num_spans as i64,
+            has_browser_session: None,
+            span_names: Some(Value::Object(
+                state
+                    .span_names
+                    .iter()
+                    .map(|name| (name.clone(), Value::Bool(true)))
+                    .collect(),
+            )),
+            root_span_input: None,
+            root_span_output: None,
+        }
     }
 
     /// Test-only constructor so other modules' tests (e.g. `ch::traces_agg`)
@@ -446,17 +498,6 @@ pub async fn upsert_trace_statistics_batch(
     Ok(traces)
 }
 
-pub async fn trace_exists(pool: &PgPool, project_id: Uuid, trace_id: Uuid) -> Result<bool> {
-    let exists = sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS(SELECT 1 FROM traces WHERE id = $1 AND project_id = $2)",
-    )
-    .bind(trace_id)
-    .bind(project_id)
-    .fetch_one(pool)
-    .await?;
-    Ok(exists)
-}
-
 /// A post-factum metadata patch applied to a trace by the
 /// `POST /v1/traces/metadata` endpoint via a virtual metadata-only span.
 #[derive(Debug, Clone)]
@@ -722,6 +763,106 @@ mod tests {
             trace.matches_filters(&current_batch_spans, &filters),
             "Trigger should fire: 'GitHub' is in accumulated span_names even though not in current batch"
         );
+    }
+
+    /// Same cumulative-state contract as above, but sourced from the
+    /// `traces_agg` read-back instead of the Postgres `RETURNING` row — this is
+    /// what feeds signals since LAM-2020. Guards the field mapping in
+    /// `from_agg_state`: nil `top_span_id` / empty strings must decode back to
+    /// `None`, and `span_names` must round-trip into the JSONB-shaped map that
+    /// `span_names()` reads.
+    #[test]
+    fn from_agg_state_preserves_cumulative_filter_inputs() {
+        let trace_id = Uuid::new_v4();
+        let project_id = Uuid::new_v4();
+        let top_span_id = Uuid::new_v4();
+
+        let state = CHTraceState {
+            id: trace_id,
+            input_tokens: 10,
+            output_tokens: 5,
+            total_tokens: 15,
+            input_cost: 0.1,
+            output_cost: 0.2,
+            total_cost: 0.3,
+            num_spans: 2,
+            session_id: String::new(),
+            user_id: String::new(),
+            status: String::new(),
+            top_span_id,
+            top_span_name: "root".to_string(),
+            trace_type: 0,
+            tags: vec!["a".to_string()],
+            span_names: vec!["root".to_string(), "GitHub".to_string()],
+        };
+
+        let trace = Trace::from_agg_state(&state, project_id);
+
+        // Empty CH strings are absent values, not empty-string matches.
+        assert_eq!(trace.session_id(), None);
+        assert_eq!(trace.status(), None);
+        assert_eq!(trace.top_span_id(), Some(top_span_id));
+        assert!(!trace.is_stub());
+        assert_eq!(trace.num_spans(), 2);
+        assert_eq!(trace.total_token_count(), 15);
+
+        // Batch 2 carries only the root span; "GitHub" came from batch 1 and is
+        // visible only through the accumulated read-back.
+        let current_batch_spans = vec![make_span(trace_id, project_id, "root")];
+        let filters = vec![
+            Filter {
+                column: "root_span_finished".to_string(),
+                operator: FilterOperator::Eq,
+                value: json!("true"),
+            },
+            Filter {
+                column: "span_name".to_string(),
+                operator: FilterOperator::Eq,
+                value: json!("GitHub"),
+            },
+        ];
+
+        assert!(
+            trace.matches_filters(&current_batch_spans, &filters),
+            "read-back must carry cross-batch span_names into trigger evaluation"
+        );
+    }
+
+    /// A nil `top_span_id` from ClickHouse (no partial saw the root span yet)
+    /// must not satisfy `root_span_finished`.
+    #[test]
+    fn from_agg_state_nil_top_span_id_is_none() {
+        let state = CHTraceState {
+            id: Uuid::new_v4(),
+            input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            input_cost: 0.0,
+            output_cost: 0.0,
+            total_cost: 0.0,
+            num_spans: 1,
+            session_id: String::new(),
+            user_id: String::new(),
+            status: String::new(),
+            top_span_id: Uuid::nil(),
+            top_span_name: String::new(),
+            trace_type: 0,
+            tags: vec![],
+            span_names: vec!["child".to_string()],
+        };
+
+        let trace = Trace::from_agg_state(&state, Uuid::new_v4());
+
+        assert_eq!(trace.top_span_id(), None);
+        assert_eq!(trace.top_span_name(), None);
+        assert!(!trace.matches_filters(
+            &[],
+            &[Filter {
+                column: "root_span_finished".to_string(),
+                operator: FilterOperator::Eq,
+                value: json!("true"),
+            }]
+        ));
     }
 
     /// When the span IS in the current batch, it should still match.

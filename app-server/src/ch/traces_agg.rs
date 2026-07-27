@@ -1,3 +1,4 @@
+use anyhow::Result;
 use clickhouse::Row;
 use clickhouse::insert::Insert;
 use serde::{Deserialize, Serialize};
@@ -226,6 +227,117 @@ impl CHTraceAgg {
             trace_types: Vec::new(),
         }
     }
+}
+
+/// Re-aggregated cumulative state of one trace, read back from `traces_agg`
+/// after this batch's partials have landed. Mirrors the subset of
+/// `traces_agg_v0` that signal trigger filters evaluate — the derived
+/// `status` / `trace_type` / `top_span_name` expressions are computed in SQL
+/// (see `fetch_trace_states`) so precedence stays in one place.
+#[derive(Row, Deserialize, Debug, Clone)]
+pub struct CHTraceState {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub id: Uuid,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub total_tokens: i64,
+    pub input_cost: f64,
+    pub output_cost: f64,
+    pub total_cost: f64,
+    pub num_spans: u64,
+    pub session_id: String,
+    pub user_id: String,
+    pub status: String,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub top_span_id: Uuid,
+    pub top_span_name: String,
+    pub trace_type: i16,
+    pub tags: Vec<String>,
+    pub span_names: Vec<String>,
+}
+
+/// Fetch the cumulative post-merge state of `trace_ids` within one project.
+///
+/// Signal trigger filters compare RUNNING TOTALS and set-once fields
+/// (`span_names` from earlier batches, `top_span_id` for `root_span_finished`),
+/// so they cannot run on a single batch's delta — this read-back is what
+/// `upsert_trace_statistics_batch`'s `RETURNING` used to provide. Scoped by
+/// `(project_id, id)`, which is the table's ORDER BY, so no time bound is
+/// needed (and must not be added: partials of one trace can straddle monthly
+/// partitions).
+///
+/// `status` deliberately resolves to an EMPTY string when no partial carried a
+/// status, unlike `traces_agg_v0`'s two-value `success`/`error` contract: the
+/// Postgres column was NULL in that case, and a filter on `status = 'success'`
+/// must keep not matching a trace whose spans never reported one.
+pub async fn fetch_trace_states(
+    clickhouse: &clickhouse::Client,
+    project_id: Uuid,
+    trace_ids: &[Uuid],
+) -> Result<Vec<CHTraceState>> {
+    if trace_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let placeholders = trace_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+    let query_str = format!(
+        "SELECT
+            id,
+            sum(input_tokens) AS input_tokens,
+            sum(output_tokens) AS output_tokens,
+            sum(total_tokens) AS total_tokens,
+            sum(input_cost) AS input_cost,
+            sum(output_cost) AS output_cost,
+            sum(total_cost) AS total_cost,
+            sum(num_spans) AS num_spans,
+            CAST(max(session_id), 'String') AS session_id,
+            CAST(max(user_id), 'String') AS user_id,
+            if(
+                empty(groupUniqArrayArray(statuses)),
+                '',
+                if(has(groupUniqArrayArray(statuses), 'error'), 'error', 'success')
+            ) AS status,
+            CAST(max(top_span_id), 'UUID') AS top_span_id,
+            substring(max(top_span_name), 2) AS top_span_name,
+            toInt16(multiIf(
+                has(groupUniqArrayArray(trace_types), 'PLAYGROUND'), 3,
+                has(groupUniqArrayArray(trace_types), 'EVALUATION'), 1,
+                has(groupUniqArrayArray(trace_types), 'EVENT'), 2,
+                0
+            )) AS trace_type,
+            groupUniqArrayArray(tags) AS tags,
+            groupUniqArrayArray(span_names) AS span_names
+         FROM traces_agg
+         WHERE project_id = ? AND id IN ({placeholders})
+         GROUP BY id"
+    );
+
+    let mut query = clickhouse.query(&query_str).bind(project_id);
+    for trace_id in trace_ids {
+        query = query.bind(trace_id);
+    }
+
+    Ok(query.fetch_all::<CHTraceState>().await?)
+}
+
+/// Whether any partial exists for `(project_id, trace_id)`.
+///
+/// Backs the `POST /v1/traces/metadata` 404. No time bound and no GROUP BY —
+/// `(project_id, id)` is the table's ORDER BY, so this prunes to the relevant
+/// granules and a single matching partial is enough to prove the trace exists.
+pub async fn trace_exists(
+    clickhouse: &clickhouse::Client,
+    project_id: Uuid,
+    trace_id: Uuid,
+) -> Result<bool> {
+    let count = clickhouse
+        .query("SELECT count() FROM traces_agg WHERE project_id = ? AND id = ? LIMIT 1")
+        .bind(project_id)
+        .bind(trace_id)
+        .fetch_one::<u64>()
+        .await?;
+
+    Ok(count > 0)
 }
 
 impl ClickhouseInsertable for CHTraceAgg {

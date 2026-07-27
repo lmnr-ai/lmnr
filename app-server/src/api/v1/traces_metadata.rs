@@ -7,7 +7,8 @@ use uuid::Uuid;
 
 use crate::{
     cache::Cache,
-    db::{DB, project_api_keys::ProjectApiKey, trace::trace_exists},
+    ch::traces_agg::trace_exists,
+    db::{DB, project_api_keys::ProjectApiKey},
     mq::MessageQueue,
     routes::types::ResponseResult,
     traces::metadata::publish_trace_metadata_patch,
@@ -29,9 +30,10 @@ pub struct UpdateTraceMetadataRequest {
 /// `traces.metadata` via an upsert that takes the same row lock as the regular
 /// `upsert_trace_statistics_batch` (and creates a virtual trace row when the
 /// trace's span batch hasn't been flushed yet — the handler's existence check
-/// keeps the public endpoint 404ing on unknown traces, but a trace deleted
-/// between request and consumption leaves a metadata-only stub row; accepted,
-/// see `merge_trace_metadata_batch`). The virtual span is never recorded to
+/// (against `traces_agg`) keeps the public endpoint 404ing on unknown traces,
+/// but a trace whose spans haven't landed yet, or one deleted between request
+/// and consumption, leaves a metadata-only stub row; accepted, see
+/// `merge_trace_metadata_batch`). The virtual span is never recorded to
 /// the `spans` table and contributes nothing to trace stats (start/end/tokens/
 /// top_span/etc.).
 #[post("metadata")]
@@ -41,6 +43,7 @@ pub async fn update_trace_metadata(
     spans_message_queue: web::Data<Arc<MessageQueue>>,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
+    clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
     handle_trace_metadata(
         project_api_key.project_id,
@@ -48,6 +51,7 @@ pub async fn update_trace_metadata(
         spans_message_queue,
         db,
         cache,
+        clickhouse,
     )
     .await
 }
@@ -60,6 +64,7 @@ pub async fn handle_trace_metadata(
     spans_message_queue: web::Data<Arc<MessageQueue>>,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
+    clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
     let req = req.into_inner();
 
@@ -70,7 +75,7 @@ pub async fn handle_trace_metadata(
     let db = db.into_inner();
     let cache = cache.into_inner();
 
-    if !trace_exists(&db.pool, project_id, req.trace_id).await? {
+    if !trace_exists(clickhouse.as_ref(), project_id, req.trace_id).await? {
         return Ok(HttpResponse::NotFound().json("Trace not found"));
     }
 

@@ -9,7 +9,7 @@ import { Feature, isFeatureEnabled } from "@/lib/features/features";
 // _setup_default_tables() view registry.
 const VIEW_BACKING_TABLES: Record<string, string> = {
   spans_v0: "spans",
-  traces_v0: "traces_replacing",
+  traces_v0: "traces_agg",
   dataset_datapoints_v0: "dataset_datapoints",
   dataset_datapoint_versions_v0: "dataset_datapoints",
   evaluation_datapoints_v0: "evaluation_datapoints",

@@ -16,7 +16,7 @@ use crate::{
         spans::CHSpan,
         trace_agent_io::{CHTraceAgentInput, CHTraceAgentOutput},
         traces::{CHTrace, TraceAggregation},
-        traces_agg::CHTraceAgg,
+        traces_agg::{self, CHTraceAgg},
         utils::chrono_to_nanoseconds,
     },
     db::{
@@ -700,18 +700,15 @@ pub async fn process_span_messages(
             }
         }
 
-        // Return only the aggregation results to the signals path. `None`
-        // suppresses `check_and_push_signals` entirely — used for both an
-        // aggregation upsert error AND a pure metadata-only flush (no real
-        // spans aggregated). Metadata patches never need signal evaluation:
-        // they don't touch any field signals filter on, and re-running
-        // signals against a patched-only trace would spuriously refire any
-        // signal that already triggered for the trace.
-        if aggregation_ok && had_aggregations {
-            Some(aggregation_traces)
-        } else {
-            None
-        }
+        // Gate the signals path. `false` suppresses `check_and_push_signals`
+        // entirely — used for both an aggregation upsert error AND a pure
+        // metadata-only flush (no real spans aggregated). Metadata patches
+        // never need signal evaluation: they don't touch any field signals
+        // filter on, and re-running signals against a patched-only trace would
+        // spuriously refire any signal that already triggered for the trace.
+        // The traces themselves are re-read from `traces_agg` afterwards (the
+        // PG rows here are cumulative but on their way out — LAM-2020).
+        aggregation_ok && had_aggregations
     };
 
     // Trace-new keys for search "first occurrence per trace" semantic.
@@ -792,20 +789,23 @@ pub async fn process_span_messages(
         Ok(())
     };
 
-    let (updated_traces, span_result) = tokio::join!(trace_branch, span_branch);
+    let (should_evaluate_signals, span_result) = tokio::join!(trace_branch, span_branch);
     span_result?;
 
     // Must run AFTER the spans insert so the signal agent sees the trace data.
-    if let Some(updated_traces) = &updated_traces {
-        crate::signals::check_and_push_signals(
-            updated_traces,
-            &spans,
-            db.clone(),
-            cache.clone(),
-            clickhouse.clone(),
-            queue.clone(),
-        )
-        .await;
+    if should_evaluate_signals {
+        let signal_traces = fetch_signal_trace_states(&trace_aggregations, &clickhouse).await;
+        if !signal_traces.is_empty() {
+            crate::signals::check_and_push_signals(
+                &signal_traces,
+                &spans,
+                db.clone(),
+                cache.clone(),
+                clickhouse.clone(),
+                queue.clone(),
+            )
+            .await;
+        }
     }
 
     // Send realtime span updates
@@ -960,6 +960,52 @@ pub async fn process_span_messages(
     }
 
     Ok(())
+}
+
+/// Read back the cumulative post-merge state of every trace this batch
+/// aggregated, for signal trigger evaluation.
+///
+/// Trigger filters compare running totals and set-once fields (`span_names`
+/// from earlier batches, `top_span_id` for `root_span_finished`), so a
+/// batch-local `TraceAggregation` is not sufficient — this replaces the
+/// cumulative row the Postgres upsert used to return. Grouped per project
+/// because `traces_agg` is scoped by `(project_id, id)` and one flush can mix
+/// projects.
+///
+/// Read-back is safe right after the insert because the CH client runs with
+/// `wait_for_async_insert=1`, so the partials are queryable once
+/// `insert_batch` returned. A failed read degrades to "no signals for those
+/// traces this batch" rather than evaluating stale/partial state.
+async fn fetch_signal_trace_states(
+    trace_aggregations: &[TraceAggregation],
+    clickhouse: &clickhouse::Client,
+) -> Vec<Trace> {
+    let mut ids_by_project: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+    for agg in trace_aggregations {
+        ids_by_project
+            .entry(agg.project_id)
+            .or_default()
+            .push(agg.trace_id);
+    }
+
+    let mut traces = Vec::new();
+    for (project_id, trace_ids) in ids_by_project {
+        match traces_agg::fetch_trace_states(clickhouse, project_id, &trace_ids).await {
+            Ok(states) => traces.extend(
+                states
+                    .iter()
+                    .map(|state| Trace::from_agg_state(state, project_id)),
+            ),
+            Err(e) => log::error!(
+                "Failed to read back {} trace states for project {} from ClickHouse; \
+                 skipping signal evaluation for them: {:?}",
+                trace_ids.len(),
+                project_id,
+                e
+            ),
+        }
+    }
+    traces
 }
 
 async fn dispatch_trace_realtime_updates(traces: &[Trace], cache: Arc<Cache>, pubsub: &PubSub) {
