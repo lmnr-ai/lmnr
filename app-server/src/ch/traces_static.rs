@@ -194,10 +194,12 @@ impl CHTraceStatic {
     /// (see the module docs); that's the accepted cost of avoiding per-key map
     /// merges.
     ///
-    /// `start_time` should be the trace's start when known; a patch carries no
-    /// span times, so callers pass the flush clock and accept that a patch for a
-    /// trace that started in an earlier month lands one partition late (still
-    /// coalesced by `SELECT ... FINAL`, but clippable by a tight bound).
+    /// `start_time` MUST be the trace's start (the partition key). A patch itself
+    /// carries no span times, so the caller resolves it — this batch's min span
+    /// start, else the trace's real cumulative start, else the flush clock; see
+    /// `processor::resolve_static_start_times`. Only the last fallback can land
+    /// the row a partition late (still coalesced by `SELECT ... FINAL`, but
+    /// clippable by a tight bound).
     pub fn from_metadata_patch(
         project_id: Uuid,
         trace_id: Uuid,

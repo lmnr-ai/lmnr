@@ -163,32 +163,58 @@ fn collect_agent_io_rows(
     (inputs, outputs)
 }
 
-/// Build `traces_static` writes for the extracted agent io (LAM-2026). Output
-/// hashes are concatenated hex (64 chars each) because the column can't be a
-/// `Nullable(Array(...))` — see `ch::traces_static`.
+/// Resolves each trace's `start_time` for the non-span `traces_static` writes
+/// (metadata patches, extracted agent io). `start_time` is the partition key, so
+/// these writes MUST agree with the span-batch writes' value or they land in a
+/// different partition and drop out of `start_time`-bounded reads.
 ///
-/// `start_time` is the partition key, so it MUST agree with the aggregation
-/// writes' value or this row lands in a different partition and disappears from
-/// `start_time`-bounded reads. It's resolved from this flush's aggregations when
-/// the same flush also carried spans for the trace; otherwise the trace's start
-/// isn't in hand here and we fall back to `now_ns`. That fallback is only exact
-/// while the trace started in the current partition period — an io write for a
-/// trace that started in a previous month lands one partition late, which
-/// `SELECT ... FINAL` still coalesces but a tight `start_time` filter can clip.
-/// Acceptable because io extraction runs seconds after ingest; revisit if that
-/// ever becomes async enough to cross a month boundary.
-fn collect_static_agent_io_rows(
-    io: &[RawTraceIo],
+/// Precedence, best source first:
+///   1. **This batch's min span start** (`TraceAggregation::start_time`) — what
+///      `from_aggregation` writes in the same flush, so agreeing with it is
+///      exactly right.
+///   2. **The trace's real cumulative start** from the PG-merged row. Covers a
+///      patch/io write for a trace whose spans arrived in an EARLIER flush, which
+///      (1) can't see. Stub rows are skipped: `is_stub()` means no span batch has
+///      ever touched the row, so its times are `now()` placeholders, not real.
+///   3. `now_ns`. Only reached when the trace's start is genuinely unknown here
+///      (patch beat every span batch). Exact whenever the trace started in the
+///      current partition period; a trace that started in a previous month lands
+///      one partition late, which `SELECT ... FINAL` still coalesces but a tight
+///      `start_time` filter can clip.
+///
+/// Step 2 is why this consults `patched_traces`: while the PG aggregator still
+/// exists it's a free, already-fetched source of the real trace start. When it's
+/// retired this degrades to (1) → (3) with no correctness change — the partition
+/// may just be less precise for cross-flush writes.
+fn resolve_static_start_times(
     aggregations: &[TraceAggregation],
-    now_ns: i64,
-) -> Vec<CHTraceStatic> {
-    let start_time_by_trace: HashMap<(Uuid, Uuid), i64> = aggregations
+    patched_traces: &[Trace],
+) -> HashMap<(Uuid, Uuid), i64> {
+    // Insert the weaker source first so the batch's own value overwrites it.
+    let mut by_trace: HashMap<(Uuid, Uuid), i64> = patched_traces
         .iter()
-        .filter_map(|agg| {
-            agg.start_time
-                .map(|st| ((agg.project_id, agg.trace_id), chrono_to_nanoseconds(st)))
+        .filter(|t| !t.is_stub())
+        .filter_map(|t| {
+            t.start_time()
+                .map(|st| ((t.project_id(), t.id()), chrono_to_nanoseconds(st)))
         })
         .collect();
+    by_trace.extend(aggregations.iter().filter_map(|agg| {
+        agg.start_time
+            .map(|st| ((agg.project_id, agg.trace_id), chrono_to_nanoseconds(st)))
+    }));
+    by_trace
+}
+
+/// Build `traces_static` writes for the extracted agent io (LAM-2026). Output
+/// hashes are concatenated hex (64 chars each) because the column can't be a
+/// `Nullable(Array(...))` — see `ch::traces_static`. `start_time` comes from
+/// [`resolve_static_start_times`].
+fn collect_static_agent_io_rows(
+    io: &[RawTraceIo],
+    start_time_by_trace: &HashMap<(Uuid, Uuid), i64>,
+    now_ns: i64,
+) -> Vec<CHTraceStatic> {
     io.iter()
         .filter_map(|entry| {
             let output_hashes = entry
@@ -769,8 +795,16 @@ pub async fn process_span_messages(
             //
             // Gated on `aggregation_ok` for the same reason as `traces_agg`.
             // Metadata patches contribute their own delta carrying ONLY the
-            // patched keys — `maxMap` merges them into whatever the span batches
-            // wrote, so no cumulative read is needed.
+            // patched object (SET semantics — see `ch::traces_static`).
+            //
+            // `start_time` is the partition key, so the patch / agent-io writes
+            // resolve it through `resolve_static_start_times`: this batch's min
+            // span start when the flush carried spans for the trace, else the
+            // trace's real cumulative start from the PG-merged row, else the
+            // flush clock. That keeps every write for a trace in the same
+            // partition as the span-batch writes.
+            let start_time_by_trace =
+                resolve_static_start_times(&trace_aggregations, &patched_traces);
             let mut traces_static_rows: Vec<CHTraceStatic> = Vec::new();
             if aggregation_ok {
                 traces_static_rows.extend(
@@ -784,12 +818,15 @@ pub async fn process_span_messages(
                     patch.project_id,
                     patch.trace_id,
                     Some(&patch.metadata),
-                    now_ns,
+                    start_time_by_trace
+                        .get(&(patch.project_id, patch.trace_id))
+                        .copied()
+                        .unwrap_or(now_ns),
                 )
             }));
             traces_static_rows.extend(collect_static_agent_io_rows(
                 &raw_trace_io,
-                &trace_aggregations,
+                &start_time_by_trace,
                 now_ns,
             ));
             if !traces_static_rows.is_empty()
@@ -1126,5 +1163,163 @@ async fn dispatch_trace_realtime_updates(traces: &[Trace], cache: Arc<Cache>, pu
     for ((project_id, rollout_session_id), traces_data) in debugger_buckets {
         let key = format!("rollout_session_{}", rollout_session_id);
         send_trace_updates(&project_id, &key, &traces_data, pubsub).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use chrono::{TimeZone, Utc};
+    use serde_json::json;
+
+    use super::*;
+
+    fn agg(
+        project_id: Uuid,
+        trace_id: Uuid,
+        start: Option<chrono::DateTime<Utc>>,
+    ) -> TraceAggregation {
+        TraceAggregation {
+            trace_id,
+            project_id,
+            start_time: start,
+            end_time: None,
+            input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+            reasoning_tokens: 0,
+            input_cost: 0.0,
+            output_cost: 0.0,
+            total_cost: 0.0,
+            session_id: None,
+            user_id: None,
+            status: None,
+            metadata: None,
+            tags: HashSet::new(),
+            num_spans: 0,
+            top_span_id: None,
+            top_span_name: None,
+            top_span_type: 0,
+            trace_type: 0,
+            has_browser_session: None,
+            span_names: HashSet::new(),
+            root_span_input: None,
+            root_span_output: None,
+        }
+    }
+
+    // `start_time` is traces_static's partition key, so the patch / agent-io
+    // writes must resolve the SAME value the span-batch write uses. This batch's
+    // min span start is the best source and must win over the PG row.
+    #[test]
+    fn batch_start_time_wins_over_the_pg_row() {
+        let project_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+        let batch_start = Utc.timestamp_opt(1_700_000_500, 0).unwrap();
+        let pg_start = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+
+        let trace = Trace::test_new(
+            trace_id,
+            project_id,
+            Some(pg_start),
+            None,
+            // span_names populated => a real span batch has touched the row
+            Some(json!({"some_span": true})),
+        );
+        let resolved =
+            resolve_static_start_times(&[agg(project_id, trace_id, Some(batch_start))], &[trace]);
+        assert_eq!(
+            resolved.get(&(project_id, trace_id)).copied(),
+            Some(chrono_to_nanoseconds(batch_start))
+        );
+    }
+
+    // A patch / io write for a trace whose spans arrived in an EARLIER flush has
+    // no aggregation to read, so it falls back to the trace's real cumulative
+    // start rather than the flush clock.
+    #[test]
+    fn falls_back_to_the_real_trace_start_when_this_flush_had_no_spans() {
+        let project_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+        let pg_start = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+
+        let trace = Trace::test_new(
+            trace_id,
+            project_id,
+            Some(pg_start),
+            None,
+            Some(json!({"some_span": true})),
+        );
+        let resolved = resolve_static_start_times(&[], &[trace]);
+        assert_eq!(
+            resolved.get(&(project_id, trace_id)).copied(),
+            Some(chrono_to_nanoseconds(pg_start))
+        );
+    }
+
+    // A stub row (patch beat every span batch) carries `now()` PLACEHOLDER times,
+    // not real ones — using them would pin the partition to an invented value, so
+    // stubs are skipped and the caller's `now_ns` fallback applies instead.
+    #[test]
+    fn stub_rows_are_not_a_start_time_source() {
+        let project_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+
+        let stub = Trace::test_new(
+            trace_id,
+            project_id,
+            Some(Utc::now()),
+            None,
+            None, // span_names NULL => stub
+        );
+        assert!(stub.is_stub());
+        let resolved = resolve_static_start_times(&[], &[stub]);
+        assert!(
+            resolved.get(&(project_id, trace_id)).is_none(),
+            "a stub's placeholder times must never seed the partition key"
+        );
+    }
+
+    // Agent-io rows must carry the resolved trace start, never their own
+    // per-write timestamp, or they'd land in a foreign partition.
+    #[test]
+    fn agent_io_rows_use_the_resolved_start_time() {
+        let project_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+        let batch_start = Utc.timestamp_opt(1_700_000_500, 0).unwrap();
+        let resolved =
+            resolve_static_start_times(&[agg(project_id, trace_id, Some(batch_start))], &[]);
+
+        let rows = collect_static_agent_io_rows(
+            &[RawTraceIo {
+                project_id,
+                trace_id,
+                input: Some(json!("the task")),
+                output_hashes: None,
+                // A wildly different per-write time that must NOT be used.
+                output_end_time_ns: Some(i64::MAX),
+            }],
+            &resolved,
+            999,
+        );
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].start_time, chrono_to_nanoseconds(batch_start));
+
+        // With nothing resolvable, the caller's now_ns is the last resort.
+        let rows = collect_static_agent_io_rows(
+            &[RawTraceIo {
+                project_id,
+                trace_id,
+                input: Some(json!("the task")),
+                output_hashes: None,
+                output_end_time_ns: None,
+            }],
+            &HashMap::new(),
+            999,
+        );
+        assert_eq!(rows[0].start_time, 999);
     }
 }
