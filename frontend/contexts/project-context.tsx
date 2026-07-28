@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, type PropsWithChildren, use, useCallback, useMemo } from "react";
+import { createContext, type PropsWithChildren, use, useCallback, useEffect, useMemo } from "react";
 import useSWR, { type KeyedMutator } from "swr";
 
 import { type ProjectDetails } from "@/lib/actions/project";
@@ -62,6 +62,16 @@ export const ProjectContextProvider = ({
   const { data: project, mutate: mutateProject } = useSWR<ProjectDetails | undefined>(projectKey, null, {
     fallbackData: initialProject,
   });
+
+  // `fallbackData` doesn't write the cache, so `mutateProject((cur)=>...)` gets undefined and no-ops.
+  // Seed the cache; re-seed on SSR prop change (same-project refresh keeps the key) to avoid staleness.
+  const projectSignature = initialProject ? JSON.stringify(initialProject) : null;
+  useEffect(() => {
+    if (projectKey && initialProject) {
+      mutateProject(initialProject, { revalidate: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectKey, projectSignature]);
 
   const settingsHref = useCallback(
     (section?: SettingsSection) =>

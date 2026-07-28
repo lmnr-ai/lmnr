@@ -77,7 +77,15 @@ function InfiniteDatatableRowInner<TData extends RowData>({
     >
       {isSelected && <td className="border-l-2 border-l-primary absolute h-full left-0 top-0 z-10" />}
       {row.getVisibleCells().map((cell) => (
-        <InfiniteTableCell key={cell.id} cell={cell} isSelected={isSelected} cellRenderToken={cellRenderToken} />
+        <InfiniteTableCell
+          key={cell.id}
+          cell={cell}
+          isSelected={isSelected}
+          size={cell.column.getSize()}
+          start={cell.column.getStart("left")}
+          isPinned={cell.column.getIsPinned() === "left"}
+          cellRenderToken={cellRenderToken}
+        />
       ))}
     </TableRow>
   );
