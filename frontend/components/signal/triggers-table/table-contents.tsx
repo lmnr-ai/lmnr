@@ -2,7 +2,7 @@
 
 import { type Row, type RowSelectionState } from "@tanstack/react-table";
 import { useParams } from "next/navigation";
-import { memo, type MutableRefObject, type PropsWithChildren, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, type PropsWithChildren, type RefObject, useCallback, useEffect, useMemo, useState } from "react";
 import useSWR, { mutate } from "swr";
 
 import { useSignalStoreContext } from "@/components/signal/store";
@@ -34,7 +34,7 @@ const EmptyRow = (
 export interface TriggersTableContentsProps {
   filters: Filter[];
   onRowClick: (row: Row<TriggerRow>) => void;
-  revalidateRef: MutableRefObject<() => void>;
+  revalidateRef: RefObject<() => void>;
 }
 
 export const TriggersTableContents = memo(function TriggersTableContents({
@@ -48,7 +48,8 @@ export const TriggersTableContents = memo(function TriggersTableContents({
   const { signal } = useSignalStoreContext((state) => ({ signal: state.signal }));
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  const columns = getTriggersTableColumns();
+  // Factory returns a fresh array each call; memoize to keep the cell-content token stable.
+  const columns = useMemo(() => getTriggersTableColumns(), []);
 
   const triggersUrl = useMemo(() => {
     const urlParams = new URLSearchParams();

@@ -97,6 +97,8 @@ export interface InfiniteDataTableRowProps<TData extends RowData> {
   isSelected: boolean;
   // Visible-column layout fingerprint; changes on visibility/order/sizing so the memoized row re-renders.
   columnSignature: string;
+  // Changes when columns or table `meta` change, forcing memoized cells with out-of-row content to re-render.
+  cellRenderToken: object;
 }
 
 export interface SelectionPanelProps {

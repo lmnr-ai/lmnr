@@ -2,7 +2,7 @@
 
 import { type ColumnDef } from "@tanstack/react-table";
 import { useParams } from "next/navigation";
-import { memo, type MutableRefObject, type PropsWithChildren, useCallback, useEffect, useMemo } from "react";
+import { memo, type PropsWithChildren, type RefObject, useCallback, useEffect, useMemo } from "react";
 
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
@@ -25,7 +25,7 @@ export interface EvaluationsTableContentsProps {
     v: Record<string, boolean> | ((prev: Record<string, boolean>) => Record<string, boolean>)
   ) => void;
   onHoveredRowChange: (id: string | undefined) => void;
-  refetchRef: MutableRefObject<() => void>;
+  refetchRef: RefObject<() => void>;
   onEvaluationsChange: (evals: { id: string; name: string }[]) => void;
 }
 
