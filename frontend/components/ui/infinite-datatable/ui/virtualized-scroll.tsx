@@ -16,7 +16,7 @@ import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
 import { arrayMove } from "@dnd-kit/sortable";
 import { type Row, type RowData, type Table as TanstackTable } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { type ReactNode, type RefObject, useEffect, useId, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { Skeleton } from "@/components/ui/skeleton.tsx";
@@ -52,7 +52,8 @@ interface VirtualizedScrollProps<TData extends RowData> {
 
 interface VirtualizedRowsProps<TData extends RowData> {
   table: TanstackTable<TData>;
-  tableContainerRef: RefObject<HTMLDivElement | null>;
+  // Scroll element as state so the child virtualizer re-measures once it mounts.
+  scrollElement: HTMLDivElement | null;
   estimatedRowHeight: number;
   overscan: number;
   hasMore: boolean;
@@ -71,7 +72,7 @@ interface VirtualizedRowsProps<TData extends RowData> {
 
 function VirtualizedRows<TData extends RowData>({
   table,
-  tableContainerRef,
+  scrollElement,
   estimatedRowHeight,
   overscan,
   hasMore,
@@ -92,7 +93,7 @@ function VirtualizedRows<TData extends RowData>({
 
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
-    getScrollElement: () => tableContainerRef.current,
+    getScrollElement: () => scrollElement,
     estimateSize: () => estimatedRowHeight,
     overscan,
     measureElement:
@@ -107,9 +108,8 @@ function VirtualizedRows<TData extends RowData>({
     if (loadMoreButton) return;
 
     const loadMoreElement = loadMoreRef.current;
-    const scrollContainer = tableContainerRef.current;
 
-    if (!loadMoreElement || !scrollContainer) return;
+    if (!loadMoreElement || !scrollElement) return;
     if (!hasMore || isFetching || isLoading) return;
 
     const observer = new IntersectionObserver(
@@ -119,7 +119,7 @@ function VirtualizedRows<TData extends RowData>({
         }
       },
       {
-        root: scrollContainer,
+        root: scrollElement,
         rootMargin: "420px",
         threshold: 0,
       }
@@ -130,7 +130,7 @@ function VirtualizedRows<TData extends RowData>({
     return () => {
       observer.disconnect();
     };
-  }, [fetchNextPage, hasMore, isFetching, isLoading, loadMoreButton, tableContainerRef]);
+  }, [fetchNextPage, hasMore, isFetching, isLoading, loadMoreButton, scrollElement]);
 
   return (
     <InfiniteDatatableBody
@@ -178,7 +178,10 @@ export function VirtualizedScroll<TData extends RowData>({
   const setDraggingColumnId = useStore(tableStore, (s) => s.setDraggingColumnId);
   const draggingColumnId = useStore(tableStore, (s) => s.draggingColumnId);
 
-  const tableContainerRef = useRef<HTMLDivElement>(null);
+  // State (via callback ref) rather than a plain ref: the virtualizer lives in a
+  // child, and a ref populated after the child's layout effect leaves getVirtualItems
+  // empty until an unrelated re-render. State forces the child to re-measure on mount.
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLTableSectionElement>(null);
   const [headerTop, setHeaderTop] = useState(0);
 
@@ -230,7 +233,7 @@ export function VirtualizedScroll<TData extends RowData>({
 
   return (
     <div
-      ref={tableContainerRef}
+      ref={setScrollElement}
       className={cn("flex relative overflow-auto styled-scrollbar bg-secondary", scrollContentClassName)}
     >
       <div className="size-full">
@@ -246,7 +249,7 @@ export function VirtualizedScroll<TData extends RowData>({
             <InfiniteDatatableHeader ref={headerRef} table={table as TanstackTable<RowData>} />
             <VirtualizedRows
               table={table}
-              tableContainerRef={tableContainerRef}
+              scrollElement={scrollElement}
               estimatedRowHeight={estimatedRowHeight}
               overscan={overscan}
               hasMore={hasMore}

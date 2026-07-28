@@ -24,7 +24,7 @@ export function InfiniteDataTable<TData extends RowData>({
   isLoading,
   fetchNextPage,
   estimatedRowHeight = 41,
-  overscan = 5,
+  overscan = 15,
 
   onRowClick,
   onHoveredRowChange,

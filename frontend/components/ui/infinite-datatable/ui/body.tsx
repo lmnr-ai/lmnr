@@ -45,6 +45,12 @@ export function InfiniteDatatableBody<TData extends RowData>({
   const buttonHeight = loadMoreButton && hasMore ? 36 : 0;
   const isEmpty = rows.length === 0;
 
+  // Layout signal so memoized rows re-render on column visibility/order/sizing change.
+  const columnSignature = table
+    .getVisibleLeafColumns()
+    .map((col) => `${col.id}:${col.getSize()}:${col.getIsPinned() || ""}`)
+    .join("|");
+
   return (
     <TableBody
       style={{
@@ -81,6 +87,7 @@ export function InfiniteDatatableBody<TData extends RowData>({
                 className={getRowClassName?.(row)}
                 measureElement={rowVirtualizer.measureElement}
                 isSelected={row.getIsSelected()}
+                columnSignature={columnSignature}
               />
             );
           })}

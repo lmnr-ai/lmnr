@@ -95,6 +95,8 @@ export interface InfiniteDataTableRowProps<TData extends RowData> {
   measureElement: (node: Element | null) => void;
   // Primitive so the memo comparator sees selection changes; TanStack reuses the same Row across renders.
   isSelected: boolean;
+  // Visible-column layout fingerprint; changes on visibility/order/sizing so the memoized row re-renders.
+  columnSignature: string;
 }
 
 export interface SelectionPanelProps {

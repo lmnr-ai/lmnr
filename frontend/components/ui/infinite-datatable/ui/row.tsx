@@ -96,6 +96,7 @@ function areRowPropsEqual<TData extends RowData>(
     prev.focusedRowId === next.focusedRowId &&
     prev.href === next.href &&
     prev.className === next.className &&
+    prev.columnSignature === next.columnSignature &&
     prev.onRowClick === next.onRowClick &&
     prev.onHoveredRowChange === next.onHoveredRowChange
   );
