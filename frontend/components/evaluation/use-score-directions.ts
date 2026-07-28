@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import useSWR from "swr";
 
 import { useProjectContext } from "@/contexts/project-context";
@@ -22,8 +22,9 @@ export interface UseScoreDirections {
 /**
  * Two independent layers:
  *   - Override layer (project-scoped, manual): seeded from ProjectContext so it
- *     is available IMMEDIATELY and is clickable right away. Held in local state
- *     so toggles are optimistic + reactive.
+ *     is available IMMEDIATELY and is clickable right away. Held in SWR's module
+ *     cache (per project) so toggles are optimistic + reactive AND survive hook
+ *     remounts across soft navigation.
  *   - Default layer (app-wide, LLM-inferred): fetched async via SWR; may be
  *     pending while the LLM classifies uncached names. If it resolves behind an
  *     existing override it's a no-op to the user (the override wins) — but the
@@ -34,8 +35,16 @@ export function useScoreDirections(projectId: string, scoreNames: string[]): Use
   const { toast } = useToast();
   const seededOverrides = useProjectContext().project?.settings.scoreDirectionOverrides ?? EMPTY;
 
-  // Local, immediately-available copy of the override layer (LLM-independent).
-  const [overrides, setOverrides] = useState<Record<string, boolean>>(seededOverrides);
+  // Override layer lives in SWR's module cache (not useState) so it survives
+  // hook remounts across soft navigation — ProjectContext is a frozen server
+  // prop that never reflects a write, so re-seeding from it on every remount
+  // dropped prior toggles and let the next full-map PATCH clobber them. Null
+  // fetcher: this is a client-owned store, seeded once from the SSR prop and
+  // written only via `mutateOverrides`. Cache key is per project.
+  const overridesKey = `score-direction-overrides:${projectId}`;
+  const { data: overrides = EMPTY, mutate: mutateOverrides } = useSWR<Record<string, boolean>>(overridesKey, null, {
+    fallbackData: seededOverrides,
+  });
 
   // App-wide LLM default layer — async, no bearing on when the user can toggle.
   const key = useMemo(() => {
@@ -65,12 +74,16 @@ export function useScoreDirections(projectId: string, scoreNames: string[]): Use
   overridesRef.current = overrides; // safety net; setBoth keeps it current in-flight
   const writeChainRef = useRef<Promise<unknown>>(Promise.resolve());
 
-  // Update the ref (synchronous reads) and React state (render) together.
-  const setBoth = useCallback((updater: (cur: Record<string, boolean>) => Record<string, boolean>) => {
-    const next = updater(overridesRef.current);
-    overridesRef.current = next;
-    setOverrides(next);
-  }, []);
+  // Update the ref (synchronous reads) and the SWR cache (render) together.
+  // revalidate:false — there is no fetcher; this only writes the local store.
+  const setBoth = useCallback(
+    (updater: (cur: Record<string, boolean>) => Record<string, boolean>) => {
+      const next = updater(overridesRef.current);
+      overridesRef.current = next;
+      mutateOverrides(next, { revalidate: false });
+    },
+    [mutateOverrides]
+  );
 
   const toggle = useCallback(
     (scoreName: string) => {
