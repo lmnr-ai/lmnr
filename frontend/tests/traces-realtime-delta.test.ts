@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { applyAgentInput, mergeTraceDelta, realtimeTraceToRow } from "@/components/traces/traces-table/realtime";
+import { applyTracePartial, mergeTraceDelta, realtimeTraceToRow } from "@/components/traces/traces-table/realtime";
 import { type RealtimeTracePayload, type SpanType, type TraceRow } from "@/lib/traces/types";
 
 const baseDelta = (overrides: Partial<RealtimeTracePayload> = {}): RealtimeTracePayload => ({
@@ -102,14 +102,19 @@ describe("mergeTraceDelta accumulation", () => {
   });
 });
 
-describe("applyAgentInput", () => {
+describe("applyTracePartial (agentInput fragment)", () => {
   it("sets a string agentInput verbatim", () => {
     const row = realtimeTraceToRow(baseDelta());
-    assert.equal(applyAgentInput(row, "the task").agentInput, "the task");
+    assert.equal(applyTracePartial(row, { agentInput: "the task" }).agentInput, "the task");
   });
 
   it("stringifies a non-string agentInput", () => {
     const row = realtimeTraceToRow(baseDelta());
-    assert.equal(applyAgentInput(row, { role: "user" }).agentInput, JSON.stringify({ role: "user" }));
+    assert.equal(applyTracePartial(row, { agentInput: { role: "user" } }).agentInput, JSON.stringify({ role: "user" }));
+  });
+
+  it("leaves the row untouched for an empty fragment", () => {
+    const row = { ...realtimeTraceToRow(baseDelta()), agentInput: "keep" };
+    assert.equal(applyTracePartial(row, {}).agentInput, "keep");
   });
 });

@@ -70,7 +70,23 @@ export const mergeTraceDelta = (existing: TraceRow, delta: RealtimeTracePayload)
   spanTags: Array.from(new Set([...(existing.spanTags ?? []), ...(delta.tags ?? [])])),
 });
 
-export const applyAgentInput = (existing: TraceRow, agentInput: unknown): TraceRow => ({
+// A trace fragment that can arrive out of order (before the row's trace_update
+// seeds it). Buffered by traceId and merged in when the row appears. Only
+// agentInput today; add fields here as more out-of-order events land.
+export type TracePartial = {
+  agentInput?: unknown;
+};
+
+const applyAgentInput = (existing: TraceRow, agentInput: unknown): TraceRow => ({
   ...existing,
   agentInput: typeof agentInput === "string" ? agentInput : JSON.stringify(agentInput),
 });
+
+// Merge a fragment onto a row. Pure; safe to call on seed or on an existing row.
+export const applyTracePartial = (existing: TraceRow, partial: TracePartial): TraceRow => {
+  let row = existing;
+  if (partial.agentInput !== undefined) {
+    row = applyAgentInput(row, partial.agentInput);
+  }
+  return row;
+};
