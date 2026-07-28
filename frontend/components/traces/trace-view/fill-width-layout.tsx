@@ -1,3 +1,4 @@
+import { motion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
@@ -7,7 +8,10 @@ import { PANELS } from "./panel-layout";
 import { type TraceViewPanels } from "./trace-view-panels";
 
 const DEFAULT_TRACE_FRACTION = 0.6;
-const STACK_THRESHOLD = PANELS.trace.min + PANELS.span.min;
+const STACK_THRESHOLD = 760;
+// Ease the stack collapse (→0); keep resize/expand instant so the panel tracks the cursor 1:1.
+const instant = { duration: 0 } as const;
+const eased = { duration: 0.2, ease: "easeOut" } as const;
 
 /**
  * Trace | span split for the always-open surfaces (eval / playground / dedicated trace page).
@@ -75,11 +79,15 @@ export default function FillWidthLayout({ panels }: { panels: TraceViewPanels })
     <div ref={containerRef} className="relative flex h-full w-full overflow-hidden">
       {/* Trace — always mounted. Inner pinned to min-width when collapsed so its content doesn't
           reflow to zero while the wrapper is clipped to 0. */}
-      <div className="h-full flex-shrink-0 overflow-hidden" style={{ width: traceWidth }}>
+      <motion.div
+        className="h-full flex-shrink-0 overflow-hidden"
+        animate={{ width: traceWidth }}
+        transition={traceWidth === 0 ? eased : instant}
+      >
         <div className="h-full" style={{ width: stacked ? PANELS.trace.min : "100%" }}>
           {panels.tracePanel}
         </div>
-      </div>
+      </motion.div>
 
       {/* Span — flexes to fill whatever the trace leaves (the whole column when stacked). */}
       {panels.showSpan && <div className="h-full min-w-0 flex-1 overflow-hidden">{panels.spanPanel}</div>}

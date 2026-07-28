@@ -31,7 +31,12 @@ import {
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableConfigStore, useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import { type EvalRow, type Evaluation as EvaluationType, type EvaluationResultsInfo } from "@/lib/evaluation/types";
+import {
+  type EvalRow,
+  type Evaluation as EvaluationType,
+  type EvaluationResultsInfo,
+  type LinkedDataset,
+} from "@/lib/evaluation/types";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { swrFetcher } from "@/lib/utils";
 
@@ -42,6 +47,7 @@ interface EvaluationProps {
   evaluationId: string;
   evaluationName: string;
   initialScoreNames: string[];
+  datasets: LinkedDataset[];
 }
 
 const PAGE_SIZE = 50;
@@ -52,7 +58,7 @@ const RESOURCE = "evaluation-v1.1";
 // Default visibility: status + data + score:*.
 const DEFAULT_HIDDEN_COLUMNS = ["index", "target", "metadata", "output", "duration", "cost"];
 
-function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
+function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationProps) {
   const pathName = usePathname();
   const searchParams = useSearchParams();
   const params = useParams<{ projectId: string }>();
@@ -312,7 +318,12 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
 
   return (
     <>
-      <EvaluationHeader name={statsData?.evaluation?.name} urlKey={statsUrl} evaluations={evaluations} />
+      <EvaluationHeader
+        name={statsData?.evaluation?.name}
+        urlKey={statsUrl}
+        evaluations={evaluations}
+        datasets={datasets}
+      />
       <div className="flex-1 flex gap-2 flex-col relative overflow-hidden">
         {/* Left + top padding only: the trace panel must run flush to the right
             and bottom edges when open, so those paddings live on the pieces that

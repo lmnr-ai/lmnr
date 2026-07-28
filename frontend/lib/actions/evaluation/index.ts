@@ -13,12 +13,13 @@ import { getSearchTraceIds } from "@/lib/actions/evaluation/search";
 import { calculateScoreDistribution, calculateScoreStatistics } from "@/lib/actions/evaluation/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle";
-import { evaluations } from "@/lib/db/migrations/schema";
+import { datasets, evaluations } from "@/lib/db/migrations/schema";
 import {
   type Evaluation,
   type EvaluationResultsInfo,
   type EvaluationScoreDistributionBucket,
   type EvaluationScoreStatistics,
+  type LinkedDataset,
 } from "@/lib/evaluation/types.ts";
 
 import { DEFAULT_SEARCH_MAX_HITS } from "../traces/utils";
@@ -95,6 +96,36 @@ export const getEvaluationScoreNames = async ({
     projectId,
   });
   return rows.map((r) => r.name).filter(Boolean);
+};
+
+const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+
+// Distinct non-nil dataset ids on the eval's CH datapoints, named from Postgres.
+export const getEvaluationDatasets = async ({
+  projectId,
+  evaluationId,
+}: {
+  projectId: string;
+  evaluationId: string;
+}): Promise<LinkedDataset[]> => {
+  const rows = await executeQuery<{ dataset_id: string }>({
+    query: `
+      SELECT DISTINCT dataset_id
+      FROM evaluation_datapoints
+      WHERE evaluation_id = {evaluationId:UUID}
+    `,
+    parameters: { evaluationId },
+    projectId,
+  });
+
+  const ids = [...new Set(rows.map((r) => r.dataset_id).filter((id) => id && id !== NIL_UUID))];
+  if (ids.length === 0) return [];
+
+  const found = await db.query.datasets.findMany({
+    where: and(eq(datasets.projectId, projectId), inArray(datasets.id, ids)),
+    columns: { id: true, name: true },
+  });
+  return found.map((d) => ({ id: d.id, name: d.name }));
 };
 
 export const getEvaluationDatapoints = async (

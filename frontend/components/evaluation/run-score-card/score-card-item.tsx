@@ -62,7 +62,7 @@ export default function ScoreCardItem({
   const improved = change !== null && change >= 0;
 
   return (
-    <div className="relative flex min-w-[140px] shrink-0 flex-col gap-1.5 px-2.5 first:pl-0 [&:not(:first-child)]:before:absolute [&:not(:first-child)]:before:bottom-0.5 [&:not(:first-child)]:before:left-0 [&:not(:first-child)]:before:top-0.5 [&:not(:first-child)]:before:w-px [&:not(:first-child)]:before:bg-foreground-600">
+    <div className="relative flex min-w-[140px] shrink-0 flex-col gap-1.5 px-2.5 border-l border-l-foreground-600">
       <span className="truncate text-xs font-medium text-muted-foreground" title={name}>
         {name}
       </span>
