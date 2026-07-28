@@ -124,6 +124,7 @@ export async function getSessionTraces(input: z.infer<typeof GetSessionTracesSch
         formatDateTime(max(start_time), '%Y-%m-%dT%H:%i:%S.%fZ') as maxStart
       FROM traces
       WHERE session_id = {sessionId: String}
+        AND trace_type = 'DEFAULT'
     `,
     parameters: { sessionId },
     projectId,
@@ -143,6 +144,7 @@ export async function getSessionTraces(input: z.infer<typeof GetSessionTracesSch
       SELECT ${sessionTracesSelectColumns.join(", ")}
       FROM traces
       WHERE session_id = {sessionId: String}
+        AND trace_type = 'DEFAULT'
         AND start_time >= {startTime: String}
         AND start_time <= {endTime: String}
       ORDER BY start_time ASC
