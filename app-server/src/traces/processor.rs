@@ -165,24 +165,47 @@ fn collect_agent_io_rows(
 
 /// Build `traces_static` writes for the extracted agent io (LAM-2026). Output
 /// hashes are concatenated hex (64 chars each) because the column can't be a
-/// `Nullable(Array(...))` — see `ch::traces_static`. `updated_at` uses the
-/// winning span's end time when known (clamped to `now_ns`, as `DateTime64(9)`
-/// can't hold the `i64::MAX` unknown-time sentinel). It is informational only:
-/// the table is unpartitioned, so this disagreeing with the aggregation write's
-/// `start_time` does not affect how the two writes merge.
-fn collect_static_agent_io_rows(io: &[RawTraceIo], now_ns: i64) -> Vec<CHTraceStatic> {
+/// `Nullable(Array(...))` — see `ch::traces_static`.
+///
+/// `start_time` is the partition key, so it MUST be the trace's start time and
+/// must agree with the aggregation writes' value or this row lands in a
+/// different partition and disappears from `start_time`-bounded reads. It's
+/// resolved from `traces` (the PG-merged rows in this flush) when the same
+/// flush also aggregated the trace; otherwise the trace's row isn't in hand
+/// here and we fall back to `now_ns`. That fallback is only correct while the
+/// trace started in the current partition period — an io write for a trace that
+/// started in a previous month lands one partition late, which `SELECT ... FINAL`
+/// still coalesces but a tight `start_time` filter can clip. Acceptable because
+/// io extraction runs seconds after ingest; revisit if that ever becomes async
+/// enough to cross a month boundary.
+fn collect_static_agent_io_rows(
+    io: &[RawTraceIo],
+    traces: &[Trace],
+    now_ns: i64,
+) -> Vec<CHTraceStatic> {
+    let start_time_by_trace: HashMap<(Uuid, Uuid), i64> = traces
+        .iter()
+        .filter_map(|t| {
+            t.start_time()
+                .map(|st| ((t.project_id(), t.id()), chrono_to_nanoseconds(st)))
+        })
+        .collect();
     io.iter()
         .filter_map(|entry| {
             let output_hashes = entry
                 .output_hashes
                 .as_ref()
                 .map(|hashes| hashes.iter().map(hex::encode).collect::<String>());
+            let start_time = start_time_by_trace
+                .get(&(entry.project_id, entry.trace_id))
+                .copied()
+                .unwrap_or(now_ns);
             CHTraceStatic::from_agent_io(
                 entry.project_id,
                 entry.trace_id,
                 entry.input.as_ref().map(Value::to_string),
                 output_hashes,
-                entry.output_end_time_ns.unwrap_or(now_ns).min(now_ns),
+                start_time,
             )
         })
         .collect()
@@ -725,12 +748,28 @@ pub async fn process_span_messages(
             // `updated_traces` already unions aggregation + patched rows.
             // `updated_traces` is empty when the aggregation upsert failed and
             // there were no patches, which preserves the old `aggregation_ok`
-            // gating. The agent-io writes below have no PG counterpart.
+            // gating.
+            //
+            // The batch's own aggregation is passed alongside so the root-span
+            // NAME can be split by provenance (real root vs path-derived
+            // preview) — only the batch knows which it saw. A patch-only trace
+            // has no aggregation and writes no root columns.
+            let agg_by_trace: HashMap<(Uuid, Uuid), &TraceAggregation> = trace_aggregations
+                .iter()
+                .map(|agg| ((agg.project_id, agg.trace_id), agg))
+                .collect();
             let mut traces_static_rows: Vec<CHTraceStatic> = updated_traces
                 .iter()
-                .filter_map(|trace| CHTraceStatic::from_trace(trace, now_ns))
+                .filter_map(|trace| {
+                    let agg = agg_by_trace.get(&(trace.project_id(), trace.id())).copied();
+                    CHTraceStatic::from_trace(trace, agg, now_ns)
+                })
                 .collect();
-            traces_static_rows.extend(collect_static_agent_io_rows(&raw_trace_io, now_ns));
+            traces_static_rows.extend(collect_static_agent_io_rows(
+                &raw_trace_io,
+                &updated_traces,
+                now_ns,
+            ));
             if !traces_static_rows.is_empty()
                 && let Err(e) = ch.insert_batch(&traces_static_rows, config).await
             {
