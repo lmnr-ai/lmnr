@@ -3,9 +3,11 @@ use std::sync::Arc;
 use anyhow::{Context, anyhow};
 use serde_json;
 
+use uuid::Uuid;
+
 use crate::{
     ch::signal_events::CHSignalEvent,
-    mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
+    mq::{MessageQueue, MessageQueueTrait, stream, utils::mq_max_payload},
     quickwit::{
         IndexerQueuePayload, QuickwitIndexedSignalEvent, SPANS_INDEXER_EXCHANGE,
         SPANS_INDEXER_ROUTING_KEY,
@@ -27,6 +29,22 @@ pub async fn publish_for_indexing(
             payload_size,
             max_payload
         ));
+    }
+
+    // Indexing has no ordering requirement, so the partition key only spreads
+    // load — a fresh key per payload is what we want. Keying on the payload's
+    // index id would pin every span document to a single partition.
+    if let Some(publisher) = stream::spans_indexer_publisher() {
+        let key = Uuid::now_v7().to_string();
+        match publisher.publish(payload, &key).await {
+            Ok(()) => return Ok(()),
+            Err(e) => {
+                log::error!(
+                    "Stream publish to Quickwit indexer failed, falling back to queue: {:?}",
+                    e
+                );
+            }
+        }
     }
 
     queue

@@ -27,7 +27,7 @@ use crate::{
     cache::Cache,
     data_plane::get_workspace_deployment,
     db::{DB, spans::Span, workspaces::DeploymentMode},
-    mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
+    mq::{MessageQueue, MessageQueueTrait, stream, utils::mq_max_payload},
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::{
         ExportTracePartialSuccess, ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
@@ -196,14 +196,44 @@ pub async fn publish_span_messages(
 
     match workspace_deployment.mode {
         DeploymentMode::CLOUD => {
-            queue
-                .publish(
-                    &mq_message,
-                    OBSERVATIONS_EXCHANGE,
-                    OBSERVATIONS_ROUTING_KEY,
-                    None,
-                )
-                .await?;
+            // Streams when configured, else the quorum queue. Routing key is the
+            // FIRST span's trace_id: a batch from one export call is
+            // overwhelmingly single-trace, and keeping the whole batch on one
+            // partition preserves the single-writer property for the PG trace
+            // upsert. Splitting per-trace would multiply small records for no
+            // gain.
+            let stream_published = match stream::observations_publisher() {
+                Some(publisher) => {
+                    let key = messages
+                        .first()
+                        .map(|m| m.span.trace_id.to_string())
+                        .unwrap_or_default();
+                    match publisher.publish(&messages, &key).await {
+                        Ok(()) => true,
+                        Err(e) => {
+                            // Fall back rather than drop: the queue path is still
+                            // running during the transition.
+                            log::error!(
+                                "[SPANS] Stream publish failed, falling back to queue: {:?}",
+                                e
+                            );
+                            false
+                        }
+                    }
+                }
+                None => false,
+            };
+
+            if !stream_published {
+                queue
+                    .publish(
+                        &mq_message,
+                        OBSERVATIONS_EXCHANGE,
+                        OBSERVATIONS_ROUTING_KEY,
+                        None,
+                    )
+                    .await?;
+            }
         }
         DeploymentMode::HYBRID => {
             queue
