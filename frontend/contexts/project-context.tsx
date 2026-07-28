@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, type PropsWithChildren, use, useCallback, useMemo } from "react";
+import { createContext, type PropsWithChildren, use, useCallback, useEffect, useMemo } from "react";
 import useSWR, { type KeyedMutator } from "swr";
 
 import { type ProjectDetails } from "@/lib/actions/project";
@@ -62,6 +62,15 @@ export const ProjectContextProvider = ({
   const { data: project, mutate: mutateProject } = useSWR<ProjectDetails | undefined>(projectKey, null, {
     fallbackData: initialProject,
   });
+
+  // `fallbackData` sets returned `data` but not the writable cache, so `mutateProject((cur)=>...)`
+  // gets `cur === undefined` and no-ops. Seed the cache once per key so optimistic writers work.
+  useEffect(() => {
+    if (projectKey && initialProject) {
+      mutateProject(initialProject, { revalidate: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectKey]);
 
   const settingsHref = useCallback(
     (section?: SettingsSection) =>
