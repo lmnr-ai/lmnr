@@ -12,6 +12,12 @@
 //! `seen_error` is a set-once flag, so two batches for the same trace can't
 //! clobber each other. A single JSON object would need a read-modify-write and
 //! would race.
+//!
+//! For the same reason the token total is only ever mutated via `increment` —
+//! never `insert`, which is a plain Redis `SET` (no `NX`) and would let one
+//! worker overwrite a delta another had already added. Two consumers flushing
+//! different batches of the same trace concurrently is normal, so every write
+//! on this path has to commute.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -80,25 +86,54 @@ pub async fn update_and_read(
             .await
             .unwrap_or(None)
             .unwrap_or(false);
-        let tokens_known = cache.exists(&tokens_key).await.unwrap_or(false);
 
+        // Increment FIRST, and detect the miss from the result rather than a
+        // prior `exists` + `insert`. INCRBY is atomic and creates the key at 0,
+        // so two workers flushing different batches of the same new trace both
+        // land their delta — whereas seeding with `insert` (a plain Redis SET,
+        // no NX) would let one worker overwrite a value the other had already
+        // incremented, corrupting the running total until the key expired.
+        //
+        // A returned total equal to this batch's own delta means the key was
+        // absent (or had expired), so the prior total still has to be recovered
+        // from `traces_agg` — see the seed below. Ambiguity is harmless: a trace
+        // whose first batch genuinely is the whole total re-adds the same number
+        // it already has.
+        let batch_total = match cache.increment(&tokens_key, agg.total_tokens).await {
+            Ok(total) => Some(total),
+            Err(e) => {
+                log::warn!(
+                    "Failed to update trace token state for {}; falling back to this \
+                     batch's delta: {:?}",
+                    agg.trace_id,
+                    e
+                );
+                None
+            }
+        };
+        let tokens_known = batch_total.is_some_and(|total| total != agg.total_tokens);
+
+        // `seen_error == false` is ambiguous (never errored vs. latch expired),
+        // so the read-back resolves it. Cheap: it only runs while the trace is
+        // clean, and stops once an error is latched.
+        let mut total_tokens = batch_total.unwrap_or(agg.total_tokens);
         if !tokens_known || !seen_error {
-            // `seen_error == false` is ambiguous (never errored vs. latch
-            // expired), so the read-back resolves it. Cheap: it only runs while
-            // the trace is clean, and stops once an error is latched.
             if let Some(seed) = read_back(clickhouse, agg.project_id, agg.trace_id).await {
                 if !tokens_known {
-                    // Seed the PRIOR total only — this batch's delta is added by
-                    // the increment below, and `traces_agg` already contains this
-                    // batch's partial (inserted earlier in the same flush), so
-                    // subtract it back out to avoid double-counting.
-                    let prior = (seed.total_tokens - agg.total_tokens).max(0);
-                    if let Err(e) = cache.insert_with_ttl(&tokens_key, prior, TTL_SECONDS).await {
-                        log::warn!(
-                            "Failed to seed trace token state for {}: {:?}",
-                            agg.trace_id,
-                            e
-                        );
+                    // `traces_agg` already holds this batch's partial (inserted
+                    // earlier in the same flush), so its total IS the cumulative
+                    // one — add back only what the cache is missing. `increment`
+                    // (not `insert`) so a concurrent worker's delta survives.
+                    let missing = seed.total_tokens - total_tokens;
+                    if missing > 0 {
+                        match cache.increment(&tokens_key, missing).await {
+                            Ok(total) => total_tokens = total,
+                            Err(e) => log::warn!(
+                                "Failed to seed trace token state for {}: {:?}",
+                                agg.trace_id,
+                                e
+                            ),
+                        }
                     }
                 }
                 seen_error |= seed.seen_error;
@@ -108,19 +143,6 @@ pub async fn update_and_read(
         // This batch's own error latches too — `traces_agg` may not have merged
         // the partial into a readable `statuses` array yet.
         seen_error |= agg.status.as_deref() == Some("error");
-
-        let total_tokens = match cache.increment(&tokens_key, agg.total_tokens).await {
-            Ok(total) => total,
-            Err(e) => {
-                log::warn!(
-                    "Failed to update trace token state for {}; falling back to this \
-                     batch's delta: {:?}",
-                    agg.trace_id,
-                    e
-                );
-                agg.total_tokens
-            }
-        };
 
         // Re-stamp BOTH keys every batch, so their windows can never diverge.
         // INCRBY above creates the tokens key without a TTL; the error key is
@@ -249,6 +271,37 @@ mod tests {
                  so its TTL tracks the tokens key"
             );
         }
+    }
+
+    /// Sequential batches of a NEW trace must both land their delta, which is
+    /// the observable half of the concurrency contract: the total is only ever
+    /// mutated with `increment` (atomic INCRBY under Redis, and commutative),
+    /// never `insert`.
+    ///
+    /// NOTE: this cannot pin the true concurrent race. `InMemoryCache::increment`
+    /// is documented as non-atomic (get-then-set), and `tokio::join!` polls on
+    /// one thread, so two overlapping `update_and_read` calls never interleave
+    /// mid-increment here. Catching a lost delta needs a Redis-backed
+    /// integration test; what this guards is that neither the fold nor the seed
+    /// path ever overwrites the key with a computed absolute value.
+    #[tokio::test]
+    async fn every_batch_of_a_new_trace_adds_to_the_total() {
+        let cache = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+        let ch = clickhouse::Client::default().with_url("http://127.0.0.1:1");
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+
+        let a = update_and_read(&[agg(pid, tid, 300, None)], cache.clone(), &ch).await;
+        assert_eq!(a[&tid].total_tokens, 300);
+
+        let b = update_and_read(&[agg(pid, tid, 700, None)], cache.clone(), &ch).await;
+        assert_eq!(
+            b[&tid].total_tokens, 1000,
+            "the second batch must add to the first, not replace it"
+        );
+
+        let c = update_and_read(&[agg(pid, tid, 1, None)], cache.clone(), &ch).await;
+        assert_eq!(c[&tid].total_tokens, 1001);
     }
 
     /// A latch lost to eviction is recovered from `traces_agg` — the read-back
