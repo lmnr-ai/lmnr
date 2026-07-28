@@ -48,7 +48,7 @@ export default function SessionViewContent({ sessionId }: SessionViewContentProp
         setIsTracesLoading(true);
         setTracesError(undefined);
 
-        const encodedSessionId = sessionId.split("/").map(encodeURIComponent).join("/");
+        const encodedSessionId = encodeURIComponent(sessionId);
         const res = await fetch(`/api/projects/${projectId}/sessions/${encodedSessionId}/traces`, {
           signal: controller.signal,
         });

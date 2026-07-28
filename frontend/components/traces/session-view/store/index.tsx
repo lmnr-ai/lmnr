@@ -76,7 +76,8 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
             params.append("searchIn", "output");
             for (const f of filters) params.append("filter", JSON.stringify(f));
 
-            const url = `/api/projects/${projectId}/sessions/${session.sessionId}/spans?${params.toString()}`;
+            const encodedSessionId = encodeURIComponent(session.sessionId);
+            const url = `/api/projects/${projectId}/sessions/${encodedSessionId}/spans?${params.toString()}`;
             const res = await fetch(url);
             if (!res.ok) {
               const err = (await res.json().catch(() => ({ error: "Unknown error" }))) as { error?: string };
