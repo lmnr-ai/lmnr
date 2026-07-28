@@ -80,20 +80,20 @@ pub async fn update_and_read(
         let tokens_key = total_tokens_key(agg.project_id, agg.trace_id);
         let error_key = seen_error_key(agg.project_id, agg.trace_id);
 
-        // Read the error flag BEFORE deciding whether to re-seed. The two keys
-        // must share one lifetime: the tokens key is re-stamped on every batch
-        // (INCRBY drops the TTL), but the error key is only rewritten by a
-        // batch that itself errored — so a long-lived trace could keep a warm
-        // tokens key while the error latch silently expired, and later clean
-        // batches would see the trace as never having errored. Treating a miss
-        // on EITHER key as "state unknown" re-seeds both from `traces_agg`, and
-        // the unconditional `set_ttl` pair below keeps their windows aligned
-        // from then on.
-        let mut seen_error = cache
-            .get::<bool>(&error_key)
-            .await
-            .unwrap_or(None)
-            .unwrap_or(false);
+        // Read the error flag BEFORE deciding whether to re-seed. `false` is
+        // PERSISTED, not just implied by a missing key: the flag has to be
+        // tri-state (known-errored / known-clean / unknown) or "clean" is
+        // indistinguishable from "expired", and since most traces never error
+        // that would fire a ClickHouse read-back on every batch of every trace
+        // — one round-trip per aggregation on the hot ingest path.
+        //
+        // Both keys are also re-stamped every batch (below) so their TTL
+        // windows can't drift: the tokens key loses its TTL to INCRBY, and if
+        // the latch were left to age out on its own a long-lived trace could
+        // keep a warm tokens key while the latch expired, making later clean
+        // batches see a trace that had never errored.
+        let cached_error = cache.get::<bool>(&error_key).await.unwrap_or(None);
+        let mut seen_error = cached_error.unwrap_or(false);
 
         // Increment FIRST, and detect the miss from the result rather than a
         // prior `exists` + `insert`. INCRBY is atomic and creates the key at 0,
@@ -121,11 +121,12 @@ pub async fn update_and_read(
         };
         let tokens_known = batch_total.is_some_and(|total| total != agg.total_tokens);
 
-        // `seen_error == false` is ambiguous (never errored vs. latch expired),
-        // so the read-back resolves it. Cheap: it only runs while the trace is
-        // clean, and stops once an error is latched.
+        // Re-seed only when a key is genuinely ABSENT (`cached_error.is_none()`,
+        // not `!seen_error`) — a persisted `false` is a known-clean answer and
+        // must not trigger a read-back, or every batch of every clean trace
+        // would hit ClickHouse.
         let mut total_tokens = batch_total.unwrap_or(agg.total_tokens);
-        if !tokens_known || !seen_error {
+        if !tokens_known || cached_error.is_none() {
             if let Some(seed) = read_back(clickhouse, agg.project_id, agg.trace_id).await {
                 if !tokens_known {
                     // `traces_agg` already holds this batch's partial (inserted
@@ -185,14 +186,16 @@ pub async fn update_and_read(
         };
 
         // Re-stamp BOTH keys every batch, so their windows can never diverge.
-        // INCRBY above creates the tokens key without a TTL; the error key is
-        // rewritten (rather than just extended) because a `false` latch is not
-        // persisted at all — only a `true` one is worth a key.
+        // INCRBY above creates the tokens key without a TTL, and the error key
+        // is written with its resolved value — INCLUDING `false`, which is what
+        // makes "known clean" distinguishable from "expired" and keeps clean
+        // traces off the read-back path.
         if let Err(e) = cache.set_ttl(&tokens_key, TTL_SECONDS).await {
             log::warn!("Failed to set TTL on {}: {:?}", tokens_key, e);
         }
-        if seen_error
-            && let Err(e) = cache.insert_with_ttl(&error_key, true, TTL_SECONDS).await
+        if let Err(e) = cache
+            .insert_with_ttl(&error_key, seen_error, TTL_SECONDS)
+            .await
         {
             log::warn!(
                 "Failed to record trace error state for {}: {:?}",
@@ -440,6 +443,45 @@ mod tests {
         )
         .await;
         assert_eq!(later[&tid].user_id.as_deref(), Some("user-7"));
+    }
+
+    /// A clean trace must stop hitting ClickHouse after its first batch.
+    ///
+    /// `seen_error == false` is PERSISTED, so "known clean" is distinguishable
+    /// from "key absent". Gating the re-seed on `!seen_error` instead would make
+    /// every batch of every non-errored trace do a read-back — one ClickHouse
+    /// round-trip per aggregation on the hot ingest path, which is the opposite
+    /// of what this cache exists for.
+    ///
+    /// Asserted by pointing the client at a closed port and counting how many
+    /// batches observe a failed read-back: only the first should try.
+    #[tokio::test]
+    async fn clean_traces_stop_reading_back_after_the_first_batch() {
+        let cache = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+        let ch = clickhouse::Client::default().with_url("http://127.0.0.1:1");
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+
+        // First batch: keys absent, so a read-back is expected and it persists
+        // `false` for the latch.
+        update_and_read(&[agg(pid, tid, 10, None)], cache.clone(), &ch).await;
+        assert_eq!(
+            cache.get::<bool>(&seen_error_key(pid, tid)).await.unwrap(),
+            Some(false),
+            "a clean batch must persist `false`, not leave the key absent"
+        );
+
+        // Subsequent clean batches must be answered entirely from cache. If the
+        // gate regressed to `!seen_error` these would each re-read ClickHouse.
+        for i in 0..3 {
+            let s = update_and_read(&[agg(pid, tid, 5, None)], cache.clone(), &ch).await;
+            assert!(!s[&tid].seen_error);
+            assert_eq!(s[&tid].total_tokens, 15 + i * 5);
+            assert_eq!(
+                cache.get::<bool>(&seen_error_key(pid, tid)).await.unwrap(),
+                Some(false)
+            );
+        }
     }
 
     /// A latch lost to eviction is recovered from `traces_agg` — the read-back
