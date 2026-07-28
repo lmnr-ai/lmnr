@@ -17,6 +17,7 @@ use crate::{
         trace_agent_io::{CHTraceAgentInput, CHTraceAgentOutput},
         traces::{CHTrace, TraceAggregation},
         traces_agg::CHTraceAgg,
+        traces_static::CHTraceStatic,
         utils::chrono_to_nanoseconds,
     },
     db::{
@@ -160,6 +161,30 @@ fn collect_agent_io_rows(
         }
     }
     (inputs, outputs)
+}
+
+/// Build `traces_static` writes for the extracted agent io (LAM-2026). Output
+/// hashes are concatenated hex (64 chars each) because the column can't be a
+/// `Nullable(Array(...))` — see `ch::traces_static`. `updated_at` uses the
+/// winning span's end time when known (clamped to `now_ns`, as `DateTime64(9)`
+/// can't hold the `i64::MAX` unknown-time sentinel); it is informational here,
+/// not a version.
+fn collect_static_agent_io_rows(io: &[RawTraceIo], now_ns: i64) -> Vec<CHTraceStatic> {
+    io.iter()
+        .filter_map(|entry| {
+            let output_hashes = entry
+                .output_hashes
+                .as_ref()
+                .map(|hashes| hashes.iter().map(hex::encode).collect::<String>());
+            CHTraceStatic::from_agent_io(
+                entry.project_id,
+                entry.trace_id,
+                entry.input.as_ref().map(Value::to_string),
+                output_hashes,
+                entry.output_end_time_ns.unwrap_or(now_ns).min(now_ns),
+            )
+        })
+        .collect()
 }
 
 #[instrument(skip(
@@ -680,6 +705,32 @@ pub async fn process_span_messages(
                         e
                     );
                 }
+            }
+
+            // Write the static (set-once, latest-wins) columns to
+            // `traces_static` (LAM-2026, phase 1: write only — no reader yet).
+            // `CoalescingMergeTree` resolves each column independently, so a
+            // batch writes only what it learned; batches that learned nothing
+            // static produce no row. Aggregate partials are gated on
+            // `aggregation_ok` for the same reason as `traces_agg`, while the
+            // agent-io writes have no PG counterpart to gate on.
+            let mut traces_static_rows: Vec<CHTraceStatic> = Vec::new();
+            if aggregation_ok {
+                traces_static_rows.extend(
+                    trace_aggregations
+                        .iter()
+                        .filter_map(|agg| CHTraceStatic::from_aggregation(agg, now_ns)),
+                );
+            }
+            traces_static_rows.extend(collect_static_agent_io_rows(&raw_trace_io, now_ns));
+            if !traces_static_rows.is_empty()
+                && let Err(e) = ch.insert_batch(&traces_static_rows, config).await
+            {
+                log::error!(
+                    "Failed to insert {} traces_static rows to ClickHouse: {:?}",
+                    traces_static_rows.len(),
+                    e
+                );
             }
 
             // Extracted agent input/output: store the RAW value directly in

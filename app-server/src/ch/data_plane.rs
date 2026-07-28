@@ -20,6 +20,7 @@ use super::spans::CHSpan;
 use super::trace_agent_io::{CHTraceAgentInput, CHTraceAgentOutput};
 use super::traces::CHTrace;
 use super::traces_agg::CHTraceAgg;
+use super::traces_static::CHTraceStatic;
 use super::{ClickhouseInsertable, ClickhouseTrait};
 
 /// Batched data for data plane write requests.
@@ -30,6 +31,7 @@ pub enum DataPlaneBatch {
     Spans(Vec<CHSpan>),
     Traces(Vec<CHTrace>),
     TracesAgg(Vec<CHTraceAgg>),
+    TracesStatic(Vec<CHTraceStatic>),
     TraceAgentInput(Vec<CHTraceAgentInput>),
     TraceAgentOutput(Vec<CHTraceAgentOutput>),
     NotificationDeliveries(Vec<CHNotificationDelivery>),

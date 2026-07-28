@@ -104,6 +104,7 @@ async function deleteProjectDataFromClickHouse(
     "default.spans",
     "default.traces_replacing",
     "default.traces_agg",
+    "default.traces_static",
     "default.trace_agent_input",
     "default.trace_agent_output",
     "default.trace_tags",
