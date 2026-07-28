@@ -9,6 +9,11 @@ use rabbitmq_stream_client::{
 
 use crate::env;
 
+/// Floor for the dead-letter stream's replica count. It's the only copy of
+/// anything the reader skips, and it's tiny — so it never follows an RF=1 setting
+/// chosen to win disk capacity on the multi-GB data streams.
+const DEAD_LETTER_MIN_REPLICAS: usize = 2;
+
 /// Shared connection factory for publishers and readers. Cheap to clone; the
 /// client opens its own connections per producer/consumer underneath.
 #[derive(Clone)]
@@ -87,9 +92,10 @@ impl StreamTopology {
         match result {
             Ok(()) => {
                 log::info!(
-                    "Created super stream '{}' with {} partitions (max_length={}B, max_age={}s, segment={}B)",
+                    "Created super stream '{}' with {} partitions, initial-cluster-size={} (max_length={}B, max_age={}s, segment={}B)",
                     super_stream,
                     self.partitions,
+                    self.replication_factor,
                     self.max_length_bytes,
                     self.max_age.as_secs(),
                     self.max_segment_size_bytes,
@@ -114,19 +120,35 @@ impl StreamTopology {
     ///
     /// Retention comes from the same env knobs, which is generous for a poison
     /// sink but keeps one source of truth; a dedicated policy can shrink it.
+    ///
+    /// Replication is set explicitly rather than left to the broker default so it
+    /// tracks `RABBITMQ_STREAM_REPLICATION_FACTOR` like the data streams — but
+    /// floored at 2. The sink is the ONLY surviving copy of every record the
+    /// reader skips (offsets don't advance until the copy lands), and it's
+    /// kilobytes, so the disk-capacity argument that justifies RF=1 for the data
+    /// streams doesn't apply here.
     pub async fn declare_plain(&self, environment: &StreamEnvironment, stream: &str) -> Result<()> {
-        let result = environment
+        let mut creator = environment
             .inner()
             .stream_creator()
             .max_length(ByteCapacity::B(self.max_length_bytes))
             .max_age(self.max_age)
-            .max_segment_size(ByteCapacity::B(self.max_segment_size_bytes))
-            .create(stream)
-            .await;
+            .max_segment_size(ByteCapacity::B(self.max_segment_size_bytes));
+
+        let replicas = self.replication_factor.max(DEAD_LETTER_MIN_REPLICAS);
+        creator
+            .options
+            .insert("initial-cluster-size".to_owned(), replicas.to_string());
+
+        let result = creator.create(stream).await;
 
         match result {
             Ok(()) => {
-                log::info!("Created stream '{}'", stream);
+                log::info!(
+                    "Created stream '{}' with initial-cluster-size={}",
+                    stream,
+                    replicas
+                );
                 Ok(())
             }
             Err(StreamCreateError::Create {
@@ -165,6 +187,23 @@ mod tests {
             std::env::remove_var("RABBITMQ_STREAM_HOST");
             std::env::remove_var("RABBITMQ_STREAM_PORT");
         }
+    }
+
+    /// The dead-letter stream must honour the configured RF like the data streams
+    /// (leaving it unset silently pins it to the broker's all-nodes default), but
+    /// never drop to a single replica: it's the only copy of anything the reader
+    /// skips, and it's kilobytes, so the disk-capacity trade behind RF=1 doesn't
+    /// apply to it.
+    #[test]
+    fn dead_letter_replicas_track_config_with_a_floor() {
+        fn replicas(configured: usize) -> usize {
+            configured.max(DEAD_LETTER_MIN_REPLICAS)
+        }
+
+        assert_eq!(replicas(1), 2, "RF=1 must be floored for the poison sink");
+        assert_eq!(replicas(2), 2);
+        assert_eq!(replicas(3), 3, "a higher configured RF is honoured");
+        assert_eq!(replicas(5), 5);
     }
 
     #[test]
