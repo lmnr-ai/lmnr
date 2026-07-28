@@ -154,10 +154,22 @@ pub async fn update_and_read(
         // `!seen_error`): a persisted `false` is a known-clean answer, and since
         // most traces never error, gating on the value would put a ClickHouse
         // round-trip on every batch of nearly every trace.
-        if cached_error.is_none()
-            && let Some(errored) = read_back(clickhouse, agg.project_id, agg.trace_id).await
-        {
-            seen_error |= errored;
+        //
+        // Whether the read-back ANSWERED is tracked separately: a `None` is a
+        // ClickHouse failure (or a trace with no rows yet), not evidence the
+        // trace is clean. Persisting "known clean" on that basis would poison
+        // the key — later batches see `Some(0)`, skip the read-back for the rest
+        // of the TTL, and a prior error stays forgotten even once ClickHouse
+        // recovers.
+        let mut latch_is_known = cached_error.is_some();
+        if cached_error.is_none() {
+            match read_back(clickhouse, agg.project_id, agg.trace_id).await {
+                Some(errored) => {
+                    seen_error |= errored;
+                    latch_is_known = true;
+                }
+                None => latch_is_known = false,
+            }
         }
 
         // This batch's own error latches too — `traces_agg` may not have merged
@@ -223,20 +235,31 @@ pub async fn update_and_read(
         // read-back path) without ever being able to lower it. Deliberately
         // driven by `seen_error` rather than only this batch's own status, so a
         // latch recovered from the read-back is re-persisted too.
+        //
+        // The ZERO-bump is skipped when the latch state is still UNKNOWN — the
+        // key was absent AND the read-back failed. Creating the key at 0 there
+        // would assert "known clean" on no evidence, and later batches would
+        // then skip the read-back for the rest of the TTL, forgetting a prior
+        // error even after ClickHouse recovers. Leaving the key absent costs one
+        // retried read-back on the next batch; a `1` still writes unconditionally
+        // (this batch's own error is first-hand evidence, and raising the latch
+        // is always safe).
         if let Err(e) = cache.set_ttl(&tokens_key, TTL_SECONDS).await {
             log::warn!("Failed to set TTL on {}: {:?}", tokens_key, e);
         }
-        match cache.increment(&error_key, i64::from(seen_error)).await {
-            Ok(_) => {
-                if let Err(e) = cache.set_ttl(&error_key, TTL_SECONDS).await {
-                    log::warn!("Failed to set TTL on {}: {:?}", error_key, e);
+        if seen_error || latch_is_known {
+            match cache.increment(&error_key, i64::from(seen_error)).await {
+                Ok(_) => {
+                    if let Err(e) = cache.set_ttl(&error_key, TTL_SECONDS).await {
+                        log::warn!("Failed to set TTL on {}: {:?}", error_key, e);
+                    }
                 }
+                Err(e) => log::warn!(
+                    "Failed to record trace error state for {}: {:?}",
+                    agg.trace_id,
+                    e
+                ),
             }
-            Err(e) => log::warn!(
-                "Failed to record trace error state for {}: {:?}",
-                agg.trace_id,
-                e
-            ),
         }
 
         // `trace_type` is FIRST-NON-ZERO across batches, mirroring the PG
@@ -522,44 +545,80 @@ mod tests {
         assert_eq!(later[&tid].user_id.as_deref(), Some("user-7"));
     }
 
-    /// A clean trace must stop hitting ClickHouse after its first batch.
+    /// A clean trace must stop hitting ClickHouse once its latch is KNOWN.
     ///
-    /// `seen_error == false` is PERSISTED, so "known clean" is distinguishable
-    /// from "key absent". Gating the re-seed on `!seen_error` instead would make
-    /// every batch of every non-errored trace do a read-back — one ClickHouse
-    /// round-trip per aggregation on the hot ingest path, which is the opposite
-    /// of what this cache exists for.
+    /// `seen_error == false` is persisted (as counter 0) so "known clean" is
+    /// distinguishable from "key absent". Gating the re-read on `!seen_error`
+    /// instead would make every batch of every non-errored trace do a read-back
+    /// — one ClickHouse round-trip per aggregation on the hot ingest path.
     ///
-    /// Asserted by pointing the client at a closed port and counting how many
-    /// batches observe a failed read-back: only the first should try.
+    /// The latch is seeded here by an ERRORED batch (which needs no read-back to
+    /// know its own status), so the test doesn't depend on a reachable
+    /// ClickHouse; see `an_unresolved_latch_is_not_persisted_as_clean` for the
+    /// unreachable case.
     #[tokio::test]
-    async fn clean_traces_stop_reading_back_after_the_first_batch() {
+    async fn a_known_latch_keeps_clean_batches_off_the_read_back_path() {
         let cache = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
         let ch = clickhouse::Client::default().with_url("http://127.0.0.1:1");
         let pid = Uuid::new_v4();
         let tid = Uuid::new_v4();
 
-        // First batch: keys absent, so a read-back is expected and it persists
-        // a zero counter for the latch.
-        update_and_read(&[agg(pid, tid, 10, None)], cache.clone(), &ch).await;
-        assert_eq!(
-            cache.get::<i64>(&seen_error_key(pid, tid)).await.unwrap(),
-            Some(0),
-            "a clean batch must persist 0, not leave the key absent"
-        );
+        // Seed a known latch without needing ClickHouse.
+        cache
+            .insert_with_ttl(&seen_error_key(pid, tid), 0i64, TTL_SECONDS)
+            .await
+            .unwrap();
 
-        // Subsequent clean batches must be answered entirely from cache. If the
-        // gate regressed to `!seen_error` these would each re-read ClickHouse.
+        // Clean batches are answered entirely from cache and keep the counter at
+        // 0. If the gate regressed to `!seen_error` these would each re-read CH.
         for i in 0..3 {
             let s = update_and_read(&[agg(pid, tid, 5, None)], cache.clone(), &ch).await;
             assert!(!s[&tid].seen_error);
-            assert_eq!(s[&tid].total_tokens, 15 + i * 5);
+            assert_eq!(s[&tid].total_tokens, 5 + i * 5);
             assert_eq!(
                 cache.get::<i64>(&seen_error_key(pid, tid)).await.unwrap(),
                 Some(0),
                 "clean batches must keep the latch counter at 0"
             );
         }
+    }
+
+    /// A failed read-back must NOT be recorded as "known clean".
+    ///
+    /// With the key absent and ClickHouse unreachable, the latch state is
+    /// genuinely unknown. Creating the key at 0 there asserts cleanliness on no
+    /// evidence — and because the read-back is gated on the key being ABSENT,
+    /// every later batch would then skip it for the rest of the TTL, forgetting
+    /// a prior error even after ClickHouse recovers. Leaving the key absent costs
+    /// one retried read-back on the next batch.
+    #[tokio::test]
+    async fn an_unresolved_latch_is_not_persisted_as_clean() {
+        let cache = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+        let ch = clickhouse::Client::default().with_url("http://127.0.0.1:1");
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+
+        let s = update_and_read(&[agg(pid, tid, 10, None)], cache.clone(), &ch).await;
+        assert!(!s[&tid].seen_error, "degrades to clean for THIS batch");
+        assert_eq!(
+            cache.get::<i64>(&seen_error_key(pid, tid)).await.unwrap(),
+            None,
+            "an unresolved latch must stay absent so the read-back is retried"
+        );
+
+        // An errored batch still writes unconditionally — its own status is
+        // first-hand evidence and raising the latch is always safe.
+        let errored =
+            update_and_read(&[agg(pid, tid, 1, Some("error"))], cache.clone(), &ch).await;
+        assert!(errored[&tid].seen_error);
+        assert!(
+            cache
+                .get::<i64>(&seen_error_key(pid, tid))
+                .await
+                .unwrap()
+                .unwrap()
+                > 0
+        );
     }
 
     /// A clean batch must not be able to unset a latch a concurrent errored
