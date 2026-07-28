@@ -370,12 +370,21 @@ impl<H: StreamBatchHandler> StreamReader<H> {
             // call `store_offset` against offsets the new batchers are also
             // tracking, and piling up one leaked task per reconnect for the whole
             // duration of a dependency outage.
-            let abort_handle = handle.abort_handle();
-            if tokio::time::timeout(BATCHER_DRAIN_TIMEOUT, handle)
+            // `&mut handle` (JoinHandle is Unpin) so the handle survives the
+            // timeout and can be awaited AFTER the abort. Aborting without
+            // awaiting only *requests* cancellation: the task keeps running until
+            // its next await point, so it could still be inside `store_offset` and
+            // confirm an offset after the next generation committed further ahead.
+            // Awaiting the cancellation makes "generation N is gone" true before
+            // generation N+1 starts.
+            let mut handle = handle;
+            if tokio::time::timeout(BATCHER_DRAIN_TIMEOUT, &mut handle)
                 .await
                 .is_err()
             {
-                abort_handle.abort();
+                handle.abort();
+                // Ignore the JoinError — a cancelled task always yields one.
+                let _ = handle.await;
                 log::warn!(
                     "Stream batcher did not drain within {}s, aborted; its records will replay",
                     BATCHER_DRAIN_TIMEOUT.as_secs()
@@ -702,11 +711,27 @@ async fn store_offsets(
         }
 
         match client.store_offset(consumer_name, &stream, offset).await {
+            Ok(()) => {
+                // Re-check under the SAME lock acquisition that records the mark.
+                // The check above is only a fast pre-filter: `store_offset` awaits,
+                // and during that await another batcher (or a whole new `run_once`
+                // generation) can commit further ahead — or we may have been
+                // revoked. `commit_offset_high_water_mark` is max-wins, so the mark
+                // itself can't regress; this logs the case so a real reorder is
+                // visible rather than silent.
+                if !commit_offset_high_water_mark(consumer_name, &stream, offset) {
+                    log::warn!(
+                        "Stream batcher {} confirmed offset {} for stream {} but a newer offset had already been committed meanwhile (raced with a handover or reconnect)",
+                        index,
+                        offset,
+                        stream
+                    );
+                }
+            }
             // The mark advances only on a CONFIRMED store. Advancing before the
             // call would make a failed store poison the offset locally: the retry
             // of that same offset would look stale and be skipped, leaving the
             // group behind until some higher offset happened to land.
-            Ok(()) => commit_offset_high_water_mark(consumer_name, &stream, offset),
             Err(e) => log::warn!(
                 "Stream batcher {} failed to store offset {} for stream {}: {:?}",
                 index,
@@ -759,11 +784,23 @@ fn offset_advances_high_water_mark(consumer_name: &'static str, stream: &str, of
         .is_none_or(|current| offset > *current)
 }
 
-fn commit_offset_high_water_mark(consumer_name: &'static str, stream: &str, offset: u64) {
-    lock_high_water_marks()
-        .entry((consumer_name, stream.to_string()))
-        .and_modify(|current| *current = (*current).max(offset))
-        .or_insert(offset);
+/// Record a CONFIRMED store. Max-wins, so a late confirmation from an aborted or
+/// superseded batcher can never lower the mark. Returns whether this offset was
+/// the new high-water mark; `false` means something committed further ahead while
+/// our `store_offset` was in flight.
+fn commit_offset_high_water_mark(consumer_name: &'static str, stream: &str, offset: u64) -> bool {
+    let mut marks = lock_high_water_marks();
+    match marks.get_mut(&(consumer_name, stream.to_string())) {
+        Some(current) if *current >= offset => false,
+        Some(current) => {
+            *current = offset;
+            true
+        }
+        None => {
+            marks.insert((consumer_name, stream.to_string()), offset);
+            true
+        }
+    }
 }
 
 /// Partitions this process has been DEACTIVATED for, per consumer group.
@@ -1074,8 +1111,7 @@ mod tests {
         offset: u64,
     ) -> bool {
         if offset_advances_high_water_mark(consumer_name, stream, offset) {
-            commit_offset_high_water_mark(consumer_name, stream, offset);
-            true
+            commit_offset_high_water_mark(consumer_name, stream, offset)
         } else {
             false
         }
@@ -1183,6 +1219,55 @@ mod tests {
         assert!(is_partition_revoked(group, "p-0"));
         assert!(!is_partition_revoked(group, "p-1"));
         assert!(!is_partition_revoked("other_group", "p-0"));
+    }
+
+    /// `commit_offset_high_water_mark` is max-wins and reports whether it actually
+    /// advanced. That's what makes a LATE confirmation safe: an aborted or
+    /// superseded batcher whose `store_offset` was already in flight can confirm
+    /// after a newer offset landed, and the mark must not regress — it returns
+    /// `false` so the reorder is logged instead of silently lowering the mark.
+    #[test]
+    fn late_confirmation_cannot_lower_the_mark() {
+        let group = "test_group_late_confirm";
+        let partition = "observations_stream-13";
+
+        assert!(commit_offset_high_water_mark(group, partition, 300));
+        // Newer generation commits further ahead.
+        assert!(commit_offset_high_water_mark(group, partition, 350));
+        // The aborted batcher's in-flight store finally confirms 310.
+        assert!(
+            !commit_offset_high_water_mark(group, partition, 310),
+            "a late confirmation must report that it did not advance"
+        );
+        // ...and the mark still reflects the newer position.
+        assert!(!offset_advances_high_water_mark(group, partition, 350));
+        assert!(offset_advances_high_water_mark(group, partition, 351));
+    }
+
+    /// Aborting a task only REQUESTS cancellation — it runs until its next await
+    /// point, so a batcher inside `store_offset` could still confirm after the next
+    /// generation started. The drain awaits the cancellation, which is what makes
+    /// "generation N is gone" true before N+1 spawns.
+    #[tokio::test(start_paused = true)]
+    async fn awaiting_the_abort_means_the_task_is_finished() {
+        let handle = tokio::spawn(async {
+            tokio::time::sleep(Duration::from_secs(3600)).await;
+        });
+
+        let mut handle = handle;
+        assert!(
+            tokio::time::timeout(BATCHER_DRAIN_TIMEOUT, &mut handle)
+                .await
+                .is_err(),
+            "the stuck task must not drain within the budget"
+        );
+
+        handle.abort();
+        let joined = handle.await;
+        assert!(
+            joined.is_err_and(|e| e.is_cancelled()),
+            "awaiting after abort must observe the cancellation, not leave it pending"
+        );
     }
 
     #[test]
