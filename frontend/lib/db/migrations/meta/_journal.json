@@ -729,6 +729,13 @@
       "when": 1782997824499,
       "tag": "0103_agent_chat_session_name",
       "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1782997824500,
+      "tag": "0104_workspace_settings",
+      "breakpoints": true
     }
   ]
 }

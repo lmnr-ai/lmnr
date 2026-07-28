@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/sidebar";
 import WorkspaceBilling from "@/components/workspace/billing";
 import WorkspaceDeployment from "@/components/workspace/deployment-settings/workspace-deployment.tsx";
+import PrivacyMode from "@/components/workspace/privacy-mode";
 import WorkspaceReports from "@/components/workspace/reports";
 import WorkspaceUsage from "@/components/workspace/usage";
 import WorkspaceIntegrations from "@/components/workspace/workspace-integrations";
@@ -53,12 +54,14 @@ import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type SettingsSection } from "@/contexts/project-context";
 import { type SubscriptionDetails, type UpcomingInvoiceInfo } from "@/lib/actions/checkout/types";
 import { type WorkspaceStats } from "@/lib/actions/usage/types";
+import { type WorkspaceSettings as WorkspaceSettingsValues } from "@/lib/actions/workspace/settings";
 import { type ProjectApiKey } from "@/lib/api-keys/types";
 import { Feature } from "@/lib/features/features";
 import { type WorkspaceInvitation, type WorkspaceRole, type WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
 
 interface SharedSettingsProps {
   workspace: WorkspaceWithOptionalUsers;
+  workspaceSettings: WorkspaceSettingsValues;
   projectId: string;
   apiKeys: ProjectApiKey[];
   invitations: WorkspaceInvitation[];
@@ -95,6 +98,7 @@ const VALID_SECTIONS = new Set<Section>([
 
 const SharedSettings = ({
   workspace,
+  workspaceSettings,
   projectId,
   apiKeys,
   invitations,
@@ -204,7 +208,12 @@ const SharedSettings = ({
           />
         );
       case "workspace-general":
-        return <WorkspaceSettings workspace={workspace} isOwner={isOwner} />;
+        return (
+          <div className="flex flex-col gap-8">
+            <WorkspaceSettings workspace={workspace} isOwner={isOwner} />
+            <PrivacyMode workspaceId={workspaceId} privacyMode={workspaceSettings.privacyMode} isOwner={isOwner} />
+          </div>
+        );
       // Project sections
       case "general":
         return (

@@ -1,3 +1,9 @@
+/**
+ * UNREVIEWED COUNSEL DRAFT — NOT LEGAL ADVICE, NOT CLEARED FOR PUBLICATION.
+ *
+ * Inherited template text, not revised as part of LAM-2028. The cookie/tracker
+ * table has not been reconciled against the actual analytics configuration.
+ */
 import { type Metadata } from "next";
 
 export const metadata: Metadata = {

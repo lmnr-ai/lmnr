@@ -504,6 +504,7 @@ export const workspaces = pgTable(
       .default(sql`'0'`)
       .notNull(),
     resetTime: timestamp("reset_time", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    settings: jsonb().default({}).notNull(),
   },
   (table) => [
     foreignKey({

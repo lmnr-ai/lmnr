@@ -8,6 +8,7 @@ import { getProjectDetails } from "@/lib/actions/project";
 import { getApiKeys } from "@/lib/actions/project-api-keys";
 import { getWorkspaceStats } from "@/lib/actions/usage/workspace-stats";
 import { getWorkspace } from "@/lib/actions/workspace";
+import { DEFAULT_WORKSPACE_SETTINGS, getWorkspaceSettings } from "@/lib/actions/workspace/settings";
 import { requireProjectAccess } from "@/lib/authorization";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
@@ -29,9 +30,15 @@ export default async function ProjectSettingsPage(props: { params: Promise<{ pro
   const projectDetails = await getProjectDetails(params.projectId);
   const workspaceId = projectDetails.workspaceId;
 
-  const [workspace, apiKeys] = await Promise.all([
+  const [workspace, apiKeys, workspaceSettings] = await Promise.all([
     getWorkspace({ workspaceId }),
     getApiKeys({ projectId: params.projectId }),
+    // Failing open to the default (privacy mode ON) is the safe direction — a
+    // read error must never render the workspace as opted in to training.
+    getWorkspaceSettings(workspaceId).catch((e) => {
+      console.error("Error fetching workspace settings:", e);
+      return DEFAULT_WORKSPACE_SETTINGS;
+    }),
   ]);
 
   const userMembership = await db
@@ -82,6 +89,7 @@ export default async function ProjectSettingsPage(props: { params: Promise<{ pro
   return (
     <SharedSettings
       workspace={workspace}
+      workspaceSettings={workspaceSettings}
       projectId={params.projectId}
       apiKeys={apiKeys}
       invitations={invitations}

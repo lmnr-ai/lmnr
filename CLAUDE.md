@@ -539,6 +539,15 @@ Route groups: `(auth)/layout.tsx` requires a session (redirects to `/sign-in`); 
 - After every successful update, the action removes `project:{id}` from the Redis cache so the next ingest batch reads the new value. Both sides of `ProjectSettings` (TS Zod, Rust `serde`) MUST stay in sync — drift surfaces as one-sided defaults, not crashes, so it can be silent.
 - API: `PATCH /api/projects/:projectId/settings` with body `{ settings: <Partial<ProjectSettings>> }`. Auth + project-membership gate at the top of the route via `getServerSession` + `isUserMemberOfProject` returning 401 / 403 JSON; do not use `requireProjectAccess` here, it `redirect()`s / `notFound()`s which is the page-tree pattern, not an API-route shape.
 
+## Workspace Settings (`workspaces.settings` JSONB) and Privacy Mode (LAM-2028)
+
+- Workspace-level knobs live in `workspaces.settings JSONB DEFAULT '{}'` (migration `0104`), the same one-column-for-all-settings pattern as `projects.settings`. Module is `frontend/lib/actions/workspace/settings.ts`; route is `PATCH /api/workspaces/:workspaceId/settings` with body `{ settings: <Partial<WorkspaceSettings>> }`. Unlike `projects.settings`, the Rust app-server does NOT read this column today — there is no Rust mirror struct to keep in sync.
+- **`privacyMode` defaults to `true` and absence means enabled.** Every read path must treat a missing key / empty `{}` / malformed value as privacy-mode-ON, because the failure direction matters: reading a legacy row as "off" would silently opt a workspace into training. `parseWorkspaceSettings` and the settings page's `.catch(() => DEFAULT_WORKSPACE_SETTINGS)` both fail open to ON deliberately — don't "simplify" either into a bare cast or a `?? false`.
+- **Write schema is `.strict()` but the READ schema is `z.looseObject`, on purpose.** Reusing the strict schema for reads is a real bug that was caught in verification: a stray unknown key in the row (older writer, manual DB edit) makes the strict parse fail, the fallback returns defaults, and a stored `privacyMode: false` silently reads back as `true`. Writes reject unknown keys (400); reads ignore them and only default the individual missing/invalid field.
+- Disabling privacy mode is what grants the ToS §20 training licence, so `updateWorkspaceSettings` gates on `checkUserWorkspaceRole({ roles: ["owner"] })` — owner-only, NOT owner-or-admin. The check runs after the empty-patch short-circuit so a no-op body doesn't 403.
+- UI is `components/workspace/privacy-mode.tsx`, rendered in the `workspace-general` settings section next to rename/delete. `SharedSettings` takes `workspaceSettings` as a prop from the server page rather than reading it client-side. The shared `Workspace` type in `lib/workspaces/types.ts` deliberately does NOT carry `settings` — adding a required field there means touching every `tierName:`-constructing call site, and an optional one reintroduces the absence-means-off ambiguity.
+- Note the import-name collision: `WorkspaceSettings` is already a COMPONENT (`components/workspace/workspace-settings.tsx`). In `shared-settings/index.tsx` the type is aliased (`WorkspaceSettings as WorkspaceSettingsValues`).
+
 ### PII redaction (`settings.removePii`)
 
 - Setting `removePii=true` on a project routes every span ingested for that project through the `pii-redactor` gRPC service before storage.
@@ -916,6 +925,14 @@ try {
 ```
 
 **Server components** (`page.tsx`): Let database/fetch errors propagate to the nearest `error.tsx` error boundary — do **not** catch them and convert to `notFound()`. Only use `try/catch` or `.catch()` when you need a specific fallback value for optional data. Use `notFound()` only for genuinely missing resources (i.e. when a query returns `null`/`undefined`).
+
+## Policy pages (`frontend/app/policies/`)
+
+- Four plain-TSX pages, no MDX / CMS: `privacy`, `terms`, `cookies`, `data-use`. Each is a server component exporting `metadata` plus one `max-w-4xl mx-auto p-6 space-y-4` (or `max-w-3xl` for `data-use`) wrapper of literal markup. There is no shared policy layout and no markdown pipeline — follow the existing file's shape when adding a page.
+- **Every policy file carries a header block comment marking it an unreviewed counsel draft.** Keep it there until counsel signs off; it's the only in-repo signal that the published text is not legally cleared.
+- Open legal questions, out-of-scope items, and every UNKNOWN from the data inventory live in `docs/internal/counsel-handoff.md`. That file is in THIS repo, deliberately not in `/repos/docs` — the docs repo is published via Mintlify, and internal legal notes must not ship publicly.
+- Factual claims in the privacy notice (retention, subprocessors, deletion scope, redaction coverage) were derived from the code, not from product intuition, and several are deliberately unflattering (plan retention windows are access controls, not deletion; project deletion doesn't reach Quickwit or S3; trace/span delete only touches the `spans` table). **If you change any of those behaviours, update the notice in the same PR** — it is now a factual document, and drift makes it false rather than merely stale.
+- Policy links are enumerated in `components/landing/footer/index.tsx` (`MORE_LINKS`) and `components/auth/auth-footer.tsx`. A new policy page needs a footer entry or it is unreachable.
 
 ## Landing Page
 

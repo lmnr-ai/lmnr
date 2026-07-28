@@ -30,6 +30,7 @@ const ELSEWHERE_LINKS: FooterLink[] = [
 const MORE_LINKS: FooterLink[] = [
   { label: "Privacy Policy", href: "/policies/privacy", external: true },
   { label: "Terms of Service", href: "/policies/terms", external: true },
+  { label: "Data use", href: "/policies/data-use", external: true },
   { label: "Status", href: "https://status.laminar.sh", external: true },
   { label: "Y-Combinator", href: "https://www.ycombinator.com/companies/laminar", external: true },
 ];
