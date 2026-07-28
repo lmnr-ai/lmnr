@@ -67,8 +67,11 @@ export default function MoveToGroup({ projectId, selectedRowIds, currentGroupId,
     <>
       <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
         <PopoverTrigger asChild>
-          <Button variant="ghost">
-            <FolderInput size={12} />
+          <Button
+            variant="ghost"
+            className="gap-2 bg-foreground-400/15 hover:bg-foreground-400/25 active:bg-foreground-400/40"
+          >
+            <FolderInput size={16} className="text-secondary-foreground" />
             Move
           </Button>
         </PopoverTrigger>
