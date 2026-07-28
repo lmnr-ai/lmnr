@@ -702,11 +702,27 @@ pub async fn process_span_messages(
             }
         }
 
-        // Gate the signals path: metadata-only flushes (no real spans
-        // aggregated) never need evaluation — patches don't touch any field a
-        // trigger filters on, and re-running signals against a patched-only
-        // trace would spuriously refire an already-triggered signal.
-        had_aggregations
+        // Gate the signals path on the aggregation upsert having RUN and
+        // SUCCEEDED, matching the pre-LAM-2020 behaviour.
+        //
+        // `had_aggregations` alone isn't enough. A failed
+        // `upsert_trace_statistics_batch` is logged and swallowed (the flush is
+        // not requeued), and the `traces_agg` partials are skipped on the same
+        // condition — so evaluating signals anyway would advance the Redis
+        // trigger state (token total, error latch) for a batch whose durable
+        // rows never landed, leaving the cache ahead of both stores. Worse, the
+        // trigger lock is taken on a fire, so a signal run enqueued here can't
+        // be re-derived once the trace's later batches repair the totals.
+        //
+        // Skipping is safe: the trigger conditions are level-triggered on
+        // cumulative state, so the trace's next successful batch re-evaluates
+        // with the state this one failed to record.
+        //
+        // Metadata-only flushes (`!had_aggregations`) are excluded for a
+        // different reason — patches don't touch any field a trigger filters on,
+        // and re-running signals against a patched-only trace would spuriously
+        // refire an already-triggered signal.
+        had_aggregations && aggregation_ok
     };
 
     // Trace-new keys for search "first occurrence per trace" semantic.
