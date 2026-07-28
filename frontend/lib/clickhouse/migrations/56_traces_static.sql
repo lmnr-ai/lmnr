@@ -11,14 +11,23 @@
 --
 -- Writes are per-batch DELTAS — the same model as traces_agg, and independent of
 -- the Postgres aggregator (which is being retired). Nothing here reads a
--- cumulative row first, so every column must fold correctly from partials
--- alone. `metadata` is the one column whose value genuinely ACCUMULATES across
--- batches, so it is not a coalescing column at all: it's a
--- SimpleAggregateFunction(maxMap, Map(String,String)) that merges PER KEY (same
--- encoding as traces_agg — raw JSON value per key, "any occurrence wins", NOT a
--- guaranteed last-write-wins). Verified: maxMap merges per key inside a
--- CoalescingMergeTree, and an empty map is a natural no-op. Every other column
--- is set-once/latest-wins, so plain Nullable coalescing is right for them.
+-- cumulative row first, so every column must fold correctly from partials alone.
+--
+-- `metadata` has SET semantics, NOT patch semantics. It is a plain
+-- Nullable(String) holding the whole stringified JSON object (same shape as
+-- traces_replacing.metadata), written ONLY when a batch actually carries
+-- metadata, and left NULL otherwise. Deliberately NOT a
+-- SimpleAggregateFunction(maxMap, Map(...)) like traces_agg: per-key map merging
+-- is slow at scale, and escaping that cost is one of the main reasons this table
+-- is split out in the first place.
+--
+-- KNOWN CAVEAT, opted into for that performance win: because writes are deltas
+-- and coalescing is "last non-NULL wins" by insertion order, **a trace whose
+-- metadata is set more than once has UNDEFINED metadata** — whichever write
+-- lands last wins, and keys from the other writes are lost, not merged. Any
+-- single write wins wholesale. In practice metadata is set once per trace (the
+-- SDK sends it with the trace, and POST /v1/traces/metadata is a set, not a
+-- patch), so treat multi-write metadata as unsupported rather than merged.
 --
 -- `start_time` is the batch's min span start, mirroring traces_replacing /
 -- traces_agg so reads can push a PREWHERE down to it. It's the partition key,
@@ -96,8 +105,9 @@ CREATE TABLE IF NOT EXISTS default.traces_static
     `output_hashes` Nullable(String) CODEC(ZSTD(3)),
     `user_id` Nullable(String),
     `session_id` Nullable(String),
-    -- accumulates across batches: merged PER KEY, raw JSON value per key
-    `metadata` SimpleAggregateFunction(maxMap, Map(String, String)),
+    -- SET semantics: whole stringified JSON object, written only when non-empty.
+    -- Setting it more than once per trace is undefined (see the header).
+    `metadata` Nullable(String) CODEC(ZSTD(3)),
     `root_span_id` Nullable(UUID),
     `root_span_name` Nullable(String),
     `root_span_name_from_path` Nullable(String),
@@ -109,8 +119,8 @@ CREATE TABLE IF NOT EXISTS default.traces_static
     -- seen values; the read path owns precedence (PLAYGROUND > EVALUATION > DEFAULT)
     `trace_types` SimpleAggregateFunction(groupUniqArrayArray,
         Array(Enum8('DEFAULT' = 0, 'EVALUATION' = 1, 'EVENT' = 2, 'PLAYGROUND' = 3))),
-    -- reserved, no writer yet; same per-key encoding as `metadata`
-    `internal_metadata` SimpleAggregateFunction(maxMap, Map(String, String)),
+    -- reserved, no writer yet; same SET semantics as `metadata`
+    `internal_metadata` Nullable(String) CODEC(ZSTD(3)),
     INDEX traces_static_session_id_idx session_id TYPE bloom_filter,
     INDEX traces_static_user_id_idx user_id TYPE bloom_filter,
     PROJECTION p_start_time

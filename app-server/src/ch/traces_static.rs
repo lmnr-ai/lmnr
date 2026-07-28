@@ -13,11 +13,18 @@
 //! `CoalescingMergeTree` takes no version parameter (its optional argument is a
 //! columns-to-coalesce list).
 //!
-//! Three columns can't be expressed that way over deltas and use
-//! `SimpleAggregateFunction` instead (same encodings as `traces_agg`):
-//! `metadata` / `internal_metadata` accumulate, so they merge PER KEY via
-//! `maxMap`; `statuses` / `trace_types` carry seen-value unions so the READ path
-//! owns precedence (sticky `error`, PLAYGROUND > EVALUATION > DEFAULT).
+//! `statuses` / `trace_types` are the exception: they're
+//! `SimpleAggregateFunction(groupUniqArrayArray, ...)` seen-value unions (same
+//! encoding as `traces_agg`) so the READ path owns precedence — sticky `error`,
+//! PLAYGROUND > EVALUATION > DEFAULT — which last-write-wins can't express.
+//!
+//! `metadata` has SET semantics, NOT patch semantics: a plain `Option<String>`
+//! holding the whole stringified JSON object, written only when the batch
+//! actually carries metadata. Deliberately NOT a `maxMap` map like `traces_agg`
+//! — per-key map merging is slow at scale, and avoiding that cost is a main
+//! reason this table exists. **Setting a trace's metadata more than once is
+//! therefore UNDEFINED**: whichever write lands last wins wholesale and the other
+//! writes' keys are lost, not merged. See the migration header.
 //!
 //! `start_time` is the batch's min span start and the partition key (mirroring
 //! `traces_replacing` / `traces_agg` so reads can push a PREWHERE down to it).
@@ -50,8 +57,8 @@ const STATUS_ENUM_ERROR: i8 = 2;
 ///
 /// Coalescing columns are `Option` — `None` serializes as ClickHouse NULL, which
 /// `CoalescingMergeTree` treats as "no update" and leaves the prior value intact.
-/// The `SimpleAggregateFunction` columns instead fold by their own combinator, so
-/// their identity value (empty map / empty array) is the no-op.
+/// The `SimpleAggregateFunction` columns (`statuses` / `trace_types`) instead
+/// fold by their own combinator, so an empty array is the no-op.
 #[derive(Debug, Clone, Serialize, Deserialize, Row)]
 pub struct CHTraceStatic {
     #[serde(with = "clickhouse::serde::uuid")]
@@ -73,11 +80,12 @@ pub struct CHTraceStatic {
     pub output_hashes: Option<String>,
     pub user_id: Option<String>,
     pub session_id: Option<String>,
-    /// Raw JSON value per key, merged PER KEY by the table's `maxMap` — the one
-    /// column whose value genuinely accumulates across batches. Same encoding
-    /// (and the same "any occurrence wins, NOT guaranteed last-write-wins"
-    /// caveat) as `traces_agg.metadata`. An empty map is a no-op.
-    pub metadata: Vec<(String, String)>,
+    /// Whole stringified JSON object (same shape as
+    /// `traces_replacing.metadata`), with SET — not patch — semantics: `None`
+    /// when this batch carried no metadata, so it's a no-op rather than an
+    /// erase. Any single write wins wholesale; setting a trace's metadata twice
+    /// is undefined (see the module docs).
+    pub metadata: Option<String>,
     #[serde(with = "clickhouse::serde::uuid::option")]
     pub root_span_id: Option<Uuid>,
     /// The REAL root span's name — written only alongside `root_span_id`.
@@ -102,8 +110,8 @@ pub struct CHTraceStatic {
     /// Must stay in sync with `Into<u8> for TraceType` AND the DDL enum —
     /// out-of-range ints are accepted at insert but poison later reads.
     pub trace_types: Vec<i8>,
-    /// Reserved, no writer yet; same per-key `maxMap` encoding as `metadata`.
-    pub internal_metadata: Vec<(String, String)>,
+    /// Reserved, no writer yet; same SET semantics as `metadata`.
+    pub internal_metadata: Option<String>,
 }
 
 /// Empty strings collapse to `None` so a batch that saw no value writes a NULL
@@ -143,14 +151,14 @@ fn root_span_type_enum_value(top_span_type: u8) -> Option<i8> {
     (top_span_type <= 8).then_some(top_span_type as i8)
 }
 
-/// Raw JSON value per key, matching `traces_agg`'s `maxMap` encoding.
-fn encode_metadata(metadata: Option<&Value>) -> Vec<(String, String)> {
-    let Some(Value::Object(map)) = metadata else {
-        return Vec::new();
-    };
-    map.iter()
-        .map(|(k, v)| (k.clone(), v.to_string()))
-        .collect()
+/// Whole stringified JSON object, matching `traces_replacing.metadata`. Written
+/// only when the object is non-empty — an empty object carries no keys, so
+/// writing it would only risk clobbering a populated value under SET semantics.
+fn encode_metadata(metadata: Option<&Value>) -> Option<String> {
+    match metadata {
+        Some(Value::Object(map)) if !map.is_empty() => Some(Value::Object(map.clone()).to_string()),
+        _ => None,
+    }
 }
 
 impl CHTraceStatic {
@@ -192,14 +200,17 @@ impl CHTraceStatic {
             statuses: status_enum_values(agg.status.as_ref()),
             has_browser_session: agg.has_browser_session.map(|v| v as u8),
             trace_types: trace_type_enum_values(agg.trace_type),
-            internal_metadata: Vec::new(),
+            internal_metadata: None,
         };
         row.has_any_value().then_some(row)
     }
 
     /// Build a delta write for a metadata patch (`POST /v1/traces/metadata`).
-    /// Only the patched keys are carried; the table's `maxMap` merges them into
-    /// whatever the span batches contributed, so this needs no cumulative read.
+    /// Carries the patch's object as the whole `metadata` value — SET semantics,
+    /// so it does not merge with what the span batches wrote. A trace whose
+    /// metadata is set by both a span batch and a patch has undefined metadata
+    /// (see the module docs); that's the accepted cost of avoiding per-key map
+    /// merges.
     ///
     /// `start_time` should be the trace's start when known; a patch carries no
     /// span times, so callers pass the flush clock and accept that a patch for a
@@ -212,7 +223,7 @@ impl CHTraceStatic {
         start_time: i64,
     ) -> Option<Self> {
         let metadata = encode_metadata(metadata);
-        if metadata.is_empty() {
+        if metadata.is_none() {
             return None;
         }
         Some(CHTraceStatic {
@@ -231,7 +242,7 @@ impl CHTraceStatic {
             statuses: Vec::new(),
             has_browser_session: None,
             trace_types: Vec::new(),
-            internal_metadata: Vec::new(),
+            internal_metadata: None,
         })
     }
 
@@ -260,7 +271,7 @@ impl CHTraceStatic {
             output_hashes,
             user_id: None,
             session_id: None,
-            metadata: Vec::new(),
+            metadata: None,
             root_span_id: None,
             root_span_name: None,
             root_span_name_from_path: None,
@@ -268,7 +279,7 @@ impl CHTraceStatic {
             statuses: Vec::new(),
             has_browser_session: None,
             trace_types: Vec::new(),
-            internal_metadata: Vec::new(),
+            internal_metadata: None,
         })
     }
 
@@ -279,7 +290,7 @@ impl CHTraceStatic {
             || self.output_hashes.is_some()
             || self.user_id.is_some()
             || self.session_id.is_some()
-            || !self.metadata.is_empty()
+            || self.metadata.is_some()
             || self.root_span_id.is_some()
             || self.root_span_name.is_some()
             || self.root_span_name_from_path.is_some()
@@ -287,7 +298,7 @@ impl CHTraceStatic {
             || !self.statuses.is_empty()
             || self.has_browser_session.is_some()
             || !self.trace_types.is_empty()
-            || !self.internal_metadata.is_empty()
+            || self.internal_metadata.is_some()
     }
 }
 
@@ -369,39 +380,44 @@ mod tests {
         assert_eq!(row.user_id, None, "empty user_id stays a NULL hole");
     }
 
-    // `metadata` is the one accumulating column, so it's a per-key maxMap rather
-    // than a coalescing value: each batch contributes only its OWN keys and the
-    // table merges them, so no batch can drop keys an earlier one contributed.
+    // `metadata` is written as the whole object (SET semantics), so a batch that
+    // carries metadata writes all of it and a batch that doesn't writes a NULL
+    // hole. This deliberately does NOT merge keys across writes — per-key map
+    // merging is the cost this table exists to avoid — so a trace whose metadata
+    // is set twice ends up with whichever write lands last. Pinning the shape
+    // here so nobody "fixes" it into a patch/merge later without revisiting the
+    // performance trade-off.
     #[test]
-    fn metadata_is_per_key_so_batches_only_contribute_their_own_keys() {
+    fn metadata_is_written_whole_with_set_semantics() {
         let mut agg = empty_agg();
         agg.metadata = Some(json!({"k1": "one"}));
         let first = CHTraceStatic::from_aggregation(&agg, 0).unwrap();
+        assert_eq!(first.metadata.as_deref(), Some("{\"k1\":\"one\"}"));
 
+        // A second write carries only ITS object — k1 is not restated and will
+        // NOT be merged in; last write wins wholesale (undefined by contract).
         agg.metadata = Some(json!({"k2": "two"}));
         let second = CHTraceStatic::from_aggregation(&agg, 0).unwrap();
+        assert_eq!(second.metadata.as_deref(), Some("{\"k2\":\"two\"}"));
 
-        assert_eq!(
-            first.metadata,
-            vec![("k1".to_string(), "\"one\"".to_string())]
-        );
-        assert_eq!(
-            second.metadata,
-            vec![("k2".to_string(), "\"two\"".to_string())],
-            "the second delta must NOT restate k1; maxMap merges the two"
-        );
+        // A batch with no metadata leaves a NULL hole rather than erasing.
+        agg.metadata = None;
+        agg.session_id = Some("s".to_string());
+        let third = CHTraceStatic::from_aggregation(&agg, 0).unwrap();
+        assert_eq!(third.metadata, None);
     }
 
     #[test]
-    fn metadata_values_are_raw_json_and_empty_maps_are_no_ops() {
-        assert!(encode_metadata(None).is_empty());
-        assert!(encode_metadata(Some(&json!({}))).is_empty());
-        let encoded = encode_metadata(Some(&json!({"a": 1, "b": "x", "c": {"n": true}})));
-        assert_eq!(encoded.iter().find(|(k, _)| k == "a").unwrap().1, "1");
-        assert_eq!(encoded.iter().find(|(k, _)| k == "b").unwrap().1, "\"x\"");
+    fn metadata_is_stringified_json_and_empty_objects_are_no_ops() {
+        assert_eq!(encode_metadata(None), None);
         assert_eq!(
-            encoded.iter().find(|(k, _)| k == "c").unwrap().1,
-            "{\"n\":true}"
+            encode_metadata(Some(&json!({}))),
+            None,
+            "an empty object carries no keys, so writing it could only clobber"
+        );
+        assert_eq!(
+            encode_metadata(Some(&json!({"a": 1, "b": "x", "c": {"n": true}}))).as_deref(),
+            Some("{\"a\":1,\"b\":\"x\",\"c\":{\"n\":true}}")
         );
     }
 
@@ -556,6 +572,6 @@ mod tests {
         assert_eq!(row.session_id, None);
         assert!(row.statuses.is_empty());
         assert!(row.trace_types.is_empty());
-        assert!(row.metadata.is_empty());
+        assert_eq!(row.metadata, None);
     }
 }
