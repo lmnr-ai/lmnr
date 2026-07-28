@@ -49,9 +49,16 @@ impl StreamBatchHandler for StreamQuickwitIndexerHandler {
             by_index.entry(index_id).or_default().extend(docs);
         }
 
-        // First failure aborts the flush so the whole batch is retried in place.
-        // Indexing is idempotent per document id, so re-ingesting an index that
-        // already succeeded is harmless.
+        // EVERY index is attempted, even after one fails. A flush mixes payloads
+        // for different indices, and a `Permanent` failure makes the reader
+        // dead-letter the whole batch and advance the offset — so returning early
+        // would discard sibling payloads (e.g. spans) that a bad events payload
+        // never gave a chance to ingest. Re-ingesting is safe: Quickwit is
+        // idempotent per document id, so indices that already succeeded are
+        // unaffected when a transient retry replays the batch.
+        let mut transient: Option<HandlerError> = None;
+        let mut permanent: Option<HandlerError> = None;
+
         for (index_id, docs) in by_index {
             if docs.is_empty() {
                 continue;
@@ -71,10 +78,61 @@ impl StreamBatchHandler for StreamQuickwitIndexerHandler {
                     }
                 }
 
-                return Err(e.to_handler_error());
+                match e.to_handler_error() {
+                    err @ HandlerError::Transient(_) => transient.get_or_insert(err),
+                    err @ HandlerError::Permanent(_) => permanent.get_or_insert(err),
+                };
             }
         }
 
-        Ok(())
+        // Transient wins over permanent: it retries the batch in place without
+        // advancing the offset, so a recoverable index failure never rides out on
+        // an unrelated index's permanent error.
+        match transient.or(permanent) {
+            Some(err) => Err(err),
+            None => Ok(()),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Mirrors the precedence in `flush`: transient must win, so a recoverable
+    /// index failure retries the batch in place instead of riding out on an
+    /// unrelated index's permanent error (which would advance the offset and
+    /// discard the sibling payloads).
+    fn resolve(
+        transient: Option<HandlerError>,
+        permanent: Option<HandlerError>,
+    ) -> Option<HandlerError> {
+        transient.or(permanent)
+    }
+
+    #[test]
+    fn transient_takes_precedence_over_permanent() {
+        let resolved = resolve(
+            Some(HandlerError::transient(anyhow::anyhow!("quickwit down"))),
+            Some(HandlerError::permanent(anyhow::anyhow!("bad doc"))),
+        );
+        assert!(
+            resolved.is_some_and(|e| e.should_requeue()),
+            "a transient failure anywhere in the batch must retry, not drop"
+        );
+    }
+
+    #[test]
+    fn permanent_alone_does_not_requeue() {
+        let resolved = resolve(
+            None,
+            Some(HandlerError::permanent(anyhow::anyhow!("bad doc"))),
+        );
+        assert!(resolved.is_some_and(|e| !e.should_requeue()));
+    }
+
+    #[test]
+    fn all_indices_succeeding_yields_ok() {
+        assert!(resolve(None, None).is_none());
     }
 }
