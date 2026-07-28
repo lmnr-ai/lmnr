@@ -149,8 +149,7 @@ export type TraceRow = {
   status: string;
   spanTags: string[];
   traceTags: string[];
-  rootSpanInput?: string;
-  rootSpanOutput?: string;
+  agentInput?: string;
   inputSnippet?: { text: string; highlight: [number, number] };
   outputSnippet?: { text: string; highlight: [number, number] };
   attributesSnippet?: { text: string; highlight: [number, number] };

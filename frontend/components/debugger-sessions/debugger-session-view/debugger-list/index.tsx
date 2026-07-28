@@ -1,14 +1,13 @@
 "use client";
 
 import { defaultRangeExtractor, type Range, useVirtualizer, type Virtualizer } from "@tanstack/react-virtual";
-import { type CSSProperties, useCallback, useEffect, useMemo, useRef } from "react";
+import { type CSSProperties, memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
 import TraceCollapsedBody from "@/components/traces/session-view/session-panel/trace-collapsed-body";
 import TraceItem from "@/components/traces/session-view/session-panel/trace-item";
 import { useSessionSpanPreviews } from "@/components/traces/session-view/session-panel/use-session-span-previews";
 import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
-import { type TraceIOEntry, useBatchedTraceIO } from "@/components/traces/sessions-table/use-batched-trace-io";
 import {
   AgentGroupHeader,
   GroupChildWrapper,
@@ -17,15 +16,17 @@ import {
 } from "@/components/traces/trace-view/transcript/item";
 import { SpanCard } from "@/components/traces/trace-view/tree/span-card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatDuration } from "@/lib/utils";
 
 import CopyFlag from "../copy-flag";
-import { computeScoreDeltas } from "../session-evaluations";
 import { traceAnchorId } from "../session-outline/utils";
 import { useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "../store";
 import { useBlockScrollSync } from "../use-block-scroll-sync";
 import { useScrollMargin } from "../use-scroll-margin";
-import EvaluationBlockItem from "./evaluation-block-item";
+import CommandItem from "./command-group/command-item";
+import CommandItemDetail from "./command-group/command-item-detail";
+import CommandGroupHeader from "./command-group/group-header";
+import EvaluationBlockItem from "./eval-block";
+import { buildSessionEvalProgression, computeScoreDeltas, type SessionEvalProgression } from "./eval-block/utils";
 import {
   buildDebuggerFlatRows,
   type DebuggerFlatRow,
@@ -34,7 +35,8 @@ import {
   spanFlagProps,
   withTraceIndex,
 } from "./flat-rows";
-import TextBlockItem from "./text-block-item";
+import { SeamDivider, SeamSpacer } from "./seam";
+import TextBlockItem from "./text-block";
 
 interface DebuggerListProps {
   scrollEl: HTMLElement | null;
@@ -52,6 +54,11 @@ export default function DebuggerList({ scrollEl, projectId, sessionId }: Debugge
   const blocks = useDebuggerSessionViewStore((s) => s.blocks);
   const traceRowStates = useDebuggerSessionViewStore((s) => s.traceRowStates);
   const traceSpansFetching = useDebuggerSessionViewStore((s) => s.traceSpansFetching);
+  const collapsedEvaluationBlockIds = useDebuggerSessionViewStore((s) => s.collapsedEvaluationBlockIds);
+  const toggleEvaluationBlock = useDebuggerSessionViewStore((s) => s.toggleEvaluationBlock);
+  const requestScrollToBlock = useDebuggerSessionViewStore((s) => s.requestScrollToBlock);
+  const expandedCommandGroupIds = useDebuggerSessionViewStore((s) => s.expandedCommandGroupIds);
+  const expandedCommandBlockIds = useDebuggerSessionViewStore((s) => s.expandedCommandBlockIds);
 
   const {
     traces,
@@ -70,6 +77,7 @@ export default function DebuggerList({ scrollEl, projectId, sessionId }: Debugge
     consumeScrollToGroup,
     scrollToTraceId,
     consumeScrollToTrace,
+    fetchAgentOutputs,
   } = useSessionViewBaseStore(
     (s) => ({
       traces: s.traces,
@@ -88,6 +96,7 @@ export default function DebuggerList({ scrollEl, projectId, sessionId }: Debugge
       consumeScrollToGroup: s.consumeScrollToGroup,
       scrollToTraceId: s.scrollToTraceId,
       consumeScrollToTrace: s.consumeScrollToTrace,
+      fetchAgentOutputs: s.fetchAgentOutputs,
     }),
     shallow
   );
@@ -99,6 +108,35 @@ export default function DebuggerList({ scrollEl, projectId, sessionId }: Debugge
   const scoreDeltasById = useMemo(
     () => computeScoreDeltas(blocks.flatMap((b) => (b.type === "evaluation" ? [b.evaluation] : []))),
     [blocks]
+  );
+
+  // The session-wide eval progression — one dataset shared by every eval card;
+  // each card highlights its own run. Rebuilt only when the block set changes.
+  const evalProgression = useMemo<SessionEvalProgression>(
+    () =>
+      buildSessionEvalProgression(
+        blocks.flatMap((b) =>
+          b.type === "evaluation"
+            ? [{ id: b.evaluation.id, name: b.evaluation.name, createdAt: b.createdAt, scores: b.evaluation.scores }]
+            : []
+        )
+      ),
+    [blocks]
+  );
+
+  // evaluationId → owning block id, so a graph-point click can scroll the
+  // timeline to that run's block (reusing the outline's scroll mechanism).
+  const evalBlockIdByEvaluationId = useMemo(
+    () => new Map(blocks.flatMap((b) => (b.type === "evaluation" ? [[b.evaluation.id, b.id] as const] : []))),
+    [blocks]
+  );
+
+  const onEvalPointClick = useCallback(
+    (evaluationId: string) => {
+      const blockId = evalBlockIdByEvaluationId.get(evaluationId);
+      if (blockId) requestScrollToBlock(blockId);
+    },
+    [evalBlockIdByEvaluationId, requestScrollToBlock]
   );
 
   const flatRows = useMemo(
@@ -113,6 +151,8 @@ export default function DebuggerList({ scrollEl, projectId, sessionId }: Debugge
         expandedTraceIds,
         transcriptExpandedGroups,
         traceViewModes,
+        expandedCommandGroupIds,
+        expandedCommandBlockIds,
       }),
     [
       items,
@@ -124,6 +164,8 @@ export default function DebuggerList({ scrollEl, projectId, sessionId }: Debugge
       expandedTraceIds,
       transcriptExpandedGroups,
       traceViewModes,
+      expandedCommandGroupIds,
+      expandedCommandBlockIds,
     ]
   );
 
@@ -293,8 +335,22 @@ export default function DebuggerList({ scrollEl, projectId, sessionId }: Debugge
     spanTypesByTrace,
   });
 
-  const traceIds = useMemo(() => traces.map((t) => t.id), [traces]);
-  const { previews: traceIO } = useBatchedTraceIO(projectId, traceIds);
+  // Agent output: for collapsed-body rows in view, request the extracted
+  // output from the trace_outputs view. The store batches, debounces, and
+  // dedups.
+  const outputTraceIds = useMemo(() => {
+    const ids: string[] = [];
+    for (let i = rangeStart; i <= rangeEnd; i++) {
+      const row = flatRows[i];
+      if (row?.type !== "trace-collapsed-body") continue;
+      ids.push(row.traceId);
+    }
+    return ids;
+  }, [rangeStart, rangeEnd, flatRows]);
+
+  useEffect(() => {
+    if (outputTraceIds.length > 0) fetchAgentOutputs(outputTraceIds);
+  }, [outputTraceIds, fetchAgentOutputs]);
 
   // Scroll selected span (once per selection) to center.
   const lastScrolledSpanIdRef = useRef<string | null>(null);
@@ -380,7 +436,6 @@ export default function DebuggerList({ scrollEl, projectId, sessionId }: Debugge
               sessionId={sessionId}
               projectId={projectId}
               totalTraces={totalTraces}
-              traceIO={traceIO}
               previews={previews}
               userInputs={userInputs}
               agentNames={agentNames}
@@ -388,6 +443,10 @@ export default function DebuggerList({ scrollEl, projectId, sessionId }: Debugge
               selectedSpanId={selectedSpan?.spanId}
               selectedTraceId={selectedSpan?.traceId}
               scoreDeltasById={scoreDeltasById}
+              progression={evalProgression}
+              collapsedEvaluationBlockIds={collapsedEvaluationBlockIds}
+              onToggleEvaluation={toggleEvaluationBlock}
+              onEvalPointClick={onEvalPointClick}
               traceSpansFetching={traceSpansFetching}
               onToggleTrace={toggleTraceExpanded}
               onToggleGroup={toggleTranscriptGroup}
@@ -406,7 +465,6 @@ interface FlatRowContentProps {
   sessionId: string;
   projectId?: string;
   totalTraces: number;
-  traceIO: Record<string, TraceIOEntry | null | undefined>;
   previews: Record<string, string | null>;
   userInputs: Record<string, string | null>;
   agentNames: Record<string, string | null>;
@@ -414,6 +472,10 @@ interface FlatRowContentProps {
   selectedSpanId?: string;
   selectedTraceId?: string;
   scoreDeltasById: ReturnType<typeof computeScoreDeltas>;
+  progression: SessionEvalProgression;
+  collapsedEvaluationBlockIds: Set<string>;
+  onToggleEvaluation: (blockId: string) => void;
+  onEvalPointClick: (evaluationId: string) => void;
   traceSpansFetching: Record<string, boolean>;
   onToggleTrace: (traceId: string) => void;
   onToggleGroup: (traceId: string, groupId: string) => void;
@@ -422,13 +484,16 @@ interface FlatRowContentProps {
 }
 
 // One flat row's content. Split out so the map body stays readable; the wrapper
-// div (position + measurement) is owned by the list.
-function FlatRowContent({
+// div (position + measurement) is owned by the list. MEMOIZED: the height-reveal
+// animation makes measureElement re-render the list every frame; without memo
+// each frame would re-render every visible row's subtree (incl. the detail's
+// CodeMirror). All props are referentially stable during a tween (store actions,
+// and a useMemo'd `row`), so memo bails and only CSS/layout runs per frame.
+const FlatRowContent = memo(function FlatRowContent({
   row,
   sessionId,
   projectId,
   totalTraces,
-  traceIO,
   previews,
   userInputs,
   agentNames,
@@ -436,6 +501,10 @@ function FlatRowContent({
   selectedSpanId,
   selectedTraceId,
   scoreDeltasById,
+  progression,
+  collapsedEvaluationBlockIds,
+  onToggleEvaluation,
+  onEvalPointClick,
   traceSpansFetching,
   onToggleTrace,
   onToggleGroup,
@@ -447,6 +516,27 @@ function FlatRowContent({
   switch (row.type) {
     case "text":
       return <TextBlockItem id={row.blockId} text={row.text} />;
+    case "command-group-header":
+      return (
+        <CommandGroupHeader
+          id={row.blockId}
+          count={row.count}
+          lastCreatedAt={row.lastCreatedAt}
+          expanded={row.expanded}
+        />
+      );
+    case "command-item":
+      return (
+        <CommandItem
+          id={row.commandId}
+          command={row.command}
+          expanded={row.expanded}
+          isFirst={row.isFirst}
+          isLast={row.isLast}
+        />
+      );
+    case "command-item-detail":
+      return <CommandItemDetail commandId={row.commandId} command={row.command} isLastRow={row.isLastRow} />;
     case "evaluation":
       return (
         <EvaluationBlockItem
@@ -454,6 +544,10 @@ function FlatRowContent({
           evaluation={row.evaluation}
           scores={scoreDeltasById.get(row.evaluation.id) ?? []}
           createdAt={row.createdAt}
+          expanded={!collapsedEvaluationBlockIds.has(row.blockId)}
+          onToggle={() => onToggleEvaluation(row.blockId)}
+          progression={progression}
+          onPointClick={onEvalPointClick}
         />
       );
     case "trace-skeleton":
@@ -466,7 +560,6 @@ function FlatRowContent({
     case "trace-header":
       return (
         <div id={traceAnchorId(row.traceId)} className="flex flex-col bg-background">
-          <div className="h-2 w-full bg-background" />
           <CopyFlag label="Copy trace ID" toastTitle="Copied trace ID" value={row.traceId}>
             <TraceItem
               trace={row.trace}
@@ -481,7 +574,7 @@ function FlatRowContent({
         </div>
       );
     case "trace-collapsed-body":
-      return <TraceCollapsedBody trace={row.trace} traceIO={traceIO[row.traceId]} />;
+      return <TraceCollapsedBody trace={row.trace} />;
     case "trace-loading":
       return (
         <div className="flex flex-col gap-2 px-2 py-2">
@@ -495,13 +588,7 @@ function FlatRowContent({
     case "trace-empty":
       return <div className="px-2 py-4 text-sm text-muted-foreground">No spans found for this trace.</div>;
     case "user-input":
-      return (
-        <InputItem
-          text={traceIO[row.traceId]?.inputPreview ?? null}
-          isLoading={traceIO[row.traceId] === undefined}
-          className="rounded-lg"
-        />
-      );
+      return <InputItem text={row.trace?.agentInput ?? null} isLoading={false} className="rounded-lg" />;
     case "group-header":
       return (
         <AgentGroupHeader
@@ -553,15 +640,7 @@ function FlatRowContent({
           />
         </CopyFlag>
       );
-    case "trace-divider":
-      return (
-        <div className="flex h-20 items-center justify-center px-2">
-          <div className="w-full border-b" />
-          {formatDuration(row.gapMs) && (
-            <span className="shrink-0 px-2 text-xs text-muted-foreground">{formatDuration(row.gapMs)}</span>
-          )}
-          <div className="w-full border-b" />
-        </div>
-      );
+    case "seam":
+      return row.variant === "divider" ? <SeamDivider gapMs={row.gapMs} /> : <SeamSpacer />;
   }
-}
+});

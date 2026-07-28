@@ -183,16 +183,28 @@ export const tableSchemas: Record<string, TableSchema> = {
         description: "De-duplicated list of span names produced anywhere in the trace",
       },
       {
-        name: "root_span_input",
+        name: "agent_input",
         type: "String",
-        description: "Input of the trace's top span as stringified JSON or raw string",
-      },
-      {
-        name: "root_span_output",
-        type: "String",
-        description: "Output of the trace's top span as stringified JSON or raw string",
+        description: "Extracted agent task / user input for the trace as stringified JSON or raw string",
       },
       { name: "has_browser_session", type: "Bool", description: "Whether the trace has a browser session" },
+    ],
+  },
+  trace_outputs: {
+    description:
+      "Extracted final agent output per trace: the output messages of the last LLM call on the trace's main-agent path",
+    columns: [
+      { name: "trace_id", type: "UUID", description: "ID of the trace" },
+      {
+        name: "updated_at",
+        type: "DateTime64(9, 'UTC')",
+        description: "End time of the span the output was extracted from",
+      },
+      {
+        name: "agent_output",
+        type: "Array(String)",
+        description: "Output messages of the trace's final LLM call, one stringified JSON message per element",
+      },
     ],
   },
   dataset_datapoints: {

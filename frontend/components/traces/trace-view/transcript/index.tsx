@@ -2,23 +2,16 @@ import { defaultRangeExtractor, type Range, useVirtualizer } from "@tanstack/rea
 import { isEmpty, times } from "lodash";
 import { ListTree } from "lucide-react";
 import { useParams } from "next/navigation";
-import { type CSSProperties, useCallback, useEffect, useMemo, useRef } from "react";
+import { type CSSProperties, memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
 import {
   type TraceViewListSpan,
   type TraceViewSpan,
-  type TranscriptListEntry,
   useTraceViewBaseStore,
 } from "@/components/traces/trace-view/store/base";
-import {
-  AgentGroupHeader,
-  GroupChildWrapper,
-  InputItem,
-  SpanItem,
-} from "@/components/traces/trace-view/transcript/item";
+import { TranscriptRow, type TranscriptRowData } from "@/components/traces/trace-view/transcript/item/transcript-row";
 import { useBatchedSpanPreviews } from "@/components/traces/trace-view/transcript/use-batched-span-previews";
-import { useTraceUserInput } from "@/components/traces/trace-view/transcript/use-trace-user-input";
 import {
   filterToViewport,
   useReportVisibleTimeRange,
@@ -33,7 +26,7 @@ interface TranscriptProps {
   isShared?: boolean;
 }
 
-type FlatRow = { type: "user-input" } | TranscriptListEntry;
+type FlatRow = TranscriptRowData;
 
 const isGroupChildType = (type: FlatRow["type"]): boolean => type === "group-span" || type === "group-input";
 
@@ -104,11 +97,6 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
     [getTranscriptListData, spans, condensedTimelineVisibleSpanIds]
   );
 
-  const llmSpanCount = useMemo(
-    () => spans.filter((s) => s.spanType === "LLM" || s.spanType === "CACHED").length,
-    [spans]
-  );
-
   const trackedTraceIdRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     const traceId = trace?.id;
@@ -125,7 +113,9 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trace?.id, spans.length]);
 
-  const { userInput, isLoading: isUserInputLoading } = useTraceUserInput(projectId, trace?.id, isShared, llmSpanCount);
+  // Agent input/task is extracted at ingestion and read straight off the trace
+  // object (traces_v0.agent_input) — no separate fetch.
+  const userInput = trace?.agentInput ?? null;
   const hasUserInput = !!userInput;
 
   const flatRows = useMemo(() => {
@@ -377,76 +367,15 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
     [onSpanSelect, spansById]
   );
 
-  const renderRow = useCallback(
-    (row: FlatRow) => {
-      switch (row.type) {
-        case "user-input":
-          return <InputItem text={userInput} isLoading={isUserInputLoading} />;
-
-        case "group": {
-          const isCollapsed = !transcriptExpandedGroups.has(row.groupId);
-          return (
-            <AgentGroupHeader
-              group={row}
-              collapsed={isCollapsed}
-              previews={previews}
-              inputPreviews={inputPreviews}
-              agentNames={agentNames}
-              onToggle={() => {
-                track("traces", "subagent_group_toggled", { expanded: isCollapsed });
-                toggleTranscriptGroup(row.groupId);
-              }}
-            />
-          );
-        }
-
-        case "group-input": {
-          const inputText = inputPreviews[row.firstLlmSpanId] ?? null;
-          const isLoadingInput = inputPreviews[row.firstLlmSpanId] === undefined;
-          return (
-            <GroupChildWrapper>
-              <InputItem text={inputText} isLoading={isLoadingInput} inGroup />
-            </GroupChildWrapper>
-          );
-        }
-
-        case "group-span":
-          return (
-            <GroupChildWrapper isLast={row.isLast}>
-              <SpanItem
-                span={row.span}
-                output={previews[row.span.spanId]}
-                onSpanSelect={handleSpanSelect}
-                isSelected={selectedSpan?.spanId === row.span.spanId}
-                inGroup
-              />
-            </GroupChildWrapper>
-          );
-
-        case "span":
-          return (
-            <SpanItem
-              span={row.span}
-              output={previews[row.span.spanId]}
-              onSpanSelect={handleSpanSelect}
-              isSelected={selectedSpan?.spanId === row.span.spanId}
-            />
-          );
-      }
+  const handleToggleGroup = useCallback(
+    (groupId: string) => {
+      track("traces", "subagent_group_toggled", { expanded: !transcriptExpandedGroups.has(groupId) });
+      toggleTranscriptGroup(groupId);
     },
-    [
-      userInput,
-      isUserInputLoading,
-      transcriptExpandedGroups,
-      toggleTranscriptGroup,
-      previews,
-      inputPreviews,
-      agentNames,
-      handleSpanSelect,
-      selectedSpan,
-      spansById,
-    ]
+    [transcriptExpandedGroups, toggleTranscriptGroup]
   );
+
+  const selectedSpanId = selectedSpan?.spanId;
 
   const hasEntries = transcriptEntries.length > 0;
 
@@ -536,7 +465,17 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
                 "pb-1": isCollapsedGroup || isLastGroupChild,
               })}
             >
-              {renderRow(row)}
+              <TranscriptRow
+                row={row}
+                previews={previews}
+                inputPreviews={inputPreviews}
+                agentNames={agentNames}
+                userInput={userInput}
+                selectedSpanId={selectedSpanId}
+                expandedGroupIds={transcriptExpandedGroups}
+                onSpanSelect={handleSpanSelect}
+                onToggleGroup={handleToggleGroup}
+              />
             </div>
           );
         })}
@@ -545,4 +484,4 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
   );
 };
 
-export default Transcript;
+export default memo(Transcript);

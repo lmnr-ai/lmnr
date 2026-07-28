@@ -26,6 +26,10 @@ pub enum GeminiErrorStatus {
     Internal,
     Unavailable,
     DeadlineExceeded,
+    /// gRPC CANCELLED (code 1) surfaced over HTTP as 499. Transient — the
+    /// operation was cancelled before completing (client/proxy/deadline drop or
+    /// server-side shed), so it's safe to retry.
+    Cancelled,
     Unknown(String),
 }
 
@@ -37,6 +41,7 @@ impl GeminiErrorStatus {
                 | GeminiErrorStatus::Unavailable
                 | GeminiErrorStatus::DeadlineExceeded
                 | GeminiErrorStatus::ResourceExhausted
+                | GeminiErrorStatus::Cancelled
         )
     }
 
@@ -47,11 +52,33 @@ impl GeminiErrorStatus {
             (403, _) => Self::PermissionDenied,
             (404, _) => Self::NotFound,
             (429, _) => Self::ResourceExhausted,
+            (499, _) => Self::Cancelled,
             (500, _) => Self::Internal,
             (503, _) => Self::Unavailable,
             (504, _) => Self::DeadlineExceeded,
             _ => Self::Unknown(status_msg.to_string()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn http_499_maps_to_cancelled_and_is_retryable() {
+        let status = GeminiErrorStatus::from_http(499, "Cancelled");
+        assert_eq!(status, GeminiErrorStatus::Cancelled);
+        assert!(status.is_retryable());
+    }
+
+    #[test]
+    fn unmapped_status_code_stays_unknown_and_non_retryable() {
+        // Regression guard: an unrecognized code (e.g. a future/other transient
+        // status) must not silently fall into a retryable variant.
+        let status = GeminiErrorStatus::from_http(418, "Teapot");
+        assert_eq!(status, GeminiErrorStatus::Unknown("Teapot".to_string()));
+        assert!(!status.is_retryable());
     }
 }
 

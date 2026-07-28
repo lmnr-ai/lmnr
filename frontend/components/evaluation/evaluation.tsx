@@ -22,6 +22,7 @@ import {
   selectVisibleColumnDefs,
   useEvalStore,
 } from "@/components/evaluation/store";
+import { useScoreDirections } from "@/components/evaluation/use-score-directions";
 import {
   type EvaluationStatsPayload,
   flattenScores,
@@ -31,7 +32,12 @@ import {
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableConfigStore, useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import { type EvalRow, type Evaluation as EvaluationType, type EvaluationResultsInfo } from "@/lib/evaluation/types";
+import {
+  type EvalRow,
+  type Evaluation as EvaluationType,
+  type EvaluationResultsInfo,
+  type LinkedDataset,
+} from "@/lib/evaluation/types";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { swrFetcher } from "@/lib/utils";
 
@@ -42,6 +48,7 @@ interface EvaluationProps {
   evaluationId: string;
   evaluationName: string;
   initialScoreNames: string[];
+  datasets: LinkedDataset[];
 }
 
 const PAGE_SIZE = 50;
@@ -52,7 +59,7 @@ const RESOURCE = "evaluation-v1.1";
 // Default visibility: status + data + score:*.
 const DEFAULT_HIDDEN_COLUMNS = ["index", "target", "metadata", "output", "duration", "cost"];
 
-function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
+function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationProps) {
   const pathName = usePathname();
   const searchParams = useSearchParams();
   const params = useParams<{ projectId: string }>();
@@ -89,6 +96,10 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
     () => buildColumnDefs({ scoreNames, customColumns, isShared }),
     [scoreNames, customColumns, isShared]
   );
+
+  // Resolved eval-score directions (override > app-wide LLM default > true).
+  // Async — coloring repaints when it lands; shared evals can't write overrides.
+  const { resolved: scoreDirections, toggle: toggleScoreDirection } = useScoreDirections(params.projectId, scoreNames);
 
   // Stats SWR — drives the score chips + charts.
   const statsUrl = useMemo(() => {
@@ -304,6 +315,8 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
       heatmapEnabled={heatmapEnabled}
       onHeatmapEnabledChange={setHeatmapEnabled}
       onDeleteCustomColumn={onDeleteCustomColumn}
+      scoreDirections={scoreDirections}
+      onToggleScoreDirection={isShared ? undefined : toggleScoreDirection}
       searchValue={searchValue}
       onSearchChange={setSearchAndFilters}
       viewsResource={RESOURCE}
@@ -312,7 +325,12 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
 
   return (
     <>
-      <EvaluationHeader name={statsData?.evaluation?.name} urlKey={statsUrl} evaluations={evaluations} />
+      <EvaluationHeader
+        name={statsData?.evaluation?.name}
+        urlKey={statsUrl}
+        evaluations={evaluations}
+        datasets={datasets}
+      />
       <div className="flex-1 flex gap-2 flex-col relative overflow-hidden">
         {/* Left + top padding only: the trace panel must run flush to the right
             and bottom edges when open, so those paddings live on the pieces that
@@ -334,6 +352,7 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
                   comparedAllStatistics={targetStatsData?.allStatistics}
                   comparedAllDistributions={targetStatsData?.allDistributions}
                   isComparison={isComparison}
+                  scoreDirections={scoreDirections}
                 />
                 <div className="flex min-h-0 flex-1 overflow-hidden">{table}</div>
               </div>

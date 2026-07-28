@@ -47,7 +47,7 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ projec
   const body = await req.json();
 
   try {
-    await deleteEvaluations({ projectId, ...body });
+    await deleteEvaluations({ ...body, projectId });
     return new Response("Evaluations deleted successfully", { status: 200 });
   } catch (error) {
     if (error instanceof ZodError) {

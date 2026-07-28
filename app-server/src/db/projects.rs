@@ -15,6 +15,9 @@ pub struct ProjectSettings {
     /// PII redaction toggle. Enabling routes every span on this project
     /// through the pii-redactor before storage. Pro-tier gated frontend-side.
     pub remove_pii: bool,
+    /// Per-project eval-score direction overrides (score name -> isHigherBetter).
+    /// Frontend-only concern; mirrored here so the JSONB round-trips losslessly.
+    pub score_direction_overrides: std::collections::HashMap<String, bool>,
 }
 
 #[derive(Deserialize, Serialize, FromRow, Clone)]

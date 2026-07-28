@@ -1,7 +1,8 @@
-import { Mail, Slack } from "lucide-react";
+import { Mail } from "lucide-react";
 import { useMemo } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { IconSlack } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 
 export interface TargetChipItem {
@@ -14,7 +15,7 @@ export interface TargetChipItem {
 
 function TargetIcon({ type }: { type: string }) {
   if (type === "SLACK") {
-    return <Slack className="size-3 shrink-0 text-muted-foreground" />;
+    return <IconSlack className="size-3 shrink-0 text-muted-foreground" />;
   }
   if (type === "EMAIL") {
     return <Mail className="size-3 shrink-0 text-muted-foreground" />;

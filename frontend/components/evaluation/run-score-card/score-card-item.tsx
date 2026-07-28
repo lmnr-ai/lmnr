@@ -20,6 +20,8 @@ interface ScoreCardItemProps {
   comparedStatistics: EvaluationScoreStatistics | null;
   comparedDistribution: EvaluationScoreDistributionBucket[] | null;
   isComparison?: boolean;
+  /** Resolved score direction. Absent = higher is better. */
+  isHigherBetter?: boolean;
 }
 
 const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -50,6 +52,7 @@ export default function ScoreCardItem({
   comparedStatistics,
   comparedDistribution,
   isComparison,
+  isHigherBetter = true,
 }: ScoreCardItemProps) {
   const isBinary = isBinaryDistribution(distribution);
 
@@ -59,10 +62,13 @@ export default function ScoreCardItem({
   const validCur = isValidNumber(cur);
   const validCmp = isComparison && isValidNumber(cmp);
   const change = validCur && validCmp ? pctChange(cur!, cmp!) : null;
-  const improved = change !== null && change >= 0;
+  // Arrow = factual movement; "improved" (color) accounts for score direction.
+  // No change (0%) always reads as improved.
+  const increased = change !== null && change >= 0;
+  const improved = change !== null && (change === 0 || increased === isHigherBetter);
 
   return (
-    <div className="relative flex min-w-[140px] shrink-0 flex-col gap-1.5 px-2.5 first:pl-0 [&:not(:first-child)]:before:absolute [&:not(:first-child)]:before:bottom-0.5 [&:not(:first-child)]:before:left-0 [&:not(:first-child)]:before:top-0.5 [&:not(:first-child)]:before:w-px [&:not(:first-child)]:before:bg-foreground-600">
+    <div className="relative flex min-w-[140px] shrink-0 flex-col gap-1.5 px-2.5 border-l border-l-foreground-600">
       <span className="truncate text-xs font-medium text-muted-foreground" title={name}>
         {name}
       </span>
@@ -85,7 +91,7 @@ export default function ScoreCardItem({
               improved ? "text-success-bright" : "text-destructive"
             )}
           >
-            <DeltaTriangle direction={improved ? "up" : "down"} />
+            <DeltaTriangle direction={increased ? "up" : "down"} />
             {Math.abs(change).toFixed(1)}%
           </span>
         )}

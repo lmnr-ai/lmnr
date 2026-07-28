@@ -1,4 +1,5 @@
 import { ArrowRight } from "lucide-react";
+import { memo } from "react";
 
 import { CollapsedTextWithMore } from "@/components/traces/trace-view/transcript/collapsed-text-with-more";
 import { cn } from "@/lib/utils.ts";
@@ -10,7 +11,7 @@ interface InputItemProps {
   className?: string;
 }
 
-export function InputItem({ text, inGroup, className }: InputItemProps) {
+function InputItemInner({ text, inGroup, className }: InputItemProps) {
   if (!text) return null;
 
   return (
@@ -38,3 +39,5 @@ export function InputItem({ text, inGroup, className }: InputItemProps) {
     </div>
   );
 }
+
+export const InputItem = memo(InputItemInner);

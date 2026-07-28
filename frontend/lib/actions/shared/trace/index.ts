@@ -25,30 +25,31 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
 
   const [trace] = await executeQuery<Omit<TraceViewTrace, "visibility">>({
     query: `
-      SELECT
-        id,
-        formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
-        formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
-        input_tokens as inputTokens,
-        output_tokens as outputTokens,
-        total_tokens as totalTokens,
-        cache_read_input_tokens as cacheReadInputTokens,
-        cache_creation_input_tokens as cacheCreationInputTokens,
-        reasoning_tokens as reasoningTokens,
-        input_cost as inputCost,
-        output_cost as outputCost,
-        total_cost as totalCost,
-        metadata,
-        status,
-        trace_type as traceType,
-        top_span_name as topSpanName,
-        top_span_type as topSpanType,
-        has_browser_session as hasBrowserSession,
-        user_id as userId
-      FROM traces
-      WHERE id = {traceId: UUID}
-      LIMIT 1
-    `,
+        SELECT
+          id,
+          formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
+          formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
+          input_tokens as inputTokens,
+          output_tokens as outputTokens,
+          total_tokens as totalTokens,
+          cache_read_input_tokens as cacheReadInputTokens,
+          cache_creation_input_tokens as cacheCreationInputTokens,
+          reasoning_tokens as reasoningTokens,
+          input_cost as inputCost,
+          output_cost as outputCost,
+          total_cost as totalCost,
+          metadata,
+          status,
+          trace_type as traceType,
+          top_span_name as topSpanName,
+          top_span_type as topSpanType,
+          has_browser_session as hasBrowserSession,
+          user_id as userId,
+          agent_input as agentInput
+        FROM traces
+        WHERE id = {traceId: UUID}
+        LIMIT 1
+      `,
     projectId,
     parameters: {
       traceId,

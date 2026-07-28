@@ -2,11 +2,14 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { PaginationSchema } from "@/lib/actions/common/types";
+import { type CommandBlockContent, parseCommandBlockContent } from "@/lib/actions/debugger-sessions/command-content";
 import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle";
 import { debuggerSessionBlocks, debuggerSessions, evaluations } from "@/lib/db/migrations/schema";
 import { NotFoundError } from "@/lib/errors";
 import { type TraceRow } from "@/lib/traces/types";
+
+export { type CommandBlockContent } from "@/lib/actions/debugger-sessions/command-content";
 
 export type DebuggerSession = {
   id: string;
@@ -15,10 +18,8 @@ export type DebuggerSession = {
   projectId: string;
   // Latest block created_at for this session (entity time). Null when empty.
   lastActivity: string | null;
-  // Number of `trace` blocks in this session.
-  traceCount: number;
-  // Number of `evaluation` blocks in this session.
-  evalCount: number;
+  // Total number of blocks in this session.
+  blockCount: number;
 };
 
 const GetDebuggerSessionSchema = z.object({
@@ -50,20 +51,18 @@ export const getDebuggerSessions = async (input: z.infer<typeof GetDebuggerSessi
   const items: DebuggerSession[] = rows.map((row) => ({
     ...row,
     lastActivity: statsById.get(row.id)?.lastActivity ?? null,
-    traceCount: statsById.get(row.id)?.traceCount ?? 0,
-    evalCount: statsById.get(row.id)?.evalCount ?? 0,
+    blockCount: statsById.get(row.id)?.blockCount ?? 0,
   }));
 
   return { items };
 };
 
-type SessionStats = { lastActivity: string | null; traceCount: number; evalCount: number };
+type SessionStats = { lastActivity: string | null; blockCount: number };
 
 /**
- * Per-session stats from Postgres `debugger_session_blocks`: `trace` / `evaluation`
- * block counts and last activity (latest block created_at — entity time). One
- * grouped query; best-effort (a query error yields an empty map so the list
- * still renders).
+ * Per-session stats from Postgres `debugger_session_blocks`: total block count
+ * and last activity (latest block created_at — entity time). One grouped query;
+ * best-effort (a query error yields an empty map so the list still renders).
  */
 async function getBlockStatsBySessionIds(projectId: string, sessionIds: string[]): Promise<Map<string, SessionStats>> {
   if (sessionIds.length === 0) return new Map();
@@ -72,8 +71,7 @@ async function getBlockStatsBySessionIds(projectId: string, sessionIds: string[]
     const rows = await db
       .select({
         sessionId: debuggerSessionBlocks.sessionId,
-        traceCount: sql<number>`count(*) filter (where ${debuggerSessionBlocks.type} = ${TRACE_BLOCK_TYPE})::int`,
-        evalCount: sql<number>`count(*) filter (where ${debuggerSessionBlocks.type} = ${EVALUATION_BLOCK_TYPE})::int`,
+        blockCount: sql<number>`count(*)::int`,
         lastActivity: sql<string | Date | null>`max(${debuggerSessionBlocks.createdAt})`,
       })
       .from(debuggerSessionBlocks)
@@ -86,8 +84,7 @@ async function getBlockStatsBySessionIds(projectId: string, sessionIds: string[]
         {
           // Normalize to an ISO string (raw max() returns a driver Date).
           lastActivity: r.lastActivity ? new Date(r.lastActivity).toISOString() : null,
-          traceCount: r.traceCount,
-          evalCount: r.evalCount,
+          blockCount: r.blockCount,
         },
       ])
     );
@@ -170,6 +167,7 @@ export async function getDebuggerSession(input: z.infer<typeof GetDebuggerSessio
 export const TRACE_BLOCK_TYPE = "trace";
 export const EVALUATION_BLOCK_TYPE = "evaluation";
 export const TEXT_BLOCK_TYPE = "text";
+export const COMMAND_BLOCK_TYPE = "command";
 
 // Raw `debugger_session_blocks` row. `content` is jsonb: trace blocks carry
 // `{ traceId, note? }`, evaluation blocks `{ evaluationId, note? }`, text
@@ -215,6 +213,7 @@ const debuggerTraceSelectColumns = [
   "cache_read_input_tokens as cacheReadInputTokens",
   "total_cost as totalCost",
   "metadata",
+  "agent_input as agentInput",
 ];
 
 export type SessionEvaluationScore = {
@@ -245,7 +244,8 @@ export type SessionEvaluationRef = {
 export type SessionBlock =
   | { id: string; type: "trace"; createdAt: string; traceId: string }
   | { id: string; type: "evaluation"; createdAt: string; evaluation: SessionEvaluationRef }
-  | { id: string; type: "text"; createdAt: string; text: string };
+  | { id: string; type: "text"; createdAt: string; text: string }
+  | { id: string; type: "command"; createdAt: string; command: CommandBlockContent };
 
 const GetSessionBlocksSchema = z.object({
   projectId: z.guid(),
@@ -290,7 +290,11 @@ export async function getSessionBlocks(input: z.infer<typeof GetSessionBlocksSch
     } else if (block.type === TEXT_BLOCK_TYPE) {
       const text = blockText(block);
       if (text) resolved.push({ id: block.id, type: "text", createdAt: block.createdAt, text });
+    } else if (block.type === COMMAND_BLOCK_TYPE) {
+      const command = parseCommandBlockContent(block.content);
+      if (command) resolved.push({ id: block.id, type: "command", createdAt: block.createdAt, command });
     }
+    // Unknown block types are intentionally skipped (open `type` string on the wire).
   }
   return resolved;
 }

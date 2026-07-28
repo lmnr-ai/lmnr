@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
@@ -73,9 +73,9 @@ export const getProjectsByWorkspace = async (workspaceId: string): Promise<Proje
       name: true,
       workspaceId: true,
     },
-    // Deterministic default-project pick: matches /projects' desc(createdAt) fallback so
-    // every settings entry point lands on the same project when no last-project cookie exists.
-    orderBy: desc(projects.createdAt),
+    // Alphabetical — this list backs every project picker (sidebar switcher, Slack
+    // channel binding, copy-model-costs target). Not used for default-project selection.
+    orderBy: asc(projects.name),
   });
 
   return results;

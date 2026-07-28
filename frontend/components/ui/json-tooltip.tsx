@@ -5,7 +5,7 @@ import { defaultRehypePlugins, Streamdown } from "streamdown";
 
 import { CopyButton } from "@/components/ui/copy-button.tsx";
 import { ScrollArea } from "@/components/ui/scroll-area.tsx";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, isValidJsonObject } from "@/lib/utils";
 
 interface JsonTooltipProps {
@@ -166,59 +166,57 @@ const JsonTooltip = ({ data, columnSize, className, onOpen }: JsonTooltipProps) 
   const isObject = typeof tooltipData === "object" && tooltipData !== null && !Array.isArray(tooltipData);
 
   return (
-    <TooltipProvider delayDuration={100}>
-      <Tooltip onOpenChange={handleOpenChange}>
-        <TooltipTrigger asChild className="relative p-0">
-          <pre
-            style={{
-              ...(columnSize
-                ? {
-                    width: columnSize - 32,
-                  }
-                : {}),
-            }}
-            className={cn("font-mono text-secondary-foreground overflow-hidden text-xs truncate", className)}
-          >
-            {displayValue}
-          </pre>
-        </TooltipTrigger>
-        <TooltipPortal>
-          <TooltipContent
-            side="bottom"
-            className="relative p-0 border max-w-96 max-h-96 min-h-8 min-w-32"
-            onClick={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            {isLoading ? (
-              <div className="flex items-center justify-center p-4">
-                <Loader2 className="size-4 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <>
-                <CopyButton
-                  size="icon"
-                  variant="ghost"
-                  className="size-3.5 absolute right-2 top-2 bg-secondary z-10"
-                  iconClassName="size-3.5 text-secondary-foreground"
-                  text={jsonString}
-                />
+    <Tooltip delayDuration={100} onOpenChange={handleOpenChange}>
+      <TooltipTrigger asChild className="relative p-0">
+        <pre
+          style={{
+            ...(columnSize
+              ? {
+                  width: columnSize - 32,
+                }
+              : {}),
+          }}
+          className={cn("font-mono text-secondary-foreground overflow-hidden text-xs truncate", className)}
+        >
+          {displayValue}
+        </pre>
+      </TooltipTrigger>
+      <TooltipPortal>
+        <TooltipContent
+          side="bottom"
+          className="relative p-0 border max-w-96 max-h-96 min-h-8 min-w-32"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          {isLoading ? (
+            <div className="flex items-center justify-center p-4">
+              <Loader2 className="size-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <>
+              <CopyButton
+                size="icon"
+                variant="ghost"
+                className="size-3.5 absolute right-2 top-2 bg-secondary z-10"
+                iconClassName="size-3.5 text-secondary-foreground"
+                text={jsonString}
+              />
 
-                <ScrollArea className="max-w-96">
-                  {isObject ? (
-                    <ObjectWithMarkdown data={tooltipData as Record<string, any>} />
-                  ) : (
-                    <div className="text-xs font-mono text-secondary-foreground p-2 max-h-96 whitespace-pre-wrap break-all">
-                      {jsonString}
-                    </div>
-                  )}
-                </ScrollArea>
-              </>
-            )}
-          </TooltipContent>
-        </TooltipPortal>
-      </Tooltip>
-    </TooltipProvider>
+              <ScrollArea className="max-w-96">
+                {isObject ? (
+                  <ObjectWithMarkdown data={tooltipData as Record<string, any>} />
+                ) : (
+                  <div className="text-xs font-mono text-secondary-foreground p-2 max-h-96 whitespace-pre-wrap break-all">
+                    {jsonString}
+                  </div>
+                )}
+              </ScrollArea>
+            </>
+          )}
+        </TooltipContent>
+      </TooltipPortal>
+    </Tooltip>
   );
 };
 
