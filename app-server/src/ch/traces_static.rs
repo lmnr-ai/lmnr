@@ -19,11 +19,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use super::traces::TraceAggregation;
 use super::utils::chrono_to_nanoseconds;
 use super::{
     ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS, Table,
 };
+use crate::db::trace::Trace;
 
 /// `status` Enum8 value; must match the DDL enum in the traces_static
 /// migration. Only `error` is ever written — see [`status_enum_value`].
@@ -92,49 +92,80 @@ fn status_enum_value(status: Option<&String>) -> Option<i8> {
     }
 }
 
-/// `DEFAULT` (0) is the "not yet known" value in the aggregation — writing it
-/// would pin the trace to DEFAULT and stop a later EVALUATION/PLAYGROUND batch
-/// from setting the real type, mirroring the PG upsert's
+/// `DEFAULT` (0) is the "not yet known" value — writing it would pin the trace
+/// to DEFAULT and stop a later EVALUATION/PLAYGROUND batch from setting the
+/// real type, mirroring the PG upsert's
 /// `CASE WHEN traces.type = 0 THEN EXCLUDED.type` first-non-zero rule.
-fn trace_type_enum_value(trace_type: u8) -> Option<i8> {
-    (trace_type != 0).then_some(trace_type as i8)
+///
+/// Takes the raw PG `smallint`. Values outside the DDL `Enum8` are DROPPED
+/// rather than cast: an out-of-range int inserts fine but then poisons every
+/// later read of the part with `UNKNOWN_ELEMENT_OF_ENUM`, so losing one
+/// trace's type beats corrupting the column.
+fn trace_type_enum_value(trace_type: i16) -> Option<i8> {
+    matches!(trace_type, 1..=3).then_some(trace_type as i8)
+}
+
+/// Takes the raw PG `smallint`. Unlike `trace_type`, 0 (`DEFAULT`) IS a real
+/// value here — it's written together with the root span id, so there's no
+/// "not yet known" ambiguity to guard. Out-of-DDL-range values are dropped for
+/// the same enum-poisoning reason as above; the DDL covers the full
+/// `Into<u8> for SpanType` range 0..=8.
+fn root_span_type_enum_value(top_span_type: Option<i16>) -> Option<i8> {
+    top_span_type
+        .filter(|t| matches!(t, 0..=8))
+        .map(|t| t as i8)
 }
 
 impl CHTraceStatic {
-    /// Build a static-column write from one batch's in-memory aggregation, or
-    /// `None` when the batch learned nothing static (every column would be a
-    /// NULL hole, so the row would be pure overhead).
+    /// Build a static-column write from the PG-merged trace row, or `None` when
+    /// nothing static is known yet (every column would be a NULL hole, so the
+    /// row would be pure overhead).
     ///
-    /// `now_ns` is the `updated_at` fallback for a batch with no span times.
-    pub fn from_aggregation(agg: &TraceAggregation, now_ns: i64) -> Option<Self> {
+    /// **Must be fed the row Postgres returned, NOT the per-batch
+    /// `TraceAggregation`.** These columns are last-write-wins per column, so a
+    /// partial write would clobber rather than merge — most visibly `metadata`,
+    /// which is ONE `Nullable(String)` here while Postgres merges it with `||`
+    /// and `traces_agg` merges per key with `maxMap`. `TraceAggregation.metadata`
+    /// only merges within a single batch, so writing it would drop every key an
+    /// earlier batch contributed. The PG row is already cumulative across all
+    /// batches (and across `POST /v1/traces/metadata` patches), which makes a
+    /// whole-object overwrite correct here. The same reasoning covers
+    /// `status`/`trace_type`/`root_span_*`: PG has already applied its sticky-
+    /// error, first-non-zero, and COALESCE precedence rules.
+    ///
+    /// `now_ns` is the `updated_at` fallback for a row with no start time.
+    pub fn from_trace(trace: &Trace, now_ns: i64) -> Option<Self> {
         // Only the real root span sets these three together; a path-derived
         // fallback name is deliberately NOT written, so it can't win over the
         // root's name under last-write-wins and desync from
         // `root_span_id`/`root_span_type`.
-        let (root_span_id, root_span_name, root_span_type) = match agg.top_span_id {
+        let (root_span_id, root_span_name, root_span_type) = match trace.top_span_id() {
             Some(id) => (
                 Some(id),
-                non_empty(agg.top_span_name.as_ref()),
-                Some(agg.top_span_type as i8),
+                non_empty(trace.top_span_name().as_ref()),
+                root_span_type_enum_value(trace.top_span_type()),
             ),
             None => (None, None, None),
         };
 
         let row = CHTraceStatic {
-            project_id: agg.project_id,
-            trace_id: agg.trace_id,
-            updated_at: agg.start_time.map(chrono_to_nanoseconds).unwrap_or(now_ns),
+            project_id: trace.project_id(),
+            trace_id: trace.id(),
+            updated_at: trace
+                .start_time()
+                .map(chrono_to_nanoseconds)
+                .unwrap_or(now_ns),
             input: None,
             output_hashes: None,
-            user_id: non_empty(agg.user_id.as_ref()),
-            session_id: non_empty(agg.session_id.as_ref()),
-            metadata: encode_metadata(agg.metadata.as_ref()),
+            user_id: non_empty(trace.user_id().as_ref()),
+            session_id: non_empty(trace.session_id().as_ref()),
+            metadata: encode_metadata(trace.metadata()),
             root_span_id,
             root_span_name,
             root_span_type,
-            status: status_enum_value(agg.status.as_ref()),
-            has_browser_session: agg.has_browser_session.map(|v| v as u8),
-            trace_type: trace_type_enum_value(agg.trace_type),
+            status: status_enum_value(trace.status().as_ref()),
+            has_browser_session: trace.has_browser_session().map(|v| v as u8),
+            trace_type: trace_type_enum_value(trace.trace_type()),
             internal_metadata: None,
         };
         row.has_any_value().then_some(row)
@@ -215,63 +246,38 @@ impl ClickhouseInsertable for CHTraceStatic {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
     use chrono::Utc;
     use serde_json::json;
 
     use super::*;
 
-    fn empty_agg() -> TraceAggregation {
-        TraceAggregation {
-            trace_id: Uuid::new_v4(),
-            project_id: Uuid::new_v4(),
-            start_time: None,
-            end_time: None,
-            input_tokens: 0,
-            output_tokens: 0,
-            total_tokens: 0,
-            cache_read_input_tokens: 0,
-            cache_creation_input_tokens: 0,
-            reasoning_tokens: 0,
-            input_cost: 0.0,
-            output_cost: 0.0,
-            total_cost: 0.0,
-            session_id: None,
-            user_id: None,
-            status: None,
-            metadata: None,
-            tags: HashSet::new(),
-            num_spans: 0,
-            top_span_id: None,
-            top_span_name: None,
-            top_span_type: 0,
-            trace_type: 0,
-            has_browser_session: None,
-            span_names: HashSet::new(),
-            root_span_input: None,
-            root_span_output: None,
-        }
+    fn empty_trace() -> Trace {
+        Trace::test_new(
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            None,
+            None,
+            Some(json!({"span": true})),
+        )
     }
 
-    // A batch that learned nothing static must not write a row at all —
-    // every column would be a NULL hole, so the row is pure overhead.
+    // A trace with nothing static known must not write a row at all — every
+    // column would be a NULL hole, so the row is pure overhead.
     #[test]
-    fn batch_with_no_static_values_writes_nothing() {
-        assert!(CHTraceStatic::from_aggregation(&empty_agg(), 0).is_none());
+    fn trace_with_no_static_values_writes_nothing() {
+        assert!(CHTraceStatic::from_trace(&empty_trace(), 0).is_none());
     }
 
     // Empty strings must become NULL holes, not `''` writes: under
     // last-write-wins an empty write would erase a value a prior batch set.
     #[test]
     fn empty_strings_are_null_holes() {
-        let mut agg = empty_agg();
-        agg.session_id = Some(String::new());
-        agg.user_id = Some(String::new());
-        assert!(CHTraceStatic::from_aggregation(&agg, 0).is_none());
+        let mut trace = empty_trace();
+        trace.test_set_static(Some(""), Some(""), None, None);
+        assert!(CHTraceStatic::from_trace(&trace, 0).is_none());
 
-        agg.session_id = Some("s1".to_string());
-        let row = CHTraceStatic::from_aggregation(&agg, 0).unwrap();
+        trace.test_set_static(Some("s1"), Some(""), None, None);
+        let row = CHTraceStatic::from_trace(&trace, 0).unwrap();
         assert_eq!(row.session_id.as_deref(), Some("s1"));
         assert_eq!(row.user_id, None, "empty user_id stays a NULL hole");
     }
@@ -281,19 +287,51 @@ mod tests {
     // desync from a root_span_id set by another batch.
     #[test]
     fn path_derived_root_name_is_not_written_without_the_root_span() {
-        let mut agg = empty_agg();
-        agg.top_span_name = Some("outer_path".to_string());
+        let mut trace = empty_trace();
         // No top_span_id => this name came from the span path, not the root.
-        assert!(CHTraceStatic::from_aggregation(&agg, 0).is_none());
+        trace.test_set_root_span(None, Some("outer_path"), None, 0);
+        assert!(CHTraceStatic::from_trace(&trace, 0).is_none());
 
         let root_id = Uuid::new_v4();
-        agg.top_span_id = Some(root_id);
-        agg.top_span_name = Some("agent".to_string());
-        agg.top_span_type = 6;
-        let row = CHTraceStatic::from_aggregation(&agg, 0).unwrap();
+        trace.test_set_root_span(Some(root_id), Some("agent"), Some(6), 0);
+        let row = CHTraceStatic::from_trace(&trace, 0).unwrap();
         assert_eq!(row.root_span_id, Some(root_id));
         assert_eq!(row.root_span_name.as_deref(), Some("agent"));
         assert_eq!(row.root_span_type, Some(6));
+    }
+
+    // Regression: `metadata` is ONE Nullable(String) resolved by last-write-wins,
+    // so it must come from the CUMULATIVE Postgres row. Feeding it a per-batch
+    // map (which `TraceAggregation.metadata` is — it only merges within a batch)
+    // would drop every key an earlier batch contributed.
+    #[test]
+    fn metadata_is_written_whole_from_the_cumulative_pg_row() {
+        let mut trace = empty_trace();
+        // What PG returns after batch 2: `||`-merged across both batches.
+        trace.test_set_static(
+            None,
+            None,
+            Some(json!({"from_batch_1": "a", "from_batch_2": "b"})),
+            None,
+        );
+        let row = CHTraceStatic::from_trace(&trace, 0).unwrap();
+        let encoded = row.metadata.unwrap();
+        assert!(
+            encoded.contains("from_batch_1"),
+            "earlier keys must survive"
+        );
+        assert!(encoded.contains("from_batch_2"));
+    }
+
+    // Regression: PG has already applied its sticky-error rule, so an 'error'
+    // that a PREVIOUS batch set is still on the row we read — the write carries
+    // it forward instead of relying on this batch having seen the failure.
+    #[test]
+    fn status_comes_from_the_merged_row_not_the_current_batch() {
+        let mut trace = empty_trace();
+        trace.test_set_static(None, None, None, Some("error"));
+        let row = CHTraceStatic::from_trace(&trace, 0).unwrap();
+        assert_eq!(row.status, Some(STATUS_ENUM_ERROR));
     }
 
     // 'error' is sticky; a later 'success' batch must not downgrade it.
@@ -310,14 +348,30 @@ mod tests {
         assert_eq!(status_enum_value(None), None);
     }
 
-    // trace_type DEFAULT (0) means "not yet known" in the aggregation.
-    // Writing it would pin the trace to DEFAULT and stop a later
-    // EVALUATION/PLAYGROUND batch from setting the real type.
+    // trace_type DEFAULT (0) means "not yet known". Writing it would pin the
+    // trace to DEFAULT and stop a later EVALUATION/PLAYGROUND batch from
+    // setting the real type.
     #[test]
     fn default_trace_type_is_not_written() {
         assert_eq!(trace_type_enum_value(0), None);
         assert_eq!(trace_type_enum_value(1), Some(1));
         assert_eq!(trace_type_enum_value(3), Some(3));
+    }
+
+    // An out-of-DDL-range Enum8 int inserts fine but then poisons every later
+    // read of the part with UNKNOWN_ELEMENT_OF_ENUM, so unknown values are
+    // dropped to a NULL hole instead of cast through.
+    #[test]
+    fn out_of_range_enum_values_are_dropped_not_cast() {
+        assert_eq!(trace_type_enum_value(4), None);
+        assert_eq!(trace_type_enum_value(-1), None);
+        assert_eq!(root_span_type_enum_value(Some(9)), None);
+        assert_eq!(root_span_type_enum_value(Some(-1)), None);
+        assert_eq!(root_span_type_enum_value(None), None);
+        // 0 (DEFAULT) IS a real root span type — unlike trace_type, it's only
+        // written alongside a real root span id, so there's no ambiguity.
+        assert_eq!(root_span_type_enum_value(Some(0)), Some(0));
+        assert_eq!(root_span_type_enum_value(Some(8)), Some(8));
     }
 
     #[test]
@@ -334,14 +388,29 @@ mod tests {
     #[test]
     fn updated_at_uses_start_time_then_falls_back() {
         let start = Utc::now();
-        let mut agg = empty_agg();
-        agg.session_id = Some("s".to_string());
-        agg.start_time = Some(start);
-        let row = CHTraceStatic::from_aggregation(&agg, 123).unwrap();
+        let project_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+
+        let mut trace = Trace::test_new(
+            trace_id,
+            project_id,
+            Some(start),
+            None,
+            Some(json!({"span": true})),
+        );
+        trace.test_set_static(Some("s"), None, None, None);
+        let row = CHTraceStatic::from_trace(&trace, 123).unwrap();
         assert_eq!(row.updated_at, chrono_to_nanoseconds(start));
 
-        agg.start_time = None;
-        let row = CHTraceStatic::from_aggregation(&agg, 123).unwrap();
+        let mut trace = Trace::test_new(
+            trace_id,
+            project_id,
+            None,
+            None,
+            Some(json!({"span": true})),
+        );
+        trace.test_set_static(Some("s"), None, None, None);
+        let row = CHTraceStatic::from_trace(&trace, 123).unwrap();
         assert_eq!(row.updated_at, 123);
     }
 

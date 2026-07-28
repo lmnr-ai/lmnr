@@ -711,18 +711,25 @@ pub async fn process_span_messages(
             // Write the static (set-once, latest-wins) columns to
             // `traces_static` (LAM-2026, phase 1: write only — no reader yet).
             // `CoalescingMergeTree` resolves each column independently, so a
-            // batch writes only what it learned; batches that learned nothing
-            // static produce no row. Aggregate partials are gated on
-            // `aggregation_ok` for the same reason as `traces_agg`, while the
-            // agent-io writes have no PG counterpart to gate on.
-            let mut traces_static_rows: Vec<CHTraceStatic> = Vec::new();
-            if aggregation_ok {
-                traces_static_rows.extend(
-                    trace_aggregations
-                        .iter()
-                        .filter_map(|agg| CHTraceStatic::from_aggregation(agg, now_ns)),
-                );
-            }
+            // write only touches the columns it carries; a trace with nothing
+            // static known yet produces no row.
+            //
+            // Built from `updated_traces` — the PG-MERGED rows — not the
+            // per-batch `trace_aggregations`. These columns are last-write-wins
+            // per column, so a partial would clobber rather than merge:
+            // `metadata` is one `Nullable(String)` here, and
+            // `TraceAggregation.metadata` merges only within a batch, so it
+            // would drop keys earlier batches contributed. Using the cumulative
+            // PG row also means metadata patches
+            // (`POST /v1/traces/metadata`) reach this table for free, since
+            // `updated_traces` already unions aggregation + patched rows.
+            // `updated_traces` is empty when the aggregation upsert failed and
+            // there were no patches, which preserves the old `aggregation_ok`
+            // gating. The agent-io writes below have no PG counterpart.
+            let mut traces_static_rows: Vec<CHTraceStatic> = updated_traces
+                .iter()
+                .filter_map(|trace| CHTraceStatic::from_trace(trace, now_ns))
+                .collect();
             traces_static_rows.extend(collect_static_agent_io_rows(&raw_trace_io, now_ns));
             if !traces_static_rows.is_empty()
                 && let Err(e) = ch.insert_batch(&traces_static_rows, config).await
