@@ -3,7 +3,7 @@ import { useQueryState } from "nuqs";
 import { useCallback, useMemo, useState } from "react";
 
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
-import { getSpacedColor } from "@/lib/colors";
+import { spacedColorMap } from "@/lib/colors";
 import { type EvaluationTimeProgression } from "@/lib/evaluation/types";
 import { cn } from "@/lib/utils";
 
@@ -100,22 +100,13 @@ export default function ProgressionChart({
     [points, hiddenEvaluationIds]
   );
 
-  const chartConfig = useMemo<ChartConfig>(
-    () =>
-      Object.fromEntries(
-        scoreKeys.map((key, index) => [
-          key,
-          {
-            // Golden-ratio spacing spreads each score maximally around the
-            // palette's hue loop (vs. the old positional `index % 5`, which
-            // wrapped after 5 colors).
-            color: getSpacedColor(index),
-            label: key,
-          },
-        ])
-      ),
-    [scoreKeys]
-  );
+  const chartConfig = useMemo<ChartConfig>(() => {
+    // Golden-ratio spacing spreads scores maximally around the palette's hue
+    // loop; keying on sorted order keeps a score's color stable when the set is
+    // reordered (vs. the old positional `index % 5`, which wrapped after 5).
+    const colors = spacedColorMap(scoreKeys);
+    return Object.fromEntries(scoreKeys.map((key) => [key, { color: colors.get(key), label: key }]));
+  }, [scoreKeys]);
 
   const toggleScore = useCallback(
     (key: string) => {

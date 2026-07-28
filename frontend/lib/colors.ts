@@ -156,3 +156,16 @@ export const CATEGORICAL_COLOR_PALETTE = [
 const GOLDEN_RATIO_CONJUGATE = 0.618033988749895;
 export const getSpacedColor = (index: number, palette: readonly string[] = CATEGORICAL_COLOR_PALETTE): string =>
   palette[Math.floor(((index * GOLDEN_RATIO_CONJUGATE) % 1) * palette.length)];
+
+/**
+ * Map each key to a maximally-spread color, keyed on the key's position in the
+ * SORTED key set rather than its arrival order. Same set of keys → same colors
+ * regardless of how they were ordered/reconstructed, so reordering series (or
+ * deleting a run that anchored insertion order) no longer recolors the rest.
+ * Adding/removing a key still shifts later keys — inherent to spreading N colors
+ * evenly — but the color set stays maximally separated.
+ */
+export const spacedColorMap = (keys: string[], palette: readonly string[] = CATEGORICAL_COLOR_PALETTE): Map<string, string> => {
+  const order = new Map([...keys].sort().map((key, index) => [key, index] as const));
+  return new Map(keys.map((key) => [key, getSpacedColor(order.get(key) ?? 0, palette)]));
+};

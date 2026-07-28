@@ -3,7 +3,7 @@ import { format, isValid } from "date-fns";
 import { isNil, mean } from "lodash";
 
 import { type ChartConfig } from "@/components/ui/chart";
-import { getSpacedColor } from "@/lib/colors";
+import { spacedColorMap } from "@/lib/colors";
 
 export const numberFormatter = new Intl.NumberFormat("en-US", {
   notation: "compact",
@@ -124,14 +124,16 @@ export const selectNiceTicksFromData = (
   };
 };
 
-export const generateChartConfig = (columns: string[]): ChartConfig =>
-  columns.reduce((config, columnName, index) => {
+export const generateChartConfig = (columns: string[]): ChartConfig => {
+  const colors = spacedColorMap(columns);
+  return columns.reduce((config, columnName) => {
     config[columnName] = {
       label: columnName,
-      color: getSpacedColor(index),
+      color: colors.get(columnName),
     };
     return config;
   }, {} as ChartConfig);
+};
 
 export const calculateDataMax = (data: Record<string, any>[], yColumns: string[]): number =>
   data.reduce((max, d) => {
@@ -163,17 +165,19 @@ export const getChartMargins = (yAxisValues?: any[], yAxisFormatter?: (value: an
   };
 };
 
-const createChartConfig = (columns: string[]): ChartConfig =>
-  Object.fromEntries(
-    columns.map((column, index) => [
+const createChartConfig = (columns: string[]): ChartConfig => {
+  const colors = spacedColorMap(columns);
+  return Object.fromEntries(
+    columns.map((column) => [
       column,
       {
-        color: getSpacedColor(index),
+        color: colors.get(column),
         label: column,
         stackId: "stack",
       },
     ])
   );
+};
 
 export const transformDataForBreakdown = (
   data: Record<string, any>[],
