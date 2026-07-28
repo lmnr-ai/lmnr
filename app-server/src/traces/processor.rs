@@ -167,27 +167,26 @@ fn collect_agent_io_rows(
 /// hashes are concatenated hex (64 chars each) because the column can't be a
 /// `Nullable(Array(...))` — see `ch::traces_static`.
 ///
-/// `start_time` is the partition key, so it MUST be the trace's start time and
-/// must agree with the aggregation writes' value or this row lands in a
-/// different partition and disappears from `start_time`-bounded reads. It's
-/// resolved from `traces` (the PG-merged rows in this flush) when the same
-/// flush also aggregated the trace; otherwise the trace's row isn't in hand
-/// here and we fall back to `now_ns`. That fallback is only correct while the
-/// trace started in the current partition period — an io write for a trace that
-/// started in a previous month lands one partition late, which `SELECT ... FINAL`
-/// still coalesces but a tight `start_time` filter can clip. Acceptable because
-/// io extraction runs seconds after ingest; revisit if that ever becomes async
-/// enough to cross a month boundary.
+/// `start_time` is the partition key, so it MUST agree with the aggregation
+/// writes' value or this row lands in a different partition and disappears from
+/// `start_time`-bounded reads. It's resolved from this flush's aggregations when
+/// the same flush also carried spans for the trace; otherwise the trace's start
+/// isn't in hand here and we fall back to `now_ns`. That fallback is only exact
+/// while the trace started in the current partition period — an io write for a
+/// trace that started in a previous month lands one partition late, which
+/// `SELECT ... FINAL` still coalesces but a tight `start_time` filter can clip.
+/// Acceptable because io extraction runs seconds after ingest; revisit if that
+/// ever becomes async enough to cross a month boundary.
 fn collect_static_agent_io_rows(
     io: &[RawTraceIo],
-    traces: &[Trace],
+    aggregations: &[TraceAggregation],
     now_ns: i64,
 ) -> Vec<CHTraceStatic> {
-    let start_time_by_trace: HashMap<(Uuid, Uuid), i64> = traces
+    let start_time_by_trace: HashMap<(Uuid, Uuid), i64> = aggregations
         .iter()
-        .filter_map(|t| {
-            t.start_time()
-                .map(|st| ((t.project_id(), t.id()), chrono_to_nanoseconds(st)))
+        .filter_map(|agg| {
+            agg.start_time
+                .map(|st| ((agg.project_id, agg.trace_id), chrono_to_nanoseconds(st)))
         })
         .collect();
     io.iter()
@@ -737,37 +736,36 @@ pub async fn process_span_messages(
             // write only touches the columns it carries; a trace with nothing
             // static known yet produces no row.
             //
-            // Built from `updated_traces` — the PG-MERGED rows — not the
-            // per-batch `trace_aggregations`. These columns are last-write-wins
-            // per column, so a partial would clobber rather than merge:
-            // `metadata` is one `Nullable(String)` here, and
-            // `TraceAggregation.metadata` merges only within a batch, so it
-            // would drop keys earlier batches contributed. Using the cumulative
-            // PG row also means metadata patches
-            // (`POST /v1/traces/metadata`) reach this table for free, since
-            // `updated_traces` already unions aggregation + patched rows.
-            // `updated_traces` is empty when the aggregation upsert failed and
-            // there were no patches, which preserves the old `aggregation_ok`
-            // gating.
+            // Per-batch DELTAS, same as `traces_agg` above and deliberately
+            // independent of Postgres (the PG aggregator is being retired, so
+            // nothing here may read a cumulative row first). Every column folds
+            // from partials alone: the coalescing columns because a NULL means
+            // "no update", and `metadata` / `statuses` / `trace_types` because
+            // they're `SimpleAggregateFunction`s that merge per key / by union.
             //
-            // The batch's own aggregation is passed alongside so the root-span
-            // NAME can be split by provenance (real root vs path-derived
-            // preview) — only the batch knows which it saw. A patch-only trace
-            // has no aggregation and writes no root columns.
-            let agg_by_trace: HashMap<(Uuid, Uuid), &TraceAggregation> = trace_aggregations
-                .iter()
-                .map(|agg| ((agg.project_id, agg.trace_id), agg))
-                .collect();
-            let mut traces_static_rows: Vec<CHTraceStatic> = updated_traces
-                .iter()
-                .filter_map(|trace| {
-                    let agg = agg_by_trace.get(&(trace.project_id(), trace.id())).copied();
-                    CHTraceStatic::from_trace(trace, agg, now_ns)
-                })
-                .collect();
+            // Gated on `aggregation_ok` for the same reason as `traces_agg`.
+            // Metadata patches contribute their own delta carrying ONLY the
+            // patched keys — `maxMap` merges them into whatever the span batches
+            // wrote, so no cumulative read is needed.
+            let mut traces_static_rows: Vec<CHTraceStatic> = Vec::new();
+            if aggregation_ok {
+                traces_static_rows.extend(
+                    trace_aggregations
+                        .iter()
+                        .filter_map(|agg| CHTraceStatic::from_aggregation(agg, now_ns)),
+                );
+            }
+            traces_static_rows.extend(metadata_patches.iter().filter_map(|patch| {
+                CHTraceStatic::from_metadata_patch(
+                    patch.project_id,
+                    patch.trace_id,
+                    Some(&patch.metadata),
+                    now_ns,
+                )
+            }));
             traces_static_rows.extend(collect_static_agent_io_rows(
                 &raw_trace_io,
-                &updated_traces,
+                &trace_aggregations,
                 now_ns,
             ));
             if !traces_static_rows.is_empty()

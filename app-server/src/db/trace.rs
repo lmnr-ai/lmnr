@@ -198,36 +198,6 @@ impl Trace {
         }
     }
 
-    /// Test-only setters for the static columns `ch::traces_static` reads.
-    #[cfg(test)]
-    pub fn test_set_static(
-        &mut self,
-        session_id: Option<&str>,
-        user_id: Option<&str>,
-        metadata: Option<Value>,
-        status: Option<&str>,
-    ) {
-        self.session_id = session_id.map(str::to_string);
-        self.user_id = user_id.map(str::to_string);
-        self.metadata = metadata;
-        self.status = status.map(str::to_string);
-    }
-
-    /// Test-only setter for the root-span trio + trace type.
-    #[cfg(test)]
-    pub fn test_set_root_span(
-        &mut self,
-        top_span_id: Option<Uuid>,
-        top_span_name: Option<&str>,
-        top_span_type: Option<i16>,
-        trace_type: i16,
-    ) {
-        self.top_span_id = top_span_id;
-        self.top_span_name = top_span_name.map(str::to_string);
-        self.top_span_type = top_span_type;
-        self.trace_type = trace_type;
-    }
-
     #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     pub fn matches_filters(&self, spans: &[Span], filters: &[Filter]) -> bool {
         if filters.is_empty() {

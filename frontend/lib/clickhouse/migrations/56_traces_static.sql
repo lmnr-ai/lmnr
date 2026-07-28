@@ -9,11 +9,28 @@
 -- by `start_time` — CoalescingMergeTree takes no version parameter (its
 -- optional argument is a columns-to-coalesce list, SummingMergeTree-style).
 --
--- `start_time` is the trace's start time (min span start), mirroring
--- traces_replacing / traces_agg so reads can push a PREWHERE down to it. It is
--- the partition key, and a partition-key column is NOT coalesced (it keeps the
--- first-arriving value) — which is fine, every write derives it from the same
--- trace.
+-- Writes are per-batch DELTAS — the same model as traces_agg, and independent of
+-- the Postgres aggregator (which is being retired). Nothing here reads a
+-- cumulative row first, so every column must fold correctly from partials
+-- alone. `metadata` is the one column whose value genuinely ACCUMULATES across
+-- batches, so it is not a coalescing column at all: it's a
+-- SimpleAggregateFunction(maxMap, Map(String,String)) that merges PER KEY (same
+-- encoding as traces_agg — raw JSON value per key, "any occurrence wins", NOT a
+-- guaranteed last-write-wins). Verified: maxMap merges per key inside a
+-- CoalescingMergeTree, and an empty map is a natural no-op. Every other column
+-- is set-once/latest-wins, so plain Nullable coalescing is right for them.
+--
+-- `start_time` is the batch's min span start, mirroring traces_replacing /
+-- traces_agg so reads can push a PREWHERE down to it. It's the partition key,
+-- and a partition-key column is NOT aggregated or coalesced in a
+-- CoalescingMergeTree — it keeps the FIRST-ARRIVING value (verified; this
+-- differs from AggregatingMergeTree, where traces_agg's identical
+-- min/PARTITION BY pairing does fold to the true min). So this can be a later
+-- batch's start rather than the trace's true minimum when spans arrive out of
+-- order. Deliberately accepted: it's a plain DateTime64 (no misleading
+-- SimpleAggregateFunction(min) wrapper, which would silently do nothing here),
+-- reads treat it as a pruning bound with padded windows, and the authoritative
+-- trace start_time lives in traces_agg.
 --
 -- Background merges do NOT merge across partitions, so a trace whose writes
 -- straddle a month boundary keeps one part per partition. `SELECT ... FINAL`
@@ -49,11 +66,23 @@
 -- precedence directly, so it holds regardless of arrival order and needs no
 -- sentinel encoding.
 --
--- `root_span_type` lists PIPELINE = 2 even though no view surfaces it: an
--- out-of-range Enum8 int is accepted at INSERT but poisons every later read
--- of the part with UNKNOWN_ELEMENT_OF_ENUM, and SpanType::Pipeline = 2 is a
--- reachable value. Keep this enum covering the full `Into<u8> for SpanType`
--- range.
+-- `statuses` / `trace_types` are SEEN-VALUE arrays
+-- (groupUniqArrayArray), not single coalescing columns, exactly as in
+-- traces_agg — and for the same reason: precedence can't be expressed by
+-- last-write-wins over deltas. 'error' is sticky, so a later success-only batch
+-- must not downgrade it; trace_type DEFAULT must not pin a trace that a later
+-- batch types as EVALUATION/PLAYGROUND. Keeping the union lets the READ path own
+-- precedence (`if(has(statuses,'error'),'error','success')`, and the
+-- PLAYGROUND > EVALUATION > DEFAULT multiIf), so reordering precedence stays a
+-- view-only change. Empty arrays are no-ops.
+-- GOTCHA (same as traces_agg): Enum8 is Int8 on the wire and out-of-range INTS
+-- are accepted at INSERT but then poison every later read of the part with
+-- UNKNOWN_ELEMENT_OF_ENUM (string inserts validate, int inserts don't). When
+-- extending TraceType/SpanType, ALTER the DDL enums in the same PR.
+--
+-- `root_span_type` lists PIPELINE = 2 even though no view surfaces it, for that
+-- same reason: SpanType::Pipeline = 2 is a reachable value, so the enum must
+-- cover the full `Into<u8> for SpanType` range.
 --
 -- Projections on a CoalescingMergeTree require
 -- `deduplicate_merge_projection_mode = 'rebuild'` (the default `throw` refuses
@@ -67,17 +96,21 @@ CREATE TABLE IF NOT EXISTS default.traces_static
     `output_hashes` Nullable(String) CODEC(ZSTD(3)),
     `user_id` Nullable(String),
     `session_id` Nullable(String),
-    `metadata` Nullable(String) CODEC(ZSTD(3)),
+    -- accumulates across batches: merged PER KEY, raw JSON value per key
+    `metadata` SimpleAggregateFunction(maxMap, Map(String, String)),
     `root_span_id` Nullable(UUID),
     `root_span_name` Nullable(String),
     `root_span_name_from_path` Nullable(String),
     `root_span_type` Nullable(Enum8('DEFAULT' = 0, 'LLM' = 1, 'PIPELINE' = 2, 'EXECUTOR' = 3,
         'EVALUATOR' = 4, 'EVALUATION' = 5, 'TOOL' = 6, 'HUMAN_EVALUATOR' = 7, 'CACHED' = 8)),
-    `status` Nullable(Enum8('success' = 1, 'error' = 2)),
+    -- seen values; the read path owns precedence (error is sticky)
+    `statuses` SimpleAggregateFunction(groupUniqArrayArray, Array(Enum8('success' = 1, 'error' = 2))),
     `has_browser_session` Nullable(UInt8),
-    `trace_type` Nullable(Enum8('DEFAULT' = 0, 'EVALUATION' = 1, 'EVENT' = 2, 'PLAYGROUND' = 3)),
-    -- reserved, no writer yet
-    `internal_metadata` Nullable(String) CODEC(ZSTD(3)),
+    -- seen values; the read path owns precedence (PLAYGROUND > EVALUATION > DEFAULT)
+    `trace_types` SimpleAggregateFunction(groupUniqArrayArray,
+        Array(Enum8('DEFAULT' = 0, 'EVALUATION' = 1, 'EVENT' = 2, 'PLAYGROUND' = 3))),
+    -- reserved, no writer yet; same per-key encoding as `metadata`
+    `internal_metadata` SimpleAggregateFunction(maxMap, Map(String, String)),
     INDEX traces_static_session_id_idx session_id TYPE bloom_filter,
     INDEX traces_static_user_id_idx user_id TYPE bloom_filter,
     PROJECTION p_start_time
