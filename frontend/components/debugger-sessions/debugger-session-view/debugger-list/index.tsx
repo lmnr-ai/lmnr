@@ -1,7 +1,7 @@
 "use client";
 
 import { defaultRangeExtractor, type Range, useVirtualizer, type Virtualizer } from "@tanstack/react-virtual";
-import { type CSSProperties, useCallback, useEffect, useMemo, useRef } from "react";
+import { type CSSProperties, memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
 import TraceCollapsedBody from "@/components/traces/session-view/session-panel/trace-collapsed-body";
@@ -484,8 +484,12 @@ interface FlatRowContentProps {
 }
 
 // One flat row's content. Split out so the map body stays readable; the wrapper
-// div (position + measurement) is owned by the list.
-function FlatRowContent({
+// div (position + measurement) is owned by the list. MEMOIZED: the height-reveal
+// animation makes measureElement re-render the list every frame; without memo
+// each frame would re-render every visible row's subtree (incl. the detail's
+// CodeMirror). All props are referentially stable during a tween (store actions,
+// and a useMemo'd `row`), so memo bails and only CSS/layout runs per frame.
+const FlatRowContent = memo(function FlatRowContent({
   row,
   sessionId,
   projectId,
@@ -532,7 +536,7 @@ function FlatRowContent({
         />
       );
     case "command-item-detail":
-      return <CommandItemDetail command={row.command} isLastRow={row.isLastRow} />;
+      return <CommandItemDetail commandId={row.commandId} command={row.command} isLastRow={row.isLastRow} />;
     case "evaluation":
       return (
         <EvaluationBlockItem
@@ -639,4 +643,4 @@ function FlatRowContent({
     case "seam":
       return row.variant === "divider" ? <SeamDivider gapMs={row.gapMs} /> : <SeamSpacer />;
   }
-}
+});

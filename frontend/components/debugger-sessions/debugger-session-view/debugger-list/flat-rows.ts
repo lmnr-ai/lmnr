@@ -456,8 +456,13 @@ export const flatRowEstimate = (row: DebuggerFlatRow, showTreeContent: boolean):
     // Bead row (one line); detail card re-measures via measureElement.
     case "command-item":
       return 34;
+    // Estimate the COLLAPSED start height (not the expanded card): the detail row
+    // is inserted closed and animates grid 0fr→1fr open, so a large estimate would
+    // reserve full height for one frame on insert, then snap up — a visible flash.
+    // Measurements are cached per row key, so remounts of an expanded detail use
+    // the real size, not this estimate.
     case "command-item-detail":
-      return 200;
+      return 12;
     case "evaluation":
       return 200;
     case "user-input":
