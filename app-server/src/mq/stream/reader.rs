@@ -44,7 +44,7 @@
 //! offset, so every reconnect would re-read and re-dead-letter the same records.
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -739,6 +739,16 @@ async fn flush_and_commit<H: StreamBatchHandler>(
 
 /// Commit one offset per partition. Best-effort: a lost store just replays those
 /// records after a restart, so it never fails the batch.
+///
+/// Guarded by a process-wide monotonic high-water mark per `(consumer_name,
+/// partition)`. Offsets are stored under the SHARED consumer name, and on a
+/// single-active-consumer handover the deactivated owner's batcher can still be
+/// mid-flush — its store would then land after the successor has already committed
+/// further ahead, rewinding the group's restart position and causing the successor's
+/// work to be reprocessed. A stale store can only ever be BEHIND (a batcher only
+/// commits offsets for records it received itself, and records arrive in offset
+/// order per partition), so dropping any non-advancing store is sufficient and
+/// never discards real progress.
 async fn store_offsets(
     index: usize,
     client: &Client,
@@ -746,6 +756,16 @@ async fn store_offsets(
     offsets: HashMap<String, u64>,
 ) {
     for (stream, offset) in offsets {
+        if !claim_offset_high_water_mark(consumer_name, &stream, offset) {
+            log::warn!(
+                "Stream batcher {} skipping stale offset store {} for stream {} (a newer offset was already committed — likely a single-active-consumer handover)",
+                index,
+                offset,
+                stream
+            );
+            continue;
+        }
+
         if let Err(e) = client.store_offset(consumer_name, &stream, offset).await {
             log::warn!(
                 "Stream batcher {} failed to store offset {} for stream {}: {:?}",
@@ -754,6 +774,35 @@ async fn store_offsets(
                 stream,
                 e
             );
+        }
+    }
+}
+
+/// Per-`(consumer_name, partition)` high-water mark of offsets we've committed.
+///
+/// Process-wide because the racing writers are two batchers in the SAME process
+/// (the outgoing reader's and the incoming one's) writing under the same consumer
+/// name. Returns whether `offset` advances the mark, claiming it if so.
+static OFFSET_HIGH_WATER_MARKS: LazyLock<Mutex<HashMap<(&'static str, String), u64>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn claim_offset_high_water_mark(consumer_name: &'static str, stream: &str, offset: u64) -> bool {
+    let mut marks = match OFFSET_HIGH_WATER_MARKS.lock() {
+        Ok(marks) => marks,
+        // A poisoned mutex would mean a panic while holding it; fail open so a
+        // guard bug can't wedge offset commits entirely.
+        Err(poisoned) => poisoned.into_inner(),
+    };
+
+    match marks.get_mut(&(consumer_name, stream.to_string())) {
+        Some(current) if *current >= offset => false,
+        Some(current) => {
+            *current = offset;
+            true
+        }
+        None => {
+            marks.insert((consumer_name, stream.to_string()), offset);
+            true
         }
     }
 }
@@ -1225,6 +1274,41 @@ mod tests {
         }
 
         assert!(attempts > 0, "at least one retry must be attempted");
+    }
+
+    /// Offsets are stored under the SHARED consumer name, so on a
+    /// single-active-consumer handover the deactivated owner's in-flight batcher
+    /// can still issue a store after the successor has committed further ahead.
+    /// The guard drops any non-advancing store so that can't rewind the group's
+    /// restart position (which would re-process the successor's work).
+    #[test]
+    fn stale_offset_store_cannot_rewind_the_committed_position() {
+        let group = "test_group_rewind";
+        let partition = "observations_stream-7";
+
+        assert!(claim_offset_high_water_mark(group, partition, 100));
+        // Successor commits further ahead.
+        assert!(claim_offset_high_water_mark(group, partition, 140));
+        // The outgoing owner's late flush lands with an older offset.
+        assert!(
+            !claim_offset_high_water_mark(group, partition, 120),
+            "a stale store must not rewind the committed offset"
+        );
+        // An equal offset is also a no-op (nothing to advance).
+        assert!(!claim_offset_high_water_mark(group, partition, 140));
+        // Genuine progress still goes through.
+        assert!(claim_offset_high_water_mark(group, partition, 141));
+    }
+
+    #[test]
+    fn offset_high_water_marks_are_per_partition() {
+        let group = "test_group_per_partition";
+        assert!(claim_offset_high_water_mark(group, "p-0", 50));
+        // A different partition is tracked independently — otherwise one busy
+        // partition would suppress every other partition's commits.
+        assert!(claim_offset_high_water_mark(group, "p-1", 10));
+        assert!(!claim_offset_high_water_mark(group, "p-0", 40));
+        assert!(claim_offset_high_water_mark(group, "p-1", 11));
     }
 
     #[test]
