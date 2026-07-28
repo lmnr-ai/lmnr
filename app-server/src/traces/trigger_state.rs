@@ -1,25 +1,28 @@
 //! Thin per-trace state backing the cross-batch signal trigger conditions
 //! (LAM-2020).
 //!
-//! Two conditions can't be answered from a single ingest batch: "status is /
-//! is not error" (an error span may have arrived in an earlier batch) and
-//! "total tokens <op> N" (a running sum). The trace's `user_id` is here for the
-//! same reason — it isn't a condition, but per-user sampling reads it and it may
-//! have arrived in any batch. Rather than re-reading cumulative trace state from
-//! ClickHouse on every batch, each is kept in its own short-lived cache key,
-//! updated per batch and read back from `traces_agg` only on a miss (roughly
-//! once per trace per TTL).
+//! Two conditions can't be answered from a single ingest batch: "status is / is
+//! not error" (an error span may have arrived in an earlier batch) and "total
+//! tokens <op> N" (a running sum). `user_id` and `trace_type` are here for a
+//! related reason — not conditions, but per-user sampling and the DEFAULT-only
+//! signals gate read them, and both were set-once/sticky on the Postgres row
+//! this replaced while `TraceAggregation` is batch-local for every field.
 //!
-//! One key per column is deliberate: `total_tokens` uses an atomic INCRBY and
-//! `seen_error` is a set-once flag, so two batches for the same trace can't
-//! clobber each other. A single JSON object would need a read-modify-write and
-//! would race.
+//! ONE KEY PER FIELD, never a shared JSON object: each write then needs only a
+//! primitive that commutes, so two consumers flushing different batches of the
+//! same trace can't clobber each other. A shared object would need a
+//! read-modify-write and would race.
 //!
-//! For the same reason the token total is only ever mutated via `increment` —
-//! never `insert`, which is a plain Redis `SET` (no `NX`) and would let one
-//! worker overwrite a delta another had already added. Two consumers flushing
-//! different batches of the same trace concurrently is normal, so every write
-//! on this path has to commute.
+//! | field         | write            | semantics                     |
+//! |---------------|------------------|-------------------------------|
+//! | `total_tokens`| `increment`       | pure accumulator, never reconciled |
+//! | `seen_error`  | `insert` (bool)   | monotone latch, tri-state key |
+//! | `user_id`     | `insert` (String) | set-once, first id wins       |
+//! | `trace_type`  | `insert` (u8)     | first-NON-ZERO wins           |
+//!
+//! The token total is deliberately NEVER reconciled against `traces_agg` — see
+//! `update_and_read` for why that would double-count under concurrency. Only
+//! the monotone error latch reads back, and only when its key is absent.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -57,23 +60,16 @@ fn trace_type_key(project_id: Uuid, trace_id: Uuid) -> String {
     format!("{TRACE_TYPE_CACHE_KEY}:{project_id}:{trace_id}")
 }
 
-/// Fold this batch's deltas into the per-trace state and return the resulting
-/// cumulative state per trace id.
+/// Fold this batch's contribution into the per-trace state and return the
+/// resulting cumulative state per trace id.
 ///
-/// Ordering matters: the cache is updated with this batch's contribution
-/// BEFORE the returned state is used for evaluation, so a trigger sees totals
-/// that include the batch that triggered it.
+/// Ordering matters: the cache is updated with this batch's contribution BEFORE
+/// the returned state is used for evaluation, so a trigger sees totals that
+/// include the batch that triggered it.
 ///
-/// On a cache miss the trace's cumulative state is read back from `traces_agg`
-/// and seeded, so a key that expired mid-trace (or a fresh replica) doesn't
-/// silently restart the running total at this batch's delta. Cache errors
-/// degrade to the batch-local delta — under-counting a running total can only
-/// delay a trigger to the next batch, whereas failing the flush would stall
-/// ingestion.
-///
-/// Both keys are re-stamped on every batch and a miss on EITHER one triggers
-/// the read-back, so their TTL windows can't drift apart and drop the error
-/// latch on a long-running trace.
+/// Cache errors degrade to this batch's own values rather than failing the
+/// flush — a delayed trigger is better than stalled ingestion. Every key's TTL
+/// is refreshed on every batch so their windows can't drift apart.
 pub async fn update_and_read(
     aggregations: &[TraceAggregation],
     cache: Arc<Cache>,
@@ -100,20 +96,26 @@ pub async fn update_and_read(
         let cached_error = cache.get::<bool>(&error_key).await.unwrap_or(None);
         let mut seen_error = cached_error.unwrap_or(false);
 
-        // Increment FIRST, and detect the miss from the result rather than a
-        // prior `exists` + `insert`. INCRBY is atomic and creates the key at 0,
-        // so two workers flushing different batches of the same new trace both
-        // land their delta — whereas seeding with `insert` (a plain Redis SET,
-        // no NX) would let one worker overwrite a value the other had already
-        // incremented, corrupting the running total until the key expired.
+        // The token total is a PURE ACCUMULATOR: every batch adds its own delta
+        // with an atomic INCRBY and nothing ever reconciles the key against
+        // `traces_agg`. Reconciling is unsound here — the `traces_agg` partial
+        // is inserted earlier in the same flush, BEFORE this increment, so a
+        // concurrent worker reading the aggregate sees deltas whose owners have
+        // not incremented Redis yet. Topping the key up to that aggregate would
+        // count those deltas twice (permanently, until the key expires), and
+        // firing a `total_token_count > N` trigger EARLY is worse than firing it
+        // late: early means a signal run the user didn't ask for. There is no
+        // primitive that fixes this short of holding a lock across both the CH
+        // insert and the Redis update, which the ingest path can't afford.
         //
-        // A returned total equal to this batch's own delta means the key was
-        // absent (or had expired), so the prior total still has to be recovered
-        // from `traces_agg` — see the seed below. Ambiguity is harmless: a trace
-        // whose first batch genuinely is the whole total re-adds the same number
-        // it already has.
-        let batch_total = match cache.increment(&tokens_key, agg.total_tokens).await {
-            Ok(total) => Some(total),
+        // The accepted trade-off is a bounded UNDER-count in one case: a key
+        // that expires mid-trace restarts from the next batch, so a threshold
+        // trigger fires later than it could. The TTL is refreshed on every batch
+        // (below), so expiry needs 30 minutes of silence on a trace that then
+        // resumes — and a late fire is still a fire, since the trigger lock caps
+        // it at once per trace either way.
+        let total_tokens = match cache.increment(&tokens_key, agg.total_tokens).await {
+            Ok(total) => total,
             Err(e) => {
                 log::warn!(
                     "Failed to update trace token state for {}; falling back to this \
@@ -121,37 +123,21 @@ pub async fn update_and_read(
                     agg.trace_id,
                     e
                 );
-                None
+                agg.total_tokens
             }
         };
-        let tokens_known = batch_total.is_some_and(|total| total != agg.total_tokens);
 
-        // Re-seed only when a key is genuinely ABSENT (`cached_error.is_none()`,
-        // not `!seen_error`) — a persisted `false` is a known-clean answer and
-        // must not trigger a read-back, or every batch of every clean trace
-        // would hit ClickHouse.
-        let mut total_tokens = batch_total.unwrap_or(agg.total_tokens);
-        if !tokens_known || cached_error.is_none() {
-            if let Some(seed) = read_back(clickhouse, agg.project_id, agg.trace_id).await {
-                if !tokens_known {
-                    // `traces_agg` already holds this batch's partial (inserted
-                    // earlier in the same flush), so its total IS the cumulative
-                    // one — add back only what the cache is missing. `increment`
-                    // (not `insert`) so a concurrent worker's delta survives.
-                    let missing = seed.total_tokens - total_tokens;
-                    if missing > 0 {
-                        match cache.increment(&tokens_key, missing).await {
-                            Ok(total) => total_tokens = total,
-                            Err(e) => log::warn!(
-                                "Failed to seed trace token state for {}: {:?}",
-                                agg.trace_id,
-                                e
-                            ),
-                        }
-                    }
-                }
-                seen_error |= seed.seen_error;
-            }
+        // The error latch DOES read back, and unlike the token total it's sound
+        // to: `seen_error` is monotone, so OR-ing in a possibly-stale aggregate
+        // is idempotent — a concurrent worker can only ever confirm the same
+        // `true`. Gated on the key being genuinely ABSENT (`is_none()`, not
+        // `!seen_error`): a persisted `false` is a known-clean answer, and since
+        // most traces never error, gating on the value would put a ClickHouse
+        // round-trip on every batch of nearly every trace.
+        if cached_error.is_none()
+            && let Some(errored) = read_back(clickhouse, agg.project_id, agg.trace_id).await
+        {
+            seen_error |= errored;
         }
 
         // This batch's own error latches too — `traces_agg` may not have merged
@@ -260,22 +246,19 @@ pub async fn update_and_read(
     states
 }
 
-/// Cumulative state for one trace straight from `traces_agg`. `None` on error
-/// or when the trace has no rows yet.
+/// Whether ANY span of the trace has reported an error, straight from
+/// `traces_agg`. `None` on error, or when the trace has no rows yet.
+///
+/// Only the error flag is recovered: the token total is a pure accumulator that
+/// must never be reconciled against the aggregate (see `update_and_read`), and
+/// user id / trace type have their own keys.
 async fn read_back(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
     trace_id: Uuid,
-) -> Option<TraceTriggerState> {
+) -> Option<bool> {
     match traces_agg::fetch_trace_states(clickhouse, project_id, &[trace_id]).await {
-        Ok(states) => states.first().map(|state| TraceTriggerState {
-            seen_error: state.status == "error",
-            total_tokens: state.total_tokens,
-            // The read-back exists to recover the two trigger inputs; user id
-            // and trace type have their own keys and are resolved by the caller.
-            user_id: None,
-            trace_type: 0,
-        }),
+        Ok(states) => states.first().map(|state| state.status == "error"),
         Err(e) => {
             log::warn!(
                 "Failed to read back trigger state for trace {} in project {}: {:?}",
@@ -536,6 +519,41 @@ mod tests {
                 Some(false)
             );
         }
+    }
+
+    /// The token total must NEVER be reconciled against `traces_agg`.
+    ///
+    /// The aggregate partial is inserted earlier in the same flush, before this
+    /// increment, so a concurrent worker reading it sees deltas whose owners
+    /// haven't incremented Redis yet. Topping the key up to the aggregate would
+    /// count those twice and fire a `total_token_count > N` trigger EARLY — a
+    /// signal run the user never asked for.
+    ///
+    /// Asserted structurally: seed the key to a value far BELOW what a live
+    /// `traces_agg` would report for the same trace, then confirm the batch adds
+    /// exactly its own delta and never jumps to some aggregate-derived number.
+    #[tokio::test]
+    async fn token_total_is_never_reconciled_against_the_aggregate() {
+        let cache = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+        let ch = clickhouse::Client::default().with_url("http://127.0.0.1:1");
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+
+        // Pretend a peer already accumulated 40 for this trace.
+        cache
+            .insert_with_ttl(&total_tokens_key(pid, tid), 40i64, TTL_SECONDS)
+            .await
+            .unwrap();
+
+        let s = update_and_read(&[agg(pid, tid, 60, None)], cache.clone(), &ch).await;
+        assert_eq!(
+            s[&tid].total_tokens, 100,
+            "must be peer's 40 + this batch's 60, with no aggregate top-up"
+        );
+
+        // Every later batch keeps adding exactly its delta.
+        let s2 = update_and_read(&[agg(pid, tid, 5, None)], cache.clone(), &ch).await;
+        assert_eq!(s2[&tid].total_tokens, 105);
     }
 
     /// `trace_type` must stick across batches that don't carry it.
