@@ -8,6 +8,8 @@
  */
 import { type Metadata } from "next";
 
+import { withBasePath } from "@/lib/utils";
+
 export const metadata: Metadata = {
   title: "Privacy Notice - Laminar",
   description: "How Laminar handles personal data it controls and Customer Data it processes for customers.",
@@ -75,8 +77,8 @@ export default function PrivacyPage() {
 
       <p>
         Our approach to using Customer Data to improve our own models, and the Privacy Mode control that governs it, is
-        summarised in plain English at <a href="/policies/data-use">Data use</a>. That page is a summary; Part B of this
-        notice and the Data Processing Addendum are the operative terms.
+        summarised in plain English at <a href={withBasePath("/policies/data-use")}>Data use</a>. That page is a
+        summary; Part B of this notice and the Data Processing Addendum are the operative terms.
       </p>
 
       <p>
@@ -473,8 +475,9 @@ export default function PrivacyPage() {
       <p>
         We use cookies and similar technologies to keep you signed in, remember preferences, and — where enabled —
         collect the product analytics described above. Details and your choices are in our{" "}
-        <a href="/policies/cookies">Cookie Notice</a>. Because there is still no consensus standard for honouring
-        browser Do-Not-Track signals, we do not currently respond to them; we will update this notice if that changes.
+        <a href={withBasePath("/policies/cookies")}>Cookie Notice</a>. Because there is still no consensus standard for
+        honouring browser Do-Not-Track signals, we do not currently respond to them; we will update this notice if that
+        changes.
       </p>
 
       <h3 id="a-children">A.9 Children</h3>
@@ -814,7 +817,8 @@ export default function PrivacyPage() {
       <p>
         Where the GDPR applies, model improvement is a purpose the customer, as controller, must have a lawful basis
         for; by turning Privacy Mode off, the customer instructs us to process its Customer Data for that purpose and
-        confirms it has that basis. See <a href="/policies/data-use">Data use</a> for the plain-English version.
+        confirms it has that basis. See <a href={withBasePath("/policies/data-use")}>Data use</a> for the plain-English
+        version.
       </p>
 
       <h3 id="b-redaction">B.7 Redaction, and what it does not cover</h3>
@@ -922,8 +926,9 @@ export default function PrivacyPage() {
       </p>
 
       <p>
-        See also our <a href="/policies/terms">Terms of Service</a>, <a href="/policies/data-use">Data use</a> summary,
-        and <a href="/policies/cookies">Cookie Notice</a>.
+        See also our <a href={withBasePath("/policies/terms")}>Terms of Service</a>,{" "}
+        <a href={withBasePath("/policies/data-use")}>Data use</a> summary, and{" "}
+        <a href={withBasePath("/policies/cookies")}>Cookie Notice</a>.
       </p>
     </div>
   );

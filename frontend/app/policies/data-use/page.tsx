@@ -7,6 +7,8 @@
  */
 import { type Metadata } from "next";
 
+import { withBasePath } from "@/lib/utils";
+
 export const metadata: Metadata = {
   title: "Data use - Laminar",
   description: "What Laminar does and does not do with the trace data you send us.",
@@ -40,7 +42,10 @@ export default function DataUsePage() {
           on.
         </li>
         <li>Our staff look at it only to fix a problem you have reported or to investigate an incident.</li>
-        <li>You can delete your projects, and we delete the data we hold for them.</li>
+        <li>
+          You can delete a project, and we delete its traces, messages, recordings and evaluation data. A few things
+          take longer or need us to do them by hand — see the note on deletion below.
+        </li>
       </ul>
 
       <h2>Privacy Mode off</h2>
@@ -96,6 +101,14 @@ export default function DataUsePage() {
           has a retention window that limits how far back you can query. Data older than that stays in storage until it
           is deleted. If you want it gone, delete the project or ask us.
         </li>
+        <li>
+          <strong>Deleting a project does not yet reach everything.</strong> It deletes the traces, messages, session
+          recordings and evaluation data. It does not currently remove the search-index entries for that project — those
+          age out on their own within 90 days — and it does not remove file attachments or dataset exports from our
+          object storage. Deleting a single trace is narrower still: it removes the span records, but the trace summary
+          row and the shared message bodies stay. If you need something specific fully gone, email us and we will do it
+          properly rather than relying on the in-product delete.
+        </li>
       </ul>
 
       <h2>Changing your mind</h2>
@@ -106,9 +119,9 @@ export default function DataUsePage() {
       </p>
 
       <p>
-        This page is a summary. The full detail is in our <a href="/policies/privacy">Privacy Notice</a> (Part B covers
-        customer data) and our <a href="/policies/terms">Terms of Service</a>. If you have a Data Processing Addendum
-        with us, it governs.
+        This page is a summary. The full detail is in our <a href={withBasePath("/policies/privacy")}>Privacy Notice</a>{" "}
+        (Part B covers customer data) and our <a href={withBasePath("/policies/terms")}>Terms of Service</a>. If you
+        have a Data Processing Addendum with us, it governs.
       </p>
     </div>
   );

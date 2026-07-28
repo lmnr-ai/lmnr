@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { useToast } from "@/lib/hooks/use-toast";
+import { withBasePath } from "@/lib/utils";
 
 import { Switch } from "../ui/switch";
 
@@ -67,7 +68,7 @@ export default function PrivacyMode({ workspaceId, privacyMode, isOwner }: Priva
         {enabled
           ? "Your traces are not used for model training."
           : "Your traces may be used to train Laminar's models. Turning Privacy Mode back on stops future use, but cannot remove data from a model already trained on it."}{" "}
-        <a href="/policies/data-use" target="_blank" rel="noreferrer" className="underline">
+        <a href={withBasePath("/policies/data-use")} target="_blank" rel="noreferrer" className="underline">
           What this means
         </a>
       </p>

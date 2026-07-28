@@ -8,6 +8,8 @@
  */
 import { type Metadata } from "next";
 
+import { withBasePath } from "@/lib/utils";
+
 export const metadata: Metadata = {
   title: "Terms of Service - Laminar",
   description: "Terms and conditions for using the Laminar platform.",
@@ -856,9 +858,9 @@ export default function TermsPage() {
             You retain all right, title and interest in and to Customer Data. We claim no ownership of it. As between
             us, you are the controller of any personal data contained in Customer Data and we act as your processor,
             processing Customer Data only on your documented instructions to provide the Services, as further described
-            in our <a href="/policies/privacy#part-b">Privacy Notice</a> and in the Data Processing Addendum. You are
-            responsible for having the rights and lawful basis necessary to send us Customer Data, and for your own
-            notice and consent obligations to your end users.
+            in our <a href={withBasePath("/policies/privacy#part-b")}>Privacy Notice</a> and in the Data Processing
+            Addendum. You are responsible for having the rights and lawful basis necessary to send us Customer Data, and
+            for your own notice and consent obligations to your end users.
           </span>
           <div>
             <strong>
@@ -916,8 +918,8 @@ export default function TermsPage() {
             result in unredacted Customer Data entering a training corpus. You acknowledge that redaction is an
             automated, probabilistic process, that it does not cover every field we store, and that we do not warrant
             that it identifies and removes all personal data. Its scope and limitations are described in our{" "}
-            <a href="/policies/privacy#b-redaction">Privacy Notice</a>. Customer Data that must not be transmitted to us
-            at all should be filtered out in your own instrumentation.
+            <a href={withBasePath("/policies/privacy#b-redaction")}>Privacy Notice</a>. Customer Data that must not be
+            transmitted to us at all should be filtered out in your own instrumentation.
           </span>
           <div>
             <strong>
@@ -926,11 +928,11 @@ export default function TermsPage() {
           </div>
           <span>
             Features that call a language model at the time you invoke them transmit Customer Data to the model
-            providers identified in our <a href="/policies/privacy#b-subprocessors">Privacy Notice</a> in order to
-            perform the requested operation. That transmission is necessary to provide the feature and occurs regardless
-            of the Privacy Mode setting. We contract with those providers on terms intended to prevent them from
-            training their own models on data we transmit. Where you configure your own model provider credentials,
-            requests made with those credentials are governed by your agreement with that provider.
+            providers identified in our <a href={withBasePath("/policies/privacy#b-subprocessors")}>Privacy Notice</a>{" "}
+            in order to perform the requested operation. That transmission is necessary to provide the feature and
+            occurs regardless of the Privacy Mode setting. We contract with those providers on terms intended to prevent
+            them from training their own models on data we transmit. Where you configure your own model provider
+            credentials, requests made with those credentials are governed by your agreement with that provider.
           </span>
           <div>
             <strong>
@@ -941,7 +943,7 @@ export default function TermsPage() {
             Where you have entered into a Data Processing Addendum with us, that addendum governs our processing of
             personal data contained in Customer Data and prevails over this §20 to the extent of any conflict. A
             plain-English summary of our data use position is available at{" "}
-            <a href="/policies/data-use">laminar.sh/policies/data-use</a>.
+            <a href={withBasePath("/policies/data-use")}>laminar.sh/policies/data-use</a>.
           </span>
         </div>
       </div>
