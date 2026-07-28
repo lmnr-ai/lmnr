@@ -68,10 +68,10 @@ pub struct CHTraceStatic {
     /// Span-path-derived preview name, for in-progress traces (and traces whose
     /// root span never arrives). Kept in its own column so it can never clobber
     /// `root_span_name`: readers resolve
-    /// `coalesce(root_span_name, root_span_name_fallback)`, which makes the real
+    /// `coalesce(root_span_name, root_span_name_from_path)`, which makes the real
     /// name win regardless of arrival order without `traces_agg`'s '2'/'1'
     /// priority-prefix encoding.
-    pub root_span_name_fallback: Option<String>,
+    pub root_span_name_from_path: Option<String>,
     /// Enum8 on the wire (Int8). The DDL enum covers the full
     /// `Into<u8> for SpanType` range: an out-of-range int is accepted at
     /// INSERT but poisons every later read of the part.
@@ -161,9 +161,9 @@ impl CHTraceStatic {
         // Within a batch the root trio is unambiguous: `top_span_id` is set
         // only by the real root span, and `top_span_name` is then that span's
         // name. With no `top_span_id` the name (if any) came from the span
-        // path, so it goes to the fallback column where it can never clobber a
+        // path, so it goes to `root_span_name_from_path` where it can never clobber a
         // real name.
-        let (root_span_id, root_span_name, root_span_name_fallback, root_span_type) = match agg {
+        let (root_span_id, root_span_name, root_span_name_from_path, root_span_type) = match agg {
             Some(agg) => match agg.top_span_id {
                 Some(id) => (
                     Some(id),
@@ -190,7 +190,7 @@ impl CHTraceStatic {
             metadata: encode_metadata(trace.metadata()),
             root_span_id,
             root_span_name,
-            root_span_name_fallback,
+            root_span_name_from_path,
             root_span_type,
             status: status_enum_value(trace.status().as_ref()),
             has_browser_session: trace.has_browser_session().map(|v| v as u8),
@@ -228,7 +228,7 @@ impl CHTraceStatic {
             metadata: None,
             root_span_id: None,
             root_span_name: None,
-            root_span_name_fallback: None,
+            root_span_name_from_path: None,
             root_span_type: None,
             status: None,
             has_browser_session: None,
@@ -246,7 +246,7 @@ impl CHTraceStatic {
             || self.metadata.is_some()
             || self.root_span_id.is_some()
             || self.root_span_name.is_some()
-            || self.root_span_name_fallback.is_some()
+            || self.root_span_name_from_path.is_some()
             || self.root_span_type.is_some()
             || self.status.is_some()
             || self.has_browser_session.is_some()
@@ -359,12 +359,12 @@ mod tests {
     // name, in its own column — so it can never clobber a real root name, and
     // the preview still renders for in-progress traces.
     #[test]
-    fn path_derived_name_goes_to_the_fallback_column() {
+    fn path_derived_name_goes_to_its_own_column() {
         let trace = empty_trace();
         let agg = agg_with_root(None, Some("outer_path"), 0);
         let row = CHTraceStatic::from_trace(&trace, Some(&agg), 0).unwrap();
         assert_eq!(row.root_span_name, None);
-        assert_eq!(row.root_span_name_fallback.as_deref(), Some("outer_path"));
+        assert_eq!(row.root_span_name_from_path.as_deref(), Some("outer_path"));
         assert_eq!(row.root_span_id, None);
         assert_eq!(
             row.root_span_type, None,
@@ -372,8 +372,8 @@ mod tests {
         );
     }
 
-    // A batch WITH the root span writes id/name/type together and leaves the
-    // fallback column a NULL hole.
+    // A batch WITH the root span writes id/name/type together and leaves
+    // `root_span_name_from_path` a NULL hole.
     #[test]
     fn real_root_name_goes_to_the_primary_column() {
         let trace = empty_trace();
@@ -382,18 +382,18 @@ mod tests {
         let row = CHTraceStatic::from_trace(&trace, Some(&agg), 0).unwrap();
         assert_eq!(row.root_span_id, Some(root_id));
         assert_eq!(row.root_span_name.as_deref(), Some("agent"));
-        assert_eq!(row.root_span_name_fallback, None);
+        assert_eq!(row.root_span_name_from_path, None);
         assert_eq!(row.root_span_type, Some(6));
     }
 
     // The precedence must be order-independent. Separate columns give the
-    // reader `coalesce(real, fallback)`, so a fallback batch arriving AFTER the
+    // reader `coalesce(real, from_path)`, so a path-only batch arriving AFTER the
     // real root can't overwrite the real name — the bug `traces_replacing` has
     // (its COALESCE arm lets a later fallback win while top_span_id keeps the
     // root's, desyncing the two) and that `traces_agg` works around with a
     // '2'/'1' priority prefix.
     #[test]
-    fn late_fallback_batch_cannot_clobber_the_real_root_name() {
+    fn late_path_only_batch_cannot_clobber_the_real_root_name() {
         let trace = empty_trace();
         let root_id = Uuid::new_v4();
 
@@ -407,7 +407,7 @@ mod tests {
         // batch 2 (later): no root span, only a path-derived name.
         let second = CHTraceStatic::from_trace(
             &trace,
-            Some(&agg_with_root(None, Some("path_fallback"), 0)),
+            Some(&agg_with_root(None, Some("path_derived"), 0)),
             0,
         )
         .unwrap();
@@ -416,16 +416,16 @@ mod tests {
         // keeps batch 1's real name whichever order they land in.
         assert_eq!(second.root_span_name, None);
         assert_eq!(first.root_span_name.as_deref(), Some("real_root"));
-        // And the fallback is still recorded for preview purposes.
+        // And the path-derived name is still recorded for preview purposes.
         assert_eq!(
-            second.root_span_name_fallback.as_deref(),
-            Some("path_fallback")
+            second.root_span_name_from_path.as_deref(),
+            Some("path_derived")
         );
     }
 
     // A metadata patch learns nothing about the root span, so it must write no
     // root columns at all rather than guessing from the PG row (whose
-    // `top_span_name` may itself already be a clobbered fallback).
+    // `top_span_name` may itself already be a clobbered path-derived name).
     #[test]
     fn patch_only_trace_writes_no_root_columns() {
         let mut trace = empty_trace();
@@ -436,7 +436,7 @@ mod tests {
         assert!(row.metadata.is_some(), "the patch's metadata still lands");
         assert_eq!(row.root_span_id, None);
         assert_eq!(row.root_span_name, None);
-        assert_eq!(row.root_span_name_fallback, None);
+        assert_eq!(row.root_span_name_from_path, None);
         assert_eq!(row.root_span_type, None);
     }
 

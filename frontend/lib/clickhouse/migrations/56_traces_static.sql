@@ -35,9 +35,9 @@
 --            range(0, intDiv(length(output_hashes), 64)))
 -- which yields Array(String) that dictGet accepts for a FixedString(32) key.
 --
--- `root_span_name` vs `root_span_name_fallback`: the real root span's name and
+-- `root_span_name` vs `root_span_name_from_path`: the real root span's name and
 -- the span-path-derived preview name are SEPARATE columns, and the read path
--- resolves `coalesce(root_span_name, root_span_name_fallback)`. The fallback
+-- resolves `coalesce(root_span_name, root_span_name_from_path)`. The fallback
 -- exists to preview in-progress traces (and traces whose root span never
 -- arrives). One column can't carry both under last-write-wins: a later batch
 -- with no root span can't tell whether a real name was already written, so it
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS default.traces_static
     `metadata` Nullable(String) CODEC(ZSTD(3)),
     `root_span_id` Nullable(UUID),
     `root_span_name` Nullable(String),
-    `root_span_name_fallback` Nullable(String),
+    `root_span_name_from_path` Nullable(String),
     `root_span_type` Nullable(Enum8('DEFAULT' = 0, 'LLM' = 1, 'PIPELINE' = 2, 'EXECUTOR' = 3,
         'EVALUATOR' = 4, 'EVALUATION' = 5, 'TOOL' = 6, 'HUMAN_EVALUATOR' = 7, 'CACHED' = 8)),
     `status` Nullable(Enum8('success' = 1, 'error' = 2)),
