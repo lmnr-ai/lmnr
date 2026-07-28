@@ -17,8 +17,10 @@ export type SessionResizablePanel = "session" | "span";
  *  as its slowest id. Measured over a 20-trace fallback window, time-to-first
  *  output went 0.64s (single request) → 0.17s at this size. */
 const OUTPUT_CHUNK_SIZE = 5;
-/** In-flight `/traces/output` requests. Bounded so a wide window can't exhaust
- *  the browser's per-host connection pool and stall other panel fetches. */
+/** In-flight `/traces/output` requests, counted per STORE (not per flush) so
+ *  overlapping flushes from continuous scrolling can't exceed it. Bounded so a
+ *  wide window can't exhaust the browser's per-host connection pool and stall
+ *  other panel fetches. */
 const OUTPUT_MAX_CONCURRENCY = 6;
 
 type PanelWidthKey = "sessionPanelWidth" | "spanPanelWidth";
@@ -263,7 +265,16 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
     }
   };
 
-  const flushAgentOutputs = async () => {
+  // Chunks awaiting a worker, plus the count of workers currently draining them.
+  // Both are store-lifetime (NOT per-flush) so OUTPUT_MAX_CONCURRENCY bounds
+  // in-flight requests across overlapping flushes: continuous scrolling fires a
+  // new flush every 150ms without waiting for the previous one to settle, and a
+  // per-flush pool would let each of those start its own OUTPUT_MAX_CONCURRENCY
+  // workers.
+  const outputQueue: string[][] = [];
+  let outputWorkers = 0;
+
+  const flushAgentOutputs = () => {
     const projectId = get().projectId;
     if (!projectId || outputPending.size === 0) return;
 
@@ -271,18 +282,29 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
     outputPending.clear();
     for (const id of toFetch) outputFetching.add(id);
 
-    const chunks: string[][] = [];
     for (let i = 0; i < toFetch.length; i += OUTPUT_CHUNK_SIZE) {
-      chunks.push(toFetch.slice(i, i + OUTPUT_CHUNK_SIZE));
+      outputQueue.push(toFetch.slice(i, i + OUTPUT_CHUNK_SIZE));
     }
 
-    let cursor = 0;
     const worker = async () => {
-      while (cursor < chunks.length) {
-        await fetchOutputChunk(projectId, chunks[cursor++]);
+      try {
+        let chunk: string[] | undefined;
+        while ((chunk = outputQueue.shift())) {
+          await fetchOutputChunk(projectId, chunk);
+        }
+      } finally {
+        outputWorkers--;
       }
     };
-    await Promise.all(Array.from({ length: Math.min(OUTPUT_MAX_CONCURRENCY, chunks.length) }, worker));
+    // Top up to the cap; existing workers cover the rest. `worker()` runs
+    // synchronously up to its first await and shifts a chunk off the queue, so
+    // the target is computed BEFORE spawning — reading `outputQueue.length` per
+    // iteration would see the shrinking queue and under-spawn.
+    const target = Math.min(OUTPUT_MAX_CONCURRENCY, outputWorkers + outputQueue.length);
+    while (outputWorkers < target) {
+      outputWorkers++;
+      void worker();
+    }
   };
 
   return {
