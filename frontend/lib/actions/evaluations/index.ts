@@ -24,12 +24,6 @@ export const DeleteEvaluationsSchema = z.object({
   evaluationIds: z.array(z.guid()),
 });
 
-export const MoveEvaluationsSchema = z.object({
-  projectId: z.guid(),
-  evaluationIds: z.array(z.guid()).min(1),
-  groupId: z.string().trim().min(1),
-});
-
 export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>) {
   const { projectId, groupId, pageSize, pageNumber, search, filter } = input;
 
@@ -191,72 +185,6 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
     ...result,
     items: itemsWithCounts,
   };
-}
-
-export async function moveEvaluations(input: z.infer<typeof MoveEvaluationsSchema>) {
-  const { projectId, evaluationIds, groupId } = MoveEvaluationsSchema.parse(input);
-
-  // This move spans two stores (Postgres eval-header group_id + ClickHouse datapoint
-  // group_id) with no distributed transaction. We do the FLAKIER, slower step first —
-  // the ClickHouse re-insert — so the common failure mode (a CH blip) leaves BOTH stores
-  // untouched and the move simply didn't happen. Postgres, the near-reliable step that
-  // decides group-list membership, goes last: if CH throws, we bail before mutating PG,
-  // so no eval ever appears in the destination group without its datapoints. The tiny
-  // residual window (CH ok, PG throws) heals on retry — both steps are idempotent (the
-  // re-insert re-wins by updated_at, the PG update is a no-op). We do NOT swallow errors
-  // (unlike deleteEvaluations): partial state here is *visible* (chart drift), so we fail
-  // loud and let the caller surface it and retry.
-  //
-  // Datapoints carry a denormalized group_id that the group progression chart reads
-  // (WHERE group_id = ...), so it must follow the header. evaluation_datapoints is a
-  // ReplacingMergeTree(updated_at): re-insert the latest (FINAL) version of each row with
-  // the new group_id, versioned so it wins on the next merge / FINAL read.
-  //
-  // updated_at DOUBLES as the run's creation time — evaluation_datapoints_v0 aliases both
-  // `updated_at` AND `created_at` to this one physical column (there is no separate
-  // created_at). So we must NOT stamp now64(9) (that jumps every moved run to "now" on the
-  // progression chart, scrambling chronological order). Instead bump by the smallest
-  // representable step: version = old + 1 nanosecond (via the underlying Int64 nanos). That
-  // strictly beats the prior version so RMT keeps the moved row, while the run's chart time
-  // shifts by 1ns — imperceptible, and order-preserving.
-  //
-  // NOTE: the column list is hardcoded and MUST stay in sync with the
-  // evaluation_datapoints schema — INSERT ... SELECT maps positionally, so a new
-  // column added to the table without updating this list will corrupt re-inserted
-  // rows. Cross-check against app-server CHEvaluationDatapoint when the schema changes.
-  await clickhouseClient.command({
-    query: `
-      INSERT INTO evaluation_datapoints
-        (id, evaluation_id, project_id, trace_id, updated_at, data, target, metadata,
-         executor_output, index, dataset_id, dataset_datapoint_id, dataset_datapoint_created_at,
-         group_id, scores)
-      SELECT
-        id, evaluation_id, project_id, trace_id,
-        fromUnixTimestamp64Nano(toUnixTimestamp64Nano(updated_at) + 1, 'UTC') AS updated_at,
-        data, target, metadata,
-        executor_output, index, dataset_id, dataset_datapoint_id, dataset_datapoint_created_at,
-        {groupId: String} AS group_id, scores
-      FROM evaluation_datapoints FINAL
-      WHERE project_id = {projectId: UUID}
-        AND evaluation_id IN ({evaluationIds: Array(UUID)})
-    `,
-    query_params: {
-      projectId,
-      evaluationIds,
-      groupId,
-    },
-    // Re-insert must be durable before we touch Postgres (shared client defaults
-    // to wait_for_async_insert: 0).
-    clickhouse_settings: {
-      wait_for_async_insert: 1,
-    },
-  });
-
-  // Postgres last: it decides group-list membership, and it's the reliable step.
-  await db
-    .update(evaluations)
-    .set({ groupId })
-    .where(and(inArray(evaluations.id, evaluationIds), eq(evaluations.projectId, projectId)));
 }
 
 export async function deleteEvaluations(input: z.infer<typeof DeleteEvaluationsSchema>) {
