@@ -17,6 +17,7 @@ use crate::{
         trace_agent_io::{CHTraceAgentInput, CHTraceAgentOutput},
         traces::{CHTrace, TraceAggregation},
         traces_agg::CHTraceAgg,
+        traces_static::CHTraceStatic,
         utils::chrono_to_nanoseconds,
     },
     db::{
@@ -162,6 +163,79 @@ fn collect_agent_io_rows(
     (inputs, outputs)
 }
 
+/// Resolves each trace's `start_time` for the non-span `traces_static` writes
+/// (metadata patches, extracted agent io). `start_time` is the partition key, so
+/// these writes MUST agree with the span-batch writes' value or they land in a
+/// different partition and drop out of `start_time`-bounded reads.
+///
+/// Precedence, best source first:
+///   1. **This batch's min span start** (`TraceAggregation::start_time`) — what
+///      `from_aggregation` writes in the same flush, so agreeing with it is
+///      exactly right.
+///   2. **The trace's real cumulative start** from the PG-merged row. Covers a
+///      patch/io write for a trace whose spans arrived in an EARLIER flush, which
+///      (1) can't see. Stub rows are skipped: `is_stub()` means no span batch has
+///      ever touched the row, so its times are `now()` placeholders, not real.
+///   3. `now_ns`. Only reached when the trace's start is genuinely unknown here
+///      (patch beat every span batch). Exact whenever the trace started in the
+///      current partition period; a trace that started in a previous month lands
+///      one partition late, which `SELECT ... FINAL` still coalesces but a tight
+///      `start_time` filter can clip.
+///
+/// Step 2 is why this consults `patched_traces`: while the PG aggregator still
+/// exists it's a free, already-fetched source of the real trace start. When it's
+/// retired this degrades to (1) → (3) with no correctness change — the partition
+/// may just be less precise for cross-flush writes.
+fn resolve_static_start_times(
+    aggregations: &[TraceAggregation],
+    patched_traces: &[Trace],
+) -> HashMap<(Uuid, Uuid), i64> {
+    // Insert the weaker source first so the batch's own value overwrites it.
+    let mut by_trace: HashMap<(Uuid, Uuid), i64> = patched_traces
+        .iter()
+        .filter(|t| !t.is_stub())
+        .filter_map(|t| {
+            t.start_time()
+                .map(|st| ((t.project_id(), t.id()), chrono_to_nanoseconds(st)))
+        })
+        .collect();
+    by_trace.extend(aggregations.iter().filter_map(|agg| {
+        agg.start_time
+            .map(|st| ((agg.project_id, agg.trace_id), chrono_to_nanoseconds(st)))
+    }));
+    by_trace
+}
+
+/// Build `traces_static` writes for the extracted agent io (LAM-2026). Output
+/// hashes are concatenated hex (64 chars each) because the column can't be a
+/// `Nullable(Array(...))` — see `ch::traces_static`. `start_time` comes from
+/// [`resolve_static_start_times`].
+fn collect_static_agent_io_rows(
+    io: &[RawTraceIo],
+    start_time_by_trace: &HashMap<(Uuid, Uuid), i64>,
+    now_ns: i64,
+) -> Vec<CHTraceStatic> {
+    io.iter()
+        .filter_map(|entry| {
+            let output_hashes = entry
+                .output_hashes
+                .as_ref()
+                .map(|hashes| hashes.iter().map(hex::encode).collect::<String>());
+            let start_time = start_time_by_trace
+                .get(&(entry.project_id, entry.trace_id))
+                .copied()
+                .unwrap_or(now_ns);
+            CHTraceStatic::from_agent_io(
+                entry.project_id,
+                entry.trace_id,
+                entry.input.as_ref().map(Value::to_string),
+                output_hashes,
+                start_time,
+            )
+        })
+        .collect()
+}
+
 #[instrument(skip(
     messages,
     db,
@@ -211,6 +285,11 @@ pub async fn process_span_messages(
     //     `deduped_content` lookup, and the old `lmnr_trace_output` metadata
     //     key is not written anymore.
     let mut raw_trace_io: Vec<RawTraceIo> = Vec::new();
+    // GENUINE customer metadata patches (`POST /v1/traces/metadata`) only. The
+    // synthetic `lmnr_user_task` fold below goes in its own vec — it is a
+    // `traces_replacing`-only compatibility shim and must never reach
+    // `traces_static`, whose `metadata` has SET (whole-object) semantics and
+    // would be CLOBBERED by it.
     let mut metadata_patches: Vec<TraceMetadataPatch> = Vec::new();
     for m in messages
         .iter()
@@ -275,21 +354,30 @@ pub async fn process_span_messages(
     }
     messages.retain(|m| !m.span.attributes.is_metadata_only());
 
-    // `traces_replacing` path: surface extracted INPUT as a trace metadata
+    // `traces_replacing`-ONLY path: surface extracted INPUT as a trace metadata
     // key so it lands in `traces_replacing.metadata` (the current read
     // path). Written on BOTH flag states for now — while `WRITE_TRACES_AGG`
     // is a migration bridge, input lives in both `traces_replacing.metadata`
-    // AND the `trace_agent_input` supplementary table. Once the read path
-    // cuts over to `traces_agg_v0`, gate this fold on `!WRITE_TRACES_AGG` (or
-    // drop it) — all metadata-key knowledge of input lives here and dies
-    // with the old table. Output has no equivalent fold (see above).
+    // AND `traces_static.input`. Once the read path cuts over, drop this fold
+    // entirely — all metadata-key knowledge of input lives here and dies with
+    // the old table. Output has no equivalent fold (see above).
+    //
+    // Kept in a SEPARATE vec from the genuine customer patches: `traces_agg`
+    // strips this key in `encode_metadata`, and `traces_static` must not see it
+    // at all. Its `metadata` is one whole-object column with SET semantics, so a
+    // synthetic `{lmnr_user_task: …}` delta wouldn't sit beside the customer's
+    // keys — it would REPLACE them (verified end-to-end before this fix: a trace
+    // with real metadata came back with only `lmnr_user_task`). The extracted
+    // input already has its own dedicated `traces_static.input` column, so
+    // there's nothing to duplicate into metadata either.
+    let mut user_task_metadata_patches: Vec<TraceMetadataPatch> = Vec::new();
     for io in &raw_trace_io {
         let Some(value) = &io.input else {
             continue;
         };
         let mut map = serde_json::Map::new();
         map.insert(USER_TASK_METADATA_KEY.to_string(), value.clone());
-        metadata_patches.push(TraceMetadataPatch {
+        user_task_metadata_patches.push(TraceMetadataPatch {
             trace_id: io.trace_id,
             project_id: io.project_id,
             metadata: Value::Object(map),
@@ -580,9 +668,19 @@ pub async fn process_span_messages(
         // Patches that beat the trace's span batch create a virtual row that
         // the aggregation upsert later fills in — see
         // `merge_trace_metadata_batch` for the known stub-row caveat.
+        //
+        // Postgres / `traces_replacing` takes BOTH the genuine customer patches
+        // and the synthetic `lmnr_user_task` fold (its `||` merge is per-key, so
+        // the shim can't clobber customer keys there). Only `traces_static` needs
+        // the two kept apart.
         let mut patched_traces: Vec<Trace> = Vec::new();
-        if !metadata_patches.is_empty() {
-            match merge_trace_metadata_batch(&db.pool, &metadata_patches).await {
+        let all_metadata_patches: Vec<TraceMetadataPatch> = metadata_patches
+            .iter()
+            .chain(user_task_metadata_patches.iter())
+            .cloned()
+            .collect();
+        if !all_metadata_patches.is_empty() {
+            match merge_trace_metadata_batch(&db.pool, &all_metadata_patches).await {
                 Ok(patched) => patched_traces = patched,
                 Err(e) => log::error!("Failed to merge trace metadata patches: {:?}", e),
             }
@@ -680,6 +778,65 @@ pub async fn process_span_messages(
                         e
                     );
                 }
+            }
+
+            // Write the static (set-once, latest-wins) columns to
+            // `traces_static` (LAM-2026, phase 1: write only — no reader yet).
+            // `CoalescingMergeTree` resolves each column independently, so a
+            // write only touches the columns it carries; a trace with nothing
+            // static known yet produces no row.
+            //
+            // Per-batch DELTAS, same as `traces_agg` above and deliberately
+            // independent of Postgres (the PG aggregator is being retired, so
+            // nothing here may read a cumulative row first). Every column folds
+            // from partials alone: the coalescing columns because a NULL means
+            // "no update", and `metadata` / `statuses` / `trace_types` because
+            // they're `SimpleAggregateFunction`s that merge per key / by union.
+            //
+            // Gated on `aggregation_ok` for the same reason as `traces_agg`.
+            // Metadata patches contribute their own delta carrying ONLY the
+            // patched object (SET semantics — see `ch::traces_static`).
+            //
+            // `start_time` is the partition key, so the patch / agent-io writes
+            // resolve it through `resolve_static_start_times`: this batch's min
+            // span start when the flush carried spans for the trace, else the
+            // trace's real cumulative start from the PG-merged row, else the
+            // flush clock. That keeps every write for a trace in the same
+            // partition as the span-batch writes.
+            let start_time_by_trace =
+                resolve_static_start_times(&trace_aggregations, &patched_traces);
+            let mut traces_static_rows: Vec<CHTraceStatic> = Vec::new();
+            if aggregation_ok {
+                traces_static_rows.extend(
+                    trace_aggregations
+                        .iter()
+                        .filter_map(|agg| CHTraceStatic::from_aggregation(agg, now_ns)),
+                );
+            }
+            traces_static_rows.extend(metadata_patches.iter().filter_map(|patch| {
+                CHTraceStatic::from_metadata_patch(
+                    patch.project_id,
+                    patch.trace_id,
+                    Some(&patch.metadata),
+                    start_time_by_trace
+                        .get(&(patch.project_id, patch.trace_id))
+                        .copied()
+                        .unwrap_or(now_ns),
+                )
+            }));
+            traces_static_rows.extend(collect_static_agent_io_rows(
+                &raw_trace_io,
+                &start_time_by_trace,
+                now_ns,
+            ));
+            if !traces_static_rows.is_empty()
+                && let Err(e) = ch.insert_batch(&traces_static_rows, config).await
+            {
+                log::error!(
+                    "Failed to insert {} traces_static rows to ClickHouse: {:?}",
+                    traces_static_rows.len(),
+                    e
+                );
             }
 
             // Extracted agent input/output: store the RAW value directly in
@@ -1006,5 +1163,163 @@ async fn dispatch_trace_realtime_updates(traces: &[Trace], cache: Arc<Cache>, pu
     for ((project_id, rollout_session_id), traces_data) in debugger_buckets {
         let key = format!("rollout_session_{}", rollout_session_id);
         send_trace_updates(&project_id, &key, &traces_data, pubsub).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use chrono::{TimeZone, Utc};
+    use serde_json::json;
+
+    use super::*;
+
+    fn agg(
+        project_id: Uuid,
+        trace_id: Uuid,
+        start: Option<chrono::DateTime<Utc>>,
+    ) -> TraceAggregation {
+        TraceAggregation {
+            trace_id,
+            project_id,
+            start_time: start,
+            end_time: None,
+            input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+            reasoning_tokens: 0,
+            input_cost: 0.0,
+            output_cost: 0.0,
+            total_cost: 0.0,
+            session_id: None,
+            user_id: None,
+            status: None,
+            metadata: None,
+            tags: HashSet::new(),
+            num_spans: 0,
+            top_span_id: None,
+            top_span_name: None,
+            top_span_type: 0,
+            trace_type: 0,
+            has_browser_session: None,
+            span_names: HashSet::new(),
+            root_span_input: None,
+            root_span_output: None,
+        }
+    }
+
+    // `start_time` is traces_static's partition key, so the patch / agent-io
+    // writes must resolve the SAME value the span-batch write uses. This batch's
+    // min span start is the best source and must win over the PG row.
+    #[test]
+    fn batch_start_time_wins_over_the_pg_row() {
+        let project_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+        let batch_start = Utc.timestamp_opt(1_700_000_500, 0).unwrap();
+        let pg_start = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+
+        let trace = Trace::test_new(
+            trace_id,
+            project_id,
+            Some(pg_start),
+            None,
+            // span_names populated => a real span batch has touched the row
+            Some(json!({"some_span": true})),
+        );
+        let resolved =
+            resolve_static_start_times(&[agg(project_id, trace_id, Some(batch_start))], &[trace]);
+        assert_eq!(
+            resolved.get(&(project_id, trace_id)).copied(),
+            Some(chrono_to_nanoseconds(batch_start))
+        );
+    }
+
+    // A patch / io write for a trace whose spans arrived in an EARLIER flush has
+    // no aggregation to read, so it falls back to the trace's real cumulative
+    // start rather than the flush clock.
+    #[test]
+    fn falls_back_to_the_real_trace_start_when_this_flush_had_no_spans() {
+        let project_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+        let pg_start = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+
+        let trace = Trace::test_new(
+            trace_id,
+            project_id,
+            Some(pg_start),
+            None,
+            Some(json!({"some_span": true})),
+        );
+        let resolved = resolve_static_start_times(&[], &[trace]);
+        assert_eq!(
+            resolved.get(&(project_id, trace_id)).copied(),
+            Some(chrono_to_nanoseconds(pg_start))
+        );
+    }
+
+    // A stub row (patch beat every span batch) carries `now()` PLACEHOLDER times,
+    // not real ones — using them would pin the partition to an invented value, so
+    // stubs are skipped and the caller's `now_ns` fallback applies instead.
+    #[test]
+    fn stub_rows_are_not_a_start_time_source() {
+        let project_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+
+        let stub = Trace::test_new(
+            trace_id,
+            project_id,
+            Some(Utc::now()),
+            None,
+            None, // span_names NULL => stub
+        );
+        assert!(stub.is_stub());
+        let resolved = resolve_static_start_times(&[], &[stub]);
+        assert!(
+            resolved.get(&(project_id, trace_id)).is_none(),
+            "a stub's placeholder times must never seed the partition key"
+        );
+    }
+
+    // Agent-io rows must carry the resolved trace start, never their own
+    // per-write timestamp, or they'd land in a foreign partition.
+    #[test]
+    fn agent_io_rows_use_the_resolved_start_time() {
+        let project_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+        let batch_start = Utc.timestamp_opt(1_700_000_500, 0).unwrap();
+        let resolved =
+            resolve_static_start_times(&[agg(project_id, trace_id, Some(batch_start))], &[]);
+
+        let rows = collect_static_agent_io_rows(
+            &[RawTraceIo {
+                project_id,
+                trace_id,
+                input: Some(json!("the task")),
+                output_hashes: None,
+                // A wildly different per-write time that must NOT be used.
+                output_end_time_ns: Some(i64::MAX),
+            }],
+            &resolved,
+            999,
+        );
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].start_time, chrono_to_nanoseconds(batch_start));
+
+        // With nothing resolvable, the caller's now_ns is the last resort.
+        let rows = collect_static_agent_io_rows(
+            &[RawTraceIo {
+                project_id,
+                trace_id,
+                input: Some(json!("the task")),
+                output_hashes: None,
+                output_end_time_ns: None,
+            }],
+            &HashMap::new(),
+            999,
+        );
+        assert_eq!(rows[0].start_time, 999);
     }
 }
