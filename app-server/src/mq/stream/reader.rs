@@ -26,17 +26,14 @@
 //! Head-of-line blocking on that partition is the deliberate trade — the backlog
 //! accumulates on broker disk, which is the point of the migration.
 //!
-//! Anything we skip past — an empty record, an undecodable record, a permanently
-//! failing batch — is copied to the dead-letter stream FIRST, payload included.
-//! Once the offset advances the source record is unreachable, so an uncopied skip
-//! is permanent data loss. The copy is therefore a **precondition**: if it fails
-//! (retried, then given up) the offset is HELD **and the consuming stops** — a
-//! single record breaks the read loop, an unrecordable batch returns from the
-//! batcher — so nothing later can store a higher offset for those partitions and
-//! advance past them. The reader reconnects and the records are redelivered.
-//! That's why the sink is required rather than optional: it is built at boot
-//! BEFORE any publisher registers, and a failure there disables streams entirely
-//! so producers can't write to streams nothing reads.
+//! **Unprocessable records are logged and skipped — we accept the loss for now.**
+//! An empty record, an undecodable record, or a permanently failing batch is
+//! logged at `error` and the offset advances past it. There is deliberately NO
+//! dead-letter sink: these cases require malformed data on the wire (our own
+//! producer's JSON) or an unprocessable batch, which should not happen in
+//! practice, and a durable sink needs a substrate that retains until consumed —
+//! a stream expires under retention, so it isn't one. Tracked as follow-up work;
+//! until then the skip is visible in logs and nothing blocks the partition.
 //!
 //! Offset stores are gated twice. A partition the broker has DEACTIVATED us for is
 //! never committed: its successor may live in another pod, so no local comparison
@@ -46,10 +43,10 @@
 //! incoming batchers ordered, and it advances only once the broker CONFIRMS a
 //! store, so a failed store stays retryable.
 //!
-//! A dead-lettered record still forwards its OFFSET to the batcher (as a
+//! A skipped record still forwards its OFFSET to the batcher (as a
 //! `StreamDelivery` with `message: None`). Skipping the offset too would pin the
 //! partition whenever its tail is poison: nothing later would ever store a higher
-//! offset, so every reconnect would re-read and re-dead-letter the same records.
+//! offset, so every reconnect would re-read and re-log the same records.
 
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};
@@ -57,14 +54,13 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use backoff::{ExponentialBackoffBuilder, backoff::Backoff};
-use base64::{Engine, prelude::BASE64_STANDARD};
 use futures_util::StreamExt;
 use rabbitmq_stream_client::{
-    Client, NoDedup, Producer,
+    Client,
     error::ClientError,
-    types::{Message, MessageContext, OffsetSpecification, ResponseCode},
+    types::{MessageContext, OffsetSpecification, ResponseCode},
 };
-use serde::{Serialize, de::DeserializeOwned};
+use serde::de::DeserializeOwned;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -82,11 +78,6 @@ const TRANSIENT_RETRY_LOG_EVERY: u32 = 20;
 /// down dependency would otherwise hold reader reconnect open indefinitely.
 const BATCHER_DRAIN_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// Retry budget for a dead-letter write. Bounded because the sink sits on the
-/// ingest path, but long enough to ride out a broker blip — an exhausted budget
-/// makes the caller HOLD the offset rather than drop the record.
-const DEAD_LETTER_WRITE_BUDGET: Duration = Duration::from_secs(30);
-
 /// Retry budget for re-querying a stored offset during SAC activation. Bounded
 /// because the broker waits on our activation response; exhaustion falls back to
 /// replaying from retention (duplicates) rather than skipping (loss).
@@ -94,10 +85,10 @@ const OFFSET_QUERY_RETRY_BUDGET: Duration = Duration::from_secs(10);
 
 /// One record off a partition.
 ///
-/// `message` is `None` for a record we dead-lettered instead of decoding: the
-/// offset still has to reach the batcher, or a trailing poison record would never
-/// advance the consumer group and its partition would re-read the same bad offsets
-/// on every reconnect / SAC handover.
+/// `message` is `None` for a record we skipped instead of decoding: the offset
+/// still has to reach the batcher, or a trailing poison record would never advance
+/// the consumer group and its partition would re-read the same bad offsets on
+/// every reconnect / SAC handover.
 pub struct StreamDelivery<M> {
     pub message: Option<M>,
     pub stream: String,
@@ -134,8 +125,8 @@ pub trait StreamBatchHandler: Send + Sync + 'static {
 
     /// Process one accumulated batch. `Transient` is retried in place FOREVER
     /// (the batch is borrowed, so a retry costs nothing) and never advances the
-    /// offset — use it for infrastructure failures. `Permanent` dead-letters the
-    /// batch and advances past it — use it only when the data itself is
+    /// offset — use it for infrastructure failures. `Permanent` logs and DROPS the
+    /// batch, advancing past it — use it only when the data itself is
     /// unprocessable, since it is the one arm that discards records.
     async fn flush(&self, messages: &[Self::Message]) -> Result<(), HandlerError>;
 }
@@ -147,9 +138,6 @@ pub struct StreamReader<H: StreamBatchHandler> {
     consumer_name: &'static str,
     environment: StreamEnvironment,
     handler: Arc<H>,
-    /// REQUIRED, not optional: it is the only surviving copy of anything the
-    /// reader skips past, so there is no safe mode without it.
-    dead_letter: Arc<DeadLetterSink>,
 }
 
 impl<H: StreamBatchHandler> StreamReader<H> {
@@ -158,7 +146,6 @@ impl<H: StreamBatchHandler> StreamReader<H> {
         consumer_name: &'static str,
         environment: StreamEnvironment,
         handler: H,
-        dead_letter: Arc<DeadLetterSink>,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -166,39 +153,22 @@ impl<H: StreamBatchHandler> StreamReader<H> {
             consumer_name,
             environment,
             handler: Arc::new(handler),
-            dead_letter,
         }
     }
 
-    /// Whether an undecodable record may be skipped, i.e. a durable copy exists.
+    /// Log an unprocessable record before we advance past it.
     ///
-    /// `false` when the dead-letter write failed. The caller must then stop
-    /// consuming so the offset is never advanced past the record — the alternative
-    /// is discarding data that exists nowhere else. Reconnecting redelivers it; if
-    /// the sink is permanently broken this loops, which is loud and recoverable,
-    /// unlike silent loss.
-    async fn skip_record(
-        &self,
-        kind: &str,
-        reason: &str,
-        stream: &str,
-        offset: u64,
-        payload: Option<&[u8]>,
-    ) -> bool {
-        if self
-            .dead_letter
-            .publish_record_failure(kind, reason, stream, offset, payload)
-            .await
-        {
-            return true;
-        }
+    /// Deliberately lossy for now: there is no durable copy, so the log line is
+    /// the only record. Kept as one helper so the follow-up that adds a real sink
+    /// has a single call site to change.
+    fn log_skipped_record(kind: &str, reason: &str, stream: &str, offset: u64) {
         log::error!(
-            "Dead-letter write failed for {} at {}:{}; holding the offset and reconnecting rather than dropping the record",
+            "Dropping unprocessable stream record ({}) at {}:{} — {}. No durable copy is kept (known gap, follow-up work)",
             kind,
             stream,
-            offset
+            offset,
+            reason
         );
-        false
     }
 
     /// Runs forever, reconnecting on stream end / connection loss.
@@ -321,7 +291,6 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                 self.handler.clone(),
                 client.clone(),
                 self.consumer_name,
-                self.dead_letter.clone(),
             )));
         }
 
@@ -339,22 +308,13 @@ impl<H: StreamBatchHandler> StreamReader<H> {
             let stream = delivery.stream().clone();
             let offset = delivery.offset();
 
-            // Undecodable records are skipped, and a later successful flush on the
-            // same partition advances the offset PAST them — so the dead-letter
-            // copy is the ONLY surviving artifact. If that copy doesn't land we
-            // must not skip: `skip_record` returns false and we reconnect with the
-            // offset untouched, so the record is redelivered rather than lost to
-            // retention (schema drift / corruption stays inspectable).
+            // Undecodable records are logged and skipped; the offset advances with
+            // the next flush and the record is gone. Deliberate for now — see the
+            // module header.
             let data = match delivery.message().data() {
                 Some(data) => Some(data),
                 None => {
-                    log::warn!("Empty stream record at {}:{}", stream, offset);
-                    if !self
-                        .skip_record("empty_record", "record had no body", &stream, offset, None)
-                        .await
-                    {
-                        break;
-                    }
+                    Self::log_skipped_record("empty_record", "record had no body", &stream, offset);
                     None
                 }
             };
@@ -365,24 +325,12 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                     Err(e) => {
                         // Won't parse on retry either — same verdict as the queue
                         // path's reject-without-requeue on a deserialize failure.
-                        log::error!(
-                            "Failed to deserialize stream record at {}:{}: {:?}",
-                            stream,
+                        Self::log_skipped_record(
+                            "deserialize_failed",
+                            &e.to_string(),
+                            &stream,
                             offset,
-                            e
                         );
-                        if !self
-                            .skip_record(
-                                "deserialize_failed",
-                                &e.to_string(),
-                                &stream,
-                                offset,
-                                Some(data),
-                            )
-                            .await
-                        {
-                            break;
-                        }
                         None
                     }
                 },
@@ -530,7 +478,6 @@ async fn run_batcher<H: StreamBatchHandler>(
     handler: Arc<H>,
     client: Client,
     consumer_name: &'static str,
-    dead_letter: Arc<DeadLetterSink>,
 ) {
     let mut batch: Vec<H::Message> = Vec::new();
     // Accumulated `message_weight`, not `batch.len()` — see the trait doc.
@@ -564,7 +511,7 @@ async fn run_batcher<H: StreamBatchHandler>(
                         if batch_weight >= batch_size
                             || (batch.is_empty() && !pending_offsets.is_empty())
                         {
-                            if !flush_and_commit(
+                            flush_and_commit(
                                 index,
                                 &handler,
                                 &client,
@@ -572,17 +519,8 @@ async fn run_batcher<H: StreamBatchHandler>(
                                 &mut batch,
                                 &mut batch_weight,
                                 &mut pending_offsets,
-                                &dead_letter,
                             )
-                            .await
-                            {
-                                // Unrecordable batch: stop rather than keep
-                                // consuming, or a later flush would store a higher
-                                // offset for these partitions and advance past it.
-                                // Exiting drops our receiver, so the reader
-                                // reconnects and the records are redelivered.
-                                return;
-                            }
+                            .await;
                         }
                     }
                     None => {
@@ -590,9 +528,7 @@ async fn run_batcher<H: StreamBatchHandler>(
                         // already-processed (and dead-lettered) records are
                         // durable, then exit.
                         if !batch.is_empty() || !pending_offsets.is_empty() {
-                            // We're exiting either way; the held-offsets case is
-                            // already handled by not storing them.
-                            let _ = flush_and_commit(
+                            flush_and_commit(
                                 index,
                                 &handler,
                                 &client,
@@ -600,7 +536,6 @@ async fn run_batcher<H: StreamBatchHandler>(
                                 &mut batch,
                                 &mut batch_weight,
                                 &mut pending_offsets,
-                                &dead_letter,
                             )
                             .await;
                         }
@@ -613,7 +548,7 @@ async fn run_batcher<H: StreamBatchHandler>(
                 // a stretch of only dead-lettered records has offsets to commit
                 // and would otherwise leave the partition pinned.
                 if !batch.is_empty() || !pending_offsets.is_empty() {
-                    if !flush_and_commit(
+                    flush_and_commit(
                         index,
                         &handler,
                         &client,
@@ -621,12 +556,8 @@ async fn run_batcher<H: StreamBatchHandler>(
                         &mut batch,
                         &mut batch_weight,
                         &mut pending_offsets,
-                        &dead_letter,
                     )
-                    .await
-                    {
-                        return;
-                    }
+                    .await;
                 }
             }
         }
@@ -644,11 +575,9 @@ async fn run_batcher<H: StreamBatchHandler>(
 /// per-partition lag is the alarm. Retention is the only real bound, and it is
 /// sized to outlast a dependency outage.
 ///
-/// `Permanent` failures (malformed/unprocessable, not infrastructure) dead-letter
-/// and then advance, matching the queue path's reject-without-requeue.
-/// Returns `false` when the batch could neither be flushed NOR recorded — the
-/// batcher must then stop consuming (see `FlushOutcome`).
-#[must_use]
+/// `Permanent` failures (malformed/unprocessable, not infrastructure) are logged
+/// and DROPPED, then the offset advances — matching the queue path's
+/// reject-without-requeue. No durable copy is kept; see the module header.
 async fn flush_and_commit<H: StreamBatchHandler>(
     index: usize,
     handler: &Arc<H>,
@@ -657,8 +586,7 @@ async fn flush_and_commit<H: StreamBatchHandler>(
     batch: &mut Vec<H::Message>,
     batch_weight: &mut usize,
     pending_offsets: &mut PendingOffsets,
-    dead_letter: &DeadLetterSink,
-) -> bool {
+) {
     let messages = std::mem::take(batch);
     *batch_weight = 0;
     let offsets = pending_offsets.take();
@@ -668,7 +596,7 @@ async fn flush_and_commit<H: StreamBatchHandler>(
         // to commit — that's what unpins a partition whose tail is all poison.
         // Fall through to the store loop rather than returning.
         store_offsets(index, client, consumer_name, offsets).await;
-        return true;
+        return;
     }
 
     // No `max_elapsed_time`: transient retries are unbounded (see fn docs).
@@ -715,42 +643,18 @@ async fn flush_and_commit<H: StreamBatchHandler>(
 
     if let Err(e) = outcome {
         // Only reachable for `Permanent` now — the batch is unprocessable, not
-        // blocked on infrastructure, so dead-letter it and let the offset
-        // advance. Same call as the queue path's reject-without-requeue.
+        // blocked on infrastructure. Log and let the offset advance; the records
+        // are dropped, which is the accepted trade until a durable sink lands.
         log::error!(
-            "Stream batcher {} dead-lettering {} records across {} partitions: {}",
+            "Stream batcher {} dropping {} unprocessable records across {} partitions (no durable copy is kept — known gap, follow-up work): {}",
             index,
             messages.len(),
             offsets.len(),
             e
         );
-
-        let recorded = dead_letter
-            .publish_batch_failure(&e.to_string(), &offsets)
-            .await;
-
-        if !recorded {
-            // Without a durable record of what we dropped, advancing would lose
-            // the batch with no replay path. Hold the offsets instead: the records
-            // are redelivered on reconnect and retried. A genuinely unprocessable
-            // batch then loops, which is visible in logs — the deliberate trade
-            // over silent loss.
-            // Holding these offsets is only half the job: this batcher keeps
-            // consuming otherwise, and a LATER flush on the same partitions would
-            // store a higher offset and silently advance past the batch we failed
-            // to record. So report the failure and let the caller stop, mirroring
-            // the single-record `skip_record` path that breaks to reconnect.
-            log::error!(
-                "Stream batcher {} could not record the failed batch; holding {} partition offsets and stopping so the records replay",
-                index,
-                offsets.len()
-            );
-            return false;
-        }
     }
 
     store_offsets(index, client, consumer_name, offsets).await;
-    true
 }
 
 /// Commit one offset per partition. Best-effort: a lost store just replays those
@@ -905,132 +809,6 @@ fn is_partition_revoked(consumer_name: &'static str, stream: &str) -> bool {
         .is_some_and(|streams| streams.contains(stream))
 }
 
-/// Poison-record sink. Streams have no dead-letter exchange and a record can't be
-/// deleted, so unprocessable records are copied here before the reader advances
-/// past them.
-///
-/// Records carry the **original payload** plus its `(stream, offset)`, not just
-/// the error text — the source record becomes unreachable once the offset moves
-/// (and eventually expires), so anything not copied here is unrecoverable. That
-/// makes this the replay source after schema drift or corruption.
-pub struct DeadLetterSink {
-    producer: Producer<NoDedup>,
-}
-
-/// What went wrong with a record we're about to skip.
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct DeadLetterRecord<'a> {
-    kind: &'a str,
-    reason: &'a str,
-    stream: &'a str,
-    offset: u64,
-    /// Original bytes, base64'd. Absent when the record had no body at all.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    payload_base64: Option<String>,
-    /// Offsets the failing flush covered, so a batch failure can be replayed.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    batch_offsets: Option<HashMap<String, u64>>,
-}
-
-impl DeadLetterSink {
-    pub async fn new(environment: &StreamEnvironment, stream: &str) -> anyhow::Result<Self> {
-        let producer = environment.inner().producer().build(stream).await?;
-        Ok(Self { producer })
-    }
-
-    /// A single record we can't decode. `payload` is the raw body (`None` for an
-    /// empty record).
-    ///
-    /// Returns whether the copy is durable. Callers MUST NOT skip the record on
-    /// `false` — dropping it would advance the offset past data that exists
-    /// nowhere else.
-    #[must_use]
-    async fn publish_record_failure(
-        &self,
-        kind: &str,
-        reason: &str,
-        stream: &str,
-        offset: u64,
-        payload: Option<&[u8]>,
-    ) -> bool {
-        self.publish(&DeadLetterRecord {
-            kind,
-            reason,
-            stream,
-            offset,
-            payload_base64: payload.map(|bytes| BASE64_STANDARD.encode(bytes)),
-            batch_offsets: None,
-        })
-        .await
-    }
-
-    /// A whole batch that is permanently unprocessable. The individual payloads
-    /// are already decoded and typed here, so we record the covered offsets —
-    /// enough to re-read the originals while they're still within retention.
-    #[must_use]
-    async fn publish_batch_failure(&self, reason: &str, offsets: &HashMap<String, u64>) -> bool {
-        self.publish(&DeadLetterRecord {
-            kind: "batch_flush_failed",
-            reason,
-            stream: "",
-            offset: 0,
-            payload_base64: None,
-            batch_offsets: Some(offsets.clone()),
-        })
-        .await
-    }
-
-    /// Retries a failed write: the sink is the only surviving copy at this point,
-    /// so a broker blip must not cost the record. Bounded, because the sink sits
-    /// on the ingest path and cannot block it forever — an exhausted budget
-    /// surfaces as `false` and the caller holds the offset instead.
-    async fn publish(&self, record: &DeadLetterRecord<'_>) -> bool {
-        let body = match serde_json::to_vec(record) {
-            Ok(body) => body,
-            Err(e) => {
-                // Our own struct with a base64 payload — unreachable in practice,
-                // and unfixable by retrying.
-                log::error!("Failed to serialize dead-letter record: {:?}", e);
-                return false;
-            }
-        };
-
-        let backoff = ExponentialBackoffBuilder::new()
-            .with_initial_interval(Duration::from_millis(100))
-            .with_max_interval(Duration::from_secs(5))
-            .with_max_elapsed_time(Some(DEAD_LETTER_WRITE_BUDGET))
-            .build();
-
-        let result = backoff::future::retry(backoff, || {
-            let body = body.clone();
-            async move {
-                let message = Message::builder().body(body).build();
-                self.producer
-                    .send_with_confirm(message)
-                    .await
-                    .map_err(backoff::Error::transient)
-            }
-        })
-        .await;
-
-        match result {
-            Ok(_) => true,
-            Err(e) => {
-                log::error!(
-                    "Failed to write dead-letter record ({} at {}:{}) after {}s: {:?}",
-                    record.kind,
-                    record.stream,
-                    record.offset,
-                    DEAD_LETTER_WRITE_BUDGET.as_secs(),
-                    e
-                );
-                false
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1170,71 +948,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn dead_letter_record_carries_payload_for_replay() {
-        // A skipped record's payload must survive: once the offset advances past
-        // it the original is unreachable, so the dead-letter copy is the only
-        // replay source.
-        let record = DeadLetterRecord {
-            kind: "deserialize_failed",
-            reason: "expected value",
-            stream: "observations_stream-3",
-            offset: 42,
-            payload_base64: Some(BASE64_STANDARD.encode(b"{bad json")),
-            batch_offsets: None,
-        };
-
-        let json = serde_json::to_value(&record).unwrap();
-        assert_eq!(json["kind"], "deserialize_failed");
-        assert_eq!(json["stream"], "observations_stream-3");
-        assert_eq!(json["offset"], 42);
-        let decoded = BASE64_STANDARD
-            .decode(json["payloadBase64"].as_str().unwrap())
-            .unwrap();
-        assert_eq!(decoded, b"{bad json");
-        // Absent for single-record failures, so consumers can tell the shapes apart.
-        assert!(json.get("batchOffsets").is_none());
-    }
-
-    #[test]
-    fn dead_letter_batch_record_carries_covered_offsets() {
-        let mut offsets = HashMap::new();
-        offsets.insert("observations_stream-1".to_string(), 7u64);
-        let record = DeadLetterRecord {
-            kind: "batch_flush_failed",
-            reason: "permanent",
-            stream: "",
-            offset: 0,
-            payload_base64: None,
-            batch_offsets: Some(offsets),
-        };
-
-        let json = serde_json::to_value(&record).unwrap();
-        // The offsets are what makes a permanently-failed batch re-readable from
-        // the source stream while it's still within retention.
-        assert_eq!(json["batchOffsets"]["observations_stream-1"], 7);
-        assert!(json.get("payloadBase64").is_none());
-    }
-
-    /// The dead-letter write is a PRECONDITION for advancing past a record, not
-    /// a side effect. These pin the decision table so a future refactor can't
-    /// quietly go back to "log and skip", which loses the record once the offset
-    /// moves and retention expires the source.
-    #[test]
-    fn skip_is_only_permitted_once_the_copy_is_durable() {
-        // Mirrors `skip_record` / the batch arm in `flush_and_commit`: the boolean
-        // from the sink is what gates advancing.
-        fn may_advance(copy_durable: bool) -> bool {
-            copy_durable
-        }
-
-        assert!(may_advance(true), "a durable copy allows the skip");
-        assert!(
-            !may_advance(false),
-            "a failed dead-letter write must hold the offset so the record replays"
-        );
-    }
-
     /// The drain path must ABORT, not just drop. Dropping a `JoinHandle` detaches
     /// the task: the old batcher would survive the reconnect, keep retrying, and
     /// keep calling `store_offset` for partitions the fresh batchers now own — one
@@ -1315,27 +1028,6 @@ mod tests {
         assert!(should_flush(128, 128, false, true));
     }
 
-    /// An unrecordable batch must STOP the batcher, not just hold its offsets.
-    /// Holding alone is insufficient: the batcher would keep consuming and a later
-    /// flush on the same partitions would store a higher offset, silently advancing
-    /// past the batch we failed to copy.
-    #[test]
-    fn unrecordable_batch_stops_the_batcher() {
-        // Mirrors `flush_and_commit`'s return contract and the caller's use of it.
-        fn keep_consuming(flush_ok: bool, copy_durable: bool) -> bool {
-            flush_ok || copy_durable
-        }
-
-        assert!(keep_consuming(true, false), "a clean flush keeps going");
-        assert!(
-            keep_consuming(false, true),
-            "a recorded permanent failure may advance and continue"
-        );
-        assert!(
-            !keep_consuming(false, false),
-            "neither flushed nor recorded must stop the batcher so the records replay"
-        );
-    }
     /// `retry_query_offset` steps `ExponentialBackoff` by hand (the combinator
     /// can't satisfy `consumer_update`'s `Sync` bound), so assert the crate still
     /// owns the schedule: delays respect `max_interval`, and the loop terminates
@@ -1502,14 +1194,6 @@ mod tests {
         assert!(claim_offset_high_water_mark(group, "p-1", 10));
         assert!(!claim_offset_high_water_mark(group, "p-0", 40));
         assert!(claim_offset_high_water_mark(group, "p-1", 11));
-    }
-
-    #[test]
-    fn dead_letter_write_budget_is_bounded() {
-        // Bounded on purpose: the sink is on the ingest path. Exhaustion must
-        // surface as "hold the offset", never as "drop the record".
-        assert!(DEAD_LETTER_WRITE_BUDGET > Duration::ZERO);
-        assert!(DEAD_LETTER_WRITE_BUDGET <= Duration::from_secs(60));
     }
 
     #[test]

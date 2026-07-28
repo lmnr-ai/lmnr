@@ -24,16 +24,13 @@ pub mod reader;
 pub mod topology;
 
 pub use publisher::StreamPublisher;
-pub use reader::{DeadLetterSink, StreamBatchHandler, StreamReader};
+pub use reader::{StreamBatchHandler, StreamReader};
 pub use topology::{StreamEnvironment, StreamTopology};
 
 /// Super streams we own. The broker also creates an exchange of the same name;
 /// partition streams are suffixed `-0..n-1` by the client.
 pub const OBSERVATIONS_STREAM: &str = "observations_stream";
 pub const SPANS_INDEXER_STREAM: &str = "spans_indexer_stream";
-/// Poison-batch sink. A plain stream (not a super stream) — low volume, and
-/// nothing consumes it automatically.
-pub const DEAD_LETTER_STREAM: &str = "ingest_dead_letter_stream";
 
 /// Consumer group names. This is the `reference` broker-side offset tracking is
 /// keyed by, so renaming one makes the group resume from scratch — treat these as

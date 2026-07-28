@@ -1041,10 +1041,9 @@ fn main() -> anyhow::Result<()> {
     // `Some` only when streams are fully usable: topology declared, dead-letter
     // sink built, publishers registered. Publisher registration is deliberately
     // LAST so a later failure can't leave producers writing to unread streams.
-    let stream_runtime: Option<(
-        mq::stream::StreamEnvironment,
-        Arc<mq::stream::DeadLetterSink>,
-    )> = if mq::stream::enabled() && is_feature_enabled(Feature::FullBuild) {
+    let stream_runtime: Option<mq::stream::StreamEnvironment> = if mq::stream::enabled()
+        && is_feature_enabled(Feature::FullBuild)
+    {
         runtime_handle.block_on(async {
                 match mq::stream::StreamEnvironment::connect().await {
                     Ok(environment) => {
@@ -1058,41 +1057,6 @@ fn main() -> anyhow::Result<()> {
                                 return None;
                             }
                         }
-
-                        if let Err(e) = topology
-                            .declare_plain(&environment, mq::stream::DEAD_LETTER_STREAM)
-                            .await
-                        {
-                            log::error!(
-                                "Failed to declare dead-letter stream '{}': {:?}",
-                                mq::stream::DEAD_LETTER_STREAM,
-                                e
-                            );
-                            return None;
-                        }
-
-                        // Built BEFORE any publisher is registered, and fatal to
-                        // the whole streams path. The consumer can't run without
-                        // it (a skipped record would stall its partition), so if
-                        // we registered publishers first and then failed here,
-                        // producers would ship to streams that nothing reads —
-                        // bypassing the quorum-queue workers this degrade relies
-                        // on, and letting the data expire under retention.
-                        let dead_letter = match mq::stream::DeadLetterSink::new(
-                            &environment,
-                            mq::stream::DEAD_LETTER_STREAM,
-                        )
-                        .await
-                        {
-                            Ok(sink) => Arc::new(sink),
-                            Err(e) => {
-                                log::error!(
-                                    "Failed to build stream dead-letter sink; disabling streams and falling back to queues: {:?}",
-                                    e
-                                );
-                                return None;
-                            }
-                        };
 
                         if enable_producer() {
                             match mq::stream::StreamPublisher::new(
@@ -1138,7 +1102,7 @@ fn main() -> anyhow::Result<()> {
                         }
 
                         log::info!("RabbitMQ Streams transport enabled");
-                        Some((environment, dead_letter))
+                        Some(environment)
                     }
                     Err(e) => {
                         log::error!(
@@ -1433,12 +1397,7 @@ fn main() -> anyhow::Result<()> {
                     // transition: the quorum queues drain their backlog while
                     // streams carry new traffic. Removing the queue workers is a
                     // later release.
-                    // The dead-letter sink was built at boot, before any publisher
-                    // registered — so reaching here means streams are fully wired
-                    // on both ends.
-                    if let Some((stream_environment, dead_letter)) =
-                        stream_runtime_for_consumer.as_ref()
-                    {
+                    if let Some(stream_environment) = stream_runtime_for_consumer.as_ref() {
                         {
                             let db = db_for_consumer.clone();
                             let cache = cache_for_consumer.clone();
@@ -1467,7 +1426,6 @@ fn main() -> anyhow::Result<()> {
                                         ),
                                     },
                                 },
-                                dead_letter.clone(),
                             );
                             tokio::spawn(reader.run());
 
@@ -1486,7 +1444,6 @@ fn main() -> anyhow::Result<()> {
                                                 .get(),
                                         ),
                                     },
-                                    dead_letter.clone(),
                                 );
                                 tokio::spawn(reader.run());
                             }
