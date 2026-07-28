@@ -25,10 +25,10 @@ export const CommandBlockContentSchema = z.object({
   stderr: z.string().optional().catch(undefined),
   // Keep the ORIGINAL string, but only when it has non-whitespace content —
   // `commandSummary`/the expanded body prefer `raw` via `??`, so an empty raw
-  // would blank both even with a valid `command`/`args`. Thinking is untrusted
-  // free-text (CLI `--thinking`); wire `null`/absent/blank all degrade to absent.
+  // would blank both even with a valid `command`/`args`. Reasoning is untrusted
+  // free-text (CLI `--reasoning`); wire `null`/absent/blank all degrade to absent.
   raw: nonBlankString,
-  thinking: nonBlankString,
+  reasoning: nonBlankString,
 });
 
 export type CommandBlockContent = z.infer<typeof CommandBlockContentSchema>;
@@ -57,14 +57,14 @@ export const commandSummary = (content: CommandBlockContent): string =>
     .trim();
 
 // The one-line label shown next to a command's icon, plus whether it came from
-// the agent's thinking (untrusted prose — rendered in a normal font) vs. the
-// invocation summary (a command line — rendered mono). Thinking is uncapped, so
+// the agent's reasoning (untrusted prose — rendered in a normal font) vs. the
+// invocation summary (a command line — rendered mono). Reasoning is uncapped, so
 // it gets the same single-line budget/whitespace collapse as the summary (the
 // full command is still visible in the expanded detail).
-export const commandLabelParts = (content: CommandBlockContent): { text: string; fromThinking: boolean } => {
-  const thinking = content.thinking?.trim();
-  if (thinking) return { text: thinking.slice(0, SUMMARY_BUDGET).replace(/\s+/g, " ").trim(), fromThinking: true };
-  return { text: commandSummary(content), fromThinking: false };
+export const commandLabelParts = (content: CommandBlockContent): { text: string; fromReasoning: boolean } => {
+  const reasoning = content.reasoning?.trim();
+  if (reasoning) return { text: reasoning.slice(0, SUMMARY_BUDGET).replace(/\s+/g, " ").trim(), fromReasoning: true };
+  return { text: commandSummary(content), fromReasoning: false };
 };
 
 export const commandLabel = (content: CommandBlockContent): string => commandLabelParts(content).text;

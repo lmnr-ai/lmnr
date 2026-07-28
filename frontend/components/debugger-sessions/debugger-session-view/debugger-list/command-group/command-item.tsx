@@ -24,15 +24,15 @@ interface CommandItemProps {
  * itself expandable to a detail card ({@link CommandItemDetail}). Modeled on a
  * trace's spans: borderless (no wrapping card — the group header is the only
  * bordered element), flowing below the header. The label prefers the agent's
- * thinking when given, else the command summary. No timestamp on rows (only the
+ * reasoning when given, else the command summary. No timestamp on rows (only the
  * group header carries one); just a plain chevron that recolors on this row's
  * hover. The chevron keeps the SAME `py-0.5 pl-1 pr-1` the header's
  * CardExpandIndicator pill uses so it lines up vertically with the header's.
  */
 export default function CommandItem({ id, command, expanded, isFirst, isLast }: CommandItemProps) {
   const toggle = useDebuggerSessionViewStore((s) => s.toggleCommandBlockExpanded);
-  // Thinking is prose → normal font; a command summary → mono.
-  const { text: label, fromThinking } = useMemo(() => commandLabelParts(command), [command]);
+  // Reasoning is prose → normal font; a command summary → mono.
+  const { text: label, fromReasoning } = useMemo(() => commandLabelParts(command), [command]);
   const failed = command.exitCode !== undefined && command.exitCode !== 0;
 
   return (
@@ -64,7 +64,7 @@ export default function CommandItem({ id, command, expanded, isFirst, isLast }: 
         <span
           className={cn(
             "min-w-0 flex-1 truncate text-[13px] leading-[17px] text-secondary-foreground transition-colors group-hover/row:text-primary-foreground",
-            !fromThinking && "font-mono"
+            !fromReasoning && "font-mono"
           )}
         >
           {label}
