@@ -20,6 +20,14 @@
 //! worker overwrite a delta another had already added. Two consumers flushing
 //! different batches of the same trace concurrently is normal, so every write
 //! on this path has to commute.
+//!
+//! **Every key is re-persisted on EVERY batch, never only on the batch that
+//! first resolved its value.** The tokens key is re-stamped unconditionally
+//! (INCRBY drops its TTL), so any key that were left to age out on its own
+//! would expire while the tokens key stayed warm — and `read_back` only
+//! recovers `seen_error` / `total_tokens`, so an expired `user_id` or
+//! `trace_type` is gone for the rest of the trace. A cached-hit branch that
+//! returns the value without writing it is the bug shape to watch for here.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -172,23 +180,29 @@ pub async fn update_and_read(
             .await
             .unwrap_or(None)
             .filter(|id| !id.is_empty());
-        let user_id = match (cached_user_id, agg.user_id.as_deref()) {
-            (Some(cached), _) => Some(cached),
-            (None, Some(batch)) if !batch.is_empty() => {
-                if let Err(e) = cache
-                    .insert_with_ttl(&user_key, batch.to_string(), TTL_SECONDS)
-                    .await
-                {
-                    log::warn!(
-                        "Failed to record trace user id for {}: {:?}",
-                        agg.trace_id,
-                        e
-                    );
-                }
-                Some(batch.to_string())
-            }
-            (None, _) => None,
-        };
+        let user_id = cached_user_id.or_else(|| {
+            agg.user_id
+                .as_deref()
+                .filter(|batch| !batch.is_empty())
+                .map(str::to_string)
+        });
+        // Re-persist on EVERY batch, not only the one that first resolved it:
+        // a cached-hit arm that just returned the value would let the key age
+        // out on its own while the tokens key keeps being re-stamped, and
+        // sampling would silently drop back to the empty-user factor for the
+        // rest of the trace. `read_back` can't recover it (it returns
+        // `user_id: None`), so this write is the only thing keeping it alive.
+        if let Some(id) = user_id.as_deref()
+            && let Err(e) = cache
+                .insert_with_ttl(&user_key, id.to_string(), TTL_SECONDS)
+                .await
+        {
+            log::warn!(
+                "Failed to record trace user id for {}: {:?}",
+                agg.trace_id,
+                e
+            );
+        }
 
         // Re-stamp BOTH keys every batch, so their windows can never diverge.
         // INCRBY above creates the tokens key without a TTL, and the error key
@@ -216,35 +230,24 @@ pub async fn update_and_read(
         // batch of an evaluation trace that carried no EVALUATION span would
         // read back as DEFAULT and fire signals on an eval trace.
         let type_key = trace_type_key(agg.project_id, agg.trace_id);
-        let cached_type = cache.get::<u8>(&type_key).await.unwrap_or(None);
-        let trace_type = match (cached_type, agg.trace_type) {
-            // A non-zero cached type is authoritative and never revised.
-            (Some(cached), _) if cached != 0 => cached,
-            // Otherwise this batch's type wins when it says something.
-            (_, batch) if batch != 0 => {
-                if let Err(e) = cache.insert_with_ttl(&type_key, batch, TTL_SECONDS).await {
-                    log::warn!(
-                        "Failed to record trace type for {}: {:?}",
-                        agg.trace_id,
-                        e
-                    );
-                }
-                batch
-            }
-            // Still DEFAULT. Persist it so the key shares the others' lifetime
-            // (and so `None` stays reserved for "never seen"); a later typed
-            // batch overwrites it via the arm above.
-            _ => {
-                if let Err(e) = cache.insert_with_ttl(&type_key, 0u8, TTL_SECONDS).await {
-                    log::warn!(
-                        "Failed to record trace type for {}: {:?}",
-                        agg.trace_id,
-                        e
-                    );
-                }
-                0
-            }
+        let cached_type = cache.get::<u8>(&type_key).await.unwrap_or(None).unwrap_or(0);
+        // First-NON-ZERO wins: a cached type is authoritative and never revised,
+        // otherwise this batch's type takes effect.
+        let trace_type = if cached_type != 0 {
+            cached_type
+        } else {
+            agg.trace_type
         };
+        // Re-persist on EVERY batch (including DEFAULT/0) for the same reason as
+        // the user id: letting the key age out while the tokens key stays warm
+        // would re-open an already-typed trace to the DEFAULT-only signals gate,
+        // and `read_back` can't recover the type either.
+        if let Err(e) = cache
+            .insert_with_ttl(&type_key, trace_type, TTL_SECONDS)
+            .await
+        {
+            log::warn!("Failed to record trace type for {}: {:?}", agg.trace_id, e);
+        }
 
         states.insert(
             agg.trace_id,
@@ -585,6 +588,46 @@ mod tests {
         // ...and then it's frozen.
         let third = update_and_read(&[agg_with_type(pid, tid, 0)], cache.clone(), &ch).await;
         assert_eq!(third[&tid].trace_type, 3);
+    }
+
+    /// Both cross-batch fields resolve correctly on the cached-hit path, and a
+    /// typed/identified batch keeps its keys populated.
+    ///
+    /// NOTE: the real invariant here is that both keys are REWRITTEN on every
+    /// batch so their TTLs track the unconditionally-re-stamped tokens key —
+    /// otherwise they age out while tokens stays warm, and `read_back` can't
+    /// recover either one (it returns `user_id: None`, `trace_type: 0`).
+    /// `InMemoryCache::insert` and `insert_with_ttl` leave identical bytes and
+    /// `set_ttl` spawns a real 30-minute sleep, so a unit test cannot observe
+    /// the difference between "wrote it again" and "left it alone". Only a
+    /// Redis-backed test with a short TTL can pin that; this covers the
+    /// resolution logic that sits on top of it.
+    #[tokio::test]
+    async fn user_id_and_trace_type_resolve_on_the_cached_hit_path() {
+        let cache = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+        let ch = clickhouse::Client::default().with_url("http://127.0.0.1:1");
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+
+        let mut seed = agg_with_user(pid, tid, 10, Some("user-42"));
+        seed.trace_type = 1;
+        update_and_read(&[seed], cache.clone(), &ch).await;
+
+        // Batches carrying neither attribute take the cached-hit path.
+        for _ in 0..3 {
+            let s = update_and_read(&[agg_with_user(pid, tid, 5, None)], cache.clone(), &ch).await;
+            assert_eq!(s[&tid].user_id.as_deref(), Some("user-42"));
+            assert_eq!(s[&tid].trace_type, 1);
+            assert_eq!(
+                cache.get::<String>(&user_id_key(pid, tid)).await.unwrap(),
+                Some("user-42".to_string()),
+                "the key must stay populated across cached-hit batches"
+            );
+            assert_eq!(
+                cache.get::<u8>(&trace_type_key(pid, tid)).await.unwrap(),
+                Some(1)
+            );
+        }
     }
 
     /// A latch lost to eviction is recovered from `traces_agg` — the read-back
