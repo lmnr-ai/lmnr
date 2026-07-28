@@ -27,6 +27,8 @@ interface EvaluationDatapointsTableContentsProps {
   sortDirection?: "asc" | "desc";
   onSort: (columnId: string, direction: "asc" | "desc") => void;
   heatmapEnabled?: boolean;
+  scoreDirections?: Record<string, boolean>;
+  onToggleScoreDirection?: (scoreName: string) => void;
   isSearchActive: boolean;
 }
 
@@ -49,6 +51,8 @@ export const EvaluationDatapointsTableContents = memo(function EvaluationDatapoi
   sortDirection,
   onSort,
   heatmapEnabled,
+  scoreDirections,
+  onToggleScoreDirection,
   isSearchActive,
 }: PropsWithChildren<EvaluationDatapointsTableContentsProps>) {
   // Stable ref so the cell-content token only changes on a real value change (inline object would defeat cell memoization).
@@ -59,9 +63,11 @@ export const EvaluationDatapointsTableContents = memo(function EvaluationDatapoi
         isShared,
         heatmapEnabled: heatmapEnabled ?? false,
         scoreRanges,
+        scoreDirections,
+        onToggleScoreDirection,
       },
     }),
-    [isComparison, isShared, heatmapEnabled, scoreRanges]
+    [isComparison, isShared, heatmapEnabled, scoreRanges, scoreDirections, onToggleScoreDirection]
   );
 
   if (isLoading) return <EvalTableSkeleton />;

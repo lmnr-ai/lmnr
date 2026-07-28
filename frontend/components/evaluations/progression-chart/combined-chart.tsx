@@ -1,6 +1,6 @@
 "use client";
 
-import { type Key, useEffect, useMemo, useRef, useState } from "react";
+import { type Key, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CartesianGrid, Line, LineChart, Tooltip, XAxis, YAxis } from "recharts";
 
 import { parseUtcTimestamp } from "@/components/chart-builder/charts/utils";
@@ -27,6 +27,10 @@ interface CombinedChartProps {
   // On: every score stretched to its own min/max (fills full height). Off: 0–1
   // scores keep a fixed 0–1 range, others use their own min/max.
   fillHeight?: boolean;
+  // Opacity of non-selected lines/points when a run is selected
+  // (hoveredEvaluationId set). Default matches the evaluations page's hover-dim;
+  // the debugger eval card overrides it lower so its selected run pops harder.
+  dimmedOpacity?: number;
 }
 
 type Row = {
@@ -50,6 +54,7 @@ export default function CombinedChart({
   onPointClick,
   className,
   fillHeight = false,
+  dimmedOpacity = 0.35,
 }: CombinedChartProps) {
   const { rows, ranks } = useMemo(() => {
     // fillHeight off → pin 0–1 scores to a fixed 0–1 range; on → every score
@@ -115,16 +120,24 @@ export default function CombinedChart({
     );
     return (index: number) => {
       const row = rows[index];
-      return row ? fmt.format(new Date(row.ts)) : "";
+      // Guard NaN too: an unparseable timestamp yields NaN, and
+      // `fmt.format(new Date(NaN))` THROWS (RangeError), taking down the whole
+      // chart. A bad tick degrades to blank instead.
+      return row && !Number.isNaN(row.ts) ? fmt.format(new Date(row.ts)) : "";
     };
   }, [rows]);
 
-  // Measure width to turn MAX_POINT_GAP_PX into a slot budget; full width until measured.
+  // Measure width to turn MAX_POINT_GAP_PX into a slot budget. Measure
+  // SYNCHRONOUSLY before first paint (useLayoutEffect) so the padding is right on
+  // the initial render — a `useState(0)` start would paint once with pad=0
+  // (points edge-to-edge / a single point on a degenerate [0,0] domain) and then
+  // visibly shift when the ResizeObserver fires a frame later.
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+    setContainerWidth(el.getBoundingClientRect().width);
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) setContainerWidth(entry.contentRect.width);
     });
@@ -200,7 +213,12 @@ export default function CombinedChart({
                 name={score}
                 stroke={chartConfig[score]?.color}
                 strokeWidth={hoveredScore === score ? 2 : 1.5}
-                strokeOpacity={scoreDimmed ? 0.15 : hoveredEvaluationId ? 0.35 : 1}
+                // A hovered score wins full opacity even when a run is selected
+                // (hoveredEvaluationId dims all lines to 0.35) — so hovering a
+                // score below a debugger eval card lights up its line.
+                strokeOpacity={
+                  hoveredScore === score ? 1 : scoreDimmed ? 0.15 : hoveredEvaluationId ? dimmedOpacity : 1
+                }
                 dot={(props: { cx?: number | null; cy?: number | null; payload?: Row; key?: Key | null }) => {
                   const { cx, cy, payload, key } = props;
                   // Null values still get a dot callback with cy=null — an SVG circle
@@ -210,7 +228,7 @@ export default function CombinedChart({
                   }
                   const isHovered = payload?.evaluationId === hoveredEvaluationId;
                   const r = isHovered ? 5 : 2.5;
-                  const opacity = scoreDimmed ? 0.15 : hoveredEvaluationId ? (isHovered ? 1 : 0.35) : 1;
+                  const opacity = scoreDimmed ? 0.15 : hoveredEvaluationId ? (isHovered ? 1 : dimmedOpacity) : 1;
                   return (
                     <circle
                       key={key ?? undefined}

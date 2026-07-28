@@ -11,10 +11,12 @@ interface HeatmapValueProps {
   // The value text node. Callers control its font (Mono vs default) so the
   // heatmap shell stays presentation-only.
   text: ReactNode;
+  // When false, the gradient is inverted (lower value = green). Defaults true.
+  isHigherBetter?: boolean;
 }
 
-export default function HeatmapValue({ value, range, text }: HeatmapValueProps) {
-  const color = getHeatmapColor(value, range);
+export default function HeatmapValue({ value, range, text, isHigherBetter = true }: HeatmapValueProps) {
+  const color = getHeatmapColor(value, range, isHigherBetter);
   if (!color) return <>{text}</>;
 
   return (
