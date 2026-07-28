@@ -16,7 +16,7 @@ use crate::{
         spans::CHSpan,
         trace_agent_io::{CHTraceAgentInput, CHTraceAgentOutput},
         traces::{CHTrace, TraceAggregation},
-        traces_agg::{self, CHTraceAgg},
+        traces_agg::CHTraceAgg,
         utils::chrono_to_nanoseconds,
     },
     db::{
@@ -47,6 +47,8 @@ use crate::{
         span_attributes::{SPAN_TRACE_INPUT, SPAN_TRACE_OUTPUT_END_TIME, SPAN_TRACE_OUTPUT_HASHES},
         spans::SpanUsage,
         tool_dedup::{ToolDedup, resolve_tool_dedup},
+        trigger_conditions::TraceTriggerCandidate,
+        trigger_state,
         utils::{get_llm_usage_for_span, prepare_span_for_recording},
     },
     utils::limits::update_workspace_bytes_ingested,
@@ -126,29 +128,6 @@ struct RawTraceIo {
     /// Winning span end time (ns) for the output — the RMT version. `None`
     /// only for legacy/malformed spans missing the attribute.
     output_end_time_ns: Option<i64>,
-}
-
-/// Where `check_and_push_signals` should get its cumulative trace rows.
-///
-/// Trigger filters compare running totals and set-once fields, so they need
-/// post-merge state — never a batch-local delta. Which store holds that state
-/// depends on `WRITE_TRACES_AGG`, and either write can fail independently, so
-/// the trace branch reports the source explicitly rather than letting the
-/// signals path assume one.
-enum SignalTraceSource {
-    /// No signal evaluation: nothing aggregated, or the write that would have
-    /// produced the cumulative state failed.
-    None,
-    /// The PG-merged rows are the only cumulative source reachable: either
-    /// `WRITE_TRACES_AGG` is off (no partials written at all), or this is a
-    /// HYBRID workspace whose partials went to the customer's ClickHouse while
-    /// the read-back client points at central. Dies with the PG write in
-    /// phase 3 (LAM-2020).
-    Postgres(Vec<Trace>),
-    /// `WRITE_TRACES_AGG` on, this batch's partials landed, and they landed in
-    /// the same ClickHouse the read-back queries — so the re-aggregated totals
-    /// include this batch's deltas.
-    TracesAgg,
 }
 
 /// Build supplementary-table rows from the raw extracted io. The input row
@@ -679,12 +658,7 @@ pub async fn process_span_messages(
         // The whole dual-write is gated behind WRITE_TRACES_AGG (default off)
         // while the cloud-only performance experiment runs, so self-hosted
         // deployments keep writing only traces_replacing.
-        let write_traces_agg = env::clickhouse::WRITE_TRACES_AGG.get();
-        // Whether THIS batch's aggregate partials are queryable in `traces_agg`.
-        // Only then does a re-aggregated read-back include this batch's deltas;
-        // otherwise signals would evaluate cumulative totals missing this batch.
-        let mut traces_agg_current = false;
-        if write_traces_agg {
+        if env::clickhouse::WRITE_TRACES_AGG.get() {
             let mut traces_agg_rows: Vec<CHTraceAgg> =
                 Vec::with_capacity(trace_aggregations.len() + patched_traces.len());
             let now_ns = chrono_to_nanoseconds(chrono::Utc::now());
@@ -700,17 +674,14 @@ pub async fn process_span_messages(
                     .iter()
                     .map(|trace| CHTraceAgg::from_patched_trace(trace, now_ns)),
             );
-            if traces_agg_rows.is_empty() {
-                traces_agg_current = aggregation_ok;
-            } else {
-                match ch.insert_batch(&traces_agg_rows, config).await {
-                    Ok(()) => traces_agg_current = aggregation_ok,
-                    Err(e) => log::error!(
-                        "Failed to insert {} trace aggregation partials to ClickHouse: {:?}",
-                        traces_agg_rows.len(),
-                        e
-                    ),
-                }
+            if !traces_agg_rows.is_empty()
+                && let Err(e) = ch.insert_batch(&traces_agg_rows, config).await
+            {
+                log::error!(
+                    "Failed to insert {} trace aggregation partials to ClickHouse: {:?}",
+                    traces_agg_rows.len(),
+                    e
+                );
             }
 
             // Extracted agent input/output: store the RAW value directly in
@@ -731,48 +702,11 @@ pub async fn process_span_messages(
             }
         }
 
-        // Pick the signals source. `None` suppresses `check_and_push_signals`
-        // entirely — a pure metadata-only flush (no real spans aggregated), a
-        // failed PG upsert, or (with the flag on) a failed `traces_agg` insert.
-        // Metadata patches never need signal evaluation: they don't touch any
-        // field signals filter on, and re-running signals against a
-        // patched-only trace would spuriously refire an already-triggered
-        // signal.
-        //
-        // Both writes can fail independently, and each store is the cumulative
-        // source only when ITS write landed — so never fall back to the other
-        // one here. Evaluating `traces_agg` without this batch's partials would
-        // silently run filters on totals missing this batch's deltas (a
-        // threshold trigger would under-count), which is worse than not
-        // evaluating: the next batch for the trace re-evaluates with correct
-        // cumulative state, since the filters are level-triggered on totals
-        // rather than edge-triggered on a single batch.
-        //
-        // The read-back is only usable when the partials landed in the SAME
-        // ClickHouse the read hits. `config.is_some()` marks the data-plane
-        // path: there `ch` is a `DataPlaneClickhouse` that POSTs every batch to
-        // the customer's CH, while `clickhouse` (the read-back client) is
-        // always central — so the read would see nothing. Keyed on the config's
-        // presence rather than `mode == HYBRID` because it's the `ch` impl, not
-        // the mode value, that decides where the write lands (a mode flip
-        // between publish and consume must not silently re-enable the
-        // read-back). Postgres is central in both modes, so the data-plane path
-        // keeps using the PG rows until the read-back can route per deployment
-        // (phase 3 concern).
-        let read_back_is_same_ch = config.is_none();
-        if !had_aggregations {
-            SignalTraceSource::None
-        } else if write_traces_agg && read_back_is_same_ch {
-            if traces_agg_current {
-                SignalTraceSource::TracesAgg
-            } else {
-                SignalTraceSource::None
-            }
-        } else if aggregation_ok {
-            SignalTraceSource::Postgres(aggregation_traces)
-        } else {
-            SignalTraceSource::None
-        }
+        // Gate the signals path: metadata-only flushes (no real spans
+        // aggregated) never need evaluation — patches don't touch any field a
+        // trigger filters on, and re-running signals against a patched-only
+        // trace would spuriously refire an already-triggered signal.
+        had_aggregations
     };
 
     // Trace-new keys for search "first occurrence per trace" semantic.
@@ -853,21 +787,35 @@ pub async fn process_span_messages(
         Ok(())
     };
 
-    let (signal_trace_source, span_result) = tokio::join!(trace_branch, span_branch);
+    let (should_evaluate_signals, span_result) = tokio::join!(trace_branch, span_branch);
     span_result?;
 
     // Must run AFTER the spans insert so the signal agent sees the trace data.
-    let signal_traces = match signal_trace_source {
-        SignalTraceSource::None => Vec::new(),
-        SignalTraceSource::Postgres(traces) => traces,
-        SignalTraceSource::TracesAgg => {
-            fetch_signal_trace_states(&trace_aggregations, &clickhouse).await
-        }
-    };
-    if !signal_traces.is_empty() {
+    //
+    // Trigger conditions are evaluated from this batch's aggregation plus a
+    // thin per-trace cache state (`trigger_state`), so there is NO cumulative
+    // read-back per batch. Only the two conditions a single batch genuinely
+    // can't answer — "status is/isn't error" and the running token total —
+    // are cached; `span_name` and `root_span_finished` are batch-local, which
+    // is sound because a trigger fires at most once per trace (the
+    // `signal_trigger_lock` key) and those two are the intended once-per-trace
+    // half of a rule.
+    // The `Feature::Signals` gate is also checked inside
+    // `check_and_push_signals`, but it's repeated here so a deployment without
+    // signals doesn't pay the per-trace cache round-trips at all.
+    if should_evaluate_signals && is_feature_enabled(Feature::Signals) {
+        let states =
+            trigger_state::update_and_read(&trace_aggregations, cache.clone(), &clickhouse).await;
+        let candidates: Vec<TraceTriggerCandidate> = trace_aggregations
+            .iter()
+            .map(|agg| {
+                let state = states.get(&agg.trace_id).copied().unwrap_or_default();
+                TraceTriggerCandidate::new(agg, state)
+            })
+            .collect();
+
         crate::signals::check_and_push_signals(
-            &signal_traces,
-            &spans,
+            &candidates,
             db.clone(),
             cache.clone(),
             clickhouse.clone(),
@@ -1028,55 +976,6 @@ pub async fn process_span_messages(
     }
 
     Ok(())
-}
-
-/// Read back the cumulative post-merge state of every trace this batch
-/// aggregated, for signal trigger evaluation.
-///
-/// Trigger filters compare running totals and set-once fields (`span_names`
-/// from earlier batches, `top_span_id` for `root_span_finished`), so a
-/// batch-local `TraceAggregation` is not sufficient — this replaces the
-/// cumulative row the Postgres upsert used to return. Grouped per project
-/// because `traces_agg` is scoped by `(project_id, id)` and one flush can mix
-/// projects.
-///
-/// Read-back is safe right after the insert because the CH client runs with
-/// `wait_for_async_insert=1`, so the partials are queryable once
-/// `insert_batch` returned. Callers MUST only reach here via
-/// `SignalTraceSource::TracesAgg`, i.e. after this batch's partials landed —
-/// otherwise the re-aggregated totals would be missing this batch's deltas.
-/// A failed read degrades to "no signals for those traces this batch" rather
-/// than evaluating stale/partial state.
-async fn fetch_signal_trace_states(
-    trace_aggregations: &[TraceAggregation],
-    clickhouse: &clickhouse::Client,
-) -> Vec<Trace> {
-    let mut ids_by_project: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
-    for agg in trace_aggregations {
-        ids_by_project
-            .entry(agg.project_id)
-            .or_default()
-            .push(agg.trace_id);
-    }
-
-    let mut traces = Vec::new();
-    for (project_id, trace_ids) in ids_by_project {
-        match traces_agg::fetch_trace_states(clickhouse, project_id, &trace_ids).await {
-            Ok(states) => traces.extend(
-                states
-                    .iter()
-                    .map(|state| Trace::from_agg_state(state, project_id)),
-            ),
-            Err(e) => log::error!(
-                "Failed to read back {} trace states for project {} from ClickHouse; \
-                 skipping signal evaluation for them: {:?}",
-                trace_ids.len(),
-                project_id,
-                e
-            ),
-        }
-    }
-    traces
 }
 
 async fn dispatch_trace_realtime_updates(traces: &[Trace], cache: Arc<Cache>, pubsub: &PubSub) {

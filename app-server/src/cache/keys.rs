@@ -14,6 +14,17 @@ pub const SIGNAL_TRIGGERS_CACHE_KEY: &str = "signal_triggers_v2";
 pub const SIGNAL_TRIGGER_LOCK_CACHE_KEY: &str = "signal_trigger_lock";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const ALERT_FILTERS_CACHE_KEY: &str = "alert_filters";
+// Thin per-trace state for signal trigger conditions a single ingest batch
+// can't answer (LAM-2020). Deliberately ONE KEY PER COLUMN, not a JSON blob:
+// `total_tokens` is bumped with an atomic INCRBY and `seen_error` is a
+// set-once flag, so concurrent batches for the same trace can't clobber each
+// other the way a read-modify-write on a shared object would. Both are
+// namespaced `{KEY}:{project_id}:{trace_id}` and short-lived — see
+// `traces/trigger_state.rs`.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const TRACE_SEEN_ERROR_CACHE_KEY: &str = "trace_seen_error";
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const TRACE_TOTAL_TOKENS_CACHE_KEY: &str = "trace_total_tokens";
 pub const WORKSPACE_BYTES_USAGE_CACHE_KEY: &str = "workspace_bytes_usage";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 // Raw accumulated token counts per workspace; cost in micro-USD is derived at

@@ -155,6 +155,40 @@ pub struct TraceAggregation {
 }
 
 impl TraceAggregation {
+    /// Zeroed aggregation for tests that only care about a couple of fields.
+    #[cfg(test)]
+    pub fn empty_for_test(project_id: uuid::Uuid, trace_id: uuid::Uuid) -> Self {
+        TraceAggregation {
+            trace_id,
+            project_id,
+            start_time: None,
+            end_time: None,
+            input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+            reasoning_tokens: 0,
+            input_cost: 0.0,
+            output_cost: 0.0,
+            total_cost: 0.0,
+            session_id: None,
+            user_id: None,
+            status: None,
+            metadata: None,
+            tags: HashSet::new(),
+            num_spans: 0,
+            top_span_id: None,
+            top_span_name: None,
+            top_span_type: 0,
+            trace_type: 0,
+            has_browser_session: None,
+            span_names: HashSet::new(),
+            root_span_input: None,
+            root_span_output: None,
+        }
+    }
+
     /// Aggregate statistics from a batch of Spans and SpanUsage grouped by trace_id
     pub fn from_spans(spans: &[Span], span_usage_vec: &[SpanUsage]) -> Vec<Self> {
         use std::collections::HashMap;

@@ -10,11 +10,14 @@ use crate::opentelemetry_proto::opentelemetry_proto_common_v1;
 
 use crate::{
     cache::Cache,
-    db::{DB, spans::Span, trace::Trace},
+    db::{DB, spans::Span},
     language_model::costs::{
         ModelInfo, SpanCostInput, calculate_span_cost, get_model_costs_for_project,
     },
-    traces::prompt_hash::{extract_system_message, structural_skeleton_hash},
+    traces::{
+        prompt_hash::{extract_system_message, structural_skeleton_hash},
+        trigger_conditions::TraceTriggerCandidate,
+    },
 };
 
 use super::span_attributes::{
@@ -328,12 +331,17 @@ pub fn convert_any_value_to_json_value(
     }
 }
 
-/// Groups traces by their project_id.
+/// Groups signal trigger candidates by their project_id.
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub fn group_traces_by_project(traces: &[Trace]) -> HashMap<Uuid, Vec<&Trace>> {
-    let mut grouped: HashMap<Uuid, Vec<&Trace>> = HashMap::new();
-    for trace in traces {
-        grouped.entry(trace.project_id()).or_default().push(trace);
+pub fn group_candidates_by_project(
+    candidates: &[TraceTriggerCandidate],
+) -> HashMap<Uuid, Vec<&TraceTriggerCandidate>> {
+    let mut grouped: HashMap<Uuid, Vec<&TraceTriggerCandidate>> = HashMap::new();
+    for candidate in candidates {
+        grouped
+            .entry(candidate.project_id)
+            .or_default()
+            .push(candidate);
     }
     grouped
 }

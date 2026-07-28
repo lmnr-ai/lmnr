@@ -229,50 +229,30 @@ impl CHTraceAgg {
     }
 }
 
-/// Re-aggregated cumulative state of one trace, read back from `traces_agg`
-/// after this batch's partials have landed. Mirrors the subset of
-/// `traces_agg_v0` that signal trigger filters evaluate — the derived
-/// `status` / `trace_type` / `top_span_name` expressions are computed in SQL
-/// (see `fetch_trace_states`) so precedence stays in one place.
+/// The cumulative per-trace facts a single ingest batch can't answer, read
+/// back from `traces_agg` to seed the trigger-state cache on a miss.
+///
+/// Deliberately narrow: only `status` and `total_tokens` back a hard-coded
+/// trigger condition that needs cross-batch state (see
+/// `traces/trigger_conditions.rs`). `span_name` / `root_span_finished` are
+/// batch-local, so nothing else has to be re-read here.
 #[derive(Row, Deserialize, Debug, Clone)]
 pub struct CHTraceState {
     #[serde(with = "clickhouse::serde::uuid")]
     pub id: Uuid,
-    pub input_tokens: i64,
-    pub output_tokens: i64,
     pub total_tokens: i64,
-    pub input_cost: f64,
-    pub output_cost: f64,
-    pub total_cost: f64,
-    pub num_spans: u64,
-    pub session_id: String,
-    pub user_id: String,
+    /// `"error"` when ANY span of the trace reported an error, else
+    /// `"success"`, or EMPTY when no partial carried a status at all (the
+    /// Postgres column was NULL in that case, and a `status = 'success'`
+    /// filter must keep not matching such a trace).
     pub status: String,
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub top_span_id: Uuid,
-    pub top_span_name: String,
-    /// Matches the DDL's `Enum8`/`UInt8` width and `Into<u8> for TraceType`.
-    /// The PG `traces.type smallint` that forced `i16` is on its way out
-    /// (LAM-2020) — don't widen this back to a signed type.
-    pub trace_type: u8,
-    pub tags: Vec<String>,
-    pub span_names: Vec<String>,
 }
 
 /// Fetch the cumulative post-merge state of `trace_ids` within one project.
 ///
-/// Signal trigger filters compare RUNNING TOTALS and set-once fields
-/// (`span_names` from earlier batches, `top_span_id` for `root_span_finished`),
-/// so they cannot run on a single batch's delta — this read-back is what
-/// `upsert_trace_statistics_batch`'s `RETURNING` used to provide. Scoped by
-/// `(project_id, id)`, which is the table's ORDER BY, so no time bound is
-/// needed (and must not be added: partials of one trace can straddle monthly
-/// partitions).
-///
-/// `status` deliberately resolves to an EMPTY string when no partial carried a
-/// status, unlike `traces_agg_v0`'s two-value `success`/`error` contract: the
-/// Postgres column was NULL in that case, and a filter on `status = 'success'`
-/// must keep not matching a trace whose spans never reported one.
+/// Scoped by `(project_id, id)`, which is the table's ORDER BY, so no time
+/// bound is needed — and one must NOT be added: partials of a single trace can
+/// straddle monthly partitions.
 pub async fn fetch_trace_states(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
@@ -286,30 +266,12 @@ pub async fn fetch_trace_states(
     let query_str = format!(
         "SELECT
             id,
-            sum(input_tokens) AS input_tokens,
-            sum(output_tokens) AS output_tokens,
             sum(total_tokens) AS total_tokens,
-            sum(input_cost) AS input_cost,
-            sum(output_cost) AS output_cost,
-            sum(total_cost) AS total_cost,
-            sum(num_spans) AS num_spans,
-            CAST(max(session_id), 'String') AS session_id,
-            CAST(max(user_id), 'String') AS user_id,
             if(
                 empty(groupUniqArrayArray(statuses)),
                 '',
                 if(has(groupUniqArrayArray(statuses), 'error'), 'error', 'success')
-            ) AS status,
-            CAST(max(top_span_id), 'UUID') AS top_span_id,
-            substring(max(top_span_name), 2) AS top_span_name,
-            toUInt8(multiIf(
-                has(groupUniqArrayArray(trace_types), 'PLAYGROUND'), 3,
-                has(groupUniqArrayArray(trace_types), 'EVALUATION'), 1,
-                has(groupUniqArrayArray(trace_types), 'EVENT'), 2,
-                0
-            )) AS trace_type,
-            groupUniqArrayArray(tags) AS tags,
-            groupUniqArrayArray(span_names) AS span_names
+            ) AS status
          FROM traces_agg
          WHERE project_id = ? AND id IN ({placeholders})
          GROUP BY id"

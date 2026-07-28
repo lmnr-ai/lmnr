@@ -7,8 +7,8 @@ use uuid::Uuid;
 
 use crate::{
     cache::Cache,
-    ch::traces_agg,
-    db::{DB, project_api_keys::ProjectApiKey, trace},
+    ch::traces_agg::trace_exists,
+    db::{DB, project_api_keys::ProjectApiKey},
     mq::MessageQueue,
     routes::types::ResponseResult,
     traces::metadata::publish_trace_metadata_patch,
@@ -29,12 +29,11 @@ pub struct UpdateTraceMetadataRequest {
 /// splits these spans out before the regular pipeline and applies them to
 /// `traces.metadata` via an upsert that takes the same row lock as the regular
 /// `upsert_trace_statistics_batch` (and creates a virtual trace row when the
-/// trace's span batch hasn't been flushed yet — the handler's existence check
-/// (`traces_agg` OR the Postgres `traces` row, since either store may be the
-/// only one holding the trace during the LAM-2020 migration) keeps the public
-/// endpoint 404ing on unknown traces, but a trace whose spans haven't landed
-/// yet, or one deleted between request and consumption, leaves a metadata-only
-/// stub row; accepted, see `merge_trace_metadata_batch`). The virtual span is never recorded to
+/// trace's span batch hasn't been flushed yet — the handler's `traces_agg`
+/// existence check keeps the public endpoint 404ing on unknown traces, but a
+/// trace whose spans haven't landed yet, or one deleted between request and
+/// consumption, leaves a metadata-only stub row; accepted, see
+/// `merge_trace_metadata_batch`). The virtual span is never recorded to
 /// the `spans` table and contributes nothing to trace stats (start/end/tokens/
 /// top_span/etc.).
 #[post("metadata")]
@@ -76,37 +75,11 @@ pub async fn handle_trace_metadata(
     let db = db.into_inner();
     let cache = cache.into_inner();
 
-    // Check BOTH stores while the migration bridge is up. `traces_agg` only has
-    // rows for traces ingested with `WRITE_TRACES_AGG` on (default off), so an
-    // agg-only check would 404 every patch on a flag-off deployment and every
-    // pre-flag historical trace. Postgres stops being authoritative once its
-    // write is dropped, hence the union rather than a swap. `traces_agg` is
-    // queried first so that on cloud (flag on) the common case short-circuits
-    // there and the PG arm is only paid for traces the new store doesn't have.
-    // Drop the PG arm in phase 3 (LAM-2020).
-    //
-    // A ClickHouse error must NOT short-circuit the Postgres arm: this endpoint
-    // was PG-only before the migration, so propagating a CH blip here would
-    // newly fail patches for traces PG can still prove exist. Hold the error
-    // instead and only surface it if neither store found the trace — then we
-    // genuinely can't tell absent from unavailable, and a 500 (retryable) is
-    // the honest answer rather than a 404 (permanent).
-    let agg_lookup = traces_agg::trace_exists(clickhouse.as_ref(), project_id, req.trace_id).await;
-    let exists = match agg_lookup {
-        Ok(true) => true,
-        Ok(false) | Err(_) => trace::trace_exists(&db.pool, project_id, req.trace_id).await?,
-    };
-    if !exists {
-        if let Err(e) = agg_lookup {
-            log::error!(
-                "traces_agg existence check failed for trace {} in project {}; \
-                 Postgres did not have it either, so absence is unproven: {:?}",
-                req.trace_id,
-                project_id,
-                e
-            );
-            return Err(e.into());
-        }
+    // `traces_agg` is the sole source of truth for trace existence: cloud is
+    // backfilled and self-hosted runs the backfill script before this ships.
+    // A ClickHouse error propagates as 500 (retryable) rather than 404, so a
+    // blip never tells the client a live trace is permanently gone.
+    if !trace_exists(clickhouse.as_ref(), project_id, req.trace_id).await? {
         return Ok(HttpResponse::NotFound().json("Trace not found"));
     }
 

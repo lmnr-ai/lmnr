@@ -18,6 +18,8 @@ pub mod span_attributes;
 pub mod spans;
 pub mod static_sp_extraction;
 pub mod tool_dedup;
+pub mod trigger_conditions;
+pub mod trigger_state;
 pub mod utils;
 
 pub const OBSERVATIONS_QUEUE: &str = "observations_queue";
