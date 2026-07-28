@@ -3,8 +3,8 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo } from "react";
 
-import { QueuesTableChrome } from "@/components/queues/chrome";
-import { queuesColumnLabels, QueuesGrid } from "@/components/queues/grid";
+import { queuesColumnLabels, QueuesTableContents } from "@/components/queues/table-contents";
+import { QueuesTableControls } from "@/components/queues/table-controls";
 import { Button } from "@/components/ui/button";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
@@ -32,17 +32,6 @@ function QueuesContent() {
   const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
   const search = effective.search.length > 0 ? effective.search : null;
 
-  const chrome = (
-    <QueuesTableChrome
-      projectId={String(projectId)}
-      filters={effective.filters}
-      onFiltersChange={setFilters}
-      searchValue={searchValue}
-      onSearchChange={setSearchAndFilters}
-      columnLabels={queuesColumnLabels}
-    />
-  );
-
   return (
     <>
       <Header path="labeling queues" />
@@ -53,7 +42,16 @@ function QueuesContent() {
           </Button>
         </CreateQueueDialog>
         <div className="flex flex-1 overflow-hidden">
-          <QueuesGrid chrome={chrome} filter={filter} search={search} isViewLoading={isViewLoading} />
+          <QueuesTableContents filter={filter} search={search} isViewLoading={isViewLoading}>
+            <QueuesTableControls
+              projectId={String(projectId)}
+              filters={effective.filters}
+              onFiltersChange={setFilters}
+              searchValue={searchValue}
+              onSearchChange={setSearchAndFilters}
+              columnLabels={queuesColumnLabels}
+            />
+          </QueuesTableContents>
         </div>
       </div>
     </>

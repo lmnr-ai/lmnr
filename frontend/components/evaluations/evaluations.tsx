@@ -9,9 +9,9 @@ import useSWR from "swr";
 
 import HeatmapValue from "@/components/evaluation/heatmap-value";
 import { formatScoreValue, isValidScore } from "@/components/evaluation/utils";
-import { EvaluationsChrome } from "@/components/evaluations/chrome";
-import { EvaluationsGrid } from "@/components/evaluations/grid";
 import ProgressionChart from "@/components/evaluations/progression-chart";
+import { EvaluationsTableContents } from "@/components/evaluations/table-contents";
+import { EvaluationsTableControls } from "@/components/evaluations/table-controls";
 import { Button } from "@/components/ui/button";
 import CopyTooltip from "@/components/ui/copy-tooltip";
 import { useSelection } from "@/components/ui/infinite-datatable/hooks";
@@ -262,20 +262,6 @@ function EvaluationsContent() {
     });
   }, []);
 
-  const chrome = (
-    <EvaluationsChrome
-      projectId={params.projectId}
-      activeFilters={effective.filters}
-      onFiltersChange={setFilters}
-      columns={columns}
-      scoreNames={scoreNames}
-      heatmapEnabled={heatmapEnabled}
-      onHeatmapEnabledChange={setHeatmapEnabled}
-      searchValue={searchValue}
-      onSearchChange={setSearchAndFilters}
-    />
-  );
-
   if (!isClient) {
     return <Header path="evaluations" />;
   }
@@ -328,8 +314,7 @@ function EvaluationsContent() {
             </ResizablePanel>
             <ResizableHandle className="my-2 bg-transparent transition-colors duration-200" />
             <ResizablePanel className="flex flex-1 w-full overflow-hidden" minSize={40} defaultSize={40}>
-              <EvaluationsGrid
-                chrome={chrome}
+              <EvaluationsTableContents
                 filter={filter}
                 search={search}
                 groupId={groupId}
@@ -342,7 +327,19 @@ function EvaluationsContent() {
                 onHoveredRowChange={setHoveredEvaluationId}
                 refetchRef={refetchRef}
                 onEvaluationsChange={onEvaluationsChange}
-              />
+              >
+                <EvaluationsTableControls
+                  projectId={params.projectId}
+                  activeFilters={effective.filters}
+                  onFiltersChange={setFilters}
+                  columns={columns}
+                  scoreNames={scoreNames}
+                  heatmapEnabled={heatmapEnabled}
+                  onHeatmapEnabledChange={setHeatmapEnabled}
+                  searchValue={searchValue}
+                  onSearchChange={setSearchAndFilters}
+                />
+              </EvaluationsTableContents>
             </ResizablePanel>
           </ResizablePanelGroup>
         </ResizablePanel>

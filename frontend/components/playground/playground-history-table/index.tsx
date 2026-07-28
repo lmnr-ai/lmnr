@@ -9,8 +9,8 @@ import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/mo
 import Mono from "@/components/ui/mono";
 import { type Trace } from "@/lib/traces/types";
 
-import { PlaygroundHistoryChrome } from "./chrome";
-import { PlaygroundHistoryGrid } from "./grid";
+import { PlaygroundHistoryTableContents } from "./table-contents";
+import { PlaygroundHistoryTableControls } from "./table-controls";
 
 const renderCost = (val: any) => {
   if (val == null) return "-";
@@ -137,11 +137,11 @@ interface PlaygroundHistoryTableProps {
 }
 
 export default function PlaygroundHistoryTable(props: PlaygroundHistoryTableProps) {
-  const chrome = <PlaygroundHistoryChrome columns={columns} />;
-
   return (
     <InfiniteDataTableProvider uniqueKey="id" defaults={{ columnOrder: defaultPlaygroundHistoryColumnOrder }}>
-      <PlaygroundHistoryGrid chrome={chrome} columns={columns} {...props} />
+      <PlaygroundHistoryTableContents columns={columns} {...props}>
+        <PlaygroundHistoryTableControls columns={columns} />
+      </PlaygroundHistoryTableContents>
     </InfiniteDataTableProvider>
   );
 }

@@ -6,6 +6,7 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { type PropsWithChildren } from "react";
 
 import BasePathFetchShim from "@/components/common/base-path-fetch-shim";
+import ReactScan from "@/components/common/react-scan";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flags-context";
@@ -73,6 +74,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
     <html lang="en" className={cn("h-full antialiased", sans.variable, manrope.variable, sansLanding.variable)}>
       <body className="flex flex-col h-full">
         <BasePathFetchShim />
+        {process.env.NODE_ENV === "development" && <ReactScan />}
         <FeatureFlagsProvider flags={featureFlags}>
           <PostHogProvider telemetryEnabled={posthogEnabled} email={email}>
             <TooltipProvider delayDuration={0}>

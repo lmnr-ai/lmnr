@@ -5,14 +5,14 @@ import { isEqual } from "lodash";
 import { useCallback, useRef, useState } from "react";
 
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
-import { TriggersTableChrome } from "@/components/signal/triggers-table/chrome";
 import {
   defaultTriggersColumnOrder,
   getTriggersTableColumns,
   type TriggerRow,
   triggersFilters,
 } from "@/components/signal/triggers-table/columns.tsx";
-import { TriggersTableGrid } from "@/components/signal/triggers-table/grid";
+import { TriggersTableContents } from "@/components/signal/triggers-table/table-contents";
+import { TriggersTableControls } from "@/components/signal/triggers-table/table-controls";
 import ManageTriggerDialog from "@/components/signals/manage-trigger-dialog";
 import { Button } from "@/components/ui/button.tsx";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store.tsx";
@@ -46,19 +46,6 @@ function TriggersTableContent() {
     setEditingTrigger(undefined);
   }, []);
 
-  const chrome = (
-    <TriggersTableChrome
-      filterColumns={triggersFilters}
-      columnLabels={columns.map((column) => ({
-        id: column.id!,
-        label: typeof column.header === "string" ? column.header : column.id!,
-      }))}
-      filters={filters}
-      onAddFilter={handleAddFilter}
-      onRemoveFilter={handleRemoveFilter}
-    />
-  );
-
   return (
     <>
       <ManageTriggerDialog
@@ -72,7 +59,18 @@ function TriggersTableContent() {
           Add Trigger
         </Button>
       </ManageTriggerDialog>
-      <TriggersTableGrid chrome={chrome} filters={filters} onRowClick={handleRowClick} revalidateRef={revalidateRef} />
+      <TriggersTableContents filters={filters} onRowClick={handleRowClick} revalidateRef={revalidateRef}>
+        <TriggersTableControls
+          filterColumns={triggersFilters}
+          columnLabels={columns.map((column) => ({
+            id: column.id!,
+            label: typeof column.header === "string" ? column.header : column.id!,
+          }))}
+          filters={filters}
+          onAddFilter={handleAddFilter}
+          onRemoveFilter={handleRemoveFilter}
+        />
+      </TriggersTableContents>
     </>
   );
 }

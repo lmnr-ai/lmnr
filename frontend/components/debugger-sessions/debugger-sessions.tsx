@@ -5,8 +5,8 @@ import { useParams } from "next/navigation";
 import { useEffect } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
-import { DebuggerSessionsChrome } from "@/components/debugger-sessions/chrome";
-import { DebuggerSessionsGrid } from "@/components/debugger-sessions/grid";
+import { DebuggerSessionsTableContents } from "@/components/debugger-sessions/table-contents";
+import { DebuggerSessionsTableControls } from "@/components/debugger-sessions/table-controls";
 import CopyTooltip from "@/components/ui/copy-tooltip";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import Mono from "@/components/ui/mono";
@@ -79,17 +79,17 @@ function DebuggerSessionsContent() {
     track("debugger_sessions", "page_viewed");
   }, []);
 
-  const chrome = (
-    <DebuggerSessionsChrome
-      projectId={String(projectId)}
-      columnLabels={columns.map((column) => ({
-        id: column.id!,
-        label: typeof column.header === "string" ? column.header : column.id!,
-      }))}
-    />
+  return (
+    <DebuggerSessionsTableContents columns={columns}>
+      <DebuggerSessionsTableControls
+        projectId={String(projectId)}
+        columnLabels={columns.map((column) => ({
+          id: column.id!,
+          label: typeof column.header === "string" ? column.header : column.id!,
+        }))}
+      />
+    </DebuggerSessionsTableContents>
   );
-
-  return <DebuggerSessionsGrid chrome={chrome} columns={columns} />;
 }
 
 export default function DebuggerSessions() {

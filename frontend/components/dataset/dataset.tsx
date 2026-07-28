@@ -24,12 +24,12 @@ import DownloadButton from "../ui/download-button";
 import Header from "../ui/header";
 import JsonTooltip from "../ui/json-tooltip";
 import AddDatapointsDialog from "./add-datapoints-dialog";
-import { DatasetChrome } from "./chrome";
 import DatasetPanel from "./dataset-panel";
 import { buildColumnDefs, buildFetchParams, datasetFilters } from "./dataset-table-store";
 import DownloadParquetDialog from "./download-parquet-dialog";
-import { DatasetGrid } from "./grid";
 import ManualAddDatapoint from "./manual-add-datapoint-dialog";
+import { DatasetTableContents } from "./table-contents";
+import { DatasetTableControls } from "./table-controls";
 
 interface DatasetProps {
   dataset: DatasetType;
@@ -226,18 +226,6 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
     refetchRef.current();
   }, []);
 
-  const chrome = (
-    <DatasetChrome
-      projectId={String(projectId)}
-      datasetId={dataset.id}
-      columnLabels={columnLabels}
-      columnDefs={columnDefs}
-      allFilters={allFilters}
-      searchValue={searchValue}
-      onSearchChange={handleSearchChange}
-    />
-  );
-
   return (
     <>
       <Header path={"datasets/" + dataset.name} />
@@ -282,8 +270,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
           )}
         </div>
         <div className="flex overflow-hidden flex-1">
-          <DatasetGrid
-            chrome={chrome}
+          <DatasetTableContents
             dataset={dataset}
             columnDefs={columnDefs}
             filter={filter}
@@ -296,7 +283,17 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
             onDeleteDatapoints={handleDeleteDatapoints}
             refetchRef={refetchRef}
             updateDataRef={updateDataRef}
-          />
+          >
+            <DatasetTableControls
+              projectId={String(projectId)}
+              datasetId={dataset.id}
+              columnLabels={columnLabels}
+              columnDefs={columnDefs}
+              allFilters={allFilters}
+              searchValue={searchValue}
+              onSearchChange={handleSearchChange}
+            />
+          </DatasetTableContents>
         </div>
         <div className="flex text-secondary-foreground text-sm">{totalCount} datapoints</div>
       </div>

@@ -3,8 +3,8 @@
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useRef } from "react";
 
-import { DatasetsChrome } from "@/components/datasets/chrome";
-import { datasetsColumnLabels, DatasetsGrid } from "@/components/datasets/grid";
+import { datasetsColumnLabels, DatasetsTableContents } from "@/components/datasets/table-contents";
+import { DatasetsTableControls } from "@/components/datasets/table-controls";
 import { Button } from "@/components/ui/button";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
@@ -37,17 +37,6 @@ function DatasetsContent() {
     updateDataRef.current?.((currentData) => [newDataset, ...currentData]);
   };
 
-  const chrome = (
-    <DatasetsChrome
-      projectId={String(projectId)}
-      filters={effective.filters}
-      onFiltersChange={setFilters}
-      searchValue={searchValue}
-      onSearchChange={setSearchAndFilters}
-      columnLabels={datasetsColumnLabels}
-    />
-  );
-
   return (
     <>
       <Header path="datasets" />
@@ -58,13 +47,21 @@ function DatasetsContent() {
           </Button>
         </CreateDatasetDialog>
         <div className="flex flex-1 overflow-hidden">
-          <DatasetsGrid
-            chrome={chrome}
+          <DatasetsTableContents
             updateDataRef={updateDataRef}
             filter={filter}
             search={search}
             isViewLoading={isViewLoading}
-          />
+          >
+            <DatasetsTableControls
+              projectId={String(projectId)}
+              filters={effective.filters}
+              onFiltersChange={setFilters}
+              searchValue={searchValue}
+              onSearchChange={setSearchAndFilters}
+              columnLabels={datasetsColumnLabels}
+            />
+          </DatasetsTableContents>
         </div>
       </div>
     </>

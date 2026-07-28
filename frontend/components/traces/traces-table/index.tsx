@@ -6,14 +6,14 @@ import { shallow } from "zustand/shallow";
 
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
-import { TracesTableChrome } from "@/components/traces/traces-table/chrome";
 import {
   defaultTracesColumnOrder,
   filters as staticFilters,
   PREVIEW_COLUMN,
 } from "@/components/traces/traces-table/columns";
 import { DEFAULT_TARGET_BARS, RESOURCE } from "@/components/traces/traces-table/constants";
-import { TracesTableGrid } from "@/components/traces/traces-table/grid";
+import { TracesTableContents } from "@/components/traces/traces-table/table-contents";
+import { TracesTableControls } from "@/components/traces/traces-table/table-controls";
 import { buildColumnDefs, toColumnsPayload } from "@/components/traces/traces-table/traces-table-store";
 import { useTableConfigStore, useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
@@ -167,25 +167,9 @@ function TracesTableContent() {
     [columnDefs, removeCustomColumn]
   );
 
-  const chrome = (
-    <TracesTableChrome
-      projectId={String(projectId)}
-      allFilters={allFilters}
-      filters={effective.filters}
-      onFiltersChange={setFilters}
-      columnLabels={columnLabels}
-      columnDefs={columnDefs}
-      onRefresh={handleRefresh}
-      searchValue={searchValue}
-      onSearchChange={setSearchAndFilters}
-      chartContainerRef={chartContainerRef}
-    />
-  );
-
   return (
     <div className="flex flex-1 overflow-hidden px-4 pb-4">
-      <TracesTableGrid
-        chrome={chrome}
+      <TracesTableContents
         refetchRef={refetchRef}
         columnDefs={columnDefs}
         effectiveColumns={effectiveColumns}
@@ -201,7 +185,20 @@ function TracesTableContent() {
         endDate={endDate}
         searchIn={searchIn}
         isViewLoading={isViewLoading}
-      />
+      >
+        <TracesTableControls
+          projectId={String(projectId)}
+          allFilters={allFilters}
+          filters={effective.filters}
+          onFiltersChange={setFilters}
+          columnLabels={columnLabels}
+          columnDefs={columnDefs}
+          onRefresh={handleRefresh}
+          searchValue={searchValue}
+          onSearchChange={setSearchAndFilters}
+          chartContainerRef={chartContainerRef}
+        />
+      </TracesTableContents>
     </div>
   );
 }

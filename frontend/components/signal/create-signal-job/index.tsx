@@ -3,9 +3,12 @@
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { CreateSignalJobChrome } from "@/components/signal/create-signal-job/chrome";
 import ConfirmSignalJobDialog from "@/components/signal/create-signal-job/confirm-signal-job-dialog";
-import { CreateSignalJobGrid, type PendingJobState } from "@/components/signal/create-signal-job/grid";
+import {
+  CreateSignalJobTableContents,
+  type PendingJobState,
+} from "@/components/signal/create-signal-job/table-contents";
+import { CreateSignalJobTableControls } from "@/components/signal/create-signal-job/table-controls";
 import { useSignalStoreContext } from "@/components/signal/store";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
 import { columns, defaultTracesColumnOrder } from "@/components/traces/traces-table/columns";
@@ -104,15 +107,6 @@ const CreateSignalJobContent = () => {
     }
   }, [pendingJob, projectId, signal.id, signal.name, searchValue, dateRange, jobMode, router, toast]);
 
-  const chrome = (
-    <CreateSignalJobChrome
-      columns={columns}
-      dateRange={dateRange}
-      onDateRangeChange={setDateRange}
-      onRefresh={handleRefresh}
-    />
-  );
-
   return (
     <>
       <ConfirmSignalJobDialog
@@ -134,8 +128,7 @@ const CreateSignalJobContent = () => {
         </p>
       </div>
       <div className="flex flex-1 overflow-hidden px-4 pb-4">
-        <CreateSignalJobGrid
-          chrome={chrome}
+        <CreateSignalJobTableContents
           filter={filter}
           search={search}
           dateRange={dateRange}
@@ -144,7 +137,14 @@ const CreateSignalJobContent = () => {
           onSearchChange={setSearchValue}
           onOpenConfirmDialog={handleOpenConfirmDialog}
           onTraceIdSelect={setTraceId}
-        />
+        >
+          <CreateSignalJobTableControls
+            columns={columns}
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+            onRefresh={handleRefresh}
+          />
+        </CreateSignalJobTableContents>
       </div>
       {traceId && (
         <TraceViewSidePanel

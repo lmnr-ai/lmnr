@@ -2,8 +2,8 @@
 
 import { useCallback, useRef, useState } from "react";
 
-import { TracePickerChrome } from "@/components/traces/trace-picker/chrome";
-import { TracePickerGrid } from "@/components/traces/trace-picker/grid";
+import { TracePickerContents } from "@/components/traces/trace-picker/table-contents";
+import { TracePickerControls } from "@/components/traces/trace-picker/table-controls";
 import { type Filter } from "@/lib/actions/common/filters";
 import { type TraceRow } from "@/lib/traces/types";
 
@@ -40,21 +40,10 @@ const TracePickerContent = ({
     refetchRef.current();
   }, []);
 
-  const chrome = (
-    <TracePickerChrome
-      dateRange={dateRange}
-      onDateRangeChange={setDateRange}
-      onRefresh={handleRefresh}
-      searchValue={searchValue}
-      onSearchChange={setSearchValue}
-    />
-  );
-
   return (
     <div className={className ?? "flex flex-col flex-1 gap-3 px-4 py-2 overflow-hidden"}>
       {description && <span className="text-secondary-foreground text-xs px-1">{description}</span>}
-      <TracePickerGrid
-        chrome={chrome}
+      <TracePickerContents
         filters={searchValue.filters}
         search={searchValue.search.length > 0 ? searchValue.search : null}
         dateRange={dateRange}
@@ -63,7 +52,15 @@ const TracePickerContent = ({
         focusedTraceId={focusedTraceId}
         excludeTraceId={excludeTraceId}
         fetchParams={fetchParams}
-      />
+      >
+        <TracePickerControls
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+          onRefresh={handleRefresh}
+          searchValue={searchValue}
+          onSearchChange={setSearchValue}
+        />
+      </TracePickerContents>
     </div>
   );
 };

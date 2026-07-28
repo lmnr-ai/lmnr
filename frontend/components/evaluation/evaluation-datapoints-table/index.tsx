@@ -8,8 +8,8 @@ import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatab
 import { type Filter } from "@/lib/actions/common/filters";
 import { type EvalRow } from "@/lib/evaluation/types";
 
-import { EvaluationDatapointsChrome } from "./chrome";
-import { EvaluationDatapointsGrid } from "./grid";
+import { EvaluationDatapointsTableContents } from "./table-contents";
+import { EvaluationDatapointsTableControls } from "./table-controls";
 
 interface EvaluationDatapointsTableProps {
   data: EvalRow[] | undefined;
@@ -83,26 +83,9 @@ const EvaluationDatapointsTable = ({
     [onSearchChange, searchValue]
   );
 
-  const chrome = (
-    <EvaluationDatapointsChrome
-      columnFilters={columnFilters}
-      columnDefs={columnDefs}
-      visibleColumnDefs={visibleColumnDefs}
-      activeFilters={searchValue.filters}
-      onFiltersChange={onFiltersChange}
-      heatmapEnabled={heatmapEnabled}
-      onHeatmapEnabledChange={onHeatmapEnabledChange}
-      onDeleteCustomColumn={onDeleteCustomColumn}
-      searchValue={searchValue}
-      onSearchChange={onSearchChange}
-      viewsResource={viewsResource}
-    />
-  );
-
   return (
     <div className="flex overflow-hidden flex-1">
-      <EvaluationDatapointsGrid
-        chrome={chrome}
+      <EvaluationDatapointsTableContents
         data={data}
         isLoading={isLoading}
         isFetching={isFetching}
@@ -121,7 +104,21 @@ const EvaluationDatapointsTable = ({
         onSort={onSort}
         heatmapEnabled={heatmapEnabled}
         isSearchActive={isSearchActive}
-      />
+      >
+        <EvaluationDatapointsTableControls
+          columnFilters={columnFilters}
+          columnDefs={columnDefs}
+          visibleColumnDefs={visibleColumnDefs}
+          activeFilters={searchValue.filters}
+          onFiltersChange={onFiltersChange}
+          heatmapEnabled={heatmapEnabled}
+          onHeatmapEnabledChange={onHeatmapEnabledChange}
+          onDeleteCustomColumn={onDeleteCustomColumn}
+          searchValue={searchValue}
+          onSearchChange={onSearchChange}
+          viewsResource={viewsResource}
+        />
+      </EvaluationDatapointsTableContents>
     </div>
   );
 };

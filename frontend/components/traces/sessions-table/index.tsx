@@ -3,10 +3,10 @@
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type ComponentProps, useCallback, useEffect, useMemo, useRef } from "react";
 
-import { SessionsTableChrome } from "@/components/traces/sessions-table/chrome";
 import { defaultSessionsColumnOrder } from "@/components/traces/sessions-table/columns";
 import { RESOURCE } from "@/components/traces/sessions-table/constants";
-import { SessionsTableGrid } from "@/components/traces/sessions-table/grid";
+import { SessionsTableContents } from "@/components/traces/sessions-table/table-contents";
+import { SessionsTableControls } from "@/components/traces/sessions-table/table-controls";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import { cn } from "@/lib/utils";
@@ -65,21 +65,9 @@ function SessionsTableContent() {
     [setSort]
   );
 
-  const chrome = (
-    <SessionsTableChrome
-      projectId={String(projectId)}
-      filters={effective.filters}
-      onFiltersChange={setFilters}
-      onRefresh={handleRefresh}
-      searchValue={searchValue}
-      onSearchChange={setSearchAndFilters}
-    />
-  );
-
   return (
     <div className="flex flex-1 overflow-hidden px-4 pb-4">
-      <SessionsTableGrid
-        chrome={chrome}
+      <SessionsTableContents
         refetchRef={refetchRef}
         filter={filter}
         textSearchFilter={textSearchFilter}
@@ -90,7 +78,16 @@ function SessionsTableContent() {
         startDate={startDate}
         endDate={endDate}
         isViewLoading={isViewLoading}
-      />
+      >
+        <SessionsTableControls
+          projectId={String(projectId)}
+          filters={effective.filters}
+          onFiltersChange={setFilters}
+          onRefresh={handleRefresh}
+          searchValue={searchValue}
+          onSearchChange={setSearchAndFilters}
+        />
+      </SessionsTableContents>
     </div>
   );
 }

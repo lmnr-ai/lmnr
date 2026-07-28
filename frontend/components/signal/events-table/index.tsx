@@ -1,12 +1,12 @@
 "use client";
 
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect,useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useSWRConfig } from "swr";
 import { shallow } from "zustand/shallow";
 
-import { EventsTableChrome } from "@/components/signal/events-table/chrome";
-import { EventsTableGrid } from "@/components/signal/events-table/grid";
+import { EventsTableContents } from "@/components/signal/events-table/table-contents";
+import { EventsTableControls } from "@/components/signal/events-table/table-controls";
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
 import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-cluster-id";
 import { getFilterClusterIds, useSignalStoreContext } from "@/components/signal/store.tsx";
@@ -71,27 +71,9 @@ function PureEventsTable() {
     }
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
 
-  const chrome = (
-    <EventsTableChrome
-      projectId={params.projectId}
-      signalId={signal.id}
-      filterColumns={filters}
-      columnLabels={columns.map((column) => ({
-        id: column.id!,
-        label: typeof column.header === "string" ? column.header : column.id!,
-      }))}
-      filters={effective.filters}
-      onFiltersChange={setFilters}
-      searchValue={searchValue}
-      onSearchChange={setSearchAndFilters}
-      onRefresh={handleRefresh}
-    />
-  );
-
   return (
     <div className="flex flex-1 overflow-hidden px-4 pb-4">
-      <EventsTableGrid
-        chrome={chrome}
+      <EventsTableContents
         refetchRef={refetchRef}
         columns={columns}
         projectId={params.projectId}
@@ -109,7 +91,22 @@ function PureEventsTable() {
         selectedClusterIds={selectedClusterIds}
         isUnclusteredFilter={isUnclusteredFilter}
         emergingClusterId={emergingClusterId}
-      />
+      >
+        <EventsTableControls
+          projectId={params.projectId}
+          signalId={signal.id}
+          filterColumns={filters}
+          columnLabels={columns.map((column) => ({
+            id: column.id!,
+            label: typeof column.header === "string" ? column.header : column.id!,
+          }))}
+          filters={effective.filters}
+          onFiltersChange={setFilters}
+          searchValue={searchValue}
+          onSearchChange={setSearchAndFilters}
+          onRefresh={handleRefresh}
+        />
+      </EventsTableContents>
     </div>
   );
 }

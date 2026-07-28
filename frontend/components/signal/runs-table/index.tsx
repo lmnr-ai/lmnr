@@ -3,8 +3,8 @@
 import { isEqual } from "lodash";
 import { useCallback, useRef, useState } from "react";
 
-import { RunsTableChrome } from "@/components/signal/runs-table/chrome";
-import { RunsTableGrid } from "@/components/signal/runs-table/grid";
+import { RunsTableContents } from "@/components/signal/runs-table/table-contents";
+import { RunsTableControls } from "@/components/signal/runs-table/table-controls";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import { type Filter } from "@/lib/actions/common/filters";
 
@@ -31,25 +31,23 @@ function RunsTableContent() {
     refetchRef.current();
   }, []);
 
-  const chrome = (
-    <RunsTableChrome
-      filterColumns={signalRunsFilters}
-      columnLabels={columns.map((column) => ({
-        id: column.id!,
-        label: typeof column.header === "string" ? column.header : column.id!,
-      }))}
-      filters={filters}
-      onAddFilter={handleAddFilter}
-      onRemoveFilter={handleRemoveFilter}
-      dateRange={dateRange}
-      onDateRangeChange={setDateRange}
-      onRefresh={handleRefresh}
-    />
-  );
-
   return (
     <div className="flex flex-col gap-2 flex-1 overflow-hidden">
-      <RunsTableGrid chrome={chrome} refetchRef={refetchRef} filters={filters} dateRange={dateRange} />
+      <RunsTableContents refetchRef={refetchRef} filters={filters} dateRange={dateRange}>
+        <RunsTableControls
+          filterColumns={signalRunsFilters}
+          columnLabels={columns.map((column) => ({
+            id: column.id!,
+            label: typeof column.header === "string" ? column.header : column.id!,
+          }))}
+          filters={filters}
+          onAddFilter={handleAddFilter}
+          onRemoveFilter={handleRemoveFilter}
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+          onRefresh={handleRefresh}
+        />
+      </RunsTableContents>
     </div>
   );
 }

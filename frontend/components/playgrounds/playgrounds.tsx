@@ -3,8 +3,8 @@
 import { useParams } from "next/navigation";
 import { useEffect, useMemo } from "react";
 
-import { PlaygroundsChrome } from "@/components/playgrounds/chrome";
-import { playgroundsColumnLabels, PlaygroundsGrid } from "@/components/playgrounds/grid";
+import { playgroundsColumnLabels, PlaygroundsTableContents } from "@/components/playgrounds/table-contents";
+import { PlaygroundsTableControls } from "@/components/playgrounds/table-controls";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import { track } from "@/lib/posthog";
@@ -30,24 +30,22 @@ function PlaygroundsContent() {
   const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
   const search = effective.search.length > 0 ? effective.search : null;
 
-  const chrome = (
-    <PlaygroundsChrome
-      projectId={String(projectId)}
-      filters={effective.filters}
-      onFiltersChange={setFilters}
-      searchValue={searchValue}
-      onSearchChange={setSearchAndFilters}
-      columnLabels={playgroundsColumnLabels}
-    />
-  );
-
   return (
     <>
       <Header path="playgrounds" />
       <div className="flex flex-1 flex-col gap-4 px-4 pb-4 overflow-hidden">
         <CreatePlaygroundDialog />
         <div className="flex flex-1 overflow-hidden">
-          <PlaygroundsGrid chrome={chrome} filter={filter} search={search} isViewLoading={isViewLoading} />
+          <PlaygroundsTableContents filter={filter} search={search} isViewLoading={isViewLoading}>
+            <PlaygroundsTableControls
+              projectId={String(projectId)}
+              filters={effective.filters}
+              onFiltersChange={setFilters}
+              searchValue={searchValue}
+              onSearchChange={setSearchAndFilters}
+              columnLabels={playgroundsColumnLabels}
+            />
+          </PlaygroundsTableContents>
         </div>
       </div>
     </>

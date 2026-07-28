@@ -3,10 +3,10 @@
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type ComponentProps, useCallback, useEffect, useMemo, useRef } from "react";
 
-import { SpansTableChrome } from "@/components/traces/spans-table/chrome";
 import { defaultSpansColumnOrder } from "@/components/traces/spans-table/columns";
 import { RESOURCE } from "@/components/traces/spans-table/constants";
-import { SpansTableGrid } from "@/components/traces/spans-table/grid";
+import { SpansTableContents } from "@/components/traces/spans-table/table-contents";
+import { SpansTableControls } from "@/components/traces/spans-table/table-controls";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
@@ -63,21 +63,9 @@ function SpansTableContent() {
     refetchRef.current();
   }, []);
 
-  const chrome = (
-    <SpansTableChrome
-      projectId={String(projectId)}
-      filters={effective.filters}
-      onFiltersChange={setFilters}
-      onRefresh={handleRefresh}
-      searchValue={searchValue}
-      onSearchChange={setSearchAndFilters}
-    />
-  );
-
   return (
     <div className="flex flex-1 overflow-hidden px-4 pb-6">
-      <SpansTableGrid
-        chrome={chrome}
+      <SpansTableContents
         refetchRef={refetchRef}
         filter={filter}
         textSearchFilter={textSearchFilter}
@@ -85,7 +73,16 @@ function SpansTableContent() {
         startDate={startDate}
         endDate={endDate}
         isViewLoading={isViewLoading}
-      />
+      >
+        <SpansTableControls
+          projectId={String(projectId)}
+          filters={effective.filters}
+          onFiltersChange={setFilters}
+          onRefresh={handleRefresh}
+          searchValue={searchValue}
+          onSearchChange={setSearchAndFilters}
+        />
+      </SpansTableContents>
     </div>
   );
 }
