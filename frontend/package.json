@@ -182,7 +182,6 @@
     "madge": "^8.0.0",
     "postcss": "^8.5.20",
     "prettier": "^3.8.1",
-    "react-scan": "^0.5.7",
     "tailwind-merge": "^2.6.0",
     "tailwindcss": "^4.3.0",
     "tailwindcss-animate": "^1.0.7",
