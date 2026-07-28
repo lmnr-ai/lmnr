@@ -910,9 +910,13 @@ fn main() -> anyhow::Result<()> {
     // registered, and fall back to the quorum queue otherwise. A failure here is
     // logged and leaves every publisher unset, so ingest degrades to the queue
     // path rather than failing the boot.
-    let stream_environment: Option<mq::stream::StreamEnvironment> = if mq::stream::enabled()
-        && is_feature_enabled(Feature::FullBuild)
-    {
+    // `Some` only when streams are fully usable: topology declared, dead-letter
+    // sink built, publishers registered. Publisher registration is deliberately
+    // LAST so a later failure can't leave producers writing to unread streams.
+    let stream_runtime: Option<(
+        mq::stream::StreamEnvironment,
+        Arc<mq::stream::DeadLetterSink>,
+    )> = if mq::stream::enabled() && is_feature_enabled(Feature::FullBuild) {
         runtime_handle.block_on(async {
                 match mq::stream::StreamEnvironment::connect().await {
                     Ok(environment) => {
@@ -927,19 +931,40 @@ fn main() -> anyhow::Result<()> {
                             }
                         }
 
-                        // Poison sink. Non-fatal: without it `DeadLetterSink`
-                        // construction fails and poison batches are log-only,
-                        // which is degraded but not broken.
                         if let Err(e) = topology
                             .declare_plain(&environment, mq::stream::DEAD_LETTER_STREAM)
                             .await
                         {
                             log::error!(
-                                "Failed to declare dead-letter stream '{}', poison batches will only be logged: {:?}",
+                                "Failed to declare dead-letter stream '{}': {:?}",
                                 mq::stream::DEAD_LETTER_STREAM,
                                 e
                             );
+                            return None;
                         }
+
+                        // Built BEFORE any publisher is registered, and fatal to
+                        // the whole streams path. The consumer can't run without
+                        // it (a skipped record would stall its partition), so if
+                        // we registered publishers first and then failed here,
+                        // producers would ship to streams that nothing reads —
+                        // bypassing the quorum-queue workers this degrade relies
+                        // on, and letting the data expire under retention.
+                        let dead_letter = match mq::stream::DeadLetterSink::new(
+                            &environment,
+                            mq::stream::DEAD_LETTER_STREAM,
+                        )
+                        .await
+                        {
+                            Ok(sink) => Arc::new(sink),
+                            Err(e) => {
+                                log::error!(
+                                    "Failed to build stream dead-letter sink; disabling streams and falling back to queues: {:?}",
+                                    e
+                                );
+                                return None;
+                            }
+                        };
 
                         if enable_producer() {
                             match mq::stream::StreamPublisher::new(
@@ -971,7 +996,7 @@ fn main() -> anyhow::Result<()> {
                         }
 
                         log::info!("RabbitMQ Streams transport enabled");
-                        Some(environment)
+                        Some((environment, dead_letter))
                     }
                     Err(e) => {
                         log::error!(
@@ -1277,7 +1302,7 @@ fn main() -> anyhow::Result<()> {
         let pii_redactor_for_consumer = pii_redactor.clone();
         let worker_pool_clone = worker_pool.clone();
         let batch_worker_pool_clone = batch_worker_pool.clone();
-        let stream_environment_for_consumer = stream_environment.clone();
+        let stream_runtime_for_consumer = stream_runtime.clone();
 
         let consumer_handle = thread::Builder::new()
             .name("consumer".to_string())
@@ -1390,30 +1415,13 @@ fn main() -> anyhow::Result<()> {
                     // transition: the quorum queues drain their backlog while
                     // streams carry new traffic. Removing the queue workers is a
                     // later release.
-                    if let Some(stream_environment) = stream_environment_for_consumer.as_ref() {
-                        // The sink is REQUIRED, not best-effort: it's the only
-                        // surviving copy of anything the reader skips, and without
-                        // it a single undecodable record stalls its partition
-                        // (holding the offset beats dropping data). So refuse to
-                        // start the readers instead — the queue workers above keep
-                        // consuming, which is a clean degrade rather than a stall.
-                        let dead_letter = match mq::stream::DeadLetterSink::new(
-                            stream_environment,
-                            mq::stream::DEAD_LETTER_STREAM,
-                        )
-                        .await
+                    // The dead-letter sink was built at boot, before any publisher
+                    // registered — so reaching here means streams are fully wired
+                    // on both ends.
+                    if let Some((stream_environment, dead_letter)) =
+                        stream_runtime_for_consumer.as_ref()
+                    {
                         {
-                            Ok(sink) => Some(Arc::new(sink)),
-                            Err(e) => {
-                                log::error!(
-                                    "Failed to build stream dead-letter sink; NOT starting stream readers (queue workers keep consuming): {:?}",
-                                    e
-                                );
-                                None
-                            }
-                        };
-
-                        if let Some(dead_letter) = dead_letter {
                             let db = db_for_consumer.clone();
                             let cache = cache_for_consumer.clone();
                             let queue = mq_for_consumer.clone();
@@ -1460,7 +1468,7 @@ fn main() -> anyhow::Result<()> {
                                                 .get(),
                                         ),
                                     },
-                                    dead_letter,
+                                    dead_letter.clone(),
                                 );
                                 tokio::spawn(reader.run());
                             }

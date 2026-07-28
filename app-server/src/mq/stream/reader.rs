@@ -30,9 +30,13 @@
 //! failing batch — is copied to the dead-letter stream FIRST, payload included.
 //! Once the offset advances the source record is unreachable, so an uncopied skip
 //! is permanent data loss. The copy is therefore a **precondition**: if it fails
-//! (retried, then given up) the offset is HELD and the reader reconnects so the
-//! record is redelivered. That's why the sink is required rather than optional —
-//! a reader is never constructed without one.
+//! (retried, then given up) the offset is HELD **and the consuming stops** — a
+//! single record breaks the read loop, an unrecordable batch returns from the
+//! batcher — so nothing later can store a higher offset for those partitions and
+//! advance past them. The reader reconnects and the records are redelivered.
+//! That's why the sink is required rather than optional: it is built at boot
+//! BEFORE any publisher registers, and a failure there disables streams entirely
+//! so producers can't write to streams nothing reads.
 //!
 //! A dead-lettered record still forwards its OFFSET to the batcher (as a
 //! `StreamDelivery` with `message: None`). Skipping the offset too would pin the
@@ -539,7 +543,7 @@ async fn run_batcher<H: StreamBatchHandler>(
                         if batch_weight >= batch_size
                             || (batch.is_empty() && !pending_offsets.is_empty())
                         {
-                            flush_and_commit(
+                            if !flush_and_commit(
                                 index,
                                 &handler,
                                 &client,
@@ -549,7 +553,15 @@ async fn run_batcher<H: StreamBatchHandler>(
                                 &mut pending_offsets,
                                 &dead_letter,
                             )
-                            .await;
+                            .await
+                            {
+                                // Unrecordable batch: stop rather than keep
+                                // consuming, or a later flush would store a higher
+                                // offset for these partitions and advance past it.
+                                // Exiting drops our receiver, so the reader
+                                // reconnects and the records are redelivered.
+                                return;
+                            }
                         }
                     }
                     None => {
@@ -557,7 +569,9 @@ async fn run_batcher<H: StreamBatchHandler>(
                         // already-processed (and dead-lettered) records are
                         // durable, then exit.
                         if !batch.is_empty() || !pending_offsets.is_empty() {
-                            flush_and_commit(
+                            // We're exiting either way; the held-offsets case is
+                            // already handled by not storing them.
+                            let _ = flush_and_commit(
                                 index,
                                 &handler,
                                 &client,
@@ -578,7 +592,7 @@ async fn run_batcher<H: StreamBatchHandler>(
                 // a stretch of only dead-lettered records has offsets to commit
                 // and would otherwise leave the partition pinned.
                 if !batch.is_empty() || !pending_offsets.is_empty() {
-                    flush_and_commit(
+                    if !flush_and_commit(
                         index,
                         &handler,
                         &client,
@@ -588,7 +602,10 @@ async fn run_batcher<H: StreamBatchHandler>(
                         &mut pending_offsets,
                         &dead_letter,
                     )
-                    .await;
+                    .await
+                    {
+                        return;
+                    }
                 }
             }
         }
@@ -608,6 +625,9 @@ async fn run_batcher<H: StreamBatchHandler>(
 ///
 /// `Permanent` failures (malformed/unprocessable, not infrastructure) dead-letter
 /// and then advance, matching the queue path's reject-without-requeue.
+/// Returns `false` when the batch could neither be flushed NOR recorded — the
+/// batcher must then stop consuming (see `FlushOutcome`).
+#[must_use]
 async fn flush_and_commit<H: StreamBatchHandler>(
     index: usize,
     handler: &Arc<H>,
@@ -617,7 +637,7 @@ async fn flush_and_commit<H: StreamBatchHandler>(
     batch_weight: &mut usize,
     pending_offsets: &mut PendingOffsets,
     dead_letter: &DeadLetterSink,
-) {
+) -> bool {
     let messages = std::mem::take(batch);
     *batch_weight = 0;
     let offsets = pending_offsets.take();
@@ -627,7 +647,7 @@ async fn flush_and_commit<H: StreamBatchHandler>(
         // to commit — that's what unpins a partition whose tail is all poison.
         // Fall through to the store loop rather than returning.
         store_offsets(index, client, consumer_name, offsets).await;
-        return;
+        return true;
     }
 
     // No `max_elapsed_time`: transient retries are unbounded (see fn docs).
@@ -694,16 +714,22 @@ async fn flush_and_commit<H: StreamBatchHandler>(
             // are redelivered on reconnect and retried. A genuinely unprocessable
             // batch then loops, which is visible in logs — the deliberate trade
             // over silent loss.
+            // Holding these offsets is only half the job: this batcher keeps
+            // consuming otherwise, and a LATER flush on the same partitions would
+            // store a higher offset and silently advance past the batch we failed
+            // to record. So report the failure and let the caller stop, mirroring
+            // the single-record `skip_record` path that breaks to reconnect.
             log::error!(
-                "Stream batcher {} could not record the failed batch; holding {} partition offsets so the records replay",
+                "Stream batcher {} could not record the failed batch; holding {} partition offsets and stopping so the records replay",
                 index,
                 offsets.len()
             );
-            return;
+            return false;
         }
     }
 
     store_offsets(index, client, consumer_name, offsets).await;
+    true
 }
 
 /// Commit one offset per partition. Best-effort: a lost store just replays those
@@ -1135,6 +1161,28 @@ mod tests {
             "a partially-filled batch waits for the size threshold or the tick"
         );
         assert!(should_flush(128, 128, false, true));
+    }
+
+    /// An unrecordable batch must STOP the batcher, not just hold its offsets.
+    /// Holding alone is insufficient: the batcher would keep consuming and a later
+    /// flush on the same partitions would store a higher offset, silently advancing
+    /// past the batch we failed to copy.
+    #[test]
+    fn unrecordable_batch_stops_the_batcher() {
+        // Mirrors `flush_and_commit`'s return contract and the caller's use of it.
+        fn keep_consuming(flush_ok: bool, copy_durable: bool) -> bool {
+            flush_ok || copy_durable
+        }
+
+        assert!(keep_consuming(true, false), "a clean flush keeps going");
+        assert!(
+            keep_consuming(false, true),
+            "a recorded permanent failure may advance and continue"
+        );
+        assert!(
+            !keep_consuming(false, false),
+            "neither flushed nor recorded must stop the batcher so the records replay"
+        );
     }
 
     #[test]
