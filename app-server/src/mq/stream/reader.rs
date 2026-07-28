@@ -38,6 +38,14 @@
 //! BEFORE any publisher registers, and a failure there disables streams entirely
 //! so producers can't write to streams nothing reads.
 //!
+//! Offset stores are gated twice. A partition the broker has DEACTIVATED us for is
+//! never committed: its successor may live in another pod, so no local comparison
+//! can tell whether our offset is stale — we simply let the new owner's position
+//! stand and its replay cover our held records. Within one process, a monotonic
+//! high-water mark per `(group, partition)` additionally keeps the outgoing and
+//! incoming batchers ordered, and it advances only once the broker CONFIRMS a
+//! store, so a failed store stays retryable.
+//!
 //! A dead-lettered record still forwards its OFFSET to the batcher (as a
 //! `StreamDelivery` with `message: None`). Skipping the offset too would pin the
 //! partition whenever its tail is poison: nothing later would ever store a higher
@@ -211,6 +219,8 @@ impl<H: StreamBatchHandler> StreamReader<H> {
     async fn run_once(&self) -> anyhow::Result<()> {
         let num_batchers = env::streams::BATCHERS.get().max(1);
         let capacity = env::streams::CHANNEL_CAPACITY.get().max(1);
+        // `&'static str`, so it copies into the `consumer_update` closure.
+        let consumer_name = self.consumer_name;
 
         // Offsets are stored through the raw client rather than the consumer
         // handle: `SuperStreamConsumer` multiplexes every partition into one
@@ -232,13 +242,19 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                 let stream = context.stream();
                 // `active` is the wire-level flag (0 = deactivated), not a bool.
                 if active == 0 {
-                    // Deactivated: the successor resumes from the last stored
-                    // offset. Our own batcher may still hold unflushed records
-                    // for this partition, which the successor will replay —
-                    // at-least-once, consistent with the queue path.
+                    // Deactivated: the successor — possibly in another pod — owns
+                    // this partition now and its committed position is
+                    // authoritative. Mark the partition revoked so our still-
+                    // draining batcher cannot store an offset for it and rewind the
+                    // group. Whatever it holds is replayed by the new owner
+                    // (at-least-once, consistent with the queue path).
+                    revoke_partition(consumer_name, &stream);
                     log::info!("Stream partition {} deactivated for this consumer", stream);
                     return OffsetSpecification::Next;
                 }
+
+                // Activated (or re-activated): we own it again, so allow stores.
+                restore_partition(consumer_name, &stream);
                 match context.client().query_offset(context.name(), &stream).await {
                     Ok(offset) => {
                         log::info!(
@@ -756,9 +772,14 @@ async fn store_offsets(
     offsets: HashMap<String, u64>,
 ) {
     for (stream, offset) in offsets {
-        if !claim_offset_high_water_mark(consumer_name, &stream, offset) {
+        // Ownership first: once the broker has deactivated us for this partition
+        // the successor owns it, possibly in ANOTHER POD, so no local offset
+        // comparison can tell us whether our store is stale. Not storing at all is
+        // the only sound answer — the records we hold are simply replayed by the
+        // successor (at-least-once, as everywhere else here).
+        if is_partition_revoked(consumer_name, &stream) {
             log::warn!(
-                "Stream batcher {} skipping stale offset store {} for stream {} (a newer offset was already committed — likely a single-active-consumer handover)",
+                "Stream batcher {} not storing offset {} for stream {}: this consumer was deactivated for that partition, so the new owner's position stands",
                 index,
                 offset,
                 stream
@@ -766,19 +787,35 @@ async fn store_offsets(
             continue;
         }
 
-        if let Err(e) = client.store_offset(consumer_name, &stream, offset).await {
+        if !offset_advances_high_water_mark(consumer_name, &stream, offset) {
             log::warn!(
+                "Stream batcher {} skipping stale offset store {} for stream {} (a newer offset was already committed locally)",
+                index,
+                offset,
+                stream
+            );
+            continue;
+        }
+
+        match client.store_offset(consumer_name, &stream, offset).await {
+            // The mark advances only on a CONFIRMED store. Advancing before the
+            // call would make a failed store poison the offset locally: the retry
+            // of that same offset would look stale and be skipped, leaving the
+            // group behind until some higher offset happened to land.
+            Ok(()) => commit_offset_high_water_mark(consumer_name, &stream, offset),
+            Err(e) => log::warn!(
                 "Stream batcher {} failed to store offset {} for stream {}: {:?}",
                 index,
                 offset,
                 stream,
                 e
-            );
+            ),
         }
     }
 }
 
-/// Per-`(consumer_name, partition)` high-water mark of offsets we've committed.
+/// Per-`(consumer_name, partition)` high-water mark of offsets we CONFIRMED with
+/// the broker.
 ///
 /// A process `static`, NOT reader/batcher state, for two reasons:
 ///   - the racing writers are two batchers in the SAME process (the outgoing
@@ -795,29 +832,77 @@ async fn store_offsets(
 /// non-advancing store carries no information the mark doesn't already have, and
 /// dropping it can never discard genuine progress or mask a skip-forward.
 ///
-/// Returns whether `offset` advances the mark, claiming it if so.
+/// **Scope limit:** this only orders writers INSIDE one process. It cannot see a
+/// successor in another pod, which is why partition revocation below — not this
+/// mark — is what guards a cross-pod handover.
 static OFFSET_HIGH_WATER_MARKS: LazyLock<Mutex<HashMap<(&'static str, String), u64>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-fn claim_offset_high_water_mark(consumer_name: &'static str, stream: &str, offset: u64) -> bool {
-    let mut marks = match OFFSET_HIGH_WATER_MARKS.lock() {
+fn lock_high_water_marks() -> std::sync::MutexGuard<'static, HashMap<(&'static str, String), u64>> {
+    match OFFSET_HIGH_WATER_MARKS.lock() {
         Ok(marks) => marks,
         // A poisoned mutex would mean a panic while holding it; fail open so a
         // guard bug can't wedge offset commits entirely.
         Err(poisoned) => poisoned.into_inner(),
-    };
-
-    match marks.get_mut(&(consumer_name, stream.to_string())) {
-        Some(current) if *current >= offset => false,
-        Some(current) => {
-            *current = offset;
-            true
-        }
-        None => {
-            marks.insert((consumer_name, stream.to_string()), offset);
-            true
-        }
     }
+}
+
+/// Whether `offset` is ahead of what we've confirmed. Read-only — the mark moves
+/// in `commit_offset_high_water_mark` after the broker acks.
+fn offset_advances_high_water_mark(consumer_name: &'static str, stream: &str, offset: u64) -> bool {
+    lock_high_water_marks()
+        .get(&(consumer_name, stream.to_string()))
+        .is_none_or(|current| offset > *current)
+}
+
+fn commit_offset_high_water_mark(consumer_name: &'static str, stream: &str, offset: u64) {
+    lock_high_water_marks()
+        .entry((consumer_name, stream.to_string()))
+        .and_modify(|current| *current = (*current).max(offset))
+        .or_insert(offset);
+}
+
+/// Partitions this process has been DEACTIVATED for, per consumer group.
+///
+/// Single-active-consumer handovers cross pod boundaries, so the process-local
+/// high-water mark above cannot detect a successor that has already committed
+/// further ahead — its marks live in another process. What we DO learn locally is
+/// the broker's `consumer_update(active = 0)` callback: from that moment we no
+/// longer own the partition, and any offset our still-draining batcher holds is by
+/// definition not authoritative. Refusing to store for a revoked partition is
+/// therefore the cross-pod guard; the records we were holding are replayed by the
+/// new owner.
+///
+/// Re-activation removes the entry, since we own the partition again.
+static REVOKED_PARTITIONS: LazyLock<
+    Mutex<HashMap<&'static str, std::collections::HashSet<String>>>,
+> = LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn lock_revoked_partitions()
+-> std::sync::MutexGuard<'static, HashMap<&'static str, std::collections::HashSet<String>>> {
+    match REVOKED_PARTITIONS.lock() {
+        Ok(revoked) => revoked,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
+fn revoke_partition(consumer_name: &'static str, stream: &str) {
+    lock_revoked_partitions()
+        .entry(consumer_name)
+        .or_default()
+        .insert(stream.to_string());
+}
+
+fn restore_partition(consumer_name: &'static str, stream: &str) {
+    if let Some(streams) = lock_revoked_partitions().get_mut(consumer_name) {
+        streams.remove(stream);
+    }
+}
+
+fn is_partition_revoked(consumer_name: &'static str, stream: &str) -> bool {
+    lock_revoked_partitions()
+        .get(consumer_name)
+        .is_some_and(|streams| streams.contains(stream))
 }
 
 /// Poison-record sink. Streams have no dead-letter exchange and a record can't be
@@ -1289,6 +1374,21 @@ mod tests {
         assert!(attempts > 0, "at least one retry must be attempted");
     }
 
+    /// Test shim for the old check-and-advance behaviour: the production path now
+    /// splits these so the mark only moves on a CONFIRMED broker store.
+    fn claim_offset_high_water_mark(
+        consumer_name: &'static str,
+        stream: &str,
+        offset: u64,
+    ) -> bool {
+        if offset_advances_high_water_mark(consumer_name, stream, offset) {
+            commit_offset_high_water_mark(consumer_name, stream, offset);
+            true
+        } else {
+            false
+        }
+    }
+
     /// Offsets are stored under the SHARED consumer name, so on a
     /// single-active-consumer handover the deactivated owner's in-flight batcher
     /// can still issue a store after the successor has committed further ahead.
@@ -1335,6 +1435,62 @@ mod tests {
             "a fresh batcher must not rewind the previous generation's position"
         );
         assert!(claim_offset_high_water_mark(group, partition, 501));
+    }
+
+    /// A failed broker store must NOT advance the local mark: otherwise the retry
+    /// of that same offset looks stale and gets skipped, leaving the group behind
+    /// until some higher offset happens to land (or the process restarts).
+    #[test]
+    fn failed_store_does_not_poison_the_offset_locally() {
+        let group = "test_group_failed_store";
+        let partition = "observations_stream-9";
+
+        // Pre-store check passes...
+        assert!(offset_advances_high_water_mark(group, partition, 200));
+        // ...but the broker call failed, so nothing is committed.
+        assert!(
+            offset_advances_high_water_mark(group, partition, 200),
+            "a failed store must leave the same offset retryable"
+        );
+
+        // A later successful store commits it, and only then is it non-advancing.
+        commit_offset_high_water_mark(group, partition, 200);
+        assert!(!offset_advances_high_water_mark(group, partition, 200));
+        assert!(offset_advances_high_water_mark(group, partition, 201));
+    }
+
+    /// The process-local mark cannot see a successor in ANOTHER POD, so revocation
+    /// — not offset comparison — is what guards a cross-pod handover. After
+    /// `consumer_update(active = 0)` the draining batcher must store nothing for
+    /// that partition, however far ahead its own offsets look.
+    #[test]
+    fn revoked_partition_blocks_stores_regardless_of_offset() {
+        let group = "test_group_revoked";
+        let partition = "observations_stream-11";
+
+        assert!(!is_partition_revoked(group, partition));
+
+        revoke_partition(group, partition);
+        assert!(is_partition_revoked(group, partition));
+        // Even an offset that trivially "advances" the local mark must be refused:
+        // the new owner's position is authoritative and lives elsewhere.
+        assert!(offset_advances_high_water_mark(group, partition, 10_000));
+
+        // Re-activation restores ownership.
+        restore_partition(group, partition);
+        assert!(!is_partition_revoked(group, partition));
+    }
+
+    #[test]
+    fn revocation_is_scoped_per_partition_and_group() {
+        let group = "test_group_revoke_scope";
+        revoke_partition(group, "p-0");
+
+        // Revoking one partition must not silence commits for the others we still
+        // own, nor for a different consumer group.
+        assert!(is_partition_revoked(group, "p-0"));
+        assert!(!is_partition_revoked(group, "p-1"));
+        assert!(!is_partition_revoked("other_group", "p-0"));
     }
 
     #[test]
