@@ -21,10 +21,10 @@ export interface UseScoreDirections {
 
 /**
  * Two independent layers:
- *   - Override layer (project-scoped, manual): seeded from ProjectContext so it
- *     is available IMMEDIATELY and is clickable right away. Held in SWR's module
- *     cache (per project) so toggles are optimistic + reactive AND survive hook
- *     remounts across soft navigation.
+ *   - Override layer (project-scoped, manual): read straight off the live
+ *     ProjectContext (SWR-backed) so it reflects writes and survives hook
+ *     remounts across soft navigation. Toggles update it via `mutateProject`
+ *     (optimistic + reactive + shared with every other project-settings reader).
  *   - Default layer (app-wide, LLM-inferred): fetched async via SWR; may be
  *     pending while the LLM classifies uncached names. If it resolves behind an
  *     existing override it's a no-op to the user (the override wins) — but the
@@ -33,18 +33,8 @@ export interface UseScoreDirections {
  */
 export function useScoreDirections(projectId: string, scoreNames: string[]): UseScoreDirections {
   const { toast } = useToast();
-  const seededOverrides = useProjectContext().project?.settings.scoreDirectionOverrides ?? EMPTY;
-
-  // Override layer lives in SWR's module cache (not useState) so it survives
-  // hook remounts across soft navigation — ProjectContext is a frozen server
-  // prop that never reflects a write, so re-seeding from it on every remount
-  // dropped prior toggles and let the next full-map PATCH clobber them. Null
-  // fetcher: this is a client-owned store, seeded once from the SSR prop and
-  // written only via `mutateOverrides`. Cache key is per project.
-  const overridesKey = `score-direction-overrides:${projectId}`;
-  const { data: overrides = EMPTY, mutate: mutateOverrides } = useSWR<Record<string, boolean>>(overridesKey, null, {
-    fallbackData: seededOverrides,
-  });
+  const { project, mutateProject } = useProjectContext();
+  const overrides = project?.settings.scoreDirectionOverrides ?? EMPTY;
 
   // App-wide LLM default layer — async, no bearing on when the user can toggle.
   const key = useMemo(() => {
@@ -74,15 +64,19 @@ export function useScoreDirections(projectId: string, scoreNames: string[]): Use
   overridesRef.current = overrides; // safety net; setBoth keeps it current in-flight
   const writeChainRef = useRef<Promise<unknown>>(Promise.resolve());
 
-  // Update the ref (synchronous reads) and the SWR cache (render) together.
-  // revalidate:false — there is no fetcher; this only writes the local store.
+  // Update the synchronous ref AND the shared project cache together. Splice the
+  // new overrides into the live project settings (preserving other keys); the
+  // functional updater reads the LATEST cache so a concurrent removePii toggle
+  // isn't lost. revalidate:false — the project cache has no fetcher.
   const setBoth = useCallback(
     (updater: (cur: Record<string, boolean>) => Record<string, boolean>) => {
       const next = updater(overridesRef.current);
       overridesRef.current = next;
-      mutateOverrides(next, { revalidate: false });
+      mutateProject((cur) => (cur ? { ...cur, settings: { ...cur.settings, scoreDirectionOverrides: next } } : cur), {
+        revalidate: false,
+      });
     },
-    [mutateOverrides]
+    [mutateProject]
   );
 
   const toggle = useCallback(
