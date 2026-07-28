@@ -905,112 +905,6 @@ fn main() -> anyhow::Result<()> {
         Arc::new(queue.into())
     };
 
-    // ==== 3.15 RabbitMQ Streams transport (LAM-2024) ====
-    // Additive to the queues above: producers prefer a stream when its publisher
-    // registered, and fall back to the quorum queue otherwise. A failure here is
-    // logged and leaves every publisher unset, so ingest degrades to the queue
-    // path rather than failing the boot.
-    // `Some` only when streams are fully usable: topology declared, dead-letter
-    // sink built, publishers registered. Publisher registration is deliberately
-    // LAST so a later failure can't leave producers writing to unread streams.
-    let stream_runtime: Option<(
-        mq::stream::StreamEnvironment,
-        Arc<mq::stream::DeadLetterSink>,
-    )> = if mq::stream::enabled() && is_feature_enabled(Feature::FullBuild) {
-        runtime_handle.block_on(async {
-                match mq::stream::StreamEnvironment::connect().await {
-                    Ok(environment) => {
-                        let topology = mq::stream::StreamTopology::from_env();
-                        for name in [
-                            mq::stream::OBSERVATIONS_STREAM,
-                            mq::stream::SPANS_INDEXER_STREAM,
-                        ] {
-                            if let Err(e) = topology.declare(&environment, name).await {
-                                log::error!("Failed to declare super stream '{}': {:?}", name, e);
-                                return None;
-                            }
-                        }
-
-                        if let Err(e) = topology
-                            .declare_plain(&environment, mq::stream::DEAD_LETTER_STREAM)
-                            .await
-                        {
-                            log::error!(
-                                "Failed to declare dead-letter stream '{}': {:?}",
-                                mq::stream::DEAD_LETTER_STREAM,
-                                e
-                            );
-                            return None;
-                        }
-
-                        // Built BEFORE any publisher is registered, and fatal to
-                        // the whole streams path. The consumer can't run without
-                        // it (a skipped record would stall its partition), so if
-                        // we registered publishers first and then failed here,
-                        // producers would ship to streams that nothing reads —
-                        // bypassing the quorum-queue workers this degrade relies
-                        // on, and letting the data expire under retention.
-                        let dead_letter = match mq::stream::DeadLetterSink::new(
-                            &environment,
-                            mq::stream::DEAD_LETTER_STREAM,
-                        )
-                        .await
-                        {
-                            Ok(sink) => Arc::new(sink),
-                            Err(e) => {
-                                log::error!(
-                                    "Failed to build stream dead-letter sink; disabling streams and falling back to queues: {:?}",
-                                    e
-                                );
-                                return None;
-                            }
-                        };
-
-                        if enable_producer() {
-                            match mq::stream::StreamPublisher::new(
-                                &environment,
-                                mq::stream::OBSERVATIONS_STREAM,
-                            )
-                            .await
-                            {
-                                Ok(publisher) => {
-                                    mq::stream::set_observations_publisher(Arc::new(publisher))
-                                }
-                                Err(e) => {
-                                    log::error!("Failed to build observations publisher: {:?}", e)
-                                }
-                            }
-                            match mq::stream::StreamPublisher::new(
-                                &environment,
-                                mq::stream::SPANS_INDEXER_STREAM,
-                            )
-                            .await
-                            {
-                                Ok(publisher) => {
-                                    mq::stream::set_spans_indexer_publisher(Arc::new(publisher))
-                                }
-                                Err(e) => {
-                                    log::error!("Failed to build spans indexer publisher: {:?}", e)
-                                }
-                            }
-                        }
-
-                        log::info!("RabbitMQ Streams transport enabled");
-                        Some((environment, dead_letter))
-                    }
-                    Err(e) => {
-                        log::error!(
-                            "Failed to connect to RabbitMQ Streams, falling back to queues: {:?}",
-                            e
-                        );
-                        None
-                    }
-                }
-            })
-    } else {
-        None
-    };
-
     // Now that the queue/DB/cache exist, hand them to the internal self-tracing
     // exporter. Until this runs the exporter drops spans; nothing emits internal
     // spans this early on a normal boot (the agent only runs once serving starts).
@@ -1134,6 +1028,130 @@ fn main() -> anyhow::Result<()> {
                 None
             }
         };
+
+    // ==== 3.15 RabbitMQ Streams transport (LAM-2024) ====
+    // Additive to the queues above: producers prefer a stream when its publisher
+    // registered, and fall back to the quorum queue otherwise. A failure here is
+    // logged and leaves every publisher unset, so ingest degrades to the queue
+    // path rather than failing the boot.
+    //
+    // Placed AFTER the Quickwit client so the indexer publisher can be gated on
+    // it — a publisher whose reader never starts would strand indexing jobs on a
+    // stream that retention eventually deletes.
+    // `Some` only when streams are fully usable: topology declared, dead-letter
+    // sink built, publishers registered. Publisher registration is deliberately
+    // LAST so a later failure can't leave producers writing to unread streams.
+    let stream_runtime: Option<(
+        mq::stream::StreamEnvironment,
+        Arc<mq::stream::DeadLetterSink>,
+    )> = if mq::stream::enabled() && is_feature_enabled(Feature::FullBuild) {
+        runtime_handle.block_on(async {
+                match mq::stream::StreamEnvironment::connect().await {
+                    Ok(environment) => {
+                        let topology = mq::stream::StreamTopology::from_env();
+                        for name in [
+                            mq::stream::OBSERVATIONS_STREAM,
+                            mq::stream::SPANS_INDEXER_STREAM,
+                        ] {
+                            if let Err(e) = topology.declare(&environment, name).await {
+                                log::error!("Failed to declare super stream '{}': {:?}", name, e);
+                                return None;
+                            }
+                        }
+
+                        if let Err(e) = topology
+                            .declare_plain(&environment, mq::stream::DEAD_LETTER_STREAM)
+                            .await
+                        {
+                            log::error!(
+                                "Failed to declare dead-letter stream '{}': {:?}",
+                                mq::stream::DEAD_LETTER_STREAM,
+                                e
+                            );
+                            return None;
+                        }
+
+                        // Built BEFORE any publisher is registered, and fatal to
+                        // the whole streams path. The consumer can't run without
+                        // it (a skipped record would stall its partition), so if
+                        // we registered publishers first and then failed here,
+                        // producers would ship to streams that nothing reads —
+                        // bypassing the quorum-queue workers this degrade relies
+                        // on, and letting the data expire under retention.
+                        let dead_letter = match mq::stream::DeadLetterSink::new(
+                            &environment,
+                            mq::stream::DEAD_LETTER_STREAM,
+                        )
+                        .await
+                        {
+                            Ok(sink) => Arc::new(sink),
+                            Err(e) => {
+                                log::error!(
+                                    "Failed to build stream dead-letter sink; disabling streams and falling back to queues: {:?}",
+                                    e
+                                );
+                                return None;
+                            }
+                        };
+
+                        if enable_producer() {
+                            match mq::stream::StreamPublisher::new(
+                                &environment,
+                                mq::stream::OBSERVATIONS_STREAM,
+                            )
+                            .await
+                            {
+                                Ok(publisher) => {
+                                    mq::stream::set_observations_publisher(Arc::new(publisher))
+                                }
+                                Err(e) => {
+                                    log::error!("Failed to build observations publisher: {:?}", e)
+                                }
+                            }
+                            // Gated on a live Quickwit client: the indexer READER
+                            // only starts when one exists, so registering this
+                            // publisher without it would publish indexing jobs to a
+                            // stream nothing reads — and an unread stream expires
+                            // under retention, whereas the quorum queue retains
+                            // until consumed. Leaving it unset keeps
+                            // `publish_for_indexing` on the queue fallback.
+                            if quickwit_client.is_some() {
+                                match mq::stream::StreamPublisher::new(
+                                    &environment,
+                                    mq::stream::SPANS_INDEXER_STREAM,
+                                )
+                                .await
+                                {
+                                    Ok(publisher) => {
+                                        mq::stream::set_spans_indexer_publisher(Arc::new(publisher))
+                                    }
+                                    Err(e) => log::error!(
+                                        "Failed to build spans indexer publisher: {:?}",
+                                        e
+                                    ),
+                                }
+                            } else {
+                                log::warn!(
+                                    "Quickwit unavailable - not registering the spans indexer stream publisher; indexing stays on the quorum queue"
+                                );
+                            }
+                        }
+
+                        log::info!("RabbitMQ Streams transport enabled");
+                        Some((environment, dead_letter))
+                    }
+                    Err(e) => {
+                        log::error!(
+                            "Failed to connect to RabbitMQ Streams, falling back to queues: {:?}",
+                            e
+                        );
+                        None
+                    }
+                }
+            })
+    } else {
+        None
+    };
 
     // == PII redactor ==
     // Optional: when `PII_REDACTOR_URL` is set, span input/output fields are
