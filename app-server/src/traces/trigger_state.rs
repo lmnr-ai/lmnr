@@ -235,13 +235,24 @@ pub async fn update_and_read(
         } else {
             agg.trace_type
         };
-        // Written on EVERY batch (including DEFAULT/0) for the same reason as
-        // the user id — letting the key age out while tokens stays warm would
-        // re-open an already-typed trace to the DEFAULT-only signals gate, and
-        // `read_back` can't recover the type either.
-        if let Err(e) = cache
-            .insert_with_ttl(&type_key, trace_type, TTL_SECONDS)
-            .await
+        // NEVER write a zero. An absent key already means DEFAULT, so a
+        // DEFAULT trace needs no key at all — whereas writing `0` is a `SET` of
+        // a locally-computed value and can clobber a non-zero type a concurrent
+        // worker just wrote (A reads absent → resolves 0; B writes 1; A writes 0
+        // → the eval trace is DEFAULT again for the rest of its life, and
+        // `read_back` recovers only the error flag, never the type).
+        //
+        // Writing only non-zero values keeps this monotone: a typed trace's key
+        // is (re)written on every batch that resolves a type — including one
+        // that inherited it from the cache, which is what refreshes the TTL so
+        // the key can't age out while the tokens key stays warm. Two concurrent
+        // batches carrying DIFFERENT non-zero types can still race, but both
+        // outcomes are non-DEFAULT so the signals gate behaves identically, and
+        // "first non-zero wins" was already arbitrary between them.
+        if trace_type != 0
+            && let Err(e) = cache
+                .insert_with_ttl(&type_key, trace_type, TTL_SECONDS)
+                .await
         {
             log::warn!("Failed to record trace type for {}: {:?}", agg.trace_id, e);
         }
@@ -571,6 +582,52 @@ mod tests {
             next[&tid].seen_error
         );
         assert!(cache.get::<i64>(&key).await.unwrap().unwrap() > 0);
+    }
+
+    /// A DEFAULT resolution must write NOTHING for the trace type.
+    ///
+    /// This is the invariant that makes the type safe under concurrency: absence
+    /// already means DEFAULT, so a DEFAULT batch has nothing to persist. Writing
+    /// `0` would be a `SET` of a locally-computed value and could reset a typed
+    /// trace — A reads the key as absent and resolves 0, B writes 1, A writes 0,
+    /// and the evaluation trace then passes the DEFAULT-only signals gate for
+    /// the rest of its life (`read_back` recovers only the error flag, never the
+    /// type). The write-skip is what removes that interleaving entirely; the
+    /// interleaving itself isn't stageable here (the in-memory cache is
+    /// single-threaded, and sequential calls read each other's cached type).
+    #[tokio::test]
+    async fn a_typed_trace_survives_later_untyped_batches() {
+        let cache = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+        let ch = clickhouse::Client::default().with_url("http://127.0.0.1:1");
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+        let key = trace_type_key(pid, tid);
+
+        let b = update_and_read(&[agg_with_type(pid, tid, 1)], cache.clone(), &ch).await;
+        assert_eq!(b[&tid].trace_type, 1);
+
+        for _ in 0..3 {
+            let next = update_and_read(&[agg_with_type(pid, tid, 0)], cache.clone(), &ch).await;
+            assert_eq!(
+                next[&tid].trace_type, 1,
+                "an untyped batch must not reset a typed trace"
+            );
+            assert_eq!(cache.get::<u8>(&key).await.unwrap(), Some(1));
+        }
+    }
+
+    /// A genuinely DEFAULT trace writes no type key at all — absence IS DEFAULT,
+    /// so there is nothing to keep warm and one less write per batch.
+    #[tokio::test]
+    async fn default_traces_do_not_write_a_type_key() {
+        let cache = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+        let ch = clickhouse::Client::default().with_url("http://127.0.0.1:1");
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+
+        let s = update_and_read(&[agg_with_type(pid, tid, 0)], cache.clone(), &ch).await;
+        assert_eq!(s[&tid].trace_type, 0);
+        assert_eq!(cache.get::<u8>(&trace_type_key(pid, tid)).await.unwrap(), None);
     }
 
     /// The token total must NEVER be reconciled against `traces_agg`.
