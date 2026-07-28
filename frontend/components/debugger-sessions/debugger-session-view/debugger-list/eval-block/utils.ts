@@ -1,6 +1,7 @@
 import { type ProgressionPoint } from "@/components/evaluations/progression-chart/shared";
 import { type ChartConfig } from "@/components/ui/chart";
 import { type SessionEvaluationRef } from "@/lib/actions/debugger-sessions";
+import { getSpacedColor } from "@/lib/colors";
 
 // The shared progression dataset every eval card in a session renders: one
 // point per evaluation block (timeline order), the union of all score names,
@@ -36,7 +37,7 @@ export const buildSessionEvalProgression = (
   });
   const scores = [...scoreSet];
   const chartConfig: ChartConfig = Object.fromEntries(
-    scores.map((key, index) => [key, { color: `hsl(var(--chart-${(index % 5) + 1}))`, label: key }])
+    scores.map((key, index) => [key, { color: getSpacedColor(index), label: key }])
   );
   return { points, scores, chartConfig };
 };

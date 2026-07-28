@@ -3,19 +3,12 @@ import { format, isValid } from "date-fns";
 import { isNil, mean } from "lodash";
 
 import { type ChartConfig } from "@/components/ui/chart";
+import { getSpacedColor } from "@/lib/colors";
 
 export const numberFormatter = new Intl.NumberFormat("en-US", {
   notation: "compact",
   maximumFractionDigits: 3,
 });
-
-const chartColors = [
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--chart-5))",
-];
 
 export const parseUtcTimestamp = (s: string): Date => {
   const hasTimezone = /Z$|[+-]\d{2}:\d{2}$/.test(s);
@@ -135,7 +128,7 @@ export const generateChartConfig = (columns: string[]): ChartConfig =>
   columns.reduce((config, columnName, index) => {
     config[columnName] = {
       label: columnName,
-      color: chartColors[index % chartColors.length],
+      color: getSpacedColor(index),
     };
     return config;
   }, {} as ChartConfig);
@@ -175,7 +168,7 @@ const createChartConfig = (columns: string[]): ChartConfig =>
     columns.map((column, index) => [
       column,
       {
-        color: `hsl(var(--chart-${(index % 5) + 1}))`,
+        color: getSpacedColor(index),
         label: column,
         stackId: "stack",
       },

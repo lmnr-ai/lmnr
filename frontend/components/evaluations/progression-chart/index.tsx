@@ -3,6 +3,7 @@ import { useQueryState } from "nuqs";
 import { useCallback, useMemo, useState } from "react";
 
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
+import { getSpacedColor } from "@/lib/colors";
 import { type EvaluationTimeProgression } from "@/lib/evaluation/types";
 import { cn } from "@/lib/utils";
 
@@ -105,7 +106,10 @@ export default function ProgressionChart({
         scoreKeys.map((key, index) => [
           key,
           {
-            color: `hsl(var(--chart-${(index % 5) + 1}))`,
+            // Golden-ratio spacing spreads each score maximally around the
+            // palette's hue loop (vs. the old positional `index % 5`, which
+            // wrapped after 5 colors).
+            color: getSpacedColor(index),
             label: key,
           },
         ])
