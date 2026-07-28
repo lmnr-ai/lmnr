@@ -1,63 +1,14 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { FileText, FlaskConical, MessageCircle } from "lucide-react";
+import { FileText, FlaskConical, MessageCircle, SquareTerminal } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
-import { type SessionBlockView, type TraceRowState, useDebuggerSessionViewStore } from "../store";
-
-// A row per block (trace / eval / text), in timeline order (blocks are ordered
-// by created_at). Keyed by block id — the same key the virtualized list tracks
-// as `activeBlockId` and accepts in scroll requests.
-type OutlineRow = {
-  blockId: string;
-  text: string;
-  kind: "trace" | "eval" | "text";
-};
-
-// Text blocks are markdown, so a raw slice surfaces syntax like "## text…".
-// Strip it down to plain text: drop leading block markers (headings, bullets,
-// blockquotes), unwrap inline emphasis/code, and reduce links to their label.
-const MARKDOWN_RULES: [RegExp, string][] = [
-  [/```[\s\S]*?```/g, " "], // fenced code blocks
-  [/^\s*(?:#{1,6}|>+|[-*+]|\d+\.)\s+/gm, ""], // leading block markers
-  [/!?\[([^\]]*)\]\([^)]*\)/g, "$1"], // links / images -> label
-  [/(\*\*|__|\*|_|~~|`)(.*?)\1/g, "$2"], // bold / italic / strikethrough / inline code
-];
-
-// A short plain-text label for a standalone text block: markdown stripped,
-// whitespace collapsed, truncated with an ellipsis.
-const TEXT_BLOCK_TITLE_LEN = 40;
-const textBlockTitle = (text: string): string => {
-  const oneLine = MARKDOWN_RULES.reduce((s, [re, to]) => s.replace(re, to), text)
-    .replace(/\s+/g, " ")
-    .trim();
-  return oneLine.length > TEXT_BLOCK_TITLE_LEN ? `${oneLine.slice(0, TEXT_BLOCK_TITLE_LEN)}…` : oneLine || "Note";
-};
-
-const buildRows = (blocks: SessionBlockView[], traceRowStates: Record<string, TraceRowState>): OutlineRow[] => {
-  const rows: OutlineRow[] = [];
-  let traceIndex = 0;
-  for (const block of blocks) {
-    if (block.type === "evaluation") {
-      rows.push({ blockId: block.id, text: block.evaluation.name, kind: "eval" });
-    } else if (block.type === "text") {
-      rows.push({ blockId: block.id, text: textBlockTitle(block.text), kind: "text" });
-    } else if (block.type === "trace") {
-      // Count missing traces so numbering stays in lockstep with the timeline
-      // (which indexes every trace block), but omit them from the outline: a
-      // missing trace renders no timeline row, so a listed entry would consume
-      // the scroll click without scrolling and strand the active highlight over
-      // an empty gap.
-      traceIndex += 1;
-      if (traceRowStates[block.traceId] === "missing") continue;
-      rows.push({ blockId: block.id, text: `Trace ${traceIndex}`, kind: "trace" });
-    }
-  }
-  return rows;
-};
+import { commandIcon } from "../debugger-list/command-block/command-icon";
+import { useDebuggerSessionViewStore } from "../store";
+import { buildRows } from "./utils";
 
 interface SessionOutlineProps {
   className?: string;
@@ -109,11 +60,16 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
   const rowRefs = useRef<Map<string, HTMLAnchorElement>>(new Map());
   const [indicator, setIndicator] = useState<{ top: number; height: number } | null>(null);
 
-  // `requestScrollToBlock` sets `activeBlockId` on click; fall back to the first row.
-  const active = useMemo(
-    () => (activeBlockId && rows.some((r) => r.blockId === activeBlockId) ? activeBlockId : (rows[0]?.blockId ?? null)),
-    [activeBlockId, rows]
-  );
+  // `requestScrollToBlock` sets `activeBlockId` on click; fall back to the first
+  // row. Map through `memberIds` so a collapsed command group stays active while
+  // any of its member blocks is the in-view block (not just its first).
+  const active = useMemo(() => {
+    if (activeBlockId) {
+      const owner = rows.find((r) => r.memberIds.includes(activeBlockId));
+      if (owner) return owner.blockId;
+    }
+    return rows[0]?.blockId ?? null;
+  }, [activeBlockId, rows]);
 
   // Re-derive the edge state when rows change (content height moved without a
   // scroll event) and when the nav resizes. Keyed on `rows` so the observer
@@ -192,7 +148,7 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
                   <MessageCircle
                     className={cn(
                       "mr-1.5 size-3 shrink-0 transition-colors",
-                      isActive ? "text-llm" : "text-llm/70 group-hover:text-llm"
+                      isActive ? "text-violet-500" : "text-violet-500/70 group-hover:text-llm"
                     )}
                   />
                 )}
@@ -204,6 +160,23 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
                     )}
                   />
                 )}
+                {row.kind === "command" &&
+                  (row.command ? (
+                    commandIcon(
+                      row.command,
+                      cn(
+                        "mr-1.5 size-3 shrink-0 transition-colors",
+                        isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                      )
+                    )
+                  ) : (
+                    <SquareTerminal
+                      className={cn(
+                        "mr-1.5 size-3 shrink-0 transition-colors",
+                        isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                      )}
+                    />
+                  ))}
                 {row.kind === "text" && (
                   <FileText
                     className={cn(
