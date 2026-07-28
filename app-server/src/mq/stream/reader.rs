@@ -48,7 +48,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use backoff::ExponentialBackoffBuilder;
+use backoff::{ExponentialBackoffBuilder, backoff::Backoff};
 use base64::{Engine, prelude::BASE64_STANDARD};
 use futures_util::StreamExt;
 use rabbitmq_stream_client::{
@@ -428,17 +428,22 @@ impl<H: StreamBatchHandler> StreamReader<H> {
 /// `None` means "still unresolved after the budget" — NOT "no offset exists";
 /// `OffsetNotFound` is answered by the caller before we get here. Bounded because
 /// the broker is waiting on our activation response.
-/// Hand-rolled rather than via `backoff::future::retry`: the caller lives inside
-/// the client's `consumer_update` closure, whose future must be `Sync`, and the
-/// combinator's closure isn't.
+///
+/// Drives `ExponentialBackoff` manually via `Backoff::next_backoff` rather than
+/// `backoff::future::retry`: the caller lives inside the client's
+/// `consumer_update` closure, whose future must be `Sync`, which the combinator's
+/// closure isn't. `next_backoff` still owns the schedule — jitter and the
+/// `max_elapsed_time` budget (it returns `None` once exhausted) — so this is the
+/// crate's policy, just stepped by hand.
 async fn retry_query_offset(context: &MessageContext) -> Option<u64> {
-    let mut delay = Duration::from_millis(200);
-    let mut elapsed = Duration::ZERO;
+    let mut backoff = ExponentialBackoffBuilder::new()
+        .with_initial_interval(Duration::from_millis(200))
+        .with_max_interval(Duration::from_secs(2))
+        .with_max_elapsed_time(Some(OFFSET_QUERY_RETRY_BUDGET))
+        .build();
 
-    while elapsed < OFFSET_QUERY_RETRY_BUDGET {
+    while let Some(delay) = backoff.next_backoff() {
         tokio::time::sleep(delay).await;
-        elapsed += delay;
-        delay = (delay * 2).min(Duration::from_secs(2));
 
         match context
             .client()
@@ -1183,6 +1188,43 @@ mod tests {
             !keep_consuming(false, false),
             "neither flushed nor recorded must stop the batcher so the records replay"
         );
+    }
+    /// `retry_query_offset` steps `ExponentialBackoff` by hand (the combinator
+    /// can't satisfy `consumer_update`'s `Sync` bound), so assert the crate still
+    /// owns the schedule: delays respect `max_interval`, and the loop terminates
+    /// once `max_elapsed_time` is spent — that termination is what makes the
+    /// caller's "give up and replay from retention" arm reachable.
+    ///
+    /// NOTE the crate measures `max_elapsed_time` on the REAL clock
+    /// (`Instant::now()`), not tokio's virtual clock, so the loop only terminates
+    /// because the production code sleeps between attempts. This test sleeps for
+    /// the same reason and uses a deliberately small budget; polling
+    /// `next_backoff` without sleeping never terminates.
+    #[tokio::test]
+    async fn offset_query_backoff_is_crate_driven_and_terminates() {
+        let max_interval = Duration::from_millis(100);
+        let mut backoff = ExponentialBackoffBuilder::new()
+            .with_initial_interval(Duration::from_millis(50))
+            .with_max_interval(max_interval)
+            .with_max_elapsed_time(Some(Duration::from_millis(300)))
+            .build();
+
+        let mut attempts = 0;
+        while let Some(delay) = backoff.next_backoff() {
+            // Jitter is applied on top of the interval (±randomization_factor),
+            // so the ceiling is max_interval * 1.5, not max_interval.
+            assert!(
+                delay <= max_interval.mul_f64(1.5),
+                "delay {:?} exceeded max_interval {:?} plus jitter",
+                delay,
+                max_interval
+            );
+            tokio::time::sleep(delay).await;
+            attempts += 1;
+            assert!(attempts < 100, "backoff should terminate on its budget");
+        }
+
+        assert!(attempts > 0, "at least one retry must be attempted");
     }
 
     #[test]
