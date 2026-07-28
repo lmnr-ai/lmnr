@@ -2,6 +2,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { compact, isEmpty, isNil, isNull, times } from "lodash";
 import { useParams } from "next/navigation";
 import { memo, useEffect, useMemo, useRef } from "react";
+import { shallow } from "zustand/shallow";
 
 import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import {
@@ -33,19 +34,22 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
     consumeScrollToGroup,
     showTreeContent,
     toggleCollapse,
-  } = useTraceViewBaseStore((state) => ({
-    getTreeSpans: state.getTreeSpans,
-    spans: state.spans,
-    trace: state.trace,
-    isSpansLoading: state.isSpansLoading,
-    condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
-    selectedSpan: state.selectedSpan,
-    setScrollTimeRange: state.setScrollTimeRange,
-    scrollToGroupId: state.scrollToGroupId,
-    consumeScrollToGroup: state.consumeScrollToGroup,
-    showTreeContent: state.showTreeContent,
-    toggleCollapse: state.toggleCollapse,
-  }));
+  } = useTraceViewBaseStore(
+    (state) => ({
+      getTreeSpans: state.getTreeSpans,
+      spans: state.spans,
+      trace: state.trace,
+      isSpansLoading: state.isSpansLoading,
+      condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
+      selectedSpan: state.selectedSpan,
+      setScrollTimeRange: state.setScrollTimeRange,
+      scrollToGroupId: state.scrollToGroupId,
+      consumeScrollToGroup: state.consumeScrollToGroup,
+      showTreeContent: state.showTreeContent,
+      toggleCollapse: state.toggleCollapse,
+    }),
+    shallow
+  );
 
   const treeSpans = useMemo(() => getTreeSpans(), [getTreeSpans, spans, condensedTimelineVisibleSpanIds]);
 

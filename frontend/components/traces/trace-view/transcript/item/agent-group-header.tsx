@@ -1,5 +1,5 @@
 import { Bot, ChevronRight } from "lucide-react";
-import React, { useCallback, useMemo } from "react";
+import React, { memo, useCallback, useMemo } from "react";
 
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
 import { type TranscriptListGroup } from "@/components/traces/trace-view/store/base";
@@ -19,7 +19,7 @@ export interface AgentGroupHeaderProps {
   className?: string;
 }
 
-export function AgentGroupHeader({
+function AgentGroupHeaderInner({
   group,
   collapsed,
   previews,
@@ -108,6 +108,35 @@ export function AgentGroupHeader({
     </div>
   );
 }
+
+// Compare only the map entries this header reads so an unrelated preview
+// landing doesn't re-render every header.
+function areAgentGroupHeaderPropsEqual(prev: AgentGroupHeaderProps, next: AgentGroupHeaderProps) {
+  if (
+    prev.group !== next.group ||
+    prev.collapsed !== next.collapsed ||
+    prev.onToggle !== next.onToggle ||
+    prev.className !== next.className
+  ) {
+    return false;
+  }
+
+  const firstLlmSpanId = next.group.firstLlmSpanId;
+  const outputSpanId = next.group.lastLlmSpanId ?? next.group.firstLlmSpanId;
+
+  const agentNameKey = firstLlmSpanId ?? "";
+  if (prev.agentNames[agentNameKey] !== next.agentNames[agentNameKey]) return false;
+
+  // Preview lookups only feed the collapsed layout.
+  if (next.collapsed) {
+    if (firstLlmSpanId && prev.inputPreviews[firstLlmSpanId] !== next.inputPreviews[firstLlmSpanId]) return false;
+    if (outputSpanId && prev.previews[outputSpanId] !== next.previews[outputSpanId]) return false;
+  }
+
+  return true;
+}
+
+export const AgentGroupHeader = memo(AgentGroupHeaderInner, areAgentGroupHeaderPropsEqual);
 
 export function GroupChildWrapper({
   isLast = false,

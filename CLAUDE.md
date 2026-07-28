@@ -810,6 +810,21 @@ Related components should be in a folder named by the parent component (`my-list
 
 Please do your best to keep components <150 lines.
 
+### Writing a new data table (rendering-perf pattern)
+
+New tables built on `InfiniteDataTable` MUST follow the split established for traces/sessions/spans/queues/etc. (`components/traces/traces-table/`, `sessions-table/`, `spans-table/`, `signal/events-table/`, `datasets/`, `evaluations/`, `playgrounds/`, …). Do NOT put fetching + controls + `<InfiniteDataTable>` in one component — the virtualized body then re-renders on every filter/search/URL keystroke. Structure:
+
+- **`constants.ts`** — `FETCH_SIZE`, `RESOURCE`, chart-bar counts, and any other magic values (no inline literals in the components).
+- **`index.tsx`** — a thin `default export` that mounts `<InfiniteDataTableProvider>` and renders an inner `*TableContent` component. `*TableContent` owns all the **volatile** state (URL params via `useSearchParams`, `useTableView()` effective filters/search/sort, custom columns) and the memoized handlers (`useCallback`/`useMemo` for `onSort`, `onRefresh`, column defs, filter arrays). It passes those down as **stable props** to `*TableContents` and renders `*TableControls` as its **`children`**.
+- **`table-contents.tsx`** — `export const XTableContents = memo(function …)`. Owns data fetching (`useInfiniteScroll`, `useRealtime`) and renders `<InfiniteDataTable>`, forwarding `{children}` through to it. This is the component whose re-renders are expensive, so every prop it takes must be memoized upstream and it is wrapped in `memo`.
+- **`table-controls.tsx`** — the toolbar/filter/search/chart JSX (`DataTableFilter`, `AdvancedSearch`, `ViewsToolbar`, `DateRangeFilter`, `RefreshButton`, columns menu, charts). It re-renders freely on filter/search changes; because it's rendered as `children` inside a separate `<div>` in `InfiniteDataTable`, its churn doesn't touch the virtualized rows.
+
+Row/cell memoization lives inside `InfiniteDataTable` (row + cell are `memo`'d with custom comparators) — you get it for free. Your job is only to (a) keep the props you pass into `*TableContents` referentially stable, and (b) keep cell components cheap (see the tooltip rule below). For a heavy custom virtualized list outside the datatable (e.g. the trace-view transcript), apply the same idea: a `memo`'d row component with a hand-written comparator that checks only the fields that row actually reads.
+
+### Tooltips in table cells / hot render paths
+
+There is ONE app-wide `<TooltipProvider>` in `app/layout.tsx`. Cell components (and anything rendered per-row) MUST NOT wrap their tooltip in a local `<TooltipProvider>` — that mounts a provider per cell and is a measurable render cost at 50 rows × N columns. Use a bare `<Tooltip delayDuration={…}>` (delay goes on the `Tooltip`, not a provider) with `<TooltipTrigger>` + `<TooltipPortal><TooltipContent/></TooltipPortal>`. Same rule for shared cell-level components (`CopyTooltip`, `JsonTooltip`, `ClientTimestampFormatter`, tag/cost/tokens/duration cells).
+
 ### Bias towards complex logic and state in the Zustand store
 
 When you anticipate lots of complex state management with useState and useEffects, this would be a good time to rethink or refactor and move state into a shared store and expose derived state via selectors.

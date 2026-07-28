@@ -85,13 +85,18 @@ export interface InfiniteDataTableBodyProps<TData extends RowData> {
 export interface InfiniteDataTableRowProps<TData extends RowData> {
   virtualRow: VirtualItem;
   row: Row<TData>;
-  rowVirtualizer: Virtualizer<HTMLDivElement, Element>;
   onRowClick?: (row: Row<TData>) => void;
   onHoveredRowChange?: (row: Row<TData> | null) => void;
   href?: string;
   focusedRowId?: string | null;
   /** Extra className merged onto the row's own classes. */
   className?: string;
+  /** Virtualizer ref callback for dynamic row-height measurement. */
+  measureElement: (node: Element | null) => void;
+  // Primitive so the memo comparator sees selection changes; TanStack reuses the same Row across renders.
+  isSelected: boolean;
+  // Visible-column layout fingerprint; changes on visibility/order/sizing so the memoized row re-renders.
+  columnSignature: string;
 }
 
 export interface SelectionPanelProps {
