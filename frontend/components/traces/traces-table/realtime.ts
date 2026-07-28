@@ -26,9 +26,9 @@ export const realtimeTraceToRow = (trace: RealtimeTracePayload): TraceRow => ({
   userId: trace.userId ?? undefined,
   spanTags: trace.tags ?? [],
   traceTags: [],
-  // Agent input is extracted asynchronously and lives in traces_agg, which the
-  // realtime SSE payload doesn't carry. Use the payload's root-span input as a
-  // transient live stand-in; the true agent_input replaces it on the next full
-  // fetch of the row.
-  agentInput: trace.rootSpanInput ?? undefined,
+  // Agent input is extracted asynchronously (Feature::InputExtraction), seconds
+  // after the trace. The extraction flush carries the real value; earlier
+  // span-batch updates don't, so fall back to the root-span input as a transient
+  // stand-in. Either way the next full fetch of the row has the true value.
+  agentInput: trace.agentInput ?? trace.rootSpanInput ?? undefined,
 });

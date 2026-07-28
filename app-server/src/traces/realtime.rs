@@ -46,6 +46,11 @@ pub struct RealtimeTrace {
     tags: Vec<String>, // Span tags
     root_span_input: Option<String>,
     root_span_output: Option<String>,
+    // LLM-extracted "user task" (Feature::InputExtraction). Lands seconds after
+    // the trace via an async metadata-only span, so it's threaded in here
+    // separately from the PG `Trace` fields — see `dispatch_trace_realtime_updates`.
+    // JSON-stringified to match `traces_v0.agent_input` (the fresh-fetch value).
+    agent_input: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -54,6 +59,8 @@ pub struct RealtimeDebuggerTrace {
     trace_id: Uuid,
     metadata: Option<Value>,
     has_browser_session: Option<bool>,
+    // See `RealtimeTrace::agent_input`.
+    agent_input: Option<String>,
 }
 
 /// Realtime span data for frontend consumption (lightweight, no input/output)
@@ -225,8 +232,10 @@ fn rollout_session_id_from_metadata(trace: &Trace) -> Option<String> {
 }
 
 impl RealtimeTrace {
-    /// Convert database trace to realtime format
-    pub fn from_trace(trace: &Trace) -> Self {
+    /// Convert database trace to realtime format. `agent_input` is the extracted
+    /// user task (JSON-stringified, matching `traces_v0.agent_input`), threaded
+    /// from ingestion; `None` for span-batch updates where extraction hasn't run.
+    pub fn from_trace(trace: &Trace, agent_input: Option<String>) -> Self {
         Self {
             id: trace.id(),
             start_time: trace.start_time(),
@@ -253,16 +262,18 @@ impl RealtimeTrace {
             tags: trace.tags().clone(),
             root_span_input: trace.root_span_input(),
             root_span_output: trace.root_span_output(),
+            agent_input,
         }
     }
 }
 
 impl RealtimeDebuggerTrace {
-    pub fn from_trace(trace: &Trace) -> Self {
+    pub fn from_trace(trace: &Trace, agent_input: Option<String>) -> Self {
         Self {
             trace_id: trace.id(),
             metadata: trace.metadata().cloned(),
             has_browser_session: trace.has_browser_session(),
+            agent_input,
         }
     }
 }

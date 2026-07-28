@@ -182,6 +182,11 @@ export type RealtimeTracePayload = {
   tags: string[];
   rootSpanInput: string | null;
   rootSpanOutput: string | null;
+  // Extracted "user task" (Feature::InputExtraction). Lands seconds after the
+  // trace via an async metadata-only span, so it's null on span-batch updates
+  // and populated only on the extraction flush. JSON-stringified, matching the
+  // fresh-fetch `agent_input as agentInput` value.
+  agentInput: string | null;
 };
 
 export type TracePreview = {

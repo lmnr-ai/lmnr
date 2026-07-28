@@ -290,10 +290,17 @@ interface DebuggerSessionViewActions {
   applyRealtimeSpans: (spans: RealtimeSpan[]) => void;
 
   // Realtime: merge a trace_update into the block list (add + auto-expand if new).
-  applyTraceUpdate: (t: { traceId: string; metadata?: unknown; hasBrowserSession?: boolean }) => void;
+  applyTraceUpdate: (t: {
+    traceId: string;
+    metadata?: unknown;
+    hasBrowserSession?: boolean;
+    agentInput?: string | null;
+  }) => void;
 
   // Batch entry point for a trace_update payload.
-  applyTraceUpdates: (traces: { traceId: string; metadata?: unknown; hasBrowserSession?: boolean }[]) => void;
+  applyTraceUpdates: (
+    traces: { traceId: string; metadata?: unknown; hasBrowserSession?: boolean; agentInput?: string | null }[]
+  ) => void;
 
   // Realtime: upsert a pushed note / eval block (by id). Traces are ignored here
   // (they arrive via trace_update).
@@ -624,11 +631,16 @@ export const createDebuggerSessionViewStore = (options: {
               return;
             }
 
-            // Known run → update the row's hasBrowserSession.
-            if (typeof t.hasBrowserSession === "boolean") {
-              get().setTraces((traces) =>
-                traces.map((row) => (row.id === t.traceId ? { ...row, hasBrowserSession: t.hasBrowserSession } : row))
-              );
+            // Known run → live-patch the row. Both fields land after the initial
+            // load: hasBrowserSession once the browser span arrives, agentInput
+            // seconds later when async input extraction finishes. The empty guard
+            // is essential — a span-batch trace_update carries an empty agentInput
+            // and must not blank a value a prior extraction flush already set.
+            const patch: Record<string, unknown> = {};
+            if (typeof t.hasBrowserSession === "boolean") patch.hasBrowserSession = t.hasBrowserSession;
+            if (t.agentInput) patch.agentInput = t.agentInput;
+            if (Object.keys(patch).length > 0) {
+              get().setTraces((traces) => traces.map((row) => (row.id === t.traceId ? { ...row, ...patch } : row)));
             }
           },
 
