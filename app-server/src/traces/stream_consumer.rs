@@ -50,6 +50,13 @@ impl StreamBatchHandler for StreamSpanHandler {
         self.config.size
     }
 
+    /// `SPANS_BATCH_SIZE` is a SPAN count, and one record is a whole export
+    /// batch — weigh by span count so the threshold matches `SpanHandler`'s
+    /// `sum(message.len())` instead of flushing ~N× more spans per insert.
+    fn message_weight(message: &Self::Message) -> usize {
+        message.len()
+    }
+
     async fn flush(&self, messages: &[Self::Message]) -> Result<(), HandlerError> {
         let spans: Vec<RabbitMqSpanMessage> = messages.iter().flatten().cloned().collect();
 

@@ -61,12 +61,23 @@ pub trait StreamBatchHandler: Send + Sync + 'static {
     /// Flush interval. The reader also flushes on `batch_size`.
     fn interval(&self) -> Duration;
 
-    /// Records to accumulate before flushing. Keep per-flush BYTES comparable to
-    /// the queue path: a stream consumer sees only `1/partitions` of the traffic,
-    /// so a size tuned for one shared queue produces far smaller ClickHouse
-    /// inserts here — more parts/sec on the hot tables, which is the opposite of
-    /// what we want.
+    /// Units to accumulate before flushing, in whatever `message_weight` counts.
+    /// Keep per-flush BYTES comparable to the queue path: a stream consumer sees
+    /// only `1/partitions` of the traffic, so a size tuned for one shared queue
+    /// produces far smaller ClickHouse inserts here — more parts/sec on the hot
+    /// tables, which is the opposite of what we want.
     fn batch_size(&self) -> usize;
+
+    /// How much one record counts toward `batch_size`. Defaults to 1 (record
+    /// count); override when a record is itself a batch, so the threshold means
+    /// the same thing as on the queue path. `SPANS_BATCH_SIZE` is a SPAN count
+    /// (`SpanHandler` sums `message.len()` across deliveries), and one stream
+    /// record carries a whole `Vec<RabbitMqSpanMessage>` export — counting
+    /// records there would flush ~N× more spans per ClickHouse insert under
+    /// multi-span exports.
+    fn message_weight(_message: &Self::Message) -> usize {
+        1
+    }
 
     /// Process one accumulated batch. `Transient` is retried in place (the batch
     /// is borrowed, so a retry costs nothing); `Permanent` skips the batch and
@@ -305,6 +316,8 @@ async fn run_batcher<H: StreamBatchHandler>(
     dead_letter: Option<Arc<DeadLetterSink>>,
 ) {
     let mut batch: Vec<H::Message> = Vec::new();
+    // Accumulated `message_weight`, not `batch.len()` — see the trait doc.
+    let mut batch_weight = 0usize;
     let mut pending_offsets = PendingOffsets::default();
     let mut ticker = tokio::time::interval(handler.interval());
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -316,15 +329,17 @@ async fn run_batcher<H: StreamBatchHandler>(
                 match received {
                     Some(delivery) => {
                         pending_offsets.record(delivery.stream, delivery.offset);
+                        batch_weight += H::message_weight(&delivery.message);
                         batch.push(delivery.message);
 
-                        if batch.len() >= batch_size {
+                        if batch_weight >= batch_size {
                             flush_and_commit(
                                 index,
                                 &handler,
                                 &client,
                                 consumer_name,
                                 &mut batch,
+                                &mut batch_weight,
                                 &mut pending_offsets,
                                 dead_letter.as_deref(),
                             )
@@ -341,6 +356,7 @@ async fn run_batcher<H: StreamBatchHandler>(
                                 &client,
                                 consumer_name,
                                 &mut batch,
+                                &mut batch_weight,
                                 &mut pending_offsets,
                                 dead_letter.as_deref(),
                             )
@@ -358,6 +374,7 @@ async fn run_batcher<H: StreamBatchHandler>(
                         &client,
                         consumer_name,
                         &mut batch,
+                        &mut batch_weight,
                         &mut pending_offsets,
                         dead_letter.as_deref(),
                     )
@@ -380,10 +397,12 @@ async fn flush_and_commit<H: StreamBatchHandler>(
     client: &Client,
     consumer_name: &'static str,
     batch: &mut Vec<H::Message>,
+    batch_weight: &mut usize,
     pending_offsets: &mut PendingOffsets,
     dead_letter: Option<&DeadLetterSink>,
 ) {
     let messages = std::mem::take(batch);
+    *batch_weight = 0;
     let offsets = pending_offsets.take();
     if messages.is_empty() {
         return;
@@ -525,5 +544,71 @@ mod tests {
         assert_eq!(offsets.take().len(), 1);
         // A second flush must not re-store the previous batch's offsets.
         assert!(offsets.take().is_empty());
+    }
+
+    /// A record that is itself a batch (the spans case) must be weighed by its
+    /// contents, not counted as 1 — otherwise `SPANS_BATCH_SIZE`, which is a SPAN
+    /// count on the queue path, would flush N× more spans per ClickHouse insert.
+    struct WeighedHandler;
+
+    #[async_trait]
+    impl StreamBatchHandler for WeighedHandler {
+        type Message = Vec<u8>;
+
+        fn interval(&self) -> Duration {
+            Duration::from_secs(60)
+        }
+
+        fn batch_size(&self) -> usize {
+            128
+        }
+
+        fn message_weight(message: &Self::Message) -> usize {
+            message.len()
+        }
+
+        async fn flush(&self, _messages: &[Self::Message]) -> Result<(), HandlerError> {
+            Ok(())
+        }
+    }
+
+    struct CountingHandler;
+
+    #[async_trait]
+    impl StreamBatchHandler for CountingHandler {
+        type Message = Vec<u8>;
+
+        fn interval(&self) -> Duration {
+            Duration::from_secs(60)
+        }
+
+        fn batch_size(&self) -> usize {
+            128
+        }
+
+        async fn flush(&self, _messages: &[Self::Message]) -> Result<(), HandlerError> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn message_weight_counts_inner_batch_size() {
+        let record = vec![0u8; 40];
+        assert_eq!(WeighedHandler::message_weight(&record), 40);
+
+        // 4 records of 40 spans cross a 128-span threshold; counting records
+        // would need 128 records ≈ 5120 spans in one insert.
+        let weight: usize = (0..4)
+            .map(|_| WeighedHandler::message_weight(&record))
+            .sum();
+        assert!(weight >= WeighedHandler.batch_size());
+    }
+
+    #[test]
+    fn message_weight_defaults_to_one_record() {
+        // Handlers whose record is a single unit (Quickwit payloads) keep
+        // record-count semantics via the trait default.
+        let record = vec![0u8; 40];
+        assert_eq!(CountingHandler::message_weight(&record), 1);
     }
 }

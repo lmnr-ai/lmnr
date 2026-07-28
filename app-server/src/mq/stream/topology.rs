@@ -107,6 +107,41 @@ impl StreamTopology {
                 .context(format!("Failed to declare super stream '{}'", super_stream))),
         }
     }
+
+    /// Declare a plain (non-partitioned) stream idempotently — the dead-letter
+    /// sink. Not a super stream: it's low volume and nothing routes by key, so a
+    /// single log is right and `create_super_stream` would be wrong.
+    ///
+    /// Retention comes from the same env knobs, which is generous for a poison
+    /// sink but keeps one source of truth; a dedicated policy can shrink it.
+    pub async fn declare_plain(&self, environment: &StreamEnvironment, stream: &str) -> Result<()> {
+        let result = environment
+            .inner()
+            .stream_creator()
+            .max_length(ByteCapacity::B(self.max_length_bytes))
+            .max_age(self.max_age)
+            .max_segment_size(ByteCapacity::B(self.max_segment_size_bytes))
+            .create(stream)
+            .await;
+
+        match result {
+            Ok(()) => {
+                log::info!("Created stream '{}'", stream);
+                Ok(())
+            }
+            Err(StreamCreateError::Create {
+                status: ResponseCode::StreamAlreadyExists,
+                ..
+            }) => {
+                log::debug!("Stream '{}' already exists", stream);
+                Ok(())
+            }
+            Err(e) => {
+                Err(anyhow::Error::from(e)
+                    .context(format!("Failed to declare stream '{}'", stream)))
+            }
+        }
+    }
 }
 
 #[cfg(test)]

@@ -926,6 +926,20 @@ fn main() -> anyhow::Result<()> {
                             }
                         }
 
+                        // Poison sink. Non-fatal: without it `DeadLetterSink`
+                        // construction fails and poison batches are log-only,
+                        // which is degraded but not broken.
+                        if let Err(e) = topology
+                            .declare_plain(&environment, mq::stream::DEAD_LETTER_STREAM)
+                            .await
+                        {
+                            log::error!(
+                                "Failed to declare dead-letter stream '{}', poison batches will only be logged: {:?}",
+                                mq::stream::DEAD_LETTER_STREAM,
+                                e
+                            );
+                        }
+
                         if enable_producer() {
                             match mq::stream::StreamPublisher::new(
                                 &environment,
