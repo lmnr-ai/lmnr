@@ -17,8 +17,6 @@ interface SessionViewContentProps {
   sessionId: string;
 }
 
-const PAGE_SIZE = 200;
-
 export default function SessionViewContent({ sessionId }: SessionViewContentProps) {
   const { projectId } = useParams<{ projectId: string }>();
 
@@ -50,13 +48,8 @@ export default function SessionViewContent({ sessionId }: SessionViewContentProp
         setIsTracesLoading(true);
         setTracesError(undefined);
 
-        const params = new URLSearchParams();
-        params.set("pageNumber", "0");
-        params.set("pageSize", String(PAGE_SIZE));
-        params.set("filter", JSON.stringify({ column: "session_id", value: sessionId, operator: "eq" }));
-        params.set("sortDirection", "ASC");
-
-        const res = await fetch(`/api/projects/${projectId}/traces?${params.toString()}`, {
+        const encodedSessionId = sessionId.split("/").map(encodeURIComponent).join("/");
+        const res = await fetch(`/api/projects/${projectId}/sessions/${encodedSessionId}/traces`, {
           signal: controller.signal,
         });
         if (!res.ok) {
