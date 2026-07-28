@@ -13,10 +13,11 @@
 //! `CoalescingMergeTree` takes no version parameter (its optional argument is a
 //! columns-to-coalesce list).
 //!
-//! `statuses` / `trace_types` are the exception: they're
-//! `SimpleAggregateFunction(groupUniqArrayArray, ...)` seen-value unions (same
-//! encoding as `traces_agg`) so the READ path owns precedence — sticky `error`,
-//! PLAYGROUND > EVALUATION > DEFAULT — which last-write-wins can't express.
+//! `status` / `trace_type` are deliberately NOT here — they stay in `traces_agg`
+//! as its `statuses` / `trace_types` seen-value arrays, because their precedence
+//! (sticky `error`; DEFAULT must not pin a trace a later batch types otherwise)
+//! needs the union that `traces_agg` already stores and already resolves in its
+//! view. Don't duplicate them here.
 //!
 //! `metadata` has SET semantics, NOT patch semantics: a plain `Option<String>`
 //! holding the whole stringified JSON object, written only when the batch
@@ -47,18 +48,12 @@ use super::{
     ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS, Table,
 };
 
-/// `statuses` Enum8 values; must match the DDL enum in the traces_static
-/// migration.
-const STATUS_ENUM_SUCCESS: i8 = 1;
-const STATUS_ENUM_ERROR: i8 = 2;
-
 /// One delta write of the static columns for a trace. Field order MUST match the
 /// CREATE TABLE column order (RowBinary is positional).
 ///
-/// Coalescing columns are `Option` — `None` serializes as ClickHouse NULL, which
-/// `CoalescingMergeTree` treats as "no update" and leaves the prior value intact.
-/// The `SimpleAggregateFunction` columns (`statuses` / `trace_types`) instead
-/// fold by their own combinator, so an empty array is the no-op.
+/// Every payload column is `Option` — `None` serializes as ClickHouse NULL, which
+/// `CoalescingMergeTree` treats as "no update" and leaves the prior value
+/// intact.
 #[derive(Debug, Clone, Serialize, Deserialize, Row)]
 pub struct CHTraceStatic {
     #[serde(with = "clickhouse::serde::uuid")]
@@ -101,15 +96,7 @@ pub struct CHTraceStatic {
     /// `Into<u8> for SpanType` range: an out-of-range int is accepted at
     /// INSERT but poisons every later read of the part.
     pub root_span_type: Option<i8>,
-    /// Enum8 values on the wire (Int8); union of statuses seen in this batch.
-    /// The read path resolves precedence (`error` is sticky), so a later
-    /// success-only batch can't downgrade a prior error.
-    pub statuses: Vec<i8>,
     pub has_browser_session: Option<u8>,
-    /// Enum8 values on the wire (Int8); union of trace types seen in this batch.
-    /// Must stay in sync with `Into<u8> for TraceType` AND the DDL enum —
-    /// out-of-range ints are accepted at insert but poison later reads.
-    pub trace_types: Vec<i8>,
     /// Reserved, no writer yet; same SET semantics as `metadata`.
     pub internal_metadata: Option<String>,
 }
@@ -118,30 +105,6 @@ pub struct CHTraceStatic {
 /// hole (no update) rather than overwriting a known value with `''`.
 fn non_empty(value: Option<&String>) -> Option<String> {
     value.filter(|s| !s.is_empty()).cloned()
-}
-
-/// Seen-value union for this batch. Unlike a single coalescing column this needs
-/// no precedence logic: `error` stickiness is applied at read time from the
-/// merged union, so a later success-only batch can't downgrade a prior error.
-fn status_enum_values(status: Option<&String>) -> Vec<i8> {
-    match status.map(String::as_str) {
-        Some("error") => vec![STATUS_ENUM_ERROR],
-        Some(s) if !s.is_empty() => vec![STATUS_ENUM_SUCCESS],
-        _ => Vec::new(),
-    }
-}
-
-/// Seen-value union for this batch. `DEFAULT` (0) is the aggregation's "not yet
-/// known" value, so it's omitted — otherwise every batch would report DEFAULT and
-/// the read-side `multiIf` could never distinguish "no type seen" from a real
-/// DEFAULT. Out-of-DDL-range values are dropped rather than cast: an
-/// out-of-range int inserts fine but then poisons every later read of the part
-/// with `UNKNOWN_ELEMENT_OF_ENUM`.
-fn trace_type_enum_values(trace_type: u8) -> Vec<i8> {
-    match trace_type {
-        1..=3 => vec![trace_type as i8],
-        _ => Vec::new(),
-    }
 }
 
 /// Takes the batch's `top_span_type`. Out-of-DDL-range values are dropped for the
@@ -197,9 +160,7 @@ impl CHTraceStatic {
             root_span_name,
             root_span_name_from_path,
             root_span_type,
-            statuses: status_enum_values(agg.status.as_ref()),
             has_browser_session: agg.has_browser_session.map(|v| v as u8),
-            trace_types: trace_type_enum_values(agg.trace_type),
             internal_metadata: None,
         };
         row.has_any_value().then_some(row)
@@ -239,9 +200,7 @@ impl CHTraceStatic {
             root_span_name: None,
             root_span_name_from_path: None,
             root_span_type: None,
-            statuses: Vec::new(),
             has_browser_session: None,
-            trace_types: Vec::new(),
             internal_metadata: None,
         })
     }
@@ -276,9 +235,7 @@ impl CHTraceStatic {
             root_span_name: None,
             root_span_name_from_path: None,
             root_span_type: None,
-            statuses: Vec::new(),
             has_browser_session: None,
-            trace_types: Vec::new(),
             internal_metadata: None,
         })
     }
@@ -295,9 +252,7 @@ impl CHTraceStatic {
             || self.root_span_name.is_some()
             || self.root_span_name_from_path.is_some()
             || self.root_span_type.is_some()
-            || !self.statuses.is_empty()
             || self.has_browser_session.is_some()
-            || !self.trace_types.is_empty()
             || self.internal_metadata.is_some()
     }
 }
@@ -359,10 +314,20 @@ mod tests {
     }
 
     // A batch that learned nothing static must not write a row at all — every
-    // column would be a no-op, so the row is pure overhead.
+    // column would be a no-op, so the row is pure overhead. Status and trace type
+    // are NOT static columns here (they live in traces_agg), so a batch carrying
+    // only those still writes nothing.
     #[test]
     fn batch_with_no_static_values_writes_nothing() {
         assert!(CHTraceStatic::from_aggregation(&empty_agg(), 0).is_none());
+
+        let mut agg = empty_agg();
+        agg.status = Some("error".to_string());
+        agg.trace_type = 1;
+        assert!(
+            CHTraceStatic::from_aggregation(&agg, 0).is_none(),
+            "status / trace_type belong to traces_agg, not traces_static"
+        );
     }
 
     // Empty strings must become NULL holes, not `''` writes: under
@@ -488,43 +453,6 @@ mod tests {
         );
     }
 
-    // 'error' must stay sticky across deltas. A single coalescing column can't do
-    // that (a later success batch would overwrite it), so statuses is a seen-value
-    // union and the read path applies `has(statuses,'error')`.
-    #[test]
-    fn statuses_are_a_seen_value_union() {
-        assert_eq!(
-            status_enum_values(Some(&"error".to_string())),
-            vec![STATUS_ENUM_ERROR]
-        );
-        assert_eq!(
-            status_enum_values(Some(&"success".to_string())),
-            vec![STATUS_ENUM_SUCCESS]
-        );
-        // Any other non-empty status is treated as non-error, matching
-        // traces_agg's mapping.
-        assert_eq!(
-            status_enum_values(Some(&"ok".to_string())),
-            vec![STATUS_ENUM_SUCCESS]
-        );
-        assert!(status_enum_values(Some(&String::new())).is_empty());
-        assert!(status_enum_values(None).is_empty());
-    }
-
-    // trace_type DEFAULT (0) is the aggregation's "not yet known" value, so it's
-    // never contributed — otherwise every batch would report DEFAULT and the read
-    // side could not tell "nothing seen" from a real DEFAULT.
-    #[test]
-    fn trace_types_omit_default_and_out_of_range() {
-        assert!(trace_type_enum_values(0).is_empty());
-        assert_eq!(trace_type_enum_values(1), vec![1]);
-        assert_eq!(trace_type_enum_values(3), vec![3]);
-        assert!(
-            trace_type_enum_values(4).is_empty(),
-            "outside the DDL enum => dropped, an out-of-range int poisons reads"
-        );
-    }
-
     #[test]
     fn out_of_range_root_span_type_is_dropped_not_cast() {
         assert_eq!(root_span_type_enum_value(9), None);
@@ -570,8 +498,6 @@ mod tests {
         // partition — NOT the winning span's end time.
         assert_eq!(row.start_time, 7);
         assert_eq!(row.session_id, None);
-        assert!(row.statuses.is_empty());
-        assert!(row.trace_types.is_empty());
         assert_eq!(row.metadata, None);
     }
 }

@@ -75,23 +75,20 @@
 -- precedence directly, so it holds regardless of arrival order and needs no
 -- sentinel encoding.
 --
--- `statuses` / `trace_types` are SEEN-VALUE arrays
--- (groupUniqArrayArray), not single coalescing columns, exactly as in
--- traces_agg — and for the same reason: precedence can't be expressed by
--- last-write-wins over deltas. 'error' is sticky, so a later success-only batch
--- must not downgrade it; trace_type DEFAULT must not pin a trace that a later
--- batch types as EVALUATION/PLAYGROUND. Keeping the union lets the READ path own
--- precedence (`if(has(statuses,'error'),'error','success')`, and the
--- PLAYGROUND > EVALUATION > DEFAULT multiIf), so reordering precedence stays a
--- view-only change. Empty arrays are no-ops.
--- GOTCHA (same as traces_agg): Enum8 is Int8 on the wire and out-of-range INTS
--- are accepted at INSERT but then poison every later read of the part with
--- UNKNOWN_ELEMENT_OF_ENUM (string inserts validate, int inserts don't). When
--- extending TraceType/SpanType, ALTER the DDL enums in the same PR.
+-- `status` / `trace_type` are deliberately ABSENT here: they stay in traces_agg
+-- as its `statuses` / `trace_types` seen-value arrays. Their precedence can't be
+-- expressed by last-write-wins over deltas ('error' is sticky, so a later
+-- success-only batch must not downgrade it; trace_type DEFAULT must not pin a
+-- trace a later batch types as EVALUATION/PLAYGROUND), which needs the union —
+-- and traces_agg already stores it and already resolves both in its view. Don't
+-- duplicate them here; read them from traces_agg.
 --
--- `root_span_type` lists PIPELINE = 2 even though no view surfaces it, for that
--- same reason: SpanType::Pipeline = 2 is a reachable value, so the enum must
--- cover the full `Into<u8> for SpanType` range.
+-- GOTCHA that still applies to `root_span_type`: Enum8 is Int8 on the wire and
+-- out-of-range INTS are accepted at INSERT but then poison every later read of
+-- the part with UNKNOWN_ELEMENT_OF_ENUM (string inserts validate, int inserts
+-- don't). So the enum lists PIPELINE = 2 even though no view surfaces it —
+-- SpanType::Pipeline = 2 is reachable, so the enum must cover the full
+-- `Into<u8> for SpanType` range. ALTER it in the same PR as any SpanType change.
 --
 -- Projections on a CoalescingMergeTree require
 -- `deduplicate_merge_projection_mode = 'rebuild'` (the default `throw` refuses
@@ -113,12 +110,7 @@ CREATE TABLE IF NOT EXISTS default.traces_static
     `root_span_name_from_path` Nullable(String),
     `root_span_type` Nullable(Enum8('DEFAULT' = 0, 'LLM' = 1, 'PIPELINE' = 2, 'EXECUTOR' = 3,
         'EVALUATOR' = 4, 'EVALUATION' = 5, 'TOOL' = 6, 'HUMAN_EVALUATOR' = 7, 'CACHED' = 8)),
-    -- seen values; the read path owns precedence (error is sticky)
-    `statuses` SimpleAggregateFunction(groupUniqArrayArray, Array(Enum8('success' = 1, 'error' = 2))),
     `has_browser_session` Nullable(UInt8),
-    -- seen values; the read path owns precedence (PLAYGROUND > EVALUATION > DEFAULT)
-    `trace_types` SimpleAggregateFunction(groupUniqArrayArray,
-        Array(Enum8('DEFAULT' = 0, 'EVALUATION' = 1, 'EVENT' = 2, 'PLAYGROUND' = 3))),
     -- reserved, no writer yet; same SET semantics as `metadata`
     `internal_metadata` Nullable(String) CODEC(ZSTD(3)),
     INDEX traces_static_session_id_idx session_id TYPE bloom_filter,
