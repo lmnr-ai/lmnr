@@ -37,7 +37,8 @@ export type DebuggerFlatRow =
   // vertical connector line — NOT one continuous bordered card. Each row measures
   // independently (no inline-expand reflow bug) and the header never goes sticky.
   // `blockId` on every group row is the first command's id (matching the
-  // outline's group row) so scroll targeting agrees.
+  // outline's group row) so scroll targeting agrees. A run of ONE skips the
+  // header entirely (see emitCommands) — it renders as a bare command row.
   | { type: "command-group-header"; blockId: string; count: number; lastCreatedAt: string; expanded: boolean }
   // `isFirst`/`isLast` shape the connector line: the first bead's line reaches UP
   // to the header, the last bead's line stops AT the bead (no dangling segment
@@ -237,6 +238,32 @@ function emitCommands(
   commands: CommandGroupItem[],
   { expandedCommandGroupIds, expandedCommandBlockIds }: BuildDebuggerFlatRowsOpts
 ): void {
+  // A lone command needs no group wrapper: render it directly as its command row
+  // (+ detail when expanded). No header, no group-collapse — the row's own
+  // chevron toggles the detail. isFirst && isLast means it draws no connector.
+  if (commands.length === 1) {
+    const only = commands[0];
+    const cmdExpanded = expandedCommandBlockIds.has(only.id);
+    rows.push({
+      type: "command-item",
+      blockId: groupId,
+      commandId: only.id,
+      command: only.command,
+      expanded: cmdExpanded,
+      isFirst: true,
+      isLast: true,
+    });
+    if (cmdExpanded) {
+      rows.push({
+        type: "command-item-detail",
+        blockId: groupId,
+        commandId: only.id,
+        command: only.command,
+        isLastRow: true,
+      });
+    }
+    return;
+  }
   const groupExpanded = expandedCommandGroupIds.has(groupId);
   rows.push({
     type: "command-group-header",

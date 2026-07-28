@@ -1,4 +1,4 @@
-import { type CommandBlockContent } from "@/lib/actions/debugger-sessions/command-content";
+import { type CommandBlockContent, commandLabel } from "@/lib/actions/debugger-sessions/command-content";
 
 import { type SessionBlockView, type TraceRowState } from "../store";
 
@@ -19,6 +19,9 @@ export type OutlineRow = {
   text: string;
   kind: "trace" | "eval" | "text" | "command";
   memberIds: string[];
+  // Only set for a lone command run — drives its per-command icon in the outline
+  // (a multi-command group keeps the generic terminal glyph).
+  command?: CommandBlockContent;
 };
 
 const TEXT_BLOCK_TITLE_LEN = 40;
@@ -59,13 +62,16 @@ export const buildRows = (blocks: SessionBlockView[], traceRowStates: Record<str
   let pending: { id: string; command: CommandBlockContent }[] = [];
   const flushCommands = () => {
     if (pending.length === 0) return;
-    // Every command run — even one command — is a group row, mirroring the
-    // timeline (flat-rows always groups). Keep this in lockstep with emitCommands.
+    // Keep in lockstep with emitCommands: a lone command has no group header, so
+    // its outline row mirrors the bare timeline row — the command's own label +
+    // icon; a run of many stays the "CLI commands (N)" group with the terminal glyph.
+    const solo = pending.length === 1 ? pending[0].command : undefined;
     rows.push({
       blockId: pending[0].id,
-      text: commandGroupTitle(pending.length),
+      text: solo ? commandLabel(solo) : commandGroupTitle(pending.length),
       kind: "command",
       memberIds: pending.map((c) => c.id),
+      command: solo,
     });
     pending = [];
   };

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 
 import { cn } from "@/lib/utils";
 
+import { commandIcon } from "../debugger-list/command-block/command-icon";
 import { useDebuggerSessionViewStore } from "../store";
 import { buildRows } from "./utils";
 
@@ -159,14 +160,23 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
                     )}
                   />
                 )}
-                {row.kind === "command" && (
-                  <SquareTerminal
-                    className={cn(
-                      "mr-1.5 size-3 shrink-0 transition-colors",
-                      isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
-                    )}
-                  />
-                )}
+                {row.kind === "command" &&
+                  (row.command ? (
+                    commandIcon(
+                      row.command,
+                      cn(
+                        "mr-1.5 size-3 shrink-0 transition-colors",
+                        isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                      )
+                    )
+                  ) : (
+                    <SquareTerminal
+                      className={cn(
+                        "mr-1.5 size-3 shrink-0 transition-colors",
+                        isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                      )}
+                    />
+                  ))}
                 {row.kind === "text" && (
                   <FileText
                     className={cn(
