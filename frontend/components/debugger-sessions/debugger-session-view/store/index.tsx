@@ -656,11 +656,11 @@ export const createDebuggerSessionViewStore = (options: {
             // own "don't overwrite an existing notice" gate so a new command still
             // auto-expands even when a notice for an earlier unseen block stands.
             const isNew = get().isInitialTracesLoaded && !get().blocks.some((b) => b.id === view.id);
-            // Live command blocks auto-expand, mirroring live trace runs: open the
-            // run's group (keyed by its first command) so the new row is visible,
-            // plus this command's own detail. Idempotent — appending to an
-            // already-open run re-adds the same stable group key (a no-op).
-            const autoExpandCommand = isNew && view.type === "command";
+            // A live command opens only its RUN's GROUP (keyed by the run's first
+            // command) so the new bead is visible — its detail card stays collapsed
+            // until the user clicks it, same as an already-loaded command.
+            // Idempotent — re-adding the run's stable group key is a no-op.
+            const autoExpandGroup = isNew && view.type === "command";
             set((s) => {
               const rest = s.blocks.filter((b) => b.id !== view.id);
               const blocks = sortBlocks([...rest, view]);
@@ -668,11 +668,10 @@ export const createDebuggerSessionViewStore = (options: {
                 blocks,
                 ...(isNew && !s.newBlockNotice ? { newBlockNotice: view.type } : {}),
               };
-              if (autoExpandCommand) {
+              if (autoExpandGroup) {
                 const tracesById = new Map(s.traces.map((t) => [t.id, t]));
                 const groupKey = firstCommandIdOfRun(blocks, view.id, tracesById, s.traceRowStates);
                 patch.expandedCommandGroupIds = new Set(s.expandedCommandGroupIds).add(groupKey);
-                patch.expandedCommandBlockIds = new Set(s.expandedCommandBlockIds).add(view.id);
               }
               return patch as Partial<DebuggerSessionViewStore>;
             });
