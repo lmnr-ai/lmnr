@@ -17,19 +17,26 @@
 //! |---------------|------------------|-------------------------------|
 //! | `total_tokens`| `increment`       | pure accumulator, never reconciled |
 //! | `seen_error`  | `increment` (0 or 1) | monotone counter, `> 0` = latched |
-//! | `user_id`     | `insert` (String) | set-once, first id wins       |
-//! | `trace_type`  | `insert` (u8)     | first-NON-ZERO wins           |
+//! | `user_id`     | `insert` on miss, else `set_ttl` | set-once, first id wins |
+//! | `trace_type`  | `insert` non-zero only | first-NON-ZERO wins      |
 //!
 //! The token total is deliberately NEVER reconciled against `traces_agg` — see
 //! `update_and_read` for why that would double-count under concurrency. Only
 //! the monotone error latch reads back, and only when its key is absent.
 //!
-//! **Every key is REWRITTEN on every batch, never only on the batch that first
-//! resolved its value.** The tokens key is re-stamped unconditionally (INCRBY
-//! drops its TTL), so a key left to age out on its own expires while tokens
-//! stays warm — and `read_back` recovers only the error flag, so an expired
-//! `user_id` or `trace_type` is gone for the rest of the trace. A cached-hit
-//! branch that returns a value without writing it back is the bug shape here.
+//! **Every key's TTL is refreshed on every batch.** The tokens key is re-stamped
+//! unconditionally (INCRBY drops its TTL); a key left to age out on its own
+//! expires while tokens stays warm, and `read_back` recovers only the error flag,
+//! so an expired `user_id` / `trace_type` is gone for the rest of the trace.
+//!
+//! But refreshing is NOT rewriting. This loop body is a read-modify-write, so an
+//! `insert` (plain Redis `SET`) of a value read before a concurrent batch wrote
+//! the real one clobbers the winner. Every write here is therefore chosen so it
+//! can only RAISE the key: `increment` for the accumulator and the latch,
+//! `insert` only on a genuine miss (`user_id`) or a non-zero value
+//! (`trace_type`), and `set_ttl` — Redis `EXPIRE`, which moves the window without
+//! touching the value — for the pure refresh. Adding an unconditional `insert`
+//! back is the bug shape here.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -171,23 +178,35 @@ pub async fn update_and_read(
             .await
             .unwrap_or(None)
             .filter(|id| !id.is_empty());
+        let had_cached_user_id = cached_user_id.is_some();
         let user_id = cached_user_id.or_else(|| {
             agg.user_id
                 .as_deref()
                 .filter(|batch| !batch.is_empty())
                 .map(str::to_string)
         });
-        // Written on EVERY batch that has a value, not just the one that first
-        // resolved it: that write is the TTL refresh. The tokens key is
-        // re-stamped unconditionally below, so a key left to age out on its own
-        // expires while tokens stays warm — and `read_back` returns only the
-        // error flag, so an expired user id is gone for the rest of the trace
-        // and sampling silently reverts to the empty-user factor.
-        if let Some(id) = user_id.as_deref()
-            && let Err(e) = cache
-                .insert_with_ttl(&user_key, id.to_string(), TTL_SECONDS)
-                .await
-        {
+        // The TTL must advance on every batch — the tokens key is re-stamped
+        // unconditionally below, so a key left to age out on its own expires
+        // while tokens stays warm, and `read_back` recovers only the error flag,
+        // so an expired user id is gone for the rest of the trace and sampling
+        // silently reverts to the empty-user factor.
+        //
+        // But refreshing must not REWRITE the value. `insert` is a plain Redis
+        // `SET` and this block is a read-modify-write, so a batch that read the
+        // key as absent and then lost the race to a batch carrying the real id
+        // would `SET` its own over the winner (A reads absent → resolves its own
+        // id; B writes the real one; A overwrites it). So: `insert` only on a
+        // genuine miss, and `set_ttl` — Redis `EXPIRE`, which moves the window
+        // without touching the value — once something is cached. Same monotonicity
+        // argument as the trace type below; two batches carrying different ids on
+        // a true miss can still race, but that was already arbitrary under
+        // "first id wins".
+        let user_write = match (had_cached_user_id, user_id.as_deref()) {
+            (true, _) => cache.set_ttl(&user_key, TTL_SECONDS).await,
+            (false, Some(id)) => cache.insert_with_ttl(&user_key, id, TTL_SECONDS).await,
+            (false, None) => Ok(()),
+        };
+        if let Err(e) = user_write {
             log::warn!(
                 "Failed to record trace user id for {}: {:?}",
                 agg.trace_id,
@@ -628,6 +647,44 @@ mod tests {
         let s = update_and_read(&[agg_with_type(pid, tid, 0)], cache.clone(), &ch).await;
         assert_eq!(s[&tid].trace_type, 0);
         assert_eq!(cache.get::<u8>(&trace_type_key(pid, tid)).await.unwrap(), None);
+    }
+
+    /// A batch carrying a different user id resolves to (and preserves) the
+    /// cached one.
+    ///
+    /// The cached value is refreshed with `set_ttl` (Redis `EXPIRE`) rather than
+    /// re-`insert`ed, because `insert` is a plain `SET` and this block is a
+    /// read-modify-write: a batch that read the key as absent and then lost the
+    /// race to one carrying the real id would overwrite the winner, and
+    /// `read_back` can't recover a user id. The interleaved race itself isn't
+    /// reachable from a unit test (`InMemoryCache` is a single-threaded
+    /// get-then-set), so the primitive choice is the guarantee; this pins the
+    /// observable half.
+    #[tokio::test]
+    async fn a_batch_with_a_different_user_id_keeps_the_cached_one() {
+        let cache = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+        let ch = clickhouse::Client::default().with_url("http://127.0.0.1:1");
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+
+        cache
+            .insert_with_ttl(&user_id_key(pid, tid), "real-user".to_string(), TTL_SECONDS)
+            .await
+            .unwrap();
+
+        let s = update_and_read(
+            &[agg_with_user(pid, tid, 5, Some("other-user"))],
+            cache.clone(),
+            &ch,
+        )
+        .await;
+
+        assert_eq!(s[&tid].user_id.as_deref(), Some("real-user"));
+        assert_eq!(
+            cache.get::<String>(&user_id_key(pid, tid)).await.unwrap(),
+            Some("real-user".to_string()),
+            "the cached id must survive a batch carrying a different one"
+        );
     }
 
     /// The token total must NEVER be reconciled against `traces_agg`.
