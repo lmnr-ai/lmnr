@@ -11,12 +11,27 @@ const CheckWorkspaceRoleSchema = z.object({
   roles: z.array(z.enum(["member", "admin", "owner"])).min(1),
 });
 
+/// Thrown only for genuine authorization outcomes (not signed in, not a member,
+/// wrong role) so a caller can map those to 401/403 without also swallowing
+/// input-validation (ZodError) or database failures, which must stay 4xx/5xx on
+/// their own merits. Subclasses Error with the same messages as before, so
+/// existing catch-all callers are unaffected.
+export class WorkspaceRoleError extends Error {
+  constructor(
+    message: string,
+    readonly reason: "unauthenticated" | "forbidden"
+  ) {
+    super(message);
+    this.name = "WorkspaceRoleError";
+  }
+}
+
 export const checkUserWorkspaceRole = async (input: z.infer<typeof CheckWorkspaceRoleSchema>) => {
   const { workspaceId, roles } = CheckWorkspaceRoleSchema.parse(input);
 
   const session = await getServerSession();
   if (!session?.user) {
-    throw new Error("Unauthorized: User not authenticated");
+    throw new WorkspaceRoleError("Unauthorized: User not authenticated", "unauthenticated");
   }
 
   const membership = await db.query.membersOfWorkspaces.findFirst({
@@ -24,14 +39,14 @@ export const checkUserWorkspaceRole = async (input: z.infer<typeof CheckWorkspac
   });
 
   if (!membership) {
-    throw new Error("User is not a member of this workspace");
+    throw new WorkspaceRoleError("User is not a member of this workspace", "forbidden");
   }
 
   const userRole = membership.memberRole as WorkspaceRole;
 
   if (!roles.includes(userRole)) {
     const roleList = roles.join(" or ");
-    throw new Error(`Forbidden: Only ${roleList} roles can perform this action`);
+    throw new WorkspaceRoleError(`Forbidden: Only ${roleList} roles can perform this action`, "forbidden");
   }
 
   return userRole;
