@@ -16,7 +16,7 @@
 //! | field         | write            | semantics                     |
 //! |---------------|------------------|-------------------------------|
 //! | `total_tokens`| `increment`       | pure accumulator, never reconciled |
-//! | `seen_error`  | `insert` (bool)   | monotone latch, tri-state key |
+//! | `seen_error`  | `increment` (0 or 1) | monotone counter, `> 0` = latched |
 //! | `user_id`     | `insert` (String) | set-once, first id wins       |
 //! | `trace_type`  | `insert` (u8)     | first-NON-ZERO wins           |
 //!
@@ -88,20 +88,26 @@ pub async fn update_and_read(
         let tokens_key = total_tokens_key(agg.project_id, agg.trace_id);
         let error_key = seen_error_key(agg.project_id, agg.trace_id);
 
-        // Read the error flag BEFORE deciding whether to re-seed. `false` is
-        // PERSISTED, not just implied by a missing key: the flag has to be
+        // Read the latch BEFORE anything else. A clean batch PERSISTS its
+        // "clean" answer rather than leaving the key absent: the state has to be
         // tri-state (known-errored / known-clean / unknown) or "clean" is
         // indistinguishable from "expired", and since most traces never error
         // that would fire a ClickHouse read-back on every batch of every trace
         // — one round-trip per aggregation on the hot ingest path.
         //
-        // Both keys are also re-stamped every batch (below) so their TTL
-        // windows can't drift: the tokens key loses its TTL to INCRBY, and if
-        // the latch were left to age out on its own a long-lived trace could
-        // keep a warm tokens key while the latch expired, making later clean
-        // batches see a trace that had never errored.
-        let cached_error = cache.get::<bool>(&error_key).await.unwrap_or(None);
-        let mut seen_error = cached_error.unwrap_or(false);
+        // Stored as a COUNTER, not a bool, so the write commutes: `increment(0)`
+        // for a clean batch and `increment(1)` for an errored one, with
+        // `> 0` meaning latched. A `SET false` would be a read-modify-write
+        // spanning this whole loop body — a clean batch that read the key before
+        // a concurrent errored batch wrote it would clobber the latch on the way
+        // out, and nothing recovers it because the read-back only fires when the
+        // key is ABSENT. A counter can only ever grow, so no interleaving of
+        // clean and errored batches can unset it.
+        //
+        // Still tri-state: `None` (absent) vs `Some(0)` (known clean) vs
+        // `Some(n > 0)` (latched). The absent case is what gates the read-back.
+        let cached_error = cache.get::<i64>(&error_key).await.unwrap_or(None);
+        let mut seen_error = cached_error.is_some_and(|count| count > 0);
 
         // The token total is a PURE ACCUMULATOR: every batch adds its own delta
         // with an atomic INCRBY and nothing ever reconciles the key against
@@ -190,22 +196,28 @@ pub async fn update_and_read(
         }
 
         // Re-stamp BOTH keys every batch, so their windows can never diverge.
-        // INCRBY above creates the tokens key without a TTL, and the error key
-        // is written with its resolved value — INCLUDING `false`, which is what
-        // makes "known clean" distinguishable from "expired" and keeps clean
-        // traces off the read-back path.
+        // INCRBY creates a key without a TTL, so both need an explicit refresh.
+        //
+        // The latch is bumped by 1 when THIS batch resolved an error and by 0
+        // otherwise — the zero-bump still creates the key (so "known clean"
+        // stays distinguishable from "absent" and keeps clean traces off the
+        // read-back path) without ever being able to lower it. Deliberately
+        // driven by `seen_error` rather than only this batch's own status, so a
+        // latch recovered from the read-back is re-persisted too.
         if let Err(e) = cache.set_ttl(&tokens_key, TTL_SECONDS).await {
             log::warn!("Failed to set TTL on {}: {:?}", tokens_key, e);
         }
-        if let Err(e) = cache
-            .insert_with_ttl(&error_key, seen_error, TTL_SECONDS)
-            .await
-        {
-            log::warn!(
+        match cache.increment(&error_key, i64::from(seen_error)).await {
+            Ok(_) => {
+                if let Err(e) = cache.set_ttl(&error_key, TTL_SECONDS).await {
+                    log::warn!("Failed to set TTL on {}: {:?}", error_key, e);
+                }
+            }
+            Err(e) => log::warn!(
                 "Failed to record trace error state for {}: {:?}",
                 agg.trace_id,
                 e
-            );
+            ),
         }
 
         // `trace_type` is FIRST-NON-ZERO across batches, mirroring the PG
@@ -354,18 +366,14 @@ mod tests {
 
         update_and_read(&[agg(pid, tid, 100, Some("error"))], cache.clone(), &ch).await;
 
-        for _ in 0..3 {
-            cache
-                .insert(&seen_error_key(pid, tid), "sentinel")
-                .await
-                .unwrap();
+        for expected in 2..=4 {
             let s = update_and_read(&[agg(pid, tid, 5, Some("error"))], cache.clone(), &ch).await;
             assert!(s[&tid].seen_error);
             assert_eq!(
-                cache.get::<bool>(&seen_error_key(pid, tid)).await.unwrap(),
-                Some(true),
-                "every batch resolving seen_error=true must re-persist the key \
-                 so its TTL tracks the tokens key"
+                cache.get::<i64>(&seen_error_key(pid, tid)).await.unwrap(),
+                Some(expected),
+                "every errored batch must bump the latch counter, so its TTL \
+                 tracks the tokens key"
             );
         }
     }
@@ -502,12 +510,12 @@ mod tests {
         let tid = Uuid::new_v4();
 
         // First batch: keys absent, so a read-back is expected and it persists
-        // `false` for the latch.
+        // a zero counter for the latch.
         update_and_read(&[agg(pid, tid, 10, None)], cache.clone(), &ch).await;
         assert_eq!(
-            cache.get::<bool>(&seen_error_key(pid, tid)).await.unwrap(),
-            Some(false),
-            "a clean batch must persist `false`, not leave the key absent"
+            cache.get::<i64>(&seen_error_key(pid, tid)).await.unwrap(),
+            Some(0),
+            "a clean batch must persist 0, not leave the key absent"
         );
 
         // Subsequent clean batches must be answered entirely from cache. If the
@@ -517,10 +525,52 @@ mod tests {
             assert!(!s[&tid].seen_error);
             assert_eq!(s[&tid].total_tokens, 15 + i * 5);
             assert_eq!(
-                cache.get::<bool>(&seen_error_key(pid, tid)).await.unwrap(),
-                Some(false)
+                cache.get::<i64>(&seen_error_key(pid, tid)).await.unwrap(),
+                Some(0),
+                "clean batches must keep the latch counter at 0"
             );
         }
+    }
+
+    /// A clean batch must not be able to unset a latch a concurrent errored
+    /// batch has already written.
+    ///
+    /// Reproduces the interleaving deterministically (the in-memory cache is
+    /// single-threaded, so real concurrency can't be staged): the clean worker
+    /// reads the latch as absent, an errored worker then latches it, and the
+    /// clean worker finally writes its own resolved state. With a `SET false`
+    /// that last write clobbers the latch and nothing recovers it — the
+    /// read-back only fires when the key is ABSENT, and it is now present-and-
+    /// false. `increment(0)` can't lower a counter, so the latch survives.
+    #[tokio::test]
+    async fn a_clean_batch_cannot_unset_a_concurrent_latch() {
+        let cache = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+        let ch = clickhouse::Client::default().with_url("http://127.0.0.1:1");
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+        let key = seen_error_key(pid, tid);
+
+        // Clean worker A has read the latch as absent (nothing cached yet).
+        assert_eq!(cache.get::<i64>(&key).await.unwrap(), None);
+
+        // Errored worker B completes its whole pass and latches the trace.
+        let b = update_and_read(&[agg(pid, tid, 5, Some("error"))], cache.clone(), &ch).await;
+        assert!(b[&tid].seen_error);
+
+        // A now finishes and writes the state it resolved BEFORE B's error.
+        let a = update_and_read(&[agg(pid, tid, 5, None)], cache.clone(), &ch).await;
+
+        // A's own return value may miss B's error (it read first) — but the
+        // PERSISTED latch must not regress, so every later batch still sees it.
+        let next = update_and_read(&[agg(pid, tid, 5, None)], cache.clone(), &ch).await;
+        assert!(
+            next[&tid].seen_error,
+            "a clean batch must not clobber a latch set by a concurrent errored \
+             batch (A saw {}, follow-up saw {})",
+            a[&tid].seen_error,
+            next[&tid].seen_error
+        );
+        assert!(cache.get::<i64>(&key).await.unwrap().unwrap() > 0);
     }
 
     /// The token total must NEVER be reconciled against `traces_agg`.
