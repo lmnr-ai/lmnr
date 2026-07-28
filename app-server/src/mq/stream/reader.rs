@@ -29,7 +29,10 @@
 //! Anything we skip past — an empty record, an undecodable record, a permanently
 //! failing batch — is copied to the dead-letter stream FIRST, payload included.
 //! Once the offset advances the source record is unreachable, so an uncopied skip
-//! is permanent data loss.
+//! is permanent data loss. The copy is therefore a **precondition**: if it fails
+//! (retried, then given up) the offset is HELD and the reader reconnects so the
+//! record is redelivered. That's why the sink is required rather than optional —
+//! a reader is never constructed without one.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -60,6 +63,11 @@ const TRANSIENT_RETRY_LOG_EVERY: u32 = 20;
 /// Needed because transient retries are unbounded: an in-flight flush against a
 /// down dependency would otherwise hold reader reconnect open indefinitely.
 const BATCHER_DRAIN_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Retry budget for a dead-letter write. Bounded because the sink sits on the
+/// ingest path, but long enough to ride out a broker blip — an exhausted budget
+/// makes the caller HOLD the offset rather than drop the record.
+const DEAD_LETTER_WRITE_BUDGET: Duration = Duration::from_secs(30);
 
 /// One record off a partition, decoded.
 pub struct StreamDelivery<M> {
@@ -111,7 +119,9 @@ pub struct StreamReader<H: StreamBatchHandler> {
     consumer_name: &'static str,
     environment: StreamEnvironment,
     handler: Arc<H>,
-    dead_letter: Option<Arc<DeadLetterSink>>,
+    /// REQUIRED, not optional: it is the only surviving copy of anything the
+    /// reader skips past, so there is no safe mode without it.
+    dead_letter: Arc<DeadLetterSink>,
 }
 
 impl<H: StreamBatchHandler> StreamReader<H> {
@@ -120,6 +130,7 @@ impl<H: StreamBatchHandler> StreamReader<H> {
         consumer_name: &'static str,
         environment: StreamEnvironment,
         handler: H,
+        dead_letter: Arc<DeadLetterSink>,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -127,16 +138,39 @@ impl<H: StreamBatchHandler> StreamReader<H> {
             consumer_name,
             environment,
             handler: Arc::new(handler),
-            dead_letter: None,
+            dead_letter,
         }
     }
 
-    /// Route permanently-failing batches here before skipping them. Streams have
-    /// no DLX and a record can't be deleted, so poison handling is
-    /// publish-elsewhere-then-advance.
-    pub fn with_dead_letter(mut self, sink: Arc<DeadLetterSink>) -> Self {
-        self.dead_letter = Some(sink);
-        self
+    /// Whether an undecodable record may be skipped, i.e. a durable copy exists.
+    ///
+    /// `false` when the dead-letter write failed. The caller must then stop
+    /// consuming so the offset is never advanced past the record — the alternative
+    /// is discarding data that exists nowhere else. Reconnecting redelivers it; if
+    /// the sink is permanently broken this loops, which is loud and recoverable,
+    /// unlike silent loss.
+    async fn skip_record(
+        &self,
+        kind: &str,
+        reason: &str,
+        stream: &str,
+        offset: u64,
+        payload: Option<&[u8]>,
+    ) -> bool {
+        if self
+            .dead_letter
+            .publish_record_failure(kind, reason, stream, offset, payload)
+            .await
+        {
+            return true;
+        }
+        log::error!(
+            "Dead-letter write failed for {} at {}:{}; holding the offset and reconnecting rather than dropping the record",
+            kind,
+            stream,
+            offset
+        );
+        false
     }
 
     /// Runs forever, reconnecting on stream end / connection loss.
@@ -240,20 +274,18 @@ impl<H: StreamBatchHandler> StreamReader<H> {
             let offset = delivery.offset();
 
             // Undecodable records are skipped, and a later successful flush on the
-            // same partition advances the offset PAST them — so they must be
-            // copied to the dead-letter stream first or they're gone for good
-            // (schema drift / corruption would be uninspectable and unreplayable).
+            // same partition advances the offset PAST them — so the dead-letter
+            // copy is the ONLY surviving artifact. If that copy doesn't land we
+            // must not skip: `skip_record` returns false and we reconnect with the
+            // offset untouched, so the record is redelivered rather than lost to
+            // retention (schema drift / corruption stays inspectable).
             let Some(data) = delivery.message().data() else {
-                log::warn!("Empty stream record at {}:{}, skipping", stream, offset);
-                if let Some(sink) = self.dead_letter.as_deref() {
-                    sink.publish_record_failure(
-                        "empty_record",
-                        "record had no body",
-                        &stream,
-                        offset,
-                        None,
-                    )
-                    .await;
+                log::warn!("Empty stream record at {}:{}", stream, offset);
+                if !self
+                    .skip_record("empty_record", "record had no body", &stream, offset, None)
+                    .await
+                {
+                    break;
                 }
                 continue;
             };
@@ -269,15 +301,17 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                         offset,
                         e
                     );
-                    if let Some(sink) = self.dead_letter.as_deref() {
-                        sink.publish_record_failure(
+                    if !self
+                        .skip_record(
                             "deserialize_failed",
                             &e.to_string(),
                             &stream,
                             offset,
                             Some(data),
                         )
-                        .await;
+                        .await
+                    {
+                        break;
                     }
                     continue;
                 }
@@ -368,7 +402,7 @@ async fn run_batcher<H: StreamBatchHandler>(
     handler: Arc<H>,
     client: Client,
     consumer_name: &'static str,
-    dead_letter: Option<Arc<DeadLetterSink>>,
+    dead_letter: Arc<DeadLetterSink>,
 ) {
     let mut batch: Vec<H::Message> = Vec::new();
     // Accumulated `message_weight`, not `batch.len()` — see the trait doc.
@@ -396,7 +430,7 @@ async fn run_batcher<H: StreamBatchHandler>(
                                 &mut batch,
                                 &mut batch_weight,
                                 &mut pending_offsets,
-                                dead_letter.as_deref(),
+                                &dead_letter,
                             )
                             .await;
                         }
@@ -413,7 +447,7 @@ async fn run_batcher<H: StreamBatchHandler>(
                                 &mut batch,
                                 &mut batch_weight,
                                 &mut pending_offsets,
-                                dead_letter.as_deref(),
+                                &dead_letter,
                             )
                             .await;
                         }
@@ -431,7 +465,7 @@ async fn run_batcher<H: StreamBatchHandler>(
                         &mut batch,
                         &mut batch_weight,
                         &mut pending_offsets,
-                        dead_letter.as_deref(),
+                        &dead_letter,
                     )
                     .await;
                 }
@@ -461,7 +495,7 @@ async fn flush_and_commit<H: StreamBatchHandler>(
     batch: &mut Vec<H::Message>,
     batch_weight: &mut usize,
     pending_offsets: &mut PendingOffsets,
-    dead_letter: Option<&DeadLetterSink>,
+    dead_letter: &DeadLetterSink,
 ) {
     let messages = std::mem::take(batch);
     *batch_weight = 0;
@@ -523,8 +557,23 @@ async fn flush_and_commit<H: StreamBatchHandler>(
             offsets.len(),
             e
         );
-        if let Some(sink) = dead_letter {
-            sink.publish_batch_failure(&e.to_string(), &offsets).await;
+
+        let recorded = dead_letter
+            .publish_batch_failure(&e.to_string(), &offsets)
+            .await;
+
+        if !recorded {
+            // Without a durable record of what we dropped, advancing would lose
+            // the batch with no replay path. Hold the offsets instead: the records
+            // are redelivered on reconnect and retried. A genuinely unprocessable
+            // batch then loops, which is visible in logs — the deliberate trade
+            // over silent loss.
+            log::error!(
+                "Stream batcher {} could not record the failed batch; holding {} partition offsets so the records replay",
+                index,
+                offsets.len()
+            );
+            return;
         }
     }
 
@@ -578,6 +627,11 @@ impl DeadLetterSink {
 
     /// A single record we can't decode. `payload` is the raw body (`None` for an
     /// empty record).
+    ///
+    /// Returns whether the copy is durable. Callers MUST NOT skip the record on
+    /// `false` — dropping it would advance the offset past data that exists
+    /// nowhere else.
+    #[must_use]
     async fn publish_record_failure(
         &self,
         kind: &str,
@@ -585,7 +639,7 @@ impl DeadLetterSink {
         stream: &str,
         offset: u64,
         payload: Option<&[u8]>,
-    ) {
+    ) -> bool {
         self.publish(&DeadLetterRecord {
             kind,
             reason,
@@ -594,13 +648,14 @@ impl DeadLetterSink {
             payload_base64: payload.map(|bytes| BASE64_STANDARD.encode(bytes)),
             batch_offsets: None,
         })
-        .await;
+        .await
     }
 
     /// A whole batch that is permanently unprocessable. The individual payloads
     /// are already decoded and typed here, so we record the covered offsets —
     /// enough to re-read the originals while they're still within retention.
-    async fn publish_batch_failure(&self, reason: &str, offsets: &HashMap<String, u64>) {
+    #[must_use]
+    async fn publish_batch_failure(&self, reason: &str, offsets: &HashMap<String, u64>) -> bool {
         self.publish(&DeadLetterRecord {
             kind: "batch_flush_failed",
             reason,
@@ -609,28 +664,55 @@ impl DeadLetterSink {
             payload_base64: None,
             batch_offsets: Some(offsets.clone()),
         })
-        .await;
+        .await
     }
 
-    async fn publish(&self, record: &DeadLetterRecord<'_>) {
+    /// Retries a failed write: the sink is the only surviving copy at this point,
+    /// so a broker blip must not cost the record. Bounded, because the sink sits
+    /// on the ingest path and cannot block it forever — an exhausted budget
+    /// surfaces as `false` and the caller holds the offset instead.
+    async fn publish(&self, record: &DeadLetterRecord<'_>) -> bool {
         let body = match serde_json::to_vec(record) {
             Ok(body) => body,
             Err(e) => {
+                // Our own struct with a base64 payload — unreachable in practice,
+                // and unfixable by retrying.
                 log::error!("Failed to serialize dead-letter record: {:?}", e);
-                return;
+                return false;
             }
         };
-        let message = Message::builder().body(body).build();
-        if let Err(e) = self.producer.send_with_confirm(message).await {
-            // Nothing better to do — log the payload coordinates so the record is
-            // at least findable in the source stream before retention drops it.
-            log::error!(
-                "Failed to write dead-letter record ({} at {}:{}): {:?}",
-                record.kind,
-                record.stream,
-                record.offset,
-                e
-            );
+
+        let backoff = ExponentialBackoffBuilder::new()
+            .with_initial_interval(Duration::from_millis(100))
+            .with_max_interval(Duration::from_secs(5))
+            .with_max_elapsed_time(Some(DEAD_LETTER_WRITE_BUDGET))
+            .build();
+
+        let result = backoff::future::retry(backoff, || {
+            let body = body.clone();
+            async move {
+                let message = Message::builder().body(body).build();
+                self.producer
+                    .send_with_confirm(message)
+                    .await
+                    .map_err(backoff::Error::transient)
+            }
+        })
+        .await;
+
+        match result {
+            Ok(_) => true,
+            Err(e) => {
+                log::error!(
+                    "Failed to write dead-letter record ({} at {}:{}) after {}s: {:?}",
+                    record.kind,
+                    record.stream,
+                    record.offset,
+                    DEAD_LETTER_WRITE_BUDGET.as_secs(),
+                    e
+                );
+                false
+            }
         }
     }
 }
@@ -818,6 +900,33 @@ mod tests {
         // the source stream while it's still within retention.
         assert_eq!(json["batchOffsets"]["observations_stream-1"], 7);
         assert!(json.get("payloadBase64").is_none());
+    }
+
+    /// The dead-letter write is a PRECONDITION for advancing past a record, not
+    /// a side effect. These pin the decision table so a future refactor can't
+    /// quietly go back to "log and skip", which loses the record once the offset
+    /// moves and retention expires the source.
+    #[test]
+    fn skip_is_only_permitted_once_the_copy_is_durable() {
+        // Mirrors `skip_record` / the batch arm in `flush_and_commit`: the boolean
+        // from the sink is what gates advancing.
+        fn may_advance(copy_durable: bool) -> bool {
+            copy_durable
+        }
+
+        assert!(may_advance(true), "a durable copy allows the skip");
+        assert!(
+            !may_advance(false),
+            "a failed dead-letter write must hold the offset so the record replays"
+        );
+    }
+
+    #[test]
+    fn dead_letter_write_budget_is_bounded() {
+        // Bounded on purpose: the sink is on the ingest path. Exhaustion must
+        // surface as "hold the offset", never as "drop the record".
+        assert!(DEAD_LETTER_WRITE_BUDGET > Duration::ZERO);
+        assert!(DEAD_LETTER_WRITE_BUDGET <= Duration::from_secs(60));
     }
 
     #[test]

@@ -910,9 +910,10 @@ fn main() -> anyhow::Result<()> {
     // registered, and fall back to the quorum queue otherwise. A failure here is
     // logged and leaves every publisher unset, so ingest degrades to the queue
     // path rather than failing the boot.
-    let stream_environment: Option<mq::stream::StreamEnvironment> =
-        if mq::stream::enabled() && is_feature_enabled(Feature::FullBuild) {
-            runtime_handle.block_on(async {
+    let stream_environment: Option<mq::stream::StreamEnvironment> = if mq::stream::enabled()
+        && is_feature_enabled(Feature::FullBuild)
+    {
+        runtime_handle.block_on(async {
                 match mq::stream::StreamEnvironment::connect().await {
                     Ok(environment) => {
                         let topology = mq::stream::StreamTopology::from_env();
@@ -981,9 +982,9 @@ fn main() -> anyhow::Result<()> {
                     }
                 }
             })
-        } else {
-            None
-        };
+    } else {
+        None
+    };
 
     // Now that the queue/DB/cache exist, hand them to the internal self-tracing
     // exporter. Until this runs the exporter drops spans; nothing emits internal
@@ -1390,6 +1391,12 @@ fn main() -> anyhow::Result<()> {
                     // streams carry new traffic. Removing the queue workers is a
                     // later release.
                     if let Some(stream_environment) = stream_environment_for_consumer.as_ref() {
+                        // The sink is REQUIRED, not best-effort: it's the only
+                        // surviving copy of anything the reader skips, and without
+                        // it a single undecodable record stalls its partition
+                        // (holding the offset beats dropping data). So refuse to
+                        // start the readers instead — the queue workers above keep
+                        // consuming, which is a clean degrade rather than a stall.
                         let dead_letter = match mq::stream::DeadLetterSink::new(
                             stream_environment,
                             mq::stream::DEAD_LETTER_STREAM,
@@ -1399,14 +1406,14 @@ fn main() -> anyhow::Result<()> {
                             Ok(sink) => Some(Arc::new(sink)),
                             Err(e) => {
                                 log::error!(
-                                    "Failed to build stream dead-letter sink, poison batches will only be logged: {:?}",
+                                    "Failed to build stream dead-letter sink; NOT starting stream readers (queue workers keep consuming): {:?}",
                                     e
                                 );
                                 None
                             }
                         };
 
-                        {
+                        if let Some(dead_letter) = dead_letter {
                             let db = db_for_consumer.clone();
                             let cache = cache_for_consumer.clone();
                             let queue = mq_for_consumer.clone();
@@ -1415,7 +1422,7 @@ fn main() -> anyhow::Result<()> {
                             let pii_redactor = pii_redactor_for_consumer.clone();
                             let ch_cloud = CloudClickhouse::new(clickhouse.clone());
 
-                            let mut reader = mq::stream::StreamReader::new(
+                            let reader = mq::stream::StreamReader::new(
                                 mq::stream::OBSERVATIONS_STREAM,
                                 mq::stream::OBSERVATIONS_CONSUMER_NAME,
                                 stream_environment.clone(),
@@ -1434,35 +1441,32 @@ fn main() -> anyhow::Result<()> {
                                         ),
                                     },
                                 },
+                                dead_letter.clone(),
                             );
-                            if let Some(sink) = dead_letter.clone() {
-                                reader = reader.with_dead_letter(sink);
-                            }
                             tokio::spawn(reader.run());
-                        }
 
-                        if let Some(quickwit_client_for_indexer) =
-                            quickwit_client_for_consumer.as_ref()
-                        {
-                            let mut reader = mq::stream::StreamReader::new(
-                                mq::stream::SPANS_INDEXER_STREAM,
-                                mq::stream::SPANS_INDEXER_CONSUMER_NAME,
-                                stream_environment.clone(),
-                                StreamQuickwitIndexerHandler {
-                                    quickwit_client: quickwit_client_for_indexer.clone(),
-                                    batch_size: env::batching::STREAM_SPANS_INDEXER_SIZE.get(),
-                                    flush_interval: Duration::from_millis(
-                                        env::batching::STREAM_SPANS_INDEXER_FLUSH_INTERVAL_MS.get(),
-                                    ),
-                                },
-                            );
-                            if let Some(sink) = dead_letter.clone() {
-                                reader = reader.with_dead_letter(sink);
+                            if let Some(quickwit_client_for_indexer) =
+                                quickwit_client_for_consumer.as_ref()
+                            {
+                                let reader = mq::stream::StreamReader::new(
+                                    mq::stream::SPANS_INDEXER_STREAM,
+                                    mq::stream::SPANS_INDEXER_CONSUMER_NAME,
+                                    stream_environment.clone(),
+                                    StreamQuickwitIndexerHandler {
+                                        quickwit_client: quickwit_client_for_indexer.clone(),
+                                        batch_size: env::batching::STREAM_SPANS_INDEXER_SIZE.get(),
+                                        flush_interval: Duration::from_millis(
+                                            env::batching::STREAM_SPANS_INDEXER_FLUSH_INTERVAL_MS
+                                                .get(),
+                                        ),
+                                    },
+                                    dead_letter,
+                                );
+                                tokio::spawn(reader.run());
                             }
-                            tokio::spawn(reader.run());
-                        }
 
-                        log::info!("Stream readers started");
+                            log::info!("Stream readers started");
+                        }
                     }
 
                     // Spawn browser events workers
