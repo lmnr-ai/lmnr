@@ -127,6 +127,10 @@ export function useScoreDirections(projectId: string, scoreNames: string[]): Use
 
       // Chain so writes never overlap; `.then(write, write)` runs regardless of
       // whether the previous write resolved or rejected.
+      // Accepted race: two rapid toggles where the first PATCH already carries the
+      // second's value and the second PATCH then fails leaves the server holding a
+      // value the client reverted, until the next write/reload. Not worth per-key
+      // server merge for a low-frequency toggle.
       writeChainRef.current = writeChainRef.current.then(write, write);
     },
     [projectId, defaults, toast, setBoth]
