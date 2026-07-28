@@ -52,7 +52,14 @@ export default function CommandGroupHeader({ id, count, lastCreatedAt, expanded 
       >
         <SquareTerminal className="size-4 shrink-0 text-muted-foreground" />
         <span className="min-w-0 flex-1 truncate text-[13px] leading-[17px] text-primary-foreground">
-          {count === 1 ? "CLI command" : `CLI commands (${count})`}
+          {count === 1 ? (
+            "CLI command"
+          ) : (
+            <>
+              CLI commands
+              <span className="text-secondary-foreground">{` (${count})`}</span>
+            </>
+          )}
         </span>
         <CardExpandIndicator expanded={expanded} relativeTime={relativeTime} className="ml-auto" />
       </button>

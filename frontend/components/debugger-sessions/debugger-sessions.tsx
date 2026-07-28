@@ -36,17 +36,10 @@ const columns: ColumnDef<DebuggerSession>[] = [
     id: "name",
   },
   {
-    header: "Traces",
-    accessorKey: "traceCount",
-    cell: ({ row }) => <Mono className="text-xs">{row.original.traceCount}</Mono>,
-    id: "traceCount",
-    size: 100,
-  },
-  {
-    header: "Evals",
-    accessorKey: "evalCount",
-    cell: ({ row }) => <Mono className="text-xs">{row.original.evalCount}</Mono>,
-    id: "evalCount",
+    header: "Blocks",
+    accessorKey: "blockCount",
+    cell: ({ row }) => <Mono className="text-xs">{row.original.blockCount}</Mono>,
+    id: "blockCount",
     size: 100,
   },
   {
@@ -70,7 +63,7 @@ const columns: ColumnDef<DebuggerSession>[] = [
   },
 ];
 
-const defaultDebuggerSessionsColumnOrder = ["id", "name", "traceCount", "evalCount", "lastActivity", "createdAt"];
+const defaultDebuggerSessionsColumnOrder = ["id", "name", "blockCount", "lastActivity", "createdAt"];
 
 function DebuggerSessionsContent() {
   const { projectId } = useParams();
