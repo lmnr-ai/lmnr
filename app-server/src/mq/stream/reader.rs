@@ -33,6 +33,11 @@
 //! (retried, then given up) the offset is HELD and the reader reconnects so the
 //! record is redelivered. That's why the sink is required rather than optional —
 //! a reader is never constructed without one.
+//!
+//! A dead-lettered record still forwards its OFFSET to the batcher (as a
+//! `StreamDelivery` with `message: None`). Skipping the offset too would pin the
+//! partition whenever its tail is poison: nothing later would ever store a higher
+//! offset, so every reconnect would re-read and re-dead-letter the same records.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -75,9 +80,14 @@ const DEAD_LETTER_WRITE_BUDGET: Duration = Duration::from_secs(30);
 /// replaying from retention (duplicates) rather than skipping (loss).
 const OFFSET_QUERY_RETRY_BUDGET: Duration = Duration::from_secs(10);
 
-/// One record off a partition, decoded.
+/// One record off a partition.
+///
+/// `message` is `None` for a record we dead-lettered instead of decoding: the
+/// offset still has to reach the batcher, or a trailing poison record would never
+/// advance the consumer group and its partition would re-read the same bad offsets
+/// on every reconnect / SAC handover.
 pub struct StreamDelivery<M> {
-    pub message: M,
+    pub message: Option<M>,
     pub stream: String,
     pub offset: u64,
 }
@@ -315,42 +325,48 @@ impl<H: StreamBatchHandler> StreamReader<H> {
             // must not skip: `skip_record` returns false and we reconnect with the
             // offset untouched, so the record is redelivered rather than lost to
             // retention (schema drift / corruption stays inspectable).
-            let Some(data) = delivery.message().data() else {
-                log::warn!("Empty stream record at {}:{}", stream, offset);
-                if !self
-                    .skip_record("empty_record", "record had no body", &stream, offset, None)
-                    .await
-                {
-                    break;
-                }
-                continue;
-            };
-
-            let message = match serde_json::from_slice::<H::Message>(data) {
-                Ok(message) => message,
-                Err(e) => {
-                    // Won't parse on retry either — same verdict as the queue
-                    // path's reject-without-requeue on a deserialize failure.
-                    log::error!(
-                        "Failed to deserialize stream record at {}:{}: {:?}",
-                        stream,
-                        offset,
-                        e
-                    );
+            let data = match delivery.message().data() {
+                Some(data) => Some(data),
+                None => {
+                    log::warn!("Empty stream record at {}:{}", stream, offset);
                     if !self
-                        .skip_record(
-                            "deserialize_failed",
-                            &e.to_string(),
-                            &stream,
-                            offset,
-                            Some(data),
-                        )
+                        .skip_record("empty_record", "record had no body", &stream, offset, None)
                         .await
                     {
                         break;
                     }
-                    continue;
+                    None
                 }
+            };
+
+            let message = match data {
+                Some(data) => match serde_json::from_slice::<H::Message>(data) {
+                    Ok(message) => Some(message),
+                    Err(e) => {
+                        // Won't parse on retry either — same verdict as the queue
+                        // path's reject-without-requeue on a deserialize failure.
+                        log::error!(
+                            "Failed to deserialize stream record at {}:{}: {:?}",
+                            stream,
+                            offset,
+                            e
+                        );
+                        if !self
+                            .skip_record(
+                                "deserialize_failed",
+                                &e.to_string(),
+                                &stream,
+                                offset,
+                                Some(data),
+                            )
+                            .await
+                        {
+                            break;
+                        }
+                        None
+                    }
+                },
+                None => None,
             };
 
             let batcher = assignment.resolve(&stream, num_batchers);
@@ -476,6 +492,10 @@ impl PendingOffsets {
     fn take(&mut self) -> HashMap<String, u64> {
         std::mem::take(&mut self.offsets)
     }
+
+    fn is_empty(&self) -> bool {
+        self.offsets.is_empty()
+    }
 }
 
 /// Accumulate → flush → store offsets, for the partitions assigned to us.
@@ -500,11 +520,25 @@ async fn run_batcher<H: StreamBatchHandler>(
             received = rx.recv() => {
                 match received {
                     Some(delivery) => {
+                        // Recorded even for a skipped record (`message: None`), so
+                        // its offset advances with the next flush. Without this a
+                        // trailing poison record would leave the partition pinned
+                        // forever, re-dead-lettering the same offsets on every
+                        // reconnect.
                         pending_offsets.record(delivery.stream, delivery.offset);
-                        batch_weight += H::message_weight(&delivery.message);
-                        batch.push(delivery.message);
 
-                        if batch_weight >= batch_size {
+                        if let Some(message) = delivery.message {
+                            batch_weight += H::message_weight(&message);
+                            batch.push(message);
+                        }
+
+                        // A skipped record still needs its offset committed, and
+                        // an all-skipped stretch never fills the batch — so flush
+                        // on a full batch OR when we hold offsets with nothing to
+                        // process (the latter stores offsets and returns early).
+                        if batch_weight >= batch_size
+                            || (batch.is_empty() && !pending_offsets.is_empty())
+                        {
                             flush_and_commit(
                                 index,
                                 &handler,
@@ -520,8 +554,9 @@ async fn run_batcher<H: StreamBatchHandler>(
                     }
                     None => {
                         // Reader is gone: flush what we hold so the offsets for
-                        // already-processed records are durable, then exit.
-                        if !batch.is_empty() {
+                        // already-processed (and dead-lettered) records are
+                        // durable, then exit.
+                        if !batch.is_empty() || !pending_offsets.is_empty() {
                             flush_and_commit(
                                 index,
                                 &handler,
@@ -539,7 +574,10 @@ async fn run_batcher<H: StreamBatchHandler>(
                 }
             }
             _ = ticker.tick() => {
-                if !batch.is_empty() {
+                // `!pending_offsets.is_empty()` matters even with an empty batch:
+                // a stretch of only dead-lettered records has offsets to commit
+                // and would otherwise leave the partition pinned.
+                if !batch.is_empty() || !pending_offsets.is_empty() {
                     flush_and_commit(
                         index,
                         &handler,
@@ -583,7 +621,12 @@ async fn flush_and_commit<H: StreamBatchHandler>(
     let messages = std::mem::take(batch);
     *batch_weight = 0;
     let offsets = pending_offsets.take();
+
     if messages.is_empty() {
+        // Nothing to process, but there may be offsets from dead-lettered records
+        // to commit — that's what unpins a partition whose tail is all poison.
+        // Fall through to the store loop rather than returning.
+        store_offsets(index, client, consumer_name, offsets).await;
         return;
     }
 
@@ -660,12 +703,22 @@ async fn flush_and_commit<H: StreamBatchHandler>(
         }
     }
 
+    store_offsets(index, client, consumer_name, offsets).await;
+}
+
+/// Commit one offset per partition. Best-effort: a lost store just replays those
+/// records after a restart, so it never fails the batch.
+async fn store_offsets(
+    index: usize,
+    client: &Client,
+    consumer_name: &'static str,
+    offsets: HashMap<String, u64>,
+) {
     for (stream, offset) in offsets {
         if let Err(e) = client.store_offset(consumer_name, &stream, offset).await {
-            // Best-effort: a lost store just replays those records after a
-            // restart. Never fail the batch over it.
             log::warn!(
-                "Failed to store offset {} for stream {}: {:?}",
+                "Stream batcher {} failed to store offset {} for stream {}: {:?}",
+                index,
                 offset,
                 stream,
                 e
@@ -1036,6 +1089,52 @@ mod tests {
             !flag.load(std::sync::atomic::Ordering::SeqCst),
             "the aborted task must never reach its post-sleep work (e.g. store_offset)"
         );
+    }
+
+    /// A skipped record must still advance its partition. Without this a trailing
+    /// poison record pins the consumer group forever, re-dead-lettering the same
+    /// offsets on every reconnect / SAC handover.
+    #[test]
+    fn skipped_records_still_record_their_offset() {
+        let mut offsets = PendingOffsets::default();
+        assert!(offsets.is_empty());
+
+        // What the batcher does for a `message: None` delivery.
+        offsets.record("p-0".to_string(), 11);
+        assert!(
+            !offsets.is_empty(),
+            "a dead-lettered record must leave an offset to commit"
+        );
+        assert_eq!(offsets.take().get("p-0"), Some(&11));
+    }
+
+    /// Mirrors the batcher's flush triggers: an all-skipped stretch never fills
+    /// the batch, so "empty batch but pending offsets" has to be a flush reason of
+    /// its own or those offsets are never stored.
+    #[test]
+    fn flush_triggers_on_pending_offsets_with_an_empty_batch() {
+        fn should_flush(
+            batch_weight: usize,
+            batch_size: usize,
+            batch_empty: bool,
+            pending: bool,
+        ) -> bool {
+            batch_weight >= batch_size || (batch_empty && pending)
+        }
+
+        assert!(
+            should_flush(0, 128, true, true),
+            "offsets from skipped records must flush even with nothing to process"
+        );
+        assert!(
+            !should_flush(0, 128, true, false),
+            "no batch and no offsets is a no-op, not a flush"
+        );
+        assert!(
+            !should_flush(10, 128, false, true),
+            "a partially-filled batch waits for the size threshold or the tick"
+        );
+        assert!(should_flush(128, 128, false, true));
     }
 
     #[test]
