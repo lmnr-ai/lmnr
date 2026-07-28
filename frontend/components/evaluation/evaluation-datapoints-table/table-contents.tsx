@@ -1,7 +1,7 @@
 "use client";
 
 import { type ColumnDef, type Row } from "@tanstack/react-table";
-import { memo, type PropsWithChildren } from "react";
+import { memo, type PropsWithChildren, useMemo } from "react";
 
 import { type ScoreRanges } from "@/components/evaluation/utils";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
@@ -51,20 +51,26 @@ export const EvaluationDatapointsTableContents = memo(function EvaluationDatapoi
   heatmapEnabled,
   isSearchActive,
 }: PropsWithChildren<EvaluationDatapointsTableContentsProps>) {
+  // Stable ref so the cell-content token only changes on a real value change (inline object would defeat cell memoization).
+  const meta = useMemo(
+    () => ({
+      evalCellMeta: {
+        isComparison,
+        isShared,
+        heatmapEnabled: heatmapEnabled ?? false,
+        scoreRanges,
+      },
+    }),
+    [isComparison, isShared, heatmapEnabled, scoreRanges]
+  );
+
   if (isLoading) return <EvalTableSkeleton />;
 
   return (
     <InfiniteDataTable
       columns={visibleColumnDefs}
       data={data ?? []}
-      meta={{
-        evalCellMeta: {
-          isComparison,
-          isShared,
-          heatmapEnabled: heatmapEnabled ?? false,
-          scoreRanges,
-        },
-      }}
+      meta={meta}
       hasMore={!isSearchActive && hasMore}
       isFetching={isFetching}
       isLoading={false}

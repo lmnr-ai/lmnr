@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { memo, type MutableRefObject, type PropsWithChildren, useCallback, useEffect } from "react";
+import { memo, type PropsWithChildren, type RefObject, useCallback, useEffect, useMemo } from "react";
 
 import { useSignalStoreContext } from "@/components/signal/store";
 import { getDisplayRange, getTimeDifference } from "@/components/ui/date-range-filter/utils";
@@ -38,7 +38,7 @@ function getEmptyRow({ pastHours, startDate, endDate }: { pastHours?: string; st
 }
 
 export interface RunsTableContentsProps {
-  refetchRef: MutableRefObject<() => void>;
+  refetchRef: RefObject<() => void>;
   filters: Filter[];
   dateRange: { pastHours?: string; startDate?: string; endDate?: string };
 }
@@ -53,7 +53,8 @@ export const RunsTableContents = memo(function RunsTableContents({
   const params = useParams<{ projectId: string }>();
   const signal = useSignalStoreContext((state) => state.signal);
 
-  const columns = getSignalRunsColumns();
+  // Factory returns a fresh array each call; memoize to keep the cell-content token stable.
+  const columns = useMemo(() => getSignalRunsColumns(), []);
 
   const fetchRuns = useCallback(
     async (pageNumber: number) => {

@@ -3,7 +3,7 @@
 import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
 import { SquareArrowOutUpRight } from "lucide-react";
 import { useParams } from "next/navigation";
-import { memo, type MutableRefObject, type PropsWithChildren, useCallback, useState } from "react";
+import { memo, type PropsWithChildren, type RefObject, useCallback, useState } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { FETCH_SIZE } from "@/components/datasets/constants";
@@ -79,7 +79,7 @@ const EmptyRow = (
 );
 
 export interface DatasetsTableContentsProps {
-  updateDataRef: MutableRefObject<((fn: (data: DatasetInfo[]) => DatasetInfo[]) => void) | null>;
+  updateDataRef: RefObject<((fn: (data: DatasetInfo[]) => DatasetInfo[]) => void) | null>;
   filter: string[];
   search: string | null;
   isViewLoading: boolean;

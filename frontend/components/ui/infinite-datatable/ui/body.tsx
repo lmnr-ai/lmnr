@@ -1,6 +1,7 @@
 import { type Row, type RowData } from "@tanstack/react-table";
 import { Loader2 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useMemo } from "react";
 
 import { Button } from "@/components/ui/button.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
@@ -51,6 +52,13 @@ export function InfiniteDatatableBody<TData extends RowData>({
     .map((col) => `${col.id}:${col.getSize()}:${col.getIsPinned() || ""}`)
     .join("|");
 
+  // Re-renders memoized cells whose content closes over out-of-row state (rebuilt
+  // columns or changed meta); stable otherwise so memoization is preserved.
+  const cellRenderToken = useMemo(
+    () => ({ columns: table.options.columns, meta: table.options.meta }),
+    [table.options.columns, table.options.meta]
+  );
+
   return (
     <TableBody
       style={{
@@ -88,6 +96,7 @@ export function InfiniteDatatableBody<TData extends RowData>({
                 measureElement={rowVirtualizer.measureElement}
                 isSelected={row.getIsSelected()}
                 columnSignature={columnSignature}
+                cellRenderToken={cellRenderToken}
               />
             );
           })}

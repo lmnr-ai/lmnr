@@ -2,7 +2,7 @@
 
 import { type Row } from "@tanstack/react-table";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
-import { memo, type MutableRefObject, type PropsWithChildren, useCallback, useEffect, useState } from "react";
+import { memo, type PropsWithChildren, type RefObject, useCallback, useEffect, useState } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import SelectionBanner from "@/components/signal/create-signal-job/selection-banner";
@@ -27,7 +27,7 @@ export interface CreateSignalJobTableContentsProps {
   filter: string[];
   search: string | null;
   dateRange: { pastHours?: string; startDate?: string; endDate?: string };
-  refetchRef: MutableRefObject<() => void>;
+  refetchRef: RefObject<() => void>;
   searchValue: { filters: Filter[]; search: string };
   onSearchChange: (value: { filters: Filter[]; search: string }) => void;
   onOpenConfirmDialog: (state: PendingJobState) => void;
