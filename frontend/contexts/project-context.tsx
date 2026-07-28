@@ -63,14 +63,15 @@ export const ProjectContextProvider = ({
     fallbackData: initialProject,
   });
 
-  // `fallbackData` sets returned `data` but not the writable cache, so `mutateProject((cur)=>...)`
-  // gets `cur === undefined` and no-ops. Seed the cache once per key so optimistic writers work.
+  // `fallbackData` doesn't write the cache, so `mutateProject((cur)=>...)` gets undefined and no-ops.
+  // Seed the cache; re-seed on SSR prop change (same-project refresh keeps the key) to avoid staleness.
+  const projectSignature = initialProject ? JSON.stringify(initialProject) : null;
   useEffect(() => {
     if (projectKey && initialProject) {
       mutateProject(initialProject, { revalidate: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectKey]);
+  }, [projectKey, projectSignature]);
 
   const settingsHref = useCallback(
     (section?: SettingsSection) =>
