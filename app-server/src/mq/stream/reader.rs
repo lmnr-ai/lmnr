@@ -44,7 +44,8 @@ use base64::{Engine, prelude::BASE64_STANDARD};
 use futures_util::StreamExt;
 use rabbitmq_stream_client::{
     Client, NoDedup, Producer,
-    types::{Message, OffsetSpecification},
+    error::ClientError,
+    types::{Message, MessageContext, OffsetSpecification, ResponseCode},
 };
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::sync::mpsc;
@@ -68,6 +69,11 @@ const BATCHER_DRAIN_TIMEOUT: Duration = Duration::from_secs(30);
 /// ingest path, but long enough to ride out a broker blip — an exhausted budget
 /// makes the caller HOLD the offset rather than drop the record.
 const DEAD_LETTER_WRITE_BUDGET: Duration = Duration::from_secs(30);
+
+/// Retry budget for re-querying a stored offset during SAC activation. Bounded
+/// because the broker waits on our activation response; exhaustion falls back to
+/// replaying from retention (duplicates) rather than skipping (loss).
+const OFFSET_QUERY_RETRY_BUDGET: Duration = Duration::from_secs(10);
 
 /// One record off a partition, decoded.
 pub struct StreamDelivery<M> {
@@ -230,12 +236,42 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                         // one past it.
                         OffsetSpecification::Offset(offset + 1)
                     }
-                    Err(_) => {
+                    // Only `OffsetNotFound` means this group genuinely has no
+                    // stored offset (first activation ever) — the one case where
+                    // starting at `First` is correct rather than a fallback.
+                    Err(ClientError::RequestError(ResponseCode::OffsetNotFound)) => {
                         log::info!(
                             "Stream partition {} activated with no stored offset, starting from first",
                             stream
                         );
                         OffsetSpecification::First
+                    }
+                    // Anything else is a transient failure (connection blip,
+                    // internal error). Retry rather than guessing: both fallbacks
+                    // are bad — `First` replays the whole retained partition
+                    // (hours of duplicate spans) and `Next` silently skips the
+                    // unprocessed backlog.
+                    Err(e) => {
+                        log::warn!(
+                            "Failed to query stored offset for stream {}, retrying: {:?}",
+                            stream,
+                            e
+                        );
+                        match retry_query_offset(&context).await {
+                            Some(offset) => OffsetSpecification::Offset(offset + 1),
+                            None => {
+                                // Give up and replay from the start of retention.
+                                // Duplicates over loss: the whole pipeline is
+                                // at-least-once (`spans` dedups nothing, but a
+                                // replayed span overwrites identically), whereas
+                                // `Next` would drop the backlog outright.
+                                log::error!(
+                                    "Could not resolve stored offset for stream {} after retries; replaying from the start of retention (expect duplicate ingest)",
+                                    stream
+                                );
+                                OffsetSpecification::First
+                            }
+                        }
                     }
                 }
             })
@@ -344,17 +380,64 @@ impl<H: StreamBatchHandler> StreamReader<H> {
             // reconnect behind a ClickHouse outage. Aborting is safe — no offset
             // was stored for an unflushed batch, so those records replay after
             // reconnect (at-least-once, same as the queue path's redelivery).
-            match tokio::time::timeout(BATCHER_DRAIN_TIMEOUT, handle).await {
-                Ok(_) => {}
-                Err(_) => log::warn!(
-                    "Stream batcher did not drain within {}s, aborting; its records will replay",
+            // `timeout` consumes the handle, so keep a clone to abort with:
+            // DROPPING a JoinHandle only detaches the task, leaving the old
+            // batcher alive across the reconnect — still retrying, still able to
+            // call `store_offset` against offsets the new batchers are also
+            // tracking, and piling up one leaked task per reconnect for the whole
+            // duration of a dependency outage.
+            let abort_handle = handle.abort_handle();
+            if tokio::time::timeout(BATCHER_DRAIN_TIMEOUT, handle)
+                .await
+                .is_err()
+            {
+                abort_handle.abort();
+                log::warn!(
+                    "Stream batcher did not drain within {}s, aborted; its records will replay",
                     BATCHER_DRAIN_TIMEOUT.as_secs()
-                ),
+                );
             }
         }
 
         Ok(())
     }
+}
+
+/// Re-query the stored offset after a transient failure during SAC activation.
+///
+/// `None` means "still unresolved after the budget" — NOT "no offset exists";
+/// `OffsetNotFound` is answered by the caller before we get here. Bounded because
+/// the broker is waiting on our activation response.
+/// Hand-rolled rather than via `backoff::future::retry`: the caller lives inside
+/// the client's `consumer_update` closure, whose future must be `Sync`, and the
+/// combinator's closure isn't.
+async fn retry_query_offset(context: &MessageContext) -> Option<u64> {
+    let mut delay = Duration::from_millis(200);
+    let mut elapsed = Duration::ZERO;
+
+    while elapsed < OFFSET_QUERY_RETRY_BUDGET {
+        tokio::time::sleep(delay).await;
+        elapsed += delay;
+        delay = (delay * 2).min(Duration::from_secs(2));
+
+        match context
+            .client()
+            .query_offset(context.name(), &context.stream())
+            .await
+        {
+            Ok(offset) => return Some(offset),
+            // A genuine absence mid-retry: stop and let the caller's `First`
+            // fallback apply, which is the correct answer for that case.
+            Err(ClientError::RequestError(ResponseCode::OffsetNotFound)) => return None,
+            Err(e) => log::warn!(
+                "Retry of stored-offset query for stream {} failed: {:?}",
+                context.stream(),
+                e
+            ),
+        }
+    }
+
+    None
 }
 
 /// Stable partition→batcher map. Assignment is by first-sight order rather than
@@ -918,6 +1001,40 @@ mod tests {
         assert!(
             !may_advance(false),
             "a failed dead-letter write must hold the offset so the record replays"
+        );
+    }
+
+    /// The drain path must ABORT, not just drop. Dropping a `JoinHandle` detaches
+    /// the task: the old batcher would survive the reconnect, keep retrying, and
+    /// keep calling `store_offset` for partitions the fresh batchers now own — one
+    /// leaked task per reconnect for the length of an outage.
+    #[tokio::test(start_paused = true)]
+    async fn drain_timeout_actually_cancels_a_stuck_batcher() {
+        let flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let flag_in_task = flag.clone();
+
+        // Stands in for a batcher wedged in an unbounded transient retry.
+        let handle = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(3600)).await;
+            flag_in_task.store(true, std::sync::atomic::Ordering::SeqCst);
+        });
+
+        let abort_handle = handle.abort_handle();
+        let timed_out = tokio::time::timeout(BATCHER_DRAIN_TIMEOUT, handle)
+            .await
+            .is_err();
+        assert!(timed_out, "the stuck task must not drain within the budget");
+
+        abort_handle.abort();
+        // Let the runtime process the cancellation.
+        tokio::time::sleep(Duration::from_millis(1)).await;
+        assert!(
+            abort_handle.is_finished(),
+            "abort() must actually cancel the task; dropping the handle would leave it running"
+        );
+        assert!(
+            !flag.load(std::sync::atomic::Ordering::SeqCst),
+            "the aborted task must never reach its post-sleep work (e.g. store_offset)"
         );
     }
 
