@@ -7,9 +7,11 @@
 //!
 //! Resolution is by INSERTION ORDER (last non-NULL write per column wins), NOT
 //! by `updated_at`: `CoalescingMergeTree` takes no version parameter (its
-//! optional argument is a columns-to-coalesce list). `updated_at` is
-//! informational and the partition key only — see the migration for the full
-//! semantics.
+//! optional argument is a columns-to-coalesce list). `updated_at` is purely
+//! informational. The table is deliberately unpartitioned — coalescing only
+//! happens within a partition, so any per-write timestamp as a partition key
+//! would strand a trace's writes in separate, permanently-partial rows. See the
+//! migration for the full semantics.
 
 use clickhouse::Row;
 use clickhouse::insert::Insert;
@@ -38,9 +40,9 @@ pub struct CHTraceStatic {
     pub project_id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
     pub trace_id: Uuid,
-    /// Nanoseconds since epoch. Informational + the partition key; NOT a
-    /// version (see the module docs). Kept at the trace's start time so every
-    /// write for one trace lands in the same partition.
+    /// Nanoseconds since epoch. Purely informational — NOT a version and not a
+    /// partition key (see the module docs), so writes for one trace may
+    /// legitimately disagree here without affecting how they merge.
     pub updated_at: i64,
     pub input: Option<String>,
     /// Concatenated lowercase hex, 64 chars per 32-byte hash.
@@ -326,9 +328,9 @@ mod tests {
         assert_eq!(encoded, "{\"a\":1}");
     }
 
-    // updated_at tracks the trace's start time so every write for one trace
-    // lands in the same monthly partition (cross-partition rows do not
-    // coalesce into a single row).
+    // updated_at reports the trace's start time (falling back to the flush
+    // clock). It's informational only — the table is unpartitioned, so this
+    // value never influences which writes merge together.
     #[test]
     fn updated_at_uses_start_time_then_falls_back() {
         let start = Utc::now();

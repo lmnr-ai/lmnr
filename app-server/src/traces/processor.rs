@@ -167,8 +167,9 @@ fn collect_agent_io_rows(
 /// hashes are concatenated hex (64 chars each) because the column can't be a
 /// `Nullable(Array(...))` — see `ch::traces_static`. `updated_at` uses the
 /// winning span's end time when known (clamped to `now_ns`, as `DateTime64(9)`
-/// can't hold the `i64::MAX` unknown-time sentinel); it is informational here,
-/// not a version.
+/// can't hold the `i64::MAX` unknown-time sentinel). It is informational only:
+/// the table is unpartitioned, so this disagreeing with the aggregation write's
+/// `start_time` does not affect how the two writes merge.
 fn collect_static_agent_io_rows(io: &[RawTraceIo], now_ns: i64) -> Vec<CHTraceStatic> {
     io.iter()
         .filter_map(|entry| {

@@ -8,10 +8,20 @@
 -- Resolution is by INSERTION ORDER (last non-NULL write per column wins), NOT
 -- by `updated_at` — CoalescingMergeTree takes no version parameter (its
 -- optional argument is a columns-to-coalesce list, SummingMergeTree-style).
--- `updated_at` is therefore informational + the partition key, never a
--- version. Writers keep it at the trace's start_time so every write for a
--- trace lands in one partition; note the partition-key column is itself not
--- coalesced (it keeps the first-arriving value).
+-- `updated_at` is therefore purely informational, never a version.
+--
+-- DELIBERATELY NOT PARTITIONED. Coalescing only happens WITHIN a partition, so
+-- partitioning on any per-write timestamp splits a trace whose writes straddle
+-- a boundary into permanently-partial rows: the aggregation write would carry
+-- the batch's min span start_time while the agent-io write carries the winning
+-- span's end time, and `TraceAggregation::start_time` is itself per-batch (min
+-- over that batch's spans only), so even aggregation-only writes can disagree.
+-- `OPTIMIZE ... FINAL` cannot repair it, and while a plain `SELECT ... FINAL`
+-- happens to merge across partitions at query time,
+-- `do_not_merge_across_partitions_select_final=1` (and any `updated_at`-filtered
+-- read) exposes the split rows. No partition key means every write for a trace
+-- always merges. Project purges use `ALTER TABLE ... DELETE WHERE project_id`,
+-- which needs no partitioning.
 --
 -- `output_hashes` is a concatenated lowercase-hex string (64 chars per
 -- 32-byte hash), not Array(FixedString(32)): Nullable(Array(...)) is
@@ -50,6 +60,5 @@ CREATE TABLE IF NOT EXISTS default.traces_static
     INDEX traces_static_user_id_idx user_id TYPE bloom_filter
 )
 ENGINE = CoalescingMergeTree()
-PARTITION BY toYYYYMM(updated_at)
 ORDER BY (project_id, trace_id)
 SETTINGS index_granularity = 8192;
