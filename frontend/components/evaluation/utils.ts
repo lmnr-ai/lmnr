@@ -107,10 +107,13 @@ const getColorByNormalizedValue = (normalized: number): RGBColor => {
   }
 };
 
-const getScoreBackgroundColor = (min: number, max: number, value: number): RGBColor => {
+const getScoreBackgroundColor = (min: number, max: number, value: number, isHigherBetter = true): RGBColor => {
   if (min === max) return SCORE_COLORS.gray;
 
-  return flow((val: number) => normalizeValue(min, max, val), getColorByNormalizedValue)(value);
+  // When lower is better, reflect the normalized position about the midpoint so
+  // the "good" end of the range maps to green regardless of magnitude.
+  const toColor = (n: number) => getColorByNormalizedValue(isHigherBetter ? n : 1 - n);
+  return flow((val: number) => normalizeValue(min, max, val), toColor)(value);
 };
 
 const hasSignificantRange = ({ min, max }: ScoreRange): boolean => {
@@ -193,8 +196,9 @@ export const mergeTraceUpdateIntoRows = (
 
 // rgb(...) string for the heatmap color, or null when the range is too narrow
 // to be meaningful — callers treat null as "render the plain number".
-export const getHeatmapColor = (value: number, { min, max }: ScoreRange): string | null => {
+// `isHigherBetter` (default true) inverts the gradient for lower-is-better scores.
+export const getHeatmapColor = (value: number, { min, max }: ScoreRange, isHigherBetter = true): string | null => {
   if (!shouldShowHeatmap({ min, max })) return null;
-  const [r, g, b] = getScoreBackgroundColor(min, max, value);
+  const [r, g, b] = getScoreBackgroundColor(min, max, value, isHigherBetter);
   return `rgb(${r}, ${g}, ${b})`;
 };

@@ -22,6 +22,7 @@ import {
   selectVisibleColumnDefs,
   useEvalStore,
 } from "@/components/evaluation/store";
+import { useScoreDirections } from "@/components/evaluation/use-score-directions";
 import {
   type EvaluationStatsPayload,
   flattenScores,
@@ -95,6 +96,10 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
     () => buildColumnDefs({ scoreNames, customColumns, isShared }),
     [scoreNames, customColumns, isShared]
   );
+
+  // Resolved eval-score directions (override > app-wide LLM default > true).
+  // Async — coloring repaints when it lands; shared evals can't write overrides.
+  const { resolved: scoreDirections, toggle: toggleScoreDirection } = useScoreDirections(params.projectId, scoreNames);
 
   // Stats SWR — drives the score chips + charts.
   const statsUrl = useMemo(() => {
@@ -310,6 +315,8 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
       heatmapEnabled={heatmapEnabled}
       onHeatmapEnabledChange={setHeatmapEnabled}
       onDeleteCustomColumn={onDeleteCustomColumn}
+      scoreDirections={scoreDirections}
+      onToggleScoreDirection={isShared ? undefined : toggleScoreDirection}
       searchValue={searchValue}
       onSearchChange={setSearchAndFilters}
       viewsResource={RESOURCE}
@@ -345,6 +352,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
                   comparedAllStatistics={targetStatsData?.allStatistics}
                   comparedAllDistributions={targetStatsData?.allDistributions}
                   isComparison={isComparison}
+                  scoreDirections={scoreDirections}
                 />
                 <div className="flex min-h-0 flex-1 overflow-hidden">{table}</div>
               </div>

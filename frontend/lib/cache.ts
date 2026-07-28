@@ -273,3 +273,8 @@ export const AUTOCOMPLETE_CACHE_KEY = (resource: string, projectId: string, fiel
 
 export const SPAN_RENDERING_KEY_CACHE_KEY = (projectId: string, schemaFingerprint: string): string =>
   `span_rendering_key:${projectId}:${schemaFingerprint}`;
+
+// App-wide (NOT project-scoped) LLM-inferred eval-score direction. The key is
+// the normalized score name; the value is a boolean isHigherBetter.
+export const SCORE_DIRECTION_CACHE_KEY = (normalizedScoreName: string): string =>
+  `score_direction:${normalizedScoreName}`;
