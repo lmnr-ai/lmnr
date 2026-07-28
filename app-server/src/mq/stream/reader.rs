@@ -780,9 +780,22 @@ async fn store_offsets(
 
 /// Per-`(consumer_name, partition)` high-water mark of offsets we've committed.
 ///
-/// Process-wide because the racing writers are two batchers in the SAME process
-/// (the outgoing reader's and the incoming one's) writing under the same consumer
-/// name. Returns whether `offset` advances the mark, claiming it if so.
+/// A process `static`, NOT reader/batcher state, for two reasons:
+///   - the racing writers are two batchers in the SAME process (the outgoing
+///     reader's and the incoming one's) writing under the same consumer name;
+///   - `run_once` tears down and respawns every batcher on reconnect, so a mark
+///     held per-reader or per-batcher would reset and let a fresh batcher's first
+///     (lower) commit overwrite the previous generation's position — the same
+///     rewind, reached via reconnect instead of handover.
+/// Nothing ever clears an entry; the key space is bounded by partition count.
+///
+/// **Why DROP a non-advancing store rather than take the max:** a stale store is
+/// always BEHIND the live one, because a batcher commits offsets only for records
+/// it received itself and per-partition delivery is offset-ordered. So a
+/// non-advancing store carries no information the mark doesn't already have, and
+/// dropping it can never discard genuine progress or mask a skip-forward.
+///
+/// Returns whether `offset` advances the mark, claiming it if so.
 static OFFSET_HIGH_WATER_MARKS: LazyLock<Mutex<HashMap<(&'static str, String), u64>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
@@ -1298,6 +1311,30 @@ mod tests {
         assert!(!claim_offset_high_water_mark(group, partition, 140));
         // Genuine progress still goes through.
         assert!(claim_offset_high_water_mark(group, partition, 141));
+    }
+
+    /// The mark must survive a reader RECONNECT, not just a handover. `run_once`
+    /// tears down and respawns every batcher, so if the mark lived on the reader or
+    /// the batcher it would reset and a fresh batcher's first (lower) commit could
+    /// overwrite the position the previous generation reached — the same rewind
+    /// mechanism as the SAC handover case, via a different path. Keeping it in a
+    /// process `static` is what prevents that; this pins the property so nobody
+    /// moves the map into `StreamReader` or `run_batcher` state.
+    #[test]
+    fn offset_high_water_mark_survives_reader_reconnect() {
+        let group = "test_group_reconnect";
+        let partition = "observations_stream-2";
+
+        // Generation 1 of the batchers commits.
+        assert!(claim_offset_high_water_mark(group, partition, 500));
+
+        // `run_once` returns and respawns fresh batchers with empty local state.
+        // The mark is process-scoped, so the new generation still sees 500.
+        assert!(
+            !claim_offset_high_water_mark(group, partition, 450),
+            "a fresh batcher must not rewind the previous generation's position"
+        );
+        assert!(claim_offset_high_water_mark(group, partition, 501));
     }
 
     #[test]
