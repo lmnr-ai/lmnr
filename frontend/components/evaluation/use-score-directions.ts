@@ -44,7 +44,13 @@ export function useScoreDirections(projectId: string, scoreNames: string[]): Use
     return `/api/projects/${projectId}/evaluations/score-directions?${qs}`;
   }, [projectId, scoreNames]);
 
-  const { data } = useSWR<{ defaults: ScoreDirectionDefaults }>(key, swrFetcher, { revalidateOnFocus: false });
+  // keepPreviousData: when scoreNames change (realtime add / progression load) the
+  // key changes; without this `data` would blink to undefined and non-overridden
+  // scores would flash to the `true` default until the refetch lands.
+  const { data } = useSWR<{ defaults: ScoreDirectionDefaults }>(key, swrFetcher, {
+    revalidateOnFocus: false,
+    keepPreviousData: true,
+  });
   const defaults = data?.defaults ?? EMPTY;
 
   const resolved = useMemo(() => ({ ...defaults, ...overrides }), [defaults, overrides]);
