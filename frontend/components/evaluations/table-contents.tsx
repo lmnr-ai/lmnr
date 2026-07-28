@@ -105,7 +105,6 @@ export const EvaluationsTableContents = memo(function EvaluationsTableContents({
     [evaluations, groupId]
   );
   useEffect(() => {
-    if (chartEvaluations.length === 0) return;
     onEvaluationsChange(chartEvaluations);
   }, [chartEvaluations, onEvaluationsChange]);
 
