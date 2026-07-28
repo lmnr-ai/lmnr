@@ -25,6 +25,13 @@ pub const ALERT_FILTERS_CACHE_KEY: &str = "alert_filters";
 pub const TRACE_SEEN_ERROR_CACHE_KEY: &str = "trace_seen_error";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const TRACE_TOTAL_TOKENS_CACHE_KEY: &str = "trace_total_tokens";
+/// The trace's user id, for per-user signal sampling. Set-once (the first batch
+/// that carries one wins, mirroring the PG upsert's
+/// `COALESCE(EXCLUDED.user_id, traces.user_id)`) — a later batch without the
+/// attribute must not blank it, or sampling would fall back to the empty-user
+/// factor mid-trace.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const TRACE_USER_ID_CACHE_KEY: &str = "trace_user_id";
 pub const WORKSPACE_BYTES_USAGE_CACHE_KEY: &str = "workspace_bytes_usage";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 // Raw accumulated token counts per workspace; cost in micro-USD is derived at

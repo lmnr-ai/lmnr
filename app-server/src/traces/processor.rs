@@ -809,7 +809,7 @@ pub async fn process_span_messages(
         let candidates: Vec<TraceTriggerCandidate> = trace_aggregations
             .iter()
             .map(|agg| {
-                let state = states.get(&agg.trace_id).copied().unwrap_or_default();
+                let state = states.get(&agg.trace_id).cloned().unwrap_or_default();
                 TraceTriggerCandidate::new(agg, state)
             })
             .collect();

@@ -29,13 +29,18 @@ use crate::db::utils::{Filter, FilterOperator, evaluate_number_filter};
 /// the intended "once per trace" half of a rule — the retriggering half
 /// (`total_token_count > N`) is what they're meant to be paired with. Keeping
 /// them batch-local costs nothing that the lock doesn't already bound.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct TraceTriggerState {
     /// Whether ANY span in this trace has reported `status = "error"`, across
     /// all batches seen so far.
     pub seen_error: bool,
     /// Cumulative `total_tokens` across all batches seen so far.
     pub total_tokens: i64,
+    /// The trace's user id, from whichever batch first carried one. Not a
+    /// trigger condition — per-user sampling reads it, and it has to be
+    /// cross-batch for the same reason: a later batch whose spans carry no
+    /// `user_id` must not make the trace look like an anonymous one.
+    pub user_id: Option<String>,
 }
 
 /// One condition the signal UI can produce.
@@ -164,8 +169,6 @@ pub struct TraceTriggerCandidate {
     pub project_id: Uuid,
     /// `Into<u8> for TraceType`; signals only evaluate DEFAULT traces.
     pub trace_type: u8,
-    /// Set once the trace's user id is known, for per-user sampling.
-    pub user_id: Option<String>,
     pub state: TraceTriggerState,
     batch_span_names: Vec<String>,
     batch_has_root_span: bool,
@@ -179,7 +182,6 @@ impl TraceTriggerCandidate {
             trace_id: agg.trace_id,
             project_id: agg.project_id,
             trace_type: agg.trace_type,
-            user_id: agg.user_id.clone(),
             state,
             batch_span_names: agg.span_names.iter().cloned().collect(),
             // `TraceAggregation::from_spans` sets `top_span_id` only from a span
@@ -191,6 +193,15 @@ impl TraceTriggerCandidate {
     pub fn matches_filters(&self, filters: &[Filter]) -> bool {
         let names: HashSet<&str> = self.batch_span_names.iter().map(String::as_str).collect();
         matches_trigger(filters, &self.state, &names, self.batch_has_root_span)
+    }
+
+    /// The trace's user id for per-user sampling. Comes from the cross-batch
+    /// state, NOT this batch's aggregation: `TraceAggregation::user_id` is only
+    /// populated from spans in the current batch, so a trace whose user id
+    /// arrived earlier would otherwise be sampled against the empty-user
+    /// factor.
+    pub fn user_id(&self) -> &Option<String> {
+        &self.state.user_id
     }
 }
 
@@ -223,6 +234,7 @@ mod tests {
         let state = TraceTriggerState {
             seen_error: false,
             total_tokens: 1500,
+            user_id: None,
         };
 
         assert!(matches_trigger(&filters, &state, &names(&[]), true));
@@ -233,6 +245,7 @@ mod tests {
         let low = TraceTriggerState {
             seen_error: false,
             total_tokens: 10,
+            user_id: None,
         };
         assert!(!matches_trigger(&filters, &low, &names(&[]), true));
     }
@@ -268,6 +281,7 @@ mod tests {
         let errored = TraceTriggerState {
             seen_error: true,
             total_tokens: 0,
+            user_id: None,
         };
         let clean = TraceTriggerState::default();
 
@@ -302,6 +316,7 @@ mod tests {
         let state = TraceTriggerState {
             seen_error: true,
             total_tokens: 10_000,
+            user_id: None,
         };
         // Legacy columns the UI can no longer emit, plus a hand-crafted one.
         for column in [
@@ -356,6 +371,7 @@ mod tests {
         let state = TraceTriggerState {
             seen_error: false,
             total_tokens: 500,
+            user_id: None,
         };
         for value in [json!(100), json!("100")] {
             let filters = vec![filter("total_token_count", FilterOperator::Gt, value)];

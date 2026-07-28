@@ -3,10 +3,12 @@
 //!
 //! Two conditions can't be answered from a single ingest batch: "status is /
 //! is not error" (an error span may have arrived in an earlier batch) and
-//! "total tokens <op> N" (a running sum). Rather than re-reading cumulative
-//! trace state from ClickHouse on every batch, each is kept in its own
-//! short-lived cache key, updated per batch and read back from `traces_agg`
-//! only on a miss (roughly once per trace per TTL).
+//! "total tokens <op> N" (a running sum). The trace's `user_id` is here for the
+//! same reason — it isn't a condition, but per-user sampling reads it and it may
+//! have arrived in any batch. Rather than re-reading cumulative trace state from
+//! ClickHouse on every batch, each is kept in its own short-lived cache key,
+//! updated per batch and read back from `traces_agg` only on a miss (roughly
+//! once per trace per TTL).
 //!
 //! One key per column is deliberate: `total_tokens` uses an atomic INCRBY and
 //! `seen_error` is a set-once flag, so two batches for the same trace can't
@@ -26,7 +28,9 @@ use uuid::Uuid;
 
 use crate::cache::{
     Cache, CacheTrait,
-    keys::{TRACE_SEEN_ERROR_CACHE_KEY, TRACE_TOTAL_TOKENS_CACHE_KEY},
+    keys::{
+        TRACE_SEEN_ERROR_CACHE_KEY, TRACE_TOTAL_TOKENS_CACHE_KEY, TRACE_USER_ID_CACHE_KEY,
+    },
 };
 use crate::ch::{traces::TraceAggregation, traces_agg};
 use crate::traces::trigger_conditions::TraceTriggerState;
@@ -42,6 +46,10 @@ fn seen_error_key(project_id: Uuid, trace_id: Uuid) -> String {
 
 fn total_tokens_key(project_id: Uuid, trace_id: Uuid) -> String {
     format!("{TRACE_TOTAL_TOKENS_CACHE_KEY}:{project_id}:{trace_id}")
+}
+
+fn user_id_key(project_id: Uuid, trace_id: Uuid) -> String {
+    format!("{TRACE_USER_ID_CACHE_KEY}:{project_id}:{trace_id}")
 }
 
 /// Fold this batch's deltas into the per-trace state and return the resulting
@@ -144,6 +152,38 @@ pub async fn update_and_read(
         // the partial into a readable `statuses` array yet.
         seen_error |= agg.status.as_deref() == Some("error");
 
+        // The user id is SET-ONCE across batches, mirroring the PG upsert's
+        // `COALESCE(EXCLUDED.user_id, traces.user_id)`. It is not a trigger
+        // condition — per-user sampling reads it — but it has to be cross-batch
+        // for the same reason the others do: `TraceAggregation::user_id` is only
+        // populated from spans in THIS batch, so a trace whose user id arrived
+        // earlier would otherwise be sampled against the empty-user factor and
+        // skew its rate. This batch's value wins only when nothing is cached
+        // yet; a later batch without the attribute never blanks it.
+        let user_key = user_id_key(agg.project_id, agg.trace_id);
+        let cached_user_id = cache
+            .get::<String>(&user_key)
+            .await
+            .unwrap_or(None)
+            .filter(|id| !id.is_empty());
+        let user_id = match (cached_user_id, agg.user_id.as_deref()) {
+            (Some(cached), _) => Some(cached),
+            (None, Some(batch)) if !batch.is_empty() => {
+                if let Err(e) = cache
+                    .insert_with_ttl(&user_key, batch.to_string(), TTL_SECONDS)
+                    .await
+                {
+                    log::warn!(
+                        "Failed to record trace user id for {}: {:?}",
+                        agg.trace_id,
+                        e
+                    );
+                }
+                Some(batch.to_string())
+            }
+            (None, _) => None,
+        };
+
         // Re-stamp BOTH keys every batch, so their windows can never diverge.
         // INCRBY above creates the tokens key without a TTL; the error key is
         // rewritten (rather than just extended) because a `false` latch is not
@@ -166,6 +206,7 @@ pub async fn update_and_read(
             TraceTriggerState {
                 seen_error,
                 total_tokens,
+                user_id,
             },
         );
     }
@@ -184,6 +225,9 @@ async fn read_back(
         Ok(states) => states.first().map(|state| TraceTriggerState {
             seen_error: state.status == "error",
             total_tokens: state.total_tokens,
+            // The read-back exists to recover the two trigger inputs; the user
+            // id has its own set-once key and is resolved by the caller.
+            user_id: None,
         }),
         Err(e) => {
             log::warn!(
@@ -207,6 +251,17 @@ mod tests {
         let mut a = TraceAggregation::empty_for_test(project_id, trace_id);
         a.total_tokens = tokens;
         a.status = status.map(String::from);
+        a
+    }
+
+    fn agg_with_user(
+        project_id: Uuid,
+        trace_id: Uuid,
+        tokens: i64,
+        user_id: Option<&str>,
+    ) -> TraceAggregation {
+        let mut a = agg(project_id, trace_id, tokens, None);
+        a.user_id = user_id.map(String::from);
         a
     }
 
@@ -302,6 +357,89 @@ mod tests {
 
         let c = update_and_read(&[agg(pid, tid, 1, None)], cache.clone(), &ch).await;
         assert_eq!(c[&tid].total_tokens, 1001);
+    }
+
+    /// The user id must survive batches whose spans don't carry it.
+    ///
+    /// `TraceAggregation::user_id` is populated only from spans in the current
+    /// batch, but per-user sampling factors are keyed by user id — so a trace
+    /// whose id arrived in batch 1 would be sampled against the empty-user
+    /// factor on every later batch, skewing its rate. The PG upsert used to
+    /// preserve it via `COALESCE(EXCLUDED.user_id, traces.user_id)`; this key
+    /// reproduces that set-once behaviour.
+    #[tokio::test]
+    async fn user_id_persists_across_batches_that_omit_it() {
+        let cache = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+        let ch = clickhouse::Client::default().with_url("http://127.0.0.1:1");
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+
+        let first = update_and_read(
+            &[agg_with_user(pid, tid, 10, Some("user-42"))],
+            cache.clone(),
+            &ch,
+        )
+        .await;
+        assert_eq!(first[&tid].user_id.as_deref(), Some("user-42"));
+
+        // Later batches carry no user id — the trace must NOT look anonymous.
+        for _ in 0..2 {
+            let later =
+                update_and_read(&[agg_with_user(pid, tid, 5, None)], cache.clone(), &ch).await;
+            assert_eq!(
+                later[&tid].user_id.as_deref(),
+                Some("user-42"),
+                "a batch without a user id must not blank the trace's user id"
+            );
+        }
+    }
+
+    /// Set-once: the first id wins, so a stray differing value in a later batch
+    /// can't move the trace to another sampling bucket mid-flight.
+    #[tokio::test]
+    async fn user_id_is_set_once() {
+        let cache = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+        let ch = clickhouse::Client::default().with_url("http://127.0.0.1:1");
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+
+        update_and_read(
+            &[agg_with_user(pid, tid, 10, Some("first"))],
+            cache.clone(),
+            &ch,
+        )
+        .await;
+        let second = update_and_read(
+            &[agg_with_user(pid, tid, 10, Some("second"))],
+            cache.clone(),
+            &ch,
+        )
+        .await;
+        assert_eq!(second[&tid].user_id.as_deref(), Some("first"));
+    }
+
+    /// An empty-string user id is treated as absent, matching the aggregation
+    /// (which skips empty values) — otherwise it would pin the trace to the
+    /// empty-user sampling factor permanently.
+    #[tokio::test]
+    async fn empty_user_id_is_not_persisted() {
+        let cache = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+        let ch = clickhouse::Client::default().with_url("http://127.0.0.1:1");
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+
+        let first =
+            update_and_read(&[agg_with_user(pid, tid, 10, Some(""))], cache.clone(), &ch).await;
+        assert_eq!(first[&tid].user_id, None);
+
+        // A real id arriving later still wins.
+        let later = update_and_read(
+            &[agg_with_user(pid, tid, 5, Some("user-7"))],
+            cache.clone(),
+            &ch,
+        )
+        .await;
+        assert_eq!(later[&tid].user_id.as_deref(), Some("user-7"));
     }
 
     /// A latch lost to eviction is recovered from `traces_agg` — the read-back
