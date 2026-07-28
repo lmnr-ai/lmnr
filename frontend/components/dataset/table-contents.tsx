@@ -2,7 +2,7 @@
 
 import { type ColumnDef, type OnChangeFn, type Row, type RowSelectionState } from "@tanstack/react-table";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
-import { memo, type MutableRefObject, type PropsWithChildren, useCallback, useEffect } from "react";
+import { memo, type PropsWithChildren, type RefObject, useCallback, useEffect } from "react";
 
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
@@ -25,8 +25,8 @@ export interface DatasetTableContentsProps {
   onRowSelectionChange: OnChangeFn<RowSelectionState>;
   onRowClick: (row: Row<Datapoint> | null) => void;
   onDeleteDatapoints: (ids: string[]) => Promise<void>;
-  refetchRef: MutableRefObject<() => void>;
-  updateDataRef: MutableRefObject<((updater: (data: Datapoint[]) => Datapoint[]) => void) | null>;
+  refetchRef: RefObject<() => void>;
+  updateDataRef: RefObject<((updater: (data: Datapoint[]) => Datapoint[]) => void) | null>;
 }
 
 export const DatasetTableContents = memo(function DatasetTableContents({

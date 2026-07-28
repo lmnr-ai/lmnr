@@ -2,7 +2,7 @@
 
 import { type ColumnDef, type Row } from "@tanstack/react-table";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { memo, type MutableRefObject, type PropsWithChildren, useCallback, useEffect, useMemo } from "react";
+import { memo, type PropsWithChildren, type RefObject, useCallback, useEffect, useMemo } from "react";
 
 import { useSignalStoreContext } from "@/components/signal/store";
 import { type SchemaField } from "@/components/signals/utils";
@@ -42,7 +42,7 @@ function getEmptyRow({
 }
 
 export interface EventsTableContentsProps {
-  refetchRef: MutableRefObject<() => void>;
+  refetchRef: RefObject<() => void>;
   columns: ColumnDef<EventRow>[];
   projectId: string;
   signalId: string;

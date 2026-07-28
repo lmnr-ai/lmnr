@@ -18,6 +18,7 @@ function InfiniteDatatableRowInner<TData extends RowData>({
   className,
   measureElement,
   isSelected,
+  cellRenderToken,
 }: InfiniteDataTableRowProps<TData>) {
   const router = useRouter();
 
@@ -76,7 +77,7 @@ function InfiniteDatatableRowInner<TData extends RowData>({
     >
       {isSelected && <td className="border-l-2 border-l-primary absolute h-full left-0 top-0 z-10" />}
       {row.getVisibleCells().map((cell) => (
-        <InfiniteTableCell key={cell.id} cell={cell} isSelected={isSelected} />
+        <InfiniteTableCell key={cell.id} cell={cell} isSelected={isSelected} cellRenderToken={cellRenderToken} />
       ))}
     </TableRow>
   );
@@ -97,6 +98,7 @@ function areRowPropsEqual<TData extends RowData>(
     prev.href === next.href &&
     prev.className === next.className &&
     prev.columnSignature === next.columnSignature &&
+    prev.cellRenderToken === next.cellRenderToken &&
     prev.onRowClick === next.onRowClick &&
     prev.onHoveredRowChange === next.onHoveredRowChange
   );

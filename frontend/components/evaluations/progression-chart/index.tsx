@@ -1,4 +1,5 @@
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
+import { useQueryState } from "nuqs";
 import { useCallback, useMemo, useState } from "react";
 
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
@@ -23,6 +24,8 @@ interface ProgressionChartProps {
   baselineEvaluationId?: string;
   hoveredEvaluationId?: string;
   onPointClick?: (evaluationId: string) => void;
+  /** When on, every score stretches to its own min/max (fills full height). */
+  fillHeight?: boolean;
 }
 
 const EMPTY_IDS: string[] = [];
@@ -36,9 +39,9 @@ export default function ProgressionChart({
   baselineEvaluationId,
   hoveredEvaluationId,
   onPointClick,
+  fillHeight,
 }: ProgressionChartProps) {
-  const searchParams = useSearchParams();
-  const groupId = searchParams.get("groupId");
+  const [groupId] = useQueryState("groupId");
   const params = useParams();
   const [hoveredScore, setHoveredScore] = useState<string | null>(null);
 
@@ -145,6 +148,7 @@ export default function ProgressionChart({
             hoveredEvaluationId={hoveredEvaluationId}
             hoveredScore={hoveredScore}
             onPointClick={onPointClick}
+            fillHeight={fillHeight}
           />
         </div>
       </div>

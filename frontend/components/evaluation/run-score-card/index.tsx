@@ -18,6 +18,8 @@ interface RunScoreCardProps {
   comparedAllStatistics?: Record<string, EvaluationScoreStatistics>;
   comparedAllDistributions?: Record<string, EvaluationScoreDistributionBucket[]>;
   isComparison?: boolean;
+  /** Resolved score directions (name -> isHigherBetter). Absent = higher is better. */
+  scoreDirections?: Record<string, boolean>;
 }
 
 // Stable default refs so useLocalStorage's memoization doesn't churn.
@@ -48,6 +50,7 @@ export default function RunScoreCard({
   comparedAllStatistics,
   comparedAllDistributions,
   isComparison,
+  scoreDirections,
 }: RunScoreCardProps) {
   const [aggregation] = useAggregation();
 
@@ -85,7 +88,7 @@ export default function RunScoreCard({
         />
         <AggregationSelect />
       </div>
-      <div className="flex items-start overflow-x-auto scroll-fade-x px-2 overflow-y-hidden no-scrollbar">
+      <div className="flex items-start overflow-x-auto scroll-fade-x px-2 overflow-y-hidden no-scrollbar gap-2">
         {visibleScores.map((name) => (
           <ScoreCardItem
             key={name}
@@ -96,6 +99,7 @@ export default function RunScoreCard({
             comparedStatistics={comparedAllStatistics?.[name] ?? null}
             comparedDistribution={comparedAllDistributions?.[name] ?? null}
             isComparison={isComparison}
+            isHigherBetter={scoreDirections?.[name] ?? true}
           />
         ))}
       </div>

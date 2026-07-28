@@ -2,7 +2,7 @@
 
 import { type Row } from "@tanstack/react-table";
 import { useParams } from "next/navigation";
-import { memo, type MutableRefObject, type PropsWithChildren, useCallback, useEffect } from "react";
+import { memo, type PropsWithChildren, type RefObject, useCallback, useEffect } from "react";
 
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
@@ -15,7 +15,7 @@ export interface TracePickerContentsProps {
   filters: Filter[];
   search: string | null;
   dateRange: { pastHours?: string; startDate?: string; endDate?: string };
-  refetchRef: MutableRefObject<() => void>;
+  refetchRef: RefObject<() => void>;
   onTraceSelect: (trace: TraceRow) => void;
   focusedTraceId?: string | null;
   excludeTraceId?: string;
