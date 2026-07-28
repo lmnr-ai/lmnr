@@ -259,6 +259,11 @@ pub async fn process_span_messages(
     //     `deduped_content` lookup, and the old `lmnr_trace_output` metadata
     //     key is not written anymore.
     let mut raw_trace_io: Vec<RawTraceIo> = Vec::new();
+    // GENUINE customer metadata patches (`POST /v1/traces/metadata`) only. The
+    // synthetic `lmnr_user_task` fold below goes in its own vec — it is a
+    // `traces_replacing`-only compatibility shim and must never reach
+    // `traces_static`, whose `metadata` has SET (whole-object) semantics and
+    // would be CLOBBERED by it.
     let mut metadata_patches: Vec<TraceMetadataPatch> = Vec::new();
     for m in messages
         .iter()
@@ -323,21 +328,30 @@ pub async fn process_span_messages(
     }
     messages.retain(|m| !m.span.attributes.is_metadata_only());
 
-    // `traces_replacing` path: surface extracted INPUT as a trace metadata
+    // `traces_replacing`-ONLY path: surface extracted INPUT as a trace metadata
     // key so it lands in `traces_replacing.metadata` (the current read
     // path). Written on BOTH flag states for now — while `WRITE_TRACES_AGG`
     // is a migration bridge, input lives in both `traces_replacing.metadata`
-    // AND the `trace_agent_input` supplementary table. Once the read path
-    // cuts over to `traces_agg_v0`, gate this fold on `!WRITE_TRACES_AGG` (or
-    // drop it) — all metadata-key knowledge of input lives here and dies
-    // with the old table. Output has no equivalent fold (see above).
+    // AND `traces_static.input`. Once the read path cuts over, drop this fold
+    // entirely — all metadata-key knowledge of input lives here and dies with
+    // the old table. Output has no equivalent fold (see above).
+    //
+    // Kept in a SEPARATE vec from the genuine customer patches: `traces_agg`
+    // strips this key in `encode_metadata`, and `traces_static` must not see it
+    // at all. Its `metadata` is one whole-object column with SET semantics, so a
+    // synthetic `{lmnr_user_task: …}` delta wouldn't sit beside the customer's
+    // keys — it would REPLACE them (verified end-to-end before this fix: a trace
+    // with real metadata came back with only `lmnr_user_task`). The extracted
+    // input already has its own dedicated `traces_static.input` column, so
+    // there's nothing to duplicate into metadata either.
+    let mut user_task_metadata_patches: Vec<TraceMetadataPatch> = Vec::new();
     for io in &raw_trace_io {
         let Some(value) = &io.input else {
             continue;
         };
         let mut map = serde_json::Map::new();
         map.insert(USER_TASK_METADATA_KEY.to_string(), value.clone());
-        metadata_patches.push(TraceMetadataPatch {
+        user_task_metadata_patches.push(TraceMetadataPatch {
             trace_id: io.trace_id,
             project_id: io.project_id,
             metadata: Value::Object(map),
@@ -628,9 +642,19 @@ pub async fn process_span_messages(
         // Patches that beat the trace's span batch create a virtual row that
         // the aggregation upsert later fills in — see
         // `merge_trace_metadata_batch` for the known stub-row caveat.
+        //
+        // Postgres / `traces_replacing` takes BOTH the genuine customer patches
+        // and the synthetic `lmnr_user_task` fold (its `||` merge is per-key, so
+        // the shim can't clobber customer keys there). Only `traces_static` needs
+        // the two kept apart.
         let mut patched_traces: Vec<Trace> = Vec::new();
-        if !metadata_patches.is_empty() {
-            match merge_trace_metadata_batch(&db.pool, &metadata_patches).await {
+        let all_metadata_patches: Vec<TraceMetadataPatch> = metadata_patches
+            .iter()
+            .chain(user_task_metadata_patches.iter())
+            .cloned()
+            .collect();
+        if !all_metadata_patches.is_empty() {
+            match merge_trace_metadata_batch(&db.pool, &all_metadata_patches).await {
                 Ok(patched) => patched_traces = patched,
                 Err(e) => log::error!("Failed to merge trace metadata patches: {:?}", e),
             }

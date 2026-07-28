@@ -47,6 +47,7 @@ use super::utils::chrono_to_nanoseconds;
 use super::{
     ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS, Table,
 };
+use crate::traces::input_extraction::metadata::USER_TASK_METADATA_KEY;
 
 /// One delta write of the static columns for a trace. Field order MUST match the
 /// CREATE TABLE column order (RowBinary is positional).
@@ -117,11 +118,31 @@ fn root_span_type_enum_value(top_span_type: u8) -> Option<i8> {
 /// Whole stringified JSON object, matching `traces_replacing.metadata`. Written
 /// only when the object is non-empty — an empty object carries no keys, so
 /// writing it would only risk clobbering a populated value under SET semantics.
+///
+/// Reserved `lmnr_*` keys are stripped. They're compatibility shims for
+/// `traces_replacing.metadata` (see `USER_TASK_METADATA_KEY`) and the values they
+/// carry already have dedicated columns here (`input`, `output_hashes`), so
+/// letting one through wouldn't add a key — under SET semantics its whole-object
+/// write would REPLACE the customer's real metadata. The call site already keeps
+/// the synthetic fold out of `traces_static` entirely; this is the backstop, and
+/// it mirrors the strip `traces_agg`'s `encode_metadata` does for the same key.
 fn encode_metadata(metadata: Option<&Value>) -> Option<String> {
-    match metadata {
-        Some(Value::Object(map)) if !map.is_empty() => Some(Value::Object(map.clone()).to_string()),
-        _ => None,
-    }
+    let Some(Value::Object(map)) = metadata else {
+        return None;
+    };
+    let filtered: serde_json::Map<String, Value> = map
+        .iter()
+        .filter(|(k, _)| !is_reserved_metadata_key(k))
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+    (!filtered.is_empty()).then(|| Value::Object(filtered).to_string())
+}
+
+/// Keys the ingest path folds into `traces_replacing.metadata` for
+/// backwards-compatible reads. They are NOT customer metadata and must never be
+/// written to `traces_static`.
+fn is_reserved_metadata_key(key: &str) -> bool {
+    key == USER_TASK_METADATA_KEY || key == "lmnr_trace_output"
 }
 
 impl CHTraceStatic {
@@ -370,6 +391,41 @@ mod tests {
         agg.session_id = Some("s".to_string());
         let third = CHTraceStatic::from_aggregation(&agg, 0).unwrap();
         assert_eq!(third.metadata, None);
+    }
+
+    // Regression (LAM-2026 review): the ingest path folds the extracted user task
+    // into `traces_replacing.metadata` as a synthetic `lmnr_user_task` key. That
+    // must never reach traces_static — its `metadata` is ONE whole-object column
+    // with SET semantics, so a synthetic `{lmnr_user_task: …}` write doesn't sit
+    // beside the customer's keys, it REPLACES them (reproduced end-to-end: a trace
+    // with real metadata came back holding only `lmnr_user_task`). The call site
+    // keeps the fold out of this table entirely; this pins the backstop strip.
+    #[test]
+    fn reserved_lmnr_metadata_keys_are_never_written() {
+        // A synthetic-only object encodes to nothing rather than a clobbering write.
+        assert_eq!(
+            encode_metadata(Some(&json!({USER_TASK_METADATA_KEY: "the task"}))),
+            None
+        );
+        assert_eq!(
+            encode_metadata(Some(&json!({"lmnr_trace_output": "out"}))),
+            None
+        );
+        // Mixed object keeps only the customer's keys.
+        assert_eq!(
+            encode_metadata(Some(&json!({
+                "real_user_key": "keep",
+                USER_TASK_METADATA_KEY: "strip",
+            })))
+            .as_deref(),
+            Some("{\"real_user_key\":\"keep\"}")
+        );
+        // A customer key that merely starts with a similar prefix is NOT reserved.
+        assert!(
+            encode_metadata(Some(&json!({"lmnr_user_task_custom": "keep"})))
+                .unwrap()
+                .contains("lmnr_user_task_custom")
+        );
     }
 
     #[test]
