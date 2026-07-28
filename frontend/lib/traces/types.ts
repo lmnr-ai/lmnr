@@ -157,7 +157,10 @@ export type TraceRow = {
 };
 
 // Wire shape of one trace in a `trace_update` SSE event — mirrors the Rust
-// `RealtimeTrace` struct (app-server/src/traces/realtime.rs), camelCase serde.
+// `RealtimeTrace` (app-server/src/traces/realtime.rs), camelCase serde. Numbers
+// are cumulative totals or per-batch deltas per the message `mode` (LAM-2058);
+// fields are identical either way. Keep in sync with `realtimeTraceToRow` /
+// `mergeTraceDelta` / `tracesSelectColumns`.
 export type RealtimeTracePayload = {
   id: string;
   startTime: string | null;
@@ -180,8 +183,15 @@ export type RealtimeTracePayload = {
   status: string | null;
   userId: string | null;
   tags: string[];
-  rootSpanInput: string | null;
-  rootSpanOutput: string | null;
+};
+
+// `trace_update` reconciliation, from the message `mode` (absent ⇒ cumulative).
+export type TraceUpdateMode = "delta" | "cumulative";
+
+// `trace_agent_input_update` SSE event — real agent_input, delivered async.
+export type RealtimeAgentInputPayload = {
+  traceId: string;
+  agentInput: unknown;
 };
 
 export type TracePreview = {

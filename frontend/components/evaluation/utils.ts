@@ -149,46 +149,72 @@ export const mergeDatapointUpsertIntoRows = (
   return next;
 };
 
-/**
- * Merge a realtime `trace_update` payload into the row whose `traceId`
- * matches. No-op for rows that haven't been fetched yet.
- */
+// Merge a `trace_update` into the matching row (no-op if not yet fetched).
+// delta ⇒ accumulate onto the row; cumulative ⇒ overwrite with running totals.
 export const mergeTraceUpdateIntoRows = (
   rows: EvalRow[],
-  trace: Record<string, unknown> & { id: string }
+  trace: Record<string, unknown> & { id: string },
+  mode: "delta" | "cumulative" = "cumulative"
 ): EvalRow[] => {
   const idx = rows.findIndex((r) => r["traceId"] === trace.id);
   if (idx === -1) return rows;
 
-  const totalCost = Number(trace["totalCost"] ?? 0);
-  const inputCost = Number(trace["inputCost"] ?? 0);
-  const outputCost = Number(trace["outputCost"] ?? 0);
+  const prev = rows[idx];
+  const isDelta = mode === "delta";
+  const base = (key: string): number => (isDelta ? Number(prev[key] ?? 0) : 0);
+
+  const inputCost = base("inputCost") + Number(trace["inputCost"] ?? 0);
+  const outputCost = base("outputCost") + Number(trace["outputCost"] ?? 0);
+  const totalCost = base("totalCost") + Number(trace["totalCost"] ?? 0);
   const sumCost = inputCost + outputCost;
   const cost = totalCost > 0 ? Math.max(sumCost, totalCost) : sumCost;
-  const startTime = trace["startTime"] as string | undefined;
-  const endTime = trace["endTime"] as string | undefined;
+
+  const num = (key: string): number => base(key) + Number(trace[key] ?? 0);
+
+  const deltaStart = trace["startTime"] as string | undefined;
+  const deltaEnd = trace["endTime"] as string | undefined;
+  const startTime = isDelta ? minIso(prev["startTime"] as string | undefined, deltaStart) : deltaStart;
+  const endTime = isDelta ? maxIso(prev["endTime"] as string | undefined, deltaEnd) : deltaEnd;
   const duration = startTime && endTime ? (Date.parse(endTime) - Date.parse(startTime)) / 1000 : undefined;
+
+  const status = isDelta
+    ? prev["traceStatus"] === "error" || trace["status"] === "error"
+      ? "error"
+      : (trace["status"] ?? prev["traceStatus"])
+    : trace["status"];
 
   const next = [...rows];
   next[idx] = {
-    ...next[idx],
+    ...prev,
     cost,
     inputCost,
     outputCost,
     totalCost,
-    inputTokens: trace["inputTokens"],
-    outputTokens: trace["outputTokens"],
-    totalTokens: trace["totalTokens"],
-    cacheReadInputTokens: trace["cacheReadInputTokens"],
-    cacheCreationInputTokens: trace["cacheCreationInputTokens"],
-    reasoningTokens: trace["reasoningTokens"],
-    traceStatus: trace["status"],
-    topSpanId: trace["topSpanId"],
+    inputTokens: num("inputTokens"),
+    outputTokens: num("outputTokens"),
+    totalTokens: num("totalTokens"),
+    cacheReadInputTokens: num("cacheReadInputTokens"),
+    cacheCreationInputTokens: num("cacheCreationInputTokens"),
+    reasoningTokens: num("reasoningTokens"),
+    traceStatus: status,
+    topSpanId: trace["topSpanId"] ?? prev["topSpanId"],
     startTime,
     endTime,
     ...(duration != null ? { duration } : {}),
   };
   return next;
+};
+
+const minIso = (a: string | undefined, b: string | undefined): string | undefined => {
+  if (!a) return b;
+  if (!b) return a;
+  return Date.parse(b) < Date.parse(a) ? b : a;
+};
+
+const maxIso = (a: string | undefined, b: string | undefined): string | undefined => {
+  if (!a) return b;
+  if (!b) return a;
+  return Date.parse(b) > Date.parse(a) ? b : a;
 };
 
 // rgb(...) string for the heatmap color, or null when the range is too narrow

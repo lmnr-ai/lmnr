@@ -1,8 +1,7 @@
 import { type RealtimeTracePayload, type SpanType, type TraceRow } from "@/lib/traces/types";
 
-// Map a `trace_update` SSE payload onto the table's row shape. Realtime rows
-// replace fetched rows wholesale, so every column the table renders must be
-// carried over here.
+// Row seed: the cumulative-mode replace, and the base for a not-yet-seen
+// trace in delta mode (first delta = cumulative-so-far, next fetch reconciles).
 export const realtimeTraceToRow = (trace: RealtimeTracePayload): TraceRow => ({
   id: trace.id,
   startTime: trace.startTime ?? "",
@@ -26,9 +25,52 @@ export const realtimeTraceToRow = (trace: RealtimeTracePayload): TraceRow => ({
   userId: trace.userId ?? undefined,
   spanTags: trace.tags ?? [],
   traceTags: [],
-  // Agent input is extracted asynchronously and lives in traces_agg, which the
-  // realtime SSE payload doesn't carry. Use the payload's root-span input as a
-  // transient live stand-in; the true agent_input replaces it on the next full
-  // fetch of the row.
-  agentInput: trace.rootSpanInput ?? undefined,
+  // Real agent_input rides its own `trace_agent_input_update` event.
+  agentInput: undefined,
+});
+
+const minTime = (a: string | undefined, b: string | null): string | undefined => {
+  if (!a) return b ?? undefined;
+  if (!b) return a;
+  return Date.parse(b) < Date.parse(a) ? b : a;
+};
+
+const maxTime = (a: string | undefined, b: string | null): string | undefined => {
+  if (!a) return b ?? undefined;
+  if (!b) return a;
+  return Date.parse(b) > Date.parse(a) ? b : a;
+};
+
+// Accumulate a per-batch delta onto a row, mirroring the `traces_agg` view so
+// the client total matches a refetch. Preserves fetched traceTags/snippets/
+// agentInput (the delta never carries them).
+export const mergeTraceDelta = (existing: TraceRow, delta: RealtimeTracePayload): TraceRow => ({
+  ...existing,
+  startTime: minTime(existing.startTime || undefined, delta.startTime) ?? existing.startTime,
+  endTime: maxTime(existing.endTime || undefined, delta.endTime) ?? existing.endTime,
+  inputTokens: (existing.inputTokens ?? 0) + delta.inputTokens,
+  outputTokens: (existing.outputTokens ?? 0) + delta.outputTokens,
+  totalTokens: (existing.totalTokens ?? 0) + delta.totalTokens,
+  cacheReadInputTokens: (existing.cacheReadInputTokens ?? 0) + delta.cacheReadInputTokens,
+  cacheCreationInputTokens: (existing.cacheCreationInputTokens ?? 0) + delta.cacheCreationInputTokens,
+  reasoningTokens: (existing.reasoningTokens ?? 0) + delta.reasoningTokens,
+  inputCost: (existing.inputCost ?? 0) + delta.inputCost,
+  outputCost: (existing.outputCost ?? 0) + delta.outputCost,
+  totalCost: (existing.totalCost ?? 0) + delta.totalCost,
+  // Error-wins, matching the view's `has(statuses, 'error')`.
+  status: existing.status === "error" || delta.status === "error" ? "error" : delta.status || existing.status,
+  metadata: { ...existing.metadata, ...(delta.metadata ?? {}) },
+  // Top-span fields land only on the batch carrying the root span.
+  topSpanId: delta.topSpanId ?? existing.topSpanId,
+  topSpanName: delta.topSpanName ?? existing.topSpanName,
+  topSpanType: (delta.topSpanType as SpanType) ?? existing.topSpanType,
+  traceType: delta.traceType ?? existing.traceType,
+  sessionId: delta.sessionId ?? existing.sessionId,
+  userId: delta.userId ?? existing.userId,
+  spanTags: Array.from(new Set([...(existing.spanTags ?? []), ...(delta.tags ?? [])])),
+});
+
+export const applyAgentInput = (existing: TraceRow, agentInput: unknown): TraceRow => ({
+  ...existing,
+  agentInput: typeof agentInput === "string" ? agentInput : JSON.stringify(agentInput),
 });

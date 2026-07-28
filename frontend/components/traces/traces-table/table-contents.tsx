@@ -9,14 +9,19 @@ import { useSWRConfig } from "swr";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { FETCH_SIZE } from "@/components/traces/traces-table/constants";
-import { realtimeTraceToRow } from "@/components/traces/traces-table/realtime";
+import { applyAgentInput, mergeTraceDelta, realtimeTraceToRow } from "@/components/traces/traces-table/realtime";
 import { type buildColumnDefs, buildFetchParams } from "@/components/traces/traces-table/traces-table-store";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
-import { type RealtimeTracePayload, type TraceRow } from "@/lib/traces/types";
+import {
+  type RealtimeAgentInputPayload,
+  type RealtimeTracePayload,
+  type TraceRow,
+  type TraceUpdateMode,
+} from "@/lib/traces/types";
 
 export interface TracesTableContentsProps {
   refetchRef: RefObject<() => void>;
@@ -180,31 +185,33 @@ export const TracesTableContents = memo(function TracesTableContents({
     setNavigationRefList(map(traces, "id"));
   }, [setNavigationRefList, traces]);
 
+  // Delta ⇒ accumulate, cumulative ⇒ replace; a new trace is seeded either way.
   const updateRealtimeTrace = useCallback(
-    (traceData: TraceRow) => {
-      if (!traceData.startTime || !isTraceInTimeRange(traceData.startTime)) {
+    (payload: RealtimeTracePayload, mode: TraceUpdateMode) => {
+      if (!payload.startTime || !isTraceInTimeRange(payload.startTime)) {
         return;
       }
 
       updateData((currentTraces) => {
         if (!currentTraces || currentTraces.length === 0) return currentTraces;
 
-        const existingTraceIndex = currentTraces.findIndex((trace) => trace.id === traceData.id);
+        const existingTraceIndex = currentTraces.findIndex((trace) => trace.id === payload.id);
 
         if (existingTraceIndex !== -1) {
           const newTraces = [...currentTraces];
-          newTraces[existingTraceIndex] = traceData;
+          newTraces[existingTraceIndex] =
+            mode === "delta" ? mergeTraceDelta(newTraces[existingTraceIndex], payload) : realtimeTraceToRow(payload);
           return newTraces;
         }
 
-        const newTraces = [traceData, ...currentTraces];
+        const newTraces = [realtimeTraceToRow(payload), ...currentTraces];
 
         if (newTraces.length > FETCH_SIZE) {
           newTraces.splice(FETCH_SIZE);
         }
 
-        if (traceData.startTime) {
-          incrementStat(traceData.startTime, traceData.status === "error");
+        if (payload.startTime) {
+          incrementStat(payload.startTime, payload.status === "error");
         }
 
         return newTraces;
@@ -213,22 +220,52 @@ export const TracesTableContents = memo(function TracesTableContents({
     [updateData, isTraceInTimeRange, incrementStat]
   );
 
+  // Patch the Input cell when async extraction lands the real agent_input.
+  const updateAgentInput = useCallback(
+    (payload: RealtimeAgentInputPayload) => {
+      updateData((currentTraces) => {
+        if (!currentTraces || currentTraces.length === 0) return currentTraces;
+        const idx = currentTraces.findIndex((trace) => trace.id === payload.traceId);
+        if (idx === -1) return currentTraces;
+        const newTraces = [...currentTraces];
+        newTraces[idx] = applyAgentInput(newTraces[idx], payload.agentInput);
+        return newTraces;
+      });
+    },
+    [updateData]
+  );
+
   const eventHandlers = useMemo(
     () => ({
       trace_update: (event: MessageEvent) => {
         try {
-          const payload = JSON.parse(event.data) as { traces?: RealtimeTracePayload[] };
+          const payload = JSON.parse(event.data) as {
+            traces?: RealtimeTracePayload[];
+            mode?: TraceUpdateMode;
+          };
+          // Absent mode ⇒ cumulative (back-compat for in-flight messages).
+          const mode: TraceUpdateMode = payload.mode === "delta" ? "delta" : "cumulative";
           if (payload.traces && Array.isArray(payload.traces)) {
             for (const trace of payload.traces) {
-              updateRealtimeTrace(realtimeTraceToRow(trace));
+              updateRealtimeTrace(trace, mode);
             }
           }
         } catch (e) {
           console.warn("Failed to parse realtime trace: ", e);
         }
       },
+      trace_agent_input_update: (event: MessageEvent) => {
+        try {
+          const payload = JSON.parse(event.data) as RealtimeAgentInputPayload;
+          if (payload?.traceId) {
+            updateAgentInput(payload);
+          }
+        } catch (e) {
+          console.warn("Failed to parse realtime agent input: ", e);
+        }
+      },
     }),
-    [updateRealtimeTrace]
+    [updateRealtimeTrace, updateAgentInput]
   );
 
   useRealtime({

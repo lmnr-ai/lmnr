@@ -9,11 +9,16 @@ use uuid::Uuid;
 
 use crate::{
     cache::Cache,
+    ch::traces::TraceAggregation,
     db::{spans::Span, spans::SpanType, trace::Trace},
     evaluations::realtime::lookup_trace_evaluation_id,
     pubsub::PubSub,
     realtime::{SseMessage, send_to_key},
 };
+
+/// Standalone agent-input event — the stat delta can't carry it (extraction
+/// is async).
+const AGENT_INPUT_UPDATE_EVENT: &str = "trace_agent_input_update";
 
 const EVALUATION_TOP_SPAN_NAME: &str = "evaluation";
 const ROLLOUT_SESSION_METADATA_KEY: &str = "rollout.session_id";
@@ -44,8 +49,6 @@ pub struct RealtimeTrace {
     status: Option<String>,
     user_id: Option<String>,
     tags: Vec<String>, // Span tags
-    root_span_input: Option<String>,
-    root_span_output: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -143,10 +146,28 @@ pub async fn send_span_updates(spans: &[Span], pubsub: &PubSub) {
     }
 }
 
+/// Serialized as the `mode` field so the frontend accumulates deltas / replaces
+/// cumulatives without knowing the `WRITE_TRACES_AGG` flag.
+#[derive(Debug, Clone, Copy)]
+pub enum TraceUpdateMode {
+    Cumulative,
+    Delta,
+}
+
+impl TraceUpdateMode {
+    fn as_str(self) -> &'static str {
+        match self {
+            TraceUpdateMode::Cumulative => "cumulative",
+            TraceUpdateMode::Delta => "delta",
+        }
+    }
+}
+
 pub async fn send_trace_updates<T: Serialize>(
     project_id: &Uuid,
     channel_key: &str,
     traces: &[T],
+    mode: TraceUpdateMode,
     pubsub: &PubSub,
 ) {
     if traces.is_empty() {
@@ -154,7 +175,23 @@ pub async fn send_trace_updates<T: Serialize>(
     }
     let message = SseMessage {
         event_type: "trace_update".to_string(),
-        data: serde_json::json!({ "traces": traces }),
+        data: serde_json::json!({ "traces": traces, "mode": mode.as_str() }),
+    };
+    send_to_key(pubsub, project_id, channel_key, message).await;
+}
+
+/// Push the extracted `agent_input` (raw stored value) once available, since
+/// the stat delta can't carry it. Shape matches `agent_input as agentInput`.
+pub async fn send_agent_input_update(
+    pubsub: &PubSub,
+    project_id: &Uuid,
+    channel_key: &str,
+    trace_id: Uuid,
+    agent_input: &Value,
+) {
+    let message = SseMessage {
+        event_type: AGENT_INPUT_UPDATE_EVENT.to_string(),
+        data: serde_json::json!({ "traceId": trace_id, "agentInput": agent_input }),
     };
     send_to_key(pubsub, project_id, channel_key, message).await;
 }
@@ -178,17 +215,33 @@ pub enum TraceChannel {
 }
 
 pub async fn channels_for_trace(trace: &Trace, cache: &Cache) -> Vec<TraceChannel> {
+    channels_for_trace_fields(
+        trace.project_id(),
+        trace.id(),
+        trace.top_span_name().as_deref(),
+        trace.metadata(),
+        cache,
+    )
+    .await
+}
+
+/// SSE channel routing from borrowed fields — shared by the `&Trace` and
+/// `&TraceAggregation` paths so both bucket identically.
+async fn channels_for_trace_fields(
+    project_id: Uuid,
+    trace_id: Uuid,
+    top_span_name: Option<&str>,
+    metadata: Option<&Value>,
+    cache: &Cache,
+) -> Vec<TraceChannel> {
     let mut channels = Vec::with_capacity(2);
 
-    let is_evaluation_trace = trace
-        .top_span_name()
-        .as_deref()
-        .is_some_and(|name| name == EVALUATION_TOP_SPAN_NAME);
+    let is_evaluation_trace = top_span_name.is_some_and(|name| name == EVALUATION_TOP_SPAN_NAME);
 
     if is_evaluation_trace {
-        let eval_id = match evaluation_id_from_metadata(trace) {
+        let eval_id = match evaluation_id_from_metadata(metadata) {
             Some(id) => Some(id),
-            None => lookup_trace_evaluation_id(cache, &trace.project_id(), &trace.id()).await,
+            None => lookup_trace_evaluation_id(cache, &project_id, &trace_id).await,
         };
 
         if let Some(id) = eval_id {
@@ -200,7 +253,7 @@ pub async fn channels_for_trace(trace: &Trace, cache: &Cache) -> Vec<TraceChanne
 
     // Eval traces are surfaced as evaluation blocks, not runs — keep off the channel.
     if !is_evaluation_trace {
-        if let Some(rollout_session_id) = rollout_session_id_from_metadata(trace) {
+        if let Some(rollout_session_id) = rollout_session_id_from_metadata(metadata) {
             channels.push(TraceChannel::RolloutDebugger(rollout_session_id));
         }
     }
@@ -208,24 +261,34 @@ pub async fn channels_for_trace(trace: &Trace, cache: &Cache) -> Vec<TraceChanne
     channels
 }
 
-fn evaluation_id_from_metadata(trace: &Trace) -> Option<Uuid> {
-    trace
-        .metadata()
+/// Channel routing for a per-batch delta.
+pub async fn channels_for_aggregation(agg: &TraceAggregation, cache: &Cache) -> Vec<TraceChannel> {
+    channels_for_trace_fields(
+        agg.project_id,
+        agg.trace_id,
+        agg.top_span_name.as_deref(),
+        agg.metadata.as_ref(),
+        cache,
+    )
+    .await
+}
+
+fn evaluation_id_from_metadata(metadata: Option<&Value>) -> Option<Uuid> {
+    metadata
         .and_then(|m| m.get(EVALUATION_ID_METADATA_KEY))
         .and_then(|v| v.as_str())
         .and_then(|s| Uuid::parse_str(s).ok())
 }
 
-fn rollout_session_id_from_metadata(trace: &Trace) -> Option<String> {
-    trace
-        .metadata()
+fn rollout_session_id_from_metadata(metadata: Option<&Value>) -> Option<String> {
+    metadata
         .and_then(|m| m.get(ROLLOUT_SESSION_METADATA_KEY))
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
 }
 
 impl RealtimeTrace {
-    /// Convert database trace to realtime format
+    /// Cumulative payload (WRITE_TRACES_AGG off) — running totals, replaced wholesale.
     pub fn from_trace(trace: &Trace) -> Self {
         Self {
             id: trace.id(),
@@ -251,8 +314,34 @@ impl RealtimeTrace {
             status: trace.status(),
             user_id: trace.user_id(),
             tags: trace.tags().clone(),
-            root_span_input: trace.root_span_input(),
-            root_span_output: trace.root_span_output(),
+        }
+    }
+
+    /// Per-batch delta payload (WRITE_TRACES_AGG on) — accumulated by the frontend.
+    pub fn from_aggregation(agg: &TraceAggregation) -> Self {
+        Self {
+            id: agg.trace_id,
+            start_time: agg.start_time,
+            end_time: agg.end_time,
+            session_id: agg.session_id.clone(),
+            input_tokens: agg.input_tokens,
+            output_tokens: agg.output_tokens,
+            total_tokens: agg.total_tokens,
+            cache_read_input_tokens: agg.cache_read_input_tokens,
+            cache_creation_input_tokens: agg.cache_creation_input_tokens,
+            reasoning_tokens: agg.reasoning_tokens,
+            input_cost: agg.input_cost,
+            output_cost: agg.output_cost,
+            total_cost: agg.total_cost,
+            metadata: agg.metadata.clone(),
+            top_span_id: agg.top_span_id,
+            // Numeric string, matching `from_trace` (`Trace::trace_type()` is i16).
+            trace_type: agg.trace_type.to_string(),
+            top_span_name: agg.top_span_name.clone(),
+            top_span_type: Some(SpanType::from(agg.top_span_type).to_string()),
+            status: agg.status.clone(),
+            user_id: agg.user_id.clone(),
+            tags: agg.tags.iter().cloned().collect(),
         }
     }
 }
@@ -263,6 +352,14 @@ impl RealtimeDebuggerTrace {
             trace_id: trace.id(),
             metadata: trace.metadata().cloned(),
             has_browser_session: trace.has_browser_session(),
+        }
+    }
+
+    pub fn from_aggregation(agg: &TraceAggregation) -> Self {
+        Self {
+            trace_id: agg.trace_id,
+            metadata: agg.metadata.clone(),
+            has_browser_session: agg.has_browser_session,
         }
     }
 }
