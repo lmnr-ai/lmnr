@@ -32,6 +32,13 @@ pub const TRACE_TOTAL_TOKENS_CACHE_KEY: &str = "trace_total_tokens";
 /// factor mid-trace.
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const TRACE_USER_ID_CACHE_KEY: &str = "trace_user_id";
+/// The trace's `TraceType` as `u8`. First-non-zero wins, mirroring the PG
+/// upsert's `CASE WHEN COALESCE(traces.type, 0) = 0 THEN EXCLUDED.type ELSE
+/// traces.type END` — signals only evaluate DEFAULT (0) traces, so a batch that
+/// carries no EVALUATION/PLAYGROUND span must not make an already-typed trace
+/// look DEFAULT again and fire signals on it.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const TRACE_TYPE_CACHE_KEY: &str = "trace_type";
 pub const WORKSPACE_BYTES_USAGE_CACHE_KEY: &str = "workspace_bytes_usage";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 // Raw accumulated token counts per workspace; cost in micro-USD is derived at

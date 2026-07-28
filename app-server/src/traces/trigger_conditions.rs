@@ -41,6 +41,12 @@ pub struct TraceTriggerState {
     /// cross-batch for the same reason: a later batch whose spans carry no
     /// `user_id` must not make the trace look like an anonymous one.
     pub user_id: Option<String>,
+    /// The trace's `TraceType` as `u8`, first-non-zero across batches. Not a
+    /// condition either — signals only evaluate DEFAULT (0) traces, and
+    /// `TraceAggregation::trace_type` is batch-local, so a later batch carrying
+    /// no EVALUATION/PLAYGROUND span would otherwise re-open an already-typed
+    /// trace to signal evaluation.
+    pub trace_type: u8,
 }
 
 /// One condition the signal UI can produce.
@@ -167,8 +173,6 @@ pub fn matches_trigger(
 pub struct TraceTriggerCandidate {
     pub trace_id: Uuid,
     pub project_id: Uuid,
-    /// `Into<u8> for TraceType`; signals only evaluate DEFAULT traces.
-    pub trace_type: u8,
     pub state: TraceTriggerState,
     batch_span_names: Vec<String>,
     batch_has_root_span: bool,
@@ -181,7 +185,6 @@ impl TraceTriggerCandidate {
         Self {
             trace_id: agg.trace_id,
             project_id: agg.project_id,
-            trace_type: agg.trace_type,
             state,
             batch_span_names: agg.span_names.iter().cloned().collect(),
             // `TraceAggregation::from_spans` sets `top_span_id` only from a span
@@ -202,6 +205,14 @@ impl TraceTriggerCandidate {
     /// factor.
     pub fn user_id(&self) -> &Option<String> {
         &self.state.user_id
+    }
+
+    /// The trace's `TraceType` as `u8`. From the cross-batch state, NOT this
+    /// batch's aggregation: `TraceAggregation::trace_type` is batch-local, so a
+    /// batch of an evaluation trace that happens to carry no EVALUATION span
+    /// would read back as DEFAULT and pass the DEFAULT-only signals gate.
+    pub fn trace_type(&self) -> u8 {
+        self.state.trace_type
     }
 }
 
@@ -235,6 +246,7 @@ mod tests {
             seen_error: false,
             total_tokens: 1500,
             user_id: None,
+            trace_type: 0,
         };
 
         assert!(matches_trigger(&filters, &state, &names(&[]), true));
@@ -246,6 +258,7 @@ mod tests {
             seen_error: false,
             total_tokens: 10,
             user_id: None,
+            trace_type: 0,
         };
         assert!(!matches_trigger(&filters, &low, &names(&[]), true));
     }
@@ -282,6 +295,7 @@ mod tests {
             seen_error: true,
             total_tokens: 0,
             user_id: None,
+            trace_type: 0,
         };
         let clean = TraceTriggerState::default();
 
@@ -317,6 +331,7 @@ mod tests {
             seen_error: true,
             total_tokens: 10_000,
             user_id: None,
+            trace_type: 0,
         };
         // Legacy columns the UI can no longer emit, plus a hand-crafted one.
         for column in [
@@ -372,6 +387,7 @@ mod tests {
             seen_error: false,
             total_tokens: 500,
             user_id: None,
+            trace_type: 0,
         };
         for value in [json!(100), json!("100")] {
             let filters = vec![filter("total_token_count", FilterOperator::Gt, value)];

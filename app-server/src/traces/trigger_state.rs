@@ -29,7 +29,8 @@ use uuid::Uuid;
 use crate::cache::{
     Cache, CacheTrait,
     keys::{
-        TRACE_SEEN_ERROR_CACHE_KEY, TRACE_TOTAL_TOKENS_CACHE_KEY, TRACE_USER_ID_CACHE_KEY,
+        TRACE_SEEN_ERROR_CACHE_KEY, TRACE_TOTAL_TOKENS_CACHE_KEY, TRACE_TYPE_CACHE_KEY,
+        TRACE_USER_ID_CACHE_KEY,
     },
 };
 use crate::ch::{traces::TraceAggregation, traces_agg};
@@ -50,6 +51,10 @@ fn total_tokens_key(project_id: Uuid, trace_id: Uuid) -> String {
 
 fn user_id_key(project_id: Uuid, trace_id: Uuid) -> String {
     format!("{TRACE_USER_ID_CACHE_KEY}:{project_id}:{trace_id}")
+}
+
+fn trace_type_key(project_id: Uuid, trace_id: Uuid) -> String {
+    format!("{TRACE_TYPE_CACHE_KEY}:{project_id}:{trace_id}")
 }
 
 /// Fold this batch's deltas into the per-trace state and return the resulting
@@ -204,12 +209,50 @@ pub async fn update_and_read(
             );
         }
 
+        // `trace_type` is FIRST-NON-ZERO across batches, mirroring the PG
+        // upsert's `CASE WHEN COALESCE(traces.type, 0) = 0 THEN EXCLUDED.type
+        // ELSE traces.type END`. Signals only evaluate DEFAULT (0) traces, and
+        // `TraceAggregation::trace_type` is batch-local — so without this a
+        // batch of an evaluation trace that carried no EVALUATION span would
+        // read back as DEFAULT and fire signals on an eval trace.
+        let type_key = trace_type_key(agg.project_id, agg.trace_id);
+        let cached_type = cache.get::<u8>(&type_key).await.unwrap_or(None);
+        let trace_type = match (cached_type, agg.trace_type) {
+            // A non-zero cached type is authoritative and never revised.
+            (Some(cached), _) if cached != 0 => cached,
+            // Otherwise this batch's type wins when it says something.
+            (_, batch) if batch != 0 => {
+                if let Err(e) = cache.insert_with_ttl(&type_key, batch, TTL_SECONDS).await {
+                    log::warn!(
+                        "Failed to record trace type for {}: {:?}",
+                        agg.trace_id,
+                        e
+                    );
+                }
+                batch
+            }
+            // Still DEFAULT. Persist it so the key shares the others' lifetime
+            // (and so `None` stays reserved for "never seen"); a later typed
+            // batch overwrites it via the arm above.
+            _ => {
+                if let Err(e) = cache.insert_with_ttl(&type_key, 0u8, TTL_SECONDS).await {
+                    log::warn!(
+                        "Failed to record trace type for {}: {:?}",
+                        agg.trace_id,
+                        e
+                    );
+                }
+                0
+            }
+        };
+
         states.insert(
             agg.trace_id,
             TraceTriggerState {
                 seen_error,
                 total_tokens,
                 user_id,
+                trace_type,
             },
         );
     }
@@ -228,9 +271,10 @@ async fn read_back(
         Ok(states) => states.first().map(|state| TraceTriggerState {
             seen_error: state.status == "error",
             total_tokens: state.total_tokens,
-            // The read-back exists to recover the two trigger inputs; the user
-            // id has its own set-once key and is resolved by the caller.
+            // The read-back exists to recover the two trigger inputs; user id
+            // and trace type have their own keys and are resolved by the caller.
             user_id: None,
+            trace_type: 0,
         }),
         Err(e) => {
             log::warn!(
@@ -254,6 +298,16 @@ mod tests {
         let mut a = TraceAggregation::empty_for_test(project_id, trace_id);
         a.total_tokens = tokens;
         a.status = status.map(String::from);
+        a
+    }
+
+    fn agg_with_type(
+        project_id: Uuid,
+        trace_id: Uuid,
+        trace_type: u8,
+    ) -> TraceAggregation {
+        let mut a = agg(project_id, trace_id, 1, None);
+        a.trace_type = trace_type;
         a
     }
 
@@ -482,6 +536,55 @@ mod tests {
                 Some(false)
             );
         }
+    }
+
+    /// `trace_type` must stick across batches that don't carry it.
+    ///
+    /// Signals evaluate DEFAULT (0) traces only. `TraceAggregation::trace_type`
+    /// is batch-local, so an evaluation trace whose later batches contain no
+    /// EVALUATION span would read back as DEFAULT and get signals fired on it.
+    /// The PG upsert was sticky (`CASE WHEN COALESCE(traces.type, 0) = 0 THEN
+    /// EXCLUDED.type ELSE traces.type END`); this reproduces that.
+    #[tokio::test]
+    async fn trace_type_sticks_across_batches() {
+        let cache = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+        let ch = clickhouse::Client::default().with_url("http://127.0.0.1:1");
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+
+        // Batch 1 carries the EVALUATION span (type 1).
+        let first = update_and_read(&[agg_with_type(pid, tid, 1)], cache.clone(), &ch).await;
+        assert_eq!(first[&tid].trace_type, 1);
+
+        // Later batches carry no typed span — the trace must NOT look DEFAULT
+        // again, or the DEFAULT-only signals gate would let it through.
+        for _ in 0..2 {
+            let later = update_and_read(&[agg_with_type(pid, tid, 0)], cache.clone(), &ch).await;
+            assert_eq!(
+                later[&tid].trace_type, 1,
+                "an untyped batch must not reset an already-typed trace to DEFAULT"
+            );
+        }
+    }
+
+    /// A genuinely DEFAULT trace stays DEFAULT, and a type arriving in a later
+    /// batch still takes effect (first-NON-ZERO, not merely first-write).
+    #[tokio::test]
+    async fn default_trace_type_is_upgraded_by_a_later_typed_batch() {
+        let cache = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+        let ch = clickhouse::Client::default().with_url("http://127.0.0.1:1");
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+
+        let first = update_and_read(&[agg_with_type(pid, tid, 0)], cache.clone(), &ch).await;
+        assert_eq!(first[&tid].trace_type, 0);
+
+        let second = update_and_read(&[agg_with_type(pid, tid, 3)], cache.clone(), &ch).await;
+        assert_eq!(second[&tid].trace_type, 3, "PLAYGROUND must take effect");
+
+        // ...and then it's frozen.
+        let third = update_and_read(&[agg_with_type(pid, tid, 0)], cache.clone(), &ch).await;
+        assert_eq!(third[&tid].trace_type, 3);
     }
 
     /// A latch lost to eviction is recovered from `traces_agg` — the read-back
