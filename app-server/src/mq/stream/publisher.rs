@@ -7,15 +7,18 @@
 //! customer's whole eval run into one partition and rebuild the hotspot this
 //! migration exists to remove.
 
-use anyhow::{Context, Result};
+use std::{sync::Arc, time::Duration};
+
+use anyhow::{Context, Result, anyhow};
 use rabbitmq_stream_client::{
     NoDedup,
     types::{HashRoutingMurmurStrategy, Message, RoutingStrategy, SuperStreamProducer},
 };
 use serde::Serialize;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, oneshot};
 
 use super::topology::StreamEnvironment;
+use crate::env;
 
 /// Application property carrying the partition key. The routing extractor is a
 /// `&'static` fn in the client API, so the key has to travel on the message
@@ -58,13 +61,21 @@ impl StreamPublisher {
         })
     }
 
-    /// Publish one record, routed by `key`.
+    /// Publish one record, routed by `key`, and AWAIT the broker's confirmation.
     ///
-    /// Confirms are handled asynchronously by the client's batching producer, so
-    /// this returns once the record is enqueued — the ingest request is not held
-    /// for a broker round trip the way the quorum-queue path's awaited confirm
-    /// does. A publish that fails after enqueue is logged by the callback; the
-    /// SDK's own retry is the recovery path.
+    /// Returning `Ok` on enqueue alone would be silent data loss: every caller
+    /// treats `Ok` as durable and skips the quorum-queue fallback, so a nack or a
+    /// disconnect after enqueue would drop the payload with an HTTP 200 and no
+    /// queue copy. The AMQP path awaits its publisher confirm for the same
+    /// reason, so this keeps the two transports' durability equivalent.
+    ///
+    /// The wait is bounded (`CONFIRM_TIMEOUT_MS`) because the client does NOT
+    /// invoke the callback for messages still awaiting confirmation when the
+    /// connection drops — it hands them to an `on_closed` handler we don't set,
+    /// so an unbounded wait would hang ingest. A timeout is reported as an error
+    /// so the caller falls back; the record may still land, which makes the
+    /// fallback a duplicate rather than a loss (the consumer is already
+    /// at-least-once).
     pub async fn publish<T: Serialize>(&self, payload: &T, key: &str) -> Result<()> {
         let body = serde_json::to_vec(payload).context("Failed to serialize stream payload")?;
         let message = Message::builder()
@@ -74,21 +85,52 @@ impl StreamPublisher {
             .message_builder()
             .build();
 
-        let super_stream = self.super_stream;
-        let mut producer = self.producer.lock().await;
-        producer
-            .send(message, move |confirm| async move {
-                if let Err(e) = confirm {
-                    log::error!(
-                        "Stream publish to '{}' was not confirmed: {:?}",
-                        super_stream,
-                        e
-                    );
-                }
-            })
-            .await
-            .with_context(|| format!("Failed to publish to '{}'", super_stream))?;
+        // The hash strategy resolves to exactly one partition, so exactly one
+        // confirmation arrives per publish.
+        let (confirm_tx, confirm_rx) = oneshot::channel();
+        let confirm_tx = Arc::new(Mutex::new(Some(confirm_tx)));
 
-        Ok(())
+        let super_stream = self.super_stream;
+        {
+            let mut producer = self.producer.lock().await;
+            producer
+                .send(message, move |confirm| {
+                    let confirm_tx = confirm_tx.clone();
+                    async move {
+                        let outcome = match confirm {
+                            Ok(status) if status.confirmed() => Ok(()),
+                            Ok(status) => Err(format!("broker rejected: {:?}", status.status())),
+                            Err(e) => Err(format!("{:?}", e)),
+                        };
+                        // Only the first confirmation is meaningful; a receiver
+                        // dropped by timeout makes the send a no-op.
+                        if let Some(tx) = confirm_tx.lock().await.take() {
+                            let _ = tx.send(outcome);
+                        }
+                    }
+                })
+                .await
+                .with_context(|| format!("Failed to publish to '{}'", super_stream))?;
+        }
+
+        let timeout = Duration::from_millis(env::streams::CONFIRM_TIMEOUT_MS.get());
+        match tokio::time::timeout(timeout, confirm_rx).await {
+            Ok(Ok(Ok(()))) => Ok(()),
+            Ok(Ok(Err(reason))) => Err(anyhow!(
+                "Stream publish to '{}' was not confirmed: {}",
+                super_stream,
+                reason
+            )),
+            // Sender dropped without confirming — the producer was closed.
+            Ok(Err(_)) => Err(anyhow!(
+                "Stream publish to '{}' lost its confirmation channel",
+                super_stream
+            )),
+            Err(_) => Err(anyhow!(
+                "Stream publish to '{}' was not confirmed within {:?}",
+                super_stream,
+                timeout
+            )),
+        }
     }
 }

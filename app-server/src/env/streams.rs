@@ -51,6 +51,13 @@ pub const MAX_SEGMENT_SIZE_BYTES: NumEnv<u64> =
 /// queue we're replacing, so it needs an explicit decision, not a default.
 pub const REPLICATION_FACTOR: NumEnv<usize> = NumEnv::new("RABBITMQ_STREAM_REPLICATION_FACTOR", 3);
 
+/// How long a publish waits for the broker's confirmation before giving up and
+/// letting the caller fall back to the quorum queue. Bounded because the client
+/// does NOT invoke the confirm callback when the connection drops mid-flight —
+/// without a ceiling that publish would hang forever on the ingest path.
+pub const CONFIRM_TIMEOUT_MS: NumEnv<u64> =
+    NumEnv::new("RABBITMQ_STREAM_CONFIRM_TIMEOUT_MS", 10_000);
+
 /// Bounded queue depth between the per-partition readers and the batchers.
 /// This is the backpressure knob: when full, readers stop granting credit and
 /// the backlog stays on broker disk (exactly where we want it under burst).
