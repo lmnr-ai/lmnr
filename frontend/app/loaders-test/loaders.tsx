@@ -5,6 +5,8 @@
 // single-element tricks, MUI CircularProgress/LinearProgress indeterminate math,
 // MUI + Ant Design + react-loading-skeleton composite skeleton layouts.
 
+import type { CSSProperties } from "react";
+
 import { cn } from "@/lib/utils";
 
 // Translucent sheen used by every shimmer/wave surface. currentColor keeps it theme-aware.
@@ -983,5 +985,254 @@ export function ShimmerText() {
     >
       Generating response…
     </span>
+  );
+}
+
+// ── Logo (our mark, animated) ─────────────────────────────────────────────--
+// The Laminar mark is one continuous closed path, so it both draws nicely as a
+// stroke and works as a CSS mask for fill/sheen effects. Path is icon.svg verbatim.
+
+const LOGO_PATH =
+  "M1.32507 73.4886C0.00220402 72.0863 0.0802819 69.9867 0.653968 68.1462C3.57273 58.7824 5.14534 48.8249 5.14534 38.5C5.14534 27.8899 3.48464 17.6677 0.408998 8.0791C-0.129499 6.40029 -0.266346 4.50696 0.811824 3.11199C2.27491 1.21902 4.56777 0 7.14535 0H37.1454C58.1322 0 75.1454 17.0132 75.1454 38C75.1454 58.9868 58.1322 76 37.1454 76H7.14535C4.85185 76 2.78376 75.0349 1.32507 73.4886Z";
+
+const LOGO_MASK = `url("data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 76 76'><path d='${LOGO_PATH}'/></svg>`
+)}")`;
+
+// Mask the whole element (and its children) to the logo silhouette.
+const logoMask: CSSProperties = {
+  WebkitMaskImage: LOGO_MASK,
+  maskImage: LOGO_MASK,
+  WebkitMaskSize: "contain",
+  maskSize: "contain",
+  WebkitMaskRepeat: "no-repeat",
+  maskRepeat: "no-repeat",
+  WebkitMaskPosition: "center",
+  maskPosition: "center",
+};
+
+/** The mark drawing its own outline over and over. */
+export function LogoTrace() {
+  return (
+    <svg viewBox="0 0 76 76" className="size-9 text-primary">
+      <path
+        d={LOGO_PATH}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={5}
+        strokeLinejoin="round"
+        pathLength={100}
+        className="lt-logo-draw"
+        style={{ strokeDasharray: 100 }}
+      />
+    </svg>
+  );
+}
+
+/** Outline draws, then the fill floods in. */
+export function LogoDrawFill() {
+  return (
+    <svg viewBox="0 0 76 76" className="size-9 text-primary">
+      <path d={LOGO_PATH} fill="currentColor" className="lt-logo-fill" />
+      <path
+        d={LOGO_PATH}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={5}
+        strokeLinejoin="round"
+        pathLength={100}
+        className="lt-logo-draw"
+        style={{ strokeDasharray: 100 }}
+      />
+    </svg>
+  );
+}
+
+/** Upright logo with a highlight sweeping around it — a spinner, logo-shaped. */
+export function LogoConicSpin() {
+  return (
+    <div className="relative size-9 overflow-hidden text-primary" style={logoMask}>
+      <div
+        className="absolute inset-[-30%] animate-spin"
+        style={{ background: "conic-gradient(from 0deg, transparent 0%, currentColor 100%)" }}
+      />
+    </div>
+  );
+}
+
+/** A sheen sweeping across the mark. */
+export function LogoShimmer() {
+  return (
+    <div className="relative size-9 overflow-hidden text-primary" style={logoMask}>
+      <div className="absolute inset-0" style={{ background: "color-mix(in oklch, currentColor 22%, transparent)" }} />
+      <div className="absolute inset-0 lt-shimmer" style={{ background: SHEEN }} />
+    </div>
+  );
+}
+
+/** The mark filling bottom-to-top like a progress meter. */
+export function LogoFillWipe() {
+  return (
+    <div className="relative size-9 overflow-hidden text-primary" style={logoMask}>
+      <div className="absolute inset-0" style={{ background: "color-mix(in oklch, currentColor 18%, transparent)" }} />
+      <div className="absolute inset-0 bg-current lt-fill-up" />
+    </div>
+  );
+}
+
+/** Filled mark, breathing. */
+export function LogoPulse() {
+  return (
+    <svg viewBox="0 0 76 76" className="size-9 text-primary lt-logo-pulse">
+      <path d={LOGO_PATH} fill="currentColor" />
+    </svg>
+  );
+}
+
+// ── Pixel (retro / 8-bit) ─────────────────────────────────────────────────--
+// Sharp squares and stepped timing (steps()) for the blocky, low-framerate feel.
+
+/** Render a pixel sprite from a row-major "1"/"0" bitmap. */
+function PixelSprite({ map, className, style }: { map: string[]; className?: string; style?: CSSProperties }) {
+  const cols = map[0].length;
+  return (
+    <div
+      className={cn("grid gap-px text-primary", className)}
+      style={{ gridTemplateColumns: `repeat(${cols}, 5px)`, ...style }}
+    >
+      {map.map((row, r) =>
+        row.split("").map((ch, c) => (
+          <span key={`${r}-${c}`} className={cn("size-[5px]", ch === "1" ? "bg-current" : "opacity-0")} />
+        ))
+      )}
+    </div>
+  );
+}
+
+const INVADER_A = [
+  "00100000100",
+  "00010001000",
+  "00111111100",
+  "01101110110",
+  "11111111111",
+  "10111111101",
+  "10100000101",
+  "00011011000",
+];
+const INVADER_B = [
+  "00100000100",
+  "10010001001",
+  "10111111101",
+  "11101110111",
+  "11111111111",
+  "01111111110",
+  "00100000100",
+  "01000000010",
+];
+
+/** Classic 2-frame space-invader toggle. */
+export function PixelInvader() {
+  return (
+    <div className="relative">
+      <PixelSprite map={INVADER_A} className="lt-frame-a" />
+      <PixelSprite map={INVADER_B} className="lt-frame-b absolute left-0 top-0" />
+    </div>
+  );
+}
+
+/** A bright pixel ticking around a ring in stepped jumps. */
+export function PixelSpinner() {
+  return (
+    <div className="relative size-8 text-primary">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div key={i} className="absolute inset-0" style={{ transform: `rotate(${i * 45}deg)` }}>
+          <span
+            className="absolute left-1/2 top-0 size-1.5 -translate-x-1/2 bg-current lt-pixel-blink"
+            style={{ animationDelay: `${(i / 8) * 0.8 - 0.8}s` }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Install-bar filling block by block. */
+export function PixelBar() {
+  const cells = Array.from({ length: 8 });
+  return (
+    <div className="relative">
+      <div className="flex gap-[3px]">
+        {cells.map((_, i) => (
+          <span key={i} className="size-2 bg-muted" />
+        ))}
+      </div>
+      <div className="absolute inset-0 flex gap-[3px] lt-pixel-progress">
+        {cells.map((_, i) => (
+          <span key={i} className="size-2 bg-primary" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** A lit pixel snaking through a 5×5 grid. */
+export function PixelGridSnake() {
+  return (
+    <div className="grid grid-cols-5 gap-px text-primary" style={{ gridTemplateColumns: "repeat(5, 6px)" }}>
+      {Array.from({ length: 25 }).map((_, idx) => {
+        const r = Math.floor(idx / 5);
+        const c = idx % 5;
+        const step = r * 5 + (r % 2 === 0 ? c : 4 - c); // boustrophedon path
+        return (
+          <span
+            key={idx}
+            className="size-1.5 bg-current lt-snake"
+            style={{ animationDelay: `${(step / 25) * 1.5 - 1.5}s` }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+/** Blocky sound-wave: bar heights jump in steps. */
+export function PixelWave() {
+  return (
+    <div className="flex h-8 items-center gap-[3px]">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <span
+          key={i}
+          className="w-2 bg-primary lt-pixel-wave"
+          style={{ height: "100%", animationDelay: `${i * 0.12}s` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+const HEART = ["0110110", "1111111", "1111111", "0111110", "0011100", "0001000"];
+
+/** 8-bit heart, beating. */
+export function PixelHeart() {
+  return <PixelSprite map={HEART} className="lt-heartbeat" />;
+}
+
+/** Checkerboard dither shimmer. */
+export function PixelDither() {
+  return (
+    <div className="grid gap-px text-primary" style={{ gridTemplateColumns: "repeat(6, 6px)" }}>
+      {Array.from({ length: 36 }).map((_, idx) => {
+        const r = Math.floor(idx / 6);
+        const c = idx % 6;
+        const even = (r + c) % 2 === 0;
+        return (
+          <span
+            key={idx}
+            className="size-1.5 bg-current lt-fade"
+            style={{ animationDelay: even ? "0s" : "0.6s", animationDuration: "1.2s" }}
+          />
+        );
+      })}
+    </div>
   );
 }

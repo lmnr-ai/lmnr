@@ -30,6 +30,31 @@ const GROUPS: Group[] = [
     ],
   },
   {
+    title: "Logo",
+    note: "Our mark, animated — self-drawing outline, sheen sweep, fill wipe, and a logo-shaped spinner.",
+    items: [
+      { label: "LogoTrace", Comp: L.LogoTrace },
+      { label: "LogoDrawFill", Comp: L.LogoDrawFill },
+      { label: "LogoConicSpin", Comp: L.LogoConicSpin },
+      { label: "LogoShimmer", Comp: L.LogoShimmer },
+      { label: "LogoFillWipe", Comp: L.LogoFillWipe },
+      { label: "LogoPulse", Comp: L.LogoPulse },
+    ],
+  },
+  {
+    title: "Pixel",
+    note: "Retro / 8-bit: sharp squares and stepped timing.",
+    items: [
+      { label: "PixelInvader", Comp: L.PixelInvader },
+      { label: "PixelSpinner", Comp: L.PixelSpinner },
+      { label: "PixelBar", Comp: L.PixelBar },
+      { label: "PixelGridSnake", Comp: L.PixelGridSnake },
+      { label: "PixelWave", Comp: L.PixelWave },
+      { label: "PixelHeart", Comp: L.PixelHeart },
+      { label: "PixelDither", Comp: L.PixelDither },
+    ],
+  },
+  {
     title: "SpinKit",
     note: "Reproductions of the classic SpinKit set (tobiasahlin.com/spinkit).",
     items: [
@@ -298,6 +323,41 @@ const KEYFRAMES = `
   /* ── Inline ── */
   @keyframes lt-text-shimmer { 0% { background-position: 120% 0; } 100% { background-position: -20% 0; } }
   .lt-text-shimmer { animation: lt-text-shimmer 2s linear infinite; }
+
+  /* ── Logo ── */
+  @keyframes lt-logo-draw { 0% { stroke-dashoffset: 100; } 55% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -100; } }
+  .lt-logo-draw { animation: lt-logo-draw 2.2s ease-in-out infinite; }
+
+  @keyframes lt-logo-fill { 0%,45% { opacity: 0; } 65%,82% { opacity: 1; } 96%,100% { opacity: 0; } }
+  .lt-logo-fill { animation: lt-logo-fill 2.2s ease-in-out infinite; }
+
+  @keyframes lt-fill-up { 0% { transform: translateY(101%); } 50% { transform: translateY(0); } 100% { transform: translateY(-101%); } }
+  .lt-fill-up { animation: lt-fill-up 2.2s ease-in-out infinite; }
+
+  @keyframes lt-logo-pulse { 0%,100% { opacity: 0.35; transform: scale(0.86); } 50% { opacity: 1; transform: scale(1); } }
+  .lt-logo-pulse { transform-origin: center; animation: lt-logo-pulse 1.5s ease-in-out infinite; }
+
+  /* ── Pixel ── */
+  /* Hard 2-frame toggle — the instant cut at 50% is the whole point. */
+  @keyframes lt-frame-a { 0%,49.999% { opacity: 1; } 50%,100% { opacity: 0; } }
+  .lt-frame-a { animation: lt-frame-a 1s linear infinite; }
+  @keyframes lt-frame-b { 0%,49.999% { opacity: 0; } 50%,100% { opacity: 1; } }
+  .lt-frame-b { animation: lt-frame-b 1s linear infinite; }
+
+  @keyframes lt-pixel-blink { 0% { opacity: 1; } 100% { opacity: 0.15; } }
+  .lt-pixel-blink { animation: lt-pixel-blink 0.8s steps(4) infinite; }
+
+  @keyframes lt-pixel-progress { 0% { clip-path: inset(0 100% 0 0); } 100% { clip-path: inset(0 0 0 0); } }
+  .lt-pixel-progress { animation: lt-pixel-progress 1.6s steps(8) infinite; }
+
+  @keyframes lt-snake { 0%,100% { opacity: 0.12; } 8% { opacity: 1; } }
+  .lt-snake { animation: lt-snake 1.5s linear infinite; }
+
+  @keyframes lt-pixel-wave { 0%,100% { transform: scaleY(0.2); } 50% { transform: scaleY(1); } }
+  .lt-pixel-wave { transform-origin: center; animation: lt-pixel-wave 0.9s steps(5) infinite; }
+
+  @keyframes lt-heartbeat { 0%,100% { transform: scale(1); } 15% { transform: scale(1.18); } 30% { transform: scale(1); } 45% { transform: scale(1.18); } 60% { transform: scale(1); } }
+  .lt-heartbeat { transform-origin: center; animation: lt-heartbeat 1.3s ease-in-out infinite; }
 `;
 
 export default function LoadersTestPage() {
