@@ -198,6 +198,18 @@ impl Trace {
         }
     }
 
+    /// Test-only setter for the two fields realtime routing keys off of.
+    #[cfg(test)]
+    pub fn test_with_routing_fields(
+        mut self,
+        top_span_name: Option<String>,
+        metadata: Option<Value>,
+    ) -> Self {
+        self.top_span_name = top_span_name;
+        self.metadata = metadata;
+        self
+    }
+
     #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     pub fn matches_filters(&self, spans: &[Span], filters: &[Filter]) -> bool {
         if filters.is_empty() {

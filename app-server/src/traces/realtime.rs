@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::{
     cache::Cache,
     ch::traces::TraceAggregation,
-    db::{spans::Span, spans::SpanType},
+    db::{spans::Span, spans::SpanType, trace::Trace},
     evaluations::realtime::lookup_trace_evaluation_id,
     pubsub::PubSub,
     realtime::{SseMessage, send_to_key},
@@ -266,7 +266,24 @@ pub async fn channels_for_trace_id(
     channels
 }
 
-/// Channel routing for a per-batch delta.
+/// Route off the CUMULATIVE PG `Trace`, not the per-batch delta: `top_span_name`
+/// / `rollout.session_id` land only on the batch carrying the root span / the
+/// metadata, so the merged row is what keeps later batches on the eval/debugger
+/// channels.
+pub async fn channels_for_trace(trace: &Trace, cache: &Cache) -> Vec<TraceChannel> {
+    let top_span_name = trace.top_span_name();
+    channels_for_trace_fields(
+        trace.project_id(),
+        trace.id(),
+        top_span_name.as_deref(),
+        trace.metadata(),
+        cache,
+    )
+    .await
+}
+
+/// Fallback routing off the delta — only when the cumulative row is missing, so
+/// a live update is never dropped (can under-route a later batch).
 pub async fn channels_for_aggregation(agg: &TraceAggregation, cache: &Cache) -> Vec<TraceChannel> {
     channels_for_trace_fields(
         agg.project_id,
@@ -351,5 +368,127 @@ impl RealtimeSpan {
             project_id: span.project_id,
             created_at: span.start_time, // Use start_time as created_at for compatibility
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+    use std::sync::Arc;
+
+    use serde_json::json;
+
+    use super::*;
+    use crate::cache::in_memory::InMemoryCache;
+
+    fn cache() -> Arc<Cache> {
+        Arc::new(Cache::InMemory(InMemoryCache::new(None)))
+    }
+
+    fn empty_agg(project_id: Uuid, trace_id: Uuid) -> TraceAggregation {
+        TraceAggregation {
+            trace_id,
+            project_id,
+            start_time: None,
+            end_time: None,
+            input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+            reasoning_tokens: 0,
+            input_cost: 0.0,
+            output_cost: 0.0,
+            total_cost: 0.0,
+            session_id: None,
+            user_id: None,
+            status: None,
+            metadata: None,
+            tags: HashSet::new(),
+            num_spans: 0,
+            top_span_id: None,
+            top_span_name: None,
+            top_span_type: 0,
+            trace_type: 0,
+            has_browser_session: None,
+            span_names: HashSet::new(),
+            root_span_input: None,
+            root_span_output: None,
+        }
+    }
+
+    fn has_debugger(channels: &[TraceChannel], session: &str) -> bool {
+        channels
+            .iter()
+            .any(|c| matches!(c, TraceChannel::RolloutDebugger(s) if s == session))
+    }
+
+    fn has_project(channels: &[TraceChannel]) -> bool {
+        channels.iter().any(|c| matches!(c, TraceChannel::Project))
+    }
+
+    // First batch carries the metadata → delta routing reaches the debugger.
+    #[tokio::test]
+    async fn aggregation_with_rollout_metadata_routes_to_debugger() {
+        let project_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+        let mut agg = empty_agg(project_id, trace_id);
+        agg.metadata = Some(json!({ ROLLOUT_SESSION_METADATA_KEY: "sess-1" }));
+
+        let channels = channels_for_aggregation(&agg, cache().as_ref()).await;
+        assert!(has_debugger(&channels, "sess-1"));
+        assert!(has_project(&channels));
+    }
+
+    // The bug: a later batch's delta lacks the metadata → misses the debugger.
+    #[tokio::test]
+    async fn aggregation_without_metadata_misses_debugger() {
+        let project_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+        let agg = empty_agg(project_id, trace_id);
+
+        let channels = channels_for_aggregation(&agg, cache().as_ref()).await;
+        assert!(!has_debugger(&channels, "sess-1"));
+        assert!(has_project(&channels));
+    }
+
+    // The fix: the cumulative row still carries the metadata → later batch
+    // routes to the debugger even though its delta dropped it.
+    #[tokio::test]
+    async fn merged_trace_routes_later_batch_to_debugger() {
+        let project_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+        let trace = Trace::test_new(trace_id, project_id, None, None, Some(json!({"s": true})))
+            .test_with_routing_fields(
+                None,
+                Some(json!({ ROLLOUT_SESSION_METADATA_KEY: "sess-1" })),
+            );
+
+        let channels = channels_for_trace(&trace, cache().as_ref()).await;
+        assert!(has_debugger(&channels, "sess-1"));
+        assert!(has_project(&channels));
+    }
+
+    // Cumulative eval trace keeps its top-span name → later batch stays on the
+    // eval channel only, off project + debugger.
+    #[tokio::test]
+    async fn merged_eval_trace_routes_later_batch_to_eval_only() {
+        let project_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+        let eval_id = Uuid::new_v4();
+        let trace = Trace::test_new(trace_id, project_id, None, None, Some(json!({"s": true})))
+            .test_with_routing_fields(
+                Some(EVALUATION_TOP_SPAN_NAME.to_string()),
+                Some(json!({ EVALUATION_ID_METADATA_KEY: eval_id.to_string() })),
+            );
+
+        let channels = channels_for_trace(&trace, cache().as_ref()).await;
+        assert!(
+            channels
+                .iter()
+                .any(|c| matches!(c, TraceChannel::Evaluation(id) if *id == eval_id))
+        );
+        assert!(!has_project(&channels));
+        assert!(!has_debugger(&channels, "sess-1"));
     }
 }
