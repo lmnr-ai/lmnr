@@ -21,12 +21,7 @@ import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
-import {
-  type RealtimeAgentInputPayload,
-  type RealtimeTracePayload,
-  type TraceRow,
-  type TraceUpdateMode,
-} from "@/lib/traces/types";
+import { type RealtimeAgentInputPayload, type RealtimeTracePayload, type TraceRow } from "@/lib/traces/types";
 
 export interface TracesTableContentsProps {
   refetchRef: RefObject<() => void>;
@@ -197,10 +192,10 @@ export const TracesTableContents = memo(function TracesTableContents({
   // row appears. Held in a ref: survives renders, must not trigger one.
   const pendingFragmentsRef = useRef<Map<string, TracePartial>>(new Map());
 
-  // Delta ⇒ accumulate, cumulative ⇒ replace; a new trace is seeded either way.
-  // Any buffered fragment for the trace is merged in as the row lands.
+  // Accumulate the delta onto the row; seed a new one. Any buffered fragment
+  // for the trace is merged in as the row lands.
   const updateRealtimeTrace = useCallback(
-    (payload: RealtimeTracePayload, mode: TraceUpdateMode) => {
+    (payload: RealtimeTracePayload) => {
       if (!payload.startTime || !isTraceInTimeRange(payload.startTime)) {
         return;
       }
@@ -219,9 +214,7 @@ export const TracesTableContents = memo(function TracesTableContents({
 
         if (existingTraceIndex !== -1) {
           const newTraces = [...currentTraces];
-          const merged =
-            mode === "delta" ? mergeTraceDelta(newTraces[existingTraceIndex], payload) : realtimeTraceToRow(payload);
-          newTraces[existingTraceIndex] = drainFragments(merged);
+          newTraces[existingTraceIndex] = drainFragments(mergeTraceDelta(newTraces[existingTraceIndex], payload));
           return newTraces;
         }
 
@@ -268,15 +261,10 @@ export const TracesTableContents = memo(function TracesTableContents({
     () => ({
       trace_update: (event: MessageEvent) => {
         try {
-          const payload = JSON.parse(event.data) as {
-            traces?: RealtimeTracePayload[];
-            mode?: TraceUpdateMode;
-          };
-          // Absent mode ⇒ cumulative (back-compat for in-flight messages).
-          const mode: TraceUpdateMode = payload.mode === "delta" ? "delta" : "cumulative";
+          const payload = JSON.parse(event.data) as { traces?: RealtimeTracePayload[] };
           if (payload.traces && Array.isArray(payload.traces)) {
             for (const trace of payload.traces) {
-              updateRealtimeTrace(trace, mode);
+              updateRealtimeTrace(trace);
             }
           }
         } catch (e) {

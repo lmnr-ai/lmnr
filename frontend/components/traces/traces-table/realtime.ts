@@ -1,7 +1,6 @@
 import { type RealtimeTracePayload, type SpanType, type TraceRow } from "@/lib/traces/types";
 
-// Row seed: the cumulative-mode replace, and the base for a not-yet-seen
-// trace in delta mode (first delta = cumulative-so-far, next fetch reconciles).
+// Seed a not-yet-seen trace; the next fetch reconciles.
 export const realtimeTraceToRow = (trace: RealtimeTracePayload): TraceRow => ({
   id: trace.id,
   startTime: trace.startTime ?? "",
@@ -41,9 +40,8 @@ const maxTime = (a: string | undefined, b: string | null): string | undefined =>
   return Date.parse(b) > Date.parse(a) ? b : a;
 };
 
-// Accumulate a per-batch delta onto a row, mirroring the `traces_agg` view so
-// the client total matches a refetch. Preserves fetched traceTags/snippets/
-// agentInput (the delta never carries them).
+// Accumulate a per-batch delta onto a row. Preserves fetched
+// traceTags/snippets/agentInput (the delta never carries them).
 export const mergeTraceDelta = (existing: TraceRow, delta: RealtimeTracePayload): TraceRow => ({
   ...existing,
   startTime: minTime(existing.startTime || undefined, delta.startTime) ?? existing.startTime,

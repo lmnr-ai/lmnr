@@ -114,6 +114,12 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId: s
           .applyTraceUpdates(payload.traces as { traceId: string; metadata?: unknown; hasBrowserSession?: boolean }[]);
         backfillPendingEvalScores();
       },
+      // Extracted agent_input landed (async) → patch the run's input row.
+      trace_agent_input_update: (event: MessageEvent) => {
+        const payload = JSON.parse(event.data) as { traceId?: string; agentInput?: unknown };
+        if (!payload.traceId) return;
+        storeApi.getState().applyAgentInput(payload.traceId, payload.agentInput);
+      },
       // Note / eval block pushed → upsert it into the timeline.
       block_update: (event: MessageEvent) => {
         const payload = JSON.parse(event.data) as { sessionId?: string; block?: SessionBlock };

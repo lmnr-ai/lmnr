@@ -107,18 +107,26 @@ pub fn publish_trace_metadata_patch(
 /// [`SPAN_TRACE_INPUT`] with no predefined key: the processor stores it
 /// directly in the `trace_agent_input` supplementary table. The metadata
 /// key is added only on the deprecated `traces_replacing` merge path.
+/// `rollout_session_id`, when set, is stamped for debugger-channel routing.
 pub async fn publish_trace_input_update(
     trace_id: Uuid,
     project_id: Uuid,
     value: Value,
+    rollout_session_id: Option<String>,
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
 ) -> Result<()> {
-    let attributes = HashMap::from([
+    let mut attributes = HashMap::from([
         (SPAN_METADATA_ONLY.to_string(), Value::Bool(true)),
         (SPAN_TRACE_INPUT.to_string(), value),
     ]);
+    if let Some(session_id) = rollout_session_id {
+        attributes.insert(
+            format!("{ASSOCIATION_PROPERTIES_PREFIX}.metadata.rollout.session_id"),
+            Value::String(session_id),
+        );
+    }
     publish_metadata_only_span(trace_id, project_id, attributes, queue, db, cache).await
 }
 

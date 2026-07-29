@@ -42,9 +42,8 @@ use crate::{
         input_extraction::metadata::USER_TASK_METADATA_KEY,
         provider::convert_span_to_provider_format,
         realtime::{
-            RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, TraceUpdateMode,
-            channels_for_aggregation, channels_for_trace, send_agent_input_update,
-            send_span_updates, send_trace_updates,
+            RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_aggregation,
+            send_agent_input_update, send_span_updates, send_trace_updates,
         },
         span_attributes::{SPAN_TRACE_INPUT, SPAN_TRACE_OUTPUT_END_TIME, SPAN_TRACE_OUTPUT_HASHES},
         spans::SpanUsage,
@@ -56,6 +55,8 @@ use crate::{
 };
 
 const MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES: usize = 5120; // 5KB
+
+const ROLLOUT_SESSION_METADATA_KEY: &str = "rollout.session_id";
 
 /// Billed bytes for one field (input or output) of one span. Input and output
 /// are accounted identically (both are excluded from
@@ -128,6 +129,9 @@ struct RawTraceIo {
     /// Winning span end time (ns) for the output — the RMT version. `None`
     /// only for legacy/malformed spans missing the attribute.
     output_end_time_ns: Option<i64>,
+    /// Stamped by the extraction façade; routes the agent_input event to the
+    /// debugger channel.
+    rollout_session_id: Option<String>,
 }
 
 /// Build supplementary-table rows from the raw extracted io. The input row
@@ -320,14 +324,19 @@ pub async fn process_span_messages(
             })
         });
         if input.is_some() || output_hashes.is_some() {
+            let output_end_time_ns = attrs.get(SPAN_TRACE_OUTPUT_END_TIME).and_then(Value::as_i64);
+            let rollout_session_id = m
+                .span
+                .attributes
+                .metadata()
+                .and_then(|meta| meta.get(ROLLOUT_SESSION_METADATA_KEY)?.as_str().map(String::from));
             raw_trace_io.push(RawTraceIo {
                 project_id: m.span.project_id,
                 trace_id: m.span.trace_id,
                 input,
                 output_hashes,
-                output_end_time_ns: attrs
-                    .get(SPAN_TRACE_OUTPUT_END_TIME)
-                    .and_then(Value::as_i64),
+                output_end_time_ns,
+                rollout_session_id,
             });
             continue;
         }
@@ -391,8 +400,15 @@ pub async fn process_span_messages(
     if env::clickhouse::WRITE_TRACES_AGG.get() {
         for io in &raw_trace_io {
             if let Some(value) = &io.input {
-                send_agent_input_update(&pubsub, &io.project_id, "traces", io.trace_id, value)
-                    .await;
+                send_agent_input_update(
+                    &pubsub,
+                    cache.as_ref(),
+                    &io.project_id,
+                    io.trace_id,
+                    value,
+                    io.rollout_session_id.as_deref(),
+                )
+                .await;
             }
         }
     }
@@ -749,13 +765,7 @@ pub async fn process_span_messages(
 
             debugger_session_blocks::upsert_blocks_for_traces(&db.pool, &updated_traces).await;
 
-            // Exactly one path runs so the frontend never double-counts:
-            // deltas (flag on) vs cumulative PG rows (flag off).
-            if env::clickhouse::WRITE_TRACES_AGG.get() {
-                dispatch_trace_delta_updates(&trace_aggregations, cache.clone(), &pubsub).await;
-            } else {
-                dispatch_trace_realtime_updates(&updated_traces, cache.clone(), &pubsub).await;
-            }
+            dispatch_trace_updates(&trace_aggregations, cache.clone(), &pubsub).await;
         }
 
         // Dual-write partial rows to `traces_agg` (AggregatingMergeTree,
@@ -1138,76 +1148,7 @@ pub async fn process_span_messages(
     Ok(())
 }
 
-async fn dispatch_trace_realtime_updates(traces: &[Trace], cache: Arc<Cache>, pubsub: &PubSub) {
-    if traces.is_empty() {
-        return;
-    }
-
-    let mut project_buckets: HashMap<Uuid, Vec<RealtimeTrace>> = HashMap::new();
-    let mut evaluation_buckets: HashMap<(Uuid, Uuid), Vec<RealtimeTrace>> = HashMap::new();
-    let mut debugger_buckets: HashMap<(Uuid, String), Vec<RealtimeDebuggerTrace>> = HashMap::new();
-
-    for trace in traces {
-        for channel in channels_for_trace(trace, cache.as_ref()).await {
-            match channel {
-                TraceChannel::Project => {
-                    project_buckets
-                        .entry(trace.project_id())
-                        .or_default()
-                        .push(RealtimeTrace::from_trace(trace));
-                }
-                TraceChannel::Evaluation(evaluation_id) => {
-                    evaluation_buckets
-                        .entry((trace.project_id(), evaluation_id))
-                        .or_default()
-                        .push(RealtimeTrace::from_trace(trace));
-                }
-                TraceChannel::RolloutDebugger(rollout_session_id) => {
-                    debugger_buckets
-                        .entry((trace.project_id(), rollout_session_id))
-                        .or_default()
-                        .push(RealtimeDebuggerTrace::from_trace(trace));
-                }
-            }
-        }
-    }
-
-    for (project_id, traces_data) in project_buckets {
-        send_trace_updates(
-            &project_id,
-            "traces",
-            &traces_data,
-            TraceUpdateMode::Cumulative,
-            pubsub,
-        )
-        .await;
-    }
-    for ((project_id, evaluation_id), traces_data) in evaluation_buckets {
-        let key = format!("evaluation_{}", evaluation_id);
-        send_trace_updates(
-            &project_id,
-            &key,
-            &traces_data,
-            TraceUpdateMode::Cumulative,
-            pubsub,
-        )
-        .await;
-    }
-    for ((project_id, rollout_session_id), traces_data) in debugger_buckets {
-        let key = format!("rollout_session_{}", rollout_session_id);
-        send_trace_updates(
-            &project_id,
-            &key,
-            &traces_data,
-            TraceUpdateMode::Cumulative,
-            pubsub,
-        )
-        .await;
-    }
-}
-
-/// Delta counterpart of `dispatch_trace_realtime_updates` (WRITE_TRACES_AGG on).
-async fn dispatch_trace_delta_updates(
+async fn dispatch_trace_updates(
     aggregations: &[TraceAggregation],
     cache: Arc<Cache>,
     pubsub: &PubSub,
@@ -1246,22 +1187,15 @@ async fn dispatch_trace_delta_updates(
     }
 
     for (project_id, traces_data) in project_buckets {
-        send_trace_updates(
-            &project_id,
-            "traces",
-            &traces_data,
-            TraceUpdateMode::Delta,
-            pubsub,
-        )
-        .await;
+        send_trace_updates(&project_id, "traces", &traces_data, pubsub).await;
     }
     for ((project_id, evaluation_id), traces_data) in evaluation_buckets {
         let key = format!("evaluation_{}", evaluation_id);
-        send_trace_updates(&project_id, &key, &traces_data, TraceUpdateMode::Delta, pubsub).await;
+        send_trace_updates(&project_id, &key, &traces_data, pubsub).await;
     }
     for ((project_id, rollout_session_id), traces_data) in debugger_buckets {
         let key = format!("rollout_session_{}", rollout_session_id);
-        send_trace_updates(&project_id, &key, &traces_data, TraceUpdateMode::Delta, pubsub).await;
+        send_trace_updates(&project_id, &key, &traces_data, pubsub).await;
     }
 }
 
@@ -1400,6 +1334,7 @@ mod tests {
                 output_hashes: None,
                 // A wildly different per-write time that must NOT be used.
                 output_end_time_ns: Some(i64::MAX),
+                rollout_session_id: None,
             }],
             &resolved,
             999,
@@ -1415,6 +1350,7 @@ mod tests {
                 input: Some(json!("the task")),
                 output_hashes: None,
                 output_end_time_ns: None,
+                rollout_session_id: None,
             }],
             &HashMap::new(),
             999,

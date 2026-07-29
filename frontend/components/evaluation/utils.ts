@@ -152,39 +152,30 @@ export const mergeDatapointUpsertIntoRows = (
   return next;
 };
 
-// Merge a `trace_update` into the matching row (no-op if not yet fetched).
-// delta ⇒ accumulate onto the row; cumulative ⇒ overwrite with running totals.
+// Accumulate a `trace_update` delta onto the matching row (no-op if not yet
+// fetched).
 export const mergeTraceUpdateIntoRows = (
   rows: EvalRow[],
-  trace: Record<string, unknown> & { id: string },
-  mode: "delta" | "cumulative" = "cumulative"
+  trace: Record<string, unknown> & { id: string }
 ): EvalRow[] => {
   const idx = rows.findIndex((r) => r["traceId"] === trace.id);
   if (idx === -1) return rows;
 
   const prev = rows[idx];
-  const isDelta = mode === "delta";
-  const base = (key: string): number => (isDelta ? Number(prev[key] ?? 0) : 0);
+  const num = (key: string): number => Number(prev[key] ?? 0) + Number(trace[key] ?? 0);
 
-  const inputCost = base("inputCost") + Number(trace["inputCost"] ?? 0);
-  const outputCost = base("outputCost") + Number(trace["outputCost"] ?? 0);
-  const totalCost = base("totalCost") + Number(trace["totalCost"] ?? 0);
+  const inputCost = num("inputCost");
+  const outputCost = num("outputCost");
+  const totalCost = num("totalCost");
   const sumCost = inputCost + outputCost;
   const cost = totalCost > 0 ? Math.max(sumCost, totalCost) : sumCost;
 
-  const num = (key: string): number => base(key) + Number(trace[key] ?? 0);
-
-  const deltaStart = trace["startTime"] as string | undefined;
-  const deltaEnd = trace["endTime"] as string | undefined;
-  const startTime = isDelta ? minIso(prev["startTime"] as string | undefined, deltaStart) : deltaStart;
-  const endTime = isDelta ? maxIso(prev["endTime"] as string | undefined, deltaEnd) : deltaEnd;
+  const startTime = minIso(prev["startTime"] as string | undefined, trace["startTime"] as string | undefined);
+  const endTime = maxIso(prev["endTime"] as string | undefined, trace["endTime"] as string | undefined);
   const duration = startTime && endTime ? (Date.parse(endTime) - Date.parse(startTime)) / 1000 : undefined;
 
-  const status = isDelta
-    ? prev["traceStatus"] === "error" || trace["status"] === "error"
-      ? "error"
-      : (trace["status"] ?? prev["traceStatus"])
-    : trace["status"];
+  const status =
+    prev["traceStatus"] === "error" || trace["status"] === "error" ? "error" : (trace["status"] ?? prev["traceStatus"]);
 
   const next = [...rows];
   next[idx] = {

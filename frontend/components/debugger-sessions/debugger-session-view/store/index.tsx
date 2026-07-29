@@ -141,18 +141,18 @@ const mergeSpans = (base: TraceViewSpan[], incoming: TraceViewSpan[], incomingWi
   return enrichSpansWithPending(merged);
 };
 
-// Merge an incoming row onto an existing one WITHOUT letting an omitted field
-// clobber a value already present. `getSessionTraceRows` (the batch loader)
-// selects only the timeline columns, so its rows lack fields a fuller row from
-// `hydrateTraceRow` (the /traces API) already wrote — a blind `{ ...next }`
-// spread would regress the fuller row to the slim projection whenever a lagging
-// batch response lands after hydrate. Only defined incoming keys override; the
-// later endTime always wins (a realtime bump can run ahead of a CH snapshot).
+// Merge an incoming row onto an existing one without letting an absent field
+// clobber a present one: only defined incoming keys override, and an empty
+// `agentInput` never overwrites a populated one (the CH column is "" until the
+// async extraction lands, which would erase a live-flushed input). The later
+// endTime always wins (a realtime bump can run ahead of a CH snapshot).
 const mergeTraceRow = (prev: TraceRow, next: TraceRow): TraceRow => {
   const merged: TraceRow = { ...prev };
   for (const key of Object.keys(next) as (keyof TraceRow)[]) {
     const value = next[key];
-    if (value !== undefined) (merged as Record<string, unknown>)[key] = value;
+    if (value === undefined) continue;
+    if (key === "agentInput" && !value) continue;
+    (merged as Record<string, unknown>)[key] = value;
   }
   merged.endTime = new Date(prev.endTime).getTime() > new Date(next.endTime).getTime() ? prev.endTime : next.endTime;
   return merged;
@@ -295,6 +295,11 @@ interface DebuggerSessionViewActions {
   // Batch entry point for a trace_update payload.
   applyTraceUpdates: (traces: { traceId: string; metadata?: unknown; hasBrowserSession?: boolean }[]) => void;
 
+  // Realtime: patch a run's extracted agent_input (arrives async on its own
+  // event). Applied to the row if loaded; buffered otherwise and flushed when
+  // the row's trace_update creates it.
+  applyAgentInput: (traceId: string, agentInput: unknown) => void;
+
   // Realtime: upsert a pushed note / eval block (by id). Traces are ignored here
   // (they arrive via trace_update).
   applyBlockUpdate: (block: SessionBlock) => void;
@@ -339,6 +344,12 @@ export const createDebuggerSessionViewStore = (options: {
     persist(
       (set, get) => {
         const baseSlice = createBaseSessionViewSlice<DebuggerSessionViewStore>(set, get, {});
+
+        // agent_input arrives async on its own event, sometimes before the
+        // run's row exists. Buffer by traceId (latest wins); flushed by
+        // applyTraceUpdate when it creates the row. Closure-scoped per store.
+        const pendingAgentInputById = new Map<string, string>();
+        const stringifyAgentInput = (v: unknown): string => (typeof v === "string" ? v : JSON.stringify(v));
 
         // Lazy trace-row batching: the loader owns the pending set / debounce /
         // chunking; the store owns only the merge + state marks below.
@@ -587,7 +598,14 @@ export const createDebuggerSessionViewStore = (options: {
               // ahead are already in `traceSpans`. Mark the row loaded — the
               // hydrate below refines it, and ensureTraceRows must not refetch.
               if (!hasRow) {
-                get().setTraces((traces) => [...traces, minimalTraceRow(t.traceId, metadata)]);
+                // Flush a buffered agent_input whose event beat this row.
+                const pendingInput = pendingAgentInputById.get(t.traceId);
+                pendingAgentInputById.delete(t.traceId);
+                const row = minimalTraceRow(t.traceId, metadata);
+                get().setTraces((traces) => [
+                  ...traces,
+                  pendingInput !== undefined ? { ...row, agentInput: pendingInput } : row,
+                ]);
                 set(
                   (s) =>
                     ({
@@ -634,6 +652,19 @@ export const createDebuggerSessionViewStore = (options: {
 
           applyTraceUpdates: (traces) => {
             for (const t of traces) get().applyTraceUpdate(t);
+          },
+
+          applyAgentInput: (traceId, agentInput) => {
+            const value = stringifyAgentInput(agentInput);
+            const hasRow = get().traces.some((row) => row.id === traceId);
+            if (hasRow) {
+              get().setTraces((traces) =>
+                traces.map((row) => (row.id === traceId ? { ...row, agentInput: value } : row))
+              );
+            } else {
+              // Row not created yet — buffer; the create branch flushes it.
+              pendingAgentInputById.set(traceId, value);
+            }
           },
 
           applyBlockUpdate: (block) => {
@@ -701,7 +732,9 @@ export const createDebuggerSessionViewStore = (options: {
               const fetched = body.items?.[0];
               if (!fetched) return;
 
-              // Refine the (minimal/live) row; upsert preserves a realtime-ahead endTime.
+              // Refine the (minimal/live) row for the stats shield (tokens / cost /
+              // duration). `mergeTraceRow` keeps a realtime-ahead endTime and won't
+              // let the fetched-but-empty `agent_input` clobber a live-flushed one.
               get().setTraces((traces) =>
                 upsertTraceRows(traces, [{ ...fetched, metadata: normalizeMetadata(fetched.metadata) }])
               );

@@ -29,7 +29,7 @@ const baseDelta = (overrides: Partial<RealtimeTracePayload> = {}): RealtimeTrace
   ...overrides,
 });
 
-describe("realtimeTraceToRow (delta seed / cumulative)", () => {
+describe("realtimeTraceToRow (delta seed)", () => {
   it("seeds a row from a payload with no agentInput stand-in", () => {
     const row = realtimeTraceToRow(baseDelta({ topSpanId: "s1", topSpanType: "LLM", tags: ["a"] }));
     assert.equal(row.id, "t1");

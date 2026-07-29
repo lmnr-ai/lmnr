@@ -225,10 +225,8 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
         try {
           const payload = JSON.parse(event.data) as {
             traces?: Array<Record<string, unknown> & { id: string }>;
-            mode?: "delta" | "cumulative";
           };
-          const mode = payload.mode === "delta" ? "delta" : "cumulative";
-          payload.traces?.forEach((trace) => updateData((rows) => mergeTraceUpdateIntoRows(rows, trace, mode)));
+          payload.traces?.forEach((trace) => updateData((rows) => mergeTraceUpdateIntoRows(rows, trace)));
         } catch (e) {
           console.warn("Failed to parse realtime trace_update:", e);
         }
