@@ -19,9 +19,11 @@ pub struct StreamEnvironment {
 impl StreamEnvironment {
     pub async fn connect() -> Result<Self> {
         // `from_client_option` instead of `Environment::builder()` because the
-        // EnvironmentBuilder doesn't expose `max_frame_size`, and the client's
-        // 1 MiB default would cap the tune negotiation regardless of broker
-        // config.
+        // EnvironmentBuilder doesn't expose `max_frame_size`. The frame limit is
+        // broker-owned (`stream.frame_max` in rabbitmq.conf): 0 here means
+        // "defer to the server" in the tune negotiation (`negotiate_value`
+        // takes the non-zero side), whereas the crate's 1 MiB default would
+        // cap the negotiation regardless of broker config.
         let client_options = ClientOptions::builder()
             .host(&env::streams::HOST.get())
             .port(env::streams::PORT.get())
@@ -29,7 +31,7 @@ impl StreamEnvironment {
             .password(&env::streams::PASSWORD.get())
             .v_host(&env::streams::VIRTUAL_HOST.get())
             .load_balancer_mode(env::streams::LOAD_BALANCER_MODE.get())
-            .max_frame_size(env::streams::MAX_FRAME_BYTES.get())
+            .max_frame_size(0)
             .build();
 
         let inner = Environment::from_client_option(client_options)

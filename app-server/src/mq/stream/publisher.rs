@@ -38,12 +38,6 @@ use crate::env;
 /// rather than being closed over per call.
 const PARTITION_KEY: &str = "lmnr.partition_key";
 
-/// Headroom reserved for everything around the body inside a Publish frame:
-/// frame header, publisher id, publishing id, AMQP 1.0 message encoding, and
-/// the partition-key application property. Generous on purpose — the real
-/// overhead is a few hundred bytes.
-const FRAME_OVERHEAD_BYTES: usize = 16 * 1024;
-
 /// Minimum spacing between rebuild attempts, so a hard-down broker costs one
 /// bounded connect attempt per window instead of one per publish.
 const REBUILD_COOLDOWN: Duration = Duration::from_secs(5);
@@ -147,21 +141,6 @@ impl StreamPublisher {
     /// at-least-once).
     pub async fn publish<T: Serialize>(&self, payload: &T, key: &str) -> Result<()> {
         let body = serde_json::to_vec(payload).context("Failed to serialize stream payload")?;
-
-        // Size gate: an over-limit frame is fatal, not just rejected — the
-        // broker closes the connection with a `FrameTooLarge` close frame that
-        // the 0.11 client mis-parses (decoder desync), killing this producer
-        // until process restart. Erroring here instead routes the payload to
-        // the quorum-queue fallback, which has no such frame cap.
-        let max_frame = env::streams::MAX_FRAME_BYTES.get() as usize;
-        if body.len() + FRAME_OVERHEAD_BYTES > max_frame {
-            return Err(anyhow!(
-                "Stream payload of {} bytes exceeds the {} byte frame limit for '{}'",
-                body.len(),
-                max_frame,
-                self.super_stream
-            ));
-        }
 
         // A producer known to be dead fails fast; one caller per cooldown
         // window pays for the rebuild attempt inline.

@@ -64,21 +64,6 @@ pub const MAX_SEGMENT_SIZE_BYTES: NumEnv<u64> =
 /// queue we're replacing, so it needs an explicit decision, not a default.
 pub const REPLICATION_FACTOR: NumEnv<usize> = NumEnv::new("RABBITMQ_STREAM_REPLICATION_FACTOR", 3);
 
-/// Max stream-protocol frame size in bytes, doing double duty: requested during
-/// the tune handshake AND enforced as a client-side publish gate (oversized
-/// payloads error immediately so the caller falls back to the quorum queue).
-///
-/// The gate exists because an over-limit frame is fatal, not just rejected: the
-/// broker answers it with a `FrameTooLarge` close whose reason string the 0.11
-/// client under-parses, desyncing the frame decoder
-/// (`UnsupportedResponseType`) and killing the producer until process restart.
-///
-/// The effective limit is min(this, broker `stream.frame_max`) negotiated at
-/// tune — the broker config (default 1 MiB) must be raised to match, e.g.
-/// `stream.frame_max = 67108864` in rabbitmq.conf, or the broker still closes
-/// the connection at ITS limit while our gate happily passes larger payloads.
-pub const MAX_FRAME_BYTES: NumEnv<u32> = NumEnv::new("RABBITMQ_STREAM_MAX_FRAME_BYTES", 67_108_864);
-
 /// How long a publish waits for the broker's confirmation before giving up and
 /// letting the caller fall back to the quorum queue. Bounded because the client
 /// does NOT invoke the confirm callback when the connection drops mid-flight —
