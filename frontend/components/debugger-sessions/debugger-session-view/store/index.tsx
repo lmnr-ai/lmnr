@@ -155,6 +155,9 @@ const mergeTraceRow = (prev: TraceRow, next: TraceRow): TraceRow => {
     if (value !== undefined) (merged as Record<string, unknown>)[key] = value;
   }
   merged.endTime = new Date(prev.endTime).getTime() > new Date(next.endTime).getTime() ? prev.endTime : next.endTime;
+  // agentInput is sticky: extraction lands async, so a row hydrated (or updated)
+  // before it's written carries an empty value that must not blank a populated one.
+  if (!next.agentInput && prev.agentInput) merged.agentInput = prev.agentInput;
   return merged;
 };
 
@@ -173,7 +176,8 @@ const upsertTraceRows = (existing: TraceRow[], incoming: TraceRow[]): TraceRow[]
 };
 
 // Minimal TraceRow for a trace we only know the id of (live trace_update).
-const minimalTraceRow = (traceId: string, metadata: Record<string, string> = {}): TraceRow => ({
+// agentInput is seeded when a cache-hit extraction update beats the span batch.
+const minimalTraceRow = (traceId: string, metadata: Record<string, string> = {}, agentInput?: string): TraceRow => ({
   id: traceId,
   startTime: new Date().toISOString(),
   endTime: new Date().toISOString(),
@@ -188,6 +192,7 @@ const minimalTraceRow = (traceId: string, metadata: Record<string, string> = {})
   status: "success",
   spanTags: [],
   traceTags: [],
+  ...(agentInput ? { agentInput } : {}),
 });
 
 // Lifecycle of a trace block's row: absent → not requested yet (virtualizer
@@ -594,7 +599,8 @@ export const createDebuggerSessionViewStore = (options: {
               // ahead are already in `traceSpans`. Mark the row loaded — the
               // hydrate below refines it, and ensureTraceRows must not refetch.
               if (!hasRow) {
-                get().setTraces((traces) => [...traces, minimalTraceRow(t.traceId, metadata)]);
+                const seedInput = typeof t.agentInput === "string" && t.agentInput ? t.agentInput : undefined;
+                get().setTraces((traces) => [...traces, minimalTraceRow(t.traceId, metadata, seedInput)]);
                 set(
                   (s) =>
                     ({
