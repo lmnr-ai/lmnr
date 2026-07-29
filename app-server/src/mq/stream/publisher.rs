@@ -17,7 +17,7 @@
 use std::{
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -81,6 +81,19 @@ pub struct StreamPublisher {
     /// While off, publishes fail fast (no send, no confirm wait) so the
     /// fallback path isn't taxed the full `CONFIRM_TIMEOUT_MS` per call.
     healthy: AtomicBool,
+    /// Bumped once per successful rebuild, and the reason `mark_unhealthy` is
+    /// generation-scoped.
+    ///
+    /// A publish can outlive the producer it was sent on: its confirm wait runs
+    /// for up to `CONFIRM_TIMEOUT_MS`, during which another caller may rebuild.
+    /// The old producer's confirms then fail (its connection is dead / closed by
+    /// the rebuild), and an unguarded `mark_unhealthy` would flip the BRAND-NEW
+    /// producer unhealthy — and because a rebuild stamps the cooldown, the next
+    /// publish can't rebuild again either, so every publish falls back to the
+    /// quorum queue for a whole `REBUILD_COOLDOWN` window despite a working
+    /// connection. Each publish captures the generation before sending and its
+    /// failures are ignored if a rebuild has since moved it on.
+    generation: AtomicU64,
     /// Single-flight gate + cooldown clock for rebuilds. `try_lock` losers
     /// fail fast while the winner rebuilds.
     rebuild_gate: Mutex<Option<Instant>>,
@@ -95,6 +108,7 @@ impl StreamPublisher {
             environment: environment.clone(),
             super_stream,
             healthy: AtomicBool::new(true),
+            generation: AtomicU64::new(0),
             rebuild_gate: Mutex::new(None),
         })
     }
@@ -168,6 +182,9 @@ impl StreamPublisher {
         let confirm_tx = Arc::new(Mutex::new(Some(confirm_tx)));
 
         let super_stream = self.super_stream;
+        // Read BEFORE sending: any failure this publish reports belongs to this
+        // producer, and must not condemn a replacement built while we waited.
+        let generation = self.generation.load(Ordering::Acquire);
         let send_result = {
             let mut producer = self.producer.lock().await;
             producer
@@ -199,7 +216,7 @@ impl StreamPublisher {
             // Covers both a dead connection and a failed lazy per-partition
             // producer creation inside the client — connection trouble either
             // way.
-            self.mark_unhealthy("send failed");
+            self.mark_unhealthy(generation, "send failed");
             return Err(anyhow::Error::from(e))
                 .with_context(|| format!("Failed to publish to '{}'", super_stream));
         }
@@ -209,7 +226,7 @@ impl StreamPublisher {
             Ok(Ok(Ok(()))) => Ok(()),
             Ok(Ok(Err(failure))) => {
                 if failure.fatal {
-                    self.mark_unhealthy("client error on confirmation");
+                    self.mark_unhealthy(generation, "client error on confirmation");
                 }
                 Err(anyhow!(
                     "Stream publish to '{}' was not confirmed: {}",
@@ -219,7 +236,7 @@ impl StreamPublisher {
             }
             // Sender dropped without confirming — the producer was closed.
             Ok(Err(_)) => {
-                self.mark_unhealthy("confirmation channel lost");
+                self.mark_unhealthy(generation, "confirmation channel lost");
                 Err(anyhow!(
                     "Stream publish to '{}' lost its confirmation channel",
                     super_stream
@@ -229,7 +246,7 @@ impl StreamPublisher {
                 // A live connection delivers confirms in milliseconds; hitting
                 // the ceiling means the connection silently died (the client
                 // never calls the callback for in-flight messages on drop).
-                self.mark_unhealthy("confirmation timeout");
+                self.mark_unhealthy(generation, "confirmation timeout");
                 Err(anyhow!(
                     "Stream publish to '{}' was not confirmed within {:?}",
                     super_stream,
@@ -239,9 +256,20 @@ impl StreamPublisher {
         }
     }
 
-    fn mark_unhealthy(&self, why: &str) {
-        // swap → log only on the true→false transition, not on every failure.
-        if self.healthy.swap(false, Ordering::AcqRel) {
+    /// Mark the producer dead — but only if `generation` is still the live one.
+    ///
+    /// A stale generation means a rebuild already replaced the producer this
+    /// failure came from, so the failure says nothing about the current one.
+    fn mark_unhealthy(&self, generation: u64, why: &str) {
+        if !condemn_if_current(&self.healthy, &self.generation, generation) {
+            log::debug!(
+                "Ignoring stale failure from a superseded stream producer for '{}' ({}), or it was already unhealthy",
+                self.super_stream,
+                why
+            );
+            return;
+        }
+        {
             log::warn!(
                 "Stream producer for '{}' marked unhealthy ({}); publishes fall back to the queue until a rebuild succeeds",
                 self.super_stream,
@@ -299,10 +327,31 @@ impl StreamPublisher {
             let _ = tokio::time::timeout(Duration::from_secs(5), old.close()).await;
         });
 
+        // Bump BEFORE re-arming `healthy`: any in-flight publish on the old
+        // producer now carries a stale generation, so its late failure is
+        // ignored instead of condemning this fresh producer.
+        self.generation.fetch_add(1, Ordering::AcqRel);
         self.healthy.store(true, Ordering::Release);
         log::info!("Rebuilt stream producer for '{}'", self.super_stream);
         Ok(())
     }
+}
+
+/// Flip `healthy` false only when `publish_generation` is still the live
+/// generation. Returns whether THIS call performed the true→false transition, so
+/// the caller logs once per transition rather than once per failure.
+///
+/// Free function so the guard is unit-testable without a live broker (building a
+/// `StreamPublisher` requires one).
+fn condemn_if_current(
+    healthy: &AtomicBool,
+    generation: &AtomicU64,
+    publish_generation: u64,
+) -> bool {
+    if generation.load(Ordering::Acquire) != publish_generation {
+        return false;
+    }
+    healthy.swap(false, Ordering::AcqRel)
 }
 
 #[cfg(test)]
@@ -311,6 +360,44 @@ mod tests {
     use super::*;
 
     const TEST_STREAM: &str = "lmnr_test_publisher_rebuild";
+
+    /// A publish's confirm wait can outlive the producer it was sent on, so a
+    /// late failure from a SUPERSEDED producer must not condemn the replacement.
+    /// Without the generation guard this flips `healthy` false on a freshly
+    /// rebuilt producer AND the rebuild cooldown is already stamped, so every
+    /// publish falls back to the quorum queue for the whole cooldown window.
+    ///
+    /// Exercises the real `condemn_if_current` (the guard `mark_unhealthy` calls);
+    /// constructing a `StreamPublisher` would need a live broker.
+    #[test]
+    fn a_stale_generation_failure_cannot_condemn_a_rebuilt_producer() {
+        let healthy = AtomicBool::new(true);
+        let generation = AtomicU64::new(0);
+
+        // A publish starts on generation 0, then a concurrent rebuild lands.
+        let publish_generation = generation.load(Ordering::Acquire);
+        generation.fetch_add(1, Ordering::AcqRel);
+        healthy.store(true, Ordering::Release);
+
+        // The old publish's confirm fails only now.
+        assert!(
+            !condemn_if_current(&healthy, &generation, publish_generation),
+            "a superseded generation must not report a transition"
+        );
+        assert!(
+            healthy.load(Ordering::Acquire),
+            "a superseded producer's failure must leave the rebuilt producer healthy"
+        );
+
+        // A failure on the CURRENT generation still condemns it, once.
+        let current = generation.load(Ordering::Acquire);
+        assert!(condemn_if_current(&healthy, &generation, current));
+        assert!(!healthy.load(Ordering::Acquire));
+        assert!(
+            !condemn_if_current(&healthy, &generation, current),
+            "already-unhealthy must not re-report a transition (keeps the log to one line)"
+        );
+    }
 
     /// Needs a local broker with the stream plugin on 5552 (guest/guest), so
     /// it's ignored by default. Run with:
@@ -338,7 +425,9 @@ mod tests {
         topology.declare(&environment, TEST_STREAM).await.unwrap();
 
         eprintln!("[test] building publisher");
-        let publisher = StreamPublisher::new(&environment, TEST_STREAM).await.unwrap();
+        let publisher = StreamPublisher::new(&environment, TEST_STREAM)
+            .await
+            .unwrap();
         eprintln!("[test] baseline publish");
         publisher
             .publish(&serde_json::json!({"n": 1}), "k1")
@@ -347,7 +436,7 @@ mod tests {
 
         // Simulate a detected connection death (the publish arms flip this on
         // fatal confirm failures / timeouts / send errors).
-        publisher.mark_unhealthy("test");
+        publisher.mark_unhealthy(publisher.generation.load(Ordering::Acquire), "test");
         assert!(!publisher.healthy.load(Ordering::Acquire));
 
         // The next publish must rebuild inline and go through.
@@ -360,7 +449,7 @@ mod tests {
 
         // A failure right after a rebuild attempt fails FAST (cooldown), so a
         // hard-down broker costs one connect per window, not one per publish.
-        publisher.mark_unhealthy("test again");
+        publisher.mark_unhealthy(publisher.generation.load(Ordering::Acquire), "test again");
         let err = publisher
             .publish(&serde_json::json!({"n": 3}), "k3")
             .await
