@@ -256,7 +256,14 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
         mode={focusState.type === "idle" ? "nav" : focusState.mode}
       />
 
-      <Button variant="ghost" ref={removeRef} onClick={handleRemove} className={removeButtonClassName} type="button">
+      <Button
+        variant="ghost"
+        ref={removeRef}
+        onClick={handleRemove}
+        className={removeButtonClassName}
+        type="button"
+        aria-label="Remove filter"
+      >
         <X className="w-3 h-3 text-secondary-foreground" />
       </Button>
     </div>

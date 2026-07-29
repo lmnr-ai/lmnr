@@ -9,11 +9,13 @@ export function Centered({ children }: { children: ReactNode }) {
 }
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
+  // A wrapping <label> implicitly associates the text with the control inside it,
+  // giving inputs an accessible name without threading an id through every call site.
   return (
-    <div className="flex flex-col gap-1">
+    <label className="flex flex-col gap-1">
       <span className="text-xs text-muted-foreground">{label}</span>
       {children}
-    </div>
+    </label>
   );
 }
 
