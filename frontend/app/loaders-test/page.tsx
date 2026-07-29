@@ -329,6 +329,9 @@ const KEYFRAMES = `
   @keyframes lt-logo-draw { 0% { stroke-dashoffset: 100; } 55% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -100; } }
   .lt-logo-draw { animation: lt-logo-draw 2.2s ease-in-out infinite; }
 
+  @keyframes lt-comet-run { to { offset-distance: 100%; } }
+  .lt-comet-run { offset-distance: 0%; animation: lt-comet-run 1.6s linear infinite; }
+
   @keyframes lt-logo-fill { 0%,45% { opacity: 0; } 65%,82% { opacity: 1; } 96%,100% { opacity: 0; } }
   .lt-logo-fill { animation: lt-logo-fill 2.2s ease-in-out infinite; }
 

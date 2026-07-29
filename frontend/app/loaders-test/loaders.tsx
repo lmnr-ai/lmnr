@@ -999,27 +999,17 @@ const LOGO_MASK = `url("data:image/svg+xml,${encodeURIComponent(
   `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 76 76'><path d='${LOGO_PATH}'/></svg>`
 )}")`;
 
-// Outline-only mask (stroked, not filled) — for effects that ride the border.
-const LOGO_OUTLINE_MASK = `url("data:image/svg+xml,${encodeURIComponent(
-  `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 76 76'><path d='${LOGO_PATH}' fill='none' stroke='black' stroke-width='8' stroke-linejoin='round'/></svg>`
-)}")`;
-
-// Mask an element (and its children) to a logo-shaped image.
-function maskWith(image: string): CSSProperties {
-  return {
-    WebkitMaskImage: image,
-    maskImage: image,
-    WebkitMaskSize: "contain",
-    maskSize: "contain",
-    WebkitMaskRepeat: "no-repeat",
-    maskRepeat: "no-repeat",
-    WebkitMaskPosition: "center",
-    maskPosition: "center",
-  };
-}
-
-const logoMask = maskWith(LOGO_MASK); // filled silhouette
-const logoOutlineMask = maskWith(LOGO_OUTLINE_MASK); // just the border
+// Mask an element (and its children) to the filled logo silhouette.
+const logoMask: CSSProperties = {
+  WebkitMaskImage: LOGO_MASK,
+  maskImage: LOGO_MASK,
+  WebkitMaskSize: "contain",
+  maskSize: "contain",
+  WebkitMaskRepeat: "no-repeat",
+  maskRepeat: "no-repeat",
+  WebkitMaskPosition: "center",
+  maskPosition: "center",
+};
 
 /** The mark drawing its own outline over and over. */
 export function LogoTrace() {
@@ -1102,22 +1092,34 @@ export function LogoPulse() {
 }
 
 /**
- * A continuous gradient comet orbiting the logo's outline — OrbitComet's exact
- * technique (a conic gradient masked into a ring), with the ring swapped for our
- * mark's outline. The mask is static so the logo stays upright; the conic gradient
- * spins behind it, sweeping a bright head that fades into a transparent tail.
+ * A gradient comet running along the logo's actual outline. `offset-path` moves
+ * the streak along the exact SVG path at constant arc-length speed, and
+ * `offset-rotate: auto` keeps it aligned to the path direction, so the opaque
+ * head leads and the transparent tail trails around the curve. One element, one
+ * gradient — no dots, no fake angular sweep. A faint full outline is the track.
  */
 export function LogoComet() {
   return (
-    <div className="relative size-11 overflow-hidden text-primary" style={logoOutlineMask}>
-      <div
-        className="absolute inset-[-30%] animate-spin"
-        style={{
-          animationDuration: "1.3s",
-          background:
-            "conic-gradient(from 0deg, transparent 0deg, color-mix(in oklch, currentColor 30%, transparent) 210deg, currentColor 350deg, transparent 360deg)",
-        }}
-      />
+    <div className="relative size-11 text-primary">
+      {/* Path space is 0–76 (icon.svg viewBox); scale the whole rig into the box. */}
+      <div className="absolute left-0 top-0 origin-top-left" style={{ width: 76, height: 76, transform: "scale(0.5789)" }}>
+        <svg viewBox="0 0 76 76" className="absolute inset-0 size-full">
+          <path d={LOGO_PATH} fill="none" stroke="currentColor" strokeWidth={2} className="opacity-[0.13]" />
+        </svg>
+        <div
+          className="lt-comet-run absolute left-0 top-0"
+          style={{ offsetPath: `path("${LOGO_PATH}")`, offsetRotate: "auto", offsetAnchor: "100% 50%" }}
+        >
+          <div
+            style={{
+              width: 30,
+              height: 5,
+              borderRadius: 9999,
+              background: "linear-gradient(90deg, transparent 0%, color-mix(in oklch, currentColor 45%, transparent) 65%, currentColor 100%)",
+            }}
+          />
+        </div>
+      </div>
     </div>
   );
 }
