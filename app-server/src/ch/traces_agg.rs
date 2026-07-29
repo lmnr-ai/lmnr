@@ -19,11 +19,10 @@ const STATUS_ENUM_ERROR: i8 = 2;
 
 /// One per-batch partial row for the `traces_agg` AggregatingMergeTree table.
 /// Field order MUST match the CREATE TABLE column order exactly (RowBinary
-/// serialization is positional). `created_at` and the reserved
-/// `internal_metadata` column are deliberately absent: the insert names
-/// its columns, so the server fills their defaults. The extracted agent
-/// input/output live in the supplementary `trace_agent_input`/`_output`
-/// RMT tables, not here.
+/// serialization is positional). `created_at` is deliberately absent: the insert
+/// names its columns, so the server fills its default. The static trace columns
+/// (session/user id, root span, browser session) now live in `traces_static`;
+/// `metadata` is kept here so the pre-`traces_static` values stay restorable.
 #[derive(Debug, Clone, Serialize, Deserialize, Row)]
 pub struct CHTraceAgg {
     #[serde(with = "clickhouse::serde::uuid")]
@@ -45,15 +44,8 @@ pub struct CHTraceAgg {
     /// as an "any occurrence wins" per-key merge (CH has no per-key map-merge
     /// combinator that isn't min/max/sum-based).
     pub metadata: Vec<(String, String)>,
-    pub session_id: String,
-    pub user_id: String,
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub top_span_id: Uuid,
-    pub top_span_name: String,
-    pub top_span_type: u8,
     pub tags: Vec<String>,
     pub num_spans: u64,
-    pub has_browser_session: u8,
     pub span_names: Vec<String>,
     pub cache_read_input_tokens: u64,
     pub cache_creation_input_tokens: u64,
@@ -81,20 +73,6 @@ fn encode_metadata(metadata: Option<&Value>) -> Vec<(String, String)> {
         .filter(|(k, _)| k.as_str() != USER_TASK_METADATA_KEY)
         .map(|(k, v)| (k.clone(), v.to_string()))
         .collect()
-}
-
-/// `top_span_name` carries a 1-byte priority prefix: '2' when the batch saw
-/// the real root span, '1' when the name is the path-derived fallback (set
-/// without top_span_id, see `TraceAggregation::from_spans`). Under the table's
-/// `max(String)` any root-derived name then beats any fallback, keeping the
-/// name consistent with `top_span_id`/`top_span_type` (which only the root
-/// sets) and matching the PG upsert where a later batch carrying the root
-/// overwrites the fallback. The view strips the prefix with substring(_, 2).
-fn encode_top_span_name(name: Option<&str>, saw_root_span: bool) -> String {
-    match name {
-        Some(name) => format!("{}{}", if saw_root_span { '2' } else { '1' }, name),
-        None => String::new(),
-    }
 }
 
 fn status_enum_values(status: Option<&str>) -> Vec<i8> {
@@ -135,17 +113,8 @@ impl CHTraceAgg {
             output_cost: agg.output_cost,
             total_cost: agg.total_cost,
             metadata: encode_metadata(agg.metadata.as_ref()),
-            session_id: agg.session_id.clone().unwrap_or_default(),
-            user_id: agg.user_id.clone().unwrap_or_default(),
-            top_span_id: agg.top_span_id.unwrap_or(Uuid::nil()),
-            top_span_name: encode_top_span_name(
-                agg.top_span_name.as_deref(),
-                agg.top_span_id.is_some(),
-            ),
-            top_span_type: agg.top_span_type,
             tags: agg.tags.iter().cloned().collect(),
             num_spans: agg.num_spans as u64,
-            has_browser_session: agg.has_browser_session.unwrap_or(false) as u8,
             span_names: agg.span_names.iter().cloned().collect(),
             cache_read_input_tokens: agg.cache_read_input_tokens as u64,
             cache_creation_input_tokens: agg.cache_creation_input_tokens as u64,
@@ -194,7 +163,10 @@ impl CHTraceAgg {
                     .start_time()
                     .map(chrono_to_nanoseconds)
                     .unwrap_or(now_ns),
-                trace.end_time().map(chrono_to_nanoseconds).unwrap_or(now_ns),
+                trace
+                    .end_time()
+                    .map(chrono_to_nanoseconds)
+                    .unwrap_or(now_ns),
             )
         };
 
@@ -210,14 +182,8 @@ impl CHTraceAgg {
             output_cost: 0.0,
             total_cost: 0.0,
             metadata: encode_metadata(trace.metadata()),
-            session_id: String::new(),
-            user_id: String::new(),
-            top_span_id: Uuid::nil(),
-            top_span_name: String::new(),
-            top_span_type: 0,
             tags: Vec::new(),
             num_spans: 1,
-            has_browser_session: 0,
             span_names: Vec::new(),
             cache_read_input_tokens: 0,
             cache_creation_input_tokens: 0,
@@ -330,17 +296,6 @@ mod tests {
         let encoded = encode_metadata(Some(&metadata));
         assert!(encoded.iter().any(|(k, _)| k == "user_key"));
         assert!(!encoded.iter().any(|(k, _)| k == "lmnr_user_task"));
-    }
-
-    #[test]
-    fn top_span_name_root_beats_path_fallback_under_max() {
-        let fallback = encode_top_span_name(Some("zzz_outer_path"), false);
-        let root = encode_top_span_name(Some("agent"), true);
-        // Real root name must win max(String) even when lexicographically smaller.
-        assert!(root > fallback);
-        assert_eq!(&root[1..], "agent");
-        assert_eq!(&fallback[1..], "zzz_outer_path");
-        assert_eq!(encode_top_span_name(None, false), "");
     }
 
     #[test]

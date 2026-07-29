@@ -17,7 +17,6 @@ use super::deduped_content::CHDedupedContent;
 use super::notification_deliveries::CHNotificationDelivery;
 use super::notifications::CHNotification;
 use super::spans::CHSpan;
-use super::trace_agent_io::{CHTraceAgentInput, CHTraceAgentOutput};
 use super::traces::CHTrace;
 use super::traces_agg::CHTraceAgg;
 use super::traces_static::CHTraceStatic;
@@ -32,8 +31,6 @@ pub enum DataPlaneBatch {
     Traces(Vec<CHTrace>),
     TracesAgg(Vec<CHTraceAgg>),
     TracesStatic(Vec<CHTraceStatic>),
-    TraceAgentInput(Vec<CHTraceAgentInput>),
-    TraceAgentOutput(Vec<CHTraceAgentOutput>),
     NotificationDeliveries(Vec<CHNotificationDelivery>),
     Notifications(Vec<CHNotification>),
     DedupedContent(Vec<CHDedupedContent>),
