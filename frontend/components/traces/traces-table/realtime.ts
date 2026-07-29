@@ -28,5 +28,5 @@ export const realtimeTraceToRow = (trace: RealtimeTracePayload): TraceRow => ({
   traceTags: [],
   // Real extracted input arrives seconds late; until then fall back to the
   // root-span input as a transient stand-in (full refetch has the true value).
-  agentInput: trace.agentInput ?? trace.rootSpanInput ?? undefined,
+  agentInput: trace.agentInput || trace.rootSpanInput || undefined,
 });

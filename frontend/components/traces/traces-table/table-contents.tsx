@@ -197,9 +197,10 @@ export const TracesTableContents = memo(function TracesTableContents({
           const newTraces = [...currentTraces];
           newTraces[existingTraceIndex] = {
             ...traceData,
-            // Only a real extracted value overwrites agent input; a later span-batch
-            // update (null) keeps what a prior extraction flush already set.
-            agentInput: trace.agentInput ?? prev.agentInput ?? traceData.agentInput,
+            // Prefer a real extracted value, else keep a populated prior one, else the
+            // rootSpanInput stand-in. Truthiness (not ??) so an empty "" from the initial
+            // traces_v0 fetch (ifNull → '') yields to the stand-in instead of sticking.
+            agentInput: trace.agentInput || prev.agentInput || traceData.agentInput,
           };
           return newTraces;
         }
