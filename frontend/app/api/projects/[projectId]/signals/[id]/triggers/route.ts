@@ -3,7 +3,7 @@ import { prettifyError, ZodError } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils.ts";
 import {
-  createSignalTrigger,
+  createSignalTriggerOnAppServer,
   deleteSignalTriggers,
   getSignalTriggers,
   GetSignalTriggersSchema,
@@ -50,22 +50,17 @@ export async function POST(
 
   try {
     const body = await req.json();
-    const result = await createSignalTrigger({
-      projectId,
-      signalId,
+
+    // Trigger creation is owned by app-server (shared with the CLI). Membership
+    // is enforced by proxy.ts before this route runs.
+    const res = await createSignalTriggerOnAppServer(projectId, signalId, {
       filters: body.filters,
       mode: body.mode ?? 0,
     });
-
-    return Response.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to create trigger." },
-      { status: 500 }
-    );
+    const data = await res.json().catch(() => null);
+    return Response.json(data ?? { error: "Failed to create trigger." }, { status: res.status });
+  } catch {
+    return Response.json({ error: "Failed to create trigger." }, { status: 500 });
   }
 }
 

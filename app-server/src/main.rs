@@ -1918,7 +1918,9 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::rollouts::update_name)
                             .service(api::v1::cli::rollouts::register_session)
                             .service(api::v1::cli::rollouts::list_blocks)
-                            .service(api::v1::cli::rollouts::add_block);
+                            .service(api::v1::cli::rollouts::add_block)
+                            .service(api::v1::cli::signals::create_signal)
+                            .service(api::v1::cli::signals::create_signal_trigger);
                         #[cfg(feature = "signals")]
                         let cli_scope = cli_scope
                             .service(web::scope("/agent").service(api::v1::cli::agent::agent_chat));
@@ -2016,6 +2018,8 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::sql::json_to_sql)
                                     .service(routes::spans::search_spans)
                                     .service(routes::signal_events::search_signal_events)
+                                    .service(routes::signals::create_signal)
+                                    .service(routes::signals::create_signal_trigger)
                                     .service(routes::rollouts::update_session_name)
                                     .service(routes::static_sp::extract_system_prompt);
                                 #[cfg(feature = "signals")]
