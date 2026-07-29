@@ -57,8 +57,6 @@ pub struct RealtimeDebuggerTrace {
     trace_id: Uuid,
     metadata: Option<Value>,
     has_browser_session: Option<bool>,
-    // See `RealtimeTrace::agent_input`.
-    agent_input: Option<String>,
 }
 
 /// Realtime span data for frontend consumption (lightweight, no input/output)

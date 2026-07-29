@@ -125,46 +125,9 @@ struct RawTraceIo {
     trace_id: Uuid,
     input: Option<Value>,
     output_hashes: Option<Vec<[u8; 32]>>,
-    /// Winning span end time (ns) for the output — the RMT version. `None`
-    /// only for legacy/malformed spans missing the attribute.
-    output_end_time_ns: Option<i64>,
     /// Stamped by the extraction façade; routes the agent_input event to the
     /// debugger channel.
     rollout_session_id: Option<String>,
-}
-
-/// Build supplementary-table rows from the raw extracted io. The input row
-/// leaves `updated_at` to the server default (`now64()`); the output row
-/// versions on the winning span's END TIME so FINAL converges on the
-/// latest-ending answer regardless of insert arrival order. The end time is
-/// clamped to `now_ns` — a missing/absurd (e.g. `i64::MAX` unknown-time
-/// sentinel) value would overflow `DateTime64(9)`; clamping to now still
-/// ranks it "latest" (real end times are ≤ now).
-fn collect_agent_io_rows(
-    io: &[RawTraceIo],
-    now_ns: i64,
-) -> (Vec<CHTraceAgentInput>, Vec<CHTraceAgentOutput>) {
-    let mut inputs = Vec::new();
-    let mut outputs = Vec::new();
-    for entry in io {
-        if let Some(value) = &entry.input {
-            inputs.push(CHTraceAgentInput {
-                project_id: entry.project_id,
-                trace_id: entry.trace_id,
-                value: value.to_string(),
-            });
-        }
-        if let Some(hashes) = &entry.output_hashes {
-            let updated_at = entry.output_end_time_ns.unwrap_or(now_ns).min(now_ns);
-            outputs.push(CHTraceAgentOutput {
-                project_id: entry.project_id,
-                trace_id: entry.trace_id,
-                hashes: hashes.clone(),
-                updated_at,
-            });
-        }
-    }
-    (inputs, outputs)
 }
 
 /// Resolves each trace's `start_time` for the non-span `traces_static` writes
@@ -323,7 +286,6 @@ pub async fn process_span_messages(
             })
         });
         if input.is_some() || output_hashes.is_some() {
-            let output_end_time_ns = attrs.get(SPAN_TRACE_OUTPUT_END_TIME).and_then(Value::as_i64);
             let rollout_session_id = m
                 .span
                 .attributes
@@ -334,7 +296,6 @@ pub async fn process_span_messages(
                 trace_id: m.span.trace_id,
                 input,
                 output_hashes,
-                output_end_time_ns,
                 rollout_session_id,
             });
             continue;
@@ -1317,8 +1278,6 @@ mod tests {
                 trace_id,
                 input: Some(json!("the task")),
                 output_hashes: None,
-                // A wildly different per-write time that must NOT be used.
-                output_end_time_ns: Some(i64::MAX),
                 rollout_session_id: None,
             }],
             &resolved,
@@ -1334,7 +1293,6 @@ mod tests {
                 trace_id,
                 input: Some(json!("the task")),
                 output_hashes: None,
-                output_end_time_ns: None,
                 rollout_session_id: None,
             }],
             &HashMap::new(),

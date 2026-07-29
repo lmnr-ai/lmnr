@@ -196,10 +196,6 @@ export const TracesTableContents = memo(function TracesTableContents({
   // for the trace is merged in as the row lands.
   const updateRealtimeTrace = useCallback(
     (payload: RealtimeTracePayload) => {
-      if (!payload.startTime || !isTraceInTimeRange(payload.startTime)) {
-        return;
-      }
-
       const drainFragments = (row: TraceRow): TraceRow => {
         const pending = pendingFragmentsRef.current.get(payload.id);
         if (!pending) return row;
@@ -212,10 +208,17 @@ export const TracesTableContents = memo(function TracesTableContents({
 
         const existingTraceIndex = currentTraces.findIndex((trace) => trace.id === payload.id);
 
+        // Always accumulate onto a loaded row — `startTime` is this batch's min
+        // span start, not the trace start, so the range gate would wrongly drop it.
         if (existingTraceIndex !== -1) {
           const newTraces = [...currentTraces];
           newTraces[existingTraceIndex] = drainFragments(mergeTraceDelta(newTraces[existingTraceIndex], payload));
           return newTraces;
+        }
+
+        // Range gate only decides whether to admit a NEW row.
+        if (!payload.startTime || !isTraceInTimeRange(payload.startTime)) {
+          return currentTraces;
         }
 
         const newTraces = [drainFragments(realtimeTraceToRow(payload)), ...currentTraces];
@@ -224,9 +227,7 @@ export const TracesTableContents = memo(function TracesTableContents({
           newTraces.splice(FETCH_SIZE);
         }
 
-        if (payload.startTime) {
-          incrementStat(payload.startTime, payload.status === "error");
-        }
+        incrementStat(payload.startTime, payload.status === "error");
 
         return newTraces;
       });
