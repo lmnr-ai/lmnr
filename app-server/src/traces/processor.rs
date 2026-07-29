@@ -125,7 +125,6 @@ struct RawTraceIo {
     trace_id: Uuid,
     input: Option<Value>,
     output_hashes: Option<Vec<[u8; 32]>>,
-<<<<<<< HEAD
     /// Winning span end time (ns) for the output — the RMT version. `None`
     /// only for legacy/malformed spans missing the attribute.
     output_end_time_ns: Option<i64>,
@@ -166,8 +165,6 @@ fn collect_agent_io_rows(
         }
     }
     (inputs, outputs)
-=======
->>>>>>> dev
 }
 
 /// Resolves each trace's `start_time` for the non-span `traces_static` writes
@@ -337,11 +334,8 @@ pub async fn process_span_messages(
                 trace_id: m.span.trace_id,
                 input,
                 output_hashes,
-<<<<<<< HEAD
                 output_end_time_ns,
                 rollout_session_id,
-=======
->>>>>>> dev
             });
             continue;
         }
@@ -399,23 +393,10 @@ pub async fn process_span_messages(
         });
     }
 
-<<<<<<< HEAD
     // Live agent_input — the stat delta can't carry it (extraction is async).
     if env::clickhouse::WRITE_TRACES_AGG.get() {
         dispatch_input_realtime_updates(&raw_trace_io, cache.clone(), &pubsub).await;
     }
-=======
-    // Extracted input threaded to the realtime dispatch so it shows live, NOT via
-    // the deprecated `lmnr_user_task` fold. `to_string()` matches `traces_v0.agent_input`.
-    let agent_input_by_trace: HashMap<(Uuid, Uuid), String> = raw_trace_io
-        .iter()
-        .filter_map(|io| {
-            io.input
-                .as_ref()
-                .map(|v| ((io.project_id, io.trace_id), v.to_string()))
-        })
-        .collect();
->>>>>>> dev
 
     // Enrich spans with usage info
     let mut span_usage_vec = Vec::with_capacity(messages.len());
@@ -769,17 +750,7 @@ pub async fn process_span_messages(
 
             debugger_session_blocks::upsert_blocks_for_traces(&db.pool, &updated_traces).await;
 
-<<<<<<< HEAD
             dispatch_trace_realtime_updates(&trace_aggregations, cache.clone(), &pubsub).await;
-=======
-            dispatch_trace_realtime_updates(
-                &updated_traces,
-                &agent_input_by_trace,
-                cache.clone(),
-                &pubsub,
-            )
-            .await;
->>>>>>> dev
         }
 
         // Dual-write partial rows to `traces_agg` (AggregatingMergeTree,

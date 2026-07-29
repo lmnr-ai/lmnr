@@ -315,7 +315,10 @@ impl RealtimeTrace {
             top_span_id: agg.top_span_id,
             trace_type: agg.trace_type.to_string(),
             top_span_name: agg.top_span_name.clone(),
-            top_span_type: Some(SpanType::from(agg.top_span_type).to_string()),
+            top_span_type: agg
+                .top_span_id
+                .is_some()
+                .then(|| SpanType::from(agg.top_span_type).to_string()),
             status: agg.status.clone(),
             user_id: agg.user_id.clone(),
             tags: agg.tags.iter().cloned().collect(),
