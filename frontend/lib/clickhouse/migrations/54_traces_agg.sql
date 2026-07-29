@@ -169,7 +169,6 @@ DROP VIEW IF EXISTS default.trace_outputs_v0;
 CREATE VIEW IF NOT EXISTS default.trace_outputs_v0 SQL SECURITY INVOKER AS
 SELECT
     trace_id,
-    start_time,
     arrayMap(
         h -> dictGetOrDefault('deduped_content_dict', 'content', tuple(project_id, h), ''),
         arrayMap(
