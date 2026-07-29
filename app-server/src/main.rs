@@ -1035,12 +1035,17 @@ fn main() -> anyhow::Result<()> {
     // logged and leaves every publisher unset, so ingest degrades to the queue
     // path rather than failing the boot.
     //
-    // Placed AFTER the Quickwit client so the indexer publisher can be gated on
-    // it — a publisher whose reader never starts would strand indexing jobs on a
-    // stream that retention eventually deletes.
-    // `Some` only when streams are fully usable: topology declared, dead-letter
-    // sink built, publishers registered. Publisher registration is deliberately
-    // LAST so a later failure can't leave producers writing to unread streams.
+    // Publishers are registered in BOTH pod roles, NOT just under
+    // `enable_producer()`. Ingest (`api/v1/spans.rs`) is producer-side, but the
+    // CONSUMER also publishes spans: `publish_for_indexing` runs inside
+    // `process_span_messages`, and the metadata façades
+    // (`publish_trace_{input,output}_update` / `publish_trace_metadata_patch`) are
+    // called from the input-extraction and checkpoints consumers. Gating on
+    // `enable_producer()` left both publishers unset on `OPERATION_MODE=consumer`,
+    // so every one of those paths silently stayed on the quorum queue — the exact
+    // path this transport exists to unload.
+    // `Some` only when streams are fully usable: topology declared and publishers
+    // registered.
     let stream_runtime: Option<mq::stream::StreamEnvironment> = if mq::stream::enabled()
         && is_feature_enabled(Feature::FullBuild)
     {
@@ -1058,54 +1063,51 @@ fn main() -> anyhow::Result<()> {
                             }
                         }
 
-                        if enable_producer() {
+                        match mq::stream::StreamPublisher::new(
+                            &environment,
+                            mq::stream::OBSERVATIONS_STREAM,
+                        )
+                        .await
+                        {
+                            Ok(publisher) => {
+                                mq::stream::set_observations_publisher(Arc::new(publisher))
+                            }
+                            Err(e) => {
+                                log::error!("Failed to build observations publisher: {:?}", e)
+                            }
+                        }
+                        // Gated on the SHARED config flag, not on this pod's own
+                        // `quickwit_client`. The indexer reader lives in the
+                        // consumer pod and `QuickwitClient::connect` is a
+                        // per-pod TCP dial, so "Quickwit is live here" says
+                        // nothing about whether the consumer pod started a
+                        // reader — a producer that connects while the consumer
+                        // doesn't would publish indexing jobs to a stream
+                        // nothing reads, and an unread stream is deleted by
+                        // retention (the quorum queue would have retained them).
+                        // Both roles read this same env var, so the gate is
+                        // symmetric; unset keeps `publish_for_indexing` on the
+                        // queue fallback.
+                        if env::streams::SPANS_INDEXER_ENABLED.get() {
                             match mq::stream::StreamPublisher::new(
                                 &environment,
-                                mq::stream::OBSERVATIONS_STREAM,
+                                mq::stream::SPANS_INDEXER_STREAM,
                             )
                             .await
                             {
                                 Ok(publisher) => {
-                                    mq::stream::set_observations_publisher(Arc::new(publisher))
+                                    mq::stream::set_spans_indexer_publisher(Arc::new(publisher))
                                 }
-                                Err(e) => {
-                                    log::error!("Failed to build observations publisher: {:?}", e)
-                                }
+                                Err(e) => log::error!(
+                                    "Failed to build spans indexer publisher: {:?}",
+                                    e
+                                ),
                             }
-                            // Gated on the SHARED config flag, not on this pod's own
-                            // `quickwit_client`. The indexer reader lives in the
-                            // consumer pod and `QuickwitClient::connect` is a
-                            // per-pod TCP dial, so "Quickwit is live here" says
-                            // nothing about whether the consumer pod started a
-                            // reader — a producer that connects while the consumer
-                            // doesn't would publish indexing jobs to a stream
-                            // nothing reads, and an unread stream is deleted by
-                            // retention (the quorum queue would have retained them).
-                            // Both roles read this same env var, so the gate is
-                            // symmetric; unset keeps `publish_for_indexing` on the
-                            // queue fallback.
-                            if env::streams::SPANS_INDEXER_ENABLED.get() {
-                                match mq::stream::StreamPublisher::new(
-                                    &environment,
-                                    mq::stream::SPANS_INDEXER_STREAM,
-                                )
-                                .await
-                                {
-                                    Ok(publisher) => {
-                                        mq::stream::set_spans_indexer_publisher(Arc::new(publisher))
-                                    }
-                                    Err(e) => log::error!(
-                                        "Failed to build spans indexer publisher: {:?}",
-                                        e
-                                    ),
-                                }
-                            } else {
-                                log::warn!(
-                                    "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is off - not registering the spans indexer stream publisher; indexing stays on the quorum queue"
-                                );
-                            }
+                        } else {
+                            log::warn!(
+                                "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is off - not registering the spans indexer stream publisher; indexing stays on the quorum queue"
+                            );
                         }
-
                         log::info!("RabbitMQ Streams transport enabled");
                         Some(environment)
                     }
