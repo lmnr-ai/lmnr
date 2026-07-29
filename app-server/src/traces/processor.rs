@@ -14,7 +14,6 @@ use crate::{
         ClickhouseTrait,
         deduped_content::CHDedupedContent,
         spans::CHSpan,
-        trace_agent_io::{CHTraceAgentInput, CHTraceAgentOutput},
         traces::{CHTrace, TraceAggregation},
         traces_agg::CHTraceAgg,
         traces_static::CHTraceStatic,
@@ -45,7 +44,7 @@ use crate::{
             RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_trace,
             send_span_updates, send_trace_updates,
         },
-        span_attributes::{SPAN_TRACE_INPUT, SPAN_TRACE_OUTPUT_END_TIME, SPAN_TRACE_OUTPUT_HASHES},
+        span_attributes::{SPAN_TRACE_INPUT, SPAN_TRACE_OUTPUT_HASHES},
         spans::SpanUsage,
         tool_dedup::{ToolDedup, resolve_tool_dedup},
         utils::{get_llm_usage_for_span, prepare_span_for_recording},
@@ -124,43 +123,6 @@ struct RawTraceIo {
     trace_id: Uuid,
     input: Option<Value>,
     output_hashes: Option<Vec<[u8; 32]>>,
-    /// Winning span end time (ns) for the output — the RMT version. `None`
-    /// only for legacy/malformed spans missing the attribute.
-    output_end_time_ns: Option<i64>,
-}
-
-/// Build supplementary-table rows from the raw extracted io. The input row
-/// leaves `updated_at` to the server default (`now64()`); the output row
-/// versions on the winning span's END TIME so FINAL converges on the
-/// latest-ending answer regardless of insert arrival order. The end time is
-/// clamped to `now_ns` — a missing/absurd (e.g. `i64::MAX` unknown-time
-/// sentinel) value would overflow `DateTime64(9)`; clamping to now still
-/// ranks it "latest" (real end times are ≤ now).
-fn collect_agent_io_rows(
-    io: &[RawTraceIo],
-    now_ns: i64,
-) -> (Vec<CHTraceAgentInput>, Vec<CHTraceAgentOutput>) {
-    let mut inputs = Vec::new();
-    let mut outputs = Vec::new();
-    for entry in io {
-        if let Some(value) = &entry.input {
-            inputs.push(CHTraceAgentInput {
-                project_id: entry.project_id,
-                trace_id: entry.trace_id,
-                value: value.to_string(),
-            });
-        }
-        if let Some(hashes) = &entry.output_hashes {
-            let updated_at = entry.output_end_time_ns.unwrap_or(now_ns).min(now_ns);
-            outputs.push(CHTraceAgentOutput {
-                project_id: entry.project_id,
-                trace_id: entry.trace_id,
-                hashes: hashes.clone(),
-                updated_at,
-            });
-        }
-    }
-    (inputs, outputs)
 }
 
 /// Resolves each trace's `start_time` for the non-span `traces_static` writes
@@ -324,9 +286,6 @@ pub async fn process_span_messages(
                 trace_id: m.span.trace_id,
                 input,
                 output_hashes,
-                output_end_time_ns: attrs
-                    .get(SPAN_TRACE_OUTPUT_END_TIME)
-                    .and_then(Value::as_i64),
             });
             continue;
         }
@@ -838,23 +797,6 @@ pub async fn process_span_messages(
                     e
                 );
             }
-
-            // Extracted agent input/output: store the RAW value directly in
-            // the supplementary latest-wins RMT tables. On this path io never
-            // rides PG metadata (the deprecated fold is skipped when the flag
-            // is on), so there's no PG counterpart to gate on.
-            let (agent_input_rows, agent_output_rows) =
-                collect_agent_io_rows(&raw_trace_io, now_ns);
-            if !agent_input_rows.is_empty()
-                && let Err(e) = ch.insert_batch(&agent_input_rows, config).await
-            {
-                log::error!("Failed to insert trace_agent_input rows to ClickHouse: {e:?}");
-            }
-            if !agent_output_rows.is_empty()
-                && let Err(e) = ch.insert_batch(&agent_output_rows, config).await
-            {
-                log::error!("Failed to insert trace_agent_output rows to ClickHouse: {e:?}");
-            }
         }
 
         // Return only the aggregation results to the signals path. `None`
@@ -1299,8 +1241,6 @@ mod tests {
                 trace_id,
                 input: Some(json!("the task")),
                 output_hashes: None,
-                // A wildly different per-write time that must NOT be used.
-                output_end_time_ns: Some(i64::MAX),
             }],
             &resolved,
             999,
@@ -1315,7 +1255,6 @@ mod tests {
                 trace_id,
                 input: Some(json!("the task")),
                 output_hashes: None,
-                output_end_time_ns: None,
             }],
             &HashMap::new(),
             999,
