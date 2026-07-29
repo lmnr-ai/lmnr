@@ -155,9 +155,9 @@ const mergeTraceRow = (prev: TraceRow, next: TraceRow): TraceRow => {
     if (value !== undefined) (merged as Record<string, unknown>)[key] = value;
   }
   merged.endTime = new Date(prev.endTime).getTime() > new Date(next.endTime).getTime() ? prev.endTime : next.endTime;
-  // agentInput is sticky: extraction lands async, so a row hydrated (or updated)
-  // before it's written carries an empty value that must not blank a populated one.
-  if (!next.agentInput && prev.agentInput) merged.agentInput = prev.agentInput;
+  // agentInput is sticky: extraction lands async, so an empty value (span batch,
+  // or a row hydrated before the write) must never blank a populated one.
+  merged.agentInput = next.agentInput || prev.agentInput;
   return merged;
 };
 
