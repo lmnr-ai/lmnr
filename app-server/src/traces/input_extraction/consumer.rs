@@ -22,7 +22,7 @@ use crate::{
     cache::{Cache, CacheTrait},
     db::DB,
     llm::LlmClient,
-    mq::MessageQueue,
+    mq::{MessageQueue, stream::StreamPublisher},
     traces::metadata::publish_trace_input_update,
     worker::{HandlerError, MessageHandler},
 };
@@ -32,6 +32,7 @@ pub struct InputExtractionHandler {
     pub cache: Arc<Cache>,
     pub queue: Arc<MessageQueue>,
     pub llm_client: Arc<LlmClient>,
+    pub spans_stream_publisher: Option<Arc<StreamPublisher>>,
 }
 
 #[async_trait]
@@ -144,6 +145,7 @@ impl MessageHandler for InputExtractionHandler {
             self.queue.clone(),
             self.db.clone(),
             self.cache.clone(),
+            self.spans_stream_publisher.clone(),
         )
         .await
         .map_err(HandlerError::transient)?;

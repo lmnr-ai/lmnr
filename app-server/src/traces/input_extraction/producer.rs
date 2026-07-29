@@ -32,7 +32,7 @@ use crate::cache::{Cache, CacheTrait};
 use crate::db::{DB, spans::Span};
 use crate::features::{Feature, is_feature_enabled};
 use crate::llm::llm_client_available;
-use crate::mq::MessageQueue;
+use crate::mq::{MessageQueue, stream::StreamPublisher};
 use crate::traces::metadata::publish_trace_input_update;
 use crate::traces::span_attributes::SPAN_PROMPT_HASH;
 use crate::traces::spans::SpanAttributes;
@@ -106,6 +106,7 @@ pub async fn process_user_task_candidates(
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    spans_stream_publisher: Option<Arc<StreamPublisher>>,
 ) {
     // Do not run on self-tracing project to avoid infinite looping
     if std::env::var(crate::env::user_task::USER_TASK_INTERNAL_PROJECT_ID)
@@ -200,6 +201,7 @@ pub async fn process_user_task_candidates(
             queue.clone(),
             db.clone(),
             cache.clone(),
+            spans_stream_publisher.clone(),
         )
         .await;
     }
@@ -252,6 +254,7 @@ pub async fn process_user_task_candidates(
             queue.clone(),
             db.clone(),
             cache.clone(),
+            spans_stream_publisher.clone(),
         )
         .await;
         // Refresh the path cache TTL on every match so a long-running
@@ -302,6 +305,7 @@ fn should_run_effect(challenger: &WinnerState, winner: Option<&WinnerState>) -> 
 /// a client the extraction workers never spawn, so enqueueing would strand
 /// messages. The lock is written back merge-guarded regardless;
 /// `lock.winner` moves as soon as that effect lands.
+#[allow(clippy::too_many_arguments)]
 async fn process_trace_inputs(
     trace_id: Uuid,
     trace_contenders: Vec<InputContender>,
@@ -310,6 +314,7 @@ async fn process_trace_inputs(
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    spans_stream_publisher: Option<Arc<StreamPublisher>>,
 ) {
     let lock_key = lock_cache_key(project_id, trace_id);
     // Fail open on cache errors: treat as first-seen so a cache blip
@@ -431,6 +436,7 @@ async fn process_trace_inputs(
                     queue.clone(),
                     db.clone(),
                     cache.clone(),
+                    spans_stream_publisher.clone(),
                 )
                 .await
                 {

@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::{
     ch::signal_events::CHSignalEvent,
-    mq::{MessageQueue, MessageQueueTrait, stream, utils::mq_max_payload},
+    mq::{MessageQueue, MessageQueueTrait, stream::StreamPublisher, utils::mq_max_payload},
     quickwit::{
         IndexerQueuePayload, QuickwitIndexedSignalEvent, SPANS_INDEXER_EXCHANGE,
         SPANS_INDEXER_ROUTING_KEY,
@@ -17,6 +17,7 @@ use crate::{
 pub async fn publish_for_indexing(
     payload: &IndexerQueuePayload,
     queue: Arc<MessageQueue>,
+    indexer_stream_publisher: Option<Arc<StreamPublisher>>,
 ) -> anyhow::Result<()> {
     let serialized_payload =
         serde_json::to_vec(payload).context("Failed to serialize payload for Quickwit indexing")?;
@@ -34,7 +35,7 @@ pub async fn publish_for_indexing(
     // Indexing has no ordering requirement, so the partition key only spreads
     // load — a fresh key per payload is what we want. Keying on the payload's
     // index id would pin every span document to a single partition.
-    if let Some(publisher) = stream::spans_indexer_publisher() {
+    if let Some(publisher) = indexer_stream_publisher.as_ref() {
         let key = Uuid::now_v7().to_string();
         match publisher.publish(payload, &key).await {
             Ok(()) => return Ok(()),
@@ -80,5 +81,8 @@ pub async fn publish_signal_events_for_indexing(
         .map(QuickwitIndexedSignalEvent::from_event)
         .collect();
     let payload = IndexerQueuePayload::SignalEvents(indexed);
-    publish_for_indexing(&payload, queue).await
+    // Signal events deliberately stay on the quorum queue (`None` publisher):
+    // they're low-volume, and threading the stream publisher through the
+    // enterprise signals pipeline isn't worth a cross-repo change.
+    publish_for_indexing(&payload, queue, None).await
 }

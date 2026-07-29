@@ -905,17 +905,6 @@ fn main() -> anyhow::Result<()> {
         Arc::new(queue.into())
     };
 
-    // Now that the queue/DB/cache exist, hand them to the internal self-tracing
-    // exporter. Until this runs the exporter drops spans; nothing emits internal
-    // spans this early on a normal boot (the agent only runs once serving starts).
-    if internal_tracing_enabled {
-        let _ = internal_ingest_deps.set(instrumentation::internal_exporter::IngestDeps {
-            queue: queue.clone(),
-            db: db.clone(),
-            cache: cache.clone(),
-        });
-    }
-
     // ==== 3.5 SSE connections map ====
     let sse_connections: SseConnectionMap = Arc::new(dashmap::DashMap::new());
 
@@ -1031,24 +1020,28 @@ fn main() -> anyhow::Result<()> {
 
     // ==== 3.15 RabbitMQ Streams transport (LAM-2024) ====
     // Additive to the queues above: producers prefer a stream when its publisher
-    // registered, and fall back to the quorum queue otherwise. A failure here is
-    // logged and leaves every publisher unset, so ingest degrades to the queue
+    // was built, and fall back to the quorum queue otherwise. A failure here is
+    // logged and leaves every publisher `None`, so ingest degrades to the queue
     // path rather than failing the boot.
     //
-    // Publishers are registered in BOTH pod roles, NOT just under
+    // Publishers are built in BOTH pod roles, NOT just under
     // `enable_producer()`. Ingest (`api/v1/spans.rs`) is producer-side, but the
     // CONSUMER also publishes spans: `publish_for_indexing` runs inside
     // `process_span_messages`, and the metadata façades
     // (`publish_trace_{input,output}_update` / `publish_trace_metadata_patch`) are
     // called from the input-extraction and checkpoints consumers. Gating on
-    // `enable_producer()` left both publishers unset on `OPERATION_MODE=consumer`,
+    // `enable_producer()` left both publishers `None` on `OPERATION_MODE=consumer`,
     // so every one of those paths silently stayed on the quorum queue — the exact
     // path this transport exists to unload.
-    // `Some` only when streams are fully usable: topology declared and publishers
-    // registered.
-    let stream_runtime: Option<mq::stream::StreamEnvironment> = if mq::stream::enabled()
-        && is_feature_enabled(Feature::FullBuild)
-    {
+    // Publishers are built only after every super stream declared successfully,
+    // so a topology failure can't leave producers writing to unread streams. The
+    // two publishers are threaded to their publish sites as explicit
+    // `Option<Arc<StreamPublisher>>` parameters (no global registry).
+    let (stream_runtime, spans_stream_publisher, indexer_stream_publisher): (
+        Option<mq::stream::StreamEnvironment>,
+        Option<Arc<mq::stream::StreamPublisher>>,
+        Option<Arc<mq::stream::StreamPublisher>>,
+    ) = if mq::stream::enabled() && is_feature_enabled(Feature::FullBuild) {
         runtime_handle.block_on(async {
                 match mq::stream::StreamEnvironment::connect().await {
                     Ok(environment) => {
@@ -1059,19 +1052,19 @@ fn main() -> anyhow::Result<()> {
                         ] {
                             if let Err(e) = topology.declare(&environment, name).await {
                                 log::error!("Failed to declare super stream '{}': {:?}", name, e);
-                                return None;
+                                return (None, None, None);
                             }
                         }
 
+                        let mut spans_publisher = None;
+                        let mut indexer_publisher = None;
                         match mq::stream::StreamPublisher::new(
                             &environment,
                             mq::stream::OBSERVATIONS_STREAM,
                         )
                         .await
                         {
-                            Ok(publisher) => {
-                                mq::stream::set_observations_publisher(Arc::new(publisher))
-                            }
+                            Ok(publisher) => spans_publisher = Some(Arc::new(publisher)),
                             Err(e) => {
                                 log::error!("Failed to build observations publisher: {:?}", e)
                             }
@@ -1096,7 +1089,7 @@ fn main() -> anyhow::Result<()> {
                             .await
                             {
                                 Ok(publisher) => {
-                                    mq::stream::set_spans_indexer_publisher(Arc::new(publisher))
+                                    indexer_publisher = Some(Arc::new(publisher))
                                 }
                                 Err(e) => log::error!(
                                     "Failed to build spans indexer publisher: {:?}",
@@ -1105,24 +1098,37 @@ fn main() -> anyhow::Result<()> {
                             }
                         } else {
                             log::warn!(
-                                "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is off - not registering the spans indexer stream publisher; indexing stays on the quorum queue"
+                                "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is off - not building the spans indexer stream publisher; indexing stays on the quorum queue"
                             );
                         }
                         log::info!("RabbitMQ Streams transport enabled");
-                        Some(environment)
+                        (Some(environment), spans_publisher, indexer_publisher)
                     }
                     Err(e) => {
                         log::error!(
                             "Failed to connect to RabbitMQ Streams, falling back to queues: {:?}",
                             e
                         );
-                        None
+                        (None, None, None)
                     }
                 }
             })
     } else {
-        None
+        (None, None, None)
     };
+
+    // Now that the queue/DB/cache (and the optional spans stream publisher)
+    // exist, hand them to the internal self-tracing exporter. Until this runs
+    // the exporter drops spans; nothing emits internal spans this early on a
+    // normal boot (the agent only runs once serving starts).
+    if internal_tracing_enabled {
+        let _ = internal_ingest_deps.set(instrumentation::internal_exporter::IngestDeps {
+            queue: queue.clone(),
+            db: db.clone(),
+            cache: cache.clone(),
+            spans_stream_publisher: spans_stream_publisher.clone(),
+        });
+    }
 
     // == PII redactor ==
     // Optional: when `PII_REDACTOR_URL` is set, span input/output fields are
@@ -1156,6 +1162,7 @@ fn main() -> anyhow::Result<()> {
     let http_client = reqwest::Client::new();
 
     let clickhouse_for_http = clickhouse.clone();
+    let spans_stream_publisher_for_http = spans_stream_publisher.clone();
 
     let storage_for_http = storage.clone();
     let sse_connections_for_http = sse_connections.clone();
@@ -1292,6 +1299,8 @@ fn main() -> anyhow::Result<()> {
         let worker_pool_clone = worker_pool.clone();
         let batch_worker_pool_clone = batch_worker_pool.clone();
         let stream_runtime_for_consumer = stream_runtime.clone();
+        let spans_stream_publisher_for_consumer = spans_stream_publisher.clone();
+        let indexer_stream_publisher_for_consumer = indexer_stream_publisher.clone();
 
         let consumer_handle = thread::Builder::new()
             .name("consumer".to_string())
@@ -1309,6 +1318,8 @@ fn main() -> anyhow::Result<()> {
                         let clickhouse = clickhouse_for_consumer.clone();
                         let pubsub = pubsub_for_consumer.clone();
                         let pii_redactor = pii_redactor_for_consumer.clone();
+                        let indexer_stream_publisher =
+                            indexer_stream_publisher_for_consumer.clone();
 
                         let ch_cloud = CloudClickhouse::new(clickhouse.clone());
 
@@ -1323,6 +1334,7 @@ fn main() -> anyhow::Result<()> {
                                 ch: ch_cloud.clone(),
                                 pubsub: pubsub.clone(),
                                 pii_redactor: pii_redactor.clone(),
+                                indexer_stream_publisher: indexer_stream_publisher.clone(),
                                 config: BatchingConfig {
                                     size,
                                     flush_interval,
@@ -1349,6 +1361,8 @@ fn main() -> anyhow::Result<()> {
                         let clickhouse = clickhouse_for_consumer.clone();
                         let pubsub = pubsub_for_consumer.clone();
                         let pii_redactor = pii_redactor_for_consumer.clone();
+                        let indexer_stream_publisher =
+                            indexer_stream_publisher_for_consumer.clone();
 
                         let ch_data_plane = DataPlaneClickhouse::new(
                             http_client_for_consumer.clone(),
@@ -1366,6 +1380,7 @@ fn main() -> anyhow::Result<()> {
                                 ch: ch_data_plane.clone(),
                                 pubsub: pubsub.clone(),
                                 pii_redactor: pii_redactor.clone(),
+                                indexer_stream_publisher: indexer_stream_publisher.clone(),
                                 config: BatchingConfig {
                                     size,
                                     flush_interval,
@@ -1426,6 +1441,8 @@ fn main() -> anyhow::Result<()> {
                                     ch: ch_cloud,
                                     pubsub,
                                     pii_redactor,
+                                    indexer_stream_publisher:
+                                        indexer_stream_publisher_for_consumer.clone(),
                                     config: BatchingConfig {
                                         size: env::batching::SPANS_SIZE.get(),
                                         flush_interval: Duration::from_millis(
@@ -1782,6 +1799,8 @@ fn main() -> anyhow::Result<()> {
                         let cache = cache_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
                         let llm_client_clone = llm_client.clone();
+                        let spans_stream_publisher =
+                            spans_stream_publisher_for_consumer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::InputExtraction,
                             num_input_extraction_workers,
@@ -1790,6 +1809,7 @@ fn main() -> anyhow::Result<()> {
                                 cache: cache.clone(),
                                 queue: queue.clone(),
                                 llm_client: llm_client_clone.clone(),
+                                spans_stream_publisher: spans_stream_publisher.clone(),
                             },
                             QueueConfig::new(
                                 INPUT_EXTRACTION_QUEUE,
@@ -1853,6 +1873,8 @@ fn main() -> anyhow::Result<()> {
                         let clickhouse = clickhouse_for_consumer.clone();
                         let llm_client = llm_provider_client.clone();
                         let queue = mq_for_consumer.clone();
+                        let spans_stream_publisher =
+                            spans_stream_publisher_for_consumer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Checkpoints,
                             num_checkpoints_workers,
@@ -1862,6 +1884,7 @@ fn main() -> anyhow::Result<()> {
                                 clickhouse: clickhouse.clone(),
                                 llm_client: llm_client.clone(),
                                 queue: queue.clone(),
+                                spans_stream_publisher: spans_stream_publisher.clone(),
                             },
                             QueueConfig::new(
                                 CHECKPOINTS_QUEUE,
@@ -2057,6 +2080,7 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::from(cache_for_http.clone()))
                             .app_data(web::Data::from(db_for_http.clone()))
                             .app_data(web::Data::new(mq_for_http.clone()))
+                            .app_data(web::Data::new(spans_stream_publisher_for_http.clone()))
                             .app_data(web::Data::new(clickhouse_for_http.clone()))
                             .app_data(web::Data::new(clickhouse_readonly_client.clone()))
                             .app_data(web::Data::new(name_generator.clone()))
@@ -2225,6 +2249,7 @@ fn main() -> anyhow::Result<()> {
                         cache.clone(),
                         clickhouse.clone(),
                         queue.clone(),
+                        spans_stream_publisher.clone(),
                         grpc_rate_limiter,
                     );
 

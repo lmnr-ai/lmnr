@@ -8,7 +8,7 @@ use crate::{
     cache::{Cache, CacheTrait, keys::INGESTION_RATE_LIMIT_PROJECT_ID_CACHE_KEY},
     db::DB,
     features::{Feature, is_feature_enabled},
-    mq::MessageQueue,
+    mq::{MessageQueue, stream::StreamPublisher},
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::{
         ExportTraceServiceRequest, ExportTraceServiceResponse, trace_service_server::TraceService,
     },
@@ -23,6 +23,7 @@ pub struct ProcessTracesService {
     cache: Arc<Cache>,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
+    spans_stream_publisher: Option<Arc<StreamPublisher>>,
     rate_limiter: Option<Limiter>,
 }
 
@@ -32,6 +33,7 @@ impl ProcessTracesService {
         cache: Arc<Cache>,
         clickhouse: clickhouse::Client,
         queue: Arc<MessageQueue>,
+        spans_stream_publisher: Option<Arc<StreamPublisher>>,
         rate_limiter: Option<Limiter>,
     ) -> Self {
         Self {
@@ -39,6 +41,7 @@ impl ProcessTracesService {
             cache,
             clickhouse,
             queue,
+            spans_stream_publisher,
             rate_limiter,
         }
     }
@@ -103,6 +106,7 @@ impl TraceService for ProcessTracesService {
             self.queue.clone(),
             self.db.clone(),
             self.cache.clone(),
+            self.spans_stream_publisher.clone(),
         )
         .await
         .map_err(|e| {

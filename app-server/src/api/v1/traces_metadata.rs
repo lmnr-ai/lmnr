@@ -8,7 +8,7 @@ use uuid::Uuid;
 use crate::{
     cache::Cache,
     db::{DB, project_api_keys::ProjectApiKey, trace::trace_exists},
-    mq::MessageQueue,
+    mq::{MessageQueue, stream::StreamPublisher},
     routes::types::ResponseResult,
     traces::metadata::publish_trace_metadata_patch,
 };
@@ -39,6 +39,7 @@ pub async fn update_trace_metadata(
     req: web::Json<UpdateTraceMetadataRequest>,
     project_api_key: ProjectApiKey,
     spans_message_queue: web::Data<Arc<MessageQueue>>,
+    spans_stream_publisher: web::Data<Option<Arc<StreamPublisher>>>,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
 ) -> ResponseResult {
@@ -46,6 +47,7 @@ pub async fn update_trace_metadata(
         project_api_key.project_id,
         req,
         spans_message_queue,
+        spans_stream_publisher,
         db,
         cache,
     )
@@ -58,6 +60,7 @@ pub async fn handle_trace_metadata(
     project_id: Uuid,
     req: web::Json<UpdateTraceMetadataRequest>,
     spans_message_queue: web::Data<Arc<MessageQueue>>,
+    spans_stream_publisher: web::Data<Option<Arc<StreamPublisher>>>,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
 ) -> ResponseResult {
@@ -81,6 +84,7 @@ pub async fn handle_trace_metadata(
         spans_message_queue.as_ref().clone(),
         db,
         cache,
+        spans_stream_publisher.get_ref().clone(),
     )
     .await
     .map_err(|e| {

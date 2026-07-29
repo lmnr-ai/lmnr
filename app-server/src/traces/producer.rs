@@ -27,7 +27,7 @@ use crate::{
     cache::Cache,
     data_plane::get_workspace_deployment,
     db::{DB, spans::Span, workspaces::DeploymentMode},
-    mq::{MessageQueue, MessageQueueTrait, stream, utils::mq_max_payload},
+    mq::{MessageQueue, MessageQueueTrait, stream::StreamPublisher, utils::mq_max_payload},
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::{
         ExportTracePartialSuccess, ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
@@ -135,13 +135,17 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
 /// Publish pre-built span messages to the appropriate queue based on workspace deployment mode.
 ///
 /// Returns the number of rejected spans (0 on success).
-#[instrument(skip(messages, queue, db, cache), fields(batch_size = messages.len()))]
+#[instrument(
+    skip(messages, queue, db, cache, spans_stream_publisher),
+    fields(batch_size = messages.len())
+)]
 pub async fn publish_span_messages(
     mut messages: Vec<RabbitMqSpanMessage>,
     project_id: Uuid,
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    spans_stream_publisher: Option<Arc<StreamPublisher>>,
 ) -> Result<usize> {
     let span_count = messages.len();
 
@@ -202,7 +206,7 @@ pub async fn publish_span_messages(
             // partition preserves the single-writer property for the PG trace
             // upsert. Splitting per-trace would multiply small records for no
             // gain.
-            let stream_published = match stream::observations_publisher() {
+            let stream_published = match spans_stream_publisher.as_ref() {
                 Some(publisher) => {
                     let key = messages
                         .first()
@@ -274,7 +278,12 @@ pub async fn publish_span_messages(
         })
         .collect();
     crate::traces::input_extraction::process_user_task_candidates(
-        contexts, project_id, queue, db, cache,
+        contexts,
+        project_id,
+        queue,
+        db,
+        cache,
+        spans_stream_publisher,
     )
     .await;
 
@@ -288,6 +297,7 @@ pub async fn push_spans_to_queue(
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    spans_stream_publisher: Option<Arc<StreamPublisher>>,
 ) -> Result<ExportTraceServiceResponse> {
     let messages = request
         .resource_spans
@@ -317,7 +327,15 @@ pub async fn push_spans_to_queue(
         .collect::<Vec<_>>();
 
     let span_count = messages.len();
-    let rejected = publish_span_messages(messages, project_id, queue, db, cache).await?;
+    let rejected = publish_span_messages(
+        messages,
+        project_id,
+        queue,
+        db,
+        cache,
+        spans_stream_publisher,
+    )
+    .await?;
 
     if rejected > 0 {
         return Ok(ExportTraceServiceResponse {
