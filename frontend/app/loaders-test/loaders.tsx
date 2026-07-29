@@ -1019,8 +1019,9 @@ export function LogoTrace() {
         d={LOGO_PATH}
         fill="none"
         stroke="currentColor"
-        strokeWidth={5}
+        strokeWidth={3}
         strokeLinejoin="round"
+        strokeLinecap="square"
         pathLength={100}
         className="lt-logo-draw"
         style={{ strokeDasharray: 100 }}
@@ -1038,8 +1039,9 @@ export function LogoDrawFill() {
         d={LOGO_PATH}
         fill="none"
         stroke="currentColor"
-        strokeWidth={5}
+        strokeWidth={3}
         strokeLinejoin="round"
+        strokeLinecap="square"
         pathLength={100}
         className="lt-logo-draw"
         style={{ strokeDasharray: 100 }}
@@ -1086,6 +1088,41 @@ export function LogoPulse() {
     <svg viewBox="0 0 76 76" className="size-9 text-primary lt-logo-pulse">
       <path d={LOGO_PATH} fill="currentColor" />
     </svg>
+  );
+}
+
+/**
+ * A glowing head with a fading tail traveling around the logo's outline —
+ * OrbitComet, but the ring is our mark. Each dot rides the same CSS motion path
+ * (offset-path) at a staggered offset; the last dot is the bright head, earlier
+ * ones fall behind and dim into the tail.
+ */
+export function LogoComet() {
+  const dots = 9;
+  const spread = 0.55; // seconds of tail behind the head
+  return (
+    <div className="relative size-11 text-primary">
+      <div className="absolute left-0 top-0 origin-top-left" style={{ width: 76, height: 76, transform: "scale(0.5789)" }}>
+        {Array.from({ length: dots }).map((_, i) => {
+          const t = i / (dots - 1); // 0 = tail end, 1 = head
+          const size = 3 + t * 5;
+          return (
+            <span
+              key={i}
+              className="lt-comet absolute left-0 top-0 rounded-full bg-current"
+              style={{
+                width: size,
+                height: size,
+                opacity: 0.08 + t * 0.92,
+                offsetPath: `path("${LOGO_PATH}")`,
+                offsetRotate: "0deg",
+                animationDelay: `${-t * spread}s`,
+              }}
+            />
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

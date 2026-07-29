@@ -33,6 +33,7 @@ const GROUPS: Group[] = [
     title: "Logo",
     note: "Our mark, animated — self-drawing outline, sheen sweep, fill wipe, and a logo-shaped spinner.",
     items: [
+      { label: "LogoComet", Comp: L.LogoComet },
       { label: "LogoTrace", Comp: L.LogoTrace },
       { label: "LogoDrawFill", Comp: L.LogoDrawFill },
       { label: "LogoConicSpin", Comp: L.LogoConicSpin },
@@ -327,6 +328,9 @@ const KEYFRAMES = `
   /* ── Logo ── */
   @keyframes lt-logo-draw { 0% { stroke-dashoffset: 100; } 55% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -100; } }
   .lt-logo-draw { animation: lt-logo-draw 2.2s ease-in-out infinite; }
+
+  @keyframes lt-comet { to { offset-distance: 100%; } }
+  .lt-comet { offset-distance: 0%; animation: lt-comet 1.7s linear infinite; }
 
   @keyframes lt-logo-fill { 0%,45% { opacity: 0; } 65%,82% { opacity: 1; } 96%,100% { opacity: 0; } }
   .lt-logo-fill { animation: lt-logo-fill 2.2s ease-in-out infinite; }
