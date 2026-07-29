@@ -109,9 +109,14 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId: s
       trace_update: (event: MessageEvent) => {
         const payload = JSON.parse(event.data);
         if (!Array.isArray(payload.traces)) return;
-        storeApi
-          .getState()
-          .applyTraceUpdates(payload.traces as { traceId: string; metadata?: unknown; hasBrowserSession?: boolean }[]);
+        storeApi.getState().applyTraceUpdates(
+          payload.traces as {
+            traceId: string;
+            metadata?: unknown;
+            hasBrowserSession?: boolean;
+            agentInput?: string | null;
+          }[]
+        );
         backfillPendingEvalScores();
       },
       // Extracted agent_input landed (async) → patch the run's input row.

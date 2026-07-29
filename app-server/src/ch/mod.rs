@@ -14,7 +14,6 @@ pub mod private;
 pub mod service;
 pub mod signal_events;
 pub mod spans;
-pub mod trace_agent_io;
 pub mod traces;
 pub mod traces_agg;
 pub mod traces_static;
@@ -63,8 +62,6 @@ pub enum Table {
     Traces,
     TracesAgg,
     TracesStatic,
-    TraceAgentInput,
-    TraceAgentOutput,
     NotificationDeliveries,
     Notifications,
     DedupedContent,
@@ -77,8 +74,6 @@ impl Table {
             Table::Traces => "traces_replacing",
             Table::TracesAgg => "traces_agg",
             Table::TracesStatic => "traces_static",
-            Table::TraceAgentInput => "trace_agent_input",
-            Table::TraceAgentOutput => "trace_agent_output",
             Table::NotificationDeliveries => "notification_deliveries",
             Table::Notifications => "notifications",
             Table::DedupedContent => "deduped_content",

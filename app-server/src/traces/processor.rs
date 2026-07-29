@@ -14,7 +14,6 @@ use crate::{
         ClickhouseTrait,
         deduped_content::CHDedupedContent,
         spans::CHSpan,
-        trace_agent_io::{CHTraceAgentInput, CHTraceAgentOutput},
         traces::{CHTrace, TraceAggregation},
         traces_agg::CHTraceAgg,
         traces_static::CHTraceStatic,
@@ -45,7 +44,7 @@ use crate::{
             RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_aggregation,
             send_agent_input_update, send_span_updates, send_trace_updates,
         },
-        span_attributes::{SPAN_TRACE_INPUT, SPAN_TRACE_OUTPUT_END_TIME, SPAN_TRACE_OUTPUT_HASHES},
+        span_attributes::{SPAN_TRACE_INPUT, SPAN_TRACE_OUTPUT_HASHES},
         spans::SpanUsage,
         tool_dedup::{ToolDedup, resolve_tool_dedup},
         utils::{get_llm_usage_for_span, prepare_span_for_recording},
@@ -126,6 +125,7 @@ struct RawTraceIo {
     trace_id: Uuid,
     input: Option<Value>,
     output_hashes: Option<Vec<[u8; 32]>>,
+<<<<<<< HEAD
     /// Winning span end time (ns) for the output — the RMT version. `None`
     /// only for legacy/malformed spans missing the attribute.
     output_end_time_ns: Option<i64>,
@@ -166,6 +166,8 @@ fn collect_agent_io_rows(
         }
     }
     (inputs, outputs)
+=======
+>>>>>>> dev
 }
 
 /// Resolves each trace's `start_time` for the non-span `traces_static` writes
@@ -335,8 +337,11 @@ pub async fn process_span_messages(
                 trace_id: m.span.trace_id,
                 input,
                 output_hashes,
+<<<<<<< HEAD
                 output_end_time_ns,
                 rollout_session_id,
+=======
+>>>>>>> dev
             });
             continue;
         }
@@ -394,10 +399,23 @@ pub async fn process_span_messages(
         });
     }
 
+<<<<<<< HEAD
     // Live agent_input — the stat delta can't carry it (extraction is async).
     if env::clickhouse::WRITE_TRACES_AGG.get() {
         dispatch_input_realtime_updates(&raw_trace_io, cache.clone(), &pubsub).await;
     }
+=======
+    // Extracted input threaded to the realtime dispatch so it shows live, NOT via
+    // the deprecated `lmnr_user_task` fold. `to_string()` matches `traces_v0.agent_input`.
+    let agent_input_by_trace: HashMap<(Uuid, Uuid), String> = raw_trace_io
+        .iter()
+        .filter_map(|io| {
+            io.input
+                .as_ref()
+                .map(|v| ((io.project_id, io.trace_id), v.to_string()))
+        })
+        .collect();
+>>>>>>> dev
 
     // Enrich spans with usage info
     let mut span_usage_vec = Vec::with_capacity(messages.len());
@@ -751,7 +769,17 @@ pub async fn process_span_messages(
 
             debugger_session_blocks::upsert_blocks_for_traces(&db.pool, &updated_traces).await;
 
+<<<<<<< HEAD
             dispatch_trace_realtime_updates(&trace_aggregations, cache.clone(), &pubsub).await;
+=======
+            dispatch_trace_realtime_updates(
+                &updated_traces,
+                &agent_input_by_trace,
+                cache.clone(),
+                &pubsub,
+            )
+            .await;
+>>>>>>> dev
         }
 
         // Dual-write partial rows to `traces_agg` (AggregatingMergeTree,
@@ -852,23 +880,6 @@ pub async fn process_span_messages(
                     traces_static_rows.len(),
                     e
                 );
-            }
-
-            // Extracted agent input/output: store the RAW value directly in
-            // the supplementary latest-wins RMT tables. On this path io never
-            // rides PG metadata (the deprecated fold is skipped when the flag
-            // is on), so there's no PG counterpart to gate on.
-            let (agent_input_rows, agent_output_rows) =
-                collect_agent_io_rows(&raw_trace_io, now_ns);
-            if !agent_input_rows.is_empty()
-                && let Err(e) = ch.insert_batch(&agent_input_rows, config).await
-            {
-                log::error!("Failed to insert trace_agent_input rows to ClickHouse: {e:?}");
-            }
-            if !agent_output_rows.is_empty()
-                && let Err(e) = ch.insert_batch(&agent_output_rows, config).await
-            {
-                log::error!("Failed to insert trace_agent_output rows to ClickHouse: {e:?}");
             }
         }
 

@@ -8,17 +8,20 @@ interface InfiniteTableCellProps<TData extends RowData> {
   cell: Cell<TData, unknown>;
   // Primitive so the memo comparator sees selection changes; TanStack reuses the same Cell across renders.
   isSelected: boolean;
+  // Layout primitives resolved by the parent: getSize()/getStart() read live state off a reused
+  // Column, so the comparator can't see resize changes unless they arrive as primitives.
+  size: number;
+  start: number;
+  isPinned: boolean;
   // Changes when columns or table `meta` change, forcing re-render of cells with out-of-row content.
   cellRenderToken: object;
 }
 
-function InfiniteTableCellInner<TData extends RowData>({ cell }: InfiniteTableCellProps<TData>) {
-  const isPinned = cell.column.getIsPinned() === "left";
-
+function InfiniteTableCellInner<TData extends RowData>({ cell, size, start, isPinned }: InfiniteTableCellProps<TData>) {
   const style: CSSProperties = {
     position: isPinned ? "sticky" : "relative",
-    left: isPinned ? cell.column.getStart("left") : undefined,
-    width: cell.column.getSize(),
+    left: isPinned ? start : undefined,
+    width: size,
     zIndex: isPinned ? 10 : 0,
     display: "flex",
   };
@@ -44,8 +47,9 @@ function areCellPropsEqual<TData extends RowData>(
   return (
     prev.cell.id === next.cell.id &&
     prev.cell.row.original === next.cell.row.original &&
-    prev.cell.column.getSize() === next.cell.column.getSize() &&
-    prev.cell.column.getIsPinned() === next.cell.column.getIsPinned() &&
+    prev.size === next.size &&
+    prev.start === next.start &&
+    prev.isPinned === next.isPinned &&
     prev.isSelected === next.isSelected &&
     prev.cellRenderToken === next.cellRenderToken
   );

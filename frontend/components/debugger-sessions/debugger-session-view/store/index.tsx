@@ -155,6 +155,9 @@ const mergeTraceRow = (prev: TraceRow, next: TraceRow): TraceRow => {
     (merged as Record<string, unknown>)[key] = value;
   }
   merged.endTime = new Date(prev.endTime).getTime() > new Date(next.endTime).getTime() ? prev.endTime : next.endTime;
+  // agentInput is sticky: extraction lands async, so an empty value (span batch,
+  // or a row hydrated before the write) must never blank a populated one.
+  merged.agentInput = next.agentInput || prev.agentInput;
   return merged;
 };
 
@@ -173,7 +176,8 @@ const upsertTraceRows = (existing: TraceRow[], incoming: TraceRow[]): TraceRow[]
 };
 
 // Minimal TraceRow for a trace we only know the id of (live trace_update).
-const minimalTraceRow = (traceId: string, metadata: Record<string, string> = {}): TraceRow => ({
+// agentInput is seeded when a cache-hit extraction update beats the span batch.
+const minimalTraceRow = (traceId: string, metadata: Record<string, string> = {}, agentInput?: string): TraceRow => ({
   id: traceId,
   startTime: new Date().toISOString(),
   endTime: new Date().toISOString(),
@@ -188,6 +192,7 @@ const minimalTraceRow = (traceId: string, metadata: Record<string, string> = {})
   status: "success",
   spanTags: [],
   traceTags: [],
+  ...(agentInput ? { agentInput } : {}),
 });
 
 // Lifecycle of a trace block's row: absent → not requested yet (virtualizer
@@ -290,10 +295,17 @@ interface DebuggerSessionViewActions {
   applyRealtimeSpans: (spans: RealtimeSpan[]) => void;
 
   // Realtime: merge a trace_update into the block list (add + auto-expand if new).
-  applyTraceUpdate: (t: { traceId: string; metadata?: unknown; hasBrowserSession?: boolean }) => void;
+  applyTraceUpdate: (t: {
+    traceId: string;
+    metadata?: unknown;
+    hasBrowserSession?: boolean;
+    agentInput?: string | null;
+  }) => void;
 
   // Batch entry point for a trace_update payload.
-  applyTraceUpdates: (traces: { traceId: string; metadata?: unknown; hasBrowserSession?: boolean }[]) => void;
+  applyTraceUpdates: (
+    traces: { traceId: string; metadata?: unknown; hasBrowserSession?: boolean; agentInput?: string | null }[]
+  ) => void;
 
   // Realtime: patch a run's extracted agent_input (arrives async on its own
   // event). Applied to the row if loaded; buffered otherwise and flushed when
@@ -642,11 +654,13 @@ export const createDebuggerSessionViewStore = (options: {
               return;
             }
 
-            // Known run → update the row's hasBrowserSession.
-            if (typeof t.hasBrowserSession === "boolean") {
-              get().setTraces((traces) =>
-                traces.map((row) => (row.id === t.traceId ? { ...row, hasBrowserSession: t.hasBrowserSession } : row))
-              );
+            // Known run → live-patch fields that land after the initial load. The
+            // empty guard stops a span-batch update blanking an already-set agentInput.
+            const patch: Record<string, unknown> = {};
+            if (typeof t.hasBrowserSession === "boolean") patch.hasBrowserSession = t.hasBrowserSession;
+            if (t.agentInput) patch.agentInput = t.agentInput;
+            if (Object.keys(patch).length > 0) {
+              get().setTraces((traces) => traces.map((row) => (row.id === t.traceId ? { ...row, ...patch } : row)));
             }
           },
 
