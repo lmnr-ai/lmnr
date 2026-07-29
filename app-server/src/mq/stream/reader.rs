@@ -218,13 +218,15 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                     // draining batcher cannot store an offset for it and rewind the
                     // group. Whatever it holds is replayed by the new owner
                     // (at-least-once, consistent with the queue path).
-                    revoke_partition(consumer_name, &stream);
+                    // Awaits the write guard, so it cannot land while a store for
+                    // this partition is mid-flight under the read guard.
+                    revoke_partition(consumer_name, &stream).await;
                     log::info!("Stream partition {} deactivated for this consumer", stream);
                     return OffsetSpecification::Next;
                 }
 
                 // Activated (or re-activated): we own it again, so allow stores.
-                restore_partition(consumer_name, &stream);
+                restore_partition(consumer_name, &stream).await;
                 match context.client().query_offset(context.name(), &stream).await {
                     Ok(offset) => {
                         log::info!(
@@ -678,6 +680,12 @@ async fn flush_and_commit<H: StreamBatchHandler>(
 /// commits offsets for records it received itself, and records arrive in offset
 /// order per partition), so dropping any non-advancing store is sufficient and
 /// never discards real progress.
+///
+/// The revocation check is held under a READ guard ACROSS the `store_offset` await,
+/// so a concurrent revocation (which needs the write guard) cannot slip in between
+/// the check and the write. Checking without holding it would leave the in-flight
+/// store unfenced — see `REVOKED_PARTITIONS` for why that's the interesting race and
+/// what residual window the protocol leaves open.
 async fn store_offsets(
     index: usize,
     client: &Client,
@@ -690,7 +698,13 @@ async fn store_offsets(
         // comparison can tell us whether our store is stale. Not storing at all is
         // the only sound answer — the records we hold are simply replayed by the
         // successor (at-least-once, as everywhere else here).
-        if is_partition_revoked(consumer_name, &stream) {
+        //
+        // Held for the whole check-and-store so revocation can't interleave.
+        let ownership = REVOKED_PARTITIONS.read().await;
+        if ownership
+            .get(consumer_name)
+            .is_some_and(|streams| streams.contains(&stream))
+        {
             log::warn!(
                 "Stream batcher {} not storing offset {} for stream {}: this consumer was deactivated for that partition, so the new owner's position stands",
                 index,
@@ -815,35 +829,43 @@ fn commit_offset_high_water_mark(consumer_name: &'static str, stream: &str, offs
 /// new owner.
 ///
 /// Re-activation removes the entry, since we own the partition again.
+/// An ASYNC `RwLock`, not a `std::sync::Mutex`, and that choice is the guard.
+///
+/// A plain mutex can only make the *check* atomic, not check-then-store: the
+/// `store_offset` call awaits, so a `consumer_update(active = 0)` landing in that
+/// window would be recorded while a store that already passed the check is still
+/// on its way out — the write escapes revocation entirely. Taking a READ guard
+/// across check+store and the WRITE guard to revoke makes the two mutually
+/// exclusive, so every store either completes while we still (as far as the broker
+/// has told us) own the partition, or is refused.
+///
+/// **Residual risk, unfixable client-side:** `StoreOffset` carries only
+/// `(reference, stream, offset)` — no epoch, generation, or fencing token — and the
+/// protocol marks it "expects response: No", so the broker cannot distinguish a
+/// store from the active consumer from a stale one under the same reference, and we
+/// get no rejection path. The stream protocol also doesn't specify that the broker
+/// waits for our `ConsumerUpdateResponse` before promoting the successor. So if it
+/// activates the successor before notifying us, a store we consider legitimate can
+/// still land late. That degrades to a REWIND (the successor re-reads and
+/// reprocesses), never a skip-forward, which is the same at-least-once outcome a
+/// handover already produces for records the predecessor held unflushed.
 static REVOKED_PARTITIONS: LazyLock<
-    Mutex<HashMap<&'static str, std::collections::HashSet<String>>>,
-> = LazyLock::new(|| Mutex::new(HashMap::new()));
+    tokio::sync::RwLock<HashMap<&'static str, std::collections::HashSet<String>>>,
+> = LazyLock::new(|| tokio::sync::RwLock::new(HashMap::new()));
 
-fn lock_revoked_partitions()
--> std::sync::MutexGuard<'static, HashMap<&'static str, std::collections::HashSet<String>>> {
-    match REVOKED_PARTITIONS.lock() {
-        Ok(revoked) => revoked,
-        Err(poisoned) => poisoned.into_inner(),
-    }
-}
-
-fn revoke_partition(consumer_name: &'static str, stream: &str) {
-    lock_revoked_partitions()
+async fn revoke_partition(consumer_name: &'static str, stream: &str) {
+    REVOKED_PARTITIONS
+        .write()
+        .await
         .entry(consumer_name)
         .or_default()
         .insert(stream.to_string());
 }
 
-fn restore_partition(consumer_name: &'static str, stream: &str) {
-    if let Some(streams) = lock_revoked_partitions().get_mut(consumer_name) {
+async fn restore_partition(consumer_name: &'static str, stream: &str) {
+    if let Some(streams) = REVOKED_PARTITIONS.write().await.get_mut(consumer_name) {
         streams.remove(stream);
     }
-}
-
-fn is_partition_revoked(consumer_name: &'static str, stream: &str) -> bool {
-    lock_revoked_partitions()
-        .get(consumer_name)
-        .is_some_and(|streams| streams.contains(stream))
 }
 
 #[cfg(test)]
@@ -1191,34 +1213,77 @@ mod tests {
     /// — not offset comparison — is what guards a cross-pod handover. After
     /// `consumer_update(active = 0)` the draining batcher must store nothing for
     /// that partition, however far ahead its own offsets look.
-    #[test]
-    fn revoked_partition_blocks_stores_regardless_of_offset() {
+    /// Test-only mirror of the inline check in `store_offsets`, which holds the read
+    /// guard across its `store_offset` await and so can't be factored into a helper
+    /// without giving up exactly the property being tested.
+    async fn is_partition_revoked(consumer_name: &'static str, stream: &str) -> bool {
+        REVOKED_PARTITIONS
+            .read()
+            .await
+            .get(consumer_name)
+            .is_some_and(|streams| streams.contains(stream))
+    }
+
+    #[tokio::test]
+    async fn revoked_partition_blocks_stores_regardless_of_offset() {
         let group = "test_group_revoked";
         let partition = "observations_stream-11";
 
-        assert!(!is_partition_revoked(group, partition));
+        assert!(!is_partition_revoked(group, partition).await);
 
-        revoke_partition(group, partition);
-        assert!(is_partition_revoked(group, partition));
+        revoke_partition(group, partition).await;
+        assert!(is_partition_revoked(group, partition).await);
         // Even an offset that trivially "advances" the local mark must be refused:
         // the new owner's position is authoritative and lives elsewhere.
         assert!(offset_advances_high_water_mark(group, partition, 10_000));
 
         // Re-activation restores ownership.
-        restore_partition(group, partition);
-        assert!(!is_partition_revoked(group, partition));
+        restore_partition(group, partition).await;
+        assert!(!is_partition_revoked(group, partition).await);
     }
 
-    #[test]
-    fn revocation_is_scoped_per_partition_and_group() {
+    #[tokio::test]
+    async fn revocation_is_scoped_per_partition_and_group() {
         let group = "test_group_revoke_scope";
-        revoke_partition(group, "p-0");
+        revoke_partition(group, "p-0").await;
 
         // Revoking one partition must not silence commits for the others we still
         // own, nor for a different consumer group.
-        assert!(is_partition_revoked(group, "p-0"));
-        assert!(!is_partition_revoked(group, "p-1"));
-        assert!(!is_partition_revoked("other_group", "p-0"));
+        assert!(is_partition_revoked(group, "p-0").await);
+        assert!(!is_partition_revoked(group, "p-1").await);
+        assert!(!is_partition_revoked("other_group", "p-0").await);
+    }
+
+    /// Pins the MECHANISM the fix relies on: revocation needs the WRITE guard, so it
+    /// blocks while any store holds the READ guard across its await.
+    ///
+    /// It does NOT pin that `store_offsets` actually holds the guard that way — this
+    /// test drives the lock directly, so it still passes against a check-only
+    /// implementation. Verifying the call site needs a live broker to make
+    /// `store_offset` await; the invariant is enforced by review + the comment on
+    /// `REVOKED_PARTITIONS`. Do not read a pass here as coverage of the race itself.
+    #[tokio::test]
+    async fn revocation_blocks_while_a_read_guard_is_held() {
+        let group = "test_group_inflight_fence";
+        let partition = "observations_stream-21";
+
+        // Simulate `store_offsets`: take the read guard, then await mid-"store".
+        let ownership = REVOKED_PARTITIONS.read().await;
+        let revoker = tokio::spawn(async move { revoke_partition(group, partition).await });
+
+        // Yield generously; the revoke task must still be parked on the write guard.
+        for _ in 0..8 {
+            tokio::task::yield_now().await;
+        }
+        assert!(
+            !revoker.is_finished(),
+            "revocation must block until the in-flight store releases the read guard"
+        );
+
+        // Releasing the guard (store finished) lets the revocation proceed.
+        drop(ownership);
+        revoker.await.expect("revoke task panicked");
+        assert!(is_partition_revoked(group, partition).await);
     }
 
     /// `commit_offset_high_water_mark` is max-wins and reports whether it actually
