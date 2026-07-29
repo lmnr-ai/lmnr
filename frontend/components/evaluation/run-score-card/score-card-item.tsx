@@ -68,7 +68,7 @@ export default function ScoreCardItem({
   const improved = change !== null && (change === 0 || increased === isHigherBetter);
 
   return (
-    <div className="relative flex min-w-[140px] shrink-0 flex-col gap-1.5 px-2.5 border-l border-l-foreground-600">
+    <div className="relative flex min-w-[140px] shrink-0 flex-col gap-1.5">
       <span className="truncate text-xs font-medium text-muted-foreground" title={name}>
         {name}
       </span>
