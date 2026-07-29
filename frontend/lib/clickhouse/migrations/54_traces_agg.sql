@@ -164,3 +164,19 @@ LEFT JOIN (
     ON t.project_id = ts.project_id AND t.id = ts.trace_id
 WHERE t.start_time >= {min_start_time:DateTime64(9)}
     AND t.start_time <= {max_start_time:DateTime64(9)};
+
+DROP VIEW IF EXISTS default.trace_outputs_v0;
+CREATE VIEW IF NOT EXISTS default.trace_outputs_v0 SQL SECURITY INVOKER AS
+SELECT
+    trace_id,
+    start_time,
+    arrayMap(
+        h -> dictGetOrDefault('deduped_content_dict', 'content', tuple(project_id, h), ''),
+        arrayMap(
+            i -> unhex(substring(ifNull(output_hashes, ''), i * 64 + 1, 64)),
+            range(intDiv(length(ifNull(output_hashes, '')), 64))
+        )
+    ) AS agent_output
+FROM default.traces_static FINAL
+PREWHERE project_id = {project_id:UUID}
+WHERE notEmpty(ifNull(output_hashes, ''));
