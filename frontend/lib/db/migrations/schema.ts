@@ -452,6 +452,7 @@ export const projects = pgTable(
     name: text().notNull(),
     workspaceId: uuid("workspace_id").notNull(),
     settings: jsonb().default({}).notNull(),
+    hasTraces: boolean("has_traces"),
   },
   (table) => [
     index("projects_workspace_id_idx").using("btree", table.workspaceId.asc().nullsLast().op("uuid_ops")),
