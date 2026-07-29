@@ -4888,6 +4888,7 @@ dependencies = [
  "rabbitmq-stream-protocol",
  "rand 0.10.1",
  "rustls-pemfile",
+ "serde",
  "thiserror 2.0.18",
  "tokio",
  "tokio-rustls",

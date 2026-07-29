@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use rabbitmq_stream_client::{
-    Environment,
+    ClientOptions, Environment,
     error::StreamCreateError,
     types::{ByteCapacity, ResponseCode},
 };
@@ -18,14 +18,21 @@ pub struct StreamEnvironment {
 
 impl StreamEnvironment {
     pub async fn connect() -> Result<Self> {
-        let inner = Environment::builder()
+        // `from_client_option` instead of `Environment::builder()` because the
+        // EnvironmentBuilder doesn't expose `max_frame_size`, and the client's
+        // 1 MiB default would cap the tune negotiation regardless of broker
+        // config.
+        let client_options = ClientOptions::builder()
             .host(&env::streams::HOST.get())
             .port(env::streams::PORT.get())
-            .username(&env::streams::USERNAME.get())
+            .user(&env::streams::USERNAME.get())
             .password(&env::streams::PASSWORD.get())
-            .virtual_host(&env::streams::VIRTUAL_HOST.get())
+            .v_host(&env::streams::VIRTUAL_HOST.get())
             .load_balancer_mode(env::streams::LOAD_BALANCER_MODE.get())
-            .build()
+            .max_frame_size(env::streams::MAX_FRAME_BYTES.get())
+            .build();
+
+        let inner = Environment::from_client_option(client_options)
             .await
             .context("Failed to connect to the RabbitMQ stream endpoint")?;
 

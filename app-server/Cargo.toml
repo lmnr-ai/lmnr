@@ -47,7 +47,9 @@ opentelemetry = {version = "0.29.1", features = ["trace"]}
 opentelemetry_sdk = {version = "0.29.0", features = ["trace"]}
 ort = {version = "=2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic", "api-24"], optional = true}
 prost = "0.14"
-rabbitmq-stream-client = "0.11"
+# `serde` unlocks `Environment::from_client_option`, the only public way to set
+# the client's `max_frame_size` (the EnvironmentBuilder doesn't expose it).
+rabbitmq-stream-client = { version = "0.11", features = ["serde"] }
 rand = "0.10"
 rayon = "1.11.0"
 redis = {version = "0.32.7", features = ["tokio-comp"]}
