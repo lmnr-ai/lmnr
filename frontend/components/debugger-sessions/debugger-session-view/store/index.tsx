@@ -733,8 +733,7 @@ export const createDebuggerSessionViewStore = (options: {
               if (!fetched) return;
 
               // Refine the (minimal/live) row for the stats shield (tokens / cost /
-              // duration). `mergeTraceRow` keeps a realtime-ahead endTime and won't
-              // let the fetched-but-empty `agent_input` clobber a live-flushed one.
+              // duration); `mergeTraceRow` guards endTime + agentInput.
               get().setTraces((traces) =>
                 upsertTraceRows(traces, [{ ...fetched, metadata: normalizeMetadata(fetched.metadata) }])
               );

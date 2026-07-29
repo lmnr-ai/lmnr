@@ -394,23 +394,9 @@ pub async fn process_span_messages(
         });
     }
 
-    // Live agent_input for the Input cell — the delta path dropped the
-    // root-span stand-in. `raw_trace_io` is the choke point for both the async
-    // extraction consumer and public `POST /v1/traces/metadata`.
+    // Live agent_input — the stat delta can't carry it (extraction is async).
     if env::clickhouse::WRITE_TRACES_AGG.get() {
-        for io in &raw_trace_io {
-            if let Some(value) = &io.input {
-                send_agent_input_update(
-                    &pubsub,
-                    cache.as_ref(),
-                    &io.project_id,
-                    io.trace_id,
-                    value,
-                    io.rollout_session_id.as_deref(),
-                )
-                .await;
-            }
-        }
+        dispatch_input_realtime_updates(&raw_trace_io, cache.clone(), &pubsub).await;
     }
 
     // Enrich spans with usage info
@@ -765,7 +751,7 @@ pub async fn process_span_messages(
 
             debugger_session_blocks::upsert_blocks_for_traces(&db.pool, &updated_traces).await;
 
-            dispatch_trace_updates(&trace_aggregations, cache.clone(), &pubsub).await;
+            dispatch_trace_realtime_updates(&trace_aggregations, cache.clone(), &pubsub).await;
         }
 
         // Dual-write partial rows to `traces_agg` (AggregatingMergeTree,
@@ -1148,7 +1134,7 @@ pub async fn process_span_messages(
     Ok(())
 }
 
-async fn dispatch_trace_updates(
+async fn dispatch_trace_realtime_updates(
     aggregations: &[TraceAggregation],
     cache: Arc<Cache>,
     pubsub: &PubSub,
@@ -1196,6 +1182,23 @@ async fn dispatch_trace_updates(
     for ((project_id, rollout_session_id), traces_data) in debugger_buckets {
         let key = format!("rollout_session_{}", rollout_session_id);
         send_trace_updates(&project_id, &key, &traces_data, pubsub).await;
+    }
+}
+
+/// Dispatch each trace's extracted agent_input to its realtime channels.
+async fn dispatch_input_realtime_updates(io: &[RawTraceIo], cache: Arc<Cache>, pubsub: &PubSub) {
+    for entry in io {
+        if let Some(value) = &entry.input {
+            send_agent_input_update(
+                pubsub,
+                cache.as_ref(),
+                &entry.project_id,
+                entry.trace_id,
+                value,
+                entry.rollout_session_id.as_deref(),
+            )
+            .await;
+        }
     }
 }
 
