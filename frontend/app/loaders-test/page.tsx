@@ -47,6 +47,8 @@ const GROUPS: Group[] = [
     note: "Retro / 8-bit: sharp squares and stepped timing.",
     items: [
       { label: "PixelInvader", Comp: L.PixelInvader },
+      { label: "PixelChomp", Comp: L.PixelChomp },
+      { label: "PixelScanner", Comp: L.PixelScanner },
       { label: "PixelSpinner", Comp: L.PixelSpinner },
       { label: "PixelBar", Comp: L.PixelBar },
       { label: "PixelGridSnake", Comp: L.PixelGridSnake },
@@ -329,8 +331,8 @@ const KEYFRAMES = `
   @keyframes lt-logo-draw { 0% { stroke-dashoffset: 100; } 55% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -100; } }
   .lt-logo-draw { animation: lt-logo-draw 2.2s ease-in-out infinite; }
 
-  @keyframes lt-comet-run { to { offset-distance: 100%; } }
-  .lt-comet-run { offset-distance: 0%; animation: lt-comet-run 1.6s linear infinite; }
+  @keyframes lt-comet-orbit { from { stroke-dashoffset: 0; } to { stroke-dashoffset: 100; } }
+  .lt-comet-orbit { animation: lt-comet-orbit 1.8s linear infinite; }
 
   @keyframes lt-logo-fill { 0%,45% { opacity: 0; } 65%,82% { opacity: 1; } 96%,100% { opacity: 0; } }
   .lt-logo-fill { animation: lt-logo-fill 2.2s ease-in-out infinite; }
@@ -362,6 +364,10 @@ const KEYFRAMES = `
 
   @keyframes lt-heartbeat { 0%,100% { transform: scale(1); } 15% { transform: scale(1.18); } 30% { transform: scale(1); } 45% { transform: scale(1.18); } 60% { transform: scale(1); } }
   .lt-heartbeat { transform-origin: center; animation: lt-heartbeat 1.3s ease-in-out infinite; }
+
+  /* Track is 7 cells (size-2 = 8px) + 6 gaps (3px) = 74px; sweep width = 74 - 8. */
+  @keyframes lt-scan { from { transform: translateX(0); } to { transform: translateX(66px); } }
+  .lt-scan { animation: lt-scan 0.85s ease-in-out infinite alternate; }
 `;
 
 export default function LoadersTestPage() {

@@ -19,10 +19,7 @@ type BoneProps = { className?: string; delay?: number; width?: string | number }
 /** Pulsing skeleton block. */
 function Bone({ className, delay = 0, width }: BoneProps) {
   return (
-    <div
-      className={cn("rounded bg-muted lt-pulse-soft", className)}
-      style={{ animationDelay: `${delay}s`, width }}
-    />
+    <div className={cn("rounded bg-muted lt-pulse-soft", className)} style={{ animationDelay: `${delay}s`, width }} />
   );
 }
 
@@ -166,7 +163,10 @@ export function DoubleBounce() {
   return (
     <div className="relative size-8">
       <span className="absolute inset-0 rounded-full bg-primary opacity-60 lt-bounce-scale" />
-      <span className="absolute inset-0 rounded-full bg-primary opacity-60 lt-bounce-scale" style={{ animationDelay: "-1s" }} />
+      <span
+        className="absolute inset-0 rounded-full bg-primary opacity-60 lt-bounce-scale"
+        style={{ animationDelay: "-1s" }}
+      />
     </div>
   );
 }
@@ -175,7 +175,11 @@ export function ThreeBounce() {
   return (
     <div className="flex items-center gap-1.5">
       {[-0.32, -0.16, 0].map((d) => (
-        <span key={d} className="size-2.5 rounded-full bg-primary lt-three-bounce" style={{ animationDelay: `${d}s` }} />
+        <span
+          key={d}
+          className="size-2.5 rounded-full bg-primary lt-three-bounce"
+          style={{ animationDelay: `${d}s` }}
+        />
       ))}
     </div>
   );
@@ -200,7 +204,10 @@ export function WanderingCubes() {
   return (
     <div className="relative size-8">
       <span className="absolute left-0 top-0 size-3 rounded-[2px] bg-primary lt-wander" />
-      <span className="absolute left-0 top-0 size-3 rounded-[2px] bg-muted-foreground lt-wander" style={{ animationDelay: "-0.9s" }} />
+      <span
+        className="absolute left-0 top-0 size-3 rounded-[2px] bg-muted-foreground lt-wander"
+        style={{ animationDelay: "-0.9s" }}
+      />
     </div>
   );
 }
@@ -534,10 +541,7 @@ export function StepDots() {
       {[0, 1, 2, 3].map((i) => (
         <div key={i} className="flex items-center">
           {i > 0 && <span className="h-[2px] w-5 bg-muted" />}
-          <span
-            className="size-2.5 rounded-full bg-primary lt-step"
-            style={{ animationDelay: `${i * 0.25}s` }}
-          />
+          <span className="size-2.5 rounded-full bg-primary lt-step" style={{ animationDelay: `${i * 0.25}s` }} />
         </div>
       ))}
     </div>
@@ -550,7 +554,10 @@ export function Ripple() {
   return (
     <div className="relative size-8">
       <span className="absolute inset-0 rounded-full border-2 border-primary lt-ripple" />
-      <span className="absolute inset-0 rounded-full border-2 border-primary lt-ripple" style={{ animationDelay: "0.6s" }} />
+      <span
+        className="absolute inset-0 rounded-full border-2 border-primary lt-ripple"
+        style={{ animationDelay: "0.6s" }}
+      />
     </div>
   );
 }
@@ -581,7 +588,11 @@ export function PulseRings() {
   return (
     <div className="relative flex size-8 items-center justify-center">
       {[0, 0.5, 1].map((d) => (
-        <span key={d} className="absolute inset-0 rounded-full border border-primary lt-ripple" style={{ animationDelay: `${d}s` }} />
+        <span
+          key={d}
+          className="absolute inset-0 rounded-full border border-primary lt-ripple"
+          style={{ animationDelay: `${d}s` }}
+        />
       ))}
       <span className="size-2 rounded-full bg-primary" />
     </div>
@@ -762,7 +773,10 @@ export function SkeletonTable() {
         ))}
       </div>
       {[0, 1, 2, 3].map((r) => (
-        <div key={r} className="grid grid-cols-[1.6fr_1fr_1fr_0.7fr] items-center gap-3 border-b px-3 py-3 last:border-b-0">
+        <div
+          key={r}
+          className="grid grid-cols-[1.6fr_1fr_1fr_0.7fr] items-center gap-3 border-b px-3 py-3 last:border-b-0"
+        >
           <div className="flex items-center gap-2">
             <Bone className="size-5 shrink-0 rounded-full" delay={r * 0.09} />
             <Bone className="h-2.5 flex-1" delay={r * 0.09 + 0.03} />
@@ -1092,35 +1106,45 @@ export function LogoPulse() {
 }
 
 /**
- * A gradient comet running along the logo's actual outline. `offset-path` moves
- * the streak along the exact SVG path at constant arc-length speed, and
- * `offset-rotate: auto` keeps it aligned to the path direction, so the opaque
- * head leads and the transparent tail trails around the curve. One element, one
- * gradient — no dots, no fake angular sweep. A faint full outline is the track.
+ * A gradient comet running along the logo's exact outline. We stroke the path
+ * ~16 times; every copy is a single dash that shares the same leading point but
+ * extends a little further back, and gets fainter down the stack. Overlaid,
+ * that's a bright head fading smoothly into a tail — a real gradient, not dots —
+ * and because each copy IS the path stroke it hugs the outline perfectly. One
+ * shared dash-offset animation orbits the whole comet. Faint full outline = track.
  */
+const COMET_LAYERS = 16;
+
 export function LogoComet() {
   return (
-    <div className="relative size-11 text-primary">
-      {/* Path space is 0–76 (icon.svg viewBox); scale the whole rig into the box. */}
-      <div className="absolute left-0 top-0 origin-top-left" style={{ width: 76, height: 76, transform: "scale(0.5789)" }}>
-        <svg viewBox="0 0 76 76" className="absolute inset-0 size-full">
-          <path d={LOGO_PATH} fill="none" stroke="currentColor" strokeWidth={2} className="opacity-[0.13]" />
-        </svg>
-        <div
-          className="lt-comet-run absolute left-0 top-0"
-          style={{ offsetPath: `path("${LOGO_PATH}")`, offsetRotate: "auto", offsetAnchor: "100% 50%" }}
-        >
-          <div
-            style={{
-              width: 30,
-              height: 5,
-              borderRadius: 9999,
-              background: "linear-gradient(90deg, transparent 0%, color-mix(in oklch, currentColor 45%, transparent) 65%, currentColor 100%)",
-            }}
+    <svg viewBox="0 0 76 76" className="size-11 text-primary">
+      <path
+        d={LOGO_PATH}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2.5}
+        strokeLinejoin="round"
+        className="opacity-[0.1]"
+      />
+      {Array.from({ length: COMET_LAYERS }).map((_, i) => {
+        const dash = 2 + i * 2.7; // 2 → ~42 of 100: shared head, tail fans back
+        const opacity = 0.92 * (1 - i / COMET_LAYERS) ** 1.5 + 0.03;
+        return (
+          <path
+            key={i}
+            d={LOGO_PATH}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            pathLength={100}
+            className="lt-comet-orbit"
+            style={{ strokeDasharray: `${dash} ${100 - dash}`, opacity }}
           />
-        </div>
-      </div>
-    </div>
+        );
+      })}
+    </svg>
   );
 }
 
@@ -1136,9 +1160,11 @@ function PixelSprite({ map, className, style }: { map: string[]; className?: str
       style={{ gridTemplateColumns: `repeat(${cols}, 5px)`, ...style }}
     >
       {map.map((row, r) =>
-        row.split("").map((ch, c) => (
-          <span key={`${r}-${c}`} className={cn("size-[5px]", ch === "1" ? "bg-current" : "opacity-0")} />
-        ))
+        row
+          .split("")
+          .map((ch, c) => (
+            <span key={`${r}-${c}`} className={cn("size-[5px]", ch === "1" ? "bg-current" : "opacity-0")} />
+          ))
       )}
     </div>
   );
@@ -1250,6 +1276,38 @@ const HEART = ["0110110", "1111111", "1111111", "0111110", "0011100", "0001000"]
 /** 8-bit heart, beating. */
 export function PixelHeart() {
   return <PixelSprite map={HEART} className="lt-heartbeat" />;
+}
+
+const PACMAN_CLOSED = ["0011100", "0111110", "1111111", "1111111", "1111111", "0111110", "0011100"];
+const PACMAN_OPEN = ["0011100", "0111100", "1111000", "1110000", "1111000", "0111100", "0011100"];
+
+/** Pac-Man chomping in place — the classic 2-frame open/closed cut, fast. */
+export function PixelChomp() {
+  return (
+    <div className="relative">
+      <PixelSprite map={PACMAN_CLOSED} className="lt-frame-a" style={{ animationDuration: "0.5s" }} />
+      <PixelSprite
+        map={PACMAN_OPEN}
+        className="lt-frame-b absolute left-0 top-0"
+        style={{ animationDuration: "0.5s" }}
+      />
+    </div>
+  );
+}
+
+/** Knight-Rider scanner: a glowing pixel sweeping back and forth over a track. */
+export function PixelScanner() {
+  return (
+    <div className="relative flex gap-[3px] text-primary">
+      {Array.from({ length: 7 }).map((_, i) => (
+        <span key={i} className="size-2 bg-muted" />
+      ))}
+      <span
+        className="lt-scan absolute left-0 top-0 size-2 bg-current"
+        style={{ boxShadow: "0 0 6px 1px currentColor" }}
+      />
+    </div>
+  );
 }
 
 /** Checkerboard dither shimmer. */
