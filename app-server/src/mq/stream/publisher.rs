@@ -315,12 +315,19 @@ mod tests {
     /// Needs a local broker with the stream plugin on 5552 (guest/guest), so
     /// it's ignored by default. Run with:
     /// `cargo test --bin app-server mq::stream::publisher -- --ignored`
-    #[tokio::test]
+    ///
+    /// `multi_thread` is REQUIRED: the rabbitmq-stream-client deadlocks on the
+    /// default current-thread test runtime (the handshake never completes and
+    /// the broker eventually heartbeat-closes the socket while the client
+    /// awaits forever).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[ignore]
     async fn rebuild_recovers_an_unhealthy_publisher() {
+        eprintln!("[test] connecting");
         let environment = StreamEnvironment::connect()
             .await
             .expect("local stream broker not reachable");
+        eprintln!("[test] declaring super stream");
         let topology = StreamTopology {
             partitions: 2,
             max_length_bytes: 10_000_000,
@@ -330,7 +337,9 @@ mod tests {
         };
         topology.declare(&environment, TEST_STREAM).await.unwrap();
 
+        eprintln!("[test] building publisher");
         let publisher = StreamPublisher::new(&environment, TEST_STREAM).await.unwrap();
+        eprintln!("[test] baseline publish");
         publisher
             .publish(&serde_json::json!({"n": 1}), "k1")
             .await
@@ -342,6 +351,7 @@ mod tests {
         assert!(!publisher.healthy.load(Ordering::Acquire));
 
         // The next publish must rebuild inline and go through.
+        eprintln!("[test] publish after mark_unhealthy (expect rebuild)");
         publisher
             .publish(&serde_json::json!({"n": 2}), "k2")
             .await
