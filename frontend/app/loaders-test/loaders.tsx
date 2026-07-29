@@ -999,17 +999,27 @@ const LOGO_MASK = `url("data:image/svg+xml,${encodeURIComponent(
   `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 76 76'><path d='${LOGO_PATH}'/></svg>`
 )}")`;
 
-// Mask the whole element (and its children) to the logo silhouette.
-const logoMask: CSSProperties = {
-  WebkitMaskImage: LOGO_MASK,
-  maskImage: LOGO_MASK,
-  WebkitMaskSize: "contain",
-  maskSize: "contain",
-  WebkitMaskRepeat: "no-repeat",
-  maskRepeat: "no-repeat",
-  WebkitMaskPosition: "center",
-  maskPosition: "center",
-};
+// Outline-only mask (stroked, not filled) — for effects that ride the border.
+const LOGO_OUTLINE_MASK = `url("data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 76 76'><path d='${LOGO_PATH}' fill='none' stroke='black' stroke-width='8' stroke-linejoin='round'/></svg>`
+)}")`;
+
+// Mask an element (and its children) to a logo-shaped image.
+function maskWith(image: string): CSSProperties {
+  return {
+    WebkitMaskImage: image,
+    maskImage: image,
+    WebkitMaskSize: "contain",
+    maskSize: "contain",
+    WebkitMaskRepeat: "no-repeat",
+    maskRepeat: "no-repeat",
+    WebkitMaskPosition: "center",
+    maskPosition: "center",
+  };
+}
+
+const logoMask = maskWith(LOGO_MASK); // filled silhouette
+const logoOutlineMask = maskWith(LOGO_OUTLINE_MASK); // just the border
 
 /** The mark drawing its own outline over and over. */
 export function LogoTrace() {
@@ -1092,36 +1102,22 @@ export function LogoPulse() {
 }
 
 /**
- * A glowing head with a fading tail traveling around the logo's outline —
- * OrbitComet, but the ring is our mark. Each dot rides the same CSS motion path
- * (offset-path) at a staggered offset; the last dot is the bright head, earlier
- * ones fall behind and dim into the tail.
+ * A continuous gradient comet orbiting the logo's outline — OrbitComet's exact
+ * technique (a conic gradient masked into a ring), with the ring swapped for our
+ * mark's outline. The mask is static so the logo stays upright; the conic gradient
+ * spins behind it, sweeping a bright head that fades into a transparent tail.
  */
 export function LogoComet() {
-  const dots = 9;
-  const spread = 0.55; // seconds of tail behind the head
   return (
-    <div className="relative size-11 text-primary">
-      <div className="absolute left-0 top-0 origin-top-left" style={{ width: 76, height: 76, transform: "scale(0.5789)" }}>
-        {Array.from({ length: dots }).map((_, i) => {
-          const t = i / (dots - 1); // 0 = tail end, 1 = head
-          const size = 3 + t * 5;
-          return (
-            <span
-              key={i}
-              className="lt-comet absolute left-0 top-0 rounded-full bg-current"
-              style={{
-                width: size,
-                height: size,
-                opacity: 0.08 + t * 0.92,
-                offsetPath: `path("${LOGO_PATH}")`,
-                offsetRotate: "0deg",
-                animationDelay: `${-t * spread}s`,
-              }}
-            />
-          );
-        })}
-      </div>
+    <div className="relative size-11 overflow-hidden text-primary" style={logoOutlineMask}>
+      <div
+        className="absolute inset-[-30%] animate-spin"
+        style={{
+          animationDuration: "1.3s",
+          background:
+            "conic-gradient(from 0deg, transparent 0deg, color-mix(in oklch, currentColor 30%, transparent) 210deg, currentColor 350deg, transparent 360deg)",
+        }}
+      />
     </div>
   );
 }
