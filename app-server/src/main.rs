@@ -1072,14 +1072,19 @@ fn main() -> anyhow::Result<()> {
                                     log::error!("Failed to build observations publisher: {:?}", e)
                                 }
                             }
-                            // Gated on a live Quickwit client: the indexer READER
-                            // only starts when one exists, so registering this
-                            // publisher without it would publish indexing jobs to a
-                            // stream nothing reads — and an unread stream expires
-                            // under retention, whereas the quorum queue retains
-                            // until consumed. Leaving it unset keeps
-                            // `publish_for_indexing` on the queue fallback.
-                            if quickwit_client.is_some() {
+                            // Gated on the SHARED config flag, not on this pod's own
+                            // `quickwit_client`. The indexer reader lives in the
+                            // consumer pod and `QuickwitClient::connect` is a
+                            // per-pod TCP dial, so "Quickwit is live here" says
+                            // nothing about whether the consumer pod started a
+                            // reader — a producer that connects while the consumer
+                            // doesn't would publish indexing jobs to a stream
+                            // nothing reads, and an unread stream is deleted by
+                            // retention (the quorum queue would have retained them).
+                            // Both roles read this same env var, so the gate is
+                            // symmetric; unset keeps `publish_for_indexing` on the
+                            // queue fallback.
+                            if env::streams::SPANS_INDEXER_ENABLED.get() {
                                 match mq::stream::StreamPublisher::new(
                                     &environment,
                                     mq::stream::SPANS_INDEXER_STREAM,
@@ -1096,7 +1101,7 @@ fn main() -> anyhow::Result<()> {
                                 }
                             } else {
                                 log::warn!(
-                                    "Quickwit unavailable - not registering the spans indexer stream publisher; indexing stays on the quorum queue"
+                                    "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is off - not registering the spans indexer stream publisher; indexing stays on the quorum queue"
                                 );
                             }
                         }
@@ -1429,9 +1434,16 @@ fn main() -> anyhow::Result<()> {
                             );
                             tokio::spawn(reader.run());
 
-                            if let Some(quickwit_client_for_indexer) =
-                                quickwit_client_for_consumer.as_ref()
-                            {
+                            // Same shared flag the producer gates its publisher on,
+                            // so the two pod roles can't disagree about whether this
+                            // stream has a reader. When the flag is on but Quickwit
+                            // is unreachable HERE, the producer (a different pod) may
+                            // still be publishing — log at error, because those
+                            // records expire under retention unread.
+                            if env::streams::SPANS_INDEXER_ENABLED.get() {
+                                if let Some(quickwit_client_for_indexer) =
+                                    quickwit_client_for_consumer.as_ref()
+                                {
                                 let reader = mq::stream::StreamReader::new(
                                     mq::stream::SPANS_INDEXER_STREAM,
                                     mq::stream::SPANS_INDEXER_CONSUMER_NAME,
@@ -1446,6 +1458,11 @@ fn main() -> anyhow::Result<()> {
                                     },
                                 );
                                 tokio::spawn(reader.run());
+                                } else {
+                                    log::error!(
+                                        "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is on but Quickwit is unreachable from this consumer - the spans indexer stream has NO reader here; producer pods may be publishing indexing jobs that retention will delete unread"
+                                    );
+                                }
                             }
 
                             log::info!("Stream readers started");

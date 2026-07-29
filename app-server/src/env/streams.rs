@@ -10,6 +10,19 @@ use super::{BoolEnv, NumEnv, StringEnv};
 /// quorum-queue path is the only transport.
 pub const ENABLED: BoolEnv = BoolEnv::new("RABBITMQ_STREAMS_ENABLED", false);
 
+/// Whether the Quickwit indexing path may use streams. Read IDENTICALLY by the
+/// producer (publisher registration) and consumer (reader spawn) pods, so the two
+/// roles can never disagree about whether that stream has a reader.
+///
+/// Deliberately a config flag rather than "is my own `quickwit_client` live":
+/// `QuickwitClient::connect` is a per-pod TCP dial, so a producer pod that
+/// connects while a consumer pod doesn't would register the publisher with no
+/// reader anywhere — and an unread stream is silently deleted by retention.
+/// Config is the same in both Deployments, so the gate is symmetric by
+/// construction. Set to false to keep indexing on the quorum queue.
+pub const SPANS_INDEXER_ENABLED: BoolEnv =
+    BoolEnv::new("RABBITMQ_STREAM_SPANS_INDEXER_ENABLED", true);
+
 /// Stream-protocol endpoint. Separate from `RABBITMQ_URL` (AMQP 5672) because
 /// the stream plugin listens on its own port and the client takes host/port,
 /// not a URL.
@@ -64,8 +77,7 @@ pub const REPLICATION_FACTOR: NumEnv<usize> = NumEnv::new("RABBITMQ_STREAM_REPLI
 /// tune — the broker config (default 1 MiB) must be raised to match, e.g.
 /// `stream.frame_max = 67108864` in rabbitmq.conf, or the broker still closes
 /// the connection at ITS limit while our gate happily passes larger payloads.
-pub const MAX_FRAME_BYTES: NumEnv<u32> =
-    NumEnv::new("RABBITMQ_STREAM_MAX_FRAME_BYTES", 67_108_864);
+pub const MAX_FRAME_BYTES: NumEnv<u32> = NumEnv::new("RABBITMQ_STREAM_MAX_FRAME_BYTES", 67_108_864);
 
 /// How long a publish waits for the broker's confirmation before giving up and
 /// letting the caller fall back to the quorum queue. Bounded because the client
