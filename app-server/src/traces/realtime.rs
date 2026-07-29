@@ -46,10 +46,8 @@ pub struct RealtimeTrace {
     tags: Vec<String>, // Span tags
     root_span_input: Option<String>,
     root_span_output: Option<String>,
-    // LLM-extracted "user task" (Feature::InputExtraction). Lands seconds after
-    // the trace via an async metadata-only span, so it's threaded in here
-    // separately from the PG `Trace` fields — see `dispatch_trace_realtime_updates`.
-    // JSON-stringified to match `traces_v0.agent_input` (the fresh-fetch value).
+    // Extracted "user task" (Feature::InputExtraction), threaded in separately —
+    // it lands async, seconds after the trace. JSON-stringified per traces_v0.
     agent_input: Option<String>,
 }
 
@@ -232,9 +230,8 @@ fn rollout_session_id_from_metadata(trace: &Trace) -> Option<String> {
 }
 
 impl RealtimeTrace {
-    /// Convert database trace to realtime format. `agent_input` is the extracted
-    /// user task (JSON-stringified, matching `traces_v0.agent_input`), threaded
-    /// from ingestion; `None` for span-batch updates where extraction hasn't run.
+    /// `agent_input`: extracted user task threaded from ingestion; `None` on
+    /// span-batch updates where extraction hasn't run yet.
     pub fn from_trace(trace: &Trace, agent_input: Option<String>) -> Self {
         Self {
             id: trace.id(),

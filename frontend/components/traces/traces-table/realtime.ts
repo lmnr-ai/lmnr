@@ -26,9 +26,7 @@ export const realtimeTraceToRow = (trace: RealtimeTracePayload): TraceRow => ({
   userId: trace.userId ?? undefined,
   spanTags: trace.tags ?? [],
   traceTags: [],
-  // Agent input is extracted asynchronously (Feature::InputExtraction), seconds
-  // after the trace. The extraction flush carries the real value; earlier
-  // span-batch updates don't, so fall back to the root-span input as a transient
-  // stand-in. Either way the next full fetch of the row has the true value.
+  // Real extracted input arrives seconds late; until then fall back to the
+  // root-span input as a transient stand-in (full refetch has the true value).
   agentInput: trace.agentInput ?? trace.rootSpanInput ?? undefined,
 });

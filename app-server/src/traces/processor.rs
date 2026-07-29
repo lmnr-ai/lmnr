@@ -384,12 +384,8 @@ pub async fn process_span_messages(
         });
     }
 
-    // Extracted input threaded to the realtime dispatch as a first-class field
-    // (Option B in the handoff) so the debugger / traces table show it live —
-    // NOT sourced from the deprecated `lmnr_user_task` metadata fold above, which
-    // is on a demolition schedule. `value.to_string()` matches
-    // `CHTraceAgentInput.value` (and thus `traces_v0.agent_input`), so the live
-    // value renders identically to the fresh-fetch path.
+    // Extracted input threaded to the realtime dispatch so it shows live, NOT via
+    // the deprecated `lmnr_user_task` fold. `to_string()` matches `traces_v0.agent_input`.
     let agent_input_by_trace: HashMap<(Uuid, Uuid), String> = raw_trace_io
         .iter()
         .filter_map(|io| {

@@ -631,11 +631,8 @@ export const createDebuggerSessionViewStore = (options: {
               return;
             }
 
-            // Known run → live-patch the row. Both fields land after the initial
-            // load: hasBrowserSession once the browser span arrives, agentInput
-            // seconds later when async input extraction finishes. The empty guard
-            // is essential — a span-batch trace_update carries an empty agentInput
-            // and must not blank a value a prior extraction flush already set.
+            // Known run → live-patch fields that land after the initial load. The
+            // empty guard stops a span-batch update blanking an already-set agentInput.
             const patch: Record<string, unknown> = {};
             if (typeof t.hasBrowserSession === "boolean") patch.hasBrowserSession = t.hasBrowserSession;
             if (t.agentInput) patch.agentInput = t.agentInput;
