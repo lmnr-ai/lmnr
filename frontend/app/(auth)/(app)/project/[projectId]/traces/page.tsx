@@ -20,11 +20,15 @@ export default async function TracesPage(props: { params: Promise<{ projectId: s
   // variable named "cache" not after valkey cache, but
   // because we cache a potentially heavy clickhouse query's
   // result in DB
-  const cacheHasTraces = (
-    await db.query.projects.findFirst({
+  const cacheHasTraces = await db.query.projects
+    .findFirst({
       where: eq(projects.id, projectId),
     })
-  )?.hasTraces;
+    .then((project) => project?.hasTraces)
+    .catch((e) => {
+      console.error(e);
+      return null;
+    });
 
   let hasTraces = cacheHasTraces === true;
 
@@ -56,7 +60,11 @@ export default async function TracesPage(props: { params: Promise<{ projectId: s
       hasTraces = true;
     } else if (result) {
       hasTraces = true;
-      await db.update(projects).set({ hasTraces: true }).where(eq(projects.id, projectId));
+      await db
+        .update(projects)
+        .set({ hasTraces: true })
+        .where(eq(projects.id, projectId))
+        .catch((e) => console.error(e));
     }
   }
 
