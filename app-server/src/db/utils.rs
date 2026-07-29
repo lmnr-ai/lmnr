@@ -18,6 +18,11 @@ pub enum FilterOperator {
     Gte,
     Lt,
     Lte,
+    /// Array containment. The frontend's shared `FilterSchema` requires this
+    /// operator for any array-valued filter (e.g. a signal trigger listing
+    /// several span names), so it must deserialize here or the whole filter
+    /// fails to parse and the trigger is dropped.
+    Includes,
 }
 
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
@@ -49,6 +54,10 @@ pub fn evaluate_number_filter(actual: f64, operator: &FilterOperator, value: &Va
         FilterOperator::Gte => actual >= target,
         FilterOperator::Lt => actual < target,
         FilterOperator::Lte => actual <= target,
+        FilterOperator::Includes => {
+            log::warn!("Invalid operator Includes for number filter");
+            false
+        }
     }
 }
 

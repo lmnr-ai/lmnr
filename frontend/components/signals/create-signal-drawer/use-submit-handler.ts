@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 
+import { stripBlankSpanNames } from "@/components/signals/trigger-filter-field";
 import { schemaFieldsToJsonSchema } from "@/components/signals/utils";
 import { type useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
@@ -9,6 +10,10 @@ import { type ManageSignalForm, type TriggerFormItem } from "./types";
 /**
  * Sync triggers for a signal by creating new, updating existing, and deleting removed triggers.
  * Returns the final list of triggers with server-assigned IDs.
+ *
+ * Every trigger passed in is synced; callers must reject conditionless triggers
+ * first (see the guard in the submit handler). Silently skipping them here is
+ * what let a save report success while writing nothing.
  *
  * On partial failure, successfully created triggers are still returned with their IDs
  * so the caller can update form state and avoid duplicates on retry.
@@ -21,8 +26,8 @@ async function syncTriggers(
 ): Promise<TriggerFormItem[]> {
   const currentIds = triggers.filter((t) => t.id).map((t) => t.id!);
   const toDelete = previousTriggerIds.filter((id) => !currentIds.includes(id));
-  const toCreate = triggers.filter((t) => !t.id && t.filters.length > 0);
-  const toUpdate = triggers.filter((t) => t.id && t.filters.length > 0);
+  const toCreate = triggers.filter((t) => !t.id);
+  const toUpdate = triggers.filter((t) => t.id);
 
   const baseUrl = `/api/projects/${projectId}/signals/${signalId}/triggers`;
 
@@ -44,7 +49,11 @@ async function syncTriggers(
       fetch(baseUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filters: trigger.filters, mode: trigger.mode ?? 0 }),
+        body: JSON.stringify({
+          conditions: stripBlankSpanNames(trigger.conditions),
+          filters: trigger.filters,
+          mode: trigger.mode ?? 0,
+        }),
       }).then(
         (r) => ({ ok: r.ok, response: r }),
         () => ({ ok: false, response: null })
@@ -57,7 +66,12 @@ async function syncTriggers(
       fetch(baseUrl, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ triggerId: trigger.id, filters: trigger.filters, mode: trigger.mode ?? 0 }),
+        body: JSON.stringify({
+          triggerId: trigger.id,
+          conditions: stripBlankSpanNames(trigger.conditions),
+          filters: trigger.filters,
+          mode: trigger.mode ?? 0,
+        }),
       }).then(
         (r) => ({ ok: r.ok, response: r }),
         () => ({ ok: false, response: null })
@@ -75,10 +89,11 @@ async function syncTriggers(
       if (result.ok && result.response) {
         const body = (await result.response.json()) as {
           id: string;
+          conditions: TriggerFormItem["conditions"];
           filters: TriggerFormItem["filters"];
           mode: number;
         };
-        return { id: body.id, filters: body.filters, mode: body.mode ?? 0 };
+        return { id: body.id, conditions: body.conditions, filters: body.filters ?? [], mode: body.mode ?? 0 };
       }
       return null;
     })
@@ -86,15 +101,13 @@ async function syncTriggers(
 
   // Rebuild the list in original order, replacing new triggers with their server-assigned versions
   let createIndex = 0;
-  const syncedTriggers = triggers
-    .filter((t) => t.filters.length > 0)
-    .map((t) => {
-      if (!t.id) {
-        const created = createdTriggers[createIndex++];
-        return created ?? t; // Keep original (no id) if create failed
-      }
-      return t;
-    });
+  const syncedTriggers = triggers.map((t) => {
+    if (!t.id) {
+      const created = createdTriggers[createIndex++];
+      return created ?? t; // Keep original (no id) if create failed
+    }
+    return t;
+  });
 
   // Check if any operation failed
   const allResults = [...(deleteOp ? [await deleteOp] : []), ...createResults, ...updateResults];
@@ -138,6 +151,24 @@ export default function useSubmitHandler({
     async (data: ManageSignalForm) => {
       try {
         setIsLoading(true);
+
+        // A trigger with no conditions never fires, so a signal saved without
+        // one looks configured but is silently inert. These were previously
+        // filtered out of the sync, which reported success while writing
+        // nothing — fail before touching the signal instead. Normally
+        // unreachable (the form always seeds a trigger and the kind selector
+        // can't empty it); this catches a signal whose trigger rows are
+        // already missing, e.g. after a partial sync failure or an external
+        // delete. `filters` may legitimately be empty.
+        if (data.triggers.some((t) => !t.conditions?.length)) {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Select a trigger before saving — a signal without one would never run.",
+          });
+          return;
+        }
+
         const structuredOutput = schemaFieldsToJsonSchema(data.schemaFields);
         const signal = {
           name: data.name,
@@ -180,11 +211,11 @@ export default function useSubmitHandler({
           setFormId(signalId);
         }
 
-        // Sync triggers and get back the list with server-assigned IDs
-        const triggersToSync = data.triggers.filter((t) => t.filters.length > 0);
-        let syncedTriggers = triggersToSync;
-        if (triggersToSync.length > 0 || previousTriggerIds.length > 0) {
-          syncedTriggers = await syncTriggers(projectId, signalId, triggersToSync, isUpdate ? previousTriggerIds : []);
+        // Sync triggers and get back the list with server-assigned IDs.
+        // Every trigger is synced — the conditionless case was rejected above.
+        let syncedTriggers = data.triggers;
+        if (data.triggers.length > 0 || previousTriggerIds.length > 0) {
+          syncedTriggers = await syncTriggers(projectId, signalId, data.triggers, isUpdate ? previousTriggerIds : []);
         }
 
         if (isUpdate) {

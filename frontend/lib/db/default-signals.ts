@@ -20,7 +20,8 @@ Only report problems visible in the trace data.`,
   },
 };
 
-export const DEFAULT_SIGNAL_TRIGGER_VALUE = [
-  { column: "total_token_count", operator: "gt", value: "1000" },
-  { column: "root_span_finished", operator: "eq", value: "true" },
-];
+/** When the signal is evaluated. Always exactly one condition. */
+export const DEFAULT_SIGNAL_TRIGGER_VALUE = [{ column: "root_span_finished", operator: "eq", value: "true" }];
+
+/** Whether a fired trigger actually runs — keeps trivial traces from being billed. */
+export const DEFAULT_SIGNAL_TRIGGER_FILTERS = [{ column: "total_token_count", operator: "gt", value: "1000" }];
