@@ -384,6 +384,17 @@ pub async fn process_span_messages(
         });
     }
 
+    // Extracted input threaded to the realtime dispatch so it shows live, NOT via
+    // the deprecated `lmnr_user_task` fold. `to_string()` matches `traces_v0.agent_input`.
+    let agent_input_by_trace: HashMap<(Uuid, Uuid), String> = raw_trace_io
+        .iter()
+        .filter_map(|io| {
+            io.input
+                .as_ref()
+                .map(|v| ((io.project_id, io.trace_id), v.to_string()))
+        })
+        .collect();
+
     // Enrich spans with usage info
     let mut span_usage_vec = Vec::with_capacity(messages.len());
 
@@ -736,7 +747,13 @@ pub async fn process_span_messages(
 
             debugger_session_blocks::upsert_blocks_for_traces(&db.pool, &updated_traces).await;
 
-            dispatch_trace_realtime_updates(&updated_traces, cache.clone(), &pubsub).await;
+            dispatch_trace_realtime_updates(
+                &updated_traces,
+                &agent_input_by_trace,
+                cache.clone(),
+                &pubsub,
+            )
+            .await;
         }
 
         // Dual-write partial rows to `traces_agg` (AggregatingMergeTree,
@@ -1119,7 +1136,12 @@ pub async fn process_span_messages(
     Ok(())
 }
 
-async fn dispatch_trace_realtime_updates(traces: &[Trace], cache: Arc<Cache>, pubsub: &PubSub) {
+async fn dispatch_trace_realtime_updates(
+    traces: &[Trace],
+    agent_input_by_trace: &HashMap<(Uuid, Uuid), String>,
+    cache: Arc<Cache>,
+    pubsub: &PubSub,
+) {
     if traces.is_empty() {
         return;
     }
@@ -1129,25 +1151,30 @@ async fn dispatch_trace_realtime_updates(traces: &[Trace], cache: Arc<Cache>, pu
     let mut debugger_buckets: HashMap<(Uuid, String), Vec<RealtimeDebuggerTrace>> = HashMap::new();
 
     for trace in traces {
+        // Only present on the flush where extraction landed; None otherwise. The
+        // frontend guards against an empty value clobbering a populated one.
+        let agent_input = agent_input_by_trace
+            .get(&(trace.project_id(), trace.id()))
+            .cloned();
         for channel in channels_for_trace(trace, cache.as_ref()).await {
             match channel {
                 TraceChannel::Project => {
                     project_buckets
                         .entry(trace.project_id())
                         .or_default()
-                        .push(RealtimeTrace::from_trace(trace));
+                        .push(RealtimeTrace::from_trace(trace, agent_input.clone()));
                 }
                 TraceChannel::Evaluation(evaluation_id) => {
                     evaluation_buckets
                         .entry((trace.project_id(), evaluation_id))
                         .or_default()
-                        .push(RealtimeTrace::from_trace(trace));
+                        .push(RealtimeTrace::from_trace(trace, agent_input.clone()));
                 }
                 TraceChannel::RolloutDebugger(rollout_session_id) => {
                     debugger_buckets
                         .entry((trace.project_id(), rollout_session_id))
                         .or_default()
-                        .push(RealtimeDebuggerTrace::from_trace(trace));
+                        .push(RealtimeDebuggerTrace::from_trace(trace, agent_input.clone()));
                 }
             }
         }

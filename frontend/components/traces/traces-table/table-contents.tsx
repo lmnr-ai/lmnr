@@ -181,7 +181,8 @@ export const TracesTableContents = memo(function TracesTableContents({
   }, [setNavigationRefList, traces]);
 
   const updateRealtimeTrace = useCallback(
-    (traceData: TraceRow) => {
+    (trace: RealtimeTracePayload) => {
+      const traceData = realtimeTraceToRow(trace);
       if (!traceData.startTime || !isTraceInTimeRange(traceData.startTime)) {
         return;
       }
@@ -189,11 +190,18 @@ export const TracesTableContents = memo(function TracesTableContents({
       updateData((currentTraces) => {
         if (!currentTraces || currentTraces.length === 0) return currentTraces;
 
-        const existingTraceIndex = currentTraces.findIndex((trace) => trace.id === traceData.id);
+        const existingTraceIndex = currentTraces.findIndex((t) => t.id === traceData.id);
 
         if (existingTraceIndex !== -1) {
+          const prev = currentTraces[existingTraceIndex];
           const newTraces = [...currentTraces];
-          newTraces[existingTraceIndex] = traceData;
+          newTraces[existingTraceIndex] = {
+            ...traceData,
+            // Prefer a real extracted value, else keep a populated prior one, else the
+            // rootSpanInput stand-in. Truthiness (not ??) so an empty "" from the initial
+            // traces_v0 fetch (ifNull → '') yields to the stand-in instead of sticking.
+            agentInput: trace.agentInput || prev.agentInput || traceData.agentInput,
+          };
           return newTraces;
         }
 
@@ -220,7 +228,7 @@ export const TracesTableContents = memo(function TracesTableContents({
           const payload = JSON.parse(event.data) as { traces?: RealtimeTracePayload[] };
           if (payload.traces && Array.isArray(payload.traces)) {
             for (const trace of payload.traces) {
-              updateRealtimeTrace(realtimeTraceToRow(trace));
+              updateRealtimeTrace(trace);
             }
           }
         } catch (e) {

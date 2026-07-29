@@ -182,6 +182,9 @@ export type RealtimeTracePayload = {
   tags: string[];
   rootSpanInput: string | null;
   rootSpanOutput: string | null;
+  // Extracted "user task"; null on span-batch updates, set on the extraction
+  // flush. JSON-stringified, matching fresh-fetch `agent_input`.
+  agentInput: string | null;
 };
 
 export type TracePreview = {
