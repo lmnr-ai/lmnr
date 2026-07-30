@@ -46,16 +46,16 @@
   --font-sans-landing: var(--font-general-sans);
   --font-manrope: var(--font-manrope);
 
-  --color-border: var(--color-surface-300);
+  --color-border: var(--color-surface-700);
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
-  --color-background: var(--color-surface-1000);
+  --color-background: var(--color-surface-100);
   --color-foreground: hsl(var(--foreground));
 
   --color-primary: var(--color-primary-400);
   --color-primary-foreground: var(--color-foreground-100);
 
-  --color-secondary: var(--color-surface-800);
+  --color-secondary: var(--color-surface-200);
   --color-secondary-foreground: var(--color-foreground-200);
 
   --color-success: hsl(var(--success));
@@ -70,13 +70,13 @@
   --color-muted: var(--color-surface-500);
   --color-muted-foreground: var(--color-foreground-400);
 
-  --color-accent: var(--color-surface-400);
+  --color-accent: var(--color-surface-600);
   --color-accent-foreground: hsl(var(--accent-foreground));
 
-  --color-popover: var(--color-surface-800);
+  --color-popover: var(--color-surface-200);
   --color-popover-foreground: hsl(var(--popover-foreground));
 
-  --color-card: var(--color-surface-800);
+  --color-card: var(--color-surface-200);
   --color-card-foreground: hsl(var(--card-foreground));
 
   --color-sidebar: hsl(var(--sidebar-background));
@@ -95,16 +95,38 @@
 
   --color-subagent: hsl(var(--subagent));
 
-  /* Surface elevation ramp — neutral, dark-theme  */
-  --color-surface-200: oklch(0.3092 0 0); /* #303030 */
-  --color-surface-300: oklch(0.2891 0 0); /* #2b2b2b */
-  --color-surface-400: oklch(0.2686 0 0); /* #262626 */
-  --color-surface-500: oklch(0.2478 0 0); /* #212121 */
-  --color-surface-600: oklch(0.2264 0 0); /* #1c1c1c */
-  --color-surface-700: oklch(0.2046 0 0); /* #171717 */
-  --color-surface-800: oklch(0.1822 0 0); /* #121212 */
-  --color-surface-900: oklch(0.1591 0 0); /* #0d0d0d */
-  --color-surface-1000: oklch(0.1344 0 0); /* #080808 */
+  /* Relative elevation ramp: surface-100 = base plane (page background, darkest) ..
+     surface-800 = most elevated (lightest). Consumed via <Elevated> and the
+     bg-surface-N00 / shadow-elevation-N00 utilities. Values are tuned so the base
+     plane, card, and hover levels match the previous palette — the new names are a
+     relabel (old surface-N ≈ new surface-(1000−N)), not a recolor. */
+  --color-surface-100: oklch(0.1344 0 0); /* base / page background */
+  --color-surface-200: oklch(0.1822 0 0); /* card / inline panel */
+  --color-surface-300: oklch(0.204 0 0); /* popover / dialog / menu */
+  --color-surface-400: oklch(0.226 0 0);
+  --color-surface-500: oklch(0.248 0 0);
+  --color-surface-600: oklch(0.27 0 0);
+  --color-surface-700: oklch(0.292 0 0);
+  --color-surface-800: oklch(0.314 0 0);
+
+  /* Layered dark drop shadows for the elevation ramp; -100 is flat, -800 heaviest.
+     Named apart from the surface COLORS so `shadow-surface-N` stays free to mean a
+     surface-tinted shadow. Drop shadows only — borders stay flat (--color-border);
+     elevation reads through the bg lift plus these shadows. */
+  --dm-drop: rgba(0, 0, 0, 0.18);
+  --shadow-elevation-100: none;
+  --shadow-elevation-200: 0 1px 1px -0.5px var(--dm-drop);
+  --shadow-elevation-300: 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop);
+  --shadow-elevation-400: 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop);
+  --shadow-elevation-500: 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop),
+    0 12px 12px -6px var(--dm-drop);
+  --shadow-elevation-600: 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop),
+    0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop);
+  --shadow-elevation-700: 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop),
+    0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop), 0 48px 48px -24px var(--dm-drop);
+  --shadow-elevation-800: 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop),
+    0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop), 0 48px 48px -24px var(--dm-drop),
+    0 96px 96px -48px var(--dm-drop);
 
   /* Foreground (text) ramp — neutral, dark-theme */
   --color-foreground-50: oklch(1 0 0); /* #ffffff */
@@ -491,6 +513,10 @@
 @layer base {
   :root {
     --radius: 0.5rem;
+
+    /* Default interactive-raise fill (base substrate + 2). Surfaces override this on
+       themselves via surfaceClasses so hover tracks their own level. */
+    --surface-raise: var(--color-surface-300);
 
     --background: 0 0% 4%;
     --foreground: 0 8% 90%;

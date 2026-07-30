@@ -52,7 +52,7 @@ const OpenSource = () => (
           tighter viewports without horizontal scrolling. */}
       <div className="w-full md:flex-1 md:min-w-0 bg-surface-500 flex items-center p-5 overflow-hidden h-[400px]">
         <div className="shrink-0 mx-auto md:scale-none scale-[80%] origin-left">
-          <div className="bg-surface-700 rounded w-[420px] px-6 py-5">
+          <div className="bg-surface-300 rounded w-[420px] px-6 py-5">
             <Terminal />
           </div>
         </div>

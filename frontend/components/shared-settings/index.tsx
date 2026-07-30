@@ -264,7 +264,7 @@ const SharedSettings = ({
                     <SidebarMenuItem className="h-7" key={m.section}>
                       <SidebarMenuButton
                         asChild
-                        className="flex items-center flex-1 hover:bg-surface-700 active:bg-surface-600 data-[active=true]:bg-surface-600"
+                        className="flex items-center flex-1 hover:bg-surface-300 active:bg-surface-400 data-[active=true]:bg-surface-400"
                         isActive={activeSection === m.section}
                         tooltip={m.label}
                       >
@@ -285,7 +285,7 @@ const SharedSettings = ({
                     <SidebarMenuItem className="h-7" key={m.section}>
                       <SidebarMenuButton
                         asChild
-                        className="flex items-center flex-1 hover:bg-surface-700 active:bg-surface-600 data-[active=true]:bg-surface-600"
+                        className="flex items-center flex-1 hover:bg-surface-300 active:bg-surface-400 data-[active=true]:bg-surface-400"
                         isActive={activeSection === m.section}
                         tooltip={m.label}
                       >

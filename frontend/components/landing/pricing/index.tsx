@@ -95,7 +95,7 @@ export default function Pricing() {
             <h2 className={cn(subSection, "text-white")}>Frequently asked questions</h2>
             <Accordion type="single" collapsible className="w-full">
               {faqItems.map((item) => (
-                <AccordionItem key={item.id} value={item.id} className="border-surface-400">
+                <AccordionItem key={item.id} value={item.id} className="border-surface-600">
                   <AccordionTrigger
                     className={cn("text-white text-lg leading-6 py-6")}
                     onClick={() => handleQuestionClick(item.question)}

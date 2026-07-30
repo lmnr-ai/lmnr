@@ -1,11 +1,12 @@
 import { PlayIcon } from "@radix-ui/react-icons";
 import { isEmpty } from "lodash";
-import React, { memo, useCallback, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useMemo, useRef } from "react";
 
 import { MAX_ZOOM, MIN_ZOOM, ZOOM_INCREMENT } from "@/components/traces/trace-view/store";
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { computeVisibleSpanIds } from "@/components/traces/trace-view/store/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MAX_SURFACE, raiseVar, SURFACE_BG, SurfaceProvider, useSurface } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
 import CondensedTimelineElement, { ROW_HEIGHT } from "./condensed-timeline-element";
@@ -138,17 +139,14 @@ function CondensedTimeline() {
     [setContainerRef]
   );
 
-  // Track if container is scrolled (for sticky header background)
-  const [isScrolled, setIsScrolled] = useState(false);
+  // The timeline floats one level above the trace-view substrate it sits in;
+  // its controls elevate a further step above the timeline via this provided level.
+  const timelineLevel = Math.min(useSurface() + 1, MAX_SURFACE);
 
   const selectedCount = condensedTimelineVisibleSpanIds.size;
 
   // Hover needle tracking
   const { needleLeft, hoverTimeMs, handleMouseMove, handleMouseLeave } = useHoverNeedle(scrollRef, totalDurationMs);
-
-  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    setIsScrolled(e.currentTarget.scrollTop > 0);
-  }, []);
 
   // Auto-scroll to selected span
   useScrollToSpan(scrollRef, selectedSpan, condensedSpans);
@@ -266,12 +264,7 @@ function CondensedTimeline() {
           )}
 
           {/* Sticky header - scrolls horizontally with content, sticks vertically */}
-          <div
-            className={cn(
-              "sticky top-0 z-30 h-6 text-xs pointer-events-none select-none",
-              isScrolled && "bg-gradient-to-b from-[hsla(240,4%,9%,90%)] via-[hsla(240,4%,9%,80%)] to-transparent"
-            )}
-          >
+          <div className="sticky top-0 z-30 h-6 text-xs pointer-events-none select-none">
             {timeMarkers.map((marker, index) => (
               <div
                 key={index}
@@ -337,44 +330,49 @@ function CondensedTimeline() {
   };
 
   return (
-    <div className="flex flex-col h-full w-full overflow-hidden relative">
-      {/* Scrollable timeline area - ALWAYS rendered so refs are attached */}
-      <div
-        ref={combinedScrollRef}
-        className="flex-1 overflow-auto relative min-h-0 bg-muted/50 h-full minimal-scrollbar"
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-        onScroll={handleScroll}
-      >
-        <div className="px-2 h-full">{renderContent()}</div>
-      </div>
-
-      {/* Hover Needle - outside scroll, z-35 (below SelectionIndicator z-40) */}
-      {needleLeft !== null && (
-        <div className="absolute inset-y-0 pointer-events-none z-[35]" style={{ left: `${needleLeft}%` }}>
-          {/* Head */}
-          <div className="absolute top-0 h-6 flex items-center -translate-x-1/2">
-            <div className="px-1.5 py-0.5 bg-primary text-white text-[10px] rounded whitespace-nowrap">
-              {hoverTimeMs !== null ? formatTimeMarkerLabel(Math.round(hoverTimeMs)) : ""}
-            </div>
-          </div>
-          {/* Line */}
-          <div className="absolute top-[6px] bottom-0 w-px bg-primary/50" />
+    <SurfaceProvider value={timelineLevel}>
+      <div className="flex flex-col h-full w-full overflow-hidden relative">
+        {/* Scrollable timeline area - ALWAYS rendered so refs are attached */}
+        <div
+          ref={combinedScrollRef}
+          className={cn(
+            "flex-1 overflow-auto relative min-h-0 h-full minimal-scrollbar scroll-fade-t",
+            SURFACE_BG[timelineLevel],
+            raiseVar(timelineLevel)
+          )}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+        >
+          <div className="px-2 h-full">{renderContent()}</div>
         </div>
-      )}
 
-      {/* Selection indicator */}
-      <SelectionIndicator selectedCount={selectedCount} onClear={clearCondensedTimelineSelection} />
+        {/* Hover Needle - outside scroll, z-35 (below SelectionIndicator z-40) */}
+        {needleLeft !== null && (
+          <div className="absolute inset-y-0 pointer-events-none z-[35]" style={{ left: `${needleLeft}%` }}>
+            {/* Head */}
+            <div className="absolute top-0 h-6 flex items-center -translate-x-1/2">
+              <div className="px-1.5 py-0.5 bg-primary text-white text-[10px] rounded whitespace-nowrap">
+                {hoverTimeMs !== null ? formatTimeMarkerLabel(Math.round(hoverTimeMs)) : ""}
+              </div>
+            </div>
+            {/* Line */}
+            <div className="absolute top-[6px] bottom-0 w-px bg-primary/50" />
+          </div>
+        )}
 
-      {/* Zoom controls */}
-      <Controls
-        onZoomIn={() => handleZoom("in")}
-        onZoomOut={() => handleZoom("out")}
-        zoom={condensedTimelineZoom}
-        isCostHeatmapVisible={isCostHeatmapVisible}
-        onToggleCostHeatmap={setIsCostHeatmapVisible}
-      />
-    </div>
+        {/* Selection indicator */}
+        <SelectionIndicator selectedCount={selectedCount} onClear={clearCondensedTimelineSelection} />
+
+        {/* Zoom controls */}
+        <Controls
+          onZoomIn={() => handleZoom("in")}
+          onZoomOut={() => handleZoom("out")}
+          zoom={condensedTimelineZoom}
+          isCostHeatmapVisible={isCostHeatmapVisible}
+          onToggleCostHeatmap={setIsCostHeatmapVisible}
+        />
+      </div>
+    </SurfaceProvider>
   );
 }
 

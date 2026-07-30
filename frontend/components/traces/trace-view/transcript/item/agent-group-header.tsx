@@ -7,6 +7,7 @@ import {
   CollapsedPreviewBlock,
   type PreviewMap,
 } from "@/components/traces/trace-view/transcript/item/collapsed-preview-block";
+import { raiseVar, SURFACE_BG, useSurface } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
 export interface AgentGroupHeaderProps {
@@ -58,10 +59,15 @@ function AgentGroupHeaderInner({
   const isLoadingOutput = outputPreview === undefined;
   const outputText = typeof outputPreview === "string" && outputPreview !== "" ? outputPreview : null;
 
+  // The subagent card floats one surface above the transcript around it.
+  const cardLevel = Math.min(useSurface() + 1, 8);
+
   return (
     <div
       className={cn(
-        "mx-2 border bg-muted/80 overflow-hidden cursor-pointer transition-colors hover:bg-muted",
+        "mx-2 border overflow-hidden cursor-pointer transition-colors hover:bg-[var(--surface-raise)]",
+        SURFACE_BG[cardLevel],
+        raiseVar(cardLevel),
         collapsed ? "rounded-lg" : "rounded-t-lg",
         className
       )}

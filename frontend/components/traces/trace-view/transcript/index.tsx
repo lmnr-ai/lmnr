@@ -18,6 +18,7 @@ import {
 } from "@/components/traces/trace-view/use-report-visible-time-range";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
+import { useSurface } from "@/components/ui/surface";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils.ts";
 
@@ -53,6 +54,9 @@ function getSpanIdsForRow(row: FlatRow, expandedGroups: Set<string>): string[] {
 
 const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
   const { projectId } = useParams<{ projectId: string }>();
+  // Match the sticky group-header fill to the transcript's own surface so it never
+  // paints a near-black band over an elevated substrate.
+  const surfaceLevel = useSurface();
   const scrollRef = useRef<HTMLDivElement>(null);
   const {
     getTranscriptListData,
@@ -446,7 +450,7 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
           const activeSticky = isActiveSticky(virtualRow.index);
 
           const positionStyle: CSSProperties = activeSticky
-            ? { position: "sticky", top: 0, background: "hsl(var(--background))" }
+            ? { position: "sticky", top: 0, background: `var(--color-surface-${surfaceLevel * 100})` }
             : { position: "absolute", top: 0, transform: `translateY(${virtualRow.start}px)` };
 
           if (row.type === "group") {

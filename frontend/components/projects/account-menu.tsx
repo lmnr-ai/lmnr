@@ -48,7 +48,7 @@ const AccountMenu = () => {
       <div className="flex items-center gap-2 px-2 pt-1 pb-1.5">
         <Avatar className="size-6 rounded-md shrink-0">
           <AvatarImage src={user.image ?? ""} alt="avatar" />
-          <AvatarFallback className="rounded-md text-[10px] bg-surface-300">
+          <AvatarFallback className="rounded-md text-[10px] bg-surface-700">
             {user.name?.at(0)?.toUpperCase() || user.email?.at(0)?.toUpperCase() || "L"}
           </AvatarFallback>
         </Avatar>

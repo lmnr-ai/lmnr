@@ -68,7 +68,7 @@ const UnderstandWhyTraceViewMobile = () => {
               centers the card when there's room and left-overflows when not. */}
           <div ref={transcriptRef} className="absolute inset-0 flex px-8">
             <div
-              className="border-[0.5px] border-surface-400 rounded-lg overflow-hidden shrink-0 mx-auto h-full"
+              className="border-[0.5px] border-surface-600 rounded-lg overflow-hidden shrink-0 mx-auto h-full"
               style={{ width: 480 }}
             >
               <motion.img
@@ -100,7 +100,7 @@ const UnderstandWhyTraceViewMobile = () => {
         </div>
         <div className="bg-surface-500 relative w-full overflow-hidden h-[360px] flex items-end justify-end px-8 pt-4 pb-12">
           <div
-            className="border-[0.5px] border-surface-200 rounded-lg overflow-hidden shrink-0 mx-auto relative origin-bottom-right scale-80"
+            className="border-[0.5px] border-surface-800 rounded-lg overflow-hidden shrink-0 mx-auto relative origin-bottom-right scale-80"
             style={{ width: 480, height: 491 }}
           >
             <Image

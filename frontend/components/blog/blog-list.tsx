@@ -25,7 +25,7 @@ const ThumbImage = ({
   height: number;
   className?: string;
 }) => (
-  <div className={cn("relative overflow-hidden bg-surface-600 rounded shrink-0", className)} style={{ width, height }}>
+  <div className={cn("relative overflow-hidden bg-surface-400 rounded shrink-0", className)} style={{ width, height }}>
     {src && (
       <Image
         src={src}
@@ -41,7 +41,7 @@ const ThumbImage = ({
 const ListRow = ({ post, routePrefix, isFirst }: { post: BlogListItem; routePrefix: string; isFirst: boolean }) => (
   <Link
     href={postHref(routePrefix, post.slug)}
-    className={cn("flex items-start gap-10 py-5 no-underline group", !isFirst && "border-t border-surface-400")}
+    className={cn("flex items-start gap-10 py-5 no-underline group", !isFirst && "border-t border-surface-600")}
   >
     {post.data.image && (
       <ThumbImage src={post.data.image} alt={post.data.title} width={180} height={110} className="hidden sm:block" />

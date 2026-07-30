@@ -28,7 +28,7 @@ const BuiltForProduction = () => (
 
         <div className="flex flex-col gap-1 items-start w-full md:flex-1 md:min-w-0">
           <motion.div
-            className="flex h-11 items-center justify-end px-5 overflow-hidden whitespace-nowrap w-full rounded-sm bg-surface-400 text-foreground-50"
+            className="flex h-11 items-center justify-end px-5 overflow-hidden whitespace-nowrap w-full rounded-sm bg-surface-600 text-foreground-50"
             initial={{ width: 0 }}
             whileInView={{ width: "100%" }}
             viewport={{ once: true, amount: 0.6 }}

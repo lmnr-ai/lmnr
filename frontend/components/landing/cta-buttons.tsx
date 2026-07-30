@@ -22,7 +22,7 @@ export default function CTAButtons({ className }: Props) {
       <Link
         href="https://cal.com/robert-lmnr/demo"
         target="_blank"
-        className="flex items-center justify-center w-[160px] h-[36px] rounded-sm border border-foreground-600 hover:bg-surface-600 transition-colors no-underline"
+        className="flex items-center justify-center w-[160px] h-[36px] rounded-sm border border-foreground-600 hover:bg-surface-400 transition-colors no-underline"
       >
         <span className="font-sans-landing font-medium text-sm text-foreground-200">Book a demo</span>
       </Link>

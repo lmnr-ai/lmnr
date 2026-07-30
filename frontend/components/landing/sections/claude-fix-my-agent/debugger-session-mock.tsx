@@ -310,11 +310,11 @@ const TraceCard = ({
 
 // --- Browser chrome ----------------------------------------------------------
 const BrowserBar = () => (
-  <div className="flex h-8 shrink-0 items-center gap-8 border-b border-surface-400 bg-surface-700 px-3">
+  <div className="flex h-8 shrink-0 items-center gap-8 border-b border-surface-600 bg-surface-300 px-3">
     <div className="flex gap-1.5">
-      <span className="size-2.5 rounded-full bg-surface-300" />
-      <span className="size-2.5 rounded-full bg-surface-300" />
-      <span className="size-2.5 rounded-full bg-surface-300" />
+      <span className="size-2.5 rounded-full bg-surface-700" />
+      <span className="size-2.5 rounded-full bg-surface-700" />
+      <span className="size-2.5 rounded-full bg-surface-700" />
     </div>
     <span className="mx-auto flex-1 rounded-sm bg-surface-500 py-0.5 text-center text-[11px] font-medium text-foreground-500">
       Laminar / debugger-sessions
@@ -350,7 +350,7 @@ const DebuggerSessionMock = ({ name, traces, revealKey, onToggle, className }: P
   return (
     <div
       className={cn(
-        "flex h-[480px] w-[400px] shrink-0 flex-col overflow-hidden rounded-md border border-surface-400 bg-surface-800",
+        "flex h-[480px] w-[400px] shrink-0 flex-col overflow-hidden rounded-md border border-surface-600 bg-surface-200",
         className
       )}
     >
