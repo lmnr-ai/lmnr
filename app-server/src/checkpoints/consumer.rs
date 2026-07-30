@@ -105,16 +105,26 @@ impl CheckpointsHandler {
         let system_prompt_text =
             crate::traces::prompt_hash::strip_claude_code_billing_header(&message.system_prompt);
 
-        // Extract the stable part of the system prompt (no dynamic content).
-        let stable_system_prompt = system_prompt::extract_stable_system_prompt(
+        // Resolve the stable part of the system prompt via the static-prompt
+        // extraction pipeline's cached removal regexes (LAM-2010). No cached
+        // list yet (extraction still accumulating samples in the background)
+        // → drop the checkpoint; a later span of the same signature
+        // re-triggers once the regex list exists. Hashing the raw prompt
+        // instead would mint a new "version" per run of the same agent.
+        let Some(stable_system_prompt) = system_prompt::resolve_stable_system_prompt(
             &system_prompt_text,
             &message.prompt_hash,
             message.project_id,
-            self.cache.clone(),
-            self.llm_client.clone(),
-            root,
+            &self.cache,
         )
-        .await;
+        .await
+        else {
+            log::debug!(
+                "[CHECKPOINTS] No static-regex list cached yet for signature {}; dropping checkpoint",
+                message.prompt_hash
+            );
+            return Ok(());
+        };
 
         // Compute a single version hash over (stable system prompt, tool
         // definitions hash, model). This is the agent version's identity.
@@ -132,8 +142,8 @@ impl CheckpointsHandler {
             Some(agent_id)
         } else {
             // A genuinely new shape. Classification compares against ALL of the
-            // project's existing agents, and stable-prompt extraction is itself an
-            // LLM call that can yield different hashes for the same real agent — so
+            // project's existing agents, and the same real agent can yield
+            // different hashes (regex-list rollover, raw-prompt fallback) — so
             // the read→classify→write critical section must be serialized PER
             // PROJECT, otherwise two workers each miss the other's in-flight agent
             // and mint duplicates. Acquire a per-project lock; if another worker
