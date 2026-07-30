@@ -1,5 +1,10 @@
 import { type RealtimeTracePayload, type SpanType, type TraceRow } from "@/lib/traces/types";
 
+// Shared by every `trace_update` consumer (traces table, debugger session view):
+// the SSE payload is a per-batch DELTA, so a row is seeded once and then
+// accumulated. Lives here rather than under one consumer's folder because the
+// wire contract is owned by `RealtimeTracePayload`, not by any single table.
+
 // Seed a not-yet-seen trace; the next fetch reconciles.
 export const realtimeTraceToRow = (trace: RealtimeTracePayload): TraceRow => ({
   id: trace.id,

@@ -41,8 +41,8 @@ use crate::{
         input_extraction::metadata::USER_TASK_METADATA_KEY,
         provider::convert_span_to_provider_format,
         realtime::{
-            RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_aggregation,
-            send_agent_input_update, send_span_updates, send_trace_updates,
+            RealtimeTrace, TraceChannel, channels_for_aggregation, send_agent_input_update,
+            send_span_updates, send_trace_updates,
         },
         span_attributes::{SPAN_TRACE_INPUT, SPAN_TRACE_OUTPUT_HASHES},
         spans::SpanUsage,
@@ -1076,7 +1076,7 @@ async fn dispatch_trace_realtime_updates(
 
     let mut project_buckets: HashMap<Uuid, Vec<RealtimeTrace>> = HashMap::new();
     let mut evaluation_buckets: HashMap<(Uuid, Uuid), Vec<RealtimeTrace>> = HashMap::new();
-    let mut debugger_buckets: HashMap<(Uuid, String), Vec<RealtimeDebuggerTrace>> = HashMap::new();
+    let mut debugger_buckets: HashMap<(Uuid, String), Vec<RealtimeTrace>> = HashMap::new();
 
     for agg in aggregations {
         for channel in channels_for_aggregation(agg, cache.as_ref()).await {
@@ -1097,7 +1097,7 @@ async fn dispatch_trace_realtime_updates(
                     debugger_buckets
                         .entry((agg.project_id, rollout_session_id))
                         .or_default()
-                        .push(RealtimeDebuggerTrace::from_aggregation(agg));
+                        .push(RealtimeTrace::from_aggregation(agg));
                 }
             }
         }

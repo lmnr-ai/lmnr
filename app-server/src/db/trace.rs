@@ -18,6 +18,19 @@ pub enum TraceType {
     PLAYGROUND,
 }
 
+/// Variant NAMES — these are the wire values the frontend `traceType` union
+/// expects, so this must never emit the numeric ClickHouse encoding.
+impl std::fmt::Display for TraceType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TraceType::DEFAULT => write!(f, "DEFAULT"),
+            TraceType::EVENT => write!(f, "EVENT"),
+            TraceType::EVALUATION => write!(f, "EVALUATION"),
+            TraceType::PLAYGROUND => write!(f, "PLAYGROUND"),
+        }
+    }
+}
+
 #[derive(Serialize, sqlx::FromRow, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Trace {

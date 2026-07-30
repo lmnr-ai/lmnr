@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { type SessionBlock } from "@/lib/actions/debugger-sessions";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
-import { type RealtimeSpan } from "@/lib/traces/types";
+import { type RealtimeSpan, type RealtimeTracePayload } from "@/lib/traces/types";
 
 import DebuggerList from "./debugger-list";
 import NewTracePill from "./new-trace-pill";
@@ -109,14 +109,7 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId: s
       trace_update: (event: MessageEvent) => {
         const payload = JSON.parse(event.data);
         if (!Array.isArray(payload.traces)) return;
-        storeApi.getState().applyTraceUpdates(
-          payload.traces as {
-            traceId: string;
-            metadata?: unknown;
-            hasBrowserSession?: boolean;
-            agentInput?: string | null;
-          }[]
-        );
+        storeApi.getState().applyTraceUpdates(payload.traces as RealtimeTracePayload[]);
         backfillPendingEvalScores();
       },
       // Extracted agent_input landed (async) → patch the run's input row.
