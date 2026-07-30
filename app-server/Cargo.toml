@@ -86,6 +86,9 @@ tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt"]}
 unicode-normalization = "0.1"
 url = "2.5"
 uuid = {version = "1.19.0", features = ["v4", "v5", "fast-rng", "macro-diagnostics", "serde", "v7", "std"]}
+# Stream payload compression (span-export JSON compresses ~5x). CPU is
+# negligible next to the serde_json serialization that precedes it.
+zstd = "0.13"
 
 [build-dependencies]
 tonic-prost-build = "0.14"

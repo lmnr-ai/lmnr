@@ -62,12 +62,29 @@ pub const MAX_SEGMENT_SIZE_BYTES: NumEnv<u64> =
     NumEnv::new("RABBITMQ_STREAM_MAX_SEGMENT_SIZE_BYTES", 26_214_400);
 
 /// Replicas per partition, applied at creation via `x-initial-cluster-size`.
-/// 3 (default) = every node holds every partition: survives node loss, but
-/// cluster capacity is one node's disk. 2 = survives single-node loss with ~1.5×
-/// capacity. 1 = capacity is the SUM of node disks but a destroyed disk loses
-/// that partition's un-flushed backlog — a durability downgrade vs the quorum
-/// queue we're replacing, so it needs an explicit decision, not a default.
-pub const REPLICATION_FACTOR: NumEnv<usize> = NumEnv::new("RABBITMQ_STREAM_REPLICATION_FACTOR", 3);
+/// 2 (default) trades fault tolerance for ~1/3 less replication network/disk
+/// work per node and ~1.5× cluster capacity: confirms need 2-of-2 members, so
+/// one node down stalls its partitions' confirms and publishes fall back to
+/// the quorum queue (the pre-streams status quo) until the member rejoins.
+/// Deliberate bet: telemetry data, short retention, graceful fallback.
+/// 3 = every node holds every partition and a single node loss is a non-event,
+/// but cluster capacity is one node's disk and every byte is written 3×.
+///
+/// Placement caveat at RF < node count: the member set of each partition
+/// always includes the node the declaring boot connection landed on, so that
+/// node can end up a member of ALL partitions (leaders still spread via the
+/// broker's `queue_leader_locator = balanced`). After first creation, check
+/// members per partition (`rabbitmq-streams stream_status <partition>`) and
+/// spread with `add_replica`/`delete_replica` if skewed.
+pub const REPLICATION_FACTOR: NumEnv<usize> = NumEnv::new("RABBITMQ_STREAM_REPLICATION_FACTOR", 2);
+
+/// Producer-side gate for zstd-compressing record bodies (~5x on span-export
+/// JSON, so ~5x burst runway under the same retention and 1/5 the replication
+/// network/disk work). Decode is property-driven (`lmnr.encoding` on each
+/// record), so the reader always accepts both compressed and plain records —
+/// flipping this needs no coordination with the consumer fleet and leaves
+/// in-flight records readable either way.
+pub const COMPRESSION_ENABLED: BoolEnv = BoolEnv::new("RABBITMQ_STREAM_COMPRESSION_ENABLED", true);
 
 /// How long a publish waits for the broker's confirmation before giving up and
 /// letting the caller fall back to the quorum queue. Bounded because the client
