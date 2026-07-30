@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
 
 use indexmap::IndexMap;
@@ -10,7 +9,7 @@ use crate::opentelemetry_proto::opentelemetry_proto_common_v1;
 
 use crate::{
     cache::Cache,
-    db::{DB, spans::Span, trace::Trace},
+    db::{DB, spans::Span},
     language_model::costs::{
         ModelInfo, SpanCostInput, calculate_span_cost, get_model_costs_for_project,
     },
@@ -326,16 +325,6 @@ pub fn convert_any_value_to_json_value(
             .map(|s| serde_json::from_str::<Value>(&s).unwrap_or(serde_json::Value::String(s)))
             .unwrap_or_default(),
     }
-}
-
-/// Groups traces by their project_id.
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub fn group_traces_by_project(traces: &[Trace]) -> HashMap<Uuid, Vec<&Trace>> {
-    let mut grouped: HashMap<Uuid, Vec<&Trace>> = HashMap::new();
-    for trace in traces {
-        grouped.entry(trace.project_id()).or_default().push(trace);
-    }
-    grouped
 }
 
 /// Custom logic to transform model/provider not covered by main flow

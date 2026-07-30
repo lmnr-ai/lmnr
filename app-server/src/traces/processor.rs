@@ -286,11 +286,11 @@ pub async fn process_span_messages(
             })
         });
         if input.is_some() || output_hashes.is_some() {
-            let rollout_session_id = m
-                .span
-                .attributes
-                .metadata()
-                .and_then(|meta| meta.get(ROLLOUT_SESSION_METADATA_KEY)?.as_str().map(String::from));
+            let rollout_session_id = m.span.attributes.metadata().and_then(|meta| {
+                meta.get(ROLLOUT_SESSION_METADATA_KEY)?
+                    .as_str()
+                    .map(String::from)
+            });
             raw_trace_io.push(RawTraceIo {
                 project_id: m.span.project_id,
                 trace_id: m.span.trace_id,
@@ -814,19 +814,6 @@ pub async fn process_span_messages(
                 );
             }
         }
-
-        // Return only the aggregation results to the signals path. `None`
-        // suppresses `check_and_push_signals` entirely — used for both an
-        // aggregation upsert error AND a pure metadata-only flush (no real
-        // spans aggregated). Metadata patches never need signal evaluation:
-        // they don't touch any field signals filter on, and re-running
-        // signals against a patched-only trace would spuriously refire any
-        // signal that already triggered for the trace.
-        if aggregation_ok && had_aggregations {
-            Some(aggregation_traces)
-        } else {
-            None
-        }
     };
 
     // Trace-new keys for search "first occurrence per trace" semantic.
@@ -907,21 +894,21 @@ pub async fn process_span_messages(
         Ok(())
     };
 
-    let (updated_traces, span_result) = tokio::join!(trace_branch, span_branch);
+    let ((), span_result) = tokio::join!(trace_branch, span_branch);
     span_result?;
 
-    // Must run AFTER the spans insert so the signal agent sees the trace data.
-    if let Some(updated_traces) = &updated_traces {
-        crate::signals::check_and_push_signals(
-            updated_traces,
-            &spans,
-            db.clone(),
-            cache.clone(),
-            clickhouse.clone(),
-            queue.clone(),
-        )
-        .await;
-    }
+    // Must run AFTER the spans insert: triggers are decided from the in-memory
+    // batch delta, but filters read the trace's cumulative state back out of
+    // ClickHouse traces_agg, and the signal agent needs the span data too.
+    crate::signals::check_and_push_signals(
+        &trace_aggregations,
+        &spans,
+        db.clone(),
+        cache.clone(),
+        clickhouse.clone(),
+        queue.clone(),
+    )
+    .await;
 
     // Send realtime span updates
     let recordable_refs: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();

@@ -53,7 +53,8 @@ export async function POST(
     const result = await createSignalTrigger({
       projectId,
       signalId,
-      filters: body.filters,
+      conditions: body.conditions,
+      filters: body.filters ?? [],
       mode: body.mode ?? 0,
     });
 
@@ -82,7 +83,8 @@ export async function PUT(
       projectId,
       signalId,
       triggerId: body.triggerId,
-      filters: body.filters,
+      conditions: body.conditions,
+      filters: body.filters ?? [],
       mode: body.mode,
     });
 

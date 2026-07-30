@@ -1243,6 +1243,7 @@ export const signalTriggers = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     projectId: uuid("project_id").notNull(),
     value: jsonb().notNull(),
+    filters: jsonb().default([]).notNull(),
     signalId: uuid("signal_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     mode: smallint().default(0).notNull(),

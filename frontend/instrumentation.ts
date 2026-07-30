@@ -249,7 +249,8 @@ export async function register() {
       console.log("✓ ClickHouse schema applied successfully");
 
       // Seed default signals for projects that don't have any
-      const { DEFAULT_SIGNAL, DEFAULT_SIGNAL_TRIGGER_VALUE } = await import("@/lib/db/default-signals.ts");
+      const { DEFAULT_SIGNAL, DEFAULT_SIGNAL_TRIGGER_VALUE, DEFAULT_SIGNAL_TRIGGER_FILTERS } =
+        await import("@/lib/db/default-signals.ts");
 
       const initializeDefaultSignals = async () => {
         try {
@@ -286,6 +287,7 @@ export async function register() {
                   projectId: project.id,
                   signalId: signal.id,
                   value: DEFAULT_SIGNAL_TRIGGER_VALUE,
+                  filters: DEFAULT_SIGNAL_TRIGGER_FILTERS,
                 });
                 seeded++;
               }
