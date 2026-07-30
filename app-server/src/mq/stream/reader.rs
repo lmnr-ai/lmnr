@@ -69,7 +69,7 @@ use rabbitmq_stream_client::{
     types::{MessageContext, OffsetSpecification, ResponseCode},
 };
 use serde::de::DeserializeOwned;
-use tokio::sync::mpsc;
+use tokio::sync::{Notify, mpsc};
 use uuid::Uuid;
 
 use super::topology::StreamEnvironment;
@@ -87,8 +87,9 @@ const TRANSIENT_RETRY_LOG_EVERY: u32 = 20;
 const BATCHER_DRAIN_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Retry budget for re-querying a stored offset during SAC activation. Bounded
-/// because the broker waits on our activation response; exhaustion falls back to
-/// replaying from retention (duplicates) rather than skipping (loss).
+/// because the broker waits on our activation response; exhaustion parks the
+/// partition (revoked, so nothing is ingested for it) and reconnects the reader
+/// so the fresh activation re-queries — never a guessed start position.
 const OFFSET_QUERY_RETRY_BUDGET: Duration = Duration::from_secs(10);
 
 /// One record off a partition.
@@ -203,6 +204,14 @@ impl<H: StreamBatchHandler> StreamReader<H> {
         // `&'static str`, so it copies into the `consumer_update` closure.
         let consumer_name = self.consumer_name;
 
+        // Fired by the activation callback when a stored offset stays
+        // unresolvable: the delivery loop tears down and reconnects instead of
+        // ingesting from a guessed position. `notify_one` stores a permit, so a
+        // failure during the initial activations (inside `build`, before the
+        // loop awaits) is not lost.
+        let offset_unresolved = Arc::new(Notify::new());
+        let offset_unresolved_tx = offset_unresolved.clone();
+
         // Offsets are stored through the raw client rather than the consumer
         // handle: `SuperStreamConsumer` multiplexes every partition into one
         // delivery stream, so the (reference, partition stream) pair has to be
@@ -219,7 +228,9 @@ impl<H: StreamBatchHandler> StreamReader<H> {
             .offset(OffsetSpecification::First)
             .enable_single_active_consumer(true)
             .client_provided_name(&format!("lmnr-{}-{}", self.super_stream, self.id))
-            .consumer_update(move |active, context| async move {
+            .consumer_update(move |active, context| {
+                let offset_unresolved = offset_unresolved_tx.clone();
+                async move {
                 let stream = context.stream();
                 // `active` is the wire-level flag (0 = deactivated), not a bool.
                 if active == 0 {
@@ -273,21 +284,25 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                         match retry_query_offset(&context).await {
                             Some(offset) => OffsetSpecification::Offset(offset + 1),
                             None => {
-                                // Give up and replay from the start of retention.
-                                // Duplicates over loss: the whole pipeline is
-                                // at-least-once (`spans` dedups nothing, but a
-                                // replayed span overwrites identically), whereas
-                                // `Next` would drop the backlog outright.
+                                // Never ingest from a guessed position: `First`
+                                // replays the whole retained partition (hours of
+                                // duplicates) and `Next` skips the backlog. Park
+                                // the partition — revoked, so the flush/store
+                                // gates discard anything delivered before
+                                // teardown — and reconnect the reader; the fresh
+                                // activation re-queries the offset.
                                 log::error!(
-                                    "Could not resolve stored offset for stream {} after retries; replaying from the start of retention (expect duplicate ingest)",
+                                    "Could not resolve stored offset for stream {} after retries; parking the partition and reconnecting the reader",
                                     stream
                                 );
-                                OffsetSpecification::First
+                                revoke_partition(consumer_name, &stream).await;
+                                offset_unresolved.notify_one();
+                                OffsetSpecification::Next
                             }
                         }
                     }
                 }
-            })
+            }})
             .build(self.super_stream)
             .await?;
 
@@ -316,8 +331,25 @@ impl<H: StreamBatchHandler> StreamReader<H> {
 
         let mut assignment = BatcherAssignment::default();
 
-        while let Some(delivery) = consumer.next().await {
-            let delivery = delivery?;
+        loop {
+            let delivery = tokio::select! {
+                // An activation failed to resolve its stored offset; that
+                // partition is parked. Tear down and reconnect so the fresh
+                // activation re-queries instead of ingesting from a guessed
+                // position.
+                _ = offset_unresolved.notified() => {
+                    log::error!(
+                        "Stream reader {} ({}) reconnecting: a partition activated without a resolvable stored offset",
+                        self.id,
+                        self.super_stream
+                    );
+                    break;
+                }
+                next = consumer.next() => match next {
+                    Some(delivery) => delivery?,
+                    None => break,
+                },
+            };
             let stream = delivery.stream().clone();
             let offset = delivery.offset();
 
