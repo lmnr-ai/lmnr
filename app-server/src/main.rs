@@ -1462,33 +1462,60 @@ fn main() -> anyhow::Result<()> {
 
                             // Same shared flag the producer gates its publisher on,
                             // so the two pod roles can't disagree about whether this
-                            // stream has a reader. When the flag is on but Quickwit
-                            // is unreachable HERE, the producer (a different pod) may
-                            // still be publishing — log at error, because those
-                            // records expire under retention unread.
+                            // stream has a reader. The reader must NOT be gated on
+                            // this pod's own `quickwit_client`: that handle is a
+                            // boot-time TCP dial, so a Quickwit blip during THIS
+                            // pod's startup would leave the stream with no reader
+                            // while producer pods (gated only on the flag) keep
+                            // publishing — and an unread stream is deleted by
+                            // retention, unlike an undrained quorum queue. So build
+                            // a LAZY client when the boot dial failed: the handler
+                            // classifies `Unavailable` as transient, which retries
+                            // the batch in place without advancing the offset and
+                            // calls `reconnect()`, so the backlog waits on broker
+                            // disk and drains once Quickwit returns.
                             if env::streams::SPANS_INDEXER_ENABLED.get() {
-                                if let Some(quickwit_client_for_indexer) =
-                                    quickwit_client_for_consumer.as_ref()
+                                let indexer_quickwit_client = match quickwit_client_for_consumer
+                                    .as_ref()
                                 {
-                                let reader = mq::stream::StreamReader::new(
-                                    mq::stream::SPANS_INDEXER_STREAM,
-                                    mq::stream::SPANS_INDEXER_CONSUMER_NAME,
-                                    stream_environment.clone(),
-                                    StreamQuickwitIndexerHandler {
-                                        quickwit_client: quickwit_client_for_indexer.clone(),
-                                        batch_size: env::batching::STREAM_SPANS_INDEXER_SIZE.get(),
-                                        flush_interval: Duration::from_millis(
-                                            env::batching::STREAM_SPANS_INDEXER_FLUSH_INTERVAL_MS
+                                    Some(client) => Some(client.clone()),
+                                    None => {
+                                        match QuickwitClient::connect_lazy(QuickwitConfig::from_env())
+                                        {
+                                            Ok(client) => {
+                                                log::warn!(
+                                                    "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is on but Quickwit was unreachable at boot - starting the spans indexer reader with a lazy client so published indexing jobs aren't lost to retention"
+                                                );
+                                                Some(client)
+                                            }
+                                            Err(e) => {
+                                                log::error!(
+                                                    "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is on but the Quickwit endpoint is unusable ({:?}) - the spans indexer stream has NO reader here; producer pods may be publishing indexing jobs that retention will delete unread",
+                                                    e
+                                                );
+                                                None
+                                            }
+                                        }
+                                    }
+                                };
+
+                                if let Some(quickwit_client_for_indexer) = indexer_quickwit_client {
+                                    let reader = mq::stream::StreamReader::new(
+                                        mq::stream::SPANS_INDEXER_STREAM,
+                                        mq::stream::SPANS_INDEXER_CONSUMER_NAME,
+                                        stream_environment.clone(),
+                                        StreamQuickwitIndexerHandler {
+                                            quickwit_client: quickwit_client_for_indexer,
+                                            batch_size: env::batching::STREAM_SPANS_INDEXER_SIZE
                                                 .get(),
-                                        ),
-                                    },
-                                    env::streams::SPANS_INDEXER_BATCHERS.get(),
-                                );
-                                tokio::spawn(reader.run());
-                                } else {
-                                    log::error!(
-                                        "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is on but Quickwit is unreachable from this consumer - the spans indexer stream has NO reader here; producer pods may be publishing indexing jobs that retention will delete unread"
+                                            flush_interval: Duration::from_millis(
+                                                env::batching::STREAM_SPANS_INDEXER_FLUSH_INTERVAL_MS
+                                                    .get(),
+                                            ),
+                                        },
+                                        env::streams::SPANS_INDEXER_BATCHERS.get(),
                                     );
+                                    tokio::spawn(reader.run());
                                 }
                             }
 
