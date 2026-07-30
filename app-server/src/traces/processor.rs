@@ -640,6 +640,11 @@ pub async fn process_span_messages(
             true
         };
 
+        if had_aggregations {
+            debugger_session_blocks::upsert_blocks_for_traces(&db.pool, &trace_aggregations).await;
+            dispatch_trace_realtime_updates(&trace_aggregations, cache.clone(), &pubsub).await;
+        }
+
         // Patches that beat the trace's span batch create a virtual row that
         // the aggregation upsert later fills in — see
         // `merge_trace_metadata_batch` for the known stub-row caveat.
@@ -708,10 +713,6 @@ pub async fn process_span_messages(
                     e
                 );
             }
-
-            debugger_session_blocks::upsert_blocks_for_traces(&db.pool, &updated_traces).await;
-
-            dispatch_trace_realtime_updates(&trace_aggregations, cache.clone(), &pubsub).await;
         }
 
         // Dual-write partial rows to `traces_agg` (AggregatingMergeTree,
