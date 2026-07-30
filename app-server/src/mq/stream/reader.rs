@@ -443,9 +443,10 @@ impl<H: StreamBatchHandler> StreamReader<H> {
 
 /// Re-query the stored offset after a transient failure during SAC activation.
 ///
-/// `None` means "still unresolved after the budget" — NOT "no offset exists";
-/// `OffsetNotFound` is answered by the caller before we get here. Bounded because
-/// the broker is waiting on our activation response.
+/// `None` means "unresolved" — either the budget ran out or a mid-retry
+/// `OffsetNotFound`; both make the caller park the partition and reconnect, and
+/// the fresh activation's direct query gives the authoritative answer. Bounded
+/// because the broker is waiting on our activation response.
 ///
 /// Drives `ExponentialBackoff` manually via `Backoff::next_backoff` rather than
 /// `backoff::future::retry`: the caller lives inside the client's
@@ -469,8 +470,8 @@ async fn retry_query_offset(context: &MessageContext) -> Option<u64> {
             .await
         {
             Ok(offset) => return Some(offset),
-            // A genuine absence mid-retry: stop and let the caller's `First`
-            // fallback apply, which is the correct answer for that case.
+            // A genuine absence mid-retry: stop; the reconnect re-queries and
+            // answers `First` from the direct `OffsetNotFound` arm.
             Err(ClientError::RequestError(ResponseCode::OffsetNotFound)) => return None,
             Err(e) => log::warn!(
                 "Retry of stored-offset query for stream {} failed: {:?}",
