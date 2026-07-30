@@ -609,11 +609,13 @@ export const createDebuggerSessionViewStore = (options: {
             // every batch for the run — true for a run that is new to this
             // session, false for a known block whose row was never lazily
             // loaded (its earlier batches predate us, so seeding would show
-            // wrong-low totals). For the latter, DROP the delta: the row loads
-            // via ensureTraceRows on scroll with cumulative totals that already
-            // include it. Only a "missing" row (absent from ClickHouse) has no
-            // fetch to wait for, so realtime is its sole source.
-            if (existingBlock && rowState !== "missing") return;
+            // wrong-low totals AND mark the row loaded, so ensureTraceRows
+            // never corrects it). Until the blocks index has loaded, an empty
+            // `blocks` can't prove "new" — drop; later deltas seed or merge
+            // once the index lands. Same drop for a known block. Only a
+            // "missing" row (absent from ClickHouse) has no fetch to wait for,
+            // so realtime is its sole source.
+            if ((!get().isInitialTracesLoaded || existingBlock) && rowState !== "missing") return;
 
             const pendingInput = pendingAgentInputById.get(traceId);
             pendingAgentInputById.delete(traceId);
