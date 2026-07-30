@@ -39,7 +39,7 @@ pub const LOAD_BALANCER_MODE: BoolEnv = BoolEnv::new("RABBITMQ_STREAM_LOAD_BALAN
 /// changing this re-maps every in-flight trace to a different partition and
 /// breaks per-trace ordering — treat a change as a v2 super stream + drain
 /// migration, never an in-place edit. Size ≥ max consumer pod count.
-pub const PARTITIONS: NumEnv<usize> = NumEnv::new("RABBITMQ_STREAM_PARTITIONS", 32);
+pub const PARTITIONS: NumEnv<usize> = NumEnv::new("RABBITMQ_STREAM_PARTITIONS", 128);
 
 /// Per-partition retention. Both are evaluated per closed SEGMENT, and
 /// retention IGNORES consumer offsets — segments a lagging group never read are
