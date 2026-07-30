@@ -42,7 +42,7 @@ use crate::{
         provider::convert_span_to_provider_format,
         realtime::{
             RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_aggregation,
-            channels_for_trace, send_agent_input_update, send_span_updates, send_trace_updates,
+            send_agent_input_update, send_span_updates, send_trace_updates,
         },
         span_attributes::{SPAN_TRACE_INPUT, SPAN_TRACE_OUTPUT_HASHES},
         spans::SpanUsage,
@@ -711,14 +711,7 @@ pub async fn process_span_messages(
 
             debugger_session_blocks::upsert_blocks_for_traces(&db.pool, &updated_traces).await;
 
-            // Deltas are the payload; the cumulative rows drive channel routing.
-            dispatch_trace_realtime_updates(
-                &trace_aggregations,
-                &aggregation_traces,
-                cache.clone(),
-                &pubsub,
-            )
-            .await;
+            dispatch_trace_realtime_updates(&trace_aggregations, cache.clone(), &pubsub).await;
         }
 
         // Dual-write partial rows to `traces_agg` (AggregatingMergeTree,
@@ -1084,11 +1077,8 @@ pub async fn process_span_messages(
     Ok(())
 }
 
-/// Ship each trace's per-batch delta to its SSE channels. Routing reads the
-/// cumulative rows (`merged_traces`), not the deltas — see `channels_for_trace`.
 async fn dispatch_trace_realtime_updates(
     aggregations: &[TraceAggregation],
-    merged_traces: &[Trace],
     cache: Arc<Cache>,
     pubsub: &PubSub,
 ) {
@@ -1096,21 +1086,12 @@ async fn dispatch_trace_realtime_updates(
         return;
     }
 
-    let merged_by_key: HashMap<(Uuid, Uuid), &Trace> = merged_traces
-        .iter()
-        .map(|t| ((t.project_id(), t.id()), t))
-        .collect();
-
     let mut project_buckets: HashMap<Uuid, Vec<RealtimeTrace>> = HashMap::new();
     let mut evaluation_buckets: HashMap<(Uuid, Uuid), Vec<RealtimeTrace>> = HashMap::new();
     let mut debugger_buckets: HashMap<(Uuid, String), Vec<RealtimeDebuggerTrace>> = HashMap::new();
 
     for agg in aggregations {
-        let channels = match merged_by_key.get(&(agg.project_id, agg.trace_id)) {
-            Some(trace) => channels_for_trace(trace, cache.as_ref()).await,
-            None => channels_for_aggregation(agg, cache.as_ref()).await,
-        };
-        for channel in channels {
+        for channel in channels_for_aggregation(agg, cache.as_ref()).await {
             match channel {
                 TraceChannel::Project => {
                     project_buckets
