@@ -205,7 +205,8 @@ pub async fn get_projects_for_team(
         FROM projects p
         JOIN slack_integrations si ON si.workspace_id = p.workspace_id
         WHERE si.team_id = $1
-        ORDER BY p.name
+        -- lower() first: a C-collation database sorts every capital ahead of every lowercase.
+        ORDER BY lower(p.name), p.name
         "#,
     )
     .bind(team_id)
@@ -262,7 +263,8 @@ pub async fn get_projects_for_user(
          JOIN members_of_workspaces m ON m.workspace_id = p.workspace_id
          JOIN workspaces w ON w.id = p.workspace_id
          WHERE m.user_id = $1
-         ORDER BY w.name, p.name
+         -- lower() first: a C-collation database sorts every capital ahead of every lowercase.
+         ORDER BY lower(w.name), w.name, lower(p.name), p.name
          LIMIT 1000",
     )
     .bind(user_id)

@@ -1,10 +1,11 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
 import defaultCharts from "@/lib/db/default-charts.ts";
 import { db } from "@/lib/db/drizzle";
 import { dashboardCharts, projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
+import { ascNameFold } from "@/lib/db/utils";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { type Project } from "@/lib/workspaces/types";
 
@@ -75,7 +76,7 @@ export const getProjectsByWorkspace = async (workspaceId: string): Promise<Proje
     },
     // Alphabetical — this list backs every project picker (sidebar switcher, Slack
     // channel binding, copy-model-costs target). Not used for default-project selection.
-    orderBy: asc(projects.name),
+    orderBy: ascNameFold(projects.name),
   });
 
   return results;
