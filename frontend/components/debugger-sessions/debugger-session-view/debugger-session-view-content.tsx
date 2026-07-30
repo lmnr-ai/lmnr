@@ -157,10 +157,11 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId: s
       {/* overflow-x-hidden + the article's min-w floor: at narrow widths the
           article stops compressing and slides under the span panel's left edge
           instead of crunching its content. */}
-      <div
-        ref={setScrollEl}
-        className="thin-scrollbar min-h-0 min-w-0 flex-1 scroll-smooth overflow-y-auto overflow-x-hidden"
-      >
+      {/* No CSS `scroll-smooth`: it animates every scrollTop the virtualizer
+          writes to re-anchor after a row measures, which fights the user's
+          scroll and reads as jitter. Intentional smooth scrolls pass an explicit
+          `behavior`. */}
+      <div ref={setScrollEl} className="thin-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
         <div className="mx-auto flex w-full gap-16 px-6">
           <div className="flex grow-1 justify-center shrink-0 basis-0 min-w-fit">
             {!spanPanelOpen && (

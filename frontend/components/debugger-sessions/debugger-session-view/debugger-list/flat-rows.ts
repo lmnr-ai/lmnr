@@ -433,7 +433,7 @@ export const flatRowEstimate = (row: DebuggerFlatRow, showTreeContent: boolean):
     case "trace-header":
       return 44;
     case "trace-collapsed-body":
-      return 240;
+      return 200;
     case "trace-skeleton":
       return 120;
     case "trace-loading":
@@ -463,8 +463,10 @@ export const flatRowEstimate = (row: DebuggerFlatRow, showTreeContent: boolean):
     // the real size, not this estimate.
     case "command-item-detail":
       return 12;
+    // Expanded (default) card: 40px header + ~137px progression chart + one row
+    // of score stats (~68px). Collapsed cards re-measure to the bare header.
     case "evaluation":
-      return 200;
+      return 248;
     case "user-input":
     case "span":
     case "group-span":

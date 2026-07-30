@@ -1,6 +1,6 @@
 "use client";
 
-import { defaultRangeExtractor, type Range, useVirtualizer, type Virtualizer } from "@tanstack/react-virtual";
+import { defaultRangeExtractor, type Range, useVirtualizer } from "@tanstack/react-virtual";
 import { type CSSProperties, memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -172,19 +172,6 @@ export default function DebuggerList({ scrollEl, projectId, sessionId }: Debugge
   const columnRef = useRef<HTMLDivElement>(null);
   const scrollMargin = useScrollMargin(columnRef, scrollEl);
 
-  // Instant programmatic scroll. The default scrollToFn goes through `scrollTo`,
-  // which the container's CSS `scroll-smooth` would animate — janky against the
-  // virtualizer's per-measurement offset corrections (it re-invokes scrollToFn as
-  // rows measure). Writing scrollTop directly bypasses CSS scroll-behavior, so
-  // each correction is an instant re-snap, not a fighting animation.
-  const scrollToFn = useCallback(
-    (offset: number, opts: { adjustments?: number }, instance: Virtualizer<HTMLElement, Element>) => {
-      const el = instance.scrollElement;
-      if (el) el.scrollTop = offset + (opts.adjustments ?? 0);
-    },
-    []
-  );
-
   // Which trace-header index (if any) each row belongs to — the header stays
   // pinned only over its own trace's rows, releasing on eval/text/divider rows.
   const headerIndexByRow = useMemo(() => {
@@ -252,7 +239,6 @@ export default function DebuggerList({ scrollEl, projectId, sessionId }: Debugge
     scrollMargin,
     rangeExtractor,
     getItemKey,
-    scrollToFn,
     // Shared scroll element may already be scrolled on attach — don't yank to top.
     initialOffset: () => scrollEl?.scrollTop ?? 0,
   });
