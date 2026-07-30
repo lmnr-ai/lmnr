@@ -203,7 +203,12 @@ export const createSignalStore = (initProps: EventsProps) =>
       ...initProps.signal,
       prompt: initProps.signal.prompt,
       schemaFields: jsonSchemaToSchemaFields(initProps.signal.structuredOutput as Record<string, unknown>),
-      triggers: (initProps.signal.triggers ?? []).map((t) => ({ id: t.id, filters: t.filters, mode: t.mode ?? 0 })),
+      triggers: (initProps.signal.triggers ?? []).map((t) => ({
+        id: t.id,
+        conditions: t.conditions ?? [],
+        filters: t.filters ?? [],
+        mode: t.mode ?? 0,
+      })),
     },
     setSignal: (signal) => set({ signal }),
     setTraceId: (traceId) => set({ traceId }),

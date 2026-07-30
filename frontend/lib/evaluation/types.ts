@@ -9,6 +9,12 @@ export type Evaluation = {
   metadata: Record<string, unknown> | null;
 };
 
+/** A dataset an evaluation's datapoints are linked to. */
+export type LinkedDataset = {
+  id: string;
+  name: string;
+};
+
 export type EvaluationScoreStatistics = {
   averageValue: number;
 };

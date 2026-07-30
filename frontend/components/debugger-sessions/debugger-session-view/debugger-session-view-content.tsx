@@ -109,10 +109,21 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId: s
       trace_update: (event: MessageEvent) => {
         const payload = JSON.parse(event.data);
         if (!Array.isArray(payload.traces)) return;
-        storeApi
-          .getState()
-          .applyTraceUpdates(payload.traces as { traceId: string; metadata?: unknown; hasBrowserSession?: boolean }[]);
+        storeApi.getState().applyTraceUpdates(
+          payload.traces as {
+            traceId: string;
+            metadata?: unknown;
+            hasBrowserSession?: boolean;
+            agentInput?: string | null;
+          }[]
+        );
         backfillPendingEvalScores();
+      },
+      // Extracted agent_input landed (async) → patch the run's input row.
+      trace_agent_input_update: (event: MessageEvent) => {
+        const payload = JSON.parse(event.data) as { traceId?: string; agentInput?: unknown };
+        if (!payload.traceId) return;
+        storeApi.getState().applyAgentInput(payload.traceId, payload.agentInput);
       },
       // Note / eval block pushed → upsert it into the timeline.
       block_update: (event: MessageEvent) => {
@@ -160,12 +171,12 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId: s
         <div className="mx-auto flex w-full gap-16 px-6">
           <div className="flex grow-1 justify-center shrink-0 basis-0 min-w-fit">
             {!spanPanelOpen && (
-              <div className="sticky top-0 hidden h-[calc(100vh-80px)] w-[220px] flex-none shrink-0 self-start pb-16 pt-[180px] lg:flex">
+              <div className="sticky top-0 hidden h-[calc(100vh-80px)] 3xl:w-[320px] w-[220px] flex-none shrink-0 self-start pb-16 pt-[180px] lg:flex">
                 <SessionOutline className="max-h-full w-full" />
               </div>
             )}
           </div>
-          <div className="min-w-[560px] w-[720px] pb-[160px]">
+          <div className="min-w-[560px] 3xl:w-[800px] w-[720px] pb-[160px]">
             <SessionHeader
               title={sessionName}
               createdMs={createdMs}

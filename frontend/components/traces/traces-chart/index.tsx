@@ -1,6 +1,7 @@
 "use client";
 
 import { type RefObject } from "react";
+import { shallow } from "zustand/shallow";
 
 import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { ChartSkeleton } from "@/components/charts/time-series-chart/skeleton";
@@ -27,11 +28,14 @@ const chartConfig = {
 const fields = ["successCount", "errorCount"] as const;
 
 export default function TracesChart({ className, containerRef }: TracesChartProps) {
-  const { stats, isLoadingStats, chartContainerWidth } = useTracesStoreContext((state) => ({
-    stats: state.stats,
-    isLoadingStats: state.isLoadingStats,
-    chartContainerWidth: state.chartContainerWidth,
-  }));
+  const { stats, isLoadingStats, chartContainerWidth } = useTracesStoreContext(
+    (state) => ({
+      stats: state.stats,
+      isLoadingStats: state.isLoadingStats,
+      chartContainerWidth: state.chartContainerWidth,
+    }),
+    shallow
+  );
 
   return (
     <div ref={containerRef} className={className}>

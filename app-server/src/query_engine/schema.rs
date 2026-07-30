@@ -173,11 +173,6 @@ const TABLES: &[Table] = &[
         columns: &[
             col("trace_id", "UUID", "Id of the trace"),
             col(
-                "updated_at",
-                "DateTime64(9,'UTC')",
-                "End time of the span the output was extracted from",
-            ),
-            col(
                 "agent_output",
                 "Array(String)",
                 "Output messages of the trace's final LLM call, one stringified JSON message per element",

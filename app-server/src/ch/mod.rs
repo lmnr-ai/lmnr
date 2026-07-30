@@ -14,9 +14,9 @@ pub mod private;
 pub mod service;
 pub mod signal_events;
 pub mod spans;
-pub mod trace_agent_io;
 pub mod traces;
 pub mod traces_agg;
+pub mod traces_static;
 pub mod utils;
 
 pub use data_plane::DataPlaneBatch;
@@ -61,8 +61,7 @@ pub enum Table {
     Spans,
     Traces,
     TracesAgg,
-    TraceAgentInput,
-    TraceAgentOutput,
+    TracesStatic,
     NotificationDeliveries,
     Notifications,
     DedupedContent,
@@ -74,8 +73,7 @@ impl Table {
             Table::Spans => "spans",
             Table::Traces => "traces_replacing",
             Table::TracesAgg => "traces_agg",
-            Table::TraceAgentInput => "trace_agent_input",
-            Table::TraceAgentOutput => "trace_agent_output",
+            Table::TracesStatic => "traces_static",
             Table::NotificationDeliveries => "notification_deliveries",
             Table::Notifications => "notifications",
             Table::DedupedContent => "deduped_content",

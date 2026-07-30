@@ -1,4 +1,5 @@
 import { ArrowRight, CircleDollarSign, Clock3, Coins } from "lucide-react";
+import { memo } from "react";
 
 import { durationMsBetween, formatCostNumber, formatDurationMs, formatTokensCompact } from "@/lib/traces/format";
 import { cn } from "@/lib/utils";
@@ -14,7 +15,7 @@ interface SpanStatsShieldProps {
   variant?: "badge" | "inline";
 }
 
-export function SpanStatsShield({
+function SpanStatsShieldInner({
   startTime,
   endTime,
   inputTokens,
@@ -63,3 +64,5 @@ export function SpanStatsShield({
     </div>
   );
 }
+
+export const SpanStatsShield = memo(SpanStatsShieldInner);

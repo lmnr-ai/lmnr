@@ -1,7 +1,9 @@
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
+import { useQueryState } from "nuqs";
 import { useCallback, useMemo, useState } from "react";
 
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
+import { spacedColorMap } from "@/lib/colors";
 import { type EvaluationTimeProgression } from "@/lib/evaluation/types";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +25,8 @@ interface ProgressionChartProps {
   baselineEvaluationId?: string;
   hoveredEvaluationId?: string;
   onPointClick?: (evaluationId: string) => void;
+  /** When on, every score stretches to its own min/max (fills full height). */
+  fillHeight?: boolean;
 }
 
 const EMPTY_IDS: string[] = [];
@@ -36,9 +40,9 @@ export default function ProgressionChart({
   baselineEvaluationId,
   hoveredEvaluationId,
   onPointClick,
+  fillHeight,
 }: ProgressionChartProps) {
-  const searchParams = useSearchParams();
-  const groupId = searchParams.get("groupId");
+  const [groupId] = useQueryState("groupId");
   const params = useParams();
   const [hoveredScore, setHoveredScore] = useState<string | null>(null);
 
@@ -96,19 +100,13 @@ export default function ProgressionChart({
     [points, hiddenEvaluationIds]
   );
 
-  const chartConfig = useMemo<ChartConfig>(
-    () =>
-      Object.fromEntries(
-        scoreKeys.map((key, index) => [
-          key,
-          {
-            color: `hsl(var(--chart-${(index % 5) + 1}))`,
-            label: key,
-          },
-        ])
-      ),
-    [scoreKeys]
-  );
+  const chartConfig = useMemo<ChartConfig>(() => {
+    // Golden-ratio spacing spreads scores maximally around the palette's hue
+    // loop; keying on sorted order keeps a score's color stable when the set is
+    // reordered (vs. the old positional `index % 5`, which wrapped after 5).
+    const colors = spacedColorMap(scoreKeys);
+    return Object.fromEntries(scoreKeys.map((key) => [key, { color: colors.get(key), label: key }]));
+  }, [scoreKeys]);
 
   const toggleScore = useCallback(
     (key: string) => {
@@ -145,6 +143,7 @@ export default function ProgressionChart({
             hoveredEvaluationId={hoveredEvaluationId}
             hoveredScore={hoveredScore}
             onPointClick={onPointClick}
+            fillHeight={fillHeight}
           />
         </div>
       </div>

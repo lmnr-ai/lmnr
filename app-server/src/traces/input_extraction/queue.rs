@@ -34,6 +34,9 @@ pub struct InputExtractionMessage {
     /// (a later batch superseded this candidate).
     #[serde(default)]
     pub winner_state: Option<WinnerState>,
+    /// Winning span's rollout session id, for debugger-channel routing.
+    #[serde(default)]
+    pub rollout_session_id: Option<String>,
 }
 
 /// Returns `Ok(true)` when the message was enqueued, `Ok(false)` when it

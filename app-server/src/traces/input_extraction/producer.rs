@@ -64,6 +64,21 @@ pub struct UserTaskSpanContext {
     pub start_time_ns: i64,
 }
 
+const ROLLOUT_SESSION_METADATA_KEY: &str = "rollout.session_id";
+const EVALUATION_SPAN_ATTR: &str = "lmnr.association.properties.metadata.evaluation_id";
+
+/// Rollout session id for debugger-channel routing; eval spans excluded.
+fn rollout_session_id_from_attributes(attributes: &SpanAttributes) -> Option<String> {
+    if attributes.raw_attributes.contains_key(EVALUATION_SPAN_ATTR) {
+        return None;
+    }
+    attributes
+        .metadata()?
+        .get(ROLLOUT_SESSION_METADATA_KEY)
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+}
+
 pub fn capture_user_task_candidate(span: &Span) -> Option<UserTaskCandidate> {
     if !span.is_llm_span() {
         return None;
@@ -92,6 +107,7 @@ struct InputContender {
     candidate: UserTaskCandidate,
     state: WinnerState,
     path: Vec<String>,
+    rollout_session_id: Option<String>,
 }
 
 /// Producer-side extraction pipeline, run after the batch is published.
@@ -159,6 +175,7 @@ pub async fn process_user_task_candidates(
             continue;
         };
         let content_hash = candidate.content_hash.clone();
+        let rollout_session_id = rollout_session_id_from_attributes(&ctx.attributes);
         let usage = get_llm_usage_for_span(
             &mut ctx.attributes,
             db.clone(),
@@ -189,6 +206,7 @@ pub async fn process_user_task_candidates(
                 candidate,
                 state,
                 path: path.clone(),
+                rollout_session_id,
             });
     }
 
@@ -385,6 +403,7 @@ async fn process_trace_inputs(
     {
         let state = challenger.state.clone();
         let candidate = &challenger.candidate;
+        let rollout_session_id = challenger.rollout_session_id.clone();
 
         if !user_task_agent_enabled {
             write_lock_merged(&cache, &lock_key, &lock, trace_id).await;
@@ -433,6 +452,7 @@ async fn process_trace_inputs(
                     trace_id,
                     project_id,
                     value,
+                    rollout_session_id.clone(),
                     queue.clone(),
                     db.clone(),
                     cache.clone(),
@@ -457,6 +477,7 @@ async fn process_trace_inputs(
                     signposted_text: candidate.signposted_text.clone(),
                     fingerprint: candidate.fingerprint.clone(),
                     winner_state: Some(state.clone()),
+                    rollout_session_id: rollout_session_id.clone(),
                 };
                 match push_to_input_extraction_queue(message, queue.clone()).await {
                     Ok(enqueued) => enqueued,

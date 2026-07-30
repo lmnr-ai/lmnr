@@ -1,21 +1,7 @@
 -- Aggregating replacement for traces_replacing (LAM-1879). Each ingest batch
 -- inserts one partial row per trace; ClickHouse folds partials at merge time,
--- and reads always re-aggregate with GROUP BY (never FINAL, so the projection
--- stays usable). `metadata` values are raw JSON strings per key, unversioned;
--- ClickHouse only ships per-key map-merge combinators for min/max/sum, so
--- `maxMap` is used as an "any occurrence wins" merge (picks each key's
--- lexicographically-greatest raw JSON string — arbitrary from an application
--- standpoint, but deterministic and cheap). `statuses` / `trace_types` are
--- seen-value enum arrays (LAM-1983); precedence lives only in the view. `top_span_name`
--- carries a 1-byte priority prefix ('2' = real root span, '1' = path-derived
--- fallback set by a batch without the root) so max(String) always prefers the
--- root-derived name regardless of arrival order; the view strips it with
--- substring(_, 2).
--- Extracted agent input/output (LAM-1953) live OUTSIDE traces_agg in the
--- supplementary `trace_agent_input`/`trace_agent_output` RMT tables (mutable
--- latest-wins values, which SimpleAggregateFunction(max) can't express) and
--- are surfaced via the view joins. `internal_metadata` is a reserved maxMap
--- column (no writer yet), same encoding as `metadata`.
+-- and reads always re-aggregate with GROUP BY. `statuses` / `trace_types` are
+-- seen-value enum arrays (LAM-1983); precedence lives only in the view.
 CREATE TABLE IF NOT EXISTS default.traces_agg
 (
     `id` UUID,
@@ -28,15 +14,11 @@ CREATE TABLE IF NOT EXISTS default.traces_agg
     `input_cost` SimpleAggregateFunction(sum, Float64),
     `output_cost` SimpleAggregateFunction(sum, Float64),
     `total_cost` SimpleAggregateFunction(sum, Float64),
+    -- legacy writes here, not exposed in views, kept for bookkeeping
+    -- purposes and to restore any data overwritten with SET semantics
     `metadata` SimpleAggregateFunction(maxMap, Map(String, String)),
-    `session_id` SimpleAggregateFunction(max, String),
-    `user_id` SimpleAggregateFunction(max, String),
-    `top_span_id` SimpleAggregateFunction(max, UUID),
-    `top_span_name` SimpleAggregateFunction(max, String),
-    `top_span_type` SimpleAggregateFunction(max, UInt8),
     `tags` SimpleAggregateFunction(groupUniqArrayArray, Array(String)),
     `num_spans` SimpleAggregateFunction(sum, UInt64),
-    `has_browser_session` SimpleAggregateFunction(max, UInt8),
     `span_names` SimpleAggregateFunction(groupUniqArrayArray, Array(String)),
     `cache_read_input_tokens` SimpleAggregateFunction(sum, UInt64),
     `cache_creation_input_tokens` SimpleAggregateFunction(sum, UInt64),
@@ -46,8 +28,6 @@ CREATE TABLE IF NOT EXISTS default.traces_agg
         Array(Enum8('DEFAULT' = 0, 'EVALUATION' = 1, 'EVENT' = 2, 'PLAYGROUND' = 3))),
     -- debug-only: insert wall-clock, folds to first-seen; not exposed in the view
     `created_at` SimpleAggregateFunction(min, DateTime64(9, 'UTC')) DEFAULT now64(9),
-    -- reserved, no writer yet; raw JSON value per key like `metadata`
-    `internal_metadata` SimpleAggregateFunction(maxMap, Map(String, String)),
     PROJECTION p_start_time
     (
         SELECT *
@@ -59,58 +39,45 @@ PARTITION BY toYYYYMM(start_time)
 ORDER BY (project_id, id)
 SETTINGS index_granularity = 8192, deduplicate_merge_projection_mode = 'rebuild';
 
--- Extracted agent input/output (LAM-1953, output storage reworked to
--- hashes): one row per trace per table, versioned on `updated_at`,
--- ReplacingMergeTree converging on the largest.
---   - INPUT: `value` is the raw JSON value (string or empty). `updated_at`
---     defaults to `now64(9)` (insert wall-clock). Input strength is
---     depth+tokens with no timestamp axis, so there's no content order to
---     version on; the producer-side cache arbitration gate is the selector
---     and a get-then-set race can (rarely) let a weaker last-arriving write
---     win. Accepted: encoding depth+tokens into a version was the manual
---     machinery this design deliberately dropped.
---   - OUTPUT: `hashes` are per-message hashes into `deduped_content` — every
---     output message is already content-hashed by the dedup pipeline, so
---     storing hashes (instead of a rendered string) avoids duplicating
---     bytes that already live there and keeps merges small/predictable.
---     `updated_at` = the winning span's END TIME (clamped to insert
---     wall-clock). Every LLM span on the trace's main-agent path (the
---     current user-task input winner's path, see
---     `input_extraction::lock::main_agent_path_cache_key`) publishes a row;
---     versioning on end time makes FINAL converge on the latest-ending
---     answer regardless of arrival order. Writers MUST set `updated_at`
---     explicitly.
-CREATE TABLE IF NOT EXISTS default.trace_agent_input
+CREATE TABLE IF NOT EXISTS default.traces_static
 (
     `project_id` UUID,
     `trace_id` UUID,
-    `value` String,
-    `updated_at` DateTime64(9, 'UTC') DEFAULT now64(9)
+    `start_time` DateTime64(9, 'UTC'),
+    `input` Nullable(String) CODEC(ZSTD(3)),
+    `output_hashes` Nullable(String) CODEC(ZSTD(3)),
+    `user_id` Nullable(String),
+    `session_id` Nullable(String),
+    -- SET semantics: whole stringified JSON object, written only when non-empty.
+    -- Setting it more than once per trace is undefined (see the header).
+    `metadata` Nullable(String) CODEC(ZSTD(3)),
+    `root_span_id` Nullable(UUID),
+    `root_span_name` Nullable(String),
+    `root_span_name_from_path` Nullable(String),
+    `root_span_type` Nullable(Enum8('DEFAULT' = 0, 'LLM' = 1, 'PIPELINE' = 2, 'EXECUTOR' = 3,
+        'EVALUATOR' = 4, 'EVALUATION' = 5, 'TOOL' = 6, 'HUMAN_EVALUATOR' = 7, 'CACHED' = 8)),
+    `has_browser_session` Nullable(UInt8),
+    -- reserved, no writer yet; same SET semantics as `metadata`
+    `internal_metadata` Nullable(String) CODEC(ZSTD(3)),
+    INDEX traces_static_session_id_idx session_id TYPE bloom_filter,
+    INDEX traces_static_user_id_idx user_id TYPE bloom_filter,
+    PROJECTION p_start_time
+    (
+        SELECT *
+        ORDER BY project_id, start_time, trace_id
+    )
 )
-ENGINE = ReplacingMergeTree(updated_at)
+ENGINE = CoalescingMergeTree()
+PARTITION BY toYYYYMM(start_time)
 ORDER BY (project_id, trace_id)
-PARTITION BY toYYYYMM(updated_at)
-SETTINGS index_granularity = 8192;
+SETTINGS index_granularity = 8192, deduplicate_merge_projection_mode = 'rebuild';
 
-CREATE TABLE IF NOT EXISTS default.trace_agent_output
-(
-    `project_id` UUID,
-    `trace_id` UUID,
-    `hashes` Array(FixedString(32)),
-    `updated_at` DateTime64(9, 'UTC') DEFAULT now64(9)
-)
-ENGINE = ReplacingMergeTree(updated_at)
-PARTITION BY toYYYYMM(updated_at)
-ORDER BY (project_id, trace_id)
-SETTINGS index_granularity = 8192;
-
--- Time-bound params are load-bearing for correctness, not just pruning: the
--- inner scan must include every partial of a qualifying trace, and the outer
--- re-filter on aggregated min(start_time) drops boundary traces whose partial
--- set was clipped. Callers (query engine) pad the bounds by more than the max
--- trace duration and re-apply the exact user bounds in their own WHERE.
-DROP VIEW IF EXISTS default.traces_agg_v0;
-CREATE VIEW IF NOT EXISTS default.traces_agg_v0 SQL SECURITY INVOKER AS
+-- Reads MUST keep the padded-bounds contract: the caller's window is widened by
+-- more than the max trace duration (the query engine already does this for
+-- traces_v0), because a tight `start_time` filter can clip a trace's partials —
+-- here that would drop whichever static columns only the clipped write carried.
+DROP VIEW IF EXISTS default.traces_v0;
+CREATE VIEW IF NOT EXISTS default.traces_v0 SQL SECURITY INVOKER AS
 SELECT
     t.start_time AS start_time,
     t.end_time AS end_time,
@@ -124,37 +91,23 @@ SELECT
     t.output_cost AS output_cost,
     t.total_cost AS total_cost,
     (toUnixTimestamp64Nano(t.end_time) - toUnixTimestamp64Nano(t.start_time)) / 1000000000 AS duration,
-    if(
-        length(mapKeys(t.metadata)) = 0,
-        '',
-        concat(
-            '{',
-            arrayStringConcat(
-                arrayMap(
-                    (k, v) -> concat(toJSONString(k), ':', v),
-                    mapKeys(t.metadata), mapValues(t.metadata)
-                ),
-                ','
-            ),
-            '}'
-        )
-    ) AS metadata,
-    t.metadata as metadata_map,
-    t.session_id AS session_id,
-    t.user_id AS user_id,
+    ifNull(ts.metadata, '') AS metadata,
+    ifNull(ts.session_id, '') AS session_id,
+    ifNull(ts.user_id, '') AS user_id,
     -- no status-bearing spans resolves to 'success', matching traces_v0's two-value contract
     if(has(t.statuses, 'error'), 'error', 'success') AS status,
-    t.top_span_id AS top_span_id,
-    substring(t.top_span_name, 2) AS top_span_name,
+    ifNull(ts.root_span_id, toUUID('00000000-0000-0000-0000-000000000000')) AS top_span_id,
+    ifNull(coalesce(ts.root_span_name, ts.root_span_name_from_path), '') AS top_span_name,
     CASE
-        WHEN t.top_span_type = 0 THEN 'DEFAULT'
-        WHEN t.top_span_type = 1 THEN 'LLM'
-        WHEN t.top_span_type = 3 THEN 'EXECUTOR'
-        WHEN t.top_span_type = 4 THEN 'EVALUATOR'
-        WHEN t.top_span_type = 5 THEN 'EVALUATION'
-        WHEN t.top_span_type = 6 THEN 'TOOL'
-        WHEN t.top_span_type = 7 THEN 'HUMAN_EVALUATOR'
-        WHEN t.top_span_type = 8 THEN 'CACHED'
+        WHEN ts.root_span_type IS NULL THEN 'DEFAULT'
+        WHEN ts.root_span_type = 'DEFAULT' THEN 'DEFAULT'
+        WHEN ts.root_span_type = 'LLM' THEN 'LLM'
+        WHEN ts.root_span_type = 'EXECUTOR' THEN 'EXECUTOR'
+        WHEN ts.root_span_type = 'EVALUATOR' THEN 'EVALUATOR'
+        WHEN ts.root_span_type = 'EVALUATION' THEN 'EVALUATION'
+        WHEN ts.root_span_type = 'TOOL' THEN 'TOOL'
+        WHEN ts.root_span_type = 'HUMAN_EVALUATOR' THEN 'HUMAN_EVALUATOR'
+        WHEN ts.root_span_type = 'CACHED' THEN 'CACHED'
         ELSE 'UNKNOWN'
     END AS top_span_type,
     multiIf(
@@ -164,11 +117,11 @@ SELECT
     ) AS trace_type,
     t.tags AS tags,
     tt.tags AS trace_tags,
-    toBool(t.has_browser_session) AS has_browser_session,
+    toBool(ifNull(ts.has_browser_session, 0)) AS has_browser_session,
     t.id AS id,
     t.span_names AS span_names,
-    t.internal_metadata AS internal_metadata,
-    ifNull(ai.value, '') AS agent_input
+    ifNull(ts.internal_metadata, '') AS internal_metadata,
+    ifNull(ts.input, '') AS agent_input
 FROM (
     SELECT
         project_id,
@@ -184,18 +137,10 @@ FROM (
         sum(input_cost) AS input_cost,
         sum(output_cost) AS output_cost,
         sum(total_cost) AS total_cost,
-        maxMap(metadata) AS metadata,
-        max(session_id) AS session_id,
-        max(user_id) AS user_id,
         groupUniqArrayArray(statuses) AS statuses,
-        max(top_span_id) AS top_span_id,
-        max(top_span_name) AS top_span_name,
-        max(top_span_type) AS top_span_type,
         groupUniqArrayArray(trace_types) AS trace_types,
         groupUniqArrayArray(tags) AS tags,
-        max(has_browser_session) AS has_browser_session,
-        groupUniqArrayArray(span_names) AS span_names,
-        maxMap(internal_metadata) AS internal_metadata
+        groupUniqArrayArray(span_names) AS span_names
     FROM (
         SELECT *
         FROM default.traces_agg
@@ -210,20 +155,27 @@ LEFT JOIN (
 ) AS tt
     ON t.project_id = tt.project_id AND t.id = tt.trace_id
 LEFT JOIN (
-    SELECT * FROM default.trace_agent_input FINAL WHERE project_id = {project_id:UUID}
-) AS ai
-    ON t.project_id = ai.project_id AND t.id = ai.trace_id
+    SELECT *
+    FROM default.traces_static FINAL
+    PREWHERE project_id = {project_id:UUID}
+        AND start_time >= {min_start_time:DateTime64(9)}
+        AND start_time <= {max_start_time:DateTime64(9)}
+) AS ts
+    ON t.project_id = ts.project_id AND t.id = ts.trace_id
 WHERE t.start_time >= {min_start_time:DateTime64(9)}
     AND t.start_time <= {max_start_time:DateTime64(9)};
 
-DROP VIEW IF EXISTS trace_outputs_v0;
-CREATE VIEW IF NOT EXISTS trace_outputs_v0 SQL SECURITY INVOKER AS
+DROP VIEW IF EXISTS default.trace_outputs_v0;
+CREATE VIEW IF NOT EXISTS default.trace_outputs_v0 SQL SECURITY INVOKER AS
 SELECT
     trace_id,
-    updated_at,
     arrayMap(
         h -> dictGetOrDefault('deduped_content_dict', 'content', tuple(project_id, h), ''),
-        hashes
+        arrayMap(
+            i -> unhex(substring(ifNull(output_hashes, ''), i * 64 + 1, 64)),
+            range(intDiv(length(ifNull(output_hashes, '')), 64))
+        )
     ) AS agent_output
-FROM trace_agent_output FINAL
-WHERE project_id = {project_id:UUID};
+FROM default.traces_static FINAL
+PREWHERE project_id = {project_id:UUID}
+WHERE notEmpty(ifNull(output_hashes, ''));

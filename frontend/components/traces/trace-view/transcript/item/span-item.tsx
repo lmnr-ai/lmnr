@@ -1,4 +1,5 @@
 import { X } from "lucide-react";
+import { memo } from "react";
 
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
 import { SnippetPreview } from "@/components/traces/snippet-preview";
@@ -91,14 +92,7 @@ export interface SpanItemProps {
   className?: string;
 }
 
-export default function SpanItem({
-  span,
-  output,
-  onSpanSelect,
-  isSelected,
-  inGroup = false,
-  className,
-}: SpanItemProps) {
+function SpanItemInner({ span, output, onSpanSelect, isSelected, inGroup = false, className }: SpanItemProps) {
   // Replayed spans are tagged CACHED by the SDK (shared spec §9).
   const isCached = span.spanType === "CACHED";
 
@@ -179,3 +173,18 @@ export default function SpanItem({
     </div>
   );
 }
+
+function areSpanItemPropsEqual(prev: SpanItemProps, next: SpanItemProps) {
+  return (
+    prev.span === next.span &&
+    prev.output === next.output &&
+    prev.isSelected === next.isSelected &&
+    prev.inGroup === next.inGroup &&
+    prev.className === next.className &&
+    prev.onSpanSelect === next.onSpanSelect
+  );
+}
+
+const SpanItem = memo(SpanItemInner, areSpanItemPropsEqual);
+
+export default SpanItem;

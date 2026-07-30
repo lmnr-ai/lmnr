@@ -33,6 +33,18 @@ struct TextBlock {
     text: String,
 }
 
+// `command` is the raw `{command, args?, exitCode?, output?, raw?}` content the
+// frontend re-validates via `parseCommandBlockContent`.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CommandBlock {
+    id: Uuid,
+    #[serde(rename = "type")]
+    block_type: &'static str,
+    created_at: DateTime<Utc>,
+    command: Value,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct EvaluationBlock {
@@ -98,7 +110,7 @@ pub async fn handle_list_blocks(
     Ok(HttpResponse::Ok().json(serde_json::json!({ "blocks": blocks })))
 }
 
-// A `text` block is also pushed to the session live.
+// `text` and `command` blocks are also pushed to the session live.
 pub async fn handle_add_block(
     project_id: Uuid,
     session_id: Uuid,
@@ -116,21 +128,32 @@ pub async fn handle_add_block(
     .await?
     {
         Some((id, created_at)) => {
-            if let Some(text) = body
-                .content
-                .get("text")
-                .or_else(|| body.content.get("note"))
-                .and_then(|v| v.as_str())
-            {
-                let block = TextBlock {
+            let realtime_value = match body.block_type.as_str() {
+                "command" => serde_json::to_value(&CommandBlock {
                     id,
-                    block_type: "text",
+                    block_type: "command",
                     created_at,
-                    text: text.to_string(),
-                };
-                if let Ok(value) = serde_json::to_value(&block) {
-                    send_block_update(pubsub, &project_id, &session_id, value).await;
-                }
+                    command: body.content.clone(),
+                })
+                .ok(),
+                // Any other block carrying `text`/`note` broadcasts as a text block.
+                _ => body
+                    .content
+                    .get("text")
+                    .or_else(|| body.content.get("note"))
+                    .and_then(|v| v.as_str())
+                    .and_then(|text| {
+                        serde_json::to_value(&TextBlock {
+                            id,
+                            block_type: "text",
+                            created_at,
+                            text: text.to_string(),
+                        })
+                        .ok()
+                    }),
+            };
+            if let Some(value) = realtime_value {
+                send_block_update(pubsub, &project_id, &session_id, value).await;
             }
             Ok(HttpResponse::Ok().json(serde_json::json!({ "id": id })))
         }

@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 
 import { auth } from "@/lib/auth";
@@ -6,6 +6,7 @@ import { getServerSession } from "@/lib/auth-session";
 import { isUserMemberOfProject } from "@/lib/authorization";
 import { db } from "@/lib/db/drizzle";
 import { deviceCodes, membersOfWorkspaces, projects, workspaces } from "@/lib/db/migrations/schema";
+import { ascNameFold } from "@/lib/db/utils";
 import { sendWelcomeEmail } from "@/lib/emails/utils";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
@@ -90,7 +91,7 @@ export const listProjectsForCurrentSession = async (): Promise<SessionProject[]>
     .innerJoin(workspaces, eq(projects.workspaceId, workspaces.id))
     .innerJoin(membersOfWorkspaces, and(eq(membersOfWorkspaces.workspaceId, workspaces.id)))
     .where(eq(membersOfWorkspaces.userId, session.user.id))
-    .orderBy(asc(workspaces.name), asc(projects.name));
+    .orderBy(...ascNameFold(workspaces.name), ...ascNameFold(projects.name));
 };
 
 // Workspaces the current session's user belongs to. Used by the /device picker's
@@ -107,7 +108,7 @@ export const listWorkspacesForCurrentSession = async (): Promise<SessionWorkspac
     .from(workspaces)
     .innerJoin(membersOfWorkspaces, eq(membersOfWorkspaces.workspaceId, workspaces.id))
     .where(eq(membersOfWorkspaces.userId, session.user.id))
-    .orderBy(asc(workspaces.name));
+    .orderBy(...ascNameFold(workspaces.name));
 };
 
 // Approves the device code AND hands the chosen projectId back to the CLI.

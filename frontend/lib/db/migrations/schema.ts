@@ -452,6 +452,7 @@ export const projects = pgTable(
     name: text().notNull(),
     workspaceId: uuid("workspace_id").notNull(),
     settings: jsonb().default({}).notNull(),
+    hasTraces: boolean("has_traces"),
   },
   (table) => [
     index("projects_workspace_id_idx").using("btree", table.workspaceId.asc().nullsLast().op("uuid_ops")),
@@ -1242,6 +1243,7 @@ export const signalTriggers = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     projectId: uuid("project_id").notNull(),
     value: jsonb().notNull(),
+    filters: jsonb().default([]).notNull(),
     signalId: uuid("signal_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     mode: smallint().default(0).notNull(),
