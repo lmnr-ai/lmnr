@@ -34,7 +34,8 @@ export type Suggestion = FieldSuggestion | ValueSuggestion | RawSearchSuggestion
 export const buildSuggestions = (
   inputValue: string,
   filters: ColumnFilter[],
-  autocompleteData: Map<string, string[]>
+  autocompleteData: Map<string, string[]>,
+  allowFreeTextSearch = true
 ): Suggestion[] => {
   const input = inputValue.trim().toLowerCase();
 
@@ -55,22 +56,28 @@ export const buildSuggestions = (
     ({ field, value, label }) => ({ type: "value" as const, field, value, label })
   );
 
-  return [...fieldSuggestions, ...valueSuggestions, { type: "raw_search" as const, value: inputValue.trim() }];
+  return [
+    ...fieldSuggestions,
+    ...valueSuggestions,
+    ...(allowFreeTextSearch ? [{ type: "raw_search" as const, value: inputValue.trim() }] : []),
+  ];
 };
 
 export const getSuggestionsCount = (
   filters: ColumnFilter[],
   inputValue: string,
-  autocompleteData: Map<string, string[]>
-): number => buildSuggestions(inputValue, filters, autocompleteData).length;
+  autocompleteData: Map<string, string[]>,
+  allowFreeTextSearch = true
+): number => buildSuggestions(inputValue, filters, autocompleteData, allowFreeTextSearch).length;
 
 export const getSuggestionAtIndex = (
   filters: ColumnFilter[],
   inputValue: string,
   index: number,
-  autocompleteData: Map<string, string[]>
+  autocompleteData: Map<string, string[]>,
+  allowFreeTextSearch = true
 ): Suggestion | null => {
-  const suggestions = buildSuggestions(inputValue, filters, autocompleteData);
+  const suggestions = buildSuggestions(inputValue, filters, autocompleteData, allowFreeTextSearch);
   return suggestions[index] ?? null;
 };
 
@@ -136,6 +143,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
   const autocompleteData = useAdvancedSearchContext((state) => state.autocompleteData);
   const tags = useAdvancedSearchContext((state) => state.tags);
   const recentSearches = useAdvancedSearchContext((state) => state.recentSearches);
+  const allowFreeTextSearch = useAdvancedSearchContext((state) => state.allowFreeTextSearch);
 
   const { addTag, addCompleteTag, setInputValue, setIsOpen, submit, applyRecentSearch } = useAdvancedSearchContext(
     (state) => ({
@@ -155,8 +163,8 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
   const recentContainerRef = useRef<HTMLDivElement>(null);
 
   const suggestions = useMemo(
-    () => buildSuggestions(inputValue, filters, autocompleteData),
-    [inputValue, filters, autocompleteData]
+    () => buildSuggestions(inputValue, filters, autocompleteData, allowFreeTextSearch),
+    [inputValue, filters, autocompleteData, allowFreeTextSearch]
   );
 
   const showRecent = !inputValue.trim() && tags.length === 0 && recentSearches.length > 0;

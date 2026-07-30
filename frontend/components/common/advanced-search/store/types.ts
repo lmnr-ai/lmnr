@@ -55,6 +55,9 @@ export interface AdvancedSearchStore extends RecentsSlice, UndoRedoSlice {
   tagFocusStates: Map<string, FilterTagFocusState>;
   filters: ColumnFilter[];
   resource?: string;
+  // When false the bar builds filters only: no full-text suggestion is offered
+  // and the typed query is never committed as `search`.
+  allowFreeTextSearch: boolean;
 
   getActiveTagId: () => string | null;
   setAutocompleteData: (data: AutocompleteCache) => void;

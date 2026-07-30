@@ -25,6 +25,9 @@ interface TagInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "onC
   onComplete?: () => void;
   suggestions: string[];
   open?: boolean;
+  // Standalone field: keep input mounted; drive dropdown off focus+typing.
+  alwaysEditable?: boolean;
+  inputClassName?: string;
   onNavigateLeft?: () => void;
   onNavigateRight?: () => void;
   ref?: Ref<FocusableRef>;
@@ -39,6 +42,8 @@ const TagInput = ({
   placeholder = "...",
   className,
   open = false,
+  alwaysEditable = false,
+  inputClassName,
   onNavigateLeft,
   onNavigateRight,
   ref,
@@ -54,6 +59,7 @@ const TagInput = ({
   const [prevShowDropdown, setPrevShowDropdown] = useState(false);
   const [prevSuggestionsLength, setPrevSuggestionsLength] = useState(0);
   const [focusedTagIndex, setFocusedTagIndex] = useState<number | null>(null);
+  const [inputFocused, setInputFocused] = useState(false);
   const tagRefs = useRef<(HTMLSpanElement | null)[]>([]);
 
   const autosizeRef = useSizeInput(inputValue);
@@ -75,7 +81,9 @@ const TagInput = ({
     .filter((s) => !values.includes(s))
     .filter((s) => !inputValue || s.toLowerCase().includes(inputValue.toLowerCase()));
 
-  const showDropdown = open && filteredSuggestions.length > 0;
+  // alwaysEditable: wait for typing; in-tag (`open`): show while editing
+  const showDropdown =
+    (alwaysEditable ? inputFocused && inputValue.trim().length > 0 : open) && filteredSuggestions.length > 0;
 
   if (showDropdown !== prevShowDropdown || filteredSuggestions.length !== prevSuggestionsLength) {
     setPrevShowDropdown(showDropdown);
@@ -126,6 +134,7 @@ const TagInput = ({
 
   const handleContainerBlur = useCallback(
     (e: React.FocusEvent) => {
+      setInputFocused(false);
       if (containerRef.current?.contains(e.relatedTarget as Node)) {
         return;
       }
@@ -267,6 +276,7 @@ const TagInput = ({
       ref={containerRef}
       className={cn("relative flex items-center gap-1 px-1", className)}
       onBlur={handleContainerBlur}
+      onClick={() => inputRef.current?.focus()}
     >
       <>
         {values.map((value, index) => (
@@ -300,18 +310,21 @@ const TagInput = ({
           </span>
         ))}
       </>
-      {(open || values.length === 0) && (
-        <div className="relative">
+      {(alwaysEditable || open || values.length === 0) && (
+        <div className={cn("relative", alwaysEditable && "flex-1 min-w-0")}>
           <input
-            ref={combinedInputRef}
+            ref={alwaysEditable ? inputRef : combinedInputRef}
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleInputKeyDown}
+            onFocus={() => setInputFocused(true)}
             placeholder={placeholder}
             className={cn(
               "h-5 py-0 text-xs bg-transparent outline-none text-primary",
-              "placeholder:text-primary/50 min-w-4 px-1"
+              "placeholder:text-primary/50 min-w-4 px-1",
+              alwaysEditable && "w-full",
+              inputClassName
             )}
             {...props}
           />

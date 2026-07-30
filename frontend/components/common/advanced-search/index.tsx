@@ -100,6 +100,10 @@ interface AdvancedSearchProps {
   value: AdvancedSearchValue;
   onChange: (next: AdvancedSearchValue) => void;
   storageKey?: string;
+  // Set false for consumers that build filters only and have no full-text
+  // backend (e.g. signal filters) — the typed query then just narrows the
+  // suggestion list instead of committing as `search`.
+  allowFreeTextSearch?: boolean;
   options?: {
     // If provided, autocomplete won't fetch suggestions.
     suggestions?: Map<string, string[]>;
@@ -116,6 +120,7 @@ const AdvancedSearch = ({
   value,
   onChange,
   storageKey,
+  allowFreeTextSearch = true,
   options: { suggestions, disableHotKey } = { disableHotKey: false },
 }: AdvancedSearchProps) => (
   <AdvancedSearchStoreProvider
@@ -123,6 +128,7 @@ const AdvancedSearch = ({
     initialFilters={value.filters}
     initialSearch={value.search}
     onChange={onChange}
+    allowFreeTextSearch={allowFreeTextSearch}
     suggestions={suggestions}
     storageKey={storageKey}
     resource={resource}

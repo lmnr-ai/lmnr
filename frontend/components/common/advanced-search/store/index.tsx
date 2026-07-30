@@ -46,11 +46,14 @@ function toFilterDataType(uiDataType: ColumnFilter["dataType"]): FilterDataType 
 // store).
 function buildCommit(get: StoreGet, context: SliceContext, resource?: string) {
   return () => {
-    const { tags, inputValue } = get();
+    const { tags, inputValue, allowFreeTextSearch } = get();
     // Drop tags with no value — they're mid-edit and shouldn't ship.
     const completeTags = tags.filter((t) => (Array.isArray(t.value) ? t.value.length > 0 : t.value !== ""));
     const filterObjects = completeTags.map(createFilterFromTag);
-    const searchValue = inputValue.trim();
+    // In filters-only mode the typed text is just a search buffer for picking a
+    // field/value — committing it would ship a full-text query the consumer
+    // has no way to evaluate.
+    const searchValue = allowFreeTextSearch ? inputValue.trim() : "";
 
     // No-op if nothing changed since last commit.
     const last = context.getLastSubmitted();
@@ -83,12 +86,14 @@ function createCoreSlice(
   get: StoreGet,
   context: SliceContext,
   filters: ColumnFilter[],
+  allowFreeTextSearch: boolean,
   suggestions?: Map<string, string[]>,
   resource?: string
 ): Omit<AdvancedSearchStore, keyof RecentsSlice | keyof UndoRedoSlice> {
   const commit = buildCommit(get, context, resource);
 
   return {
+    allowFreeTextSearch,
     autocompleteData: suggestions || new Map(),
     tags: context.initialTags,
     inputValue: context.initialSearch,
@@ -296,6 +301,7 @@ const createAdvancedSearchStore = (
   initialTags: FilterTag[],
   initialSearch: string,
   getOnChange: () => (value: { filters: Filter[]; search: string }) => void,
+  allowFreeTextSearch: boolean,
   suggestions?: Map<string, string[]>,
   storageKey?: string,
   resource?: string
@@ -326,7 +332,7 @@ const createAdvancedSearchStore = (
   };
 
   const storeConfig = (set: StoreSet, get: StoreGet): AdvancedSearchStore => ({
-    ...createCoreSlice(set, get, context, filters, suggestions, resource),
+    ...createCoreSlice(set, get, context, filters, allowFreeTextSearch, suggestions, resource),
     ...createRecentsSlice(set, get, context),
     ...createUndoRedoSlice(set, get, context),
   });
@@ -377,6 +383,7 @@ interface AdvancedSearchStoreProviderProps {
   initialFilters: Filter[];
   initialSearch: string;
   onChange: (value: { filters: Filter[]; search: string }) => void;
+  allowFreeTextSearch?: boolean;
   suggestions?: Map<string, string[]>;
   storageKey?: string;
   resource?: string;
@@ -388,6 +395,7 @@ export const AdvancedSearchStoreProvider = ({
   initialFilters,
   initialSearch,
   onChange,
+  allowFreeTextSearch = true,
   suggestions,
   storageKey,
   resource,
@@ -409,6 +417,7 @@ export const AdvancedSearchStoreProvider = ({
       initialFilters.map(createTagFromFilter),
       initialSearch,
       () => onChangeRef.current,
+      allowFreeTextSearch,
       suggestions,
       storageKey,
       resource
