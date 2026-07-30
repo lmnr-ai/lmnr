@@ -119,6 +119,16 @@ impl MessageQueueTrait for TokioMpscQueue {
         Ok(())
     }
 
+    async fn publish_best_effort(
+        &self,
+        message: &[u8],
+        exchange: &str,
+        routing_key: &str,
+        ttl_ms: Option<u64>,
+    ) -> anyhow::Result<()> {
+        self.publish(message, exchange, routing_key, ttl_ms).await
+    }
+
     async fn get_receiver(
         &self,
         _queue_name: &str,
