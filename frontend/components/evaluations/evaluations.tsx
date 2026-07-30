@@ -348,7 +348,7 @@ function EvaluationsContent() {
         <ResizableHandle
           onDragChange={setIsResizingSidebar}
           className={cn(
-            "z-30 mx-2 transition-colors hover:bg-blue-400 hover:scale-200",
+            "z-30 mx-3 transition-colors hover:bg-blue-400 hover:scale-200",
             isResizingSidebar && "bg-blue-400"
           )}
         />
@@ -370,15 +370,15 @@ function EvaluationsContent() {
                 ))}
               </SelectContent>
             </Select>
-            <div className="flex items-center gap-2 px-1 border rounded-md bg-background h-7">
+            <div className="flex items-center gap-2 pl-1 pr-2 border rounded-md bg-background h-7">
               <Switch id="fill-height" checked={fillHeight} onCheckedChange={setFillHeight} />
               <label htmlFor="fill-height" className="text-xs cursor-pointer font-medium text-secondary-foreground">
-                Fill height
+                Normalize per score
               </label>
             </div>
           </div>
           <ResizablePanelGroup id="evaluations-panels" className="overflow-hidden" orientation="vertical">
-            <ResizablePanel className="min-w-0" minSize={20} defaultSize={20}>
+            <ResizablePanel className="min-w-0" minSize={160} maxSize={500} defaultSize={220}>
               <ProgressionChart
                 data={progression}
                 isLoading={isProgressionLoading}
@@ -394,7 +394,7 @@ function EvaluationsContent() {
             <ResizableHandle
               onDragChange={setIsResizingChart}
               className={cn(
-                "my-2 transition-colors hover:bg-blue-400 hover:scale-200",
+                "mb-2 bg-transparent transition-colors hover:bg-blue-400 hover:scale-200",
                 isResizingChart && "bg-blue-400"
               )}
             />

@@ -3,19 +3,12 @@ import { format, isValid } from "date-fns";
 import { isNil, mean } from "lodash";
 
 import { type ChartConfig } from "@/components/ui/chart";
+import { spacedColorMap } from "@/lib/colors";
 
 export const numberFormatter = new Intl.NumberFormat("en-US", {
   notation: "compact",
   maximumFractionDigits: 3,
 });
-
-const chartColors = [
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--chart-5))",
-];
 
 export const parseUtcTimestamp = (s: string): Date => {
   const hasTimezone = /Z$|[+-]\d{2}:\d{2}$/.test(s);
@@ -131,14 +124,16 @@ export const selectNiceTicksFromData = (
   };
 };
 
-export const generateChartConfig = (columns: string[]): ChartConfig =>
-  columns.reduce((config, columnName, index) => {
+export const generateChartConfig = (columns: string[]): ChartConfig => {
+  const colors = spacedColorMap(columns);
+  return columns.reduce((config, columnName) => {
     config[columnName] = {
       label: columnName,
-      color: chartColors[index % chartColors.length],
+      color: colors.get(columnName),
     };
     return config;
   }, {} as ChartConfig);
+};
 
 export const calculateDataMax = (data: Record<string, any>[], yColumns: string[]): number =>
   data.reduce((max, d) => {
@@ -170,17 +165,19 @@ export const getChartMargins = (yAxisValues?: any[], yAxisFormatter?: (value: an
   };
 };
 
-const createChartConfig = (columns: string[]): ChartConfig =>
-  Object.fromEntries(
-    columns.map((column, index) => [
+const createChartConfig = (columns: string[]): ChartConfig => {
+  const colors = spacedColorMap(columns);
+  return Object.fromEntries(
+    columns.map((column) => [
       column,
       {
-        color: `hsl(var(--chart-${(index % 5) + 1}))`,
+        color: colors.get(column),
         label: column,
         stackId: "stack",
       },
     ])
   );
+};
 
 export const transformDataForBreakdown = (
   data: Record<string, any>[],

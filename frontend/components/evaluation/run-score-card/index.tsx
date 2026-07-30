@@ -88,7 +88,7 @@ export default function RunScoreCard({
         />
         <AggregationSelect />
       </div>
-      <div className="flex items-start overflow-x-auto scroll-fade-x px-2 overflow-y-hidden no-scrollbar gap-2">
+      <div className="flex items-start overflow-x-auto scroll-fade-x px-2 overflow-y-hidden no-scrollbar gap-4 divide-x divide-foreground-600">
         {visibleScores.map((name) => (
           <ScoreCardItem
             key={name}
