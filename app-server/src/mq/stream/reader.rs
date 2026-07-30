@@ -51,6 +51,15 @@
 //! mid-flush still duplicates at most that one in-flight batch, with the
 //! read-guard fence in `store_offsets` as the backstop.
 //!
+//! Reader teardown never drains: every exit path aborts the batchers (then
+//! awaits the cancellation) and drops whatever they hold. Held records were
+//! never flushed, so the replay from the last stored offset writes them exactly
+//! once — draining would instead double-write them whenever the offset store
+//! behind the drain-flush failed, and teardown usually means the connection is
+//! already dead, so that store was going to fail. The only residual duplicate
+//! window is a flush already in flight at abort time (insert landed, store
+//! didn't).
+//!
 //! A skipped record still forwards its OFFSET to the batcher (as a
 //! `StreamDelivery` with `message: None`). Skipping the offset too would pin the
 //! partition whenever its tail is poison: nothing later would ever store a higher
@@ -80,11 +89,6 @@ use crate::worker::HandlerError;
 /// Retries are unbounded, so without this an hours-long ClickHouse outage is
 /// only visible as consumer lag.
 const TRANSIENT_RETRY_LOG_EVERY: u32 = 20;
-
-/// How long to wait for batchers to drain on reconnect before abandoning them.
-/// Needed because transient retries are unbounded: an in-flight flush against a
-/// down dependency would otherwise hold reader reconnect open indefinitely.
-const BATCHER_DRAIN_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Retry budget for re-querying a stored offset during SAC activation. Bounded
 /// because the broker waits on our activation response; exhaustion parks the
@@ -237,7 +241,7 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                     // Deactivated: the successor — possibly in another pod — owns
                     // this partition now and its committed position is
                     // authoritative. Mark the partition revoked so our still-
-                    // draining batcher neither flushes its held records for it nor
+                    // running batcher neither flushes its held records for it nor
                     // stores an offset — the new owner replays them instead
                     // (at-least-once, consistent with the queue path).
                     // Awaits the write guard, so it cannot land while a store for
@@ -331,6 +335,9 @@ impl<H: StreamBatchHandler> StreamReader<H> {
 
         let mut assignment = BatcherAssignment::default();
 
+        // Every exit — including a delivery error — falls through to the shared
+        // teardown below so the batchers are aborted, never detached.
+        let mut result: anyhow::Result<()> = Ok(());
         loop {
             let delivery = tokio::select! {
                 // An activation failed to resolve its stored offset; that
@@ -346,7 +353,11 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                     break;
                 }
                 next = consumer.next() => match next {
-                    Some(delivery) => delivery?,
+                    Some(Ok(delivery)) => delivery,
+                    Some(Err(e)) => {
+                        result = Err(e.into());
+                        break;
+                    }
                     None => break,
                 },
             };
@@ -401,43 +412,24 @@ impl<H: StreamBatchHandler> StreamReader<H> {
             }
         }
 
-        // Closing the senders makes each batcher flush what it holds and exit.
+        // Never drain: held records were never flushed, so the replay from the
+        // last stored offset writes them exactly once — a drain-flush here would
+        // double-write them whenever the offset store behind it fails, and
+        // teardown usually means the connection is already dead. Abort (not
+        // drop: dropping a JoinHandle detaches the task, leaving it retrying
+        // and storing offsets across the reconnect) and then AWAIT the
+        // cancellation: abort only *requests* it, and a task still inside
+        // `store_offset` could otherwise confirm after the next generation
+        // started. The await is what makes "generation N is gone" true before
+        // N+1 spawns.
         drop(senders);
         for handle in batcher_handles {
-            // Bounded: a batcher mid-flush retries transiently forever (by
-            // design), and awaiting it unbounded here would wedge reader
-            // reconnect behind a ClickHouse outage. Aborting is safe — no offset
-            // was stored for an unflushed batch, so those records replay after
-            // reconnect (at-least-once, same as the queue path's redelivery).
-            // `timeout` consumes the handle, so keep a clone to abort with:
-            // DROPPING a JoinHandle only detaches the task, leaving the old
-            // batcher alive across the reconnect — still retrying, still able to
-            // call `store_offset` against offsets the new batchers are also
-            // tracking, and piling up one leaked task per reconnect for the whole
-            // duration of a dependency outage.
-            // `&mut handle` (JoinHandle is Unpin) so the handle survives the
-            // timeout and can be awaited AFTER the abort. Aborting without
-            // awaiting only *requests* cancellation: the task keeps running until
-            // its next await point, so it could still be inside `store_offset` and
-            // confirm an offset after the next generation committed further ahead.
-            // Awaiting the cancellation makes "generation N is gone" true before
-            // generation N+1 starts.
-            let mut handle = handle;
-            if tokio::time::timeout(BATCHER_DRAIN_TIMEOUT, &mut handle)
-                .await
-                .is_err()
-            {
-                handle.abort();
-                // Ignore the JoinError — a cancelled task always yields one.
-                let _ = handle.await;
-                log::warn!(
-                    "Stream batcher did not drain within {}s, aborted; its records will replay",
-                    BATCHER_DRAIN_TIMEOUT.as_secs()
-                );
-            }
+            handle.abort();
+            // Ignore the JoinError — a cancelled task always yields one.
+            let _ = handle.await;
         }
 
-        Ok(())
+        result
     }
 }
 
@@ -581,21 +573,10 @@ async fn run_batcher<H: StreamBatchHandler>(
                         }
                     }
                     None => {
-                        // Reader is gone: flush what we hold so the offsets for
-                        // already-processed (and dead-lettered) records are
-                        // durable, then exit.
-                        if !batch.is_empty() || !pending_offsets.is_empty() {
-                            flush_and_commit(
-                                index,
-                                &handler,
-                                &client,
-                                consumer_name,
-                                &mut batch,
-                                &mut batch_weight,
-                                &mut pending_offsets,
-                            )
-                            .await;
-                        }
+                        // Reader teardown: drop everything we hold. Unflushed
+                        // records replay from the last stored offset, so exiting
+                        // without a flush writes them exactly once; see the
+                        // module header.
                         return;
                     }
                 }
@@ -909,7 +890,7 @@ fn commit_offset_high_water_mark(consumer_name: &'static str, stream: &str, offs
 /// high-water mark above cannot detect a successor that has already committed
 /// further ahead — its marks live in another process. What we DO learn locally is
 /// the broker's `consumer_update(active = 0)` callback: from that moment we no
-/// longer own the partition, and any offset our still-draining batcher holds is by
+/// longer own the partition, and any offset our still-running batcher holds is by
 /// definition not authoritative. Refusing to store for a revoked partition is
 /// therefore the cross-pod guard; the records we were holding are replayed by the
 /// new owner.
@@ -1093,12 +1074,12 @@ mod tests {
         );
     }
 
-    /// The drain path must ABORT, not just drop. Dropping a `JoinHandle` detaches
-    /// the task: the old batcher would survive the reconnect, keep retrying, and
+    /// Teardown must ABORT, not just drop. Dropping a `JoinHandle` detaches the
+    /// task: the old batcher would survive the reconnect, keep retrying, and
     /// keep calling `store_offset` for partitions the fresh batchers now own — one
     /// leaked task per reconnect for the length of an outage.
     #[tokio::test(start_paused = true)]
-    async fn drain_timeout_actually_cancels_a_stuck_batcher() {
+    async fn teardown_aborts_a_stuck_batcher() {
         let flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let flag_in_task = flag.clone();
 
@@ -1108,17 +1089,10 @@ mod tests {
             flag_in_task.store(true, std::sync::atomic::Ordering::SeqCst);
         });
 
-        let abort_handle = handle.abort_handle();
-        let timed_out = tokio::time::timeout(BATCHER_DRAIN_TIMEOUT, handle)
-            .await
-            .is_err();
-        assert!(timed_out, "the stuck task must not drain within the budget");
-
-        abort_handle.abort();
-        // Let the runtime process the cancellation.
-        tokio::time::sleep(Duration::from_millis(1)).await;
+        handle.abort();
+        let joined = handle.await;
         assert!(
-            abort_handle.is_finished(),
+            joined.is_err_and(|e| e.is_cancelled()),
             "abort() must actually cancel the task; dropping the handle would leave it running"
         );
         assert!(
@@ -1297,8 +1271,8 @@ mod tests {
 
     /// The process-local mark cannot see a successor in ANOTHER POD, so revocation
     /// — not offset comparison — is what guards a cross-pod handover. After
-    /// `consumer_update(active = 0)` the draining batcher must store nothing for
-    /// that partition, however far ahead its own offsets look.
+    /// `consumer_update(active = 0)` the still-running batcher must store nothing
+    /// for that partition, however far ahead its own offsets look.
     /// Test-only mirror of the inline check in `store_offsets`, which holds the read
     /// guard across its `store_offset` await and so can't be factored into a helper
     /// without giving up exactly the property being tested.
@@ -1436,21 +1410,13 @@ mod tests {
 
     /// Aborting a task only REQUESTS cancellation — it runs until its next await
     /// point, so a batcher inside `store_offset` could still confirm after the next
-    /// generation started. The drain awaits the cancellation, which is what makes
+    /// generation started. Teardown awaits the cancellation, which is what makes
     /// "generation N is gone" true before N+1 spawns.
     #[tokio::test(start_paused = true)]
     async fn awaiting_the_abort_means_the_task_is_finished() {
         let handle = tokio::spawn(async {
             tokio::time::sleep(Duration::from_secs(3600)).await;
         });
-
-        let mut handle = handle;
-        assert!(
-            tokio::time::timeout(BATCHER_DRAIN_TIMEOUT, &mut handle)
-                .await
-                .is_err(),
-            "the stuck task must not drain within the budget"
-        );
 
         handle.abort();
         let joined = handle.await;
