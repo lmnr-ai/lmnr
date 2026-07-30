@@ -6,6 +6,7 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { type PropsWithChildren } from "react";
 
 import BasePathFetchShim from "@/components/common/base-path-fetch-shim";
+import ReactScanLoader from "@/components/common/react-scan-loader";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flags-context";
@@ -73,17 +74,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
     <html lang="en" className={cn("h-full antialiased", sans.variable, manrope.variable, sansLanding.variable)}>
       <body className="flex flex-col h-full">
         <BasePathFetchShim />
-        {process.env.NODE_ENV === "development" && (
-          <>
-            {/* Off by default: nothing overlays the UI until you enable scanning from the toolbar. */}
-            <script
-              dangerouslySetInnerHTML={{
-                __html: `window.__REACT_SCAN_OPTIONS__ = { enabled: false, showToolbar: true, animationSpeed: "off" };`,
-              }}
-            />
-            <script src="https://unpkg.com/react-scan/dist/auto.global.js" crossOrigin="anonymous" async />
-          </>
-        )}
+        {process.env.NODE_ENV === "development" && <ReactScanLoader />}
         <FeatureFlagsProvider flags={featureFlags}>
           <PostHogProvider telemetryEnabled={posthogEnabled} email={email}>
             <TooltipProvider delayDuration={0}>
