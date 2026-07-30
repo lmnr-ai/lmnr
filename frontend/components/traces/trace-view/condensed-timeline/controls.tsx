@@ -41,7 +41,7 @@ export default function Controls({
       </TooltipProvider>
       <div className="flex items-center border rounded-md bg-muted px-0.5 h-[24px]">
         <Button
-          aria-label="Add"
+          aria-label="Zoom in"
           disabled={zoom >= MAX_ZOOM}
           className="size-5 min-w-5"
           variant="ghost"
@@ -51,7 +51,7 @@ export default function Controls({
           <Plus className="size-3" />
         </Button>
         <Button
-          aria-label="Remove"
+          aria-label="Zoom out"
           disabled={zoom <= MIN_ZOOM}
           className="size-5 min-w-5"
           variant="ghost"

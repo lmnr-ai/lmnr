@@ -262,7 +262,7 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
         onClick={handleRemove}
         className={removeButtonClassName}
         type="button"
-        aria-label="Remove filter"
+        aria-label={`Remove ${columnFilter.name} filter`}
       >
         <X className="w-3 h-3 text-secondary-foreground" />
       </Button>

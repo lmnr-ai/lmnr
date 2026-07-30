@@ -71,7 +71,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                 />
                 {fields.length > 1 && (
                   <Button
-                    aria-label="Close"
+                    aria-label="Remove message part"
                     onClick={() => remove(index)}
                     className={buttonClassName}
                     variant="outline"
@@ -130,7 +130,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                 </div>
                 {fields.length > 1 && (
                   <Button
-                    aria-label="Close"
+                    aria-label="Remove message part"
                     onClick={() => remove(index)}
                     className={buttonClassName}
                     variant="outline"
@@ -169,7 +169,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                 </div>
                 {fields.length > 1 && (
                   <Button
-                    aria-label="Close"
+                    aria-label="Remove message part"
                     onClick={() => remove(index)}
                     className={buttonClassName}
                     variant="outline"
@@ -209,7 +209,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                       </Button>
                       {fields.length > 1 && (
                         <Button
-                          aria-label="Close"
+                          aria-label="Remove message part"
                           onClick={() => remove(index)}
                           className={cn(buttonClassName, "ml-auto")}
                           variant="outline"

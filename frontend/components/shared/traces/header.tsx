@@ -71,7 +71,7 @@ const Header = ({ onClose, isHideTimelineControls = false }: HeaderProps) => {
               <span className="text-base font-medium ml-2 flex-shrink-0">Trace</span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button aria-label="Expand" variant="ghost" className="h-6 px-1 hover:bg-secondary">
+                  <Button aria-label="Trace actions" variant="ghost" className="h-6 px-1 hover:bg-secondary">
                     <ChevronDown className="size-3.5" />
                   </Button>
                 </DropdownMenuTrigger>

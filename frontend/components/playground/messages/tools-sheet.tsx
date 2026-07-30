@@ -79,7 +79,7 @@ export default function ToolsSheet({
       return (
         <SheetTrigger asChild>
           <Button
-            aria-label="Settings"
+            aria-label="Tools"
             disabled={!model}
             variant="outline"
             size="icon"
@@ -100,7 +100,7 @@ export default function ToolsSheet({
           </Button>
         </SheetTrigger>
         <Button
-          aria-label="Close"
+          aria-label="Clear tools"
           onClick={() => setValue("tools", "")}
           className="size-7"
           variant="outlinePrimary"
