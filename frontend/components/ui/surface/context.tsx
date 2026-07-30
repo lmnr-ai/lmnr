@@ -2,23 +2,23 @@
 
 import { createContext, type ReactNode, useContext } from "react";
 
-// The current substrate level, 1 (base plane) .. 8 (most elevated). React context
-// (not CSS inheritance) so it survives Radix portals, which render overlay content
-// at the document root — a portaled popover still reads the level of the surface it
-// opened from.
-const SurfaceContext = createContext<number>(1);
+// Current elevation, 1 (base plane) .. 8 (most elevated). React context (not CSS
+// inheritance) so it survives Radix portals, which render overlay content at the
+// document root — a portaled popover still reads the elevation it opened from.
+// Elevations are levels; the raw color tokens they map to are the `surface-*` scale.
+const ElevationContext = createContext<number>(1);
 
-export const MIN_SURFACE = 1;
-export const MAX_SURFACE = 8;
+export const MIN_ELEVATION = 1;
+export const MAX_ELEVATION = 8;
 
-export function useSurface(): number {
-  return useContext(SurfaceContext);
+export function useElevation(): number {
+  return useContext(ElevationContext);
 }
 
-export function SurfaceProvider({ value, children }: { value: number; children: ReactNode }) {
+export function ElevationProvider({ value, children }: { value: number; children: ReactNode }) {
   return (
-    <SurfaceContext.Provider value={Math.max(MIN_SURFACE, Math.min(MAX_SURFACE, value))}>
+    <ElevationContext.Provider value={Math.max(MIN_ELEVATION, Math.min(MAX_ELEVATION, value))}>
       {children}
-    </SurfaceContext.Provider>
+    </ElevationContext.Provider>
   );
 }

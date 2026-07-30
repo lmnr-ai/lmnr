@@ -4,7 +4,7 @@ import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react";
 import * as React from "react";
 
-import { SHADOW_LEVEL, SURFACE_OFFSET, SurfaceProvider, useElevated } from "@/components/ui/surface";
+import { ElevationProvider, useElevated } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
 function DropdownMenu({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
@@ -25,7 +25,7 @@ function DropdownMenuContent({
   children,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
-  const { level, className: surface } = useElevated(SURFACE_OFFSET.popover, SHADOW_LEVEL.popover);
+  const { elevation, className: surface } = useElevated(2, 3); // menu overlay: +2 elevation, medium shadow
   return (
     <DropdownMenuPrimitive.Portal>
       <DropdownMenuPrimitive.Content
@@ -38,7 +38,7 @@ function DropdownMenuContent({
         )}
         {...props}
       >
-        <SurfaceProvider value={level}>{children}</SurfaceProvider>
+        <ElevationProvider value={elevation}>{children}</ElevationProvider>
       </DropdownMenuPrimitive.Content>
     </DropdownMenuPrimitive.Portal>
   );
@@ -199,7 +199,7 @@ function DropdownMenuSubContent({
   children,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
-  const { level, className: surface } = useElevated(SURFACE_OFFSET.popover, SHADOW_LEVEL.popover);
+  const { elevation, className: surface } = useElevated(2, 3); // menu overlay: +2 elevation, medium shadow
   return (
     <DropdownMenuPrimitive.SubContent
       data-slot="dropdown-menu-sub-content"
@@ -210,7 +210,7 @@ function DropdownMenuSubContent({
       )}
       {...props}
     >
-      <SurfaceProvider value={level}>{children}</SurfaceProvider>
+      <ElevationProvider value={elevation}>{children}</ElevationProvider>
     </DropdownMenuPrimitive.SubContent>
   );
 }

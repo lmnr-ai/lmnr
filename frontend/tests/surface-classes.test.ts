@@ -14,8 +14,13 @@ test("surfaceClasses pins the shadow level independently of the background", () 
   assert.equal(surfaceClasses(5, 3), "bg-surface-500 shadow-elevation-300 [--surface-raise:var(--color-surface-700)]");
 });
 
+test("surfaceClasses(elevation, 0) emits no shadow class (flat panel)", () => {
+  assert.equal(surfaceClasses(2, 0), "bg-surface-200 [--surface-raise:var(--color-surface-400)]");
+});
+
 test("surfaceClasses clamps out-of-range levels to 1..8", () => {
-  assert.equal(surfaceClasses(0), "bg-surface-100 shadow-elevation-100 [--surface-raise:var(--color-surface-300)]");
+  // elevation 0 clamps bg to level 1; its default shadow (0) falls below MIN_ELEVATION → no shadow class.
+  assert.equal(surfaceClasses(0), "bg-surface-100 [--surface-raise:var(--color-surface-300)]");
   assert.equal(surfaceClasses(12), "bg-surface-800 shadow-elevation-800 [--surface-raise:var(--color-surface-800)]");
 });
 

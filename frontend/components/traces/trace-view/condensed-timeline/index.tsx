@@ -6,7 +6,7 @@ import { MAX_ZOOM, MIN_ZOOM, ZOOM_INCREMENT } from "@/components/traces/trace-vi
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { computeVisibleSpanIds } from "@/components/traces/trace-view/store/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MAX_SURFACE, raiseVar, SURFACE_BG, SurfaceProvider, useSurface } from "@/components/ui/surface";
+import { ElevationProvider, MAX_ELEVATION, raiseVar, SURFACE_BG, useElevation } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
 import CondensedTimelineElement, { ROW_HEIGHT } from "./condensed-timeline-element";
@@ -141,7 +141,7 @@ function CondensedTimeline() {
 
   // The timeline floats one level above the trace-view substrate it sits in;
   // its controls elevate a further step above the timeline via this provided level.
-  const timelineLevel = Math.min(useSurface() + 1, MAX_SURFACE);
+  const timelineElevation = Math.min(useElevation() + 1, MAX_ELEVATION);
 
   const selectedCount = condensedTimelineVisibleSpanIds.size;
 
@@ -330,15 +330,15 @@ function CondensedTimeline() {
   };
 
   return (
-    <SurfaceProvider value={timelineLevel}>
+    <ElevationProvider value={timelineElevation}>
       <div className="flex flex-col h-full w-full overflow-hidden relative">
         {/* Scrollable timeline area - ALWAYS rendered so refs are attached */}
         <div
           ref={combinedScrollRef}
           className={cn(
             "flex-1 overflow-auto relative min-h-0 h-full minimal-scrollbar scroll-fade-t",
-            SURFACE_BG[timelineLevel],
-            raiseVar(timelineLevel)
+            SURFACE_BG[timelineElevation],
+            raiseVar(timelineElevation)
           )}
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
@@ -372,7 +372,7 @@ function CondensedTimeline() {
           onToggleCostHeatmap={setIsCostHeatmapVisible}
         />
       </div>
-    </SurfaceProvider>
+    </ElevationProvider>
   );
 }
 

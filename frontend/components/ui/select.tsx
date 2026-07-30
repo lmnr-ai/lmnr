@@ -4,7 +4,7 @@ import { CaretSortIcon, CheckIcon, ChevronDownIcon, ChevronUpIcon } from "@radix
 import * as SelectPrimitive from "@radix-ui/react-select";
 import * as React from "react";
 
-import { SHADOW_LEVEL, SURFACE_OFFSET, SurfaceProvider, useElevated } from "@/components/ui/surface";
+import { ElevationProvider, useElevated } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
 const Select = SelectPrimitive.Root;
@@ -70,7 +70,7 @@ const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(({ className, children, position = "popper", ...props }, ref) => {
-  const { level, className: surface } = useElevated(SURFACE_OFFSET.popover, SHADOW_LEVEL.popover);
+  const { elevation, className: surface } = useElevated(2, 3); // menu overlay: +2 elevation, medium shadow
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
@@ -95,7 +95,7 @@ const SelectContent = React.forwardRef<
             position === "popper" && "h-(--radix-select-trigger-height) w-full min-w-(--radix-select-trigger-width)"
           )}
         >
-          <SurfaceProvider value={level}>{children}</SurfaceProvider>
+          <ElevationProvider value={elevation}>{children}</ElevationProvider>
         </SelectPrimitive.Viewport>
         <SelectScrollDownButton />
       </SelectPrimitive.Content>

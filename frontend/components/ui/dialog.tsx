@@ -3,7 +3,7 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import * as React from "react";
 
-import { SHADOW_LEVEL, SURFACE_OFFSET, SurfaceProvider, useElevated } from "@/components/ui/surface";
+import { ElevationProvider, useElevated } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
 const Dialog = DialogPrimitive.Root;
@@ -33,7 +33,7 @@ const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
 >(({ className, children, ...props }, ref) => {
-  const { level, className: surface } = useElevated(SURFACE_OFFSET.dialog, SHADOW_LEVEL.dialog);
+  const { elevation, className: surface } = useElevated(2, 6); // overlay: +2 elevation, heavy shadow
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -46,7 +46,7 @@ const DialogContent = React.forwardRef<
         )}
         {...props}
       >
-        <SurfaceProvider value={level}>{children}</SurfaceProvider>
+        <ElevationProvider value={elevation}>{children}</ElevationProvider>
         {/* <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
         <Cross2Icon className="h-4 w-4" />
         <span className="sr-only">Close</span>

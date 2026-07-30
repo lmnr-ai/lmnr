@@ -7,7 +7,7 @@ import TraceViewStoreProvider, {
   type TraceViewTrace,
   useTraceViewStore,
 } from "@/components/traces/trace-view/store";
-import { SurfaceProvider } from "@/components/ui/surface";
+import { ElevationProvider } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
 import TraceViewContent from "./trace-view-content";
@@ -56,7 +56,7 @@ export function TraceViewSidePanel({
     >
       {/* The side panel floats one step above the page/table it slides over, and
           provides that level to its children so everything inside elevates from 2. */}
-      <SurfaceProvider value={2}>
+      <ElevationProvider value={2}>
         <TraceViewStoreProvider
           key={props.traceId}
           initialTrace={props.propsTrace}
@@ -75,7 +75,7 @@ export function TraceViewSidePanel({
             <TraceViewContent {...props} sidePanelRef={sidePanelRef} />
           </div>
         </TraceViewStoreProvider>
-      </SurfaceProvider>
+      </ElevationProvider>
     </div>
   );
 }

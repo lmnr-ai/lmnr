@@ -2,7 +2,7 @@ import { DollarSign, Minus, Plus } from "lucide-react";
 
 import { MAX_ZOOM, MIN_ZOOM } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
-import { raiseVar, SURFACE_BG, useSurface } from "@/components/ui/surface";
+import { MAX_ELEVATION, raiseVar, SURFACE_BG, useElevation } from "@/components/ui/surface";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +22,7 @@ export default function Controls({
   onToggleCostHeatmap,
 }: ControlsProps) {
   // Controls sit one level above the timeline surface they float over.
-  const raised = Math.min(useSurface() + 1, 8);
+  const raised = Math.min(useElevation() + 1, MAX_ELEVATION);
   return (
     <div className={cn("absolute bottom-1.5 right-1.5 z-40 flex items-center gap-1 h-[24px]", raiseVar(raised))}>
       <TooltipProvider delayDuration={300}>

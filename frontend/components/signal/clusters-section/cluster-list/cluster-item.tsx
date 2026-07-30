@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
-import { raiseVar, SURFACE_BG, useSurface } from "@/components/ui/surface";
+import { MAX_ELEVATION, raiseVar, SURFACE_BG, useElevation } from "@/components/ui/surface";
 import { withOpacity } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
@@ -131,7 +131,7 @@ export default function ClusterItem({
 
   // The row sits one surface above the list it lives in, so it reads as distinct;
   // it publishes its own raise var so hover steps one further up.
-  const restingLevel = Math.min(useSurface() + 1, 8);
+  const restingElevation = Math.min(useElevation() + 1, MAX_ELEVATION);
 
   return (
     <>
@@ -139,8 +139,8 @@ export default function ClusterItem({
         ref={buttonRef}
         className={cn(
           "flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left transition-colors text-secondary-foreground w-full min-w-0",
-          SURFACE_BG[restingLevel],
-          raiseVar(restingLevel),
+          SURFACE_BG[restingElevation],
+          raiseVar(restingElevation),
           isPaywall ? "cursor-default" : "cursor-pointer",
           !isPaywall && hovered && "bg-[var(--surface-raise)]",
           isSelected && "bg-sidebar-accent font-medium text-primary-foreground"

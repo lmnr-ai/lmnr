@@ -4,7 +4,7 @@ import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { cva, type VariantProps } from "class-variance-authority";
 import * as React from "react";
 
-import { SHADOW_LEVEL, SURFACE_OFFSET, SurfaceProvider, useElevated } from "@/components/ui/surface";
+import { ElevationProvider, useElevated } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
 const Sheet = SheetPrimitive.Root;
@@ -54,12 +54,16 @@ interface SheetContentProps
 
 const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Content>, SheetContentProps>(
   ({ side = "right", className, children, ...props }, ref) => {
-    const { level, className: surface } = useElevated(SURFACE_OFFSET.dialog, SHADOW_LEVEL.dialog);
+    const { elevation, className: surfaceClassName } = useElevated(1, 6);
     return (
       <SheetPortal>
         <SheetOverlay />
-        <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), surface, className)} {...props}>
-          <SurfaceProvider value={level}>{children}</SurfaceProvider>
+        <SheetPrimitive.Content
+          ref={ref}
+          className={cn(sheetVariants({ side }), surfaceClassName, className)}
+          {...props}
+        >
+          <ElevationProvider value={elevation}>{children}</ElevationProvider>
         </SheetPrimitive.Content>
       </SheetPortal>
     );
