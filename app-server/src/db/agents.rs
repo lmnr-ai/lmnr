@@ -39,22 +39,65 @@ pub async fn get_agent_by_version_hash(
     Ok(agent_id)
 }
 
-/// List the project's agents, each with its most recently created version.
-pub async fn list_latest_agent_versions(
+/// Recent agent versions for a project: EVERY agent's newest version, plus up
+/// to `extra_versions_limit` additional older-but-still-live versions.
+///
+/// Returns MULTIPLE versions per agent, not just each agent's latest — variants
+/// that run side by side (A/B tests, subversions) sit behind the newest row, and
+/// a classifier that can't see them files an incoming variant as a brand-new
+/// agent.
+///
+/// The one-per-agent half is deliberately UNBOUNDED, matching the unbounded
+/// `DISTINCT ON (agent_id)` query this replaced: capping it would hide whole
+/// agents from classification once a project's agent count exceeded the cap,
+/// which is the very duplication bug this function exists to fix. Only the
+/// *extra* versions are budgeted, so the bound on the classifier's context is
+/// additive rather than a ceiling that can evict an agent.
+///
+/// Extras are taken rank-major (every agent's 2nd version before any agent's
+/// 3rd), so a single agent churning versions can't consume the whole budget,
+/// and are capped per agent at `per_agent_limit` total versions.
+pub async fn list_recent_agent_versions(
     pool: &PgPool,
     project_id: Uuid,
+    per_agent_limit: i64,
+    extra_versions_limit: i64,
 ) -> Result<Vec<AgentVersion>> {
-    let agents = sqlx::query_as::<_, AgentVersion>(
-        "SELECT DISTINCT ON (agent_id)
-            project_id, agent_id, version_hash, system_prompt, tool_definitions, model, created_at
-         FROM agent_versions
-         WHERE project_id = $1
-         ORDER BY agent_id, created_at DESC, version_hash DESC",
+    let versions = sqlx::query_as::<_, AgentVersion>(
+        "WITH ranked AS (
+             SELECT project_id, agent_id, version_hash, system_prompt, tool_definitions, model,
+                    created_at,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY agent_id ORDER BY created_at DESC, version_hash DESC
+                    ) AS rank_in_agent
+             FROM agent_versions
+             WHERE project_id = $1
+         ),
+         extras AS (
+             SELECT *,
+                    ROW_NUMBER() OVER (
+                        ORDER BY rank_in_agent, created_at DESC, version_hash DESC
+                    ) AS extra_seq
+             FROM ranked
+             WHERE rank_in_agent > 1 AND rank_in_agent <= $2
+         )
+         SELECT project_id, agent_id, version_hash, system_prompt, tool_definitions, model,
+                created_at, rank_in_agent
+         FROM ranked
+         WHERE rank_in_agent = 1
+         UNION ALL
+         SELECT project_id, agent_id, version_hash, system_prompt, tool_definitions, model,
+                created_at, rank_in_agent
+         FROM extras
+         WHERE extra_seq <= $3
+         ORDER BY rank_in_agent, created_at DESC, version_hash DESC",
     )
     .bind(project_id)
+    .bind(per_agent_limit)
+    .bind(extra_versions_limit)
     .fetch_all(pool)
     .await?;
-    Ok(agents)
+    Ok(versions)
 }
 
 /// Create a brand-new agent and its first version. Returns the new agent id.
