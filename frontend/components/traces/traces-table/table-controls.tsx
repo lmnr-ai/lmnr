@@ -30,6 +30,7 @@ interface TracesTableControlsProps {
   searchValue: { filters: Filter[]; search: string };
   onSearchChange: (value: { filters: Filter[]; search: string }) => void;
   chartContainerRef: RefObject<HTMLDivElement | null>;
+  onChartZoom: (startDate: string, endDate: string) => void;
 }
 
 export function TracesTableControls({
@@ -43,6 +44,7 @@ export function TracesTableControls({
   searchValue,
   onSearchChange,
   chartContainerRef,
+  onChartZoom,
 }: TracesTableControlsProps) {
   return (
     <>
@@ -65,7 +67,11 @@ export function TracesTableControls({
           className="w-full flex-1"
         />
       </div>
-      <TracesChart className="w-full bg-secondary rounded border p-2" containerRef={chartContainerRef} />
+      <TracesChart
+        className="w-full bg-secondary rounded border p-2"
+        containerRef={chartContainerRef}
+        onZoom={onChartZoom}
+      />
     </>
   );
 }

@@ -43,6 +43,16 @@ function TracesTableContent() {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const refetchRef = useRef<() => void>(() => {});
 
+  // Mirrors the latest searchParams into a ref so handleChartZoom below can
+  // read current params without depending on searchParams directly -- a
+  // dependency would give it a new identity on every URL change (e.g. the
+  // trace-view drawer's own spanId param), busting TimeSeriesChart's memo
+  // boundary and defeating the point of memoizing it.
+  const searchParamsRef = useRef(searchParams);
+  useEffect(() => {
+    searchParamsRef.current = searchParams;
+  }, [searchParams]);
+
   const setChartContainerWidth = useTracesStoreContext((s) => s.setChartContainerWidth);
   const fetchStats = useTracesStoreContext((s) => s.fetchStats);
   const chartContainerWidth = useTracesStoreContext((s) => s.chartContainerWidth);
@@ -143,6 +153,17 @@ function TracesTableContent() {
     if (statsUrl) fetchStats(statsUrl);
   }, [statsUrl, fetchStats]);
 
+  const handleChartZoom = useCallback(
+    (zoomStartDate: string, zoomEndDate: string) => {
+      const sp = new URLSearchParams(searchParamsRef.current.toString());
+      sp.delete("pastHours");
+      sp.set("startDate", zoomStartDate);
+      sp.set("endDate", zoomEndDate);
+      router.push(`${pathName}?${sp.toString()}`);
+    },
+    [pathName, router]
+  );
+
   const handleSort = useCallback(
     (columnId: string, direction: "asc" | "desc") => {
       setSort(columnId || null, columnId ? direction : null);
@@ -197,6 +218,7 @@ function TracesTableContent() {
           searchValue={searchValue}
           onSearchChange={setSearchAndFilters}
           chartContainerRef={chartContainerRef}
+          onChartZoom={handleChartZoom}
         />
       </TracesTableContents>
     </div>

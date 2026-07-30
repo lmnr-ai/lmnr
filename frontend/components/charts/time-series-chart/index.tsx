@@ -1,7 +1,6 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useId, useMemo, useState } from "react";
+import React, { memo, useCallback, useId, useMemo, useState } from "react";
 import { Area, Bar, BarChart, CartesianGrid, ComposedChart, ReferenceArea, XAxis, YAxis } from "recharts";
 import { type CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
 
@@ -25,7 +24,7 @@ const countNumberFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 3,
 });
 
-export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
+function TimeSeriesChartInner<T extends TimeSeriesDataPoint>({
   data,
   chartConfig,
   fields,
@@ -39,9 +38,6 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
   overlayColor = "var(--color-muted-foreground)",
   className,
 }: Omit<TimeSeriesChartProps<T>, "isLoading">) {
-  const router = useRouter();
-  const pathName = usePathname();
-  const searchParams = useSearchParams();
   const gradientId = useId().replace(/:/g, "");
   const [refArea, setRefArea] = useState<{ left?: string; right?: string }>({});
 
@@ -76,19 +72,10 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
     }
 
     const normalized = normalizeTimeRange(refArea.left!, refArea.right!);
-
-    if (onZoom) {
-      onZoom(normalized.start, normalized.end);
-    } else {
-      const params = new URLSearchParams(searchParams.toString());
-      params.delete("pastHours");
-      params.set("startDate", normalized.start);
-      params.set("endDate", normalized.end);
-      router.push(`${pathName}?${params.toString()}`);
-    }
+    onZoom(normalized.start, normalized.end);
 
     setRefArea({});
-  }, [refArea.left, refArea.right, onZoom, pathName, router, searchParams]);
+  }, [refArea.left, refArea.right, onZoom]);
 
   const onMouseDown: CategoricalChartFunc = useCallback((e) => {
     if (e?.activeLabel != null) {
@@ -213,3 +200,12 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
     </div>
   );
 }
+
+// Recharts rebuilds its whole <Bar> tree on every render regardless of prop
+// identity, so this boundary is what actually stops re-renders from parents
+// that change for reasons unrelated to this chart's own props (e.g. a sibling
+// URL param). memo() erases the generic signature, hence the cast back to a
+// generic function type below.
+const TimeSeriesChart = memo(TimeSeriesChartInner) as typeof TimeSeriesChartInner;
+
+export default TimeSeriesChart;

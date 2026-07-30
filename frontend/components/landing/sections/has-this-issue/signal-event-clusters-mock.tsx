@@ -93,6 +93,9 @@ const SignalEventClustersMock = ({ className }: Props) => {
     [selectedClusterId, isLeaf, displayId]
   );
 
+  // Static marketing mock — no real time range to zoom into.
+  const noopZoom = useCallback(() => {}, []);
+
   const breadcrumb = useMemo(
     () => (selectedClusterId ? buildPath(dataset.clusterTree, selectedClusterId) : []),
     [dataset.clusterTree, selectedClusterId]
@@ -144,6 +147,7 @@ const SignalEventClustersMock = ({ className }: Props) => {
               statsData={dataset.stats}
               containerWidth={chartWidth}
               colorMap={colorMap}
+              onZoom={noopZoom}
             />
           </div>
         </div>

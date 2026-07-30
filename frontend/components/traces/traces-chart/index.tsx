@@ -10,6 +10,7 @@ import { useTracesStoreContext } from "@/components/traces/traces-store";
 interface TracesChartProps {
   className?: string;
   containerRef: RefObject<HTMLDivElement | null>;
+  onZoom: (startDate: string, endDate: string) => void;
 }
 
 const chartConfig = {
@@ -27,7 +28,7 @@ const chartConfig = {
 
 const fields = ["successCount", "errorCount"] as const;
 
-export default function TracesChart({ className, containerRef }: TracesChartProps) {
+export default function TracesChart({ className, containerRef, onZoom }: TracesChartProps) {
   const { stats, isLoadingStats, chartContainerWidth } = useTracesStoreContext(
     (state) => ({
       stats: state.stats,
@@ -47,6 +48,7 @@ export default function TracesChart({ className, containerRef }: TracesChartProp
           chartConfig={chartConfig}
           fields={fields}
           containerWidth={chartContainerWidth}
+          onZoom={onZoom}
         />
       )}
     </div>

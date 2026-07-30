@@ -3,7 +3,7 @@
 import { isEmpty } from "lodash";
 import { Circle } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { shallow } from "zustand/shallow";
@@ -45,6 +45,15 @@ export default function ClustersSection({ className }: Props) {
   const isPaywall = !getHasClusteringAccess(workspace?.tierName);
   const billingHref = settingsHref("billing");
   const searchParams = useSearchParams();
+  const pathName = usePathname();
+  const router = useRouter();
+  // Mirrors the latest searchParams for handleChartZoom below -- see the
+  // matching comment in traces-table/index.tsx for why this can't just be a
+  // useCallback dependency.
+  const searchParamsRef = useRef(searchParams);
+  useEffect(() => {
+    searchParamsRef.current = searchParams;
+  }, [searchParams]);
   const [clusterId, setClusterId] = useClusterId();
   const [, setEmergingClusterId] = useEmergingClusterId();
 
@@ -168,6 +177,17 @@ export default function ClustersSection({ className }: Props) {
     [isPaywall, setClusterId, setEmergingClusterId, clusterId, isLeaf, displayId]
   );
 
+  const handleChartZoom = useCallback(
+    (zoomStartDate: string, zoomEndDate: string) => {
+      const sp = new URLSearchParams(searchParamsRef.current.toString());
+      sp.delete("pastHours");
+      sp.set("startDate", zoomStartDate);
+      sp.set("endDate", zoomEndDate);
+      router.push(`${pathName}?${sp.toString()}`);
+    },
+    [pathName, router]
+  );
+
   // Skeleton only on first load; refresh keeps old data until new arrives.
   if (isClustersLoading && isEmpty(rawClusters)) {
     return (
@@ -243,6 +263,7 @@ export default function ClustersSection({ className }: Props) {
                 colorMap={colorMap}
                 showTooltip={!isPaywall}
                 runTotals={runTotals}
+                onZoom={handleChartZoom}
               />
             )}
           </div>

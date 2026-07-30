@@ -20,7 +20,7 @@ export interface TimeSeriesChartProps<T extends TimeSeriesDataPoint> {
   containerWidth?: number | null;
   className?: string;
   isLoading?: boolean;
-  onZoom?: (startDate: string, endDate: string) => void;
+  onZoom: (startDate: string, endDate: string) => void;
   formatValue?: (value: number) => string;
   showTotal?: boolean;
   showTooltip?: boolean;

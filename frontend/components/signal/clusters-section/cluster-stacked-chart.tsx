@@ -20,6 +20,7 @@ interface ClusterStackedChartProps {
   colorMap: Map<string, string>;
   showTooltip?: boolean;
   runTotals?: { timestamp: string; count: number }[];
+  onZoom: (startDate: string, endDate: string) => void;
 }
 
 export default function ClusterStackedChart({
@@ -29,6 +30,7 @@ export default function ClusterStackedChart({
   colorMap,
   showTooltip,
   runTotals,
+  onZoom,
 }: ClusterStackedChartProps) {
   const hasOverlay = !!runTotals && runTotals.length > 0;
 
@@ -99,6 +101,7 @@ export default function ClusterStackedChart({
       overlayField={hasOverlay ? RUN_TOTAL_KEY : undefined}
       overlayColor={OVERLAY_COLOR}
       className="!h-full"
+      onZoom={onZoom}
     />
   );
 }
