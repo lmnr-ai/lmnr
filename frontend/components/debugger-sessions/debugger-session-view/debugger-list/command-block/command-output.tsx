@@ -1,12 +1,19 @@
 "use client";
 
-import { type ReactNode,useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 
 import { cn, tryParseJson } from "@/lib/utils";
 
 // Rendered-length cap: a multi-MB output as one DOM text node stalls layout
 // even when max-h clips it visually. The rest renders on explicit request.
 const OUTPUT_CHAR_BUDGET = 20_000;
+
+// Parse cap: `JSON.parse` + pretty `JSON.stringify` are O(payload) main-thread
+// work and `output` has no server-side size limit, so an unbounded payload
+// would stall the frame OUTPUT_CHAR_BUDGET exists to protect (~170ms at 20MB).
+// Kept well above the render budget — pretty-printing expands, so a payload can
+// exceed it and still be cheap to parse and worth a tree.
+const JSON_PARSE_CHAR_BUDGET = 2_000_000;
 
 interface CommandOutputProps {
   output?: string;
@@ -15,12 +22,16 @@ interface CommandOutputProps {
 
 type FormattedOutput = { kind: "json"; value: unknown; pretty: string } | { kind: "text"; display: string };
 
-/** Pretty-print JSON when the whole payload parses; leave plain text alone. */
+/**
+ * Pretty-print JSON when the whole payload parses; leave plain text alone.
+ * Payloads over JSON_PARSE_CHAR_BUDGET skip the parse and render as text.
+ */
 function formatOutput(output: string): FormattedOutput {
   const trimmed = output.trim();
   if (trimmed.length === 0 || (trimmed[0] !== "{" && trimmed[0] !== "[")) {
     return { kind: "text", display: output };
   }
+  if (trimmed.length > JSON_PARSE_CHAR_BUDGET) return { kind: "text", display: output };
 
   const parsed = tryParseJson(trimmed);
   if (parsed === null) return { kind: "text", display: output };
