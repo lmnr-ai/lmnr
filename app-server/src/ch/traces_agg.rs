@@ -12,21 +12,23 @@ use super::{
 };
 use crate::traces::input_extraction::metadata::USER_TASK_METADATA_KEY;
 
-/// Whether any partial exists for the trace. Cheap existence probe on the
-/// `(project_id, id)` primary key — no GROUP BY, since a trace is present iff it
-/// has at least one partial. Backs the `POST /v1/traces/metadata` 404 gate.
+/// Whether any partial exists for the trace. Existence probe on the
+/// `(project_id, id)` primary key: no GROUP BY (a trace is present iff it has at
+/// least one partial) and `SELECT 1 … LIMIT 1` so the scan short-circuits on the
+/// first match instead of counting every partial. `fetch_optional` maps "no row"
+/// to `None` rather than erroring. Backs the `POST /v1/traces/metadata` 404 gate.
 pub async fn trace_exists(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
     trace_id: Uuid,
 ) -> Result<bool> {
-    let count = clickhouse
-        .query("SELECT count() FROM traces_agg WHERE project_id = ? AND id = ? LIMIT 1")
+    let found = clickhouse
+        .query("SELECT 1 FROM traces_agg WHERE project_id = ? AND id = ? LIMIT 1")
         .bind(project_id)
         .bind(trace_id)
-        .fetch_one::<u64>()
+        .fetch_optional::<u8>()
         .await?;
-    Ok(count > 0)
+    Ok(found.is_some())
 }
 
 /// `statuses` Enum8 values; must match the DDL enum
