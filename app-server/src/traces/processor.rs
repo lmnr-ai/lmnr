@@ -286,11 +286,11 @@ pub async fn process_span_messages(
             })
         });
         if input.is_some() || output_hashes.is_some() {
-            let rollout_session_id = m
-                .span
-                .attributes
-                .metadata()
-                .and_then(|meta| meta.get(ROLLOUT_SESSION_METADATA_KEY)?.as_str().map(String::from));
+            let rollout_session_id = m.span.attributes.metadata().and_then(|meta| {
+                meta.get(ROLLOUT_SESSION_METADATA_KEY)?
+                    .as_str()
+                    .map(String::from)
+            });
             raw_trace_io.push(RawTraceIo {
                 project_id: m.span.project_id,
                 trace_id: m.span.trace_id,
@@ -814,7 +814,6 @@ pub async fn process_span_messages(
                 );
             }
         }
-
     };
 
     // Trace-new keys for search "first occurrence per trace" semantic.
@@ -900,12 +899,7 @@ pub async fn process_span_messages(
 
     // Must run AFTER the spans insert: triggers are decided from the in-memory
     // batch delta, but filters read the trace's cumulative state back out of
-    // ClickHouse `spans`, and the signal agent needs the span data too.
-    //
-    // Fed the per-batch deltas, NOT the Postgres-merged rows — signals must
-    // keep working once the Postgres trace aggregator is removed. Metadata
-    // patches produce no aggregation, so a patch-only flush evaluates nothing
-    // and can't spuriously refire a signal that already triggered.
+    // ClickHouse traces_agg, and the signal agent needs the span data too.
     crate::signals::check_and_push_signals(
         &trace_aggregations,
         &spans,
