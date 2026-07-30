@@ -5,7 +5,7 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::trace::Trace;
+use crate::ch::traces::TraceAggregation;
 
 pub const TRACE_BLOCK_TYPE: &str = "trace";
 pub const EVALUATION_BLOCK_TYPE: &str = "evaluation";
@@ -13,7 +13,7 @@ pub const EVALUATION_BLOCK_TYPE: &str = "evaluation";
 const SESSION_ID_METADATA_KEY: &str = "rollout.session_id";
 
 // `traces.type` DEFAULT (see `Into<u8> for TraceType` in `ch/spans.rs`).
-const DEFAULT_TRACE_TYPE: i16 = 0;
+const DEFAULT_TRACE_TYPE: u8 = 0;
 
 /// Deterministic block id: re-processing the same entity for the same session
 /// always lands on the same row, so ingest retries and repeated span flushes
@@ -140,37 +140,36 @@ fn session_id_from_metadata(metadata: Option<&Value>) -> Option<Uuid> {
         .and_then(|s| Uuid::parse_str(s).ok())
 }
 
-/// Upsert a `trace` block for every trace carrying the `rollout.session_id`
-/// metadata key. Best-effort: a failed upsert is logged and never fails ingest.
-pub async fn upsert_blocks_for_traces(pool: &PgPool, traces: &[Trace]) {
-    for trace in traces {
+/// Upsert a `trace` block for every trace whose per-batch span aggregation
+/// carries the `rollout.session_id` metadata key. Best-effort: a failed upsert
+/// is logged and never fails ingest.
+pub async fn upsert_blocks_for_traces(pool: &PgPool, aggregations: &[TraceAggregation]) {
+    for agg in aggregations {
         // Only DEFAULT traces become trace blocks (eval traces → evaluation blocks).
-        if trace.trace_type() != DEFAULT_TRACE_TYPE {
+        if agg.trace_type != DEFAULT_TRACE_TYPE {
             continue;
         }
 
-        let Some(session_id) = session_id_from_metadata(trace.metadata()) else {
+        let Some(session_id) = session_id_from_metadata(agg.metadata.as_ref()) else {
             continue;
         };
 
-        // Trace blocks are pure references — notes live only in standalone text
-        // blocks, not folded from trace `rollout.note` metadata.
-        let content = serde_json::json!({ "traceId": trace.id().to_string() });
+        let content = serde_json::json!({ "traceId": agg.trace_id.to_string() });
 
         if let Err(e) = upsert_block(
             pool,
-            &trace.project_id(),
+            &agg.project_id,
             &session_id,
             TRACE_BLOCK_TYPE,
-            &trace.id(),
+            &agg.trace_id,
             &content,
-            &trace.start_time().unwrap_or(Utc::now()),
+            &agg.start_time.unwrap_or_else(Utc::now),
         )
         .await
         {
             log::error!(
                 "Failed to upsert trace debugger session block. trace_id: {}, session_id: {}, error: {:?}",
-                trace.id(),
+                agg.trace_id,
                 session_id,
                 e
             );
