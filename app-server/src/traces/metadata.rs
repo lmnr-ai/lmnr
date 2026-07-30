@@ -26,10 +26,18 @@ use crate::{
     },
 };
 
+/// A post-factum metadata patch applied to a trace by the
+/// `POST /v1/traces/metadata` endpoint via a virtual metadata-only span.
+#[derive(Debug, Clone)]
+pub struct TraceMetadataPatch {
+    pub trace_id: Uuid,
+    pub project_id: Uuid,
+    pub metadata: Value,
+}
+
 /// Publish a virtual metadata-only span carrying `attributes` (which must
 /// already include the [`SPAN_METADATA_ONLY`] marker). The consumer routes
-/// it as a trace patch: not recorded to `spans`, no stats, creates a
-/// virtual trace row if the trace hasn't landed yet.
+/// it as a trace patch: not recorded to `spans`, no stats.
 ///
 /// Returns a boxed future: the user-task hook forms an async cycle
 /// (`publish_span_messages` → hook → here → `publish_span_messages`), so the

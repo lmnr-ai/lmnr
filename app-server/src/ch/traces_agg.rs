@@ -1,3 +1,4 @@
+use anyhow::Result;
 use clickhouse::Row;
 use clickhouse::insert::Insert;
 use serde::{Deserialize, Serialize};
@@ -9,8 +10,26 @@ use super::utils::chrono_to_nanoseconds;
 use super::{
     ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS, Table,
 };
-use crate::db::trace::Trace;
 use crate::traces::input_extraction::metadata::USER_TASK_METADATA_KEY;
+
+/// Whether any partial exists for the trace. Existence probe on the
+/// `(project_id, id)` primary key: no GROUP BY (a trace is present iff it has at
+/// least one partial) and `SELECT 1 … LIMIT 1` so the scan short-circuits on the
+/// first match instead of counting every partial. `fetch_optional` maps "no row"
+/// to `None` rather than erroring. Backs the `POST /v1/traces/metadata` 404 gate.
+pub async fn trace_exists(
+    clickhouse: &clickhouse::Client,
+    project_id: Uuid,
+    trace_id: Uuid,
+) -> Result<bool> {
+    let found = clickhouse
+        .query("SELECT 1 FROM traces_agg WHERE project_id = ? AND id = ? LIMIT 1")
+        .bind(project_id)
+        .bind(trace_id)
+        .fetch_optional::<u8>()
+        .await?;
+    Ok(found.is_some())
+}
 
 /// `statuses` Enum8 values; must match the DDL enum
 /// `Enum8('success' = 1, 'error' = 2)` in the traces_agg migration.
@@ -124,64 +143,44 @@ impl CHTraceAgg {
         }
     }
 
-    /// Build a partial row for a metadata patch (POST /v1/traces/metadata),
-    /// from the PG-merged trace row the patch UPDATE returned. All aggregates
-    /// are identities except: metadata (the full merged map, unversioned —
-    /// `maxMap`'s per-key value comparison is arbitrary from an application
-    /// standpoint, so this is best-effort, not LWW) and `num_spans` (+1,
-    /// matching the PG counter bump that pays for the virtual metadata-only
-    /// span). `now_ns` is the fallback timestamp.
+    /// Build a partial row for a metadata patch (`POST /v1/traces/metadata`)
+    /// straight from the patch. Every aggregate is an identity except
+    /// `metadata` (the patched object, unversioned — `maxMap`'s per-key value
+    /// comparison is arbitrary from an application standpoint, so this is
+    /// best-effort, not LWW) and `num_spans` (+1, paying for the virtual
+    /// metadata-only span that drove the patch).
     ///
-    /// A patch that beats the trace's real span batch creates a stub row with
-    /// `now()` placeholder start/end times (`Trace::is_stub`). In
-    /// `traces_replacing`, the later aggregation upsert explicitly discards a
-    /// stub's placeholder times before applying `LEAST`/`GREATEST`, so the
-    /// placeholder is harmless there. `traces_agg`'s `end_time` is a
-    /// `SimpleAggregateFunction(max, ...)` with no such correction — once a
-    /// too-late placeholder is merged in, no later, earlier, correct partial
-    /// can ever lower it back down. So for a stub row this emits `end_time =
-    /// 0` (the `max` identity) instead of the placeholder, making this
-    /// partial a no-op on `end_time` until a real span batch's own partial
-    /// supplies the true value.
+    /// `end_time` is `0`, the `max` identity: a patch learns nothing about the
+    /// trace's end, and `max` can never be lowered back down once a too-late
+    /// value merges in.
     ///
     /// `start_time` can't use the `min` identity (epoch 0 / `i64::MAX`) the
     /// same way: `traces_agg` is `PARTITION BY toYYYYMM(start_time)`, so an
     /// epoch or far-future value would land this partial in a different
-    /// partition than the real span batch's — and the two partials would
-    /// never merge together. Instead use `now_ns + 1h`: any real trace's
-    /// `start_time` is at or before ingest time, so `min` still always picks
-    /// the real value once it arrives, while staying in the same (or an
-    /// adjacent) monthly partition as `now_ns` so the merge is local.
-    pub fn from_patched_trace(trace: &Trace, now_ns: i64) -> Self {
-        const STUB_START_TIME_OFFSET_NS: i64 = 60 * 60 * 1_000_000_000;
-
-        let (start_time, end_time) = if trace.is_stub() {
-            (now_ns + STUB_START_TIME_OFFSET_NS, 0)
-        } else {
-            (
-                trace
-                    .start_time()
-                    .map(chrono_to_nanoseconds)
-                    .unwrap_or(now_ns),
-                trace
-                    .end_time()
-                    .map(chrono_to_nanoseconds)
-                    .unwrap_or(now_ns),
-            )
-        };
-
+    /// partition than the span batch's, and the two would never merge.
+    /// `start_time` is the caller's resolved trace start
+    /// (`processor::resolve_static_start_times`); with none resolvable it
+    /// passes `now_ns + 1h`, which is still a `min` no-op against any real
+    /// (past-or-present) start while staying in the same or an adjacent
+    /// monthly partition so the merge stays local.
+    pub fn from_metadata_patch(
+        project_id: Uuid,
+        trace_id: Uuid,
+        metadata: Option<&Value>,
+        start_time: i64,
+    ) -> Self {
         CHTraceAgg {
-            id: trace.id(),
-            project_id: trace.project_id(),
+            id: trace_id,
+            project_id,
             start_time,
-            end_time,
+            end_time: 0,
             input_tokens: 0,
             output_tokens: 0,
             total_tokens: 0,
             input_cost: 0.0,
             output_cost: 0.0,
             total_cost: 0.0,
-            metadata: encode_metadata(trace.metadata()),
+            metadata: encode_metadata(metadata),
             tags: Vec::new(),
             num_spans: 1,
             span_names: Vec::new(),
@@ -193,6 +192,11 @@ impl CHTraceAgg {
         }
     }
 }
+
+/// A patch that carries no resolvable trace start is nudged an hour past ingest
+/// time so it stays a `min` no-op while landing in the same or an adjacent
+/// monthly partition as the span batch's partial.
+pub const PATCH_START_TIME_OFFSET_NS: i64 = 60 * 60 * 1_000_000_000;
 
 impl ClickhouseInsertable for CHTraceAgg {
     const TABLE: Table = Table::TracesAgg;
@@ -211,62 +215,33 @@ impl ClickhouseInsertable for CHTraceAgg {
 
 #[cfg(test)]
 mod tests {
-    use chrono::Utc;
     use serde_json::json;
 
     use super::*;
 
+    // A patch learns nothing about the trace's end, so `end_time` must be the
+    // `max` identity — `max` can never be lowered again once a too-late value
+    // merges in. `start_time` takes the caller's resolved trace start so the
+    // partial lands in the span batch's partition.
     #[test]
-    fn from_patched_trace_stub_row_avoids_placeholder_times() {
-        // A patch that beats the real span batch creates a stub row
-        // (span_names still NULL) with `now()` placeholder start/end times.
-        // Those placeholders must never ride into traces_agg's min/max
-        // aggregates as-is — otherwise a too-late placeholder `end_time`
-        // would permanently inflate the aggregate via `max`, since no later,
-        // correct, earlier partial can ever lower it back down.
-        let now_ns = 1_000_000_000;
-        let trace = Trace::test_new(
+    fn metadata_patch_uses_max_identity_end_and_the_resolved_start() {
+        let resolved_start = 1_700_000_000_000_000_000;
+        let row = CHTraceAgg::from_metadata_patch(
             Uuid::new_v4(),
             Uuid::new_v4(),
-            Some(Utc::now()),
-            Some(Utc::now()),
-            None, // span_names: None => stub
+            Some(&json!({"k": "v"})),
+            resolved_start,
         );
-        assert!(trace.is_stub());
-
-        let row = CHTraceAgg::from_patched_trace(&trace, now_ns);
-        // end_time uses the true `max` identity: harmless no-op until a real
-        // span batch supplies the actual value.
         assert_eq!(row.end_time, 0, "max identity for end_time");
-        // start_time can't use the `min` identity (epoch/i64::MAX) because
-        // traces_agg partitions on toYYYYMM(start_time) — an epoch or
-        // far-future value would land this partial in a different partition
-        // than the real span batch's, and the two would never merge. Instead
-        // it's nudged 1h into the future of ingest time: still a `min`
-        // no-op against any real (past-or-present) start_time, while staying
-        // in the same/adjacent monthly partition.
-        assert_eq!(row.start_time, now_ns + 60 * 60 * 1_000_000_000);
-    }
-
-    #[test]
-    fn from_patched_trace_real_row_keeps_its_times() {
-        // A patch against an already-real row (span_names populated by a
-        // prior aggregation upsert) must propagate the real times verbatim —
-        // only the stub case is special-cased.
-        let start = Utc::now();
-        let end = Utc::now();
-        let trace = Trace::test_new(
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            Some(start),
-            Some(end),
-            Some(json!({"some_span": true})),
-        );
-        assert!(!trace.is_stub());
-
-        let row = CHTraceAgg::from_patched_trace(&trace, 0);
-        assert_eq!(row.start_time, chrono_to_nanoseconds(start));
-        assert_eq!(row.end_time, chrono_to_nanoseconds(end));
+        assert_eq!(row.start_time, resolved_start);
+        // The +1 pays for the virtual metadata-only span that drove the patch.
+        assert_eq!(row.num_spans, 1);
+        // Every other aggregate is an identity.
+        assert_eq!(row.total_tokens, 0);
+        assert_eq!(row.total_cost, 0.0);
+        assert!(row.statuses.is_empty());
+        assert!(row.trace_types.is_empty());
+        assert!(row.span_names.is_empty());
     }
 
     #[test]
