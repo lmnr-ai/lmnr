@@ -157,4 +157,34 @@ mod tests {
             std::env::remove_var("RABBITMQ_STREAM_REPLICATION_FACTOR");
         }
     }
+
+    /// `max-length-bytes` is applied PER PARTITION, so the disk the defaults can
+    /// occupy is the PRODUCT. At RF=3 every node holds every partition, so that
+    /// product has to fit ONE node's free disk (~250 GB of the prod 400 GiB NVMe
+    /// after the `disk_free_limit` floor and quorum-queue headroom). Retention is
+    /// creation-only, so an oversized default is not fixable by a redeploy.
+    #[test]
+    fn default_retention_budget_fits_one_prod_node() {
+        const USABLE_BYTES_PER_NODE: u64 = 250 * 1000 * 1000 * 1000;
+
+        let topology = StreamTopology::from_env();
+        let total = topology.max_length_bytes * topology.partitions as u64;
+
+        assert!(
+            total <= USABLE_BYTES_PER_NODE,
+            "default retention budget is {} GiB ({} partitions x {} GiB), which exceeds one prod node's usable disk",
+            total / 1024 / 1024 / 1024,
+            topology.partitions,
+            topology.max_length_bytes / 1024 / 1024 / 1024,
+        );
+
+        // Retention only ever drops whole CLOSED segments, so a segment that is a
+        // large fraction of the per-partition cap makes expiry coarse.
+        assert!(
+            topology.max_segment_size_bytes * 10 <= topology.max_length_bytes,
+            "segment size {} MB is too coarse against the {} MB per-partition cap",
+            topology.max_segment_size_bytes / 1024 / 1024,
+            topology.max_length_bytes / 1024 / 1024,
+        );
+    }
 }

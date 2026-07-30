@@ -41,20 +41,25 @@ pub const LOAD_BALANCER_MODE: BoolEnv = BoolEnv::new("RABBITMQ_STREAM_LOAD_BALAN
 /// migration, never an in-place edit. Size ≥ max consumer pod count.
 pub const PARTITIONS: NumEnv<usize> = NumEnv::new("RABBITMQ_STREAM_PARTITIONS", 128);
 
-/// Per-partition retention. Both are evaluated per closed SEGMENT, and
-/// retention IGNORES consumer offsets — segments a lagging group never read are
-/// still deleted, silently. Size `MAX_LENGTH_BYTES` against real node disk:
-/// with RF=3 every node holds every partition, so cluster stream capacity is
-/// ONE node's free disk, not the sum. 32 × 7 GiB ≈ 224 GiB fits the prod
-/// 400 GiB NVMe minus the `disk_free_limit` floor and quorum-queue headroom.
+/// Retention, applied PER PARTITION (the creator passes one option map to every
+/// partition), so the disk the super stream can occupy is
+/// `PARTITIONS × MAX_LENGTH_BYTES` — raising either multiplies the total. Both
+/// limits are evaluated per closed SEGMENT, and retention IGNORES consumer
+/// offsets: segments a lagging group never read are still deleted, silently.
+///
+/// Size the PRODUCT against real node disk: with RF=3 every node holds every
+/// partition, so cluster stream capacity is ONE node's free disk, not the sum.
+/// The prod 400 GiB NVMe leaves ~250 GB after the `disk_free_limit` floor and
+/// quorum-queue headroom, so 128 × 1.75 GiB ≈ 224 GiB — about 60 minutes of the
+/// 4 GB/min peak. Keep that product under ~224 GiB when changing either value.
 pub const MAX_LENGTH_BYTES: NumEnv<u64> =
-    NumEnv::new("RABBITMQ_STREAM_MAX_LENGTH_BYTES", 7_516_192_768);
+    NumEnv::new("RABBITMQ_STREAM_MAX_LENGTH_BYTES", 1_879_048_192);
 pub const MAX_AGE_SECS: NumEnv<u64> = NumEnv::new("RABBITMQ_STREAM_MAX_AGE_SECS", 43_200);
 /// Smaller than the 500 MB broker default: retention only ever drops whole
-/// closed segments, so 100 MB keeps expiry granularity fine relative to the
-/// 7 GiB per-partition cap.
+/// closed segments, so 25 MB keeps expiry granularity fine relative to the
+/// 1.75 GiB per-partition cap.
 pub const MAX_SEGMENT_SIZE_BYTES: NumEnv<u64> =
-    NumEnv::new("RABBITMQ_STREAM_MAX_SEGMENT_SIZE_BYTES", 104_857_600);
+    NumEnv::new("RABBITMQ_STREAM_MAX_SEGMENT_SIZE_BYTES", 26_214_400);
 
 /// Replicas per partition, applied at creation via `x-initial-cluster-size`.
 /// 3 (default) = every node holds every partition: survives node loss, but
