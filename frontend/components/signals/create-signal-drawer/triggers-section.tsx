@@ -225,7 +225,7 @@ function FilterRow({ index, onRemove }: { index: number; onRemove: () => void })
           )
         }
       />
-      <Button aria-label="Close" type="button" variant="ghost" size="icon" onClick={onRemove}>
+      <Button aria-label="Remove trigger" type="button" variant="ghost" size="icon" onClick={onRemove}>
         <X className="w-3.5 h-3.5" />
       </Button>
     </div>

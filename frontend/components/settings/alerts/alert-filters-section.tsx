@@ -153,7 +153,7 @@ function FilterConditionRow({
           )
         }
       />
-      <Button aria-label="Close" type="button" variant="ghost" size="icon" onClick={onRemove}>
+      <Button aria-label="Remove filter" type="button" variant="ghost" size="icon" onClick={onRemove}>
         <X className="w-3.5 h-3.5" />
       </Button>
     </div>

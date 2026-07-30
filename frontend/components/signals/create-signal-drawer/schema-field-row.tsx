@@ -120,7 +120,7 @@ export default function SchemaFieldRow({
           )}
         />
         <Button
-          aria-label="Close"
+          aria-label="Remove field"
           type="button"
           variant="ghost"
           onClick={onRemove}

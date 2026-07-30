@@ -73,7 +73,7 @@ export default function StructuredOutputSheet({
           </Button>
         </SheetTrigger>
         <Button
-          aria-label="Close"
+          aria-label="Clear structured output"
           onClick={() => setValue("structuredOutput", undefined)}
           className="size-7"
           variant="outlinePrimary"
