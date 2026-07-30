@@ -1,3 +1,4 @@
+import { computeScoreAggregates } from "@/lib/evaluation/aggregation";
 import { type EvaluationScoreDistributionBucket, type EvaluationScoreStatistics } from "@/lib/evaluation/types";
 
 // Constants for distribution calculation
@@ -16,14 +17,21 @@ export function calculateScoreStatistics(
     })
     .filter((score): score is number => typeof score === "number" && !isNaN(score));
 
-  if (scores.length === 0) {
+  const agg = computeScoreAggregates(scores);
+  if (!agg) {
     return { averageValue: 0 };
   }
 
-  const sum = scores.reduce((acc, score) => acc + score, 0);
-  const averageValue = sum / scores.length;
-
-  return { averageValue };
+  return {
+    averageValue: agg.avg,
+    min: agg.min,
+    max: agg.max,
+    sum: agg.sum,
+    median: agg.median,
+    p90: agg.p90,
+    p95: agg.p95,
+    p99: agg.p99,
+  };
 }
 
 // Helper function to calculate score distribution
@@ -57,8 +65,8 @@ export function calculateScoreDistribution(
   // All scores are the same value. This branch only fires when that value sits
   // at the lower bound (<= 0, since lowerBound = min(value, 0)), e.g. a binary
   // score filtered to `= 0`. Put the mass in the FIRST bucket — the last bucket
-  // is the "positive"/high end, so dumping all-zero rows there makes
-  // `binaryCounts` report a 100% positive rate instead of 0%.
+  // is the "positive"/high end, so dumping all-zero rows there would misrepresent
+  // an all-fail run as all-pass in the histogram.
   if (lowerBound === upperBound) {
     const buckets: EvaluationScoreDistributionBucket[] = Array.from({ length: DEFAULT_BUCKET_COUNT }, () => ({
       lowerBound,
