@@ -42,6 +42,30 @@ export function computeScoreAggregates(values: number[]): Record<ScoreAggregatio
 }
 
 // Single-aggregation convenience (the group progression picks one fn per run+score).
+// avg/sum/min/max stay O(n) with no allocation; only quantiles pay the sort.
 export function aggregateScore(values: number[], fn: ScoreAggregation): number | undefined {
-  return computeScoreAggregates(values)?.[fn];
+  if (values.length === 0) return undefined;
+  switch (fn) {
+    case "avg":
+    case "sum": {
+      let sum = 0;
+      for (const v of values) sum += v;
+      return fn === "avg" ? sum / values.length : sum;
+    }
+    case "min": {
+      let m = values[0];
+      for (const v of values) if (v < m) m = v;
+      return m;
+    }
+    case "max": {
+      let m = values[0];
+      for (const v of values) if (v > m) m = v;
+      return m;
+    }
+    default: {
+      // median / p90 / p95 / p99 need order.
+      const sorted = [...values].sort((a, b) => a - b);
+      return quantile(sorted, QUANTILE_FOR[fn]);
+    }
+  }
 }
