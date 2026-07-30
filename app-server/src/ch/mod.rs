@@ -32,7 +32,7 @@ use serde::Serialize;
 use crate::db::workspaces::WorkspaceDeployment;
 
 /// Cap for CH's adaptive `async_insert_busy_timeout` on the hot ingest tables
-/// (`spans`, `traces_replacing`, `deduped_content`). Read once from
+/// (`spans`, `traces_agg`, `traces_static`, `deduped_content`). Read once from
 /// `SPANS_CH_WAIT_FOR_ASYNC_INSERT_MS`, defaults to 400 ms when unset OR set to
 /// an empty string (common with k8s ConfigMap keys whose values aren't filled in).
 pub static SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS: LazyLock<String> =
@@ -59,7 +59,6 @@ pub static INSERT_END_TIMEOUT: LazyLock<Option<Duration>> = LazyLock::new(|| {
 #[serde(rename_all = "snake_case")]
 pub enum Table {
     Spans,
-    Traces,
     TracesAgg,
     TracesStatic,
     NotificationDeliveries,
@@ -71,7 +70,6 @@ impl Table {
     pub const fn as_str(&self) -> &'static str {
         match self {
             Table::Spans => "spans",
-            Table::Traces => "traces_replacing",
             Table::TracesAgg => "traces_agg",
             Table::TracesStatic => "traces_static",
             Table::NotificationDeliveries => "notification_deliveries",

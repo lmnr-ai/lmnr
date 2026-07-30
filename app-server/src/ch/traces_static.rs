@@ -331,8 +331,6 @@ mod tests {
             trace_type: 0,
             has_browser_session: None,
             span_names: HashSet::new(),
-            root_span_input: None,
-            root_span_output: None,
         }
     }
 
