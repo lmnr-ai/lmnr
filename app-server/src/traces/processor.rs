@@ -41,8 +41,8 @@ use crate::{
         input_extraction::metadata::USER_TASK_METADATA_KEY,
         provider::convert_span_to_provider_format,
         realtime::{
-            RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_trace,
-            send_span_updates, send_trace_updates,
+            RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_aggregation,
+            send_agent_input_update, send_span_updates, send_trace_updates,
         },
         span_attributes::{SPAN_TRACE_INPUT, SPAN_TRACE_OUTPUT_HASHES},
         spans::SpanUsage,
@@ -54,6 +54,8 @@ use crate::{
 };
 
 const MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES: usize = 5120; // 5KB
+
+const ROLLOUT_SESSION_METADATA_KEY: &str = "rollout.session_id";
 
 /// Billed bytes for one field (input or output) of one span. Input and output
 /// are accounted identically (both are excluded from
@@ -123,6 +125,9 @@ struct RawTraceIo {
     trace_id: Uuid,
     input: Option<Value>,
     output_hashes: Option<Vec<[u8; 32]>>,
+    /// Stamped by the extraction façade; routes the agent_input event to the
+    /// debugger channel.
+    rollout_session_id: Option<String>,
 }
 
 /// Resolves each trace's `start_time` for the non-span `traces_static` writes
@@ -281,11 +286,17 @@ pub async fn process_span_messages(
             })
         });
         if input.is_some() || output_hashes.is_some() {
+            let rollout_session_id = m
+                .span
+                .attributes
+                .metadata()
+                .and_then(|meta| meta.get(ROLLOUT_SESSION_METADATA_KEY)?.as_str().map(String::from));
             raw_trace_io.push(RawTraceIo {
                 project_id: m.span.project_id,
                 trace_id: m.span.trace_id,
                 input,
                 output_hashes,
+                rollout_session_id,
             });
             continue;
         }
@@ -343,16 +354,10 @@ pub async fn process_span_messages(
         });
     }
 
-    // Extracted input threaded to the realtime dispatch so it shows live, NOT via
-    // the deprecated `lmnr_user_task` fold. `to_string()` matches `traces_v0.agent_input`.
-    let agent_input_by_trace: HashMap<(Uuid, Uuid), String> = raw_trace_io
-        .iter()
-        .filter_map(|io| {
-            io.input
-                .as_ref()
-                .map(|v| ((io.project_id, io.trace_id), v.to_string()))
-        })
-        .collect();
+    // Live agent_input — the stat delta can't carry it (extraction is async).
+    if env::clickhouse::WRITE_TRACES_AGG.get() {
+        dispatch_input_realtime_updates(&raw_trace_io, cache.clone(), &pubsub).await;
+    }
 
     // Enrich spans with usage info
     let mut span_usage_vec = Vec::with_capacity(messages.len());
@@ -706,13 +711,7 @@ pub async fn process_span_messages(
 
             debugger_session_blocks::upsert_blocks_for_traces(&db.pool, &updated_traces).await;
 
-            dispatch_trace_realtime_updates(
-                &updated_traces,
-                &agent_input_by_trace,
-                cache.clone(),
-                &pubsub,
-            )
-            .await;
+            dispatch_trace_realtime_updates(&trace_aggregations, cache.clone(), &pubsub).await;
         }
 
         // Dual-write partial rows to `traces_agg` (AggregatingMergeTree,
@@ -1079,12 +1078,11 @@ pub async fn process_span_messages(
 }
 
 async fn dispatch_trace_realtime_updates(
-    traces: &[Trace],
-    agent_input_by_trace: &HashMap<(Uuid, Uuid), String>,
+    aggregations: &[TraceAggregation],
     cache: Arc<Cache>,
     pubsub: &PubSub,
 ) {
-    if traces.is_empty() {
+    if aggregations.is_empty() {
         return;
     }
 
@@ -1092,31 +1090,26 @@ async fn dispatch_trace_realtime_updates(
     let mut evaluation_buckets: HashMap<(Uuid, Uuid), Vec<RealtimeTrace>> = HashMap::new();
     let mut debugger_buckets: HashMap<(Uuid, String), Vec<RealtimeDebuggerTrace>> = HashMap::new();
 
-    for trace in traces {
-        // Only present on the flush where extraction landed; None otherwise. The
-        // frontend guards against an empty value clobbering a populated one.
-        let agent_input = agent_input_by_trace
-            .get(&(trace.project_id(), trace.id()))
-            .cloned();
-        for channel in channels_for_trace(trace, cache.as_ref()).await {
+    for agg in aggregations {
+        for channel in channels_for_aggregation(agg, cache.as_ref()).await {
             match channel {
                 TraceChannel::Project => {
                     project_buckets
-                        .entry(trace.project_id())
+                        .entry(agg.project_id)
                         .or_default()
-                        .push(RealtimeTrace::from_trace(trace, agent_input.clone()));
+                        .push(RealtimeTrace::from_aggregation(agg));
                 }
                 TraceChannel::Evaluation(evaluation_id) => {
                     evaluation_buckets
-                        .entry((trace.project_id(), evaluation_id))
+                        .entry((agg.project_id, evaluation_id))
                         .or_default()
-                        .push(RealtimeTrace::from_trace(trace, agent_input.clone()));
+                        .push(RealtimeTrace::from_aggregation(agg));
                 }
                 TraceChannel::RolloutDebugger(rollout_session_id) => {
                     debugger_buckets
-                        .entry((trace.project_id(), rollout_session_id))
+                        .entry((agg.project_id, rollout_session_id))
                         .or_default()
-                        .push(RealtimeDebuggerTrace::from_trace(trace, agent_input.clone()));
+                        .push(RealtimeDebuggerTrace::from_aggregation(agg));
                 }
             }
         }
@@ -1132,6 +1125,23 @@ async fn dispatch_trace_realtime_updates(
     for ((project_id, rollout_session_id), traces_data) in debugger_buckets {
         let key = format!("rollout_session_{}", rollout_session_id);
         send_trace_updates(&project_id, &key, &traces_data, pubsub).await;
+    }
+}
+
+/// Dispatch each trace's extracted agent_input to its realtime channels.
+async fn dispatch_input_realtime_updates(io: &[RawTraceIo], cache: Arc<Cache>, pubsub: &PubSub) {
+    for entry in io {
+        if let Some(value) = &entry.input {
+            send_agent_input_update(
+                pubsub,
+                cache.as_ref(),
+                &entry.project_id,
+                entry.trace_id,
+                value,
+                entry.rollout_session_id.as_deref(),
+            )
+            .await;
+        }
     }
 }
 
@@ -1268,6 +1278,7 @@ mod tests {
                 trace_id,
                 input: Some(json!("the task")),
                 output_hashes: None,
+                rollout_session_id: None,
             }],
             &resolved,
             999,
@@ -1282,6 +1293,7 @@ mod tests {
                 trace_id,
                 input: Some(json!("the task")),
                 output_hashes: None,
+                rollout_session_id: None,
             }],
             &HashMap::new(),
             999,
