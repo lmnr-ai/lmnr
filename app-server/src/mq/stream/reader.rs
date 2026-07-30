@@ -43,12 +43,20 @@
 //! incoming batchers ordered, and it advances only once the broker CONFIRMS a
 //! store, so a failed store stays retryable.
 //!
+//! Revocation gates the FLUSH too, not just the store: `flush_and_commit`
+//! discards batched records for deactivated partitions together with their
+//! pending offsets, so the successor's replay is the only write. Flushing them
+//! while the store is refused would double-write the held backlog on every
+//! handover. The revoked set is a per-flush snapshot; a revocation landing
+//! mid-flush still duplicates at most that one in-flight batch, with the
+//! read-guard fence in `store_offsets` as the backstop.
+//!
 //! A skipped record still forwards its OFFSET to the batcher (as a
 //! `StreamDelivery` with `message: None`). Skipping the offset too would pin the
 //! partition whenever its tail is poison: nothing later would ever store a higher
 //! offset, so every reconnect would re-read and re-log the same records.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 
@@ -215,8 +223,8 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                     // Deactivated: the successor — possibly in another pod — owns
                     // this partition now and its committed position is
                     // authoritative. Mark the partition revoked so our still-
-                    // draining batcher cannot store an offset for it and rewind the
-                    // group. Whatever it holds is replayed by the new owner
+                    // draining batcher neither flushes its held records for it nor
+                    // stores an offset — the new owner replays them instead
                     // (at-least-once, consistent with the queue path).
                     // Awaits the write guard, so it cannot land while a store for
                     // this partition is mid-flight under the read guard.
@@ -490,7 +498,9 @@ async fn run_batcher<H: StreamBatchHandler>(
     client: Client,
     consumer_name: &'static str,
 ) {
-    let mut batch: Vec<H::Message> = Vec::new();
+    // Each record keeps its partition name so a flush can discard work for
+    // partitions revoked after it was batched.
+    let mut batch: Vec<(String, H::Message)> = Vec::new();
     // Accumulated `message_weight`, not `batch.len()` — see the trait doc.
     let mut batch_weight = 0usize;
     let mut pending_offsets = PendingOffsets::default();
@@ -503,17 +513,17 @@ async fn run_batcher<H: StreamBatchHandler>(
             received = rx.recv() => {
                 match received {
                     Some(delivery) => {
+                        if let Some(message) = delivery.message {
+                            batch_weight += H::message_weight(&message);
+                            batch.push((delivery.stream.clone(), message));
+                        }
+
                         // Recorded even for a skipped record (`message: None`), so
                         // its offset advances with the next flush. Without this a
                         // trailing poison record would leave the partition pinned
                         // forever, re-dead-lettering the same offsets on every
                         // reconnect.
                         pending_offsets.record(delivery.stream, delivery.offset);
-
-                        if let Some(message) = delivery.message {
-                            batch_weight += H::message_weight(&message);
-                            batch.push(message);
-                        }
 
                         // A skipped record still needs its offset committed, and
                         // an all-skipped stretch never fills the batch — so flush
@@ -594,21 +604,41 @@ async fn flush_and_commit<H: StreamBatchHandler>(
     handler: &Arc<H>,
     client: &Client,
     consumer_name: &'static str,
-    batch: &mut Vec<H::Message>,
+    batch: &mut Vec<(String, H::Message)>,
     batch_weight: &mut usize,
     pending_offsets: &mut PendingOffsets,
 ) {
-    let messages = std::mem::take(batch);
+    let mut entries = std::mem::take(batch);
     *batch_weight = 0;
-    let offsets = pending_offsets.take();
+    let mut offsets = pending_offsets.take();
 
-    if messages.is_empty() {
+    // Snapshot only — holding the read guard across the flush await would block
+    // `consumer_update`'s write for the length of a ClickHouse insert. The fence
+    // in `store_offsets` stays authoritative for a revocation landing mid-flush.
+    let revoked = REVOKED_PARTITIONS
+        .read()
+        .await
+        .get(consumer_name)
+        .cloned()
+        .unwrap_or_default();
+    let dropped = discard_revoked_entries(&revoked, &mut entries, &mut offsets);
+    if dropped > 0 {
+        log::info!(
+            "Stream batcher {} discarding {} batched records for revoked partitions; the new owner replays them",
+            index,
+            dropped
+        );
+    }
+
+    if entries.is_empty() {
         // Nothing to process, but there may be offsets from dead-lettered records
         // to commit — that's what unpins a partition whose tail is all poison.
         // Fall through to the store loop rather than returning.
         store_offsets(index, client, consumer_name, offsets).await;
         return;
     }
+
+    let messages: Vec<H::Message> = entries.into_iter().map(|(_, message)| message).collect();
 
     // No `max_elapsed_time`: transient retries are unbounded (see fn docs).
     let backoff = ExponentialBackoffBuilder::new()
@@ -668,6 +698,25 @@ async fn flush_and_commit<H: StreamBatchHandler>(
     store_offsets(index, client, consumer_name, offsets).await;
 }
 
+/// Drop batched records and their pending offsets for revoked partitions, as one
+/// operation. The pairing is the invariant: storing offsets for dropped records
+/// would make the successor skip them (loss), while flushing records whose
+/// offsets are refused would double-write them. Returns how many records were
+/// dropped.
+fn discard_revoked_entries<M>(
+    revoked: &HashSet<String>,
+    batch: &mut Vec<(String, M)>,
+    offsets: &mut HashMap<String, u64>,
+) -> usize {
+    if revoked.is_empty() {
+        return 0;
+    }
+    let before = batch.len();
+    batch.retain(|(stream, _)| !revoked.contains(stream));
+    offsets.retain(|stream, _| !revoked.contains(stream));
+    before - batch.len()
+}
+
 /// Commit one offset per partition. Best-effort: a lost store just replays those
 /// records after a restart, so it never fails the batch.
 ///
@@ -696,8 +745,9 @@ async fn store_offsets(
         // Ownership first: once the broker has deactivated us for this partition
         // the successor owns it, possibly in ANOTHER POD, so no local offset
         // comparison can tell us whether our store is stale. Not storing at all is
-        // the only sound answer — the records we hold are simply replayed by the
-        // successor (at-least-once, as everywhere else here).
+        // the only sound answer. `flush_and_commit` already discards revoked work
+        // at its snapshot; this fence catches a revocation that landed while the
+        // flush was in flight.
         //
         // Held for the whole check-and-store so revocation can't interleave.
         let ownership = REVOKED_PARTITIONS.read().await;
@@ -1222,6 +1272,45 @@ mod tests {
             .await
             .get(consumer_name)
             .is_some_and(|streams| streams.contains(stream))
+    }
+
+    /// Records for a revoked partition must be dropped WITH their offsets: the
+    /// successor replays from its stored position, so flushing them would
+    /// double-write the held backlog, while storing their offsets without
+    /// flushing would make the successor skip them — loss.
+    #[test]
+    fn discard_revoked_drops_records_and_offsets_together() {
+        let revoked: HashSet<String> = ["p-0".to_string()].into();
+        let mut batch = vec![
+            ("p-0".to_string(), 1u8),
+            ("p-1".to_string(), 2u8),
+            ("p-0".to_string(), 3u8),
+        ];
+        let mut offsets = HashMap::from([("p-0".to_string(), 30u64), ("p-1".to_string(), 7u64)]);
+
+        let dropped = discard_revoked_entries(&revoked, &mut batch, &mut offsets);
+
+        assert_eq!(dropped, 2);
+        assert_eq!(batch, vec![("p-1".to_string(), 2u8)]);
+        assert!(
+            !offsets.contains_key("p-0"),
+            "a dropped record's offset must never be stored"
+        );
+        assert_eq!(offsets.get("p-1"), Some(&7));
+    }
+
+    #[test]
+    fn discard_revoked_is_a_no_op_without_revocations() {
+        let revoked = HashSet::new();
+        let mut batch = vec![("p-0".to_string(), 1u8)];
+        let mut offsets = HashMap::from([("p-0".to_string(), 5u64)]);
+
+        assert_eq!(
+            discard_revoked_entries(&revoked, &mut batch, &mut offsets),
+            0
+        );
+        assert_eq!(batch.len(), 1);
+        assert_eq!(offsets.len(), 1);
     }
 
     #[tokio::test]
