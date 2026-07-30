@@ -340,6 +340,34 @@ export const createDebuggerSessionViewStore = (options: {
         const pendingAgentInputById = new Map<string, string>();
         const stringifyAgentInput = (v: unknown): string => (typeof v === "string" ? v : JSON.stringify(v));
 
+        // Deltas that arrived before the blocks index landed. While `blocks` is
+        // empty we can't tell a genuinely-new run from a pre-existing one whose
+        // block hasn't arrived, so seeding could show wrong-low totals — but
+        // DROPPING loses the run outright when it's new AND the index snapshot
+        // predates its block upsert (trace blocks have no `block_update` path,
+        // so a later delta is the only other chance and a finished run sends
+        // none). Buffer instead, accumulating per trace so no batch is lost, and
+        // let `flushPreIndexDeltas` decide once the index can answer "new?".
+        const preIndexDeltasByTraceId = new Map<string, RealtimeTracePayload[]>();
+
+        // Replay buffered deltas now that the index can answer "is this run new
+        // to the session?". A trace the index DID return is pre-existing: its
+        // earlier batches predate us, so its buffered deltas are partial and get
+        // discarded (ensureTraceRows fetches cumulative totals on scroll). A
+        // trace the index did NOT return is genuinely new — replay every
+        // buffered batch in arrival order so the seeded row's totals are
+        // complete. Must run AFTER `isInitialTracesLoaded` flips, or the replay
+        // re-buffers itself.
+        const flushPreIndexDeltas = (indexedTraceIds: Set<string>) => {
+          if (preIndexDeltasByTraceId.size === 0) return;
+          const buffered = [...preIndexDeltasByTraceId.entries()];
+          preIndexDeltasByTraceId.clear();
+          for (const [traceId, deltas] of buffered) {
+            if (indexedTraceIds.has(traceId)) continue;
+            for (const delta of deltas) get().applyTraceUpdate(delta);
+          }
+        };
+
         // Lazy trace-row batching: the loader owns the pending set / debounce /
         // chunking; the store owns only the merge + state marks below.
         const rowLoader = createIdBatchLoader<TraceRow>({
@@ -474,6 +502,11 @@ export const createDebuggerSessionViewStore = (options: {
 
             get().setIsTracesLoading(true);
             get().setTracesError(undefined);
+            // Trace ids the index returned — drives the buffered-delta replay in
+            // the `finally`. Stays empty when the fetch fails, so every buffered
+            // run is treated as new (better a possibly-partial row than a
+            // silently missing run; ensureTraceRows still corrects it).
+            let indexedTraceIds = new Set<string>();
             try {
               const res = await fetch(`/api/projects/${projectId}/debugger-sessions/${sessionId}/blocks`);
               if (!res.ok) {
@@ -490,6 +523,7 @@ export const createDebuggerSessionViewStore = (options: {
               // rows/states already present (realtime, prior scroll) stay valid.
               const fetchedTraceIds = new Set(fetchedBlocks.flatMap((b) => (b.type === "trace" ? [b.traceId] : [])));
               const fetchedBlockIds = new Set(fetchedBlocks.map((b) => b.id));
+              indexedTraceIds = fetchedTraceIds;
               set((s) => {
                 // Preserve blocks added by realtime while the fetch was in flight
                 // (server snapshot predates them). Traces dedupe by traceId (their
@@ -507,6 +541,8 @@ export const createDebuggerSessionViewStore = (options: {
               get().setIsTracesLoading(false);
               // Even on error, so a failed initial fetch can't suppress the pill forever.
               set({ isInitialTracesLoaded: true } as Partial<DebuggerSessionViewStore>);
+              // AFTER the flag flips, or the replayed deltas re-buffer themselves.
+              flushPreIndexDeltas(indexedTraceIds);
             }
           },
 
@@ -610,12 +646,21 @@ export const createDebuggerSessionViewStore = (options: {
             // session, false for a known block whose row was never lazily
             // loaded (its earlier batches predate us, so seeding would show
             // wrong-low totals AND mark the row loaded, so ensureTraceRows
-            // never corrects it). Until the blocks index has loaded, an empty
-            // `blocks` can't prove "new" — drop; later deltas seed or merge
-            // once the index lands. Same drop for a known block. Only a
-            // "missing" row (absent from ClickHouse) has no fetch to wait for,
-            // so realtime is its sole source.
-            if ((!get().isInitialTracesLoaded || existingBlock) && rowState !== "missing") return;
+            // never corrects it). For the latter, DROP: the row loads via
+            // ensureTraceRows on scroll with cumulative totals that already
+            // include this batch. Only a "missing" row (absent from ClickHouse)
+            // has no fetch to wait for, so realtime is its sole source.
+            if (rowState !== "missing") {
+              // Index not in yet: an empty `blocks` can't prove "new", so defer
+              // the decision rather than guessing (see preIndexDeltasByTraceId).
+              if (!get().isInitialTracesLoaded) {
+                const buffered = preIndexDeltasByTraceId.get(traceId);
+                if (buffered) buffered.push(delta);
+                else preIndexDeltasByTraceId.set(traceId, [delta]);
+                return;
+              }
+              if (existingBlock) return;
+            }
 
             const pendingInput = pendingAgentInputById.get(traceId);
             pendingAgentInputById.delete(traceId);
