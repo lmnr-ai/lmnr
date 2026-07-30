@@ -207,6 +207,12 @@ interface DebuggerSessionViewState {
   // skeleton. Expand always refetches, so a failed fetch heals on re-expand.
   traceSpansFetching: Record<string, boolean>;
 
+  // Traces whose row was seeded from realtime deltas rather than fetched. Their
+  // start/end only span the batches we witnessed, so a span fetch must NOT be
+  // bounded by them — earlier persisted spans would fall outside the window.
+  // Cleared once a fetched (cumulative) row replaces the seed.
+  realtimeSeededTraceIds: Set<string>;
+
   // Displayed session name used by the BREADCRUMB. Seeded from the breadcrumb prop
   // (`name ?? id`) at store creation; updated live by the `session_update` realtime
   // event so a rename reflects without reload.
@@ -362,9 +368,18 @@ export const createDebuggerSessionViewStore = (options: {
               for (const id of requestedIds) {
                 nextStates[id] = rowsById.has(id) || localIds.has(id) ? "loaded" : "missing";
               }
+              // A fetched row carries cumulative times, so it supersedes the
+              // seed and its bounds are safe to fetch spans by again.
+              let seeded: Set<string> | null = null;
+              for (const id of rowsById.keys()) {
+                if (!s.realtimeSeededTraceIds.has(id)) continue;
+                if (!seeded) seeded = new Set(s.realtimeSeededTraceIds);
+                seeded.delete(id);
+              }
               return {
                 traceRowStates: nextStates,
                 traces: upsertTraceRows(s.traces, [...rowsById.values()]),
+                ...(seeded ? { realtimeSeededTraceIds: seeded } : {}),
               } as Partial<DebuggerSessionViewStore>;
             }),
           onError: (requestedIds) =>
@@ -392,6 +407,7 @@ export const createDebuggerSessionViewStore = (options: {
           sessionName: options.initialSessionName ?? "Session",
           sessionNameRaw: options.initialSessionNameRaw ?? null,
           traceSpansFetching: {},
+          realtimeSeededTraceIds: new Set<string>(),
           newBlockNotice: null,
           isInitialTracesLoaded: false,
           expandedCommandBlockIds: new Set<string>(),
@@ -411,10 +427,17 @@ export const createDebuggerSessionViewStore = (options: {
             try {
               const { projectId } = get();
               if (!projectId) return;
+              // A realtime-seeded row's times cover only the batches we saw, so
+              // bounding by them would hide spans persisted before we
+              // subscribed. Omitting both dates drops the time predicate
+              // entirely; `trace_id` is what prunes the scan either way.
               const spanParams = new URLSearchParams();
-              spanParams.set("startDate", new Date(new Date(trace.startTime).getTime() - 1000).toISOString());
-              spanParams.set("endDate", new Date(new Date(trace.endTime).getTime() + 1000).toISOString());
-              const res = await fetch(`/api/projects/${projectId}/traces/${trace.id}/spans?${spanParams.toString()}`);
+              if (!get().realtimeSeededTraceIds.has(trace.id)) {
+                spanParams.set("startDate", new Date(new Date(trace.startTime).getTime() - 1000).toISOString());
+                spanParams.set("endDate", new Date(new Date(trace.endTime).getTime() + 1000).toISOString());
+              }
+              const query = spanParams.size > 0 ? `?${spanParams.toString()}` : "";
+              const res = await fetch(`/api/projects/${projectId}/traces/${trace.id}/spans${query}`);
               if (!res.ok) throw new Error("Failed to load spans");
               const fetchedSpans = (await res.json()) as TraceViewSpan[];
               // Always write the slot (even empty) so the expanded body resolves out
@@ -603,6 +626,7 @@ export const createDebuggerSessionViewStore = (options: {
               (s) =>
                 ({
                   traceRowStates: { ...s.traceRowStates, [traceId]: "loaded" },
+                  realtimeSeededTraceIds: new Set(s.realtimeSeededTraceIds).add(traceId),
                   ...(!existingBlock
                     ? {
                         blocks: sortBlocks([
