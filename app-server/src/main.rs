@@ -1046,10 +1046,16 @@ fn main() -> anyhow::Result<()> {
                 match mq::stream::StreamEnvironment::connect().await {
                     Ok(environment) => {
                         let topology = mq::stream::StreamTopology::from_env();
-                        for name in [
-                            mq::stream::OBSERVATIONS_STREAM,
-                            mq::stream::SPANS_INDEXER_STREAM,
-                        ] {
+                        // Declare the indexer stream only when its flag is on:
+                        // its publisher AND its reader are both gated on that same
+                        // flag, so otherwise we'd create a 32-partition super stream
+                        // nobody touches and let a failure on it abort the
+                        // observations transport too.
+                        let mut streams = vec![mq::stream::OBSERVATIONS_STREAM];
+                        if env::streams::SPANS_INDEXER_ENABLED.get() {
+                            streams.push(mq::stream::SPANS_INDEXER_STREAM);
+                        }
+                        for name in streams {
                             if let Err(e) = topology.declare(&environment, name).await {
                                 log::error!("Failed to declare super stream '{}': {:?}", name, e);
                                 return (None, None, None);
