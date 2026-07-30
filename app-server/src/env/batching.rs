@@ -5,14 +5,11 @@ use super::NumEnv;
 pub const SPANS_SIZE: NumEnv<usize> = NumEnv::new("SPANS_BATCH_SIZE", 128);
 pub const SPANS_FLUSH_INTERVAL_MS: NumEnv<u64> = NumEnv::new("SPANS_BATCH_FLUSH_INTERVAL_MS", 500);
 
-/// Stream readers reuse `SPANS_BATCH_SIZE` for the record count but get their own
-/// flush interval: a reader is active on only a slice of the partitions, so at the
-/// queue path's 500 ms it would flush far fewer spans per ClickHouse insert and
-/// multiply parts/sec on the hot `spans` table (see the async-insert tuning note —
-/// we already trade part count for ack latency there). Longer window, same insert
-/// size. Safe to lengthen because a stream backlog waits on broker disk.
+/// Stream readers reuse `SPANS_BATCH_SIZE` for the span count but get their own
+/// flush interval so the stream and queue transports tune independently. Safe to
+/// lengthen because a stream backlog waits on broker disk.
 pub const STREAM_SPANS_FLUSH_INTERVAL_MS: NumEnv<u64> =
-    NumEnv::new("STREAM_SPANS_BATCH_FLUSH_INTERVAL_MS", 2000);
+    NumEnv::new("STREAM_SPANS_BATCH_FLUSH_INTERVAL_MS", 1000);
 
 /// The queue path indexes one payload per delivery; the stream reader batches
 /// them, so Quickwit gets one ingest call per index per flush instead of per

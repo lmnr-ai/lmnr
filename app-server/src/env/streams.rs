@@ -49,7 +49,7 @@ pub const PARTITIONS: NumEnv<usize> = NumEnv::new("RABBITMQ_STREAM_PARTITIONS", 
 /// 400 GiB NVMe minus the `disk_free_limit` floor and quorum-queue headroom.
 pub const MAX_LENGTH_BYTES: NumEnv<u64> =
     NumEnv::new("RABBITMQ_STREAM_MAX_LENGTH_BYTES", 7_516_192_768);
-pub const MAX_AGE_SECS: NumEnv<u64> = NumEnv::new("RABBITMQ_STREAM_MAX_AGE_SECS", 14_400);
+pub const MAX_AGE_SECS: NumEnv<u64> = NumEnv::new("RABBITMQ_STREAM_MAX_AGE_SECS", 43_200);
 /// Smaller than the 500 MB broker default: retention only ever drops whole
 /// closed segments, so 100 MB keeps expiry granularity fine relative to the
 /// 7 GiB per-partition cap.
@@ -76,7 +76,10 @@ pub const CONFIRM_TIMEOUT_MS: NumEnv<u64> =
 /// the backlog stays on broker disk (exactly where we want it under burst).
 pub const CHANNEL_CAPACITY: NumEnv<usize> = NumEnv::new("RABBITMQ_STREAM_CHANNEL_CAPACITY", 256);
 
-/// Batcher tasks per stream consumer. Partitions are assigned to batchers by
+/// Batcher tasks per stream consumer, one env var per stream so they tune
+/// independently. Partitions are assigned to batchers by
 /// `partition_index % batchers` so a partition's offsets only ever advance from
 /// one batcher — see `mq/stream/reader.rs`.
-pub const BATCHERS: NumEnv<usize> = NumEnv::new("RABBITMQ_STREAM_BATCHERS", 4);
+pub const SPANS_BATCHERS: NumEnv<usize> = NumEnv::new("RABBITMQ_STREAM_SPANS_BATCHERS", 4);
+pub const SPANS_INDEXER_BATCHERS: NumEnv<usize> =
+    NumEnv::new("RABBITMQ_STREAM_SPANS_INDEXER_BATCHERS", 4);

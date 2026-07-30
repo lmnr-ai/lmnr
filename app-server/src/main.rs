@@ -1456,6 +1456,7 @@ fn main() -> anyhow::Result<()> {
                                         ),
                                     },
                                 },
+                                env::streams::SPANS_BATCHERS.get(),
                             );
                             tokio::spawn(reader.run());
 
@@ -1481,6 +1482,7 @@ fn main() -> anyhow::Result<()> {
                                                 .get(),
                                         ),
                                     },
+                                    env::streams::SPANS_INDEXER_BATCHERS.get(),
                                 );
                                 tokio::spawn(reader.run());
                                 } else {

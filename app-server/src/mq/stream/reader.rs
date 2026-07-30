@@ -146,6 +146,7 @@ pub struct StreamReader<H: StreamBatchHandler> {
     consumer_name: &'static str,
     environment: StreamEnvironment,
     handler: Arc<H>,
+    num_batchers: usize,
 }
 
 impl<H: StreamBatchHandler> StreamReader<H> {
@@ -154,6 +155,7 @@ impl<H: StreamBatchHandler> StreamReader<H> {
         consumer_name: &'static str,
         environment: StreamEnvironment,
         handler: H,
+        num_batchers: usize,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -161,6 +163,7 @@ impl<H: StreamBatchHandler> StreamReader<H> {
             consumer_name,
             environment,
             handler: Arc::new(handler),
+            num_batchers: num_batchers.max(1),
         }
     }
 
@@ -195,7 +198,7 @@ impl<H: StreamBatchHandler> StreamReader<H> {
     }
 
     async fn run_once(&self) -> anyhow::Result<()> {
-        let num_batchers = env::streams::BATCHERS.get().max(1);
+        let num_batchers = self.num_batchers;
         let capacity = env::streams::CHANNEL_CAPACITY.get().max(1);
         // `&'static str`, so it copies into the `consumer_update` closure.
         let consumer_name = self.consumer_name;
