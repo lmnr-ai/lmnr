@@ -81,7 +81,6 @@ use serde::de::DeserializeOwned;
 use tokio::sync::{Notify, mpsc};
 use uuid::Uuid;
 
-use super::encoding;
 use super::topology::StreamEnvironment;
 use crate::env;
 use crate::worker::HandlerError;
@@ -376,24 +375,8 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                 }
             };
 
-            // Bodies may be zstd-compressed, flagged per record via the
-            // `lmnr.encoding` property — an absent property is plain JSON, so
-            // legacy in-flight records and a disabled producer gate both parse.
-            let body = match data {
-                Some(data) => match encoding::decode_body(delivery.message(), data) {
-                    Ok(body) => Some(body),
-                    Err(reason) => {
-                        // Corrupt or unknown-encoding bodies won't decode on
-                        // retry either — same verdict as a deserialize failure.
-                        Self::log_skipped_record("decode_failed", &reason, &stream, offset);
-                        None
-                    }
-                },
-                None => None,
-            };
-
-            let message = match body {
-                Some(body) => match serde_json::from_slice::<H::Message>(&body) {
+            let message = match data {
+                Some(body) => match serde_json::from_slice::<H::Message>(body) {
                     Ok(message) => Some(message),
                     Err(e) => {
                         // Won't parse on retry either — same verdict as the queue

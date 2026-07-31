@@ -78,14 +78,6 @@ pub const MAX_SEGMENT_SIZE_BYTES: NumEnv<u64> =
 /// spread with `add_replica`/`delete_replica` if skewed.
 pub const REPLICATION_FACTOR: NumEnv<usize> = NumEnv::new("RABBITMQ_STREAM_REPLICATION_FACTOR", 2);
 
-/// Producer-side gate for zstd-compressing record bodies (~5x on span-export
-/// JSON, so ~5x burst runway under the same retention and 1/5 the replication
-/// network/disk work). Decode is property-driven (`lmnr.encoding` on each
-/// record), so the reader always accepts both compressed and plain records —
-/// flipping this needs no coordination with the consumer fleet and leaves
-/// in-flight records readable either way.
-pub const COMPRESSION_ENABLED: BoolEnv = BoolEnv::new("RABBITMQ_STREAM_COMPRESSION_ENABLED", true);
-
 /// How long a publish waits for the broker's confirmation before giving up and
 /// letting the caller fall back to the quorum queue. Bounded because the client
 /// does NOT invoke the confirm callback when the connection drops mid-flight —
