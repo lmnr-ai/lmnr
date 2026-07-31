@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
-import { MAX_ELEVATION, raiseVar, SURFACE_BG, useElevation } from "@/components/ui/surface";
+import { useElevation } from "@/components/ui/surface";
 import { withOpacity } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
@@ -129,9 +129,9 @@ export default function ClusterItem({
 
   const icon = <ClusterIcon iconVariant={iconVariant} color={color} isSelected={isSelected} isPaywall={isPaywall} />;
 
-  // The row sits one surface above the list it lives in, so it reads as distinct;
-  // it publishes its own raise var so hover steps one further up.
-  const restingElevation = Math.min(useElevation() + 1, MAX_ELEVATION);
+  // The row sits one surface above the list it lives in, so it reads as distinct (no
+  // shadow); it publishes its own --surface* vars so hover steps one further up.
+  const { className: elevationClassName } = useElevation({ offset: 2 });
 
   return (
     <>
@@ -139,10 +139,9 @@ export default function ClusterItem({
         ref={buttonRef}
         className={cn(
           "flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left transition-colors text-secondary-foreground w-full min-w-0",
-          SURFACE_BG[restingElevation],
-          raiseVar(restingElevation),
+          elevationClassName,
           isPaywall ? "cursor-default" : "cursor-pointer",
-          !isPaywall && hovered && "bg-[var(--surface-raise)]",
+          !isPaywall && hovered && "bg-surface-up-2",
           isSelected && "bg-sidebar-accent font-medium text-primary-foreground"
         )}
         onClick={isPaywall ? undefined : onClick}

@@ -14,7 +14,7 @@ interface PlanCardProps {
 }
 
 // Styled to match the regular (non-accent) pricing-page tier columns: a flat
-// surface-500 panel, no border, no divider under the price, landing fonts.
+// surface-250 panel, no border, no divider under the price, landing fonts.
 // Selection uses an INSET ring (drawn inside the box) so the ScrollArea's overflow
 // can't clip it the way an outset ring/border at the grid edge would be.
 export default function PlanCard({ plan, selected, onSelect, disabled = false, isCurrent = false }: PlanCardProps) {
@@ -26,8 +26,8 @@ export default function PlanCard({ plan, selected, onSelect, disabled = false, i
       aria-pressed={selected}
       aria-disabled={disabled}
       className={cn(
-        "relative flex flex-col gap-3 2xl:gap-4 rounded-md p-4 xl:p-5 2xl:p-6 text-left transition-all bg-surface-500",
-        !disabled && "hover:bg-surface-600",
+        "relative flex flex-col gap-3 2xl:gap-4 rounded-md p-4 xl:p-5 2xl:p-6 text-left transition-all bg-surface-250",
+        !disabled && "hover:bg-surface-300",
         selected && "ring-1 ring-inset ring-primary",
         disabled && "opacity-50 cursor-not-allowed"
       )}
@@ -42,7 +42,7 @@ export default function PlanCard({ plan, selected, onSelect, disabled = false, i
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm xl:text-base 2xl:text-lg text-white">{plan.name}</span>
         {isCurrent ? (
-          <span className="text-[10px] 2xl:text-xs px-1.5 py-0.5 rounded-full bg-surface-800 text-white font-medium">
+          <span className="text-[10px] 2xl:text-xs px-1.5 py-0.5 rounded-full bg-surface-400 text-white font-medium">
             Current
           </span>
         ) : (

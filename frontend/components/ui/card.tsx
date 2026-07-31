@@ -1,18 +1,17 @@
 import * as React from "react";
 
-import { ElevationProvider, useElevated } from "@/components/ui/surface";
+import { ElevatedSurface } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
-const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, children, ...props }, ref) => {
-    const { elevation, className: surface } = useElevated(1, 0); // card: +1 elevation, no shadow
-    return (
-      <div ref={ref} className={cn("rounded-xl border text-card-foreground", surface, className)} {...props}>
-        <ElevationProvider value={elevation}>{children}</ElevationProvider>
-      </div>
-    );
-  }
-);
+// Card is a surface one step above its context; shadow is a plain Tailwind utility (decoupled).
+const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
+  <ElevatedSurface
+    ref={ref}
+    offset={1}
+    className={cn("rounded-xl border text-card-foreground shadow-sm", className)}
+    {...props}
+  />
+));
 Card.displayName = "Card";
 
 const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(

@@ -7,7 +7,7 @@ import TraceViewStoreProvider, {
   type TraceViewTrace,
   useTraceViewStore,
 } from "@/components/traces/trace-view/store";
-import { ElevationProvider } from "@/components/ui/surface";
+import { ElevatedSurface } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
 import TraceViewContent from "./trace-view-content";
@@ -47,36 +47,33 @@ export function TraceViewSidePanel({
   const sidePanelRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div
+    // The side panel wraps its content in an ElevatedSurface but does NOT raise the level for
+    // now (offset 0 → same level as the page it slides over); it's here as a ready knob to bump
+    // the panel's elevation later. It still publishes the --surface* vars + context at this level.
+    <ElevatedSurface
       ref={sidePanelRef}
-      className={cn(
-        "absolute top-0 right-0 bottom-0 max-w-[calc(100%-80px)] bg-surface-200 [--surface-raise:var(--color-surface-400)] border-l z-50 flex",
-        className
-      )}
+      offset={0}
+      className={cn("absolute top-0 right-0 bottom-0 max-w-[calc(100%-80px)] border-l z-50 flex", className)}
     >
-      {/* The side panel floats one step above the page/table it slides over, and
-          provides that level to its children so everything inside elevates from 2. */}
-      <ElevationProvider value={2}>
-        <TraceViewStoreProvider
-          key={props.traceId}
-          initialTrace={props.propsTrace}
-          isAlwaysSelectSpan={props.isAlwaysSelectSpan}
-          initialSignalId={props.initialSignalId}
-          initialSearch={props.initialSearch}
-        >
-          <div className="relative w-full h-full flex flex-col">
-            <TraceAgentContext traceId={props.traceId} />
-            <SidePanelLeftResizeHandle />
-            {/* w-0 min-w-full keeps children (e.g. the eval runs chart, which pins its own
-                    measured pixel width via recharts) from driving the right-anchored side panel's
-                    intrinsic width — otherwise the panel ratchets wider than trace+span and a gap
-                    opens between the span view and the screen edge. */}
-            {children && <div className="w-0 min-w-full">{children}</div>}
-            <TraceViewContent {...props} sidePanelRef={sidePanelRef} />
-          </div>
-        </TraceViewStoreProvider>
-      </ElevationProvider>
-    </div>
+      <TraceViewStoreProvider
+        key={props.traceId}
+        initialTrace={props.propsTrace}
+        isAlwaysSelectSpan={props.isAlwaysSelectSpan}
+        initialSignalId={props.initialSignalId}
+        initialSearch={props.initialSearch}
+      >
+        <div className="relative w-full h-full flex flex-col">
+          <TraceAgentContext traceId={props.traceId} />
+          <SidePanelLeftResizeHandle />
+          {/* w-0 min-w-full keeps children (e.g. the eval runs chart, which pins its own
+                  measured pixel width via recharts) from driving the right-anchored side panel's
+                  intrinsic width — otherwise the panel ratchets wider than trace+span and a gap
+                  opens between the span view and the screen edge. */}
+          {children && <div className="w-0 min-w-full">{children}</div>}
+          <TraceViewContent {...props} sidePanelRef={sidePanelRef} />
+        </div>
+      </TraceViewStoreProvider>
+    </ElevatedSurface>
   );
 }
 

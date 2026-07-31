@@ -4,7 +4,7 @@ import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { cva, type VariantProps } from "class-variance-authority";
 import * as React from "react";
 
-import { ElevationProvider, useElevated } from "@/components/ui/surface";
+import { ElevatedSurface } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
 const Sheet = SheetPrimitive.Root;
@@ -31,7 +31,7 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 
 const sheetVariants = cva(
-  "fixed z-50 gap-4 transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500 data-[state=open]:animate-in data-[state=closed]:animate-out",
+  "fixed z-50 gap-4 shadow-lg transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500 data-[state=open]:animate-in data-[state=closed]:animate-out",
   {
     variants: {
       side: {
@@ -53,21 +53,17 @@ interface SheetContentProps
   extends React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content>, VariantProps<typeof sheetVariants> {}
 
 const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Content>, SheetContentProps>(
-  ({ side = "right", className, children, ...props }, ref) => {
-    const { elevation, className: surfaceClassName } = useElevated(1, 6);
-    return (
-      <SheetPortal>
-        <SheetOverlay />
-        <SheetPrimitive.Content
-          ref={ref}
-          className={cn(sheetVariants({ side }), surfaceClassName, className)}
-          {...props}
-        >
-          <ElevationProvider value={elevation}>{children}</ElevationProvider>
-        </SheetPrimitive.Content>
-      </SheetPortal>
-    );
-  }
+  ({ side = "right", className, children, ...props }, ref) => (
+    // Modal drawer: absolute elevation (level 2), independent of its trigger's surface.
+    <SheetPortal>
+      <SheetOverlay />
+      <SheetPrimitive.Content asChild ref={ref} {...props}>
+        <ElevatedSurface level={2} className={cn(sheetVariants({ side }), className)}>
+          {children}
+        </ElevatedSurface>
+      </SheetPrimitive.Content>
+    </SheetPortal>
+  )
 );
 SheetContent.displayName = SheetPrimitive.Content.displayName;
 

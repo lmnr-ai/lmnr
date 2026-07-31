@@ -6,7 +6,7 @@ import { MAX_ZOOM, MIN_ZOOM, ZOOM_INCREMENT } from "@/components/traces/trace-vi
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { computeVisibleSpanIds } from "@/components/traces/trace-view/store/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ElevationProvider, MAX_ELEVATION, raiseVar, SURFACE_BG, useElevation } from "@/components/ui/surface";
+import { ElevatedSurface } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
 import CondensedTimelineElement, { ROW_HEIGHT } from "./condensed-timeline-element";
@@ -138,10 +138,6 @@ function CondensedTimeline() {
     },
     [setContainerRef]
   );
-
-  // The timeline floats one level above the trace-view substrate it sits in;
-  // its controls elevate a further step above the timeline via this provided level.
-  const timelineElevation = Math.min(useElevation() + 1, MAX_ELEVATION);
 
   const selectedCount = condensedTimelineVisibleSpanIds.size;
 
@@ -330,49 +326,45 @@ function CondensedTimeline() {
   };
 
   return (
-    <ElevationProvider value={timelineElevation}>
-      <div className="flex flex-col h-full w-full overflow-hidden relative">
-        {/* Scrollable timeline area - ALWAYS rendered so refs are attached */}
-        <div
-          ref={combinedScrollRef}
-          className={cn(
-            "flex-1 overflow-auto relative min-h-0 h-full minimal-scrollbar scroll-fade-t",
-            SURFACE_BG[timelineElevation],
-            raiseVar(timelineElevation)
-          )}
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
-        >
-          <div className="px-2 h-full">{renderContent()}</div>
-        </div>
-
-        {/* Hover Needle - outside scroll, z-35 (below SelectionIndicator z-40) */}
-        {needleLeft !== null && (
-          <div className="absolute inset-y-0 pointer-events-none z-[35]" style={{ left: `${needleLeft}%` }}>
-            {/* Head */}
-            <div className="absolute top-0 h-6 flex items-center -translate-x-1/2">
-              <div className="px-1.5 py-0.5 bg-primary text-white text-[10px] rounded whitespace-nowrap">
-                {hoverTimeMs !== null ? formatTimeMarkerLabel(Math.round(hoverTimeMs)) : ""}
-              </div>
-            </div>
-            {/* Line */}
-            <div className="absolute top-[6px] bottom-0 w-px bg-primary/50" />
-          </div>
-        )}
-
-        {/* Selection indicator */}
-        <SelectionIndicator selectedCount={selectedCount} onClear={clearCondensedTimelineSelection} />
-
-        {/* Zoom controls */}
-        <Controls
-          onZoomIn={() => handleZoom("in")}
-          onZoomOut={() => handleZoom("out")}
-          zoom={condensedTimelineZoom}
-          isCostHeatmapVisible={isCostHeatmapVisible}
-          onToggleCostHeatmap={setIsCostHeatmapVisible}
-        />
+    // The timeline is a surface one level above the trace-view substrate it sits in (fill +
+    // vars + context, no shadow); its controls elevate a further step above via that context.
+    <ElevatedSurface className="flex flex-col h-full w-full overflow-hidden relative">
+      {/* Scrollable timeline area - ALWAYS rendered so refs are attached */}
+      <div
+        ref={combinedScrollRef}
+        className={cn("flex-1 overflow-auto relative min-h-0 h-full minimal-scrollbar scroll-fade-t")}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+      >
+        <div className="px-2 h-full">{renderContent()}</div>
       </div>
-    </ElevationProvider>
+
+      {/* Hover Needle - outside scroll, z-35 (below SelectionIndicator z-40) */}
+      {needleLeft !== null && (
+        <div className="absolute inset-y-0 pointer-events-none z-[35]" style={{ left: `${needleLeft}%` }}>
+          {/* Head */}
+          <div className="absolute top-0 h-6 flex items-center -translate-x-1/2">
+            <div className="px-1.5 py-0.5 bg-primary text-white text-[10px] rounded whitespace-nowrap">
+              {hoverTimeMs !== null ? formatTimeMarkerLabel(Math.round(hoverTimeMs)) : ""}
+            </div>
+          </div>
+          {/* Line */}
+          <div className="absolute top-[6px] bottom-0 w-px bg-primary/50" />
+        </div>
+      )}
+
+      {/* Selection indicator */}
+      <SelectionIndicator selectedCount={selectedCount} onClear={clearCondensedTimelineSelection} />
+
+      {/* Zoom controls */}
+      <Controls
+        onZoomIn={() => handleZoom("in")}
+        onZoomOut={() => handleZoom("out")}
+        zoom={condensedTimelineZoom}
+        isCostHeatmapVisible={isCostHeatmapVisible}
+        onToggleCostHeatmap={setIsCostHeatmapVisible}
+      />
+    </ElevatedSurface>
   );
 }
 

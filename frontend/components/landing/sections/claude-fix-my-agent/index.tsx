@@ -5,7 +5,7 @@ import SectionFootnote from "../section-footnote";
 import DebuggerScene from "./debugger-scene";
 import RotatingAgentName from "./rotating-agent-name";
 
-// Vertical stack: title + subtitle on top, then a surface-500 panel holding the
+// Vertical stack: title + subtitle on top, then a surface-250 panel holding the
 // coding-agent terminal (left) beside a mock of the Laminar debugger session it
 // drives (right), with a footnote pinned to the bottom.
 const ClaudeFixMyAgent = () => (
@@ -39,7 +39,7 @@ const ClaudeFixMyAgent = () => (
         trace, fixes, and re-runs with cached state. You can then review its work in the Debugger session UI.
       </p>
     </div>
-    <div className="bg-surface-500 relative flex w-full overflow-hidden">
+    <div className="bg-surface-250 relative flex w-full overflow-hidden">
       <DebuggerScene />
       <SectionFootnote name="Debugger" href="https://laminar.sh/docs/debugger/introduction" />
     </div>

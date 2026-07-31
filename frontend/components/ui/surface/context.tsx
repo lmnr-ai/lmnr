@@ -1,24 +1,23 @@
 "use client";
 
-import { createContext, type ReactNode, useContext } from "react";
+import { createContext, useContext } from "react";
+
+export const MIN_ELEVATION = 1;
+export const MAX_ELEVATION = 8;
 
 // Current elevation, 1 (base plane) .. 8 (most elevated). React context (not CSS
 // inheritance) so it survives Radix portals, which render overlay content at the
 // document root — a portaled popover still reads the elevation it opened from.
 // Elevations are levels; the raw color tokens they map to are the `surface-*` scale.
-const ElevationContext = createContext<number>(1);
+export const ElevationContext = createContext<number>(1);
 
-export const MIN_ELEVATION = 1;
-export const MAX_ELEVATION = 8;
+/** The context provider under a friendly name. Bare, it only bumps the elevation NUMBER (no
+ *  paint, no vars) — the low-level escape hatch for re-providing a level onto children of a node
+ *  a library painted for you. For DOM you own, prefer `<ElevatedSurface>`. */
+export const ElevationProvider = ElevationContext.Provider;
 
-export function useElevation(): number {
+/** Raw elevation level from context. Internal — callers use `useElevation()`, which also returns
+ *  the paint classes, or `<ElevatedSurface>` to paint + bump a subtree. */
+export function useElevationContext(): number {
   return useContext(ElevationContext);
-}
-
-export function ElevationProvider({ value, children }: { value: number; children: ReactNode }) {
-  return (
-    <ElevationContext.Provider value={Math.max(MIN_ELEVATION, Math.min(MAX_ELEVATION, value))}>
-      {children}
-    </ElevationContext.Provider>
-  );
 }

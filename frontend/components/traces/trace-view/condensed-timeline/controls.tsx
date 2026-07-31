@@ -2,7 +2,7 @@ import { DollarSign, Minus, Plus } from "lucide-react";
 
 import { MAX_ZOOM, MIN_ZOOM } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
-import { MAX_ELEVATION, raiseVar, SURFACE_BG, useElevation } from "@/components/ui/surface";
+import { useElevation } from "@/components/ui/surface";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -21,17 +21,18 @@ export default function Controls({
   isCostHeatmapVisible,
   onToggleCostHeatmap,
 }: ControlsProps) {
-  // Controls sit one level above the timeline surface they float over.
-  const raised = Math.min(useElevation() + 1, MAX_ELEVATION);
+  // Controls sit one level above the timeline surface they float over. Each chip paints
+  // that raised surface (fill + neighbour vars, no shadow), so hover steps up from it.
+  const { className: raisedSurface } = useElevation({ offset: 2 });
   return (
-    <div className={cn("absolute bottom-1.5 right-1.5 z-40 flex items-center gap-1 h-[24px]", raiseVar(raised))}>
+    <div className="absolute bottom-1.5 right-1.5 z-40 flex items-center gap-1 h-[24px]">
       <TooltipProvider delayDuration={300}>
         <Tooltip>
           <TooltipTrigger asChild>
             <button
               className={cn(
-                "flex items-center gap-0.5 h-[24px] px-1.5 rounded-md text-xs text-muted-foreground hover:bg-[var(--surface-raise)] transition-colors border",
-                SURFACE_BG[raised],
+                "flex items-center gap-0.5 h-[24px] px-1.5 rounded-md text-xs text-muted-foreground hover:bg-surface-up-2 transition-colors border",
+                raisedSurface,
                 isCostHeatmapVisible && "border-primary/50 text-primary"
               )}
               onClick={() => onToggleCostHeatmap(!isCostHeatmapVisible)}
@@ -43,7 +44,7 @@ export default function Controls({
           <TooltipContent className="border">Toggle cost heatmap</TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      <div className={cn("flex items-center border rounded-md px-0.5 h-[24px]", SURFACE_BG[raised])}>
+      <div className={cn("flex items-center border rounded-md px-0.5 h-[24px]", raisedSurface)}>
         <Button
           aria-label="Zoom in"
           disabled={zoom >= MAX_ZOOM}
