@@ -62,7 +62,11 @@ pub const USER_TASK_LOCK_CACHE_KEY: &str = "user_task_lock";
 /// is a trace-output candidate. See `input_extraction::lock::main_agent_path_cache_key`.
 pub const MAIN_AGENT_PATH_CACHE_KEY: &str = "main_agent_path";
 
-pub const INGESTION_RATE_LIMIT_PROJECT_ID_CACHE_KEY: &str = "ingestion_rate_limit_project_id";
+/// Per-project override N for the data-ingestion rate limit, set out-of-band
+/// via valkey-cli: `ingestion_rate_limit:{project_id}` = N requests per the
+/// global `INGESTION_RATE_LIMIT_PERIOD_SECS` window. Missing key = global
+/// `INGESTION_RATE_LIMIT` default.
+pub const INGESTION_RATE_LIMIT_CACHE_KEY: &str = "ingestion_rate_limit";
 /// Per-project override N for the /v1/sql rate limit, set out-of-band via
 /// valkey-cli: `sql_rate_limit:{project_id}` = N requests per the global
 /// `RATE_LIMIT_PERIOD_SECS` window. Missing key = global `RATE_LIMIT` default.

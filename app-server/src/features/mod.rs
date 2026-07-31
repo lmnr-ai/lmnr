@@ -30,7 +30,8 @@ pub enum Feature {
     /// gated behind `CHECKPOINTS_ENABLED`, default off.
     Checkpoints,
     RateLimiter,
-    GrpcRateLimiter,
+    /// Per-project data-ingestion rate limit (gRPC + HTTP OTLP traces).
+    IngestionRateLimiter,
     /// Strip PII from span input/output via the pii-redactor gRPC service,
     /// gated per project by the `projects.settings.removePii` toggle.
     PiiRedaction,
@@ -81,10 +82,10 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
                 && std::env::var(env::rate_limit::HTTP_LIMIT).is_ok()
                 && std::env::var(env::rate_limit::HTTP_PERIOD_SECS).is_ok()
         }
-        Feature::GrpcRateLimiter => {
+        Feature::IngestionRateLimiter => {
             std::env::var(env::connections::REDIS_URL).is_ok()
-                && std::env::var(env::rate_limit::GRPC_LIMIT).is_ok()
-                && std::env::var(env::rate_limit::GRPC_PERIOD_SECS).is_ok()
+                && std::env::var(env::rate_limit::INGESTION_LIMIT).is_ok()
+                && std::env::var(env::rate_limit::INGESTION_PERIOD_SECS).is_ok()
         }
         Feature::PiiRedaction => {
             std::env::var(env::connections::PII_REDACTOR_URL).is_ok_and(|s| !s.is_empty())

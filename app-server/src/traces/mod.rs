@@ -11,6 +11,7 @@ pub mod processor;
 pub mod producer;
 pub mod prompt_hash;
 pub mod provider;
+pub mod rate_limit;
 pub mod realtime;
 #[cfg(feature = "signals")]
 pub mod sampling;
