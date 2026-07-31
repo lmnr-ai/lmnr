@@ -7,8 +7,9 @@
 pub const HTTP_LIMIT: &str = "RATE_LIMIT";
 pub const HTTP_PERIOD_SECS: &str = "RATE_LIMIT_PERIOD_SECS";
 
-/// Global default N for the per-project data-ingestion limit (gRPC + HTTP
-/// OTLP traces); per-project N overrides live in cache
-/// (`ingestion_rate_limit:{id}`). The period is global.
+/// Global defaults for the per-project data-ingestion limit (gRPC + HTTP
+/// OTLP traces); per-project overrides live in cache
+/// (`ingestion_project_rate_limit:{id}` for N,
+/// `ingestion_project_rate_limit_period:{id}` for the window seconds).
 pub const INGESTION_LIMIT: &str = "INGESTION_RATE_LIMIT";
 pub const INGESTION_PERIOD_SECS: &str = "INGESTION_RATE_LIMIT_PERIOD_SECS";

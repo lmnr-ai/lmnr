@@ -2027,9 +2027,11 @@ fn main() -> anyhow::Result<()> {
         };
 
         // Per-project data-ingestion rate limiter, shared by the gRPC and
-        // HTTP OTLP trace endpoints. The env limit is the global default; a
-        // per-project N override in cache (`ingestion_rate_limit:{id}`) swaps
-        // in an ad-hoc limiter.
+        // HTTP OTLP trace endpoints. The env limit/period are the global
+        // defaults; per-project overrides in cache
+        // (`ingestion_project_rate_limit:{id}` for N,
+        // `ingestion_project_rate_limit_period:{id}` for the window) swap in
+        // an ad-hoc limiter.
         let ingestion_rate_limiter = if is_feature_enabled(Feature::IngestionRateLimiter) {
             let redis_url = std::env::var(env::connections::REDIS_URL).unwrap();
 
