@@ -30,7 +30,6 @@ use rabbitmq_stream_client::{
 use serde::Serialize;
 use tokio::sync::{Mutex, oneshot};
 
-use super::encoding;
 use super::topology::StreamEnvironment;
 use crate::env;
 
@@ -143,32 +142,18 @@ impl StreamPublisher {
     pub async fn publish<T: Serialize>(&self, payload: &T, key: &str) -> Result<()> {
         let body = serde_json::to_vec(payload).context("Failed to serialize stream payload")?;
 
-        // Compress before the wire: the body is written to `replication_factor`
-        // disks and crosses as many links, so the ~5x zstd ratio on span JSON
-        // multiplies burst runway and divides broker I/O. The encoding travels
-        // as a per-record property, so the reader needs no coordination.
-        let (body, encoding) = if env::streams::COMPRESSION_ENABLED.get() {
-            let compressed =
-                encoding::compress(&body).context("Failed to compress stream payload")?;
-            (compressed, Some(encoding::ZSTD_ENCODING))
-        } else {
-            (body, None)
-        };
-
         // A producer known to be dead fails fast; one caller per cooldown
         // window pays for the rebuild attempt inline.
         if !self.healthy.load(Ordering::Acquire) {
             self.try_rebuild().await?;
         }
 
-        let mut properties = Message::builder()
+        let message = Message::builder()
             .body(body)
             .application_properties()
-            .insert(PARTITION_KEY, key.to_string());
-        if let Some(encoding) = encoding {
-            properties = properties.insert(encoding::ENCODING_PROPERTY, encoding);
-        }
-        let message = properties.message_builder().build();
+            .insert(PARTITION_KEY, key.to_string())
+            .message_builder()
+            .build();
 
         // The hash strategy resolves to exactly one partition, so exactly one
         // confirmation arrives per publish.

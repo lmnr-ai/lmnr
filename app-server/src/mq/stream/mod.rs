@@ -17,7 +17,6 @@
 //! The AMQP `MessageQueue` path is untouched — streams are additive, chosen
 //! per-payload by the producer, and gated on `RABBITMQ_STREAMS_ENABLED`.
 
-pub(crate) mod encoding;
 pub mod publisher;
 pub mod reader;
 pub mod topology;
