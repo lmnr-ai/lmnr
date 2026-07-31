@@ -3,8 +3,10 @@
 
 /// Global default N for the /v1/sql per-project limit; per-project N
 /// overrides live in cache (`sql_rate_limit:{id}`). The period is global.
+/// TODO: Rename env vars to be SQL-specific, or extend this rate limit to apply to all endpoints.
 pub const HTTP_LIMIT: &str = "RATE_LIMIT";
 pub const HTTP_PERIOD_SECS: &str = "RATE_LIMIT_PERIOD_SECS";
+
 /// Global default N for the per-project data-ingestion limit (gRPC + HTTP
 /// OTLP traces); per-project N overrides live in cache
 /// (`ingestion_rate_limit:{id}`). The period is global.

@@ -59,8 +59,7 @@ impl IngestionRateLimiter {
         }
     }
 
-    /// Returns `true` when the request is allowed. Fail-open on Redis errors —
-    /// same posture as the bytes-limit check — so a Redis blip can't
+    /// Returns `true` when the request is allowed. Fail-open on Redis errors, a Redis blip can't
     /// black-hole ingestion.
     pub async fn check(&self, cache: &Arc<Cache>, project_id: Uuid) -> bool {
         let limiter = self.limiter_for_project(cache.as_ref(), project_id).await;
