@@ -276,12 +276,17 @@ const TagInput = ({
       ref={containerRef}
       className={cn("relative flex items-center gap-1 px-1", className)}
       onBlur={handleContainerBlur}
-      onClick={() => inputRef.current?.focus()}
+      onClick={(e) => {
+        // Don't steal focus from value chips (keyboard remove/nav needs chip focus).
+        if ((e.target as HTMLElement).closest("[data-tag-chip]")) return;
+        inputRef.current?.focus();
+      }}
     >
       <>
         {values.map((value, index) => (
           <span
             key={value}
+            data-tag-chip
             ref={(el) => {
               tagRefs.current[index] = el;
             }}

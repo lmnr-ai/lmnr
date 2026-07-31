@@ -45,9 +45,8 @@ export default function SpanNamesField() {
     <div className="grid gap-1.5">
       <div
         className={cn(
-          "flex flex-wrap items-center gap-1 min-h-8 rounded-md border bg-secondary px-1.5 py-1 cursor-text",
-          "focus-within:border-primary",
-          spanNames.length === 0 && "border-destructive/60"
+          // Match AdvancedSearch shell (filters field) — same padding/bg/border.
+          "flex flex-wrap items-center gap-1 rounded-md border border-input bg-muted/80 px-1 py-0.75 cursor-text"
         )}
         onClick={() => inputRef.current?.focus()}
       >
@@ -57,7 +56,7 @@ export default function SpanNamesField() {
           onChange={write}
           suggestions={suggestions}
           alwaysEditable
-          placeholder="Type or pick a span name, e.g. agent.run"
+          placeholder="Type or pick a span name, e.g. done"
           inputClassName="h-6 text-xs placeholder:text-muted-foreground"
           className="flex-1 flex-wrap gap-1 px-0 min-w-0"
         />
