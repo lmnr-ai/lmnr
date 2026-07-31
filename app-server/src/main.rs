@@ -2056,6 +2056,7 @@ fn main() -> anyhow::Result<()> {
                     Some(Arc::new(traces::rate_limit::IngestionRateLimiter::new(
                         limiter,
                         redis_url,
+                        ingestion_limit,
                         ingestion_period_secs,
                     )))
                 }
