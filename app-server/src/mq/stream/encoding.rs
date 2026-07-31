@@ -11,10 +11,22 @@
 //! property is a plain-JSON record. That makes the two sides independently
 //! deployable: mixed compressed/uncompressed records in one partition are
 //! fine, and flipping the producer-side env gate needs no coordination.
+//!
+//! zstd contexts are REUSED via thread-locals — this is load-bearing, not an
+//! optimization (LAM-2024 prod OOM). `zstd::stream::encode_all`/`decode_all`
+//! create a fresh context per call, and those are C-side allocations (several
+//! MB per compression context) that go through glibc malloc, NOT the Rust
+//! jemalloc: repeated multi-MB C malloc/free across tokio worker threads
+//! fragments glibc's per-thread arenas and RSS grows quasi-linearly until
+//! OOM (producers leaked ~70 MB/min; macOS doesn't reproduce it because its
+//! allocator returns large frees to the OS). One context per worker thread,
+//! created once, is bounded by design. The `unprefixed_malloc` jemalloc
+//! feature in Cargo.toml is the second, independent layer of the same fix.
 
-use std::borrow::Cow;
+use std::{borrow::Cow, cell::RefCell};
 
 use rabbitmq_stream_client::types::Message;
+use zstd::bulk::{Compressor, Decompressor};
 
 /// Application property carrying the body encoding. Absent = plain JSON.
 pub(crate) const ENCODING_PROPERTY: &str = "lmnr.encoding";
@@ -26,8 +38,48 @@ pub(crate) const ZSTD_ENCODING: &str = "zstd";
 /// the better ratio of 3 vs 1 is free.
 const ZSTD_LEVEL: i32 = 3;
 
+/// Ceiling on the exact-size allocation taken from a frame's declared content
+/// size. A corrupt/hostile header could otherwise make the decoder allocate
+/// petabytes up front; above this we fall back to the streaming decoder,
+/// which grows its output organically.
+const MAX_EAGER_DECOMPRESS_BYTES: u64 = 256 * 1024 * 1024;
+
+thread_local! {
+    static COMPRESSOR: RefCell<Option<Compressor<'static>>> = const { RefCell::new(None) };
+    static DECOMPRESSOR: RefCell<Option<Decompressor<'static>>> = const { RefCell::new(None) };
+}
+
+/// Compress with this thread's reused context. Bulk (one-shot) compression
+/// also stamps the content size into the frame header — the input size is
+/// known up front — which lets `decompress` allocate exactly.
 pub(crate) fn compress(body: &[u8]) -> std::io::Result<Vec<u8>> {
-    zstd::stream::encode_all(body, ZSTD_LEVEL)
+    COMPRESSOR.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        let compressor = match slot.as_mut() {
+            Some(compressor) => compressor,
+            None => slot.insert(Compressor::new(ZSTD_LEVEL)?),
+        };
+        compressor.compress(body)
+    })
+}
+
+fn decompress(data: &[u8]) -> std::io::Result<Vec<u8>> {
+    match zstd::zstd_safe::get_frame_content_size(data) {
+        // Content size in the header (every frame our bulk compressor writes):
+        // reused context + exact-size output allocation.
+        Ok(Some(size)) if size <= MAX_EAGER_DECOMPRESS_BYTES => DECOMPRESSOR.with(|slot| {
+            let mut slot = slot.borrow_mut();
+            let decompressor = match slot.as_mut() {
+                Some(decompressor) => decompressor,
+                None => slot.insert(Decompressor::new()?),
+            };
+            decompressor.decompress(data, size as usize)
+        }),
+        // No content size (frames from the old streaming compressor, still in
+        // flight in partitions) or an implausibly large declared size: the
+        // streaming decoder handles both without trusting the header.
+        _ => zstd::stream::decode_all(data),
+    }
 }
 
 /// Resolve a record's body according to its encoding property.
@@ -39,7 +91,7 @@ pub(crate) fn compress(body: &[u8]) -> std::io::Result<Vec<u8>> {
 pub(crate) fn decode_body<'a>(message: &Message, data: &'a [u8]) -> Result<Cow<'a, [u8]>, String> {
     match encoding_of(message) {
         None => Ok(Cow::Borrowed(data)),
-        Some(encoding) if encoding == ZSTD_ENCODING => zstd::stream::decode_all(data)
+        Some(encoding) if encoding == ZSTD_ENCODING => decompress(data)
             .map(Cow::Owned)
             .map_err(|e| format!("zstd decompression failed: {e}")),
         Some(other) => Err(format!("unknown body encoding '{other}'")),
@@ -106,6 +158,27 @@ mod tests {
     fn corrupt_compressed_body_is_an_error() {
         let message = message_with_encoding(b"not zstd".to_vec(), Some(ZSTD_ENCODING));
         assert!(decode_body(&message, b"not zstd").is_err());
+    }
+
+    /// Frames from the old streaming compressor carry NO content size in the
+    /// header (input size unknown at encoder creation). Such records are still
+    /// in flight in partitions, so the decoder must keep accepting them via
+    /// the streaming fallback.
+    #[test]
+    fn legacy_streaming_frame_without_content_size_still_decodes() {
+        let payload = br#"{"spans":[{"name":"legacy_streaming_frame"}]}"#;
+        let compressed = zstd::stream::encode_all(&payload[..], ZSTD_LEVEL).unwrap();
+        assert!(
+            matches!(
+                zstd::zstd_safe::get_frame_content_size(&compressed),
+                Ok(None)
+            ),
+            "precondition: streaming frames must lack a content size, or this test pins nothing"
+        );
+
+        let message = message_with_encoding(compressed.clone(), Some(ZSTD_ENCODING));
+        let decoded = decode_body(&message, &compressed).unwrap();
+        assert_eq!(decoded.as_ref(), payload);
     }
 
     /// Sanity-pin the reason this module exists: repetitive span-export JSON
