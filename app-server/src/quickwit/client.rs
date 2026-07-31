@@ -27,6 +27,14 @@ impl QuickwitConfig {
             search_endpoint: env::quickwit::SEARCH_URL.get(),
         }
     }
+
+    /// Whether `QuickwitClient::connect_lazy` can build a client from this
+    /// config. A malformed endpoint is a config error both pod roles read
+    /// identically; an unreachable one is fine (the lazy channel retries).
+    pub fn validate_ingest_endpoint(&self) -> anyhow::Result<()> {
+        Endpoint::from_shared(self.ingest_endpoint.clone())?;
+        Ok(())
+    }
 }
 
 #[derive(Clone)]

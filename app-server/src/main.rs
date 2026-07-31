@@ -1052,7 +1052,7 @@ fn main() -> anyhow::Result<()> {
                         // nobody touches and let a failure on it abort the
                         // observations transport too.
                         let mut streams = vec![mq::stream::OBSERVATIONS_STREAM];
-                        if env::streams::SPANS_INDEXER_ENABLED.get() {
+                        if mq::stream::spans_indexer_enabled() {
                             streams.push(mq::stream::SPANS_INDEXER_STREAM);
                         }
                         for name in streams {
@@ -1087,7 +1087,7 @@ fn main() -> anyhow::Result<()> {
                         // Both roles read this same env var, so the gate is
                         // symmetric; unset keeps `publish_for_indexing` on the
                         // queue fallback.
-                        if env::streams::SPANS_INDEXER_ENABLED.get() {
+                        if mq::stream::spans_indexer_enabled() {
                             match mq::stream::StreamPublisher::new(
                                 &environment,
                                 mq::stream::SPANS_INDEXER_STREAM,
@@ -1474,28 +1474,20 @@ fn main() -> anyhow::Result<()> {
                             // the batch in place without advancing the offset and
                             // calls `reconnect()`, so the backlog waits on broker
                             // disk and drains once Quickwit returns.
-                            if env::streams::SPANS_INDEXER_ENABLED.get() {
+                            if mq::stream::spans_indexer_enabled() {
+                                // `spans_indexer_enabled` already validated the
+                                // endpoint, so this can only fail if the env
+                                // changed under us — treat it as "no reader" the
+                                // same way the producer treats it as "no publisher".
                                 let indexer_quickwit_client = match quickwit_client_for_consumer
                                     .as_ref()
                                 {
                                     Some(client) => Some(client.clone()),
                                     None => {
-                                        match QuickwitClient::connect_lazy(QuickwitConfig::from_env())
-                                        {
-                                            Ok(client) => {
-                                                log::warn!(
-                                                    "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is on but Quickwit was unreachable at boot - starting the spans indexer reader with a lazy client so published indexing jobs aren't lost to retention"
-                                                );
-                                                Some(client)
-                                            }
-                                            Err(e) => {
-                                                log::error!(
-                                                    "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is on but the Quickwit endpoint is unusable ({:?}) - the spans indexer stream has NO reader here; producer pods may be publishing indexing jobs that retention will delete unread",
-                                                    e
-                                                );
-                                                None
-                                            }
-                                        }
+                                        log::warn!(
+                                            "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is on but Quickwit was unreachable at boot - starting the spans indexer reader with a lazy client so published indexing jobs aren't lost to retention"
+                                        );
+                                        QuickwitClient::connect_lazy(QuickwitConfig::from_env()).ok()
                                     }
                                 };
 

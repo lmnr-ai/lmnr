@@ -48,3 +48,61 @@ pub const SPANS_INDEXER_CONSUMER_NAME: &str = "spans_indexer_workers";
 pub fn enabled() -> bool {
     crate::env::streams::ENABLED.get()
 }
+
+/// Whether the Quickwit indexing path may use streams. **Both pod roles MUST
+/// call this** — the producer to decide whether to build the publisher, the
+/// consumer to decide whether to spawn the reader. Anything that can make the
+/// consumer skip its reader has to be checked here, or the producer publishes
+/// into a stream with no reader and retention silently deletes the jobs.
+///
+/// So the flag is ANDed with "is the Quickwit endpoint even usable": an
+/// unreachable endpoint is fine (the reader starts lazily and retries), but a
+/// MALFORMED one can never build a client, and that's config both roles read
+/// identically.
+pub fn spans_indexer_enabled() -> bool {
+    if !crate::env::streams::SPANS_INDEXER_ENABLED.get() {
+        return false;
+    }
+
+    match crate::quickwit::client::QuickwitConfig::from_env().validate_ingest_endpoint() {
+        Ok(()) => true,
+        Err(e) => {
+            log::error!(
+                "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is on but QUICKWIT_INGEST_URL is malformed ({:?}) - keeping Quickwit indexing on the quorum queue",
+                e
+            );
+            false
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// Both pod roles call `spans_indexer_enabled`, so a malformed
+    /// `QUICKWIT_INGEST_URL` must turn the WHOLE indexer path off — publisher and
+    /// reader together. If only the consumer could fail on it, producers would
+    /// publish into a stream with no reader and retention would delete the jobs.
+    #[test]
+    fn a_malformed_quickwit_endpoint_disables_the_whole_indexer_path() {
+        unsafe {
+            std::env::set_var("RABBITMQ_STREAM_SPANS_INDEXER_ENABLED", "true");
+            std::env::set_var("QUICKWIT_INGEST_URL", "not a url");
+        }
+        assert!(
+            !super::spans_indexer_enabled(),
+            "a malformed ingest URL must disable the indexer stream for BOTH roles"
+        );
+
+        // An UNREACHABLE endpoint is well-formed, so the path stays on: the
+        // reader starts lazily and the handler's transient retry drains it.
+        unsafe {
+            std::env::set_var("QUICKWIT_INGEST_URL", "http://127.0.0.1:1");
+        }
+        assert!(super::spans_indexer_enabled());
+
+        unsafe {
+            std::env::remove_var("RABBITMQ_STREAM_SPANS_INDEXER_ENABLED");
+            std::env::remove_var("QUICKWIT_INGEST_URL");
+        }
+    }
+}
