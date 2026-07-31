@@ -37,8 +37,23 @@ pub async fn publish_for_indexing(
     // index id would pin every span document to a single partition.
     if let Some(publisher) = indexer_stream_publisher.as_ref() {
         let key = Uuid::now_v7().to_string();
-        match publisher.publish(payload, &key).await {
+        match publisher
+            .publish_raw(serialized_payload.clone(), &key)
+            .await
+        {
             Ok(()) => return Ok(()),
+            // Over the stream record cap: the designed fallback, not a fault.
+            // The queue's memory cost for a whale is transient; a stream
+            // frame's is pinned in per-partition buffers (LAM-2024 OOM).
+            Err(e)
+                if e.downcast_ref::<crate::mq::stream::PayloadTooLarge>()
+                    .is_some() =>
+            {
+                log::info!(
+                    "Quickwit indexing payload over the stream record cap ({} bytes), taking the queue path",
+                    payload_size
+                );
+            }
             Err(e) => {
                 log::error!(
                     "Stream publish to Quickwit indexer failed, falling back to queue: {:?}",
