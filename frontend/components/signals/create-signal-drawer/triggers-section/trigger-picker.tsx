@@ -21,12 +21,12 @@ const options: { kind: TriggerKind; title: string; description: string }[] = [
   {
     kind: TRIGGER_KIND.ROOT_SPAN_FINISHED,
     title: "When a trace finishes",
-    description: "Fires once the trace's root span closes. Right for most agents.",
+    description: "Analysis begins when the trace's root span ends. Right for most agents.",
   },
   {
     kind: TRIGGER_KIND.SPAN_NAME,
     title: "When a specific span finishes",
-    description: "Fires as soon as a named span closes.",
+    description: "Analysis begins when the span you specify by name ends.",
   },
 ];
 
@@ -84,10 +84,10 @@ export default function TriggerPicker() {
                         <Info className="size-3.5" />
                       </span>
                     </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-60">
+                    <TooltipContent side="top" className="max-w-56">
                       <p>
-                        Only needed when spans can arrive after the root span closes, special cases like distributed
-                        tracing.
+                        Necessary when spans can arrive after the root span finishes <br />
+                        e.g. Distributed Tracing
                       </p>
                     </TooltipContent>
                   </Tooltip>

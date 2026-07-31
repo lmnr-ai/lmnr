@@ -26,7 +26,7 @@ export default function TriggersSection() {
                 <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
               </TooltipTrigger>
               <TooltipContent side="right" className="max-w-60">
-                <p>When a trace is handed to this signal. Each signal has exactly one trigger.</p>
+                <p>When should this Signal run?</p>
               </TooltipContent>
             </Tooltip>
           </div>
@@ -42,8 +42,8 @@ export default function TriggersSection() {
               <TooltipTrigger asChild>
                 <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
               </TooltipTrigger>
-              <TooltipContent side="right" className="max-w-60">
-                <p>Only analyze matching traces, non-matches are skipped.</p>
+              <TooltipContent side="right" className="max-w-40">
+                <p>Which traces should this Signal run on?</p>
               </TooltipContent>
             </Tooltip>
           </div>

@@ -56,7 +56,7 @@ export default function SpanNamesField() {
           onChange={write}
           suggestions={suggestions}
           alwaysEditable
-          placeholder="Type or pick a span name, e.g. done"
+          placeholder={`Type a span name, e.g. "Task Judge"`}
           inputClassName="h-6 text-xs placeholder:text-muted-foreground"
           className="flex-1 flex-wrap gap-1 px-0 min-w-0"
         />
