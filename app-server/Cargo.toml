@@ -71,7 +71,13 @@ sodiumoxide = "0.2.7"
 sqlparser = {version = "0.62", features = ["visitor"]}
 sqlx = {version = "0.9", features = ["runtime-tokio", "postgres", "uuid", "json", "chrono", "bigdecimal", "tls-rustls"]}
 thiserror = "2"
-tikv-jemallocator = "0.6.0"
+# `unprefixed_malloc_on_supported_platforms` makes jemalloc also own C
+# malloc/free (Linux; no-op elsewhere), so C deps' allocations — zstd contexts
+# especially — don't churn glibc arenas. Without it, per-call multi-MB C
+# allocations fragment glibc's per-thread arenas and RSS grows until OOM
+# (LAM-2024 prod leak); the Rust-side `#[global_allocator]` alone doesn't
+# cover C code.
+tikv-jemallocator = {version = "0.6.1", features = ["unprefixed_malloc_on_supported_platforms"]}
 tokenizers = {version = "0.21", default-features = false, features = ["onig"], optional = true}
 tokio = {version = "1.49", features = ["macros", "rt-multi-thread"]}
 tokio-stream = {version = "0.1", features = ["net"]}

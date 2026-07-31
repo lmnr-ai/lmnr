@@ -393,6 +393,69 @@ mod tests {
         );
     }
 
+    /// Leak probe: publish a few thousand realistic-size payloads and sample
+    /// this process's RSS. Diagnostic for the prod OOM — not a pass/fail
+    /// assertion, read the printed deltas. Needs a local broker on 5552.
+    /// Run with:
+    /// `cargo test --bin app-server mq::stream::publisher::tests::publish_leak_probe -- --ignored --nocapture`
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore]
+    async fn publish_leak_probe() {
+        fn rss_mb() -> f64 {
+            let out = std::process::Command::new("ps")
+                .args(["-o", "rss=", "-p", &std::process::id().to_string()])
+                .output()
+                .unwrap();
+            String::from_utf8_lossy(&out.stdout).trim().parse::<f64>().unwrap() / 1024.0
+        }
+
+        let environment = StreamEnvironment::connect()
+            .await
+            .expect("local stream broker not reachable");
+        let topology = StreamTopology {
+            partitions: 8,
+            max_length_bytes: 500_000_000,
+            max_age: Duration::from_secs(600),
+            max_segment_size_bytes: 50_000_000,
+            replication_factor: 1,
+        };
+        topology
+            .declare(&environment, "lmnr_test_leak_probe")
+            .await
+            .unwrap();
+
+        let publisher = StreamPublisher::new(&environment, "lmnr_test_leak_probe")
+            .await
+            .unwrap();
+
+        // ~60KB JSON payload, mildly compressible like span batches.
+        let payload: Vec<serde_json::Value> = (0..200)
+            .map(|i| {
+                serde_json::json!({
+                    "span_id": format!("{:032x}", i),
+                    "name": "gen_ai.chat",
+                    "input": format!("some repeated prompt text {} ", i).repeat(10),
+                })
+            })
+            .collect();
+
+        let total = 3000usize;
+        let baseline = rss_mb();
+        eprintln!("baseline RSS: {baseline:.1} MB");
+        for i in 0..total {
+            publisher
+                .publish(&payload, &uuid::Uuid::now_v7().to_string())
+                .await
+                .expect("publish failed");
+            if (i + 1) % 500 == 0 {
+                eprintln!("after {:>5} publishes: RSS {:.1} MB (delta {:+.1})", i + 1, rss_mb(), rss_mb() - baseline);
+            }
+        }
+        // Give confirms/cleanup a moment, then final sample.
+        tokio::time::sleep(Duration::from_secs(3)).await;
+        eprintln!("final RSS: {:.1} MB (delta {:+.1})", rss_mb(), rss_mb() - baseline);
+    }
+
     /// Needs a local broker with the stream plugin on 5552 (guest/guest), so
     /// it's ignored by default. Run with:
     /// `cargo test --bin app-server mq::stream::publisher -- --ignored`
