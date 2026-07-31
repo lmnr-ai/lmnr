@@ -29,7 +29,7 @@ export const SURFACE_BG: Record<number, string> = {
 const SCALE_MAX = 800;
 // The border color sits this many scale-units above the surface's own fill — dynamic and
 // elevation-relative, so borders lighten as surfaces stack.
-const BORDER_OFFSET = 300;
+const BORDER_OFFSET = 250;
 
 const clampElevation = (n: number): number => Math.round(Math.max(MIN_ELEVATION, Math.min(MAX_ELEVATION, n)));
 

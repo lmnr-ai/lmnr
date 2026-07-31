@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
-import { useElevation } from "@/components/ui/surface";
 import { withOpacity } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
@@ -129,17 +128,13 @@ export default function ClusterItem({
 
   const icon = <ClusterIcon iconVariant={iconVariant} color={color} isSelected={isSelected} isPaywall={isPaywall} />;
 
-  // The row sits one surface above the list it lives in, so it reads as distinct (no
-  // shadow); it publishes its own --surface* vars so hover steps one further up.
-  const { className: elevationClassName } = useElevation({ offset: 2 });
-
   return (
     <>
       <button
         ref={buttonRef}
         className={cn(
+          // Transparent by default (reads against the list surface); only fills on hover.
           "flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left transition-colors text-secondary-foreground w-full min-w-0",
-          elevationClassName,
           isPaywall ? "cursor-default" : "cursor-pointer",
           !isPaywall && hovered && "bg-surface-up-2",
           isSelected && "bg-sidebar-accent font-medium text-primary-foreground"
