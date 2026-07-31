@@ -68,6 +68,19 @@ impl Into<u8> for TraceType {
     }
 }
 
+/// Inverse of `Into<u8>`. The values are NOT declaration order
+/// (EVALUATION=1, EVENT=2) — keep the two impls in sync.
+impl From<u8> for TraceType {
+    fn from(value: u8) -> Self {
+        match value {
+            1 => TraceType::EVALUATION,
+            2 => TraceType::EVENT,
+            3 => TraceType::PLAYGROUND,
+            _ => TraceType::DEFAULT,
+        }
+    }
+}
+
 /// Field order matches the ClickHouse `spans` table column order so that
 /// `SELECT *` deserializes correctly.
 #[derive(Row, Serialize, Deserialize, Debug, Clone)]

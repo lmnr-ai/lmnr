@@ -96,10 +96,10 @@ export function useBlockScrollSync({
     };
   }, [scrollEl]);
 
-  // outline click → scroll. `scrollToIndex` is instant (the virtualizer's scrollToFn
-  // writes scrollTop directly); the rAF second pass corrects the offset once the
-  // target's real height is measured. Runs off a store subscription, not an effect
-  // keyed on scrollToBlockId (whose consume would re-run the effect).
+  // outline click → scroll. `scrollToIndex` is instant (container has no
+  // scroll-smooth); the rAF second pass corrects the offset once the target's
+  // real height is measured. Runs off a store subscription, not an effect keyed
+  // on scrollToBlockId (whose consume would re-run the effect).
   useEffect(() => {
     if (!scrollEl) return;
     let rafId: number | null = null;

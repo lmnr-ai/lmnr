@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { applyTracePartial, mergeTraceDelta, realtimeTraceToRow } from "@/components/traces/traces-table/realtime";
+import { applyTracePartial, mergeTraceDelta, realtimeTraceToRow } from "@/lib/traces/realtime";
 import { type RealtimeTracePayload, type SpanType, type TraceRow } from "@/lib/traces/types";
 
 const baseDelta = (overrides: Partial<RealtimeTracePayload> = {}): RealtimeTracePayload => ({

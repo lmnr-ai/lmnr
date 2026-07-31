@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::{
     cache::Cache,
     ch::traces::TraceAggregation,
-    db::{spans::Span, spans::SpanType},
+    db::{spans::Span, spans::SpanType, trace::TraceType},
     evaluations::realtime::lookup_trace_evaluation_id,
     pubsub::PubSub,
     realtime::{SseMessage, send_to_key},
@@ -49,14 +49,6 @@ pub struct RealtimeTrace {
     status: Option<String>,
     user_id: Option<String>,
     tags: Vec<String>, // Span tags
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RealtimeDebuggerTrace {
-    trace_id: Uuid,
-    metadata: Option<Value>,
-    has_browser_session: Option<bool>,
 }
 
 /// Realtime span data for frontend consumption (lightweight, no input/output)
@@ -311,7 +303,9 @@ impl RealtimeTrace {
             total_cost: agg.total_cost,
             metadata: agg.metadata.clone(),
             top_span_id: agg.top_span_id,
-            trace_type: agg.trace_type.to_string(),
+            // `agg.trace_type` is the numeric CH encoding — map it back to the
+            // variant name the frontend's `traceType` union expects.
+            trace_type: TraceType::from(agg.trace_type).to_string(),
             top_span_name: agg.top_span_name.clone(),
             top_span_type: agg
                 .top_span_id
@@ -320,16 +314,6 @@ impl RealtimeTrace {
             status: agg.status.clone(),
             user_id: agg.user_id.clone(),
             tags: agg.tags.iter().cloned().collect(),
-        }
-    }
-}
-
-impl RealtimeDebuggerTrace {
-    pub fn from_aggregation(agg: &TraceAggregation) -> Self {
-        Self {
-            trace_id: agg.trace_id,
-            metadata: agg.metadata.clone(),
-            has_browser_session: agg.has_browser_session,
         }
     }
 }
