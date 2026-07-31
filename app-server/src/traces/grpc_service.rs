@@ -1,11 +1,8 @@
 use std::sync::Arc;
 
-use actix_limitation::{Error as LimiterError, Limiter};
-use uuid::Uuid;
-
 use crate::{
     auth::authenticate_request,
-    cache::{Cache, CacheTrait, keys::INGESTION_RATE_LIMIT_PROJECT_ID_CACHE_KEY},
+    cache::Cache,
     db::DB,
     features::{Feature, is_feature_enabled},
     mq::{MessageQueue, stream::StreamPublisher},
@@ -16,7 +13,7 @@ use crate::{
 };
 use tonic::{Request, Response, Status};
 
-use super::producer::push_spans_to_queue;
+use super::{producer::push_spans_to_queue, rate_limit::IngestionRateLimiter};
 
 pub struct ProcessTracesService {
     db: Arc<DB>,
@@ -24,7 +21,7 @@ pub struct ProcessTracesService {
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
     spans_stream_publisher: Option<Arc<StreamPublisher>>,
-    rate_limiter: Option<Limiter>,
+    rate_limiter: Option<Arc<IngestionRateLimiter>>,
 }
 
 impl ProcessTracesService {
@@ -34,7 +31,7 @@ impl ProcessTracesService {
         clickhouse: clickhouse::Client,
         queue: Arc<MessageQueue>,
         spans_stream_publisher: Option<Arc<StreamPublisher>>,
-        rate_limiter: Option<Limiter>,
+        rate_limiter: Option<Arc<IngestionRateLimiter>>,
     ) -> Self {
         Self {
             db,
@@ -59,23 +56,11 @@ impl TraceService for ProcessTracesService {
         let project_id = api_key.project_id;
         let request = request.into_inner();
 
-        // Per-project gRPC rate limit. Shares the same Redis key
-        // (`ratelimit:<project_id>`) and quota as the HTTP rate limiter so
-        // OTLP/HTTP and OTLP/gRPC can't bypass each other. Fail-open on Redis
-        // errors — same posture as the bytes-limit check below — so a Redis
-        // blip doesn't black-hole ingestion.
+        // Per-project ingestion rate limit, shared with the HTTP /v1/traces
+        // path so the two transports draw from one quota.
         if let Some(ref limiter) = self.rate_limiter {
-            if is_project_id_rate_limited(self.cache.clone(), project_id).await {
-                let key = format!("grpc_ratelimit:{}", project_id);
-                match limiter.count(key).await {
-                    Ok(_) => {}
-                    Err(LimiterError::LimitExceeded(_)) => {
-                        return Err(Status::resource_exhausted("Rate limit exceeded"));
-                    }
-                    Err(e) => {
-                        log::error!("Rate limiter error, allowing request: {:?}", e);
-                    }
-                }
+            if !limiter.check(&self.cache, project_id).await {
+                return Err(Status::resource_exhausted("Rate limit exceeded"));
             }
         }
 
@@ -115,22 +100,5 @@ impl TraceService for ProcessTracesService {
         })?;
 
         Ok(Response::new(response))
-    }
-}
-
-async fn is_project_id_rate_limited(cache: Arc<Cache>, project_id: Uuid) -> bool {
-    match cache
-        .get::<i8>(&format!(
-            "{INGESTION_RATE_LIMIT_PROJECT_ID_CACHE_KEY}:{}",
-            project_id.to_string()
-        ))
-        .await
-    {
-        Ok(Some(v)) => v != 0,
-        Ok(None) => false,
-        Err(e) => {
-            log::error!("Error getting rate limited project ids: {:?}", e);
-            false
-        }
     }
 }

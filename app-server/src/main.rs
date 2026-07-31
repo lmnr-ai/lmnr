@@ -2026,40 +2026,52 @@ fn main() -> anyhow::Result<()> {
             None
         };
 
-        let grpc_rate_limiter = if is_feature_enabled(Feature::GrpcRateLimiter) {
+        // Per-project data-ingestion rate limiter, shared by the gRPC and
+        // HTTP OTLP trace endpoints. The env limit/period are the global
+        // defaults; per-project overrides in cache
+        // (`ingestion_project_rate_limit:{id}` for N,
+        // `ingestion_project_rate_limit_period:{id}` for the window) swap in
+        // an ad-hoc limiter.
+        let ingestion_rate_limiter = if is_feature_enabled(Feature::IngestionRateLimiter) {
             let redis_url = std::env::var(env::connections::REDIS_URL).unwrap();
 
-            let grpc_limit: usize = std::env::var(env::rate_limit::GRPC_LIMIT)
+            let ingestion_limit: usize = std::env::var(env::rate_limit::INGESTION_LIMIT)
                 .unwrap()
                 .parse()
                 .unwrap();
-            let grpc_period_secs: u64 = std::env::var(env::rate_limit::GRPC_PERIOD_SECS)
+            let ingestion_period_secs: u64 = std::env::var(env::rate_limit::INGESTION_PERIOD_SECS)
                 .unwrap()
                 .parse()
                 .unwrap();
             // no key_by. .count() is called explicitly with a key manually
             match Limiter::builder(&redis_url)
-                .limit(grpc_limit)
-                .period(Duration::from_secs(grpc_period_secs))
+                .limit(ingestion_limit)
+                .period(Duration::from_secs(ingestion_period_secs))
                 .build()
             {
                 Ok(limiter) => {
                     log::info!(
-                        "gRPC Rate limiter initialized ({} req/{} s per project)",
-                        grpc_limit,
-                        grpc_period_secs
+                        "Ingestion rate limiter initialized ({} req/{} s per project)",
+                        ingestion_limit,
+                        ingestion_period_secs
                     );
-                    Some(limiter)
+                    Some(Arc::new(traces::rate_limit::IngestionRateLimiter::new(
+                        limiter,
+                        redis_url,
+                        ingestion_limit,
+                        ingestion_period_secs,
+                    )))
                 }
                 Err(e) => {
-                    log::warn!("Failed to initialize gRPC rate limiter: {:?}", e);
+                    log::warn!("Failed to initialize ingestion rate limiter: {:?}", e);
                     None
                 }
             }
         } else {
-            log::info!("gRPC rate limiter is disabled");
+            log::info!("Ingestion rate limiter is disabled");
             None
         };
+        let ingestion_rate_limiter_for_http = ingestion_rate_limiter.clone();
 
         // == HTTP server and listener workers ==
         let http_server_handle = thread::Builder::new()
@@ -2116,6 +2128,7 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::from(db_for_http.clone()))
                             .app_data(web::Data::new(mq_for_http.clone()))
                             .app_data(web::Data::new(spans_stream_publisher_for_http.clone()))
+                            .app_data(web::Data::new(ingestion_rate_limiter_for_http.clone()))
                             .app_data(web::Data::new(clickhouse_for_http.clone()))
                             .app_data(web::Data::new(clickhouse_readonly_client.clone()))
                             .app_data(web::Data::new(name_generator.clone()))
@@ -2285,7 +2298,7 @@ fn main() -> anyhow::Result<()> {
                         clickhouse.clone(),
                         queue.clone(),
                         spans_stream_publisher.clone(),
-                        grpc_rate_limiter,
+                        ingestion_rate_limiter,
                     );
 
                     let process_logs_service = ProcessLogsService::new(

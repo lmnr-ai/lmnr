@@ -18,8 +18,8 @@ use crate::{
     sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
 };
 
-/// Per-project SQL rate limiter, mirroring the gRPC ingestion path
-/// (`traces/grpc_service.rs`): a shared `actix_limitation::Limiter` carries
+/// Per-project SQL rate limiter, mirroring the ingestion limiter
+/// (`traces/rate_limit.rs`): a shared `actix_limitation::Limiter` carries
 /// the global default limit, and a per-project override N stored out-of-band
 /// in cache (`sql_rate_limit:{project_id}`, set via valkey-cli) swaps in an
 /// ad-hoc limiter with the same period. Only N is overridable; the period is

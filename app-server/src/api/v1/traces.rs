@@ -12,6 +12,7 @@ use crate::{
     routes::types::ResponseResult,
     traces::{
         input_dedup::MessageDedup,
+        rate_limit::IngestionRateLimiter,
         tool_dedup::ToolDedup,
         {opentelemetry_json::decode_export_trace_service_request, producer::push_spans_to_queue},
     },
@@ -58,11 +59,22 @@ pub async fn process_traces(
     cache: web::Data<crate::cache::Cache>,
     spans_message_queue: web::Data<Arc<MessageQueue>>,
     spans_stream_publisher: web::Data<Option<Arc<StreamPublisher>>>,
+    rate_limiter: web::Data<Option<Arc<IngestionRateLimiter>>>,
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
     let db = db.into_inner();
     let cache = cache.into_inner();
+
+    // Per-project ingestion rate limit, shared with the gRPC path so the
+    // two transports draw from one quota. Checked before decode so a
+    // rate-limited caller doesn't cost us the protobuf/JSON parse.
+    if let Some(limiter) = rate_limiter.get_ref() {
+        if !limiter.check(&cache, project_api_key.project_id).await {
+            return Ok(HttpResponse::TooManyRequests().finish());
+        }
+    }
+
     let request = match decode_export_trace_request(&req, body) {
         Ok(request) => request,
         Err(e) => {
