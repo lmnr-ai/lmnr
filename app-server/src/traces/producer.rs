@@ -20,7 +20,6 @@ use super::{
     input_dedup::{MessageDedup, build_message_dedup},
     provider::convert_span_to_provider_format,
     tool_dedup::{ToolDedup, build_tool_dedup},
-    utils::is_top_span,
 };
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
@@ -63,9 +62,7 @@ struct DedupVerdicts {
 ///
 /// On success, replaces `span.input` / `span.output` with `None` whenever a
 /// dedup verdict was produced — the verdict carries the full hash list, the
-/// storage-miss content, and the trace-new positions for search. Root spans
-/// keep their `input` / `output` populated so `TraceAggregation::from_spans`
-/// can build the trace-list preview.
+/// storage-miss content, and the trace-new positions for search.
 async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdicts {
     span.parse_and_enrich_attributes();
     convert_span_to_provider_format(span);
@@ -102,23 +99,10 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
         span.end_time.timestamp_nanos_opt().unwrap_or(i64::MAX),
     );
 
-    let keep_root_payload = span.parent_span_id.is_none() || is_top_span(span, &span.attributes);
-
-    if input.is_some() && !keep_root_payload {
-        // Keep `input` on any span that is (or will become) the trace root —
-        // the consumer's `TraceAggregation::from_spans` reads it for the
-        // `root_span_input` preview shown in the trace list:
-        //   - `parent_span_id.is_none()` — natural OTel root.
-        //   - `is_top_span(...)` — Laminar SDK top span; arrives with an OTel
-        //     parent but `prepare_span_for_recording` will null it on the
-        //     consumer, promoting the span to root.
-        // Root spans are 1 per trace; dedup savings come from the long
-        // tail of nested LLM spans either way.
+    if input.is_some() {
         span.input = None;
     }
-    if output.is_some() && !keep_root_payload {
-        // Same carve-out for output: root span's `root_span_output` preview
-        // is built from `span.output`.
+    if output.is_some() {
         span.output = None;
     }
 

@@ -1,128 +1,14 @@
 use std::collections::HashSet;
 
 use chrono::{DateTime, Utc};
-use clickhouse::Row;
-use clickhouse::insert::Insert;
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::utils::{chrono_to_nanoseconds, merge_json_objects};
-use super::{
-    ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS, Table,
-};
+use super::utils::merge_json_objects;
 use crate::db::spans::{Span, SpanType};
-use crate::db::trace::Trace;
 use crate::traces::spans::SpanUsage;
 
-/// Maximum number of characters to store for root span input/output preview.
-const ROOT_SPAN_PREVIEW_MAX_CHARS: usize = 2048;
-
-fn truncate_json_preview(value: &serde_json::Value) -> String {
-    let s = value.to_string();
-    if s.chars().count() > ROOT_SPAN_PREVIEW_MAX_CHARS {
-        s.chars().take(ROOT_SPAN_PREVIEW_MAX_CHARS).collect()
-    } else {
-        s
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Row)]
-pub struct CHTrace {
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub id: Uuid,
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub project_id: Uuid,
-    /// Start time in nanoseconds
-    pub start_time: i64,
-    /// End time in nanoseconds
-    pub end_time: i64,
-    pub duration: f64,
-    pub input_tokens: i64,
-    pub output_tokens: i64,
-    pub total_tokens: i64,
-    pub input_cost: f64,
-    pub output_cost: f64,
-    pub total_cost: f64,
-    pub metadata: String,
-    pub session_id: String,
-    pub user_id: String,
-    pub status: String,
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub top_span_id: Uuid,
-    pub top_span_name: String,
-    pub top_span_type: u8,
-    pub trace_type: u8,
-    pub tags: Vec<String>,
-    pub num_spans: u64,
-    pub has_browser_session: bool,
-    pub span_names: Vec<String>,
-    pub root_span_input: String,
-    pub root_span_output: String,
-    pub cache_read_input_tokens: u64,
-    pub cache_creation_input_tokens: u64,
-    pub reasoning_tokens: u64,
-}
-
-impl CHTrace {
-    /// Create CHTrace from database Trace
-    pub fn from_db_trace(trace: &Trace) -> Self {
-        let start_time_ns = trace.start_time().map(chrono_to_nanoseconds).unwrap_or(0);
-        let end_time_ns = trace.end_time().map(chrono_to_nanoseconds).unwrap_or(0);
-
-        let duration = if start_time_ns > 0 && end_time_ns > 0 {
-            (end_time_ns - start_time_ns) as f64 / 1_000_000_000.0 // Convert to seconds
-        } else {
-            0.0
-        };
-
-        CHTrace {
-            id: trace.id(),
-            project_id: trace.project_id(),
-            start_time: start_time_ns,
-            end_time: end_time_ns,
-            duration,
-            input_tokens: trace.input_token_count(),
-            output_tokens: trace.output_token_count(),
-            total_tokens: trace.total_token_count(),
-            cache_read_input_tokens: trace.cache_read_input_tokens() as u64,
-            cache_creation_input_tokens: trace.cache_creation_input_tokens() as u64,
-            reasoning_tokens: trace.reasoning_tokens() as u64,
-            input_cost: trace.input_cost(),
-            output_cost: trace.output_cost(),
-            total_cost: trace.cost(),
-            metadata: trace.metadata().map(|m| m.to_string()).unwrap_or_default(),
-            session_id: trace.session_id().unwrap_or_default(),
-            user_id: trace.user_id().unwrap_or_default(),
-            status: trace.status().unwrap_or_default(),
-            top_span_id: trace.top_span_id().unwrap_or(Uuid::nil()),
-            top_span_name: trace.top_span_name().unwrap_or_default(),
-            top_span_type: trace.top_span_type().unwrap_or(0) as u8,
-            trace_type: trace.trace_type() as u8,
-            tags: trace.tags().clone(),
-            num_spans: trace.num_spans() as u64,
-            has_browser_session: trace.has_browser_session().unwrap_or(false),
-            span_names: trace.span_names(),
-            root_span_input: trace.root_span_input().unwrap_or_default(),
-            root_span_output: trace.root_span_output().unwrap_or_default(),
-        }
-    }
-}
-
-impl ClickhouseInsertable for CHTrace {
-    const TABLE: Table = Table::Traces;
-
-    fn configure_insert(insert: Insert<Self>) -> Insert<Self> {
-        insert.with_setting(
-            "async_insert_busy_timeout_max_ms",
-            SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS.as_str(),
-        )
-    }
-
-    fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
-        DataPlaneBatch::Traces(items)
-    }
-}
-
+/// One batch's trace-stats delta. Folded by `traces_agg` (aggregates) and
+/// `traces_static` (set-once columns); never a cumulative row.
 #[derive(Debug, Clone)]
 pub struct TraceAggregation {
     pub trace_id: Uuid,
@@ -150,8 +36,6 @@ pub struct TraceAggregation {
     pub trace_type: u8,
     pub has_browser_session: Option<bool>,
     pub span_names: HashSet<String>,
-    pub root_span_input: Option<String>,
-    pub root_span_output: Option<String>,
 }
 
 impl TraceAggregation {
@@ -191,8 +75,6 @@ impl TraceAggregation {
                         trace_type: 0,
                         has_browser_session: None,
                         span_names: HashSet::new(),
-                        root_span_input: None,
-                        root_span_output: None,
                     });
 
             // Aggregate min start_time
@@ -267,8 +149,6 @@ impl TraceAggregation {
                 entry.top_span_id = Some(span.span_id);
                 entry.top_span_name = Some(span.name.clone());
                 entry.top_span_type = span.span_type.clone().into();
-                entry.root_span_input = span.input.as_ref().map(truncate_json_preview);
-                entry.root_span_output = span.output.as_ref().map(truncate_json_preview);
             }
 
             if entry.top_span_name.is_none() {
