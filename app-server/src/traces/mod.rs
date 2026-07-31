@@ -17,6 +17,7 @@ pub mod sampling;
 pub mod span_attributes;
 pub mod spans;
 pub mod static_sp_extraction;
+pub mod stream_consumer;
 pub mod tool_dedup;
 pub mod utils;
 

@@ -15,7 +15,7 @@ use crate::{
         DB,
         spans::{Span, SpanType},
     },
-    mq::MessageQueue,
+    mq::{MessageQueue, stream::StreamPublisher},
     traces::{
         producer::publish_span_messages,
         span_attributes::{
@@ -50,6 +50,7 @@ fn publish_metadata_only_span(
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    spans_stream_publisher: Option<Arc<StreamPublisher>>,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send>> {
     Box::pin(async move {
         let now = Utc::now();
@@ -81,7 +82,15 @@ fn publish_metadata_only_span(
             tool_dedup: None,
         }];
 
-        publish_span_messages(messages, project_id, queue, db, cache).await?;
+        publish_span_messages(
+            messages,
+            project_id,
+            queue,
+            db,
+            cache,
+            spans_stream_publisher,
+        )
+        .await?;
         Ok(())
     })
 }
@@ -96,6 +105,7 @@ pub fn publish_trace_metadata_patch(
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    spans_stream_publisher: Option<Arc<StreamPublisher>>,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send>> {
     if metadata.is_empty() {
         return Box::pin(async { Ok(()) });
@@ -108,7 +118,15 @@ pub fn publish_trace_metadata_patch(
             value,
         );
     }
-    publish_metadata_only_span(trace_id, project_id, attributes, queue, db, cache)
+    publish_metadata_only_span(
+        trace_id,
+        project_id,
+        attributes,
+        queue,
+        db,
+        cache,
+        spans_stream_publisher,
+    )
 }
 
 /// Set the extracted trace input. The RAW value rides the virtual span on
@@ -124,6 +142,7 @@ pub async fn publish_trace_input_update(
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    spans_stream_publisher: Option<Arc<StreamPublisher>>,
 ) -> Result<()> {
     let mut attributes = HashMap::from([
         (SPAN_METADATA_ONLY.to_string(), Value::Bool(true)),
@@ -135,7 +154,16 @@ pub async fn publish_trace_input_update(
             Value::String(session_id),
         );
     }
-    publish_metadata_only_span(trace_id, project_id, attributes, queue, db, cache).await
+    publish_metadata_only_span(
+        trace_id,
+        project_id,
+        attributes,
+        queue,
+        db,
+        cache,
+        spans_stream_publisher,
+    )
+    .await
 }
 
 /// Set the extracted trace output. Same virtual-span transport as
@@ -154,6 +182,7 @@ pub async fn publish_trace_output_update(
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    spans_stream_publisher: Option<Arc<StreamPublisher>>,
 ) -> Result<()> {
     let hex_hashes: Vec<Value> = hashes
         .iter()
@@ -170,5 +199,14 @@ pub async fn publish_trace_output_update(
             Value::Number(end_time_ns.into()),
         ),
     ]);
-    publish_metadata_only_span(trace_id, project_id, attributes, queue, db, cache).await
+    publish_metadata_only_span(
+        trace_id,
+        project_id,
+        attributes,
+        queue,
+        db,
+        cache,
+        spans_stream_publisher,
+    )
+    .await
 }

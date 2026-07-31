@@ -80,6 +80,7 @@ use traces::{
         STATIC_PROMPT_EXCHANGE, STATIC_PROMPT_QUEUE, STATIC_PROMPT_ROUTING_KEY,
         consumer::StaticPromptHandler,
     },
+    stream_consumer::StreamSpanHandler,
 };
 
 use cache::{
@@ -93,6 +94,7 @@ use quickwit::{
     SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE, SPANS_INDEXER_ROUTING_KEY,
     client::{QuickwitClient, QuickwitConfig},
     consumer::QuickwitIndexerHandler,
+    stream_consumer::StreamQuickwitIndexerHandler,
 };
 use realtime::SseConnectionMap;
 use sodiumoxide;
@@ -903,17 +905,6 @@ fn main() -> anyhow::Result<()> {
         Arc::new(queue.into())
     };
 
-    // Now that the queue/DB/cache exist, hand them to the internal self-tracing
-    // exporter. Until this runs the exporter drops spans; nothing emits internal
-    // spans this early on a normal boot (the agent only runs once serving starts).
-    if internal_tracing_enabled {
-        let _ = internal_ingest_deps.set(instrumentation::internal_exporter::IngestDeps {
-            queue: queue.clone(),
-            db: db.clone(),
-            cache: cache.clone(),
-        });
-    }
-
     // ==== 3.5 SSE connections map ====
     let sse_connections: SseConnectionMap = Arc::new(dashmap::DashMap::new());
 
@@ -1027,6 +1018,124 @@ fn main() -> anyhow::Result<()> {
             }
         };
 
+    // ==== 3.15 RabbitMQ Streams transport (LAM-2024) ====
+    // Additive to the queues above: producers prefer a stream when its publisher
+    // was built, and fall back to the quorum queue otherwise. A failure here is
+    // logged and leaves every publisher `None`, so ingest degrades to the queue
+    // path rather than failing the boot.
+    //
+    // Publishers are built in BOTH pod roles, NOT just under
+    // `enable_producer()`. Ingest (`api/v1/spans.rs`) is producer-side, but the
+    // CONSUMER also publishes spans: `publish_for_indexing` runs inside
+    // `process_span_messages`, and the metadata façades
+    // (`publish_trace_{input,output}_update` / `publish_trace_metadata_patch`) are
+    // called from the input-extraction and checkpoints consumers. Gating on
+    // `enable_producer()` left both publishers `None` on `OPERATION_MODE=consumer`,
+    // so every one of those paths silently stayed on the quorum queue — the exact
+    // path this transport exists to unload.
+    // Publishers are built only after every super stream declared successfully,
+    // so a topology failure can't leave producers writing to unread streams. The
+    // two publishers are threaded to their publish sites as explicit
+    // `Option<Arc<StreamPublisher>>` parameters (no global registry).
+    let (stream_runtime, spans_stream_publisher, indexer_stream_publisher): (
+        Option<mq::stream::StreamEnvironment>,
+        Option<Arc<mq::stream::StreamPublisher>>,
+        Option<Arc<mq::stream::StreamPublisher>>,
+    ) = if mq::stream::enabled() && is_feature_enabled(Feature::FullBuild) {
+        runtime_handle.block_on(async {
+                match mq::stream::StreamEnvironment::connect().await {
+                    Ok(environment) => {
+                        let topology = mq::stream::StreamTopology::from_env();
+                        // Declare the indexer stream only when its flag is on:
+                        // its publisher AND its reader are both gated on that same
+                        // flag, so otherwise we'd create a 32-partition super stream
+                        // nobody touches and let a failure on it abort the
+                        // observations transport too.
+                        let mut streams = vec![mq::stream::OBSERVATIONS_STREAM];
+                        if env::streams::SPANS_INDEXER_ENABLED.get() {
+                            streams.push(mq::stream::SPANS_INDEXER_STREAM);
+                        }
+                        for name in streams {
+                            if let Err(e) = topology.declare(&environment, name).await {
+                                log::error!("Failed to declare super stream '{}': {:?}", name, e);
+                                return (None, None, None);
+                            }
+                        }
+
+                        let mut spans_publisher = None;
+                        let mut indexer_publisher = None;
+                        match mq::stream::StreamPublisher::new(
+                            &environment,
+                            mq::stream::OBSERVATIONS_STREAM,
+                        )
+                        .await
+                        {
+                            Ok(publisher) => spans_publisher = Some(Arc::new(publisher)),
+                            Err(e) => {
+                                log::error!("Failed to build observations publisher: {:?}", e)
+                            }
+                        }
+                        // Gated on the SHARED config flag, not on this pod's own
+                        // `quickwit_client`. The indexer reader lives in the
+                        // consumer pod and `QuickwitClient::connect` is a
+                        // per-pod TCP dial, so "Quickwit is live here" says
+                        // nothing about whether the consumer pod started a
+                        // reader — a producer that connects while the consumer
+                        // doesn't would publish indexing jobs to a stream
+                        // nothing reads, and an unread stream is deleted by
+                        // retention (the quorum queue would have retained them).
+                        // Both roles read this same env var, so the gate is
+                        // symmetric; unset keeps `publish_for_indexing` on the
+                        // queue fallback.
+                        if env::streams::SPANS_INDEXER_ENABLED.get() {
+                            match mq::stream::StreamPublisher::new(
+                                &environment,
+                                mq::stream::SPANS_INDEXER_STREAM,
+                            )
+                            .await
+                            {
+                                Ok(publisher) => {
+                                    indexer_publisher = Some(Arc::new(publisher))
+                                }
+                                Err(e) => log::error!(
+                                    "Failed to build spans indexer publisher: {:?}",
+                                    e
+                                ),
+                            }
+                        } else {
+                            log::warn!(
+                                "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is off - not building the spans indexer stream publisher; indexing stays on the quorum queue"
+                            );
+                        }
+                        log::info!("RabbitMQ Streams transport enabled");
+                        (Some(environment), spans_publisher, indexer_publisher)
+                    }
+                    Err(e) => {
+                        log::error!(
+                            "Failed to connect to RabbitMQ Streams, falling back to queues: {:?}",
+                            e
+                        );
+                        (None, None, None)
+                    }
+                }
+            })
+    } else {
+        (None, None, None)
+    };
+
+    // Now that the queue/DB/cache (and the optional spans stream publisher)
+    // exist, hand them to the internal self-tracing exporter. Until this runs
+    // the exporter drops spans; nothing emits internal spans this early on a
+    // normal boot (the agent only runs once serving starts).
+    if internal_tracing_enabled {
+        let _ = internal_ingest_deps.set(instrumentation::internal_exporter::IngestDeps {
+            queue: queue.clone(),
+            db: db.clone(),
+            cache: cache.clone(),
+            spans_stream_publisher: spans_stream_publisher.clone(),
+        });
+    }
+
     // == PII redactor ==
     // Optional: when `PII_REDACTOR_URL` is set, span input/output fields are
     // redacted via the pii-redactor gRPC service for projects whose
@@ -1059,6 +1168,7 @@ fn main() -> anyhow::Result<()> {
     let http_client = reqwest::Client::new();
 
     let clickhouse_for_http = clickhouse.clone();
+    let spans_stream_publisher_for_http = spans_stream_publisher.clone();
 
     let storage_for_http = storage.clone();
     let sse_connections_for_http = sse_connections.clone();
@@ -1194,6 +1304,9 @@ fn main() -> anyhow::Result<()> {
         let pii_redactor_for_consumer = pii_redactor.clone();
         let worker_pool_clone = worker_pool.clone();
         let batch_worker_pool_clone = batch_worker_pool.clone();
+        let stream_runtime_for_consumer = stream_runtime.clone();
+        let spans_stream_publisher_for_consumer = spans_stream_publisher.clone();
+        let indexer_stream_publisher_for_consumer = indexer_stream_publisher.clone();
 
         let consumer_handle = thread::Builder::new()
             .name("consumer".to_string())
@@ -1211,6 +1324,8 @@ fn main() -> anyhow::Result<()> {
                         let clickhouse = clickhouse_for_consumer.clone();
                         let pubsub = pubsub_for_consumer.clone();
                         let pii_redactor = pii_redactor_for_consumer.clone();
+                        let indexer_stream_publisher =
+                            indexer_stream_publisher_for_consumer.clone();
 
                         let ch_cloud = CloudClickhouse::new(clickhouse.clone());
 
@@ -1225,6 +1340,7 @@ fn main() -> anyhow::Result<()> {
                                 ch: ch_cloud.clone(),
                                 pubsub: pubsub.clone(),
                                 pii_redactor: pii_redactor.clone(),
+                                indexer_stream_publisher: indexer_stream_publisher.clone(),
                                 config: BatchingConfig {
                                     size,
                                     flush_interval,
@@ -1251,6 +1367,8 @@ fn main() -> anyhow::Result<()> {
                         let clickhouse = clickhouse_for_consumer.clone();
                         let pubsub = pubsub_for_consumer.clone();
                         let pii_redactor = pii_redactor_for_consumer.clone();
+                        let indexer_stream_publisher =
+                            indexer_stream_publisher_for_consumer.clone();
 
                         let ch_data_plane = DataPlaneClickhouse::new(
                             http_client_for_consumer.clone(),
@@ -1268,6 +1386,7 @@ fn main() -> anyhow::Result<()> {
                                 ch: ch_data_plane.clone(),
                                 pubsub: pubsub.clone(),
                                 pii_redactor: pii_redactor.clone(),
+                                indexer_stream_publisher: indexer_stream_publisher.clone(),
                                 config: BatchingConfig {
                                     size,
                                     flush_interval,
@@ -1299,6 +1418,109 @@ fn main() -> anyhow::Result<()> {
                         );
                     } else {
                         log::warn!("Quickwit not available - skipping spans indexer workers");
+                    }
+
+                    // ==== Stream readers (LAM-2024) ====
+                    // Run ALONGSIDE the queue workers above during the
+                    // transition: the quorum queues drain their backlog while
+                    // streams carry new traffic. Removing the queue workers is a
+                    // later release.
+                    if let Some(stream_environment) = stream_runtime_for_consumer.as_ref() {
+                        {
+                            let db = db_for_consumer.clone();
+                            let cache = cache_for_consumer.clone();
+                            let queue = mq_for_consumer.clone();
+                            let clickhouse = clickhouse_for_consumer.clone();
+                            let pubsub = pubsub_for_consumer.clone();
+                            let pii_redactor = pii_redactor_for_consumer.clone();
+                            let ch_cloud = CloudClickhouse::new(clickhouse.clone());
+
+                            let reader = mq::stream::StreamReader::new(
+                                mq::stream::OBSERVATIONS_STREAM,
+                                mq::stream::OBSERVATIONS_CONSUMER_NAME,
+                                stream_environment.clone(),
+                                StreamSpanHandler {
+                                    db,
+                                    cache,
+                                    queue,
+                                    clickhouse,
+                                    ch: ch_cloud,
+                                    pubsub,
+                                    pii_redactor,
+                                    indexer_stream_publisher:
+                                        indexer_stream_publisher_for_consumer.clone(),
+                                    config: BatchingConfig {
+                                        size: env::batching::SPANS_SIZE.get(),
+                                        flush_interval: Duration::from_millis(
+                                            env::batching::STREAM_SPANS_FLUSH_INTERVAL_MS.get(),
+                                        ),
+                                    },
+                                },
+                                env::streams::SPANS_BATCHERS.get(),
+                            );
+                            tokio::spawn(reader.run());
+
+                            // Same shared flag the producer gates its publisher on,
+                            // so the two pod roles can't disagree about whether this
+                            // stream has a reader. The reader must NOT be gated on
+                            // this pod's own `quickwit_client`: that handle is a
+                            // boot-time TCP dial, so a Quickwit blip during THIS
+                            // pod's startup would leave the stream with no reader
+                            // while producer pods (gated only on the flag) keep
+                            // publishing — and an unread stream is deleted by
+                            // retention, unlike an undrained quorum queue. So build
+                            // a LAZY client when the boot dial failed: the handler
+                            // classifies `Unavailable` as transient, which retries
+                            // the batch in place without advancing the offset and
+                            // calls `reconnect()`, so the backlog waits on broker
+                            // disk and drains once Quickwit returns.
+                            if env::streams::SPANS_INDEXER_ENABLED.get() {
+                                let indexer_quickwit_client = match quickwit_client_for_consumer
+                                    .as_ref()
+                                {
+                                    Some(client) => Some(client.clone()),
+                                    None => {
+                                        match QuickwitClient::connect_lazy(QuickwitConfig::from_env())
+                                        {
+                                            Ok(client) => {
+                                                log::warn!(
+                                                    "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is on but Quickwit was unreachable at boot - starting the spans indexer reader with a lazy client so published indexing jobs aren't lost to retention"
+                                                );
+                                                Some(client)
+                                            }
+                                            Err(e) => {
+                                                log::error!(
+                                                    "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is on but the Quickwit endpoint is unusable ({:?}) - the spans indexer stream has NO reader here; producer pods may be publishing indexing jobs that retention will delete unread",
+                                                    e
+                                                );
+                                                None
+                                            }
+                                        }
+                                    }
+                                };
+
+                                if let Some(quickwit_client_for_indexer) = indexer_quickwit_client {
+                                    let reader = mq::stream::StreamReader::new(
+                                        mq::stream::SPANS_INDEXER_STREAM,
+                                        mq::stream::SPANS_INDEXER_CONSUMER_NAME,
+                                        stream_environment.clone(),
+                                        StreamQuickwitIndexerHandler {
+                                            quickwit_client: quickwit_client_for_indexer,
+                                            batch_size: env::batching::STREAM_SPANS_INDEXER_SIZE
+                                                .get(),
+                                            flush_interval: Duration::from_millis(
+                                                env::batching::STREAM_SPANS_INDEXER_FLUSH_INTERVAL_MS
+                                                    .get(),
+                                            ),
+                                        },
+                                        env::streams::SPANS_INDEXER_BATCHERS.get(),
+                                    );
+                                    tokio::spawn(reader.run());
+                                }
+                            }
+
+                            log::info!("Stream readers started");
+                        }
                     }
 
                     // Spawn browser events workers
@@ -1612,6 +1834,8 @@ fn main() -> anyhow::Result<()> {
                         let cache = cache_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
                         let llm_client_clone = llm_client.clone();
+                        let spans_stream_publisher =
+                            spans_stream_publisher_for_consumer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::InputExtraction,
                             num_input_extraction_workers,
@@ -1620,6 +1844,7 @@ fn main() -> anyhow::Result<()> {
                                 cache: cache.clone(),
                                 queue: queue.clone(),
                                 llm_client: llm_client_clone.clone(),
+                                spans_stream_publisher: spans_stream_publisher.clone(),
                             },
                             QueueConfig::new(
                                 INPUT_EXTRACTION_QUEUE,
@@ -1683,6 +1908,8 @@ fn main() -> anyhow::Result<()> {
                         let clickhouse = clickhouse_for_consumer.clone();
                         let llm_client = llm_provider_client.clone();
                         let queue = mq_for_consumer.clone();
+                        let spans_stream_publisher =
+                            spans_stream_publisher_for_consumer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Checkpoints,
                             num_checkpoints_workers,
@@ -1692,6 +1919,7 @@ fn main() -> anyhow::Result<()> {
                                 clickhouse: clickhouse.clone(),
                                 llm_client: llm_client.clone(),
                                 queue: queue.clone(),
+                                spans_stream_publisher: spans_stream_publisher.clone(),
                             },
                             QueueConfig::new(
                                 CHECKPOINTS_QUEUE,
@@ -1887,6 +2115,7 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::from(cache_for_http.clone()))
                             .app_data(web::Data::from(db_for_http.clone()))
                             .app_data(web::Data::new(mq_for_http.clone()))
+                            .app_data(web::Data::new(spans_stream_publisher_for_http.clone()))
                             .app_data(web::Data::new(clickhouse_for_http.clone()))
                             .app_data(web::Data::new(clickhouse_readonly_client.clone()))
                             .app_data(web::Data::new(name_generator.clone()))
@@ -2055,6 +2284,7 @@ fn main() -> anyhow::Result<()> {
                         cache.clone(),
                         clickhouse.clone(),
                         queue.clone(),
+                        spans_stream_publisher.clone(),
                         grpc_rate_limiter,
                     );
 

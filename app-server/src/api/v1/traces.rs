@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     db::{DB, project_api_keys::ProjectApiKey, spans::Span},
     features::{Feature, is_feature_enabled},
-    mq::MessageQueue,
+    mq::{MessageQueue, stream::StreamPublisher},
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
     routes::types::ResponseResult,
     traces::{
@@ -57,6 +57,7 @@ pub async fn process_traces(
     project_api_key: ProjectApiKey,
     cache: web::Data<crate::cache::Cache>,
     spans_message_queue: web::Data<Arc<MessageQueue>>,
+    spans_stream_publisher: web::Data<Option<Arc<StreamPublisher>>>,
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
@@ -95,6 +96,7 @@ pub async fn process_traces(
         spans_message_queue,
         db,
         cache,
+        spans_stream_publisher.get_ref().clone(),
     )
     .await?;
     if response.partial_success.is_some() {
