@@ -31,7 +31,7 @@ use crate::{
         ExportTracePartialSuccess, ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
     traces::{
-        prompt_hash::{extract_system_message, structural_skeleton_hash},
+        prompt_hash::{extract_system_message, prompt_hashes},
         span_attributes::SPAN_PROMPT_HASH,
         static_sp_extraction::producer::{StaticPromptCandidate, publish_static_prompt_candidates},
     },
@@ -68,21 +68,28 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
     convert_span_to_provider_format(span);
 
     let mut system_prompt = None;
+    let mut first_sentence_hash = None;
     if span.is_llm_span() {
         if let Some((system_text, _)) = span.input.as_ref().and_then(|v| extract_system_message(v))
         {
-            let prompt_hash = structural_skeleton_hash(&system_text);
+            let hashes = prompt_hashes(&system_text);
             span.attributes.raw_attributes.insert(
                 SPAN_PROMPT_HASH.to_string(),
-                serde_json::Value::String(prompt_hash.clone()),
+                serde_json::Value::String(hashes.skeleton.clone()),
             );
-            system_prompt = Some((prompt_hash, system_text));
+            first_sentence_hash = Some(hashes.first_sentence);
+            system_prompt = Some((hashes.skeleton, system_text));
         }
     }
 
     // Capture the user-task candidate while `span.input` is still
-    // populated (the dedup strip below may null it).
-    let user_task = crate::traces::input_extraction::capture_user_task_candidate(span);
+    // populated (the dedup strip below may null it). It keys on the
+    // first-sentence hash, not the skeleton, so permutations of the system
+    // prompt's XML scaffolding don't re-trigger regex generation.
+    let user_task = crate::traces::input_extraction::capture_user_task_candidate(
+        span,
+        first_sentence_hash.as_deref(),
+    );
 
     // Tool dedup runs first so its source attributes are stripped before
     // anything else looks at `raw_attributes`.

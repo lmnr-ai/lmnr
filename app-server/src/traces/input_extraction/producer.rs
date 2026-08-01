@@ -34,7 +34,6 @@ use crate::features::{Feature, is_feature_enabled};
 use crate::llm::llm_client_available;
 use crate::mq::{MessageQueue, stream::StreamPublisher};
 use crate::traces::metadata::publish_trace_input_update;
-use crate::traces::span_attributes::SPAN_PROMPT_HASH;
 use crate::traces::spans::SpanAttributes;
 use crate::traces::utils::get_llm_usage_for_span;
 
@@ -45,6 +44,9 @@ use crate::traces::utils::get_llm_usage_for_span;
 pub struct UserTaskCandidate {
     pub signposted_text: String,
     pub fingerprint: String,
+    /// First-sentence hash of the system prompt (NOT the skeleton hash
+    /// stamped on `lmnr.span.prompt_hash`): permutations of the system
+    /// prompt's XML scaffolding must not fork the user-regex cache key.
     pub prompt_hash: Option<String>,
     /// Full hash of the joined last-turn user parts; gates re-extraction
     /// when a stronger challenger carries identical content.
@@ -79,21 +81,18 @@ fn rollout_session_id_from_attributes(attributes: &SpanAttributes) -> Option<Str
         .map(str::to_string)
 }
 
-pub fn capture_user_task_candidate(span: &Span) -> Option<UserTaskCandidate> {
+pub fn capture_user_task_candidate(
+    span: &Span,
+    first_sentence_hash: Option<&str>,
+) -> Option<UserTaskCandidate> {
     if !span.is_llm_span() {
         return None;
     }
     let prepared = prepare_user_task_input(span.input.as_ref()?)?;
-    let prompt_hash = span
-        .attributes
-        .raw_attributes
-        .get(SPAN_PROMPT_HASH)
-        .and_then(|v| v.as_str())
-        .map(str::to_string);
     Some(UserTaskCandidate {
         signposted_text: prepared.signposted_text,
         fingerprint: prepared.fingerprint,
-        prompt_hash,
+        prompt_hash: first_sentence_hash.map(str::to_string),
         content_hash: prepared.content_hash,
     })
 }
