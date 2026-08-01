@@ -328,7 +328,7 @@ function CondensedTimeline() {
   return (
     // The timeline is a surface one level above the trace-view substrate it sits in (fill +
     // vars + context, no shadow); its controls elevate a further step above via that context.
-    <ElevatedSurface className="flex flex-col h-full w-full overflow-hidden relative">
+    <ElevatedSurface offset={2} className="flex flex-col h-full w-full overflow-hidden relative">
       {/* Scrollable timeline area - ALWAYS rendered so refs are attached */}
       <div
         ref={combinedScrollRef}
