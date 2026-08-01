@@ -56,7 +56,7 @@ rand = "0.10"
 rayon = "1.11.0"
 redis = {version = "0.32.7", features = ["tokio-comp"]}
 regex = "1.12.3"
-reqwest = {version = "0.12.22", features = ["json", "stream"]}
+reqwest = {version = "0.13.4", features = ["json", "stream"]}
 resend-rs = "0.21"
 rmcp = {version = "1", features = ["server"]}
 rustls = {version = "0.23", features = ["ring"]}
