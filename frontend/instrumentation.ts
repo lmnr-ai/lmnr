@@ -248,6 +248,13 @@ export async function register() {
       await initializeClickHouse();
       console.log("✓ ClickHouse schema applied successfully");
 
+      // Backfill historical traces_replacing rows into traces_agg/traces_static
+      // (LAM-2018). Deliberately NOT awaited — it walks up to 90 days in 6h
+      // batches and must never delay serving traffic. Resumes from the
+      // destination watermark on the next boot if it dies partway.
+      const { startTracesAggBackfill } = await import("@/lib/clickhouse/backfill/traces-agg.ts");
+      startTracesAggBackfill().catch((error) => console.error("Failed to start traces_agg backfill:", error));
+
       // Seed default signals for projects that don't have any
       const { DEFAULT_SIGNAL, DEFAULT_SIGNAL_TRIGGER_VALUE, DEFAULT_SIGNAL_TRIGGER_FILTERS } =
         await import("@/lib/db/default-signals.ts");
