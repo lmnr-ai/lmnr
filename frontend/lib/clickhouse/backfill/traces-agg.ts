@@ -14,13 +14,21 @@ const LOCK_RENEW_INTERVAL_MS = 5 * 60 * 1000;
 const BATCH_HOURS = 6;
 // A trace's versions can span a window edge (the winning version's start_time
 // can sit earlier than a losing one's), so the winner lookup reads wider than
-// the window it writes. The pad must exceed the longest trace or the true
-// highest-version row is excluded before argMax resolves it — so the actual max
-// trace duration is measured at startup and the pad is widened to cover it.
+// the window it writes. The pad must exceed a trace's VERSION-start spread or the
+// true highest-version row is excluded before argMax resolves it.
+//
+// Measuring max trace DURATION is a sound proxy for that spread: the old
+// aggregator wrote `start_time = LEAST(...)` / `end_time = GREATEST(...)`
+// (`db/trace.rs`), so every version's start_time lies within the final
+// [start_time, end_time] window. Confirmed tight, not just an upper bound — a
+// constructed 3-version trace spanning 30h reported a 30h duration and a 30h
+// version-start spread.
 const DEFAULT_READ_PAD_HOURS = 3;
-// Ceiling on the measured widening. A pathological trace (a stuck ingest, a
-// clock-skewed end_time) must not turn every window into a full-table scan;
-// past this we log and accept the risk rather than melt the cluster.
+// Nominal pad beyond which we log an outlier, NOT a hard clamp. Clamping would
+// double-count: a trace whose versions sit further apart than the pad is never
+// read whole, so two windows each resolve a local winner and both insert into a
+// summing table. Widening is effectively free — `traces_replacing` prunes at
+// monthly-partition granularity, so a 3h and a 240h pad both read the same parts.
 const MAX_READ_PAD_HOURS = 24;
 // Live ingest and any still-rolling old pods can be writing the newest traces
 // to BOTH tables, so start slightly ahead of the watermark.
@@ -285,11 +293,19 @@ const resolveReadPadHours = async (): Promise<number> => {
   // +1h of slack so a trace exactly at the measured max still sits inside the pad.
   const needed = Math.ceil(longestTraceHours) + 1;
   if (needed > MAX_READ_PAD_HOURS) {
+    // Capping is NOT merely "may migrate a stale version" — it DOUBLE-COUNTS.
+    // A trace whose versions sit further apart than the pad is never seen whole,
+    // so two different windows each resolve their own local argMax winner and
+    // each inserts it, and `traces_agg` sums (reproduced: a 40h-spread trace
+    // landed 2 partials while all 70 normal traces stayed at 1). The cap exists
+    // to bound scan cost, but a wider pad costs nothing measurable here —
+    // pruning is monthly-partition granular, so 3h and 240h pads both read
+    // Parts: 1/7 — so honour the measured value and only log the outlier.
     console.warn(
-      `[traces-agg-backfill] longest source trace is ${longestTraceHours.toFixed(1)}h, which exceeds the ` +
-        `${MAX_READ_PAD_HOURS}h read-pad cap; capping. Traces longer than the cap may migrate a stale version.`
+      `[traces-agg-backfill] longest source trace spans ${longestTraceHours.toFixed(1)}h, beyond the ` +
+        `${MAX_READ_PAD_HOURS}h nominal read pad; widening to ${needed}h so its versions resolve to one ` +
+        `winner instead of being double-counted.`
     );
-    return MAX_READ_PAD_HOURS;
   }
   return Math.max(DEFAULT_READ_PAD_HOURS, needed);
 };
@@ -367,6 +383,17 @@ const runBackfill = async (now: Date, lostLease: () => boolean = () => false): P
 
     try {
       migratedAgg += await insertAgg(w);
+      // Re-check between the two inserts: a single ClickHouse insert can outlive
+      // the lease, and the pair is not atomic. Without this a takeover landing
+      // mid-window still lets the traces_static write through unfenced.
+      if (lostLease()) {
+        console.warn(
+          `[traces-agg-backfill] lost the lock lease mid-window at ${formatDateTime64(from)}; ` +
+            `stopping before the traces_static write. traces_agg for this window is already committed, ` +
+            `so the next run's anti-join will skip those ids and only backfill the missing traces_static rows.`
+        );
+        return;
+      }
       migratedStatic += await insertStatic(w);
     } catch (error) {
       const resumeFrom = lastCompleted ? formatDateTime64(lastCompleted.from) : formatDateTime64(to);
@@ -440,6 +467,20 @@ const runBackfill = async (now: Date, lostLease: () => boolean = () => false): P
 // the pod on shutdown in the manual-handle configuration. Releasing the lock a
 // few minutes early isn't worth that risk; the TTL covers a pod that dies.
 export const startTracesAggBackfill = async (): Promise<void> => {
+  // Without REDIS_URL the lock falls back to per-process memory, which gives NO
+  // cross-replica exclusion: every replica acquires its own lock and walks the
+  // same windows, and concurrent runs can both clear the anti-join for the same
+  // ids and double traces_agg sums. Warn loudly rather than fail — a
+  // single-replica self-hosted install (the common case) is unaffected, and
+  // refusing to run would strand history for everyone without Redis.
+  if (!process.env.REDIS_URL) {
+    console.warn(
+      "[traces-agg-backfill] REDIS_URL is not set, so the backfill lock is process-local. " +
+        "If you run MORE THAN ONE frontend replica, set REDIS_URL before boot or run a single " +
+        "replica for the first boot — concurrent replicas would double-count traces_agg tokens/costs."
+    );
+  }
+
   const lockToken = await cache.tryAcquireLock(LOCK_KEY, LOCK_TTL_SECONDS);
   if (!lockToken) {
     console.log("[traces-agg-backfill] another replica holds the lock; skipping");
