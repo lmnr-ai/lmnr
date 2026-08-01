@@ -46,7 +46,15 @@ const ch = () => clickhouseClient;
 
 const formatDateTime64 = (date: Date): string => date.toISOString().replace("T", " ").replace("Z", "").slice(0, 23);
 
-const ts = (date: Date): string => `toDateTime64('${formatDateTime64(date)}', 9)`;
+// The 'UTC' argument is REQUIRED, not decoration. `formatDateTime64` emits a UTC
+// wall-clock string and every column here is `DateTime64(9, 'UTC')`, but a
+// tz-less `toDateTime64('…', 9)` literal is parsed in the SERVER's timezone — so
+// on a non-UTC ClickHouse every window bound silently shifts by the UTC offset
+// (verified: a [12:00,18:00) window matched 16:00–21:00 traces under a
+// America/New_York server, a 4h skew). Reads are unaffected because the column
+// carries 'UTC', which makes the round trip asymmetric and the bug invisible on a
+// UTC-configured staging box.
+const ts = (date: Date): string => `toDateTime64('${formatDateTime64(date)}', 9, 'UTC')`;
 
 const addHours = (date: Date, hours: number): Date => new Date(date.getTime() + hours * 60 * 60 * 1000);
 
