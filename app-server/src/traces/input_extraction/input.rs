@@ -309,6 +309,34 @@ mod tests {
         assert_ne!(fingerprint_user_parts(&a), fingerprint_user_parts(&b));
     }
 
+    /// Documents the sharp edge of the order-insensitive fingerprint: two
+    /// layouts of the same parts share a cache key, so a regex anchored to
+    /// one captures EMPTY (`NoUserRequest`) on the other rather than
+    /// mis-extracting. Canonicalization is what keeps this rare — both
+    /// layouts normalize to the same regex target — so the divergence only
+    /// bites single-part messages that embed both pieces inline.
+    #[test]
+    fn same_fingerprint_layouts_share_a_regex_and_degrade_to_empty() {
+        use super::super::regex::{ApplyRegexResult, apply_regex};
+
+        let leading = "<ctx>scaffold</ctx>\n\nSummarize the report.";
+        let trailing = "Summarize the report.\n\n<ctx>scaffold</ctx>";
+        let fp = |s: &str| fingerprint_user_parts(&[s.to_string()]);
+        assert_eq!(fp(leading), fp(trailing));
+
+        let anchored = r"(?s).*</ctx>\s*(.*)";
+        assert_eq!(
+            apply_regex(anchored, leading),
+            ApplyRegexResult::Extracted("Summarize the report.".to_string())
+        );
+        // Never a wrong extraction — an empty capture, which the consumer
+        // stores as an empty user task.
+        assert_eq!(
+            apply_regex(anchored, trailing),
+            ApplyRegexResult::NoUserRequest
+        );
+    }
+
     // ---- prepare_user_task_input -----------------------------------------
 
     #[test]
