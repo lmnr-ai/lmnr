@@ -10,7 +10,7 @@ static GLOBAL: Jemalloc = Jemalloc;
 use actix_limitation::Limiter;
 use actix_web::{
     App, HttpServer, dev,
-    http::StatusCode,
+    http::{StatusCode, header},
     middleware::{ErrorHandlerResponse, ErrorHandlers, Logger, NormalizePath},
     web::{self, JsonConfig, PayloadConfig},
 };
@@ -2108,18 +2108,67 @@ fn main() -> anyhow::Result<()> {
                             HttpAuthentication::bearer(auth::cli_user::cli_auth_validator);
 
                         let mut app = App::new()
-                            .wrap(ErrorHandlers::new().handler(
-                                StatusCode::BAD_REQUEST,
-                                |res: dev::ServiceResponse| {
-                                    let path = res.request().path();
-                                    if path.ends_with("/sql/query") {
-                                        log::warn!("Bad request: {:?}", res.response().body());
-                                    } else {
-                                        log::error!("Bad request: {:?}", res.response().body());
-                                    }
-                                    Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
-                                },
-                            ))
+                            .wrap(
+                                ErrorHandlers::new()
+                                    .handler(
+                                        StatusCode::BAD_REQUEST,
+                                        |res: dev::ServiceResponse| {
+                                            let path = res.request().path();
+                                            if path.ends_with("/sql/query") {
+                                                log::warn!(
+                                                    "Bad request: {:?}",
+                                                    res.response().body()
+                                                );
+                                            } else {
+                                                log::error!(
+                                                    "Bad request: {:?}",
+                                                    res.response().body()
+                                                );
+                                            }
+                                            Ok(ErrorHandlerResponse::Response(
+                                                res.map_into_left_body(),
+                                            ))
+                                        },
+                                    )
+                                    .handler(
+                                        StatusCode::PAYLOAD_TOO_LARGE,
+                                        move |res: dev::ServiceResponse| {
+                                            let headers = res.request().headers();
+                                            let content_length = headers
+                                                .get(header::CONTENT_LENGTH)
+                                                .and_then(|v| v.to_str().ok())
+                                                .and_then(|v| v.parse::<usize>().ok());
+                                            let content_encoding = headers
+                                                .get(header::CONTENT_ENCODING)
+                                                .and_then(|v| v.to_str().ok())
+                                                .map(str::to_string);
+                                            log::warn!(
+                                                "Payload too large on {}: content_length={:?}, content_encoding={:?}, limit={}",
+                                                res.request().path(),
+                                                content_length,
+                                                content_encoding,
+                                                http_payload_limit
+                                            );
+                                            let body = routes::error::payload_too_large_message(
+                                                content_length,
+                                                content_encoding.as_deref(),
+                                                http_payload_limit,
+                                            );
+                                            let mut res = res.map_body(|_, _| {
+                                                actix_web::body::EitherBody::right(
+                                                    actix_web::body::BoxBody::new(body),
+                                                )
+                                            });
+                                            res.response_mut().headers_mut().insert(
+                                                header::CONTENT_TYPE,
+                                                header::HeaderValue::from_static(
+                                                    "text/plain; charset=utf-8",
+                                                ),
+                                            );
+                                            Ok(ErrorHandlerResponse::Response(res))
+                                        },
+                                    ),
+                            )
                             .wrap(Logger::default().exclude("/health").exclude("/ready"))
                             .wrap(NormalizePath::trim())
                             .app_data(JsonConfig::default().limit(http_payload_limit))
