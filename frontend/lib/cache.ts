@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { Redis } from "ioredis";
 
 // Singleton Redis client
@@ -116,30 +118,91 @@ export class CacheManager {
     }
   }
 
-  // Atomically claims `key` for `ttlSeconds`, returning true only to the caller
-  // that created it. `SET NX EX` is one round trip, so unlike exists()-then-set()
-  // concurrent callers cannot all win. Mirrors `try_acquire_lock` in
-  // `app-server/src/cache/redis.rs`.
+  // Atomically claims `key` for `ttlSeconds`, returning a FENCING TOKEN to the
+  // caller that created it and null to everyone else. `SET NX EX` is one round
+  // trip, so unlike exists()-then-set() concurrent callers cannot all win.
+  // Mirrors `try_acquire_lock` in `app-server/src/cache/redis.rs`, but hands back
+  // a token because a lease can EXPIRE while its holder is still working: with a
+  // constant value, the lapsed holder's renew would extend — and its release
+  // would delete — the successor's lock. Pass the token to `renewLockIfHeld` /
+  // `releaseLockIfHeld` so both are no-ops once ownership has moved on.
   //
   // NOTE the in-memory fallback (no REDIS_URL) is per-process, so it only
   // serialises callers inside one Node process — a multi-replica deployment
   // without Redis gets no mutual exclusion from this.
-  async tryAcquireLock(key: string, ttlSeconds: number): Promise<boolean> {
+  async tryAcquireLock(key: string, ttlSeconds: number): Promise<string | null> {
+    const token = randomUUID();
     if (this.useRedis) {
       const client = await this.getRedisClient();
       try {
-        const result = await client.set(key, "locked", "EX", ttlSeconds, "NX");
-        return result === "OK";
+        const result = await client.set(key, token, "EX", ttlSeconds, "NX");
+        return result === "OK" ? token : null;
       } catch (e) {
         console.error("Error acquiring lock in cache", e);
-        return false;
+        return null;
       }
     }
     const entry = this.memoryCache.get(key);
     if (entry && !(entry.expiresAt && entry.expiresAt < Date.now())) {
+      return null;
+    }
+    this.memoryCache.set(key, { value: token, expiresAt: Date.now() + ttlSeconds * 1000 });
+    return token;
+  }
+
+  // Extends the lease only while `token` still owns it. Returns false when the
+  // lease lapsed and someone else took over — the caller should treat that as
+  // "I no longer hold this lock" and stop.
+  async renewLockIfHeld(key: string, token: string, ttlSeconds: number): Promise<boolean> {
+    if (this.useRedis) {
+      const client = await this.getRedisClient();
+      // Compare-and-expire server-side so the check can't race the write.
+      const script = `
+        if redis.call('GET', KEYS[1]) == ARGV[1] then
+          return redis.call('EXPIRE', KEYS[1], ARGV[2])
+        end
+        return 0
+      `;
+      try {
+        const result = (await client.eval(script, 1, key, token, String(ttlSeconds))) as number;
+        return result === 1;
+      } catch (e) {
+        console.error("Error renewing lock in cache", e);
+        return false;
+      }
+    }
+    const entry = this.memoryCache.get(key);
+    if (!entry || (entry.expiresAt && entry.expiresAt < Date.now()) || entry.value !== token) {
       return false;
     }
-    this.memoryCache.set(key, { value: "locked", expiresAt: Date.now() + ttlSeconds * 1000 });
+    entry.expiresAt = Date.now() + ttlSeconds * 1000;
+    return true;
+  }
+
+  // Releases the lock only while `token` still owns it, so a lapsed holder's
+  // cleanup can't delete the successor's lease.
+  async releaseLockIfHeld(key: string, token: string): Promise<boolean> {
+    if (this.useRedis) {
+      const client = await this.getRedisClient();
+      const script = `
+        if redis.call('GET', KEYS[1]) == ARGV[1] then
+          return redis.call('DEL', KEYS[1])
+        end
+        return 0
+      `;
+      try {
+        const result = (await client.eval(script, 1, key, token)) as number;
+        return result === 1;
+      } catch (e) {
+        console.error("Error releasing lock in cache", e);
+        return false;
+      }
+    }
+    const entry = this.memoryCache.get(key);
+    if (!entry || entry.value !== token) {
+      return false;
+    }
+    this.memoryCache.delete(key);
     return true;
   }
 

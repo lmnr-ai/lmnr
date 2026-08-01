@@ -290,7 +290,7 @@ const manualCommandHint = (w: Window): string =>
   `To finish manually, re-run the backfill for windows at or before ` +
   `${formatDateTime64(w.to)} (UTC). See lib/clickhouse/backfill/traces-agg.ts.`;
 
-const runBackfill = async (now: Date): Promise<void> => {
+const runBackfill = async (now: Date, lostLease: () => boolean = () => false): Promise<void> => {
   if (!(await tableExists("traces_replacing"))) {
     console.log("[traces-agg-backfill] traces_replacing is absent; nothing to migrate");
     return;
@@ -337,6 +337,15 @@ const runBackfill = async (now: Date): Promise<void> => {
   );
 
   while (windowIndex < MAX_WINDOWS) {
+    // Someone else owns the lock now; stop rather than write alongside them.
+    if (lostLease()) {
+      console.warn(
+        `[traces-agg-backfill] stopping at ${formatDateTime64(cursor)} after losing the lock lease; ` +
+          `${migratedAgg} traces_agg / ${migratedStatic} traces_static rows written`
+      );
+      return;
+    }
+
     const to = cursor;
     // Subsequent windows are batch-aligned; only the first is partial.
     const from = alignedFloor ?? addHours(to, -BATCH_HOURS);
@@ -423,23 +432,43 @@ const runBackfill = async (now: Date): Promise<void> => {
 // the pod on shutdown in the manual-handle configuration. Releasing the lock a
 // few minutes early isn't worth that risk; the TTL covers a pod that dies.
 export const startTracesAggBackfill = async (): Promise<void> => {
-  if (!(await cache.tryAcquireLock(LOCK_KEY, LOCK_TTL_SECONDS))) {
+  const lockToken = await cache.tryAcquireLock(LOCK_KEY, LOCK_TTL_SECONDS);
+  if (!lockToken) {
     console.log("[traces-agg-backfill] another replica holds the lock; skipping");
     return;
   }
 
+  // A lease can lapse while its holder is still working (a stalled ClickHouse
+  // insert outlasting the TTL). Renew and release are therefore token-guarded:
+  // an un-guarded `expire`/`remove` would let the lapsed holder EXTEND and then
+  // DELETE the successor's lock — the deletion being the dangerous half, since it
+  // re-opens the gate for a third replica while two runs are already in flight
+  // (both verified). `lostLease` also makes the stalled run STOP at its next
+  // window instead of writing under someone else's lease.
+  let lostLease = false;
   const renew = setInterval(() => {
-    cache.expire(LOCK_KEY, LOCK_TTL_SECONDS).catch(() => {});
+    void cache
+      .renewLockIfHeld(LOCK_KEY, lockToken, LOCK_TTL_SECONDS)
+      .then((held) => {
+        if (!held && !lostLease) {
+          lostLease = true;
+          console.warn(
+            "[traces-agg-backfill] lock lease expired and was taken over; stopping. " +
+              "Remaining history is migrated by whichever replica now holds the lock, or on the next boot."
+          );
+        }
+      })
+      .catch(() => {});
   }, LOCK_RENEW_INTERVAL_MS);
   // Don't hold the event loop open on account of the renew timer.
   renew.unref?.();
 
   try {
-    await runBackfill(new Date());
+    await runBackfill(new Date(), () => lostLease);
   } catch {
     // runBackfill already logged the resume point and the manual hint.
   } finally {
     clearInterval(renew);
-    await cache.remove(LOCK_KEY).catch(() => {});
+    await cache.releaseLockIfHeld(LOCK_KEY, lockToken).catch(() => {});
   }
 };
