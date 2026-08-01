@@ -234,22 +234,31 @@ const countSourceTracesSince = async (since: Date): Promise<number> => {
   return Number(value ?? 0);
 };
 
+// `min(start_time)` over an EMPTY table does NOT return NULL — ClickHouse yields
+// the DateTime64 zero value, which arrives as the string "1970-01-01 00:00:00…".
+// That is truthy and parses fine, so a plain `!value` check lets the epoch
+// sentinel through as if it were a real timestamp. Treat it as absent: for the
+// watermark it would otherwise defeat the `?? now` fresh-cutover fallback and
+// make `watermark <= oldestSource` short-circuit the whole backfill, stranding
+// every historical trace on a deployment that has history but no destination
+// rows yet (verified).
+const EPOCH_SENTINEL_MS = 0;
+
+const parseChTimestamp = (value: string | null): Date | null => {
+  if (!value) return null;
+  const parsed = new Date(`${value.replace(" ", "T")}Z`);
+  if (isNaN(parsed.getTime()) || parsed.getTime() === EPOCH_SENTINEL_MS) return null;
+  return parsed;
+};
+
 // Resume point. There is deliberately NO persisted state: the destination is its
 // own progress marker, so a restart re-derives where to continue and an
 // already-migrated deployment converges to a cheap no-op.
-const destinationWatermark = async (): Promise<Date | null> => {
-  const value = await scalar(`SELECT min(start_time) AS m FROM traces_static`);
-  if (!value) return null;
-  const parsed = new Date(`${value.replace(" ", "T")}Z`);
-  return isNaN(parsed.getTime()) ? null : parsed;
-};
+const destinationWatermark = async (): Promise<Date | null> =>
+  parseChTimestamp(await scalar(`SELECT min(start_time) AS m FROM traces_static`));
 
-const oldestSourceTrace = async (): Promise<Date | null> => {
-  const value = await scalar(`SELECT min(start_time) AS m FROM traces_replacing`);
-  if (!value) return null;
-  const parsed = new Date(`${value.replace(" ", "T")}Z`);
-  return isNaN(parsed.getTime()) ? null : parsed;
-};
+const oldestSourceTrace = async (): Promise<Date | null> =>
+  parseChTimestamp(await scalar(`SELECT min(start_time) AS m FROM traces_replacing`));
 
 // The read pad must exceed the longest trace, otherwise a window filter can
 // exclude the true highest-version row before argMax picks a winner and we
