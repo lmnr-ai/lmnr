@@ -12,16 +12,19 @@ const LOCK_TTL_SECONDS = 15 * 60;
 const LOCK_RENEW_INTERVAL_MS = 5 * 60 * 1000;
 
 const BATCH_HOURS = 6;
-// A trace's spans can straddle a window edge, and the resolved start_time can
-// move earlier as spans arrive, so read wider than we write. Must exceed the
-// longest expected trace.
-const READ_PAD_HOURS = 3;
+// A trace's versions can span a window edge (the winning version's start_time
+// can sit earlier than a losing one's), so the winner lookup reads wider than
+// the window it writes. The pad must exceed the longest trace or the true
+// highest-version row is excluded before argMax resolves it — so the actual max
+// trace duration is measured at startup and the pad is widened to cover it.
+const DEFAULT_READ_PAD_HOURS = 3;
+// Ceiling on the measured widening. A pathological trace (a stuck ingest, a
+// clock-skewed end_time) must not turn every window into a full-table scan;
+// past this we log and accept the risk rather than melt the cluster.
+const MAX_READ_PAD_HOURS = 24;
 // Live ingest and any still-rolling old pods can be writing the newest traces
 // to BOTH tables, so start slightly ahead of the watermark.
 const WATERMARK_BUFFER_HOURS = 1;
-// Windows this close to the watermark may collide with rows another writer
-// already produced, so they carry the destination anti-join.
-const OVERLAP_CHECKED_WINDOWS = 2;
 
 const MAX_DAYS = 90;
 const MAX_TRACES = 50_000_000;
@@ -98,17 +101,20 @@ interface Window {
   to: Date;
   readFrom: Date;
   readTo: Date;
-  checkOverlap: boolean;
 }
 
 // `traces_agg` SUMS its columns, so inserting a trace twice permanently inflates
-// its tokens/costs. Window ownership by resolved start_time makes windows
-// disjoint; this anti-join covers the boundary against rows another writer (live
-// ingest, a not-yet-drained old pod, or a half-finished previous run) already
-// wrote. Self-hosted MergeTree has no insert dedup
-// (non_replicated_deduplication_window = 0), so nothing else prevents doubling.
+// its tokens/costs, and self-hosted MergeTree has no insert dedup
+// (non_replicated_deduplication_window = 0) to catch it.
+//
+// Runs on EVERY window, not just the ones near the watermark. Window ownership
+// by resolved start_time makes windows disjoint WITHIN one run, but that says
+// nothing about a concurrent run: the Redis lock can't be acquired atomically
+// (see startTracesAggBackfill), so two replicas booting together can both walk
+// the same windows. This is the only guard that makes that race non-corrupting,
+// and it's cheap — the subquery prunes on partition + MinMax and reads two
+// narrow sort-key columns (measured: 1.88 KiB / 48 rows for a 12h probe).
 const antiJoin = (table: "traces_agg" | "traces_static", w: Window): string => {
-  if (!w.checkOverlap) return "";
   const idColumn = table === "traces_agg" ? "id" : "trace_id";
   return `AND (project_id, w_id) NOT IN (
     SELECT project_id, ${idColumn} FROM ${table}
@@ -245,6 +251,32 @@ const oldestSourceTrace = async (): Promise<Date | null> => {
   return isNaN(parsed.getTime()) ? null : parsed;
 };
 
+// The read pad must exceed the longest trace, otherwise a window filter can
+// exclude the true highest-version row before argMax picks a winner and we
+// migrate a stale version. Measure rather than assume: read the widest
+// start_time→end_time span in the source (a cheap two-column aggregate over a
+// frozen table) and widen the pad to cover it, capped so one pathological row
+// can't turn every window into a full scan.
+const resolveReadPadHours = async (): Promise<number> => {
+  const value = await scalar(
+    `SELECT max((toUnixTimestamp64Nano(end_time) - toUnixTimestamp64Nano(start_time)) / 3.6e12) AS h
+     FROM traces_replacing WHERE end_time >= start_time`
+  );
+  const longestTraceHours = Number(value ?? 0);
+  if (!isFinite(longestTraceHours) || longestTraceHours <= 0) return DEFAULT_READ_PAD_HOURS;
+
+  // +1h of slack so a trace exactly at the measured max still sits inside the pad.
+  const needed = Math.ceil(longestTraceHours) + 1;
+  if (needed > MAX_READ_PAD_HOURS) {
+    console.warn(
+      `[traces-agg-backfill] longest source trace is ${longestTraceHours.toFixed(1)}h, which exceeds the ` +
+        `${MAX_READ_PAD_HOURS}h read-pad cap; capping. Traces longer than the cap may migrate a stale version.`
+    );
+    return MAX_READ_PAD_HOURS;
+  }
+  return Math.max(DEFAULT_READ_PAD_HOURS, needed);
+};
+
 const manualCommandHint = (w: Window): string =>
   `To finish manually, re-run the backfill for windows at or before ` +
   `${formatDateTime64(w.to)} (UTC). See lib/clickhouse/backfill/traces-agg.ts.`;
@@ -276,6 +308,8 @@ const runBackfill = async (now: Date): Promise<void> => {
     return;
   }
 
+  const readPadHours = await resolveReadPadHours();
+
   // The first window is a PARTIAL one: it runs from the batch-aligned floor of
   // the watermark up to watermark+buffer, so the region between the floor and
   // the watermark is covered. Flooring straight to the upper bound would skip
@@ -289,7 +323,8 @@ const runBackfill = async (now: Date): Promise<void> => {
 
   console.log(
     `[traces-agg-backfill] starting; walking back from ${formatDateTime64(cursor)} ` +
-      `in ${BATCH_HOURS}h batches (limits: ${MAX_DAYS}d / ${MAX_TRACES} traces)`
+      `in ${BATCH_HOURS}h batches, ${readPadHours}h read pad ` +
+      `(limits: ${MAX_DAYS}d / ${MAX_TRACES} traces)`
   );
 
   while (windowIndex < MAX_WINDOWS) {
@@ -300,9 +335,8 @@ const runBackfill = async (now: Date): Promise<void> => {
     const w: Window = {
       from,
       to,
-      readFrom: addHours(from, -READ_PAD_HOURS),
-      readTo: addHours(to, READ_PAD_HOURS),
-      checkOverlap: windowIndex < OVERLAP_CHECKED_WINDOWS,
+      readFrom: addHours(from, -readPadHours),
+      readTo: addHours(to, readPadHours),
     };
 
     try {
@@ -362,29 +396,28 @@ const runBackfill = async (now: Date): Promise<void> => {
   );
 };
 
-// Single-flight across replicas. The lock is best-effort belt-and-braces on top
-// of the anti-join, not the correctness boundary: the TTL releases it if the pod
-// dies mid-run, and process-exit handlers release it early so a fast restart
-// isn't blocked for the full TTL.
+// The lock MUST be acquired atomically. `traces_agg` sums, so two replicas
+// walking the same windows concurrently permanently inflate every trace's
+// tokens/costs — and the destination anti-join canNOT save us there: both
+// replicas read the destination for the same window before either's insert
+// lands, so both see it absent and both write (verified end-to-end: 128 of 140
+// traces doubled to 200 tokens). exists()-then-set() has exactly that race,
+// hence `tryAcquireLock` (SET NX EX). The anti-join still runs on every window,
+// but its job is sequential overlap — live ingest, un-drained old pods, a
+// previous partial run — not concurrency.
+//
+// Deliberately NO SIGTERM/SIGINT/exit handlers. Registering a signal listener
+// SUPPRESSES Node's default terminate (verified with plain node: a process whose
+// only SIGTERM listener doesn't call process.exit stays alive and ignores the
+// signal). Next installs its own SIGTERM/SIGINT cleanup that exits 143/130, but
+// only when NEXT_MANUAL_SIG_HANDLE is unset — so a listener here would strand
+// the pod on shutdown in the manual-handle configuration. Releasing the lock a
+// few minutes early isn't worth that risk; the TTL covers a pod that dies.
 export const startTracesAggBackfill = async (): Promise<void> => {
-  if (await cache.exists(LOCK_KEY)) {
+  if (!(await cache.tryAcquireLock(LOCK_KEY, LOCK_TTL_SECONDS))) {
     console.log("[traces-agg-backfill] another replica holds the lock; skipping");
     return;
   }
-  await cache.set(LOCK_KEY, { startedAt: new Date().toISOString() }, { expireAfterSeconds: LOCK_TTL_SECONDS });
-
-  let released = false;
-  const release = async () => {
-    if (released) return;
-    released = true;
-    clearInterval(renew);
-    process.off("exit", releaseSync);
-    process.off("SIGTERM", releaseSync);
-    process.off("SIGINT", releaseSync);
-    await cache.remove(LOCK_KEY).catch(() => {});
-  };
-  // Signal/exit handlers can't await, so fire the release and let it settle.
-  const releaseSync = () => void release();
 
   const renew = setInterval(() => {
     cache.expire(LOCK_KEY, LOCK_TTL_SECONDS).catch(() => {});
@@ -392,15 +425,12 @@ export const startTracesAggBackfill = async (): Promise<void> => {
   // Don't hold the event loop open on account of the renew timer.
   renew.unref?.();
 
-  process.once("exit", releaseSync);
-  process.once("SIGTERM", releaseSync);
-  process.once("SIGINT", releaseSync);
-
   try {
     await runBackfill(new Date());
   } catch {
     // runBackfill already logged the resume point and the manual hint.
   } finally {
-    await release();
+    clearInterval(renew);
+    await cache.remove(LOCK_KEY).catch(() => {});
   }
 };

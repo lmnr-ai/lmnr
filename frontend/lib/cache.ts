@@ -116,6 +116,33 @@ export class CacheManager {
     }
   }
 
+  // Atomically claims `key` for `ttlSeconds`, returning true only to the caller
+  // that created it. `SET NX EX` is one round trip, so unlike exists()-then-set()
+  // concurrent callers cannot all win. Mirrors `try_acquire_lock` in
+  // `app-server/src/cache/redis.rs`.
+  //
+  // NOTE the in-memory fallback (no REDIS_URL) is per-process, so it only
+  // serialises callers inside one Node process — a multi-replica deployment
+  // without Redis gets no mutual exclusion from this.
+  async tryAcquireLock(key: string, ttlSeconds: number): Promise<boolean> {
+    if (this.useRedis) {
+      const client = await this.getRedisClient();
+      try {
+        const result = await client.set(key, "locked", "EX", ttlSeconds, "NX");
+        return result === "OK";
+      } catch (e) {
+        console.error("Error acquiring lock in cache", e);
+        return false;
+      }
+    }
+    const entry = this.memoryCache.get(key);
+    if (entry && !(entry.expiresAt && entry.expiresAt < Date.now())) {
+      return false;
+    }
+    this.memoryCache.set(key, { value: "locked", expiresAt: Date.now() + ttlSeconds * 1000 });
+    return true;
+  }
+
   // Atomically reads a JSON entry and deletes it only when its `field` equals
   // `value`. Returns the parsed value on a match (entry consumed), or null when
   // the key is missing/expired OR the field does not match. A non-matching
