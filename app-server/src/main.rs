@@ -9,7 +9,9 @@ static GLOBAL: Jemalloc = Jemalloc;
 
 use actix_limitation::Limiter;
 use actix_web::{
-    App, HttpServer, dev,
+    App, HttpServer,
+    body::{BoxBody, EitherBody},
+    dev,
     http::StatusCode,
     middleware::{ErrorHandlerResponse, ErrorHandlers, Logger, NormalizePath},
     web::{self, JsonConfig, PayloadConfig},
@@ -156,6 +158,10 @@ mod storage;
 mod traces;
 mod utils;
 mod worker;
+
+const PAYLOAD_TOO_LARGE_MESSAGE: &str =
+    "Payload too large: the request body exceeds the server's HTTP payload limit. Send smaller \
+     batches, or raise HTTP_PAYLOAD_LIMIT if you are self-hosting.";
 
 fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, err)
@@ -2108,18 +2114,34 @@ fn main() -> anyhow::Result<()> {
                             HttpAuthentication::bearer(auth::cli_user::cli_auth_validator);
 
                         let mut app = App::new()
-                            .wrap(ErrorHandlers::new().handler(
-                                StatusCode::BAD_REQUEST,
-                                |res: dev::ServiceResponse| {
-                                    let path = res.request().path();
-                                    if path.ends_with("/sql/query") {
-                                        log::warn!("Bad request: {:?}", res.response().body());
-                                    } else {
-                                        log::error!("Bad request: {:?}", res.response().body());
-                                    }
-                                    Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
-                                },
-                            ))
+                            .wrap(
+                                ErrorHandlers::new()
+                                    .handler(StatusCode::BAD_REQUEST, |res: dev::ServiceResponse| {
+                                        let path = res.request().path();
+                                        if path.ends_with("/sql/query") {
+                                            log::warn!("Bad request: {:?}", res.response().body());
+                                        } else {
+                                            log::error!("Bad request: {:?}", res.response().body());
+                                        }
+                                        Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
+                                    })
+                                    // Actix's default 413 body depends on the extractor and the
+                                    // `Bytes` one ("payload reached size limit") is opaque, so
+                                    // SDKs log it verbatim. Normalize it for every route.
+                                    .handler(
+                                        StatusCode::PAYLOAD_TOO_LARGE,
+                                        |res: dev::ServiceResponse| {
+                                            log::warn!("Payload too large: {}", res.request().path());
+                                            Ok(ErrorHandlerResponse::Response(res.map_body(
+                                                |_, _| {
+                                                    EitherBody::right(BoxBody::new(
+                                                        PAYLOAD_TOO_LARGE_MESSAGE,
+                                                    ))
+                                                },
+                                            )))
+                                        },
+                                    ),
+                            )
                             .wrap(Logger::default().exclude("/health").exclude("/ready"))
                             .wrap(NormalizePath::trim())
                             .app_data(JsonConfig::default().limit(http_payload_limit))
