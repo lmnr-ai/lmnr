@@ -9,8 +9,10 @@ static GLOBAL: Jemalloc = Jemalloc;
 
 use actix_limitation::Limiter;
 use actix_web::{
-    App, HttpServer, dev,
-    http::{StatusCode, header},
+    App, HttpServer,
+    body::{BoxBody, EitherBody},
+    dev,
+    http::StatusCode,
     middleware::{ErrorHandlerResponse, ErrorHandlers, Logger, NormalizePath},
     web::{self, JsonConfig, PayloadConfig},
 };
@@ -156,6 +158,10 @@ mod storage;
 mod traces;
 mod utils;
 mod worker;
+
+const PAYLOAD_TOO_LARGE_MESSAGE: &str =
+    "Payload too large: the request body exceeds the server's HTTP payload limit. Send smaller \
+     batches, or raise HTTP_PAYLOAD_LIMIT if you are self-hosting.";
 
 fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, err)
@@ -2110,62 +2116,29 @@ fn main() -> anyhow::Result<()> {
                         let mut app = App::new()
                             .wrap(
                                 ErrorHandlers::new()
-                                    .handler(
-                                        StatusCode::BAD_REQUEST,
-                                        |res: dev::ServiceResponse| {
-                                            let path = res.request().path();
-                                            if path.ends_with("/sql/query") {
-                                                log::warn!(
-                                                    "Bad request: {:?}",
-                                                    res.response().body()
-                                                );
-                                            } else {
-                                                log::error!(
-                                                    "Bad request: {:?}",
-                                                    res.response().body()
-                                                );
-                                            }
-                                            Ok(ErrorHandlerResponse::Response(
-                                                res.map_into_left_body(),
-                                            ))
-                                        },
-                                    )
+                                    .handler(StatusCode::BAD_REQUEST, |res: dev::ServiceResponse| {
+                                        let path = res.request().path();
+                                        if path.ends_with("/sql/query") {
+                                            log::warn!("Bad request: {:?}", res.response().body());
+                                        } else {
+                                            log::error!("Bad request: {:?}", res.response().body());
+                                        }
+                                        Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
+                                    })
+                                    // Actix's default 413 body depends on the extractor and the
+                                    // `Bytes` one ("payload reached size limit") is opaque, so
+                                    // SDKs log it verbatim. Normalize it for every route.
                                     .handler(
                                         StatusCode::PAYLOAD_TOO_LARGE,
-                                        move |res: dev::ServiceResponse| {
-                                            let headers = res.request().headers();
-                                            let content_length = headers
-                                                .get(header::CONTENT_LENGTH)
-                                                .and_then(|v| v.to_str().ok())
-                                                .and_then(|v| v.parse::<usize>().ok());
-                                            let content_encoding = headers
-                                                .get(header::CONTENT_ENCODING)
-                                                .and_then(|v| v.to_str().ok())
-                                                .map(str::to_string);
-                                            log::warn!(
-                                                "Payload too large on {}: content_length={:?}, content_encoding={:?}, limit={}",
-                                                res.request().path(),
-                                                content_length,
-                                                content_encoding,
-                                                http_payload_limit
-                                            );
-                                            let body = routes::error::payload_too_large_message(
-                                                content_length,
-                                                content_encoding.as_deref(),
-                                                http_payload_limit,
-                                            );
-                                            let mut res = res.map_body(|_, _| {
-                                                actix_web::body::EitherBody::right(
-                                                    actix_web::body::BoxBody::new(body),
-                                                )
-                                            });
-                                            res.response_mut().headers_mut().insert(
-                                                header::CONTENT_TYPE,
-                                                header::HeaderValue::from_static(
-                                                    "text/plain; charset=utf-8",
-                                                ),
-                                            );
-                                            Ok(ErrorHandlerResponse::Response(res))
+                                        |res: dev::ServiceResponse| {
+                                            log::warn!("Payload too large: {}", res.request().path());
+                                            Ok(ErrorHandlerResponse::Response(res.map_body(
+                                                |_, _| {
+                                                    EitherBody::right(BoxBody::new(
+                                                        PAYLOAD_TOO_LARGE_MESSAGE,
+                                                    ))
+                                                },
+                                            )))
                                         },
                                     ),
                             )
