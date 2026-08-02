@@ -76,19 +76,31 @@ export const acquireBackfillLock = async (): Promise<BackfillLock | null> => {
   }
 
   let lost = false;
+  const surrender = (reason: string) => {
+    if (lost) return;
+    lost = true;
+    console.warn(
+      `[traces-agg-backfill] ${reason}; stopping. Remaining history is migrated by whichever replica ` +
+        "holds the lock now, or on the next boot."
+    );
+  };
+
   const renew = setInterval(() => {
     void client
       .eval(RENEW_IF_HELD, 1, LOCK_KEY, token, String(LOCK_TTL_SECONDS))
+      // 0 means the key is gone or now holds another token — we no longer own it.
       .then((held) => {
-        if (held !== 1 && !lost) {
-          lost = true;
-          console.warn(
-            "[traces-agg-backfill] lock lease expired and was taken over; stopping. Remaining history is " +
-              "migrated by whichever replica holds the lock now, or on the next boot."
-          );
-        }
+        if (held !== 1) surrender("lock lease expired and was taken over");
       })
-      .catch(() => {});
+      // A FAILED renew must surrender too, not just a refused one. Swallowing the
+      // error leaves `lost` false while the lease quietly runs out, so a Redis
+      // outage lasting past the TTL lets this run keep writing after another
+      // replica has legitimately claimed the lock — and concurrent runs double
+      // traces_agg sums (verified: with the error swallowed, `lost()` stayed false
+      // across an outage that outlived the lease). Surrendering on the first
+      // failure is the safe direction: worst case we stop early and the next boot
+      // resumes from the destination watermark.
+      .catch((error) => surrender(`could not renew the lock lease (${String(error)})`));
   }, LOCK_RENEW_INTERVAL_MS);
   // Don't hold the event loop open on account of the renew timer.
   renew.unref?.();
