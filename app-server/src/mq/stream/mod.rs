@@ -21,7 +21,7 @@ pub mod publisher;
 pub mod reader;
 pub mod topology;
 
-pub use publisher::StreamPublisher;
+pub use publisher::{PayloadTooLarge, StreamPublisher, max_record_bytes, pack_json_array_chunks};
 pub use reader::{StreamBatchHandler, StreamReader};
 pub use topology::{StreamEnvironment, StreamTopology};
 

@@ -85,6 +85,19 @@ pub const REPLICATION_FACTOR: NumEnv<usize> = NumEnv::new("RABBITMQ_STREAM_REPLI
 pub const CONFIRM_TIMEOUT_MS: NumEnv<u64> =
     NumEnv::new("RABBITMQ_STREAM_CONFIRM_TIMEOUT_MS", 10_000);
 
+/// Ceiling on one published record's body. This is the MEMORY bound, not a
+/// wire limit: every per-partition connection's codec buffer grows to the
+/// largest frame it has ever carried and never shrinks (tokio-util `Framed`
+/// `BytesMut` ratchet — the LAM-2024 prod "leak": 128 partitions × the largest
+/// uncompressed span batch each had ever seen, climbing for hours until OOM,
+/// reproduced by `publisher::tests::publish_leak_probe`). Capping the record
+/// bounds each buffer's high-water mark, so per-process stream memory is
+/// ~`PARTITIONS × cap` (× small batching factor) instead of unbounded.
+/// Span batches above the cap are split into same-key chunks; a single
+/// oversized message falls back to the quorum queue.
+pub const MAX_PUBLISH_BYTES: NumEnv<usize> =
+    NumEnv::new("RABBITMQ_STREAM_MAX_PUBLISH_BYTES", 1_048_576);
+
 /// Bounded queue depth between the per-partition readers and the batchers.
 /// This is the backpressure knob: when full, readers stop granting credit and
 /// the backlog stays on broker disk (exactly where we want it under burst).

@@ -209,6 +209,11 @@ fn main() -> anyhow::Result<()> {
             &runtime_handle,
         );
 
+    // LAM-2024 leak hunt: one allocator-stats line per minute. `allocated`
+    // tracking RSS = Rust-side retention; `allocated` flat while RSS climbs =
+    // allocator-level growth. Cheap enough to keep on permanently.
+    instrumentation::memory_stats::spawn_memory_stats_logger(&runtime_handle);
+
     let http_payload_limit: usize = env::server::HTTP_PAYLOAD_LIMIT.get();
 
     log::info!("HTTP payload limit: {}", http_payload_limit);

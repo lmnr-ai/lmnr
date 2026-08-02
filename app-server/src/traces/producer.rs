@@ -196,18 +196,7 @@ pub async fn publish_span_messages(
                         .first()
                         .map(|m| m.span.trace_id.to_string())
                         .unwrap_or_default();
-                    match publisher.publish(&messages, &key).await {
-                        Ok(()) => true,
-                        Err(e) => {
-                            // Fall back rather than drop: the queue path is still
-                            // running during the transition.
-                            log::error!(
-                                "[SPANS] Stream publish failed, falling back to queue: {:?}",
-                                e
-                            );
-                            false
-                        }
-                    }
+                    publish_batch_to_stream(publisher, &messages, &mq_message, &key).await
                 }
                 None => false,
             };
@@ -272,6 +261,68 @@ pub async fn publish_span_messages(
     .await;
 
     Ok(0)
+}
+
+/// Publish one span batch to the stream, splitting when it exceeds the record
+/// cap. Returns `false` when the caller must take the queue fallback.
+///
+/// The cap (`RABBITMQ_STREAM_MAX_PUBLISH_BYTES`) is the stream memory bound:
+/// per-partition codec buffers ratchet to the largest frame ever carried, so
+/// an uncapped whale batch permanently pins its size in one connection's
+/// buffers (the LAM-2024 prod OOM). Oversized batches are re-packed into
+/// same-key chunks — same murmur hash ⇒ same partition ⇒ per-trace ordering
+/// and the PG single-writer property hold, and each chunk deserializes as a
+/// normal `Vec<RabbitMqSpanMessage>` on the consumer. A batch whose single
+/// span exceeds the cap can't be split and rides the quorum queue, where an
+/// oversized payload's memory cost is transient rather than pinned.
+///
+/// A chunk failure mid-way falls back to the queue with the WHOLE batch:
+/// already-published chunks become duplicates, which the at-least-once
+/// consumer already tolerates — strictly better than risking a dropped tail.
+async fn publish_batch_to_stream(
+    publisher: &StreamPublisher,
+    messages: &[RabbitMqSpanMessage],
+    mq_message: &[u8],
+    key: &str,
+) -> bool {
+    use crate::mq::stream::{PayloadTooLarge, max_record_bytes, pack_json_array_chunks};
+
+    match publisher.publish_raw(mq_message.to_vec(), key).await {
+        Ok(()) => return true,
+        Err(e) if e.downcast_ref::<PayloadTooLarge>().is_none() => {
+            // Fall back rather than drop: the queue path is still running
+            // during the transition.
+            log::error!(
+                "[SPANS] Stream publish failed, falling back to queue: {:?}",
+                e
+            );
+            return false;
+        }
+        Err(_) => {}
+    }
+
+    let parts: Vec<Vec<u8>> = messages
+        .iter()
+        .map(|m| serde_json::to_vec(m).unwrap())
+        .collect();
+    let Some(chunks) = pack_json_array_chunks(&parts, max_record_bytes()) else {
+        log::info!(
+            "[SPANS] Span batch has a message over the {}-byte stream record cap, taking the queue path",
+            max_record_bytes()
+        );
+        return false;
+    };
+
+    for chunk in chunks {
+        if let Err(e) = publisher.publish_raw(chunk, key).await {
+            log::error!(
+                "[SPANS] Stream chunk publish failed, falling back to queue for the whole batch: {:?}",
+                e
+            );
+            return false;
+        }
+    }
+    true
 }
 
 // TODO: Implement partial_success
