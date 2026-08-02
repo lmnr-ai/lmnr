@@ -28,6 +28,7 @@ interface TagInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "onC
   // Standalone field: keep input mounted; drive dropdown off focus+typing.
   alwaysEditable?: boolean;
   inputClassName?: string;
+  chipClassName?: string;
   onNavigateLeft?: () => void;
   onNavigateRight?: () => void;
   ref?: Ref<FocusableRef>;
@@ -44,6 +45,7 @@ const TagInput = ({
   open = false,
   alwaysEditable = false,
   inputClassName,
+  chipClassName,
   onNavigateLeft,
   onNavigateRight,
   ref,
@@ -295,8 +297,9 @@ const TagInput = ({
             onFocus={() => setFocusedTagIndex(index)}
             onBlur={() => setFocusedTagIndex(null)}
             className={cn(
-              "inline-flex items-center gap-0.5 px-1 py-0.25 text-xs rounded bg-muted text-secondary-foreground outline-none",
-              focusedTagIndex === index && "ring-1 ring-primary"
+              "inline-flex items-center gap-0.5 px-1 py-0.25 text-xs rounded-md bg-muted text-secondary-foreground outline-none",
+              focusedTagIndex === index && "ring-1 ring-primary",
+              chipClassName
             )}
           >
             <span className="truncate max-w-24">{value}</span>

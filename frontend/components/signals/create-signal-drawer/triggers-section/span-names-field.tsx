@@ -58,6 +58,7 @@ export default function SpanNamesField() {
           alwaysEditable
           placeholder={`Type a span name, e.g. "Task Judge"`}
           inputClassName="h-6 text-xs placeholder:text-muted-foreground"
+          chipClassName="h-6 border bg-background px-1.5"
           className="flex-1 flex-wrap gap-1 px-0 min-w-0"
         />
         {isLoading && <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" />}
