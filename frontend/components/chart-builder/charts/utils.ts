@@ -3,12 +3,20 @@ import { format, isValid } from "date-fns";
 import { isNil, mean } from "lodash";
 
 import { type ChartConfig } from "@/components/ui/chart";
-import { spacedColorMap } from "@/lib/colors";
 
 export const numberFormatter = new Intl.NumberFormat("en-US", {
   notation: "compact",
   maximumFractionDigits: 3,
 });
+
+// Series colors, assigned by position and wrapping past the fifth.
+const CHART_PALETTE = [
+  "hsl(var(--chart-1))",
+  "hsl(var(--chart-2))",
+  "hsl(var(--chart-3))",
+  "hsl(var(--chart-4))",
+  "hsl(var(--chart-5))",
+];
 
 export const parseUtcTimestamp = (s: string): Date => {
   const hasTimezone = /Z$|[+-]\d{2}:\d{2}$/.test(s);
@@ -124,16 +132,14 @@ export const selectNiceTicksFromData = (
   };
 };
 
-export const generateChartConfig = (columns: string[]): ChartConfig => {
-  const colors = spacedColorMap(columns);
-  return columns.reduce((config, columnName) => {
+export const generateChartConfig = (columns: string[], palette: string[] = CHART_PALETTE): ChartConfig =>
+  columns.reduce((config, columnName, index) => {
     config[columnName] = {
       label: columnName,
-      color: colors.get(columnName),
+      color: palette[index % palette.length],
     };
     return config;
   }, {} as ChartConfig);
-};
 
 export const calculateDataMax = (data: Record<string, any>[], yColumns: string[]): number =>
   data.reduce((max, d) => {
@@ -165,19 +171,17 @@ export const getChartMargins = (yAxisValues?: any[], yAxisFormatter?: (value: an
   };
 };
 
-const createChartConfig = (columns: string[]): ChartConfig => {
-  const colors = spacedColorMap(columns);
-  return Object.fromEntries(
-    columns.map((column) => [
+const createChartConfig = (columns: string[], palette: string[] = CHART_PALETTE): ChartConfig =>
+  Object.fromEntries(
+    columns.map((column, index) => [
       column,
       {
-        color: colors.get(column),
+        color: palette[index % palette.length],
         label: column,
         stackId: "stack",
       },
     ])
   );
-};
 
 export const transformDataForBreakdown = (
   data: Record<string, any>[],

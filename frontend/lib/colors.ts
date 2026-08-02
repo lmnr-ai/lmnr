@@ -150,22 +150,15 @@ export const CATEGORICAL_COLOR_PALETTE = [
   "#f04348",
 ];
 
-// Golden-ratio low-discrepancy sequence: successive indices land ~137.5° apart
-// around the palette's hue loop, maximizing visual separation between series
-// while staying append-stable (index i → same color regardless of series count).
+// `count` maximally-separated colors: a golden-ratio walk lands successive
+// entries ~137.5° apart around the palette's hue loop. Zip the result against a
+// stably-ordered series list — position is what picks the color.
 const GOLDEN_RATIO_CONJUGATE = 0.618033988749895;
-export const getSpacedColor = (index: number, palette: readonly string[] = CATEGORICAL_COLOR_PALETTE): string =>
-  palette[Math.floor(((index * GOLDEN_RATIO_CONJUGATE) % 1) * palette.length)];
-
-/**
- * Map each key to a maximally-spread color, keyed on the key's position in the
- * SORTED key set rather than its arrival order. Same set of keys → same colors
- * regardless of how they were ordered/reconstructed, so reordering series (or
- * deleting a run that anchored insertion order) no longer recolors the rest.
- * Adding/removing a key still shifts later keys — inherent to spreading N colors
- * evenly — but the color set stays maximally separated.
- */
-export const spacedColorMap = (keys: string[], palette: readonly string[] = CATEGORICAL_COLOR_PALETTE): Map<string, string> => {
-  const order = new Map([...keys].sort().map((key, index) => [key, index] as const));
-  return new Map(keys.map((key) => [key, getSpacedColor(order.get(key) ?? 0, palette)]));
-};
+// The palette loop starts at red. Enter it at blue instead, so a lone series
+// reads as data rather than as an error.
+const START_HUE_DEGREES = 218;
+export const spacedPalette = (count: number, palette: readonly string[] = CATEGORICAL_COLOR_PALETTE): string[] =>
+  Array.from(
+    { length: count },
+    (_, i) => palette[Math.floor(((i * GOLDEN_RATIO_CONJUGATE + START_HUE_DEGREES / 360) % 1) * palette.length)]
+  );
