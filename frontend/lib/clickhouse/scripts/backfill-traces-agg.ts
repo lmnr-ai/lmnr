@@ -1,35 +1,20 @@
-import { cache } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
+import { acquireBackfillLock } from "@/lib/clickhouse/scripts/backfill-lock";
 
 // Backfills historical `traces_replacing` rows into `traces_agg` + `traces_static`
 // for self-hosters upgrading past the LAM-2020 cutover (LAM-2018). Runs
 // fire-and-forget on frontend boot; a crash resumes from the destination
 // watermark on the next boot.
 
-const LOCK_KEY = "traces_agg_backfill_lock";
-const LOCK_TTL_SECONDS = 15 * 60;
-// Renew well inside the TTL so a slow batch can't let the lock lapse under us.
-const LOCK_RENEW_INTERVAL_MS = 5 * 60 * 1000;
-
 const BATCH_HOURS = 6;
-// A trace's versions can span a window edge (the winning version's start_time
-// can sit earlier than a losing one's), so the winner lookup reads wider than
-// the window it writes. The pad must exceed a trace's VERSION-start spread or the
-// true highest-version row is excluded before argMax resolves it.
-//
-// Measuring max trace DURATION is a sound proxy for that spread: the old
-// aggregator wrote `start_time = LEAST(...)` / `end_time = GREATEST(...)`
-// (`db/trace.rs`), so every version's start_time lies within the final
-// [start_time, end_time] window. Confirmed tight, not just an upper bound — a
-// constructed 3-version trace spanning 30h reported a 30h duration and a 30h
-// version-start spread.
-const DEFAULT_READ_PAD_HOURS = 3;
-// Nominal pad beyond which we log an outlier, NOT a hard clamp. Clamping would
-// double-count: a trace whose versions sit further apart than the pad is never
-// read whole, so two windows each resolve a local winner and both insert into a
-// summing table. Widening is effectively free — `traces_replacing` prunes at
-// monthly-partition granularity, so a 3h and a 240h pad both read the same parts.
-const MAX_READ_PAD_HOURS = 24;
+// A trace's versions can span a window edge (the winning version's start_time can
+// sit earlier than a losing one's), so the winner lookup reads `window ± pad` and
+// filters on the RESOLVED start_time. We ASSUME no trace spans more than 24h; a
+// trace whose versions sit further apart is never read whole, so two windows each
+// resolve a local winner and both insert into a summing table. Widening is cheap
+// (`traces_replacing` prunes at monthly-partition granularity, so 3h and 240h pads
+// read the same parts), so the assumption is generous rather than tuned.
+const READ_PAD_HOURS = 24;
 // Live ingest and any still-rolling old pods can be writing the newest traces
 // to BOTH tables, so start slightly ahead of the watermark.
 const WATERMARK_BUFFER_HOURS = 1;
@@ -276,40 +261,6 @@ const destinationWatermark = async (): Promise<Date | null> =>
 const oldestSourceTrace = async (): Promise<Date | null> =>
   parseChTimestamp(await scalar(`SELECT min(start_time) AS m FROM traces_replacing`));
 
-// The read pad must exceed the longest trace, otherwise a window filter can
-// exclude the true highest-version row before argMax picks a winner and we
-// migrate a stale version. Measure rather than assume: read the widest
-// start_time→end_time span in the source (a cheap two-column aggregate over a
-// frozen table) and widen the pad to cover it, capped so one pathological row
-// can't turn every window into a full scan.
-const resolveReadPadHours = async (): Promise<number> => {
-  const value = await scalar(
-    `SELECT max((toUnixTimestamp64Nano(end_time) - toUnixTimestamp64Nano(start_time)) / 3.6e12) AS h
-     FROM traces_replacing WHERE end_time >= start_time`
-  );
-  const longestTraceHours = Number(value ?? 0);
-  if (!isFinite(longestTraceHours) || longestTraceHours <= 0) return DEFAULT_READ_PAD_HOURS;
-
-  // +1h of slack so a trace exactly at the measured max still sits inside the pad.
-  const needed = Math.ceil(longestTraceHours) + 1;
-  if (needed > MAX_READ_PAD_HOURS) {
-    // Capping is NOT merely "may migrate a stale version" — it DOUBLE-COUNTS.
-    // A trace whose versions sit further apart than the pad is never seen whole,
-    // so two different windows each resolve their own local argMax winner and
-    // each inserts it, and `traces_agg` sums (reproduced: a 40h-spread trace
-    // landed 2 partials while all 70 normal traces stayed at 1). The cap exists
-    // to bound scan cost, but a wider pad costs nothing measurable here —
-    // pruning is monthly-partition granular, so 3h and 240h pads both read
-    // Parts: 1/7 — so honour the measured value and only log the outlier.
-    console.warn(
-      `[traces-agg-backfill] longest source trace spans ${longestTraceHours.toFixed(1)}h, beyond the ` +
-        `${MAX_READ_PAD_HOURS}h nominal read pad; widening to ${needed}h so its versions resolve to one ` +
-        `winner instead of being double-counted.`
-    );
-  }
-  return Math.max(DEFAULT_READ_PAD_HOURS, needed);
-};
-
 const manualCommandHint = (w: Window): string =>
   `To finish manually, re-run the backfill for windows at or before ` +
   `${formatDateTime64(w.to)} (UTC). See lib/clickhouse/backfill/traces-agg.ts.`;
@@ -341,8 +292,6 @@ const runBackfill = async (now: Date, lostLease: () => boolean = () => false): P
     return;
   }
 
-  const readPadHours = await resolveReadPadHours();
-
   // The first window is a PARTIAL one: it runs from the batch-aligned floor of
   // the watermark up to watermark+buffer, so the region between the floor and
   // the watermark is covered. Flooring straight to the upper bound would skip
@@ -356,8 +305,8 @@ const runBackfill = async (now: Date, lostLease: () => boolean = () => false): P
 
   console.log(
     `[traces-agg-backfill] starting; walking back from ${formatDateTime64(cursor)} ` +
-      `in ${BATCH_HOURS}h batches, ${readPadHours}h read pad ` +
-      `(limits: ${MAX_DAYS}d / ${MAX_TRACES} traces)`
+      `in ${BATCH_HOURS}h batches (limits: ${MAX_DAYS}d / ${MAX_TRACES} traces). ` +
+      `Assuming no trace spans more than ${READ_PAD_HOURS}h — a longer one could be counted twice.`
   );
 
   while (windowIndex < MAX_WINDOWS) {
@@ -377,8 +326,8 @@ const runBackfill = async (now: Date, lostLease: () => boolean = () => false): P
     const w: Window = {
       from,
       to,
-      readFrom: addHours(from, -readPadHours),
-      readTo: addHours(to, readPadHours),
+      readFrom: addHours(from, -READ_PAD_HOURS),
+      readTo: addHours(to, READ_PAD_HOURS),
     };
 
     try {
@@ -449,75 +398,25 @@ const runBackfill = async (now: Date, lostLease: () => boolean = () => false): P
   );
 };
 
-// The lock MUST be acquired atomically. `traces_agg` sums, so two replicas
-// walking the same windows concurrently permanently inflate every trace's
-// tokens/costs — and the destination anti-join canNOT save us there: both
-// replicas read the destination for the same window before either's insert
-// lands, so both see it absent and both write (verified end-to-end: 128 of 140
-// traces doubled to 200 tokens). exists()-then-set() has exactly that race,
-// hence `tryAcquireLock` (SET NX EX). The anti-join still runs on every window,
-// but its job is sequential overlap — live ingest, un-drained old pods, a
-// previous partial run — not concurrency.
-//
 // Deliberately NO SIGTERM/SIGINT/exit handlers. Registering a signal listener
 // SUPPRESSES Node's default terminate (verified with plain node: a process whose
 // only SIGTERM listener doesn't call process.exit stays alive and ignores the
 // signal). Next installs its own SIGTERM/SIGINT cleanup that exits 143/130, but
 // only when NEXT_MANUAL_SIG_HANDLE is unset — so a listener here would strand
 // the pod on shutdown in the manual-handle configuration. Releasing the lock a
-// few minutes early isn't worth that risk; the TTL covers a pod that dies.
+// few minutes early isn't worth that risk; the lock TTL covers a pod that dies.
 export const startTracesAggBackfill = async (): Promise<void> => {
-  // Without REDIS_URL the lock falls back to per-process memory, which gives NO
-  // cross-replica exclusion: every replica acquires its own lock and walks the
-  // same windows, and concurrent runs can both clear the anti-join for the same
-  // ids and double traces_agg sums. Warn loudly rather than fail — a
-  // single-replica self-hosted install (the common case) is unaffected, and
-  // refusing to run would strand history for everyone without Redis.
-  if (!process.env.REDIS_URL) {
-    console.warn(
-      "[traces-agg-backfill] REDIS_URL is not set, so the backfill lock is process-local. " +
-        "If you run MORE THAN ONE frontend replica, set REDIS_URL before boot or run a single " +
-        "replica for the first boot — concurrent replicas would double-count traces_agg tokens/costs."
-    );
-  }
-
-  const lockToken = await cache.tryAcquireLock(LOCK_KEY, LOCK_TTL_SECONDS);
-  if (!lockToken) {
+  const lock = await acquireBackfillLock();
+  if (!lock) {
     console.log("[traces-agg-backfill] another replica holds the lock; skipping");
     return;
   }
 
-  // A lease can lapse while its holder is still working (a stalled ClickHouse
-  // insert outlasting the TTL). Renew and release are therefore token-guarded:
-  // an un-guarded `expire`/`remove` would let the lapsed holder EXTEND and then
-  // DELETE the successor's lock — the deletion being the dangerous half, since it
-  // re-opens the gate for a third replica while two runs are already in flight
-  // (both verified). `lostLease` also makes the stalled run STOP at its next
-  // window instead of writing under someone else's lease.
-  let lostLease = false;
-  const renew = setInterval(() => {
-    void cache
-      .renewLockIfHeld(LOCK_KEY, lockToken, LOCK_TTL_SECONDS)
-      .then((held) => {
-        if (!held && !lostLease) {
-          lostLease = true;
-          console.warn(
-            "[traces-agg-backfill] lock lease expired and was taken over; stopping. " +
-              "Remaining history is migrated by whichever replica now holds the lock, or on the next boot."
-          );
-        }
-      })
-      .catch(() => {});
-  }, LOCK_RENEW_INTERVAL_MS);
-  // Don't hold the event loop open on account of the renew timer.
-  renew.unref?.();
-
   try {
-    await runBackfill(new Date(), () => lostLease);
+    await runBackfill(new Date(), lock.lost);
   } catch {
     // runBackfill already logged the resume point and the manual hint.
   } finally {
-    clearInterval(renew);
-    await cache.releaseLockIfHeld(LOCK_KEY, lockToken).catch(() => {});
+    await lock.release();
   }
 };
