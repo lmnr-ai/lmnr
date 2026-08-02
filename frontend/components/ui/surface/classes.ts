@@ -27,9 +27,6 @@ export const SURFACE_BG: Record<number, string> = {
 };
 
 const SCALE_MAX = 800;
-// The border color sits this many scale-units above the surface's own fill — dynamic and
-// elevation-relative, so borders lighten as surfaces stack.
-const BORDER_OFFSET = 250;
 
 const clampElevation = (n: number): number => Math.round(Math.max(MIN_ELEVATION, Math.min(MAX_ELEVATION, n)));
 
@@ -39,10 +36,6 @@ const scaleName = (k: number): string => (k <= 0 ? "00" : String(Math.min(SCALE_
 // The surface color token for an elevation index (clamped to 1..8).
 const surfaceToken = (elevation: number): string =>
   `var(--color-surface-${scaleName(ELEVATION_SCALE[clampElevation(elevation)])})`;
-
-// The border token for an elevation: its own scale position + BORDER_OFFSET, clamped to the top.
-const borderToken = (elevation: number): string =>
-  `var(--color-surface-${scaleName(ELEVATION_SCALE[clampElevation(elevation)] + BORDER_OFFSET)})`;
 
 /**
  * The relative-neighbour surface colors (and the elevation-relative border) every painted surface
@@ -66,7 +59,9 @@ export function surfaceVars(elevation: number): CSSProperties {
     "--color-surface-down": surfaceToken(e - 1),
     "--color-surface-down-2": surfaceToken(e - 2),
     "--color-surface-down-3": surfaceToken(e - 3),
-    "--color-border": borderToken(e),
+    // Border = the surface fill 5 elevation-steps up; clamps at surface-400 (elevation 8), always a
+    // defined token, so `border-color` can never fall back to currentColor (white).
+    "--color-border": surfaceToken(e + 5),
   } as CSSProperties;
 }
 

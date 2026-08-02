@@ -47,10 +47,10 @@
   --font-manrope: var(--font-manrope);
 
   /* Base-plane border. `border` is a DYNAMIC surface-bound color: every painted surface overrides
-     --color-border inline to its own elevation + 300 (see surfaceVars); this is the base fallback
-     (base elevation + 300 = surface-300). The global `* { @apply border-border }` means borders
-     lighten with elevation everywhere. */
-  --color-border: var(--color-surface-300);
+     --color-border inline to the surface fill 5 elevation-steps up (see surfaceVars), which clamps
+     at surface-400. This is the base-plane fallback for bare elements. The global
+     `* { @apply border-border }` means borders lighten with elevation everywhere. */
+  --color-border: var(--color-surface-250);
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
   --color-background: var(--color-surface-00);
