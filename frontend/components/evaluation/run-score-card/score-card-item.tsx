@@ -2,23 +2,15 @@
 
 import { ArrowRight } from "lucide-react";
 
-import {
-  aggregateScalar,
-  type AggregationKind,
-  binaryCounts,
-  isBinaryDistribution,
-  pctChange,
-} from "@/components/evaluation/metrics-panel/utils";
-import { type EvaluationScoreDistributionBucket, type EvaluationScoreStatistics } from "@/lib/evaluation/types";
+import { type AggregationKind, pctChange } from "@/components/evaluation/metrics-panel/utils";
+import { type EvaluationScoreStatistics } from "@/lib/evaluation/types";
 import { cn, isValidNumber } from "@/lib/utils";
 
 interface ScoreCardItemProps {
   name: string;
   aggregation: AggregationKind;
   statistics: EvaluationScoreStatistics | null;
-  distribution: EvaluationScoreDistributionBucket[] | null;
   comparedStatistics: EvaluationScoreStatistics | null;
-  comparedDistribution: EvaluationScoreDistributionBucket[] | null;
   isComparison?: boolean;
   /** Resolved score direction. Absent = higher is better. */
   isHigherBetter?: boolean;
@@ -26,19 +18,11 @@ interface ScoreCardItemProps {
 
 const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
-// Binary (pass/fail) scores read as a positive rate; the aggregation picker
-// doesn't apply to them.
-function scalarFor(
-  isBinary: boolean,
-  aggregation: AggregationKind,
-  statistics: EvaluationScoreStatistics | null,
-  distribution: EvaluationScoreDistributionBucket[] | null
-): number | undefined {
-  if (isBinary) {
-    const counts = binaryCounts(distribution);
-    return counts.total > 0 ? counts.positive / counts.total : statistics?.averageValue;
-  }
-  return aggregateScalar(aggregation, statistics, distribution);
+// Exact per-run aggregate for the selected function. Values are computed
+// server-side over the raw datapoint scores (see lib/evaluation/aggregation.ts).
+function scalarFor(aggregation: AggregationKind, statistics: EvaluationScoreStatistics | null): number | undefined {
+  if (!statistics) return undefined;
+  return aggregation === "avg" ? statistics.averageValue : statistics[aggregation];
 }
 
 // One score's whole-run aggregate: name on top, big number below, and (in
@@ -48,16 +32,12 @@ export default function ScoreCardItem({
   name,
   aggregation,
   statistics,
-  distribution,
   comparedStatistics,
-  comparedDistribution,
   isComparison,
   isHigherBetter = true,
 }: ScoreCardItemProps) {
-  const isBinary = isBinaryDistribution(distribution);
-
-  const cur = scalarFor(isBinary, aggregation, statistics, distribution);
-  const cmp = isComparison ? scalarFor(isBinary, aggregation, comparedStatistics, comparedDistribution) : undefined;
+  const cur = scalarFor(aggregation, statistics);
+  const cmp = isComparison ? scalarFor(aggregation, comparedStatistics) : undefined;
 
   const validCur = isValidNumber(cur);
   const validCmp = isComparison && isValidNumber(cmp);

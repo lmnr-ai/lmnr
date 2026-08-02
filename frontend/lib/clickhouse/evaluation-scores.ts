@@ -1,7 +1,21 @@
 import { executeQuery } from "@/lib/actions/sql";
 import { type AggregationFunction } from "@/lib/clickhouse/types";
 
+import { aggregateScore, type ScoreAggregation } from "../evaluation/aggregation";
 import { type EvaluationTimeProgression } from "../evaluation/types";
+
+// Map the uppercase wire enum onto the shared aggregation kinds. Keeps the group
+// progression and the single-eval shields on identical formulas (incl. quantiles).
+const AGGREGATION_KIND: Record<AggregationFunction, ScoreAggregation> = {
+  AVG: "avg",
+  SUM: "sum",
+  MIN: "min",
+  MAX: "max",
+  MEDIAN: "median",
+  p90: "p90",
+  p95: "p95",
+  p99: "p99",
+} as Record<AggregationFunction, ScoreAggregation>;
 
 export const getEvaluationTimeProgression = async (
   projectId: string,
@@ -78,51 +92,8 @@ export const getEvaluationTimeProgression = async (
     for (const [name, scoreValues] of evalData.scoresByName.entries()) {
       if (scoreValues.length === 0) continue;
 
-      let aggregatedValue: number;
-      switch (aggregationFunction) {
-        case "AVG":
-          aggregatedValue = scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length;
-          break;
-        case "SUM":
-          aggregatedValue = scoreValues.reduce((a, b) => a + b, 0);
-          break;
-        case "MIN":
-          aggregatedValue = Math.min(...scoreValues);
-          break;
-        case "MAX":
-          aggregatedValue = Math.max(...scoreValues);
-          break;
-        case "MEDIAN":
-          {
-            const sorted = [...scoreValues].sort((a, b) => a - b);
-            const mid = Math.floor(sorted.length / 2);
-            aggregatedValue = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
-          }
-          break;
-        case "p90":
-          {
-            const sorted = [...scoreValues].sort((a, b) => a - b);
-            const idx = Math.ceil(sorted.length * 0.9) - 1;
-            aggregatedValue = sorted[Math.max(0, idx)];
-          }
-          break;
-        case "p95":
-          {
-            const sorted = [...scoreValues].sort((a, b) => a - b);
-            const idx = Math.ceil(sorted.length * 0.95) - 1;
-            aggregatedValue = sorted[Math.max(0, idx)];
-          }
-          break;
-        case "p99":
-          {
-            const sorted = [...scoreValues].sort((a, b) => a - b);
-            const idx = Math.ceil(sorted.length * 0.99) - 1;
-            aggregatedValue = sorted[Math.max(0, idx)];
-          }
-          break;
-        default:
-          aggregatedValue = scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length;
-      }
+      const kind = AGGREGATION_KIND[aggregationFunction] ?? "avg";
+      const aggregatedValue = aggregateScore(scoreValues, kind) ?? 0;
 
       names.push(name);
       values.push(String(aggregatedValue));
