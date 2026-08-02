@@ -89,14 +89,19 @@ export function useColumnSuggestions({
   onError,
 }: UseColumnSuggestionsArgs): UseColumnSuggestionsResult {
   const storageKey = useMemo(() => keyFor(resource, scopeId), [resource, scopeId]);
-  // Read once at mount via a lazy initializer (SSR-safe: returns {} on the
-  // server; the client re-runs it at hydration and reads localStorage). Consumers
-  // MUST remount the hook per scope — the eval page keys its providers on the
-  // evaluation id, the established pattern here — so a fresh `scopeId` gets a
-  // fresh read. FOOTGUN: `persisted` is captured at mount and never reset on prop
-  // change, so if a caller ever changes `scopeId` WITHOUT remounting, it will
-  // show the prior scope's cache.
+  // Read via a lazy initializer (SSR-safe: returns {} on the server; the client
+  // re-runs it at hydration and reads localStorage).
   const [persisted, setPersisted] = useState<PersistedMap>(() => loadPersisted(storageKey));
+  // Re-read when the scope changes without a remount. Consumers normally remount
+  // per scope (the eval page keys its providers on the evaluation id), but without
+  // this the hook would show the previous scope's cache if one ever doesn't.
+  // Render-phase reset (React's "adjusting state when a prop changes") rather than
+  // an effect, so no stale frame renders against the wrong scope.
+  const [loadedKey, setLoadedKey] = useState(storageKey);
+  if (loadedKey !== storageKey) {
+    setLoadedKey(storageKey);
+    setPersisted(loadPersisted(storageKey));
+  }
 
   const setRecord = useCallback(
     (id: string, record: SuggestionRecord) => {

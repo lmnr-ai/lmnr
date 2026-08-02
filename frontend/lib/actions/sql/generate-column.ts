@@ -9,16 +9,23 @@ import { truncateForPrompt } from "@/lib/utils";
 import { buildSampleRowsQuery, buildVerifyColumnQuery, sampleFingerprint } from "./column-sql-queries";
 import { executeQuery } from "./index";
 
+// `table` and `sampleColumns` are interpolated into the query text (they can't be
+// bound as params), so they are allowlisted here rather than relying solely on the
+// app-server validator downstream. Same rationale as PAYLOAD_FIELD_NAME_RE on the
+// signal-events search path: an identifier reaching query syntax gets pinned shut.
+const GENERATABLE_TABLES = ["evaluation_datapoints", "dataset_datapoints", "traces"] as const;
+const SAMPLE_COLUMN_RE = /^(\*|[a-zA-Z_][a-zA-Z0-9_]*)$/;
+
 const GenerateColumnSqlSchema = z.object({
   projectId: z.guid(),
   /** Physical/allowlisted table the column is added to (e.g. "evaluation_datapoints"). */
-  table: z.string().min(1),
+  table: z.enum(GENERATABLE_TABLES),
   /** Scope fragment, e.g. "evaluation_id = {evaluationId:UUID}". Runs through the validator. */
   whereSql: z.string().min(1),
   /** Parameters referenced by whereSql, e.g. { evaluationId }. */
   parameters: z.record(z.string(), z.string()).default({}),
-  /** Source columns the agent inspects, e.g. ["data", "target", "metadata"]. */
-  sampleColumns: z.array(z.string().min(1)).min(1),
+  /** Source columns the agent inspects, e.g. ["data", "target", "metadata"], or ["*"]. */
+  sampleColumns: z.array(z.string().regex(SAMPLE_COLUMN_RE, "must be a bare column name or *")).min(1),
   /** Task-specific instruction (e.g. "extract a human-readable identifier..."). */
   instruction: z.string().min(1),
   dataType: z.enum(["string", "number"]).default("string"),
