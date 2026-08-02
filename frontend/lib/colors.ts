@@ -156,7 +156,7 @@ export const CATEGORICAL_COLOR_PALETTE = [
 const GOLDEN_RATIO_CONJUGATE = 0.618033988749895;
 // The palette loop starts at red. Enter it at blue instead, so a lone series
 // reads as data rather than as an error.
-const START_HUE_DEGREES = 240;
+const START_HUE_DEGREES = 218;
 export const spacedPalette = (count: number, palette: readonly string[] = CATEGORICAL_COLOR_PALETTE): string[] =>
   Array.from(
     { length: count },
