@@ -366,4 +366,29 @@ mod tests {
         assert_eq!(key, regex_cache_key(pid, Some("abc"), "plain"));
         assert_ne!(key, regex_cache_key(pid, Some("abc"), "env,/env"));
     }
+
+    /// LAM-2049 end-to-end: the key is built from the system prompt's
+    /// FIRST-SENTENCE hash, so permuting the system prompt's XML
+    /// scaffolding must not re-trigger user-regex generation.
+    #[test]
+    fn regex_cache_key_survives_system_prompt_tag_permutations() {
+        use crate::traces::prompt_hash::prompt_hashes;
+
+        let pid = Uuid::nil();
+        let sp_a = "You are an AI agent for testing.\n<alpha>x</alpha>";
+        let sp_b = "You are an AI agent for testing.\n<gamma>z</gamma><beta>y</beta>";
+        let key_for = |sp: &str| {
+            regex_cache_key(
+                pid,
+                Some(&prompt_hashes(sp).first_sentence),
+                "plain,env,/env",
+            )
+        };
+        assert_eq!(key_for(sp_a), key_for(sp_b));
+        // A genuinely different agent still gets its own key.
+        assert_ne!(
+            key_for(sp_a),
+            key_for("You are Claude Code, an AI coding assistant.\n<alpha>x</alpha>")
+        );
+    }
 }
