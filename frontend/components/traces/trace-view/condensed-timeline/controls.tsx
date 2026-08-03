@@ -40,10 +40,24 @@ export default function Controls({
         </Tooltip>
       </TooltipProvider>
       <div className="flex items-center border rounded-md bg-muted px-0.5 h-[24px]">
-        <Button disabled={zoom >= MAX_ZOOM} className="size-5 min-w-5" variant="ghost" size="icon" onClick={onZoomIn}>
+        <Button
+          aria-label="Zoom in"
+          disabled={zoom >= MAX_ZOOM}
+          className="size-5 min-w-5"
+          variant="ghost"
+          size="icon"
+          onClick={onZoomIn}
+        >
           <Plus className="size-3" />
         </Button>
-        <Button disabled={zoom <= MIN_ZOOM} className="size-5 min-w-5" variant="ghost" size="icon" onClick={onZoomOut}>
+        <Button
+          aria-label="Zoom out"
+          disabled={zoom <= MIN_ZOOM}
+          className="size-5 min-w-5"
+          variant="ghost"
+          size="icon"
+          onClick={onZoomOut}
+        >
           <Minus className="size-3" />
         </Button>
       </div>

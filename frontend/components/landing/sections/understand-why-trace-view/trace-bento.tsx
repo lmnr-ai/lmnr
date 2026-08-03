@@ -88,17 +88,17 @@ const TraceViewHeaderRow1 = ({
 }) => (
   <div className="flex items-center gap-1">
     <span className={cn(HEADER_ITEM_CLS, "gap-0.5")}>
-      <Button variant="ghost" disabled className="h-7 px-0.5 disabled:opacity-100">
+      <Button aria-label="Collapse panel" variant="ghost" disabled className="h-7 px-0.5 disabled:opacity-100">
         <ChevronsRight className="w-5 h-5" />
       </Button>
-      <Button variant="ghost" disabled className="h-7 px-0.5 disabled:opacity-100">
+      <Button aria-label="Expand" variant="ghost" disabled className="h-7 px-0.5 disabled:opacity-100">
         <Maximize className="w-4 h-4" />
       </Button>
     </span>
 
     <span className={HEADER_ITEM_CLS}>
       <span className="text-base font-medium pl-2 flex-shrink-0">Trace</span>
-      <Button variant="ghost" disabled className="h-7 px-1 disabled:opacity-100">
+      <Button aria-label="Expand" variant="ghost" disabled className="h-7 px-1 disabled:opacity-100">
         <ChevronDown className="w-3 h-3" />
       </Button>
     </span>
@@ -109,7 +109,7 @@ const TraceViewHeaderRow1 = ({
         disabled
         className={cn("h-6 text-xs px-1.5 disabled:opacity-100", chatActive && "border-primary text-primary")}
       >
-        <Sparkles size={14} className="mr-1" />
+        <Sparkles data-icon="inline-start" size={14} className="mr-1" />
         Chat
       </Button>
     </span>
@@ -120,7 +120,7 @@ const TraceViewHeaderRow1 = ({
         onClick={onSignalsToggle}
         className={cn("h-6 text-xs px-1.5", signalsActive && "border-primary text-primary")}
       >
-        <Radio size={14} className="mr-1" />
+        <Radio data-icon="inline-start" size={14} className="mr-1" />
         Signals (1)
       </Button>
     </span>

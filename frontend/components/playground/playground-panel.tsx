@@ -174,9 +174,9 @@ export default function PlaygroundPanel({
         </Button>
         {isLoading ? (
           <Button variant="outlinePrimary" onClick={abortRequest} className="ml-auto h-7 w-fit px-2">
-            <Square className="w-4 h-4 mr-1" />
+            <Square data-icon="inline-start" className="w-4 h-4 mr-1" />
             <span className="mr-2 text-xs">Stop</span>
-            <Loader className="animate-spin w-4 h-4" />
+            <Loader data-icon="inline-end" className="animate-spin w-4 h-4" />
           </Button>
         ) : (
           <Button icon="playIcon" onClick={handleSubmit(submit)} className="ml-auto w-fit">

@@ -40,7 +40,7 @@ export default function SchemaDriftBanner({ targetIsObject, targetType, extras, 
         </div>
         <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0" onClick={onViewJson}>
           View JSON
-          <ArrowRight className="size-3 ml-1" />
+          <ArrowRight data-icon="inline-end" className="size-3 ml-1" />
         </Button>
       </div>
     );
@@ -66,7 +66,7 @@ export default function SchemaDriftBanner({ targetIsObject, targetType, extras, 
       </div>
       <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0" onClick={onViewJson}>
         View JSON
-        <ArrowRight className="size-3 ml-1" />
+        <ArrowRight data-icon="inline-end" className="size-3 ml-1" />
       </Button>
     </div>
   );

@@ -89,6 +89,7 @@ const ExportChartDialog = ({ children }: PropsWithChildren) => {
         <Separator />
         <Input
           id="chart-name"
+          aria-label="Chart name"
           value={name || ""}
           onChange={(e) => setChartName(e.target.value || undefined)}
           placeholder="Enter chart name"

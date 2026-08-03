@@ -25,7 +25,7 @@ export default function RegularTimelineToggle() {
         sessionTimelineEnabled ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
       )}
     >
-      <GanttChart size={14} className="mr-1" />
+      <GanttChart data-icon="inline-start" size={14} className="mr-1" />
       Timeline
     </Button>
   );

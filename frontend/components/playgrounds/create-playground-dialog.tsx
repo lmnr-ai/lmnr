@@ -68,7 +68,7 @@ export default function CreatePlaygroundDialog() {
           </div>
           <DialogFooter>
             <Button onClick={createNewPlayground} disabled={!newPlaygroundName || isLoading} handleEnter>
-              <Loader2 className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
+              <Loader2 data-icon="inline-start" className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
               Create
             </Button>
           </DialogFooter>

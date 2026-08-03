@@ -8,12 +8,17 @@ export function Centered({ children }: { children: ReactNode }) {
   return <div className="flex min-h-screen w-full items-center justify-center bg-background p-6">{children}</div>;
 }
 
-export function Field({ label, children }: { label: string; children: ReactNode }) {
+export function Field({ label, children, as = "label" }: { label: string; children: ReactNode; as?: "label" | "div" }) {
+  // A wrapping <label> implicitly associates the text with the control inside it,
+  // giving inputs an accessible name without threading an id through every call site.
+  // Radix Select misbehaves when nested in a <label> (the menu won't close on
+  // mobile), so pass as="div" for Select and give the trigger its own aria-label.
+  const Tag = as;
   return (
-    <div className="flex flex-col gap-1">
+    <Tag className="flex flex-col gap-1">
       <span className="text-xs text-muted-foreground">{label}</span>
       {children}
-    </div>
+    </Tag>
   );
 }
 
