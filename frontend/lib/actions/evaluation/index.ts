@@ -6,6 +6,7 @@ import { PaginationSchema, SortSchema } from "@/lib/actions/common/types";
 import {
   buildEvalQuery,
   buildEvalStatsQuery,
+  buildEvalTotalsQuery,
   EvalFilterSchema,
   type EvalQueryColumn,
 } from "@/lib/actions/evaluation/query-builder";
@@ -19,6 +20,7 @@ import {
   type EvaluationResultsInfo,
   type EvaluationScoreDistributionBucket,
   type EvaluationScoreStatistics,
+  type EvaluationTotals,
   type LinkedDataset,
 } from "@/lib/evaluation/types.ts";
 
@@ -212,12 +214,27 @@ export const getEvaluationDatapoints = async (
   };
 };
 
+const EMPTY_TOTALS: EvaluationTotals = {
+  datapointCount: 0,
+  inputCost: 0,
+  outputCost: 0,
+  totalCost: 0,
+  inputTokens: 0,
+  outputTokens: 0,
+  totalTokens: 0,
+  cacheReadInputTokens: 0,
+  cacheCreationInputTokens: 0,
+  reasoningTokens: 0,
+  totalDuration: 0,
+};
+
 export const getEvaluationStatistics = async (
   input: z.infer<typeof GetEvaluationStatisticsSchema>
 ): Promise<{
   evaluation: Evaluation;
   allStatistics: Record<string, EvaluationScoreStatistics>;
   allDistributions: Record<string, EvaluationScoreDistributionBucket[]>;
+  totals: EvaluationTotals;
 }> => {
   const { projectId, evaluationId, search, searchIn, filter: inputFilters, columns: columnsJson } = input;
 
@@ -247,6 +264,7 @@ export const getEvaluationStatistics = async (
       evaluation: evaluation as Evaluation,
       allStatistics: {},
       allDistributions: {},
+      totals: EMPTY_TOTALS,
     };
   }
 
@@ -261,12 +279,17 @@ export const getEvaluationStatistics = async (
     filters: allFilters,
     columns,
   });
-
-  const rawResults = await executeQuery<{ scores: string }>({
-    query: statsQuery,
-    parameters: statsParams,
-    projectId,
+  const { query: totalsQuery, parameters: totalsParams } = buildEvalTotalsQuery({
+    evaluationId,
+    traceIds: searchTraceIds,
+    filters: allFilters,
+    columns,
   });
+
+  const [rawResults, totalsRows] = await Promise.all([
+    executeQuery<{ scores: string }>({ query: statsQuery, parameters: statsParams, projectId }),
+    executeQuery<EvaluationTotals>({ query: totalsQuery, parameters: totalsParams, projectId }),
+  ]);
 
   const parsedResults = rawResults.map((row) => {
     let scores: Record<string, unknown> | undefined;
@@ -293,6 +316,7 @@ export const getEvaluationStatistics = async (
     evaluation: evaluation as Evaluation,
     allStatistics,
     allDistributions,
+    totals: totalsRows[0] ?? EMPTY_TOTALS,
   };
 };
 

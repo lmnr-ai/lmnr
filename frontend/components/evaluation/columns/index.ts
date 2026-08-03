@@ -98,7 +98,10 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
       sql: "substring(executor_output, 1, 200)",
       dataType: "string",
       filterable: false,
-      comparable: false,
+      // Comparable so the datapoint-comparison view can show both runs' outputs
+      // side by side. `data` / `target` stay non-comparable — they're the same
+      // dataset row at a given index, so there is nothing to diff.
+      comparable: true,
       fullSql: "executor_output",
       truncated: true,
     },
@@ -185,6 +188,47 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Total Cost",
     enableSorting: false,
     meta: { sql: "total_cost", dataType: "number", filterable: false, comparable: true, hidden: true },
+  },
+  {
+    id: "inputTokens",
+    accessorFn: (row) => row["inputTokens"],
+    header: "Input Tokens",
+    enableSorting: false,
+    meta: { sql: "input_tokens", dataType: "number", filterable: false, comparable: true, hidden: true },
+  },
+  {
+    id: "outputTokens",
+    accessorFn: (row) => row["outputTokens"],
+    header: "Output Tokens",
+    enableSorting: false,
+    meta: { sql: "output_tokens", dataType: "number", filterable: false, comparable: true, hidden: true },
+  },
+  {
+    id: "totalTokens",
+    accessorFn: (row) => row["totalTokens"],
+    header: "Total Tokens",
+    enableSorting: false,
+    meta: { sql: "total_tokens", dataType: "number", filterable: false, comparable: true, hidden: true },
+  },
+  {
+    id: "cacheReadInputTokens",
+    accessorFn: (row) => row["cacheReadInputTokens"],
+    header: "Cache Input Tokens",
+    enableSorting: false,
+    meta: {
+      sql: "cache_read_input_tokens",
+      dataType: "number",
+      filterable: false,
+      comparable: true,
+      hidden: true,
+    },
+  },
+  {
+    id: "reasoningTokens",
+    accessorFn: (row) => row["reasoningTokens"],
+    header: "Reasoning Tokens",
+    enableSorting: false,
+    meta: { sql: "reasoning_tokens", dataType: "number", filterable: false, comparable: true, hidden: true },
   },
   {
     id: "scores",

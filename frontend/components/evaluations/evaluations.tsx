@@ -11,6 +11,7 @@ import useSWR from "swr";
 import HeatmapValue from "@/components/evaluation/heatmap-value";
 import { formatScoreValue, isValidScore } from "@/components/evaluation/utils";
 import ProgressionChart from "@/components/evaluations/progression-chart";
+import { EvaluationStatusCell } from "@/components/evaluations/status-cell";
 import { EvaluationsTableContents } from "@/components/evaluations/table-contents";
 import { EvaluationsTableControls } from "@/components/evaluations/table-controls";
 import { Button } from "@/components/ui/button";
@@ -58,6 +59,13 @@ const baseColumns: ColumnDef<Evaluation>[] = [
     accessorKey: "name",
     header: "Name",
     size: 300,
+  },
+  {
+    id: "status",
+    accessorFn: (row) => row.status,
+    cell: EvaluationStatusCell,
+    header: "Status",
+    size: 160,
   },
   {
     id: "dataPointsCount",

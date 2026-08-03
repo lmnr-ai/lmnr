@@ -229,6 +229,21 @@ const TABLES: &[Table] = &[
                 "Total tokens from the associated trace",
             ),
             col(
+                "cache_read_input_tokens",
+                "UInt64",
+                "Cached input tokens from the associated trace (subset of input_tokens)",
+            ),
+            col(
+                "cache_creation_input_tokens",
+                "UInt64",
+                "Prompt-cache write tokens from the associated trace",
+            ),
+            col(
+                "reasoning_tokens",
+                "UInt64",
+                "Reasoning tokens from the associated trace",
+            ),
+            col(
                 "trace_status",
                 "String (enum status)",
                 "Status of the associated trace",

@@ -6,6 +6,7 @@ import {
   type Evaluation,
   type EvaluationScoreDistributionBucket,
   type EvaluationScoreStatistics,
+  type EvaluationTotals,
 } from "@/lib/evaluation/types";
 
 export type EvalDatapointStatus = "error" | "pending" | "success";
@@ -58,6 +59,7 @@ export type EvaluationStatsPayload = {
   evaluation: Evaluation;
   allStatistics: Record<string, EvaluationScoreStatistics>;
   allDistributions: Record<string, EvaluationScoreDistributionBucket[]>;
+  totals: EvaluationTotals;
 };
 
 export type ScoreRanges = Record<string, ScoreRange>;
