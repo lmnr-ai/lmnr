@@ -62,8 +62,10 @@ const buttonVariants = cva(
         warningOutline: "border border-amber-500 text-amber-600 dark:text-amber-500 shadow-sm hover:bg-amber-500/10",
         outline: "border border-input bg-background hover:bg-accent",
         outlinePrimary: "border border-primary bg-background hover:bg-primary/10 text-primary",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/60 border border-secondary-foreground/20",
-        secondaryLight: "bg-secondary text-secondary-foreground hover:bg-secondary/60",
+        secondary:
+          "text-secondary-foreground bg-surface-up-2 hover:bg-surface-up-3 active:bg-surface-up-4 data-[state=active]:bg-surface-up-4 data-[state=open]:bg-surface-up-4 shadow-[inset_0_1px_0_0_var(--color-surface-up-4),inset_0_0_0_1px_var(--color-surface-up-3)] hover:shadow-[inset_0_1px_0_0_var(--color-surface-up-5),inset_0_0_0_1px_var(--color-surface-up-4)] active:shadow-[inset_0_1px_0_0_var(--color-surface-up-6),inset_0_0_0_1px_var(--color-surface-up-5)] data-[state=active]:shadow-[inset_0_1px_0_0_var(--color-surface-up-6),inset_0_0_0_1px_var(--color-surface-up-5)] data-[state=open]:shadow-[inset_0_1px_0_0_var(--color-surface-up-6),inset_0_0_0_1px_var(--color-surface-up-5)]",
+        secondaryLight:
+          "text-secondary-foreground bg-surface-up hover:bg-surface-up-2 active:bg-surface-up-3 data-[state=active]:bg-surface-up-3 data-[state=open]:bg-surface-up-3 shadow-[inset_0_1px_0_0_var(--color-surface-up-3),inset_0_0_0_1px_var(--color-surface-up-2)] hover:shadow-[inset_0_1px_0_0_var(--color-surface-up-4),inset_0_0_0_1px_var(--color-surface-up-3)] active:shadow-[inset_0_1px_0_0_var(--color-surface-up-5),inset_0_0_0_1px_var(--color-surface-up-4)] data-[state=active]:shadow-[inset_0_1px_0_0_var(--color-surface-up-5),inset_0_0_0_1px_var(--color-surface-up-4)] data-[state=open]:shadow-[inset_0_1px_0_0_var(--color-surface-up-5),inset_0_0_0_1px_var(--color-surface-up-4)]",
         ghost: "hover:text-accent-foreground/80",
         light: "bg-white/90 text-black/90 hover:bg-white/60 border-white/20 border hover:border-white/50",
         lightSecondary: "bg-white/10 text-white/80 hover:bg-white/20 border-white/20 border hover:border-white/50",

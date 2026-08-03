@@ -51,7 +51,7 @@ export function TracesTableControls({
         <TracesColumnsMenu columnLabels={columnLabels} columnDefs={columnDefs} />
         <ViewsToolbar projectId={projectId} resource={RESOURCE} />
         <DateRangeFilter />
-        <RefreshButton onClick={onRefresh} variant="outline" />
+        <RefreshButton onClick={onRefresh} />
         <TracesRealtimeToggle />
       </div>
       <div className="w-full px-px">

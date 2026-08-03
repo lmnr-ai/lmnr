@@ -11,6 +11,7 @@ import {
   useState,
 } from "react";
 
+import { ElevatedSurface } from "@/components/ui/surface";
 import { useSizeInput } from "@/hooks/use-size-input.tsx";
 import { cn } from "@/lib/utils.ts";
 
@@ -176,12 +177,13 @@ const NativeCombobox = ({
         {...props}
       />
       {open && suggestions.length > 0 && (
-        <div
+        <ElevatedSurface
+          offset={3}
           ref={dropdownRef}
           role="listbox"
           className={cn(
             "absolute top-full left-0 mt-1 z-50 w-48 max-h-48 p-1",
-            "bg-popover border shadow-md rounded-md overflow-y-auto no-scrollbar text-secondary-foreground",
+            "border shadow-md rounded-md overflow-y-auto no-scrollbar text-secondary-foreground",
             "animate-in fade-in-0 zoom-in-95",
             dropdownClassName
           )}
@@ -207,7 +209,7 @@ const NativeCombobox = ({
               <span className="truncate">{suggestion}</span>
             </div>
           ))}
-        </div>
+        </ElevatedSurface>
       )}
     </div>
   );

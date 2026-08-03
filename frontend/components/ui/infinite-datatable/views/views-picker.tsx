@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTableControlsButtonVariant } from "@/components/ui/use-table-controls-button-variant";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, swrFetcher } from "@/lib/utils";
 
@@ -65,6 +66,7 @@ export default function ViewsPicker({
 
   const setLastViewId = useLastViewStore((s) => s.setLastViewId);
 
+  const controlVariant = useTableControlsButtonVariant();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [pending, setPending] = useState<{ view: View; action: "delete" | "rename" } | null>(null);
@@ -194,7 +196,7 @@ export default function ViewsPicker({
       <DropdownMenu open={open} onOpenChange={handleOpenChange}>
         <DropdownMenuTrigger asChild>
           <Button
-            variant="outline"
+            variant={controlVariant}
             className={cn("text-secondary-foreground gap-1 outline-0", showQuickSave && "rounded-r-none border-r-0")}
             disabled={isLoading}
           >
@@ -296,7 +298,7 @@ export default function ViewsPicker({
       </DropdownMenu>
       {showQuickSave && (
         <Button
-          variant="outline"
+          variant={controlVariant}
           size="icon"
           aria-label="Save changes"
           title="Save changes"

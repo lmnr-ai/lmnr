@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input.tsx";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
+import { useTableControlsButtonVariant } from "@/components/ui/use-table-controls-button-variant.tsx";
 import { type Filter, type FilterDataType } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils.ts";
@@ -56,6 +57,7 @@ const FilterPopover = ({
   filters,
   children,
 }: PropsWithChildren<FilterUIProps>) => {
+  const controlVariant = useTableControlsButtonVariant();
   // Internal filter state - value is string during editing, converted to proper type on apply
   const [filter, setFilter] = useState<{ column: string; operator: Operator; value: string }>(() =>
     parseFirstFilter(columns)
@@ -114,7 +116,7 @@ const FilterPopover = ({
     <Popover>
       <PopoverTrigger asChild className={cn("text-secondary-foreground", className)}>
         {children || (
-          <Button icon="filter" variant="outline">
+          <Button icon="filter" variant={controlVariant}>
             Add filter
           </Button>
         )}

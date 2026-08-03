@@ -1,6 +1,8 @@
 import "@/app/globals.css";
 import "@/app/scroll.css";
+import "dialkit/styles.css";
 
+import { DialRoot } from "dialkit";
 import { InterfaceKit } from "interface-kit/react";
 import { type Metadata } from "next";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
@@ -74,7 +76,12 @@ export default async function RootLayout({ children }: PropsWithChildren) {
     <html lang="en" className={cn("h-full antialiased", sans.variable, manrope.variable, sansLanding.variable)}>
       <body className="flex flex-col h-full">
         <BasePathFetchShim />
-        {process.env.NODE_ENV === "development" && <InterfaceKit />}
+        {process.env.NODE_ENV === "development" && (
+          <>
+            <InterfaceKit />
+            <DialRoot />
+          </>
+        )}
         <FeatureFlagsProvider flags={featureFlags}>
           <PostHogProvider telemetryEnabled={posthogEnabled} email={email}>
             <TooltipProvider delayDuration={0}>

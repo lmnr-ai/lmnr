@@ -1,6 +1,6 @@
 import { formatDate, subDays, subYears } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, CalendarIcon, ChevronRight } from "lucide-react";
+import { ArrowLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label.tsx";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip.tsx";
+import { useTableControlsButtonVariant } from "@/components/ui/use-table-controls-button-variant.tsx";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context.tsx";
 import { Feature } from "@/lib/features/features";
@@ -227,6 +228,7 @@ export const DateRangeFilterInner = ({
   quickRanges?: DateRange[];
   hideAbsoluteDate?: boolean;
 }) => {
+  const controlVariant = useTableControlsButtonVariant();
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const searchParams = useSearchParams();
@@ -273,11 +275,10 @@ export const DateRangeFilterInner = ({
       <PopoverTrigger asChild>
         <Button
           disabled={buttonDisabled}
-          variant="outline"
+          variant={controlVariant}
           className={cn("justify-between text-left font-normal text-xs", className)}
         >
           <DateRangeButton displayRange={getDisplayRange()} />
-          <CalendarIcon className="ml-2 size-3.5 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="p-0 overflow-hidden w-auto" align="start">

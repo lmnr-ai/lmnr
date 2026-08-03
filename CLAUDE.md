@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Dev-only tooling — DialKit MUST be removed before shipping to prod
+
+`dialkit` is a sandbox-only live-tuning dev tool. It is a `devDependency` that is currently imported by shipped code (`frontend/components/ui/popover.tsx` via `useDialKit`, `frontend/app/layout.tsx` via `<DialRoot />`). This is intentional ONLY on the `sandbox/surfaces` branch for tuning surface variants. Before any of this reaches `feat`/`main`/production it MUST be **completely removed**: bake the tuned values into static classes, delete every `dialkit` import + `<DialRoot />`, and drop the `dialkit` devDependency. A `--prod` install omits devDependencies, so leaving any `dialkit` import in shipped code breaks the production build.
+
 ## Project Overview
 
 Laminar is an open-source observability platform for AI agents. It provides OpenTelemetry-native tracing, evaluations, AI monitoring, and SQL access to all data.

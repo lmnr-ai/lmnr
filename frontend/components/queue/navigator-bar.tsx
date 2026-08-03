@@ -148,7 +148,7 @@ export default function NavigatorBar() {
               <TooltipPrimitive.Content
                 side="top"
                 sideOffset={8}
-                className="z-50 whitespace-nowrap rounded-md border bg-popover px-1.5 py-0.5 text-[10px] tabular-nums text-popover-foreground shadow-sm"
+                className="z-50 whitespace-nowrap rounded-md border bg-surface-up-3 px-1.5 py-0.5 text-[10px] tabular-nums text-popover-foreground shadow-sm"
               >
                 {(hoverIndex ?? 0) + 1}
               </TooltipPrimitive.Content>

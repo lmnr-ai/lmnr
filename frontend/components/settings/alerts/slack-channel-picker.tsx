@@ -5,6 +5,7 @@ import { Hash, Loader2, X } from "lucide-react";
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
+import { ElevatedSurface } from "@/components/ui/surface";
 import { type SlackChannel } from "@/lib/actions/slack";
 import { cn } from "@/lib/utils";
 
@@ -163,7 +164,10 @@ const SlackChannelPicker = ({
         </div>
 
         {open && (
-          <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-md border bg-popover text-popover-foreground shadow-md">
+          <ElevatedSurface
+            offset={3}
+            className="absolute top-full left-0 right-0 z-50 mt-1 rounded-md border text-popover-foreground shadow-md"
+          >
             {isLoading ? (
               <div className="p-3 text-xs text-muted-foreground flex items-center gap-2">
                 <Loader2 className="size-3 animate-spin" />
@@ -193,7 +197,7 @@ const SlackChannelPicker = ({
                 )}
               </CommandList>
             )}
-          </div>
+          </ElevatedSurface>
         )}
       </Command>
     </div>

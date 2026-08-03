@@ -31,7 +31,7 @@ function InfiniteTableCellInner<TData extends RowData>({ cell, size, start, isPi
       className={cn(
         "relative px-4 m-0 truncate h-full my-auto",
         isPinned &&
-          "bg-secondary border-r shadow-[2px_0_6px_-2px_rgba(0,0,0,0.35)] group-hover/row:bg-muted/50 group-data-[state=selected]/row:bg-primary/15 group-data-[focused=true]/row:bg-muted"
+          "bg-secondary border-r shadow-[2px_0_6px_-2px_rgba(0,0,0,0.35)] group-hover/row:bg-green-500 group-data-[state=selected]/row:bg-primary/15 group-data-[focused=true]/row:bg-surface-up-2"
       )}
       style={style}
     >

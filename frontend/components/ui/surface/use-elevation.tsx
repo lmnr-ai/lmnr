@@ -2,8 +2,8 @@
 
 import { type CSSProperties } from "react";
 
-import { surfaceClasses, surfaceVars } from "./classes";
-import { MAX_ELEVATION, MIN_ELEVATION, useElevationContext } from "./context";
+import { MAX_ELEVATION, surfaceClasses, surfaceVars } from "./classes";
+import { MIN_ELEVATION, useElevationContext } from "./context";
 import { type ElevationConfig } from "./types";
 
 const clamp = (n: number): number => Math.max(MIN_ELEVATION, Math.min(MAX_ELEVATION, n));

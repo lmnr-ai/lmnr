@@ -19,10 +19,10 @@ function Input({
       type={type}
       data-slot="input"
       className={cn(
-        "file:text-foreground placeholder:text-muted-foreground dark:bg-input/30 border-input w-full min-w-0 rounded-md border bg-secondary transition-[color,box-shadow] outline-none file:inline-flex file:border-0 file:bg-transparent file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
+        "file:text-foreground placeholder:text-muted-foreground bg-surface-up-2 hover:bg-surface-up-3 w-full min-w-0 rounded-md border transition-[color,box-shadow] outline-none file:inline-flex file:border-0 file:bg-transparent file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
         sizeClasses[size],
-        "focus-visible:border-primary",
-        "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+        "focus-visible:border-primary/50 focus-visible:shadow-[inset_0_0_8px_0_color-mix(in_srgb,var(--color-primary-400)_15%,transparent)] ",
+        "aria-invalid:ring-destructive/20 aria-invalid:ring-destructive/40",
         className
       )}
       {...props}

@@ -56,7 +56,7 @@ function InfiniteDatatableRowInner<TData extends RowData>({
         "flex min-w-full border-b last:border-b-0 group/row relative",
         (!!onRowClick || !!href) && "cursor-pointer",
         row.depth > 0 && "bg-secondary/40",
-        focusedRowId === row.id && "bg-muted",
+        focusedRowId === row.id && "bg-surface-up-3",
         className
       )}
       key={row.id}

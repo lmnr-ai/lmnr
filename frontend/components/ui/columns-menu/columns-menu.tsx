@@ -5,6 +5,7 @@ import { shallow } from "zustand/shallow";
 import { Button } from "@/components/ui/button.tsx";
 import { useTableConfigStore } from "@/components/ui/infinite-datatable/model/table-config-store.tsx";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
+import { useTableControlsButtonVariant } from "@/components/ui/use-table-controls-button-variant.tsx";
 
 import { ColumnsListPanel } from "./columns-list-panel";
 import { CustomColumnPanel } from "./custom-column-panel";
@@ -32,6 +33,7 @@ export default function ColumnsMenu({ columnLabels = [], panelConfig, columnActi
       shallow
     );
 
+  const controlVariant = useTableControlsButtonVariant();
   const supportsCustomColumns = !!panelConfig && !!columnActions;
   const [isOpen, setIsOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<"list" | "form">("list");
@@ -81,7 +83,7 @@ export default function ColumnsMenu({ columnLabels = [], panelConfig, columnActi
   return (
     <Popover open={isOpen} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <Button className="text-secondary-foreground" icon="columns2" variant="outline">
+        <Button className="text-secondary-foreground" icon="columns2" variant={controlVariant}>
           Columns
         </Button>
       </PopoverTrigger>
