@@ -26,12 +26,12 @@ use crate::{
     cache::Cache,
     data_plane::get_workspace_deployment,
     db::{DB, spans::Span, workspaces::DeploymentMode},
-    mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
+    mq::{MessageQueue, MessageQueueTrait, stream::StreamPublisher, utils::mq_max_payload},
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::{
         ExportTracePartialSuccess, ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
     traces::{
-        prompt_hash::{extract_system_message, structural_skeleton_hash},
+        prompt_hash::{extract_system_message, prompt_hashes},
         span_attributes::SPAN_PROMPT_HASH,
         static_sp_extraction::producer::{StaticPromptCandidate, publish_static_prompt_candidates},
     },
@@ -68,21 +68,28 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
     convert_span_to_provider_format(span);
 
     let mut system_prompt = None;
+    let mut first_sentence_hash = None;
     if span.is_llm_span() {
         if let Some((system_text, _)) = span.input.as_ref().and_then(|v| extract_system_message(v))
         {
-            let prompt_hash = structural_skeleton_hash(&system_text);
+            let hashes = prompt_hashes(&system_text);
             span.attributes.raw_attributes.insert(
                 SPAN_PROMPT_HASH.to_string(),
-                serde_json::Value::String(prompt_hash.clone()),
+                serde_json::Value::String(hashes.skeleton.clone()),
             );
-            system_prompt = Some((prompt_hash, system_text));
+            first_sentence_hash = Some(hashes.first_sentence);
+            system_prompt = Some((hashes.skeleton, system_text));
         }
     }
 
     // Capture the user-task candidate while `span.input` is still
-    // populated (the dedup strip below may null it).
-    let user_task = crate::traces::input_extraction::capture_user_task_candidate(span);
+    // populated (the dedup strip below may null it). It keys on the
+    // first-sentence hash, not the skeleton, so permutations of the system
+    // prompt's XML scaffolding don't re-trigger regex generation.
+    let user_task = crate::traces::input_extraction::capture_user_task_candidate(
+        span,
+        first_sentence_hash.as_deref(),
+    );
 
     // Tool dedup runs first so its source attributes are stripped before
     // anything else looks at `raw_attributes`.
@@ -119,13 +126,17 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
 /// Publish pre-built span messages to the appropriate queue based on workspace deployment mode.
 ///
 /// Returns the number of rejected spans (0 on success).
-#[instrument(skip(messages, queue, db, cache), fields(batch_size = messages.len()))]
+#[instrument(
+    skip(messages, queue, db, cache, spans_stream_publisher),
+    fields(batch_size = messages.len())
+)]
 pub async fn publish_span_messages(
     mut messages: Vec<RabbitMqSpanMessage>,
     project_id: Uuid,
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    spans_stream_publisher: Option<Arc<StreamPublisher>>,
 ) -> Result<usize> {
     let span_count = messages.len();
 
@@ -180,14 +191,44 @@ pub async fn publish_span_messages(
 
     match workspace_deployment.mode {
         DeploymentMode::CLOUD => {
-            queue
-                .publish(
-                    &mq_message,
-                    OBSERVATIONS_EXCHANGE,
-                    OBSERVATIONS_ROUTING_KEY,
-                    None,
-                )
-                .await?;
+            // Streams when configured, else the quorum queue. Routing key is the
+            // FIRST span's trace_id: a batch from one export call is
+            // overwhelmingly single-trace, and keeping the whole batch on one
+            // partition preserves the single-writer property for the PG trace
+            // upsert. Splitting per-trace would multiply small records for no
+            // gain.
+            let stream_published = match spans_stream_publisher.as_ref() {
+                Some(publisher) => {
+                    let key = messages
+                        .first()
+                        .map(|m| m.span.trace_id.to_string())
+                        .unwrap_or_default();
+                    match publisher.publish(&messages, &key).await {
+                        Ok(()) => true,
+                        Err(e) => {
+                            // Fall back rather than drop: the queue path is still
+                            // running during the transition.
+                            log::error!(
+                                "[SPANS] Stream publish failed, falling back to queue: {:?}",
+                                e
+                            );
+                            false
+                        }
+                    }
+                }
+                None => false,
+            };
+
+            if !stream_published {
+                queue
+                    .publish(
+                        &mq_message,
+                        OBSERVATIONS_EXCHANGE,
+                        OBSERVATIONS_ROUTING_KEY,
+                        None,
+                    )
+                    .await?;
+            }
         }
         DeploymentMode::HYBRID => {
             queue
@@ -228,7 +269,12 @@ pub async fn publish_span_messages(
         })
         .collect();
     crate::traces::input_extraction::process_user_task_candidates(
-        contexts, project_id, queue, db, cache,
+        contexts,
+        project_id,
+        queue,
+        db,
+        cache,
+        spans_stream_publisher,
     )
     .await;
 
@@ -242,6 +288,7 @@ pub async fn push_spans_to_queue(
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    spans_stream_publisher: Option<Arc<StreamPublisher>>,
 ) -> Result<ExportTraceServiceResponse> {
     let messages = request
         .resource_spans
@@ -271,7 +318,15 @@ pub async fn push_spans_to_queue(
         .collect::<Vec<_>>();
 
     let span_count = messages.len();
-    let rejected = publish_span_messages(messages, project_id, queue, db, cache).await?;
+    let rejected = publish_span_messages(
+        messages,
+        project_id,
+        queue,
+        db,
+        cache,
+        spans_stream_publisher,
+    )
+    .await?;
 
     if rejected > 0 {
         return Ok(ExportTraceServiceResponse {

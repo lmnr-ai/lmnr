@@ -160,7 +160,7 @@ export default function DeleteProject() {
               Cancel
             </Button>
             <Button variant="destructive" disabled={!isDeleteEnabled} onClick={deleteProject}>
-              <Loader2 className={cn("mr-2 h-4 w-4", isLoading ? "animate-spin" : "hidden")} />
+              <Loader2 data-icon="inline-start" className={cn("mr-2 h-4 w-4", isLoading ? "animate-spin" : "hidden")} />
               Delete
             </Button>
           </DialogFooter>

@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use crate::cache::Cache;
 use crate::db::DB;
-use crate::mq::MessageQueue;
+use crate::mq::{MessageQueue, stream::StreamPublisher};
 use crate::traces::input_dedup::MessageDedup;
 use crate::traces::metadata::publish_trace_output_update;
 
@@ -59,6 +59,7 @@ pub async fn process_trace_output_candidate(
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    spans_stream_publisher: Option<Arc<StreamPublisher>>,
 ) {
     if let Err(e) = publish_trace_output_update(
         trace_id,
@@ -68,6 +69,7 @@ pub async fn process_trace_output_candidate(
         queue,
         db,
         cache,
+        spans_stream_publisher,
     )
     .await
     {

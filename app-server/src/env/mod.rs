@@ -46,6 +46,7 @@ pub mod server;
 pub mod sql;
 pub mod static_sp;
 pub mod storage;
+pub mod streams;
 pub mod user_task;
 pub mod workers;
 

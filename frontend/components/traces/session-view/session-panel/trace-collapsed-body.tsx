@@ -1,8 +1,9 @@
 "use client";
 
+import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { InputItem, OutputItem } from "@/components/traces/trace-view/transcript/item";
 import { Skeleton } from "@/components/ui/skeleton";
-import { type TraceRow } from "@/lib/traces/types";
+import { SpanType, type TraceRow } from "@/lib/traces/types";
 
 import { useSessionViewBaseStore } from "../store";
 
@@ -48,9 +49,18 @@ export default function TraceCollapsedBody({ trace }: TraceCollapsedBodyProps) {
           {agentOutput ? (
             <OutputItem text={agentOutput} isLoading={false} className="bg-transparent" />
           ) : outputPending ? (
-            <div className="flex flex-col gap-2 px-3 py-2">
-              <Skeleton className="h-5 w-full" />
-              <Skeleton className="h-5 w-3/4" />
+            // Mirror OutputItem's layout (icon + label header, then a clamped body)
+            // so the skeleton→content swap is roughly height-neutral and doesn't
+            // resize this virtual row under the user while scrolling.
+            <div className="flex flex-col flex-1 min-w-0 gap-1 py-2 pl-1 pr-2 border-l-4 border-l-transparent">
+              <div className="flex items-center gap-2 min-w-0">
+                <SpanTypeIcon size={14} containerWidth={20} containerHeight={20} spanType={SpanType.LLM} />
+                <span className="text-sm font-medium whitespace-nowrap shrink-0">Output</span>
+              </div>
+              <div className="flex flex-col gap-1 pl-7">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+              </div>
             </div>
           ) : null}
         </>

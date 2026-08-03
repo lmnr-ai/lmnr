@@ -126,7 +126,7 @@ const EvaluationHeader = ({ evaluations, name, urlKey, datasets }: EvaluationHea
       <div className="flex items-center gap-2 shrink-0">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="secondary" className="h-7 w-7 p-0">
+            <Button aria-label="More options" variant="secondary" className="h-7 w-7 p-0">
               <Ellipsis className="w-3" />
             </Button>
           </DropdownMenuTrigger>

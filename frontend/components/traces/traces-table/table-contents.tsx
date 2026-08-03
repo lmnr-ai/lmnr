@@ -9,18 +9,13 @@ import { useSWRConfig } from "swr";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { FETCH_SIZE } from "@/components/traces/traces-table/constants";
-import {
-  applyTracePartial,
-  mergeTraceDelta,
-  realtimeTraceToRow,
-  type TracePartial,
-} from "@/components/traces/traces-table/realtime";
 import { type buildColumnDefs, buildFetchParams } from "@/components/traces/traces-table/traces-table-store";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
+import { applyTracePartial, mergeTraceDelta, realtimeTraceToRow, type TracePartial } from "@/lib/traces/realtime";
 import { type RealtimeAgentInputPayload, type RealtimeTracePayload, type TraceRow } from "@/lib/traces/types";
 
 export interface TracesTableContentsProps {

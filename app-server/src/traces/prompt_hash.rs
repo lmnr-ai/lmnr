@@ -22,19 +22,46 @@ pub fn strip_claude_code_billing_header(text: &str) -> Cow<'_, str> {
     CLAUDE_CODE_BILLING_HEADER_REGEX.replace_all(text, "")
 }
 
+/// The two hashes derived from one system prompt. Callers that only need the
+/// skeleton use [`structural_skeleton_hash`].
+pub struct PromptHashes {
+    /// First sentence + sorted XML tag names.
+    pub skeleton: String,
+    /// First sentence only. Blind to which scaffolding tags the prompt
+    /// carries, so adding/removing one doesn't fork a cache key.
+    pub first_sentence: String,
+}
+
+/// Both hashes of a system prompt in one pass. Volatile client/SDK version
+/// headers (e.g. Claude Code's `x-anthropic-billing-header`) are stripped
+/// first so both are stable across SDK versions.
+pub fn prompt_hashes(text: &str) -> PromptHashes {
+    let text = strip_claude_code_billing_header(text);
+    let first_sentence = normalized_first_sentence(text.as_ref());
+    let tag_names = sorted_tag_names(text.as_ref());
+    PromptHashes {
+        skeleton: hash8(&format!("{}|{}", first_sentence, tag_names.join(","))),
+        first_sentence: hash8(&first_sentence),
+    }
+}
+
 /// Hash a system prompt by its structural skeleton: first sentence + sorted XML tag names.
 /// Resistant to dynamic content inside tags (config values, user context, tool lists)
 /// while preserving the stable identity of the prompt template.
-/// Volatile client/SDK version headers (e.g. Claude Code's `x-anthropic-billing-header`)
-/// are stripped first so the hash is stable across SDK versions.
 pub fn structural_skeleton_hash(text: &str) -> String {
-    let text = strip_claude_code_billing_header(text);
-    let text = text.as_ref();
-    // Extract first sentence from original text (before whitespace normalization
-    // destroys newline boundaries). Cut at the first real sentence boundary after
-    // 20+ chars: either a newline, or a '.' followed by whitespace / end-of-text.
-    // Periods inside words (e.g. "3.5", "v1.0", "gpt-4.1") are not treated as
-    // boundaries.
+    prompt_hashes(text).skeleton
+}
+
+fn hash8(skeleton: &str) -> String {
+    let digest = Sha3_256::digest(skeleton.as_bytes());
+    format!("{:x}", digest)[..8].to_string()
+}
+
+/// Whitespace-collapsed, lowercased first sentence. The cut is taken on the
+/// original text — normalizing first would destroy the newline boundaries.
+/// Boundary = first newline, or '.' followed by whitespace / end-of-text,
+/// after 20+ chars; periods inside words ("3.5", "gpt-4.1") don't count.
+fn normalized_first_sentence(text: &str) -> String {
     let bytes = text.as_bytes();
     let boundary = text.char_indices().find(|(i, c)| {
         if *i < 20 {
@@ -63,23 +90,22 @@ pub fn structural_skeleton_hash(text: &str) -> String {
         &text[..end]
     });
 
-    let first_sentence = raw_first_sentence
+    raw_first_sentence
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
-        .to_lowercase();
+        .to_lowercase()
+}
 
-    // Extract unique XML/HTML tag names (lowercased to match normalized first_sentence)
+/// Unique XML/HTML tag names, lowercased to match the normalized first sentence.
+fn sorted_tag_names(text: &str) -> Vec<String> {
     let mut tag_names: Vec<String> = XML_TAG_NAME_RE
         .captures_iter(text)
         .map(|cap| cap.get(1).unwrap().as_str().to_lowercase())
         .collect();
     tag_names.sort();
     tag_names.dedup();
-
-    let skeleton = format!("{}|{}", first_sentence, tag_names.join(","));
-    let digest = Sha3_256::digest(skeleton.as_bytes());
-    format!("{:x}", digest)[..8].to_string()
+    tag_names
 }
 
 /// Extract the text of a single `role: "system"` message across the content
@@ -387,6 +413,59 @@ Do not fabricate data.
             structural_skeleton_hash(text),
             structural_skeleton_hash(text)
         );
+    }
+
+    // ===================================================================
+    // prompt_hashes (first-sentence half)
+    // ===================================================================
+
+    #[test]
+    fn test_first_sentence_hash_ignores_tag_permutations() {
+        // The whole point of the split: reordering / adding / removing
+        // scaffolding tags forks the skeleton but not the first sentence.
+        let a = "You are an AI agent for testing.\n<alpha>x</alpha>";
+        let b = "You are an AI agent for testing.\n<beta>y</beta><gamma>z</gamma>";
+        assert_ne!(
+            structural_skeleton_hash(a),
+            structural_skeleton_hash(b),
+            "skeleton must still distinguish differing tag sets"
+        );
+        assert_eq!(
+            prompt_hashes(a).first_sentence,
+            prompt_hashes(b).first_sentence
+        );
+    }
+
+    #[test]
+    fn test_first_sentence_hash_differs_for_different_agents() {
+        let browser = "You are an AI agent designed to automate browser tasks.\n<rules>x</rules>";
+        let coder = "You are Claude Code, an AI coding assistant.\n<rules>x</rules>";
+        assert_ne!(
+            prompt_hashes(browser).first_sentence,
+            prompt_hashes(coder).first_sentence
+        );
+    }
+
+    #[test]
+    fn test_first_sentence_hash_strips_billing_header() {
+        let with_header = "x-anthropic-billing-header: cc_version=2.1.112.186; cc_entrypoint=sdk-ts; You are a helpful assistant.";
+        let without = "You are a helpful assistant.";
+        assert_eq!(
+            prompt_hashes(with_header).first_sentence,
+            prompt_hashes(without).first_sentence
+        );
+        let newer_sdk = "x-anthropic-billing-header: cc_version=2.2.0.1; cc_entrypoint=cli; You are a helpful assistant.";
+        assert_eq!(
+            prompt_hashes(with_header).first_sentence,
+            prompt_hashes(newer_sdk).first_sentence
+        );
+    }
+
+    #[test]
+    fn test_prompt_hashes_skeleton_matches_standalone_fn() {
+        let text = "You are a helpful assistant.\n<rules>be nice</rules>";
+        assert_eq!(prompt_hashes(text).skeleton, structural_skeleton_hash(text));
+        assert_eq!(prompt_hashes(text).first_sentence.len(), 8);
     }
 
     // ===================================================================

@@ -32,9 +32,8 @@ use crate::cache::{Cache, CacheTrait};
 use crate::db::{DB, spans::Span};
 use crate::features::{Feature, is_feature_enabled};
 use crate::llm::llm_client_available;
-use crate::mq::MessageQueue;
+use crate::mq::{MessageQueue, stream::StreamPublisher};
 use crate::traces::metadata::publish_trace_input_update;
-use crate::traces::span_attributes::SPAN_PROMPT_HASH;
 use crate::traces::spans::SpanAttributes;
 use crate::traces::utils::get_llm_usage_for_span;
 
@@ -45,6 +44,9 @@ use crate::traces::utils::get_llm_usage_for_span;
 pub struct UserTaskCandidate {
     pub signposted_text: String,
     pub fingerprint: String,
+    /// First-sentence hash of the system prompt (NOT the skeleton hash
+    /// stamped on `lmnr.span.prompt_hash`): permutations of the system
+    /// prompt's XML scaffolding must not fork the user-regex cache key.
     pub prompt_hash: Option<String>,
     /// Full hash of the joined last-turn user parts; gates re-extraction
     /// when a stronger challenger carries identical content.
@@ -79,21 +81,18 @@ fn rollout_session_id_from_attributes(attributes: &SpanAttributes) -> Option<Str
         .map(str::to_string)
 }
 
-pub fn capture_user_task_candidate(span: &Span) -> Option<UserTaskCandidate> {
+pub fn capture_user_task_candidate(
+    span: &Span,
+    first_sentence_hash: Option<&str>,
+) -> Option<UserTaskCandidate> {
     if !span.is_llm_span() {
         return None;
     }
     let prepared = prepare_user_task_input(span.input.as_ref()?)?;
-    let prompt_hash = span
-        .attributes
-        .raw_attributes
-        .get(SPAN_PROMPT_HASH)
-        .and_then(|v| v.as_str())
-        .map(str::to_string);
     Some(UserTaskCandidate {
         signposted_text: prepared.signposted_text,
         fingerprint: prepared.fingerprint,
-        prompt_hash,
+        prompt_hash: first_sentence_hash.map(str::to_string),
         content_hash: prepared.content_hash,
     })
 }
@@ -122,6 +121,7 @@ pub async fn process_user_task_candidates(
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    spans_stream_publisher: Option<Arc<StreamPublisher>>,
 ) {
     // Do not run on self-tracing project to avoid infinite looping
     if std::env::var(crate::env::user_task::USER_TASK_INTERNAL_PROJECT_ID)
@@ -218,6 +218,7 @@ pub async fn process_user_task_candidates(
             queue.clone(),
             db.clone(),
             cache.clone(),
+            spans_stream_publisher.clone(),
         )
         .await;
     }
@@ -270,6 +271,7 @@ pub async fn process_user_task_candidates(
             queue.clone(),
             db.clone(),
             cache.clone(),
+            spans_stream_publisher.clone(),
         )
         .await;
         // Refresh the path cache TTL on every match so a long-running
@@ -320,6 +322,7 @@ fn should_run_effect(challenger: &WinnerState, winner: Option<&WinnerState>) -> 
 /// a client the extraction workers never spawn, so enqueueing would strand
 /// messages. The lock is written back merge-guarded regardless;
 /// `lock.winner` moves as soon as that effect lands.
+#[allow(clippy::too_many_arguments)]
 async fn process_trace_inputs(
     trace_id: Uuid,
     trace_contenders: Vec<InputContender>,
@@ -328,6 +331,7 @@ async fn process_trace_inputs(
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    spans_stream_publisher: Option<Arc<StreamPublisher>>,
 ) {
     let lock_key = lock_cache_key(project_id, trace_id);
     // Fail open on cache errors: treat as first-seen so a cache blip
@@ -451,6 +455,7 @@ async fn process_trace_inputs(
                     queue.clone(),
                     db.clone(),
                     cache.clone(),
+                    spans_stream_publisher.clone(),
                 )
                 .await
                 {

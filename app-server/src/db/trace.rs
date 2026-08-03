@@ -13,6 +13,18 @@ pub enum TraceType {
     PLAYGROUND,
 }
 
+// Frontend `traceType` union — must stay the variant name, not the CH u8.
+impl std::fmt::Display for TraceType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TraceType::DEFAULT => write!(f, "DEFAULT"),
+            TraceType::EVENT => write!(f, "EVENT"),
+            TraceType::EVALUATION => write!(f, "EVALUATION"),
+            TraceType::PLAYGROUND => write!(f, "PLAYGROUND"),
+        }
+    }
+}
+
 pub async fn insert_shared_traces(
     pool: &PgPool,
     project_id: Uuid,

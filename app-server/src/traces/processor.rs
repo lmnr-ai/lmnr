@@ -21,7 +21,7 @@ use crate::{
     },
     db::{DB, debugger_session_blocks, spans::Span, workspaces::WorkspaceDeployment},
     features::{Feature, is_feature_enabled},
-    mq::MessageQueue,
+    mq::{MessageQueue, stream::StreamPublisher},
     pii_redactor::{PiiRedactorClient, redact_spans_in_place},
     pubsub::PubSub,
     quickwit::{
@@ -33,8 +33,8 @@ use crate::{
         metadata::TraceMetadataPatch,
         provider::convert_span_to_provider_format,
         realtime::{
-            RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_aggregation,
-            send_agent_input_update, send_span_updates, send_trace_updates,
+            RealtimeTrace, TraceChannel, channels_for_aggregation, send_agent_input_update,
+            send_span_updates, send_trace_updates,
         },
         span_attributes::{SPAN_TRACE_INPUT, SPAN_TRACE_OUTPUT_HASHES},
         spans::SpanUsage,
@@ -180,7 +180,8 @@ fn collect_static_agent_io_rows(
     pubsub,
     ch,
     pii_redactor,
-    config
+    config,
+    indexer_stream_publisher
 ))]
 pub async fn process_span_messages(
     messages: Vec<RabbitMqSpanMessage>,
@@ -192,6 +193,7 @@ pub async fn process_span_messages(
     ch: impl ClickhouseTrait,
     pii_redactor: Option<PiiRedactorClient>,
     config: Option<&WorkspaceDeployment>,
+    indexer_stream_publisher: Option<Arc<StreamPublisher>>,
 ) -> Result<(), HandlerError> {
     // Producer-side preprocessing already ran `parse_and_enrich_attributes`
     // and `convert_span_to_provider_format` for `pre_processed` messages.
@@ -800,15 +802,23 @@ pub async fn process_span_messages(
         .collect();
 
     if !quickwit_spans.is_empty() {
-        if let Err(e) =
-            publish_for_indexing(&IndexerQueuePayload::Spans(quickwit_spans), queue.clone()).await
+        if let Err(e) = publish_for_indexing(
+            &IndexerQueuePayload::Spans(quickwit_spans),
+            queue.clone(),
+            indexer_stream_publisher.clone(),
+        )
+        .await
         {
             log::error!("Failed to publish spans for Quickwit indexing: {:?}", e);
         }
     }
     if !quickwit_events.is_empty() {
-        if let Err(e) =
-            publish_for_indexing(&IndexerQueuePayload::Events(quickwit_events), queue.clone()).await
+        if let Err(e) = publish_for_indexing(
+            &IndexerQueuePayload::Events(quickwit_events),
+            queue.clone(),
+            indexer_stream_publisher.clone(),
+        )
+        .await
         {
             log::error!("Failed to publish events for Quickwit indexing: {:?}", e);
         }
@@ -886,7 +896,7 @@ async fn dispatch_trace_realtime_updates(
 
     let mut project_buckets: HashMap<Uuid, Vec<RealtimeTrace>> = HashMap::new();
     let mut evaluation_buckets: HashMap<(Uuid, Uuid), Vec<RealtimeTrace>> = HashMap::new();
-    let mut debugger_buckets: HashMap<(Uuid, String), Vec<RealtimeDebuggerTrace>> = HashMap::new();
+    let mut debugger_buckets: HashMap<(Uuid, String), Vec<RealtimeTrace>> = HashMap::new();
 
     for agg in aggregations {
         for channel in channels_for_aggregation(agg, cache.as_ref()).await {
@@ -907,7 +917,7 @@ async fn dispatch_trace_realtime_updates(
                     debugger_buckets
                         .entry((agg.project_id, rollout_session_id))
                         .or_default()
-                        .push(RealtimeDebuggerTrace::from_aggregation(agg));
+                        .push(RealtimeTrace::from_aggregation(agg));
                 }
             }
         }

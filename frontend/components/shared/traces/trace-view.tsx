@@ -176,7 +176,7 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
                         variant="outline"
                         onClick={() => setBrowserSession(!browserSession)}
                       >
-                        <CirclePlay size={14} className="mr-1" />
+                        <CirclePlay data-icon="inline-start" size={14} className="mr-1" />
                         Media
                       </Button>
                     )}

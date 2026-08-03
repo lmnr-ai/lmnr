@@ -47,6 +47,11 @@ opentelemetry = {version = "0.29.1", features = ["trace"]}
 opentelemetry_sdk = {version = "0.29.0", features = ["trace"]}
 ort = {version = "=2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic", "api-24"], optional = true}
 prost = "0.14"
+# `serde` unlocks `Environment::from_client_option`, the only public way to
+# reach `max_frame_size` (the EnvironmentBuilder doesn't expose it). We pass 0 =
+# defer to the broker's `stream.frame_max`; without this the client's 1 MiB
+# default would cap the tune negotiation regardless of broker config.
+rabbitmq-stream-client = { version = "0.11", features = ["serde"] }
 rand = "0.10"
 rayon = "1.11.0"
 redis = {version = "0.32.7", features = ["tokio-comp"]}
@@ -66,7 +71,12 @@ sodiumoxide = "0.2.7"
 sqlparser = {version = "0.62", features = ["visitor"]}
 sqlx = {version = "0.9", features = ["runtime-tokio", "postgres", "uuid", "json", "chrono", "bigdecimal", "tls-rustls"]}
 thiserror = "2"
-tikv-jemallocator = "0.6.0"
+# `unprefixed_malloc_on_supported_platforms` makes jemalloc also own C
+# malloc/free (Linux; no-op elsewhere), so C deps' allocations don't churn
+# glibc arenas — per-call multi-MB C allocations fragment glibc's per-thread
+# arenas and RSS grows until OOM (LAM-2024 prod leak, zstd contexts); the
+# Rust-side `#[global_allocator]` alone doesn't cover C code.
+tikv-jemallocator = {version = "0.6.1", features = ["unprefixed_malloc_on_supported_platforms"]}
 tokenizers = {version = "0.21", default-features = false, features = ["onig"], optional = true}
 tokio = {version = "1.49", features = ["macros", "rt-multi-thread"]}
 tokio-stream = {version = "0.1", features = ["net"]}

@@ -172,7 +172,7 @@ export default function PdfRenderer({ url, base64, className }: PdfRendererProps
         </div>
         <Sheet>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon">
+            <Button aria-label="Expand" variant="ghost" size="icon">
               <Maximize className="h-3.5 w-3.5" />
             </Button>
           </SheetTrigger>

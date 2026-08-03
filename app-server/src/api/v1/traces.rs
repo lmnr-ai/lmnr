@@ -7,11 +7,12 @@ use serde::{Deserialize, Serialize};
 use crate::{
     db::{DB, project_api_keys::ProjectApiKey, spans::Span},
     features::{Feature, is_feature_enabled},
-    mq::MessageQueue,
+    mq::{MessageQueue, stream::StreamPublisher},
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
     routes::types::ResponseResult,
     traces::{
         input_dedup::MessageDedup,
+        rate_limit::IngestionRateLimiter,
         tool_dedup::ToolDedup,
         {opentelemetry_json::decode_export_trace_service_request, producer::push_spans_to_queue},
     },
@@ -57,11 +58,23 @@ pub async fn process_traces(
     project_api_key: ProjectApiKey,
     cache: web::Data<crate::cache::Cache>,
     spans_message_queue: web::Data<Arc<MessageQueue>>,
+    spans_stream_publisher: web::Data<Option<Arc<StreamPublisher>>>,
+    rate_limiter: web::Data<Option<Arc<IngestionRateLimiter>>>,
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
     let db = db.into_inner();
     let cache = cache.into_inner();
+
+    // Per-project ingestion rate limit, shared with the gRPC path so the
+    // two transports draw from one quota. Checked before decode so a
+    // rate-limited caller doesn't cost us the protobuf/JSON parse.
+    if let Some(limiter) = rate_limiter.get_ref() {
+        if !limiter.check(&cache, project_api_key.project_id).await {
+            return Ok(HttpResponse::TooManyRequests().finish());
+        }
+    }
+
     let request = match decode_export_trace_request(&req, body) {
         Ok(request) => request,
         Err(e) => {
@@ -95,6 +108,7 @@ pub async fn process_traces(
         spans_message_queue,
         db,
         cache,
+        spans_stream_publisher.get_ref().clone(),
     )
     .await?;
     if response.partial_success.is_some() {

@@ -19,7 +19,7 @@ use uuid::Uuid;
 
 use crate::cache::Cache;
 use crate::db::DB;
-use crate::mq::MessageQueue;
+use crate::mq::{MessageQueue, stream::StreamPublisher};
 use crate::opentelemetry_proto::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest;
 use crate::opentelemetry_proto::opentelemetry_proto_common_v1::{
     AnyValue, ArrayValue, KeyValue, any_value::Value as ProtoValue,
@@ -37,6 +37,7 @@ pub struct IngestDeps {
     pub queue: Arc<MessageQueue>,
     pub db: Arc<DB>,
     pub cache: Arc<Cache>,
+    pub spans_stream_publisher: Option<Arc<StreamPublisher>>,
 }
 
 /// Shared, late-populated handle to [`IngestDeps`]; `main` fills it after building the services.
@@ -100,11 +101,13 @@ impl SpanExporter for InProcessInternalExporter {
             let queue = deps.queue.clone();
             let db = deps.db.clone();
             let cache = deps.cache.clone();
+            let spans_stream_publisher = deps.spans_stream_publisher.clone();
 
             // The processor calls us on a dedicated non-tokio thread, so drive the async ingest on
             // the runtime handle. block_on is safe here: this thread exists only to run exports.
             let result = self.runtime.block_on(async move {
-                push_spans_to_queue(request, project_id, queue, db, cache).await
+                push_spans_to_queue(request, project_id, queue, db, cache, spans_stream_publisher)
+                    .await
             });
             if let Err(e) = result {
                 log::error!("internal span ingest failed for project {project_id}: {e:#}");

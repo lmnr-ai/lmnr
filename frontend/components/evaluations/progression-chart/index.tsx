@@ -3,7 +3,7 @@ import { useQueryState } from "nuqs";
 import { useCallback, useMemo, useState } from "react";
 
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
-import { spacedColorMap } from "@/lib/colors";
+import { spacedPalette } from "@/lib/colors";
 import { type EvaluationTimeProgression } from "@/lib/evaluation/types";
 import { cn } from "@/lib/utils";
 
@@ -52,7 +52,9 @@ export default function ProgressionChart({
     EMPTY_IDS
   );
 
-  const scoreKeys = useMemo(() => Array.from(new Set(data?.flatMap(({ names }) => names) ?? [])), [data]);
+  // Sorted so a score's position — and therefore its color — doesn't shift when
+  // runs arrive in a different order or the run that introduced it is deleted.
+  const scoreKeys = useMemo(() => Array.from(new Set(data?.flatMap(({ names }) => names) ?? [])).sort(), [data]);
 
   const scores = useMemo(() => scoreKeys.filter((key) => !hiddenScores.includes(key)), [scoreKeys, hiddenScores]);
 
@@ -101,11 +103,8 @@ export default function ProgressionChart({
   );
 
   const chartConfig = useMemo<ChartConfig>(() => {
-    // Golden-ratio spacing spreads scores maximally around the palette's hue
-    // loop; keying on sorted order keeps a score's color stable when the set is
-    // reordered (vs. the old positional `index % 5`, which wrapped after 5).
-    const colors = spacedColorMap(scoreKeys);
-    return Object.fromEntries(scoreKeys.map((key) => [key, { color: colors.get(key), label: key }]));
+    const colors = spacedPalette(scoreKeys.length);
+    return Object.fromEntries(scoreKeys.map((key, i) => [key, { color: colors[i], label: key }]));
   }, [scoreKeys]);
 
   const toggleScore = useCallback(

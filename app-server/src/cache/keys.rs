@@ -62,11 +62,22 @@ pub const USER_TASK_LOCK_CACHE_KEY: &str = "user_task_lock";
 /// is a trace-output candidate. See `input_extraction::lock::main_agent_path_cache_key`.
 pub const MAIN_AGENT_PATH_CACHE_KEY: &str = "main_agent_path";
 
-pub const INGESTION_RATE_LIMIT_PROJECT_ID_CACHE_KEY: &str = "ingestion_rate_limit_project_id";
+/// Per-project override N for the data-ingestion rate limit, set out-of-band
+/// via valkey-cli: `ingestion_project_rate_limit:{project_id}` = N requests
+/// per window. Missing key = global `INGESTION_RATE_LIMIT` default.
+pub const INGESTION_RATE_LIMIT_CACHE_KEY: &str = "ingestion_project_rate_limit";
+
+/// Per-project override period (seconds) for the data-ingestion rate limit,
+/// set out-of-band via valkey-cli:
+/// `ingestion_project_rate_limit_period:{project_id}` = window length in
+/// seconds. Missing key = global `INGESTION_RATE_LIMIT_PERIOD_SECS` default.
+pub const INGESTION_RATE_LIMIT_PERIOD_CACHE_KEY: &str = "ingestion_project_rate_limit_period";
+
 /// Per-project override N for the /v1/sql rate limit, set out-of-band via
 /// valkey-cli: `sql_rate_limit:{project_id}` = N requests per the global
 /// `RATE_LIMIT_PERIOD_SECS` window. Missing key = global `RATE_LIMIT` default.
 pub const SQL_RATE_LIMIT_CACHE_KEY: &str = "sql_rate_limit";
+
 pub const PROJECT_MEMBERSHIP_CACHE_KEY: &str = "project_membership";
 pub const AGENT_VERSION_HASH_CACHE_KEY: &str = "agent_version_hash";
 pub const AGENT_STABLE_PROMPT_REGEX_CACHE_KEY: &str = "agent_stable_prompt_regex";
