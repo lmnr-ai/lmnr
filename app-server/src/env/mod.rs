@@ -42,6 +42,7 @@ pub mod private;
 pub mod quickwit;
 pub mod rate_limit;
 pub mod secrets;
+pub mod sentry_sampling;
 pub mod server;
 pub mod sql;
 pub mod static_sp;

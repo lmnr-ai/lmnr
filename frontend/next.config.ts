@@ -13,6 +13,11 @@ const nextConfig: NextConfig = {
   deploymentId: process.env.NEXT_DEPLOYMENT_ID || undefined,
   env: {
     LAMINAR_CLOUD: process.env.LAMINAR_CLOUD,
+    // Sentry span sampling knobs. Listed here so the browser bundle can read
+    // them too — like LAMINAR_CLOUD above, that means they are inlined at BUILD
+    // time for client code (the server config re-reads them at runtime).
+    EXTERNAL_TRACING_SAMPLE_RATE: process.env.EXTERNAL_TRACING_SAMPLE_RATE,
+    SENTRY_MIN_SAMPLED_DURATION_SECS: process.env.SENTRY_MIN_SAMPLED_DURATION_SECS,
   },
   experimental: {
     turbopackFileSystemCacheForDev: true,

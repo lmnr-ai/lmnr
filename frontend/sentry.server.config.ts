@@ -4,11 +4,20 @@
 
 import * as Sentry from "@sentry/nextjs";
 
+import { resolveSamplingConfig, shouldSendTransaction } from "@/lib/sentry/sampling";
+
 if (process.env.LAMINAR_CLOUD === "true" && process.env.FRONTEND_SENTRY_DSN) {
+  const samplingConfig = resolveSamplingConfig({
+    sampleRate: process.env.EXTERNAL_TRACING_SAMPLE_RATE,
+    minDurationSecs: process.env.SENTRY_MIN_SAMPLED_DURATION_SECS,
+  });
+
   Sentry.init({
     dsn: process.env.FRONTEND_SENTRY_DSN,
 
-    // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
+    // Start every transaction; the actual sampling happens in
+    // beforeSendTransaction, which — unlike tracesSampler — can see the
+    // finished transaction's duration and status.
     tracesSampleRate: 1,
 
     // Enable sending user PII (Personally Identifiable Information)
@@ -23,6 +32,11 @@ if (process.env.LAMINAR_CLOUD === "true" && process.env.FRONTEND_SENTRY_DSN) {
       ) {
         return null;
       }
+
+      if (!shouldSendTransaction(event, samplingConfig)) {
+        return null;
+      }
+
       return event;
     },
   });

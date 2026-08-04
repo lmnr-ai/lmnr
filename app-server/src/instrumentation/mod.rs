@@ -18,6 +18,7 @@
 //! ```
 
 pub mod internal_exporter;
+pub mod sentry_sampling;
 // Shared internal-span builder. `allow(dead_code)`: OSS consumers use only a
 // subset of the helpers; the rest are consumed by `signals`-gated code.
 #[allow(dead_code)]
