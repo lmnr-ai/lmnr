@@ -19,29 +19,27 @@ import type * as Sentry from "@sentry/nextjs";
  * Whole transactions are sampled, never individual spans: dropping a subset of a
  * transaction's spans would leave orphaned children and broken timings in the
  * Sentry UI.
+ *
+ * Both env vars must be written in plain decimal form — `EXTERNAL_TRACING_SAMPLE_RATE`
+ * as `0.<digits>` (clamped to 0..1), `SENTRY_MIN_SAMPLED_DURATION_SECS` as seconds.
+ * Anything `Number` won't parse falls back to the default.
  */
 
 export const DEFAULT_SAMPLE_RATE = 0.5;
 export const DEFAULT_MIN_SAMPLED_DURATION_SECS = 5;
 
 /**
- * A plain decimal number, optionally signed and/or in exponent form.
+ * Parses a number, falling back to `fallback` for unset/empty/non-numeric input.
  *
- * Required because `Number.parseFloat` stops at the first invalid character and
- * returns the numeric PREFIX (`"0.2x"` -> `0.2`, `"50%"` -> `50`), while
- * `Number` accepts hex (`"0x10"` -> `16`). Rust's `parse::<f64>()` rejects all
- * three, so without this gate a typo'd value would silently take effect on the
- * frontend while app-server fell back to its default.
+ * Write these values in plain decimal form (`0.5`, `5`) — `Number` is what
+ * validates them, so anything it rejects falls back to the default.
  */
-const DECIMAL_NUMBER = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i;
-
-/** Parses a float, falling back to `fallback` for unset/empty/malformed/non-finite input. */
-const parseFloatEnv = (raw: string | undefined, fallback: number): number => {
-  const trimmed = (raw ?? "").trim();
-  if (!DECIMAL_NUMBER.test(trimmed)) {
+const parseNumberEnv = (raw: string | undefined, fallback: number): number => {
+  const value = (raw ?? "").trim();
+  if (!value) {
     return fallback;
   }
-  const parsed = Number(trimmed);
+  const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
@@ -68,8 +66,8 @@ export const resolveSamplingConfig = (
     minDurationSecs: DEFAULT_MIN_SAMPLED_DURATION_SECS,
   }
 ): SamplingConfig => ({
-  sampleRate: clamp(parseFloatEnv(env.sampleRate, defaults.sampleRate), 0, 1),
-  minDurationSecs: Math.max(parseFloatEnv(env.minDurationSecs, defaults.minDurationSecs), 0),
+  sampleRate: clamp(parseNumberEnv(env.sampleRate, defaults.sampleRate), 0, 1),
+  minDurationSecs: Math.max(parseNumberEnv(env.minDurationSecs, defaults.minDurationSecs), 0),
 });
 
 /**
