@@ -128,6 +128,28 @@ describe("resolveSamplingConfig", () => {
     assert.deepEqual(config, { sampleRate: 0.2, minDurationSecs: 10 });
   });
 
+  it("accepts the decimal forms Rust's parse::<f64>() accepts", () => {
+    // Keeps the two stacks reading the same env value identically.
+    assert.equal(resolveSamplingConfig({ sampleRate: ".5" }).sampleRate, 0.5);
+    assert.equal(resolveSamplingConfig({ sampleRate: "1." }).sampleRate, 1);
+    assert.equal(resolveSamplingConfig({ sampleRate: "+0.5" }).sampleRate, 0.5);
+    assert.equal(resolveSamplingConfig({ sampleRate: "1e-2" }).sampleRate, 0.01);
+    assert.equal(resolveSamplingConfig({ minDurationSecs: "  7  " }).minDurationSecs, 7);
+  });
+
+  it("rejects malformed values with a valid numeric prefix", () => {
+    // Number.parseFloat would return the prefix (0.2 / 50) and Number would read
+    // "0x10" as 16, silently applying a rate app-server would have defaulted on.
+    for (const sampleRate of ["0.2x", "50%", "0x10", "1abc", "0.2 0.3", "--1", "1e", "Infinity"]) {
+      assert.equal(
+        resolveSamplingConfig({ sampleRate }).sampleRate,
+        DEFAULT_SAMPLE_RATE,
+        `expected ${sampleRate} to fall back`
+      );
+    }
+    assert.equal(resolveSamplingConfig({ minDurationSecs: "5s" }).minDurationSecs, DEFAULT_MIN_SAMPLED_DURATION_SECS);
+  });
+
   it("clamps out-of-range values instead of disabling sampling", () => {
     assert.equal(resolveSamplingConfig({ sampleRate: "5" }).sampleRate, 1);
     assert.equal(resolveSamplingConfig({ sampleRate: "-1" }).sampleRate, 0);

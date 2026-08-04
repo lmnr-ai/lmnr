@@ -24,9 +24,24 @@ import type * as Sentry from "@sentry/nextjs";
 export const DEFAULT_SAMPLE_RATE = 0.5;
 export const DEFAULT_MIN_SAMPLED_DURATION_SECS = 5;
 
-/** Parses a float, falling back to `fallback` for unset/empty/unparseable/non-finite input. */
+/**
+ * A plain decimal number, optionally signed and/or in exponent form.
+ *
+ * Required because `Number.parseFloat` stops at the first invalid character and
+ * returns the numeric PREFIX (`"0.2x"` -> `0.2`, `"50%"` -> `50`), while
+ * `Number` accepts hex (`"0x10"` -> `16`). Rust's `parse::<f64>()` rejects all
+ * three, so without this gate a typo'd value would silently take effect on the
+ * frontend while app-server fell back to its default.
+ */
+const DECIMAL_NUMBER = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i;
+
+/** Parses a float, falling back to `fallback` for unset/empty/malformed/non-finite input. */
 const parseFloatEnv = (raw: string | undefined, fallback: number): number => {
-  const parsed = Number.parseFloat((raw ?? "").trim());
+  const trimmed = (raw ?? "").trim();
+  if (!DECIMAL_NUMBER.test(trimmed)) {
+    return fallback;
+  }
+  const parsed = Number(trimmed);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
