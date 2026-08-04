@@ -187,27 +187,21 @@ fn main() -> anyhow::Result<()> {
     // == Sentry ==
     let sentry_dsn = std::env::var(env::observability::SENTRY_DSN)
         .unwrap_or("https://1234567890@sentry.io/1234567890".to_string());
-    // `traces_sample_rate: 1.0` starts every transaction; the actual sampling
-    // happens in the transport wrapper below, which — unlike `traces_sampler` —
-    // can see the finished transaction's duration and status.
-    let sentry_options = sentry::apply_defaults(sentry::ClientOptions {
-        release: sentry::release_name!(),
-        traces_sample_rate: 1.0,
-        environment: Some(Cow::Owned(
-            std::env::var(env::connections::ENVIRONMENT).unwrap_or("development".to_string()),
-        )),
-        before_send: Some(std::sync::Arc::new(instrumentation::sentry_before_send)),
-        ..Default::default()
-    });
-    let sentry_options = sentry::ClientOptions {
-        transport: sentry_options.transport.map(|inner| {
-            std::sync::Arc::new(
-                instrumentation::sentry_sampling::SamplingTransportFactory::new(inner),
-            ) as std::sync::Arc<dyn sentry::TransportFactory>
-        }),
-        ..sentry_options
-    };
-    let _sentry_guard = sentry::init((sentry_dsn, sentry_options));
+    // Sentry bills by span volume, so only a fraction of transactions is sent.
+    // Sampling is per-transaction (the SDK's own knob), which keeps every sampled
+    // trace internally complete.
+    let _sentry_guard = sentry::init((
+        sentry_dsn,
+        sentry::ClientOptions {
+            release: sentry::release_name!(),
+            traces_sample_rate: env::sentry_sampling::sample_rate(),
+            environment: Some(Cow::Owned(
+                std::env::var(env::connections::ENVIRONMENT).unwrap_or("development".to_string()),
+            )),
+            before_send: Some(std::sync::Arc::new(instrumentation::sentry_before_send)),
+            ..Default::default()
+        },
+    ));
 
     if !is_feature_enabled(Feature::Tracing)
         || std::env::var(env::observability::SENTRY_DSN).is_err()

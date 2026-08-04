@@ -4,21 +4,20 @@
 
 import * as Sentry from "@sentry/nextjs";
 
-import { resolveSamplingConfig, shouldSendTransaction } from "@/lib/sentry/sampling";
+const DEFAULT_SAMPLE_RATE = 0.5;
+
+// Sentry bills by span volume, so only a fraction of transactions is sent.
+// Write EXTERNAL_TRACING_SAMPLE_RATE as a plain decimal (e.g. 0.5); anything
+// Number won't parse falls back to the default.
+const sampleRate = Number(process.env.EXTERNAL_TRACING_SAMPLE_RATE);
+const tracesSampleRate = Number.isFinite(sampleRate) ? Math.min(Math.max(sampleRate, 0), 1) : DEFAULT_SAMPLE_RATE;
 
 if (process.env.LAMINAR_CLOUD === "true" && process.env.FRONTEND_SENTRY_DSN) {
-  const samplingConfig = resolveSamplingConfig({
-    sampleRate: process.env.EXTERNAL_TRACING_SAMPLE_RATE,
-    minDurationSecs: process.env.SENTRY_MIN_SAMPLED_DURATION_SECS,
-  });
-
   Sentry.init({
     dsn: process.env.FRONTEND_SENTRY_DSN,
 
-    // Start every transaction; the actual sampling happens in
-    // beforeSendTransaction, which — unlike tracesSampler — can see the
-    // finished transaction's duration and status.
-    tracesSampleRate: 1,
+    // Sampling is per-transaction, so every sampled trace stays internally complete.
+    tracesSampleRate,
 
     // Enable sending user PII (Personally Identifiable Information)
     // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
@@ -32,11 +31,6 @@ if (process.env.LAMINAR_CLOUD === "true" && process.env.FRONTEND_SENTRY_DSN) {
       ) {
         return null;
       }
-
-      if (!shouldSendTransaction(event, samplingConfig)) {
-        return null;
-      }
-
       return event;
     },
   });

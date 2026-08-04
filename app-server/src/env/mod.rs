@@ -85,6 +85,12 @@ pub trait FiniteNum {
     fn is_finite_value(&self) -> bool;
 }
 
+impl FiniteNum for f32 {
+    fn is_finite_value(&self) -> bool {
+        f32::is_finite(*self)
+    }
+}
+
 impl FiniteNum for f64 {
     fn is_finite_value(&self) -> bool {
         f64::is_finite(*self)
