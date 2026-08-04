@@ -2,10 +2,7 @@
 
 import { createContext, useContext } from "react";
 
-export const MIN_ELEVATION = 1;
-export const MAX_ELEVATION = 8;
-
-// Current elevation, 1 (base plane) .. 8 (most elevated). React context (not CSS
+// Current elevation, MIN_ELEVATION (base plane) .. MAX_ELEVATION (most elevated). React context (not CSS
 // inheritance) so it survives Radix portals, which render overlay content at the
 // document root — a portaled popover still reads the elevation it opened from.
 // Elevations are levels; the raw color tokens they map to are the `surface-*` scale.

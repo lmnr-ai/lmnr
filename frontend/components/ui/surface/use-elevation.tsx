@@ -2,11 +2,9 @@
 
 import { type CSSProperties } from "react";
 
-import { surfaceClasses, surfaceVars } from "./classes";
-import { MAX_ELEVATION, MIN_ELEVATION, useElevationContext } from "./context";
+import { clampElevation, surfaceClasses, surfaceVars } from "./classes";
+import { useElevationContext } from "./context";
 import { type ElevationConfig } from "./types";
-
-const clamp = (n: number): number => Math.max(MIN_ELEVATION, Math.min(MAX_ELEVATION, n));
 
 /**
  * Resolve an elevation, its paint `className` (surface fill) and its `style` (the relative
@@ -23,6 +21,6 @@ export function useElevation({ level, offset }: ElevationConfig = {}): {
   style: CSSProperties;
 } {
   const current = useElevationContext();
-  const elevation = clamp(level ?? current + (offset ?? 0));
+  const elevation = clampElevation(level ?? current + (offset ?? 0));
   return { elevation, className: surfaceClasses(elevation), style: surfaceVars(elevation) };
 }

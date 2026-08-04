@@ -48,7 +48,7 @@
 
   /* Base-plane border. `border` is a DYNAMIC surface-bound color: every painted surface overrides
      --color-border inline to the surface fill 5 elevation-steps up (see surfaceVars), which clamps
-     at surface-400. This is the base-plane fallback for bare elements. The global
+     at the top of the ladder (surface-800). This is the base-plane fallback for bare elements. The global
      `* { @apply border-border }` means borders lighten with elevation everywhere. */
   --color-border: var(--color-surface-250);
   --color-input: hsl(var(--input));
@@ -129,9 +129,19 @@
   --color-surface-up: var(--color-surface-100);
   --color-surface-up-2: var(--color-surface-150);
   --color-surface-up-3: var(--color-surface-200);
+  --color-surface-up-4: var(--color-surface-250);
+  --color-surface-up-5: var(--color-surface-300);
+  --color-surface-up-6: var(--color-surface-350);
+  --color-surface-up-7: var(--color-surface-400);
+  --color-surface-up-8: var(--color-surface-450);
   --color-surface-down: var(--color-surface-00);
   --color-surface-down-2: var(--color-surface-00);
   --color-surface-down-3: var(--color-surface-00);
+  --color-surface-down-4: var(--color-surface-00);
+  --color-surface-down-5: var(--color-surface-00);
+  --color-surface-down-6: var(--color-surface-00);
+  --color-surface-down-7: var(--color-surface-00);
+  --color-surface-down-8: var(--color-surface-00);
 
   /* Layered dark drop shadows for the elevation ramp; -100 is flat, -800 heaviest.
      Named apart from the surface COLORS so `shadow-surface-N` stays free to mean a
