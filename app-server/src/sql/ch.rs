@@ -32,15 +32,8 @@ pub async fn query(
     span.set_attribute(KeyValue::new("sql.query", query.clone()));
     span.set_attribute(KeyValue::new("project_id", project_id.to_string()));
 
-    // The clickhouse crate treats `?` as a positional bind placeholder and errors
-    // ("unbound query argument") on any stray `?`. But `?` appears legitimately in
-    // user SQL — inside regex/LIKE string literals AND in backtick-quoted column
-    // aliases derived from user-chosen names (e.g. `custom:How good is it?`). We
-    // only ever bind named `{name:Type}` params here (never positional `?`), so
-    // escape every `?` to `??` (the crate's literal-`?` escape) before handing off.
-    let escaped_query = query.replace('?', "??");
     let mut clickhouse_query = clickhouse_ro
-        .query(&escaped_query)
+        .query(&query)
         .with_setting("default_format", "JSON")
         .with_setting("output_format_json_quote_64bit_integers", "0")
         .with_setting("max_execution_time", env::sql::MAX_EXECUTION_TIME.get())
