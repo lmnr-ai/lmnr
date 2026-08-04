@@ -38,19 +38,7 @@ jobs:
         working-directory: ./frontend
         run: pnpm install
 
-      # Step 5: Restore the Turbopack build cache. Next 16.3 writes one by default
-      # (experimental.turbopackFileSystemCacheForBuild), so without this the build
-      # pays full cost every run and throws the cache away.
-      - name: Restore Turbopack build cache
-        uses: actions/cache@v4
-        with:
-          path: ./frontend/.next/cache
-          key: turbopack-build-${{ hashFiles('./frontend/pnpm-lock.yaml') }}-${{ github.sha }}
-          restore-keys: |
-            turbopack-build-${{ hashFiles('./frontend/pnpm-lock.yaml') }}-
-            turbopack-build-
-
-      # Step 6: Run the build
+      # Step 5: Run the build
       - name: Build frontend
         working-directory: ./frontend
         run: pnpm build
