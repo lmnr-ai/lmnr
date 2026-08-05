@@ -27,9 +27,9 @@ use rabbitmq_stream_client::{
     NoDedup,
     types::{HashRoutingMurmurStrategy, Message, RoutingStrategy, SuperStreamProducer},
 };
-use serde::Serialize;
 use tokio::sync::{Mutex, oneshot};
 
+use super::encoding;
 use super::topology::StreamEnvironment;
 use crate::env;
 
@@ -126,6 +126,11 @@ impl StreamPublisher {
 
     /// Publish one record, routed by `key`, and AWAIT the broker's confirmation.
     ///
+    /// `body` is the serialized JSON payload — callers already hold these bytes
+    /// for the quorum-queue fallback, so taking them (instead of `&T: Serialize`)
+    /// keeps serialization to one pass per payload. The body is zstd-compressed
+    /// here and the record stamped `lmnr.encoding = zstd`; see `encoding.rs`.
+    ///
     /// Returning `Ok` on enqueue alone would be silent data loss: every caller
     /// treats `Ok` as durable and skips the quorum-queue fallback, so a nack or a
     /// disconnect after enqueue would drop the payload with an HTTP 200 and no
@@ -139,8 +144,8 @@ impl StreamPublisher {
     /// so the caller falls back; the record may still land, which makes the
     /// fallback a duplicate rather than a loss (the consumer is already
     /// at-least-once).
-    pub async fn publish<T: Serialize>(&self, payload: &T, key: &str) -> Result<()> {
-        let body = serde_json::to_vec(payload).context("Failed to serialize stream payload")?;
+    pub async fn publish(&self, body: &[u8], key: &str) -> Result<()> {
+        let compressed = encoding::compress(body)?;
 
         // A producer known to be dead fails fast; one caller per cooldown
         // window pays for the rebuild attempt inline.
@@ -149,9 +154,10 @@ impl StreamPublisher {
         }
 
         let message = Message::builder()
-            .body(body)
+            .body(compressed)
             .application_properties()
             .insert(PARTITION_KEY, key.to_string())
+            .insert(encoding::ENCODING_PROPERTY, encoding::ENCODING_ZSTD)
             .message_builder()
             .build();
 
@@ -391,7 +397,11 @@ mod tests {
                 .args(["-o", "rss=", "-p", &std::process::id().to_string()])
                 .output()
                 .unwrap();
-            String::from_utf8_lossy(&out.stdout).trim().parse::<f64>().unwrap() / 1024.0
+            String::from_utf8_lossy(&out.stdout)
+                .trim()
+                .parse::<f64>()
+                .unwrap()
+                / 1024.0
         }
 
         let environment = StreamEnvironment::connect()
@@ -424,21 +434,31 @@ mod tests {
             })
             .collect();
 
+        let body = serde_json::to_vec(&payload).unwrap();
         let total = 3000usize;
         let baseline = rss_mb();
         eprintln!("baseline RSS: {baseline:.1} MB");
         for i in 0..total {
             publisher
-                .publish(&payload, &uuid::Uuid::now_v7().to_string())
+                .publish(&body, &uuid::Uuid::now_v7().to_string())
                 .await
                 .expect("publish failed");
             if (i + 1) % 500 == 0 {
-                eprintln!("after {:>5} publishes: RSS {:.1} MB (delta {:+.1})", i + 1, rss_mb(), rss_mb() - baseline);
+                eprintln!(
+                    "after {:>5} publishes: RSS {:.1} MB (delta {:+.1})",
+                    i + 1,
+                    rss_mb(),
+                    rss_mb() - baseline
+                );
             }
         }
         // Give confirms/cleanup a moment, then final sample.
         tokio::time::sleep(Duration::from_secs(3)).await;
-        eprintln!("final RSS: {:.1} MB (delta {:+.1})", rss_mb(), rss_mb() - baseline);
+        eprintln!(
+            "final RSS: {:.1} MB (delta {:+.1})",
+            rss_mb(),
+            rss_mb() - baseline
+        );
     }
 
     /// Needs a local broker with the stream plugin on 5552 (guest/guest), so
@@ -472,7 +492,7 @@ mod tests {
             .unwrap();
         eprintln!("[test] baseline publish");
         publisher
-            .publish(&serde_json::json!({"n": 1}), "k1")
+            .publish(br#"{"n": 1}"#, "k1")
             .await
             .expect("baseline publish should succeed");
 
@@ -484,7 +504,7 @@ mod tests {
         // The next publish must rebuild inline and go through.
         eprintln!("[test] publish after mark_unhealthy (expect rebuild)");
         publisher
-            .publish(&serde_json::json!({"n": 2}), "k2")
+            .publish(br#"{"n": 2}"#, "k2")
             .await
             .expect("publish should rebuild the producer and succeed");
         assert!(publisher.healthy.load(Ordering::Acquire));
@@ -493,7 +513,7 @@ mod tests {
         // hard-down broker costs one connect per window, not one per publish.
         publisher.mark_unhealthy(publisher.generation.load(Ordering::Acquire), "test again");
         let err = publisher
-            .publish(&serde_json::json!({"n": 3}), "k3")
+            .publish(br#"{"n": 3}"#, "k3")
             .await
             .expect_err("cooldown should fail fast without rebuilding");
         assert!(

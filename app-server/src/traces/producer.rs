@@ -203,7 +203,7 @@ pub async fn publish_span_messages(
                         .first()
                         .map(|m| m.span.trace_id.to_string())
                         .unwrap_or_default();
-                    match publisher.publish(&messages, &key).await {
+                    match publisher.publish(&mq_message, &key).await {
                         Ok(()) => true,
                         Err(e) => {
                             // Fall back rather than drop: the queue path is still

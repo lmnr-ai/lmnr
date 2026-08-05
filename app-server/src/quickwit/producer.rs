@@ -37,7 +37,7 @@ pub async fn publish_for_indexing(
     // index id would pin every span document to a single partition.
     if let Some(publisher) = indexer_stream_publisher.as_ref() {
         let key = Uuid::now_v7().to_string();
-        match publisher.publish(payload, &key).await {
+        match publisher.publish(&serialized_payload, &key).await {
             Ok(()) => return Ok(()),
             Err(e) => {
                 log::error!(
