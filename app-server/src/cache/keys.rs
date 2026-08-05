@@ -9,6 +9,13 @@ pub const PROJECT_CACHE_KEY: &str = "project";
 pub const SIGNAL_TRIGGERS_CACHE_KEY: &str = "signal_triggers";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_TRIGGER_LOCK_CACHE_KEY: &str = "signal_trigger_lock";
+/// Gives one signal run exclusive use of a trace for its FIRST step, so the
+/// next signal's request hits the provider prefix cache the first one warmed
+/// instead of racing it. Held only across step 0 and scoped per
+/// `(project, trace)` — NOT per signal (cross-signal sharing is the point),
+/// which is what distinguishes it from [`SIGNAL_TRIGGER_LOCK_CACHE_KEY`].
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const SIGNAL_TRACE_EXCLUSIVE_LOCK_CACHE_KEY: &str = "signal_trace_exclusive_lock";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const ALERT_FILTERS_CACHE_KEY: &str = "alert_filters";
 pub const WORKSPACE_BYTES_USAGE_CACHE_KEY: &str = "workspace_bytes_usage";

@@ -63,7 +63,11 @@ use signals::private::{
     SignalWorkerConfig,
     batching::SignalBatchingHandler,
     pendings_consumer::SignalJobPendingBatchHandler,
-    queue::{SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_QUEUE, SIGNALS_REALTIME_ROUTING_KEY},
+    queue::{
+        SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_QUEUE, SIGNALS_REALTIME_ROUTING_KEY,
+        SIGNALS_REALTIME_WAITING_EXCHANGE, SIGNALS_REALTIME_WAITING_QUEUE,
+        SIGNALS_REALTIME_WAITING_ROUTING_KEY,
+    },
     realtime::SignalJobRealtimeHandler,
     submissions_consumer::SignalJobSubmissionBatchHandler,
 };
@@ -726,6 +730,53 @@ fn main() -> anyhow::Result<()> {
                             ..Default::default()
                         },
                         quorum_queue_args.clone(),
+                    )
+                    .await
+                    .unwrap();
+
+                // Parking lot for runs waiting on a sibling to warm the trace's
+                // prefix cache. No consumer — messages expire via their
+                // per-message TTL and dead-letter back into the realtime
+                // exchange. (The realtime queue itself is bound to that exchange
+                // by `get_receiver` when a consumer subscribes.)
+                channel
+                    .exchange_declare(
+                        SIGNALS_REALTIME_WAITING_EXCHANGE.into(),
+                        ExchangeKind::Fanout,
+                        ExchangeDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
+
+                let mut realtime_waiting_args = quorum_queue_args.clone();
+                realtime_waiting_args.insert(
+                    "x-dead-letter-exchange".into(),
+                    lapin::types::AMQPValue::LongString(SIGNALS_REALTIME_EXCHANGE.into()),
+                );
+
+                channel
+                    .queue_declare(
+                        SIGNALS_REALTIME_WAITING_QUEUE.into(),
+                        QueueDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        realtime_waiting_args,
+                    )
+                    .await
+                    .unwrap();
+
+                channel
+                    .queue_bind(
+                        SIGNALS_REALTIME_WAITING_QUEUE.into(),
+                        SIGNALS_REALTIME_WAITING_EXCHANGE.into(),
+                        SIGNALS_REALTIME_WAITING_ROUTING_KEY.into(),
+                        lapin::options::QueueBindOptions::default(),
+                        FieldTable::default(),
                     )
                     .await
                     .unwrap();
