@@ -330,26 +330,21 @@ Keep comments short. Don't write multi-paragraph rationale blocks — a single t
 
 ## Onboarding Wizard
 
-Route groups: `(auth)/layout.tsx` requires a session (redirects to `/sign-in`); the nested `(auth)/(app)/layout.tsx` is the onboarding-cookie gate (redirects to `/onboarding` when the cookie is present). The wizard page is `frontend/app/(auth)/onboarding/page.tsx`. There is NO `(authenticated)` route group — the app trees live under `(auth)/(app)/`.
+Route groups: `(auth)/layout.tsx` requires a session (redirects to `/sign-in`); the nested `(auth)/(app)/layout.tsx` is the onboarding-cookie gate (redirects to `/onboarding` when the cookie is present). The wizard is `frontend/app/(auth)/onboarding/page.tsx` → `components/onboarding/`. There is NO `(authenticated)` route group — the app trees live under `(auth)/(app)/`.
 
-- Wizard entry `frontend/app/(auth)/onboarding/page.tsx`; component `components/onboarding/index.tsx`. Config (`slackClientId`, `slackRedirectUri`, `{workspaceId, projectId}`) flows via `components/onboarding/context.tsx::OnboardingProvider`. Save handlers + `isSubmitting` come from `useOnboardingActions` (`components/onboarding/use-onboarding-actions.ts`); steps consume `useFeatureFlags()` + `useUserContext()` directly.
-- Resume state (`{v, userId, workspaceId, projectId, step, startedAt}`) is a 30-day `httpOnly` cookie. **The page (Server Component) only READS it via `getOnboardingState`** — Next.js 16 Server Components can't reliably write cookies (silent fail/throw + same-request `redirect()` ⇒ redirect loop). All writes go through `app/api/projects/[projectId]/onboarding/state/route.ts` (project-scoped: URL carries projectId, handler derives workspaceId, body is `{ step }`). Membership is enforced by `proxy.ts` gating `/api/projects/*`. Writes happen only once workspace+project exist (after `createWorkspace`, step 0→1); no pre-resource mount-POST. `persistOnboardingStep(projectId, step)` is the only write surface; `finishOnboarding` DELETEs. The handler resets `startedAt` when the cookie's `userId` ≠ current session, so a stale cross-user cookie is overwritten on first POST.
-- The onboarding gate is the `(auth)/(app)/layout.tsx` route-group layout — runs once before all app trees. **Do NOT move the gate into `proxy.ts`** — that needs the matcher expanded to every authenticated prefix, a callback hack to bypass the `/sign-in` short-circuit, and the cookie name leaked into the global pipeline. `proxy.ts` is scoped to API authz (`/api/projects/*`, `/api/workspaces/*`, `/api/shared/traces/*`), the Strapi `/uploads/*` rewrite, and the unauthenticated `/sign-in?callbackUrl=` redirect for app trees — it imports nothing from onboarding.
-- Resume defaults (`lib/actions/onboarding/resume-defaults.ts::loadOnboardingResumeDefaults`) re-derive form defaults from the DB on every load when workspace/project are bound. Split into per-slice loaders (`loadWorkspaceContext`, `loadSelectedTemplateNames`, `loadSlackConnected`) composed with `Promise.all` — keep that shape so queries parallelize. `workspaceName` MUST come from the DB on resume: the plan step passes it into `/checkout` as Stripe `workspaceName` metadata; without it the `"${user.name}'s workspace"` fallback lands in Stripe after a resume.
-- The "already has workspaces" legacy redirect to `/projects` fires only when `count > 0 AND no saved cookie owned by THIS user AND slack param undefined`. Narrow `saved` to `ownSaved = saved?.userId === user.id ? saved : null` before every gate — an other-user's cookie must look absent, else the wizard renders+overwrites under user B and the gate traps B in a loop until B creates an unwanted workspace.
-- Creating a workspace with `isFirstProject: true` (`POST /api/workspaces`) auto-creates the **Failure Detector** signal + trigger + creator email targets inside `createWorkspace` (`frontend/lib/actions/workspaces/index.ts`), same transaction as workspace+project+signal seed — so the user is opted into default-report digests by step 1. There is no in-wizard email-subscription UI; opt-out is workspace settings (`/api/workspaces/:id/reports` PUT → `setEmailSubscriptions`). The Signals step's PUT carries the full template selection; the server reconciles against existing template-named signals, so revisiting never duplicates.
-- Slack step builds OAuth URL with `state = "${workspaceId}:/onboarding"` (no `slack=*` in returnPath). `/api/integrations/slack/route.ts::buildRedirectUrl` appends `slack=success|error` itself; embedding it in state would produce `?slack=success&slack=error` and `URLSearchParams.get` reads the first, masking errors. The wizard's `useEffect` lifts the param into `slackConnected` and strips it.
-- There are FIVE steps (`ONBOARDING_STEPS = [workspace, signals, slack, plan, connect]`); `connect` (step index 4) is the final page. The plan step persists step 4 via `savePlan` then `onAdvance()`s to the connect step. `ConnectStep` (`components/onboarding/steps/connect-step.tsx`) is the only place that calls `finishOnboarding` + navigates to `/project/<id>/traces`.
-- **ConnectStep** surfaces the same CLI-setup + agent-prompt + manual-SDK content as the empty-state traces placeholder, reusing `AgentTab`/`ManualTab` (`components/traces/placeholder/`) so the two stay in sync. Both take an optional `projectId` prop because onboarding renders them OFF-route (no `useParams().projectId`); `ApiKeyGenerator` falls back to `useParams()` only when no prop is passed. ConnectStep has a "Skip for now" `secondaryAction` and a "Go to project" primary — both route through `goToProject({skipped})` → `finishOnboarding()` then `/project/<id>/traces?onboarding=true` (or `/projects` if projectId is gone). It also subscribes via `useRealtime` and shows a "Listening for incoming traces" banner on first `trace_update`.
-- Plan step defaults to "free". A paid tier does `window.location.href = /checkout?lookupKey=...&returnTo=onboarding`; `returnTo=onboarding` makes `app/(auth)/checkout/page.tsx` set Stripe `success_url=/onboarding?upgraded=true&sessionId=...` and `cancel_url=/onboarding`. **Do NOT clear the cookie before redirecting to Stripe** — it must survive the round trip so the gate keeps the post-payment landing on `/onboarding`. On Stripe return, `WizardSteps` detects `?upgraded=true` and renders `<ConnectStep upgraded />` directly; the flag shows a "Payment received" banner above the setup tabs and the user finishes via the same Skip / Go-to-project buttons. In-app upgrades (workspace billing) omit `returnTo` and keep `success_url=/workspace/<id>?tab=billing`. `Feature.SUBSCRIPTION` off ⇒ plan step shows a single "Continue" button that also advances to connect.
-- Step 0 is irreversible — `WizardSteps` switches on `stepIndex` and does NOT pass `onBack` to SignalsStep on step 1. Steps 2–4 get `onBack` (reconcile-on-save absorbs oscillation).
-- Do NOT nest a Radix `Checkbox` (renders `<button>`) inside a `<button>` card (hydration error). The signals step uses a plain `<span>` + `Check` icon.
-- **Every completion DELETE of `/api/projects/<id>/onboarding/state` must gate the next navigation on `res.ok`** — `fetch` only throws on network errors, so a 401/500 still resolves and navigating into the app tree with a live cookie loops via the gate. `finishOnboarding` (`use-onboarding-actions.ts`) returns a boolean, shows the destructive toast, toggles shared `isSubmitting`; its sole call site `ConnectStep.goToProject` gates the navigation on it. The server-side stale-cookie clear (cookie references an inaccessible project) is separate: `redirect("/api/onboarding?to=/projects")` in `app/(auth)/onboarding/page.tsx` — `/api/onboarding` is the only non-project-scoped cookie write allowed (the cookie's project can't be authz'd at that point).
-- There is no mount-POST; step writes happen only after a successful save. If you add a mount-POST, the completion DELETE must await its settle first or the POST's `Set-Cookie` resurrects the cookie and bounces back to `/onboarding`.
-- Save handlers must return `false` + destructive toast on any failure — never advance optimistically; `track`/`persistOnboardingStep` are gated on success.
-  - `saveSignals` PUTs `/api/projects/:id/signals` `{ templateNames }` → `setTemplateSignals` (`frontend/lib/actions/signals/index.ts`) diffs vs existing template-named signals in one transaction. Scope is limited to names in `frontend/components/signals/prompts.ts`; custom-named signals are invisible to the diff. Client never sees signal ids and never issues a baseline GET.
-  - `saveSlack` is server-side no-op: emits `onboarding:slack_step_completed`, persists the step transition. OAuth handshake is the in-page redirect; the mount-effect lifts `?slack=success|error` into `slackConnected`. No reports PUT here.
-- **Welcome email is sent from the completion DELETE handler**, not a JWT callback. `…/onboarding/state/route.ts::DELETE` calls `sendWelcomeEmail(session.user.email)` after `clearOnboardingState`, gated on `Feature.SEND_EMAIL`. Cloud paths go through `finishOnboarding`; the OSS path (`OssWorkspaceOnly.onComplete`) keeps an inline fire-and-forget DELETE (no cookie/toast/track, welcome email is its only side effect). Sending earlier would email users who bounce before creating a workspace.
+- **The page is a Server Component and only READS the cookie** (`getOnboardingState`). Next.js 16 Server Components can't reliably write cookies — a silent fail/throw plus a same-request `redirect()` produces a redirect loop. All writes go through `app/api/projects/[projectId]/onboarding/state/route.ts` (project-scoped, so `proxy.ts`'s `/api/projects/*` gating enforces membership); `persistOnboardingStep` is the only write surface and `finishOnboarding` DELETEs. Writes only happen once workspace+project exist. The handler resets `startedAt` when the cookie's `userId` ≠ the session's, so a stale cross-user cookie is overwritten on first POST.
+- **The gate belongs in the `(auth)/(app)/layout.tsx` route-group layout — do NOT move it into `proxy.ts`.** That needs the matcher expanded to every authenticated prefix, a callback hack to bypass the `/sign-in` short-circuit, and the cookie name leaked into the global pipeline. `proxy.ts` is scoped to API authz, the Strapi `/uploads/*` rewrite, and the unauthenticated sign-in redirect — it imports nothing from onboarding.
+- **An other user's cookie must look ABSENT.** Narrow `saved` to `ownSaved = saved?.userId === user.id ? saved : null` before every gate (including the "already has workspaces" redirect to `/projects`, which fires only when `count > 0 AND no own cookie AND slack param undefined`). Otherwise the wizard renders and overwrites under user B, and the gate traps B in a loop until they create an unwanted workspace.
+- **Every completion DELETE must gate the next navigation on `res.ok`** — `fetch` only throws on network errors, so a 401/500 still resolves and navigating into the app tree with a live cookie loops via the gate. `finishOnboarding` returns a boolean for exactly this; its sole call site (`ConnectStep.goToProject`) gates on it. Separately, the server-side stale-cookie clear (cookie references an inaccessible project) goes through `redirect("/api/onboarding?to=/projects")` — that is the ONLY non-project-scoped cookie write allowed, because at that point the cookie's project can't be authz'd.
+- There is no mount-POST; step writes happen only after a successful save. If you add one, the completion DELETE must await its settle first or the POST's `Set-Cookie` resurrects the cookie and bounces back to `/onboarding`.
+- Save handlers must return `false` + a destructive toast on failure — never advance optimistically; `track` / `persistOnboardingStep` are gated on success. `saveSignals` PUTs the full template selection and the server reconciles against existing template-named signals, so revisiting a step never duplicates (scope is limited to names in `components/signals/prompts.ts`, so custom-named signals are invisible to the diff).
+- `workspaceName` MUST be re-derived from the DB on resume (`loadOnboardingResumeDefaults`): the plan step passes it to `/checkout` as Stripe metadata, so without it the `"${user.name}'s workspace"` fallback lands in Stripe. Keep the per-slice loaders composed with `Promise.all` so the queries parallelize.
+- **Do NOT clear the cookie before redirecting to Stripe** — it must survive the round trip so the gate keeps the post-payment landing on `/onboarding`. `returnTo=onboarding` makes checkout set `success_url=/onboarding?upgraded=true`, which `WizardSteps` detects and renders as `<ConnectStep upgraded />`. In-app upgrades omit `returnTo` and keep `success_url=/workspace/<id>?tab=billing`.
+- The Slack step's OAuth `state` is `"${workspaceId}:/onboarding"` with **no `slack=*` in the returnPath** — `buildRedirectUrl` appends `slack=success|error` itself, and embedding it in state yields `?slack=success&slack=error` where `URLSearchParams.get` reads the first and masks the error.
+- Creating a workspace with `isFirstProject: true` auto-creates the **Failure Detector** signal + trigger + creator email targets in the same transaction, so the user is opted into report digests by step 1. There is no in-wizard email-subscription UI; opt-out lives in workspace settings.
+- **The welcome email is sent from the completion DELETE handler**, gated on `Feature.SEND_EMAIL` — sending earlier would email users who bounce before creating a workspace. The OSS path (`OssWorkspaceOnly.onComplete`) keeps an inline fire-and-forget DELETE whose only side effect is that email.
+- Step 0 is irreversible (`WizardSteps` passes no `onBack` to step 1); steps 2–4 get `onBack` and reconcile-on-save absorbs the oscillation. `ConnectStep` is the only place that calls `finishOnboarding`.
+- Do NOT nest a Radix `Checkbox` (renders a `<button>`) inside a `<button>` card — hydration error. The signals step uses a plain `<span>` + `Check` icon.
 
 ## Static System-Prompt Extraction pipeline
 
@@ -914,60 +909,16 @@ Pass shallow as the equality function to useStore when applicable. That way even
 
 ### AbortController
 
-Use an `AbortController` to cancel in-flight `fetch` requests when a newer request supersedes them or the component/store state they'll update has moved on. Pass the controller's `signal` to `fetch`; the browser rejects the promise with an `AbortError` when aborted, so bail without touching state in the catch.
+Use an `AbortController` to cancel in-flight `fetch` requests when a newer request supersedes them, or when the component/store state they would update has moved on. Pass the controller's `signal` to `fetch`; the browser rejects with an `AbortError`, so bail in the catch without touching state. Prefer this over hand-rolled "snapshot state at start, compare at resolve, discard if drifted" patterns — it's the standard primitive and it cancels the actual request, not just its effect on state.
 
-**Example — per-store cancellation of pagination when the underlying query changes** (`dashboard-editor-store.tsx`):
+Use it for: an older response overwriting newer state (user paginates, then changes the filter — page 1 resolves after page 0 and splices stale rows onto fresh data), wasted network/server work, and rapid user actions (repeated scrolls, debounce-escaped clicks, search typing) where only the latest result should land.
 
-```typescript
-const createStore = (props) => {
-  // Closure-scoped per store instance — no cross-instance leak.
-  let paginationAbortController: AbortController | null = null;
+**The reference implementation is `fetchNextTablePage` / `executeQuery` in `frontend/components/dashboards/editor/dashboard-editor-store.tsx`** — a per-store-instance controller ref in closure scope (not module scope, so instances can't cancel each other). Four non-obvious rules it encodes:
 
-  return createStore((set, get) => ({
-    executeQuery: async (projectId) => {
-      // A fresh execute is about to replace page-0 data; any in-flight
-      // pagination would splice stale rows onto it.
-      if (paginationAbortController) {
-        paginationAbortController.abort();
-        paginationAbortController = null;
-        set({ tableIsFetching: false });
-      }
-      // ...
-    },
-
-    fetchNextTablePage: async (projectId) => {
-      // Abort any prior pagination (rapid scroll fires multiple times).
-      paginationAbortController?.abort();
-      const controller = new AbortController();
-      paginationAbortController = controller;
-
-      try {
-        const response = await fetch(url, { signal: controller.signal, ... });
-        // ... process result, functional set ...
-      } catch {
-        // Aborted — whoever replaced us owns state. Don't reset flags here.
-        if (controller.signal.aborted) return;
-        set({ tableIsFetching: false });
-      } finally {
-        if (paginationAbortController === controller) {
-          paginationAbortController = null;
-        }
-      }
-    },
-  }));
-};
-```
-
-**When to use:** race conditions where an older request overwrites newer state (user paginates, then changes the filter — without aborting, page 1 resolves after page 0 and splices stale rows onto fresh data); wasted network/server work; rapid user actions (repeated scrolls, debounce-escaped clicks, search typing) where only the latest result should land.
-
-Prefer `AbortController` over hand-rolled "snapshot state at start, compare at resolve, discard if drifted" patterns — it's the standard browser primitive and cancels the actual network request, not just its effect on state.
-
-**Gotchas:**
-
-- Don't reset loading flags (`isFetching`, `isLoading`, etc.) in the abort branch of the catch. The operation that aborted you is responsible for the next state — resetting here would race with it.
-- When aborting from a different action, the aborting action must handle any loading flag the aborted action left behind (see `executeQuery` above clearing `tableIsFetching`).
-- In the `finally`, only null out the shared controller ref if it still points at the current controller — otherwise a newer operation already replaced it and you'd be clobbering its handle.
-- In the success path, use functional `set((state) => ...)` rather than a closure over `state.data` so you merge with the latest value.
+- Do NOT reset loading flags in the abort branch of the catch. Whoever aborted you owns the next state, and resetting races with it.
+- Conversely, when one action aborts another, the ABORTING action must clear any loading flag the aborted one left behind.
+- In the `finally`, only null out the shared controller ref if it still points at your own controller — otherwise a newer operation has already replaced it and you'd clobber its handle.
+- On the success path use functional `set((state) => ...)` rather than closing over `state.data`, so you merge with the latest value rather than a snapshot.
 
 ### Error handling
 
