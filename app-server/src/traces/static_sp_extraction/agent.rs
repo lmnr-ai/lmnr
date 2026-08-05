@@ -154,6 +154,11 @@ pub async fn extract_static_regexes(
             "lmnr_project_id",
             &source_project_id.to_string(),
         );
+        spans::set_attr_str(
+            &root_span,
+            "lmnr.association.properties.user_id",
+            &source_project_id.to_string(),
+        );
     }
 
     let user_message = build_user_message(examples, config.include_diff);

@@ -16,6 +16,14 @@ pub const SIGNAL_TRIGGER_LOCK_CACHE_KEY: &str = "signal_trigger_lock";
 /// which is what distinguishes it from [`SIGNAL_TRIGGER_LOCK_CACHE_KEY`].
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_TRACE_EXCLUSIVE_LOCK_CACHE_KEY: &str = "signal_trace_exclusive_lock";
+/// Set once a signal request for a trace has completed, meaning the provider's
+/// prefix cache for that trace is warm. Every later run on the trace then skips
+/// [`SIGNAL_TRACE_EXCLUSIVE_LOCK_CACHE_KEY`] entirely and runs in PARALLEL — the
+/// lock only has to elect the first warmer, not serialize all K signals.
+/// Its TTL approximates the provider's implicit-cache lifetime, so it is a
+/// heuristic: too long merely costs a cache miss, too short a needless wait.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const SIGNAL_PREFIX_WARM_CACHE_KEY: &str = "signal_prefix_warm";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const ALERT_FILTERS_CACHE_KEY: &str = "alert_filters";
 pub const WORKSPACE_BYTES_USAGE_CACHE_KEY: &str = "workspace_bytes_usage";
