@@ -181,6 +181,18 @@ impl InternalSpan {
         self
     }
 
+    /// `lmnr.association.properties.user_id`; empty ids are skipped. Must be this exact key —
+    /// ingest's `Span::user_id()` reads it verbatim to populate the `user_id` column. Stamping it
+    /// through `metadata_str` instead lands it under `…properties.metadata.…` and never reaches the
+    /// column.
+    pub fn user_id(self, user_id: &str) -> Self {
+        if !user_id.is_empty() {
+            self.span
+                .set_attribute("lmnr.association.properties.user_id", user_id.to_string());
+        }
+        self
+    }
+
     pub fn metadata_str(self, key: &str, value: &str) -> Self {
         set_metadata_str(&self.span, key, value);
         self
