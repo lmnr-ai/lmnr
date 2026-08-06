@@ -187,11 +187,14 @@ fn main() -> anyhow::Result<()> {
     // == Sentry ==
     let sentry_dsn = std::env::var(env::observability::SENTRY_DSN)
         .unwrap_or("https://1234567890@sentry.io/1234567890".to_string());
+    // Sentry bills by span volume, so only a fraction of transactions is sent.
+    // Sampling is per-transaction (the SDK's own knob), which keeps every sampled
+    // trace internally complete.
     let _sentry_guard = sentry::init((
         sentry_dsn,
         sentry::ClientOptions {
             release: sentry::release_name!(),
-            traces_sample_rate: 1.0,
+            traces_sample_rate: env::sentry_sampling::sample_rate(),
             environment: Some(Cow::Owned(
                 std::env::var(env::connections::ENVIRONMENT).unwrap_or("development".to_string()),
             )),
