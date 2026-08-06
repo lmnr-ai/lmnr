@@ -57,6 +57,48 @@ You will also need to properly configure the SDK, with `baseUrl` and correct por
 
 For production environment, we recommend using our [managed platform](https://laminar.sh) or `docker compose -f docker-compose-full.yml up -d`.
 
+#### Upgrading existing self-hosted installations
+
+The ClickHouse configuration disables internal telemetry logs that are not useful
+for a single-node installation and retains query and error logs for three days.
+After pulling this change, recreate the ClickHouse container to apply the
+configuration. The examples below use `docker-compose.yml`; pass `-f` with the
+Compose file used by your deployment when it differs:
+
+```sh
+docker compose up -d --force-recreate clickhouse
+```
+
+Disabling a system log stops new writes but does not remove an existing table.
+To reclaim its disk space, drop the disabled log tables after ClickHouse restarts:
+
+```sh
+docker compose exec -T clickhouse sh -c \
+  'clickhouse-client --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --multiquery' <<'SQL'
+DROP TABLE IF EXISTS system.trace_log SYNC;
+DROP TABLE IF EXISTS system.text_log SYNC;
+DROP TABLE IF EXISTS system.part_log SYNC;
+DROP TABLE IF EXISTS system.metric_log SYNC;
+DROP TABLE IF EXISTS system.asynchronous_metric_log SYNC;
+DROP TABLE IF EXISTS system.background_schedule_pool_log SYNC;
+DROP TABLE IF EXISTS system.query_metric_log SYNC;
+DROP TABLE IF EXISTS system.query_thread_log SYNC;
+DROP TABLE IF EXISTS system.query_views_log SYNC;
+DROP TABLE IF EXISTS system.session_log SYNC;
+DROP TABLE IF EXISTS system.crash_log SYNC;
+DROP TABLE IF EXISTS system.opentelemetry_span_log SYNC;
+DROP TABLE IF EXISTS system.zookeeper_log SYNC;
+DROP TABLE IF EXISTS system.blob_storage_log SYNC;
+DROP TABLE IF EXISTS system.processors_profile_log SYNC;
+DROP TABLE IF EXISTS system.asynchronous_insert_log SYNC;
+SQL
+```
+
+When ClickHouse applies the new TTL to an existing `query_log` or `error_log`,
+it may rename the previous table with a numeric suffix such as `query_log_0`.
+Inspect any suffixed tables before dropping them if you also want to reclaim
+their historical data.
+
 ### Configuring LLM provider (optional)
 
 Frontend AI features (chat-with-trace, SQL-with-AI) and server-side AI workers require an LLM provider. Configure one in your `.env` file at the repo root.
