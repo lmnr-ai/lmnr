@@ -3,10 +3,13 @@ import React from "react";
 import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 
-import LightboxImage from "@/components/blog/lightbox-image";
+import BlogImage from "@/components/blog/blog-image";
 import MDHeading from "@/components/blog/md-heading";
 import PreHighlighter from "@/components/blog/pre-highlighter";
+import SharedTraceChip from "@/components/blog/shared-trace-chip";
 import YouTubeEmbed, { extractYouTubeId } from "@/components/blog/youtube-embed";
+import { getPublicTraceIds } from "@/lib/actions/shared/trace";
+import { collectSharedTraceIds, parseSharedTraceHref } from "@/lib/blog/trace-links";
 import { type BlogMetadata } from "@/lib/blog/types";
 import { parseHeadings } from "@/lib/blog/utils";
 
@@ -52,7 +55,27 @@ function ArticleJsonLd({ data, slug, routePrefix }: { data: BlogMetadata; slug: 
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />;
 }
 
-export default function PostContent({ data, content, backHref, slug, routePrefix }: PostContentProps) {
+/**
+ * Flatten link children to plain text. Labels often wrap the text in inline
+ * code (`[`task-name`](url)`), and nesting the code component's own badge
+ * styling inside a chip renders a badge within a badge.
+ */
+function childrenToText(children: React.ReactNode): string {
+  return React.Children.toArray(children)
+    .map((child) => {
+      if (typeof child === "string" || typeof child === "number") return String(child);
+      if (React.isValidElement<{ children?: React.ReactNode }>(child)) return childrenToText(child.props.children);
+      return "";
+    })
+    .join("");
+}
+
+export default async function PostContent({ data, content, backHref, slug, routePrefix }: PostContentProps) {
+  // The MDX `a` override can't await, so visibility is resolved up front for
+  // every trace the post mentions. Unshared traces fall back to a plain anchor
+  // rather than rendering a chip that leads to a 404.
+  const publicTraceIds = await getPublicTraceIds(collectSharedTraceIds(content)).catch(() => new Set<string>());
+
   const article = (
     <MDXRemote
       source={content}
@@ -66,6 +89,12 @@ export default function PostContent({ data, content, backHref, slug, routePrefix
           const children = React.Children.toArray(props.children);
           if (children.length === 1) {
             const child = children[0];
+            // A lone image renders as <figure>, which is invalid inside <p> and
+            // trips a hydration error. Remark always wraps a standalone image in
+            // a paragraph, so unwrap it here.
+            if (React.isValidElement<{ src?: string }>(child) && typeof child.props.src === "string") {
+              return child;
+            }
             if (
               React.isValidElement<{
                 href?: string;
@@ -84,25 +113,39 @@ export default function PostContent({ data, content, backHref, slug, routePrefix
               }
             }
           }
-          return <p className="pt-4 text-white/85" {...props} />;
+          return <p {...props} />;
         },
-        a: (props) => (
-          <a className="text-white underline hover:text-primary" target="_blank" rel="noopener noreferrer" {...props} />
-        ),
-        blockquote: (props) => <blockquote className="border-l-2 border-primary pl-4" {...props} />,
-        pre: (props) => <PreHighlighter className="pl-4 py-4" {...props} />,
+        a: (props) => {
+          const link = typeof props.href === "string" ? parseSharedTraceHref(props.href) : null;
+          if (link && publicTraceIds.has(link.traceId)) {
+            const label = childrenToText(props.children).trim();
+            // A bare autolink has no label worth chipping; leave it a plain link.
+            if (label && label !== props.href) {
+              return <SharedTraceChip href={props.href as string} label={label} />;
+            }
+          }
+          return (
+            <a
+              className="text-white underline hover:text-primary"
+              target="_blank"
+              rel="noopener noreferrer"
+              {...props}
+            />
+          );
+        },
+        // Keeps the brand-colored rule; typeset owns the indent.
+        blockquote: (props) => <blockquote className="border-primary" {...props} />,
+        // `not-typeset` on the embedded components below: each already owns its
+        // own look (syntax highlighting, lightbox chrome, embed frame), and
+        // opting out keeps typeset from restyling their internals. The
+        // trade-off is that they also lose typeset's flow margin, so each keeps
+        // the spacing class it already had.
+        pre: (props) => <PreHighlighter className="not-typeset pl-4 py-4" {...props} />,
         code: (props) => (
           <span className="text-sm bg-secondary-foreground/20 rounded text-white font-mono px-1.5 py-0.5" {...props} />
         ),
-        ul: (props) => <ul className="list-disc pl-4 pt-4 text-white/85" {...props} />,
-        ol: (props) => <ol className="list-decimal pl-4 pt-4 text-white/85" {...props} />,
-        li: (props) => (
-          <li className="pt-1.5 text-white/85 leading-relaxed" {...props}>
-            {props.children}
-          </li>
-        ),
         strong: (props) => <strong className="text-white/90 font-semibold" {...props} />,
-        img: (props) => <LightboxImage className="relative w-full border rounded-lg mb-8" {...props} />,
+        img: (props) => <BlogImage {...props} />,
         // Tables: styled via CSS descendant selectors on `.blog-article` in
         // globals.css instead of MDX component overrides. Strapi emits raw
         // HTML `<table>` markup that doesn't route through the components
