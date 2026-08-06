@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { type TraceViewTrace } from "@/components/traces/trace-view/store";
@@ -9,6 +9,24 @@ import { sharedTraces } from "@/lib/db/migrations/schema";
 export const GetSharedTraceSchema = z.object({
   traceId: z.guid(),
 });
+
+/**
+ * Which of `traceIds` are publicly shared. One query for the whole set — blog
+ * posts can reference a dozen traces and a per-link lookup would be a waterfall.
+ * Non-UUID ids are dropped before the query; Postgres errors on a malformed
+ * uuid comparison rather than returning no rows.
+ */
+export async function getPublicTraceIds(traceIds: string[]): Promise<Set<string>> {
+  const valid = traceIds.filter((id) => z.guid().safeParse(id).success);
+  if (valid.length === 0) return new Set();
+
+  const rows = await db.query.sharedTraces.findMany({
+    where: inArray(sharedTraces.id, valid),
+    columns: { id: true },
+  });
+
+  return new Set(rows.map((row) => row.id));
+}
 
 export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>): Promise<TraceViewTrace | undefined> {
   const { traceId } = GetSharedTraceSchema.parse(input);
