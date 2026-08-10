@@ -5,16 +5,37 @@
 //! generation. The caller writes LOGICAL table names; the query engine rewrites them to
 //! project-scoped `_v0(...)` views and injects `project_id`.
 
-struct Column {
-    name: &'static str,
-    ty: &'static str,
-    desc: &'static str,
+#[derive(serde::Serialize)]
+pub struct Column {
+    pub name: &'static str,
+    #[serde(rename = "type")]
+    pub ty: &'static str,
+    #[serde(rename = "description")]
+    pub desc: &'static str,
 }
 
-struct Table {
-    name: &'static str,
-    desc: &'static str,
-    columns: &'static [Column],
+#[derive(serde::Serialize)]
+pub struct Table {
+    pub name: &'static str,
+    #[serde(rename = "description")]
+    pub desc: &'static str,
+    pub columns: &'static [Column],
+}
+
+/// A constrained column and the literals it accepts.
+#[derive(serde::Serialize)]
+pub struct EnumDef {
+    pub name: &'static str,
+    pub values: &'static [&'static str],
+}
+
+/// Wire shape of `GET /v1/sql/schema` (and its `/v1/cli` twin). Serialized
+/// straight from the `TABLES` / `ENUMS` consts below, so the endpoint, the MCP
+/// tool description, and the agent prompt cannot disagree.
+#[derive(serde::Serialize)]
+pub struct SqlSchema {
+    pub tables: &'static [Table],
+    pub enums: Vec<EnumDef>,
 }
 
 const fn col(name: &'static str, ty: &'static str, desc: &'static str) -> Column {
@@ -64,7 +85,7 @@ const TABLES: &[Table] = &[
             col("status", "String (enum status)", "'success' or 'error'"),
             col("start_time", "DateTime64(9,'UTC')", "When the span started"),
             col("end_time", "DateTime64(9,'UTC')", "When the span ended"),
-            col("duration", "Float64", "Duration in seconds"),
+            col("duration", "Decimal(18,9)", "Duration in seconds"),
             col("input", "String", "Span input as stringified JSON"),
             col("output", "String", "Span output as stringified JSON"),
             col("request_model", "String", "LLM model requested"),
@@ -75,9 +96,9 @@ const TABLES: &[Table] = &[
                 "String",
                 "LLM provider, e.g. 'openai', 'anthropic'",
             ),
-            col("input_tokens", "UInt64", "Input tokens"),
-            col("output_tokens", "UInt64", "Output tokens"),
-            col("total_tokens", "UInt64", "Total tokens"),
+            col("input_tokens", "Int64", "Input tokens"),
+            col("output_tokens", "Int64", "Output tokens"),
+            col("total_tokens", "Int64", "Total tokens"),
             col("input_cost", "Float64", "Input cost"),
             col("output_cost", "Float64", "Output cost"),
             col("total_cost", "Float64", "Total cost"),
@@ -91,6 +112,11 @@ const TABLES: &[Table] = &[
                 "tool_definitions",
                 "String",
                 "Tool definitions exposed to the LLM span as stringified JSON",
+            ),
+            col(
+                "events",
+                "Array(Tuple(timestamp Int64, name String, attributes String))",
+                "Span events; timestamp is unix nanoseconds, attributes is stringified JSON",
             ),
         ],
     },
@@ -118,15 +144,15 @@ const TABLES: &[Table] = &[
             col("total_tokens", "Int64", "Total tokens"),
             col(
                 "cache_read_input_tokens",
-                "Int64",
+                "UInt64",
                 "Tokens read from prompt cache",
             ),
             col(
                 "cache_creation_input_tokens",
-                "Int64",
+                "UInt64",
                 "Tokens written to prompt cache",
             ),
-            col("reasoning_tokens", "Int64", "Reasoning tokens"),
+            col("reasoning_tokens", "UInt64", "Reasoning tokens"),
             col("input_cost", "Float64", "Input cost"),
             col("output_cost", "Float64", "Output cost"),
             col("total_cost", "Float64", "Total cost"),
@@ -164,6 +190,11 @@ const TABLES: &[Table] = &[
                 "String",
                 "Extracted agent task / user input for the trace (stringified JSON / raw string)",
             ),
+            col(
+                "has_browser_session",
+                "Bool",
+                "Whether the trace has a recorded browser session",
+            ),
         ],
     },
     Table {
@@ -172,6 +203,11 @@ const TABLES: &[Table] = &[
                last LLM call on the trace's main-agent path.",
         columns: &[
             col("trace_id", "UUID", "Id of the trace"),
+            col(
+                "start_time",
+                "DateTime64(9,'UTC')",
+                "Start time of the trace this output belongs to",
+            ),
             col(
                 "agent_output",
                 "Array(String)",
@@ -214,15 +250,36 @@ const TABLES: &[Table] = &[
                 "When the linked dataset datapoint was created (unix epoch if none)",
             ),
             col(
+                "updated_at",
+                "DateTime64(9,'UTC')",
+                "When the datapoint was last updated",
+            ),
+            // Everything below is denormalized from the associated trace; all
+            // are nil/empty/zero when the datapoint has no trace.
+            col(
                 "duration",
-                "Float64",
+                "Decimal(18,9)",
                 "Duration in seconds from the associated trace",
             ),
+            col(
+                "start_time",
+                "DateTime64(9,'UTC')",
+                "Start time of the associated trace",
+            ),
+            col(
+                "end_time",
+                "DateTime64(9,'UTC')",
+                "End time of the associated trace",
+            ),
+            col("input_cost", "Float64", "Input cost from the trace"),
+            col("output_cost", "Float64", "Output cost from the trace"),
             col(
                 "total_cost",
                 "Float64",
                 "Total cost from the associated trace",
             ),
+            col("input_tokens", "Int64", "Input tokens from the trace"),
+            col("output_tokens", "Int64", "Output tokens from the trace"),
             col(
                 "total_tokens",
                 "Int64",
@@ -230,14 +287,47 @@ const TABLES: &[Table] = &[
             ),
             col(
                 "trace_status",
-                "String (enum status)",
+                "LowCardinality(String) (enum status)",
                 "Status of the associated trace",
+            ),
+            col(
+                "trace_metadata",
+                "String",
+                "Metadata of the associated trace as stringified JSON",
+            ),
+            col(
+                "trace_tags",
+                "Array(String)",
+                "Tags of the associated trace",
+            ),
+            col(
+                "top_span_id",
+                "UUID",
+                "Id of the top-level span of the associated trace",
+            ),
+            col(
+                "trace_spans",
+                "Array(Tuple(name String, duration Float64, type String))",
+                "Spans of the associated trace; `type` is the numeric span type as a string",
             ),
         ],
     },
     Table {
         name: "dataset_datapoints",
         desc: "Data points in datasets with input data, targets, and metadata.",
+        columns: &[
+            col("id", "UUID", "Unique id"),
+            col("created_at", "DateTime64(9,'UTC')", "When created"),
+            col("dataset_id", "UUID", "Id of the dataset"),
+            col("data", "String", "Input data"),
+            col("target", "String", "Target / expected output"),
+            col("metadata", "String", "Additional metadata"),
+        ],
+    },
+    Table {
+        name: "dataset_datapoint_versions",
+        desc: "Same columns as dataset_datapoints, but every version of each datapoint \
+               rather than only the latest.",
         columns: &[
             col("id", "UUID", "Unique id"),
             col("created_at", "DateTime64(9,'UTC')", "When created"),
@@ -381,11 +471,25 @@ const TABLES: &[Table] = &[
                 "String",
                 "Current canonical target as stringified JSON",
             ),
-            col("created_at", "DateTime64(9,'UTC')", "When created"),
-            col("updated_at", "DateTime64(9,'UTC')", "When last updated"),
+            // Millisecond precision here, unlike every other table's nanoseconds.
+            col("created_at", "DateTime64(3,'UTC')", "When created"),
+            col("updated_at", "DateTime64(3,'UTC')", "When last updated"),
         ],
     },
 ];
+
+/// The same table/column/enum data as `build_schema_prompt`, in a structured form.
+/// Served by `GET /v1/sql/schema` so `lmnr-cli sql schema` renders live server truth
+/// instead of a hand-maintained copy that drifts (it did — see lmnr-ai/lmnr-ts#291).
+pub fn schema_payload() -> SqlSchema {
+    SqlSchema {
+        tables: TABLES,
+        enums: ENUMS
+            .iter()
+            .map(|&(name, values)| EnumDef { name, values })
+            .collect(),
+    }
+}
 
 /// Render the full schema block (`<tables>…</tables><enums>…</enums>`). Compact, one line per column.
 /// Embedded verbatim in both the agent system prompt and the MCP tool description.
@@ -449,5 +553,54 @@ mod tests {
         for t in TABLES {
             assert!(!t.columns.is_empty(), "table {} has no columns", t.name);
         }
+    }
+
+    /// The endpoint payload and the prompt block are two renderings of one
+    /// source. If this drifts, `lmnr-cli sql schema` and the MCP tool
+    /// description start disagreeing again.
+    #[test]
+    fn schema_payload_matches_the_prompt_tables() {
+        let payload = schema_payload();
+        let prompt = build_schema_prompt();
+
+        assert_eq!(payload.tables.len(), TABLES.len());
+        assert_eq!(payload.enums.len(), ENUMS.len());
+
+        for t in payload.tables {
+            assert!(
+                prompt.contains(&format!("TABLE {} ", t.name)),
+                "table {} is in the payload but not the prompt",
+                t.name
+            );
+        }
+    }
+
+    #[test]
+    fn schema_payload_serializes_with_renamed_fields() {
+        let json = serde_json::to_value(schema_payload()).expect("payload serializes");
+
+        let spans = json["tables"]
+            .as_array()
+            .expect("tables is an array")
+            .iter()
+            .find(|t| t["name"] == "spans")
+            .expect("spans table is present");
+
+        let col = spans["columns"]
+            .as_array()
+            .expect("columns is an array")
+            .first()
+            .expect("spans has columns");
+        assert!(col["type"].is_string(), "column exposes `type`, not `ty`");
+        assert!(
+            col["description"].is_string(),
+            "column exposes `description`, not `desc`"
+        );
+
+        let enums = json["enums"].as_array().expect("enums is an array");
+        assert!(
+            enums.iter().any(|e| e["name"] == "span_type"),
+            "span_type enum is present"
+        );
     }
 }

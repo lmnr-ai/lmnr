@@ -2228,7 +2228,9 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::list_projects)
                             .service(api::v1::cli::resolve_project)
                             .service(
-                                web::scope("/sql").service(api::v1::cli::sql::execute_sql_query),
+                                web::scope("/sql")
+                                    .service(api::v1::cli::sql::execute_sql_query)
+                                    .service(api::v1::cli::sql::get_sql_schema),
                             )
                             .service(api::v1::cli::datasets::get_datasets)
                             .service(api::v1::cli::datasets::get_datapoints)
@@ -2298,7 +2300,8 @@ fn main() -> anyhow::Result<()> {
                             .service(
                                 web::scope("/v1/sql")
                                     .wrap(project_auth.clone())
-                                    .service(api::v1::sql::execute_sql_query),
+                                    .service(api::v1::sql::execute_sql_query)
+                                    .service(api::v1::sql::get_sql_schema),
                             )
                             // CLI user-token surface: list_projects takes
                             // CliUserAuth, the rest take CliProjectAuth.
