@@ -10,15 +10,13 @@ pub struct Column {
     pub name: &'static str,
     #[serde(rename = "type")]
     pub ty: &'static str,
-    #[serde(rename = "description")]
-    pub desc: &'static str,
+    pub description: &'static str,
 }
 
 #[derive(serde::Serialize)]
 pub struct Table {
     pub name: &'static str,
-    #[serde(rename = "description")]
-    pub desc: &'static str,
+    pub description: &'static str,
     pub columns: &'static [Column],
 }
 
@@ -38,8 +36,12 @@ pub struct SqlSchema {
     pub enums: Vec<EnumDef>,
 }
 
-const fn col(name: &'static str, ty: &'static str, desc: &'static str) -> Column {
-    Column { name, ty, desc }
+const fn col(name: &'static str, ty: &'static str, description: &'static str) -> Column {
+    Column {
+        name,
+        ty,
+        description,
+    }
 }
 
 /// Constrained columns and their allowed literals (mirrors `enumValues`); stops the model inventing values.
@@ -70,7 +72,7 @@ const ENUMS: &[(&str, &[&str])] = &[
 const TABLES: &[Table] = &[
     Table {
         name: "spans",
-        desc: "Individual spans within traces: timing, tokens, costs, and LLM-specific data.",
+        description: "Individual spans within traces: timing, tokens, costs, and LLM-specific data.",
         columns: &[
             col("span_id", "UUID", "Unique id of the span"),
             col("trace_id", "UUID", "Id of the trace this span belongs to"),
@@ -122,7 +124,7 @@ const TABLES: &[Table] = &[
     },
     Table {
         name: "traces",
-        desc: "Top-level trace records aggregating span data with session and user context. \
+        description: "Top-level trace records aggregating span data with session and user context. \
                Filter on start_time/end_time to bound the scan.",
         columns: &[
             col("id", "UUID", "Unique id of the trace"),
@@ -199,7 +201,7 @@ const TABLES: &[Table] = &[
     },
     Table {
         name: "trace_outputs",
-        desc: "Extracted final agent output per trace: the output-message array of the \
+        description: "Extracted final agent output per trace: the output-message array of the \
                last LLM call on the trace's main-agent path.",
         columns: &[
             col("trace_id", "UUID", "Id of the trace"),
@@ -217,7 +219,7 @@ const TABLES: &[Table] = &[
     },
     Table {
         name: "evaluation_datapoints",
-        desc: "Results from evaluations: scores, executor output, and denormalized trace data.",
+        description: "Results from evaluations: scores, executor output, and denormalized trace data.",
         columns: &[
             col("id", "UUID", "Unique id of the evaluation datapoint"),
             col("evaluation_id", "UUID", "Id of the evaluation"),
@@ -314,7 +316,7 @@ const TABLES: &[Table] = &[
     },
     Table {
         name: "dataset_datapoints",
-        desc: "Data points in datasets with input data, targets, and metadata.",
+        description: "Data points in datasets with input data, targets, and metadata.",
         columns: &[
             col("id", "UUID", "Unique id"),
             col("created_at", "DateTime64(9,'UTC')", "When created"),
@@ -326,7 +328,7 @@ const TABLES: &[Table] = &[
     },
     Table {
         name: "dataset_datapoint_versions",
-        desc: "Same columns as dataset_datapoints, but every version of each datapoint \
+        description: "Same columns as dataset_datapoints, but every version of each datapoint \
                rather than only the latest.",
         columns: &[
             col("id", "UUID", "Unique id"),
@@ -339,7 +341,7 @@ const TABLES: &[Table] = &[
     },
     Table {
         name: "logs",
-        desc: "Log entries with severity, body, and trace correlation.",
+        description: "Log entries with severity, body, and trace correlation.",
         columns: &[
             col("log_id", "UUID", "Unique id of the log"),
             col("time", "DateTime64(9,'UTC')", "When the log occurred"),
@@ -360,7 +362,7 @@ const TABLES: &[Table] = &[
     },
     Table {
         name: "signal_runs",
-        desc: "Execution records for signals with status and error info.",
+        description: "Execution records for signals with status and error info.",
         columns: &[
             col("signal_id", "UUID", "Id of the signal"),
             col("job_id", "UUID", "Id of the job"),
@@ -395,7 +397,7 @@ const TABLES: &[Table] = &[
     },
     Table {
         name: "signal_events",
-        desc: "Events emitted by signals during execution. Excludes L0 clusters in `clusters`.",
+        description: "Events emitted by signals during execution. Excludes L0 clusters in `clusters`.",
         columns: &[
             col("id", "UUID", "Unique id of the signal event"),
             col("signal_id", "UUID", "Id of the signal"),
@@ -423,7 +425,7 @@ const TABLES: &[Table] = &[
     },
     Table {
         name: "clusters",
-        desc: "Hierarchy of clusters of similar signal events. Excludes L0 clusters. Use this when \
+        description: "Hierarchy of clusters of similar signal events. Excludes L0 clusters. Use this when \
                the user asks about clusters / clustering / grouped signal events.",
         columns: &[
             col("id", "UUID", "Unique id of the cluster"),
@@ -455,7 +457,7 @@ const TABLES: &[Table] = &[
     },
     Table {
         name: "labeling_queue_items",
-        desc: "Per-item rows of labeling queues.",
+        description: "Per-item rows of labeling queues.",
         columns: &[
             col("id", "UUID", "Unique id of the queue item"),
             col("queue_id", "UUID", "Id of the labeling queue"),
@@ -497,9 +499,9 @@ pub fn build_schema_prompt() -> String {
     let mut out = String::new();
     out.push_str("<tables>\n");
     for table in TABLES {
-        out.push_str(&format!("TABLE {} — {}\n", table.name, table.desc));
+        out.push_str(&format!("TABLE {} — {}\n", table.name, table.description));
         for c in table.columns {
-            out.push_str(&format!("  {} {} — {}\n", c.name, c.ty, c.desc));
+            out.push_str(&format!("  {} {} — {}\n", c.name, c.ty, c.description));
         }
         out.push('\n');
     }
