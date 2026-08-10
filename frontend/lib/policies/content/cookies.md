@@ -26,11 +26,11 @@ We use first- and third-party cookies for several reasons. Some cookies are requ
 
 You have the right to decide whether to accept or reject cookies. You can exercise your cookie rights by setting your preferences in the Cookie Consent Manager. The Cookie Consent Manager allows you to select which categories of cookies you accept or reject. Essential cookies cannot be rejected as they are strictly necessary to provide you with services.The Cookie Consent Manager can be found in the notification banner and on our Website. If you choose to reject cookies, you may still use our Website though your access to some functionality and areas of our Website may be restricted. You may also set or amend your web browser controls to accept or refuse cookies.
 
-The specific types of first- and third-party cookies served through our Website and the purposes they perform are described in the table below (please note that the specific cookies served may vary depending on the specific Online Properties you visit):\*\*
+The specific types of first- and third-party cookies served through our Website and the purposes they perform are described in the table below (please note that the specific cookies served may vary depending on the specific Online Properties you visit):
 
 ### Essential website cookies:
 
-\*\* These cookies are strictly necessary to provide you with services available through our Website and to use some of its features, such as access to secure areas.
+These cookies are strictly necessary to provide you with services available through our Website and to use some of its features, such as access to secure areas.
 
 |             |                              |
 | ----------- | ---------------------------- |
@@ -66,7 +66,7 @@ The specific types of first- and third-party cookies served through our Website 
 
 ### Analytics and customization cookies:
 
-\*\*These cookies collect information that is used either in aggregate form to help us understand how our Website is being used or how effective our marketing campaigns are, or to help us customize our Website for you.
+These cookies collect information that is used either in aggregate form to help us understand how our Website is being used or how effective our marketing campaigns are, or to help us customize our Website for you.
 
 |             |                     |
 | ----------- | ------------------- |
