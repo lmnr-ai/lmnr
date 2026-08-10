@@ -453,7 +453,10 @@ impl TableRegistry {
         // too expensive to keep inside the hot traces view. `agent_output` is
         // the winning span's full output-message array (Array(String), one raw
         // message JSON per element).
-        let trace_outputs_columns = ["trace_id", "updated_at", "agent_output"];
+        // The time column is `start_time` (the owning trace's), NOT `updated_at`.
+        // Listing `updated_at` let a table-qualified reference pass validation and
+        // then fail in ClickHouse, while the real `start_time` was rejected here.
+        let trace_outputs_columns = ["trace_id", "start_time", "agent_output"];
 
         let dataset_datapoints_columns = [
             "id",

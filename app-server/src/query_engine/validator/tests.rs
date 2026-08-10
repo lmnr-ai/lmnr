@@ -117,6 +117,24 @@ fn test_validate_trace_outputs_select() {
     );
 }
 
+/// `trace_outputs` exposes `start_time`, not `updated_at`. The allowlist used to
+/// say the opposite, so a table-qualified `trace_outputs.updated_at` passed
+/// validation and then died in ClickHouse with UNKNOWN_IDENTIFIER, while the
+/// real `trace_outputs.start_time` was rejected here as a non-existent column.
+/// Only the TABLE-qualified form exercises the allowlist — an alias qualifier
+/// isn't in the registry, so that path skips the check entirely.
+#[test]
+fn test_trace_outputs_time_column_is_start_time() {
+    validate_ok("SELECT trace_outputs.start_time FROM trace_outputs");
+
+    let err = validate("SELECT trace_outputs.updated_at FROM trace_outputs")
+        .expect_err("updated_at is not a trace_outputs column");
+    assert!(
+        err.contains("Column 'updated_at' does not exist"),
+        "got: {err}"
+    );
+}
+
 #[test]
 fn test_validate_evaluation_datapoints_select() {
     let result = validate_ok("SELECT id, evaluation_id FROM evaluation_datapoints");
