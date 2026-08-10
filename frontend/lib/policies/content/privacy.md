@@ -3,9 +3,6 @@ title: "Privacy Notice - Laminar"
 description: "How Laminar collects, uses, and protects personal data."
 ---
 
-{/* DRAFT — NOT REVIEWED BY COUNSEL. This document was prepared internally and
-must be reviewed and approved by outside counsel before publication. */}
-
 # Privacy Notice
 
 **Last updated August 10, 2026**
