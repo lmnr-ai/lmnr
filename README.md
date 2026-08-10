@@ -69,28 +69,28 @@ Compose file used by your deployment when it differs:
 docker compose up -d --force-recreate clickhouse
 ```
 
-Disabling a system log stops new writes but does not remove an existing table.
-To reclaim its disk space, drop the disabled log tables after ClickHouse restarts:
+Disabling a system log stops new writes but does not clear an existing table.
+To reclaim its disk space while preserving the table structure, truncate the
+disabled log tables after ClickHouse restarts:
 
 ```sh
-docker compose exec -T clickhouse sh -c \
-  'clickhouse-client --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --multiquery' <<'SQL'
-DROP TABLE IF EXISTS system.trace_log SYNC;
-DROP TABLE IF EXISTS system.text_log SYNC;
-DROP TABLE IF EXISTS system.part_log SYNC;
-DROP TABLE IF EXISTS system.metric_log SYNC;
-DROP TABLE IF EXISTS system.asynchronous_metric_log SYNC;
-DROP TABLE IF EXISTS system.background_schedule_pool_log SYNC;
-DROP TABLE IF EXISTS system.query_metric_log SYNC;
-DROP TABLE IF EXISTS system.query_thread_log SYNC;
-DROP TABLE IF EXISTS system.query_views_log SYNC;
-DROP TABLE IF EXISTS system.session_log SYNC;
-DROP TABLE IF EXISTS system.crash_log SYNC;
-DROP TABLE IF EXISTS system.opentelemetry_span_log SYNC;
-DROP TABLE IF EXISTS system.zookeeper_log SYNC;
-DROP TABLE IF EXISTS system.blob_storage_log SYNC;
-DROP TABLE IF EXISTS system.processors_profile_log SYNC;
-DROP TABLE IF EXISTS system.asynchronous_insert_log SYNC;
+docker compose exec -T clickhouse clickhouse-client --multiquery <<'SQL'
+TRUNCATE TABLE IF EXISTS system.trace_log;
+TRUNCATE TABLE IF EXISTS system.text_log;
+TRUNCATE TABLE IF EXISTS system.part_log;
+TRUNCATE TABLE IF EXISTS system.metric_log;
+TRUNCATE TABLE IF EXISTS system.asynchronous_metric_log;
+TRUNCATE TABLE IF EXISTS system.background_schedule_pool_log;
+TRUNCATE TABLE IF EXISTS system.query_metric_log;
+TRUNCATE TABLE IF EXISTS system.query_thread_log;
+TRUNCATE TABLE IF EXISTS system.query_views_log;
+TRUNCATE TABLE IF EXISTS system.session_log;
+TRUNCATE TABLE IF EXISTS system.crash_log;
+TRUNCATE TABLE IF EXISTS system.opentelemetry_span_log;
+TRUNCATE TABLE IF EXISTS system.zookeeper_log;
+TRUNCATE TABLE IF EXISTS system.blob_storage_log;
+TRUNCATE TABLE IF EXISTS system.processors_profile_log;
+TRUNCATE TABLE IF EXISTS system.asynchronous_insert_log;
 SQL
 ```
 
