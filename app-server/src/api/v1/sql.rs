@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use actix_limitation::{Error as LimiterError, Limiter};
-use actix_web::{HttpResponse, get, post, web};
+use actix_web::{HttpResponse, post, web};
 use opentelemetry::{
     global,
     trace::{Tracer, mark_span_as_active},
@@ -81,15 +81,6 @@ pub struct SqlQueryRequest {
 #[serde(rename_all = "camelCase")]
 pub struct SqlQueryResponse {
     pub data: Vec<serde_json::Value>,
-}
-
-/// `GET /v1/sql/schema` — the logical tables, columns, and enums a caller may
-/// query. Static per build (it serializes `query_engine::schema`), so it takes
-/// no project scope and hits neither the DB nor ClickHouse; auth exists only to
-/// keep the surface consistent with `/v1/sql/query`.
-#[get("schema")]
-pub async fn get_sql_schema(_project_api_key: ProjectApiKey) -> ResponseResult {
-    Ok(HttpResponse::Ok().json(crate::query_engine::schema::schema_payload()))
 }
 
 #[post("query")]

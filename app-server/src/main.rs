@@ -2300,8 +2300,7 @@ fn main() -> anyhow::Result<()> {
                             .service(
                                 web::scope("/v1/sql")
                                     .wrap(project_auth.clone())
-                                    .service(api::v1::sql::execute_sql_query)
-                                    .service(api::v1::sql::get_sql_schema),
+                                    .service(api::v1::sql::execute_sql_query),
                             )
                             // CLI user-token surface: list_projects takes
                             // CliUserAuth, the rest take CliProjectAuth.
