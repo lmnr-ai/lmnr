@@ -35,11 +35,20 @@ export enum WorkspaceTier {
   ENTERPRISE = "Enterprise",
 }
 
+/** Typed view of `workspaces.settings` JSONB. Kept as a plain interface here
+ * (client-safe); the Zod schema + write path live in
+ * `lib/actions/workspace/settings.ts` (server-only). */
+export interface WorkspaceSettings {
+  privacyMode: boolean;
+}
+
 export interface Workspace {
   id: string;
   name: string;
   tierName: WorkspaceTier;
   addons: string[];
+  // Present on surfaces that fetched it (settings page); absent elsewhere.
+  settings?: WorkspaceSettings;
 }
 
 export interface WorkspaceWithProjects extends Workspace {
