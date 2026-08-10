@@ -417,6 +417,7 @@ impl TableRegistry {
             "trace_id",
             "tags",
             "tool_definitions",
+            "events",
         ];
 
         let traces_columns = [
@@ -446,6 +447,7 @@ impl TableRegistry {
             "span_names",
             "agent_input",
             "internal_metadata",
+            "has_browser_session",
         ];
 
         // Extracted agent outputs live in their own view (`trace_outputs_v0`,

@@ -117,6 +117,17 @@ fn test_validate_trace_outputs_select() {
     );
 }
 
+/// Columns the shared schema advertises must also be allowlisted here, or a
+/// table-qualified reference to one is rejected as nonexistent even though the
+/// `_v0` view exposes it. `spans.events` and `traces.has_browser_session` were
+/// advertised without being allowlisted. Only the TABLE-qualified form hits the
+/// allowlist, which is why the unqualified spelling always worked.
+#[test]
+fn test_schema_advertised_columns_are_allowlisted() {
+    validate_ok("SELECT spans.events FROM spans");
+    validate_ok("SELECT traces.has_browser_session FROM traces");
+}
+
 /// `trace_outputs` exposes `start_time`, not `updated_at`. The allowlist used to
 /// say the opposite, so a table-qualified `trace_outputs.updated_at` passed
 /// validation and then died in ClickHouse with UNKNOWN_IDENTIFIER, while the
