@@ -3,8 +3,8 @@ title: "Terms of Service - Laminar"
 description: "Terms and conditions for using the Laminar platform."
 ---
 
-{/_ DRAFT — NOT REVIEWED BY COUNSEL. This document was prepared internally and
-must be reviewed and approved by outside counsel before publication. _/}
+{/* DRAFT — NOT REVIEWED BY COUNSEL. This document was prepared internally and
+must be reviewed and approved by outside counsel before publication. */}
 
 # TERMS OF USE
 

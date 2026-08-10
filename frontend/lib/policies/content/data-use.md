@@ -3,8 +3,8 @@ title: "Data Use - Laminar"
 description: "How Laminar uses the data you send us, depending on your Privacy Mode setting."
 ---
 
-{/_ DRAFT — NOT REVIEWED BY COUNSEL. This document was prepared internally and
-must be reviewed and approved by outside counsel before publication. _/}
+{/* DRAFT — NOT REVIEWED BY COUNSEL. This document was prepared internally and
+must be reviewed and approved by outside counsel before publication. */}
 
 # How Laminar uses your data
 

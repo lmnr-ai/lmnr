@@ -3,8 +3,8 @@ title: "Privacy Notice - Laminar"
 description: "How Laminar collects, uses, and protects personal data."
 ---
 
-{/_ DRAFT — NOT REVIEWED BY COUNSEL. This document was prepared internally and
-must be reviewed and approved by outside counsel before publication. _/}
+{/* DRAFT — NOT REVIEWED BY COUNSEL. This document was prepared internally and
+must be reviewed and approved by outside counsel before publication. */}
 
 # Privacy Notice
 
@@ -61,10 +61,10 @@ We share personal data with service providers (subprocessors) that help us run t
 | Loops                                                          | Product and marketing email audience | Email, name, sign-up date                                                   |
 | Cloud infrastructure providers (including Amazon Web Services) | Hosting and storage                  | All data processed by the Services                                          |
 
-{/_ NEEDS CONFIRMATION: complete hosting stack for the cloud deployment
+{/* NEEDS CONFIRMATION: complete hosting stack for the cloud deployment
 (managed Postgres/ClickHouse vendors, CDN/DNS) is defined in infra outside
 this repo and must be confirmed before publishing a definitive
-subprocessor list. _/}
+subprocessor list. */}
 
 We also disclose personal data:
 
@@ -81,8 +81,8 @@ We do not sell personal data.
 - Billing records: retained as required by tax and accounting law.
 - Analytics and diagnostics: retained per our analytics providers' configured retention.
 
-{/_ NEEDS CONFIRMATION: PostHog/Sentry project-level retention settings are
-configured in those vendors' dashboards, not in code. _/}
+{/* NEEDS CONFIRMATION: PostHog/Sentry project-level retention settings are
+configured in those vendors' dashboards, not in code. */}
 
 ### A5. Security
 
@@ -144,13 +144,13 @@ Separately from training, customers on eligible plans can enable a per-project s
 - When a customer deletes a project or workspace (or asks us to), the associated Customer Data is deleted from our primary databases. Copies in search indexes, caches, message queues, and backups are deleted or expire on a rolling basis afterward (search-index copies within at most 90 days).
 - Where a workspace had opted into model training under B4, redacted data already incorporated into training datasets and trained models is not retroactively extracted by later deletion or by re-enabling Privacy Mode.
 
-{/_ NEEDS CONFIRMATION: (1) object-storage payloads (S3) are not covered by
+{/* NEEDS CONFIRMATION: (1) object-storage payloads (S3) are not covered by
 the automated project purge today — access is revoked but blobs need a
 lifecycle/cleanup policy before we can promise full deletion; (2) plan
 retention windows are enforced at query time, not by physical deletion —
 if we want to promise deletion at window end, product work is required;
 (3) backup retention periods are set at the infra level. Confirm all
-three before finalizing. _/}
+three before finalizing. */}
 
 ### B7. Self-hosted deployments
 

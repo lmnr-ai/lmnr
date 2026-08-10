@@ -3,8 +3,8 @@ title: "Cookie Policy - Laminar"
 description: "How Laminar uses cookies and similar technologies."
 ---
 
-{/_ DRAFT — NOT REVIEWED BY COUNSEL. This document was prepared internally and
-must be reviewed and approved by outside counsel before publication. _/}
+{/* DRAFT — NOT REVIEWED BY COUNSEL. This document was prepared internally and
+must be reviewed and approved by outside counsel before publication. */}
 
 # COOKIE POLICY
 

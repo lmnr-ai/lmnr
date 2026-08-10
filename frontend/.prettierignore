@@ -1,0 +1,4 @@
+# Policy markdown is MDX-flavored ({/* comments */}); prettier's markdown
+# parser rewrites those comments into invalid syntax ({/_ _/}) and breaks
+# rendering. Legal text is also not code — keep formatting hands-off.
+lib/policies/content/
