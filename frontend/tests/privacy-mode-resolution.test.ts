@@ -2,10 +2,21 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  PRIVACY_MODE_TIER_DEFAULTS_EFFECTIVE_DATE,
   resolvePrivacyMode,
   shouldStampProtectionFloor,
   tierIntrinsicallyDefaultsToOn,
 } from "@/lib/actions/workspace/settings";
+
+// Both sides of the per-plan-defaults cutoff are pinned explicitly by passing
+// `now` — never the ambient clock, or the suite's result would change on the
+// effective date. A null date means defaults never activate, so "after" is
+// unreachable and those assertions are skipped rather than asserted wrongly.
+const effectiveAt = PRIVACY_MODE_TIER_DEFAULTS_EFFECTIVE_DATE
+  ? new Date(PRIVACY_MODE_TIER_DEFAULTS_EFFECTIVE_DATE).getTime()
+  : null;
+const BEFORE_CUTOFF = effectiveAt !== null ? effectiveAt - 86_400_000 : 0;
+const AFTER_CUTOFF = effectiveAt !== null ? effectiveAt + 86_400_000 : 0;
 
 describe("tierIntrinsicallyDefaultsToOn", () => {
   it("defaults OFF for free/hobby/starter and ON for pro and unknown tiers", () => {
@@ -40,26 +51,52 @@ describe("shouldStampProtectionFloor", () => {
 });
 
 describe("resolvePrivacyMode precedence", () => {
-  it("DPA enforcement wins over an explicit off and locks the toggle", () => {
-    assert.deepEqual(resolvePrivacyMode({ dpaEnforcedPrivacyMode: true, privacyMode: false }, "pro"), {
-      enabled: true,
-      locked: true,
+  // Precedence is date-independent, so these assert at both cutoff sides.
+  for (const [label, now] of [
+    ["before the effective date", BEFORE_CUTOFF],
+    ["after the effective date", AFTER_CUTOFF],
+  ] as const) {
+    it(`DPA enforcement wins over an explicit off and locks the toggle (${label})`, () => {
+      assert.deepEqual(resolvePrivacyMode({ dpaEnforcedPrivacyMode: true, privacyMode: false }, "pro", now), {
+        enabled: true,
+        locked: true,
+      });
     });
-  });
 
-  it("an explicit choice beats the protection floor and the tier default", () => {
-    assert.deepEqual(resolvePrivacyMode({ privacyMode: false, privacyModeProtected: true }, "pro"), {
-      enabled: false,
-      locked: false,
+    it(`an explicit choice beats the protection floor and the tier default (${label})`, () => {
+      assert.deepEqual(resolvePrivacyMode({ privacyMode: false, privacyModeProtected: true }, "pro", now), {
+        enabled: false,
+        locked: false,
+      });
+      assert.deepEqual(resolvePrivacyMode({ privacyMode: true }, "free", now), { enabled: true, locked: false });
     });
-    assert.deepEqual(resolvePrivacyMode({ privacyMode: true }, "free"), { enabled: true, locked: false });
+
+    it(`the protection floor keeps an unset workspace ON (${label})`, () => {
+      assert.deepEqual(resolvePrivacyMode({ privacyModeProtected: true }, "free", now), {
+        enabled: true,
+        locked: false,
+      });
+    });
+  }
+});
+
+describe("resolvePrivacyMode per-plan defaults across the effective date", () => {
+  it("an unset, unprotected workspace resolves ON on every plan before the effective date", () => {
+    for (const tier of ["free", "hobby", "starter", "pro"]) {
+      assert.deepEqual(resolvePrivacyMode({}, tier, BEFORE_CUTOFF), { enabled: true, locked: false }, tier);
+    }
   });
 
-  it("the protection floor keeps an unset workspace ON", () => {
-    assert.deepEqual(resolvePrivacyMode({ privacyModeProtected: true }, "free"), { enabled: true, locked: false });
-  });
-
-  it("an unset, unprotected workspace resolves ON while the effective date is unset", () => {
-    assert.deepEqual(resolvePrivacyMode({}, "free"), { enabled: true, locked: false });
+  it("after the effective date, per-plan defaults take over (free/hobby OFF, pro ON)", (t) => {
+    if (effectiveAt === null) {
+      t.skip("PRIVACY_MODE_TIER_DEFAULTS_EFFECTIVE_DATE is null — defaults never activate");
+      return;
+    }
+    for (const tier of ["free", "hobby", "starter"]) {
+      assert.deepEqual(resolvePrivacyMode({}, tier, AFTER_CUTOFF), { enabled: false, locked: false }, tier);
+    }
+    for (const tier of ["pro", "enterprise", "unlimited"]) {
+      assert.deepEqual(resolvePrivacyMode({}, tier, AFTER_CUTOFF), { enabled: true, locked: false }, tier);
+    }
   });
 });

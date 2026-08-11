@@ -66,12 +66,13 @@ const TIER_DEFAULT_OFF = new Set(["free", "hobby", "starter"]);
 export const tierIntrinsicallyDefaultsToOn = (tierName?: string | null): boolean =>
   !TIER_DEFAULT_OFF.has((tierName ?? "").trim().toLowerCase());
 
-/// The default that applies RIGHT NOW: every unset workspace resolves ON until
-/// the effective date passes, then per-tier defaults take over.
-const tierDefaultsToOn = (tierName?: string | null): boolean => {
+/// The default that applies at `now`: every unset workspace resolves ON until
+/// the effective date passes, then per-tier defaults take over. `now` is a
+/// parameter so the cutoff is testable from both sides without a clock mock.
+const tierDefaultsToOn = (tierName?: string | null, now: number = Date.now()): boolean => {
   if (
     PRIVACY_MODE_TIER_DEFAULTS_EFFECTIVE_DATE === null ||
-    Date.now() < new Date(PRIVACY_MODE_TIER_DEFAULTS_EFFECTIVE_DATE).getTime()
+    now < new Date(PRIVACY_MODE_TIER_DEFAULTS_EFFECTIVE_DATE).getTime()
   ) {
     return true;
   }
@@ -96,7 +97,11 @@ export const shouldStampProtectionFloor = (
  * enforcement (locked ON) > explicit owner choice > protection floor from a
  * past downgrade > per-plan default.
  */
-export const resolvePrivacyMode = (settings: WorkspaceSettings, tierName?: string | null): PrivacyModeState => {
+export const resolvePrivacyMode = (
+  settings: WorkspaceSettings,
+  tierName?: string | null,
+  now: number = Date.now()
+): PrivacyModeState => {
   if (settings.dpaEnforcedPrivacyMode) {
     return { enabled: true, locked: true };
   }
@@ -106,7 +111,7 @@ export const resolvePrivacyMode = (settings: WorkspaceSettings, tierName?: strin
   if (settings.privacyModeProtected) {
     return { enabled: true, locked: false };
   }
-  return { enabled: tierDefaultsToOn(tierName), locked: false };
+  return { enabled: tierDefaultsToOn(tierName, now), locked: false };
 };
 
 const UpdateWorkspaceSettingsSchema = z.object({
