@@ -5,7 +5,11 @@ import { type BlogListItem, type MatterAndContent, type StrapiListResponse, type
 const STRAPI_URL = process.env.STRAPI_URL || "http://localhost:1337";
 const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN || "";
 
-const normalizeUploadUrls = (text: string): string => text.replaceAll(/https?:\/\/[^/]+\/uploads\//g, "/uploads/");
+// The host class must exclude whitespace, not just `/`. A bare `[^/]+` spans
+// newlines, so the match runs from any absolute URL to the next `/uploads/` and
+// deletes everything between — one unrelated link before a relative image ate a
+// heading and a paragraph.
+const normalizeUploadUrls = (text: string): string => text.replaceAll(/https?:\/\/[^/\s]+\/uploads\//g, "/uploads/");
 
 const strapiHeaders = (): HeadersInit => {
   const headers: HeadersInit = {};
