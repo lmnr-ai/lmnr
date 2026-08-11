@@ -3,6 +3,9 @@ title: "Terms of Service - Laminar"
 description: "Terms and conditions for using the Laminar platform."
 ---
 
+{/* DRAFT — NOT REVIEWED BY COUNSEL. This document was prepared internally and
+must be reviewed and approved by outside counsel before publication. */}
+
 # TERMS OF USE
 
 **Last updated August 10, 2026**
@@ -17,7 +20,7 @@ You can contact us by email at founders@lmnr.ai or by mail to 2261 Market Street
 
 These Legal Terms constitute a legally binding agreement made between you, whether personally or on behalf of an entity ("**you**"), and LMNR AI, Inc., concerning your access to and use of the Services. You agree that by accessing the Services, you have read, understood, and agreed to be bound by all of these Legal Terms. IF YOU DO NOT AGREE WITH ALL OF THESE LEGAL TERMS, THEN YOU ARE EXPRESSLY PROHIBITED FROM USING THE SERVICES AND YOU MUST DISCONTINUE USE IMMEDIATELY.
 
-Supplemental terms and conditions or documents that may be posted on the Services from time to time are hereby expressly incorporated herein by reference. We reserve the right, in our sole discretion, to make changes or modifications to these Legal Terms at any time and for any reason. We will alert you about any changes by updating the "Last updated" date of these Legal Terms, and you waive any right to receive specific notice of each such change. It is your responsibility to periodically review these Legal Terms to stay informed of updates. You will be subject to, and will be deemed to have been made aware of and to have accepted, the changes in any revised Legal Terms by your continued use of the Services after the date such revised Legal Terms are posted.
+Supplemental terms and conditions or documents that may be posted on the Services from time to time are hereby expressly incorporated herein by reference. We reserve the right to make changes or modifications to these Legal Terms at any time and for any reason. We will alert you about any changes by updating the "Last updated" date of these Legal Terms, and, for material changes, we will provide notice by email or in-product message at least 30 days before the changes take effect for existing customers. You will be subject to, and will be deemed to have been made aware of and to have accepted, the changes in any revised Legal Terms by your continued use of the Services after the date such revised Legal Terms take effect.
 
 We recommend that you print a copy of these Legal Terms for your records.
 
@@ -69,7 +72,7 @@ The information provided when using the Services is not intended for distributio
 
 ### Our intellectual property
 
-We are the owner or the licensee of all intellectual property rights in our Services, including all source code, databases, functionality, software, website designs, audio, video, text, photographs, and graphics in the Services (collectively, the "Content"), as well as the trademarks, service marks, and logos contained therein (the "Marks").Our Content and Marks are protected by copyright and trademark laws (and various other intellectual property rights and unfair competition laws) and treaties around the world. The Content and Marks are provided in or through the Services "AS IS" for your personal, non-commercial use or internal business purpose only.
+We are the owner or the licensee of all intellectual property rights in our Services, including all source code, databases, functionality, software, website designs, audio, video, text, photographs, and graphics in the Services (collectively, the "Content"), as well as the trademarks, service marks, and logos contained therein (the "Marks").Our Content and Marks are protected by copyright and trademark laws (and various other intellectual property rights and unfair competition laws) and treaties around the world. The Content and Marks are provided in or through the Services "AS IS" for your personal use or internal business purpose only. Open-source components of the Services are separately licensed under their own license terms, which govern those components.
 
 ### Your use of our Services
 
@@ -78,7 +81,7 @@ Subject to your compliance with these Legal Terms, including the "[PROHIBITED AC
 - access the Services; and
 - download or print a copy of any portion of the Content to which you have properly gained access,
 
-solely for your personal, non-commercial use or internal business purpose .Except as set out in this section or elsewhere in our Legal Terms, no part of the Services and no Content or Marks may be copied, reproduced, aggregated, republished, uploaded, posted, publicly displayed, encoded, translated, transmitted, distributed, sold, licensed, or otherwise exploited for any commercial purpose whatsoever, without our express prior written permission.If you wish to make any use of the Services, Content, or Marks other than as set out in this section or elsewhere in our Legal Terms, please address your request to: founders@lmnr.ai. If we ever grant you the permission to post, reproduce, or publicly display any part of our Services or Content, you must identify us as the owners or licensors of the Services, Content, or Marks and ensure that any copyright or proprietary notice appears or is visible on posting, reproducing, or displaying our Content.
+solely for your personal use or internal business purpose. Except as set out in this section or elsewhere in our Legal Terms, no part of the Services and no Content or Marks may be copied, reproduced, aggregated, republished, uploaded, posted, publicly displayed, encoded, translated, transmitted, distributed, sold, licensed, or otherwise exploited for resale or redistribution without our express prior written permission. If you wish to make any use of the Services, Content, or Marks other than as set out in this section or elsewhere in our Legal Terms, please address your request to: founders@lmnr.ai. If we ever grant you the permission to post, reproduce, or publicly display any part of our Services or Content, you must identify us as the owners or licensors of the Services, Content, or Marks and ensure that any copyright or proprietary notice appears or is visible on posting, reproducing, or displaying our Content.
 
 We reserve all rights not expressly granted to you in and to the Services, Content, and Marks.Any breach of these Intellectual Property Rights will constitute a material breach of our Legal Terms and your right to use our Services will terminate immediately.
 
@@ -99,17 +102,16 @@ You are solely responsible for your Submissions and you expressly agree to reimb
 
 ## 3\. USER REPRESENTATIONS
 
-By using the Services, you represent and warrant that:(1) you have the legal capacity and you agree to comply with these Legal Terms;(2) you are not a minor in the jurisdiction in which you reside ; ( 3) you will not access the Services through automated or non-human means, whether through a bot, script or otherwise; (4) you will not use the Services for any illegal or unauthorized purpose; and (5) your use of the Services will not violate any applicable law or regulation.
+By using the Services, you represent and warrant that: (1) you have the legal capacity and you agree to comply with these Legal Terms; (2) you are not a minor in the jurisdiction in which you reside; (3) you will access the Services only through the interfaces we provide — including our documented APIs, SDKs, and command-line tools, whose automated use is expressly permitted — and will not use abusive or otherwise unauthorized automation against the Services; (4) you will not use the Services for any illegal or unauthorized purpose; and (5) your use of the Services will not violate any applicable law or regulation.
 
 If you provide any information that is untrue, inaccurate, not current, or incomplete, we have the right to suspend or terminate your account and refuse any and all current or future use of the Services (or any portion thereof).
 
 ## 4\. PROHIBITED ACTIVITIES
 
-You may not access or use the Services for any purpose other than that for which we make the Services available. The Services may not be used in connection with any commercial endeavors except those that are specifically endorsed or approved by us.
+You may not access or use the Services for any purpose other than that for which we make the Services available. For clarity, using the Services for your internal business purposes — including through our documented APIs, SDKs, and command-line tools — is permitted and is not a prohibited activity under this section.
 
 As a user of the Services, you agree not to:
 
-- Systematically retrieve data or other content from the Services to create or compile, directly or indirectly, a collection, compilation, database, or directory without written permission from us.
 - Trick, defraud, or mislead us and other users, especially in any attempt to learn sensitive account information such as user passwords.
 - Circumvent, disable, or otherwise interfere with security-related features of the Services, including features that prevent or restrict the use or copying of any Content or enforce limitations on the use of the Services and/or the Content contained therein.
 - Disparage, tarnish, or otherwise harm, in our opinion, us and/or the Services.
@@ -118,7 +120,6 @@ As a user of the Services, you agree not to:
 - Use the Services in a manner inconsistent with any applicable laws or regulations.
 - Engage in unauthorized framing of or linking to the Services.
 - Upload or transmit (or attempt to upload or to transmit) viruses, Trojan horses, or other material, including excessive use of capital letters and spamming (continuous posting of repetitive text), that interferes with any party’s uninterrupted use and enjoyment of the Services or modifies, impairs, disrupts, alters, or interferes with the use, features, functions, operation, or maintenance of the Services.
-- Engage in any automated use of the system, such as using scripts to send comments or messages, or using any data mining, robots, or similar data gathering and extraction tools.
 - Delete the copyright or other proprietary rights notice from any Content.
 - Attempt to impersonate another user or person or use the username of another user.
 - Upload or transmit (or attempt to upload or to transmit) any material that acts as a passive or active information collection or transmission mechanism, including without limitation, clear graphics interchange formats ("gifs"), 1×1 pixels, web bugs, cookies, or other similar devices (sometimes referred to as "spyware" or "passive collection mechanisms" or "pcms" ).
@@ -127,14 +128,17 @@ As a user of the Services, you agree not to:
 - Attempt to bypass any measures of the Services designed to prevent or restrict access to the Services, or any portion of the Services.
 - Copy or adapt the Services' software, including but not limited to Flash, PHP, HTML, JavaScript, or other code.
 - Except as permitted by applicable law, decipher, decompile, disassemble, or reverse engineer any of the software comprising or in any way making up a part of the Services.
-- Except as may be the result of standard search engine or Internet browser usage, use, launch, develop, or distribute any automated system, including without limitation, any spider, robot, cheat utility, scraper, or offline reader that accesses the Services, or use or launch any unauthorized script or other software.
-- Use a buying agent or purchasing agent to make purchases on the Services.
-- Make any unauthorized use of the Services, including collecting usernames and/or email addresses of users by electronic or other means for the purpose of sending unsolicited email, or creating user accounts by automated means or under false pretenses .
-- Use the Services as part of any effort to compete with us or otherwise use the Services and/or the Content for any revenue-generating endeavor or commercial enterprise.
+- Except through our documented APIs, SDKs, and command-line tools, or as may be the result of standard search engine or Internet browser usage, use, launch, develop, or distribute any automated system, including without limitation, any spider, robot, cheat utility, scraper, or offline reader that accesses the Services, or use or launch any unauthorized script or other software.
+- Make any unauthorized use of the Services, including collecting usernames and/or email addresses of users by electronic or other means for the purpose of sending unsolicited email, or creating user accounts by automated means or under false pretenses.
+- Use the Services as part of any effort to build or offer a competing product or service.
 
 ## 5\. USER GENERATED CONTRIBUTIONS
 
-The Services does not offer users to submit or post content. We may provide you with the opportunity to create, submit, post, display, transmit, perform, publish, distribute, or broadcast content and materials to us or on the Services, including but not limited to text, writings, video, audio, photographs, graphics, comments, suggestions, or personal information or other material (collectively, "Contributions"). Contributions may be viewable by other users of the Services and through third-party websites. When you create or make available any Contributions, you thereby represent and warrant that:
+The Services may provide you with the opportunity to create, submit, or share content and materials on the Services — for example dashboards, SQL queries, render templates, annotations, and traces or evaluations you choose to share via public links (collectively, "Contributions"). Contributions you share via a public link are viewable by anyone with the link. When you create or make available any Contributions, you represent and warrant that:
+
+- your Contributions are not illegal, harassing, hateful, defamatory, obscene, discriminatory, or otherwise objectionable, and do not violate any applicable law or regulation;
+- your Contributions do not infringe the intellectual property, privacy, or publicity rights of any third party, and you have all rights, licenses, and consents needed to submit them; and
+- you will not share, via public links or otherwise, personal data or confidential information that you do not have the right to disclose.
 
 ## 6\. CONTRIBUTION LICENSE
 
@@ -188,21 +192,27 @@ You agree to defend, indemnify, and hold us harmless, including our subsidiaries
 
 "**Customer Data**" means the data you submit to the Services for processing, including traces, spans, and their contents (such as model inputs and outputs, prompts, tool calls, and message content), session recordings, evaluation and dataset records, and associated metadata. Customer Data does not include your account registration information, billing information, or usage and diagnostic data about how you use the Services. As between you and us, you retain all right, title, and interest in and to Customer Data. You are responsible for the content of Customer Data and represent that you have all rights, consents, and permissions necessary to submit it to the Services and to grant the licenses in this section, including with respect to any personal data of your own end users contained in it.
 
+"**Signal Run Data**" means the data generated when the Signals feature processes your traces: the trace content examined during the run and the outputs and intermediate reasoning produced by our models in the course of that run.
+
 ### License to provide the Services
 
 You grant us a worldwide, non-exclusive license to host, store, process, transmit, and display Customer Data as necessary to provide, maintain, secure, and support the Services and to comply with law. This license is limited to those purposes and ends when the Customer Data is deleted from the Services, except as needed to comply with law.
 
 ### Model improvement license and Privacy Mode
 
-Each workspace has a **Privacy Mode** setting, which is ON by default. While Privacy Mode is on, we do not use that workspace's Customer Data to train or improve machine-learning models.
+Each workspace has a **Privacy Mode** setting. While Privacy Mode is on, we do not use that workspace's Customer Data to train or improve machine-learning models.
 
-If a workspace owner turns Privacy Mode off, you grant us a non-exclusive, revocable license to use Customer Data from that workspace to train and improve our machine-learning models and Services, subject to all of the following commitments:
+The default state of Privacy Mode depends on your plan: on Free and Hobby plans, Privacy Mode is off by default; on Pro and higher plans, Privacy Mode is on by default; and for accounts covered by a signed data processing agreement, Privacy Mode is on and enforced and cannot be turned off. Defaults apply only where a workspace owner has not made an explicit choice; an explicit choice you have recorded survives plan changes, and a plan change never lowers a workspace's protection level. These defaults take effect for existing workspaces only on [EFFECTIVE_DATE], following the notice period described in these Legal Terms.
 
-- **Mandatory redaction.** Customer Data is processed through our redaction pipeline, designed to remove detected personal information, before any use for training. This applies on the training path regardless of your project-level ingestion settings.
-- **Prospective revocation.** Turning Privacy Mode back on revokes the license and stops any new use of that workspace's Customer Data for training from that point forward. Revocation does not affect models already trained, which cannot be reversed to remove the influence of previously used data.
-- **Scope.** This license applies only to Customer Data processed by Laminar-hosted deployments of the Services. It does not apply to self-hosted deployments or to data stored on customer-controlled data planes, which we do not access for training. See our Data Use page at [https://laminar.sh/policies/data-use](/policies/data-use) for a plain-language description of how data is used.
+While Privacy Mode is off for a workspace, you grant us a non-exclusive, revocable license to use Signal Run Data from that workspace to train and improve the machine-learning models that power the Services' AI-assisted features, subject to all of the following commitments:
 
-If a separate written agreement between you and us (such as an enterprise agreement or data processing agreement) addresses the use of Customer Data for model training, that agreement controls over this section to the extent of any conflict.
+- **Scope of data.** This license covers Signal Run Data only. Customer Data that the Signals feature has not processed is not used for training.
+- **Historical cutoff.** This license applies only to Signal Run Data generated on or after [EFFECTIVE_DATE]. Use of data generated before that date requires your separate written consent.
+- **Mandatory redaction.** Signal Run Data is processed through our redaction pipeline, designed to remove detected personal information, before any use for training. This applies on the training path regardless of your project-level ingestion settings.
+- **Revocation.** Turning Privacy Mode back on revokes the license, stops any new use of that workspace's Signal Run Data for training from that point forward, and removes that workspace's data from any training dataset that has not yet been used in a completed training run. Revocation does not affect models already trained, which cannot be reversed to remove the influence of previously used data.
+- **Deployment scope.** This license applies only to data processed by Laminar-hosted deployments of the Services. It does not apply to self-hosted deployments or to data stored on customer-controlled data planes, which we do not access for training. See our Data Use page at [https://laminar.sh/policies/data-use](/policies/data-use) for a plain-language description of how data is used.
+
+If a separate written agreement between you and us (such as an enterprise agreement or data processing agreement) addresses the use of Customer Data or Signal Run Data for model training, that agreement controls over this section to the extent of any conflict.
 
 ### Backups and responsibility
 

@@ -35,11 +35,14 @@ export enum WorkspaceTier {
   ENTERPRISE = "Enterprise",
 }
 
-/** Typed view of `workspaces.settings` JSONB. Kept as a plain interface here
- * (client-safe); the Zod schema + write path live in
+/** The workspace's EFFECTIVE Privacy Mode, resolved server-side from the
+ * tri-state stored setting (explicit on / explicit off / unset → per-plan
+ * default) and DPA enforcement. `locked` means a signed DPA forces it on and
+ * the toggle is read-only. Resolution lives in
  * `lib/actions/workspace/settings.ts` (server-only). */
-export interface WorkspaceSettings {
-  privacyMode: boolean;
+export interface PrivacyModeState {
+  enabled: boolean;
+  locked: boolean;
 }
 
 export interface Workspace {
@@ -48,7 +51,7 @@ export interface Workspace {
   tierName: WorkspaceTier;
   addons: string[];
   // Present on surfaces that fetched it (settings page); absent elsewhere.
-  settings?: WorkspaceSettings;
+  privacyMode?: PrivacyModeState;
 }
 
 export interface WorkspaceWithProjects extends Workspace {

@@ -14,38 +14,87 @@ import { z } from "zod/v4";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { db } from "@/lib/db/drizzle";
 import { workspaces } from "@/lib/db/migrations/schema";
+import { type PrivacyModeState } from "@/lib/workspaces/types";
+
+/**
+ * Per-plan Privacy Mode defaults take effect for existing workspaces on this
+ * date, after the contractual notice period. While null (placeholder — set to
+ * an ISO date like "2026-10-01" at rollout), every workspace with no explicit
+ * choice resolves to Privacy Mode ON, regardless of plan.
+ */
+export const PRIVACY_MODE_TIER_DEFAULTS_EFFECTIVE_DATE: string | null = null;
 
 export const WorkspaceSettingsSchema = z
   .object({
-    /// Cloud-only. When true (the default), no data from this workspace's
-    /// projects is used to train or improve Laminar models. Disabling it
-    /// opts the workspace's redacted trace data into model improvement — see
-    /// /policies/data-use. Self-hosted deployments never send data to
-    /// Laminar, so the toggle is hidden there and the value is inert.
+    /// Cloud-only. The workspace owner's EXPLICIT Privacy Mode choice.
+    /// Absent = unset (tri-state): defaults then apply per plan via
+    /// `resolvePrivacyMode`. An explicit choice survives plan changes.
     privacyMode: z.boolean(),
+    /// Protection floor stamped when a workspace whose resolved Privacy Mode
+    /// was ON is downgraded to a tier whose default is OFF, so a plan change
+    /// never lowers protection. Not an explicit user choice — an explicit
+    /// choice takes precedence over it.
+    privacyModeProtected: z.boolean(),
+    /// Set out-of-band (ops) for accounts covered by a signed data processing
+    /// agreement. Forces Privacy Mode ON and locks the toggle; overrides an
+    /// explicit_off recorded before the DPA was signed. Deliberately NOT
+    /// writable through the public settings route.
+    dpaEnforcedPrivacyMode: z.boolean(),
   })
+  .partial()
   // Reject unknown keys — a typo surfaces as 400 rather than silently
   // landing in the JSONB row.
   .strict();
 
 export type WorkspaceSettings = z.infer<typeof WorkspaceSettingsSchema>;
 
-/// Defaults applied when the row's JSONB is missing a key. Privacy Mode is
-/// ON by default: workspaces are excluded from model improvement unless the
-/// owner explicitly opts in.
-export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
-  privacyMode: true,
-};
+/// The subset of settings the PATCH route accepts. `dpaEnforcedPrivacyMode`
+/// and `privacyModeProtected` are system-managed.
+export const UpdatableWorkspaceSettingsSchema = WorkspaceSettingsSchema.pick({ privacyMode: true });
 
 export const parseWorkspaceSettings = (raw: unknown): WorkspaceSettings => {
-  const parsed = WorkspaceSettingsSchema.partial().safeParse(raw ?? {});
-  return { ...DEFAULT_WORKSPACE_SETTINGS, ...(parsed.success ? parsed.data : {}) };
+  const parsed = WorkspaceSettingsSchema.safeParse(raw ?? {});
+  return parsed.success ? parsed.data : {};
+};
+
+const TIER_DEFAULT_OFF = new Set(["free", "hobby", "starter"]);
+
+/// Whether a tier's Privacy Mode DEFAULT (for workspaces with no explicit
+/// choice) is ON. Free/Hobby default OFF once the effective date passes;
+/// Pro and above — and anything unrecognized — default ON.
+const tierDefaultsToOn = (tierName?: string | null): boolean => {
+  if (
+    PRIVACY_MODE_TIER_DEFAULTS_EFFECTIVE_DATE === null ||
+    Date.now() < new Date(PRIVACY_MODE_TIER_DEFAULTS_EFFECTIVE_DATE).getTime()
+  ) {
+    return true;
+  }
+  return !TIER_DEFAULT_OFF.has((tierName ?? "").trim().toLowerCase());
+};
+
+/**
+ * Resolves the workspace's effective Privacy Mode. Precedence: DPA
+ * enforcement (locked ON) > explicit owner choice > protection floor from a
+ * past downgrade > per-plan default.
+ */
+export const resolvePrivacyMode = (settings: WorkspaceSettings, tierName?: string | null): PrivacyModeState => {
+  if (settings.dpaEnforcedPrivacyMode) {
+    return { enabled: true, locked: true };
+  }
+  if (typeof settings.privacyMode === "boolean") {
+    return { enabled: settings.privacyMode, locked: false };
+  }
+  if (settings.privacyModeProtected) {
+    return { enabled: true, locked: false };
+  }
+  return { enabled: tierDefaultsToOn(tierName), locked: false };
 };
 
 const UpdateWorkspaceSettingsSchema = z.object({
   workspaceId: z.guid(),
-  // `Partial` so callers can update one key without re-sending all of them.
-  settings: WorkspaceSettingsSchema.partial(),
+  // `Partial` via the schema itself so callers can update one key without
+  // re-sending all of them.
+  settings: UpdatableWorkspaceSettingsSchema,
 });
 
 export async function updateWorkspaceSettings(input: z.infer<typeof UpdateWorkspaceSettingsSchema>) {
@@ -58,6 +107,19 @@ export async function updateWorkspaceSettings(input: z.infer<typeof UpdateWorksp
     return { success: true };
   }
 
+  if (settings.privacyMode !== undefined) {
+    const row = await db.query.workspaces.findFirst({
+      where: eq(workspaces.id, workspaceId),
+      columns: { settings: true },
+    });
+    if (!row) {
+      throw new Error("Workspace not found");
+    }
+    if (parseWorkspaceSettings(row.settings).dpaEnforcedPrivacyMode) {
+      throw new Error("Privacy Mode is enforced by your organization's data processing agreement.");
+    }
+  }
+
   const result = await db
     .update(workspaces)
     .set({ settings: sql`${workspaces.settings} || ${JSON.stringify(settings)}::jsonb` })
@@ -67,4 +129,36 @@ export async function updateWorkspaceSettings(input: z.infer<typeof UpdateWorksp
   }
 
   return { success: true };
+}
+
+/**
+ * Called from the Stripe webhook on tier transitions. When a workspace whose
+ * Privacy Mode resolved ON under the OLD tier (with no explicit owner choice)
+ * moves to a tier whose default is OFF, stamp the protection floor so the
+ * transition doesn't lower protection. Never touches explicit choices, and
+ * never stamps a workspace that was already resolved-OFF (e.g. Free → Hobby).
+ */
+export async function preservePrivacyModeOnDowngrade(
+  workspaceId: string,
+  previousTierName: string | null | undefined,
+  newTierName: string | null | undefined
+) {
+  if (tierDefaultsToOn(newTierName) || !tierDefaultsToOn(previousTierName)) {
+    return;
+  }
+  const row = await db.query.workspaces.findFirst({
+    where: eq(workspaces.id, workspaceId),
+    columns: { settings: true },
+  });
+  if (!row) {
+    return;
+  }
+  const settings = parseWorkspaceSettings(row.settings);
+  if (typeof settings.privacyMode === "boolean" || settings.privacyModeProtected) {
+    return;
+  }
+  await db
+    .update(workspaces)
+    .set({ settings: sql`${workspaces.settings} || '{"privacyModeProtected": true}'::jsonb` })
+    .where(eq(workspaces.id, workspaceId));
 }

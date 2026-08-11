@@ -3,6 +3,10 @@ title: "Privacy Notice - Laminar"
 description: "How Laminar collects, uses, and protects personal data."
 ---
 
+{/* DRAFT — NOT REVIEWED BY COUNSEL. This document was prepared internally and
+must be reviewed and approved by outside counsel before publication.
+Open items that block publishing live in docs/internal/counsel-handoff.md. */}
+
 # Privacy Notice
 
 **Last updated August 10, 2026**
@@ -58,15 +62,10 @@ We share personal data with service providers (subprocessors) that help us run t
 | Loops                                                          | Product and marketing email audience | Email, name, sign-up date                                                   |
 | Cloud infrastructure providers (including Amazon Web Services) | Hosting and storage                  | All data processed by the Services                                          |
 
-{/* NEEDS CONFIRMATION: complete hosting stack for the cloud deployment
-(managed Postgres/ClickHouse vendors, CDN/DNS) is defined in infra outside
-this repo and must be confirmed before publishing a definitive
-subprocessor list. */}
-
 We also disclose personal data:
 
 - **To integrations you connect.** For example, if a workspace connects Slack, we send configured alerts, digests, and reports to that Slack workspace.
-- **To AI model providers.** Certain optional features send the content you are working with to a third-party model provider to generate a response — see Part B.
+- **To AI model providers.** Certain optional features send the content you are working with to a third-party model provider (Google Cloud or AWS Bedrock) to generate a response — see Part B.
 - **In business transfers.** In connection with a merger, acquisition, financing, or sale of assets, subject to confidentiality obligations.
 - **For legal reasons.** Where required by law or to protect rights, safety, and the integrity of the Services.
 
@@ -77,9 +76,6 @@ We do not sell personal data.
 - Account and workspace data: for as long as your account exists, then deleted or anonymized within a reasonable period, except where law requires longer retention (for example tax and accounting records).
 - Billing records: retained as required by tax and accounting law.
 - Analytics and diagnostics: retained per our analytics providers' configured retention.
-
-{/* NEEDS CONFIRMATION: PostHog/Sentry project-level retention settings are
-configured in those vendors' dashboards, not in code. */}
 
 ### A5. Security
 
@@ -121,15 +117,17 @@ For Customer Data, the customer is the controller (or a service provider to anot
 We process Customer Data:
 
 - to provide the platform — ingestion, storage, display, search, analytics, evaluations, and alerting;
-- to run optional AI-assisted features the customer invokes or configures (for example failure detection, signal extraction, summarization, and AI-assisted queries). Some of these features send the relevant Customer Data to a third-party model provider (such as OpenAI, Google, or AWS Bedrock serving Anthropic models) to generate a response at the time of use. We do not permit these providers to train on Customer Data. Playground features that use the customer's own model API keys send data to the provider the customer selects;
-- to improve Laminar's own models, **only** for workspaces that have turned Privacy Mode off — see B4; and
+- to run optional AI-assisted features the customer invokes or configures (for example failure detection, signal extraction, summarization, and AI-assisted queries). Some of these features send the relevant Customer Data to a third-party model provider (Google Cloud or AWS Bedrock) to generate a response at the time of use. We do not permit these providers to train on Customer Data. Playground features that use the customer's own model API keys send data to the provider the customer selects;
+- to improve Laminar's own models, **only** using Signal Run Data from workspaces where Privacy Mode is off — see B4; and
 - to secure the Services, meter usage, and bill.
 
 Customer Data is stored with our cloud infrastructure providers listed in Part A. Configured alert and report content derived from Customer Data is delivered through our email provider and, where connected, to the customer's Slack workspace.
 
 ### B4. Model training and Privacy Mode
 
-Every workspace has a **Privacy Mode** setting, on by default. While Privacy Mode is on, we do not use that workspace's Customer Data to train or improve machine-learning models. If a workspace owner turns Privacy Mode off, we may use that workspace's trace data to train and improve Laminar's own models, subject to the commitments described on our [Data Use page](/policies/data-use) and in our [Terms of Service](/policies/terms): Customer Data is processed through our redaction pipeline — designed to remove detected personal information — before any training use; turning Privacy Mode back on stops future training use prospectively; and models already trained cannot be reversed. Self-hosted deployments and customer-controlled data planes are never used for training — we have no access to that data at all.
+Every workspace has a **Privacy Mode** setting. While Privacy Mode is on, we do not use that workspace's Customer Data to train or improve machine-learning models. Its default depends on the customer's plan: off by default on Free and Hobby plans, on by default on Pro and higher plans, and on and enforced (not changeable) for accounts covered by a signed data processing agreement. Defaults apply only where the workspace owner has not made an explicit choice, an explicit choice survives plan changes, and a plan change never lowers a workspace's protection level. These defaults take effect for existing workspaces only on [EFFECTIVE_DATE], after the notice period.
+
+While Privacy Mode is off, we may use that workspace's **Signal Run Data** — the trace content examined by the Signals feature during a run, and the outputs and intermediate reasoning our models produce in that run — to train and improve the machine-learning models that power the Services' AI-assisted features, subject to the commitments in our [Terms of Service](/policies/terms) and described on our [Data Use page](/policies/data-use): only Signal Run Data generated on or after [EFFECTIVE_DATE] is used (earlier data requires separate written consent); it is processed through our redaction pipeline — designed to remove detected personal information — before any training use; turning Privacy Mode back on stops future training use and removes the workspace's data from any training dataset that has not yet been used in a completed training run; and models already trained cannot be reversed. Customer Data that Signals has not processed is not used for training. Self-hosted deployments and customer-controlled data planes are never used for training — we have no access to that data at all.
 
 ### B5. PII redaction at ingestion
 
@@ -137,17 +135,9 @@ Separately from training, customers on eligible plans can enable a per-project s
 
 ### B6. Retention and deletion of Customer Data
 
-- Customer Data is retained for as long as the customer's project exists. Plan-based retention windows (for example 7 days on Free, 30 days on Starter, 6 months on Pro) limit how far back data is accessible in the product.
+- Customer Data is retained for as long as the customer's project exists. Plan-based retention windows (see our [pricing page](/pricing) for the current window per plan) limit how far back data is accessible in the product.
 - When a customer deletes a project or workspace (or asks us to), the associated Customer Data is deleted from our primary databases. Copies in search indexes, caches, message queues, and backups are deleted or expire on a rolling basis afterward (search-index copies within at most 90 days).
 - Where a workspace had opted into model training under B4, redacted data already incorporated into training datasets and trained models is not retroactively extracted by later deletion or by re-enabling Privacy Mode.
-
-{/* NEEDS CONFIRMATION: (1) object-storage payloads (S3) are not covered by
-the automated project purge today — access is revoked but blobs need a
-lifecycle/cleanup policy before we can promise full deletion; (2) plan
-retention windows are enforced at query time, not by physical deletion —
-if we want to promise deletion at window end, product work is required;
-(3) backup retention periods are set at the infra level. Confirm all
-three before finalizing. */}
 
 ### B7. Self-hosted deployments
 

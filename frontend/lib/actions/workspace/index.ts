@@ -3,7 +3,7 @@ import { z } from "zod/v4";
 
 import { stripe } from "@/lib/actions/checkout/stripe.ts";
 import { deleteProject } from "@/lib/actions/project";
-import { parseWorkspaceSettings } from "@/lib/actions/workspace/settings";
+import { parseWorkspaceSettings, resolvePrivacyMode } from "@/lib/actions/workspace/settings";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { getServerSession } from "@/lib/auth-session";
 import { cache, PROJECT_MEMBER_CACHE_KEY, WORKSPACE_MEMBER_CACHE_KEY } from "@/lib/cache";
@@ -135,7 +135,7 @@ export const getWorkspace = async (input: z.infer<typeof GetWorkspaceSchema>): P
     name: workspace[0].name,
     tierName: workspace[0].tierName as WorkspaceTier,
     addons,
-    settings: parseWorkspaceSettings(workspace[0].settings),
+    privacyMode: resolvePrivacyMode(parseWorkspaceSettings(workspace[0].settings), workspace[0].tierName),
   };
 };
 
