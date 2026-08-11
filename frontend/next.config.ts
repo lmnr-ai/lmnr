@@ -31,6 +31,14 @@ const nextConfig: NextConfig = {
   },
   serverExternalPackages: ["@lmnr-ai/lmnr", "@sentry/nextjs"],
   output: "standalone",
+  // Policy markdown is read with fs at request time, which the standalone
+  // file tracer can't see — without this the .md files are missing in the
+  // production image and /policies/* 500s.
+  outputFileTracingIncludes: {
+    // Key is a minimatch glob over route names; "[slug]" would parse as a
+    // character class, so match the whole segment with a wildcard.
+    "/policies/*": ["./lib/policies/content/*.md"],
+  },
   async rewrites() {
     // Forward LEGACY NextAuth genericOAuth callbacks to Better Auth's handler so
     // self-hosted Okta/Keycloak/Azure SSO keeps working with no IdP change (paired
