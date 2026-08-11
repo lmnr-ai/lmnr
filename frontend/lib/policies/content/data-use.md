@@ -1,45 +1,27 @@
 ---
-title: "Data Use - Laminar"
-description: "How Laminar uses the data you send us, depending on your Privacy Mode setting."
+title: "Data Use"
+description: "How Laminar uses Signal run data."
 ---
 
-{/* DRAFT — NOT REVIEWED BY COUNSEL. This document was prepared internally and
-must be reviewed and approved by outside counsel before publication. */}
+# Data Use
 
-# How Laminar uses your data
+**Last updated August 11, 2026**
 
-**Last updated August 10, 2026**
+If you have any questions, email us at founders@lmnr.ai. For full detail on how we collect, use, and process personal data, see our [Privacy Notice](/policies/privacy).
 
-This page explains, in plain language, what happens to the data your agents send to Laminar Cloud — traces, model inputs and outputs, session recordings, evaluations, and datasets. What we do with it depends on one setting: **Privacy Mode**, which workspace owners control in workspace settings.
+Laminar fine-tunes the custom models that power [Signals](/docs/signals) on signal runs: when Signals analyzes your traces, the run produces a record of the content it examined and the results it generated. Whether your workspace's Signal runs are used for this depends on Privacy Mode setting:
 
-## If Privacy Mode is on
+- If Privacy Mode is on: we do not use your Signal runs to fine-tune our models. Your data is stored and processed only to run the product for you.
 
-We store your data and use it only to run the product for you: showing you your traces, powering search and analytics, running the features you invoke, billing, and keeping the service secure and reliable. We do not use it to train or improve our models.
+- If Privacy Mode is off: we may use your Signal runs to fine-tune the custom models behind Signals. Before any run reaches a training pipeline, it goes through our redaction filter, designed to strip names, emails, phone numbers, and other detected personal information. This redaction is mandatory on the training path, regardless of your project's ingestion settings.
 
-## If Privacy Mode is off
+Other notes:
 
-Everything above still applies, and in addition we train on Signal runs: when the Signals feature analyzes your traces, the content it examined and the results it produced may be used (after redaction) to improve the models behind Signals and the other AI-assisted features. Before any of that data reaches a training pipeline, it is run through our redaction filter, which is designed to strip names, emails, phone numbers, and other detected personal information. Only Signal run data generated on or after [EFFECTIVE_DATE] is used; using anything older would require your separate written consent.
+- Privacy Mode defaults to off on Free and Hobby plans and on for Pro and above. Customers that have signed a data processing agreement have privacy mode locked to on. Workspace owners can change it anytime in workspace settings, and it applies to the whole workspace. Details are in our [Terms of Service](/policies/terms).
+- We don't train on anything else. Traces, session recordings, evaluations, and datasets outside of Signal runs are never used for fine-tuning. Workspaces that don't use Signals contribute nothing, whatever their setting.
+- Turning Privacy Mode back on stops use of your Signal runs going forward, and we remove them from any training dataset not yet used in a completed run. Already-trained models can't be reversed.
+- Only Signal runs generated on or after September 10, 2026 are ever used; anything older would require your separate consent.
+- AI-assisted features send the relevant data to a model provider (Google Cloud or AWS Bedrock) to generate a response at the time of use; these providers do not retain or train on your data (see [Google Cloud](https://cloud.google.com/vertex-ai/generative-ai/docs/data-governance) and [AWS Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/data-protection.html) data policies).
+- Self-hosted Laminar sends us nothing. On your own infrastructure or your own data plane, we have no access to your data and it's never used for fine-tuning.
 
-Workspaces that do not use Signals contribute no training data, regardless of their Privacy Mode setting.
-
-## Privacy Mode defaults
-
-The default depends on your plan. You can change the setting at any time unless your account is covered by a signed data processing agreement (DPA), which locks Privacy Mode on.
-
-| Plan | Privacy Mode default | Changeable |
-| --- | --- | --- |
-| Free / Hobby | Off (training allowed) | Yes |
-| Pro and above | On | Yes |
-| Signed DPA | On, enforced | No — locked |
-
-**On Free and Hobby plans, Privacy Mode is off unless you turn it on.** Defaults only apply if you have never set the toggle yourself: an explicit choice sticks across plan changes, and changing plans never lowers your workspace's protection. These defaults take effect for existing workspaces on [EFFECTIVE_DATE], after the notice period.
-
-## Notes
-
-- **Only workspace owners** can change Privacy Mode, and it applies to all projects in the workspace.
-- **Self-hosted Laminar sends us nothing.** If you run Laminar on your own infrastructure, or your data lives on your own data plane, we have no access to your data and it is never used for training, regardless of any setting.
-- **Redaction on the training path is mandatory.** It runs even if you have not enabled PII redaction for ingestion in your project settings.
-- **Turning Privacy Mode back on works going forward.** Your data stops being used for training from that moment, and we remove your workspace's data from any training dataset that has not yet been used in a completed training run. Models that were already trained cannot be reversed to remove the influence of data used earlier.
-- **Third-party model providers.** Some features send the specific data you are working with to an external model provider (Google Cloud or AWS Bedrock) to generate a response at the time you use the feature. We do not permit these providers to train on your data.
-
-Questions? Contact us at [founders@lmnr.ai](mailto:founders@lmnr.ai). See also our [Privacy Notice](/policies/privacy) and [Terms of Service](/policies/terms).
+See also our [Terms of Service](/policies/terms) and [Privacy Notice](/policies/privacy).

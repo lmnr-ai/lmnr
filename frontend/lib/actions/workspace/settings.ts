@@ -18,11 +18,12 @@ import { type PrivacyModeState } from "@/lib/workspaces/types";
 
 /**
  * Per-plan Privacy Mode defaults take effect for existing workspaces on this
- * date, after the contractual notice period. While null (placeholder — set to
- * an ISO date like "2026-10-01" at rollout), every workspace with no explicit
- * choice resolves to Privacy Mode ON, regardless of plan.
+ * date, after the contractual notice period. Must match the effective date
+ * stated in ToS §16, privacy notice B4, and the data-use page. Before this
+ * date, every workspace with no explicit choice resolves to Privacy Mode ON,
+ * regardless of plan.
  */
-export const PRIVACY_MODE_TIER_DEFAULTS_EFFECTIVE_DATE: string | null = null;
+export const PRIVACY_MODE_TIER_DEFAULTS_EFFECTIVE_DATE: string | null = "2026-09-10";
 
 export const WorkspaceSettingsSchema = z
   .object({

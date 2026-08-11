@@ -3,13 +3,9 @@ title: "Privacy Notice - Laminar"
 description: "How Laminar collects, uses, and protects personal data."
 ---
 
-{/* DRAFT — NOT REVIEWED BY COUNSEL. This document was prepared internally and
-must be reviewed and approved by outside counsel before publication.
-Open items that block publishing live in docs/internal/counsel-handoff.md. */}
-
 # Privacy Notice
 
-**Last updated August 10, 2026**
+**Last updated August 11, 2026**
 
 This Privacy Notice describes how LMNR AI, Inc. (doing business as Laminar) ("**Laminar**," "**we**," "**us**," or "**our**") processes personal data in connection with our websites (including [laminar.sh](https://laminar.sh) and [lmnr.ai](https://lmnr.ai)) and our agent observability platform (together, the "**Services**").
 
@@ -51,16 +47,7 @@ Where the GDPR or UK GDPR applies, the legal bases we rely on are shown in paren
 
 ### A3. Who we share it with
 
-We share personal data with service providers (subprocessors) that help us run the Services, under contracts that restrict their use of the data:
-
-| Provider                                                       | Purpose                              | Data involved                                                               |
-| -------------------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------- |
-| Stripe                                                         | Payments and billing                 | Email, workspace name, subscription state, payment details (held by Stripe) |
-| Resend                                                         | Transactional email delivery         | Email address and email content (invoices, alerts, invitations, reports)    |
-| PostHog                                                        | Product analytics                    | Email, workspace name, product events, masked session replays, device data  |
-| Sentry                                                         | Error and performance monitoring     | Error reports and diagnostics, which may include request metadata           |
-| Loops                                                          | Product and marketing email audience | Email, name, sign-up date                                                   |
-| Cloud infrastructure providers (including Amazon Web Services) | Hosting and storage                  | All data processed by the Services                                          |
+We share personal data with service providers that support our delivery of the Services — hosting and cloud infrastructure, model inference, payments, transactional and marketing email, product analytics, and error monitoring — under contracts that restrict their use of the data.
 
 We also disclose personal data:
 
@@ -70,6 +57,8 @@ We also disclose personal data:
 - **For legal reasons.** Where required by law or to protect rights, safety, and the integrity of the Services.
 
 We do not sell personal data.
+
+Where we act as a processor of Customer Data, the subprocessors we engage are listed in our [trust center](https://compliance.laminar.sh/?tab=subprocessors) (or provided under our data processing agreement).
 
 ### A4. How long we keep it
 
@@ -121,13 +110,13 @@ We process Customer Data:
 - to improve Laminar's own models, **only** using Signal Run Data from workspaces where Privacy Mode is off — see B4; and
 - to secure the Services, meter usage, and bill.
 
-Customer Data is stored with our cloud infrastructure providers listed in Part A. Configured alert and report content derived from Customer Data is delivered through our email provider and, where connected, to the customer's Slack workspace.
+Customer Data is stored with the cloud infrastructure providers listed in our [trust center](https://compliance.laminar.sh/?tab=subprocessors). Configured alert and report content derived from Customer Data is delivered through our email provider and, where connected, to the customer's Slack workspace.
 
 ### B4. Model training and Privacy Mode
 
-Every workspace has a **Privacy Mode** setting. While Privacy Mode is on, we do not use that workspace's Customer Data to train or improve machine-learning models. Its default depends on the customer's plan: off by default on Free and Hobby plans, on by default on Pro and higher plans, and on and enforced (not changeable) for accounts covered by a signed data processing agreement. Defaults apply only where the workspace owner has not made an explicit choice, an explicit choice survives plan changes, and a plan change never lowers a workspace's protection level. These defaults take effect for existing workspaces only on [EFFECTIVE_DATE], after the notice period.
+Every workspace has a **Privacy Mode** setting. While Privacy Mode is on, we do not use that workspace's Customer Data to train or improve machine-learning models. Its default depends on the customer's plan: off by default on Free and Hobby plans, on by default on Pro and higher plans, and on and enforced (not changeable) for accounts covered by a signed data processing agreement. Defaults apply only where the workspace owner has not made an explicit choice, an explicit choice survives plan changes, and a plan change never lowers a workspace's protection level. These defaults take effect for existing workspaces only on September 10, 2026, after the notice period.
 
-While Privacy Mode is off, we may use that workspace's **Signal Run Data** — the trace content examined by the Signals feature during a run, and the outputs and intermediate reasoning our models produce in that run — to train and improve the machine-learning models that power the Services' AI-assisted features, subject to the commitments in our [Terms of Service](/policies/terms) and described on our [Data Use page](/policies/data-use): only Signal Run Data generated on or after [EFFECTIVE_DATE] is used (earlier data requires separate written consent); it is processed through our redaction pipeline — designed to remove detected personal information — before any training use; turning Privacy Mode back on stops future training use and removes the workspace's data from any training dataset that has not yet been used in a completed training run; and models already trained cannot be reversed. Customer Data that Signals has not processed is not used for training. Self-hosted deployments and customer-controlled data planes are never used for training — we have no access to that data at all.
+While Privacy Mode is off, we may use that workspace's **Signal Run Data** — the trace content examined by the Signals feature during a run, and the outputs and intermediate reasoning our models produce in that run — to train and improve the models that power Signals, subject to the commitments in our [Terms of Service](/policies/terms) and described on our [Data Use page](/policies/data-use): only Signal Run Data generated on or after September 10, 2026 is used (earlier data requires separate written consent); it is processed through our redaction pipeline — designed to remove detected personal information — before any training use; turning Privacy Mode back on stops future training use and removes the workspace's data from any training dataset that has not yet been used in a completed training run; and models already trained cannot be reversed. Customer Data that Signals has not processed is not used for training. Self-hosted deployments and customer-controlled data planes are never used for training — we have no access to that data at all.
 
 ### B5. PII redaction at ingestion
 

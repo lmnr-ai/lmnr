@@ -3,12 +3,9 @@ title: "Terms of Service - Laminar"
 description: "Terms and conditions for using the Laminar platform."
 ---
 
-{/* DRAFT — NOT REVIEWED BY COUNSEL. This document was prepared internally and
-must be reviewed and approved by outside counsel before publication. */}
-
 # TERMS OF USE
 
-**Last updated August 10, 2026**
+**Last updated August 11, 2026**
 
 ## AGREEMENT TO OUR LEGAL TERMS
 
@@ -202,12 +199,12 @@ You grant us a worldwide, non-exclusive license to host, store, process, transmi
 
 Each workspace has a **Privacy Mode** setting. While Privacy Mode is on, we do not use that workspace's Customer Data to train or improve machine-learning models.
 
-The default state of Privacy Mode depends on your plan: on Free and Hobby plans, Privacy Mode is off by default; on Pro and higher plans, Privacy Mode is on by default; and for accounts covered by a signed data processing agreement, Privacy Mode is on and enforced and cannot be turned off. Defaults apply only where a workspace owner has not made an explicit choice; an explicit choice you have recorded survives plan changes, and a plan change never lowers a workspace's protection level. These defaults take effect for existing workspaces only on [EFFECTIVE_DATE], following the notice period described in these Legal Terms.
+The default state of Privacy Mode depends on your plan: on Free and Hobby plans, Privacy Mode is off by default; on Pro and higher plans, Privacy Mode is on by default; and for accounts covered by a signed data processing agreement, Privacy Mode is on and enforced and cannot be turned off. Defaults apply only where a workspace owner has not made an explicit choice; an explicit choice you have recorded survives plan changes, and a plan change never lowers a workspace's protection level. These defaults take effect for existing workspaces only on September 10, 2026, following the notice period described in these Legal Terms.
 
-While Privacy Mode is off for a workspace, you grant us a non-exclusive, revocable license to use Signal Run Data from that workspace to train and improve the machine-learning models that power the Services' AI-assisted features, subject to all of the following commitments:
+While Privacy Mode is off for a workspace, you grant us a non-exclusive, revocable license to use Signal Run Data from that workspace to train and improve the models that power Signals, subject to all of the following commitments:
 
 - **Scope of data.** This license covers Signal Run Data only. Customer Data that the Signals feature has not processed is not used for training.
-- **Historical cutoff.** This license applies only to Signal Run Data generated on or after [EFFECTIVE_DATE]. Use of data generated before that date requires your separate written consent.
+- **Historical cutoff.** This license applies only to Signal Run Data generated on or after September 10, 2026. Use of data generated before that date requires your separate written consent.
 - **Mandatory redaction.** Signal Run Data is processed through our redaction pipeline, designed to remove detected personal information, before any use for training. This applies on the training path regardless of your project-level ingestion settings.
 - **Revocation.** Turning Privacy Mode back on revokes the license, stops any new use of that workspace's Signal Run Data for training from that point forward, and removes that workspace's data from any training dataset that has not yet been used in a completed training run. Revocation does not affect models already trained, which cannot be reversed to remove the influence of previously used data.
 - **Deployment scope.** This license applies only to data processed by Laminar-hosted deployments of the Services. It does not apply to self-hosted deployments or to data stored on customer-controlled data planes, which we do not access for training. See our Data Use page at [https://laminar.sh/policies/data-use](/policies/data-use) for a plain-language description of how data is used.
