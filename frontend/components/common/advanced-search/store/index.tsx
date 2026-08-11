@@ -28,7 +28,7 @@ import {
   type FilterTagRef,
   type TagFocusPosition,
 } from "../types";
-import { getNextField, getPreviousField } from "../utils";
+import { getNextField, getPreviousField, isUuid } from "../utils";
 import { createRecentsSlice, type RecentsSlice } from "./recents-slice";
 import type { AdvancedSearchStore, SliceContext, StoreGet, StoreSet } from "./types";
 import { createUndoRedoSlice, type UndoRedoSlice, type UndoSnapshot } from "./undo-redo-slice";
@@ -78,13 +78,43 @@ function buildCommit(get: StoreGet, context: SliceContext, resource?: string) {
   };
 }
 
+// A pasted UUID is an id, not prose — full-text search on it never matches, so
+// turn it into an exact-match tag on `uuidFilterColumn` before committing.
+function promoteUuidToTag(set: StoreSet, get: StoreGet, uuidFilterColumn?: string) {
+  if (!uuidFilterColumn) return;
+
+  const { inputValue, tags, filters: columnFilters } = get();
+  const value = inputValue.trim();
+  if (!isUuid(value)) return;
+
+  const columnFilter = columnFilters.find((f) => f.key === uuidFilterColumn);
+  if (!columnFilter) return;
+
+  const operator = dataTypeOperationsMap[columnFilter.dataType]?.[0]?.key ?? Operator.Eq;
+  const isDuplicate = tags.some((t) => t.field === uuidFilterColumn && t.operator === operator && t.value === value);
+
+  const newTag: FilterTag = {
+    id: `tag-${uniqueId()}`,
+    field: uuidFilterColumn,
+    dataType: toFilterDataType(columnFilter.dataType),
+    operator,
+    value,
+  };
+
+  set((state) => ({
+    tags: isDuplicate ? state.tags : [...state.tags, newTag],
+    inputValue: "",
+  }));
+}
+
 function createCoreSlice(
   set: StoreSet,
   get: StoreGet,
   context: SliceContext,
   filters: ColumnFilter[],
   suggestions?: Map<string, string[]>,
-  resource?: string
+  resource?: string,
+  uuidFilterColumn?: string
 ): Omit<AdvancedSearchStore, keyof RecentsSlice | keyof UndoRedoSlice> {
   const commit = buildCommit(get, context, resource);
 
@@ -101,6 +131,7 @@ function createCoreSlice(
 
     filters,
     resource,
+    uuidFilterColumn,
 
     getActiveTagId: () => {
       const { tagFocusStates } = get();
@@ -236,6 +267,7 @@ function createCoreSlice(
 
     submit: () => {
       set({ isOpen: false, activeIndex: -1, activeRecentIndex: -1 });
+      promoteUuidToTag(set, get, uuidFilterColumn);
       commit();
     },
 
@@ -298,7 +330,8 @@ const createAdvancedSearchStore = (
   getOnChange: () => (value: { filters: Filter[]; search: string }) => void,
   suggestions?: Map<string, string[]>,
   storageKey?: string,
-  resource?: string
+  resource?: string,
+  uuidFilterColumn?: string
 ) => {
   let lastSubmitted = {
     filters: initialTags.map(createFilterFromTag),
@@ -326,7 +359,7 @@ const createAdvancedSearchStore = (
   };
 
   const storeConfig = (set: StoreSet, get: StoreGet): AdvancedSearchStore => ({
-    ...createCoreSlice(set, get, context, filters, suggestions, resource),
+    ...createCoreSlice(set, get, context, filters, suggestions, resource, uuidFilterColumn),
     ...createRecentsSlice(set, get, context),
     ...createUndoRedoSlice(set, get, context),
   });
@@ -380,6 +413,9 @@ interface AdvancedSearchStoreProviderProps {
   suggestions?: Map<string, string[]>;
   storageKey?: string;
   resource?: string;
+  // When set, a bare UUID typed into the search box is committed as an
+  // exact-match filter on this column instead of a full-text search.
+  uuidFilterColumn?: string;
 }
 
 export const AdvancedSearchStoreProvider = ({
@@ -391,6 +427,7 @@ export const AdvancedSearchStoreProvider = ({
   suggestions,
   storageKey,
   resource,
+  uuidFilterColumn,
 }: PropsWithChildren<AdvancedSearchStoreProviderProps>) => {
   // Keep a live ref to the latest onChange so the store can call it without
   // being recreated every render. The store's actions only read via the
@@ -411,7 +448,8 @@ export const AdvancedSearchStoreProvider = ({
       () => onChangeRef.current,
       suggestions,
       storageKey,
-      resource
+      resource,
+      uuidFilterColumn
     )
   );
 

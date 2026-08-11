@@ -100,6 +100,9 @@ interface AdvancedSearchProps {
   value: AdvancedSearchValue;
   onChange: (next: AdvancedSearchValue) => void;
   storageKey?: string;
+  // When set, a bare UUID typed into the search box is committed as an
+  // exact-match filter on this column instead of a full-text search.
+  uuidFilterColumn?: string;
   options?: {
     // If provided, autocomplete won't fetch suggestions.
     suggestions?: Map<string, string[]>;
@@ -116,6 +119,7 @@ const AdvancedSearch = ({
   value,
   onChange,
   storageKey,
+  uuidFilterColumn,
   options: { suggestions, disableHotKey } = { disableHotKey: false },
 }: AdvancedSearchProps) => (
   <AdvancedSearchStoreProvider
@@ -126,6 +130,7 @@ const AdvancedSearch = ({
     suggestions={suggestions}
     storageKey={storageKey}
     resource={resource}
+    uuidFilterColumn={uuidFilterColumn}
   >
     <AdvancedSearchInner
       resource={resource}
