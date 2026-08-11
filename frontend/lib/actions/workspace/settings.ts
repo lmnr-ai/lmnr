@@ -16,15 +16,6 @@ import { db } from "@/lib/db/drizzle";
 import { workspaces } from "@/lib/db/migrations/schema";
 import { type PrivacyModeState } from "@/lib/workspaces/types";
 
-/**
- * Per-plan Privacy Mode defaults take effect for existing workspaces on this
- * date, after the contractual notice period. Must match the effective date
- * stated in ToS §16, privacy notice B4, and the data-use page. Before this
- * date, every workspace with no explicit choice resolves to Privacy Mode ON,
- * regardless of plan.
- */
-export const PRIVACY_MODE_TIER_DEFAULTS_EFFECTIVE_DATE: string | null = "2026-09-10";
-
 export const WorkspaceSettingsSchema = z
   .object({
     /// Cloud-only. The workspace owner's EXPLICIT Privacy Mode choice.
@@ -60,48 +51,27 @@ export const parseWorkspaceSettings = (raw: unknown): WorkspaceSettings => {
 
 const TIER_DEFAULT_OFF = new Set(["free", "hobby", "starter"]);
 
-/// A tier's INTRINSIC Privacy Mode default, ignoring the effective date.
-/// Free/Hobby/Starter default OFF; Pro and above — and anything
-/// unrecognized — default ON.
-export const tierIntrinsicallyDefaultsToOn = (tierName?: string | null): boolean =>
+/// A tier's Privacy Mode default. Free/Starter (internal key `hobby`)
+/// default OFF; Pro and above — and anything unrecognized — default ON.
+export const tierDefaultsToOn = (tierName?: string | null): boolean =>
   !TIER_DEFAULT_OFF.has((tierName ?? "").trim().toLowerCase());
 
-/// The default that applies at `now`: every unset workspace resolves ON until
-/// the effective date passes, then per-tier defaults take over. `now` is a
-/// parameter so the cutoff is testable from both sides without a clock mock.
-const tierDefaultsToOn = (tierName?: string | null, now: number = Date.now()): boolean => {
-  if (
-    PRIVACY_MODE_TIER_DEFAULTS_EFFECTIVE_DATE === null ||
-    now < new Date(PRIVACY_MODE_TIER_DEFAULTS_EFFECTIVE_DATE).getTime()
-  ) {
-    return true;
-  }
-  return tierIntrinsicallyDefaultsToOn(tierName);
-};
-
 /**
- * Whether a tier transition must stamp the protection floor. Compares the
- * tiers' INTRINSIC defaults, never the date-gated ones: pre-rollout every
- * tier resolves ON, so a date-gated check would stamp nothing during the
- * notice period and those workspaces would silently flip OFF the moment
- * defaults activate. Stamping early is inert until then (the floor and the
- * pre-rollout default both resolve ON).
+ * Whether a tier transition must stamp the protection floor: leaving a
+ * default-ON tier for a default-OFF one, so the transition doesn't silently
+ * lower protection.
  */
 export const shouldStampProtectionFloor = (
   previousTierName: string | null | undefined,
   newTierName: string | null | undefined
-): boolean => !tierIntrinsicallyDefaultsToOn(newTierName) && tierIntrinsicallyDefaultsToOn(previousTierName);
+): boolean => !tierDefaultsToOn(newTierName) && tierDefaultsToOn(previousTierName);
 
 /**
  * Resolves the workspace's effective Privacy Mode. Precedence: DPA
  * enforcement (locked ON) > explicit owner choice > protection floor from a
  * past downgrade > per-plan default.
  */
-export const resolvePrivacyMode = (
-  settings: WorkspaceSettings,
-  tierName?: string | null,
-  now: number = Date.now()
-): PrivacyModeState => {
+export const resolvePrivacyMode = (settings: WorkspaceSettings, tierName?: string | null): PrivacyModeState => {
   if (settings.dpaEnforcedPrivacyMode) {
     return { enabled: true, locked: true };
   }
@@ -111,7 +81,7 @@ export const resolvePrivacyMode = (
   if (settings.privacyModeProtected) {
     return { enabled: true, locked: false };
   }
-  return { enabled: tierDefaultsToOn(tierName, now), locked: false };
+  return { enabled: tierDefaultsToOn(tierName), locked: false };
 };
 
 const UpdateWorkspaceSettingsSchema = z.object({
