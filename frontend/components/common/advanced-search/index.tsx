@@ -100,8 +100,10 @@ interface AdvancedSearchProps {
   value: AdvancedSearchValue;
   onChange: (next: AdvancedSearchValue) => void;
   storageKey?: string;
-  // When set, a bare UUID typed into the search box is committed as an
-  // exact-match filter on this column instead of a full-text search.
+  // When set, a bare UUID typed into the search box pre-selects an
+  // exact-match filter suggestion on this column, so Enter applies it
+  // without an extra arrow-down. Explicitly picking full-text search (or
+  // blurring without selecting anything) still searches the raw value.
   uuidFilterColumn?: string;
   options?: {
     // If provided, autocomplete won't fetch suggestions.

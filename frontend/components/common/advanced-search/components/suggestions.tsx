@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 
 import { type RecentSearch, useAdvancedSearchContext, useAdvancedSearchRefsContext } from "../store";
 import { type ColumnFilter, createTagFromFilter } from "../types";
-import { buildValueSuggestions, isUuid } from "../utils";
+import { buildValueSuggestions, hasUuidSuggestion } from "../utils";
 
 interface FieldSuggestion {
   type: "field";
@@ -44,10 +44,9 @@ export const buildSuggestions = (
   }
 
   // A pasted UUID is an id, not prose — offer the exact-match filter first.
-  const uuidSuggestions: Suggestion[] =
-    uuidFilterColumn && isUuid(input) && filters.some((f) => f.key === uuidFilterColumn)
-      ? [{ type: "value" as const, field: uuidFilterColumn, value: inputValue.trim() }]
-      : [];
+  const uuidSuggestions: Suggestion[] = hasUuidSuggestion(input, filters, uuidFilterColumn)
+    ? [{ type: "value" as const, field: uuidFilterColumn as string, value: inputValue.trim() }]
+    : [];
 
   const matchingFields = filters.filter(
     (f) => f.name.toLowerCase().includes(input) || f.key.toLowerCase().includes(input)
@@ -215,11 +214,9 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
 
   const handleRawSearchSelect = useCallback(
     (value: string) => {
-      // User explicitly picked "Full text search" — honor it even when the
-      // value looks like a UUID.
       setInputValue(value);
       setIsOpen(false);
-      submit({ skipUuidPromotion: true });
+      submit();
     },
     [setInputValue, setIsOpen, submit]
   );

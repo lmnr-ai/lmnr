@@ -28,7 +28,7 @@ import {
   type FilterTagRef,
   type TagFocusPosition,
 } from "../types";
-import { getNextField, getPreviousField, isUuid } from "../utils";
+import { getNextField, getPreviousField, hasUuidSuggestion } from "../utils";
 import { createRecentsSlice, type RecentsSlice } from "./recents-slice";
 import type { AdvancedSearchStore, SliceContext, StoreGet, StoreSet } from "./types";
 import { createUndoRedoSlice, type UndoRedoSlice, type UndoSnapshot } from "./undo-redo-slice";
@@ -78,44 +78,6 @@ function buildCommit(get: StoreGet, context: SliceContext, resource?: string) {
   };
 }
 
-// A pasted UUID is an id, not prose — full-text search on it never matches, so
-// turn it into an exact-match tag on `uuidFilterColumn` before committing.
-function promoteUuidToTag(set: StoreSet, get: StoreGet, context: SliceContext, uuidFilterColumn?: string) {
-  if (!uuidFilterColumn) return;
-
-  const { inputValue, tags, filters: columnFilters } = get();
-  const value = inputValue.trim();
-  if (!isUuid(value)) return;
-
-  // Already committed exactly as-is — e.g. the user explicitly chose full-text
-  // search for this value from the suggestions list. A redundant submit (blur
-  // re-fires it, since the box still shows the UUID text) must not silently
-  // revert that choice back to an id filter.
-  const completeTags = tags.filter((t) => (Array.isArray(t.value) ? t.value.length > 0 : t.value !== ""));
-  const currentFilters = completeTags.map(createFilterFromTag);
-  const last = context.getLastSubmitted();
-  if (last.search === value && isEqual(last.filters, currentFilters)) return;
-
-  const columnFilter = columnFilters.find((f) => f.key === uuidFilterColumn);
-  if (!columnFilter) return;
-
-  const operator = dataTypeOperationsMap[columnFilter.dataType]?.[0]?.key ?? Operator.Eq;
-  const isDuplicate = tags.some((t) => t.field === uuidFilterColumn && t.operator === operator && t.value === value);
-
-  const newTag: FilterTag = {
-    id: `tag-${uniqueId()}`,
-    field: uuidFilterColumn,
-    dataType: toFilterDataType(columnFilter.dataType),
-    operator,
-    value,
-  };
-
-  set((state) => ({
-    tags: isDuplicate ? state.tags : [...state.tags, newTag],
-    inputValue: "",
-  }));
-}
-
 function createCoreSlice(
   set: StoreSet,
   get: StoreGet,
@@ -152,7 +114,20 @@ function createCoreSlice(
 
     setAutocompleteData: (data) => set({ autocompleteData: data }),
     setInputValue: (value) => set({ inputValue: value, activeIndex: -1, activeRecentIndex: -1 }),
-    setIsOpen: (isOpen) => set({ isOpen, activeIndex: -1, activeRecentIndex: -1 }),
+    // Opening onto a UUID pre-selects the id suggestion (always index 0, see
+    // `buildSuggestions`) so Enter applies the id filter without an explicit
+    // arrow-down — the common case for pasting an id. Re-derived from current
+    // state on every open rather than cached, so it stays correct whether the
+    // dropdown opens from typing, focus, or a click.
+    setIsOpen: (isOpen) => {
+      if (!isOpen) {
+        set({ isOpen, activeIndex: -1, activeRecentIndex: -1 });
+        return;
+      }
+      const { inputValue, filters: columnFilters, uuidFilterColumn } = get();
+      const activeIndex = hasUuidSuggestion(inputValue, columnFilters, uuidFilterColumn) ? 0 : -1;
+      set({ isOpen, activeIndex, activeRecentIndex: -1 });
+    },
     setActiveIndex: (activeIndex) => set({ activeIndex, activeRecentIndex: -1 }),
     setActiveRecentIndex: (activeRecentIndex) => set({ activeRecentIndex, activeIndex: -1 }),
     setOpenSelectId: (openSelectId) => set({ openSelectId }),
@@ -274,11 +249,8 @@ function createCoreSlice(
 
     getTagFocusState: (tagId) => get().tagFocusStates.get(tagId) || { type: "idle" },
 
-    submit: (options) => {
+    submit: () => {
       set({ isOpen: false, activeIndex: -1, activeRecentIndex: -1 });
-      if (!options?.skipUuidPromotion) {
-        promoteUuidToTag(set, get, context, uuidFilterColumn);
-      }
       commit();
     },
 
@@ -424,8 +396,10 @@ interface AdvancedSearchStoreProviderProps {
   suggestions?: Map<string, string[]>;
   storageKey?: string;
   resource?: string;
-  // When set, a bare UUID typed into the search box is committed as an
-  // exact-match filter on this column instead of a full-text search.
+  // When set, a bare UUID typed into the search box pre-selects an
+  // exact-match filter suggestion on this column, so Enter applies it
+  // without an extra arrow-down. Explicitly picking full-text search (or
+  // blurring without selecting anything) still searches the raw value.
   uuidFilterColumn?: string;
 }
 
