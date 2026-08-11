@@ -246,9 +246,11 @@ const FilterSearchInput = ({
                 : Operator.Eq;
               addCompleteTag(suggestion.field, defaultOperator, suggestion.value);
             } else {
+              // User explicitly picked "Full text search" — honor it even
+              // when the value looks like a UUID.
               setInputValue(suggestion.value);
               setIsOpen(false);
-              submit();
+              submit({ skipUuidPromotion: true });
             }
           }
         } else {

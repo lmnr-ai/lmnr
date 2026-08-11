@@ -76,7 +76,9 @@ export interface AdvancedSearchStore extends RecentsSlice, UndoRedoSlice {
   removeSelectedTags: () => void;
   setTagFocusState: (tagId: string, state: FilterTagFocusState) => void;
   getTagFocusState: (tagId: string) => FilterTagFocusState;
-  submit: () => void;
+  // `skipUuidPromotion` is set when the user explicitly chose full-text search
+  // over the UUID suggestion — respect that choice instead of re-promoting.
+  submit: (options?: { skipUuidPromotion?: boolean }) => void;
   clearAll: () => void;
   // External reflow: parent's controlled `value` changed (view switch / discard
   // / undo from a sibling). Bypasses commit so we don't echo the change back.

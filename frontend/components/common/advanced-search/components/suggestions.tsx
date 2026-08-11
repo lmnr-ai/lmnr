@@ -215,9 +215,11 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
 
   const handleRawSearchSelect = useCallback(
     (value: string) => {
+      // User explicitly picked "Full text search" — honor it even when the
+      // value looks like a UUID.
       setInputValue(value);
       setIsOpen(false);
-      submit();
+      submit({ skipUuidPromotion: true });
     },
     [setInputValue, setIsOpen, submit]
   );

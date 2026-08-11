@@ -80,12 +80,21 @@ function buildCommit(get: StoreGet, context: SliceContext, resource?: string) {
 
 // A pasted UUID is an id, not prose — full-text search on it never matches, so
 // turn it into an exact-match tag on `uuidFilterColumn` before committing.
-function promoteUuidToTag(set: StoreSet, get: StoreGet, uuidFilterColumn?: string) {
+function promoteUuidToTag(set: StoreSet, get: StoreGet, context: SliceContext, uuidFilterColumn?: string) {
   if (!uuidFilterColumn) return;
 
   const { inputValue, tags, filters: columnFilters } = get();
   const value = inputValue.trim();
   if (!isUuid(value)) return;
+
+  // Already committed exactly as-is — e.g. the user explicitly chose full-text
+  // search for this value from the suggestions list. A redundant submit (blur
+  // re-fires it, since the box still shows the UUID text) must not silently
+  // revert that choice back to an id filter.
+  const completeTags = tags.filter((t) => (Array.isArray(t.value) ? t.value.length > 0 : t.value !== ""));
+  const currentFilters = completeTags.map(createFilterFromTag);
+  const last = context.getLastSubmitted();
+  if (last.search === value && isEqual(last.filters, currentFilters)) return;
 
   const columnFilter = columnFilters.find((f) => f.key === uuidFilterColumn);
   if (!columnFilter) return;
@@ -265,9 +274,11 @@ function createCoreSlice(
 
     getTagFocusState: (tagId) => get().tagFocusStates.get(tagId) || { type: "idle" },
 
-    submit: () => {
+    submit: (options) => {
       set({ isOpen: false, activeIndex: -1, activeRecentIndex: -1 });
-      promoteUuidToTag(set, get, uuidFilterColumn);
+      if (!options?.skipUuidPromotion) {
+        promoteUuidToTag(set, get, context, uuidFilterColumn);
+      }
       commit();
     },
 
