@@ -59,9 +59,14 @@ export const parseWorkspaceSettings = (raw: unknown): WorkspaceSettings => {
 
 const TIER_DEFAULT_OFF = new Set(["free", "hobby", "starter"]);
 
-/// Whether a tier's Privacy Mode DEFAULT (for workspaces with no explicit
-/// choice) is ON. Free/Hobby default OFF once the effective date passes;
-/// Pro and above — and anything unrecognized — default ON.
+/// A tier's INTRINSIC Privacy Mode default, ignoring the effective date.
+/// Free/Hobby/Starter default OFF; Pro and above — and anything
+/// unrecognized — default ON.
+export const tierIntrinsicallyDefaultsToOn = (tierName?: string | null): boolean =>
+  !TIER_DEFAULT_OFF.has((tierName ?? "").trim().toLowerCase());
+
+/// The default that applies RIGHT NOW: every unset workspace resolves ON until
+/// the effective date passes, then per-tier defaults take over.
 const tierDefaultsToOn = (tierName?: string | null): boolean => {
   if (
     PRIVACY_MODE_TIER_DEFAULTS_EFFECTIVE_DATE === null ||
@@ -69,8 +74,21 @@ const tierDefaultsToOn = (tierName?: string | null): boolean => {
   ) {
     return true;
   }
-  return !TIER_DEFAULT_OFF.has((tierName ?? "").trim().toLowerCase());
+  return tierIntrinsicallyDefaultsToOn(tierName);
 };
+
+/**
+ * Whether a tier transition must stamp the protection floor. Compares the
+ * tiers' INTRINSIC defaults, never the date-gated ones: pre-rollout every
+ * tier resolves ON, so a date-gated check would stamp nothing during the
+ * notice period and those workspaces would silently flip OFF the moment
+ * defaults activate. Stamping early is inert until then (the floor and the
+ * pre-rollout default both resolve ON).
+ */
+export const shouldStampProtectionFloor = (
+  previousTierName: string | null | undefined,
+  newTierName: string | null | undefined
+): boolean => !tierIntrinsicallyDefaultsToOn(newTierName) && tierIntrinsicallyDefaultsToOn(previousTierName);
 
 /**
  * Resolves the workspace's effective Privacy Mode. Precedence: DPA
@@ -132,18 +150,18 @@ export async function updateWorkspaceSettings(input: z.infer<typeof UpdateWorksp
 }
 
 /**
- * Called from the Stripe webhook on tier transitions. When a workspace whose
- * Privacy Mode resolved ON under the OLD tier (with no explicit owner choice)
- * moves to a tier whose default is OFF, stamp the protection floor so the
- * transition doesn't lower protection. Never touches explicit choices, and
- * never stamps a workspace that was already resolved-OFF (e.g. Free → Hobby).
+ * Called from the Stripe webhook on tier transitions. When a workspace with no
+ * explicit owner choice moves from a default-ON tier to a default-OFF one,
+ * stamp the protection floor so the transition doesn't lower protection. Never
+ * touches explicit choices, and never stamps a transition between two
+ * default-OFF tiers (e.g. Free → Hobby).
  */
 export async function preservePrivacyModeOnDowngrade(
   workspaceId: string,
   previousTierName: string | null | undefined,
   newTierName: string | null | undefined
 ) {
-  if (tierDefaultsToOn(newTierName) || !tierDefaultsToOn(previousTierName)) {
+  if (!shouldStampProtectionFloor(previousTierName, newTierName)) {
     return;
   }
   const row = await db.query.workspaces.findFirst({
