@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type Workspace } from "@/lib/workspaces/types";
 
@@ -41,9 +42,9 @@ export default function PrivacyMode({ workspace, isOwner }: PrivacyModeProps) {
   // Cloud-only. Self-hosted deployments never send data to Laminar, so the
   // toggle would be meaningless noise there.
   //
-  // if (!flags[Feature.LAMINAR_CLOUD]) {
-  //   return null;
-  // }
+  if (!flags[Feature.LAMINAR_CLOUD]) {
+    return null;
+  }
 
   const save = async (next: boolean) => {
     const previous = enabled;
@@ -86,7 +87,7 @@ export default function PrivacyMode({ workspace, isOwner }: PrivacyModeProps) {
   const description = locked
     ? "Privacy Mode is enforced by your organization's data processing agreement."
     : enabled
-      ? "Your workspace data is not used to improve Signals models."
+      ? "Your workspace data is not used to improve Laminar models."
       : "Redacted data from Signal runs may be used to improve the models that power Signals.";
 
   return (
