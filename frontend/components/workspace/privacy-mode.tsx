@@ -87,7 +87,7 @@ export default function PrivacyMode({ workspace, isOwner }: PrivacyModeProps) {
   const description = locked
     ? "Privacy Mode is enforced by your organization's data processing agreement."
     : enabled
-      ? "Your workspace data is not used to improve Laminar models."
+      ? "Your Signal run data is not used to improve Signals models."
       : "Redacted data from Signal runs may be used to improve the models that power Signals.";
 
   return (
