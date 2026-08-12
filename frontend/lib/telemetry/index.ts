@@ -40,14 +40,23 @@ const sendHeartbeat = async (): Promise<void> => {
     // successful send would otherwise free the window and let a later tick
     // emit a duplicate heartbeat for the same period.
     client.capture({
-      distinctId: instanceId,
+      // Identify the deployment by its users' company email domain when one
+      // exists, so PostHog persons read as real organizations. The opaque
+      // instance UUID remains the fallback (no users / freemail-only) and is
+      // always attached as a property so two deployments sharing a domain
+      // stay distinguishable. Known trade-off: such deployments (e.g. a
+      // company's staging + prod) merge into one PostHog person whose $set
+      // snapshot is last-writer-wins; per-event properties keyed by
+      // instance_id remain accurate for both.
+      distinctId: snapshot.primaryDomain ?? instanceId,
       event: EVENT,
       properties: {
+        instance_id: instanceId,
         ...snapshot.properties,
-        $set: snapshot.setProperties,
+        $set: { instance_id: instanceId, ...snapshot.setProperties },
         // Setting $ip to null tells PostHog to drop the source IP entirely
         // (not just skip geoip enrichment), so no IP is ever stored against
-        // the deployment. Keeps the heartbeat anonymous beyond the opaque id.
+        // the deployment.
         $ip: null,
       },
       // Belt-and-suspenders: also skip geoip enrichment on ingest.
@@ -66,7 +75,7 @@ const sendHeartbeat = async (): Promise<void> => {
 
 let started = false;
 
-// Fire-and-forget anonymous usage telemetry for self-hosted deployments. Polls
+// Fire-and-forget usage telemetry for self-hosted deployments. Polls
 // hourly; the 6h cadence is enforced by the DB window claim, not the timer, so
 // restarts and multiple replicas can't over-report. Never throws into boot.
 export const startTelemetry = async (): Promise<void> => {

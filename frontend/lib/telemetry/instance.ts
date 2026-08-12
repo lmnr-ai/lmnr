@@ -2,7 +2,8 @@ import { sql } from "drizzle-orm";
 
 import { db } from "@/lib/db/drizzle";
 
-// Anonymous deployment identity for self-hosted usage telemetry. Lives in its
+// Fallback deployment identity for self-hosted usage telemetry (used as the
+// PostHog distinctId only when no company email domain exists). Lives in its
 // own `telemetry` schema (not public) so it stays clearly separated from
 // application data and never collides with drizzle-managed tables. Created via
 // boot-time DDL rather than a drizzle migration so it can't break installs that
