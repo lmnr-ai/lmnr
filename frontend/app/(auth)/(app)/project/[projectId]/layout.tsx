@@ -7,6 +7,7 @@ import LaminarAgent, { RouteAgentContext } from "@/components/agent";
 import SessionSyncProvider from "@/components/auth/session-sync-provider";
 import WorkspaceGroupTracker from "@/components/common/workspace-group-tracker";
 import NotificationPanel from "@/components/notifications/notification-panel";
+import RecentProjectTracker from "@/components/project/recent-project-tracker";
 import ProjectSidebar from "@/components/project/sidebar";
 import ProjectUsageBanner from "@/components/project/usage-banner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -48,6 +49,12 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
       <SessionSyncProvider>
         <ProjectContextProvider workspace={workspace} projects={projects} project={projectDetails}>
           <WorkspaceGroupTracker workspaceId={workspace.id} workspaceName={workspace.name} />
+          <RecentProjectTracker
+            projectId={projectDetails.id}
+            projectName={projectDetails.name}
+            workspaceId={workspace.id}
+            workspaceName={workspace.name}
+          />
           <div className="fixed inset-0 flex overflow-clip md:pt-2 bg-sidebar">
             <SidebarProvider cookieName={projectSidebarCookieName} className="bg-sidebar" defaultOpen={defaultOpen}>
               <ProjectSidebar details={projectDetails} />
