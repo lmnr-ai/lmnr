@@ -60,6 +60,11 @@ function ArticleJsonLd({ data, slug, routePrefix }: { data: BlogMetadata; slug: 
  * code (`[`task-name`](url)`), and nesting the code component's own badge
  * styling inside a chip renders a badge within a badge.
  */
+/** An MDX `img` node — the only child the `p` override has to hoist out. */
+function isMdxImage(child: React.ReactNode): child is React.ReactElement<{ src?: string }> {
+  return React.isValidElement<{ src?: string }>(child) && typeof child.props.src === "string";
+}
+
 function childrenToText(children: React.ReactNode): string {
   return React.Children.toArray(children)
     .map((child) => {
@@ -89,12 +94,6 @@ export default async function PostContent({ data, content, backHref, slug, route
           const children = React.Children.toArray(props.children);
           if (children.length === 1) {
             const child = children[0];
-            // A lone image renders as <figure>, which is invalid inside <p> and
-            // trips a hydration error. Remark always wraps a standalone image in
-            // a paragraph, so unwrap it here.
-            if (React.isValidElement<{ src?: string }>(child) && typeof child.props.src === "string") {
-              return child;
-            }
             if (
               React.isValidElement<{
                 href?: string;
@@ -112,6 +111,32 @@ export default async function PostContent({ data, content, backHref, slug, route
                 return <YouTubeEmbed url={child.props.href} />;
               }
             }
+          }
+          // BlogImage renders a <figure>, which is block content and illegal
+          // inside <p>. Remark puts a standalone image in its own paragraph,
+          // but an image on the line directly below text joins *that* text's
+          // paragraph — so hoist every image out and keep the prose around it
+          // in paragraphs of its own.
+          if (children.some(isMdxImage)) {
+            const out: React.ReactNode[] = [];
+            let run: React.ReactNode[] = [];
+            const flushRun = () => {
+              // Drop whitespace-only runs (the newline between text and image).
+              if (run.some((c) => typeof c !== "string" || c.trim() !== "")) {
+                out.push(<p key={`p-${out.length}`}>{run}</p>);
+              }
+              run = [];
+            };
+            for (const child of children) {
+              if (isMdxImage(child)) {
+                flushRun();
+                out.push(child);
+              } else {
+                run.push(child);
+              }
+            }
+            flushRun();
+            return <>{out}</>;
           }
           return <p {...props} />;
         },

@@ -84,7 +84,7 @@ export default function TableOfContents({ headings, className }: Props) {
   if (headings.length === 0) return null;
 
   return (
-    <nav className={cn("overflow-y-auto thin-scrollbar", className)}>
+    <nav className={cn("overflow-y-auto thin-scrollbar scroll-fade-y", className)}>
       {/* Inner relative wrapper — this is the containing block for the track
           and the indicator. Crucially, it lives INSIDE the scroll port (the
           nav), so its height = sum of row heights = full scroll content
@@ -92,7 +92,7 @@ export default function TableOfContents({ headings, className }: Props) {
           containing block would be the nav's *padding box* (visible area
           only), and the line would stop at the bottom of the viewport
           instead of extending through the scrollable region. */}
-      <div className="relative flex flex-col">
+      <div className="relative flex flex-col pb-10">
         {/* Continuous muted track — spans the full scroll content height. */}
         <div className="absolute left-0 top-0 bottom-0 w-px bg-surface-400" />
 
