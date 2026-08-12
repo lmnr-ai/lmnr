@@ -250,8 +250,6 @@ export default function ViewsPicker({
               <DropdownMenuSeparator />
             </>
           )}
-
-          <DropdownMenuLabel className={SECTION_LABEL_CLASS}>Views</DropdownMenuLabel>
           {showDefault && (
             <DropdownMenuItem onSelect={handleReset} className="text-xs">
               <span className="flex-1 truncate">{DEFAULT_LABEL}</span>

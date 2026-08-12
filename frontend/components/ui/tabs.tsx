@@ -75,6 +75,7 @@ function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimi
       className={cn(
         "relative text-muted-foreground inline-flex h-9 w-fit items-center justify-center rounded-lg p-[3px]",
         dials.decoration === "old" && "bg-muted",
+        dials.decoration === "style-1" && "bg-surface-up-2",
         className
       )}
       {...props}
@@ -87,6 +88,7 @@ function TabsTrigger({ className, value, children, ...props }: React.ComponentPr
   const dials = useTabsDials();
   const isActive = selectedValue === value;
 
+  // TODO:: make non slide animation variant the same color as this one
   return (
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
@@ -103,7 +105,11 @@ function TabsTrigger({ className, value, children, ...props }: React.ComponentPr
       {dials.slideAnimation && isActive && (
         <motion.div
           layoutId={`tabs-active-${layoutId}`}
-          className="absolute inset-0 z-0 rounded-md bg-background shadow-sm dark:bg-input/30 dark:border dark:border-input"
+          className={cn(
+            "absolute inset-0 z-0 rounded-md shadow-sm",
+            dials.decoration === "old" && "bg-background",
+            dials.decoration === "style-1" && "bg-surface-up-4"
+          )}
           transition={{ type: "spring", duration: 0.2, bounce: 0 }}
         />
       )}
