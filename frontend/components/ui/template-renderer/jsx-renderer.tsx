@@ -7,9 +7,45 @@ import { normalizeTemplateCode } from "./normalize";
 import { LAMINAR_IFRAME_THEME, laminarIframeThemeJson } from "./theme";
 
 const MESSAGE_TYPE = "__TEMPLATE_DATA_UPDATE__";
+const RELOAD_MESSAGE_TYPE = "__TEMPLATE_RELOAD_REQUEST__";
+const MAX_LOAD_ATTEMPTS = 3;
 const SELECT_SPAN_MESSAGE_TYPE = "__TEMPLATE_SELECT_SPAN__";
 
-const createIframeContent = (templateCode: string): string => {
+const PRIMARY_CDN = {
+  origin: "https://esm.sh",
+  imports: {
+    preact: "https://esm.sh/preact@10.19.6",
+    "preact/hooks": "https://esm.sh/preact@10.19.6/hooks",
+    "@babel/standalone": "https://esm.sh/@babel/standalone@7.23.6",
+    "@twind/core": "https://esm.sh/@twind/core@1.1.3",
+    "@twind/preset-tailwind": "https://esm.sh/@twind/preset-tailwind@1.1.4",
+    "@twind/preset-autoprefix": "https://esm.sh/@twind/preset-autoprefix@1.0.7",
+  },
+};
+
+// Fallback for sustained esm.sh outages. jsDelivr `/+esm` (not unpkg — its
+// `?module` mode 404s on subpath exports like preact/hooks and can't serve
+// CJS packages like @babel/standalone as ESM).
+const FALLBACK_CDN = {
+  origin: "https://cdn.jsdelivr.net",
+  imports: {
+    preact: "https://cdn.jsdelivr.net/npm/preact@10.19.6/+esm",
+    "preact/hooks": "https://cdn.jsdelivr.net/npm/preact@10.19.6/hooks/+esm",
+    "@babel/standalone": "https://cdn.jsdelivr.net/npm/@babel/standalone@7.23.6/+esm",
+    "@twind/core": "https://cdn.jsdelivr.net/npm/@twind/core@1.1.3/+esm",
+    "@twind/preset-tailwind": "https://cdn.jsdelivr.net/npm/@twind/preset-tailwind@1.1.4/+esm",
+    "@twind/preset-autoprefix": "https://cdn.jsdelivr.net/npm/@twind/preset-autoprefix@1.0.7/+esm",
+  },
+};
+
+type CdnConfig = typeof PRIMARY_CDN;
+
+const createIframeContent = (
+  templateCode: string,
+  isFinalAttempt: boolean,
+  reloadNonce: string,
+  cdn: CdnConfig
+): string => {
   const escapedTemplateCode = templateCode
     .replace(/\\/g, "\\\\")
     .replace(/`/g, "\\`")
@@ -24,7 +60,7 @@ const createIframeContent = (templateCode: string): string => {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://esm.sh; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://esm.sh; style-src 'self' 'unsafe-inline'; connect-src https://esm.sh; img-src data: blob:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' ${cdn.origin}; script-src 'self' 'unsafe-inline' 'unsafe-eval' ${cdn.origin}; style-src 'self' 'unsafe-inline'; connect-src ${cdn.origin}; img-src data: blob:;">
 
   <script>
     (function blockNetworkApis() {
@@ -42,16 +78,7 @@ const createIframeContent = (templateCode: string): string => {
   </script>
 
   <script type="importmap">
-  {
-    "imports": {
-      "preact": "https://esm.sh/preact@10.19.6",
-      "preact/hooks": "https://esm.sh/preact@10.19.6/hooks",
-      "@babel/standalone": "https://esm.sh/@babel/standalone@7.23.6",
-      "@twind/core": "https://esm.sh/@twind/core",
-      "@twind/preset-tailwind": "https://esm.sh/@twind/preset-tailwind",
-      "@twind/preset-autoprefix": "https://esm.sh/@twind/preset-autoprefix"
-    }
-  }
+  ${JSON.stringify({ imports: cdn.imports })}
   </script>
   
   <style>
@@ -82,6 +109,8 @@ const createIframeContent = (templateCode: string): string => {
   <script type="module">
     const parentOrigin = window.origin;
     const LAMINAR_THEME = ${themeJson};
+    const IS_FINAL_ATTEMPT = ${isFinalAttempt ? "true" : "false"};
+    const RELOAD_NONCE = ${JSON.stringify(reloadNonce)};
 
     // Lets templates request a span selection in the parent trace view.
     const selectSpan = (spanId) => { if (typeof spanId === 'string' && spanId) window.parent.postMessage({ type: '${SELECT_SPAN_MESSAGE_TYPE}', spanId }, parentOrigin); };
@@ -106,14 +135,24 @@ const createIframeContent = (templateCode: string): string => {
       }
       
       async loadDependencies() {
-        const [preactModule, preactHooksModule, babelModule, twindCore, presetTailwind, presetAutoprefix] = await Promise.all([
-          import('preact'),
-          import('preact/hooks'),
-          import('@babel/standalone'),
-          import('@twind/core'),
-          import('@twind/preset-tailwind'),
-          import('@twind/preset-autoprefix')
-        ]);
+        let modules;
+        try {
+          modules = await Promise.all([
+            import('preact'),
+            import('preact/hooks'),
+            import('@babel/standalone'),
+            import('@twind/core'),
+            import('@twind/preset-tailwind'),
+            import('@twind/preset-autoprefix')
+          ]);
+        } catch (error) {
+          // Browsers cache a failed dynamic-import record, so re-importing here
+          // wouldn't re-fetch. Surface a recoverable flag so the host can remount
+          // the iframe with a fresh module map (the same thing reopening does).
+          error.isDependencyLoadError = true;
+          throw error;
+        }
+        const [preactModule, preactHooksModule, babelModule, twindCore, presetTailwind, presetAutoprefix] = modules;
         
         const core = twindCore.default || twindCore;
         const tailwind = presetTailwind.default || presetTailwind;
@@ -197,6 +236,10 @@ const createIframeContent = (templateCode: string): string => {
 
           window.parent.postMessage({ type: '${MESSAGE_TYPE}_READY' }, parentOrigin);
         } catch (error) {
+          if (error && error.isDependencyLoadError && !IS_FINAL_ATTEMPT) {
+            window.parent.postMessage({ type: '${RELOAD_MESSAGE_TYPE}', nonce: RELOAD_NONCE }, parentOrigin);
+            return;
+          }
           this.showError(error.message || 'Unknown error occurred', error.stack);
         }
       }
@@ -265,16 +308,50 @@ const JsxRenderer = ({ code, data, className, autoHeight = false, onSelectSpan }
     if (!iframe) return;
 
     iframeReadyRef.current = false;
+    let attempt = 0;
+    // Identifies this effect cycle's srcdoc. A srcdoc navigation reuses the same
+    // browsing context, so a RELOAD_MESSAGE_TYPE queued by a superseded load
+    // (e.g. after `code` changed mid-failure) still passes the contentWindow
+    // source check; the nonce lets us drop those stale reload requests.
+    const reloadNonce = crypto.randomUUID();
     // Queue current data for this (re)initialized iframe's READY. The [data]
     // effect only fires on data change, so it misses the empty→populated mount.
     pendingDataRef.current = parseData(latestDataRef.current);
 
-    const handleReady = (event: MessageEvent) => {
+    const writeSrcdoc = () => {
+      const isFinalAttempt = attempt >= MAX_LOAD_ATTEMPTS - 1;
+      // esm.sh kept failing across remounts — likely an outage rather than a
+      // blip, so the last attempt goes through the fallback CDN.
+      const cdn = isFinalAttempt ? FALLBACK_CDN : PRIMARY_CDN;
+      try {
+        iframe.srcdoc = createIframeContent(normalizeTemplateCode(code), isFinalAttempt, reloadNonce, cdn);
+      } catch (error) {
+        iframe.srcdoc = createErrorContent(
+          error instanceof Error ? error.message : "Failed to initialize template renderer"
+        );
+      }
+    };
+
+    const handleMessage = (event: MessageEvent) => {
       if (event.source !== iframe.contentWindow) return;
+
+      // A dependency import failed (e.g. transient esm.sh hiccup). Remount the
+      // iframe with a fresh module map — a re-import in the same realm would hit
+      // the browser's cached failed-module record and never re-fetch.
+      if (event.data?.type === RELOAD_MESSAGE_TYPE) {
+        if (event.data.nonce === reloadNonce && attempt < MAX_LOAD_ATTEMPTS - 1) {
+          attempt += 1;
+          iframeReadyRef.current = false;
+          writeSrcdoc();
+        }
+        return;
+      }
+
       if (event.data?.type === SELECT_SPAN_MESSAGE_TYPE && typeof event.data.spanId === "string") {
         onSelectSpanRef.current?.(event.data.spanId);
         return;
       }
+
       if (event.data?.type !== `${MESSAGE_TYPE}_READY`) return;
       iframeReadyRef.current = true;
 
@@ -283,17 +360,11 @@ const JsxRenderer = ({ code, data, className, autoHeight = false, onSelectSpan }
       }
     };
 
-    window.addEventListener("message", handleReady);
+    window.addEventListener("message", handleMessage);
 
-    try {
-      iframe.srcdoc = createIframeContent(normalizeTemplateCode(code));
-    } catch (error) {
-      iframe.srcdoc = createErrorContent(
-        error instanceof Error ? error.message : "Failed to initialize template renderer"
-      );
-    }
+    writeSrcdoc();
 
-    return () => window.removeEventListener("message", handleReady);
+    return () => window.removeEventListener("message", handleMessage);
   }, [code]);
 
   useEffect(() => {
