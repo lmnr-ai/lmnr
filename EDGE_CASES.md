@@ -6,7 +6,7 @@ frontend on `:3000`, staging Postgres + ClickHouse) using the **real built CLI**
 HTTP against `/v1/cli/signals` where the case is about the endpoint contract
 (status codes, auth, headers, wire-shape).
 
-**Result: 87 / 87 pass**, twice in a row (the runner is idempotent — it deletes
+**Result: 88 / 88 pass**, twice in a row (the runner is idempotent — it deletes
 its own fixtures on entry).
 
 Runner: `/tmp/edge-cases-run.sh` (sandbox-local, not committed — it hardcodes a
@@ -177,7 +177,12 @@ transaction (`create_signal_with_alerts`), and an update's metadata change plus 
 trigger replacement share one transaction too (`update_signal`). This matters
 because `signal_triggers` has no FK: a signal committed without its triggers is
 silently inert *and* un-retryable, since re-creating it hits the unique-name 409.
-Covered by M4 / M5.
+
+For the same reason `delete_signal` takes the SAME `FOR UPDATE` lock on the
+signals row **before** touching `signal_triggers`. A lock on only the update side
+is not enough — with no FK, a delete that went straight for the child rows would
+not block, so an in-flight replace could insert rows the delete had already
+scanned past. Covered by M4 / M5 / M6.
 
 ## L. Output contract (agent-friendliness)
 
@@ -203,6 +208,7 @@ now regression-covered here.
 | M3 | `?name=ec-under` | Plain substring search still matches both | HTTP | PASS |
 | M4 | PATCH with `sampleRate: 77` **and** an invalid trigger | 400, and `sampleRate` stays at its prior 30 — the metadata half must not apply when the trigger half is rejected | HTTP + DB | PASS |
 | M5 | Create | Signal + alert + trigger rows all present (one transaction) | DB | PASS |
+| M6 | Concurrent trigger-replace + delete, 4 rounds | **Zero** orphan `signal_triggers` rows. `signal_triggers` has no FK, so both paths must lock the signals row FIRST — with the delete ordered triggers-first this reproduced 3/3 in raw SQL | HTTP + DB | PASS |
 
 ## Not covered (deliberate)
 
@@ -216,9 +222,10 @@ now regression-covered here.
   commit and is best-effort by design (a CH hiccup must not block the delete).
   The test signals never produced events, so there was nothing to purge; the
   Postgres side of the cascade is asserted in §K.
-- **Concurrent updates to one signal.** The read-modify-write on metadata takes
-  a `FOR UPDATE` row lock, but a true concurrency test needs two clients racing
-  and wasn't scripted.
+- **Concurrent metadata updates to one signal.** The read-modify-write takes a
+  `FOR UPDATE` row lock; two clients racing *the same metadata merge* isn't
+  scripted. The update-vs-delete race that the missing FK made reachable **is**
+  covered (M6).
 - **`NEW_CLUSTER` alert creation.** Requires `CLUSTERING_ENABLED=true`, which is
   unset in this sandbox; §B5 asserts the correct clustering-off behaviour
   instead (no cluster alert, `skipSimilar:false`).

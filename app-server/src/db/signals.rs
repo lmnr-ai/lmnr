@@ -245,9 +245,13 @@ pub struct SignalUpdate {
 /// `triggers: Some(_)` replaces the whole set; `None` leaves them untouched (and
 /// the returned vec is then read separately by the caller). Sharing one
 /// transaction means a failed trigger replace can't half-apply the metadata
-/// update, and — because `signal_triggers` has no FK — can't reintroduce orphan
-/// rows against a concurrently-deleted signal: the `FOR UPDATE` row lock below is
-/// held for the whole transaction, so the delete either waits or finds nothing.
+/// update.
+///
+/// The `FOR UPDATE` lock below is ALSO what serializes this against
+/// `delete_signal` — but only because that path takes the same lock before
+/// touching `signal_triggers`. The lock here is not sufficient on its own: with
+/// no FK, a delete that went straight for the child rows would not block, so both
+/// paths must agree to lock the signal row first.
 ///
 /// Name is deliberately NOT updatable: it is the unique key the alert names and
 /// the onboarding template diff derive from, and the UI doesn't rename either.
@@ -366,6 +370,27 @@ pub async fn delete_signal(
     signal_id: Uuid,
 ) -> Result<Option<SignalRow>> {
     let mut tx = pool.begin().await?;
+
+    // Take the SAME `FOR UPDATE` lock on the signals row that `update_signal`
+    // takes, BEFORE touching `signal_triggers`. Without an FK, nothing else
+    // serializes the two paths: a concurrent update that already replaced the
+    // triggers but hasn't committed would insert rows this delete has already
+    // scanned past, leaving orphans behind the removed signal. Reproduced
+    // deterministically (3/3 runs) with the delete ordered triggers-first.
+    //
+    // Returning early when the row is gone also makes a double delete a clean
+    // 404 instead of a second pass over the child tables.
+    let locked = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM signals WHERE id = $1 AND project_id = $2 FOR UPDATE",
+    )
+    .bind(signal_id)
+    .bind(project_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    if locked.is_none() {
+        return Ok(None);
+    }
 
     sqlx::query("DELETE FROM signal_triggers WHERE project_id = $1 AND signal_id = $2")
         .bind(project_id)
