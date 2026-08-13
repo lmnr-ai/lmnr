@@ -14,6 +14,11 @@
 //! static-prompt queue. The consumer accumulates prompts per signature and,
 //! once enough samples exist, runs the extraction agent under a per-signature
 //! lock and caches the resulting regex list.
+//!
+//! Under `Feature::StaticSpV2` the ingest producer routes to the
+//! sp-versioning pipeline (`traces::sp_versioning`) instead, and the agent
+//! runs in [`worker`] — a queue consumer triggered once per minted prompt
+//! version.
 
 use uuid::Uuid;
 
@@ -28,6 +33,7 @@ pub mod diff;
 pub mod producer;
 pub mod prompt;
 pub mod tool;
+pub mod worker;
 
 pub use agent::{ExtractionConfig, ExtractionResult, ExtractionTracing, extract_static_regexes};
 
