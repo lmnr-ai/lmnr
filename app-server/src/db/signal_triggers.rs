@@ -16,7 +16,7 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 /// A `signal_triggers` row. `conditions` is the stored `value` column.
@@ -30,22 +30,25 @@ pub struct TriggerRow {
     pub mode: i16,
 }
 
-/// Replace a signal's triggers with `triggers` in one transaction, returning the
-/// new rows. Delete-then-insert rather than a per-row diff: trigger rows carry no
-/// stable client-facing identity (the CLI addresses signals, not trigger ids), so
-/// a wholesale replace is both simpler and atomic.
+/// Replace a signal's triggers **inside a caller-supplied transaction**, returning
+/// the new rows. Delete-then-insert rather than a per-row diff: trigger rows carry
+/// no stable client-facing identity (the CLI addresses signals, not trigger ids),
+/// so a wholesale replace is both simpler and atomic.
+///
+/// Takes the `Transaction` rather than the pool so signal creation / update can
+/// commit the signal, its alerts, and its triggers together. Splitting them across
+/// two transactions leaves a named signal with no triggers when the second fails —
+/// silently inert, and un-retryable because re-creating it hits the unique-name 409.
 pub async fn replace_signal_triggers(
-    pool: &PgPool,
+    tx: &mut Transaction<'_, Postgres>,
     project_id: Uuid,
     signal_id: Uuid,
     triggers: &[(Value, Value, i16)],
 ) -> Result<Vec<TriggerRow>> {
-    let mut tx = pool.begin().await?;
-
     sqlx::query("DELETE FROM signal_triggers WHERE project_id = $1 AND signal_id = $2")
         .bind(project_id)
         .bind(signal_id)
-        .execute(&mut *tx)
+        .execute(&mut **tx)
         .await?;
 
     let mut rows = Vec::with_capacity(triggers.len());
@@ -60,12 +63,10 @@ pub async fn replace_signal_triggers(
         .bind(conditions)
         .bind(filters)
         .bind(mode)
-        .fetch_one(&mut *tx)
+        .fetch_one(&mut **tx)
         .await?;
         rows.push(row);
     }
-
-    tx.commit().await?;
 
     Ok(rows)
 }

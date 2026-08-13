@@ -221,7 +221,9 @@ pub async fn create_signal(
 
     let metadata = build_signal_metadata(input.sample_rate, input.disabled.unwrap_or(false));
 
-    let signal = signals::create_signal_with_alerts(
+    // Signal + alerts + triggers commit together: a signal persisted without its
+    // triggers is silently inert and can't be retried (the unique name 409s).
+    let (signal, rows) = signals::create_signal_with_alerts(
         pool,
         project_id,
         &input.name,
@@ -230,10 +232,10 @@ pub async fn create_signal(
         &metadata,
         clustering_enabled,
         subscriber_email,
+        &trigger_payload(&normalized, 0),
     )
     .await?;
 
-    let rows = insert_triggers(pool, project_id, signal.id, &normalized, 0).await?;
     invalidate_trigger_cache(cache, project_id).await;
 
     Ok(SignalResponse::new(
@@ -242,15 +244,10 @@ pub async fn create_signal(
     ))
 }
 
-/// Insert pre-normalized triggers as a wholesale replacement of the signal's set.
-async fn insert_triggers(
-    pool: &PgPool,
-    project_id: Uuid,
-    signal_id: Uuid,
-    triggers: &[NormalizedTrigger],
-    default_mode: i16,
-) -> Result<Vec<signal_triggers::TriggerRow>, CrudError> {
-    let payload: Vec<(Value, Value, i16)> = triggers
+/// Flatten normalized triggers into the `(conditions, filters, mode)` tuples the
+/// db layer inserts, applying `default_mode` to any trigger that omitted one.
+fn trigger_payload(triggers: &[NormalizedTrigger], default_mode: i16) -> Vec<(Value, Value, i16)> {
+    triggers
         .iter()
         .map(|t| {
             (
@@ -259,11 +256,7 @@ async fn insert_triggers(
                 t.mode.unwrap_or(default_mode),
             )
         })
-        .collect();
-
-    signal_triggers::replace_signal_triggers(pool, project_id, signal_id, &payload)
-        .await
-        .map_err(CrudError::Internal)
+        .collect()
 }
 
 /// Best-effort, matching every other cache invalidation: a Redis blip must not
@@ -397,7 +390,13 @@ pub async fn update_signal(
 
     let sample_rate = input.sample_rate.map(|inner| inner.map(|rate| rate as i16));
 
-    let updated = signals::update_signal(
+    // Metadata + triggers commit together, so a failed trigger replace can't
+    // half-apply the metadata update.
+    let payload = normalized
+        .as_ref()
+        .map(|triggers| trigger_payload(triggers, 0));
+
+    let (updated, replaced) = signals::update_signal(
         pool,
         project_id,
         signal_id,
@@ -407,13 +406,15 @@ pub async fn update_signal(
             sample_rate,
             disabled: input.disabled,
         },
+        payload.as_deref(),
     )
     .await
     .map_err(CrudError::Internal)?
     .ok_or(CrudError::SignalNotFound)?;
 
-    let trigger_rows = match &normalized {
-        Some(triggers) => insert_triggers(pool, project_id, signal_id, triggers, 0).await?,
+    let trigger_rows = match replaced {
+        Some(rows) => rows,
+        // No replacement requested — report the signal's current triggers.
         None => signal_triggers::get_signal_triggers(pool, project_id, signal_id)
             .await
             .map_err(CrudError::Internal)?,

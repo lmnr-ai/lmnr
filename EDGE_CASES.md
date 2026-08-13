@@ -6,7 +6,7 @@ frontend on `:3000`, staging Postgres + ClickHouse) using the **real built CLI**
 HTTP against `/v1/cli/signals` where the case is about the endpoint contract
 (status codes, auth, headers, wire-shape).
 
-**Result: 82 / 82 pass**, twice in a row (the runner is idempotent — it deletes
+**Result: 87 / 87 pass**, twice in a row (the runner is idempotent — it deletes
 its own fixtures on entry).
 
 Runner: `/tmp/edge-cases-run.sh` (sandbox-local, not committed — it hardcodes a
@@ -170,6 +170,15 @@ those rows alone (not mine to clean) but they are worth a follow-up: either add
 the FK with `ON DELETE CASCADE` or mirror this explicit delete in the frontend
 action.
 
+### Write atomicity
+
+A signal's row, its auto-created alerts, and its triggers are written in **one**
+transaction (`create_signal_with_alerts`), and an update's metadata change plus a
+trigger replacement share one transaction too (`update_signal`). This matters
+because `signal_triggers` has no FK: a signal committed without its triggers is
+silently inert *and* un-retryable, since re-creating it hits the unique-name 409.
+Covered by M4 / M5.
+
 ## L. Output contract (agent-friendliness)
 
 | # | Case | Expected | Where | Result |
@@ -181,6 +190,19 @@ action.
 | L5 | `list` with no matches | Friendly `No signals found.` rather than an empty table | CLI | PASS |
 
 ---
+
+## M. Review fixes (Bugbot on #2199)
+
+Both issues were reproduced against the live server before fixing, and both are
+now regression-covered here.
+
+| # | Case | Expected | Where | Result |
+|---|---|---|---|---|
+| M1 | `?name=ec-under_score` with a sibling `ec-underXscore` | Matches **only** `ec-under_score` — `_` is a LIKE single-char wildcard, so unescaped it also matched the sibling | HTTP | PASS |
+| M2 | `?name=%` | Matches **nothing** (a literal `%`), not every signal | HTTP | PASS |
+| M3 | `?name=ec-under` | Plain substring search still matches both | HTTP | PASS |
+| M4 | PATCH with `sampleRate: 77` **and** an invalid trigger | 400, and `sampleRate` stays at its prior 30 — the metadata half must not apply when the trigger half is rejected | HTTP + DB | PASS |
+| M5 | Create | Signal + alert + trigger rows all present (one transaction) | DB | PASS |
 
 ## Not covered (deliberate)
 

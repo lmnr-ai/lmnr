@@ -93,9 +93,12 @@ pub enum CreateSignalError {
     Other(#[from] anyhow::Error),
 }
 
-/// Insert a signal plus the alerts (and creator email targets) the UI creates,
-/// in ONE transaction — a signal that half-exists would look configured while
-/// never notifying anyone.
+/// Insert a signal plus its triggers, the alerts, and the creator email targets
+/// the UI creates — all in ONE transaction.
+///
+/// Triggers are written here rather than by a follow-up call because a signal
+/// committed without them is silently inert AND un-retryable: re-creating it hits
+/// the unique-name 409, so the caller is stuck with a broken signal.
 ///
 /// `clustering_enabled` mirrors the frontend `Feature.CLUSTERING` gate: it adds
 /// the `NEW_CLUSTER` alert and sets `skipSimilar`. With clustering off,
@@ -109,7 +112,8 @@ pub async fn create_signal_with_alerts(
     metadata: &Value,
     clustering_enabled: bool,
     subscriber_email: Option<&str>,
-) -> Result<SignalRow, CreateSignalError> {
+    triggers: &[(Value, Value, i16)],
+) -> Result<(SignalRow, Vec<crate::db::signal_triggers::TriggerRow>), CreateSignalError> {
     let mut tx = pool.begin().await.map_err(anyhow::Error::from)?;
 
     let signal = sqlx::query_as::<_, SignalRow>(
@@ -140,9 +144,15 @@ pub async fn create_signal_with_alerts(
         insert_email_alert_targets(&mut tx, project_id, &alert_ids, email).await?;
     }
 
+    let trigger_rows = crate::db::signal_triggers::replace_signal_triggers(
+        &mut tx, project_id, signal.id, triggers,
+    )
+    .await
+    .map_err(CreateSignalError::Other)?;
+
     tx.commit().await.map_err(anyhow::Error::from)?;
 
-    Ok(signal)
+    Ok((signal, trigger_rows))
 }
 
 /// The alert set the UI auto-creates for a new signal: a CRITICAL `SIGNAL_EVENT`
@@ -228,8 +238,16 @@ pub struct SignalUpdate {
     pub disabled: Option<bool>,
 }
 
-/// Update a signal in place, merging metadata over the stored jsonb. Returns
-/// `None` when the signal doesn't exist in this project (404, not 500).
+/// Update a signal in place, merging metadata over the stored jsonb, and
+/// optionally replace its triggers **in the same transaction**. Returns `None`
+/// when the signal doesn't exist in this project (404, not 500).
+///
+/// `triggers: Some(_)` replaces the whole set; `None` leaves them untouched (and
+/// the returned vec is then read separately by the caller). Sharing one
+/// transaction means a failed trigger replace can't half-apply the metadata
+/// update, and — because `signal_triggers` has no FK — can't reintroduce orphan
+/// rows against a concurrently-deleted signal: the `FOR UPDATE` row lock below is
+/// held for the whole transaction, so the delete either waits or finds nothing.
 ///
 /// Name is deliberately NOT updatable: it is the unique key the alert names and
 /// the onboarding template diff derive from, and the UI doesn't rename either.
@@ -238,7 +256,13 @@ pub async fn update_signal(
     project_id: Uuid,
     signal_id: Uuid,
     update: SignalUpdate,
-) -> Result<Option<SignalRow>> {
+    triggers: Option<&[(Value, Value, i16)]>,
+) -> Result<
+    Option<(
+        SignalRow,
+        Option<Vec<crate::db::signal_triggers::TriggerRow>>,
+    )>,
+> {
     let mut tx = pool.begin().await?;
 
     // Lock the row so a concurrent update can't have its metadata keys dropped
@@ -278,9 +302,19 @@ pub async fn update_signal(
     .fetch_one(&mut *tx)
     .await?;
 
+    let trigger_rows = match triggers {
+        Some(triggers) => Some(
+            crate::db::signal_triggers::replace_signal_triggers(
+                &mut tx, project_id, signal_id, triggers,
+            )
+            .await?,
+        ),
+        None => None,
+    };
+
     tx.commit().await?;
 
-    Ok(Some(updated))
+    Ok(Some((updated, trigger_rows)))
 }
 
 /// Merge an update over stored metadata, preserving keys the update doesn't
@@ -367,22 +401,38 @@ pub async fn delete_signal(
     Ok(deleted)
 }
 
+/// Escape the LIKE metacharacters in a user-supplied substring so it matches
+/// LITERALLY. `_` is especially important: it is a single-char wildcard and is
+/// common in signal names, so an unescaped `wildcard_test` also matches
+/// `wildcardXtestX...`. Pairs with the explicit `ESCAPE '\'` in the query below
+/// (the backslash default is not guaranteed under every `standard_conforming_strings`
+/// setting). Mirrors `getSignals` in `frontend/lib/actions/signals/index.ts`.
+fn escape_like_pattern(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
+}
+
 /// List a project's signals, newest first. `name` filters case-insensitively on
-/// a substring so the CLI can resolve a signal by name without an exact match.
+/// a LITERAL substring so the CLI can resolve a signal by name without an exact
+/// match.
 pub async fn list_signals(
     pool: &PgPool,
     project_id: Uuid,
     name: Option<&str>,
 ) -> Result<Vec<SignalRow>> {
+    let pattern = name.map(|n| format!("%{}%", escape_like_pattern(n)));
+
     let signals = sqlx::query_as::<_, SignalRow>(
         "SELECT id, project_id, name, prompt, structured_output_schema, metadata, created_at
          FROM signals
          WHERE project_id = $1
-           AND ($2::text IS NULL OR name ILIKE '%' || $2 || '%')
+           AND ($2::text IS NULL OR name ILIKE $2 ESCAPE '\\')
          ORDER BY created_at DESC",
     )
     .bind(project_id)
-    .bind(name)
+    .bind(pattern)
     .fetch_all(pool)
     .await?;
 
@@ -393,6 +443,19 @@ pub async fn list_signals(
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// `_` is a single-char LIKE wildcard and is common in signal names, so an
+    /// unescaped `wildcard_test` also matches `wildcardXtestX…`. `%` would match
+    /// everything.
+    #[test]
+    fn like_pattern_escapes_wildcards() {
+        assert_eq!(escape_like_pattern("wildcard_test"), r"wildcard\_test");
+        assert_eq!(escape_like_pattern("100%"), r"100\%");
+        // The backslash itself must be escaped FIRST, or escaping `_` afterwards
+        // would produce a pattern whose backslash escapes our own escape.
+        assert_eq!(escape_like_pattern(r"a\_b"), r"a\\\_b");
+        assert_eq!(escape_like_pattern("plain name"), "plain name");
+    }
 
     #[test]
     fn update_preserves_unmentioned_metadata_keys() {
