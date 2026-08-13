@@ -13,7 +13,10 @@ use crate::{
 };
 use tonic::{Request, Response, Status};
 
-use super::{producer::push_spans_to_queue, rate_limit::IngestionRateLimiter};
+use super::{
+    producer::push_spans_to_queue,
+    rate_limit::{IngestionRateLimiter, IngestionTransport},
+};
 
 pub struct ProcessTracesService {
     db: Arc<DB>,
@@ -59,7 +62,10 @@ impl TraceService for ProcessTracesService {
         // Per-project ingestion rate limit, shared with the HTTP /v1/traces
         // path so the two transports draw from one quota.
         if let Some(ref limiter) = self.rate_limiter {
-            if !limiter.check(&self.cache, project_id).await {
+            if !limiter
+                .check(&self.cache, project_id, IngestionTransport::Grpc)
+                .await
+            {
                 return Err(Status::resource_exhausted("Rate limit exceeded"));
             }
         }
