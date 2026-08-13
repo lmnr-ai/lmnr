@@ -2238,7 +2238,15 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::rollouts::update_name)
                             .service(api::v1::cli::rollouts::register_session)
                             .service(api::v1::cli::rollouts::list_blocks)
-                            .service(api::v1::cli::rollouts::add_block);
+                            .service(api::v1::cli::rollouts::add_block)
+                            // `signals/{id}` is registered AFTER the bare
+                            // `signals` routes so the literal path isn't
+                            // shadowed by the dynamic segment.
+                            .service(api::v1::cli::signals::create_signal)
+                            .service(api::v1::cli::signals::list_signals)
+                            .service(api::v1::cli::signals::get_signal)
+                            .service(api::v1::cli::signals::update_signal)
+                            .service(api::v1::cli::signals::delete_signal);
                         #[cfg(feature = "signals")]
                         let cli_scope = cli_scope
                             .service(web::scope("/agent").service(api::v1::cli::agent::agent_chat));

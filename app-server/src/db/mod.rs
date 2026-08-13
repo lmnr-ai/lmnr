@@ -16,12 +16,15 @@ pub mod model_costs;
 pub mod project_api_keys;
 pub mod projects;
 pub mod reports;
-#[cfg(feature = "signals")]
+pub mod signal_triggers;
+// Ungated: signal CRUD is a plain DB write shared by OSS surfaces (the CLI
+// routes). Signal *processing* is what the `signals` feature gates.
 pub mod signals;
 pub mod slack_integrations;
 pub mod spans;
 pub mod trace;
 pub mod usage_warnings;
+pub mod users;
 pub mod utils;
 pub mod workspaces;
 
