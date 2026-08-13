@@ -1,11 +1,12 @@
-name: Build & publish lmnr images
+name: Validate native multi-arch images
+
 on:
-  release:
-    types:
-      - published
+  push:
+    branches:
+      - fix/native-multiarch-images
 
 env:
-  REGISTRY_GH: ghcr.io
+  REGISTRY: ghcr.io
 
 jobs:
   build:
@@ -16,37 +17,37 @@ jobs:
         include:
           - dockerfile: ./app-server/Dockerfile
             context: ./app-server
-            image: ghcr.io/lmnr-ai/app-server
+            image: ghcr.io/niharikag09/lmnr-app-server-multiarch-validation
             image-name: app-server
             arch: amd64
             platform: linux/amd64
             runner: ubuntu-latest
           - dockerfile: ./app-server/Dockerfile
             context: ./app-server
-            image: ghcr.io/lmnr-ai/app-server
+            image: ghcr.io/niharikag09/lmnr-app-server-multiarch-validation
             image-name: app-server
             arch: arm64
             platform: linux/arm64
             runner: ubuntu-24.04-arm
           - dockerfile: ./frontend/Dockerfile
             context: ./frontend
-            image: ghcr.io/lmnr-ai/frontend
+            image: ghcr.io/niharikag09/lmnr-frontend-multiarch-validation
             image-name: frontend
             arch: amd64
             platform: linux/amd64
             runner: ubuntu-latest
             build-args: |
-              NEXT_PUBLIC_APP_VERSION=${{ github.event.release.tag_name }}
+              NEXT_PUBLIC_APP_VERSION=multiarch-validation
               NEXT_DEPLOYMENT_ID=${{ github.sha }}
           - dockerfile: ./frontend/Dockerfile
             context: ./frontend
-            image: ghcr.io/lmnr-ai/frontend
+            image: ghcr.io/niharikag09/lmnr-frontend-multiarch-validation
             image-name: frontend
             arch: arm64
             platform: linux/arm64
             runner: ubuntu-24.04-arm
             build-args: |
-              NEXT_PUBLIC_APP_VERSION=${{ github.event.release.tag_name }}
+              NEXT_PUBLIC_APP_VERSION=multiarch-validation
               NEXT_DEPLOYMENT_ID=${{ github.sha }}
     permissions:
       contents: read
@@ -62,17 +63,11 @@ jobs:
       - name: Log in to the Container registry
         uses: docker/login-action@v4
         with:
-          registry: ${{ env.REGISTRY_GH }}
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ matrix.image }}
-
-      - name: Build and push Docker images
+      - name: Build and push image by digest
         id: push
         uses: docker/build-push-action@v7
         with:
@@ -80,7 +75,6 @@ jobs:
           file: ${{ matrix.dockerfile }}
           platforms: ${{ matrix.platform }}
           push: true
-          labels: ${{ steps.meta.outputs.labels }}
           build-args: ${{ matrix.build-args }}
           outputs: type=image,name=${{ matrix.image }},push-by-digest=true,name-canonical=true,push=true
           provenance: false
@@ -106,15 +100,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - image: ghcr.io/lmnr-ai/app-server
+          - image: ghcr.io/niharikag09/lmnr-app-server-multiarch-validation
             image-name: app-server
-          - image: ghcr.io/lmnr-ai/frontend
+          - image: ghcr.io/niharikag09/lmnr-frontend-multiarch-validation
             image-name: frontend
     permissions:
       contents: read
       packages: write
-      attestations: write
-      id-token: write
 
     steps:
       - name: Download image digests
@@ -130,24 +122,16 @@ jobs:
       - name: Log in to the Container registry
         uses: docker/login-action@v4
         with:
-          registry: ${{ env.REGISTRY_GH }}
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ matrix.image }}
 
       - name: Create multi-platform image
         id: manifest
         working-directory: /tmp/digests
-        env:
-          DOCKER_METADATA_OUTPUT_JSON: ${{ steps.meta.outputs.json }}
         run: |
           docker buildx imagetools create \
-            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            -t "${{ matrix.image }}:${{ github.sha }}" \
             $(printf '${{ matrix.image }}@sha256:%s ' *) \
             --metadata-file /tmp/manifest-metadata.json
           echo "digest=$(jq -r '."containerimage.descriptor".digest' /tmp/manifest-metadata.json)" >> "$GITHUB_OUTPUT"
@@ -164,10 +148,4 @@ jobs:
             echo "Expected linux/amd64 and linux/arm64, got: $platforms" >&2
             exit 1
           fi
-
-      - name: Generate artifact attestation
-        uses: actions/attest@v4
-        with:
-          subject-name: ${{ matrix.image }}
-          subject-digest: ${{ steps.manifest.outputs.digest }}
-          push-to-registry: true
+          echo "Verified platforms: $platforms"
