@@ -1,5 +1,6 @@
 "use client";
 
+import { isEqual } from "lodash";
 import { useCallback, useMemo } from "react";
 import { useFormContext } from "react-hook-form";
 
@@ -9,6 +10,14 @@ import { type Filter } from "@/lib/actions/common/filters";
 
 import { type ManageSignalForm } from "../types";
 import { TRIGGER_INDEX } from "./constants";
+
+/** Mirrors `createTagFromFilter`'s value coercion so the two sides compare. */
+const normalize = (filters: Filter[]) =>
+  filters.map((f) => ({
+    column: f.column,
+    operator: f.operator,
+    value: Array.isArray(f.value) ? f.value.map(String) : String(f.value),
+  }));
 
 /**
  * Filters reuse the search bar from the traces/spans tables so the mental model
@@ -26,12 +35,18 @@ export default function FiltersField() {
 
   const handleChange = useCallback(
     (next: AdvancedSearchValue) => {
+      // AdvancedSearch stringifies every non-array value on the way into its
+      // editor, so a blur that commits an untouched default (`value: 1000`)
+      // hands back `"1000"` — a real edit only if the values differ once both
+      // sides are stringified. Without this, focusing and leaving the bar would
+      // dirty the form and rewrite numeric filters as strings.
+      if (isEqual(normalize(filters ?? []), normalize(next.filters as Filter[]))) return;
       setValue(`triggers.${TRIGGER_INDEX}.filters`, next.filters as Filter[], {
         shouldDirty: true,
         shouldValidate: true,
       });
     },
-    [setValue]
+    [filters, setValue]
   );
 
   return (
