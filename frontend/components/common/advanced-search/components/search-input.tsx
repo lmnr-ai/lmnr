@@ -44,6 +44,7 @@ const FilterSearchInput = ({
   const autocompleteData = useAdvancedSearchContext((state) => state.autocompleteData);
   const activeTagId = useAdvancedSearchContext((state) => state.getActiveTagId());
   const recentSearches = useAdvancedSearchContext((state) => state.recentSearches);
+  const uuidFilterColumn = useAdvancedSearchContext((state) => state.uuidFilterColumn);
 
   const {
     setInputValue,
@@ -123,7 +124,7 @@ const FilterSearchInput = ({
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
       const input = mainInputRef.current;
-      const count = getSuggestionsCount(filters, inputValue, autocompleteData);
+      const count = getSuggestionsCount(filters, inputValue, autocompleteData, uuidFilterColumn);
       const showRecent = !inputValue.trim() && tags.length === 0 && recentSearches.length > 0;
 
       if ((e.metaKey || e.ctrlKey) && e.key === "z") {
@@ -234,7 +235,7 @@ const FilterSearchInput = ({
       if (e.key === "Enter") {
         e.preventDefault();
         if (isOpen && count > 0 && activeIndex >= 0) {
-          const suggestion = getSuggestionAtIndex(filters, inputValue, activeIndex, autocompleteData);
+          const suggestion = getSuggestionAtIndex(filters, inputValue, activeIndex, autocompleteData, uuidFilterColumn);
           if (suggestion) {
             if (suggestion.type === "field") {
               addTag(suggestion.filter.key);
@@ -296,6 +297,7 @@ const FilterSearchInput = ({
       activeRecentIndex,
       autocompleteData,
       recentSearches,
+      uuidFilterColumn,
       setInputValue,
       setIsOpen,
       setActiveIndex,
