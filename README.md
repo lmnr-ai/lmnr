@@ -113,10 +113,16 @@ Pick one of the following provider setups. `LLM_MODEL_SMALL|MEDIUM|LARGE` are op
 LLM_PROVIDER=gemini
 LLM_API_KEY=your_gemini_key
 
-# Option B: OpenAI (or any OpenAI-compatible gateway such as LiteLLM, OpenRouter, vLLM)
+# Option B: OpenAI (or any OpenAI-compatible gateway such as LiteLLM, OpenRouter, OrcaRouter, vLLM)
 LLM_PROVIDER=openai
 # LLM_BASE_URL=http://localhost:4000   # optional, for OpenAI-compatible gateways
 LLM_API_KEY=your_openai_key
+
+# Option B2: OrcaRouter (OpenAI-compatible gateway; keys start with sk-orca-)
+# LLM_PROVIDER=openai
+# LLM_BASE_URL=https://api.orcarouter.ai/v1
+# LLM_API_KEY=your_orcarouter_key
+# Get a key at https://www.orcarouter.ai
 
 # Option C: AWS Bedrock (Anthropic Claude). Uses AWS credentials instead of LLM_API_KEY.
 LLM_PROVIDER=bedrock
