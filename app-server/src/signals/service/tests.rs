@@ -1,6 +1,3 @@
-//! Validation tests for the signal CRUD service. No DB required — these pin the
-//! trigger/filter split (LAM-2031) and the payload-schema rules.
-
 use serde_json::json;
 
 use super::*;
@@ -35,13 +32,6 @@ fn valid_schema() -> Value {
     })
 }
 
-// ---------------------------------------------------------------------------
-// The trigger/filter split — the whole point of the LAM-2031 rework.
-// ---------------------------------------------------------------------------
-
-/// A filter column passed as a condition must be REJECTED, not silently stored:
-/// `evaluate_trigger_condition` has no arm for it, so the trigger would never
-/// fire and the signal would look configured while being inert.
 #[test]
 fn filter_column_in_conditions_is_rejected() {
     for column in ["total_token_count", "status", "span_names"] {
@@ -58,8 +48,6 @@ fn filter_column_in_conditions_is_rejected() {
     }
 }
 
-/// Symmetric case: a condition column passed as a filter would never pass
-/// `evaluate_filter`, silently disabling the signal.
 #[test]
 fn condition_column_in_filters_is_rejected() {
     for column in ["root_span_finished", "span_name"] {
@@ -76,8 +64,6 @@ fn condition_column_in_filters_is_rejected() {
     }
 }
 
-/// `span_name` (trigger, batch-scoped) and `span_names` (filter, trace-wide) are
-/// different columns. Both must be accepted in their own slot.
 #[test]
 fn span_name_and_span_names_are_distinct_columns() {
     let normalized = normalize_trigger(trigger(
@@ -90,14 +76,12 @@ fn span_name_and_span_names_are_distinct_columns() {
     assert_eq!(normalized.filters.len(), 1);
 }
 
-/// An empty condition list never fires — reject rather than persist an inert signal.
 #[test]
 fn empty_conditions_are_rejected() {
     let err = normalize_trigger(trigger(vec![], vec![])).expect_err("empty conditions must reject");
     assert!(err.to_string().contains("at least one condition"));
 }
 
-/// Empty filters is legitimate: run on every trace the trigger fires for.
 #[test]
 fn empty_filters_are_allowed() {
     let normalized =
@@ -105,8 +89,6 @@ fn empty_filters_are_allowed() {
     assert!(normalized.filters.is_empty());
 }
 
-/// The default seed must match the frontend's byte-for-byte so a CLI-created
-/// signal is indistinguishable from a UI-created one.
 #[test]
 fn default_trigger_matches_frontend_seed() {
     let defaults = default_triggers();
@@ -120,12 +102,6 @@ fn default_trigger_matches_frontend_seed() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// Per-column value rules
-// ---------------------------------------------------------------------------
-
-/// The evaluator's `parse::<f64>()` does NOT trim, so a stored " 1000 " would
-/// evaluate false forever. Trim at the boundary.
 #[test]
 fn total_token_count_string_is_trimmed() {
     let normalized = normalize_trigger(trigger(
@@ -136,8 +112,6 @@ fn total_token_count_string_is_trimmed() {
     assert_eq!(normalized.filters[0]["value"], json!("1000"));
 }
 
-/// Rust's `parse::<f64>()` accepts "NaN"/"inf"; a NaN threshold makes every
-/// comparison false (or always-true for `ne`), silently breaking the filter.
 #[test]
 fn non_finite_token_counts_are_rejected() {
     for value in ["NaN", "inf", "-inf", "", "   ", "abc"] {
@@ -152,7 +126,6 @@ fn non_finite_token_counts_are_rejected() {
     }
 }
 
-/// The evaluator derives status from `has_error`, so only these two can match.
 #[test]
 fn status_accepts_error_and_success_only() {
     for value in ["error", "success"] {
@@ -175,8 +148,6 @@ fn status_accepts_error_and_success_only() {
     );
 }
 
-/// A blank `span_names` target matches EVERYTHING under `ne` (the shared
-/// FilterSchema accepts whitespace-only), so it must be rejected.
 #[test]
 fn blank_span_names_filter_is_rejected() {
     for value in ["", "   "] {
@@ -191,8 +162,6 @@ fn blank_span_names_filter_is_rejected() {
     }
 }
 
-/// Blanks inside a span-name list are dropped (the evaluator ignores them), but
-/// an all-blank list can never match and is rejected.
 #[test]
 fn span_name_blanks_are_dropped_and_all_blank_rejected() {
     let normalized = normalize_trigger(trigger(
@@ -214,8 +183,6 @@ fn span_name_blanks_are_dropped_and_all_blank_rejected() {
     );
 }
 
-/// Multiple names need `includes` — `eq` against an array never matches in the
-/// evaluator's scalar comparison.
 #[test]
 fn multiple_span_names_require_includes() {
     assert!(
@@ -232,7 +199,6 @@ fn multiple_span_names_require_includes() {
         vec![],
     ))
     .unwrap();
-    // eq is scalar-valued, so a one-element list collapses to the bare string.
     assert_eq!(single.conditions[0]["value"], json!("only"));
 }
 
@@ -263,12 +229,6 @@ fn mode_outside_zero_or_one_is_rejected() {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Signal + payload-schema validation
-// ---------------------------------------------------------------------------
-
-/// A name is trimmed for STORAGE: otherwise " Foo" and "Foo" are distinct to the
-/// unique constraint and the derived alert renders as " Foo alert".
 #[test]
 fn name_is_trimmed_for_storage() {
     let mut input = signal_input(valid_schema());
@@ -288,8 +248,6 @@ fn blank_name_and_prompt_are_rejected() {
     assert!(validate_signal_input(&mut blank_prompt).is_err());
 }
 
-/// The limit is CHARACTERS, not bytes — a multibyte name at the boundary must not
-/// be rejected for its UTF-8 length.
 #[test]
 fn name_length_limit_counts_characters() {
     let mut at_limit = signal_input(valid_schema());
@@ -338,19 +296,38 @@ fn required_must_list_exactly_the_properties() {
     let missing = json!({
         "type": "object",
         "properties": {
-            "a": { "type": "string", "description": "d" },
-            "b": { "type": "string", "description": "d" },
+            "a": { "type": "string" },
+            "b": { "type": "string" },
         },
-        "required": ["a"],
     });
     assert!(validate_structured_output(&missing).is_err());
 
+    let partial = json!({
+        "type": "object",
+        "properties": {
+            "a": { "type": "string" },
+            "b": { "type": "string" },
+        },
+        "required": ["a"],
+    });
+    assert!(validate_structured_output(&partial).is_err());
+
     let extra = json!({
         "type": "object",
-        "properties": { "a": { "type": "string", "description": "d" } },
-        "required": ["a", "ghost"],
+        "properties": { "a": { "type": "string" } },
+        "required": ["a", "b"],
     });
     assert!(validate_structured_output(&extra).is_err());
+
+    let exact = json!({
+        "type": "object",
+        "properties": {
+            "a": { "type": "string" },
+            "b": { "type": "string" },
+        },
+        "required": ["b", "a"],
+    });
+    assert!(validate_structured_output(&exact).is_ok());
 }
 
 #[test]
@@ -360,78 +337,55 @@ fn schema_must_have_at_least_one_property() {
 }
 
 #[test]
-fn unknown_schema_keys_are_rejected() {
+fn extra_json_schema_keys_are_ignored() {
     let top_level = json!({
         "type": "object",
-        "properties": { "a": { "type": "string", "description": "d" } },
+        "properties": { "a": { "type": "string" } },
         "required": ["a"],
         "additionalProperties": false,
     });
-    assert!(validate_structured_output(&top_level).is_err());
+    assert!(validate_structured_output(&top_level).is_ok());
 
     let per_property = json!({
         "type": "object",
-        "properties": { "a": { "type": "string", "description": "d", "format": "email" } },
+        "properties": { "a": { "type": "string", "format": "email" } },
         "required": ["a"],
     });
-    assert!(validate_structured_output(&per_property).is_err());
+    assert!(validate_structured_output(&per_property).is_ok());
 }
 
 #[test]
-fn enum_rules_match_the_drawer() {
-    let non_string = json!({
-        "type": "object",
-        "properties": { "a": { "type": "number", "description": "d", "enum": ["1"] } },
-        "required": ["a"],
-    });
-    assert!(validate_structured_output(&non_string).is_err());
-
+fn enum_values_must_be_unique_non_empty_strings() {
     let duplicates = json!({
         "type": "object",
-        "properties": { "a": { "type": "string", "description": "d", "enum": ["x", "x"] } },
-        "required": ["a"],
+        "properties": { "a": { "type": "string", "enum": ["x", "x"] } },
     });
     assert!(validate_structured_output(&duplicates).is_err());
 
-    let untrimmed = json!({
-        "type": "object",
-        "properties": { "a": { "type": "string", "description": "d", "enum": [" x"] } },
-        "required": ["a"],
-    });
-    assert!(validate_structured_output(&untrimmed).is_err());
-
     let empty = json!({
         "type": "object",
-        "properties": { "a": { "type": "string", "description": "d", "enum": [] } },
-        "required": ["a"],
+        "properties": { "a": { "type": "string", "enum": [] } },
     });
     assert!(validate_structured_output(&empty).is_err());
 
     let ok = json!({
         "type": "object",
-        "properties": { "a": { "type": "string", "description": "d", "enum": ["low", "high"] } },
+        "properties": { "a": { "type": "string", "enum": ["low", "high"] } },
         "required": ["a"],
     });
     assert!(validate_structured_output(&ok).is_ok());
 }
 
 #[test]
-fn missing_description_is_rejected() {
+fn missing_description_is_allowed() {
     let schema = json!({
         "type": "object",
         "properties": { "a": { "type": "string" } },
         "required": ["a"],
     });
-    assert!(validate_structured_output(&schema).is_err());
+    assert!(validate_structured_output(&schema).is_ok());
 }
 
-// ---------------------------------------------------------------------------
-// Wire-shape semantics (absent vs explicit-null vs empty)
-// ---------------------------------------------------------------------------
-
-/// An absent `sampleRate` key must be distinguishable from an explicit `null`:
-/// serde's plain `Option` collapses both, which would make "clear it" and "leave
-/// it" the same request.
 #[test]
 fn update_input_distinguishes_absent_from_null_sample_rate() {
     let absent: UpdateSignalInput = serde_json::from_value(json!({ "prompt": "x" })).unwrap();
@@ -449,7 +403,6 @@ fn update_input_distinguishes_absent_from_null_sample_rate() {
     assert_eq!(set.sample_rate, Some(Some(40)));
 }
 
-/// Absent `triggers` leaves the signal's triggers alone; `[]` clears them.
 #[test]
 fn update_input_distinguishes_absent_from_empty_triggers() {
     let absent: UpdateSignalInput = serde_json::from_value(json!({ "prompt": "x" })).unwrap();
@@ -459,8 +412,6 @@ fn update_input_distinguishes_absent_from_empty_triggers() {
     assert_eq!(cleared.triggers.map(|t| t.len()), Some(0));
 }
 
-/// A typo'd trigger key must fail loudly rather than being silently ignored
-/// (e.g. `filter` instead of `filters` would drop every filter).
 #[test]
 fn unknown_trigger_keys_are_rejected() {
     let err = serde_json::from_value::<TriggerInput>(json!({

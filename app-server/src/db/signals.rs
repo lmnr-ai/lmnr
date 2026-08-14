@@ -5,19 +5,12 @@ use serde_json::{Value, json};
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
-/// Alert types auto-created alongside a signal. `source_id` on those rows points
-/// at the signal, but there is deliberately NO FK, so deleting a signal must
-/// delete them in application code.
+/// No FK from alerts.source_id — delete in application code.
 const ALERT_TYPE_SIGNAL_EVENT: &str = "SIGNAL_EVENT";
 const ALERT_TYPE_NEW_CLUSTER: &str = "NEW_CLUSTER";
-/// Mirrors the frontend `SEVERITY_LEVEL.CRITICAL`.
 const SEVERITY_CRITICAL: i32 = 2;
 
-/// User-controlled signal settings stored in the `metadata` jsonb column.
-/// `disabled` is only persisted when true; absence means enabled (active).
-///
-/// Read by the signals-gated evaluator; the CRUD path below manipulates the raw
-/// jsonb so it can preserve keys it doesn't model.
+/// `disabled` is only persisted when true; absence means enabled.
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -30,13 +23,11 @@ pub struct SignalMetadata {
 
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 impl SignalMetadata {
-    /// Enabled by default when the `disabled` key is absent (historical signals).
     pub fn disabled(&self) -> bool {
         self.disabled.unwrap_or(false)
     }
 }
 
-/// Signal with prompt and schema, as the signals-gated evaluator reads it.
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Signal {
@@ -69,8 +60,24 @@ pub async fn get_signal(
     Ok(signal)
 }
 
-/// A signal row as returned by the CRUD surface. `metadata` is kept raw here so
-/// updates can merge over stored keys they don't understand.
+pub async fn get_signal_row(
+    pool: &PgPool,
+    project_id: Uuid,
+    signal_id: Uuid,
+) -> Result<Option<SignalRow>> {
+    let row = sqlx::query_as::<_, SignalRow>(
+        "SELECT id, project_id, name, prompt, structured_output_schema, metadata, created_at
+         FROM signals
+         WHERE id = $1 AND project_id = $2",
+    )
+    .bind(signal_id)
+    .bind(project_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row)
+}
+
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct SignalRow {
     pub id: Uuid,
@@ -82,9 +89,6 @@ pub struct SignalRow {
     pub created_at: DateTime<Utc>,
 }
 
-/// Distinguishes the unique-name violation from every other failure so the route
-/// can answer 409 instead of 500. `signals_project_id_name_key` is a UNIQUE
-/// constraint on `(project_id, name)`.
 #[derive(Debug, thiserror::Error)]
 pub enum CreateSignalError {
     #[error("{0}")]
@@ -93,16 +97,6 @@ pub enum CreateSignalError {
     Other(#[from] anyhow::Error),
 }
 
-/// Insert a signal plus its triggers, the alerts, and the creator email targets
-/// the UI creates — all in ONE transaction.
-///
-/// Triggers are written here rather than by a follow-up call because a signal
-/// committed without them is silently inert AND un-retryable: re-creating it hits
-/// the unique-name 409, so the caller is stuck with a broken signal.
-///
-/// `clustering_enabled` mirrors the frontend `Feature.CLUSTERING` gate: it adds
-/// the `NEW_CLUSTER` alert and sets `skipSimilar`. With clustering off,
-/// `skipSimilar` MUST be false or the backend silently drops notifications.
 pub async fn create_signal_with_alerts(
     pool: &PgPool,
     project_id: Uuid,
@@ -129,8 +123,6 @@ pub async fn create_signal_with_alerts(
     .fetch_one(&mut *tx)
     .await
     .map_err(|e| match &e {
-        // 23505 = unique_violation. Only one unique constraint exists on this
-        // table, so the name is the only thing that can collide.
         sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("23505") => {
             CreateSignalError::DuplicateName(name.to_string())
         }
@@ -155,8 +147,6 @@ pub async fn create_signal_with_alerts(
     Ok((signal, trigger_rows))
 }
 
-/// The alert set the UI auto-creates for a new signal: a CRITICAL `SIGNAL_EVENT`
-/// alert always, plus a `NEW_CLUSTER` alert when clustering is on.
 async fn insert_signal_alerts(
     tx: &mut Transaction<'_, Postgres>,
     project_id: Uuid,
@@ -204,7 +194,6 @@ async fn insert_signal_alerts(
     Ok(alert_ids)
 }
 
-/// Subscribe one email to every alert just created for the signal.
 async fn insert_email_alert_targets(
     tx: &mut Transaction<'_, Postgres>,
     project_id: Uuid,
@@ -226,35 +215,15 @@ async fn insert_email_alert_targets(
     Ok(())
 }
 
-/// Fields an update may change. `None` means "leave as stored" — the CLI sends a
-/// partial patch, so absent fields must not clobber (an update without
-/// `disabled` must not silently re-enable a deactivated signal).
 #[derive(Debug, Default)]
 pub struct SignalUpdate {
     pub prompt: Option<String>,
     pub structured_output_schema: Option<Value>,
-    /// Outer `None` = leave stored; `Some(None)` = clear the sampling rate.
+    /// Outer `None` = leave stored; `Some(None)` = clear sampling.
     pub sample_rate: Option<Option<i16>>,
     pub disabled: Option<bool>,
 }
 
-/// Update a signal in place, merging metadata over the stored jsonb, and
-/// optionally replace its triggers **in the same transaction**. Returns `None`
-/// when the signal doesn't exist in this project (404, not 500).
-///
-/// `triggers: Some(_)` replaces the whole set; `None` leaves them untouched (and
-/// the returned vec is then read separately by the caller). Sharing one
-/// transaction means a failed trigger replace can't half-apply the metadata
-/// update.
-///
-/// The `FOR UPDATE` lock below is ALSO what serializes this against
-/// `delete_signal` — but only because that path takes the same lock before
-/// touching `signal_triggers`. The lock here is not sufficient on its own: with
-/// no FK, a delete that went straight for the child rows would not block, so both
-/// paths must agree to lock the signal row first.
-///
-/// Name is deliberately NOT updatable: it is the unique key the alert names and
-/// the onboarding template diff derive from, and the UI doesn't rename either.
 pub async fn update_signal(
     pool: &PgPool,
     project_id: Uuid,
@@ -269,8 +238,6 @@ pub async fn update_signal(
 > {
     let mut tx = pool.begin().await?;
 
-    // Lock the row so a concurrent update can't have its metadata keys dropped
-    // by this read-modify-write.
     let existing = sqlx::query_as::<_, SignalRow>(
         "SELECT id, project_id, name, prompt, structured_output_schema, metadata, created_at
          FROM signals
@@ -321,10 +288,6 @@ pub async fn update_signal(
     Ok(Some((updated, trigger_rows)))
 }
 
-/// Merge an update over stored metadata, preserving keys the update doesn't
-/// mention. `sampleRate` / `disabled` are REMOVED rather than set to null/false
-/// when cleared — absence is the canonical "enabled / no sampling" state, and
-/// that's the shape every reader (and the frontend) expects.
 fn merge_signal_metadata(stored: &Value, update: &SignalUpdate) -> Value {
     let mut map = match stored {
         Value::Object(map) => map.clone(),
@@ -353,17 +316,6 @@ fn merge_signal_metadata(stored: &Value, update: &SignalUpdate) -> Value {
     Value::Object(map)
 }
 
-/// Delete a signal, its triggers, and its auto-created alerts in one
-/// transaction. Returns the deleted row, or `None` when it didn't exist in this
-/// project.
-///
-/// NOTHING here cascades — verified against the live schema: `signal_triggers`
-/// has NO foreign key on `signal_id` at all, and `alerts.source_id` deliberately
-/// has none either (it may reference other entity types). Both must be deleted
-/// in application code or they survive as orphans (staging already holds orphan
-/// trigger rows, since the frontend delete path has the same gap).
-/// `alert_targets` DOES cascade from `alerts`. The signal's ClickHouse footprint
-/// is purged by the caller.
 pub async fn delete_signal(
     pool: &PgPool,
     project_id: Uuid,
@@ -371,15 +323,7 @@ pub async fn delete_signal(
 ) -> Result<Option<SignalRow>> {
     let mut tx = pool.begin().await?;
 
-    // Take the SAME `FOR UPDATE` lock on the signals row that `update_signal`
-    // takes, BEFORE touching `signal_triggers`. Without an FK, nothing else
-    // serializes the two paths: a concurrent update that already replaced the
-    // triggers but hasn't committed would insert rows this delete has already
-    // scanned past, leaving orphans behind the removed signal. Reproduced
-    // deterministically (3/3 runs) with the delete ordered triggers-first.
-    //
-    // Returning early when the row is gone also makes a double delete a clean
-    // 404 instead of a second pass over the child tables.
+    // Lock before touching signal_triggers — no FK serializes the two paths.
     let locked = sqlx::query_scalar::<_, Uuid>(
         "SELECT id FROM signals WHERE id = $1 AND project_id = $2 FOR UPDATE",
     )
@@ -426,12 +370,6 @@ pub async fn delete_signal(
     Ok(deleted)
 }
 
-/// Escape the LIKE metacharacters in a user-supplied substring so it matches
-/// LITERALLY. `_` is especially important: it is a single-char wildcard and is
-/// common in signal names, so an unescaped `wildcard_test` also matches
-/// `wildcardXtestX...`. Pairs with the explicit `ESCAPE '\'` in the query below
-/// (the backslash default is not guaranteed under every `standard_conforming_strings`
-/// setting). Mirrors `getSignals` in `frontend/lib/actions/signals/index.ts`.
 fn escape_like_pattern(value: &str) -> String {
     value
         .replace('\\', "\\\\")
@@ -439,9 +377,6 @@ fn escape_like_pattern(value: &str) -> String {
         .replace('_', "\\_")
 }
 
-/// List a project's signals, newest first. `name` filters case-insensitively on
-/// a LITERAL substring so the CLI can resolve a signal by name without an exact
-/// match.
 pub async fn list_signals(
     pool: &PgPool,
     project_id: Uuid,
@@ -469,15 +404,11 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    /// `_` is a single-char LIKE wildcard and is common in signal names, so an
-    /// unescaped `wildcard_test` also matches `wildcardXtestX…`. `%` would match
-    /// everything.
     #[test]
     fn like_pattern_escapes_wildcards() {
         assert_eq!(escape_like_pattern("wildcard_test"), r"wildcard\_test");
         assert_eq!(escape_like_pattern("100%"), r"100\%");
-        // The backslash itself must be escaped FIRST, or escaping `_` afterwards
-        // would produce a pattern whose backslash escapes our own escape.
+        // Escape `\` first or it would escape our own `_`/`%` escapes.
         assert_eq!(escape_like_pattern(r"a\_b"), r"a\\\_b");
         assert_eq!(escape_like_pattern("plain name"), "plain name");
     }
@@ -489,9 +420,6 @@ mod tests {
         assert_eq!(merged, stored, "an empty patch must be a no-op");
     }
 
-    /// Clearing REMOVES the key rather than writing null/false: every reader treats
-    /// absence as the default, and a literal `disabled: false` is not the shape the
-    /// frontend writes.
     #[test]
     fn clearing_metadata_removes_keys() {
         let stored = json!({ "sampleRate": 30, "disabled": true });
@@ -515,7 +443,6 @@ mod tests {
         assert_eq!(re_enabled, json!({ "sampleRate": 30 }));
     }
 
-    /// Non-object stored metadata (corruption / a hand-edited row) must not panic.
     #[test]
     fn non_object_stored_metadata_degrades_to_empty() {
         let merged = merge_signal_metadata(
