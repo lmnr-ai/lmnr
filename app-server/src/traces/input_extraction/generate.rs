@@ -362,7 +362,7 @@ fn build_request(contents: Vec<ProviderContent>) -> ProviderRequest {
         }),
         service_tier: None,
         provider: Some(extraction_provider()),
-        model_size: Some(ModelSize::Medium),
+        model_size: Some(ModelSize::Small),
     }
 }
 
@@ -376,7 +376,7 @@ fn extraction_provider() -> String {
         .ok()
         .map(|v| v.trim().to_lowercase())
         .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| "bedrock".to_string())
+        .unwrap_or_else(|| "gemini".to_string())
 }
 
 /// A failed provider call: the message plus whether the failure is worth
