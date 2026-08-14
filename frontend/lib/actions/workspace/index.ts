@@ -3,13 +3,10 @@ import { z } from "zod/v4";
 
 import { stripe } from "@/lib/actions/checkout/stripe.ts";
 import { deleteProject } from "@/lib/actions/project";
+import { parseWorkspaceSettings, resolvePrivacyMode } from "@/lib/actions/workspace/settings";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { getServerSession } from "@/lib/auth-session";
-import {
-  cache,
-  PROJECT_MEMBER_CACHE_KEY,
-  WORKSPACE_MEMBER_CACHE_KEY,
-} from "@/lib/cache";
+import { cache, PROJECT_MEMBER_CACHE_KEY, WORKSPACE_MEMBER_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
 import {
   membersOfWorkspaces,
@@ -111,6 +108,7 @@ export const getWorkspace = async (input: z.infer<typeof GetWorkspaceSchema>): P
       id: workspaces.id,
       name: workspaces.name,
       tierName: subscriptionTiers.name,
+      settings: workspaces.settings,
     })
     .from(workspaces)
     .innerJoin(subscriptionTiers, eq(workspaces.tierId, subscriptionTiers.id))
@@ -137,6 +135,7 @@ export const getWorkspace = async (input: z.infer<typeof GetWorkspaceSchema>): P
     name: workspace[0].name,
     tierName: workspace[0].tierName as WorkspaceTier,
     addons,
+    privacyMode: resolvePrivacyMode(parseWorkspaceSettings(workspace[0].settings), workspace[0].tierName),
   };
 };
 

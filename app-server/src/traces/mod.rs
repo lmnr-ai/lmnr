@@ -15,6 +15,7 @@ pub mod rate_limit;
 pub mod realtime;
 #[cfg(feature = "signals")]
 pub mod sampling;
+pub mod sp_versioning;
 pub mod span_attributes;
 pub mod spans;
 pub mod static_sp_extraction;

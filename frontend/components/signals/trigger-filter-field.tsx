@@ -28,6 +28,9 @@ export const SIGNAL_FILTER_COLUMNS: ColumnFilter[] = [
       { label: "Error", value: "error" },
     ],
   },
+  // Plural: a statement about the trace's whole set of span names, matched
+  // anywhere in the trace (the `span_name` TRIGGER sees only the firing batch).
+  { name: "Span names", key: "span_names", dataType: "string" },
 ];
 
 export const getRootSpanFinishedCondition = (): Filter => ({

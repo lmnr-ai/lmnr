@@ -32,10 +32,18 @@ use crate::{
     },
     traces::{
         prompt_hash::{extract_system_message, prompt_hashes},
-        span_attributes::SPAN_PROMPT_HASH,
-        static_sp_extraction::producer::{StaticPromptCandidate, publish_static_prompt_candidates},
+        sp_versioning::producer::{StaticPromptCandidate, publish_static_prompt_candidates},
+        span_attributes::{SPAN_AGENT_HASH, SPAN_PROMPT_HASH},
     },
 };
+
+/// System prompt of an LLM span with its two hashes: the skeleton (naive
+/// signature) and the first-sentence agent identity.
+struct SystemPromptVerdict {
+    skeleton_hash: String,
+    agent_hash: String,
+    text: String,
+}
 
 /// Producer's per-span dedup verdicts. Each is `None` when the span isn't
 /// an LLM span, the field isn't present, or the field isn't a non-empty
@@ -44,9 +52,9 @@ struct DedupVerdicts {
     input: Option<MessageDedup>,
     output: Option<MessageDedup>,
     tools: Option<ToolDedup>,
-    /// `(naive_signature, system_prompt)` when the span carries a system
-    /// message — feeds static-part regex extraction (LAM-1899).
-    system_prompt: Option<(String, String)>,
+    /// Present when the span carries a system message — feeds static-part
+    /// regex extraction (LAM-1899).
+    system_prompt: Option<SystemPromptVerdict>,
     user_task: Option<crate::traces::input_extraction::UserTaskCandidate>,
     output_candidate: Option<crate::traces::input_extraction::OutputCandidate>,
 }
@@ -77,8 +85,16 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
                 SPAN_PROMPT_HASH.to_string(),
                 serde_json::Value::String(hashes.skeleton.clone()),
             );
-            first_sentence_hash = Some(hashes.first_sentence);
-            system_prompt = Some((hashes.skeleton, system_text));
+            span.attributes.raw_attributes.insert(
+                SPAN_AGENT_HASH.to_string(),
+                serde_json::Value::String(hashes.first_sentence.clone()),
+            );
+            first_sentence_hash = Some(hashes.first_sentence.clone());
+            system_prompt = Some(SystemPromptVerdict {
+                skeleton_hash: hashes.skeleton,
+                agent_hash: hashes.first_sentence,
+                text: system_text,
+            });
         }
     }
 
@@ -160,12 +176,14 @@ pub async fn publish_span_messages(
         msg.input_dedup = verdicts.input;
         msg.output_dedup = verdicts.output;
         msg.tool_dedup = verdicts.tools;
-        if let Some((prompt_hash, system_prompt)) = verdicts.system_prompt {
+        if let Some(verdict) = verdicts.system_prompt {
             static_prompt_candidates.push(StaticPromptCandidate {
                 project_id,
                 trace_id: msg.span.trace_id,
-                prompt_hash,
-                system_prompt,
+                span_id: msg.span.span_id,
+                prompt_hash: verdict.skeleton_hash,
+                agent_hash: verdict.agent_hash,
+                system_prompt: verdict.text,
             });
         }
         if verdicts.user_task.is_some() || verdicts.output_candidate.is_some() {
@@ -203,7 +221,7 @@ pub async fn publish_span_messages(
                         .first()
                         .map(|m| m.span.trace_id.to_string())
                         .unwrap_or_default();
-                    match publisher.publish(&messages, &key).await {
+                    match publisher.publish(&mq_message, &key).await {
                         Ok(()) => true,
                         Err(e) => {
                             // Fall back rather than drop: the queue path is still

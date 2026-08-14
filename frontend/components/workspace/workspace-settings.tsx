@@ -8,6 +8,7 @@ import { useSWRConfig } from "swr";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import PrivacyMode from "@/components/workspace/privacy-mode";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
@@ -221,6 +222,8 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
           </DialogContent>
         </Dialog>
       </SettingsSection>
+
+      <PrivacyMode workspace={workspace} isOwner={isOwner} />
 
       <SettingsSection>
         <SettingsSectionHeader

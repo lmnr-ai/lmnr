@@ -9,6 +9,21 @@ pub const PROJECT_CACHE_KEY: &str = "project";
 pub const SIGNAL_TRIGGERS_CACHE_KEY: &str = "signal_triggers";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_TRIGGER_LOCK_CACHE_KEY: &str = "signal_trigger_lock";
+/// Gives one signal run exclusive use of a trace for its FIRST step, so the
+/// next signal's request hits the provider prefix cache the first one warmed
+/// instead of racing it. Held only across step 0 and scoped per
+/// `(project, trace)` — NOT per signal (cross-signal sharing is the point),
+/// which is what distinguishes it from [`SIGNAL_TRIGGER_LOCK_CACHE_KEY`].
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const SIGNAL_TRACE_EXCLUSIVE_LOCK_CACHE_KEY: &str = "signal_trace_exclusive_lock";
+/// Set once a signal request for a trace has completed, meaning the provider's
+/// prefix cache for that trace is warm. Every later run on the trace then skips
+/// [`SIGNAL_TRACE_EXCLUSIVE_LOCK_CACHE_KEY`] entirely and runs in PARALLEL — the
+/// lock only has to elect the first warmer, not serialize all K signals.
+/// Its TTL approximates the provider's implicit-cache lifetime, so it is a
+/// heuristic: too long merely costs a cache miss, too short a needless wait.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const SIGNAL_PREFIX_WARM_CACHE_KEY: &str = "signal_prefix_warm";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const ALERT_FILTERS_CACHE_KEY: &str = "alert_filters";
 pub const WORKSPACE_BYTES_USAGE_CACHE_KEY: &str = "workspace_bytes_usage";
@@ -98,8 +113,41 @@ pub const STATIC_SP_ACCUMULATOR_CACHE_KEY: &str = "static_sp_accumulator";
 /// from the multi-KB samples blob so bumping it doesn't rewrite the samples).
 /// Drives the static-prompt fallback when unique samples never diversify.
 pub const STATIC_SP_OCCURRENCES_CACHE_KEY: &str = "static_sp_occurrences";
-/// Per-signature lock so the extraction agent runs once per signature.
+/// Per-signature extraction lock (legacy pipeline).
 pub const STATIC_SP_LOCK_CACHE_KEY: &str = "static_sp_lock";
+
+// System-prompt version tracking (`Feature::StaticSpV2`) — the base layer
+// the derived-artifact caches (static-part regexes, later user-task regexes)
+// build on. Keyed by `(project_id, agent_hash)` — the first-sentence hash —
+// except the memo, which is keyed by the full prompt's content hash. See
+// `traces/sp_versioning/versions.rs`.
+/// `(project, agent_hash) → Vec<VersionEntry>` — live prompt versions,
+/// newest first, capped at `SP_EXTRACTION_VERSION_CAP`.
+pub const SYSTEM_PROMPT_VERSIONS_CACHE_KEY: &str = "system_prompt_versions";
+
+/// `(project, agent_hash, version_hash) → Vec<u64>` — the version's static
+/// line-hash set, read by the cheap subset match.
+pub const SYSTEM_PROMPT_VERSION_LINES_CACHE_KEY: &str = "system_prompt_version_lines";
+
+/// `(project, agent_hash, version_hash) → Vec<LabeledRegex>` — the version's
+/// static-part removal regexes. Absent = generation pending/failed (readers
+/// fall back to the raw prompt).
+pub const SYSTEM_PROMPT_DYNAMIC_REGEXES_CACHE_KEY: &str = "system_prompt_dynamic_regexes";
+
+/// `(project, agent_hash) → Vec<WindowEntry>` — last N distinct prompts.
+pub const SYSTEM_PROMPT_WINDOW_CACHE_KEY: &str = "system_prompt_window";
+
+/// `(project, full_prompt_hash) → version_hash` — exact-bytes memo letting
+/// the ingest producer skip classification for byte-identical repeats.
+pub const SYSTEM_PROMPT_VERSION_MEMO_CACHE_KEY: &str = "system_prompt_version_memo";
+
+/// Per-agent mint lock (`sp_versioning::versions::mint_lock_cache_key`).
+pub const SYSTEM_PROMPT_VERSION_LOCK_CACHE_KEY: &str = "system_prompt_version_lock";
+
+/// Per-version lock serializing the SP-regex extraction worker's agent run
+/// (`static_sp_extraction::worker::run_lock_cache_key`).
+pub const SYSTEM_PROMPT_REGEX_EXTRACTION_LOCK_CACHE_KEY: &str =
+    "system_prompt_regex_extraction_lock";
 
 // Debugger replay cache (LAM-1715). Concrete Redis keys are namespaced by
 // `(project_id, replay_trace_id)` — see `traces/debug_cache.rs`.

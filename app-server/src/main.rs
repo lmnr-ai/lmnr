@@ -63,7 +63,11 @@ use signals::private::{
     SignalWorkerConfig,
     batching::SignalBatchingHandler,
     pendings_consumer::SignalJobPendingBatchHandler,
-    queue::{SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_QUEUE, SIGNALS_REALTIME_ROUTING_KEY},
+    queue::{
+        SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_QUEUE, SIGNALS_REALTIME_ROUTING_KEY,
+        SIGNALS_REALTIME_WAITING_EXCHANGE, SIGNALS_REALTIME_WAITING_QUEUE,
+        SIGNALS_REALTIME_WAITING_ROUTING_KEY,
+    },
     realtime::SignalJobRealtimeHandler,
     submissions_consumer::SignalJobSubmissionBatchHandler,
 };
@@ -78,9 +82,18 @@ use traces::{
         consumer::InputExtractionHandler,
         queue::{INPUT_EXTRACTION_EXCHANGE, INPUT_EXTRACTION_QUEUE, INPUT_EXTRACTION_ROUTING_KEY},
     },
+    sp_versioning::{
+        SP_VERSIONING_DELAY_EXCHANGE, SP_VERSIONING_DELAY_QUEUE, SP_VERSIONING_DELAY_ROUTING_KEY,
+        SP_VERSIONING_EXCHANGE, SP_VERSIONING_QUEUE, SP_VERSIONING_ROUTING_KEY,
+        consumer::SpVersioningHandler,
+    },
     static_sp_extraction::{
         STATIC_PROMPT_EXCHANGE, STATIC_PROMPT_QUEUE, STATIC_PROMPT_ROUTING_KEY,
         consumer::StaticPromptHandler,
+        worker::{
+            SP_REGEX_EXTRACTION_EXCHANGE, SP_REGEX_EXTRACTION_QUEUE,
+            SP_REGEX_EXTRACTION_ROUTING_KEY, SpRegexExtractionHandler,
+        },
     },
     stream_consumer::StreamSpanHandler,
 };
@@ -187,11 +200,14 @@ fn main() -> anyhow::Result<()> {
     // == Sentry ==
     let sentry_dsn = std::env::var(env::observability::SENTRY_DSN)
         .unwrap_or("https://1234567890@sentry.io/1234567890".to_string());
+    // Sentry bills by span volume, so only a fraction of transactions is sent.
+    // Sampling is per-transaction (the SDK's own knob), which keeps every sampled
+    // trace internally complete.
     let _sentry_guard = sentry::init((
         sentry_dsn,
         sentry::ClientOptions {
             release: sentry::release_name!(),
-            traces_sample_rate: 1.0,
+            traces_sample_rate: env::sentry_sampling::sample_rate(),
             environment: Some(Cow::Owned(
                 std::env::var(env::connections::ENVIRONMENT).unwrap_or("development".to_string()),
             )),
@@ -729,6 +745,53 @@ fn main() -> anyhow::Result<()> {
                     )
                     .await
                     .unwrap();
+
+                // Parking lot for runs waiting on a sibling to warm the trace's
+                // prefix cache. No consumer — messages expire via their
+                // per-message TTL and dead-letter back into the realtime
+                // exchange. (The realtime queue itself is bound to that exchange
+                // by `get_receiver` when a consumer subscribes.)
+                channel
+                    .exchange_declare(
+                        SIGNALS_REALTIME_WAITING_EXCHANGE.into(),
+                        ExchangeKind::Fanout,
+                        ExchangeDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
+
+                let mut realtime_waiting_args = quorum_queue_args.clone();
+                realtime_waiting_args.insert(
+                    "x-dead-letter-exchange".into(),
+                    lapin::types::AMQPValue::LongString(SIGNALS_REALTIME_EXCHANGE.into()),
+                );
+
+                channel
+                    .queue_declare(
+                        SIGNALS_REALTIME_WAITING_QUEUE.into(),
+                        QueueDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        realtime_waiting_args,
+                    )
+                    .await
+                    .unwrap();
+
+                channel
+                    .queue_bind(
+                        SIGNALS_REALTIME_WAITING_QUEUE.into(),
+                        SIGNALS_REALTIME_WAITING_EXCHANGE.into(),
+                        SIGNALS_REALTIME_WAITING_ROUTING_KEY.into(),
+                        lapin::options::QueueBindOptions::default(),
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
             }
 
             // ==== 3.11 Logs message queue ====
@@ -835,6 +898,106 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.15 SP versioning queues ====
+            channel
+                .exchange_declare(
+                    SP_VERSIONING_EXCHANGE.into(),
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    SP_VERSIONING_QUEUE.into(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
+            // Delay queue for messages that can't resolve yet. No consumer
+            // — messages expire via their per-message TTL and dead-letter
+            // back into the sp-versioning exchange for a re-check.
+            channel
+                .exchange_declare(
+                    SP_VERSIONING_DELAY_EXCHANGE.into(),
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            let mut sp_versioning_delay_args = quorum_queue_args.clone();
+            sp_versioning_delay_args.insert(
+                "x-dead-letter-exchange".into(),
+                lapin::types::AMQPValue::LongString(SP_VERSIONING_EXCHANGE.into()),
+            );
+
+            channel
+                .queue_declare(
+                    SP_VERSIONING_DELAY_QUEUE.into(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    sp_versioning_delay_args,
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_bind(
+                    SP_VERSIONING_DELAY_QUEUE.into(),
+                    SP_VERSIONING_DELAY_EXCHANGE.into(),
+                    SP_VERSIONING_DELAY_ROUTING_KEY.into(),
+                    lapin::options::QueueBindOptions::default(),
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            // ==== 3.16 SP regex extraction (demand-driven) queue ====
+            // Fed by consumers that hit a version regex-miss (the signals
+            // summarizer); failures drop and the next demand retries, so no
+            // delay/retry topology.
+            channel
+                .exchange_declare(
+                    SP_REGEX_EXTRACTION_EXCHANGE.into(),
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    SP_REGEX_EXTRACTION_QUEUE.into(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
             let max_channel_pool_size = env::mq::MAX_CHANNEL_POOL_SIZE.get();
 
             log::info!("RabbitMQ channels: {}", max_channel_pool_size);
@@ -907,6 +1070,10 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(CHECKPOINTS_EXCHANGE, CHECKPOINTS_QUEUE);
         // ==== 3.14 Static prompt message queue ====
         queue.register_queue(STATIC_PROMPT_EXCHANGE, STATIC_PROMPT_QUEUE);
+        // ==== 3.15 SP versioning message queue ====
+        queue.register_queue(SP_VERSIONING_EXCHANGE, SP_VERSIONING_QUEUE);
+        // ==== 3.16 SP regex extraction (demand-driven) queue ====
+        queue.register_queue(SP_REGEX_EXTRACTION_EXCHANGE, SP_REGEX_EXTRACTION_QUEUE);
         log::info!("Using tokio mpsc queue");
         Arc::new(queue.into())
     };
@@ -1277,6 +1444,10 @@ fn main() -> anyhow::Result<()> {
         let num_checkpoints_workers = env::workers::NUM_CHECKPOINTS.get();
 
         let num_static_prompt_workers = env::workers::NUM_STATIC_SP.get();
+
+        let num_sp_versioning_workers = env::workers::NUM_SP_VERSIONING.get();
+
+        let num_sp_regex_extraction_workers = env::workers::NUM_SP_REGEX_EXTRACTION.get();
 
         let num_input_extraction_workers = env::workers::NUM_INPUT_EXTRACTION.get();
 
@@ -1935,12 +2106,13 @@ fn main() -> anyhow::Result<()> {
                         );
                     }
 
-                    // Spawn static prompt workers. Gate on the shared LLM
-                    // client exactly like input-extraction: a handler without
-                    // a client can only ack-and-drop messages, so a node that
-                    // failed to build the client must NOT consume this queue —
-                    // otherwise it silently discards work another node enqueued
-                    // instead of leaving it for a consumer that can extract.
+                    // Spawn static prompt workers (legacy pipeline). Gate on
+                    // the shared LLM client exactly like input-extraction: a
+                    // handler without a client can only ack-and-drop messages,
+                    // so a node that failed to build the client must NOT
+                    // consume this queue — otherwise it silently discards work
+                    // another node enqueued instead of leaving it for a
+                    // consumer that can extract.
                     if let Some(llm_client) = llm_provider_client.as_ref() {
                         let cache = cache_for_consumer.clone();
                         let llm_client = llm_client.clone();
@@ -1958,6 +2130,60 @@ fn main() -> anyhow::Result<()> {
                         );
                     } else {
                         log::warn!("LLM provider not available - skipping static prompt workers");
+                    }
+
+                    // Spawn sp-versioning classifier workers. LLM-free (the
+                    // ingest producer gates publishing on client availability;
+                    // the extraction workers consume their own queue), so they
+                    // run unconditionally.
+                    {
+                        let cache = cache_for_consumer.clone();
+                        let clickhouse = clickhouse_for_consumer.clone();
+                        let queue = mq_for_consumer.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::SpVersioning,
+                            num_sp_versioning_workers,
+                            move || {
+                                SpVersioningHandler::new(
+                                    cache.clone(),
+                                    clickhouse.clone(),
+                                    queue.clone(),
+                                )
+                            },
+                            QueueConfig::new(
+                                SP_VERSIONING_QUEUE,
+                                SP_VERSIONING_EXCHANGE,
+                                SP_VERSIONING_ROUTING_KEY,
+                            ),
+                        );
+                    }
+
+                    // Spawn SP-regex extraction workers (demand-driven).
+                    // Same LLM-client gate as above.
+                    if let Some(llm_client) = llm_provider_client.as_ref() {
+                        let cache = cache_for_consumer.clone();
+                        let clickhouse = clickhouse_for_consumer.clone();
+                        let llm_client = llm_client.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::SpRegexExtraction,
+                            num_sp_regex_extraction_workers,
+                            move || {
+                                SpRegexExtractionHandler::new(
+                                    cache.clone(),
+                                    clickhouse.clone(),
+                                    Some(llm_client.clone()),
+                                )
+                            },
+                            QueueConfig::new(
+                                SP_REGEX_EXTRACTION_QUEUE,
+                                SP_REGEX_EXTRACTION_EXCHANGE,
+                                SP_REGEX_EXTRACTION_ROUTING_KEY,
+                            ),
+                        );
+                    } else {
+                        log::warn!(
+                            "LLM provider not available - skipping SP-regex extraction workers"
+                        );
                     }
 
                     HttpServer::new(move || {
@@ -2174,7 +2400,9 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::list_projects)
                             .service(api::v1::cli::resolve_project)
                             .service(
-                                web::scope("/sql").service(api::v1::cli::sql::execute_sql_query),
+                                web::scope("/sql")
+                                    .service(api::v1::cli::sql::execute_sql_query)
+                                    .service(api::v1::cli::sql::get_sql_schema),
                             )
                             .service(api::v1::cli::datasets::get_datasets)
                             .service(api::v1::cli::datasets::get_datapoints)
