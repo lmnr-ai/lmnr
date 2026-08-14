@@ -2,11 +2,9 @@
 //!
 //! Single ingest entry point ([`publish_static_prompt_candidates`]): shared
 //! guards (LLM availability, internal-project filter), then a feature-flag
-//! dispatch. `Feature::SystemPromptVersioning` routes to this pipeline's
-//! queue; the legacy skeleton-hash pipeline
-//! (`static_sp_extraction::producer`) keeps receiving candidates until
-//! `Feature::SignalsVersionedPrompts` makes the v2 registry the read path,
-//! so during the observation window BOTH pipelines are fed.
+//! dispatch — `Feature::StaticSpV2` routes to this pipeline's queue, off
+//! routes to the legacy skeleton-hash pipeline
+//! (`static_sp_extraction::producer`).
 //!
 //! v2 messages are grouped by byte-identity within the batch: a memo hit
 //! (prompt already classified) ships a slim message with the known version
@@ -81,24 +79,11 @@ pub async fn publish_static_prompt_candidates(
         return;
     }
 
-    // The two flags gate PUBLISHING and READING independently, so the legacy
-    // queue must keep being fed for as long as the legacy regex cache is what
-    // signals reads. During the observation window (versioning on,
-    // `SignalsVersionedPrompts` off) BOTH pipelines run: dispatching
-    // exclusively on `SystemPromptVersioning` would stop filling the legacy
-    // cache while summarization still depends on it, so every new signature
-    // would fall back to its raw prompt. Cost of the overlap is one extra
-    // extraction per new signature, only until signals switch over.
-    if !is_feature_enabled(Feature::SignalsVersionedPrompts) {
+    if !is_feature_enabled(Feature::SystemPromptVersioning) {
         crate::traces::static_sp_extraction::producer::publish_legacy_candidates(
-            &candidates,
-            &cache,
-            &queue,
+            candidates, &cache, &queue,
         )
         .await;
-    }
-
-    if !is_feature_enabled(Feature::SystemPromptVersioning) {
         return;
     }
 

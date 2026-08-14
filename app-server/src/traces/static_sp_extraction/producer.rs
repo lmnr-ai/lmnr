@@ -5,9 +5,7 @@
 //! Reached only through the sp-versioning dispatcher
 //! (`sp_versioning::producer::publish_static_prompt_candidates`), which owns
 //! the shared guards (LLM availability, internal-project filter) and routes
-//! here whenever `Feature::SignalsVersionedPrompts` is off — i.e. for as long
-//! as this pipeline's regex cache is what signals read, including while the
-//! v2 classifier is already minting versions alongside it.
+//! here when `Feature::StaticSpV2` is off.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -28,18 +26,18 @@ use crate::{
 /// cache/publish failures are logged and never propagated — a later span
 /// with the same prompt re-triggers.
 pub(crate) async fn publish_legacy_candidates(
-    candidates: &[StaticPromptCandidate],
+    candidates: Vec<StaticPromptCandidate>,
     cache: &Cache,
     queue: &Arc<MessageQueue>,
 ) {
-    let mut seen: HashSet<(Uuid, Uuid, &str)> = HashSet::new();
+    let mut seen: HashSet<(Uuid, Uuid, String)> = HashSet::new();
     let mut messages: Vec<StaticPromptQueueMessage> = Vec::new();
 
     for candidate in candidates {
         if !seen.insert((
             candidate.project_id,
             candidate.trace_id,
-            candidate.prompt_hash.as_str(),
+            candidate.prompt_hash.clone(),
         )) {
             continue;
         }
@@ -58,8 +56,8 @@ pub(crate) async fn publish_legacy_candidates(
         messages.push(StaticPromptQueueMessage {
             project_id: candidate.project_id,
             trace_id: candidate.trace_id,
-            prompt_hash: candidate.prompt_hash.clone(),
-            system_prompt: candidate.system_prompt.clone(),
+            prompt_hash: candidate.prompt_hash,
+            system_prompt: candidate.system_prompt,
         });
     }
 
