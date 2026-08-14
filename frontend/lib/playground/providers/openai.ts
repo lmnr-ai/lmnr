@@ -14,4 +14,5 @@ export const openAIThinkingModels = [
   "openai:gpt-5.4-mini",
   "openai:gpt-5.4-nano",
   "openai:gpt-5.5",
+  "openai:gpt-5.6",
 ] as const;
