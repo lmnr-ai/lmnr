@@ -2,7 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { ChartType } from "@/components/chart-builder/types";
-import { type DashboardChart } from "@/components/dashboards/types";
+import { type DashboardChart, GRID_COLS } from "@/components/dashboards/types";
 import { QueryStructureSchema } from "@/lib/actions/sql/types";
 import { db } from "@/lib/db/drizzle";
 import { dashboardCharts } from "@/lib/db/migrations/schema";
@@ -155,6 +155,66 @@ export const updateChart = async (input: z.infer<typeof UpdateChartSchema>) => {
     .where(and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, id)));
 
   return await getChart({ projectId, id });
+};
+
+type ChartLayout = DashboardChart["settings"]["layout"];
+
+const overlaps = (a: ChartLayout, b: ChartLayout) =>
+  a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+
+export const duplicateChart = async (input: z.infer<typeof DeleteChartSchema>) => {
+  const { projectId, id } = DeleteChartSchema.parse(input);
+
+  const source = await getChart({ projectId, id });
+
+  if (!source) return undefined;
+
+  const { x, y, w, h } = source.settings.layout;
+  // Place the copy beside the source, falling back to directly below it when a
+  // second copy of that width wouldn't fit in the grid.
+  const layout = x + 2 * w <= GRID_COLS ? { x: x + w, y, w, h } : { x, y: y + h, w, h };
+
+  const siblings = (await db.query.dashboardCharts.findMany({
+    where: eq(dashboardCharts.projectId, projectId),
+  })) as DashboardChart[];
+
+  // Anything already sitting where the copy goes is pushed down, otherwise
+  // react-grid-layout would resolve the collision by bumping the copy itself
+  // away from its source. It compacts the resulting gaps on render and persists
+  // the settled positions through its own layout PATCH.
+  const displaced = siblings
+    .filter((chart) => chart.id !== id && overlaps(chart.settings.layout, layout))
+    .map((chart) => ({
+      id: chart.id,
+      settings: { ...chart.settings, layout: { ...chart.settings.layout, y: chart.settings.layout.y + h } },
+    }));
+
+  const created = await db.transaction(async (tx) => {
+    const [inserted] = await tx
+      .insert(dashboardCharts)
+      .values({
+        name: `${source.name} (copy)`,
+        query: source.query,
+        projectId,
+        settings: {
+          config: source.settings.config,
+          layout,
+          queryStructure: source.settings.queryStructure ?? null,
+        },
+      })
+      .returning();
+
+    for (const { id: displacedId, settings } of displaced) {
+      await tx
+        .update(dashboardCharts)
+        .set({ settings })
+        .where(and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, displacedId)));
+    }
+
+    return inserted;
+  });
+
+  return created as DashboardChart;
 };
 
 export const createChart = async (input: z.infer<typeof CreateChartSchema>) => {

@@ -789,6 +789,9 @@ The frontend uses Husky with lint-staged. Before commits:
 ## Dashboard Charts API
 
 - `app/api/projects/[projectId]/dashboard-charts/route.ts` exposes `GET` (list), `POST` (create), and `PATCH` (bulk layout update). There is NO `PUT`. Creating a chart from the chart-builder/sql-editor must use `POST`, not `PUT` (which would silently 405 and never reach `createChart`).
+- **`POST` does NOT accept a layout** — `createChart` computes one server-side (shortest of three 4-col slots, appended at the bottom). Any "insert at a specific position" flow therefore needs its own action; `duplicateChart` (`lib/actions/dashboard/index.ts`, behind `POST .../dashboard-charts/[id]/duplicate`) is the reference.
+- **To place a chart at an OCCUPIED grid position, the inserting action must also push the charts it displaces down, in the same transaction.** react-grid-layout resolves a collision by moving the NEWLY added item, not the incumbent, so inserting a duplicate at `x + w` without displacing anyone makes the copy bounce to the next free row — and the grid then PERSISTS that bounced position through its own `onLayoutChange` PATCH, so it looks like the placement logic was ignored. Overlap must be a real rectangle-intersection test (compare against `GRID_COLS` in `components/dashboards/types.ts`, which is also what the grid's `cols` uses); the grid compacts the resulting vertical gaps itself on render.
+- **A mutation that moves OTHER charts must revalidate the SWR list, not append its own result to the cache.** The `dashboard-charts` cache is the single array the grid renders from, so an optimistic `[...current, created]` leaves the displaced siblings at stale positions, and the grid immediately writes that stale layout back via its layout PATCH — silently undoing the server's placement. Delete/rename can stay optimistic (they touch exactly one row).
 
 ## Recharts
 
