@@ -28,6 +28,12 @@ import UnderstandWhy from "./sections/understand-why";
 // draw a duplicate copy of the whole thing. Sections only run the hooks.
 const IS_DEV = process.env.NODE_ENV !== "production";
 const DialDock = IS_DEV ? dynamic(() => import("./dial-dock.tsx").then((mod) => mod.default), { ssr: false }) : null;
+// Registers the card-glow knobs into that same dock. Mounted here rather than
+// in a section because the glow renders in two of them and it drives both
+// through :root.
+const CardGlowDials = IS_DEV
+  ? dynamic(() => import("./sections/card-glow-dials.tsx").then((mod) => mod.default), { ssr: false })
+  : null;
 
 interface Props {
   className?: string;
@@ -41,6 +47,7 @@ interface Props {
 const Landing = ({ className, hasSession }: Props) => (
   <div className={cn("bg-surface-700 overflow-x-clip flex flex-col", className)}>
     {DialDock && <DialDock />}
+    {CardGlowDials && <CardGlowDials />}
     <Hero hasSession={hasSession} />
     {/* 80px controls the gap to the section above */}
     <UnderstandWhy className="md:mt-[calc(80px-(100vh-760px)/2)]" />

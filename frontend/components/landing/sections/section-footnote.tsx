@@ -23,7 +23,10 @@ interface Props {
 // the footnote stays as just name + learn more (no uppercasing).
 const SectionFootnote = ({ name, href }: Props) => (
   <div
-    className={cn(microLabel, "absolute bottom-0 left-0 right-0 z-20 flex justify-between w-full px-2 py-2 items-end")}
+    className={cn(
+      microLabel,
+      "absolute bottom-0 left-0 right-0 z-20 flex justify-between w-full px-3 py-3 items-end text-sm"
+    )}
   >
     <span>{name}</span>
     <Link
