@@ -1,61 +1,55 @@
 import { ArrowUpRight } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
-
-import { cn } from "@/lib/utils";
 
 import { subSection } from "../class-names";
 
-const ENTERPRISE_ROWS = [
-  {
-    label: "HIPAA compliant",
-    href: "https://compliance.laminar.sh/?tab=securityControls&frameworks=hipaa_business_associate_v1",
-  },
-  {
-    label: "SOC 2 Type II compliant",
-    href: "https://compliance.laminar.sh/?tab=securityControls&frameworks=soc2_v1",
-  },
-  { label: "PII Redaction at scale", href: "https://laminar.sh/docs/platform/pii-redaction" },
-  {
-    label: "Self-host in your cloud with full features",
-    href: "https://laminar.sh/docs/hosting-options#hosting-options",
-  },
-];
+interface CardProps {
+  title: string;
+  description: string;
+  href: string;
+}
+
+// Same shell as ./features-for-every-step — surface, height, padding, radius and
+// hover are deliberately identical so the two grids read as one family. Two
+// differences: there is no icon, so the title takes the top row beside the
+// arrow, and the description sits alone at the bottom. Keep the shell classes in
+// sync with that file.
+const Card = ({ title, description, href }: CardProps) => (
+  <Link
+    target="_blank"
+    aria-label={`Learn more about ${title}`}
+    href={href}
+    className="bg-surface-500 font-sans-landing flex flex-col h-[180px] px-5 py-4 justify-between rounded transition-all duration-300 hover:bg-surface-200"
+  >
+    <div className="flex items-start justify-between gap-3 w-full">
+      <p className="leading-6 text-white text-lg">{title}</p>
+      <ArrowUpRight className="size-5 shrink-0 text-foreground-300" strokeWidth={1.5} />
+    </div>
+    <p className="text-foreground-200">{description}</p>
+  </Link>
+);
 
 const Compliance = () => (
   <section className="flex flex-col items-start gap-[52px] w-full">
     <h2 className={subSection}>Enterprise-ready</h2>
 
-    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-10 w-full">
-      <div className="flex flex-col gap-10 items-start w-full max-w-[500px]">
-        <div className="flex flex-col w-full">
-          {ENTERPRISE_ROWS.map(({ label, href }) => (
-            <Link
-              key={label}
-              href={href}
-              target="_blank"
-              className={cn(
-                "flex items-center gap-3 h-14 w-full border-t border-foreground-600",
-                "text-lg text-foreground-300 no-underline"
-              )}
-            >
-              {label}
-              <ArrowUpRight className="size-4" strokeWidth={2} />
-            </Link>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex items-center gap-4 shrink-0">
-        <Image src="/assets/landing/hipaa.svg" alt="HIPAA compliant" width={84} height={84} className="size-[100px]" />
-        <Image
-          src="/assets/landing/soc2.svg"
-          alt="SOC 2 Type 2 compliant"
-          width={84}
-          height={84}
-          className="size-[100px]"
-        />
-      </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
+      <Card
+        title="PII redaction at scale"
+        description="Laminar redacts sensitive information from every span on Laminar's own infrastructure before storage."
+        href="https://laminar.sh/docs/platform/pii-redaction"
+      />
+      <Card
+        title="Deploy on AWS or GCP with Helm"
+        description="Run Laminar on Kubernetes with the Laminar Helm chart."
+        href="https://laminar.sh/docs/hosting-options#hosting-options"
+      />
+      <Card
+        title="Open Source"
+        description="Apache 2.0 licensed"
+        href="https://github.com/lmnr-ai/lmnr?tab=Apache-2.0-1-ov-file#readme"
+      />
+      <Card title="HIPAA & SOC 2 Type II Compliant" description="Compliance" href="https://compliance.laminar.sh/" />
     </div>
   </section>
 );
