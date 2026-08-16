@@ -140,7 +140,7 @@ fn defaults_match_the_frontend_seed() {
         default_filters(),
         vec![json!({ "column": "total_token_count", "operator": "gt", "value": "1000" })]
     );
-    assert_eq!(Mode::default(), Mode::Batch);
+    assert_eq!(Mode::default(), Mode::Realtime);
 }
 
 #[test]

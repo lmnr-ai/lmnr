@@ -210,12 +210,11 @@ impl Trigger {
     }
 }
 
-/// Batch is cheaper and slower; realtime costs 2x.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Mode {
-    #[default]
     Batch,
+    #[default]
     Realtime,
 }
 
@@ -312,6 +311,7 @@ pub struct SignalInput {
     /// Absent = the default filters; `[]` = run on every firing trace.
     #[serde(default)]
     pub filters: Option<Vec<Value>>,
+    /// Absent or `null` → realtime.
     #[serde(default)]
     pub mode: Option<Mode>,
 }
