@@ -9,7 +9,7 @@ import { LaminarAppAvatar, SLACK_BG, SLACK_BORDER } from "../slack-notification-
 import { THREAD_AUTHOR, THREAD_CHANNEL, THREAD_MESSAGES, type ThreadMessage } from "./messages";
 
 /** Beat between messages. Long enough to register each one as it lands. */
-const MESSAGE_MS = 1800;
+const MESSAGE_MS = 1200;
 
 const INITIALS = THREAD_AUTHOR.split(" ")
   .map((part) => part[0])

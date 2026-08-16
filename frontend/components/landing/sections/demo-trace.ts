@@ -8,11 +8,16 @@
 // Read through the `/api/landing-traces` rewrite (see ./understand-why-trace-view
 // /shared-trace-api), so the trace must be marked PUBLIC on laminar.sh or every
 // panel renders empty.
-export const DEMO_TRACE_ID = "f6593456-83c6-3c42-12dd-74cea3f22265";
+//
+// FLAG: sharing is a session-authed PUT that a project API key cannot make, so
+// the script cannot do it — after regenerating, open the trace on laminar.sh
+// and hit Share, then confirm
+// `curl -sI https://laminar.sh/api/shared/traces/<id>` returns 200.
+export const DEMO_TRACE_ID = "7eef18b5-02f1-a9ab-a227-bd81690e807b";
 
-export const DEMO_ROOT_SPAN_ID = "00000000-0000-0000-89fe-bcc254c352ea";
+export const DEMO_ROOT_SPAN_ID = "00000000-0000-0000-2a0d-22102a72ca7c";
 /** The agent deciding to search. */
-export const DEMO_LLM1_SPAN_ID = "00000000-0000-0000-326f-ab066d5d9bf9";
-export const DEMO_TOOL_SPAN_ID = "00000000-0000-0000-53b2-a2fe8f8931d8";
+export const DEMO_LLM1_SPAN_ID = "00000000-0000-0000-6693-70d34f50d67a";
+export const DEMO_TOOL_SPAN_ID = "00000000-0000-0000-dabb-b0316cd94a56";
 /** The agent answering from the search result. */
-export const DEMO_LLM2_SPAN_ID = "00000000-0000-0000-f49a-ac51b74e2398";
+export const DEMO_LLM2_SPAN_ID = "00000000-0000-0000-b90b-40ce98242783";
