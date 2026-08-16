@@ -26,8 +26,13 @@ const Hero = ({ className, hasSession }: Props) => (
             Ship reliable agents{` `}
             <br className="block sm:hidden" />
           </h1>
+          {/* The column runs to 880px but a line stops being comfortable to read
+              well before that, so the break is placed by hand at the clause. It
+              is desktop-only — below md the viewport already wraps the line, and
+              a hard break there just stacks a stub under a full line. */}
           <p className={cn("font-sans-landing text-[20px] text-foreground-200")}>
-            Laminar catches every agent failure, surfaces what to fix, and confirms the fix resolved it.
+            Laminar catches every agent failure, surfaces what to fix, <br className="hidden md:block" />
+            and confirms the fix resolved it.
           </p>
         </div>
 
