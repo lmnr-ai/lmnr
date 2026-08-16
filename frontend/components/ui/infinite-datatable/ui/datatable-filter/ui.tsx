@@ -241,7 +241,7 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
         <>
           <Input
             type="text"
-            className="h-7 hide-arrow"
+            className="h-7 hide-arrow bg-transparent"
             placeholder="key"
             value={currentKey}
             onChange={(e) => {
@@ -251,7 +251,7 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
           />
           <Input
             type="text"
-            className="h-7 hide-arrow"
+            className="h-7 hide-arrow bg-transparent"
             placeholder="value"
             value={currentValue}
             onChange={(e) => {
@@ -307,7 +307,7 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
           {renderOperatorSelect()}
           <Input
             type="number"
-            className="h-7 hide-arrow"
+            className="h-7 hide-arrow bg-transparent"
             placeholder="value"
             value={filter.value}
             onChange={(e) => onValueChange({ field: "value", value: e.target.value })}
@@ -321,7 +321,7 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
           {renderOperatorSelect()}
           <Input
             type="text"
-            className="h-7 hide-arrow"
+            className="h-7 hide-arrow bg-transparent"
             placeholder="value"
             value={filter.value}
             onChange={(e) => onValueChange({ field: "value", value: e.target.value })}
