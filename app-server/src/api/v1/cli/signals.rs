@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::auth::cli_user::CliProjectAuth;
 use crate::cache::Cache;
 use crate::db::{self, DB};
+use crate::features::{Feature, is_feature_enabled};
 use crate::signals::service::{self, SignalInput, TriggerInput, UpdateSignalInput};
 
 #[derive(Debug, Deserialize)]
@@ -40,7 +41,7 @@ pub async fn create_signal(
         email.as_deref(),
         signal,
         triggers,
-        crate::env::clustering::ENABLED.get(),
+        is_feature_enabled(Feature::Clustering),
     )
     .await;
 

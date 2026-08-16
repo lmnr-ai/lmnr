@@ -17,8 +17,6 @@ pub mod project_api_keys;
 pub mod projects;
 pub mod reports;
 pub mod signal_triggers;
-// Ungated: signal CRUD is a plain DB write shared by OSS surfaces (the CLI
-// routes). Signal *processing* is what the `signals` feature gates.
 pub mod signals;
 pub mod slack_integrations;
 pub mod spans;
