@@ -180,11 +180,29 @@ const MorphingSignalCard = ({ collapsed = false, durationMs = 0, progress, showP
       }
       transition={transition}
     >
-      <div className="flex flex-col gap-2 shrink-0" style={{ width: CARD_W - 2 * PAD_X - 2 * BORDER }}>
-        <div className="relative flex items-center justify-between gap-2" style={{ minHeight: SIGNAL_HEADER_H }}>
+      {/* The pill is centred on the CARD, not on the header row, and sits
+          outside the padded content flow. That is what frees the header row to
+          be its natural height — pinning it to the pill's 34px was adding ~9px
+          of dead air above and below the title in every card on the page. At
+          full collapse the padding is 0 and the box IS the pill's box, so
+          centring here lands it exactly where the header row used to. */}
+      <motion.div
+        initial={false}
+        className="absolute inset-0 flex items-center px-0"
+        style={scrubbed ? { opacity: showPill ? pillOpacity : 0 } : undefined}
+        animate={scrubbed ? undefined : { opacity: showPill && collapsedNow ? 1 : 0 }}
+        transition={fadeTransition}
+      >
+        <div ref={pillRef} className="flex">
+          <ClusterPill />
+        </div>
+      </motion.div>
+
+      <div className="flex flex-col gap-0.5 shrink-0" style={{ width: CARD_W - 2 * PAD_X - 2 * BORDER }}>
+        <div className="relative flex items-center justify-between gap-2">
           <motion.span
             initial={false}
-            className="text-sm font-medium text-white truncate"
+            className="text-xs font-medium text-white truncate"
             style={scrubbed ? { opacity: contentOpacity } : undefined}
             animate={scrubbed ? undefined : { opacity: collapsedNow ? 0 : 1 }}
             transition={fadeTransition}
@@ -200,21 +218,6 @@ const MorphingSignalCard = ({ collapsed = false, durationMs = 0, progress, showP
           >
             <X className="size-4 shrink-0 text-foreground-300" strokeWidth={1.5} />
           </motion.span>
-
-          {/* The cluster this event ends up in. It does NOT exist while the
-              card is open — a cluster only forms once enough events have
-              grouped — so it fades IN over the title as the card collapses,
-              and it is absolutely positioned so it never drives layout. */}
-          <motion.div
-            ref={pillRef}
-            initial={false}
-            className="absolute left-0 top-1/2 -translate-y-1/2 flex"
-            style={scrubbed ? { opacity: showPill ? pillOpacity : 0 } : undefined}
-            animate={scrubbed ? undefined : { opacity: showPill && collapsedNow ? 1 : 0 }}
-            transition={fadeTransition}
-          >
-            <ClusterPill />
-          </motion.div>
         </div>
 
         <motion.div

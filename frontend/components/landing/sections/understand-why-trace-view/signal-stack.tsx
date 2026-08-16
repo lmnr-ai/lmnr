@@ -64,6 +64,10 @@ const CARD_H_ESTIMATE = 150;
  *  backing would show as an abrupt change of ground. */
 const BACKING_GAIN = 5;
 
+/** Point WITHIN the flight by which the other runs have reached their slots.
+ *  Short of 1 so the live card is the last thing to arrive. */
+const ENTRY_END = 0.85;
+
 /** The pill's opacity once the clusters card has taken it in, and how far
  *  through the enter it gets there. See `absorb` below. */
 const PILL_ABSORBED_OPACITY = 0.5;
@@ -122,11 +126,19 @@ const useSourceBox = (): SourceBox | null => {
 interface StackCardProps {
   slot: number;
   liveSlot: number;
-  /** The LIVE card's position. Every other slot is an offset from it, so the
-   *  whole stack follows it through the collapse with no second copy of that
-   *  maths — and the offsets are what the entry animates. */
+  /** The LIVE card's position, including its flight out of the trace panel. */
   x: MotionValue<number>;
   y: MotionValue<number>;
+  /** The same path with the flight already FINISHED — the stack's destination,
+   *  travelling on to the pill through the collapse. Every other slot is an
+   *  offset from this, not from the live card.
+   *
+   *  That distinction is the whole feel of the beat. Offsetting from the live
+   *  card makes the others chase it down the frame, escorting it; offsetting
+   *  from the destination makes them assemble where the stack will BE, and the
+   *  live card slots into a formation that is already waiting for it. */
+  anchorX: MotionValue<number>;
+  anchorY: MotionValue<number>;
   /** 0 = off-frame, 1 = arrived in its slot. */
   entry: MotionValue<number>;
   collapse: MotionValue<number>;
@@ -145,9 +157,15 @@ interface StackCardProps {
 //
 // No explicit width — the wrapper shrink-wraps the morphing card, so the
 // backing tracks the collapse for free instead of duplicating its transforms.
-const StackCard = ({ slot, liveSlot, x, y, entry, collapse, timing, onMeasure }: StackCardProps) => {
+const StackCard = ({ slot, liveSlot, x, y, anchorX, anchorY, entry, collapse, timing, onMeasure }: StackCardProps) => {
   const offset = slot - liveSlot;
   const isLive = offset === 0;
+
+  // The live card rides its own flight; everything else is placed off the
+  // destination. Choosing WHICH MotionValue to read, not calling a hook
+  // conditionally — `isLive` is fixed for the life of a slot.
+  const baseX = isLive ? x : anchorX;
+  const baseY = isLive ? y : anchorY;
 
   // ONE scalar places every card, and its SIGN is the whole trick: slots before
   // the live one have a negative offset so they come in from up-LEFT, slots
@@ -158,8 +176,8 @@ const StackCard = ({ slot, liveSlot, x, y, entry, collapse, timing, onMeasure }:
   //   entrySpread ──▶ 1 ──▶ 0
   //   off-frame     slot    on the pill
   const factor = useTransform([entry, collapse], ([e, c]: number[]) => mix(timing.entrySpread, 1, e) * (1 - c));
-  const cx = useTransform([x, factor], ([vx, f]: number[]) => vx + offset * timing.dx * f);
-  const cy = useTransform([y, factor], ([vy, f]: number[]) => vy + offset * timing.dy * f);
+  const cx = useTransform([baseX, factor], ([vx, f]: number[]) => vx + offset * timing.dx * f);
+  const cy = useTransform([baseY, factor], ([vy, f]: number[]) => vy + offset * timing.dy * f);
 
   // The live card is already on screen, so it never fades in — it dims to its
   // place in the depth ladder as the stack forms around it, then returns to
@@ -230,8 +248,17 @@ const SignalStack = ({ flight, collapse, pillEnter, pillRestY, visible, timing }
     return parked + e * ((pill?.height ?? 0) + timing.pillEnterDepth);
   });
 
-  /** The other runs sliding in from off-frame, late in the flight. */
-  const entry = useTransform(flight, (f) => phase(f, timing.entryStart, 1 - timing.entryStart));
+  // The same two paths with the flight pinned at 1 — see `anchorX` on StackCard.
+  const anchorX = useTransform(collapse, (c) => mix(liveX, pillX, c));
+  const anchorY = useTransform([collapse, pillEnter], ([c, e]: number[]) => {
+    const parked = mix(liveY, pillRestY, c);
+    return parked + e * ((pill?.height ?? 0) + timing.pillEnterDepth);
+  });
+
+  /** The other runs sliding in from off-frame, late in the flight — but landing
+   *  BEFORE it ends, so the formation is already waiting when the live card
+   *  arrives rather than everything converging on the same frame. */
+  const entry = useTransform(flight, (f) => phase(f, timing.entryStart, ENTRY_END - timing.entryStart));
 
   // Absorbed, not merely covered: the last of the pill visible above the card's
   // edge is already half gone. The ramp finishes EARLY because the card is
@@ -249,6 +276,8 @@ const SignalStack = ({ flight, collapse, pillEnter, pillRestY, visible, timing }
           liveSlot={liveSlot}
           x={x}
           y={y}
+          anchorX={anchorX}
+          anchorY={anchorY}
           entry={entry}
           collapse={collapse}
           timing={timing}

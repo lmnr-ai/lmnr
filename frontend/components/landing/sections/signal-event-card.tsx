@@ -18,11 +18,15 @@ export const SIGNAL_BG = "rgb(49 134 255 / 0.12)";
  *  must use the SAME number or the card silently resizes mid-flight. */
 export const SIGNAL_CARD_W = 384;
 
-/** Header row height. A CONSTANT rather than the measured pill height, because
- *  it is the collapse target for the morph AND the row height of the static
- *  card — deriving it from a text measurement would make the two disagree for
- *  a frame while fonts settle. Must stay >= the pill's natural height, which is
- *  icon (20) + py-1.5 (12) + border (2). */
+/** The cluster pill's box height — the morph's collapse target, and the box the
+ *  pill-plus-clusters-card assembly is laid out against. A CONSTANT rather than
+ *  the measured pill, because deriving it from a text measurement would make
+ *  the two disagree for a frame while fonts settle. Must equal the pill's
+ *  natural height: icon (20) + py-1.5 (12) + border (2).
+ *
+ *  It is NOT a header row height. It used to double as one, which pinned every
+ *  signal card's title inside a 34px box and left ~9px of dead air above and
+ *  below it. */
 export const SIGNAL_HEADER_H = 34;
 
 /** What the signal actually caught, as a headline. NOT the cluster name: a
@@ -138,15 +142,14 @@ export const SignalCardBody = ({ onSpanClick }: Omit<SignalContentProps, "onClos
 
 // Signal event card inner content. No outer frame — callers wrap it (static
 // border/bg here; the landing trace panel supplies its own animated wrapper).
-// Less padding on top than the bottom: the header row is a fixed 34px box
-// holding a 12px title, so it already carries ~11px of its own air above the
-// glyphs. Matching the bottom's 8px there reads as a gap.
 export const SignalContent = ({ onSpanClick, onClose }: SignalContentProps = {}) => (
-  <div className="w-full flex flex-col px-3 pt-0.5 pb-2 gap-0.5">
-    {/* Fixed row height so this card and the morphing one share a header box —
-        the stack animation flies between them and any difference would read as
-        the card resizing mid-flight. */}
-    <div className="flex items-center justify-between gap-2" style={{ minHeight: SIGNAL_HEADER_H }}>
+  <div className="w-full flex flex-col px-3 py-2 gap-0.5">
+    {/* Natural height. It used to be pinned to SIGNAL_HEADER_H so this card and
+        the morphing one shared a header box, but that constant is the PILL's
+        height — 34px around a 12px title, which is ~9px of dead air above and
+        below it. The morph now centres its pill on the card instead, so both
+        header rows can just be as tall as their content. */}
+    <div className="flex items-center justify-between gap-2">
       {/* Same size as the body below it — weight and colour already carry the
           hierarchy, so a larger title only adds a gap under the header. */}
       <span className="text-xs font-medium text-white truncate">{SIGNAL_EVENT_TITLE}</span>
