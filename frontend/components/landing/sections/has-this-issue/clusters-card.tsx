@@ -42,10 +42,12 @@ export const CLUSTER_COUNT = DATASET.clusterTree.length;
 export const CLUSTERS_CARD_W = 720;
 export const CLUSTERS_CARD_COL_W = 440;
 
-// Column layout only. The list is deliberately NOT here — it hugs its rows, so
-// the card grows as the stage reveals clusters. The row layout takes both
-// heights from the container's single `h-[230px]` instead.
-const COL_CHART_H = 170;
+// Column layout only, and it is the CHART SUB-CARD's height, borders and
+// padding included — the chart inside simply stretches to fill it. The list is
+// deliberately NOT sized here: it hugs its rows, so the card grows as the stage
+// reveals clusters. The row layout takes both heights from the container's
+// single `h-[230px]` instead.
+const COL_CHART_CARD_H = 190;
 
 // Decelerate into the final height.
 const easeOut = (t: number) => 1 - (1 - t) * (1 - t);
@@ -251,12 +253,10 @@ const ClustersCard = ({
     />
   );
 
+  // No height of its own in the column layout — the sub-card below sets one and
+  // flex's default stretch fills it.
   const chart = (
-    <div
-      style={isColumn ? { height: COL_CHART_H } : undefined}
-      className="flex-1 min-w-0 py-2 pr-2 pl-1 bg-secondary"
-      ref={chartContainerRef}
-    >
+    <div className="flex-1 min-w-0 py-2 pr-2 pl-1 bg-secondary" ref={chartContainerRef}>
       <ClusterStackedChart
         clusters={chartClusters}
         statsData={streamedStats}
@@ -284,7 +284,12 @@ const ClustersCard = ({
           onNavigateToBreadcrumb={navigateToBreadcrumb}
         />
         <div className="rounded-md border bg-secondary overflow-hidden">{list}</div>
-        <div className="flex rounded-md border bg-secondary overflow-hidden">{chart}</div>
+        <div
+          style={{ height: COL_CHART_CARD_H }}
+          className="flex rounded-md border bg-secondary overflow-hidden pb-1 pl-1"
+        >
+          {chart}
+        </div>
       </div>
     );
   }
