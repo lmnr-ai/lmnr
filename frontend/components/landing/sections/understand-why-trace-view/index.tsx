@@ -327,11 +327,11 @@ const UnderstandWhyTraceView = () => {
             <div className="relative">
               <div className="sticky top-0 left-0 flex justify-center items-center h-screen">
                 <div
+                  data-landing-frame
                   style={{ width: FRAME_W, height: FRAME_H }}
                   className="rounded-sm bg-surface-500 overflow-hidden relative"
                 >
                   <motion.div
-                    data-landing-panel
                     style={{ height: PANEL_H, opacity: trayOpacity }}
                     className="absolute inset-y-0 my-auto left-1/2 -translate-x-1/2 rounded-md overflow-hidden border bg-background"
                   >

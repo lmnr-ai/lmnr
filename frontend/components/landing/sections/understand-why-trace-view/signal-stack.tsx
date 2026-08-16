@@ -6,7 +6,7 @@ import { useLayoutEffect, useState } from "react";
 import MorphingSignalCard, { type PillMetrics } from "../has-this-issue/morphing-signal-card";
 import { SIGNAL_CLUSTER_EVENT_COUNT } from "../signal-cluster";
 import { SIGNAL_CARD_W } from "../signal-event-card";
-import { FRAME_H, FRAME_W, PANEL_X } from "./geometry";
+import { FRAME_H, FRAME_W } from "./geometry";
 import { phase, type StackTiming } from "./stack-timing";
 
 // The last step — the signal card leaves the trace panel, becomes the front of
@@ -88,21 +88,25 @@ interface SourceBox {
 
 /** Where the panel's own signal card sits, in FRAME coordinates.
  *
- *  Measured against the PANEL, not the frame, so the panel's own opacity/layout
- *  is irrelevant and `PANEL_X` adds the parked offset back. The panel never
- *  moves horizontally, so that constant is always correct. */
+ *  Measured against the FRAME directly. It used to measure against the PANEL
+ *  and add `PANEL_X` back — a leftover from when a tray slid horizontally and
+ *  the panel's live transform had to cancel out. Nothing moves any more, and
+ *  that form was silently WRONG on the vertical: it added the panel's x offset
+ *  but not its y, so the flight began 39px above the card it was flying from
+ *  and the card jumped up before it set off. Measuring against the frame is
+ *  what the consumer's coordinates actually are, and it cannot drift. */
 const useSourceBox = (): SourceBox | null => {
   const [box, setBox] = useState<SourceBox | null>(null);
 
   useLayoutEffect(() => {
     const card = document.querySelector<HTMLElement>("[data-landing-signal-card]");
-    const panel = document.querySelector<HTMLElement>("[data-landing-panel]");
-    if (!card || !panel) return;
+    const frame = document.querySelector<HTMLElement>("[data-landing-frame]");
+    if (!card || !frame) return;
 
     const measure = () => {
       const c = card.getBoundingClientRect();
-      const t = panel.getBoundingClientRect();
-      const next = { x: c.left - t.left + PANEL_X, y: c.top - t.top, h: c.height };
+      const t = frame.getBoundingClientRect();
+      const next = { x: c.left - t.left, y: c.top - t.top, h: c.height };
       setBox((prev) =>
         prev && Math.abs(prev.x - next.x) < 0.5 && Math.abs(prev.y - next.y) < 0.5 && Math.abs(prev.h - next.h) < 0.5
           ? prev
@@ -113,7 +117,7 @@ const useSourceBox = (): SourceBox | null => {
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(card);
-    observer.observe(panel);
+    observer.observe(frame);
     // The collapser wrapping the card animates its own maxHeight open, which
     // moves the card's TOP without resizing the card itself.
     if (card.parentElement) observer.observe(card.parentElement);
