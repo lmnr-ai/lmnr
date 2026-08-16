@@ -15,6 +15,15 @@ import LearnMoreLink from "../two-lines-to-integrate/learn-more-link";
 // than the fixed 34px the Figma frame happens to draw — the ratio is the claim.
 const BAR_H = "h-8";
 
+// This section sets tighter than the page defaults: 28px leading on the 24px
+// type and 24px on the 18px, against `subSection`'s 32 and `bodyMedium`'s 28.
+// It matters most in the stat blocks, where a number sits directly on its label
+// with no gap — the default leading adds 8px of slop inside a two-line unit.
+// Overridden here rather than in ../../class-names: every other section wants
+// the looser default.
+const HEADING_24 = "leading-7 tracking-[-0.02em]";
+const BODY_18 = "leading-6";
+
 const BuiltForProduction = () => (
   <section className="flex flex-col items-start w-full">
     <div className="flex flex-col gap-8 w-full">
@@ -22,24 +31,24 @@ const BuiltForProduction = () => (
         <p className="font-sans-landing font-medium text-foreground-50 text-[60px] leading-[60px] tracking-[-0.02em]">
           20x
         </p>
-        <p className={subSection}>data compression</p>
+        <p className={cn(subSection, HEADING_24)}>data compression</p>
       </div>
 
       <div className="flex flex-col gap-10 md:flex-row md:gap-13 md:items-start w-full">
         <div className="flex flex-col gap-5 items-start w-full md:w-[313px] md:shrink-0">
-          <p className={bodyMedium}>
+          <p className={cn(bodyMedium, BODY_18)}>
             Laminar stores only the unique content in agent runs, leading to faster ingestion, cheaper storage, and more
             efficient analysis.
           </p>
 
           <div className="flex gap-6 items-start">
             <div className="flex flex-col items-start">
-              <p className={subSection}>20x</p>
-              <p className={bodyMedium}>faster ingestion</p>
+              <p className={cn(subSection, HEADING_24)}>20x</p>
+              <p className={cn(bodyMedium, BODY_18)}>faster ingestion</p>
             </div>
             <div className="flex flex-col items-start">
-              <p className={subSection}>20x</p>
-              <p className={bodyMedium}>cheaper storage</p>
+              <p className={cn(subSection, HEADING_24)}>20x</p>
+              <p className={cn(bodyMedium, BODY_18)}>cheaper storage</p>
             </div>
           </div>
 
