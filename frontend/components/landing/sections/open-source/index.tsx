@@ -14,13 +14,15 @@ const STEPS: Step[] = [
   { label: "Create a project and onboard" },
 ];
 
-// 24px badge, 16px from its step's text column, matching the frame.
+// 24px badge. Both gaps are one step up from the frame's 16 and 8 — the badge
+// now clears its own width before the label starts, and the command reads as a
+// block under the step rather than a second line of it.
 const StepRow = ({ index, label, command }: Step & { index: number }) => (
-  <div className="flex gap-4 items-start w-full">
+  <div className="flex gap-6 items-start w-full">
     <div className="flex size-6 shrink-0 items-center justify-center rounded bg-surface-500">
       <span className="text-sm leading-6 text-foreground-200">{index + 1}</span>
     </div>
-    <div className="flex flex-1 min-w-0 flex-col gap-2 items-start">
+    <div className="flex flex-1 min-w-0 flex-col gap-3 items-start">
       <p className="text-lg leading-6 text-foreground-200">{label}</p>
       {command && (
         <div className="w-full rounded-sm bg-surface-600 px-3 py-2">
@@ -45,12 +47,11 @@ const OpenSource = () => (
         ))}
       </div>
 
-      {/* RIGHT — terminal visualization panel, unchanged but for its height,
-          which the frame drops to 352 so the two columns finish together.
+      {/* RIGHT — terminal visualization panel, unchanged but for its height.
           Centered when there's room; overflows left-anchored otherwise (same
           pattern as did-my-fix). On mobile the inner is scaled to 80% from the
           left edge so it fits tighter viewports without horizontal scrolling. */}
-      <div className="w-full md:flex-1 md:min-w-0 bg-surface-500 flex items-center p-5 overflow-hidden h-[352px]">
+      <div className="w-full md:flex-1 md:min-w-0 bg-surface-500 flex items-center p-5 overflow-hidden h-[372px]">
         <div className="shrink-0 mx-auto md:scale-none scale-[80%] origin-left">
           <div className="bg-surface-700 rounded w-[420px] px-6 py-5">
             <Terminal />
