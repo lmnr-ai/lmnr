@@ -1,10 +1,8 @@
 //! Signal CRUD. Ungated — writing a row is a DB write; processing is feature-gated.
 //!
-//! The API exposes a signal's three firing concepts as three sibling fields —
-//! `trigger` (WHEN to evaluate), `filters` (WHETHER to run), and `mode` (how to
-//! run) — because they are independent choices a user makes separately. Storage
-//! is unchanged: they are still one `signal_triggers` row (`value` / `filters` /
-//! `mode`), so the evaluator and the browser drawer are untouched.
+//! The API exposes `trigger` (when to evaluate), `filters` (whether to run) and
+//! `mode` as sibling fields, while storage stays one `signal_triggers` row
+//! (`value` / `filters` / `mode`) — so the evaluator and the drawer are untouched.
 
 use std::collections::HashSet;
 use std::sync::LazyLock;
@@ -25,16 +23,13 @@ use crate::db::{signal_triggers, signals};
 static FIELD_NAME_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^[a-zA-Z_][a-zA-Z0-9_]*$").unwrap());
 
-/// Stored condition columns. Not part of the API surface — a `Trigger` maps onto
-/// them on the way in and is recovered from them on the way out.
+/// Stored condition columns; a `Trigger` maps to and from them.
 const CONDITION_COLUMN_ROOT_SPAN_FINISHED: &str = "root_span_finished";
 const CONDITION_COLUMN_SPAN_NAME: &str = "span_name";
 
-/// `span_name` operators that mean "fires when one of these spans finished".
-/// `evaluate_trigger_condition` also implements `ne`, which fires when NONE of
-/// them did — the pre-split API accepted that, but `Trigger::SpanName` has no way
-/// to say it, so such a row is reported as no trigger rather than as its
-/// inverse. Add a variant here before widening this list.
+/// `span_name` operators meaning "fires when one of these spans finished".
+/// `evaluate_trigger_condition` also implements `ne` (fires when NONE did), which
+/// `Trigger::SpanName` cannot express — add a variant before widening this list.
 const SPAN_NAME_POSITIVE_OPERATORS: &[&str] = &["eq", "includes"];
 
 enum ValueRule {
@@ -49,9 +44,8 @@ struct FilterColumn {
     value: ValueRule,
 }
 
-/// Keep in lockstep with `evaluate.rs` and `trigger-filter-field.tsx`. Filters
-/// are read from the trace's cumulative ClickHouse state, so every column here
-/// needs one in `ch/private/trace_stats.rs`.
+/// Keep in lockstep with `evaluate.rs` and `trigger-filter-field.tsx`. Every
+/// column needs one in `ch/private/trace_stats.rs` (the cumulative-state read).
 const FILTER_COLUMNS: &[FilterColumn] = &[
     FilterColumn {
         name: "total_token_count",
@@ -111,12 +105,9 @@ pub fn error_response(e: CrudError) -> actix_web::HttpResponse {
     }
 }
 
-/// WHEN a signal is evaluated. Answerable from a single span batch, which is
-/// what makes a signal fire exactly once per trace.
-///
-/// A closed set rather than a `{column, operator, value}` list: the two variants
-/// are the only shapes the evaluator implements, so anything else was silently
-/// stored and never fired.
+/// WHEN a signal is evaluated, answerable from a single span batch. A closed set
+/// rather than a `{column, operator, value}` list: these are the only shapes the
+/// evaluator implements, so anything else was stored and then never fired.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Trigger {
@@ -129,8 +120,7 @@ pub enum Trigger {
 }
 
 impl Trigger {
-    /// Stored `signal_triggers.value`. `SpanName` always uses `includes` with an
-    /// array, matching what the drawer writes.
+    /// Stored `signal_triggers.value`, in the shapes the drawer writes.
     fn to_conditions(&self) -> Value {
         match self {
             Trigger::RootSpanFinished => json!([{
@@ -147,11 +137,9 @@ impl Trigger {
         }
     }
 
-    /// Recover the trigger from stored conditions. `None` for an empty list (a
-    /// backfill-only signal), for any shape the evaluator would not fire on
-    /// anyway, and for the one shape it fires on but this enum cannot express
-    /// (see `SPAN_NAME_POSITIVE_OPERATORS`) — so the API never reports a trigger
-    /// that misdescribes when the signal runs.
+    /// `None` for an empty list (backfill-only), for shapes the evaluator would
+    /// not fire on, and for the one it fires on but this enum cannot express (see
+    /// `SPAN_NAME_POSITIVE_OPERATORS`) — the API must never misdescribe firing.
     fn from_conditions(conditions: &Value) -> Option<Self> {
         let entries = conditions.as_array()?;
         // `span_name` first: a legacy row carrying both fires on the named span.
@@ -161,9 +149,8 @@ impl Trigger {
                     .and_then(Value::as_str)
                     .is_some_and(|op| SPAN_NAME_POSITIVE_OPERATORS.contains(&op))
         }) {
-            // Blank entries are dropped (they can't meaningfully match a span),
-            // but surviving names are NOT trimmed: the evaluator compares them
-            // literally, so a legacy padded name must be reported as stored.
+            // Surviving names are NOT trimmed: the evaluator compares literally,
+            // so a legacy padded name must read back as stored.
             let span_names = match entry.get("value") {
                 Some(Value::Array(names)) => names
                     .iter()
@@ -179,10 +166,8 @@ impl Trigger {
             return (!span_names.is_empty()).then_some(Trigger::SpanName { span_names });
         }
 
-        // A `span_name` entry we did NOT accept above (an exclusion) still gates
-        // firing in the evaluator, so this row is not a plain root-span trigger
-        // either. Report no trigger rather than a description that would rewrite
-        // the row's meaning on the next read-modify-write.
+        // An exclusion we did not accept above still gates firing, so this is not
+        // a plain root-span trigger either.
         if entries
             .iter()
             .any(|e| e.get("column").and_then(Value::as_str) == Some(CONDITION_COLUMN_SPAN_NAME))
@@ -225,7 +210,7 @@ impl Trigger {
     }
 }
 
-/// How a fired signal runs. Batch is cheaper and slower; realtime costs 2x.
+/// Batch is cheaper and slower; realtime costs 2x.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Mode {
@@ -242,8 +227,7 @@ impl Mode {
         }
     }
 
-    /// Anything other than the realtime discriminant is batch, matching
-    /// `SignalMode::from_u8`.
+    /// Matches `SignalMode::from_u8`: anything unknown is batch.
     fn from_i16(value: i16) -> Self {
         if value == 1 {
             Mode::Realtime
@@ -371,8 +355,7 @@ pub async fn create_signal(
     Ok(SignalResponse::new(signal, Some(trigger_row)))
 }
 
-/// An absent trigger stores an empty condition list, which `trigger_fires`
-/// never matches — the signal runs only via backfill.
+/// An empty condition list never matches, so the signal runs only via backfill.
 fn conditions_of(trigger: Option<&Trigger>) -> Value {
     trigger.map_or_else(|| json!([]), Trigger::to_conditions)
 }
@@ -725,8 +708,7 @@ fn filter_parts(filter: &Value) -> Result<(&str, &str, Value), CrudError> {
 }
 
 fn lookup_filter_column(name: &str) -> Result<&'static FilterColumn, CrudError> {
-    // A condition column here used to be stored and silently never match; now
-    // the trigger is a separate field, so say so rather than listing columns.
+    // Point at the separate field rather than listing filter columns.
     if name == CONDITION_COLUMN_ROOT_SPAN_FINISHED || name == CONDITION_COLUMN_SPAN_NAME {
         return Err(CrudError::Validation(format!(
             "\"{name}\" decides WHEN a signal is evaluated, not whether it runs — set `trigger` instead of a filter"

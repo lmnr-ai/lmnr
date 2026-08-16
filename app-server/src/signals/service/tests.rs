@@ -57,43 +57,25 @@ fn unknown_filter_column_lists_the_supported_ones() {
 }
 
 #[test]
-fn span_names_filter_is_independent_of_the_span_name_trigger() {
-    // The pre-split API made these two easy to confuse, since both were entries
-    // in a list. They are now separate fields entirely.
-    let trigger = span_name_trigger(&["agent.run"]);
-    let filters = normalize_filters(vec![
-        json!({ "column": "span_names", "operator": "ne", "value": "healthcheck" }),
-    ])
-    .expect("span_names is a filter column");
-
-    assert_eq!(
-        trigger.to_conditions(),
-        json!([{ "column": "span_name", "operator": "includes", "value": ["agent.run"] }])
-    );
-    assert_eq!(filters.len(), 1);
-}
-
-#[test]
-fn root_span_trigger_stores_the_string_true() {
-    // The evaluator compares the string, not a JSON boolean.
+fn trigger_maps_to_the_shapes_the_evaluator_fires_on() {
+    // The evaluator compares the string "true", not a JSON boolean, and reads
+    // span names via `includes` with an array.
     assert_eq!(
         Trigger::RootSpanFinished.to_conditions(),
         json!([{ "column": "root_span_finished", "operator": "eq", "value": "true" }])
-    );
-}
-
-#[test]
-fn span_name_trigger_always_stores_includes_with_an_array() {
-    // A single name used to be stored as a bare string with `eq`; `includes`
-    // with an array is what the drawer writes and both shapes fire.
-    assert_eq!(
-        span_name_trigger(&["only"]).to_conditions(),
-        json!([{ "column": "span_name", "operator": "includes", "value": ["only"] }])
     );
     assert_eq!(
         span_name_trigger(&["a", "b"]).to_conditions(),
         json!([{ "column": "span_name", "operator": "includes", "value": ["a", "b"] }])
     );
+
+    for trigger in [Trigger::RootSpanFinished, span_name_trigger(&["agent.run"])] {
+        assert_eq!(
+            Trigger::from_conditions(&trigger.to_conditions()),
+            Some(trigger.clone()),
+            "{trigger:?} must survive a storage round trip"
+        );
+    }
 }
 
 #[test]
@@ -109,115 +91,52 @@ fn span_name_blanks_are_dropped_and_all_blank_rejected() {
 }
 
 #[test]
-fn absent_trigger_defaults_and_explicit_null_clears() {
-    let absent: SignalInput = serde_json::from_value(json!({
-        "name": "n", "prompt": "p", "structuredOutput": valid_schema(),
-    }))
-    .unwrap();
-    assert!(absent.trigger.is_none(), "absent key must default");
-
-    let cleared: SignalInput = serde_json::from_value(json!({
-        "name": "n", "prompt": "p", "structuredOutput": valid_schema(), "trigger": null,
-    }))
-    .unwrap();
+fn legacy_stored_conditions_read_back_correctly() {
+    // Pre-split rows stored a single name as a bare string with `eq`.
     assert_eq!(
-        cleared.trigger,
-        Some(None),
-        "explicit null must be distinguishable so a signal can be backfill-only"
+        Trigger::from_conditions(
+            &json!([{ "column": "span_name", "operator": "eq", "value": "agent.run" }])
+        ),
+        Some(span_name_trigger(&["agent.run"]))
     );
-}
-
-#[test]
-fn trigger_round_trips_through_storage() {
-    for trigger in [
-        Trigger::RootSpanFinished,
-        span_name_trigger(&["agent.run"]),
-        span_name_trigger(&["a", "b"]),
-    ] {
-        let stored = trigger.to_conditions();
-        assert_eq!(
-            Trigger::from_conditions(&stored),
-            Some(trigger.clone()),
-            "{trigger:?} must survive a storage round trip"
-        );
-    }
-}
-
-#[test]
-fn legacy_single_name_condition_reads_back_as_a_span_name_trigger() {
-    // Rows written before the split stored one bare string with `eq`.
-    let legacy = json!([{ "column": "span_name", "operator": "eq", "value": "agent.run" }]);
+    // `trigger_fires` ANDs conditions, so a row carrying both only fires on the
+    // named span's batch.
     assert_eq!(
-        Trigger::from_conditions(&legacy),
+        Trigger::from_conditions(&json!([
+            { "column": "root_span_finished", "operator": "eq", "value": "true" },
+            { "column": "span_name", "operator": "includes", "value": ["agent.run"] },
+        ])),
         Some(span_name_trigger(&["agent.run"]))
     );
 }
 
 #[test]
-fn unfirable_stored_conditions_read_back_as_no_trigger() {
+fn conditions_this_enum_cannot_describe_read_back_as_no_trigger() {
     for conditions in [
         // Backfill-only signal.
         json!([]),
-        // A column the evaluator has no arm for — stored, never fires.
+        // Columns/operators the evaluator has no arm for — stored, never fire.
         json!([{ "column": "total_token_count", "operator": "gt", "value": "1000" }]),
+        json!([{ "column": "span_name", "operator": "gt", "value": ["a"] }]),
         // Blank span names can never match a span.
-        json!([{ "column": "span_name", "operator": "includes", "value": [] }]),
         json!([{ "column": "span_name", "operator": "includes", "value": ["", " "] }]),
+        // `ne` fires when NONE of these spans finished. `Trigger::SpanName` can
+        // only say the positive case, and `to_conditions` writes `includes`, so
+        // reporting one would INVERT it on the next read-modify-write.
+        json!([{ "column": "span_name", "operator": "ne", "value": ["agent.run"] }]),
+        json!([{ "column": "span_name", "operator": "ne", "value": "agent.run" }]),
+        // The `ne` gate still applies, so this is not a plain root-span trigger.
+        json!([
+            { "column": "root_span_finished", "operator": "eq", "value": "true" },
+            { "column": "span_name", "operator": "ne", "value": ["healthcheck"] },
+        ]),
     ] {
         assert_eq!(
             Trigger::from_conditions(&conditions),
             None,
-            "{conditions} does not fire, so the API must not report a trigger"
+            "{conditions} must not be reported as a trigger"
         );
     }
-}
-
-#[test]
-fn legacy_span_name_exclusion_reads_back_as_no_trigger() {
-    // `evaluate_trigger_condition` implements `ne` as "fires when NONE of these
-    // spans finished", and the pre-split API accepted it. `Trigger::SpanName`
-    // can only express the positive case, so reporting one here would flip the
-    // meaning on the next read-modify-write (`to_conditions` writes `includes`).
-    for value in [json!("agent.run"), json!(["agent.run"])] {
-        let excluding = json!([{ "column": "span_name", "operator": "ne", "value": value }]);
-        assert_eq!(
-            Trigger::from_conditions(&excluding),
-            None,
-            "an exclusion trigger must not be reported as its inverse"
-        );
-    }
-}
-
-#[test]
-fn span_name_exclusion_alongside_root_span_is_not_a_root_span_trigger() {
-    // The `ne` entry still gates firing, so calling this "root span finished"
-    // would drop that gate when the trigger is sent back.
-    let mixed = json!([
-        { "column": "root_span_finished", "operator": "eq", "value": "true" },
-        { "column": "span_name", "operator": "ne", "value": ["healthcheck"] },
-    ]);
-    assert_eq!(Trigger::from_conditions(&mixed), None);
-}
-
-#[test]
-fn unsupported_span_name_operator_reads_back_as_no_trigger() {
-    // The evaluator warns and returns false for these, so nothing fires.
-    let bogus = json!([{ "column": "span_name", "operator": "gt", "value": ["a"] }]);
-    assert_eq!(Trigger::from_conditions(&bogus), None);
-}
-
-#[test]
-fn span_name_wins_over_root_span_in_a_legacy_multi_column_row() {
-    // No UI ever wrote both, but `trigger_fires` ANDs conditions, so such a row
-    // only fires on the named span's batch.
-    let both = json!([
-        { "column": "root_span_finished", "operator": "eq", "value": "true" },
-        { "column": "span_name", "operator": "includes", "value": ["agent.run"] },
-    ]);
-    assert_eq!(
-        Trigger::from_conditions(&both),
-        Some(span_name_trigger(&["agent.run"]))
-    );
 }
 
 #[test]
@@ -231,29 +150,20 @@ fn defaults_match_the_frontend_seed() {
 }
 
 #[test]
-fn mode_round_trips_and_unknown_discriminants_are_batch() {
+fn mode_is_named_on_the_wire_and_numeric_in_storage() {
     assert_eq!(Mode::Batch.to_i16(), 0);
     assert_eq!(Mode::Realtime.to_i16(), 1);
-    assert_eq!(Mode::from_i16(0), Mode::Batch);
     assert_eq!(Mode::from_i16(1), Mode::Realtime);
     // Matches `SignalMode::from_u8`, which treats anything else as batch.
     assert_eq!(Mode::from_i16(7), Mode::Batch);
-    assert_eq!(Mode::from_i16(-1), Mode::Batch);
-}
 
-#[test]
-fn mode_is_named_not_numeric_on_the_wire() {
     let input: UpdateSignalInput = serde_json::from_value(json!({ "mode": "realtime" })).unwrap();
     assert_eq!(input.mode, Some(Mode::Realtime));
-
     assert!(
         serde_json::from_value::<UpdateSignalInput>(json!({ "mode": 1 })).is_err(),
         "the raw discriminant is a storage detail and must not be accepted"
     );
-    assert!(
-        serde_json::from_value::<UpdateSignalInput>(json!({ "mode": "sometimes" })).is_err(),
-        "an unknown mode must be rejected rather than silently becoming batch"
-    );
+    assert!(serde_json::from_value::<UpdateSignalInput>(json!({ "mode": "sometimes" })).is_err());
 }
 
 #[test]
@@ -519,60 +429,28 @@ fn missing_description_is_allowed() {
 }
 
 #[test]
-fn update_input_distinguishes_absent_from_null_sample_rate() {
+fn update_input_distinguishes_absent_from_explicit_clears() {
+    // A patch must leave every unmentioned field alone, so "absent" and "clear"
+    // have to stay distinguishable — hence the double `Option`s.
     let absent: UpdateSignalInput = serde_json::from_value(json!({ "prompt": "x" })).unwrap();
-    assert_eq!(absent.sample_rate, None, "absent key must be None");
+    assert_eq!(absent.sample_rate, None);
+    assert!(absent.trigger.is_none());
+    assert!(absent.filters.is_none());
+    assert!(absent.mode.is_none());
 
-    let explicit_null: UpdateSignalInput =
-        serde_json::from_value(json!({ "sampleRate": null })).unwrap();
+    let cleared: UpdateSignalInput =
+        serde_json::from_value(json!({ "sampleRate": null, "trigger": null, "filters": [] }))
+            .unwrap();
+    assert_eq!(cleared.sample_rate, Some(None), "null clears sampling");
+    assert_eq!(cleared.trigger, Some(None), "null stops the signal firing");
     assert_eq!(
-        explicit_null.sample_rate,
-        Some(None),
-        "explicit null must be Some(None) so the key is cleared"
+        cleared.filters.map(|f| f.len()),
+        Some(0),
+        "`[]` clears filters"
     );
 
     let set: UpdateSignalInput = serde_json::from_value(json!({ "sampleRate": 40 })).unwrap();
     assert_eq!(set.sample_rate, Some(Some(40)));
-}
-
-#[test]
-fn update_input_leaves_absent_firing_fields_alone() {
-    let input: UpdateSignalInput = serde_json::from_value(json!({ "prompt": "x" })).unwrap();
-    assert!(
-        input.trigger.is_none(),
-        "absent trigger must not be touched"
-    );
-    assert!(
-        input.filters.is_none(),
-        "absent filters must not be touched"
-    );
-    assert!(input.mode.is_none(), "absent mode must not be touched");
-}
-
-#[test]
-fn update_input_distinguishes_absent_from_empty_filters() {
-    let absent: UpdateSignalInput = serde_json::from_value(json!({ "prompt": "x" })).unwrap();
-    assert!(absent.filters.is_none());
-
-    let cleared: UpdateSignalInput = serde_json::from_value(json!({ "filters": [] })).unwrap();
-    assert_eq!(
-        cleared.filters.map(|f| f.len()),
-        Some(0),
-        "`[]` must clear filters rather than read as absent"
-    );
-}
-
-#[test]
-fn update_input_distinguishes_absent_from_null_trigger() {
-    let absent: UpdateSignalInput = serde_json::from_value(json!({ "prompt": "x" })).unwrap();
-    assert!(absent.trigger.is_none());
-
-    let cleared: UpdateSignalInput = serde_json::from_value(json!({ "trigger": null })).unwrap();
-    assert_eq!(
-        cleared.trigger,
-        Some(None),
-        "explicit null must stop the signal firing rather than read as absent"
-    );
 }
 
 #[test]

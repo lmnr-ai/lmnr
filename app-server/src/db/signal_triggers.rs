@@ -1,6 +1,5 @@
-//! A signal's firing configuration. Stored one row per signal in
-//! `signal_triggers`, where the condition list lives in the legacy `value`
-//! column and is exposed here as `conditions`.
+//! A signal's firing config: one row per signal, with the condition list in the
+//! legacy `value` column exposed here as `conditions`.
 
 use std::collections::HashMap;
 
@@ -56,10 +55,8 @@ pub async fn insert_signal_trigger(
     Ok(row)
 }
 
-/// Apply `patch` to the signal's trigger row, creating it if the signal has none
-/// (a signal predating triggers, or one whose row was removed). Absent patch
-/// fields keep their stored value; a signal with no row and an empty patch stays
-/// without one.
+/// Apply `patch`, creating the row if the signal has none. Absent patch fields
+/// keep their stored value.
 pub async fn patch_signal_trigger(
     tx: &mut Transaction<'_, Postgres>,
     project_id: Uuid,
@@ -99,8 +96,8 @@ pub async fn patch_signal_trigger(
         return Ok(Some(existing));
     }
 
-    // Collapse any duplicate rows a pre-split signal accumulated onto the one we
-    // just locked, so the API's one-trigger-per-signal contract holds afterwards.
+    // Collapse duplicates a pre-split signal accumulated onto the row we locked,
+    // so the one-trigger-per-signal contract holds afterwards.
     sqlx::query(
         "DELETE FROM signal_triggers WHERE project_id = $1 AND signal_id = $2 AND id <> $3",
     )
@@ -157,10 +154,10 @@ struct SignalTriggerRow {
     mode: i16,
 }
 
-/// One trigger per requested signal, newest first per signal so a pre-split
-/// signal with several rows resolves the same way as `get_signal_trigger`.
-/// Rows inserted in one transaction share a `created_at`, so `id` breaks the tie
-/// — without it the same signal could report a different trigger per request.
+/// One trigger per requested signal, resolved the same way as
+/// `get_signal_trigger`. Rows inserted in one transaction share a `created_at`,
+/// so `id` breaks the tie — without it a signal could report a different trigger
+/// per request.
 pub async fn get_project_signal_triggers(
     pool: &PgPool,
     project_id: Uuid,
