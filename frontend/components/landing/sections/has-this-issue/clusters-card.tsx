@@ -33,8 +33,20 @@ export const CLUSTER_FILL_MS = (TOTAL_TICKS * BUCKET_MS) / TICKS_PER_BUCKET;
  *  synthetic "Unclustered Events" bucket — that one is never revealed. */
 export const CLUSTER_COUNT = DATASET.clusterTree.length;
 
-/** Card's fixed outer width — the stage sizes itself from this. */
+/** Card's fixed outer width per layout — each stage sizes itself from these.
+ *
+ *  `row` is the product's own proportions and is what the standalone clusters
+ *  section (mobile) renders. `column` exists because the desktop trace-view
+ *  frame is 480 wide: side by side, the list and the chart would each be too
+ *  narrow to read, so they stack instead. */
 export const CLUSTERS_CARD_W = 720;
+export const CLUSTERS_CARD_COL_W = 440;
+
+// Column layout only: stacked, the list no longer has to match the chart's
+// height, so each is sized for its own content. The row layout takes both from
+// the container's single `h-[230px]` instead.
+const COL_LIST_H = 150;
+const COL_CHART_H = 170;
 
 // Decelerate into the final height.
 const easeOut = (t: number) => 1 - (1 - t) * (1 - t);
@@ -56,13 +68,25 @@ interface Props {
   /** How many clusters have been discovered so far — see ./cluster-list. */
   revealedCount: number;
   revealMs: number;
+  /** List beside the chart (the product's layout) or above it. */
+  layout?: "row" | "column";
   className?: string;
 }
 
 // Cluster card mirroring the production clusters section visual (bg-secondary
 // inner card on a bg-background wrapper) — list + stacked chart, no
 // breadcrumb/events. Drill-down works just like the real one.
-const ClustersCard = ({ armed, entered, pulsingClusterId, pulseMs, revealedCount, revealMs, className }: Props) => {
+const ClustersCard = ({
+  armed,
+  entered,
+  pulsingClusterId,
+  pulseMs,
+  revealedCount,
+  revealMs,
+  layout = "row",
+  className,
+}: Props) => {
+  const isColumn = layout === "column";
   const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null);
 
   // `share[i]` is bucket i's fraction of the whole window's event volume, so the
@@ -210,7 +234,7 @@ const ClustersCard = ({ armed, entered, pulsingClusterId, pulseMs, revealedCount
 
   return (
     <div
-      style={{ width: CLUSTERS_CARD_W }}
+      style={{ width: isColumn ? CLUSTERS_CARD_COL_W : CLUSTERS_CARD_W }}
       className={cn("rounded-lg border bg-background p-3 flex flex-col gap-2", className)}
     >
       <ClusterBreadcrumb
@@ -218,8 +242,16 @@ const ClustersCard = ({ armed, entered, pulsingClusterId, pulseMs, revealedCount
         selectedClusterId={selectedClusterId}
         onNavigateToBreadcrumb={navigateToBreadcrumb}
       />
-      <div className="flex h-[230px] rounded-md border bg-secondary overflow-hidden">
-        <div className="w-[250px] md:w-[300px] shrink-0 border-r overflow-hidden">
+      <div
+        className={cn(
+          "flex rounded-md border bg-secondary overflow-hidden",
+          isColumn ? "flex-col" : "h-[230px]"
+        )}
+      >
+        <div
+          style={isColumn ? { height: COL_LIST_H } : undefined}
+          className={cn("overflow-hidden shrink-0", isColumn ? "w-full border-b" : "w-[250px] md:w-[300px] border-r")}
+        >
           <ClusterList
             className="h-full w-full bg-transparent"
             drillDownDepth={drillDownDepth}
@@ -236,7 +268,11 @@ const ClustersCard = ({ armed, entered, pulsingClusterId, pulseMs, revealedCount
             revealMs={revealMs}
           />
         </div>
-        <div className="flex-1 min-w-0 py-2 pr-2 pl-1 bg-secondary" ref={chartContainerRef}>
+        <div
+          style={isColumn ? { height: COL_CHART_H } : undefined}
+          className="flex-1 min-w-0 py-2 pr-2 pl-1 bg-secondary"
+          ref={chartContainerRef}
+        >
           <ClusterStackedChart
             clusters={chartClusters}
             statsData={streamedStats}

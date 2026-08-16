@@ -9,7 +9,7 @@ import { getClusterColorById } from "@/lib/clusters/colors";
 // SIGNAL_CLUSTER_NAME here AND the `df-tool` node in
 // has-this-issue/clusters-mock-data.ts; changing the ID re-rolls the colour.
 export const SIGNAL_CLUSTER_ID = "df-tool";
-export const SIGNAL_CLUSTER_NAME = "Inefficient Python bash commands";
+export const SIGNAL_CLUSTER_NAME = "Unsourced answers";
 export const SIGNAL_CLUSTER_COLOR = getClusterColorById(SIGNAL_CLUSTER_ID);
 
 /** Events grouped into this cluster. Shown on the pill, and it is also how many

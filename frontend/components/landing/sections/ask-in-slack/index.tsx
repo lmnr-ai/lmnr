@@ -12,7 +12,9 @@ const AskInSlack = () => (
       <span className={cn(microLabel, "mb-2")}>04.</span>
       <h2 className={cn(subSection, "mb-2")}>{"Be notified and investigate in Slack."}</h2>
       <p className={bodyMedium}>
-        Laminar notifies you about new failures in Slack. Mention Laminar to ask anything about your traces. posts new
+        Laminar notifies you about new failures in Slack. Mention Laminar to ask
+        <br />
+        anything about your traces. posts new
       </p>
     </div>
     {/* Shorter than the sibling panels' 120px: the thread card is roughly

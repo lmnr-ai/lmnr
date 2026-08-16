@@ -50,17 +50,22 @@ const StackDials = ({ onChange, unpinAt }: Props) => {
       duration: WINDOW_S,
       flight: { at: toDock(D.flightAt), duration: toDock(D.flightSpan) },
       collapse: { at: toDock(D.collapseAt), duration: toDock(D.collapseSpan) },
-      drop: { at: toDock(D.dropAt), duration: toDock(D.dropSpan) },
+      cardRise: { at: toDock(D.cardRiseAt), duration: toDock(D.cardRiseSpan) },
+      pillEnter: { at: toDock(D.pillEnterAt), duration: toDock(D.pillEnterSpan) },
+      // Zero-length marker: where the time-based Act 2 arms. Only its `at` is
+      // read; the duration is there so there is something to grab.
+      act2: { at: toDock(D.act2At), duration: toDock(0.02) },
       // READ-ONLY reference: the frame where the section stops being pinned and
       // starts scrolling away. Anything ending before it happens on a still
       // frame; anything after happens while the section is leaving. Nothing
       // reads this clip back, so dragging it does nothing.
       unpinned: { at: toDock(unpinAt), duration: toDock(1 - unpinAt) },
     },
-    // -v2: the step-6 window got shorter when the copy's tail was removed, so
-    // `unpinned` sits somewhere new. Stored clips outrank these defaults, and a
-    // stale reference bar would send the next tuning pass at the wrong target.
-    { id: "landing-signal-stack-timeline-v2", persist: true, autoplay: false }
+    // Bump the -vN on EVERY default change: stored clips outrank these
+    // defaults, so without it a retuned default silently does nothing on the
+    // machine that last opened the dock. -v3 added the clusters card's rise and
+    // the pill's entry in place of the old `drop`.
+    { id: "landing-signal-stack-timeline-v3", persist: true, autoplay: false }
   );
 
   // Everything that is NOT a position in the window: two are fractions of the
@@ -77,9 +82,11 @@ const StackDials = ({ onChange, unpinAt }: Props) => {
       trayFadeEnd: [D.trayFadeEnd, 0.05, 1, 0.01],
       dx: [D.dx, 0, 160, 2],
       dy: [D.dy, 0, 200, 2],
-      dropClearance: [D.dropClearance, 0, 200, 4],
+      cardRiseFrom: [D.cardRiseFrom, 0, 320, 4],
+      pillEnterDepth: [D.pillEnterDepth, 0, 200, 4],
     },
-    { id: "landing-signal-stack-geometry", persist: true }
+    // Bump the -vN on every default change — see the timeline's id above.
+    { id: "landing-signal-stack-geometry-v2", persist: true }
   );
 
   const next: StackTiming = {
@@ -87,15 +94,19 @@ const StackDials = ({ onChange, unpinAt }: Props) => {
     flightSpan: fromDock(tl.flight.duration),
     collapseAt: fromDock(tl.collapse.at),
     collapseSpan: fromDock(tl.collapse.duration),
-    dropAt: fromDock(tl.drop.at),
-    dropSpan: fromDock(tl.drop.duration),
+    cardRiseAt: fromDock(tl.cardRise.at),
+    cardRiseSpan: fromDock(tl.cardRise.duration),
+    pillEnterAt: fromDock(tl.pillEnter.at),
+    pillEnterSpan: fromDock(tl.pillEnter.duration),
+    act2At: fromDock(tl.act2.at),
     entryStart: panel.entryStart,
     liveSlot: D.liveSlot,
     entrySpread: panel.entrySpread,
     trayFadeEnd: panel.trayFadeEnd,
     dx: panel.dx,
     dy: panel.dy,
-    dropClearance: panel.dropClearance,
+    cardRiseFrom: panel.cardRiseFrom,
+    pillEnterDepth: panel.pillEnterDepth,
   };
 
   // Keyed on the values so dragging a bar takes effect immediately, but an

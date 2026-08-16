@@ -179,7 +179,7 @@ const DETECT_FAILURES = buildScenario(
   [
     {
       id: "df-tool-auth",
-      name: "Git authentication errors",
+      name: "Search result not linked",
       parentId: "df-tool",
       amplitude: 9,
       phase: 0.3,
@@ -199,7 +199,7 @@ const DETECT_FAILURES = buildScenario(
     },
     {
       id: "df-tool-mcp",
-      name: "MCP server timeouts",
+      name: "Answered from memory",
       parentId: "df-tool",
       amplitude: 7,
       phase: 1.1,
@@ -219,7 +219,7 @@ const DETECT_FAILURES = buildScenario(
     },
     {
       id: "df-tool-fs",
-      name: "File system permission errors",
+      name: "Cited a stale page",
       parentId: "df-tool",
       amplitude: 6,
       phase: 0.7,

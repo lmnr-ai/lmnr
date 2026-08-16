@@ -6,8 +6,7 @@ import DebuggerScene from "./debugger-scene";
 import RotatingAgentName from "./rotating-agent-name";
 
 // Vertical stack: title + subtitle on top, then a surface-500 panel holding the
-// coding-agent terminal (left) beside a mock of the Laminar debugger session it
-// drives (right), with a footnote pinned to the bottom.
+// coding-agent terminal, with a footnote pinned to the bottom.
 const ClaudeFixMyAgent = () => (
   <section className="flex flex-col gap-10 items-start w-full">
     <div className="flex flex-col items-start">

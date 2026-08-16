@@ -8,8 +8,8 @@ import { useStreamIn } from "../../use-stream-in";
 import { LaminarAppAvatar, SLACK_BG, SLACK_BORDER } from "../slack-notification-card";
 import { THREAD_AUTHOR, THREAD_CHANNEL, THREAD_MESSAGES, type ThreadMessage } from "./messages";
 
-/** Beat between messages. Long enough to read the mention before the reply. */
-const MESSAGE_MS = 900;
+/** Beat between messages. Long enough to register each one as it lands. */
+const MESSAGE_MS = 1800;
 
 const INITIALS = THREAD_AUTHOR.split(" ")
   .map((part) => part[0])

@@ -9,8 +9,9 @@ import { cn } from "@/lib/utils";
 
 import { SIGNAL_CLUSTER_ID } from "../signal-cluster";
 import { ClusterPill } from "../signal-event-card";
-import ClustersCard, { CLUSTER_COUNT, CLUSTERS_CARD_W } from "./clusters-card";
+import ClustersCard, { CLUSTERS_CARD_W } from "./clusters-card";
 import { type ClustersTiming, DEFAULT_TIMING, easeInOutCubic, easeOutCubic, phase } from "./timing";
+import { useClusterBeats } from "./use-cluster-beats";
 
 // Dev-only live tuning. `IS_DEV` is inlined at build time, so the whole
 // dynamic() call — and the dialkit chunk behind it — is dead code in a
@@ -56,21 +57,6 @@ const PILL_ABSORBED_OPACITY = 0.5;
  *  nobody can see it, which is how a fade to 0.5 ends up looking like 0.8. */
 const PILL_FADE_END = 0.4;
 
-// One flag per Act 2 track. Each is flipped by its own absolute timer, so
-// tracks are independent and free to overlap — there is no phase counter that
-// would force them into sequence. See ./timing for the schedule.
-interface Beats {
-  /** The pill is inside the card: its cluster gains one event. */
-  landed: boolean;
-  /** Clusters discovered so far; "Unclustered Events" is not counted. */
-  revealed: number;
-  pulsing: boolean;
-  chartArmed: boolean;
-}
-
-const AT_REST: Beats = { landed: false, revealed: 0, pulsing: false, chartArmed: false };
-const SETTLED: Beats = { landed: true, revealed: CLUSTER_COUNT, pulsing: false, chartArmed: true };
-
 // The clusters animation:
 //
 //   ╭─pill─╮  ← falls in from above the panel
@@ -96,7 +82,6 @@ const SignalEventClustersMock = ({ className }: { className?: string }) => {
 
   const [timing, setTiming] = useState<ClustersTiming>(DEFAULT_TIMING);
   const [runId, setRunId] = useState(0);
-  const [beats, setBeats] = useState<Beats>(AT_REST);
 
   const [pillH, setPillH] = useState(PILL_H_ESTIMATE);
   const [clustersH, setClustersH] = useState(CLUSTERS_CARD_H_ESTIMATE);
@@ -168,56 +153,13 @@ const SignalEventClustersMock = ({ className }: { className?: string }) => {
   );
   // "change" only fires on a CHANGE, so a reload that lands past the trigger
   // (or a dial that drags the trigger under the current scroll position) would
-  // otherwise never arm.
-  useEffect(() => setAct2(scrollYProgress.get() >= armAt), [armAt, scrollYProgress]);
-
-  // ── Act 2 ───────────────────────────────────────────────────────────────
-  // Depend on the values, not the object — the dials hand back a fresh object
-  // every render, and re-running the schedule on each one would stutter it.
-  const timingKey = JSON.stringify(timing);
-
+  // otherwise never arm. Deferred a frame so the observer has measured.
   useEffect(() => {
-    // Disarmed: snap back to empty, ready to replay on the way back down. The
-    // cluster rows animate their own height out (see ./cluster-list), so this
-    // is not the hard cut it looks like.
-    if (!act2) {
-      setBeats(AT_REST);
-      return;
-    }
+    const id = requestAnimationFrame(() => setAct2(scrollYProgress.get() >= armAt));
+    return () => cancelAnimationFrame(id);
+  }, [armAt, scrollYProgress]);
 
-    setBeats(AT_REST);
-
-    // Act 1 is left scrubbing even here — it is driven by the reader's own
-    // scroll, so it is not motion they did not ask for. Act 2 is, so it lands
-    // in one frame instead.
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
-      setBeats(SETTLED);
-      return;
-    }
-
-    const t = timing;
-    // Every time below is absolute from this moment, so tracks may overlap.
-    const at = (ms: number, patch: Partial<Beats>) => setTimeout(() => setBeats((prev) => ({ ...prev, ...patch })), ms);
-
-    const timers = [
-      // The pill's landing IS the cluster appearing, so both fire together.
-      at(t.landedAt, { landed: true, revealed: 1, pulsing: true }),
-      at(t.landedAt + t.pulseMs, { pulsing: false }),
-      // Clusters 2..N. Each keeps `revealed` monotonic via Math.max so an
-      // out-of-order dial (a stagger dragged behind `landedAt`) can't un-reveal
-      // a row that is already on screen.
-      ...Array.from({ length: CLUSTER_COUNT - 1 }, (_, i) => {
-        const n = i + 2;
-        return setTimeout(
-          () => setBeats((prev) => ({ ...prev, revealed: Math.max(prev.revealed, n) })),
-          t.revealAt + i * t.revealStagger
-        );
-      }),
-      at(t.chartAt, { chartArmed: true }),
-    ];
-    return () => timers.forEach(clearTimeout);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [act2, runId, timingKey]);
+  const beats = useClusterBeats(act2, timing, runId);
 
   const replay = useCallback(() => setRunId((n) => n + 1), []);
 

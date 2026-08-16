@@ -9,40 +9,32 @@ import TraceViewStoreProvider, { type TraceViewSpan, type TraceViewTrace } from 
 import { cn, swrFetcher } from "@/lib/utils";
 
 import { bodyMedium, LANDING_COLUMN_MAX_W, microLabel, subSection, subSubSection } from "../../class-names";
+import { DEMO_TRACE_ID } from "../demo-trace";
 import SectionFootnote from "../section-footnote";
-import { SIGNAL_PARALLEL_CANCEL_SPAN_ID } from "../signal-event-card";
-import AskAi from "./ask-ai";
+import { SIGNAL_HEADER_H, SIGNAL_SOURCE_SPAN_ID } from "../signal-event-card";
+import ClustersStage from "./clusters-stage";
 import TraceViewErrorBoundary from "./error-boundary";
-import { CHAT_W, EDGE_FADE_W, FRAME_H, FRAME_W, PANEL_H, TRAY_GAP, TRAY_X } from "./geometry";
+import { assemblyLayout, EDGE_FADE_W, FRAME_H, FRAME_W, PANEL_H } from "./geometry";
 import { SHARED_TRACE_API } from "./shared-trace-api";
 import SignalStack from "./signal-stack";
 import { DEFAULT_STACK_TIMING, phase, type StackTiming } from "./stack-timing";
-import { COMPLEX_TRACE_ID, SIMPLE_TRACE_ID, STEP_COUNT, STEP_NUMBERS, type StepNumber, STEPS } from "./steps";
+import { STEP_COUNT, STEP_NUMBERS, type StepNumber, STEPS } from "./steps";
 import TracePanel from "./trace-panel";
 
 // ──────────────────────────────────────────────────────────────────────
 // Scroll model
 //
-// Two curves over the SAME scroll observer, because the two columns want
-// opposite things:
+// One trace, one panel, one scroll observer. The panel never travels — every
+// step is a change of STATE inside it (timeline opens, signals open, a span is
+// revealed), so the only thing moving vertically is the copy:
 //
-//   copyIndex  linear     ╱────────────────────╱   the copy is text being
-//                                                  read — constant velocity,
-//                                                  no plateaus, no ramps.
-//                                                  Anything else reads as
-//                                                  scroll-jacking.
+//   copyIndex  linear  ╱────────────────────╱   the copy is text being read —
+//                                               constant velocity, no
+//                                               plateaus, no ramps.
 //
-//   viewIndex  plateaued  ──────╱──────╱──────╱─   the trace panel has to sit
-//                                                  STILL long enough to read,
-//                                                  so it rests on each step
-//                                                  and slides between them.
-//
-// They stay phase-locked without a shared value: each viewIndex ramp is
-// centred on the progress where copyIndex crosses the midpoint between two
-// blocks, which is also where the discrete `step` flips
-// (`Math.round(copyIndex)`). So the right-hand action, the copy hand-off and
-// the opacity swap all land on the same frame — the copy just never stops
-// moving to wait for them.
+// The discrete `step` flips at `Math.round(copyIndex)`, i.e. as a block
+// crosses the midpoint to its neighbour, so the panel's state change, the copy
+// hand-off and the opacity swap all land on the same frame.
 //
 // THE COPY NEVER STOPS while the section is pinned. It travels the entire
 // pinned range and lands its last block on the exact frame the section
@@ -64,15 +56,21 @@ const STEP_STOPS = STEP_NUMBERS.map((_, i) => i);
  *  sticky children are `h-screen`, so this is exact, not an estimate. */
 const VIEWPORT_VH = 100;
 
-/** Scroll length per copy step. */
-const STEP_VH = 60;
+/** Scroll length per copy step.
+ *
+ *  It is also the ONLY lever on how much pinned scroll the closing sequence
+ *  gets: the sticky tail after the last copy hand-off works out to exactly one
+ *  STEP_VH, whatever STEP_COUNT is. Everything from the card's flight to the
+ *  pill entering the clusters card has to fit in it, which is why this is 80
+ *  and not the 60 the section ran at before it absorbed the clusters beat. */
+const STEP_VH = 80;
 
 /** How long the section stays pinned — one step of travel per hand-off, and
  *  the copy uses every bit of it. See COPY_END. */
 const PINNED_VH = (STEP_COUNT - 1) * STEP_VH;
 
 /** The section's scroll length: the pinned range plus one viewport of overrun
- *  AFTER the release, which is where the pill finishes falling out of frame. */
+ *  AFTER the release, which is where Act 2 plays as the section departs. */
 export const SECTION_VH = PINNED_VH + VIEWPORT_VH;
 
 /** Where the sticky children RELEASE, in scroll progress.
@@ -103,20 +101,14 @@ const COPY_END = UNPIN;
 /** Scroll progress at which each copy block sits dead centre (linear). */
 const STEP_CENTERS = STEP_STOPS.map((i) => (i / (STEP_COUNT - 1)) * COPY_END);
 
-/** Fraction of one step spent sliding rather than parked. Wider = gentler
- *  slide, less time to read. Expressed as a fraction rather than an absolute
- *  progress so it survives a change to STEP_COUNT or STEP_VH — both move
- *  STEP_CENTERS, and a hardcoded half-width would silently re-tune itself. */
-const VIEW_RAMP_FRACTION = 0.43;
-const VIEW_RAMP = ((COPY_END / (STEP_COUNT - 1)) * VIEW_RAMP_FRACTION) / 2;
-
-/** The step-6 window: from step 5's copy centring to the section unpinning.
- *  Every phase in ./stack-timing is a fraction of THIS, which is what lets the
- *  flight, the collapse and the drop share one coordinate and one dial dock. */
+/** The last step's window: from the previous step's copy centring to the end of
+ *  the section. Every phase in ./stack-timing is a fraction of THIS, which is
+ *  what lets the flight, the collapse, the card's rise and the pill's entry
+ *  share one coordinate and one dial dock. */
 const STACK_WINDOW_START = STEP_CENTERS[STEP_COUNT - 2];
 
-/** The sticky release, expressed in the step-6 window's own 0-1 coordinate.
- *  Handed to the dials as a read-only reference bar, so the drop can be dragged
+/** The sticky release, expressed in the last step's own 0-1 coordinate. Handed
+ *  to the dials as a read-only reference bar, so a phase can be dragged
  *  deliberately past it rather than by guesswork. */
 const UNPIN_IN_WINDOW = (UNPIN - STACK_WINDOW_START) / (1 - STACK_WINDOW_START);
 
@@ -127,14 +119,6 @@ const IS_DEV = process.env.NODE_ENV !== "production";
 const StackDials = IS_DEV
   ? dynamic(() => import("./stack-dials.tsx").then((mod) => mod.default), { ssr: false })
   : null;
-
-const VIEW_STOPS: number[] = [];
-const VIEW_INDEX: number[] = [];
-for (let i = 0; i < STEP_COUNT - 1; i++) {
-  const midpoint = (STEP_CENTERS[i] + STEP_CENTERS[i + 1]) / 2;
-  VIEW_STOPS.push(midpoint - VIEW_RAMP, midpoint + VIEW_RAMP);
-  VIEW_INDEX.push(i, i + 1);
-}
 
 /** Constant visual gap between consecutive copy blocks.
  *
@@ -150,16 +134,14 @@ for (let i = 0; i < STEP_COUNT - 1; i++) {
  *  have to be measured instead of computed. See `useStackStops`. */
 const STEP_GAP = 150;
 
-const TRAY_X_BY_STEP = STEP_NUMBERS.map((n) => TRAY_X[STEPS[n].view]);
-const CHAT_W_BY_STEP = STEP_NUMBERS.map((n) => (STEPS[n].view === "trace2Chat" ? CHAT_W : 0));
-/** Left-edge fade — only earns its keep while the chat slide overflows. */
-const LEFT_FADE_BY_STEP = CHAT_W_BY_STEP.map((w) => (w > 0 ? 1 : 0));
-
 const INACTIVE_OPACITY = 0.4;
 
-/** Deep enough that the pill is well faded before it reaches the frame edge —
- *  roughly 4x the pill's own height. */
-const BOTTOM_FADE_H = 140;
+/** How far below its arming point Act 2 disarms. */
+const ACT2_HYSTERESIS = 0.04;
+
+/** Seeds the assembly's centring for the one frame before the clusters card is
+ *  measured. The section is far below the fold, so it is never on screen. */
+const CLUSTERS_CARD_COL_H_ESTIMATE = 384;
 
 /** Rough block height, used only to seed the stops before the first
  *  measurement. The section is far below the fold, so the seed is never on
@@ -218,30 +200,48 @@ const UnderstandWhyTraceView = () => {
   const { scrollYProgress } = useScroll({ target: sectionRef, offset: ["start start", "end start"] });
 
   const copyIndex = useTransform(scrollYProgress, [0, COPY_END], [0, STEP_COUNT - 1]);
-  const viewIndex = useTransform(scrollYProgress, VIEW_STOPS, VIEW_INDEX);
 
   const stackRef = useRef<HTMLDivElement>(null);
   const stackStops = useStackStops(stackRef);
   const stackY = useTransform(copyIndex, STEP_STOPS, stackStops);
-  const trayX = useTransform(viewIndex, STEP_STOPS, TRAY_X_BY_STEP);
-  const chatWidth = useTransform(viewIndex, STEP_STOPS, CHAT_W_BY_STEP);
-  const leftFadeOpacity = useTransform(viewIndex, STEP_STOPS, LEFT_FADE_BY_STEP);
 
   const [stackTiming, setStackTiming] = useState<StackTiming>(DEFAULT_STACK_TIMING);
 
-  // Step 6's three phases, all fractions of one window so they can overlap
-  // freely and one dial dock can author all of them. Function-form transforms
-  // (not [in]/[out] ranges) so a dial change is picked up on the next render
-  // rather than being captured at mount.
-  const window6 = useTransform(scrollYProgress, [STACK_WINDOW_START, 1], [0, 1]);
-  const flight = useTransform(window6, (t) => phase(t, stackTiming.flightAt, stackTiming.flightSpan));
-  const collapse = useTransform(window6, (t) => phase(t, stackTiming.collapseAt, stackTiming.collapseSpan));
-  const drop = useTransform(window6, (t) => phase(t, stackTiming.dropAt, stackTiming.dropSpan));
+  // The last step's three phases, all fractions of one window so they can
+  // overlap freely and one dial dock can author all of them. Function-form
+  // transforms (not [in]/[out] ranges) so a dial change is picked up on the
+  // next render rather than being captured at mount.
+  const stackWindow = useTransform(scrollYProgress, [STACK_WINDOW_START, 1], [0, 1]);
+  const flight = useTransform(stackWindow, (t) => phase(t, stackTiming.flightAt, stackTiming.flightSpan));
+  const collapse = useTransform(stackWindow, (t) => phase(t, stackTiming.collapseAt, stackTiming.collapseSpan));
+  const cardRise = useTransform(stackWindow, (t) => phase(t, stackTiming.cardRiseAt, stackTiming.cardRiseSpan));
+  const pillEnter = useTransform(stackWindow, (t) => phase(t, stackTiming.pillEnterAt, stackTiming.pillEnterSpan));
 
   // The trace fades out under the card as it leaves.
   const trayOpacity = useTransform(flight, (f) => 1 - phase(f, 0, stackTiming.trayFadeEnd));
-  // Bottom fade arrives during the collapse, ahead of the drop it exists for.
-  const bottomFadeOpacity = useTransform(collapse, [0, 0.5], [0, 1]);
+
+  // The pill and the clusters card rest as one vertically-centred assembly, so
+  // the card's height decides where BOTH sit and has to be measured here rather
+  // than inside either of them.
+  const [clustersCardH, setClustersCardH] = useState(CLUSTERS_CARD_COL_H_ESTIMATE);
+  const { pillTop, cardTop } = assemblyLayout(SIGNAL_HEADER_H, clustersCardH);
+
+  // Act 2 is time-based, so it needs a boolean, not a scrubbed value. It
+  // disarms BELOW its arming point, not at it — otherwise a scroll resting
+  // exactly on the trigger re-runs the whole thing on every jitter of the
+  // wheel.
+  const [act2, setAct2] = useState(false);
+  const act2At = stackTiming.act2At;
+  useMotionValueEvent(stackWindow, "change", (t) =>
+    setAct2((on) => (on ? t >= act2At - ACT2_HYSTERESIS : t >= act2At))
+  );
+  // "change" only fires on a CHANGE, so a reload landing past the trigger — or
+  // a dial dragged under the current scroll position — would otherwise never
+  // arm. Deferred a frame so the observer has measured.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setAct2(stackWindow.get() >= act2At));
+    return () => cancelAnimationFrame(id);
+  }, [act2At, stackWindow]);
 
   const [step, setStep] = useState<StepNumber>(1);
   useMotionValueEvent(copyIndex, "change", (i) => {
@@ -256,20 +256,17 @@ const UnderstandWhyTraceView = () => {
   const [flying, setFlying] = useState(false);
   useMotionValueEvent(flight, "change", (v) => setFlying(v > 0));
 
-  const { data: simpleTrace } = useSWR<TraceViewTrace>(`${SHARED_TRACE_API}/${SIMPLE_TRACE_ID}`, swrFetcher);
-  const { data: simpleSpans } = useSWR<TraceViewSpan[]>(`${SHARED_TRACE_API}/${SIMPLE_TRACE_ID}/spans`, swrFetcher);
-  const { data: complexTrace } = useSWR<TraceViewTrace>(`${SHARED_TRACE_API}/${COMPLEX_TRACE_ID}`, swrFetcher);
-  const { data: complexSpans } = useSWR<TraceViewSpan[]>(`${SHARED_TRACE_API}/${COMPLEX_TRACE_ID}/spans`, swrFetcher);
+  const { data: trace } = useSWR<TraceViewTrace>(`${SHARED_TRACE_API}/${DEMO_TRACE_ID}`, swrFetcher);
+  const { data: spans } = useSWR<TraceViewSpan[]>(`${SHARED_TRACE_API}/${DEMO_TRACE_ID}/spans`, swrFetcher);
 
   const activeStep = STEPS[step];
 
   return (
     <TraceViewErrorBoundary>
       {StackDials && <StackDials onChange={setStackTiming} unpinAt={UNPIN_IN_WINDOW} />}
-      {/* Trace 1's store wraps the WHOLE section: the copy on the left has
-          inline links that scroll trace 1's transcript. Trace 2's provider is
-          nested further down and shadows this one for its own subtree only. */}
-      <TraceViewStoreProvider storeKey="landing-trace-simple" initialTrace={simpleTrace}>
+      {/* Wraps the WHOLE section, not just the panel: the copy on the left has
+          inline links that select spans in this same store. */}
+      <TraceViewStoreProvider storeKey="landing-demo-trace" initialTrace={trace}>
         <section ref={sectionRef} className={cn("relative w-full mx-auto px-6 lg:px-0", LANDING_COLUMN_MAX_W)}>
           <div className="flex gap-18 2xl:gap-36">
             {/* LEFT — the copy stack. The wrapper's height IS the section's
@@ -317,53 +314,22 @@ const UnderstandWhyTraceView = () => {
                   className="rounded-sm bg-surface-500 overflow-hidden relative"
                 >
                   <motion.div
-                    data-landing-tray
-                    style={{ x: trayX, gap: TRAY_GAP, opacity: trayOpacity }}
-                    className="absolute inset-y-0 left-0 flex items-center"
+                    data-landing-panel
+                    style={{ height: PANEL_H, opacity: trayOpacity }}
+                    className="absolute inset-y-0 my-auto left-1/2 -translate-x-1/2 rounded-md overflow-hidden border bg-background"
                   >
-                    <div
-                      style={{ height: PANEL_H }}
-                      className="flex flex-row rounded-md overflow-hidden border bg-background shrink-0"
-                    >
-                      <TracePanel
-                        trace={simpleTrace}
-                        spans={simpleSpans ?? []}
-                        showTimeline={step >= 2}
-                        chatActive={false}
-                      />
-                    </div>
-
-                    {/* Trace 2 — its own store, so selections and panel state
-                        stay independent of trace 1's. */}
-                    <TraceViewStoreProvider storeKey="landing-trace-complex" initialTrace={complexTrace}>
-                      <div
-                        style={{ height: PANEL_H }}
-                        className="flex flex-row rounded-md overflow-hidden border bg-background shrink-0"
-                      >
-                        <TracePanel
-                          trace={complexTrace}
-                          spans={complexSpans ?? []}
-                          // Closes when the chat opens, one step BEFORE the
-                          // signals card needs the room.
-                          showTimeline={step <= 3}
-                          chatActive={step === 4}
-                          showSignals
-                          // Stays open through step 6: the stack measures this
-                          // card's box, and a collapse would move it mid-flight.
-                          signalsOpen={step >= 5}
-                          revealSpanId={step >= 5 ? SIGNAL_PARALLEL_CANCEL_SPAN_ID : undefined}
-                          signalCardHidden={flying}
-                        />
-
-                        {/* Chat — width is scroll-derived, so it opens in
-                            lockstep with the tray sliding to make room. */}
-                        <motion.div style={{ width: chatWidth }} className="overflow-hidden h-full shrink-0">
-                          <div style={{ width: CHAT_W }} className="h-full bg-background border-l">
-                            {step >= 4 && <AskAi />}
-                          </div>
-                        </motion.div>
-                      </div>
-                    </TraceViewStoreProvider>
+                    <TracePanel
+                      trace={trace}
+                      spans={spans ?? []}
+                      showTimeline={step >= 2}
+                      showSignals={step >= 3}
+                      // Stays open through the last step: the stack measures
+                      // this card's box, and a collapse would move it
+                      // mid-flight.
+                      signalsOpen={step >= 3}
+                      revealSpanId={step >= 3 ? SIGNAL_SOURCE_SPAN_ID : undefined}
+                      signalCardHidden={flying}
+                    />
                   </motion.div>
 
                   {/* Mounted a step early so its measurements and first layout
@@ -371,20 +337,35 @@ const UnderstandWhyTraceView = () => {
                       actually reveals it. Deliberately BELOW the z-10 vignettes
                       — the front card bleeds off the left edge and the gradient
                       softens that crop. */}
-                  {step >= 5 && (
-                    <SignalStack
-                      flight={flight}
-                      collapse={collapse}
-                      drop={drop}
-                      visible={flying}
-                      timing={stackTiming}
-                    />
+                  {step >= 3 && (
+                    <>
+                      <SignalStack
+                        flight={flight}
+                        collapse={collapse}
+                        pillEnter={pillEnter}
+                        pillRestY={pillTop}
+                        visible={flying}
+                        timing={stackTiming}
+                      />
+                      {/* AFTER the stack, so the opaque clusters card paints over
+                          the pill and the pill disappears INTO it rather than
+                          fading out on top of it. */}
+                      <ClustersStage
+                        rise={cardRise}
+                        restY={cardTop}
+                        armed={act2}
+                        landed={act2}
+                        timing={stackTiming}
+                        onMeasureHeight={setClustersCardH}
+                      />
+                    </>
                   )}
 
-                  {/* Vignettes: exactly the resting margin wide, so they are
-                      invisible while a slide is parked and only soften the cut
-                      mid-slide. Held at 80% so a passing card stays legible
-                      through them rather than dissolving into the frame. */}
+                  {/* Vignettes: exactly the panel's resting margin wide, so
+                      they sit over bare frame background and only bite on the
+                      signal stack's cascade, which is wider than the frame.
+                      Held at 80% so a card stays legible through them rather
+                      than dissolving into the frame. */}
                   <div
                     style={{ width: EDGE_FADE_W }}
                     className="absolute inset-y-0 left-0 z-10 bg-gradient-to-r from-surface-500/80 to-transparent pointer-events-none"
@@ -392,25 +373,6 @@ const UnderstandWhyTraceView = () => {
                   <div
                     style={{ width: EDGE_FADE_W }}
                     className="absolute inset-y-0 right-0 z-10 bg-gradient-to-l from-surface-500/80 to-transparent pointer-events-none"
-                  />
-
-                  {/* The chat slide is wider than the frame, so the transcript
-                      runs off the left edge — this softens the cut. Nothing
-                      overflows in the other two views, hence the opacity map.
-                      Tops out at 80% like the edge vignettes: a full-opacity
-                      stop reads as a hard wall rather than a fade. */}
-                  <motion.div
-                    style={{ opacity: leftFadeOpacity }}
-                    className="absolute inset-y-0 left-0 z-10 w-[128px] bg-gradient-to-r from-surface-500/80 via-surface-500/55 to-transparent pointer-events-none"
-                  />
-
-                  {/* Bottom fade — the pill dissolves through it on the way out
-                      instead of being hard-clipped by the frame edge. Held at
-                      zero until the collapse so it never sits over the trace
-                      panel, whose transcript has its own bottom fade. */}
-                  <motion.div
-                    style={{ opacity: bottomFadeOpacity, height: BOTTOM_FADE_H }}
-                    className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-surface-500/80 to-transparent pointer-events-none"
                   />
 
                   <SectionFootnote name={activeStep.footnote.name} href={activeStep.footnote.href} />

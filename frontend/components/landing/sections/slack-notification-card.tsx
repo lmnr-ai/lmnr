@@ -1,5 +1,7 @@
 import { cn } from "@/lib/utils";
 
+import { SIGNAL_EVENT_TITLE } from "./signal-event-card";
+
 export const SLACK_BORDER = "rgb(38 38 38)"; // surface-400
 export const SLACK_BG = "rgb(23 23 23)"; // surface-700
 
@@ -42,10 +44,11 @@ export const SlackContent = () => (
         </div>
       </div>
 
+      {/* Same event the signal card describes — see ./signal-event-card, and
+          keep the two saying the same thing. */}
       <p className="font-sans text-xs leading-relaxed text-foreground-200 w-full">
-        Agent run flagged 4 issues. In one anthropic.messages the agent decided to run <code>python</code> (macOS only
-        ships <code>python3</code>), Bash then hit <code>command not found</code> three times before recovering, a
-        parallel Bash pair cascade-cancelled, and Read missed when the shell CWD drifted after a <code>cd</code>.
+        {SIGNAL_EVENT_TITLE}. The agent ran one <code>web_search</code> and answered straight from the first result,
+        without linking the page it read.
       </p>
 
       <div className="flex flex-row gap-2 items-center">

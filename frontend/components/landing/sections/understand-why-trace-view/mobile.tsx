@@ -20,6 +20,8 @@ import { type StepNumber, STEPS } from "./steps";
 // Mock widths deliberately overflow a phone viewport; the page root has
 // `overflow-x-clip` so the visuals read at full scale without side-scroll.
 
+const TIMELINE_FOOTNOTE = { name: "Timeline", href: "https://laminar.sh/docs/platform/viewing-traces" };
+
 /** Cascade step between stacked cards. Tighter than the desktop stack's, which
  *  can afford a wider fan inside a 480px frame; here the cascade is already
  *  running off both edges of a phone. */
@@ -96,12 +98,28 @@ const Block = ({ step, children }: { step: StepNumber; children?: ReactNode }) =
 
 // Centring pattern shared by the image panels: `flex` + `mx-auto shrink-0`
 // centres the card when there's room and lets it overflow when there isn't.
-const Panel = ({ step, className, children }: { step: StepNumber; className?: string; children: ReactNode }) => (
-  <div className={cn("bg-surface-500 relative w-full overflow-hidden", className)}>
-    {children}
-    <SectionFootnote name={STEPS[step].footnote.name} href={STEPS[step].footnote.href} />
-  </div>
-);
+//
+// `footnote` overrides the step's own only where a step owns two panels and the
+// second shows something the step's footnote does not name.
+const Panel = ({
+  step,
+  footnote,
+  className,
+  children,
+}: {
+  step: StepNumber;
+  footnote?: { name: string; href: string };
+  className?: string;
+  children: ReactNode;
+}) => {
+  const { name, href } = footnote ?? STEPS[step].footnote;
+  return (
+    <div className={cn("bg-surface-500 relative w-full overflow-hidden", className)}>
+      {children}
+      <SectionFootnote name={name} href={href} />
+    </div>
+  );
+};
 
 const UnderstandWhyTraceViewMobile = () => {
   // Scroll-driven Y shift so the transcript card breathes as it passes through.
@@ -133,11 +151,10 @@ const UnderstandWhyTraceViewMobile = () => {
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-[160px] bg-gradient-to-t from-surface-500 to-transparent pointer-events-none z-10" />
         </Panel>
-      </Block>
 
-      {/* Timeline — a 30-minute run at a glance, which is the point of the copy. */}
-      <Block step={3}>
-        <Panel step={3} className="h-[280px] flex items-center px-5 pb-8">
+        {/* Second panel under the same copy, which promises both a transcript
+            and a timeline. */}
+        <Panel step={2} footnote={TIMELINE_FOOTNOTE} className="h-[280px] flex items-center px-5 pb-8">
           {/* 650×250 source, scaled 1:1 — a mismatched box would crop the axis
               labels off the top and the controls off the right. */}
           <div
@@ -155,37 +172,17 @@ const UnderstandWhyTraceViewMobile = () => {
         </Panel>
       </Block>
 
-      {/* Ask AI — `origin-bottom-right scale-80` keeps the card anchored to the
-          bottom-right as it shrinks. */}
-      <Block step={4}>
-        <Panel step={4} className="h-[360px] flex items-end justify-end px-8 pt-4 pb-12">
-          <div
-            className="border-[0.5px] border-surface-200 rounded-lg overflow-hidden shrink-0 mx-auto relative origin-bottom-right scale-80"
-            style={{ width: 480, height: 491 }}
-          >
-            <Image
-              src="/assets/landing/composable-trace/ask-ai-v2.png"
-              alt="Ask AI"
-              fill
-              sizes="480px"
-              className="object-cover object-right-bottom pointer-events-none select-none"
-            />
-          </div>
-          <div className="absolute top-0 left-0 right-0 h-[40px] bg-gradient-to-b from-surface-500/80 to-transparent pointer-events-none z-10" />
-        </Panel>
-      </Block>
-
       {/* 02. Signals — the detection, then the Slack ping the copy promises. */}
-      <Block step={5}>
-        <Panel step={5} className="px-5 pt-4 pb-12 flex flex-col gap-3">
+      <Block step={3}>
+        <Panel step={3} className="px-5 pt-4 pb-12 flex flex-col gap-3">
           <SignalEventCard className="w-[600px] max-w-[600px] shrink-0" />
           <SlackNotificationCard className="w-[600px] max-w-[600px] shrink-0" />
         </Panel>
       </Block>
 
       {/* The same signal, matched on run after run. */}
-      <Block step={6}>
-        <Panel step={6} className="px-5 pt-4 pb-12">
+      <Block step={4}>
+        <Panel step={4} className="px-5 pt-4 pb-12">
           <SignalStackStatic />
         </Panel>
       </Block>

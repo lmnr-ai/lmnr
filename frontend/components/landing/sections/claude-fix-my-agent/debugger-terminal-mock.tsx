@@ -110,7 +110,7 @@ const DebuggerTerminalMock = ({ entries, typed, isTyping, finished, prompt, clas
   return (
     <div
       className={cn(
-        "h-[480px] w-[400px] shrink-0 rounded-md border border-surface-400 bg-surface-700 flex flex-col",
+        "h-[480px] w-[600px] shrink-0 rounded-md border border-surface-400 bg-surface-700 flex flex-col",
         className
       )}
     >

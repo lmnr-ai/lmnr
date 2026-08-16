@@ -13,18 +13,6 @@ export interface BatchedPreviewsHook {
 interface UseBatchedSpanPreviewsOptions {
   debounceMs?: number;
   isShared?: boolean;
-  /**
-   * TODO(landing-mock): DELETE THIS OPTION. It exists only so the marketing
-   * landing page's trace mock can read previews through the
-   * `/api/landing-traces/*` rewrite in next.config.ts, which proxies to the
-   * production instance because the traces it renders do not exist in a local
-   * database. Nothing in the product should ever pass this.
-   *
-   * Remove together with the `sharedApiBase` prop on `Transcript` and its one
-   * caller in `components/landing/sections/understand-why-trace-view/`, either
-   * by seeding those traces locally or by dropping previews from the mock.
-   */
-  sharedApiBase?: string;
 }
 
 /**
@@ -43,8 +31,7 @@ export function useBatchedSpanPreviews(
   inputSpanIds?: string[],
   promptHashes?: Record<string, string>
 ): BatchedPreviewsHook {
-  // TODO(landing-mock): remove `sharedApiBase` — see the option's doc comment.
-  const { debounceMs = 150, isShared = false, sharedApiBase = "/api/shared/traces" } = options;
+  const { debounceMs = 150, isShared = false } = options;
   const { toast } = useToast();
 
   // Union of "pending + in-flight + successfully fetched" per role. The React
@@ -102,9 +89,8 @@ export function useBatchedSpanPreviews(
       body.endDate = params.end_time;
     }
 
-    // TODO(landing-mock): drop `sharedApiBase` here when the option goes away.
     const url = isShared
-      ? `${sharedApiBase}/${trace.id}/spans/previews`
+      ? `/api/shared/traces/${trace.id}/spans/previews`
       : `/api/projects/${projectId}/traces/${trace.id}/spans/previews`;
 
     try {
@@ -161,7 +147,7 @@ export function useBatchedSpanPreviews(
         });
       }
     }
-  }, [projectId, toast, trace, isShared, sharedApiBase]);
+  }, [projectId, toast, trace, isShared]);
 
   useEffect(() => {
     let queued = false;

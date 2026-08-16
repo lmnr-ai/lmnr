@@ -4,6 +4,7 @@ import { type ReactNode } from "react";
 import { withOpacity } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
+import { DEMO_LLM2_SPAN_ID, DEMO_TOOL_SPAN_ID } from "./demo-trace";
 import { SIGNAL_CLUSTER_COLOR, SIGNAL_CLUSTER_EVENT_COUNT, SIGNAL_CLUSTER_NAME } from "./signal-cluster";
 
 // Literal values, not `var(--color-*)` — the landing trace panel animates the
@@ -27,24 +28,11 @@ export const SIGNAL_HEADER_H = 34;
 /** What the signal actually caught, as a headline. NOT the cluster name: a
  *  cluster only exists once enough events have grouped together, which is what
  *  the collapse-to-pill animation depicts. */
-export const SIGNAL_EVENT_TITLE = "Agent run hit avoidable failures";
+export const SIGNAL_EVENT_TITLE = "Answered without citing a source";
 
-// Real spans inside trace f4a22e85-089a-0959-fd1e-3002e236e42f (opencode
-// REST-client scaffold trace). Each chip points at the span that materialises
-// the issue described in the surrounding prose.
-//
-// FLAG: these IDs are load-bearing — they're referenced by the step-5
-// auto-select + flash in understand-why-trace-view. If COMPLEX_TRACE_ID in
-// `understand-why-trace-view/steps.tsx` changes, re-derive these and the
-// matching IDs in ask-ai.tsx from the new trace, or the chips will point
-// at spans that don't exist in the rendered transcript.
-//
-// All four spans sit at top level under the `opencode turn` root — no
-// subagent reveal required.
-export const SIGNAL_PLAN_LLM_SPAN_ID = "00000000-0000-0000-5d0e-4970807b7819";
-export const SIGNAL_PYTHON_NOT_FOUND_SPAN_ID = "00000000-0000-0000-038c-8b88bf836ac3";
-export const SIGNAL_PARALLEL_CANCEL_SPAN_ID = "00000000-0000-0000-29df-c05ef26d7cd7";
-export const SIGNAL_CWD_DRIFT_READ_SPAN_ID = "00000000-0000-0000-0cc6-1af923a75a8e";
+/** The span the trace panel selects and scrolls to when the signal card opens:
+ *  the answer the signal is actually about. */
+export const SIGNAL_SOURCE_SPAN_ID = DEMO_LLM2_SPAN_ID;
 
 interface SpanChipProps {
   iconBg: string;
@@ -121,54 +109,33 @@ export const ClusterPill = () => (
 // Signal event card payload. Split out from SignalContent so the clusters
 // animation can collapse it away independently of the pill above it.
 //
-// Copy summarises the 4 real failure-points from trace
-// f4a22e85-089a-0959-fd1e-3002e236e42f (opencode REST-client scaffold). The
-// first chip — ai.streamText.doStream — points at the top-level verify LLM
-// where the agent *reasoned* itself into a PATH assumption; the other three
-// chips are the downstream tool consequences. Clicking any chip drives the
-// transcript scroll + selection.
+// Describes what the signal caught in ../demo-trace: the agent answered off a
+// single web_search hit and never linked the page. Each chip points at the
+// span that materialises the claim, and clicking one drives the transcript
+// scroll + selection.
 export const SignalCardBody = ({ onSpanClick, flashSpanId }: Omit<SignalContentProps, "onClose"> = {}) => {
   const chipProps = { onSpanClick, flashSpanId };
   return (
     <p className="text-foreground-300 text-xs leading-5">
-      Agent run flagged 4 issues. In one{" "}
+      The agent ran one{" "}
+      <SpanChip
+        iconBg="bg-tool"
+        icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
+        label="web_search"
+        spanId={DEMO_TOOL_SPAN_ID}
+        onClick={chipProps.onSpanClick}
+        flashSpanId={chipProps.flashSpanId}
+      />{" "}
+      and{" "}
       <SpanChip
         iconBg="bg-llm"
         icon={<MessageCircle className="size-3 text-white" strokeWidth={2} />}
-        label="ai.streamText.doStream"
-        spanId={SIGNAL_PLAN_LLM_SPAN_ID}
+        label="ai.llm"
+        spanId={DEMO_LLM2_SPAN_ID}
         onClick={chipProps.onSpanClick}
         flashSpanId={chipProps.flashSpanId}
       />{" "}
-      the agent decided to run <code className="text-foreground-200">python</code> (macOS only ships{" "}
-      <code className="text-foreground-200">python3</code>),{" "}
-      <SpanChip
-        iconBg="bg-tool"
-        icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
-        label="bash"
-        spanId={SIGNAL_PYTHON_NOT_FOUND_SPAN_ID}
-        onClick={chipProps.onSpanClick}
-        flashSpanId={chipProps.flashSpanId}
-      />{" "}
-      then hit <code className="text-foreground-200">command not found</code> three times before recovering, a parallel{" "}
-      <SpanChip
-        iconBg="bg-tool"
-        icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
-        label="bash"
-        spanId={SIGNAL_PARALLEL_CANCEL_SPAN_ID}
-        onClick={chipProps.onSpanClick}
-        flashSpanId={chipProps.flashSpanId}
-      />{" "}
-      pair cascade-cancelled, and{" "}
-      <SpanChip
-        iconBg="bg-tool"
-        icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
-        label="read"
-        spanId={SIGNAL_CWD_DRIFT_READ_SPAN_ID}
-        onClick={chipProps.onSpanClick}
-        flashSpanId={chipProps.flashSpanId}
-      />{" "}
-      missed when the shell CWD drifted after a <code className="text-foreground-200">cd</code>.
+      answered straight from the first result, without linking the page it read.
     </p>
   );
 };
@@ -176,12 +143,14 @@ export const SignalCardBody = ({ onSpanClick, flashSpanId }: Omit<SignalContentP
 // Signal event card inner content. No outer frame — callers wrap it (static
 // border/bg here; the landing trace panel supplies its own animated wrapper).
 export const SignalContent = ({ onSpanClick, flashSpanId, onClose }: SignalContentProps = {}) => (
-  <div className="w-full flex flex-col px-3 py-2 gap-2">
+  <div className="w-full flex flex-col px-3 py-2 gap-0.5">
     {/* Fixed row height so this card and the morphing one share a header box —
         the stack animation flies between them and any difference would read as
         the card resizing mid-flight. */}
     <div className="flex items-center justify-between gap-2" style={{ minHeight: SIGNAL_HEADER_H }}>
-      <span className="text-sm font-medium text-white truncate">{SIGNAL_EVENT_TITLE}</span>
+      {/* Same size as the body below it — weight and colour already carry the
+          hierarchy, so a larger title only adds a gap under the header. */}
+      <span className="text-xs font-medium text-white truncate">{SIGNAL_EVENT_TITLE}</span>
       {onClose ? (
         <button
           type="button"

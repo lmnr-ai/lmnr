@@ -6,19 +6,20 @@ import { useLayoutEffect, useState } from "react";
 import MorphingSignalCard, { type PillMetrics } from "../has-this-issue/morphing-signal-card";
 import { SIGNAL_CLUSTER_EVENT_COUNT } from "../signal-cluster";
 import { SIGNAL_CARD_W } from "../signal-event-card";
-import { FRAME_H, FRAME_W, TRAY_X } from "./geometry";
+import { FRAME_H, FRAME_W, PANEL_X } from "./geometry";
 import { phase, type StackTiming } from "./stack-timing";
 
-// Step 6 — the signal card leaves the trace panel, becomes the front of a
-// receding stack of identical cards, collapses into its cluster pill, and the
-// pill drops out of the frame.
+// The last step — the signal card leaves the trace panel, becomes the front of
+// a receding stack of identical cards, collapses into its cluster pill, and
+// the pill drops into the clusters card that rose to meet it (./clusters-stage
+// owns that card).
 //
 //   ┌── frame ────────┐   ┌─────────────────┐   ┌─────────────────┐
-//   │ ┌ trace ┐       │   │ ┌──────┐        │   │                 │
-//   │ │[card] │ ─────▶│   │ │[card]│╲╲╲     │──▶│    ╭─pill─╮     │──▶ drops out
-//   │ └───────┘ flight│   │ └──────┘ ghosts │   │                 │
+//   │ ┌ trace ┐       │   │ ┌──────┐        │   │    ╭─pill─╮     │
+//   │ │[card] │ ─────▶│   │ │[card]│╲╲╲     │──▶│       ↓         │
+//   │ └───────┘ flight│   │ └──────┘ ghosts │   │  ┌──clusters──┐ │
 //   └─────────────────┘   └─────────────────┘   └─────────────────┘
-//        flight 0→1            collapse 0→1          drop 0→1
+//        flight 0→1            collapse 0→1         pillEnter 0→1
 //
 // EVERY position below is a pure function of a scroll-derived MotionValue.
 // Nothing runs on a clock, so scrolling back up rewinds it frame for frame,
@@ -63,6 +64,11 @@ const CARD_H_ESTIMATE = 150;
  *  backing would show as an abrupt change of ground. */
 const BACKING_GAIN = 5;
 
+/** The pill's opacity once the clusters card has taken it in, and how far
+ *  through the enter it gets there. See `absorb` below. */
+const PILL_ABSORBED_OPACITY = 0.5;
+const PILL_FADE_END = 0.4;
+
 const mix = (from: number, to: number, t: number) => from + (to - from) * t;
 
 /** Left edge of the front card. The cascade is wider than the frame, so it is
@@ -78,27 +84,21 @@ interface SourceBox {
 
 /** Where the panel's own signal card sits, in FRAME coordinates.
  *
- *  Measured against the TRAY, not the frame, so the tray's live `translateX`
- *  cancels out of the subtraction and the reading is valid at any scroll
- *  position; `TRAY_X.trace2` then adds the parked offset back. Steps 5 and 6
- *  share the `trace2` view, so the tray is stationary for the whole flight and
- *  that constant is the correct one.
- *
- *  FLAG: keyed off `[data-landing-signal-card]`, which only trace 2 renders —
- *  it is the sole panel with `showSignals`. Giving trace 1 a signal card would
- *  make this query ambiguous and silently pick the wrong one. */
+ *  Measured against the PANEL, not the frame, so the panel's own opacity/layout
+ *  is irrelevant and `PANEL_X` adds the parked offset back. The panel never
+ *  moves horizontally, so that constant is always correct. */
 const useSourceBox = (): SourceBox | null => {
   const [box, setBox] = useState<SourceBox | null>(null);
 
   useLayoutEffect(() => {
     const card = document.querySelector<HTMLElement>("[data-landing-signal-card]");
-    const tray = document.querySelector<HTMLElement>("[data-landing-tray]");
-    if (!card || !tray) return;
+    const panel = document.querySelector<HTMLElement>("[data-landing-panel]");
+    if (!card || !panel) return;
 
     const measure = () => {
       const c = card.getBoundingClientRect();
-      const t = tray.getBoundingClientRect();
-      const next = { x: c.left - t.left + TRAY_X.trace2, y: c.top - t.top, h: c.height };
+      const t = panel.getBoundingClientRect();
+      const next = { x: c.left - t.left + PANEL_X, y: c.top - t.top, h: c.height };
       setBox((prev) =>
         prev && Math.abs(prev.x - next.x) < 0.5 && Math.abs(prev.y - next.y) < 0.5 && Math.abs(prev.h - next.h) < 0.5
           ? prev
@@ -109,7 +109,7 @@ const useSourceBox = (): SourceBox | null => {
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(card);
-    observer.observe(tray);
+    observer.observe(panel);
     // The collapser wrapping the card animates its own maxHeight open, which
     // moves the card's TOP without resizing the card itself.
     if (card.parentElement) observer.observe(card.parentElement);
@@ -189,15 +189,18 @@ interface Props {
   flight: MotionValue<number>;
   /** 0 = stack, 1 = bare cluster pill. */
   collapse: MotionValue<number>;
-  /** 0 = pill parked centre-frame, 1 = pill clear of the bottom edge. */
-  drop: MotionValue<number>;
+  /** 0 = pill parked above the clusters card, 1 = pill hidden inside it. */
+  pillEnter: MotionValue<number>;
+  /** Absolute y of the pill's top edge at rest, from the frame's top — the
+   *  clusters card's height decides it, so it is computed by the parent. */
+  pillRestY: number;
   /** The trace panel still owns the card until this flips. Both sides swap on
    *  the same boolean so the card is never drawn twice, and never zero times. */
   visible: boolean;
   timing: StackTiming;
 }
 
-const SignalStack = ({ flight, collapse, drop, visible, timing }: Props) => {
+const SignalStack = ({ flight, collapse, pillEnter, pillRestY, visible, timing }: Props) => {
   const source = useSourceBox();
   const [pill, setPill] = useState<PillMetrics | null>(null);
 
@@ -213,23 +216,32 @@ const SignalStack = ({ flight, collapse, drop, visible, timing }: Props) => {
   const liveY = stackTop(cardH, timing.dy) + liveSlot * timing.dy;
   const from = source ?? { x: liveX, y: liveY };
 
-  // Pill parks dead centre. Note MorphingSignalCard shrinks toward its own
+  // Pill parks horizontally centred, and vertically wherever the clusters card
+  // leaves room above itself. Note MorphingSignalCard shrinks toward its own
   // top-left, so the box's origin IS what we position — hence the half-size
-  // offsets rather than a translate.
+  // offset rather than a translate.
   const pillX = pill ? (FRAME_W - pill.width) / 2 : liveX;
-  const pillY = pill ? (FRAME_H - pill.height) / 2 : liveY;
 
   const x = useTransform([flight, collapse], ([f, c]: number[]) => mix(mix(from.x, liveX, f), pillX, c));
-  const y = useTransform([flight, collapse, drop], ([f, c, d]: number[]) => {
-    const parked = mix(mix(from.y, liveY, f), pillY, c);
-    return parked + d * (FRAME_H + timing.dropClearance - pillY);
+  const y = useTransform([flight, collapse, pillEnter], ([f, c, e]: number[]) => {
+    const parked = mix(mix(from.y, liveY, f), pillRestY, c);
+    // Down past the card's top edge, so the pill is fully roofed by it. The
+    // card is painted OVER the pill, so the rest of the travel is out of sight.
+    return parked + e * ((pill?.height ?? 0) + timing.pillEnterDepth);
   });
 
   /** The other runs sliding in from off-frame, late in the flight. */
   const entry = useTransform(flight, (f) => phase(f, timing.entryStart, 1 - timing.entryStart));
 
+  // Absorbed, not merely covered: the last of the pill visible above the card's
+  // edge is already half gone. The ramp finishes EARLY because the card is
+  // opaque and painted over the pill — past that point the fade happens out of
+  // sight, so spreading it over the whole phase spends most of it on nobody.
+  const absorb = useTransform(pillEnter, [0, PILL_FADE_END], [1, PILL_ABSORBED_OPACITY]);
+  const opacity = useTransform(absorb, (a) => (visible ? a : 0));
+
   return (
-    <div className="absolute inset-0 pointer-events-none" style={{ opacity: visible ? 1 : 0 }}>
+    <motion.div className="absolute inset-0 pointer-events-none" style={{ opacity }}>
       {SLOTS.map((slot) => (
         <StackCard
           key={slot}
@@ -243,7 +255,7 @@ const SignalStack = ({ flight, collapse, drop, visible, timing }: Props) => {
           onMeasure={slot === liveSlot ? setPill : undefined}
         />
       ))}
-    </div>
+    </motion.div>
   );
 };
 

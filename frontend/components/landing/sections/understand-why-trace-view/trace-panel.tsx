@@ -8,14 +8,13 @@ import { shallow } from "zustand/shallow";
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import CondensedTimeline from "@/components/traces/trace-view/condensed-timeline";
 import { type TraceViewSpan, type TraceViewTrace, useTraceViewStore } from "@/components/traces/trace-view/store";
-import Transcript from "@/components/traces/trace-view/transcript";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 import { SIGNAL_BG, SIGNAL_BORDER, SignalContent } from "../signal-event-card";
 import { PANEL_W } from "./geometry";
-import { SHARED_TRACE_API } from "./shared-trace-api";
+import LandingTranscript from "./landing-transcript";
 import { useSelectAndRevealSpan } from "./use-select-and-reveal-span";
 
 const TWEEN: Transition = { type: "tween", duration: 0.3, ease: "easeInOut" };
@@ -37,15 +36,13 @@ const FLASH_CLEAR_MS = 1100;
 const HEADER_ITEM_CLS = "flex items-center h-7";
 
 // Row 1 of the production trace-view header, trimmed for the landing page:
-// close, maximize, "Trace" + dropdown, Chat, Signals. Everything except
-// Signals is decorative (disabled + disabled:opacity-100).
+// close, maximize, "Trace" + dropdown, Signals. Everything except Signals is
+// decorative (disabled + disabled:opacity-100).
 const PanelHeaderRow = ({
-  chatActive,
   signalsActive,
   showSignals,
   onSignalsToggle,
 }: {
-  chatActive: boolean;
   signalsActive: boolean;
   showSignals: boolean;
   onSignalsToggle: () => void;
@@ -68,11 +65,7 @@ const PanelHeaderRow = ({
     </span>
 
     <span className={HEADER_ITEM_CLS}>
-      <Button
-        variant="outline"
-        disabled
-        className={cn("h-6 text-xs px-1.5 disabled:opacity-100", chatActive && "border-primary text-primary")}
-      >
+      <Button variant="outline" disabled className="h-6 text-xs px-1.5 disabled:opacity-100">
         <Sparkles data-icon="inline-start" size={14} className="mr-1" />
         Chat
       </Button>
@@ -124,10 +117,7 @@ interface Props {
   spans: TraceViewSpan[];
   /** Condensed timeline reveal. */
   showTimeline: boolean;
-  /** Highlights the (decorative) Chat button in the header. */
-  chatActive: boolean;
-  /** Renders the Signals button + the signal-event card. Trace 2 only — the
-   *  card's copy and chips describe that specific run. */
+  /** Renders the Signals button + the signal-event card. */
   showSignals?: boolean;
   /** Step-driven signals-panel state. A user toggle wins until this changes. */
   signalsOpen?: boolean;
@@ -153,16 +143,7 @@ interface Props {
 //
 // Must be rendered inside its own TraceViewStoreProvider — the section mounts
 // two of these against two different traces.
-const TracePanel = ({
-  trace,
-  spans,
-  showTimeline,
-  chatActive,
-  showSignals,
-  signalsOpen,
-  revealSpanId,
-  signalCardHidden,
-}: Props) => {
+const TracePanel = ({ trace, spans, showTimeline, showSignals, signalsOpen, revealSpanId, signalCardHidden }: Props) => {
   const { setSpans, setTrace, setSelectedSpan, signalsPanelOpen, setSignalsPanelOpen } = useTraceViewStore(
     (state) => ({
       setSpans: state.setSpans,
@@ -190,7 +171,7 @@ const TracePanel = ({
   const flashSpanId = useRevealSpan(revealSpanId);
   const selectAndRevealSpan = useSelectAndRevealSpan();
 
-  const handleSpanSelect = useCallback((span?: TraceViewSpan) => setSelectedSpan(span), [setSelectedSpan]);
+  const handleSpanSelect = useCallback((span: TraceViewSpan) => setSelectedSpan(span), [setSelectedSpan]);
   const handleSignalSpanClick = useCallback((spanId: string) => selectAndRevealSpan(spanId), [selectAndRevealSpan]);
 
   const signalCardOpen = !!showSignals && signalsPanelOpen;
@@ -204,7 +185,6 @@ const TracePanel = ({
       <div className={cn("flex flex-col px-2 pt-1.5 shrink-0", showTimeline ? "pb-[6px]" : "pb-0")}>
         <div style={{ height: ROW1_HEIGHT }} className="shrink-0">
           <PanelHeaderRow
-            chatActive={chatActive}
             signalsActive={signalsPanelOpen}
             showSignals={!!showSignals}
             onSignalsToggle={() => setSignalsPanelOpen(!signalsPanelOpen)}
@@ -272,16 +252,7 @@ const TracePanel = ({
 
       <div className="flex-1 min-h-0 overflow-hidden relative">
         <div className="absolute inset-0">
-          {/* TODO(landing-mock): `sharedApiBase` is a temporary hole punched
-              through the product's Transcript so previews resolve via the
-              production-proxying rewrite. Remove it (and the prop) once these
-              traces can be read locally. */}
-          <Transcript
-            onSpanSelect={handleSpanSelect}
-            isShared
-            selectedRowAlign="center"
-            sharedApiBase={SHARED_TRACE_API}
-          />
+          <LandingTranscript onSpanSelect={handleSpanSelect} />
         </div>
         {/* Fades the clipped last row into the panel's own background. Fading
             to the FRAME's colour instead would read as a haze over the card. */}

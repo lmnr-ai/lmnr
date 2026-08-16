@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 
 import { cn } from "@/lib/utils";
 
-import { bodyMedium } from "../../class-names";
+import { bodyMedium, subSection } from "../../class-names";
 import LearnMoreLink from "../two-lines-to-integrate/learn-more-link";
 
 // FLAG: "Read more" needs a real destination — once we publish a compression
@@ -13,9 +13,13 @@ import LearnMoreLink from "../two-lines-to-integrate/learn-more-link";
 const BuiltForProduction = () => (
   <section className="flex flex-col items-start w-full">
     <div className="flex flex-col gap-10 w-full">
-      <p className="font-sans-landing font-medium text-foreground-50 text-[48px] leading-[60px] tracking-[-0.02em]">
-        20x more efficient storage
-      </p>
+      <div className="flex flex-col">
+        <p className="font-sans-landing font-medium text-foreground-50 text-[48px] leading-[60px] tracking-[-0.02em]">
+          20x
+        </p>
+        <p className={subSection}>more efficient</p>
+        <p className={subSection}>storage and pricing</p>
+      </div>
 
       <div className="flex flex-col gap-10 md:flex-row md:gap-17 md:items-start w-full">
         <div className="flex flex-col gap-3 items-start shrink-0">

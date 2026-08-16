@@ -2,19 +2,23 @@ import { cn } from "@/lib/utils";
 
 import { bodyMedium, microLabel, subSection } from "../../class-names";
 import SectionFootnote from "../section-footnote";
+import { STEPS } from "../understand-why-trace-view/steps";
 import SignalEventClustersMock from "./signal-event-clusters-mock";
 
-// Vertical stack: title + subtitle on top, mock centered inside a
-// surface-500 panel with a footnote pinned to the bottom.
+// MOBILE ONLY — see the md gate in ../../index. On desktop this is the closing
+// step of the trace-view scrollytell instead, and the copy below is that step's
+// so the two can never drift.
+//
+// Vertical stack: title + subtitle on top, mock centered inside a surface-500
+// panel with a footnote pinned to the bottom.
+const STEP = STEPS[5];
+
 const HasThisIssue = () => (
   <section className="flex flex-col gap-10 items-start w-full">
     <div className="flex flex-col items-start">
-      <span className={cn(microLabel, "mb-2")}>03.</span>
-      <h2 className={cn(subSection, "mb-2")}>{"Has this failure occurred before?"}</h2>
-      <p className={bodyMedium}>
-        Laminar groups failures into named clusters and tracks each one over time. When a cluster stops recurring,
-        Laminar resolves it - and reopens it if the issue returns.
-      </p>
+      <span className={cn(microLabel, "mb-2")}>{STEP.label}</span>
+      <h2 className={cn(subSection, "mb-2")}>{STEP.title?.replace("\n", " ")}</h2>
+      <p className={bodyMedium}>{STEP.body}</p>
     </div>
     {/* NO vertical padding, unlike the other sections: the mock's stage IS this
         frame (it sets its own FRAME_H) and the frame's edge is where the pill
@@ -36,7 +40,7 @@ const HasThisIssue = () => (
       <div className="shrink-0 mx-auto sm:scale-none scale-[80%] origin-top-left">
         <SignalEventClustersMock />
       </div>
-      <SectionFootnote name="Signal clusters" href="https://laminar.sh/docs/signals/clusters" />
+      <SectionFootnote name={STEP.footnote.name} href={STEP.footnote.href} />
     </div>
   </section>
 );

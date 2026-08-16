@@ -24,19 +24,6 @@ import { cn } from "@/lib/utils.ts";
 interface TranscriptProps {
   onSpanSelect: (span?: TraceViewSpan) => void;
   isShared?: boolean;
-  /** Where a newly selected row lands. "auto" (the product default) scrolls
-   *  the minimum distance, so a row below the fold ends up flush against the
-   *  bottom edge — fine when the user drove the selection, wrong when
-   *  something else did (the landing page reveals spans on scroll). */
-  selectedRowAlign?: "auto" | "center";
-  /**
-   * TODO(landing-mock): DELETE THIS PROP. Pure pass-through to
-   * `useBatchedSpanPreviews`'s `sharedApiBase` so the marketing landing page can
-   * pull previews through the production-proxying `/api/landing-traces/*`
-   * rewrite. No product surface should set it — see that option's doc comment
-   * for the removal plan.
-   */
-  sharedApiBase?: string;
 }
 
 type FlatRow = TranscriptRowData;
@@ -64,13 +51,7 @@ function getSpanIdsForRow(row: FlatRow, expandedGroups: Set<string>): string[] {
   }
 }
 
-// TODO(landing-mock): drop `sharedApiBase` from this signature — see its prop doc.
-const Transcript = ({
-  onSpanSelect,
-  isShared = false,
-  selectedRowAlign = "auto",
-  sharedApiBase,
-}: TranscriptProps) => {
+const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const scrollRef = useRef<HTMLDivElement>(null);
   const {
@@ -294,8 +275,8 @@ const Transcript = ({
 
   useEffect(() => {
     if (selectedRowIndex < 0 || isSpansLoading) return;
-    virtualizer.scrollToIndex(selectedRowIndex, { align: selectedRowAlign });
-  }, [selectedRowIndex, virtualizer, isSpansLoading, selectedRowAlign]);
+    virtualizer.scrollToIndex(selectedRowIndex, { align: "auto" });
+  }, [selectedRowIndex, virtualizer, isSpansLoading]);
 
   // Scroll the matching group header into view in response to a click on a
   // subagent block in the condensed timeline.
@@ -371,7 +352,7 @@ const Transcript = ({
       startTime: trace?.startTime,
       endTime: trace?.endTime,
     },
-    { isShared, sharedApiBase }, // TODO(landing-mock): drop `sharedApiBase`.
+    { isShared },
     spanTypes,
     inputSpanIds,
     promptHashes

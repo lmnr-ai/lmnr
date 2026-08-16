@@ -46,7 +46,14 @@ const Landing = ({ className, hasSession }: Props) => (
     <UnderstandWhy className="md:mt-[calc(80px-(100vh-760px)/2)]" />
     <div className="flex flex-col items-center w-full px-6 lg:px-0 pt-[100px] pb-[72px] md:pb-[120px]">
       <div className={cn("flex flex-col items-start gap-[120px] w-full", LANDING_COLUMN_MAX_W)}>
-        <HasThisIssue />
+        {/* Mobile only. On desktop this is the closing step of the scrollytell
+            above, where the signal card collapses into a pill and drops into
+            the clusters card — a gesture that needs scroll to scrub against,
+            which touch does not have. The two share their copy through
+            `STEPS[5]` in understand-why-trace-view/steps. */}
+        <div className="md:hidden w-full">
+          <HasThisIssue />
+        </div>
         <AskInSlack />
         <ClaudeFixMyAgent />
         <DidMyFixWork />
