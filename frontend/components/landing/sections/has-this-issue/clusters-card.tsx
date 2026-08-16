@@ -42,10 +42,9 @@ export const CLUSTER_COUNT = DATASET.clusterTree.length;
 export const CLUSTERS_CARD_W = 720;
 export const CLUSTERS_CARD_COL_W = 440;
 
-// Column layout only: stacked, the list no longer has to match the chart's
-// height, so each is sized for its own content. The row layout takes both from
-// the container's single `h-[230px]` instead.
-const COL_LIST_H = 150;
+// Column layout only. The list is deliberately NOT here — it hugs its rows, so
+// the card grows as the stage reveals clusters. The row layout takes both
+// heights from the container's single `h-[230px]` instead.
 const COL_CHART_H = 170;
 
 // Decelerate into the final height.
@@ -232,9 +231,67 @@ const ClustersCard = ({
     return () => ro.disconnect();
   }, []);
 
+  const list = (
+    <ClusterList
+      // No right border in the column layout: there is nothing to its right to
+      // divide it from, and it would draw a stray line down the card's edge.
+      className={cn("w-full bg-transparent", isColumn ? "border-r-0" : "h-full")}
+      drillDownDepth={drillDownDepth}
+      filteredCountByCluster={filteredCountByCluster}
+      visibleClusters={visibleClusters}
+      unclusteredCount={unclusteredCount}
+      unclusteredVirtualCluster={unclusteredVirtualCluster}
+      selectedClusterId={selectedClusterId}
+      onNavigateToCluster={navigateToCluster}
+      rangeTotal={DATASET.totalEventCount}
+      pulsingClusterId={pulsingClusterId}
+      pulseMs={pulseMs}
+      revealedCount={revealedCount}
+      revealMs={revealMs}
+    />
+  );
+
+  const chart = (
+    <div
+      style={isColumn ? { height: COL_CHART_H } : undefined}
+      className="flex-1 min-w-0 py-2 pr-2 pl-1 bg-secondary"
+      ref={chartContainerRef}
+    >
+      <ClusterStackedChart
+        clusters={chartClusters}
+        statsData={streamedStats}
+        containerWidth={chartWidth}
+        colorMap={colorMap}
+        yAxisMax={yAxisMax}
+        animateBars={false}
+      />
+    </div>
+  );
+
+  // Two independent cards, list above chart. The list card is UNCONSTRAINED —
+  // it grows with each cluster the stage reveals, which is the point. Capping
+  // it would put a scrollbar over a five-row list.
+  if (isColumn) {
+    return (
+      <div style={{ width: CLUSTERS_CARD_COL_W }} className={cn("flex flex-col gap-2", className)}>
+        <div className="rounded-lg border bg-background p-3 flex flex-col gap-2">
+          <ClusterBreadcrumb
+            breadcrumb={breadcrumb}
+            selectedClusterId={selectedClusterId}
+            onNavigateToBreadcrumb={navigateToBreadcrumb}
+          />
+          <div className="rounded-md border bg-secondary overflow-hidden">{list}</div>
+        </div>
+        <div className="rounded-lg border bg-background p-3">
+          <div className="flex rounded-md border bg-secondary overflow-hidden">{chart}</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
-      style={{ width: isColumn ? CLUSTERS_CARD_COL_W : CLUSTERS_CARD_W }}
+      style={{ width: CLUSTERS_CARD_W }}
       className={cn("rounded-lg border bg-background p-3 flex flex-col gap-2", className)}
     >
       <ClusterBreadcrumb
@@ -242,46 +299,9 @@ const ClustersCard = ({
         selectedClusterId={selectedClusterId}
         onNavigateToBreadcrumb={navigateToBreadcrumb}
       />
-      <div
-        className={cn(
-          "flex rounded-md border bg-secondary overflow-hidden",
-          isColumn ? "flex-col" : "h-[230px]"
-        )}
-      >
-        <div
-          style={isColumn ? { height: COL_LIST_H } : undefined}
-          className={cn("overflow-hidden shrink-0", isColumn ? "w-full border-b" : "w-[250px] md:w-[300px] border-r")}
-        >
-          <ClusterList
-            className="h-full w-full bg-transparent"
-            drillDownDepth={drillDownDepth}
-            filteredCountByCluster={filteredCountByCluster}
-            visibleClusters={visibleClusters}
-            unclusteredCount={unclusteredCount}
-            unclusteredVirtualCluster={unclusteredVirtualCluster}
-            selectedClusterId={selectedClusterId}
-            onNavigateToCluster={navigateToCluster}
-            rangeTotal={DATASET.totalEventCount}
-            pulsingClusterId={pulsingClusterId}
-            pulseMs={pulseMs}
-            revealedCount={revealedCount}
-            revealMs={revealMs}
-          />
-        </div>
-        <div
-          style={isColumn ? { height: COL_CHART_H } : undefined}
-          className="flex-1 min-w-0 py-2 pr-2 pl-1 bg-secondary"
-          ref={chartContainerRef}
-        >
-          <ClusterStackedChart
-            clusters={chartClusters}
-            statsData={streamedStats}
-            containerWidth={chartWidth}
-            colorMap={colorMap}
-            yAxisMax={yAxisMax}
-            animateBars={false}
-          />
-        </div>
+      <div className="flex h-[230px] rounded-md border bg-secondary overflow-hidden">
+        <div className="w-[250px] md:w-[300px] shrink-0 overflow-hidden">{list}</div>
+        {chart}
       </div>
     </div>
   );

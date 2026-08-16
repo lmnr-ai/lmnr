@@ -31,19 +31,25 @@ export const EDGE_FADE_W = PANEL_X;
 /** Gap between the resting pill and the clusters card below it. */
 const PILL_CARD_GAP = 16;
 
-/** Where the pill and the clusters card come to rest at the end of the last
- *  step, as a single vertically-centred assembly:
+/** Top of the pill-plus-card assembly, from the frame's top edge:
  *
- *    ╭─pill─╮   ← pillTop
+ *    ╭─pill─╮   ← ASSEMBLY_TOP
  *      ↕ gap
  *    ┌────────┐ ← cardTop
- *    │clusters│
+ *    │clusters│  grows downward
  *    └────────┘
  *
- *  Centring the PAIR rather than either half is what keeps the composition
- *  balanced whichever of the two changes height. Both are absolute offsets
- *  from the frame's top edge. */
-export const assemblyLayout = (pillH: number, cardH: number) => {
-  const top = (FRAME_H - (pillH + PILL_CARD_GAP + cardH)) / 2;
-  return { pillTop: top, cardTop: top + pillH + PILL_CARD_GAP };
-};
+ *  TOP-anchored on a constant, NOT centred on a measured height. The clusters
+ *  card's list hugs its rows, so it grows through Act 2 — centring would drag
+ *  the pill and the card upward under the reader while they were still reading
+ *  the rows arrive. Growth extends downward off this line instead.
+ *
+ *  The value centres the SETTLED composition — measured at 507px (34 pill + 16
+ *  gap + 457 of cards, every cluster revealed) — so it has to be re-derived if
+ *  the cluster count or the chart's height change. */
+const ASSEMBLY_TOP = Math.round((FRAME_H - 507) / 2);
+
+export const assemblyLayout = (pillH: number) => ({
+  pillTop: ASSEMBLY_TOP,
+  cardTop: ASSEMBLY_TOP + pillH + PILL_CARD_GAP,
+});

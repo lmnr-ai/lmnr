@@ -35,6 +35,10 @@ const FLASH_CLEAR_MS = 1100;
 
 const HEADER_ITEM_CLS = "flex items-center h-7";
 
+/** Everything that is not the signal card drops back while the card is open,
+ *  so the card carries the eye. Matches the card collapser's own tween. */
+const DIM_CLS = "transition-opacity duration-300 ease-in-out";
+
 // Row 1 of the production trace-view header, trimmed for the landing page:
 // close, maximize, "Trace" + dropdown, Signals. Everything except Signals is
 // decorative (disabled + disabled:opacity-100).
@@ -117,6 +121,8 @@ interface Props {
   spans: TraceViewSpan[];
   /** Condensed timeline reveal. */
   showTimeline: boolean;
+  /** Cap on transcript rows — see ./landing-transcript. */
+  visibleRows: number;
   /** Renders the Signals button + the signal-event card. */
   showSignals?: boolean;
   /** Step-driven signals-panel state. A user toggle wins until this changes. */
@@ -143,7 +149,16 @@ interface Props {
 //
 // Must be rendered inside its own TraceViewStoreProvider — the section mounts
 // two of these against two different traces.
-const TracePanel = ({ trace, spans, showTimeline, showSignals, signalsOpen, revealSpanId, signalCardHidden }: Props) => {
+const TracePanel = ({
+  trace,
+  spans,
+  showTimeline,
+  visibleRows,
+  showSignals,
+  signalsOpen,
+  revealSpanId,
+  signalCardHidden,
+}: Props) => {
   const { setSpans, setTrace, setSelectedSpan, signalsPanelOpen, setSignalsPanelOpen } = useTraceViewStore(
     (state) => ({
       setSpans: state.setSpans,
@@ -183,7 +198,7 @@ const TracePanel = ({ trace, spans, showTimeline, showSignals, signalsOpen, reve
           When the timeline is closed the transcript toolbar follows, and its
           own border + padding are enough, so any gap here just reads as slack. */}
       <div className={cn("flex flex-col px-2 pt-1.5 shrink-0", showTimeline ? "pb-[6px]" : "pb-0")}>
-        <div style={{ height: ROW1_HEIGHT }} className="shrink-0">
+        <div style={{ height: ROW1_HEIGHT }} className={cn("shrink-0", DIM_CLS, signalCardOpen && "opacity-75")}>
           <PanelHeaderRow
             signalsActive={signalsPanelOpen}
             showSignals={!!showSignals}
@@ -225,38 +240,46 @@ const TracePanel = ({ trace, spans, showTimeline, showSignals, signalsOpen, reve
         )}
       </div>
 
-      <motion.div
-        initial={false}
-        animate={{ height: showTimeline ? TIMELINE_HEIGHT : 0 }}
-        transition={TWEEN}
-        className="overflow-hidden shrink-0"
-      >
-        <div style={{ height: TIMELINE_HEIGHT }} className="w-full border-b">
-          <CondensedTimeline />
-        </div>
-      </motion.div>
-
-      {/* Decorative replica of <ViewDropdown /> — the real dropdown's tree view
-          doesn't render against this mock data, so it's a static button. */}
+      {/* Everything below the signal card dims with it, so the card is the only
+          thing at full strength while it is open. Grouped under one wrapper
+          rather than dimmed per-region: three separately-fading siblings would
+          reveal their own borders against each other mid-transition. */}
       <div
-        style={{ height: TOOLBAR_HEIGHT }}
-        className="w-full shrink-0 flex items-center gap-2 px-2 border-b overflow-hidden"
+        className={cn("flex flex-col flex-1 min-h-0", DIM_CLS, signalCardOpen && "opacity-75")}
       >
-        <div className="flex items-center h-6 px-1.5 text-xs border rounded-md bg-background text-muted-foreground shrink-0">
-          <List size={14} className="mr-1" />
-          <span className="text-primary-foreground">Transcript</span>
-          <ChevronDown size={14} className="ml-1" />
-        </div>
-        {trace && <TraceStatsShields className="min-w-0 overflow-hidden" trace={trace} />}
-      </div>
+        <motion.div
+          initial={false}
+          animate={{ height: showTimeline ? TIMELINE_HEIGHT : 0 }}
+          transition={TWEEN}
+          className="overflow-hidden shrink-0"
+        >
+          <div style={{ height: TIMELINE_HEIGHT }} className="w-full border-b">
+            <CondensedTimeline />
+          </div>
+        </motion.div>
 
-      <div className="flex-1 min-h-0 overflow-hidden relative">
-        <div className="absolute inset-0">
-          <LandingTranscript onSpanSelect={handleSpanSelect} />
+        {/* Decorative replica of <ViewDropdown /> — the real dropdown's tree view
+            doesn't render against this mock data, so it's a static button. */}
+        <div
+          style={{ height: TOOLBAR_HEIGHT }}
+          className="w-full shrink-0 flex items-center gap-2 px-2 border-b overflow-hidden"
+        >
+          <div className="flex items-center h-6 px-1.5 text-xs border rounded-md bg-background text-muted-foreground shrink-0">
+            <List size={14} className="mr-1" />
+            <span className="text-primary-foreground">Transcript</span>
+            <ChevronDown size={14} className="ml-1" />
+          </div>
+          {trace && <TraceStatsShields className="min-w-0 overflow-hidden" trace={trace} />}
         </div>
-        {/* Fades the clipped last row into the panel's own background. Fading
-            to the FRAME's colour instead would read as a haze over the card. */}
-        <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-background to-transparent pointer-events-none" />
+
+        <div className="flex-1 min-h-0 overflow-hidden relative">
+          <div className="absolute inset-0">
+            <LandingTranscript onSpanSelect={handleSpanSelect} visibleRows={visibleRows} />
+          </div>
+          {/* Fades the clipped last row into the panel's own background. Fading
+              to the FRAME's colour instead would read as a haze over the card. */}
+          <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-background to-transparent pointer-events-none" />
+        </div>
       </div>
     </div>
   );

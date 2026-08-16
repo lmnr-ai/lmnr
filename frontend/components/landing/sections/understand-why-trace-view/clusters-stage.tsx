@@ -1,7 +1,6 @@
 "use client";
 
 import { motion, type MotionValue, useTransform } from "framer-motion";
-import { useEffect, useRef } from "react";
 
 import ClustersCard, { CLUSTERS_CARD_COL_W } from "../has-this-issue/clusters-card";
 import { DEFAULT_TIMING } from "../has-this-issue/timing";
@@ -30,22 +29,9 @@ interface Props {
   /** The pill is inside the card, so its cluster owns those events. */
   landed: boolean;
   timing: StackTiming;
-  onMeasureHeight: (h: number) => void;
 }
 
-const ClustersStage = ({ rise, restY, armed, landed, timing, onMeasureHeight }: Props) => {
-  const cardRef = useRef<HTMLDivElement>(null);
-
-  // The card's height sets where the whole pill-plus-card assembly sits, and
-  // the pill is positioned by a sibling, so the measurement has to travel up.
-  useEffect(() => {
-    const el = cardRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver(([entry]) => onMeasureHeight(entry.contentRect.height));
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [onMeasureHeight]);
-
+const ClustersStage = ({ rise, restY, armed, landed, timing }: Props) => {
   const eased = useTransform(rise, easeOutCubic);
   const y = useTransform(eased, (r) => restY + (1 - r) * timing.cardRiseFrom);
 
@@ -53,9 +39,6 @@ const ClustersStage = ({ rise, restY, armed, landed, timing, onMeasureHeight }: 
 
   return (
     <motion.div
-      ref={cardRef}
-      // `landed` gates the pointer events, not `armed`: until the pill is in,
-      // the card is still travelling and a drill-down would fight the rise.
       style={{ y, opacity: eased, left: (FRAME_W - CLUSTERS_CARD_COL_W) / 2 }}
       className="absolute top-0"
     >

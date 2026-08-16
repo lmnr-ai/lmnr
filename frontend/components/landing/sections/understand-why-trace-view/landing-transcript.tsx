@@ -1,5 +1,6 @@
 "use client";
 
+import { useInView } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -12,7 +13,6 @@ import { TranscriptRow, type TranscriptRowData } from "@/components/traces/trace
 import { convertToTimeParameters } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
-import { useStreamIn } from "../../use-stream-in";
 import { SHARED_TRACE_API } from "./shared-trace-api";
 
 // Landing-only replacement for the product's <Transcript>, which cannot do
@@ -23,8 +23,13 @@ import { SHARED_TRACE_API } from "./shared-trace-api";
 //
 // It renders the SAME production <TranscriptRow>, so the rows themselves stay
 // pixel-identical to the product and this file owns only the list. Dropping
-// virtualization is safe because the trace is four spans; do NOT point this at
+// virtualization is safe because the trace is ten spans; do NOT point this at
 // a large trace.
+//
+// The reveal runs in BATCHES, capped by the caller's `visibleRows`: the
+// section's opening step shows only the head of the run and the next step lets
+// the rest stream in. A whole trace dumped at once is both a wall to read and
+// a wasted beat.
 //
 // Behaviours of the product transcript deliberately NOT reimplemented, because
 // this trace has no subagents and no realtime feed: sticky group headers,
@@ -33,14 +38,42 @@ import { SHARED_TRACE_API } from "./shared-trace-api";
 
 /** Wall-clock gap between rows arriving. Long enough to read as separate
  *  events landing rather than one list fading in. */
-const ROW_STEP_MS = 420;
+const ROW_STEP_MS = 380;
 
 /** How far a row rises as it arrives. */
 const ROW_RISE_PX = 10;
 
 interface Props {
   onSpanSelect: (span: TraceViewSpan) => void;
+  /** Cap on how many rows may be revealed so far. Raising it resumes the
+   *  stagger from where it stopped rather than replaying from the top. */
+  visibleRows: number;
 }
+
+/** Walks a counter up to `limit`, one step per `stepMs`, once `enabled`. Never
+ *  counts back down: a step that lowered the cap would retract rows the reader
+ *  has already seen arrive. */
+const useStagger = (limit: number, enabled: boolean, stepMs: number): number => {
+  const [revealed, setRevealed] = useState(0);
+  // Read once rather than per tick: a preference flipped mid-page should not
+  // restart a reveal that is already running.
+  const [instant] = useState(
+    () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+  );
+
+  useEffect(() => {
+    if (!enabled || revealed >= limit) return;
+    // Reduced motion jumps the whole batch, but still through the timer — a
+    // synchronous setState in an effect body cascades renders.
+    const id = window.setTimeout(
+      () => setRevealed((n) => (instant ? limit : Math.min(n + 1, limit))),
+      instant ? 0 : stepMs
+    );
+    return () => window.clearTimeout(id);
+  }, [revealed, limit, enabled, stepMs, instant]);
+
+  return revealed;
+};
 
 /** Row bodies, in ONE request for the whole trace.
  *
@@ -97,8 +130,9 @@ const useSpanPreviews = (
   return previews;
 };
 
-const LandingTranscript = ({ onSpanSelect }: Props) => {
+const LandingTranscript = ({ onSpanSelect, visibleRows }: Props) => {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inView = useInView(scrollRef, { once: true, amount: 0.3 });
   const { getTranscriptListData, spans, trace, selectedSpan } = useTraceViewBaseStore(
     (state) => ({
       getTranscriptListData: state.getTranscriptListData,
@@ -129,7 +163,7 @@ const LandingTranscript = ({ onSpanSelect }: Props) => {
 
   const previews = useSpanPreviews(trace, spans);
 
-  const revealed = useStreamIn(scrollRef, { steps: rows.length, stepMs: ROW_STEP_MS });
+  const revealed = useStagger(Math.min(visibleRows, rows.length), inView, ROW_STEP_MS);
 
   const spansById = useMemo(() => new Map(spans.map((s) => [s.spanId, s])), [spans]);
   const selectedSpanId = selectedSpan?.spanId;

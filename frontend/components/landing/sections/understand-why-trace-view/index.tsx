@@ -139,9 +139,13 @@ const INACTIVE_OPACITY = 0.4;
 /** How far below its arming point Act 2 disarms. */
 const ACT2_HYSTERESIS = 0.04;
 
-/** Seeds the assembly's centring for the one frame before the clusters card is
- *  measured. The section is far below the fold, so it is never on screen. */
-const CLUSTERS_CARD_COL_H_ESTIMATE = 384;
+/** Transcript rows the opening step shows: the user's question, the agent
+ *  deciding to search, and the search itself. Step 2 lifts the cap and the
+ *  rest of the run streams in — which is the step whose copy is about a long
+ *  run staying legible, and it keeps the reader off a wall of spans on the
+ *  first frame they see the panel. Counts ROWS, not spans: the user-input row
+ *  is the first one. */
+const OPENING_ROWS = 3;
 
 /** Rough block height, used only to seed the stops before the first
  *  measurement. The section is far below the fold, so the seed is never on
@@ -220,11 +224,9 @@ const UnderstandWhyTraceView = () => {
   // The trace fades out under the card as it leaves.
   const trayOpacity = useTransform(flight, (f) => 1 - phase(f, 0, stackTiming.trayFadeEnd));
 
-  // The pill and the clusters card rest as one vertically-centred assembly, so
-  // the card's height decides where BOTH sit and has to be measured here rather
-  // than inside either of them.
-  const [clustersCardH, setClustersCardH] = useState(CLUSTERS_CARD_COL_H_ESTIMATE);
-  const { pillTop, cardTop } = assemblyLayout(SIGNAL_HEADER_H, clustersCardH);
+  // The pill and the clusters card rest as one top-anchored assembly — see
+  // ./geometry for why it is not centred on a measurement.
+  const { pillTop, cardTop } = assemblyLayout(SIGNAL_HEADER_H);
 
   // Act 2 is time-based, so it needs a boolean, not a scrubbed value. It
   // disarms BELOW its arming point, not at it — otherwise a scroll resting
@@ -322,6 +324,7 @@ const UnderstandWhyTraceView = () => {
                       trace={trace}
                       spans={spans ?? []}
                       showTimeline={step >= 2}
+                      visibleRows={step >= 2 ? Number.POSITIVE_INFINITY : OPENING_ROWS}
                       showSignals={step >= 3}
                       // Stays open through the last step: the stack measures
                       // this card's box, and a collapse would move it
@@ -356,7 +359,6 @@ const UnderstandWhyTraceView = () => {
                         armed={act2}
                         landed={act2}
                         timing={stackTiming}
-                        onMeasureHeight={setClustersCardH}
                       />
                     </>
                   )}
