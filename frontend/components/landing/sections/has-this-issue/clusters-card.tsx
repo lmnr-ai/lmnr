@@ -268,23 +268,23 @@ const ClustersCard = ({
     </div>
   );
 
-  // Two independent cards, list above chart. The list card is UNCONSTRAINED —
-  // it grows with each cluster the stage reveals, which is the point. Capping
-  // it would put a scrollbar over a five-row list.
+  // One card, two sub-cards inside it: the row layout's single bordered box
+  // split into a list box above a chart box. The list box is UNCONSTRAINED — it
+  // grows with each cluster the stage reveals, which is the point. Capping it
+  // would put a scrollbar over a five-row list.
   if (isColumn) {
     return (
-      <div style={{ width: CLUSTERS_CARD_COL_W }} className={cn("flex flex-col gap-2", className)}>
-        <div className="rounded-lg border bg-background p-3 flex flex-col gap-2">
-          <ClusterBreadcrumb
-            breadcrumb={breadcrumb}
-            selectedClusterId={selectedClusterId}
-            onNavigateToBreadcrumb={navigateToBreadcrumb}
-          />
-          <div className="rounded-md border bg-secondary overflow-hidden">{list}</div>
-        </div>
-        <div className="rounded-lg border bg-background p-3">
-          <div className="flex rounded-md border bg-secondary overflow-hidden">{chart}</div>
-        </div>
+      <div
+        style={{ width: CLUSTERS_CARD_COL_W }}
+        className={cn("rounded-lg border bg-background p-3 flex flex-col gap-2", className)}
+      >
+        <ClusterBreadcrumb
+          breadcrumb={breadcrumb}
+          selectedClusterId={selectedClusterId}
+          onNavigateToBreadcrumb={navigateToBreadcrumb}
+        />
+        <div className="rounded-md border bg-secondary overflow-hidden">{list}</div>
+        <div className="flex rounded-md border bg-secondary overflow-hidden">{chart}</div>
       </div>
     );
   }

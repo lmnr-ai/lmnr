@@ -128,7 +128,11 @@ const TURNS = [
   {
     llmKey: "llm3",
     usage: { inputTokens: 3180, outputTokens: 98, cacheReadTokens: 2560, reasoningTokens: 62 },
-    reasoning: "Most of these results are about fluid dynamics. Let me narrow the query.",
+    // Answer-shaped on purpose: this is the last span the landing page's
+    // opening step shows, so it has to read like a plausible end to the run
+    // rather than an obvious mid-flight beat. It also sharpens the signal —
+    // the agent already had the answer here and searched twice more anyway.
+    reasoning: "Laminar is an open-source agent observability platform. Let me search further.",
     call: {
       key: "tool4",
       id: "call_01_7BkzTnWyQe4mPfXaHdLr2258",

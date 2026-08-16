@@ -198,7 +198,7 @@ const TracePanel = ({
           When the timeline is closed the transcript toolbar follows, and its
           own border + padding are enough, so any gap here just reads as slack. */}
       <div className={cn("flex flex-col px-2 pt-1.5 shrink-0", showTimeline ? "pb-[6px]" : "pb-0")}>
-        <div style={{ height: ROW1_HEIGHT }} className={cn("shrink-0", DIM_CLS, signalCardOpen && "opacity-50")}>
+        <div style={{ height: ROW1_HEIGHT }} className={cn("shrink-0", DIM_CLS, signalCardOpen && "opacity-40")}>
           <PanelHeaderRow
             signalsActive={signalsPanelOpen}
             showSignals={!!showSignals}
@@ -245,7 +245,7 @@ const TracePanel = ({
           rather than dimmed per-region: three separately-fading siblings would
           reveal their own borders against each other mid-transition. */}
       <div
-        className={cn("flex flex-col flex-1 min-h-0", DIM_CLS, signalCardOpen && "opacity-50")}
+        className={cn("flex flex-col flex-1 min-h-0", DIM_CLS, signalCardOpen && "opacity-40")}
       >
         <motion.div
           initial={false}

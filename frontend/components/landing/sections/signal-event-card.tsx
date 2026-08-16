@@ -152,8 +152,11 @@ export const SignalCardBody = ({ onSpanClick, flashSpanId }: Omit<SignalContentP
 
 // Signal event card inner content. No outer frame — callers wrap it (static
 // border/bg here; the landing trace panel supplies its own animated wrapper).
+// Less padding on top than the bottom: the header row is a fixed 34px box
+// holding a 12px title, so it already carries ~11px of its own air above the
+// glyphs. Matching the bottom's 8px there reads as a gap.
 export const SignalContent = ({ onSpanClick, flashSpanId, onClose }: SignalContentProps = {}) => (
-  <div className="w-full flex flex-col px-3 py-2 gap-0.5">
+  <div className="w-full flex flex-col px-3 pt-0.5 pb-2 gap-0.5">
     {/* Fixed row height so this card and the morphing one share a header box —
         the stack animation flies between them and any difference would read as
         the card resizing mid-flight. */}

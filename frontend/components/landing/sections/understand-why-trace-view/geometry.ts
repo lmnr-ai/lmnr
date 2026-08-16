@@ -44,10 +44,10 @@ const PILL_CARD_GAP = 16;
  *  the pill and the card upward under the reader while they were still reading
  *  the rows arrive. Growth extends downward off this line instead.
  *
- *  The value centres the SETTLED composition — measured at 507px (34 pill + 16
- *  gap + 457 of cards, every cluster revealed) — so it has to be re-derived if
- *  the cluster count or the chart's height change. */
-const ASSEMBLY_TOP = Math.round((FRAME_H - 507) / 2);
+ *  The value centres the SETTLED composition — measured at 481px (34 pill + 16
+ *  gap + 431 card, every cluster revealed) — so it has to be re-derived if the
+ *  cluster count or the chart's height change. */
+const ASSEMBLY_TOP = Math.round((FRAME_H - 481) / 2);
 
 export const assemblyLayout = (pillH: number) => ({
   pillTop: ASSEMBLY_TOP,
