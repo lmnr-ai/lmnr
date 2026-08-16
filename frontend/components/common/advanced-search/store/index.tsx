@@ -28,7 +28,7 @@ import {
   type FilterTagRef,
   type TagFocusPosition,
 } from "../types";
-import { getNextField, getPreviousField } from "../utils";
+import { getNextField, getPreviousField, hasUuidSuggestion } from "../utils";
 import { createRecentsSlice, type RecentsSlice } from "./recents-slice";
 import type { AdvancedSearchStore, SliceContext, StoreGet, StoreSet } from "./types";
 import { createUndoRedoSlice, type UndoRedoSlice, type UndoSnapshot } from "./undo-redo-slice";
@@ -46,11 +46,14 @@ function toFilterDataType(uiDataType: ColumnFilter["dataType"]): FilterDataType 
 // store).
 function buildCommit(get: StoreGet, context: SliceContext, resource?: string) {
   return () => {
-    const { tags, inputValue } = get();
+    const { tags, inputValue, allowFreeTextSearch } = get();
     // Drop tags with no value — they're mid-edit and shouldn't ship.
     const completeTags = tags.filter((t) => (Array.isArray(t.value) ? t.value.length > 0 : t.value !== ""));
     const filterObjects = completeTags.map(createFilterFromTag);
-    const searchValue = inputValue.trim();
+    // In filters-only mode the typed text is just a search buffer for picking a
+    // field/value — committing it would ship a full-text query the consumer
+    // has no way to evaluate.
+    const searchValue = allowFreeTextSearch ? inputValue.trim() : "";
 
     // No-op if nothing changed since last commit.
     const last = context.getLastSubmitted();
@@ -83,12 +86,15 @@ function createCoreSlice(
   get: StoreGet,
   context: SliceContext,
   filters: ColumnFilter[],
+  allowFreeTextSearch: boolean,
   suggestions?: Map<string, string[]>,
-  resource?: string
+  resource?: string,
+  uuidFilterColumn?: string
 ): Omit<AdvancedSearchStore, keyof RecentsSlice | keyof UndoRedoSlice> {
   const commit = buildCommit(get, context, resource);
 
   return {
+    allowFreeTextSearch,
     autocompleteData: suggestions || new Map(),
     tags: context.initialTags,
     inputValue: context.initialSearch,
@@ -101,6 +107,7 @@ function createCoreSlice(
 
     filters,
     resource,
+    uuidFilterColumn,
 
     getActiveTagId: () => {
       const { tagFocusStates } = get();
@@ -112,7 +119,20 @@ function createCoreSlice(
 
     setAutocompleteData: (data) => set({ autocompleteData: data }),
     setInputValue: (value) => set({ inputValue: value, activeIndex: -1, activeRecentIndex: -1 }),
-    setIsOpen: (isOpen) => set({ isOpen, activeIndex: -1, activeRecentIndex: -1 }),
+    // Opening onto a UUID pre-selects the id suggestion (always index 0, see
+    // `buildSuggestions`) so Enter applies the id filter without an explicit
+    // arrow-down — the common case for pasting an id. Re-derived from current
+    // state on every open rather than cached, so it stays correct whether the
+    // dropdown opens from typing, focus, or a click.
+    setIsOpen: (isOpen) => {
+      if (!isOpen) {
+        set({ isOpen, activeIndex: -1, activeRecentIndex: -1 });
+        return;
+      }
+      const { inputValue, filters: columnFilters, uuidFilterColumn } = get();
+      const activeIndex = hasUuidSuggestion(inputValue, columnFilters, uuidFilterColumn) ? 0 : -1;
+      set({ isOpen, activeIndex, activeRecentIndex: -1 });
+    },
     setActiveIndex: (activeIndex) => set({ activeIndex, activeRecentIndex: -1 }),
     setActiveRecentIndex: (activeRecentIndex) => set({ activeRecentIndex, activeIndex: -1 }),
     setOpenSelectId: (openSelectId) => set({ openSelectId }),
@@ -235,7 +255,14 @@ function createCoreSlice(
     getTagFocusState: (tagId) => get().tagFocusStates.get(tagId) || { type: "idle" },
 
     submit: () => {
-      set({ isOpen: false, activeIndex: -1, activeRecentIndex: -1 });
+      const { allowFreeTextSearch } = get();
+      set({
+        isOpen: false,
+        activeIndex: -1,
+        activeRecentIndex: -1,
+        // Filters-only: typed text is a picker buffer, not a committed query.
+        ...(allowFreeTextSearch ? {} : { inputValue: "" }),
+      });
       commit();
     },
 
@@ -296,9 +323,11 @@ const createAdvancedSearchStore = (
   initialTags: FilterTag[],
   initialSearch: string,
   getOnChange: () => (value: { filters: Filter[]; search: string }) => void,
+  allowFreeTextSearch: boolean,
   suggestions?: Map<string, string[]>,
   storageKey?: string,
-  resource?: string
+  resource?: string,
+  uuidFilterColumn?: string
 ) => {
   let lastSubmitted = {
     filters: initialTags.map(createFilterFromTag),
@@ -326,7 +355,7 @@ const createAdvancedSearchStore = (
   };
 
   const storeConfig = (set: StoreSet, get: StoreGet): AdvancedSearchStore => ({
-    ...createCoreSlice(set, get, context, filters, suggestions, resource),
+    ...createCoreSlice(set, get, context, filters, allowFreeTextSearch, suggestions, resource, uuidFilterColumn),
     ...createRecentsSlice(set, get, context),
     ...createUndoRedoSlice(set, get, context),
   });
@@ -377,9 +406,15 @@ interface AdvancedSearchStoreProviderProps {
   initialFilters: Filter[];
   initialSearch: string;
   onChange: (value: { filters: Filter[]; search: string }) => void;
+  allowFreeTextSearch?: boolean;
   suggestions?: Map<string, string[]>;
   storageKey?: string;
   resource?: string;
+  // When set, a bare UUID typed into the search box pre-selects an
+  // exact-match filter suggestion on this column, so Enter applies it
+  // without an extra arrow-down. Explicitly picking full-text search (or
+  // blurring without selecting anything) still searches the raw value.
+  uuidFilterColumn?: string;
 }
 
 export const AdvancedSearchStoreProvider = ({
@@ -388,9 +423,11 @@ export const AdvancedSearchStoreProvider = ({
   initialFilters,
   initialSearch,
   onChange,
+  allowFreeTextSearch = true,
   suggestions,
   storageKey,
   resource,
+  uuidFilterColumn,
 }: PropsWithChildren<AdvancedSearchStoreProviderProps>) => {
   // Keep a live ref to the latest onChange so the store can call it without
   // being recreated every render. The store's actions only read via the
@@ -409,9 +446,11 @@ export const AdvancedSearchStoreProvider = ({
       initialFilters.map(createTagFromFilter),
       initialSearch,
       () => onChangeRef.current,
+      allowFreeTextSearch,
       suggestions,
       storageKey,
-      resource
+      resource,
+      uuidFilterColumn
     )
   );
 

@@ -30,6 +30,30 @@ export const parseSystemMessages = (messages: Message[]): ModelMessage[] =>
     return message as ModelMessage;
   });
 
+const isSystemModelMessage = (message: ModelMessage): message is SystemModelMessage =>
+  message.role === "system" && typeof message.content === "string";
+
+// v7 rejects system messages in `messages`; a system-only prompt can't be empty so it stays there.
+export const extractInstructions = (
+  messages: ModelMessage[]
+): {
+  instructions?: SystemModelMessage[];
+  messages: ModelMessage[];
+  allowSystemInMessages?: true;
+} => {
+  const instructions = messages.filter(isSystemModelMessage);
+  const rest = messages.filter((message) => !isSystemModelMessage(message));
+
+  if (rest.length === 0) {
+    return { messages, allowSystemInMessages: true };
+  }
+
+  return {
+    ...(instructions.length > 0 && { instructions }),
+    messages: rest,
+  };
+};
+
 export const transformFromLegacy = (messages: Message[]): Message[] =>
   messages.map((message) => {
     const content: Message["content"] = Array.isArray(message.content)

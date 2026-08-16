@@ -61,6 +61,7 @@ export function TracesTableControls({
           filters={allFilters}
           storageKey={`traces-${projectId}`}
           resource="traces"
+          uuidFilterColumn="id"
           placeholder="Search by root span name, tokens, tags, full text and more..."
           className="w-full flex-1"
         />

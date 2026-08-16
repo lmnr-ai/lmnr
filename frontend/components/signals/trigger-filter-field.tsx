@@ -1,7 +1,7 @@
 "use client";
 
-import { type ColumnFilter, dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-import { type Filter, type StringFilter } from "@/lib/actions/common/filters";
+import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import { type Filter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 
 /** Trigger kinds a signal can be evaluated on. A signal has exactly one. */
@@ -28,17 +28,10 @@ export const SIGNAL_FILTER_COLUMNS: ColumnFilter[] = [
       { label: "Error", value: "error" },
     ],
   },
+  // Plural: a statement about the trace's whole set of span names, matched
+  // anywhere in the trace (the `span_name` TRIGGER sees only the firing batch).
+  { name: "Span names", key: "span_names", dataType: "string" },
 ];
-
-export const getDefaultFilter = (): StringFilter => {
-  const firstColumn = SIGNAL_FILTER_COLUMNS[0];
-  const defaultOperator = dataTypeOperationsMap[firstColumn.dataType][0].key as StringFilter["operator"];
-  return {
-    column: firstColumn.key,
-    operator: defaultOperator,
-    value: "",
-  };
-};
 
 export const getRootSpanFinishedCondition = (): Filter => ({
   column: TRIGGER_KIND.ROOT_SPAN_FINISHED,
@@ -82,16 +75,3 @@ export const stripBlankSpanNames = (conditions: Filter[]): Filter[] =>
       ? getSpanNameCondition(c.value.map(String).filter((name) => name.trim() !== ""))
       : c
   );
-
-export const getColumnName = (columnKey: string): string => {
-  if (columnKey === TRIGGER_KIND.ROOT_SPAN_FINISHED) return "Root span finished";
-  if (columnKey === TRIGGER_KIND.SPAN_NAME) return "Span name";
-  return SIGNAL_FILTER_COLUMNS.find((c) => c.key === columnKey)?.name || columnKey;
-};
-
-export const getOperatorLabel = (columnKey: string, operator: string): string => {
-  const column = SIGNAL_FILTER_COLUMNS.find((c) => c.key === columnKey);
-  const dataType = column?.dataType || "string";
-  const operations = dataTypeOperationsMap[dataType] || dataTypeOperationsMap.string;
-  return operations.find((op) => op.key === operator)?.label || operator;
-};

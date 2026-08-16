@@ -41,6 +41,7 @@ export default function PrivacyMode({ workspace, isOwner }: PrivacyModeProps) {
 
   // Cloud-only. Self-hosted deployments never send data to Laminar, so the
   // toggle would be meaningless noise there.
+  //
   if (!flags[Feature.LAMINAR_CLOUD]) {
     return null;
   }
@@ -86,7 +87,7 @@ export default function PrivacyMode({ workspace, isOwner }: PrivacyModeProps) {
   const description = locked
     ? "Privacy Mode is enforced by your organization's data processing agreement."
     : enabled
-      ? "Your workspace data is not used to train Laminar models."
+      ? "Your Signal run data is not used to improve Signals models."
       : "Redacted data from Signal runs may be used to improve the models that power Signals.";
 
   return (

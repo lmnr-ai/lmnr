@@ -17,7 +17,7 @@ Laminar fine-tunes the custom models that power [Signals](/docs/signals) on sign
 
 Other notes:
 
-- Privacy Mode defaults to off on Free and Hobby plans and on for Pro and above. Customers that have signed a data processing agreement have privacy mode locked to on. Workspace owners can change it anytime in workspace settings, and it applies to the whole workspace. Details are in our [Terms of Service](/policies/terms).
+- Privacy Mode defaults to off on Free and Starter plans and on for Pro and above. Customers that have signed a data processing agreement have privacy mode locked to on. Workspace owners can change it anytime in workspace settings, and it applies to the whole workspace. Details are in our [Terms of Service](/policies/terms).
 - We don't train on anything else. Traces, session recordings, evaluations, and datasets outside of Signal runs are never used for fine-tuning. Workspaces that don't use Signals contribute nothing, whatever their setting.
 - Turning Privacy Mode back on stops use of your Signal runs going forward, and we remove them from any training dataset not yet used in a completed run. Already-trained models can't be reversed.
 - Only Signal runs generated on or after September 10, 2026 are ever used; anything older would require your separate consent.

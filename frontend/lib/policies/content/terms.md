@@ -199,7 +199,7 @@ You grant us a worldwide, non-exclusive license to host, store, process, transmi
 
 Each workspace has a **Privacy Mode** setting. While Privacy Mode is on, we do not use that workspace's Customer Data to train or improve machine-learning models.
 
-The default state of Privacy Mode depends on your plan: on Free and Hobby plans, Privacy Mode is off by default; on Pro and higher plans, Privacy Mode is on by default; and for accounts covered by a signed data processing agreement, Privacy Mode is on and enforced and cannot be turned off. Defaults apply only where a workspace owner has not made an explicit choice; an explicit choice you have recorded survives plan changes, and a plan change never lowers a workspace's protection level. These defaults take effect for existing workspaces only on September 10, 2026, following the notice period described in these Legal Terms.
+The default state of Privacy Mode depends on your plan: on Free and Starter plans, Privacy Mode is off by default; on Pro and higher plans, Privacy Mode is on by default; and for accounts covered by a signed data processing agreement, Privacy Mode is on and enforced and cannot be turned off. Defaults apply only where a workspace owner has not made an explicit choice; an explicit choice you have recorded survives plan changes, and a plan change never lowers a workspace's protection level. These defaults take effect for existing workspaces only on September 10, 2026, following the notice period described in these Legal Terms.
 
 While Privacy Mode is off for a workspace, you grant us a non-exclusive, revocable license to use Signal Run Data from that workspace to train and improve the models that power Signals, subject to all of the following commitments:
 

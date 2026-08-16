@@ -1,6 +1,7 @@
 import { memo, type Ref } from "react";
 import { defaultRehypePlugins, Streamdown } from "streamdown";
 
+import { htmlAsTextRemarkRehypeOptions } from "@/components/ui/content-renderer/html-as-text";
 import { cn, tryParseJson } from "@/lib/utils";
 
 export const getMarkdownSource = (value: string): string => {
@@ -28,8 +29,9 @@ const PureMarkdownRenderer = ({ value, className, containerRef }: MarkdownRender
         "[&_pre]:whitespace-pre-wrap [&_pre]:break-words [&_pre]:overflow-x-hidden [&_pre_code]:whitespace-pre-wrap text-xs"
       )}
       controls={{ mermaid: { download: false, fullscreen: false } }}
-      // raw renders embedded HTML (else its text is dropped); sanitize strips XSS from untrusted content.
-      rehypePlugins={[defaultRehypePlugins.raw, defaultRehypePlugins.sanitize, defaultRehypePlugins.harden]}
+      // omit raw: XML-like tags render as text. sanitize/harden still cover markdown links.
+      remarkRehypeOptions={htmlAsTextRemarkRehypeOptions}
+      rehypePlugins={[defaultRehypePlugins.sanitize, defaultRehypePlugins.harden]}
       components={{
         h1: ({ node: _node, children, className, ...props }) => (
           <h1 {...props} className={cn(className, "mt-3 mb-1 text-base font-semibold")}>
