@@ -55,6 +55,7 @@ export interface AdvancedSearchStore extends RecentsSlice, UndoRedoSlice {
   tagFocusStates: Map<string, FilterTagFocusState>;
   filters: ColumnFilter[];
   resource?: string;
+  uuidFilterColumn?: string;
 
   getActiveTagId: () => string | null;
   setAutocompleteData: (data: AutocompleteCache) => void;

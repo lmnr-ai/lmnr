@@ -8,6 +8,7 @@ import { useSWRConfig } from "swr";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import PrivacyMode from "@/components/workspace/privacy-mode";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
@@ -210,7 +211,8 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
               </div>
               <DialogFooter className="mt-4">
                 <Button type="submit" disabled={!renameForm.formState.isValid || renameForm.formState.isSubmitting}>
-                  <Loader2 data-icon="inline-start"
+                  <Loader2
+                    data-icon="inline-start"
                     className={cn("mr-2 h-4 w-4", renameForm.formState.isSubmitting ? "animate-spin" : "hidden")}
                   />
                   Rename
@@ -220,6 +222,8 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
           </DialogContent>
         </Dialog>
       </SettingsSection>
+
+      <PrivacyMode workspace={workspace} isOwner={isOwner} />
 
       <SettingsSection>
         <SettingsSectionHeader
@@ -289,7 +293,8 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
                   Cancel
                 </Button>
                 <Button type="submit" variant="destructive" disabled={!isDeleteEnabled}>
-                  <Loader2 data-icon="inline-start"
+                  <Loader2
+                    data-icon="inline-start"
                     className={cn("mr-2 h-4 w-4", deleteForm.formState.isSubmitting ? "animate-spin" : "hidden")}
                   />
                   Delete

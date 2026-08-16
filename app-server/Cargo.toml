@@ -51,7 +51,13 @@ prost = "0.14"
 # reach `max_frame_size` (the EnvironmentBuilder doesn't expose it). We pass 0 =
 # defer to the broker's `stream.frame_max`; without this the client's 1 MiB
 # default would cap the tune negotiation regardless of broker config.
-rabbitmq-stream-client = { version = "0.11", features = ["serde"] }
+# Fork of 0.11.0: makes the crate's internal delivery channels (hardcoded 10000
+# upstream, one per partition + one combined per super stream) configurable via
+# `RABBITMQ_STREAM_CLIENT_CHANNEL_CAPACITY` — at large record sizes the upstream
+# capacity can buffer gigabytes per consumer pod during a backlog drain.
+rabbitmq-stream-client = { git = "https://github.com/lmnr-ai/rabbitmq-stream-rust-client", branch = "configurable-channel-capacity", features = [
+    "serde",
+] }
 rand = "0.10"
 rayon = "1.11.0"
 redis = {version = "0.32.7", features = ["tokio-comp"]}
@@ -91,6 +97,8 @@ tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt"]}
 unicode-normalization = "0.1"
 url = "2.5"
 uuid = {version = "1.19.0", features = ["v4", "v5", "fast-rng", "macro-diagnostics", "serde", "v7", "std"]}
+# Stream record body compression (mq/stream/encoding.rs).
+zstd = "0.13"
 
 [build-dependencies]
 tonic-prost-build = "0.14"
@@ -101,3 +109,4 @@ ed25519-dalek = {version = "2", features = ["pkcs8", "rand_core"]}
 # so retry/backoff tests fast-forward the virtual clock instead of sleeping.
 tokio = {version = "1.49", features = ["test-util"]}
 wiremock = "0.6"
+

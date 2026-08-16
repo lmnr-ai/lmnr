@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-shimmer";
+@import "./typeset.css";
 
 @plugin 'tailwindcss-animate';
 @plugin '@tailwindcss/typography';
@@ -39,6 +40,17 @@
   @media (width >=1400px) {
     max-width: 1400px;
   }
+}
+
+/* typeset preset for the blog article (see post-layout.tsx). Fonts point at
+   what this app already loads (General Sans body/heading) rather than Geist. */
+.typeset-docs {
+  --typeset-font-body: var(--font-general-sans);
+  --typeset-font-heading: var(--font-general-sans);
+  --typeset-font-mono: ui-monospace, monospace;
+  --typeset-size: 16px;
+  --typeset-leading: 1.75;
+  --typeset-flow: 1.25em;
 }
 
 @theme {
@@ -683,8 +695,11 @@
   border-collapse: collapse;
   font-size: 0.875rem;
   line-height: 1.25rem;
-  margin-top: 1.5rem;
-  margin-bottom: 1.5rem;
+  /* Same flow rhythm as every other block. These rules stay unlayered (see
+     above) so they still beat Strapi's pasted cell utilities, which typeset's
+     zero-specificity :where() rules would lose to. */
+  margin-block-start: var(--typeset-flow);
+  margin-block-end: 0;
 }
 .blog-article thead {
   text-align: left;

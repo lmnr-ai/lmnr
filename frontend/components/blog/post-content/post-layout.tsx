@@ -50,9 +50,17 @@ export default function PostLayout({ data, backHref, tocItems, children }: Props
         </p>
 
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_220px] gap-8 lg:gap-12 mt-6">
-          <div className="flex flex-col gap-8 min-w-0">
+          <div className="flex flex-col gap-8 min-w-0 max-w-[42em]">
             <BlogMeta data={data} />
-            <article className="blog-article flex flex-col z-30 w-full font-sans-landing font-[460] text-[17px] [&>*:first-child]:pt-0 [&>*:first-child]:mt-0 [&>*:first-child>*]:mt-0">
+            {/* PostHog promotes `data-ph-capture-attribute-*` from any ancestor of a
+                clicked element onto the $autocapture event, so this one attribute
+                labels every in-article link click without a listener — and it also
+                covers the raw HTML Strapi posts emit, which never routes through the
+                MDX components map. */}
+            <article
+              data-ph-capture-attribute-link_surface="blog_article"
+              className="blog-article typeset typeset-docs z-30 w-full font-sans-landing font-[460] [&>*:first-child]:mt-0 [&>*:first-child>*]:mt-0"
+            >
               {children}
             </article>
           </div>

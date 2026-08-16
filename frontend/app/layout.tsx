@@ -23,6 +23,12 @@ export const metadata: Metadata = {
     template: "%s | Laminar",
   },
   description,
+  // Orange icon in dev so a local tab is distinguishable from a prod one.
+  // Both live in public/ rather than app/: an app/favicon.ico is always
+  // prepended to metadata.icons and would win here (vercel/next.js#55767).
+  icons: {
+    icon: process.env.NODE_ENV === "development" ? "/favicon-dev.png" : "/favicon.ico",
+  },
   keywords: [
     "laminar",
     "evals",

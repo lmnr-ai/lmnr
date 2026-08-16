@@ -9,7 +9,7 @@ import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
 import { shallow } from "zustand/shallow";
 
-import fullLogo from "@/assets/logo/logo.svg";
+import fullLogo from "@/assets/logo/laminar-wordmark.svg";
 import { useAdvancedSearchUrlValue } from "@/components/common/advanced-search/use-url-value";
 import Chart from "@/components/evaluation/chart";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
@@ -177,7 +177,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
     <div className="flex flex-col h-screen w-full overflow-hidden relative">
       <div className="flex flex-none items-center border-b px-6 py-3.5 gap-2">
         <Link className="mr-2" href="/projects">
-          <Image alt="Laminar logo" src={fullLogo} width={100} height={20} />
+          <Image alt="Laminar logo" src={fullLogo} className="w-[100px] h-auto" />
         </Link>
         <span className="flex gap-2 items-center pt-0.5">
           <span className="text-secondary-foreground">/</span>

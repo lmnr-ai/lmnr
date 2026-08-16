@@ -740,8 +740,15 @@
     {
       "idx": 105,
       "version": "7",
-      "when": 1782997825499,
+      "when": 1786381209609,
       "tag": "0105_signal_trigger_filters",
+      "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1786381210609,
+      "tag": "0106_workspace_settings",
       "breakpoints": true
     }
   ]
