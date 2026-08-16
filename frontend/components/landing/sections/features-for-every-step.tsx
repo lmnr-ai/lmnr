@@ -11,6 +11,7 @@ import {
 import Link from "next/link";
 
 import { subSection } from "../class-names";
+import CardHoverGlow from "./card-hover-glow";
 
 interface CardProps {
   Icon: LucideIcon;
@@ -24,13 +25,14 @@ const Card = ({ Icon, title, description, href }: CardProps) => (
     target="_blank"
     aria-label={`Learn more about ${title}`}
     href={href}
-    className="bg-surface-500 font-sans-landing flex flex-col h-[180px] px-5 py-4 justify-between rounded transition-all duration-300 hover:bg-surface-200"
+    className="group bg-surface-500 font-sans-landing relative overflow-hidden flex flex-col h-[180px] px-5 py-4 justify-between rounded transition-all duration-300 hover:bg-surface-400"
   >
-    <div className="flex items-start justify-between w-full">
+    <CardHoverGlow />
+    <div className="relative flex items-start justify-between w-full">
       <Icon className="size-6 text-foreground-300" strokeWidth={1.5} />
       <ArrowUpRight className="size-5 text-foreground-300" strokeWidth={1.5} />
     </div>
-    <div className="flex flex-col gap-1">
+    <div className="relative flex flex-col gap-1">
       <p className="leading-6 text-white text-lg">{title}</p>
       <p className="text-foreground-200">{description}</p>
     </div>

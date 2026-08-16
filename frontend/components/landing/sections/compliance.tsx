@@ -4,6 +4,7 @@ import Link from "next/link";
 import { type ReactNode } from "react";
 
 import { subSection } from "../class-names";
+import CardHoverGlow from "./card-hover-glow";
 
 interface CardProps {
   title: string;
@@ -30,13 +31,14 @@ const Card = ({ title, description, children, href }: CardProps) => (
     target="_blank"
     aria-label={`Learn more about ${title}`}
     href={href}
-    className="bg-surface-500 font-sans-landing flex flex-col h-[200px] px-6 py-5 gap-3 justify-start items-start rounded transition-all duration-300 hover:bg-surface-200"
+    className="group bg-surface-500 font-sans-landing relative overflow-hidden flex flex-col h-[200px] px-6 py-5 gap-3 justify-start items-start rounded transition-all duration-300 hover:bg-surface-400"
   >
-    <div className="flex items-start justify-between gap-3 w-full">
+    <CardHoverGlow />
+    <div className="relative flex items-start justify-between gap-3 w-full">
       <p className="leading-6 text-white text-lg">{title}</p>
       <ArrowUpRight className="size-5 shrink-0 text-foreground-300" strokeWidth={1.5} />
     </div>
-    {description && <p className="max-w-[360px] text-foreground-200">{description}</p>}
+    {description && <p className="relative max-w-[360px] text-foreground-200">{description}</p>}
     {children}
   </Link>
 );
@@ -78,7 +80,7 @@ const Compliance = () => (
       <Card title="HIPAA & SOC 2 Type II Compliant" href="https://compliance.laminar.sh/">
         {/* 84px badges 16px apart, sitting 24px under the title — the frame puts
             a little more air here than the gap-3 the text cards use. */}
-        <div className="flex items-center gap-4 pt-3">
+        <div className="relative flex items-center gap-4 pt-3">
           <Image src="/assets/landing/hipaa.svg" alt="HIPAA compliant" width={84} height={84} className="size-[84px]" />
           <Image
             src="/assets/landing/soc2.svg"
