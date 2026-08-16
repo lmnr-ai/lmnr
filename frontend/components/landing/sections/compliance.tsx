@@ -31,7 +31,7 @@ const Card = ({ title, description, children, href }: CardProps) => (
     target="_blank"
     aria-label={`Learn more about ${title}`}
     href={href}
-    className="group bg-surface-500 font-sans-landing relative overflow-hidden flex flex-col h-[200px] px-6 py-5 gap-3 justify-start items-start rounded transition-all duration-300 hover:bg-surface-400"
+    className="group bg-surface-500 font-sans-landing relative overflow-hidden flex flex-col h-[200px] pl-6 pr-5 py-5 gap-3 justify-start items-start rounded transition-all duration-300 hover:bg-surface-400"
   >
     <CardHoverGlow />
     <div className="relative flex items-start justify-between gap-3 w-full">
