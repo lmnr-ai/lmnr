@@ -91,16 +91,9 @@ fn span_name_blanks_are_dropped_and_all_blank_rejected() {
 }
 
 #[test]
-fn legacy_stored_conditions_read_back_correctly() {
-    // Pre-split rows stored a single name as a bare string with `eq`.
-    assert_eq!(
-        Trigger::from_conditions(
-            &json!([{ "column": "span_name", "operator": "eq", "value": "agent.run" }])
-        ),
-        Some(span_name_trigger(&["agent.run"]))
-    );
-    // `trigger_fires` ANDs conditions, so a row carrying both only fires on the
-    // named span's batch.
+fn span_name_wins_when_both_condition_columns_are_stored() {
+    // The evaluator ANDs conditions, so a row carrying both only fires on the
+    // named span's batch — report that, not root-span-finished.
     assert_eq!(
         Trigger::from_conditions(&json!([
             { "column": "root_span_finished", "operator": "eq", "value": "true" },
@@ -108,24 +101,25 @@ fn legacy_stored_conditions_read_back_correctly() {
         ])),
         Some(span_name_trigger(&["agent.run"]))
     );
+    assert_eq!(
+        Trigger::from_conditions(
+            &json!([{ "column": "span_name", "operator": "eq", "value": ["agent.run"] }])
+        ),
+        Some(span_name_trigger(&["agent.run"]))
+    );
 }
 
 #[test]
-fn conditions_this_enum_cannot_describe_read_back_as_no_trigger() {
+fn conditions_this_enum_cannot_describe_are_not_reported() {
     for conditions in [
-        // Backfill-only signal.
         json!([]),
-        // Columns/operators the evaluator has no arm for — stored, never fire.
         json!([{ "column": "total_token_count", "operator": "gt", "value": "1000" }]),
         json!([{ "column": "span_name", "operator": "gt", "value": ["a"] }]),
-        // Blank span names can never match a span.
         json!([{ "column": "span_name", "operator": "includes", "value": ["", " "] }]),
         // `ne` fires when NONE of these spans finished. `Trigger::SpanName` can
         // only say the positive case, and `to_conditions` writes `includes`, so
-        // reporting one would INVERT it on the next read-modify-write.
+        // reporting one would INVERT it if a later write round-tripped.
         json!([{ "column": "span_name", "operator": "ne", "value": ["agent.run"] }]),
-        json!([{ "column": "span_name", "operator": "ne", "value": "agent.run" }]),
-        // The `ne` gate still applies, so this is not a plain root-span trigger.
         json!([
             { "column": "root_span_finished", "operator": "eq", "value": "true" },
             { "column": "span_name", "operator": "ne", "value": ["healthcheck"] },
@@ -283,7 +277,7 @@ fn blank_name_and_prompt_are_rejected() {
 #[test]
 fn create_rejects_an_unfirable_span_name_trigger() {
     let mut input = signal_input(valid_schema());
-    input.trigger = Some(Some(span_name_trigger(&["", "  "])));
+    input.trigger = Some(span_name_trigger(&["", "  "]));
     assert!(
         validate_signal_input(&mut input).is_err(),
         "a signal that could never fire must not be created silently"
@@ -429,28 +423,20 @@ fn missing_description_is_allowed() {
 }
 
 #[test]
-fn update_input_distinguishes_absent_from_explicit_clears() {
-    // A patch must leave every unmentioned field alone, so "absent" and "clear"
-    // have to stay distinguishable — hence the double `Option`s.
+fn omitted_and_null_patch_fields_are_left_alone() {
     let absent: UpdateSignalInput = serde_json::from_value(json!({ "prompt": "x" })).unwrap();
     assert_eq!(absent.sample_rate, None);
     assert!(absent.trigger.is_none());
     assert!(absent.filters.is_none());
     assert!(absent.mode.is_none());
 
-    let cleared: UpdateSignalInput =
-        serde_json::from_value(json!({ "sampleRate": null, "trigger": null, "filters": [] }))
-            .unwrap();
-    assert_eq!(cleared.sample_rate, Some(None), "null clears sampling");
-    assert_eq!(cleared.trigger, Some(None), "null stops the signal firing");
-    assert_eq!(
-        cleared.filters.map(|f| f.len()),
-        Some(0),
-        "`[]` clears filters"
-    );
+    let nulls: UpdateSignalInput =
+        serde_json::from_value(json!({ "sampleRate": null, "trigger": null })).unwrap();
+    assert_eq!(nulls.sample_rate, None, "null is the same as omitted");
+    assert!(nulls.trigger.is_none());
 
     let set: UpdateSignalInput = serde_json::from_value(json!({ "sampleRate": 40 })).unwrap();
-    assert_eq!(set.sample_rate, Some(Some(40)));
+    assert_eq!(set.sample_rate, Some(40));
 }
 
 #[test]

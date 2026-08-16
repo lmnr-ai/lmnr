@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use serde_json::Value;
+use serde_json::{json, Value};
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
@@ -84,8 +84,8 @@ pub async fn patch_signal_trigger(
             tx,
             project_id,
             signal_id,
-            &patch.conditions.unwrap_or_else(|| Value::Array(Vec::new())),
-            &patch.filters.unwrap_or_else(|| Value::Array(Vec::new())),
+            &patch.conditions.unwrap_or(json!([])),
+            &patch.filters.unwrap_or(json!([])),
             patch.mode.unwrap_or(0),
         )
         .await?;

@@ -223,8 +223,8 @@ async fn insert_email_alert_targets(
 pub struct SignalUpdate {
     pub prompt: Option<String>,
     pub structured_output_schema: Option<Value>,
-    /// Outer `None` = leave stored; `Some(None)` = clear sampling.
-    pub sample_rate: Option<Option<i16>>,
+    /// `None` = leave stored.
+    pub sample_rate: Option<i16>,
     pub disabled: Option<bool>,
 }
 
@@ -288,14 +288,7 @@ fn merge_signal_metadata(stored: &Value, update: &SignalUpdate) -> Value {
     };
 
     if let Some(sample_rate) = update.sample_rate {
-        match sample_rate {
-            Some(rate) => {
-                map.insert("sampleRate".to_string(), json!(rate));
-            }
-            None => {
-                map.remove("sampleRate");
-            }
-        }
+        map.insert("sampleRate".to_string(), json!(sample_rate));
     }
 
     if let Some(disabled) = update.disabled {
@@ -414,18 +407,21 @@ mod tests {
     }
 
     #[test]
-    fn clearing_metadata_removes_keys() {
+    fn setting_sample_rate_overwrites() {
         let stored = json!({ "sampleRate": 30, "disabled": true });
-
-        let cleared_sampling = merge_signal_metadata(
+        let merged = merge_signal_metadata(
             &stored,
             &SignalUpdate {
-                sample_rate: Some(None),
+                sample_rate: Some(40),
                 ..Default::default()
             },
         );
-        assert_eq!(cleared_sampling, json!({ "disabled": true }));
+        assert_eq!(merged, json!({ "sampleRate": 40, "disabled": true }));
+    }
 
+    #[test]
+    fn clearing_disabled_removes_the_key() {
+        let stored = json!({ "sampleRate": 30, "disabled": true });
         let re_enabled = merge_signal_metadata(
             &stored,
             &SignalUpdate {

@@ -108,10 +108,11 @@ pub fn error_response(e: CrudError) -> actix_web::HttpResponse {
 /// WHEN a signal is evaluated, answerable from a single span batch. A closed set
 /// rather than a `{column, operator, value}` list: these are the only shapes the
 /// evaluator implements, so anything else was stored and then never fired.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Trigger {
     /// The trace's root span finished. Right for most traces.
+    #[default]
     RootSpanFinished,
     /// A span with any of these names finished. For distributed traces where no
     /// single span is observably the root.
@@ -137,20 +138,22 @@ impl Trigger {
         }
     }
 
-    /// `None` for an empty list (backfill-only), for shapes the evaluator would
-    /// not fire on, and for the one it fires on but this enum cannot express (see
-    /// `SPAN_NAME_POSITIVE_OPERATORS`) — the API must never misdescribe firing.
+    /// `None` for shapes this enum cannot express without lying about firing —
+    /// empty list, a filter column stored as a condition, all-blank names, and
+    /// `span_name` + `ne` (see `SPAN_NAME_POSITIVE_OPERATORS`). The GET response
+    /// still always carries a trigger (default `rootSpanFinished`); PATCH omit
+    /// leaves storage alone, so this None never becomes a write.
     fn from_conditions(conditions: &Value) -> Option<Self> {
         let entries = conditions.as_array()?;
-        // `span_name` first: a legacy row carrying both fires on the named span.
+        // `span_name` first: the evaluator ANDs conditions, so a row carrying
+        // both only fires on the named span's batch.
         if let Some(entry) = entries.iter().find(|e| {
             e.get("column").and_then(Value::as_str) == Some(CONDITION_COLUMN_SPAN_NAME)
                 && e.get("operator")
                     .and_then(Value::as_str)
                     .is_some_and(|op| SPAN_NAME_POSITIVE_OPERATORS.contains(&op))
         }) {
-            // Surviving names are NOT trimmed: the evaluator compares literally,
-            // so a legacy padded name must read back as stored.
+            // Names are NOT trimmed: the evaluator compares them literally.
             let span_names = match entry.get("value") {
                 Some(Value::Array(names)) => names
                     .iter()
@@ -158,11 +161,8 @@ impl Trigger {
                     .filter(|n| !n.trim().is_empty())
                     .map(str::to_string)
                     .collect(),
-                // Legacy single-name shape.
-                Some(Value::String(name)) if !name.trim().is_empty() => vec![name.clone()],
                 _ => Vec::new(),
             };
-            // An all-blank list can never match; report it as no trigger.
             return (!span_names.is_empty()).then_some(Trigger::SpanName { span_names });
         }
 
@@ -248,8 +248,7 @@ pub struct SignalResponse {
     pub sample_rate: Option<i64>,
     pub disabled: bool,
     pub created_at: chrono::DateTime<chrono::Utc>,
-    /// `null` when the signal never fires on its own (backfill only).
-    pub trigger: Option<Trigger>,
+    pub trigger: Trigger,
     pub filters: Vec<Value>,
     pub mode: Mode,
 }
@@ -264,11 +263,11 @@ impl SignalResponse {
             .unwrap_or(false);
         let (trigger, filters, mode) = match trigger_row {
             Some(row) => (
-                Trigger::from_conditions(&row.conditions),
+                Trigger::from_conditions(&row.conditions).unwrap_or_default(),
                 row.filters.as_array().cloned().unwrap_or_default(),
                 Mode::from_i16(row.mode),
             ),
-            None => (None, Vec::new(), Mode::default()),
+            None => (Trigger::default(), Vec::new(), Mode::default()),
         };
         Self {
             id: row.id,
@@ -302,13 +301,14 @@ pub struct SignalInput {
     pub name: String,
     pub prompt: String,
     pub structured_output: Value,
+    /// Absent or `null` → no sampling (key is not stored).
     #[serde(default)]
     pub sample_rate: Option<i64>,
     #[serde(default)]
     pub disabled: Option<bool>,
-    /// Absent = the default trigger; `null` = never fires on its own.
-    #[serde(default, deserialize_with = "double_option")]
-    pub trigger: Option<Option<Trigger>>,
+    /// Absent or `null` → `rootSpanFinished`.
+    #[serde(default)]
+    pub trigger: Option<Trigger>,
     /// Absent = the default filters; `[]` = run on every firing trace.
     #[serde(default)]
     pub filters: Option<Vec<Value>>,
@@ -326,10 +326,9 @@ pub async fn create_signal(
 ) -> Result<SignalResponse, CrudError> {
     validate_signal_input(&mut input)?;
 
-    let trigger = match input.trigger {
-        Some(trigger) => trigger.map(Trigger::normalized),
-        None => Some(default_trigger()),
-    };
+    let trigger = input
+        .trigger
+        .map_or_else(default_trigger, Trigger::normalized);
     let filters = normalize_filters(input.filters.unwrap_or_else(default_filters))?;
     let mode = input.mode.unwrap_or_default();
 
@@ -344,7 +343,7 @@ pub async fn create_signal(
         &metadata,
         clustering_enabled,
         subscriber_email,
-        &conditions_of(trigger.as_ref()),
+        &trigger.to_conditions(),
         &Value::Array(filters),
         mode.to_i16(),
     )
@@ -353,11 +352,6 @@ pub async fn create_signal(
     invalidate_trigger_cache(cache, project_id).await;
 
     Ok(SignalResponse::new(signal, Some(trigger_row)))
-}
-
-/// An empty condition list never matches, so the signal runs only via backfill.
-fn conditions_of(trigger: Option<&Trigger>) -> Value {
-    trigger.map_or_else(|| json!([]), Trigger::to_conditions)
 }
 
 async fn invalidate_trigger_cache(cache: &Cache, project_id: Uuid) {
@@ -419,27 +413,19 @@ pub struct UpdateSignalInput {
     pub prompt: Option<String>,
     #[serde(default)]
     pub structured_output: Option<Value>,
-    /// Absent = leave stored; `null` = clear. Plain `Option` collapses both.
-    #[serde(default, deserialize_with = "double_option")]
-    pub sample_rate: Option<Option<i64>>,
+    /// Absent or `null` → leave stored. No sampling is "don't send the key".
+    #[serde(default)]
+    pub sample_rate: Option<i64>,
     #[serde(default)]
     pub disabled: Option<bool>,
-    /// Absent = leave stored; `null` = stop firing on its own.
-    #[serde(default, deserialize_with = "double_option")]
-    pub trigger: Option<Option<Trigger>>,
+    /// Absent or `null` → leave stored.
+    #[serde(default)]
+    pub trigger: Option<Trigger>,
     /// Absent = leave stored; `[]` = run on every firing trace.
     #[serde(default)]
     pub filters: Option<Vec<Value>>,
     #[serde(default)]
     pub mode: Option<Mode>,
-}
-
-fn double_option<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-    T: Deserialize<'de>,
-{
-    Option::<T>::deserialize(deserializer).map(Some)
 }
 
 pub async fn update_signal(
@@ -457,24 +443,23 @@ pub async fn update_signal(
     if let Some(schema) = &input.structured_output {
         validate_structured_output(schema)?;
     }
-    if let Some(Some(rate)) = input.sample_rate {
+    if let Some(rate) = input.sample_rate {
         validate_sample_rate(rate)?;
     }
 
     let trigger = match input.trigger {
         Some(trigger) => {
-            let trigger = trigger.map(Trigger::normalized);
-            if let Some(trigger) = &trigger {
-                trigger.validate()?;
-            }
-            Some(conditions_of(trigger.as_ref()))
+            let trigger = trigger.normalized();
+            trigger.validate()?;
+            Some(trigger.to_conditions())
         }
         None => None,
     };
-    let filters = match input.filters {
-        Some(filters) => Some(Value::Array(normalize_filters(filters)?)),
-        None => None,
-    };
+    let filters = input
+        .filters
+        .map(normalize_filters)
+        .transpose()?
+        .map(Value::Array);
 
     let patch = TriggerPatch {
         conditions: trigger,
@@ -482,7 +467,7 @@ pub async fn update_signal(
         mode: input.mode.map(Mode::to_i16),
     };
 
-    let sample_rate = input.sample_rate.map(|inner| inner.map(|rate| rate as i16));
+    let sample_rate = input.sample_rate.map(|rate| rate as i16);
 
     let (updated, trigger_row) = signals::update_signal(
         pool,
@@ -592,7 +577,7 @@ fn validate_signal_input(input: &mut SignalInput) -> Result<(), CrudError> {
     if let Some(rate) = input.sample_rate {
         validate_sample_rate(rate)?;
     }
-    if let Some(Some(trigger)) = &input.trigger {
+    if let Some(trigger) = &input.trigger {
         trigger.validate()?;
     }
     validate_structured_output(&input.structured_output)
