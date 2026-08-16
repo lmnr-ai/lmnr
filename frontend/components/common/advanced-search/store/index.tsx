@@ -255,7 +255,14 @@ function createCoreSlice(
     getTagFocusState: (tagId) => get().tagFocusStates.get(tagId) || { type: "idle" },
 
     submit: () => {
-      set({ isOpen: false, activeIndex: -1, activeRecentIndex: -1 });
+      const { allowFreeTextSearch } = get();
+      set({
+        isOpen: false,
+        activeIndex: -1,
+        activeRecentIndex: -1,
+        // Filters-only: typed text is a picker buffer, not a committed query.
+        ...(allowFreeTextSearch ? {} : { inputValue: "" }),
+      });
       commit();
     },
 

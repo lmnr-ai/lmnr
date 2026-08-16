@@ -60,15 +60,7 @@ export default function SignalFormFields({
   }, [setValue]);
 
   return (
-    <div
-      className={cn(
-        "grid gap-8 py-4",
-        {
-          "pb-16": !showTemplates,
-        },
-        className
-      )}
-    >
+    <div className={cn("grid gap-8 py-4 pb-16", className)}>
       {Boolean(getValues("id")) && (
         <Controller
           name="disabled"
