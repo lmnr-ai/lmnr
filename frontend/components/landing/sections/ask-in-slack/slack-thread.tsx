@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useRef } from "react";
+import { type ReactNode, type RefObject, useEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -41,46 +41,77 @@ const MessageRow = ({ author, time, body }: ThreadMessage) => (
   </div>
 );
 
+/** The window's fixed height. The thread is taller than this, which is the
+ *  point — it scrolls, the way a real channel does, instead of the card
+ *  growing to whatever the copy happens to need. */
+const WINDOW_H = 554;
+
 // The window chrome. `pt` only: each row carries its own `pb-4`, which doubles
-// as the card's bottom padding.
-const ThreadWindow = ({ children }: { children: ReactNode }) => (
+// as the scroll area's bottom padding.
+const ThreadWindow = ({
+  scrollRef,
+  children,
+}: {
+  scrollRef: RefObject<HTMLDivElement | null>;
+  children: ReactNode;
+}) => (
   <div
-    style={{ borderColor: SLACK_BORDER, backgroundColor: SLACK_BG }}
-    className="w-full rounded-md border font-sans overflow-hidden"
+    style={{ borderColor: SLACK_BORDER, backgroundColor: SLACK_BG, height: WINDOW_H }}
+    className="w-full rounded-md border font-sans overflow-hidden flex flex-col"
   >
-    <div style={{ borderColor: SLACK_BORDER }} className="flex items-center justify-between border-b px-4 py-2.5">
+    <div
+      style={{ borderColor: SLACK_BORDER }}
+      className="shrink-0 flex items-center justify-between border-b px-4 py-2.5"
+    >
       <p className="text-sm font-medium text-white">{THREAD_CHANNEL}</p>
-      <p className="text-xs text-foreground-300">Thread</p>
     </div>
-    <div className="flex flex-col px-4 pt-4">{children}</div>
+    <div
+      ref={scrollRef}
+      className="thin-scrollbar flex flex-1 min-h-0 flex-col overflow-y-auto px-4 pt-4 scroll-smooth"
+    >
+      {children}
+    </div>
   </div>
 );
 
-// A Slack thread: the new-cluster alert as the parent message, then the
-// mention-driven Q&A the agent answers in-thread. Thread view (rather than a
-// channel with a "N replies" stub) because that is where the agent's replies
-// actually land — it posts with the parent's `thread_ts`.
+// The alerts channel: a signal-event notification, the new-cluster digest it
+// rolls up into, then the mention-driven Q&A the agent answers. The Q&A really
+// lands in a thread off the cluster alert (the agent posts with the parent's
+// `thread_ts`), so showing it flat here is a landing liberty — it is the only
+// way to show the alert and the conversation about it in one frame.
 //
-// The window is a FIXED size: every message occupies its space from the start
-// and only fades in, so the card never resizes as the thread fills and nothing
-// on the page below it reflows.
+// The window is a FIXED height and every message occupies its space from the
+// start, so the card never resizes as the channel fills and nothing on the
+// page below it reflows. Messages only fade in; the scroll follows.
 const SlackThread = () => {
   const frameRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   // The first message is visible the moment the thread scrolls in, so the walk
   // only has to cover the remaining ones.
   const revealed = useStreamIn(frameRef, { steps: THREAD_MESSAGES.length - 1, stepMs: MESSAGE_MS });
 
+  // Follow the newest message, the way a channel does. Every row is already in
+  // layout (they are only faded), so the scroll height never changes — this is
+  // purely moving the viewport onto the message that just appeared.
+  //
+  // Hand-rolled rather than `scrollIntoView`, which walks up and scrolls every
+  // scrollable ancestor including the page.
+  useEffect(() => {
+    const el = scrollRef.current;
+    const row = el?.children[revealed] as HTMLElement | undefined;
+    if (!el || !row) return;
+    const target = row.offsetTop + row.offsetHeight - el.clientHeight;
+    if (target > el.scrollTop) el.scrollTo({ top: target, behavior: "smooth" });
+  }, [revealed]);
+
   return (
     <div ref={frameRef} className="w-full">
-      <ThreadWindow>
+      <ThreadWindow scrollRef={scrollRef}>
         {THREAD_MESSAGES.map((message, i) => (
           <div
             key={i}
             aria-hidden={revealed < i}
-            className={cn(
-              "pb-4 transition-opacity duration-500 ease-out",
-              revealed >= i ? "opacity-100" : "opacity-0"
-            )}
+            className={cn("pb-4 transition-opacity duration-500 ease-out", revealed >= i ? "opacity-100" : "opacity-0")}
           >
             <MessageRow {...message} />
           </div>

@@ -51,8 +51,8 @@ const EntryRow = ({ entry, active }: { entry: Entry; active: boolean }) => {
     // stays on the same left edge as every other line.
     case "tool":
       return (
-        <p className={cn(monoBase, "text-foreground-300 whitespace-pre -mx-2 rounded-sm bg-primary-400/10 px-2")}>
-          <span className="text-foreground-500">●</span> {entry.text}
+        <p className={cn(monoBase, "text-primary-400 whitespace-pre -mx-2 rounded-sm bg-primary-400/10 px-2")}>
+          <span className="text-primary-400/60">●</span> {entry.text}
         </p>
       );
     case "result":

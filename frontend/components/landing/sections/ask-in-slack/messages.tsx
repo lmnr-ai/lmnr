@@ -1,8 +1,24 @@
 import { type ReactNode } from "react";
 
 // ──────────────────────────────────────────────────────────────────────
-// The thread. Two kinds of message, and they are produced by two
-// different code paths, which is why they look different:
+// The channel. Three kinds of message, produced by three different code
+// paths, which is why they look different:
+//
+//   0. The signal-event alert is a BLOCK payload assembled by
+//      `format_event_identification_blocks`: a `header` block reading
+//      "{signal name} - :red_circle: Critical event", then a `table` block
+//      whose first row is a literal "Field"/"Value" header and whose
+//      remaining rows are the event payload's keys IN SCHEMA ORDER, then an
+//      `actions` row. Condensed here — the real message keeps the Field/Value
+//      header row, adds a third "Manage alerts" button, and closes with a
+//      `context` statline ("*project* · Jul 2, 2026 at 2:32 PM UTC").
+//
+//      The payload keys are whatever the signal's `structured_output_schema`
+//      defines, so `category` / `description` is an example shape, not a fixed
+//      one. Values are capped at 2000 chars; a real `description` runs several
+//      hundred. Span references inside it arrive already rewritten into
+//      markdown links by `replace_span_tags_with_links`, which is why one word
+//      of the sentence below is a link.
 //
 //   1. The new-cluster alert is a BLOCK payload assembled by
 //      `format_new_cluster_blocks`: a fixed template plus an `actions` button
@@ -52,15 +68,65 @@ const Btn = ({ children }: { children: ReactNode }) => (
   </div>
 );
 
-const Mention = () => (
-  <span className="rounded bg-primary-400/15 px-1 text-primary-200">@Laminar</span>
-);
+const Mention = () => <span className="rounded bg-primary-400/15 px-1 text-primary-200">@Laminar</span>;
 
 const SeverityCount = ({ className, children }: { className: string; children: ReactNode }) => (
   <span className="inline-flex items-center gap-1.5">
     <span className={`size-2 shrink-0 rounded-full ${className}`} />
     {children}
   </span>
+);
+
+// A row of the payload table. Slack renders these as a real `table` block, so
+// the key column is `is_wrapped: false` (fixed, never wraps) and the value
+// column wraps — mirrored here with a fixed-width key and a flexible value.
+//
+// Two columns only once there is room for them: the values are schema field
+// values, so they are frequently one long unbroken token (`invented_identifier`,
+// a column name) that cannot wrap and would run out of the card at phone width.
+// `overflow-wrap: anywhere` is what actually breaks those; the stacked layout is
+// what keeps the break from happening every three characters.
+const Field = ({ name, children }: { name: string; children: ReactNode }) => (
+  <div className="flex flex-col gap-0.5 border-b border-surface-300/40 px-2 py-1.5 last:border-b-0 sm:flex-row sm:gap-3">
+    <span className="font-medium text-white sm:w-[74px] sm:shrink-0">{name}</span>
+    <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{children}</span>
+  </div>
+);
+
+// A span reference the signal wrote into its payload, already rewritten from a
+// `<span id=… name=… />` tag into a markdown link before it ever reached Slack.
+const SpanLink = ({ children }: { children: ReactNode }) => (
+  <span className="text-primary-200 underline underline-offset-2">{children}</span>
+);
+
+// Message 0 — one event firing. The `header` block, the payload table, and the
+// first two of its three buttons.
+const NewEventAlert = () => (
+  <div className="flex flex-col gap-2.5">
+    {/* One flowing line rather than a flex row, so a long signal name wraps and
+        carries the severity badge onto the next line with it instead of
+        stranding it in the vertical middle of two wrapped lines. */}
+    <p className="text-sm font-medium text-white">
+      {SIGNAL_NAME}{" "}
+      <span className="inline-flex items-center gap-1.5 align-middle text-xs font-normal text-foreground-200">
+        <span className="size-2 shrink-0 rounded-full bg-red-400" />
+        Critical event
+      </span>
+    </p>
+
+    <div className="rounded border border-surface-300/50 bg-surface-400/30">
+      <Field name="category">invented_identifier</Field>
+      <Field name="description">
+        The column lookup returned no rows, so <SpanLink>llm</SpanLink> wrote <C>created_by_user_id</C> into the
+        migration and reported the task complete.
+      </Field>
+    </div>
+
+    <div className="flex flex-wrap items-center gap-2">
+      <Btn>Open trace</Btn>
+      <Btn>View similar events</Btn>
+    </div>
+  </div>
 );
 
 // Message 1 — the alert, cut down to a headline, a summary of the cluster, the
@@ -133,6 +199,7 @@ export interface ThreadMessage {
 }
 
 export const THREAD_MESSAGES: ThreadMessage[] = [
+  { author: "app", time: "9:41 AM", body: <NewEventAlert /> },
   { author: "app", time: "9:42 AM", body: <NewClusterAlert /> },
   { author: "user", time: "9:44 AM", body: <AskForExample /> },
   { author: "app", time: "9:44 AM", body: <ExampleAnswer /> },

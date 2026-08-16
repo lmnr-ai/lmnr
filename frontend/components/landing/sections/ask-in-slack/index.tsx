@@ -19,10 +19,10 @@ const AskInSlack = () => (
     </div>
     {/* Shorter than the sibling panels' 120px: the thread card is roughly
         twice as tall as the other mocks, so equal padding reads as a void. */}
-    <div className="bg-surface-500 relative flex items-center w-full md:py-[72px] py-[48px] overflow-hidden px-8">
+    <div className="bg-surface-500 relative flex items-center w-full md:py-[64px] py-[44px] overflow-hidden px-8">
       {/* Unlike the sibling panels the mock has no intrinsic width — it caps
-          at 620 and reflows below that, so it just needs centering. */}
-      <div className="mx-auto w-full max-w-[620px]">
+          at 558 and reflows below that, so it just needs centering. */}
+      <div className="mx-auto w-full max-w-[558px]">
         <SlackThread />
       </div>
       <SectionFootnote name="Laminar Agent in Slack" href="https://laminar.sh/docs/platform/laminar-agent#slack" />
