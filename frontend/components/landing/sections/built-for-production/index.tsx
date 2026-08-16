@@ -4,81 +4,47 @@ import { motion } from "framer-motion";
 
 import { cn } from "@/lib/utils";
 
-import { bodyMedium, subSection } from "../../class-names";
+import { bodyMedium } from "../../class-names";
 import LearnMoreLink from "../two-lines-to-integrate/learn-more-link";
 
-// FLAG: "Learn more" needs a real destination — once we publish a compression
-// deep-dive, swap the blog link for that post.
-
-// Bar row height. Both bars share it, and the Laminar one is the 1/20th that
-// gives the section its headline, so it is a PERCENTAGE of the track rather
-// than the fixed 34px the Figma frame happens to draw — the ratio is the claim.
-const BAR_H = "h-8";
-
-// This section sets tighter than the page defaults: 28px leading on the 24px
-// type and 24px on the 18px, against `subSection`'s 32 and `bodyMedium`'s 28.
-// It matters most in the stat blocks, where a number sits directly on its label
-// with no gap — the default leading adds 8px of slop inside a two-line unit.
-// Overridden here rather than in ../../class-names: every other section wants
-// the looser default.
-const HEADING_24 = "leading-7 tracking-[-0.02em]";
-const BODY_18 = "leading-6";
+// FLAG: "Read more" needs a real destination — once we publish a compression
+// deep-dive, swap `/blog` for that post.
 
 const BuiltForProduction = () => (
   <section className="flex flex-col items-start w-full">
-    <div className="flex flex-col gap-8 w-full">
-      <div className="flex flex-col gap-1">
-        <p className="font-sans-landing font-medium text-foreground-50 text-[60px] leading-[60px] tracking-[-0.02em]">
-          20x
-        </p>
-        <p className={cn(subSection, HEADING_24)}>data compression</p>
-      </div>
+    <div className="flex flex-col gap-10 w-full">
+      <p className="font-sans-landing font-medium text-foreground-50 text-[48px] leading-[60px] tracking-[-0.02em]">
+        20x cheaper storage
+      </p>
 
-      <div className="flex flex-col gap-10 md:flex-row md:gap-13 md:items-start w-full">
-        <div className="flex flex-col gap-5 items-start w-full md:w-[313px] md:shrink-0">
-          <p className={cn(bodyMedium, BODY_18)}>
-            Laminar stores only the unique content in agent runs, leading to faster ingestion, cheaper storage, and more
-            efficient analysis.
+      <div className="flex flex-col gap-10 md:flex-row md:gap-17 md:items-start w-full">
+        <div className="flex flex-col gap-3 items-start shrink-0">
+          <p className={cn(bodyMedium, "w-[320px]")}>
+            Laminar stores only the unique content in agent runs, leading to faster ingestion and 20x cheaper storage.
           </p>
 
-          <div className="flex gap-6 items-start">
-            <div className="flex flex-col items-start">
-              <p className={cn(subSection, HEADING_24)}>20x</p>
-              <p className={cn(bodyMedium, BODY_18)}>faster ingestion</p>
-            </div>
-            <div className="flex flex-col items-start">
-              <p className={cn(subSection, HEADING_24)}>20x</p>
-              <p className={cn(bodyMedium, BODY_18)}>cheaper storage</p>
-            </div>
-          </div>
-
-          <LearnMoreLink href="https://laminar.sh/blog/laminar-20x-agent-trace-compression" label="Learn more" />
+          <LearnMoreLink href="https://laminar.sh/blog/laminar-20x-agent-trace-compression" label="Read more" />
         </div>
 
-        {/* Bars sit a touch below the copy's cap height rather than flush with
-            it, which is the pt on desktop only — stacked, they follow the copy. */}
-        <div className="flex flex-col gap-1 items-start w-full md:flex-1 md:min-w-0 md:pt-2">
+        <div className="flex flex-col gap-1 items-start w-full md:flex-1 md:min-w-0">
           <motion.div
-            className={cn(
-              BAR_H,
-              "flex items-center justify-end px-3 overflow-hidden whitespace-nowrap w-full rounded-sm bg-surface-400"
-            )}
+            className="flex h-11 items-center justify-end px-5 overflow-hidden whitespace-nowrap w-full rounded-sm bg-surface-400 text-foreground-50"
             initial={{ width: 0 }}
             whileInView={{ width: "100%" }}
             viewport={{ once: true, amount: 0.6 }}
             transition={{ duration: 0.9, ease: "easeOut" }}
           >
-            <p className="text-sm text-foreground-300">Competition</p>
+            <p className="font-medium">Competition</p>
           </motion.div>
-          <div className={cn(BAR_H, "flex items-center gap-3 w-full")}>
+          <div className="flex items-center gap-3 h-11 w-full">
             <motion.div
-              className="h-full shrink-0 rounded-sm bg-primary-400"
+              className="flex h-full items-center justify-end px-5 overflow-hidden whitespace-nowrap rounded-sm bg-primary-300 text-background"
               initial={{ width: 0 }}
               whileInView={{ width: "5%" }}
               viewport={{ once: true, amount: 0.6 }}
               transition={{ duration: 0.3, ease: "easeOut" }}
             />
-            <p className="text-sm text-foreground-50">Laminar</p>
+            <p className="text-foreground-50">Laminar</p>
           </div>
         </div>
       </div>
