@@ -206,11 +206,11 @@ export default function SlackConnectionCard({
     <>
       {children ? (
         <div className={cn("flex flex-col rounded-lg border border-border bg-surface-100 overflow-hidden", className)}>
-          <div className="flex items-center gap-4 p-4 bg-surface-150">{integrationRow}</div>
+          <div className="flex items-center gap-4 p-4">{integrationRow}</div>
           {slackIntegration && <div className="border-t border-border">{children}</div>}
         </div>
       ) : (
-        <div className={cn("rounded-lg border border-border p-4 flex items-center gap-4", className)}>
+        <div className={cn("rounded-lg border border-border p-4 flex items-center gap-4 bg-surface-100", className)}>
           {integrationRow}
         </div>
       )}
