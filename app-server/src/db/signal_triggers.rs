@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use serde_json::{json, Value};
+use serde_json::Value;
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
@@ -55,8 +55,7 @@ pub async fn insert_signal_trigger(
     Ok(row)
 }
 
-/// Apply `patch`, creating the row if the signal has none. Absent patch fields
-/// keep their stored value.
+/// Merge `patch` into the newest row. Does not create one.
 pub async fn patch_signal_trigger(
     tx: &mut Transaction<'_, Postgres>,
     project_id: Uuid,
@@ -77,19 +76,7 @@ pub async fn patch_signal_trigger(
     .await?;
 
     let Some(existing) = existing else {
-        if patch.is_empty() {
-            return Ok(None);
-        }
-        let row = insert_signal_trigger(
-            tx,
-            project_id,
-            signal_id,
-            &patch.conditions.unwrap_or(json!([])),
-            &patch.filters.unwrap_or(json!([])),
-            patch.mode.unwrap_or(0),
-        )
-        .await?;
-        return Ok(Some(row));
+        return Ok(None);
     };
 
     if patch.is_empty() {
