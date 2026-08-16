@@ -35,7 +35,8 @@ export const buildSuggestions = (
   inputValue: string,
   filters: ColumnFilter[],
   autocompleteData: Map<string, string[]>,
-  uuidFilterColumn?: string
+  uuidFilterColumn?: string,
+  allowFreeTextSearch = true
 ): Suggestion[] => {
   const input = inputValue.trim().toLowerCase();
 
@@ -65,7 +66,7 @@ export const buildSuggestions = (
     ...uuidSuggestions,
     ...fieldSuggestions,
     ...valueSuggestions,
-    { type: "raw_search" as const, value: inputValue.trim() },
+    ...(allowFreeTextSearch ? [{ type: "raw_search" as const, value: inputValue.trim() }] : []),
   ];
 };
 
@@ -73,17 +74,19 @@ export const getSuggestionsCount = (
   filters: ColumnFilter[],
   inputValue: string,
   autocompleteData: Map<string, string[]>,
-  uuidFilterColumn?: string
-): number => buildSuggestions(inputValue, filters, autocompleteData, uuidFilterColumn).length;
+  uuidFilterColumn?: string,
+  allowFreeTextSearch = true
+): number => buildSuggestions(inputValue, filters, autocompleteData, uuidFilterColumn, allowFreeTextSearch).length;
 
 export const getSuggestionAtIndex = (
   filters: ColumnFilter[],
   inputValue: string,
   index: number,
   autocompleteData: Map<string, string[]>,
-  uuidFilterColumn?: string
+  uuidFilterColumn?: string,
+  allowFreeTextSearch = true
 ): Suggestion | null => {
-  const suggestions = buildSuggestions(inputValue, filters, autocompleteData, uuidFilterColumn);
+  const suggestions = buildSuggestions(inputValue, filters, autocompleteData, uuidFilterColumn, allowFreeTextSearch);
   return suggestions[index] ?? null;
 };
 
@@ -149,6 +152,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
   const autocompleteData = useAdvancedSearchContext((state) => state.autocompleteData);
   const tags = useAdvancedSearchContext((state) => state.tags);
   const recentSearches = useAdvancedSearchContext((state) => state.recentSearches);
+  const allowFreeTextSearch = useAdvancedSearchContext((state) => state.allowFreeTextSearch);
   const uuidFilterColumn = useAdvancedSearchContext((state) => state.uuidFilterColumn);
 
   const { addTag, addCompleteTag, setInputValue, setIsOpen, submit, applyRecentSearch } = useAdvancedSearchContext(
@@ -169,8 +173,8 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
   const recentContainerRef = useRef<HTMLDivElement>(null);
 
   const suggestions = useMemo(
-    () => buildSuggestions(inputValue, filters, autocompleteData, uuidFilterColumn),
-    [inputValue, filters, autocompleteData, uuidFilterColumn]
+    () => buildSuggestions(inputValue, filters, autocompleteData, uuidFilterColumn, allowFreeTextSearch),
+    [inputValue, filters, autocompleteData, uuidFilterColumn, allowFreeTextSearch]
   );
 
   const showRecent = !inputValue.trim() && tags.length === 0 && recentSearches.length > 0;

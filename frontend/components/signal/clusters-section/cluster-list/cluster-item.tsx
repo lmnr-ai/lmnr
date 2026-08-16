@@ -133,9 +133,10 @@ export default function ClusterItem({
       <button
         ref={buttonRef}
         className={cn(
+          // Transparent by default (reads against the list surface); only fills on hover.
           "flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left transition-colors text-secondary-foreground w-full min-w-0",
           isPaywall ? "cursor-default" : "cursor-pointer",
-          !isPaywall && hovered && "bg-muted",
+          !isPaywall && hovered && "bg-surface-up-2",
           isSelected && "bg-sidebar-accent font-medium text-primary-foreground"
         )}
         onClick={isPaywall ? undefined : onClick}
