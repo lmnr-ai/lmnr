@@ -11,13 +11,13 @@ import RotatingAgentName from "./rotating-agent-name";
 const ClaudeFixMyAgent = () => (
   <section className="flex flex-col gap-10 items-start w-full">
     <div className="flex flex-col items-start">
-      <span className={cn(microLabel, "mb-2")}>04.</span>
+      <span className={cn(microLabel, "mb-2")}>05.</span>
       <h2 className={cn(subSection, "mb-2")}>
         <RotatingAgentName />
-        {", fix my agent"}
+        {", fix my agent with Laminar"}
       </h2>
       <p className={bodyMedium}>
-        With Laminar{" "}
+        The Laminar{" "}
         <a
           href="https://laminar.sh/docs/platform/cli"
           target="_blank"
@@ -34,9 +34,9 @@ const ClaudeFixMyAgent = () => (
           className="underline hover:text-foreground-200"
         >
           MCP
-        </a>
-        , your coding agent fully owns the iteration loop for the agents you're building. It runs your agent, reads the
-        trace, fixes, and re-runs with cached state. You can then review its work in the Debugger session UI.
+        </a>{" "}
+        are your coding agent's interface to Laminar. Your coding agent can fully own the development loop. It runs your
+        agent, reads the trace, fixes, and runs evals to verify progress.
       </p>
     </div>
     <div className="bg-surface-500 relative flex w-full overflow-hidden">

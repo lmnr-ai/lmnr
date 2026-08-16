@@ -37,6 +37,8 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
   hideZeroValues = false,
   overlayField,
   overlayColor = "var(--color-muted-foreground)",
+  yAxisMax,
+  animateBars = true,
   className,
 }: Omit<TimeSeriesChartProps<T>, "isLoading">) {
   const router = useRouter();
@@ -133,7 +135,12 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
             allowDataOverflow
             ticks={smartTicksResult?.ticks}
           />
-          <YAxis tickLine={false} axisLine={false} tickFormatter={formatValue} />
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={formatValue}
+            domain={yAxisMax != null ? [0, yAxisMax] : undefined}
+          />
           {overlayField && (
             <YAxis
               yAxisId="overlay"
@@ -189,6 +196,7 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
                 fill={config.color}
                 stackId={config.stackId}
                 shape={BarShapeWithConfig}
+                isAnimationActive={animateBars}
               />
             );
           })}

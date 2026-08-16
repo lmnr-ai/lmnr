@@ -28,4 +28,8 @@ export interface TimeSeriesChartProps<T extends TimeSeriesDataPoint> {
   // Optional secondary-axis line + gradient drawn behind the bars.
   overlayField?: string;
   overlayColor?: string;
+  /** Pin the y domain upper bound so the axis doesn't rescale as data streams in. */
+  yAxisMax?: number;
+  /** Recharts' own enter/update bar tween. Turn off when driving the data yourself. */
+  animateBars?: boolean;
 }

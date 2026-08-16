@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowUp, Bolt, MessageCircle } from "lucide-react";
+import { motion } from "framer-motion";
+import { ArrowUp, Bolt, ChevronLeft, Maximize2, MessageCircle, Plus, X } from "lucide-react";
 import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
@@ -122,11 +123,79 @@ const renderSpanChips = (text: string, onSelect: (spanId: string) => void): Reac
 // half-broken chip mid-stream.
 const STREAM_INTERVAL_MS = 30;
 
+// Context breadcrumb above the input. Classes are copied verbatim from the
+// product's ContextBadge; the real one makes each segment click-to-copy, which
+// is pointless on a landing page, so these are plain divs.
+// The product's wrapper also carries `bg-landing-surface-800` — an undefined
+// utility that paints nothing — so it is deliberately not carried over. The
+// `-mb-5` / `pb-6.5` pair is what tucks this row behind the input above it.
+const ContextRow = ({ traceName, spanName }: { traceName?: string | null; spanName?: string }) => {
+  const segments = [
+    { label: "Trace", name: traceName?.trim() },
+    ...(spanName?.trim() ? [{ label: "Span", name: spanName.trim() }] : []),
+  ];
+
+  return (
+    <div className="relative z-0 -mb-5 w-full">
+      <div className="flex items-center gap-1.5 w-full rounded-t-xl px-2 pt-1.5 pb-6.5 text-xs">
+        {segments.map((segment, i) => (
+          <Fragment key={segment.label}>
+            {i > 0 && <span className="shrink-0 text-foreground-500">/</span>}
+            <div className="flex min-w-0 items-center gap-1 rounded-full border border-surface-200 bg-secondary px-2 py-0.5 text-foreground-400">
+              <span className="shrink-0 font-medium">{segment.label}</span>
+              {segment.name && <span className="truncate font-medium text-foreground/90">{segment.name}</span>}
+            </div>
+          </Fragment>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// Name the auto-namer would land on for the conversation mocked below.
+const CHAT_NAME = "Agent's reasoning mistakes";
+
+// Replica of the agent panel's chat-pane header: history chevron, chat name,
+// then new chat / full screen / close. Every button is decorative
+// (disabled + disabled:opacity-100), and the title is a plain span rather than
+// the product's ghost input — there is nothing to rename here.
+const ChatHeader = () => (
+  <div className="flex items-center justify-between gap-2 px-2 py-2 flex-shrink-0 relative z-10">
+    <div className="flex min-w-0 flex-1 items-center gap-1">
+      <Button
+        variant="ghost"
+        disabled
+        aria-label="Chat history"
+        className="px-0.5 h-6 w-6 shrink-0 disabled:opacity-100"
+      >
+        <ChevronLeft className="w-4 h-4" />
+      </Button>
+      <span className="truncate px-1 text-sm font-medium">{CHAT_NAME}</span>
+    </div>
+    <div className="flex items-center gap-0.5 shrink-0">
+      {[
+        { Icon: Plus, label: "New chat" },
+        { Icon: Maximize2, label: "Open full screen" },
+        { Icon: X, label: "Close" },
+      ].map(({ Icon, label }) => (
+        <Button key={label} variant="ghost" disabled aria-label={label} className="px-0.5 h-6 w-6 disabled:opacity-100">
+          <Icon className="w-4 h-4" />
+        </Button>
+      ))}
+    </div>
+    {/* Fades the conversation out under the header as it scrolls. */}
+    <div className="w-full h-[28px] bg-gradient-to-b from-background to-transparent top-full left-0 absolute z-20 pointer-events-none" />
+  </div>
+);
+
 export default function AskAi() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<MockMessage[]>(INITIAL_MESSAGES);
 
   const selectSpanById = useTraceViewBaseStore((state) => state.selectSpanById);
+  // Primitive selectors, so no shallow comparator is needed.
+  const traceName = useTraceViewBaseStore((state) => state.trace?.topSpanName);
+  const selectedSpanName = useTraceViewBaseStore((state) => state.selectedSpan?.name);
 
   // Split keeping whitespace runs as separate tokens (capture group), so
   // `\n\n` paragraph breaks survive the reveal — otherwise the streamed
@@ -181,10 +250,7 @@ export default function AskAi() {
 
   return (
     <div className="flex flex-col overflow-hidden relative h-full">
-      <div className="flex items-center justify-between px-2 pt-2 pb-2 flex-shrink-0 relative">
-        <span className="text-base font-medium ml-2">Chat with trace</span>
-        <div className="w-full h-[28px] bg-gradient-to-b from-background to-transparent top-full left-0 absolute z-20 pointer-events-none" />
-      </div>
+      <ChatHeader />
       <Conversation className="relative">
         <ConversationContent className="space-y-4 py-4 px-0 pb-12">
           {messages.map((m) => (
@@ -202,14 +268,21 @@ export default function AskAi() {
       </Conversation>
 
       <div className="flex-none px-3 pb-2 bg-transparent">
-        <div className="border rounded-lg bg-muted/40">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSend();
-            }}
+        <div className="flex flex-col">
+          <ContextRow traceName={traceName} spanName={selectedSpanName} />
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.2 }}
+            className="relative z-20 rounded-xl border border-border/40 bg-card transition-colors focus-within:border-border/60"
           >
-            <div className="flex flex-row items-end w-full py-1">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSend();
+              }}
+              className="flex flex-col p-2"
+            >
               <DefaultTextarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -220,25 +293,28 @@ export default function AskAi() {
                   }
                 }}
                 placeholder="Summarize, debug, and more"
-                className="bg-transparent border-none focus-visible:ring-0 resize-none flex-1 min-w-0"
-                rows={1}
-                maxRows={6}
+                className="bg-transparent border-none focus:outline-hidden focus-visible:ring-0 resize-none w-full px-1.5 pt-0.5 text-sm leading-relaxed placeholder:text-muted-foreground/60 minimal-scrollbar"
+                minRows={1}
+                maxRows={8}
               />
-              <Button
-                aria-label="Send message"
-                type="submit"
-                size="icon"
-                className="h-7 w-7 rounded-full border bg-primary flex-shrink-0 mr-1 mb-1"
-                variant="ghost"
-                disabled={input.trim() === ""}
-              >
-                <ArrowUp className="w-4 h-4" />
-              </Button>
-            </div>
-          </form>
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <Button
+                  type="submit"
+                  size="icon"
+                  className="h-7 w-7 rounded-full flex-shrink-0 transition-transform hover:scale-105 active:scale-95 disabled:scale-100"
+                  disabled={input.trim() === ""}
+                  aria-label="Send message"
+                >
+                  <ArrowUp className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </form>
+          </motion.div>
         </div>
+        <span className="block text-xs text-muted-foreground/50 text-center pt-1.5">
+          Laminar Agent is in <span className="underline">beta</span> and can make mistakes.
+        </span>
       </div>
-      <span className="text-xs text-muted-foreground/50 text-center pb-2">Trace agent can make mistakes.</span>
     </div>
   );
 }

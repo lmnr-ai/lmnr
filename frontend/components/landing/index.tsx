@@ -1,10 +1,13 @@
 "use client";
 
+import dynamic from "next/dynamic";
+
 import { cn } from "@/lib/utils";
 
 import { LANDING_COLUMN_MAX_W } from "./class-names";
 import Footer from "./footer";
 import Hero from "./hero";
+import AskInSlack from "./sections/ask-in-slack";
 import BuiltForProduction from "./sections/built-for-production";
 import ClaudeFixMyAgent from "./sections/claude-fix-my-agent";
 import Compliance from "./sections/compliance";
@@ -18,6 +21,14 @@ import Quote from "./sections/quote";
 import TwoLinesToIntegrate from "./sections/two-lines-to-integrate";
 import UnderstandWhy from "./sections/understand-why";
 
+// Dev-only animation dials. `IS_DEV` is inlined at build time, so the whole
+// dynamic() call — and the dialkit chunk behind it — is dead code in a
+// production build and never reaches the landing bundle. Mounted HERE, once:
+// the dock renders every dial registered anywhere, so one per section would
+// draw a duplicate copy of the whole thing. Sections only run the hooks.
+const IS_DEV = process.env.NODE_ENV !== "production";
+const DialDock = IS_DEV ? dynamic(() => import("./dial-dock.tsx").then((mod) => mod.default), { ssr: false }) : null;
+
 interface Props {
   className?: string;
   hasSession: boolean;
@@ -29,12 +40,14 @@ interface Props {
 // sections in the standard 880px column below.
 const Landing = ({ className, hasSession }: Props) => (
   <div className={cn("bg-surface-700 overflow-x-clip flex flex-col", className)}>
+    {DialDock && <DialDock />}
     <Hero hasSession={hasSession} />
     {/* 80px controls the gap to the section above */}
     <UnderstandWhy className="md:mt-[calc(80px-(100vh-760px)/2)]" />
     <div className="flex flex-col items-center w-full px-6 lg:px-0 pt-[100px] pb-[72px] md:pb-[120px]">
       <div className={cn("flex flex-col items-start gap-[120px] w-full", LANDING_COLUMN_MAX_W)}>
         <HasThisIssue />
+        <AskInSlack />
         <ClaudeFixMyAgent />
         <DidMyFixWork />
         <Divider />

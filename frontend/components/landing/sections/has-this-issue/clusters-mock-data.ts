@@ -1,6 +1,8 @@
 import { type ClusterNode } from "@/components/signal/clusters-section/utils";
 import { type ClusterStatsDataPoint } from "@/lib/actions/clusters";
 
+import { SIGNAL_CLUSTER_ID, SIGNAL_CLUSTER_NAME } from "../signal-cluster";
+
 export type MockEvent = {
   id: string;
   clusterId: string;
@@ -156,8 +158,11 @@ function buildScenario(parents: ParentSpec[], leaves: LeafSpec[]): MockDataset {
     .flatMap((leaf) => makeEvents(leaf.id, leaf.category, leaf.severity, leaf.descriptions))
     .sort((a, b) => a.minutesAgo - b.minutesAgo);
 
-  const totalEventCount = events.length + Math.round(events.length * 0.05);
-  const clusteredEventCount = events.length;
+  // Must be derived from the tree, not from `events.length` — the per-cluster
+  // `numEvents` are description count × a multiplier, so a total based on the
+  // raw description count is ~15x too small and every proportion bar clamps to 100%.
+  const clusteredEventCount = clusterTree.reduce((sum, c) => sum + c.numEvents, 0);
+  const totalEventCount = clusteredEventCount + Math.round(clusteredEventCount * 0.05);
 
   return { clusterTree, totalEventCount, clusteredEventCount, stats, events };
 }
@@ -166,7 +171,9 @@ function buildScenario(parents: ParentSpec[], leaves: LeafSpec[]): MockDataset {
 
 const DETECT_FAILURES = buildScenario(
   [
-    { id: "df-tool", name: "Tool call failures", amplitude: 18, phase: 0, createdHoursAgo: 72 },
+    // Named by SIGNAL_CLUSTER_NAME, not a literal — the signal-event card's pill
+    // animates into this exact row, so the two must never drift.
+    { id: SIGNAL_CLUSTER_ID, name: SIGNAL_CLUSTER_NAME, amplitude: 18, phase: 0, createdHoursAgo: 72 },
     { id: "df-llm-behavior", name: "LLM behavior issues", amplitude: 14, phase: 1.4, createdHoursAgo: 80 },
   ],
   [

@@ -1,10 +1,10 @@
 import {
   ArrowUpRight,
-  Bug,
   Database,
   LayoutDashboard,
   type LucideIcon,
   MonitorPlay,
+  ScanText,
   Tags,
   TextSearch,
 } from "lucide-react";
@@ -42,10 +42,10 @@ const FeaturesForEveryStep = () => (
     <h2 className={subSection}>{"One platform for every stage of agent development."}</h2>
     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
       <Card
-        Icon={Bug}
-        title="True Agent Debugger"
-        description="Rapid, seamless agent development. Rerun your agent from any step instantly."
-        href="https://laminar.sh/docs/debugger/introduction"
+        Icon={ScanText}
+        title="Automatic agent input extraction"
+        description="Laminar parses the task prompt out of every run, however deep it is buried, so a trace opens on what was asked."
+        href="https://laminar.sh/docs/platform/viewing-traces#inputs-to-every-agent-and-subagent-surfaced-for-free"
       />
       <Card
         Icon={LayoutDashboard}
