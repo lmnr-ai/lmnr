@@ -26,9 +26,9 @@ const BuiltForProduction = () => (
           <LearnMoreLink href="https://laminar.sh/blog/laminar-20x-agent-trace-compression" label="Read more" />
         </div>
 
-        <div className="flex flex-col gap-1 items-start w-full md:flex-1 md:min-w-0">
+        <div className="flex flex-col gap-1 items-start w-full md:flex-1 md:min-w-0 pt-[7px]">
           <motion.div
-            className="flex h-11 items-center justify-end px-5 overflow-hidden whitespace-nowrap w-full rounded-sm bg-surface-400 text-foreground-50"
+            className="flex h-8.5 items-center justify-end px-3 overflow-hidden whitespace-nowrap w-full rounded-r-md bg-surface-400 text-foreground-50"
             initial={{ width: 0 }}
             whileInView={{ width: "100%" }}
             viewport={{ once: true, amount: 0.6 }}
@@ -36,9 +36,9 @@ const BuiltForProduction = () => (
           >
             <p className="font-medium">Competition</p>
           </motion.div>
-          <div className="flex items-center gap-3 h-11 w-full">
+          <div className="flex items-center gap-3 h-8.5 w-full">
             <motion.div
-              className="flex h-full items-center justify-end px-5 overflow-hidden whitespace-nowrap rounded-sm bg-primary-300 text-background"
+              className="flex h-full items-center justify-end px-5 overflow-hidden whitespace-nowrap rounded-r-md bg-primary-300 text-background"
               initial={{ width: 0 }}
               whileInView={{ width: "5%" }}
               viewport={{ once: true, amount: 0.6 }}
