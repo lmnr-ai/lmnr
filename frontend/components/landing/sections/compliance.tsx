@@ -31,7 +31,7 @@ const Card = ({ title, description, children, href }: CardProps) => (
     target="_blank"
     aria-label={`Learn more about ${title}`}
     href={href}
-    className="group bg-surface-500 font-sans-landing relative overflow-hidden flex flex-col h-[200px] pl-6 pr-5 py-5 gap-3 justify-start items-start rounded transition-all duration-300 hover:bg-surface-400"
+    className="group bg-surface-500 font-sans-landing relative overflow-hidden flex flex-col h-[200px] pl-6 pr-5 py-5 gap-2.5 justify-start items-start rounded transition-all duration-300 hover:bg-surface-400"
   >
     <CardHoverGlow />
     <div className="relative flex items-start justify-between gap-3 w-full">
@@ -79,8 +79,9 @@ const Compliance = () => (
       />
       <Card title="HIPAA & SOC 2 Type II Compliant" href="https://compliance.laminar.sh/">
         {/* 84px badges 16px apart, sitting 24px under the title — the frame puts
-            a little more air here than the gap-3 the text cards use. */}
-        <div className="relative flex items-center gap-4 pt-3">
+            a little more air here than the text cards' gap. The pt is 14, not
+            12, because it sits ON TOP of the card's own 10px gap. */}
+        <div className="relative flex items-center gap-4 pt-3.5">
           <Image src="/assets/landing/hipaa.svg" alt="HIPAA compliant" width={84} height={84} className="size-[84px]" />
           <Image
             src="/assets/landing/soc2.svg"
