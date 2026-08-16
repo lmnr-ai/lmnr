@@ -2,7 +2,7 @@
 
 import { type ReactNode } from "react";
 
-import { DEMO_LLM1_SPAN_ID, DEMO_TOOL_SPAN_ID } from "../demo-trace";
+import { DEMO_FIRST_LLM_SPAN_ID, DEMO_FIRST_SEARCH_SPAN_ID } from "../demo-trace";
 import { useSelectAndRevealSpan } from "./use-select-and-reveal-span";
 
 // ──────────────────────────────────────────────────────────────────────
@@ -67,8 +67,8 @@ const BodyLink = ({ spanId, label }: { spanId: string; label: string }) => {
 const ClearConciseBody = () => (
   <>
     Laminar makes the agent run easily navigable by surfacing input,{" "}
-    <BodyLink spanId={DEMO_LLM1_SPAN_ID} label="LLM reasoning" /> and{" "}
-    <BodyLink spanId={DEMO_TOOL_SPAN_ID} label="tool calls" /> in a readable transcript and timeline.
+    <BodyLink spanId={DEMO_FIRST_LLM_SPAN_ID} label="LLM reasoning" /> and{" "}
+    <BodyLink spanId={DEMO_FIRST_SEARCH_SPAN_ID} label="tool calls" /> in a readable transcript and timeline.
   </>
 );
 

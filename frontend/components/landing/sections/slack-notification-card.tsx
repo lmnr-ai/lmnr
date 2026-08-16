@@ -47,8 +47,9 @@ export const SlackContent = () => (
       {/* Same event the signal card describes — see ./signal-event-card, and
           keep the two saying the same thing. */}
       <p className="font-sans text-xs leading-relaxed text-foreground-200 w-full">
-        {SIGNAL_EVENT_TITLE}. The agent ran one <code>web_search</code> and answered straight from the first result,
-        without linking the page it read.
+        {SIGNAL_EVENT_TITLE}. The agent ran <code>web_search</code> three times for the same question, carried on past a{" "}
+        <code>404</code> from <code>fetch_page</code> without retrying, then answered from a snippet without linking the
+        page it read.
       </p>
 
       <div className="flex flex-row gap-2 items-center">

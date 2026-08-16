@@ -1,10 +1,10 @@
 /**
  * Pushes the landing-page demo trace to Laminar via OTLP/HTTP JSON.
  *
- * Structural clone of the public demo trace f6593456-83c6-3c42-12dd-74cea3f22265:
- * ai.streamText root with two Gemini LLM calls around one web_search tool call.
- * Span durations and reported token counts are copied verbatim from that trace;
- * only the message content and the model differ.
+ * One ai.streamText root with nine direct children, alternating LLM call and
+ * tool call: search, search again, open a docs page that 404s, search a third
+ * time, answer. The 404 is never retried and the answer cites no source — the
+ * landing page's signal-event card describes exactly that failure.
  *
  * Usage:
  *   LMNR_PROJECT_API_KEY=<project key> node frontend/scripts/landing-trace/push-trace.mjs
@@ -30,11 +30,14 @@ const EMIT_COSTS = process.env.EMIT_COSTS === "true";
 const MODEL = "google/gemini-3.1-pro-preview";
 const GATEWAY_SPAN_NAME = `ai.llm gateway:${MODEL}`;
 
+const SEARCH_TOOL = "web_search";
+const FETCH_TOOL = "fetch_page";
+
 // ---------------------------------------------------------------------------
 // Content — edit freely, the structure below does not depend on it.
 // ---------------------------------------------------------------------------
 
-const SYSTEM_PROMPT = `You are a helpful AI assistant with access to a web_search tool.
+const SYSTEM_PROMPT = `You are a helpful AI assistant with access to a web_search tool and a fetch_page tool.
 
 Search the web whenever the user asks about something you might not know, or that could have changed recently. Prefer primary sources.
 
@@ -42,38 +45,46 @@ Keep answers short and direct. Do not pad them with caveats.`;
 
 const USER_QUESTION = "What is Laminar?";
 
-const LLM1_REASONING = "The user is asking what Laminar is, let me search for this.";
+const FINAL_TEXT =
+  "Laminar is an open-source agent observability platform. Laminar helps agents developers by catching every agent failure, surfacing them, and verifying progress. Would you like to learn more?";
 
-const TOOL_NAME = "web_search";
-const TOOL_CALL_ID = "call_00_2XhqRmVdKp7wUcTaLbNs4901";
-const TOOL_INPUT = { query: "Laminar" };
-const TOOL_OUTPUT = {
-  results: [
-    {
-      title: "Laminar — open-source agent observability",
-      url: "https://www.lmnr.ai",
-      snippet:
-        "Laminar is an open-source platform for tracing, evaluating and monitoring AI agents. OpenTelemetry-native, with SQL access to every trace you send.",
-    },
-    {
-      title: "lmnr-ai/lmnr on GitHub",
-      url: "https://github.com/lmnr-ai/lmnr",
-      snippet:
-        "Open-source observability for AI agents. Trace every run, cluster the failures that repeat, and verify that a fix actually worked.",
-    },
-    {
-      title: "Laminar docs — Getting started",
-      url: "https://docs.lmnr.ai",
-      snippet:
-        "Install the SDK and call Laminar.initialize() to start sending traces. Works with the Vercel AI SDK, OpenAI, Anthropic, LangChain and more.",
-    },
-  ],
+const WIKIPEDIA_RESULT = {
+  title: "Laminar flow - Wikipedia",
+  url: "https://en.wikipedia.org/wiki/Laminar_flow",
+  snippet: "In fluid dynamics, laminar flow is fluid moving in parallel layers with no mixing between them.",
 };
+
+const GLOSSARY_RESULT = {
+  title: "Laminar Flow - an overview | ScienceDirect Topics",
+  url: "https://www.sciencedirect.com/topics/engineering/laminar-flow",
+  snippet: "Laminar flow occurs at low Reynolds numbers, where viscous forces dominate over inertial forces.",
+};
+
+const LMNR_HOME_RESULT = {
+  title: "Laminar — open-source agent observability",
+  url: "https://www.lmnr.ai",
+  snippet: "Laminar is an open-source platform for tracing, evaluating and monitoring AI agents.",
+};
+
+const LMNR_GITHUB_RESULT = {
+  title: "lmnr-ai/lmnr on GitHub",
+  url: "https://github.com/lmnr-ai/lmnr",
+  snippet: "Open-source observability for AI agents. Trace every run and cluster the failures that repeat.",
+};
+
+const LMNR_DOCS_RESULT = {
+  title: "Laminar docs — Getting started",
+  url: "https://docs.lmnr.ai",
+  snippet: "Install the SDK and call Laminar.initialize() to start sending traces from your agent.",
+};
+
+// Searches 2 and 3 return byte-identical result sets — the redundancy is the point.
+const PLATFORM_RESULTS = { results: [LMNR_HOME_RESULT, LMNR_GITHUB_RESULT, LMNR_DOCS_RESULT] };
 
 const TOOL_DEFINITIONS = [
   {
     type: "function",
-    name: TOOL_NAME,
+    name: SEARCH_TOOL,
     inputSchema: {
       type: "object",
       properties: { query: { type: "string", description: "The search query." } },
@@ -83,32 +94,107 @@ const TOOL_DEFINITIONS = [
     },
     description: "Search the web. Returns the top results with title, URL and a content snippet.",
   },
+  {
+    type: "function",
+    name: FETCH_TOOL,
+    inputSchema: {
+      type: "object",
+      properties: { url: { type: "string", description: "The page to fetch." } },
+      required: ["url"],
+      additionalProperties: false,
+      $schema: "http://json-schema.org/draft-07/schema#",
+    },
+    description: "Fetch a web page and return its readable text.",
+  },
 ];
 
-const LLM2_REASONING =
-  "The results agree: Laminar is an open-source agent observability platform. Short answer, then offer to go deeper.";
-
-const LLM2_TEXT =
-  "Laminar is an open-source agent observability platform. Laminar helps agents developers by catching every agent failure, surfacing them, and verifying progress. Would you like to learn more?";
-
 // ---------------------------------------------------------------------------
-// Timing + usage, copied from the reference trace.
+// Turns — one LLM span each, plus the tool span it calls.
 // ---------------------------------------------------------------------------
 
-const MS = 1_000_000n;
-const SPAN_WINDOWS_NS = {
-  root: [0n, 10_454_905_500n],
-  llm1: [2n * MS, 3_166_404_167n],
-  tool: [3_169n * MS, 4_761_104_000n],
-  llm2: [4_769n * MS, 10_447_791_584n],
+const TURNS = [
+  {
+    llmKey: "llm1",
+    usage: { inputTokens: 2694, outputTokens: 141, cacheReadTokens: 768, reasoningTokens: 94 },
+    reasoning: "The user is asking what Laminar is, let me search for this.",
+    call: {
+      key: "tool2",
+      id: "call_00_2XhqRmVdKp7wUcTaLbNs4901",
+      name: SEARCH_TOOL,
+      input: { query: "Laminar" },
+      output: { results: [WIKIPEDIA_RESULT, GLOSSARY_RESULT, LMNR_HOME_RESULT] },
+    },
+  },
+  {
+    llmKey: "llm3",
+    usage: { inputTokens: 3180, outputTokens: 98, cacheReadTokens: 2560, reasoningTokens: 62 },
+    reasoning: "Most of these results are about fluid dynamics. Let me narrow the query.",
+    call: {
+      key: "tool4",
+      id: "call_01_7BkzTnWyQe4mPfXaHdLr2258",
+      name: SEARCH_TOOL,
+      input: { query: "Laminar agent observability" },
+      output: PLATFORM_RESULTS,
+    },
+  },
+  {
+    llmKey: "llm5",
+    usage: { inputTokens: 3902, outputTokens: 126, cacheReadTokens: 3072, reasoningTokens: 81 },
+    reasoning: "The docs page looks authoritative. I'll open it and read the introduction.",
+    call: {
+      key: "tool6",
+      id: "call_02_9FdwLpXjRb6nTgYcMsKh3374",
+      name: FETCH_TOOL,
+      input: { url: "https://laminar.sh/docs/introduction" },
+      output: { error: "HTTP 404 Not Found" },
+      failure: { type: "HTTPError", message: "HTTP 404 Not Found" },
+    },
+  },
+  {
+    llmKey: "llm7",
+    usage: { inputTokens: 4108, outputTokens: 112, cacheReadTokens: 3584, reasoningTokens: 74 },
+    reasoning: "The page did not load. I'll search once more rather than trying another URL.",
+    call: {
+      key: "tool8",
+      id: "call_03_4QsvNhZmDc8rWbUaJyPt6612",
+      name: SEARCH_TOOL,
+      input: { query: "Laminar open source" },
+      output: PLATFORM_RESULTS,
+    },
+  },
+  {
+    llmKey: "llm9",
+    usage: { inputTokens: 4322, outputTokens: 236, cacheReadTokens: 3840, reasoningTokens: 71 },
+    reasoning: "The snippets agree on what Laminar is. Short answer, then offer to go deeper.",
+    text: FINAL_TEXT,
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Timing, ms from trace start.
+// ---------------------------------------------------------------------------
+
+const SPAN_WINDOWS_MS = {
+  root: [0, 24966],
+  llm1: [2, 3166],
+  tool2: [3169, 4761],
+  llm3: [4769, 7181],
+  tool4: [7189, 8633],
+  llm5: [8641, 11525],
+  tool6: [11533, 15554],
+  llm7: [15562, 17756],
+  tool8: [17764, 19272],
+  llm9: [19280, 24959],
 };
 
-const LLM1_USAGE = { inputTokens: 2694, outputTokens: 141, cacheReadTokens: 768, reasoningTokens: 94 };
-const LLM2_USAGE = { inputTokens: 4322, outputTokens: 236, cacheReadTokens: 2816, reasoningTokens: 71 };
+const SPAN_KEYS = Object.keys(SPAN_WINDOWS_MS);
 
-// Only used with EMIT_COSTS; same figures the reference's gateway reported.
-const LLM1_COST = { input: 0.000840594, output: 0.00012267 };
-const LLM2_COST = { input: 0.000665318, output: 0.00020532 };
+// Only used with EMIT_COSTS; approximate Gemini Pro list pricing per million tokens.
+const COST_PER_MILLION = { input: 1.25, output: 10 };
+const costOf = (usage) => ({
+  input: (usage.inputTokens * COST_PER_MILLION.input) / 1e6,
+  output: (usage.outputTokens * COST_PER_MILLION.output) / 1e6,
+});
 
 // ---------------------------------------------------------------------------
 // Messages
@@ -120,71 +206,64 @@ const ROOT_INPUT = [
   { role: "user", content: USER_QUESTION },
 ];
 
-const ROOT_OUTPUT = [
-  {
-    role: "assistant",
-    content: [
-      { type: "reasoning", text: LLM1_REASONING },
-      { type: "tool-call", toolCallId: TOOL_CALL_ID, toolName: TOOL_NAME, input: TOOL_INPUT },
-      {
+// LLM spans carry the verbatim AI SDK v7 LanguageModel prompt, so each one sees
+// every earlier assistant/tool turn; the root flattens them into one message.
+function buildConversation() {
+  const base = [
+    { role: "system", content: SYSTEM_PROMPT },
+    { role: "user", content: [{ type: "text", text: USER_QUESTION }] },
+  ];
+
+  const llmInputs = {};
+  const llmOutputs = {};
+  const rootParts = [];
+  const history = [];
+
+  for (const turn of TURNS) {
+    llmInputs[turn.llmKey] = [...base, ...history];
+
+    const content = [{ type: "reasoning", text: turn.reasoning }];
+    if (turn.call) {
+      content.push({ type: "tool-call", toolCallId: turn.call.id, toolName: turn.call.name, input: turn.call.input });
+    }
+    if (turn.text) content.push({ type: "text", text: turn.text });
+
+    const assistant = { role: "assistant", content };
+    llmOutputs[turn.llmKey] = [assistant];
+    rootParts.push(...content);
+    history.push(assistant);
+
+    if (turn.call) {
+      history.push({
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            toolCallId: turn.call.id,
+            toolName: turn.call.name,
+            output: { type: "json", value: turn.call.output },
+          },
+        ],
+      });
+      rootParts.push({
         type: "tool-result",
-        toolCallId: TOOL_CALL_ID,
-        toolName: TOOL_NAME,
-        input: TOOL_INPUT,
-        output: TOOL_OUTPUT,
+        toolCallId: turn.call.id,
+        toolName: turn.call.name,
+        input: turn.call.input,
+        output: turn.call.output,
         dynamic: false,
-      },
-      { type: "reasoning", text: LLM2_REASONING },
-      { type: "text", text: LLM2_TEXT },
-    ],
-  },
-];
+      });
+    }
+  }
 
-// LLM spans carry the verbatim AI SDK v7 LanguageModel prompt.
-const LLM1_INPUT = [
-  { role: "system", content: SYSTEM_PROMPT },
-  { role: "user", content: [{ type: "text", text: USER_QUESTION }] },
-];
-
-const LLM1_OUTPUT = [
-  {
-    role: "assistant",
-    content: [
-      { type: "reasoning", text: LLM1_REASONING },
-      { type: "tool-call", toolCallId: TOOL_CALL_ID, toolName: TOOL_NAME, input: TOOL_INPUT },
-    ],
-  },
-];
-
-const LLM2_INPUT = [
-  ...LLM1_INPUT,
-  LLM1_OUTPUT[0],
-  {
-    role: "tool",
-    content: [
-      {
-        type: "tool-result",
-        toolCallId: TOOL_CALL_ID,
-        toolName: TOOL_NAME,
-        output: { type: "json", value: TOOL_OUTPUT },
-      },
-    ],
-  },
-];
-
-const LLM2_OUTPUT = [
-  {
-    role: "assistant",
-    content: [
-      { type: "reasoning", text: LLM2_REASONING },
-      { type: "text", text: LLM2_TEXT },
-    ],
-  },
-];
+  return { llmInputs, llmOutputs, rootOutput: [{ role: "assistant", content: rootParts }] };
+}
 
 // ---------------------------------------------------------------------------
 // OTLP encoding
 // ---------------------------------------------------------------------------
+
+const MS = 1_000_000n;
 
 const hex = (bytes) => randomBytes(bytes).toString("hex");
 
@@ -216,37 +295,58 @@ const SDK_ATTRS = {
 
 function buildPayload() {
   const traceId = hex(16);
-  const ids = { root: hex(8), llm1: hex(8), tool: hex(8), llm2: hex(8) };
+  const ids = Object.fromEntries(SPAN_KEYS.map((key) => [key, hex(8)]));
   const uuid = Object.fromEntries(Object.entries(ids).map(([k, v]) => [k, hexToUuid(v)]));
 
   // Anchor the trace slightly in the past so it is never dated in the future.
   const baseNs = (BigInt(Date.now()) - 60_000n) * MS;
   const window = (key) => {
-    const [start, end] = SPAN_WINDOWS_NS[key];
-    return { startTimeUnixNano: String(baseNs + start), endTimeUnixNano: String(baseNs + end) };
+    const [start, end] = SPAN_WINDOWS_MS[key];
+    return {
+      startTimeUnixNano: String(baseNs + BigInt(start) * MS),
+      endTimeUnixNano: String(baseNs + BigInt(end) * MS),
+    };
   };
 
-  const llmAttrs = (usage, cost, finishReason) => ({
-    "lmnr.span.type": "LLM",
-    "gen_ai.system": "vercel_ai_gateway",
-    "ai.model.provider": "gateway",
-    "ai.model.id": MODEL,
-    "gen_ai.request.model": MODEL,
-    "gen_ai.response.model": MODEL,
-    "gen_ai.response.id": randomUUID(),
-    "gen_ai.response.finish_reason": finishReason,
-    "ai.response.finishReason": finishReason,
-    "gen_ai.usage.input_tokens": usage.inputTokens,
-    "gen_ai.usage.output_tokens": usage.outputTokens,
-    "gen_ai.usage.cache_read_input_tokens": usage.cacheReadTokens,
-    "gen_ai.usage.reasoning_tokens": usage.reasoningTokens,
-    "llm.usage.total_tokens": usage.inputTokens + usage.outputTokens,
-    "gen_ai.usage.input_cost": EMIT_COSTS ? cost.input : undefined,
-    "gen_ai.usage.output_cost": EMIT_COSTS ? cost.output : undefined,
-    "gen_ai.usage.cost": EMIT_COSTS ? cost.input + cost.output : undefined,
-    "gen_ai.tool.definitions": JSON.stringify(TOOL_DEFINITIONS),
-    ...SDK_ATTRS,
-  });
+  // Laminar derives status = 'error' from an `exception` event, not from status.code.
+  const exceptionEvent = (key, failure) => [
+    {
+      timeUnixNano: String(baseNs + BigInt(SPAN_WINDOWS_MS[key][1]) * MS),
+      name: "exception",
+      attributes: toAttributes({
+        "exception.type": failure.type,
+        "exception.message": failure.message,
+        "exception.escaped": false,
+      }),
+    },
+  ];
+
+  const { llmInputs, llmOutputs, rootOutput } = buildConversation();
+
+  const llmAttrs = (usage, finishReason) => {
+    const cost = costOf(usage);
+    return {
+      "lmnr.span.type": "LLM",
+      "gen_ai.system": "vercel_ai_gateway",
+      "ai.model.provider": "gateway",
+      "ai.model.id": MODEL,
+      "gen_ai.request.model": MODEL,
+      "gen_ai.response.model": MODEL,
+      "gen_ai.response.id": randomUUID(),
+      "gen_ai.response.finish_reason": finishReason,
+      "ai.response.finishReason": finishReason,
+      "gen_ai.usage.input_tokens": usage.inputTokens,
+      "gen_ai.usage.output_tokens": usage.outputTokens,
+      "gen_ai.usage.cache_read_input_tokens": usage.cacheReadTokens,
+      "gen_ai.usage.reasoning_tokens": usage.reasoningTokens,
+      "llm.usage.total_tokens": usage.inputTokens + usage.outputTokens,
+      "gen_ai.usage.input_cost": EMIT_COSTS ? cost.input : undefined,
+      "gen_ai.usage.output_cost": EMIT_COSTS ? cost.output : undefined,
+      "gen_ai.usage.cost": EMIT_COSTS ? cost.input + cost.output : undefined,
+      "gen_ai.tool.definitions": JSON.stringify(TOOL_DEFINITIONS),
+      ...SDK_ATTRS,
+    };
+  };
 
   const spans = [
     {
@@ -261,7 +361,7 @@ function buildPayload() {
         "lmnr.span.path": ["ai.streamText"],
         "lmnr.span.ids_path": [uuid.root],
         "lmnr.span.input": JSON.stringify(ROOT_INPUT),
-        "lmnr.span.output": JSON.stringify(ROOT_OUTPUT),
+        "lmnr.span.output": JSON.stringify(rootOutput),
         "ai.operation": "ai.streamText",
         "ai.model.id": MODEL,
         "gen_ai.request.model": MODEL,
@@ -271,57 +371,48 @@ function buildPayload() {
         ...SDK_ATTRS,
       }),
     },
-    {
+  ];
+
+  for (const turn of TURNS) {
+    spans.push({
       traceId,
-      spanId: ids.llm1,
+      spanId: ids[turn.llmKey],
       parentSpanId: ids.root,
       name: GATEWAY_SPAN_NAME,
       kind: 1,
-      ...window("llm1"),
+      ...window(turn.llmKey),
       status: { code: 1 },
       attributes: toAttributes({
         "lmnr.span.path": ["ai.streamText", GATEWAY_SPAN_NAME],
-        "lmnr.span.ids_path": [uuid.root, uuid.llm1],
-        "gen_ai.input.messages": JSON.stringify(LLM1_INPUT),
-        "gen_ai.output.messages": JSON.stringify(LLM1_OUTPUT),
-        ...llmAttrs(LLM1_USAGE, LLM1_COST, "tool-calls"),
+        "lmnr.span.ids_path": [uuid.root, uuid[turn.llmKey]],
+        "gen_ai.input.messages": JSON.stringify(llmInputs[turn.llmKey]),
+        "gen_ai.output.messages": JSON.stringify(llmOutputs[turn.llmKey]),
+        ...llmAttrs(turn.usage, turn.call ? "tool-calls" : "stop"),
       }),
-    },
-    {
+    });
+
+    if (!turn.call) continue;
+
+    spans.push({
       traceId,
-      spanId: ids.tool,
+      spanId: ids[turn.call.key],
       parentSpanId: ids.root,
-      name: TOOL_NAME,
+      name: turn.call.name,
       kind: 1,
-      ...window("tool"),
-      status: { code: 1 },
+      ...window(turn.call.key),
+      status: { code: turn.call.failure ? 2 : 1 },
+      events: turn.call.failure ? exceptionEvent(turn.call.key, turn.call.failure) : undefined,
       attributes: toAttributes({
         "lmnr.span.type": "TOOL",
-        "lmnr.span.path": ["ai.streamText", `ai.tool ${TOOL_NAME}`, TOOL_NAME],
-        "lmnr.span.ids_path": [uuid.root, uuid.tool],
-        "lmnr.span.input": JSON.stringify(TOOL_INPUT),
-        "lmnr.span.output": JSON.stringify(TOOL_OUTPUT),
-        "ai.toolCall.id": TOOL_CALL_ID,
+        "lmnr.span.path": ["ai.streamText", `ai.tool ${turn.call.name}`, turn.call.name],
+        "lmnr.span.ids_path": [uuid.root, uuid[turn.call.key]],
+        "lmnr.span.input": JSON.stringify(turn.call.input),
+        "lmnr.span.output": JSON.stringify(turn.call.output),
+        "ai.toolCall.id": turn.call.id,
         ...SDK_ATTRS,
       }),
-    },
-    {
-      traceId,
-      spanId: ids.llm2,
-      parentSpanId: ids.root,
-      name: GATEWAY_SPAN_NAME,
-      kind: 1,
-      ...window("llm2"),
-      status: { code: 1 },
-      attributes: toAttributes({
-        "lmnr.span.path": ["ai.streamText", GATEWAY_SPAN_NAME],
-        "lmnr.span.ids_path": [uuid.root, uuid.llm2],
-        "gen_ai.input.messages": JSON.stringify(LLM2_INPUT),
-        "gen_ai.output.messages": JSON.stringify(LLM2_OUTPUT),
-        ...llmAttrs(LLM2_USAGE, LLM2_COST, "stop"),
-      }),
-    },
-  ];
+    });
+  }
 
   const body = {
     resourceSpans: [

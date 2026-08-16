@@ -4,7 +4,7 @@ import { type ReactNode } from "react";
 import { withOpacity } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
-import { DEMO_LLM2_SPAN_ID, DEMO_TOOL_SPAN_ID } from "./demo-trace";
+import { DEMO_ANSWER_SPAN_ID, DEMO_FAILED_FETCH_SPAN_ID, DEMO_LAST_SEARCH_SPAN_ID } from "./demo-trace";
 import { SIGNAL_CLUSTER_COLOR, SIGNAL_CLUSTER_EVENT_COUNT, SIGNAL_CLUSTER_NAME } from "./signal-cluster";
 
 // Literal values, not `var(--color-*)` — the landing trace panel animates the
@@ -32,7 +32,7 @@ export const SIGNAL_EVENT_TITLE = "Answered without citing a source";
 
 /** The span the trace panel selects and scrolls to when the signal card opens:
  *  the answer the signal is actually about. */
-export const SIGNAL_SOURCE_SPAN_ID = DEMO_LLM2_SPAN_ID;
+export const SIGNAL_SOURCE_SPAN_ID = DEMO_ANSWER_SPAN_ID;
 
 interface SpanChipProps {
   iconBg: string;
@@ -109,33 +109,43 @@ export const ClusterPill = () => (
 // Signal event card payload. Split out from SignalContent so the clusters
 // animation can collapse it away independently of the pill above it.
 //
-// Describes what the signal caught in ../demo-trace: the agent answered off a
-// single web_search hit and never linked the page. Each chip points at the
-// span that materialises the claim, and clicking one drives the transcript
-// scroll + selection.
+// The three failures the signal caught in ../demo-trace — redundant searches, a
+// swallowed 404, an unsourced answer. Each chip points at the span that
+// materialises its claim, and clicking one drives the transcript scroll +
+// selection.
 export const SignalCardBody = ({ onSpanClick, flashSpanId }: Omit<SignalContentProps, "onClose"> = {}) => {
   const chipProps = { onSpanClick, flashSpanId };
   return (
     <p className="text-foreground-300 text-xs leading-5">
-      The agent ran one{" "}
+      The agent ran{" "}
       <SpanChip
         iconBg="bg-tool"
         icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
         label="web_search"
-        spanId={DEMO_TOOL_SPAN_ID}
+        spanId={DEMO_LAST_SEARCH_SPAN_ID}
         onClick={chipProps.onSpanClick}
         flashSpanId={chipProps.flashSpanId}
       />{" "}
-      and{" "}
+      three times for the same question, carried on past a{" "}
+      <code className="text-foreground-200">404</code> from{" "}
+      <SpanChip
+        iconBg="bg-tool"
+        icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
+        label="fetch_page"
+        spanId={DEMO_FAILED_FETCH_SPAN_ID}
+        onClick={chipProps.onSpanClick}
+        flashSpanId={chipProps.flashSpanId}
+      />{" "}
+      without retrying, then{" "}
       <SpanChip
         iconBg="bg-llm"
         icon={<MessageCircle className="size-3 text-white" strokeWidth={2} />}
         label="ai.llm"
-        spanId={DEMO_LLM2_SPAN_ID}
+        spanId={DEMO_ANSWER_SPAN_ID}
         onClick={chipProps.onSpanClick}
         flashSpanId={chipProps.flashSpanId}
       />{" "}
-      answered straight from the first result, without linking the page it read.
+      answered from a snippet without linking the page it read.
     </p>
   );
 };
