@@ -1,4 +1,10 @@
 //! Signal CRUD. Ungated — writing a row is a DB write; processing is feature-gated.
+//!
+//! The API exposes a signal's three firing concepts as three sibling fields —
+//! `trigger` (WHEN to evaluate), `filters` (WHETHER to run), and `mode` (how to
+//! run) — because they are independent choices a user makes separately. Storage
+//! is unchanged: they are still one `signal_triggers` row (`value` / `filters` /
+//! `mode`), so the evaluator and the browser drawer are untouched.
 
 use std::collections::HashSet;
 use std::sync::LazyLock;
@@ -11,6 +17,7 @@ use uuid::Uuid;
 
 use crate::cache::keys::SIGNAL_TRIGGERS_CACHE_KEY;
 use crate::cache::{Cache, CacheTrait};
+use crate::db::signal_triggers::{TriggerPatch, TriggerRow};
 use crate::db::signals::{CreateSignalError, SignalRow, SignalUpdate};
 use crate::db::{signal_triggers, signals};
 
@@ -18,58 +25,39 @@ use crate::db::{signal_triggers, signals};
 static FIELD_NAME_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^[a-zA-Z_][a-zA-Z0-9_]*$").unwrap());
 
-/// Wrong slot → stored but never matches (`evaluate.rs` has no arm).
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Slot {
-    Condition,
-    Filter,
-}
+/// Stored condition columns. Not part of the API surface — a `Trigger` maps onto
+/// them on the way in and is recovered from them on the way out.
+const CONDITION_COLUMN_ROOT_SPAN_FINISHED: &str = "root_span_finished";
+const CONDITION_COLUMN_SPAN_NAME: &str = "span_name";
 
 enum ValueRule {
-    /// Evaluator compares the string `"true"`, not a JSON boolean.
-    StringTrue,
-    SpanNames,
     FiniteNumber,
     OneOf(&'static [&'static str]),
     NonBlankString,
 }
 
-struct Column {
+struct FilterColumn {
     name: &'static str,
-    slot: Slot,
     operators: &'static [&'static str],
     value: ValueRule,
 }
 
-/// Keep in lockstep with `evaluate.rs` and `trigger-filter-field.tsx`.
-const COLUMNS: &[Column] = &[
-    Column {
-        name: "root_span_finished",
-        slot: Slot::Condition,
-        operators: &["eq"],
-        value: ValueRule::StringTrue,
-    },
-    Column {
-        name: "span_name",
-        slot: Slot::Condition,
-        operators: &["eq", "ne", "includes"],
-        value: ValueRule::SpanNames,
-    },
-    Column {
+/// Keep in lockstep with `evaluate.rs` and `trigger-filter-field.tsx`. Filters
+/// are read from the trace's cumulative ClickHouse state, so every column here
+/// needs one in `ch/private/trace_stats.rs`.
+const FILTER_COLUMNS: &[FilterColumn] = &[
+    FilterColumn {
         name: "total_token_count",
-        slot: Slot::Filter,
         operators: &["eq", "ne", "gt", "gte", "lt", "lte"],
         value: ValueRule::FiniteNumber,
     },
-    Column {
+    FilterColumn {
         name: "status",
-        slot: Slot::Filter,
         operators: &["eq", "ne"],
         value: ValueRule::OneOf(&["error", "success"]),
     },
-    Column {
+    FilterColumn {
         name: "span_names",
-        slot: Slot::Filter,
         operators: &["eq", "ne"],
         value: ValueRule::NonBlankString,
     },
@@ -116,34 +104,128 @@ pub fn error_response(e: CrudError) -> actix_web::HttpResponse {
     }
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct TriggerInput {
-    pub conditions: Vec<Value>,
-    #[serde(default)]
-    pub filters: Vec<Value>,
-    #[serde(default)]
-    pub mode: Option<i16>,
+/// WHEN a signal is evaluated. Answerable from a single span batch, which is
+/// what makes a signal fire exactly once per trace.
+///
+/// A closed set rather than a `{column, operator, value}` list: the two variants
+/// are the only shapes the evaluator implements, so anything else was silently
+/// stored and never fired.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum Trigger {
+    /// The trace's root span finished. Right for most traces.
+    RootSpanFinished,
+    /// A span with any of these names finished. For distributed traces where no
+    /// single span is observably the root.
+    #[serde(rename_all = "camelCase")]
+    SpanName { span_names: Vec<String> },
 }
 
-#[derive(Debug, Serialize)]
+impl Trigger {
+    /// Stored `signal_triggers.value`. `SpanName` always uses `includes` with an
+    /// array, matching what the drawer writes.
+    fn to_conditions(&self) -> Value {
+        match self {
+            Trigger::RootSpanFinished => json!([{
+                "column": CONDITION_COLUMN_ROOT_SPAN_FINISHED,
+                "operator": "eq",
+                // The evaluator compares the string, not a JSON boolean.
+                "value": "true",
+            }]),
+            Trigger::SpanName { span_names } => json!([{
+                "column": CONDITION_COLUMN_SPAN_NAME,
+                "operator": "includes",
+                "value": span_names,
+            }]),
+        }
+    }
+
+    /// Recover the trigger from stored conditions. `None` for an empty list (a
+    /// backfill-only signal) and for any shape the evaluator would not fire on
+    /// anyway, so the API never reports a trigger that does nothing.
+    fn from_conditions(conditions: &Value) -> Option<Self> {
+        let entries = conditions.as_array()?;
+        // `span_name` first: a legacy row carrying both fires on the named span.
+        if let Some(entry) = entries
+            .iter()
+            .find(|e| e.get("column").and_then(Value::as_str) == Some(CONDITION_COLUMN_SPAN_NAME))
+        {
+            // Blank entries are dropped (they can't meaningfully match a span),
+            // but surviving names are NOT trimmed: the evaluator compares them
+            // literally, so a legacy padded name must be reported as stored.
+            let span_names = match entry.get("value") {
+                Some(Value::Array(names)) => names
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .filter(|n| !n.trim().is_empty())
+                    .map(str::to_string)
+                    .collect(),
+                // Legacy single-name shape.
+                Some(Value::String(name)) if !name.trim().is_empty() => vec![name.clone()],
+                _ => Vec::new(),
+            };
+            // An all-blank list can never match; report it as no trigger.
+            return (!span_names.is_empty()).then_some(Trigger::SpanName { span_names });
+        }
+        entries
+            .iter()
+            .any(|e| {
+                e.get("column").and_then(Value::as_str) == Some(CONDITION_COLUMN_ROOT_SPAN_FINISHED)
+            })
+            .then_some(Trigger::RootSpanFinished)
+    }
+
+    fn validate(&self) -> Result<(), CrudError> {
+        let Trigger::SpanName { span_names } = self else {
+            return Ok(());
+        };
+        if span_names.iter().all(|name| name.trim().is_empty()) {
+            return Err(CrudError::Validation(
+                "trigger.spanNames requires at least one non-blank span name".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Drop the blank rows the drawer keeps for typing.
+    fn normalized(self) -> Self {
+        match self {
+            Trigger::SpanName { span_names } => Trigger::SpanName {
+                span_names: span_names
+                    .into_iter()
+                    .map(|name| name.trim().to_string())
+                    .filter(|name| !name.is_empty())
+                    .collect(),
+            },
+            other => other,
+        }
+    }
+}
+
+/// How a fired signal runs. Batch is cheaper and slower; realtime costs 2x.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TriggerResponse {
-    pub id: Uuid,
-    pub conditions: Value,
-    pub filters: Value,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub mode: i16,
+pub enum Mode {
+    #[default]
+    Batch,
+    Realtime,
 }
 
-impl From<signal_triggers::TriggerRow> for TriggerResponse {
-    fn from(row: signal_triggers::TriggerRow) -> Self {
-        Self {
-            id: row.id,
-            conditions: row.conditions,
-            filters: row.filters,
-            created_at: row.created_at,
-            mode: row.mode,
+impl Mode {
+    fn to_i16(self) -> i16 {
+        match self {
+            Mode::Batch => 0,
+            Mode::Realtime => 1,
+        }
+    }
+
+    /// Anything other than the realtime discriminant is batch, matching
+    /// `SignalMode::from_u8`.
+    fn from_i16(value: i16) -> Self {
+        if value == 1 {
+            Mode::Realtime
+        } else {
+            Mode::Batch
         }
     }
 }
@@ -159,17 +241,28 @@ pub struct SignalResponse {
     pub sample_rate: Option<i64>,
     pub disabled: bool,
     pub created_at: chrono::DateTime<chrono::Utc>,
-    pub triggers: Vec<TriggerResponse>,
+    /// `null` when the signal never fires on its own (backfill only).
+    pub trigger: Option<Trigger>,
+    pub filters: Vec<Value>,
+    pub mode: Mode,
 }
 
 impl SignalResponse {
-    fn new(row: SignalRow, triggers: Vec<TriggerResponse>) -> Self {
+    fn new(row: SignalRow, trigger_row: Option<TriggerRow>) -> Self {
         let sample_rate = row.metadata.get("sampleRate").and_then(Value::as_i64);
         let disabled = row
             .metadata
             .get("disabled")
             .and_then(Value::as_bool)
             .unwrap_or(false);
+        let (trigger, filters, mode) = match trigger_row {
+            Some(row) => (
+                Trigger::from_conditions(&row.conditions),
+                row.filters.as_array().cloned().unwrap_or_default(),
+                Mode::from_i16(row.mode),
+            ),
+            None => (None, Vec::new(), Mode::default()),
+        };
         Self {
             id: row.id,
             project_id: row.project_id,
@@ -179,27 +272,21 @@ impl SignalResponse {
             sample_rate,
             disabled,
             created_at: row.created_at,
-            triggers,
+            trigger,
+            filters,
+            mode,
         }
     }
 }
 
-#[derive(Debug)]
-pub struct NormalizedTrigger {
-    conditions: Vec<Value>,
-    filters: Vec<Value>,
-    mode: Option<i16>,
+/// Matches `DEFAULT_SIGNAL_TRIGGER_VALUE` / `DEFAULT_SIGNAL_TRIGGER_FILTERS`.
+pub fn default_trigger() -> Trigger {
+    Trigger::RootSpanFinished
 }
 
-/// Matches `DEFAULT_SIGNAL_TRIGGER_VALUE` / `DEFAULT_SIGNAL_TRIGGER_FILTERS`.
-pub fn default_triggers() -> Vec<TriggerInput> {
-    vec![TriggerInput {
-        conditions: vec![
-            json!({ "column": "root_span_finished", "operator": "eq", "value": "true" }),
-        ],
-        filters: vec![json!({ "column": "total_token_count", "operator": "gt", "value": "1000" })],
-        mode: None,
-    }]
+/// Keeps trivial traces from being billed.
+pub fn default_filters() -> Vec<Value> {
+    vec![json!({ "column": "total_token_count", "operator": "gt", "value": "1000" })]
 }
 
 #[derive(Debug, Deserialize)]
@@ -212,6 +299,14 @@ pub struct SignalInput {
     pub sample_rate: Option<i64>,
     #[serde(default)]
     pub disabled: Option<bool>,
+    /// Absent = the default trigger; `null` = never fires on its own.
+    #[serde(default, deserialize_with = "double_option")]
+    pub trigger: Option<Option<Trigger>>,
+    /// Absent = the default filters; `[]` = run on every firing trace.
+    #[serde(default)]
+    pub filters: Option<Vec<Value>>,
+    #[serde(default)]
+    pub mode: Option<Mode>,
 }
 
 pub async fn create_signal(
@@ -220,20 +315,20 @@ pub async fn create_signal(
     project_id: Uuid,
     subscriber_email: Option<&str>,
     mut input: SignalInput,
-    triggers: Option<Vec<TriggerInput>>,
     clustering_enabled: bool,
 ) -> Result<SignalResponse, CrudError> {
     validate_signal_input(&mut input)?;
 
-    let triggers = triggers.unwrap_or_else(default_triggers);
-    let normalized = triggers
-        .into_iter()
-        .map(normalize_trigger)
-        .collect::<Result<Vec<_>, _>>()?;
+    let trigger = match input.trigger {
+        Some(trigger) => trigger.map(Trigger::normalized),
+        None => Some(default_trigger()),
+    };
+    let filters = normalize_filters(input.filters.unwrap_or_else(default_filters))?;
+    let mode = input.mode.unwrap_or_default();
 
     let metadata = build_signal_metadata(input.sample_rate, input.disabled.unwrap_or(false));
 
-    let (signal, rows) = signals::create_signal_with_alerts(
+    let (signal, trigger_row) = signals::create_signal_with_alerts(
         pool,
         project_id,
         &input.name,
@@ -242,29 +337,21 @@ pub async fn create_signal(
         &metadata,
         clustering_enabled,
         subscriber_email,
-        &trigger_payload(&normalized, 0),
+        &conditions_of(trigger.as_ref()),
+        &Value::Array(filters),
+        mode.to_i16(),
     )
     .await?;
 
     invalidate_trigger_cache(cache, project_id).await;
 
-    Ok(SignalResponse::new(
-        signal,
-        rows.into_iter().map(TriggerResponse::from).collect(),
-    ))
+    Ok(SignalResponse::new(signal, Some(trigger_row)))
 }
 
-fn trigger_payload(triggers: &[NormalizedTrigger], default_mode: i16) -> Vec<(Value, Value, i16)> {
-    triggers
-        .iter()
-        .map(|t| {
-            (
-                Value::Array(t.conditions.clone()),
-                Value::Array(t.filters.clone()),
-                t.mode.unwrap_or(default_mode),
-            )
-        })
-        .collect()
+/// An absent trigger stores an empty condition list, which `trigger_fires`
+/// never matches — the signal runs only via backfill.
+fn conditions_of(trigger: Option<&Trigger>) -> Value {
+    trigger.map_or_else(|| json!([]), Trigger::to_conditions)
 }
 
 async fn invalidate_trigger_cache(cache: &Cache, project_id: Uuid) {
@@ -286,14 +373,11 @@ pub async fn get_signal(
         .map_err(CrudError::Internal)?
         .ok_or(CrudError::SignalNotFound)?;
 
-    let triggers = signal_triggers::get_signal_triggers(pool, project_id, signal_id)
+    let trigger_row = signal_triggers::get_signal_trigger(pool, project_id, signal_id)
         .await
         .map_err(CrudError::Internal)?;
 
-    Ok(SignalResponse::new(
-        row,
-        triggers.into_iter().map(TriggerResponse::from).collect(),
-    ))
+    Ok(SignalResponse::new(row, trigger_row))
 }
 
 pub async fn list_signals(
@@ -305,18 +389,21 @@ pub async fn list_signals(
         .await
         .map_err(CrudError::Internal)?;
 
-    let mut out = Vec::with_capacity(rows.len());
-    for row in rows {
-        let triggers = signal_triggers::get_signal_triggers(pool, project_id, row.id)
-            .await
-            .map_err(CrudError::Internal)?;
-        out.push(SignalResponse::new(
-            row,
-            triggers.into_iter().map(TriggerResponse::from).collect(),
-        ));
-    }
+    let mut triggers = signal_triggers::get_project_signal_triggers(
+        pool,
+        project_id,
+        &rows.iter().map(|row| row.id).collect::<Vec<_>>(),
+    )
+    .await
+    .map_err(CrudError::Internal)?;
 
-    Ok(out)
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            let trigger_row = triggers.remove(&row.id);
+            SignalResponse::new(row, trigger_row)
+        })
+        .collect())
 }
 
 #[derive(Debug, Deserialize)]
@@ -331,16 +418,22 @@ pub struct UpdateSignalInput {
     pub sample_rate: Option<Option<i64>>,
     #[serde(default)]
     pub disabled: Option<bool>,
-    /// Absent = leave triggers; `[]` = clear them.
+    /// Absent = leave stored; `null` = stop firing on its own.
+    #[serde(default, deserialize_with = "double_option")]
+    pub trigger: Option<Option<Trigger>>,
+    /// Absent = leave stored; `[]` = run on every firing trace.
     #[serde(default)]
-    pub triggers: Option<Vec<TriggerInput>>,
+    pub filters: Option<Vec<Value>>,
+    #[serde(default)]
+    pub mode: Option<Mode>,
 }
 
-fn double_option<'de, D>(deserializer: D) -> Result<Option<Option<i64>>, D::Error>
+fn double_option<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
 where
     D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
 {
-    Option::<i64>::deserialize(deserializer).map(Some)
+    Option::<T>::deserialize(deserializer).map(Some)
 }
 
 pub async fn update_signal(
@@ -362,23 +455,30 @@ pub async fn update_signal(
         validate_sample_rate(rate)?;
     }
 
-    let normalized = match input.triggers {
-        Some(triggers) => Some(
-            triggers
-                .into_iter()
-                .map(normalize_trigger)
-                .collect::<Result<Vec<_>, _>>()?,
-        ),
+    let trigger = match input.trigger {
+        Some(trigger) => {
+            let trigger = trigger.map(Trigger::normalized);
+            if let Some(trigger) = &trigger {
+                trigger.validate()?;
+            }
+            Some(conditions_of(trigger.as_ref()))
+        }
         None => None,
+    };
+    let filters = match input.filters {
+        Some(filters) => Some(Value::Array(normalize_filters(filters)?)),
+        None => None,
+    };
+
+    let patch = TriggerPatch {
+        conditions: trigger,
+        filters,
+        mode: input.mode.map(Mode::to_i16),
     };
 
     let sample_rate = input.sample_rate.map(|inner| inner.map(|rate| rate as i16));
 
-    let payload = normalized
-        .as_ref()
-        .map(|triggers| trigger_payload(triggers, 0));
-
-    let (updated, replaced) = signals::update_signal(
+    let (updated, trigger_row) = signals::update_signal(
         pool,
         project_id,
         signal_id,
@@ -388,28 +488,15 @@ pub async fn update_signal(
             sample_rate,
             disabled: input.disabled,
         },
-        payload.as_deref(),
+        patch,
     )
     .await
     .map_err(CrudError::Internal)?
     .ok_or(CrudError::SignalNotFound)?;
 
-    let trigger_rows = match replaced {
-        Some(rows) => rows,
-        None => signal_triggers::get_signal_triggers(pool, project_id, signal_id)
-            .await
-            .map_err(CrudError::Internal)?,
-    };
-
     invalidate_trigger_cache(cache, project_id).await;
 
-    Ok(SignalResponse::new(
-        updated,
-        trigger_rows
-            .into_iter()
-            .map(TriggerResponse::from)
-            .collect(),
-    ))
+    Ok(SignalResponse::new(updated, trigger_row))
 }
 
 pub async fn delete_signal(
@@ -427,7 +514,7 @@ pub async fn delete_signal(
     invalidate_trigger_cache(cache, project_id).await;
     purge_signal_from_clickhouse(clickhouse, project_id, signal_id).await;
 
-    Ok(SignalResponse::new(deleted, Vec::new()))
+    Ok(SignalResponse::new(deleted, None))
 }
 
 /// Link rows first — they're resolved by `event_id` against `signal_events`.
@@ -498,6 +585,9 @@ fn validate_signal_input(input: &mut SignalInput) -> Result<(), CrudError> {
     }
     if let Some(rate) = input.sample_rate {
         validate_sample_rate(rate)?;
+    }
+    if let Some(Some(trigger)) = &input.trigger {
+        trigger.validate()?;
     }
     validate_structured_output(&input.structured_output)
 }
@@ -591,92 +681,44 @@ fn validate_enum_values(field_name: &str, enum_val: &Value) -> Result<(), CrudEr
     Ok(())
 }
 
-pub fn normalize_trigger(input: TriggerInput) -> Result<NormalizedTrigger, CrudError> {
-    if let Some(mode) = input.mode
-        && !(0..=1).contains(&mode)
-    {
-        return Err(CrudError::Validation(
-            "mode must be 0 (batch) or 1 (realtime)".to_string(),
-        ));
-    }
-
-    if input.conditions.is_empty() {
-        return Err(CrudError::Validation(
-            "A trigger must have at least one condition".to_string(),
-        ));
-    }
-
-    let conditions = input
-        .conditions
-        .into_iter()
-        .map(|v| normalize_entry(v, Slot::Condition))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    let filters = input
-        .filters
-        .into_iter()
-        .map(|v| normalize_entry(v, Slot::Filter))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    Ok(NormalizedTrigger {
-        conditions,
-        filters,
-        mode: input.mode,
-    })
+pub fn normalize_filters(filters: Vec<Value>) -> Result<Vec<Value>, CrudError> {
+    filters.into_iter().map(normalize_filter).collect()
 }
 
 fn filter_parts(filter: &Value) -> Result<(&str, &str, Value), CrudError> {
     let obj = filter
         .as_object()
-        .ok_or_else(|| CrudError::Validation("Each trigger entry must be an object".to_string()))?;
+        .ok_or_else(|| CrudError::Validation("Each filter must be an object".to_string()))?;
     let column = obj
         .get("column")
         .and_then(Value::as_str)
-        .ok_or_else(|| CrudError::Validation("Trigger entry is missing a column".to_string()))?;
+        .ok_or_else(|| CrudError::Validation("Filter is missing a column".to_string()))?;
     let operator = obj
         .get("operator")
         .and_then(Value::as_str)
-        .ok_or_else(|| CrudError::Validation("Trigger entry is missing an operator".to_string()))?;
+        .ok_or_else(|| CrudError::Validation("Filter is missing an operator".to_string()))?;
     let value = obj.get("value").cloned().unwrap_or(Value::Null);
     Ok((column, operator, value))
 }
 
-fn lookup_column(name: &str, expected: Slot) -> Result<&'static Column, CrudError> {
-    match COLUMNS.iter().find(|c| c.name == name) {
-        Some(col) if col.slot == expected => Ok(col),
-        Some(col) => Err(wrong_slot_error(col)),
-        None => Err(unknown_column_error(name, expected)),
+fn lookup_filter_column(name: &str) -> Result<&'static FilterColumn, CrudError> {
+    // A condition column here used to be stored and silently never match; now
+    // the trigger is a separate field, so say so rather than listing columns.
+    if name == CONDITION_COLUMN_ROOT_SPAN_FINISHED || name == CONDITION_COLUMN_SPAN_NAME {
+        return Err(CrudError::Validation(format!(
+            "\"{name}\" decides WHEN a signal is evaluated, not whether it runs — set `trigger` instead of a filter"
+        )));
     }
-}
-
-fn wrong_slot_error(col: &Column) -> CrudError {
-    match col.slot {
-        Slot::Filter => CrudError::Validation(format!(
-            "\"{}\" is a filter column, not a trigger condition — pass it in `filters`",
-            col.name
-        )),
-        Slot::Condition => CrudError::Validation(format!(
-            "\"{}\" is a trigger condition, not a filter — pass it in `conditions`",
-            col.name
-        )),
-    }
-}
-
-fn unknown_column_error(name: &str, expected: Slot) -> CrudError {
-    let names: Vec<&str> = COLUMNS
+    FILTER_COLUMNS
         .iter()
-        .filter(|c| c.slot == expected)
-        .map(|c| c.name)
-        .collect();
-    let expected_list = join_or(&names);
-    match expected {
-        Slot::Condition => CrudError::Validation(format!(
-            "Unsupported trigger condition column \"{name}\" (expected {expected_list})"
-        )),
-        Slot::Filter => CrudError::Validation(format!(
-            "Unsupported filter column \"{name}\" (expected {expected_list})"
-        )),
-    }
+        .find(|c| c.name == name)
+        .ok_or_else(|| {
+            let names: Vec<&str> = FILTER_COLUMNS.iter().map(|c| c.name).collect();
+            CrudError::Validation(format!(
+                "Unsupported filter column \"{name}\" (expected {})",
+                join_or(&names)
+            ))
+        })
 }
 
 fn join_or(names: &[&str]) -> String {
@@ -691,9 +733,9 @@ fn join_or(names: &[&str]) -> String {
     }
 }
 
-fn normalize_entry(filter: Value, slot: Slot) -> Result<Value, CrudError> {
+fn normalize_filter(filter: Value) -> Result<Value, CrudError> {
     let (column, operator, value) = filter_parts(&filter)?;
-    let spec = lookup_column(column, slot)?;
+    let spec = lookup_filter_column(column)?;
     if !spec.operators.contains(&operator) {
         return Err(CrudError::Validation(format!(
             "{} operator must be {}",
@@ -701,22 +743,12 @@ fn normalize_entry(filter: Value, slot: Slot) -> Result<Value, CrudError> {
             join_or(spec.operators)
         )));
     }
-    let normalized_value = normalize_value(spec, operator, value)?;
+    let normalized_value = normalize_value(spec, value)?;
     Ok(json!({ "column": column, "operator": operator, "value": normalized_value }))
 }
 
-fn normalize_value(spec: &Column, operator: &str, value: Value) -> Result<Value, CrudError> {
+fn normalize_value(spec: &FilterColumn, value: Value) -> Result<Value, CrudError> {
     match spec.value {
-        ValueRule::StringTrue => {
-            if value.as_str() != Some("true") {
-                return Err(CrudError::Validation(format!(
-                    "{} value must be the string \"true\"",
-                    spec.name
-                )));
-            }
-            Ok(value)
-        }
-        ValueRule::SpanNames => normalize_span_name_value(&value, operator),
         ValueRule::FiniteNumber => match &value {
             Value::Number(_) => Ok(value),
             Value::String(s) => {
@@ -762,52 +794,6 @@ fn normalize_value(spec: &Column, operator: &str, value: Value) -> Result<Value,
                 })?;
             Ok(Value::String(s.to_string()))
         }
-    }
-}
-
-fn normalize_span_name_value(value: &Value, operator: &str) -> Result<Value, CrudError> {
-    let names: Vec<String> = match value {
-        Value::Array(items) => {
-            let strings: Option<Vec<&str>> = items.iter().map(Value::as_str).collect();
-            let strings = strings.ok_or_else(|| {
-                CrudError::Validation("span_name values must all be strings".to_string())
-            })?;
-            strings
-                .into_iter()
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .map(str::to_string)
-                .collect()
-        }
-        Value::String(name) => {
-            let trimmed = name.trim();
-            if trimmed.is_empty() {
-                Vec::new()
-            } else {
-                vec![trimmed.to_string()]
-            }
-        }
-        _ => {
-            return Err(CrudError::Validation(
-                "span_name value must be a string or an array of strings".to_string(),
-            ));
-        }
-    };
-
-    if names.is_empty() {
-        return Err(CrudError::Validation(
-            "span_name requires at least one non-blank span name".to_string(),
-        ));
-    }
-
-    if operator == "includes" {
-        Ok(json!(names))
-    } else if names.len() > 1 {
-        Err(CrudError::Validation(
-            "span_name with multiple names must use the `includes` operator".to_string(),
-        ))
-    } else {
-        Ok(json!(names[0]))
     }
 }
 
