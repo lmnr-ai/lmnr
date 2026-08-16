@@ -108,17 +108,8 @@ export async function register() {
       // table's PK exactly.
       const escapeChCreds = (v: string) => v.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 
-      // Content is content-addressed (hash -> immutable bytes), so serving an
-      // "expired" cell is always correct: ALLOW_READ_EXPIRED_KEYS turns the
-      // synchronous wait-for-refresh into a background refresh, and a long
-      // LIFETIME stops the perpetual miss storms a 30-60s lifetime caused.
-      // QUERY_WAIT_TIMEOUT fails a jammed update queue fast (into the callers'
-      // retries) instead of the 60s default that pins signal workers (LAM-2115).
-      // The cache is open-addressed, not LRU: undersized cells evict each other
-      // by hash collision, so size to >=2x the hot key working set. Memory bound
-      // is structural: 40B/cell + value arena (~cells x avg content size).
       const dictCacheOptions = () => {
-        const sizeInCells = Number(process.env.CH_CONTENT_DICT_SIZE_IN_CELLS) || 524288;
+        const sizeInCells = Number(process.env.CH_CONTENT_DICT_SIZE_IN_CELLS) || 131072;
         return `
             SIZE_IN_CELLS ${sizeInCells}
             ALLOW_READ_EXPIRED_KEYS 1
