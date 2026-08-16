@@ -45,6 +45,7 @@ const FilterSearchInput = ({
   const activeTagId = useAdvancedSearchContext((state) => state.getActiveTagId());
   const recentSearches = useAdvancedSearchContext((state) => state.recentSearches);
   const allowFreeTextSearch = useAdvancedSearchContext((state) => state.allowFreeTextSearch);
+  const uuidFilterColumn = useAdvancedSearchContext((state) => state.uuidFilterColumn);
 
   const {
     setInputValue,
@@ -124,7 +125,7 @@ const FilterSearchInput = ({
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
       const input = mainInputRef.current;
-      const count = getSuggestionsCount(filters, inputValue, autocompleteData, allowFreeTextSearch);
+      const count = getSuggestionsCount(filters, inputValue, autocompleteData, uuidFilterColumn, allowFreeTextSearch);
       const showRecent = !inputValue.trim() && tags.length === 0 && recentSearches.length > 0;
 
       if ((e.metaKey || e.ctrlKey) && e.key === "z") {
@@ -240,6 +241,7 @@ const FilterSearchInput = ({
             inputValue,
             activeIndex,
             autocompleteData,
+            uuidFilterColumn,
             allowFreeTextSearch
           );
           if (suggestion) {
@@ -304,6 +306,7 @@ const FilterSearchInput = ({
       autocompleteData,
       allowFreeTextSearch,
       recentSearches,
+      uuidFilterColumn,
       setInputValue,
       setIsOpen,
       setActiveIndex,
