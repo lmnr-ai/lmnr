@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
-import { bodyMedium, subSection } from "../../class-names";
+import { subSection } from "../../class-names";
 import Terminal from "./terminal";
 
 interface Feature {
@@ -40,11 +40,7 @@ const OpenSource = () => (
     <div className="flex flex-col md:flex-row gap-10 items-start w-full">
       {/* LEFT — existing feature rows. */}
       <div className="flex flex-col w-full md:w-[380px] md:min-w-0">
-        <h2 className={cn(subSection, "mb-2")}>Self-host anywhere</h2>
-        <p className={cn(bodyMedium, "mb-13")}>
-          Laminar is built in the open because a tool you trust with your agent&apos;s data should be one you can read,
-          contribute to, and run yourself.
-        </p>
+        <h2 className={cn(subSection, "mb-13")}>Self-host anywhere</h2>
         {FEATURES.map((f) => (
           <FeatureRow key={f.label} {...f} />
         ))}
