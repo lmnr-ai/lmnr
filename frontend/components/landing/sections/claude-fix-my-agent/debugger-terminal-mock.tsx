@@ -59,32 +59,14 @@ const EntryRow = ({ entry, active }: { entry: Entry; active: boolean }) => {
       return <p className={cn(monoBase, "text-foreground-500 whitespace-pre")}>{`  └─ ${entry.text}`}</p>;
     case "diff":
       return (
-        // Unhighlighted: the sign column and its colour already read as a
-        // diff, and the only tinted band in the transcript belongs to the
-        // Laminar commands above.
-        <div className="flex items-center pl-1 pr-2">
-          <span
-            className={cn(
-              monoBase,
-              "w-4 text-center shrink-0",
-              entry.sign === "+" && "text-primary-300",
-              entry.sign === "-" && "text-foreground-400",
-              entry.sign === " " && "text-foreground-500"
-            )}
-          >
-            {entry.sign === " " ? "" : entry.sign}
-          </span>
-          <span
-            className={cn(
-              monoBase,
-              "whitespace-pre",
-              entry.sign === "+" && "text-primary-300",
-              entry.sign === "-" && "text-foreground-400",
-              entry.sign === " " && "text-foreground-300"
-            )}
-          >
-            {entry.text}
-          </span>
+        // Muted and untinted, at the same weight as the `result` lines. The
+        // only colour in the transcript belongs to the Laminar commands, so the
+        // diff carries its meaning through the sign column alone. This
+        // transcript has no removals; if one is ever added it will need a
+        // colour of its own to read as removed rather than added.
+        <div className="flex items-center pl-1 pr-2 text-foreground-500">
+          <span className={cn(monoBase, "w-4 text-center shrink-0")}>{entry.sign === " " ? "" : entry.sign}</span>
+          <span className={cn(monoBase, "whitespace-pre")}>{entry.text}</span>
         </div>
       );
   }

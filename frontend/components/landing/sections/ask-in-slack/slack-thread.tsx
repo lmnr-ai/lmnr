@@ -44,7 +44,7 @@ const MessageRow = ({ author, time, body }: ThreadMessage) => (
 /** The window's fixed height. The thread is taller than this, which is the
  *  point — it scrolls, the way a real channel does, instead of the card
  *  growing to whatever the copy happens to need. */
-const WINDOW_H = 554;
+const WINDOW_H = 548;
 
 // The window chrome. `pt` only: each row carries its own `pb-4`, which doubles
 // as the scroll area's bottom padding.
