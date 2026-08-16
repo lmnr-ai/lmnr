@@ -423,7 +423,7 @@ fn missing_description_is_allowed() {
 }
 
 #[test]
-fn omitted_and_null_patch_fields_are_left_alone() {
+fn omitted_patch_fields_are_left_alone() {
     let absent: UpdateSignalInput = serde_json::from_value(json!({ "prompt": "x" })).unwrap();
     assert_eq!(absent.sample_rate, None);
     assert!(absent.trigger.is_none());
@@ -432,11 +432,15 @@ fn omitted_and_null_patch_fields_are_left_alone() {
 
     let nulls: UpdateSignalInput =
         serde_json::from_value(json!({ "sampleRate": null, "trigger": null })).unwrap();
-    assert_eq!(nulls.sample_rate, None, "null is the same as omitted");
+    assert_eq!(
+        nulls.sample_rate,
+        Some(None),
+        "sampleRate null clears; trigger null still means omit"
+    );
     assert!(nulls.trigger.is_none());
 
     let set: UpdateSignalInput = serde_json::from_value(json!({ "sampleRate": 40 })).unwrap();
-    assert_eq!(set.sample_rate, Some(40));
+    assert_eq!(set.sample_rate, Some(Some(40)));
 }
 
 #[test]

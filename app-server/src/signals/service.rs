@@ -413,9 +413,9 @@ pub struct UpdateSignalInput {
     pub prompt: Option<String>,
     #[serde(default)]
     pub structured_output: Option<Value>,
-    /// Absent or `null` → leave stored. No sampling is "don't send the key".
-    #[serde(default)]
-    pub sample_rate: Option<i64>,
+    /// Absent = leave stored; `null` = clear sampling. Plain `Option` collapses both.
+    #[serde(default, deserialize_with = "double_option")]
+    pub sample_rate: Option<Option<i64>>,
     #[serde(default)]
     pub disabled: Option<bool>,
     /// Absent or `null` → leave stored.
@@ -443,7 +443,7 @@ pub async fn update_signal(
     if let Some(schema) = &input.structured_output {
         validate_structured_output(schema)?;
     }
-    if let Some(rate) = input.sample_rate {
+    if let Some(Some(rate)) = input.sample_rate {
         validate_sample_rate(rate)?;
     }
 
@@ -467,7 +467,7 @@ pub async fn update_signal(
         mode: input.mode.map(Mode::to_i16),
     };
 
-    let sample_rate = input.sample_rate.map(|rate| rate as i16);
+    let sample_rate = input.sample_rate.map(|inner| inner.map(|rate| rate as i16));
 
     let (updated, trigger_row) = signals::update_signal(
         pool,
@@ -546,6 +546,14 @@ fn build_signal_metadata(sample_rate: Option<i64>, disabled: bool) -> Value {
         map.insert("disabled".to_string(), json!(true));
     }
     Value::Object(map)
+}
+
+/// `null` → `Some(None)` (clear); omitted → `None` (leave stored).
+fn double_option<'de, D>(deserializer: D) -> Result<Option<Option<i64>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::<i64>::deserialize(deserializer).map(Some)
 }
 
 fn validate_sample_rate(rate: i64) -> Result<(), CrudError> {
