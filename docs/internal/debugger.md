@@ -2,7 +2,7 @@
 
 <!-- Detailed working notes for coding agents and developers. -->
 <!-- Referenced from the index in the repo-root CLAUDE.md; read when working in this area. -->
-<!-- Sibling files in docs/dev/ may be cross-referenced by section name. -->
+<!-- Sibling files in docs/internal/ may be cross-referenced by section name. -->
 
 ## Debugger Replay Cache
 

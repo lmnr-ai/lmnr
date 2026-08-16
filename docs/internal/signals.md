@@ -2,12 +2,12 @@
 
 <!-- Detailed working notes for coding agents and developers. -->
 <!-- Referenced from the index in the repo-root CLAUDE.md; read when working in this area. -->
-<!-- Sibling files in docs/dev/ may be cross-referenced by section name. -->
+<!-- Sibling files in docs/internal/ may be cross-referenced by section name. -->
 
 ## Signals and Alerts
 
 - Alerts reference signals via `alerts.source_id`. There is NO FK constraint from `source_id` to `signals.id` because `source_id` may reference other entity types in the future. When deleting signals, associated alerts must be deleted in application code within the same transaction (see `deleteSignal`/`deleteSignals` in `frontend/lib/actions/signals/index.ts`).
-- The Signals sidebar item is behind a feature flag (`Feature.SIGNALS`) which requires `SIGNALS_ENABLED=true` AND a configured AI provider (`LLM_PROVIDER` set to `openai`/`gemini`/`bedrock` with matching credentials). See "AI Features Model Setup" in `docs/dev/ai-features.md`.
+- The Signals sidebar item is behind a feature flag (`Feature.SIGNALS`) which requires `SIGNALS_ENABLED=true` AND a configured AI provider (`LLM_PROVIDER` set to `openai`/`gemini`/`bedrock` with matching credentials). See "AI Features Model Setup" in `docs/internal/ai-features.md`.
 - Alert metadata is stored as JSONB in `alerts.metadata`. For `SIGNAL_EVENT` alerts, it contains `{severity: 0|1|2}` (info/warning/critical). The Rust backend reads this in `postprocess.rs` to filter events by severity threshold, defaulting to CRITICAL (2) when metadata is absent (historical alerts default to the most restrictive level). The frontend edit form also defaults to CRITICAL for alerts without metadata.
 - Creating a signal auto-creates a CRITICAL-severity alert and subscribes all workspace member emails as alert targets.
 - New-cluster notifications render as a per-alert DIGEST: `NotificationKind::NewCluster` carries enrichment fields (`first_seen`/`last_seen: Option<String>`, `severity_counts: [u64; 3]`, `example_events: Vec<ClusterExampleEvent>`), all `#[serde(default)]` so already-queued legacy messages deserialize. The email/Slack renderers (`render_new_cluster_email` / `format_new_cluster_blocks`) take `&[&NotificationKind]` and render every `NewCluster` in a message's `notifications` vec as one digest. Slack caps at 50 blocks (2 per cluster), so `format_new_cluster_blocks` renders at most `MAX_CLUSTERS_PER_DIGEST` (20) clusters + an "…and N more" overflow section; per-cluster text goes through the 3000-char section budget. `Option<String>` fields are `None` when absent (never empty-string sentinels) — renderers gate with `if let Some`. OSS ships the enum and the renderers; the CH stat/sample helpers and the enriching producer are not part of OSS.
