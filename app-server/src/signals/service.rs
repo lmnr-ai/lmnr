@@ -30,6 +30,13 @@ static FIELD_NAME_RE: LazyLock<Regex> =
 const CONDITION_COLUMN_ROOT_SPAN_FINISHED: &str = "root_span_finished";
 const CONDITION_COLUMN_SPAN_NAME: &str = "span_name";
 
+/// `span_name` operators that mean "fires when one of these spans finished".
+/// `evaluate_trigger_condition` also implements `ne`, which fires when NONE of
+/// them did — the pre-split API accepted that, but `Trigger::SpanName` has no way
+/// to say it, so such a row is reported as no trigger rather than as its
+/// inverse. Add a variant here before widening this list.
+const SPAN_NAME_POSITIVE_OPERATORS: &[&str] = &["eq", "includes"];
+
 enum ValueRule {
     FiniteNumber,
     OneOf(&'static [&'static str]),
@@ -141,15 +148,19 @@ impl Trigger {
     }
 
     /// Recover the trigger from stored conditions. `None` for an empty list (a
-    /// backfill-only signal) and for any shape the evaluator would not fire on
-    /// anyway, so the API never reports a trigger that does nothing.
+    /// backfill-only signal), for any shape the evaluator would not fire on
+    /// anyway, and for the one shape it fires on but this enum cannot express
+    /// (see `SPAN_NAME_POSITIVE_OPERATORS`) — so the API never reports a trigger
+    /// that misdescribes when the signal runs.
     fn from_conditions(conditions: &Value) -> Option<Self> {
         let entries = conditions.as_array()?;
         // `span_name` first: a legacy row carrying both fires on the named span.
-        if let Some(entry) = entries
-            .iter()
-            .find(|e| e.get("column").and_then(Value::as_str) == Some(CONDITION_COLUMN_SPAN_NAME))
-        {
+        if let Some(entry) = entries.iter().find(|e| {
+            e.get("column").and_then(Value::as_str) == Some(CONDITION_COLUMN_SPAN_NAME)
+                && e.get("operator")
+                    .and_then(Value::as_str)
+                    .is_some_and(|op| SPAN_NAME_POSITIVE_OPERATORS.contains(&op))
+        }) {
             // Blank entries are dropped (they can't meaningfully match a span),
             // but surviving names are NOT trimmed: the evaluator compares them
             // literally, so a legacy padded name must be reported as stored.
@@ -167,6 +178,18 @@ impl Trigger {
             // An all-blank list can never match; report it as no trigger.
             return (!span_names.is_empty()).then_some(Trigger::SpanName { span_names });
         }
+
+        // A `span_name` entry we did NOT accept above (an exclusion) still gates
+        // firing in the evaluator, so this row is not a plain root-span trigger
+        // either. Report no trigger rather than a description that would rewrite
+        // the row's meaning on the next read-modify-write.
+        if entries
+            .iter()
+            .any(|e| e.get("column").and_then(Value::as_str) == Some(CONDITION_COLUMN_SPAN_NAME))
+        {
+            return None;
+        }
+
         entries
             .iter()
             .any(|e| {

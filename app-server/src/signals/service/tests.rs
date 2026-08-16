@@ -173,6 +173,40 @@ fn unfirable_stored_conditions_read_back_as_no_trigger() {
 }
 
 #[test]
+fn legacy_span_name_exclusion_reads_back_as_no_trigger() {
+    // `evaluate_trigger_condition` implements `ne` as "fires when NONE of these
+    // spans finished", and the pre-split API accepted it. `Trigger::SpanName`
+    // can only express the positive case, so reporting one here would flip the
+    // meaning on the next read-modify-write (`to_conditions` writes `includes`).
+    for value in [json!("agent.run"), json!(["agent.run"])] {
+        let excluding = json!([{ "column": "span_name", "operator": "ne", "value": value }]);
+        assert_eq!(
+            Trigger::from_conditions(&excluding),
+            None,
+            "an exclusion trigger must not be reported as its inverse"
+        );
+    }
+}
+
+#[test]
+fn span_name_exclusion_alongside_root_span_is_not_a_root_span_trigger() {
+    // The `ne` entry still gates firing, so calling this "root span finished"
+    // would drop that gate when the trigger is sent back.
+    let mixed = json!([
+        { "column": "root_span_finished", "operator": "eq", "value": "true" },
+        { "column": "span_name", "operator": "ne", "value": ["healthcheck"] },
+    ]);
+    assert_eq!(Trigger::from_conditions(&mixed), None);
+}
+
+#[test]
+fn unsupported_span_name_operator_reads_back_as_no_trigger() {
+    // The evaluator warns and returns false for these, so nothing fires.
+    let bogus = json!([{ "column": "span_name", "operator": "gt", "value": ["a"] }]);
+    assert_eq!(Trigger::from_conditions(&bogus), None);
+}
+
+#[test]
 fn span_name_wins_over_root_span_in_a_legacy_multi_column_row() {
     // No UI ever wrote both, but `trigger_fires` ANDs conditions, so such a row
     // only fires on the named span's batch.
