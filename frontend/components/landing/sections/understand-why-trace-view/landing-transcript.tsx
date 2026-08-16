@@ -177,6 +177,21 @@ const LandingTranscript = ({ onSpanSelect, visibleRows }: Props) => {
       ?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [selectedSpanId]);
 
+  // Follow the tail as rows land, the way a live log does. Without it most of
+  // the run arrives below the panel's fold and the reveal is invisible.
+  //
+  // Hand-rolled rather than `scrollIntoView`: that walks up and scrolls every
+  // scrollable ancestor, and the ancestor here is the PAGE, whose scroll
+  // position is what drives the entire section. Only ever scrolls down, and
+  // only when the new row is actually past the bottom edge.
+  useEffect(() => {
+    const el = scrollRef.current;
+    const row = el?.children[revealed - 1] as HTMLElement | undefined;
+    if (!el || !row) return;
+    const target = row.offsetTop + row.offsetHeight - el.clientHeight;
+    if (target > el.scrollTop) el.scrollTo({ top: target, behavior: "smooth" });
+  }, [revealed]);
+
   const handleSelect = useCallback(
     (listSpan: TraceViewListSpan) => {
       const full = spansById.get(listSpan.spanId);

@@ -139,13 +139,15 @@ const INACTIVE_OPACITY = 0.4;
 /** How far below its arming point Act 2 disarms. */
 const ACT2_HYSTERESIS = 0.04;
 
-/** Transcript rows the opening step shows: the user's question, the agent
- *  deciding to search, and the search itself. Step 2 lifts the cap and the
- *  rest of the run streams in — which is the step whose copy is about a long
- *  run staying legible, and it keeps the reader off a wall of spans on the
- *  first frame they see the panel. Counts ROWS, not spans: the user-input row
- *  is the first one. */
-const OPENING_ROWS = 3;
+/** Transcript rows the opening step shows: the question, the agent deciding to
+ *  search, the search, and the agent reading the result. One full think-act-
+ *  observe loop — stopping a row earlier ends on a tool call nothing answers,
+ *  which reads as the trace being cut off rather than paused.
+ *
+ *  Step 2 lifts the cap and the rest streams in, which is the step whose copy
+ *  is about a long run staying legible. Counts ROWS, not spans: the
+ *  user-input row is the first one. */
+const OPENING_ROWS = 4;
 
 /** Rough block height, used only to seed the stops before the first
  *  measurement. The section is far below the fold, so the seed is never on
