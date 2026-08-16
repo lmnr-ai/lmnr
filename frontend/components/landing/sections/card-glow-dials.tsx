@@ -38,7 +38,9 @@ const CardGlowDials = () => {
       offsetX: [D.offsetX, -300, 100, 4],
       offsetY: [D.offsetY, -300, 100, 4],
     },
-    { id: "landing-card-glow-v1", persist: true }
+    // Bumped to -v2 with the tuned defaults: stored clips outrank these, so
+    // without it the retune silently does nothing on the machine that tuned it.
+    { id: "landing-card-glow-v2", persist: true }
   );
 
   useEffect(() => {

@@ -23,18 +23,18 @@ const GLOW_H = 314;
 /** Committed defaults, mirrored in the class below as the var fallbacks — the
  *  dials module reads them so its knobs start where production sits. */
 export const CARD_GLOW_DEFAULTS = {
-  slide: 100,
-  durationMs: 500,
+  slide: 180,
+  durationMs: 1600,
   /** The artwork is a solid fill, so this alone is what makes it faint. */
-  opacity: 0.04,
-  offsetX: -100,
-  offsetY: -100,
+  opacity: 0.2,
+  offsetX: -140,
+  offsetY: -228,
 };
 
 const CardHoverGlow = () => (
   <span
     aria-hidden
-    className="pointer-events-none absolute max-w-none w-[721px] bottom-[var(--card-glow-y,-100px)] right-[var(--card-glow-x,-100px)] translate-x-[var(--card-glow-slide,100px)] opacity-0 transition-[opacity,transform] ease-out duration-[var(--card-glow-ms,500ms)] group-hover:translate-x-0 group-hover:opacity-[var(--card-glow-opacity,0.04)]"
+    className="pointer-events-none absolute max-w-none w-[721px] bottom-[var(--card-glow-y,-228px)] right-[var(--card-glow-x,-140px)] translate-x-[var(--card-glow-slide,180px)] opacity-0 transition-[opacity,transform] ease-out duration-[var(--card-glow-ms,1600ms)] group-hover:translate-x-0 group-hover:opacity-[var(--card-glow-opacity,0.2)]"
   >
     <Image src="/assets/landing/card-hover-glow.svg" alt="" width={GLOW_W} height={GLOW_H} className="block w-full" />
   </span>
