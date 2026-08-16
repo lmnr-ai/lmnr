@@ -210,13 +210,13 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           {!params?.traceId && (
             <span className={cn(HEADER_ITEM_CLS, "gap-0.5")}>
               {handleClose && (
-                <Button variant="ghost" className="h-7 px-0.5" onClick={handleClose}>
+                <Button aria-label="Collapse panel" variant="ghost" className="h-7 px-0.5" onClick={handleClose}>
                   <ChevronsRight className="w-5 h-5" />
                 </Button>
               )}
               {trace && (
                 <NextLink passHref href={`/project/${projectId}/traces/${trace?.id}?${fullScreenParams.toString()}`}>
-                  <Button variant="ghost" className="h-7 px-0.5">
+                  <Button aria-label="Expand" variant="ghost" className="h-7 px-0.5">
                     <Maximize className="w-4 h-4" />
                   </Button>
                 </NextLink>
@@ -261,7 +261,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                   agentOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
                 )}
               >
-                <Sparkles size={14} className="mr-1" />
+                <Sparkles data-icon="inline-start" size={14} className="mr-1" />
                 Chat
               </Button>
             </span>

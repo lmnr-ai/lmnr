@@ -30,7 +30,8 @@ pub(crate) const EXTRACT_ROOT_SPAN_NAME: &str = "user_task.extract";
 pub struct SpanScope {
     pub project_id: Option<Uuid>,
     /// The project owning the trace under extraction (NOT the internal routing target above).
-    /// Stamped as `metadata.project_id` on every span, like `trace_id` below.
+    /// Stamped as `metadata.project_id` and as the span `user_id` on every span, so internal
+    /// traces can be grouped/filtered by the analyzed project.
     pub source_project_id: Uuid,
     /// The trace under extraction. Stamped as `metadata.trace_id` on every span so it survives
     /// trace-metadata aggregation (ingest takes only one span's metadata per export batch).
@@ -69,9 +70,11 @@ pub struct SpanBuilder;
 
 impl SpanBuilder {
     fn base(span: InternalSpan, scope: &SpanScope) -> InternalSpan {
+        let source_project_id = scope.source_project_id.to_string();
         span.project(scope.project_id)
             .span_path_root(EXTRACT_ROOT_SPAN_NAME)
-            .metadata_str("project_id", &scope.source_project_id.to_string())
+            .user_id(&source_project_id)
+            .metadata_str("project_id", &source_project_id)
             .metadata_str("trace_id", &scope.trace_id.to_string())
     }
 

@@ -25,6 +25,7 @@ const ParamsPopover = ({ className }: ParamsPopoverProps) => {
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
             <Button
+              aria-label="Settings"
               size="icon"
               disabled={!watch("model")}
               variant="outline"

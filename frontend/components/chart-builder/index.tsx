@@ -69,7 +69,7 @@ const ChartBuilderCore = () => {
           <div>
             <label className="text-sm font-medium mb-1 block">Chart type</label>
             <Select value={chartConfig.type || ""} onValueChange={setChartType}>
-              <SelectTrigger className="focus:ring-0">
+              <SelectTrigger className="focus:ring-0" aria-label="Chart type">
                 <SelectValue placeholder="Select Chart Type" />
               </SelectTrigger>
               <SelectContent>

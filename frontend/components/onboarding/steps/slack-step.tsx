@@ -80,7 +80,7 @@ export default function SlackStep({ stepIndex, totalSteps, onAdvance, onBack }: 
         <div className="my-auto shrink-0">
           {slackConnected ? (
             <Button className="border-success bg-success/80 gap-1 hover:bg-success/80 2xl:h-9">
-              <CheckCircle2 className="h-4 w-4 2xl:h-5 2xl:w-5" />
+              <CheckCircle2 data-icon="inline-start" className="h-4 w-4 2xl:h-5 2xl:w-5" />
               <span className="text-xs 2xl:text-sm">Connected</span>
             </Button>
           ) : (

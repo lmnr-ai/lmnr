@@ -7,6 +7,7 @@ import {
   invalidateProjectCacheForWorkspace,
   invalidateUsageWarningsCacheForWorkspace,
 } from "@/lib/actions/usage/utils";
+import { preservePrivacyModeOnDowngrade } from "@/lib/actions/workspace/settings";
 import {
   cache,
   WORKSPACE_BYTES_USAGE_CACHE_KEY,
@@ -145,6 +146,10 @@ export const manageWorkspaceSubscriptionEvent = async ({
     if (currentPaidTier === "hobby" && newPaidTier !== "hobby") {
       await clearHobbyOverageWarnings(workspaceId);
     }
+    // A plan change must never lower Privacy Mode protection: stamp the
+    // protection floor when an unset workspace leaves a default-ON tier for a
+    // default-OFF one (e.g. Pro → Free).
+    await preservePrivacyModeOnDowngrade(workspaceId, currentTier, newTierName);
     if (newPaidTier) {
       await insertNewTierUsageWarnings({
         workspaceId,

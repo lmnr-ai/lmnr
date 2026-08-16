@@ -300,8 +300,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(react@19.2.3)
       react-grid-layout:
-        specifier: ^1.5.2
-        version: 1.5.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: ^1.5.4
+        version: 1.5.4(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       react-hook-form:
         specifier: ^7.62.0
         version: 7.62.0(react@19.2.3)
@@ -6339,8 +6339,8 @@ packages:
       react: '>= 16.3.0'
       react-dom: '>= 16.3.0'
 
-  react-grid-layout@1.5.2:
-    resolution: {integrity: sha512-vT7xmQqszTT+sQw/LfisrEO4le1EPNnSEMVHy6sBZyzS3yGkMywdOd+5iEFFwQwt0NSaGkxuRmYwa1JsP6OJdw==}
+  react-grid-layout@1.5.4:
+    resolution: {integrity: sha512-AyScMfqhgRfie9ECXddQeaYmTuNlomDj9SIryF/+vtiwXS6IsxX3cI6CCWbSRXqbAePHW397nPxvnekO5gViPg==}
     peerDependencies:
       react: '>= 16.3.0'
       react-dom: '>= 16.3.0'
@@ -13476,7 +13476,7 @@ snapshots:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
 
-  react-grid-layout@1.5.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
+  react-grid-layout@1.5.4(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
     dependencies:
       clsx: 2.1.1
       fast-equals: 4.0.3

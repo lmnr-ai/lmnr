@@ -17,7 +17,7 @@ export function SelectionPanel({ selectedRowIds, onClearSelection, selectionPane
         </Label>
         {selectionPanel?.(selectedRowIds)}
       </div>
-      <Button variant="ghost" onClick={onClearSelection} size="icon">
+      <Button aria-label="Clear selection" variant="ghost" onClick={onClearSelection} size="icon">
         <X size={12} />
       </Button>
     </div>

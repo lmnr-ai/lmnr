@@ -81,6 +81,7 @@ use serde::de::DeserializeOwned;
 use tokio::sync::{Notify, mpsc};
 use uuid::Uuid;
 
+use super::encoding;
 use super::topology::StreamEnvironment;
 use crate::env;
 use crate::worker::HandlerError;
@@ -375,18 +376,36 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                 }
             };
 
+            // Bodies are decoded per the record's `lmnr.encoding` property
+            // (absent = plain JSON), so pre-compression records and compressed
+            // ones interleave freely — see `encoding.rs`.
+            let encoding_property = delivery
+                .message()
+                .application_properties()
+                .and_then(|props| props.get(encoding::ENCODING_PROPERTY))
+                .and_then(|value| match value {
+                    rabbitmq_stream_client::types::SimpleValue::String(s) => Some(s.clone()),
+                    _ => None,
+                });
+
             let message = match data {
-                Some(body) => match serde_json::from_slice::<H::Message>(body) {
-                    Ok(message) => Some(message),
+                Some(body) => match encoding::decode(body, encoding_property.as_deref()) {
+                    Ok(body) => match serde_json::from_slice::<H::Message>(&body) {
+                        Ok(message) => Some(message),
+                        Err(e) => {
+                            // Won't parse on retry either — same verdict as the queue
+                            // path's reject-without-requeue on a deserialize failure.
+                            Self::log_skipped_record(
+                                "deserialize_failed",
+                                &e.to_string(),
+                                &stream,
+                                offset,
+                            );
+                            None
+                        }
+                    },
                     Err(e) => {
-                        // Won't parse on retry either — same verdict as the queue
-                        // path's reject-without-requeue on a deserialize failure.
-                        Self::log_skipped_record(
-                            "deserialize_failed",
-                            &e.to_string(),
-                            &stream,
-                            offset,
-                        );
+                        Self::log_skipped_record("decode_failed", &e.to_string(), &stream, offset);
                         None
                     }
                 },

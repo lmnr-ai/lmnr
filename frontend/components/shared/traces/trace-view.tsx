@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo } from "react";
 
-import fullLogo from "@/assets/logo/logo.svg";
+import fullLogo from "@/assets/logo/laminar-wordmark.svg";
 import Header from "@/components/shared/traces/header";
 import SessionPlayer from "@/components/shared/traces/session-player";
 import { SpanView } from "@/components/shared/traces/span-view";
@@ -117,7 +117,7 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
       {!onClose && (
         <div className="flex flex-none items-center border-b px-4 py-3.5 gap-2">
           <Link className="mr-2" href="/projects">
-            <Image alt="Laminar logo" src={fullLogo} width={120} height={20} />
+            <Image alt="Laminar logo" src={fullLogo} className="w-[120px] h-auto" />
           </Link>
         </div>
       )}
@@ -176,7 +176,7 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
                         variant="outline"
                         onClick={() => setBrowserSession(!browserSession)}
                       >
-                        <CirclePlay size={14} className="mr-1" />
+                        <CirclePlay data-icon="inline-start" size={14} className="mr-1" />
                         Media
                       </Button>
                     )}

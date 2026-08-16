@@ -2,6 +2,16 @@ import { type ColumnFilter, type TagFocusPosition } from "@/components/common/ad
 
 const FIELD_ORDER: TagFocusPosition[] = ["field", "operator", "value", "remove"];
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const isUuid = (value: string): boolean => UUID_REGEX.test(value.trim());
+
+// Single source of truth for "does this input resolve to the id suggestion",
+// shared by the suggestion list builder and the store's pre-selection so the
+// two can never drift apart.
+export const hasUuidSuggestion = (value: string, filters: ColumnFilter[], uuidFilterColumn?: string): boolean =>
+  !!uuidFilterColumn && isUuid(value) && filters.some((f) => f.key === uuidFilterColumn);
+
 export const getNextField = (current: TagFocusPosition): TagFocusPosition | null => {
   const index = FIELD_ORDER.indexOf(current);
   return index < FIELD_ORDER.length - 1 ? FIELD_ORDER[index + 1] : null;

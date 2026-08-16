@@ -6,6 +6,9 @@ import { Controller, useFieldArray, useFormContext } from "react-hook-form";
 
 import {
   getDefaultFilter,
+  getFilterOperations,
+  getFilterValuePlaceholder,
+  getOperatorWidthClass,
   getRootSpanFinishedCondition,
   getSpanNameCondition,
   getTriggerKind,
@@ -14,7 +17,6 @@ import {
   TRIGGER_KIND,
 } from "@/components/signals/trigger-filter-field";
 import { Button } from "@/components/ui/button";
-import { dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select.tsx";
@@ -84,7 +86,7 @@ function SpanNamesInput() {
         </div>
       ))}
       <Button type="button" variant="outline" size="sm" className="w-fit" onClick={() => write([...rows, ""])}>
-        <Plus className="w-3.5 h-3.5 mr-1" />
+        <Plus data-icon="inline-start" className="w-3.5 h-3.5 mr-1" />
         Add span name
       </Button>
       {hasName ? (
@@ -139,12 +141,12 @@ function FilterRow({ index, onRemove }: { index: number; onRemove: () => void })
 
   const column = SIGNAL_FILTER_COLUMNS.find((c) => c.key === currentColumn);
   const dataType = column?.dataType || "string";
-  const operations = dataTypeOperationsMap[dataType] || dataTypeOperationsMap.string;
+  const operations = getFilterOperations(currentColumn);
 
   const handleColumnChange = (newColumn: string, onChange: (value: string) => void) => {
     const newColumnDef = SIGNAL_FILTER_COLUMNS.find((c) => c.key === newColumn);
     const newDataType = newColumnDef?.dataType || "string";
-    const defaultOperator = dataTypeOperationsMap[newDataType][0].key;
+    const defaultOperator = getFilterOperations(newColumn)[0].key;
 
     onChange(newColumn);
     setValue(`triggers.${TRIGGER_INDEX}.filters.${index}.operator`, defaultOperator);
@@ -183,7 +185,7 @@ function FilterRow({ index, onRemove }: { index: number; onRemove: () => void })
         control={control}
         render={({ field }) => (
           <Select value={field.value} onValueChange={field.onChange}>
-            <SelectTrigger className="w-12">
+            <SelectTrigger className={getOperatorWidthClass(currentColumn)}>
               <span>{operations.find((op) => op.key === field.value)?.label || field.value}</span>
             </SelectTrigger>
             <SelectContent>
@@ -218,14 +220,14 @@ function FilterRow({ index, onRemove }: { index: number; onRemove: () => void })
             <Input
               {...field}
               type={dataType === "number" ? "number" : "text"}
-              placeholder="Enter value..."
+              placeholder={getFilterValuePlaceholder(currentColumn)}
               className="flex-1 hide-arrow"
               value={field.value as string}
             />
           )
         }
       />
-      <Button type="button" variant="ghost" size="icon" onClick={onRemove}>
+      <Button aria-label="Remove trigger" type="button" variant="ghost" size="icon" onClick={onRemove}>
         <X className="w-3.5 h-3.5" />
       </Button>
     </div>
@@ -247,7 +249,7 @@ function FiltersSection() {
           hint="Once triggered, the signal only runs on traces matching all of these conditions."
         />
         <Button type="button" variant="outline" className="w-fit" onClick={() => append(getDefaultFilter())}>
-          <Plus className="w-3.5 h-3.5 mr-1" />
+          <Plus data-icon="inline-start" className="w-3.5 h-3.5 mr-1" />
           Add filter
         </Button>
       </div>
