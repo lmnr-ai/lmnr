@@ -1,6 +1,6 @@
 "use client";
 
-import { useInView } from "framer-motion";
+import { motion, useInView } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -205,7 +205,13 @@ const LandingTranscript = ({ onSpanSelect, visibleRows }: Props) => {
 
   return (
     <div ref={scrollRef} className="h-full w-full overflow-y-auto overflow-x-hidden styled-scrollbar pb-16">
-      {rows.map((row, i) => {
+      {/* Only what has been revealed is MOUNTED. Holding the rest at opacity 0
+          leaves them in layout, so the container reserves the whole run's
+          height from the first frame and scrolls over blank space. Mounting as
+          they arrive also means the list visibly grows, which is the point.
+          Hence framer rather than a CSS transition: a class toggled on mount
+          has no starting frame to animate from. */}
+      {rows.slice(0, revealed).map((row, i) => {
         const spanId = row.type === "span" ? row.span.spanId : undefined;
         const prev = rows[i - 1];
         // Matches the product's spacing rule: an LLM row gets air above it
@@ -217,14 +223,13 @@ const LandingTranscript = ({ onSpanSelect, visibleRows }: Props) => {
           prev.type !== "user-input";
 
         return (
-          <div
+          <motion.div
             key={spanId ?? row.type + i}
             data-landing-span={spanId}
-            style={{
-              opacity: i < revealed ? 1 : 0,
-              transform: `translateY(${i < revealed ? 0 : ROW_RISE_PX}px)`,
-            }}
-            className={cn("transition-[opacity,transform] duration-500 ease-out", needsSpacing && "pt-4")}
+            initial={{ opacity: 0, y: ROW_RISE_PX }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, ease: "easeOut" }}
+            className={cn(needsSpacing && "pt-4")}
           >
             <TranscriptRow
               row={row}
@@ -237,7 +242,7 @@ const LandingTranscript = ({ onSpanSelect, visibleRows }: Props) => {
               onSpanSelect={handleSelect}
               onToggleGroup={noop}
             />
-          </div>
+          </motion.div>
         );
       })}
     </div>

@@ -39,21 +39,16 @@ interface SpanChipProps {
   icon: ReactNode;
   label: string;
   spanId?: string;
-  flashSpanId?: string;
   onClick?: (spanId: string) => void;
 }
 
 // Renders inline inside the payload paragraph. Chip is a <button> when an
 // `onClick` is wired in, otherwise renders as a static <span> (mobile path
-// has no trace-view store to wire selection into). Flash class is a small
-// pulse keyed on `flashSpanId === spanId` and consumed by globals.css's
-// `signal-span-flash` keyframe.
-const SpanChip = ({ iconBg, icon, label, spanId, flashSpanId, onClick }: SpanChipProps) => {
-  const isFlashing = !!spanId && flashSpanId === spanId;
+// has no trace-view store to wire selection into).
+const SpanChip = ({ iconBg, icon, label, spanId, onClick }: SpanChipProps) => {
   const className = cn(
     "inline-flex items-center gap-1 rounded border border-foreground-200/15 bg-foreground-200/15 pl-0.5 pr-1.5 py-0.5 align-middle transition-colors",
-    onClick && "cursor-pointer hover:bg-foreground-200/25",
-    isFlashing && "signal-span-flash"
+    onClick && "cursor-pointer hover:bg-foreground-200/25"
   );
   const inner = (
     <>
@@ -75,9 +70,6 @@ interface SignalContentProps {
   // Wired by the desktop trace-panel path. Selecting a span via the store
   // drives both the transcript scroll-to and the row's selected styling.
   onSpanClick?: (spanId: string) => void;
-  // When matches one of the span IDs below, that chip pulses for ~1s to
-  // grab the user's attention. Cleared by the trigger after the auto-select.
-  flashSpanId?: string;
   // Wired by the desktop trace-panel path to close the signal panel.
   // Omitted on mobile — the X stays as a static icon.
   onClose?: () => void;
@@ -113,9 +105,7 @@ export const ClusterPill = () => (
 // swallowed 404, an unsourced answer. Each chip points at the span that
 // materialises its claim, and clicking one drives the transcript scroll +
 // selection.
-export const SignalCardBody = ({ onSpanClick, flashSpanId }: Omit<SignalContentProps, "onClose"> = {}) => {
-  const chipProps = { onSpanClick, flashSpanId };
-  return (
+export const SignalCardBody = ({ onSpanClick }: Omit<SignalContentProps, "onClose"> = {}) => (
     <p className="text-foreground-300 text-xs leading-5">
       The agent ran{" "}
       <SpanChip
@@ -123,8 +113,7 @@ export const SignalCardBody = ({ onSpanClick, flashSpanId }: Omit<SignalContentP
         icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
         label="web_search"
         spanId={DEMO_LAST_SEARCH_SPAN_ID}
-        onClick={chipProps.onSpanClick}
-        flashSpanId={chipProps.flashSpanId}
+        onClick={onSpanClick}
       />{" "}
       three times for the same question, carried on past a{" "}
       <code className="text-foreground-200">404</code> from{" "}
@@ -133,8 +122,7 @@ export const SignalCardBody = ({ onSpanClick, flashSpanId }: Omit<SignalContentP
         icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
         label="fetch_page"
         spanId={DEMO_FAILED_FETCH_SPAN_ID}
-        onClick={chipProps.onSpanClick}
-        flashSpanId={chipProps.flashSpanId}
+        onClick={onSpanClick}
       />{" "}
       without retrying, then{" "}
       <SpanChip
@@ -142,20 +130,18 @@ export const SignalCardBody = ({ onSpanClick, flashSpanId }: Omit<SignalContentP
         icon={<MessageCircle className="size-3 text-white" strokeWidth={2} />}
         label="ai.llm"
         spanId={DEMO_ANSWER_SPAN_ID}
-        onClick={chipProps.onSpanClick}
-        flashSpanId={chipProps.flashSpanId}
+        onClick={onSpanClick}
       />{" "}
       answered from a snippet without linking the page it read.
     </p>
   );
-};
 
 // Signal event card inner content. No outer frame — callers wrap it (static
 // border/bg here; the landing trace panel supplies its own animated wrapper).
 // Less padding on top than the bottom: the header row is a fixed 34px box
 // holding a 12px title, so it already carries ~11px of its own air above the
 // glyphs. Matching the bottom's 8px there reads as a gap.
-export const SignalContent = ({ onSpanClick, flashSpanId, onClose }: SignalContentProps = {}) => (
+export const SignalContent = ({ onSpanClick, onClose }: SignalContentProps = {}) => (
   <div className="w-full flex flex-col px-3 pt-0.5 pb-2 gap-0.5">
     {/* Fixed row height so this card and the morphing one share a header box —
         the stack animation flies between them and any difference would read as
@@ -178,7 +164,7 @@ export const SignalContent = ({ onSpanClick, flashSpanId, onClose }: SignalConte
       )}
     </div>
 
-    <SignalCardBody onSpanClick={onSpanClick} flashSpanId={flashSpanId} />
+    <SignalCardBody onSpanClick={onSpanClick} />
   </div>
 );
 

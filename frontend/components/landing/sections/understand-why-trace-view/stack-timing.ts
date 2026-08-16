@@ -2,26 +2,36 @@
 // becomes a stack, collapses to its cluster pill, and the pill drops into the
 // clusters card that has risen to meet it.
 //
-// Every number here is a fraction of the LAST-STEP WINDOW — the slice of the
-// section's scroll that runs from the previous step's copy centring to the end
-// of the section. 0 = the window opens, 1 = it closes. Nothing here is a
-// duration: the whole sequence is bound to scroll, so it rewinds frame for
-// frame and a "slow" phase just means it takes more scrolling.
+// Every number here is a fraction of the CLOSING WINDOW — the slice of the
+// section's scroll that runs from the third-from-last step's copy centring to
+// the end of the section, i.e. the last TWO copy hand-offs. 0 = the window
+// opens, 1 = it closes. Nothing here is a duration: the whole sequence is
+// bound to scroll, so it rewinds frame for frame and a "slow" phase just means
+// it takes more scrolling.
 //
-//   0      .08      .18    .30  .375                        1
-//   ├───────┼────────┼──────┼────┼─────────────────────────┤
-//     ▓▓▓                              flight    (panel → stack front)
-//          ▓▓▓▓▓▓▓                     collapse  (stack → cluster pill)
-//            ▓▓▓▓▓▓▓▓▓                 cardRise  (clusters card rises to meet it)
-//                    ▓▓▓               pillEnter (pill drops into the card)
-//                      ╎               ← sticky release (.375)
-//                      ╎  section leaving, Act 2 playing
+// TWO MARKS ARE LOAD-BEARING, and the phases exist to hit them:
 //
-// The sticky tail is exactly one STEP_VH (see ./index), so EVERYTHING that has
-// to happen while the frame is still pinned must fit before the release. Past
-// it the section is scrolling away, so screen-space motion there is the
-// element's own travel MINUS the page scroll — keep it to Act 2, which is
-// time-based and does not care.
+//   .31  the second-to-last copy block ("Similar failures are clustered") is
+//        dead centre — the stack must be fully formed and holding.
+//   .62  the last block ("Has this failure occurred before?") is dead centre,
+//        which is also the sticky release — the pill must already be inside the
+//        clusters card.
+//
+//   0        .26      .44   .53 .58                          1
+//   ├─────────┼────────┼─────┼───┼──────────────────────────┤
+//      ▓▓▓▓▓▓                        flight    (panel → stack front)
+//           ╎                        ← stack holds through .31
+//             ▓▓▓▓▓                  collapse  (stack → cluster pill)
+//              ▓▓▓▓▓▓▓▓              cardRise  (clusters card rises to meet it)
+//                     ▓▓▓            pillEnter (pill drops into the card)
+//                        ╎           ← sticky release (.62)
+//                        ╎  section leaving, Act 2 playing
+//
+// The pinned part of this window is exactly two STEP_VH (see ./index), so
+// EVERYTHING that has to happen while the frame is still pinned must fit before
+// the release. Past it the section is scrolling away, so screen-space motion
+// there is the element's own travel MINUS the page scroll — keep it to Act 2,
+// which is time-based and does not care.
 //
 // Act 2 (pulse / cluster stagger / chart fill) is armed at `act2At` and then
 // runs on a clock, in ms — see ../has-this-issue/use-cluster-beats.
@@ -72,20 +82,24 @@ export interface StackTiming {
 }
 
 export const DEFAULT_STACK_TIMING: StackTiming = {
-  flightAt: 0.02,
-  flightSpan: 0.08,
+  // Lands the formed stack at .26, so it is already holding when the copy
+  // centres at .31 rather than still assembling under the reader.
+  flightAt: 0.14,
+  flightSpan: 0.12,
 
-  collapseAt: 0.11,
-  collapseSpan: 0.13,
+  // Nothing moves between .26 and .34: the stack is the picture that belongs
+  // to "Similar failures are clustered", so it gets the copy's whole beat.
+  collapseAt: 0.34,
+  collapseSpan: 0.10,
 
   // Overlaps the collapse deliberately: the card is already arriving as the
   // stack folds, so the pill has somewhere to be rather than hanging.
-  cardRiseAt: 0.16,
-  cardRiseSpan: 0.15,
+  cardRiseAt: 0.40,
+  cardRiseSpan: 0.13,
 
-  pillEnterAt: 0.31,
-  pillEnterSpan: 0.055,
-  act2At: 0.355,
+  pillEnterAt: 0.53,
+  pillEnterSpan: 0.05,
+  act2At: 0.585,
 
   entryStart: 0.35,
   // Dead centre of five: two runs arrive from the up-left, two from the

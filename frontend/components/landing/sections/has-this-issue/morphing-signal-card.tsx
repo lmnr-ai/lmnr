@@ -132,9 +132,11 @@ const MorphingSignalCard = ({ collapsed = false, durationMs = 0, progress, showP
   const padY = useTransform(p, (v) => mix(PAD_Y, 0, v));
   const borderColor = useTransform(p, [0, 1], [SIGNAL_BORDER, TRANSPARENT]);
   const backgroundColor = useTransform(p, [0, 1], [SIGNAL_BG, TRANSPARENT]);
-  /** Contents clear out over the first half, so the card is already empty by
-   *  the time its right edge reaches the pill. Mirrors `durationMs / 2` above. */
-  const contentOpacity = useTransform(p, [0, 0.5], [1, 0]);
+  /** Contents clear out over the first QUARTER, well before the card's right
+   *  edge reaches the pill. Text riding a shrinking box most of the way down
+   *  reads as the copy being crushed rather than the card emptying, so this is
+   *  deliberately much faster than the geometry it sits inside. */
+  const contentOpacity = useTransform(p, [0, 0.25], [1, 0]);
   /** The pill arrives over the second half — after the title has gone, so the
    *  two never read as overlapping text. */
   const pillOpacity = useTransform(p, [0.5, 1], [0, 1]);

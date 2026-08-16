@@ -101,16 +101,29 @@ const COPY_END = UNPIN;
 /** Scroll progress at which each copy block sits dead centre (linear). */
 const STEP_CENTERS = STEP_STOPS.map((i) => (i / (STEP_COUNT - 1)) * COPY_END);
 
-/** The last step's window: from the previous step's copy centring to the end of
- *  the section. Every phase in ./stack-timing is a fraction of THIS, which is
- *  what lets the flight, the collapse, the card's rise and the pill's entry
- *  share one coordinate and one dial dock. */
-const STACK_WINDOW_START = STEP_CENTERS[STEP_COUNT - 2];
+/** The closing sequence's window: from the copy centring TWO steps from the end
+ *  to the end of the section. Every phase in ./stack-timing is a fraction of
+ *  THIS, which is what lets the flight, the collapse, the card's rise and the
+ *  pill's entry share one coordinate and one dial dock.
+ *
+ *  Two steps, not one. The sequence has to hit marks on BOTH of the last two
+ *  copy blocks — the stack is fully formed as "Similar failures are clustered"
+ *  centres, and the pill is inside the clusters card as "Has this failure
+ *  occurred before?" centres — and a window opening on the first of those marks
+ *  has no room to reach it. */
+const STACK_WINDOW_START = STEP_CENTERS[STEP_COUNT - 3];
 
-/** The sticky release, expressed in the last step's own 0-1 coordinate. Handed
- *  to the dials as a read-only reference bar, so a phase can be dragged
- *  deliberately past it rather than by guesswork. */
-const UNPIN_IN_WINDOW = (UNPIN - STACK_WINDOW_START) / (1 - STACK_WINDOW_START);
+const inWindow = (progress: number) => (progress - STACK_WINDOW_START) / (1 - STACK_WINDOW_START);
+
+/** The two landmarks the sequence is timed against, in the window's own 0-1
+ *  coordinate. Handed to the dials as read-only reference bars so a phase can
+ *  be dragged onto them rather than by guesswork. */
+const STEP_MARKS_IN_WINDOW = {
+  /** Second-to-last copy block dead centre. */
+  penultimate: inWindow(STEP_CENTERS[STEP_COUNT - 2]),
+  /** Last copy block dead centre, which is also the sticky release. */
+  unpin: inWindow(UNPIN),
+};
 
 // Dev-only live tuning. `IS_DEV` is inlined at build time, so the whole
 // dynamic() call — and the dialkit chunk behind it — is dead code in a
@@ -267,7 +280,7 @@ const UnderstandWhyTraceView = () => {
 
   return (
     <TraceViewErrorBoundary>
-      {StackDials && <StackDials onChange={setStackTiming} unpinAt={UNPIN_IN_WINDOW} />}
+      {StackDials && <StackDials onChange={setStackTiming} marks={STEP_MARKS_IN_WINDOW} />}
       {/* Wraps the WHOLE section, not just the panel: the copy on the left has
           inline links that select spans in this same store. */}
       <TraceViewStoreProvider storeKey="landing-demo-trace" initialTrace={trace}>

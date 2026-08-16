@@ -585,21 +585,6 @@
    the midpoint (more eye-catching against the muted signal card bg
    than primary-400 was) with a near-opaque fill and a wider shadow
    ring, then settles back. */
-@keyframes signal-span-flash {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgb(218 135 95 / 0);
-    background-color: rgb(234 232 224 / 0.15);
-  }
-  50% {
-    box-shadow: 0 0 0 6px rgb(218 135 95 / 0.6);
-    background-color: rgb(218 135 95 / 0.9);
-  }
-}
-
-.signal-span-flash {
-  animation: signal-span-flash 0.6s ease-in-out 1;
-}
 
 @layer base {
   * {

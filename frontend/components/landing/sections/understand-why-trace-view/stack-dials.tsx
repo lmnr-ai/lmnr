@@ -38,12 +38,12 @@ const fromDock = (seconds: number) => seconds / WINDOW_S;
 
 interface Props {
   onChange: (timing: StackTiming) => void;
-  /** Where the sticky release falls in the window, 0-1. Drawn as a reference
-   *  bar so the drop can be dragged past it on purpose. */
-  unpinAt: number;
+  /** Where each copy block centres, in the window's 0-1. Drawn as read-only
+   *  reference bars — the whole sequence is timed against these. */
+  marks: { penultimate: number; unpin: number };
 }
 
-const StackDials = ({ onChange, unpinAt }: Props) => {
+const StackDials = ({ onChange, marks }: Props) => {
   const tl = useDialTimeline(
     "Signal stack",
     {
@@ -55,17 +55,19 @@ const StackDials = ({ onChange, unpinAt }: Props) => {
       // Zero-length marker: where the time-based Act 2 arms. Only its `at` is
       // read; the duration is there so there is something to grab.
       act2: { at: toDock(D.act2At), duration: toDock(0.02) },
-      // READ-ONLY reference: the frame where the section stops being pinned and
-      // starts scrolling away. Anything ending before it happens on a still
-      // frame; anything after happens while the section is leaving. Nothing
-      // reads this clip back, so dragging it does nothing.
-      unpinned: { at: toDock(unpinAt), duration: toDock(1 - unpinAt) },
+      // READ-ONLY references, both marking a copy block dead centre. The stack
+      // must be formed by `copyStack` and the pill inside the clusters card by
+      // `copyClusters`, which is also the sticky release — anything ending
+      // after it happens while the section is scrolling away. Nothing reads
+      // these clips back, so dragging them does nothing.
+      copyStack: { at: toDock(marks.penultimate), duration: toDock(0.02) },
+      copyClusters: { at: toDock(marks.unpin), duration: toDock(1 - marks.unpin) },
     },
     // Bump the -vN on EVERY default change: stored clips outrank these
     // defaults, so without it a retuned default silently does nothing on the
-    // machine that last opened the dock. -v3 added the clusters card's rise and
-    // the pill's entry in place of the old `drop`.
-    { id: "landing-signal-stack-timeline-v3", persist: true, autoplay: false }
+    // machine that last opened the dock. -v4 moved the window's start back a
+    // whole step, so every number in it means something different.
+    { id: "landing-signal-stack-timeline-v4", persist: true, autoplay: false }
   );
 
   // Everything that is NOT a position in the window: two are fractions of the

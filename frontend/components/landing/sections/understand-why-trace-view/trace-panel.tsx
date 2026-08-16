@@ -2,7 +2,7 @@
 
 import { motion, type Transition } from "framer-motion";
 import { ChevronDown, ChevronsRight, List, Maximize, Radio, Sparkles } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
 import { TraceStatsShields } from "@/components/traces/stats-shields";
@@ -26,12 +26,10 @@ const SIGNAL_CARD_MAX = 320;
 // timeline just moves the same empty space into the transcript below it.
 const TIMELINE_HEIGHT = 120;
 
-// Reveal timings, relative to the moment the step becomes active. The delay
-// lets the tray's slide settle before the transcript starts scrolling, so the
+// Delay before the auto-selected span is scrolled to, relative to the moment
+// the step becomes active — lets the signal card finish opening first, so the
 // two motions read as sequential rather than fighting each other.
 const REVEAL_AT_MS = 350;
-const FLASH_START_MS = 450;
-const FLASH_CLEAR_MS = 1100;
 
 const HEADER_ITEM_CLS = "flex items-center h-7";
 
@@ -90,10 +88,10 @@ const PanelHeaderRow = ({
   </div>
 );
 
-// Selects + scrolls to `spanId` shortly after it becomes defined, pulsing the
-// matching signal chip on the way. The callback is held in a ref because
-// `useSelectAndRevealSpan` re-creates it whenever a transcript group expands —
-// depending on it directly would re-fire the reveal on every expansion.
+// Selects + scrolls to `spanId` shortly after it becomes defined. The callback
+// is held in a ref because `useSelectAndRevealSpan` re-creates it whenever a
+// transcript group expands — depending on it directly would re-fire the reveal
+// on every expansion.
 const useRevealSpan = (spanId?: string) => {
   const selectAndRevealSpan = useSelectAndRevealSpan();
   const selectRef = useRef(selectAndRevealSpan);
@@ -101,19 +99,11 @@ const useRevealSpan = (spanId?: string) => {
     selectRef.current = selectAndRevealSpan;
   }, [selectAndRevealSpan]);
 
-  const [flashSpanId, setFlashSpanId] = useState<string | undefined>(undefined);
-
   useEffect(() => {
     if (!spanId) return;
-    const timers = [
-      window.setTimeout(() => selectRef.current(spanId), REVEAL_AT_MS),
-      window.setTimeout(() => setFlashSpanId(spanId), FLASH_START_MS),
-      window.setTimeout(() => setFlashSpanId(undefined), FLASH_CLEAR_MS),
-    ];
-    return () => timers.forEach(window.clearTimeout);
+    const timer = window.setTimeout(() => selectRef.current(spanId), REVEAL_AT_MS);
+    return () => window.clearTimeout(timer);
   }, [spanId]);
-
-  return flashSpanId;
 };
 
 interface Props {
@@ -183,7 +173,7 @@ const TracePanel = ({
     setSignalsPanelOpen(!!signalsOpen);
   }, [signalsOpen, setSignalsPanelOpen]);
 
-  const flashSpanId = useRevealSpan(revealSpanId);
+  useRevealSpan(revealSpanId);
   const selectAndRevealSpan = useSelectAndRevealSpan();
 
   const handleSpanSelect = useCallback((span: TraceViewSpan) => setSelectedSpan(span), [setSelectedSpan]);
@@ -231,7 +221,6 @@ const TracePanel = ({
               className="rounded-md border overflow-hidden"
             >
               <SignalContent
-                flashSpanId={flashSpanId}
                 onSpanClick={handleSignalSpanClick}
                 onClose={() => setSignalsPanelOpen(false)}
               />
