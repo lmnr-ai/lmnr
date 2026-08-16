@@ -5,11 +5,10 @@ import { getClusterColorById } from "@/lib/clusters/colors";
 // that pill into this cluster's row.
 //
 // Both sides key off the same id so the pill's colour — a pure function of the
-// id — is exactly the row's colour. Renaming the cluster means changing
-// SIGNAL_CLUSTER_NAME here AND the `df-tool` node in
-// has-this-issue/clusters-mock-data.ts; changing the ID re-rolls the colour.
+// id — is exactly the row's colour. The clusters mock reads the name from here,
+// so a rename is this line alone; changing the ID re-rolls the colour.
 export const SIGNAL_CLUSTER_ID = "df-tool";
-export const SIGNAL_CLUSTER_NAME = "Unsourced answers";
+export const SIGNAL_CLUSTER_NAME = "Reporting unverified results";
 export const SIGNAL_CLUSTER_COLOR = getClusterColorById(SIGNAL_CLUSTER_ID);
 
 /** Events grouped into this cluster. Shown on the pill, and it is also how many

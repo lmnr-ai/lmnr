@@ -41,9 +41,17 @@ const EntryRow = ({ entry, active }: { entry: Entry; active: boolean }) => {
           <span className="text-primary-300">✻</span> {entry.text}
         </p>
       );
+    // The commands themselves are the point of the scene, so they carry the
+    // only highlight in the transcript. Every `tool` line here is a Laminar
+    // invocation (`lmnr-cli`, or the debugger's LMNR_DEBUG env vars) — if a
+    // plain shell command is ever added, split it into its own kind rather
+    // than tinting it as Laminar.
+    //
+    // `-mx-2 px-2` bleeds the band into the panel's own padding, so the text
+    // stays on the same left edge as every other line.
     case "tool":
       return (
-        <p className={cn(monoBase, "text-foreground-400 whitespace-pre")}>
+        <p className={cn(monoBase, "text-foreground-300 whitespace-pre -mx-2 rounded-sm bg-primary-400/10 px-2")}>
           <span className="text-foreground-500">●</span> {entry.text}
         </p>
       );
@@ -51,13 +59,10 @@ const EntryRow = ({ entry, active }: { entry: Entry; active: boolean }) => {
       return <p className={cn(monoBase, "text-foreground-500 whitespace-pre")}>{`  └─ ${entry.text}`}</p>;
     case "diff":
       return (
-        <div
-          className={cn(
-            "flex items-center pl-1 pr-2",
-            entry.sign === "-" && "bg-surface-400/60",
-            entry.sign === "+" && "bg-primary-400/10"
-          )}
-        >
+        // Unhighlighted: the sign column and its colour already read as a
+        // diff, and the only tinted band in the transcript belongs to the
+        // Laminar commands above.
+        <div className="flex items-center pl-1 pr-2">
           <span
             className={cn(
               monoBase,

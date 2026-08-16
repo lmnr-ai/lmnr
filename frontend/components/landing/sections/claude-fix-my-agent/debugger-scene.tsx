@@ -11,14 +11,17 @@ const PROMPT = "I don't see anything written to MEMORY.md, fix please.";
 // before it.
 type Step = { entry: Entry; delay: number };
 
+// Commands run one to a line. They used to wrap across two `tool` entries to
+// fit a narrower terminal; at 600px the longest of them is ~75 monospace
+// characters against ~77 of content width, so keep any new one under that or
+// it will clip rather than wrap (`whitespace-pre`).
 const SEQUENCE: Step[] = [
   { entry: { kind: "status", text: "Step 1: Running agent with Laminar Debugger" }, delay: 700 },
-  { entry: { kind: "tool", text: "Bash(LMNR_DEBUG=1 uv run agent.py)" }, delay: 240 },
+  { entry: { kind: "tool", text: "LMNR_DEBUG=1 uv run agent.py" }, delay: 240 },
   { entry: { kind: "result", text: "Session fix-memory-md · 12 spans" }, delay: 360 },
 
   { entry: { kind: "status", text: "Step 2: Querying trace via Laminar CLI SQL" }, delay: 700 },
-  { entry: { kind: "tool", text: 'Bash(lmnr-cli sql query "SELECT name, span_type' }, delay: 240 },
-  { entry: { kind: "tool", text: "  FROM spans WHERE trace_id='7f3a…'\")" }, delay: 220 },
+  { entry: { kind: "tool", text: `lmnr-cli sql query "SELECT name FROM spans WHERE trace_id='7f3a…'"` }, delay: 240 },
   { entry: { kind: "result", text: "12 rows · no write_file span found" }, delay: 440 },
 
   {
@@ -38,13 +41,14 @@ const SEQUENCE: Step[] = [
   // Re-run with span caching: replay the recorded trace, serving cached LLM
   // responses up to the boundary and running the changed tail live.
   { entry: { kind: "status", text: "Step 4: Re-running with cached spans" }, delay: 740 },
-  { entry: { kind: "tool", text: "Bash(LMNR_DEBUG=true" }, delay: 240 },
-  { entry: { kind: "tool", text: "  LMNR_DEBUG_CACHE_UNTIL=a91c… uv run agent.py)" }, delay: 220 },
+  { entry: { kind: "tool", text: "LMNR_DEBUG=true LMNR_DEBUG_CACHE_UNTIL=a91c… uv run agent.py" }, delay: 240 },
   { entry: { kind: "result", text: "Replayed 8 cached spans · 4 ran live" }, delay: 420 },
 
   { entry: { kind: "status", text: "Step 5: Verifying the fix" }, delay: 700 },
-  { entry: { kind: "tool", text: 'Bash(lmnr-cli sql query "SELECT count() FROM spans' }, delay: 240 },
-  { entry: { kind: "tool", text: "  WHERE name='write_file'\")" }, delay: 220 },
+  {
+    entry: { kind: "tool", text: `lmnr-cli sql query "SELECT count() FROM spans WHERE name='write_file'"` },
+    delay: 240,
+  },
   { entry: { kind: "result", text: "1 row · write_file → MEMORY.md" }, delay: 440 },
 
   { entry: { kind: "status", text: "Step 6: Fix confirmed!" }, delay: 740 },
