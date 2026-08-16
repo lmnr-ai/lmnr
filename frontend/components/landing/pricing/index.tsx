@@ -76,14 +76,14 @@ export default function Pricing() {
             <CardsVariant />
           </div>
 
-          {/* Detailed comparison table */}
-          <div className="w-full mb-[240px]">
-            <PricingTable />
+          {/* Calculator */}
+          <div className="w-full max-w-[640px] mb-[240px]">
+            <PricingCalculator />
           </div>
 
-          {/* Calculator */}
-          <div className="w-full max-w-[640px] mb-[160px]">
-            <PricingCalculator />
+          {/* Detailed comparison table */}
+          <div className="w-full mb-[160px]">
+            <PricingTable />
           </div>
 
           <div className={cn("w-full", LANDING_COLUMN_MAX_W)}>
