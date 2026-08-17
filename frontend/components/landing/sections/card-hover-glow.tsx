@@ -19,17 +19,6 @@ import Image from "next/image";
 const GLOW_W = 721;
 const GLOW_H = 314;
 
-/** Committed defaults, mirrored in the class below as the var fallbacks — the
- *  dials module reads them so its knobs start where production sits. */
-export const CARD_GLOW_DEFAULTS = {
-  slide: 180,
-  durationMs: 1600,
-  /** The artwork is a solid fill, so this alone is what makes it faint. */
-  opacity: 0.1,
-  offsetX: -140,
-  offsetY: -228,
-};
-
 const CardHoverGlow = () => (
   <span
     aria-hidden

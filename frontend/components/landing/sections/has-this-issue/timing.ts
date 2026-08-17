@@ -48,8 +48,6 @@
 // ../signal-event-clusters-mock. Lengthening `pillFallFrom` past that only adds
 // invisible lead-in; the lane is what has to grow.
 //
-// Tunable live in dev via ./timing-dials (DialKit). Numbers arrived at there get
-// pasted back into DEFAULTS — nothing reads the dials in production.
 export interface ClustersTiming {
   // ── Act 1: positions in the scroll window, 0-1 ────────────────────────────
   /** Pill falls in from above the panel to its resting place over the card. */

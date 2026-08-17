@@ -17,10 +17,10 @@
 //        which is also the sticky release — the pill must already be inside the
 //        clusters card.
 //
-//   0        .24      .44   .53 .58                          1
-//   ├─────────┼────────┼─────┼───┼──────────────────────────┤
-//       ▓▓▓▓▓                        flight    (panel → stack front)
-//           ╎                        ← stack holds through .31
+//   0          .28    .44   .53 .58                          1
+//   ├───────────┼──────┼─────┼───┼──────────────────────────┤
+//       ▓▓▓▓▓▓▓▓                     flight    (panel → stack front)
+//             ╎                      ← stack holds through .31
 //             ▓▓▓▓▓                  collapse  (stack → cluster pill)
 //              ▓▓▓▓▓▓▓▓              cardRise  (clusters card rises to meet it)
 //                     ▓▓▓            pillEnter (pill drops into the card)
@@ -37,8 +37,6 @@
 // runs on a clock, in ms — see ../has-this-issue/use-cluster-beats.
 //
 // Phases are absolute and may overlap; editing one never shifts another.
-// Tunable live in dev via ./stack-dials (DialKit). Numbers arrived at there get
-// pasted back into DEFAULTS — nothing reads the dials in production.
 
 export interface StackTiming {
   /** Card leaves the trace panel and flies to the front of the stack. */
@@ -86,14 +84,17 @@ export interface StackTiming {
 }
 
 export const DEFAULT_STACK_TIMING: StackTiming = {
-  // Lands the formed stack at .24, so it is already holding when the copy
+  // Lands the formed stack at .275, so it is already holding when the copy
   // centres at .31 rather than still assembling under the reader. Starting later
-  // and running shorter than the window's opening beat is deliberate: the reader
-  // gets a moment on the trace panel before anything leaves it.
+  // than the window's opening beat is deliberate: the reader gets a moment on the
+  // trace panel before anything leaves it.
+  //
+  // The span is what makes the runs fan in at a readable pace, and it can only
+  // grow toward .31 — past that the stack is still assembling under its own copy.
   flightAt: 0.155,
-  flightSpan: 0.084,
+  flightSpan: 0.12,
 
-  // Nothing moves between .24 and .34: the stack is the picture that belongs
+  // Nothing moves between .275 and .34: the stack is the picture that belongs
   // to "Similar failures are clustered", so it gets the copy's whole beat.
   collapseAt: 0.34,
   collapseSpan: 0.1,

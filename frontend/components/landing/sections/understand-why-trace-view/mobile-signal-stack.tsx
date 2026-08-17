@@ -34,7 +34,7 @@ const CARDS = SIGNAL_CLUSTER_EVENT_COUNT;
 /** Painted back to front, so slot 0 ends up on top. */
 const SLOTS = Array.from({ length: CARDS }, (_, i) => CARDS - 1 - i);
 /** Which slot is the real card. Structural, not a tuning knob — it decides which
- *  way the other four lean, so it stays out of the dials. */
+ *  way the other four lean. */
 const LIVE_SLOT = Math.min(Math.max(Math.round(DEFAULT_STACK_TIMING.liveSlot), 0), CARDS - 1);
 
 /** Rearmost card's opacity; the ramp to the front is derived, so a change to

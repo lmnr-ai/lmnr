@@ -105,8 +105,7 @@ const SignalEventClustersMock = ({ className }: { className?: string }) => {
   const { scrollYProgress } = useScroll({ target: stageRef, offset: ["start 0.75", "center center"] });
 
   // Function-form transforms, not [in]/[out] ranges: they close over `timing`,
-  // which the dials replace on the fly, and Motion re-runs the closure on every
-  // render.
+  // so Motion re-runs the closure on every render.
   const pillFall = useTransform(scrollYProgress, (t) => easeOutCubic(phase(t, timing.pillFallAt, timing.pillFallSpan)));
   const cardRise = useTransform(scrollYProgress, (t) =>
     easeOutCubic(phase(t, timing.clusterRiseAt, timing.clusterRiseSpan))

@@ -33,8 +33,6 @@
 // well under the pixel travel or the pill reads as hanging still while the page
 // slides past it.
 //
-// Tunable live in dev via ./mobile-stack-dials (DialKit). Numbers arrived at
-// there get pasted back into DEFAULTS — nothing reads the dials in production.
 export interface MobileStackTiming {
   /** Cards converge and the live one becomes its cluster pill. */
   collapseAt: number;
