@@ -44,6 +44,9 @@ interface Props {
 }
 
 const StackDials = ({ onChange, marks }: Props) => {
+  // TODO(production): DialKit's clip.current values are the scrubbable authoring preview.
+  // Replace them with equivalent real Motion animations using the tuned timeline
+  // timings and transitions, then remove useDialTimeline and <DialTimeline />.
   const tl = useDialTimeline(
     "Signal stack",
     {
@@ -67,7 +70,7 @@ const StackDials = ({ onChange, marks }: Props) => {
     // defaults, so without it a retuned default silently does nothing on the
     // machine that last opened the dock. -v4 moved the window's start back a
     // whole step, so every number in it means something different.
-    { id: "landing-signal-stack-timeline-v4", persist: true, autoplay: false }
+    { id: "landing-signal-stack-timeline-v5", persist: true, autoplay: false }
   );
 
   // Everything that is NOT a position in the window: two are fractions of the

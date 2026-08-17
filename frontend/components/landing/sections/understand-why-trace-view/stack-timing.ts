@@ -17,9 +17,9 @@
 //        which is also the sticky release — the pill must already be inside the
 //        clusters card.
 //
-//   0        .26      .44   .53 .58                          1
+//   0        .24      .44   .53 .58                          1
 //   ├─────────┼────────┼─────┼───┼──────────────────────────┤
-//      ▓▓▓▓▓▓                        flight    (panel → stack front)
+//       ▓▓▓▓▓                        flight    (panel → stack front)
 //           ╎                        ← stack holds through .31
 //             ▓▓▓▓▓                  collapse  (stack → cluster pill)
 //              ▓▓▓▓▓▓▓▓              cardRise  (clusters card rises to meet it)
@@ -82,19 +82,21 @@ export interface StackTiming {
 }
 
 export const DEFAULT_STACK_TIMING: StackTiming = {
-  // Lands the formed stack at .26, so it is already holding when the copy
-  // centres at .31 rather than still assembling under the reader.
-  flightAt: 0.14,
-  flightSpan: 0.12,
+  // Lands the formed stack at .24, so it is already holding when the copy
+  // centres at .31 rather than still assembling under the reader. Starting later
+  // and running shorter than the window's opening beat is deliberate: the reader
+  // gets a moment on the trace panel before anything leaves it.
+  flightAt: 0.155,
+  flightSpan: 0.084,
 
-  // Nothing moves between .26 and .34: the stack is the picture that belongs
+  // Nothing moves between .24 and .34: the stack is the picture that belongs
   // to "Similar failures are clustered", so it gets the copy's whole beat.
   collapseAt: 0.34,
-  collapseSpan: 0.10,
+  collapseSpan: 0.1,
 
   // Overlaps the collapse deliberately: the card is already arriving as the
   // stack folds, so the pill has somewhere to be rather than hanging.
-  cardRiseAt: 0.40,
+  cardRiseAt: 0.4,
   cardRiseSpan: 0.13,
 
   pillEnterAt: 0.53,
