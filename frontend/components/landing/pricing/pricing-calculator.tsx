@@ -296,7 +296,6 @@ export default function PricingCalculator() {
   const tokens = runs * tokensPerRun;
   const dataGB = estimateDataFromTokens(tokens);
   const coveragePct = COVERAGE_STEPS[coverageIdx];
-  const analyzedRuns = Math.round((runs * coveragePct) / 100);
 
   // Signal cost is tier-dependent (Pro is discounted), so each estimate prices
   // at its own rate.
@@ -314,10 +313,6 @@ export default function PricingCalculator() {
     estimates.hobby.totalUsd,
     estimates.pro.totalUsd
   );
-  // Signal cost shown next to the coverage slider tracks the recommended tier's
-  // rate so it agrees with the estimate column below.
-  const displayedSignalCostUsd = state === "pro" ? estimates.pro.signalCostUsd : estimates.hobby.signalCostUsd;
-
   const preview = <TierColumn estimate={estimates[state]} tooltip={TOOLTIPS[state]} />;
 
   return (
@@ -331,32 +326,16 @@ export default function PricingCalculator() {
           max={RUN_STEPS.length - 1}
           onChange={setRunsIdx}
         />
-        {/* Carries the derived monthly total, since neither slider shows it
-            alone and it is what the data allowance is measured against. */}
         <SliderBlock
           label="Tokens per agent run"
-          value={
-            <>
-              {formatTokens(tokensPerRun)}{" "}
-              <span className="text-sm text-foreground-300">
-                ≈ {formatTokens(tokens)} tokens/mo, {formatDataSize(dataGB)}
-              </span>
-            </>
-          }
+          value={formatTokens(tokensPerRun)}
           sliderValue={tokensPerRunIdx}
           max={TOKENS_PER_RUN_STEPS.length - 1}
           onChange={setTokensPerRunIdx}
         />
         <SliderBlock
-          label="Agent runs analyzed by Signal"
-          value={
-            <>
-              {coveragePct}%{" "}
-              <span className="text-sm text-foreground-300">
-                ≈ {analyzedRuns.toLocaleString()} runs, ${formatDollars(displayedSignalCostUsd)} in Signals
-              </span>
-            </>
-          }
+          label="Agent runs analyzed by Signals"
+          value={`${coveragePct}%`}
           sliderValue={coverageIdx}
           max={COVERAGE_STEPS.length - 1}
           onChange={setCoverageIdx}
