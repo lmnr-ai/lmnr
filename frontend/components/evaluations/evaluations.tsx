@@ -10,6 +10,7 @@ import useSWR from "swr";
 
 import HeatmapValue from "@/components/evaluation/heatmap-value";
 import { formatScoreValue, isValidScore } from "@/components/evaluation/utils";
+import { EvaluationDatapointsCell } from "@/components/evaluations/datapoints-cell";
 import ProgressionChart from "@/components/evaluations/progression-chart";
 import { EvaluationStatusCell } from "@/components/evaluations/status-cell";
 import { EvaluationsTableContents } from "@/components/evaluations/table-contents";
@@ -71,6 +72,8 @@ const baseColumns: ColumnDef<Evaluation>[] = [
     id: "dataPointsCount",
     accessorKey: "dataPointsCount",
     header: "Datapoints",
+    cell: EvaluationDatapointsCell,
+    size: 260,
   },
   {
     id: "metadata",
@@ -145,7 +148,7 @@ export default function Evaluations() {
   return (
     <InfiniteDataTableProvider
       defaults={{ columnOrder: defaultEvaluationsColumnOrder }}
-      lockedColumns={["__row_selection", "__chart_visibility"]}
+      lockedColumns={["__row_selection", "__chart_visibility", "status"]}
       views={{ projectId, resource: RESOURCE }}
     >
       <EvaluationsContent />

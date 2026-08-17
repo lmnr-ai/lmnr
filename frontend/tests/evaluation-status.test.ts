@@ -2,96 +2,113 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  datapointBuckets,
+  deriveDatapointStatus,
   deriveEvaluationStatus,
   EVALUATION_STALE_AFTER_MS,
+  type EvaluationStatus,
   type EvaluationStatusCounts,
+  resolveEvaluationStatusFilter,
 } from "@/lib/evaluation/status";
 
-// Pins the eval-level run status contract (LAM-2062). Completion is per
-// datapoint: (rooted AND scored) OR errored. Error is terminal even with no
-// scores. A stalled run is separated from a live one purely by staleness.
-
-const NOW = Date.parse("2026-08-03T12:00:00.000Z");
-const fresh = new Date(NOW - 60_000).toISOString();
-const stale = new Date(NOW - EVALUATION_STALE_AFTER_MS - 60_000).toISOString();
+const NOW = Date.parse("2026-04-01T12:00:00.000Z");
+const FRESH = new Date(NOW).toISOString();
+const STALE_AT = new Date(NOW - EVALUATION_STALE_AFTER_MS - 1).toISOString();
 
 const counts = (over: Partial<EvaluationStatusCounts> = {}): EvaluationStatusCounts => ({
-  total: 10,
-  rooted: 10,
-  scored: 10,
+  total: 0,
+  complete: 0,
   errored: 0,
-  complete: 10,
-  lastUpdatedAt: fresh,
+  stale: 0,
   ...over,
 });
 
 describe("deriveEvaluationStatus", () => {
-  it("reports empty when there are no datapoints", () => {
-    assert.equal(deriveEvaluationStatus(counts({ total: 0, rooted: 0, scored: 0, complete: 0 }), NOW), "empty");
-  });
+  const cases: [string, EvaluationStatusCounts, EvaluationStatus | null][] = [
+    ["no datapoints", counts(), null],
+    ["all complete", counts({ total: 10, complete: 10 }), "complete"],
+    ["all complete, some errors", counts({ total: 10, complete: 10, errored: 2 }), "completeWithErrors"],
+    ["all errored", counts({ total: 10, complete: 10, errored: 10 }), "completeWithErrors"],
+    ["still pending", counts({ total: 10, complete: 5 }), "running"],
+    ["remaining are stale", counts({ total: 10, complete: 7, stale: 3 }), "incomplete"],
+    ["mix of pending and stale", counts({ total: 10, complete: 7, stale: 2 }), "running"],
+    ["clamps complete above total", counts({ total: 10, complete: 20, errored: 1 }), "completeWithErrors"],
+    ["clamps negatives to running", counts({ total: 10, complete: -4, errored: -1 }), "running"],
+  ];
 
-  it("reports finished when every datapoint is rooted and scored", () => {
-    assert.equal(deriveEvaluationStatus(counts(), NOW), "finished");
+  it("classifies from counters", () => {
+    for (const [name, c, expected] of cases) {
+      assert.equal(deriveEvaluationStatus(c), expected, name);
+    }
   });
+});
 
-  it("reports finishedWithErrors when a trace errored but everything settled", () => {
-    // 9 rooted+scored + 1 errored == 10 complete.
-    assert.equal(deriveEvaluationStatus(counts({ rooted: 9, errored: 1, complete: 10 }), NOW), "finishedWithErrors");
+describe("deriveDatapointStatus", () => {
+  const cases: [string, Record<string, unknown>, string][] = [
+    ["object scores", { scores: { accuracy: 0.9 } }, "complete"],
+    ["json scores", { scores: '{"accuracy":0.9}' }, "complete"],
+    ["zero score still complete", { scores: { accuracy: 0 } }, "complete"],
+    ["complete is never stale", { scores: { accuracy: 0.9 }, createdAt: STALE_AT }, "complete"],
+    ["trace error", { traceStatus: "error" }, "error"],
+    ["error wins over scores", { scores: { accuracy: 0.9 }, traceStatus: "error" }, "error"],
+    ["error is never stale", { createdAt: STALE_AT, traceStatus: "error" }, "error"],
+    ["fresh empty", { scores: {}, createdAt: FRESH }, "running"],
+    ["stale empty", { scores: {}, createdAt: STALE_AT }, "stale"],
+    ["empty object", { scores: {} }, "running"],
+    ["empty json", { scores: "{}" }, "running"],
+    ["empty string", { scores: "" }, "running"],
+    ["non-empty blob counts as scored", { scores: "not-json" }, "complete"],
+    ["ignore score:* when blob present", { scores: {}, "score:accuracy": 0.9 }, "running"],
+    ["score:* when blob absent", { scores: null, "score:accuracy": 0.9 }, "complete"],
+    ["updatedAt beats createdAt", { createdAt: STALE_AT, updatedAt: FRESH }, "running"],
+    ["missing timestamp", {}, "running"],
+  ];
+
+  it("classifies from row fields", () => {
+    for (const [name, row, expected] of cases) {
+      assert.equal(deriveDatapointStatus(row, NOW), expected, name);
+    }
   });
+});
 
-  it("treats an all-errored run as terminal rather than forever-running", () => {
-    assert.equal(deriveEvaluationStatus(counts({ rooted: 0, errored: 10, complete: 10 }), NOW), "finishedWithErrors");
+describe("datapointBuckets", () => {
+  it("splits settled vs remaining", () => {
+    assert.deepEqual(datapointBuckets({ total: 10, complete: 6, errored: 1, stale: 2 }), {
+      total: 10,
+      complete: 5,
+      inProgress: 2,
+      stale: 2,
+      errored: 1,
+    });
+    assert.deepEqual(datapointBuckets({ total: 10, complete: -4, errored: -1 }), {
+      total: 10,
+      complete: 0,
+      inProgress: 10,
+      stale: 0,
+      errored: 0,
+    });
+    assert.deepEqual(datapointBuckets({ total: 10, complete: 20, errored: 3, stale: 5 }), {
+      total: 10,
+      complete: 7,
+      inProgress: 0,
+      stale: 0,
+      errored: 3,
+    });
   });
+});
 
-  it("treats an errored datapoint as complete even with no scores", () => {
-    // Evaluators often never run after a hard failure. Waiting on scores would
-    // leave this run stuck in `incomplete`.
-    assert.equal(
-      deriveEvaluationStatus(counts({ rooted: 0, scored: 0, errored: 10, complete: 10 }), NOW),
-      "finishedWithErrors"
-    );
-  });
+describe("resolveEvaluationStatusFilter", () => {
+  const cases: [string, EvaluationStatus | null][] = [
+    ["finished", "complete"],
+    ["finishedWithErrors", "completeWithErrors"],
+    ["empty", null],
+    ["complete", "complete"],
+    ["running", "running"],
+  ];
 
-  it("stays running while non-errored datapoints are still missing scores", () => {
-    // 5 errored-and-scored + 5 rooted-unscored: complete must NOT use
-    // scored+errored (that would be 10 and false-finish the run).
-    assert.equal(deriveEvaluationStatus(counts({ rooted: 10, scored: 5, errored: 5, complete: 5 }), NOW), "running");
-  });
-
-  it("stays running while root spans are still missing", () => {
-    assert.equal(deriveEvaluationStatus(counts({ rooted: 4, complete: 4 }), NOW), "running");
-  });
-
-  it("stays running while scores are still missing", () => {
-    assert.equal(deriveEvaluationStatus(counts({ scored: 4, complete: 4 }), NOW), "running");
-  });
-
-  it("flags an unchanged incomplete run as incomplete", () => {
-    assert.equal(deriveEvaluationStatus(counts({ rooted: 4, complete: 4, lastUpdatedAt: stale }), NOW), "incomplete");
-  });
-
-  it("does not flag a COMPLETE run as incomplete no matter how old it is", () => {
-    // Staleness must only ever downgrade an incomplete run — a finished eval
-    // from last year is still finished.
-    assert.equal(deriveEvaluationStatus(counts({ lastUpdatedAt: stale }), NOW), "finished");
-  });
-
-  it("prefers running over incomplete when the timestamp is missing or unparseable", () => {
-    assert.equal(deriveEvaluationStatus(counts({ rooted: 1, complete: 1, lastUpdatedAt: null }), NOW), "running");
-    assert.equal(
-      deriveEvaluationStatus(counts({ rooted: 1, complete: 1, lastUpdatedAt: "not-a-date" }), NOW),
-      "running"
-    );
-  });
-
-  it("does not let counters above total spill into a wrong state", () => {
-    assert.equal(deriveEvaluationStatus(counts({ rooted: 12, errored: 3, complete: 10 }), NOW), "finishedWithErrors");
-  });
-
-  it("treats negative counters defensively as zero", () => {
-    assert.equal(
-      deriveEvaluationStatus(counts({ rooted: -1, scored: -1, complete: -1, lastUpdatedAt: fresh }), NOW),
-      "running"
-    );
+  it("maps current and legacy filter values", () => {
+    for (const [value, expected] of cases) {
+      assert.equal(resolveEvaluationStatusFilter(value), expected, value);
+    }
   });
 });

@@ -356,7 +356,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
           <EvalTraceLayout
             table={
               <div className="flex h-full w-full flex-col gap-6 overflow-hidden pb-4">
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-4">
                   <RunScoreCard
                     projectId={params.projectId}
                     evaluationId={evaluationId}
@@ -446,6 +446,7 @@ export default function Evaluation(props: EvaluationProps) {
         key={RESOURCE}
         views={{ projectId, resource: RESOURCE }}
         defaults={{ columnOrder: defaultColumnOrder, columnVisibility: defaultColumnVisibility }}
+        lockedColumns={["status"]}
       >
         <EvaluationContent {...props} />
       </InfiniteDataTableProvider>

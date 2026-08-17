@@ -11,6 +11,7 @@ import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
 import { filtersToSql } from "@/lib/db/modifiers";
 import { paginatedGet } from "@/lib/db/utils";
+import { resolveEvaluationStatusFilter } from "@/lib/evaluation/status";
 import { type Evaluation } from "@/lib/evaluation/types";
 
 export const GetEvaluationsSchema = PaginationFiltersSchema.extend({
@@ -54,8 +55,6 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
   const dataPointsCountFilters = otherFilters.filter((f) => f.column === "dataPointsCount");
   const statusFilters = otherFilters.filter((f) => f.column === "status");
 
-  // For filtering purposes, create an expression that checks against the count map
-  // Since we can't use ClickHouse in Drizzle filters, we'll filter before paginating
   const sqlFilters = filtersToSql(
     otherFilters.filter((f) => f.column !== "dataPointsCount" && f.column !== "status"),
     [],
@@ -64,12 +63,9 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
 
   const allFilters = [...baseFilters, ...(searchFilter ? [searchFilter] : []), ...metadataFilters, ...sqlFilters];
 
-  // dataPointsCount and status both live in ClickHouse, so they can't go into the
-  // Drizzle WHERE. Resolve them to an id set first, then constrain the paginated
-  // Postgres query with it (same pattern as the queues table's progress filters).
+  // Count + status live in ClickHouse — resolve matching ids, then constrain the PG page.
   let evaluationIdFilter: SQL | null = null;
   if (dataPointsCountFilters.length > 0 || statusFilters.length > 0) {
-    // First, get all evaluation IDs that match the base filters (project, group, search, metadata)
     const allEvaluations = await db
       .select({ id: evaluations.id })
       .from(evaluations)
@@ -78,11 +74,7 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
     const allEvaluationIds = allEvaluations.map((e) => e.id);
 
     if (allEvaluationIds.length === 0) {
-      // No evaluations exist with the base filters
-      return {
-        items: [],
-        totalCount: 0,
-      };
+      return { items: [], totalCount: 0 };
     }
 
     const statsMap = await getEvaluationRunStats(projectId, allEvaluationIds);
@@ -111,9 +103,8 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
       });
       if (!countMatches) return false;
 
-      // Status is a categorical label, so only eq/ne are meaningful.
       return statusFilters.every((filter) => {
-        const value = String(filter.value);
+        const value = resolveEvaluationStatusFilter(String(filter.value));
         switch (filter.operator) {
           case "eq":
             return stats?.status === value;
@@ -126,11 +117,7 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
     });
 
     if (matchingEvaluationIds.length === 0) {
-      // No evaluations match the filter, return empty result
-      return {
-        items: [],
-        totalCount: 0,
-      };
+      return { items: [], totalCount: 0 };
     }
 
     evaluationIdFilter = inArray(evaluations.id, matchingEvaluationIds);
@@ -147,31 +134,26 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
     orderBy: [desc(evaluations.createdAt)],
   });
 
-  // Decorate the page with its datapoint counts + derived run status (one
-  // grouped ClickHouse query, scoped to this page's ids).
-  let itemsWithCounts = result.items;
-  if (result.items.length > 0) {
-    const statsMap = await getEvaluationRunStats(
-      projectId,
-      result.items.map((e: Evaluation) => e.id)
-    );
+  if (result.items.length === 0) return result;
 
-    itemsWithCounts = result.items.map((evaluation: Evaluation) => {
+  const statsMap = await getEvaluationRunStats(
+    projectId,
+    result.items.map((e: Evaluation) => e.id)
+  );
+
+  return {
+    ...result,
+    items: result.items.map((evaluation: Evaluation) => {
       const stats = statsMap.get(evaluation.id);
       return {
         ...evaluation,
         dataPointsCount: stats?.total ?? 0,
-        status: stats?.status ?? "empty",
+        status: stats?.status ?? null,
         statusCounts: stats
-          ? { total: stats.total, rooted: stats.rooted, scored: stats.scored, errored: stats.errored }
+          ? { total: stats.total, complete: stats.complete, errored: stats.errored, stale: stats.stale }
           : undefined,
       };
-    });
-  }
-
-  return {
-    ...result,
-    items: itemsWithCounts,
+    }),
   };
 }
 

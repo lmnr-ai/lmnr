@@ -1,4 +1,4 @@
-import { flow, get, isNumber, mean, round } from "lodash";
+import { flow, isNumber, mean, round } from "lodash";
 
 import { interpolateColor, normalizeValue, type RGBColor, type ScoreRange } from "@/lib/colors";
 import {
@@ -9,24 +9,7 @@ import {
   type EvaluationTotals,
 } from "@/lib/evaluation/types";
 
-export type EvalDatapointStatus = "error" | "pending" | "success";
-
-const NIL_UUID = "00000000-0000-0000-0000-000000000000";
-
-export const deriveStatus = (row: EvalRow): EvalDatapointStatus => {
-  if (row["traceStatus"] === "error") return "error";
-
-  const scores = get(row, "scores");
-  const hasScoresString = typeof scores === "string" && scores.length > 0 && scores !== "{}";
-  const hasFlattenedScores = Object.keys(row).some((k) => k.startsWith("score:") && row[k] != null);
-  if (!hasScoresString && !hasFlattenedScores) return "pending";
-
-  const topSpanId = get(row, "topSpanId");
-  if (typeof topSpanId !== "string" || topSpanId === "" || topSpanId === NIL_UUID) {
-    return "pending";
-  }
-  return "success";
-};
+export { deriveDatapointStatus as deriveStatus, type EvalDatapointStatus } from "@/lib/evaluation/status";
 
 /**
  * Explode a `{name: number}` JSON string into `{score:<name>: number}` keys.
@@ -142,10 +125,10 @@ export const mergeDatapointUpsertIntoRows = (
   const idx = rows.findIndex((r) => r["id"] === incoming.id);
   if (idx !== -1) {
     const next = [...rows];
-    next[idx] = { ...next[idx], ...incoming, ...flattened };
+    next[idx] = { ...next[idx], ...incoming, ...flattened, updatedAt: new Date().toISOString() };
     return next;
   }
-  const seeded: EvalRow = { ...incoming, ...flattened };
+  const seeded: EvalRow = { ...incoming, ...flattened, updatedAt: new Date().toISOString() };
   const incomingIndex = Number(seeded["index"] ?? Number.POSITIVE_INFINITY);
   const insertAt = rows.findIndex((r) => Number(r["index"] ?? -1) > incomingIndex);
   if (insertAt === -1) return [...rows, seeded];

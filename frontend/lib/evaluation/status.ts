@@ -1,95 +1,110 @@
-/**
- * Eval-level run status, derived from aggregates over the eval's ClickHouse
- * datapoints (LAM-2062).
- *
- * A datapoint is COMPLETE when it has both halves (root span + scores) OR its
- * trace errored. Error is terminal — evaluators often never run, so waiting on
- * scores would leave a failed run stuck in `incomplete`. Scores can still land
- * on an errored datapoint (child-span exception, executor kept going); that
- * stays `finishedWithErrors`.
- *
- * There is NO expected-datapoint count. `evaluations` (Postgres) stores only
- * id/name/group/metadata, and the SDK never declares how many datapoints a run
- * will produce. A crashed mid-run eval is indistinguishable from a live one
- * except by staleness — hence `incomplete`, split off `running` by how long
- * since anything last changed.
- */
-export type EvaluationStatus =
-  /** No datapoints at all. The run was registered but never saved anything. */
-  | "empty"
-  /** Datapoints still missing a root span and/or scores, changed recently. */
-  | "running"
-  /** Same gaps, but nothing has changed in a while — the run likely died. */
-  | "incomplete"
-  /** Every datapoint is rooted + scored, and no trace errored. */
-  | "finished"
-  /** Every datapoint settled (rooted+scored, or errored). At least one error. */
-  | "finishedWithErrors";
+export type EvaluationStatus = "running" | "incomplete" | "complete" | "completeWithErrors";
+export type EvalDatapointStatus = "error" | "running" | "stale" | "complete";
 
-/** Per-eval datapoint counters, as aggregated in ClickHouse. */
 export type EvaluationStatusCounts = {
-  /** Total datapoints. */
   total: number;
-  /** Datapoints whose trace root span has arrived. */
-  rooted: number;
-  /** Datapoints carrying a non-empty scores object. */
-  scored: number;
-  /** Datapoints whose trace resolved to an error status. */
   errored: number;
-  /**
-   * Datapoints that are done: (rooted AND scored) OR errored.
-   * Per-row in ClickHouse — `scored + errored` double-counts overlap.
-   */
+  /** Has scores OR errored. Per-row — summing the two would double-count. */
   complete: number;
-  /** Most recent datapoint write, ISO string. Absent when there are none. */
-  lastUpdatedAt?: string | null;
+  stale: number;
 };
 
-/**
- * How long an eval with missing root spans / scores must sit unchanged before
- * it reads as `incomplete` rather than `running`.
- *
- * Deliberately generous: `updated_at` is bumped by datapoint writes (the SDK
- * saving a datapoint or patching in its scores) but NOT by trace ingestion, so
- * a run that has already saved every datapoint and is only waiting on spans
- * shows no activity at all while it waits. Too short a window would flag
- * healthy runs as dead; too long would leave a crashed run spinning forever.
- */
-export const EVALUATION_STALE_AFTER_MS = 15 * 60 * 1000;
+/** 1 hour. `updated_at` is not bumped by span ingest. */
+export const EVALUATION_STALE_AFTER_MS = 60 * 60 * 1000;
 
-/**
- * Collapse the counters into one status. `now` is injectable so the staleness
- * boundary is testable.
- */
-export const deriveEvaluationStatus = (counts: EvaluationStatusCounts, now: number = Date.now()): EvaluationStatus => {
-  const { total, complete, errored, lastUpdatedAt } = counts;
+export const evaluationStaleBefore = (now: number = Date.now()): string =>
+  new Date(now - EVALUATION_STALE_AFTER_MS).toISOString().replace("T", " ").replace("Z", "");
 
-  if (total <= 0) return "empty";
+const datapointHasError = (row: Record<string, unknown>): boolean => row["traceStatus"] === "error";
 
-  if (Math.min(total, Math.max(complete, 0)) >= total) {
-    return errored > 0 ? "finishedWithErrors" : "finished";
+/** Ignore `score:*` when the scores blob is present — extract returns 0 for missing keys. */
+const datapointHasScores = (row: Record<string, unknown>): boolean => {
+  const scores = row["scores"];
+  if (typeof scores === "string") {
+    const trimmed = scores.trim();
+    return trimmed.length > 0 && trimmed !== "{}";
   }
+  if (scores != null && typeof scores === "object" && !Array.isArray(scores)) {
+    return Object.keys(scores).length > 0;
+  }
+  if (scores == null) {
+    return Object.keys(row).some(
+      (k) => k.startsWith("score:") && typeof row[k] === "number" && Number.isFinite(row[k])
+    );
+  }
+  return false;
+};
 
-  const lastUpdate = lastUpdatedAt ? Date.parse(lastUpdatedAt) : NaN;
-  // Unparseable / absent timestamp: prefer `running`, the non-alarming read.
+export const deriveDatapointStatus = (row: Record<string, unknown>, now: number = Date.now()): EvalDatapointStatus => {
+  if (datapointHasError(row)) return "error";
+  if (datapointHasScores(row)) return "complete";
+
+  const raw = row["updatedAt"] ?? row["createdAt"];
+  const lastUpdate = typeof raw === "string" ? Date.parse(raw) : NaN;
   if (!Number.isFinite(lastUpdate)) return "running";
+  return now - lastUpdate > EVALUATION_STALE_AFTER_MS ? "stale" : "running";
+};
 
-  return now - lastUpdate > EVALUATION_STALE_AFTER_MS ? "incomplete" : "running";
+export const deriveEvaluationStatus = (counts: EvaluationStatusCounts): EvaluationStatus | null => {
+  const total = Math.max(0, counts.total);
+  const complete = Math.min(total, Math.max(0, counts.complete));
+  const stale = Math.min(total - complete, Math.max(0, counts.stale ?? 0));
+  const pending = total - complete - stale;
+  const errored = Math.max(0, counts.errored);
+
+  if (total <= 0) return null;
+  if (complete >= total) return errored > 0 ? "completeWithErrors" : "complete";
+  if (pending > 0) return "running";
+  return "incomplete";
 };
 
 export const EVALUATION_STATUS_LABELS: Record<EvaluationStatus, string> = {
-  empty: "No datapoints",
   running: "In progress",
   incomplete: "Incomplete",
-  finished: "Finished",
-  finishedWithErrors: "Finished with errors",
+  complete: "Complete",
+  completeWithErrors: "Complete with errors",
 };
 
-/** Every status value, in lifecycle order — drives the filter's value list. */
-export const EVALUATION_STATUSES: EvaluationStatus[] = [
-  "empty",
-  "running",
-  "incomplete",
-  "finished",
-  "finishedWithErrors",
-];
+export const DATAPOINT_STATUS_LABELS: Record<EvalDatapointStatus, string> = {
+  complete: "Complete",
+  running: "In progress",
+  stale: "Stale",
+  error: "Error",
+};
+
+export const EVALUATION_STATUSES: EvaluationStatus[] = ["running", "incomplete", "complete", "completeWithErrors"];
+
+const LEGACY_STATUS_FILTERS: Record<string, EvaluationStatus | null> = {
+  finished: "complete",
+  finishedWithErrors: "completeWithErrors",
+  empty: null,
+};
+
+export const resolveEvaluationStatusFilter = (value: string): EvaluationStatus | null => {
+  if ((EVALUATION_STATUSES as string[]).includes(value)) return value as EvaluationStatus;
+  return Object.hasOwn(LEGACY_STATUS_FILTERS, value) ? LEGACY_STATUS_FILTERS[value] : (value as EvaluationStatus);
+};
+
+export type EvaluationDatapointBuckets = {
+  total: number;
+  complete: number;
+  inProgress: number;
+  stale: number;
+  errored: number;
+};
+
+export const datapointBuckets = (
+  counts: Pick<EvaluationStatusCounts, "total" | "complete" | "errored"> & { stale?: number }
+): EvaluationDatapointBuckets => {
+  const total = Math.max(0, counts.total);
+  const settled = Math.min(total, Math.max(0, counts.complete));
+  const errored = Math.min(settled, Math.max(0, counts.errored));
+  const stale = Math.min(total - settled, Math.max(0, counts.stale ?? 0));
+  return {
+    total,
+    complete: settled - errored,
+    inProgress: total - settled - stale,
+    stale,
+    errored,
+  };
+};

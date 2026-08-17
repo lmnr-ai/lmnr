@@ -1,28 +1,27 @@
-import { Check, Loader2, X } from "lucide-react";
+import { CircleAlert, CircleCheck, CircleDashed, CircleSlash } from "lucide-react";
 
-import { deriveStatus } from "@/components/evaluation/utils";
+import { Tooltip, TooltipContent, TooltipPortal, TooltipTrigger } from "@/components/ui/tooltip";
+import { DATAPOINT_STATUS_LABELS, deriveDatapointStatus } from "@/lib/evaluation/status";
 import { type EvalRow } from "@/lib/evaluation/types";
 
-export const StatusCell = ({ row }: { row: { original: EvalRow } }) => {
-  const status = deriveStatus(row.original);
+const STATUS_ICON = {
+  error: <CircleAlert className="text-destructive" size={14} />,
+  complete: <CircleCheck className="text-success" size={14} />,
+  stale: <CircleSlash className="text-muted-foreground/50" size={14} />,
+  running: <CircleDashed className="text-muted-foreground" size={14} />,
+} as const;
 
-  if (status === "error") {
-    return (
-      <div className="flex h-full justify-center items-center w-10">
-        <X className="self-center text-destructive" size={18} />
-      </div>
-    );
-  }
-  if (status === "success") {
-    return (
-      <div className="flex h-full justify-center items-center w-10">
-        <Check className="text-success" size={18} />
-      </div>
-    );
-  }
+export const StatusCell = ({ row }: { row: { original: EvalRow } }) => {
+  const status = deriveDatapointStatus(row.original);
+
   return (
-    <div className="flex h-full justify-center items-center w-10">
-      <Loader2 className="text-muted-foreground animate-spin" size={18} />
-    </div>
+    <Tooltip delayDuration={250}>
+      <TooltipTrigger asChild>
+        <div className="flex h-full justify-center items-center w-8">{STATUS_ICON[status]}</div>
+      </TooltipTrigger>
+      <TooltipPortal>
+        <TooltipContent>{DATAPOINT_STATUS_LABELS[status]}</TooltipContent>
+      </TooltipPortal>
+    </Tooltip>
   );
 };

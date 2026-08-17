@@ -9,12 +9,9 @@ export type Evaluation = {
   name: string;
   projectId: string;
   metadata: Record<string, unknown> | null;
-  /** Datapoint count. Decorated per page by `getEvaluations`. */
   dataPointsCount?: number;
-  /** Derived run status. Decorated per page by `getEvaluations`. */
-  status?: EvaluationStatus;
-  /** The counters `status` was derived from. */
-  statusCounts?: { total: number; rooted: number; scored: number; errored: number };
+  status?: EvaluationStatus | null;
+  statusCounts?: { total: number; complete: number; errored: number; stale: number };
 };
 
 /** A dataset an evaluation's datapoints are linked to. */
