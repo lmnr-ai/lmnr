@@ -154,7 +154,7 @@ function TierColumn({ estimate, tooltip, dataGB }: { estimate: TierEstimate; too
       <div className={cn(subSection, "flex justify-between text-lg leading-6 text-white")}>
         <span className="flex gap-2.5 items-center">
           Tier
-          <RecommendedBadge />
+          {tooltip && <RecommendedBadge tooltip={tooltip} />}
         </span>
         <span>{estimate.name}</span>
       </div>
