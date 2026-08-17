@@ -27,15 +27,31 @@ use super::lock::{
 use super::metadata::extraction_outcome_value;
 use super::output::{OutputCandidate, process_trace_output_candidate};
 use super::queue::{InputExtractionMessage, push_to_input_extraction_queue};
-use super::regex::{regex_cache_key, try_apply_cached_regex};
+use super::regex::{
+    RegexTarget, Resolution, record_resolution, regex_target, try_apply_cached_regex,
+};
 use crate::cache::{Cache, CacheTrait};
 use crate::db::{DB, spans::Span};
 use crate::features::{Feature, is_feature_enabled};
 use crate::llm::llm_client_available;
 use crate::mq::{MessageQueue, stream::StreamPublisher};
 use crate::traces::metadata::publish_trace_input_update;
+use crate::traces::sp_versioning::producer::VersionVerdicts;
 use crate::traces::spans::SpanAttributes;
 use crate::traces::utils::get_llm_usage_for_span;
+
+/// The span's system-prompt identity, threaded from the ingest producer. The
+/// agent hash is a key component of both regex cachings; the byte-identity hash
+/// is how the candidate looks its prompt's version up in the batch's
+/// [`VersionVerdicts`].
+#[derive(Debug, Clone, Copy)]
+pub struct SystemPromptIdentity<'a> {
+    /// First-sentence hash (NOT the skeleton hash stamped on
+    /// `lmnr.span.prompt_hash`): permutations of the system prompt's XML
+    /// scaffolding must not fork the user-regex cache key.
+    pub agent_hash: &'a str,
+    pub full_prompt_hash: &'a str,
+}
 
 /// Per-span input candidate captured inside `preprocess_for_queue`,
 /// BEFORE the dedup strip removes `span.input` — the only point where the
@@ -44,10 +60,16 @@ use crate::traces::utils::get_llm_usage_for_span;
 pub struct UserTaskCandidate {
     pub signposted_text: String,
     pub fingerprint: String,
-    /// First-sentence hash of the system prompt (NOT the skeleton hash
-    /// stamped on `lmnr.span.prompt_hash`): permutations of the system
-    /// prompt's XML scaffolding must not fork the user-regex cache key.
+    /// Whether the last turn follows assistant history — a key component of the
+    /// version-keyed cache (already encoded in `fingerprint` for the legacy one).
+    pub has_history: bool,
+    /// First-sentence hash of the system prompt. `None` for LLM spans carrying
+    /// no system message, which can never have a version and so stay on the
+    /// legacy keying forever.
     pub prompt_hash: Option<String>,
+    /// Byte-identity hash of the system prompt; looks the resolved version up in
+    /// the batch's verdict map. `None` alongside `prompt_hash`.
+    pub full_prompt_hash: Option<String>,
     /// Full hash of the joined last-turn user parts; gates re-extraction
     /// when a stronger challenger carries identical content.
     pub content_hash: String,
@@ -83,7 +105,7 @@ fn rollout_session_id_from_attributes(attributes: &SpanAttributes) -> Option<Str
 
 pub fn capture_user_task_candidate(
     span: &Span,
-    first_sentence_hash: Option<&str>,
+    system_prompt: Option<SystemPromptIdentity<'_>>,
 ) -> Option<UserTaskCandidate> {
     if !span.is_llm_span() {
         return None;
@@ -92,7 +114,9 @@ pub fn capture_user_task_candidate(
     Some(UserTaskCandidate {
         signposted_text: prepared.signposted_text,
         fingerprint: prepared.fingerprint,
-        prompt_hash: first_sentence_hash.map(str::to_string),
+        has_history: prepared.has_history,
+        prompt_hash: system_prompt.map(|s| s.agent_hash.to_string()),
+        full_prompt_hash: system_prompt.map(|s| s.full_prompt_hash.to_string()),
         content_hash: prepared.content_hash,
     })
 }
@@ -107,6 +131,9 @@ struct InputContender {
     state: WinnerState,
     path: Vec<String>,
     rollout_session_id: Option<String>,
+    span_id: Uuid,
+    /// The prompt version resolved inline by the sp-versioning producer, if any.
+    version_hash: Option<String>,
 }
 
 /// Producer-side extraction pipeline, run after the batch is published.
@@ -115,9 +142,11 @@ struct InputContender {
 /// generation) for the strongest eligible candidate. Pass 2 processes
 /// trace outputs. All failures are logged and swallowed — extraction
 /// must never block or fail span ingestion.
+#[allow(clippy::too_many_arguments)]
 pub async fn process_user_task_candidates(
     contexts: Vec<UserTaskSpanContext>,
     project_id: Uuid,
+    version_verdicts: VersionVerdicts,
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -198,6 +227,11 @@ pub async fn process_user_task_candidates(
             span_id: roster_span_key(ctx.span_id),
             content_hash,
         };
+        let version_hash = candidate
+            .full_prompt_hash
+            .as_deref()
+            .and_then(|hash| version_verdicts.get(hash))
+            .cloned();
         contenders
             .entry(ctx.trace_id)
             .or_default()
@@ -206,6 +240,8 @@ pub async fn process_user_task_candidates(
                 state,
                 path: path.clone(),
                 rollout_session_id,
+                span_id: ctx.span_id,
+                version_hash,
             });
     }
 
@@ -409,19 +445,46 @@ async fn process_trace_inputs(
             return;
         }
 
-        let regex_key = regex_cache_key(
+        // A prompt whose version isn't minted yet has no cacheable key, so the
+        // inline fast path is skipped entirely and the worker owns the
+        // resolution (re-read, then a direct extraction).
+        let target = regex_target(
             project_id,
             candidate.prompt_hash.as_deref(),
+            challenger.version_hash.as_deref(),
             &candidate.fingerprint,
+            candidate.has_history,
         );
-        let inline_result = try_apply_cached_regex(
-            &cache,
-            &regex_key,
-            &candidate.signposted_text,
-            project_id,
-            trace_id,
-        )
-        .await;
+        let inline_result = match &target {
+            RegexTarget::Keyed { key, .. } => {
+                try_apply_cached_regex(
+                    &cache,
+                    key,
+                    &candidate.signposted_text,
+                    project_id,
+                    trace_id,
+                )
+                .await
+            }
+            RegexTarget::Unversioned => None,
+        };
+        // Recorded only for the versioned pipeline: the legacy keying serves
+        // prompts that can never have a version, so counting its hits would
+        // inflate the denominator of the fallback-rate metric.
+        if inline_result.is_some()
+            && let RegexTarget::Keyed {
+                version: Some(version),
+                ..
+            } = &target
+        {
+            record_resolution(
+                Resolution::Cached,
+                project_id,
+                trace_id,
+                Some(version),
+                candidate.has_history,
+            );
+        }
 
         if inline_result.is_some() {
             // Re-read the winner lock before the inline publish: a
@@ -472,7 +535,11 @@ async fn process_trace_inputs(
                 let message = InputExtractionMessage {
                     trace_id,
                     project_id,
+                    span_id: Some(challenger.span_id),
                     prompt_hash: candidate.prompt_hash.clone(),
+                    full_prompt_hash: candidate.full_prompt_hash.clone(),
+                    version_hash: challenger.version_hash.clone(),
+                    has_history: candidate.has_history,
                     signposted_text: candidate.signposted_text.clone(),
                     fingerprint: candidate.fingerprint.clone(),
                     winner_state: Some(state.clone()),
