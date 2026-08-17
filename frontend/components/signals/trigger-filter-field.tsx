@@ -30,7 +30,9 @@ export const SIGNAL_FILTER_COLUMNS: ColumnFilter[] = [
   },
   // Plural: a statement about the trace's whole set of span names, matched
   // anywhere in the trace (the `span_name` TRIGGER sees only the firing batch).
-  { name: "Span names", key: "span_names", dataType: "string" },
+  // Array so one row can list several names — `=`/`!=` on a set read as a claim
+  // about a single span, and forced a second AND-ed row per extra name.
+  { name: "Span names", key: "span_names", dataType: "array" },
 ];
 
 export const getRootSpanFinishedCondition = (): Filter => ({

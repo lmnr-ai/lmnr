@@ -2,6 +2,7 @@ import { compact } from "lodash";
 
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { type Filter } from "@/lib/actions/common/filters";
+import { Operator } from "@/lib/actions/common/operators";
 
 export interface QueryParams {
   [key: string]: string | number | string[] | number[];
@@ -175,7 +176,7 @@ const createNumberFilter =
 const createArrayColumnFilter =
   (clickHouseType: string): ColumnFilterProcessor =>
   (filter, paramKey) => {
-    const { column, value } = filter;
+    const { column, operator, value } = filter;
 
     const values = compact(Array.isArray(value) ? value : [value]);
 
@@ -186,16 +187,14 @@ const createArrayColumnFilter =
       };
     }
 
-    if (values.length === 1) {
-      return {
-        condition: `has(${column}, {${paramKey}:${clickHouseType}})`,
-        params: { [paramKey]: values[0] },
-      };
-    }
+    const [condition, params] =
+      values.length === 1
+        ? [`has(${column}, {${paramKey}:${clickHouseType}})`, { [paramKey]: values[0] }]
+        : [`hasAny(${column}, {${paramKey}:Array(${clickHouseType})})`, { [paramKey]: values as string[] | number[] }];
 
     return {
-      condition: `hasAny(${column}, {${paramKey}:Array(${clickHouseType})})`,
-      params: { [paramKey]: values as string[] | number[] },
+      condition: operator === Operator.NotIncludes ? `NOT ${condition}` : condition,
+      params,
     };
   };
 

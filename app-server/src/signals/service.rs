@@ -32,10 +32,13 @@ const CONDITION_COLUMN_SPAN_NAME: &str = "span_name";
 /// `Trigger::SpanName` cannot express — add a variant before widening this list.
 const SPAN_NAME_POSITIVE_OPERATORS: &[&str] = &["eq", "includes"];
 
+const FILTER_COLUMN_SPAN_NAMES: &str = "span_names";
+
 enum ValueRule {
     FiniteNumber,
     OneOf(&'static [&'static str]),
-    NonBlankString,
+    /// One name or a list of them; normalized to a list.
+    NonBlankStringList,
 }
 
 struct FilterColumn {
@@ -58,9 +61,9 @@ const FILTER_COLUMNS: &[FilterColumn] = &[
         value: ValueRule::OneOf(&["error", "success"]),
     },
     FilterColumn {
-        name: "span_names",
-        operators: &["eq", "ne"],
-        value: ValueRule::NonBlankString,
+        name: FILTER_COLUMN_SPAN_NAMES,
+        operators: &["includes", "notIncludes"],
+        value: ValueRule::NonBlankStringList,
     },
 ];
 
@@ -734,6 +737,13 @@ fn join_or(names: &[&str]) -> String {
 fn normalize_filter(filter: Value) -> Result<Value, CrudError> {
     let (column, operator, value) = filter_parts(&filter)?;
     let spec = lookup_filter_column(column)?;
+    // `span_names` was a single-string eq/ne filter before it took a list of
+    // names; both shapes mean the same thing, so old clients keep working.
+    let operator = match (column, operator) {
+        (FILTER_COLUMN_SPAN_NAMES, "eq") => "includes",
+        (FILTER_COLUMN_SPAN_NAMES, "ne") => "notIncludes",
+        _ => operator,
+    };
     if !spec.operators.contains(&operator) {
         return Err(CrudError::Validation(format!(
             "{} operator must be {}",
@@ -779,18 +789,25 @@ fn normalize_value(spec: &FilterColumn, value: Value) -> Result<Value, CrudError
             }
             Ok(value)
         }
-        ValueRule::NonBlankString => {
-            let s = value
-                .as_str()
+        ValueRule::NonBlankStringList => {
+            let items = match &value {
+                Value::Array(items) => items.iter().filter_map(Value::as_str).collect(),
+                Value::String(s) => vec![s.as_str()],
+                _ => Vec::new(),
+            };
+            let names: Vec<Value> = items
+                .into_iter()
                 .map(str::trim)
                 .filter(|s| !s.is_empty())
-                .ok_or_else(|| {
-                    CrudError::Validation(format!(
-                        "{} value must be a non-blank span name",
-                        spec.name
-                    ))
-                })?;
-            Ok(Value::String(s.to_string()))
+                .map(|s| Value::String(s.to_string()))
+                .collect();
+            if names.is_empty() {
+                return Err(CrudError::Validation(format!(
+                    "{} value must be a non-blank span name, or a list of them",
+                    spec.name
+                )));
+            }
+            Ok(Value::Array(names))
         }
     }
 }

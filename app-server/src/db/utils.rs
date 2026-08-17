@@ -23,6 +23,9 @@ pub enum FilterOperator {
     /// several span names), so it must deserialize here or the whole filter
     /// fails to parse and the trigger is dropped.
     Includes,
+    /// Negation of `Includes`. The frontend writes it camelCased.
+    #[serde(rename = "notIncludes")]
+    NotIncludes,
 }
 
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
@@ -54,8 +57,8 @@ pub fn evaluate_number_filter(actual: f64, operator: &FilterOperator, value: &Va
         FilterOperator::Gte => actual >= target,
         FilterOperator::Lt => actual < target,
         FilterOperator::Lte => actual <= target,
-        FilterOperator::Includes => {
-            log::warn!("Invalid operator Includes for number filter");
+        _ => {
+            log::warn!("Invalid operator {:?} for number filter", operator);
             false
         }
     }
@@ -102,30 +105,42 @@ pub fn evaluate_boolean_filter(actual: bool, operator: &FilterOperator, value: &
     }
 }
 
-/// Set membership: `Eq` = contains, `Ne` = does not contain.
+/// Set membership: `Includes`/`Eq` = contains any target, `NotIncludes`/`Ne` =
+/// contains none. `eq`/`ne` are the pre-`includes` shape and stay supported.
 ///
-/// An empty `array` satisfies `Ne`, so callers must resolve "state unknown"
-/// before calling — this can't tell that from a genuinely empty set. A blank
-/// target rejects both operators: `FilterSchema` allows `" "`, which would
-/// otherwise match every row under `Ne`.
+/// The value is one target or a list of them. An empty `array` satisfies the
+/// negative operators, so callers must resolve "state unknown" before calling —
+/// this can't tell that from a genuinely empty set. Blank targets are dropped
+/// (`FilterSchema` allows `" "`, which would otherwise match every row under
+/// negation), and a value with no usable target rejects.
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub fn evaluate_array_contains_filter(
     array: &[String],
     operator: &FilterOperator,
     value: &Value,
 ) -> bool {
-    let Some(target) = value.as_str().map(str::trim).filter(|t| !t.is_empty()) else {
-        return false;
-    };
+    let targets: Vec<&str> = match value {
+        Value::Array(items) => items.iter().filter_map(Value::as_str).collect(),
+        Value::String(s) => vec![s.as_str()],
+        _ => return false,
+    }
+    .into_iter()
+    .map(str::trim)
+    .filter(|target| !target.is_empty())
+    .collect();
 
-    let present = array.iter().any(|item| item == target);
+    if targets.is_empty() {
+        return false;
+    }
+
+    let present = array.iter().any(|item| targets.contains(&item.as_str()));
 
     match operator {
-        FilterOperator::Eq => present,
-        FilterOperator::Ne => !present,
+        FilterOperator::Eq | FilterOperator::Includes => present,
+        FilterOperator::Ne | FilterOperator::NotIncludes => !present,
         _ => {
             log::warn!(
-                "Invalid operator {:?} for array containment filter, only eq/ne supported",
+                "Invalid operator {:?} for array containment filter",
                 operator
             );
             false
@@ -187,17 +202,67 @@ mod tests {
         ));
     }
 
+    /// A list matches ANY of its targets; negation requires ALL absent.
+    #[test]
+    fn list_target_matches_any() {
+        assert!(evaluate_array_contains_filter(
+            &names(),
+            &FilterOperator::Includes,
+            &json!(["absent", "tool.call"])
+        ));
+        assert!(!evaluate_array_contains_filter(
+            &names(),
+            &FilterOperator::Includes,
+            &json!(["absent", "also.absent"])
+        ));
+
+        assert!(evaluate_array_contains_filter(
+            &names(),
+            &FilterOperator::NotIncludes,
+            &json!(["absent", "also.absent"])
+        ));
+        assert!(!evaluate_array_contains_filter(
+            &names(),
+            &FilterOperator::NotIncludes,
+            &json!(["absent", "tool.call"])
+        ));
+    }
+
     /// `FilterSchema` allows `" "`, which must not match everything under `ne`.
     #[test]
     fn blank_or_non_string_target_rejects() {
-        for value in [json!(""), json!(" "), json!("\t"), json!(null), json!(42)] {
-            for operator in [FilterOperator::Eq, FilterOperator::Ne] {
+        for value in [
+            json!(""),
+            json!(" "),
+            json!("\t"),
+            json!(null),
+            json!(42),
+            json!([]),
+            json!([" "]),
+        ] {
+            for operator in [
+                FilterOperator::Eq,
+                FilterOperator::Ne,
+                FilterOperator::Includes,
+                FilterOperator::NotIncludes,
+            ] {
                 assert!(
                     !evaluate_array_contains_filter(&names(), &operator, &value),
                     "value {value} must reject under {operator:?}"
                 );
             }
         }
+    }
+
+    /// The frontend persists `notIncludes`; `rename_all = "snake_case"` alone
+    /// would expect `not_includes` and drop the whole filter.
+    #[test]
+    fn not_includes_deserializes_from_the_persisted_json() {
+        let filter: Filter = serde_json::from_value(
+            json!({ "column": "span_names", "operator": "notIncludes", "value": ["agent.run"] }),
+        )
+        .expect("persisted filter JSON must parse");
+        assert_eq!(filter.operator, FilterOperator::NotIncludes);
     }
 
     #[test]

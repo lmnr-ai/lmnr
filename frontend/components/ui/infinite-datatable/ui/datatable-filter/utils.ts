@@ -30,6 +30,7 @@ export const OperatorLabelMap: Record<Operator, string> = {
   [Operator.Gte]: ">=",
   [Operator.Ne]: "!=",
   [Operator.Includes]: "includes",
+  [Operator.NotIncludes]: "not includes",
 };
 
 export const STRING_OPERATIONS = STRING_OPERATORS.map((op) => ({

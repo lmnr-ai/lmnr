@@ -750,6 +750,13 @@
       "when": 1786381210609,
       "tag": "0106_workspace_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1786381211609,
+      "tag": "0107_signal_span_names_includes",
+      "breakpoints": true
     }
   ]
 }

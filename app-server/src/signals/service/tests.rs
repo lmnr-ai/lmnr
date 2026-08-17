@@ -226,15 +226,33 @@ fn status_accepts_error_and_success_only() {
 
 #[test]
 fn blank_span_names_filter_is_rejected() {
-    for value in ["", "   "] {
+    for value in [json!(""), json!("   "), json!([]), json!(["  "])] {
         assert!(
             normalize_filters(vec![
-                json!({ "column": "span_names", "operator": "ne", "value": value }),
+                json!({ "column": "span_names", "operator": "notIncludes", "value": value }),
             ])
             .is_err(),
             "blank span_names target {value:?} must be rejected"
         );
     }
+}
+
+/// `span_names` took a single string under `eq`/`ne` before it took a list;
+/// both shapes must land on the stored one so old clients keep working.
+#[test]
+fn legacy_span_names_filter_is_mapped_to_a_list() {
+    let normalized = normalize_filters(vec![
+        json!({ "column": "span_names", "operator": "eq", "value": " agent.run " }),
+        json!({ "column": "span_names", "operator": "ne", "value": "tool.call" }),
+        json!({ "column": "span_names", "operator": "includes", "value": ["a", "b"] }),
+    ])
+    .unwrap();
+
+    assert_eq!(normalized[0]["operator"], json!("includes"));
+    assert_eq!(normalized[0]["value"], json!(["agent.run"]));
+    assert_eq!(normalized[1]["operator"], json!("notIncludes"));
+    assert_eq!(normalized[1]["value"], json!(["tool.call"]));
+    assert_eq!(normalized[2]["value"], json!(["a", "b"]));
 }
 
 #[test]

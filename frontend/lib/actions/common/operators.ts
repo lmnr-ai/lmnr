@@ -6,6 +6,7 @@ export enum Operator {
   Lte = "lte",
   Gte = "gte",
   Includes = "includes",
+  NotIncludes = "notIncludes",
 }
 
 export const STRING_OPERATORS = [Operator.Eq, Operator.Ne] as const;
@@ -23,4 +24,4 @@ export const BOOLEAN_OPERATORS = [Operator.Eq, Operator.Ne] as const;
 
 export const JSON_OPERATORS = [Operator.Eq] as const;
 
-export const ARRAY_OPERATORS = [Operator.Includes] as const;
+export const ARRAY_OPERATORS = [Operator.Includes, Operator.NotIncludes] as const;
