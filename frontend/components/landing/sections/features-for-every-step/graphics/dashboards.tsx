@@ -45,7 +45,9 @@ const Dashboards = () => (
           <Handle />
         </div>
         <div className="mt-2 flex h-[46px] items-end gap-[4px]">
-          {[38, 52, 44, 66, 58, 80, 70, 90, 62, 74, 55, 68].map((h, i) => (
+          {/* A top-N chart is sorted, so it falls away rather than zigzagging,
+              and real span-name counts are long-tailed. */}
+          {[100, 71, 58, 39, 31, 24, 20, 14, 11, 9, 7, 5].map((h, i) => (
             <div key={i} className="flex-1 rounded-t-[1px] bg-surface-up-4" style={{ height: `${h}%` }} />
           ))}
         </div>
