@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 
 import { microLabel, subSection } from "../class-names";
 import LandingButton from "../landing-button";
+import InfoTooltip from "./info-tooltip";
 import { FEATURE_GROUPS, type FeatureGroup, type FeatureValue, TIER_COLUMNS } from "./tier-data";
 
 // Flat comparison table — no per-tier highlight. Header has tier name +
@@ -65,7 +66,12 @@ function FeatureGroupRows({ group }: { group: FeatureGroup }) {
 function FeatureRowCells({ row }: { row: FeatureGroup["rows"][number] }) {
   return (
     <>
-      <div className="pl-0 pr-5 py-3 text-sm text-foreground-200 border-t border-surface-300/50">{row.label}</div>
+      <div className="pl-0 pr-5 py-3 text-sm text-foreground-200 border-t border-surface-300/50">
+        <span className="inline-flex items-center gap-1.5">
+          {row.label}
+          {row.tooltip && <InfoTooltip>{row.tooltip}</InfoTooltip>}
+        </span>
+      </div>
       {TIER_COLUMNS.map((tier) => (
         <div key={tier.id} className="px-5 py-3 text-sm text-white border-t border-surface-300/50">
           <FeatureCell value={row.values[tier.id]} />

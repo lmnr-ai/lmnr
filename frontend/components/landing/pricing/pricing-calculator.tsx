@@ -349,8 +349,7 @@ export default function PricingCalculator() {
           This estimate assumes {BYTES_PER_TOKEN} bytes of stored trace data per agent token, that a Signal reads{" "}
           {TRACE_TO_SIGNAL_COMPRESSION * 100}% of a trace&apos;s tokens (Laminar compresses each trace and feeds a
           Signal only the part it needs) and writes back {SIGNAL_OUTPUT_RATIO * 100}% of what it reads, and that Signal
-          tokens are metered at {formatSignalsOverageShort("hobby")}, discounted to {formatSignalsOverageShort("pro")}{" "}
-          on Pro. Data past the included allowance is {formatDataOverage("hobby")} on Starter and{" "}
+          tokens are metered at {formatSignalsOverageShort("pro")} on Pro.
           {formatDataOverage("pro")} on Pro.
         </p>
       </div>
