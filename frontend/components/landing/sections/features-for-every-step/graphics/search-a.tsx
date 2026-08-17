@@ -1,8 +1,8 @@
 import { Search } from "lucide-react";
 
-// The search box, then the span it landed in. The match is lit where it
-// actually lives, inside `output` and `attributes`, marked the way the
-// product's own SnippetPreview marks a hit.
+// The search box and the payload it lit up. The match is marked where it
+// actually lives, inside `output` and `attributes`, the way the product's own
+// SnippetPreview marks a hit.
 const Hit = ({ children }: { children: string }) => (
   <span className="rounded-[2px] bg-primary-400/25 px-[3px] text-primary-200">{children}</span>
 );
@@ -11,21 +11,16 @@ const SearchA = () => (
   <div className="absolute inset-0 overflow-hidden pl-[22px]">
     <div className="flex items-center gap-2 rounded-l border-y border-l border-surface-up-3 bg-surface-down px-2 py-[7px]">
       <Search className="size-3 shrink-0 text-foreground-500" strokeWidth={1.75} />
-      <span className="text-[11px] text-white">timeout</span>
-      <span className="h-3 w-px animate-pulse bg-white/70" />
-      <span className="ml-auto shrink-0 px-1 text-[9px] text-foreground-600">⌘K</span>
+      {/* Caret rides in the same box as the query, so it sits on the last
+          letter instead of a flex gap away from it. */}
+      <span className="flex min-w-0 flex-1 items-center text-[11px] text-white">
+        timeout
+        <span className="ml-px h-3 w-px shrink-0 animate-pulse bg-white/70" />
+      </span>
+      <span className="shrink-0 px-1 text-[9px] text-foreground-600">⌘K</span>
     </div>
 
-    <p className="mt-2 text-[10px] text-foreground-500">
-      1,284 spans <span className="text-foreground-300">in 38 ms</span>
-    </p>
-
-    <div className="mt-2 flex items-center justify-between rounded-tl border-t border-l border-surface-up-2 bg-surface-down px-3 py-2 pr-6">
-      <span className="text-[11px] text-foreground-100">chat.completion</span>
-      <span className="rounded-full bg-primary-400/15 px-1.5 py-[1px] font-mono text-[9px] text-primary-200">+2</span>
-    </div>
-
-    <div className="mt-2 rounded-tl border-t border-l border-surface-up-2 bg-surface-down px-3 py-2.5 font-mono text-[10px] leading-[16px] text-foreground-300">
+    <div className="mt-2.5 rounded-tl border-t border-l border-surface-up-2 bg-surface-down px-3 py-2.5 font-mono text-[10px] leading-[16px] text-foreground-300">
       <p className="text-foreground-500">output</p>
       <p className="mt-1">
         The request hit a <Hit>timeout</Hit> at the
@@ -40,6 +35,8 @@ const SearchA = () => (
         error.type = <Hit>timeout</Hit>
       </p>
       <p>http.status_code = 504</p>
+      <p>retry.count = 1</p>
+      <p>gen_ai.request.model = gpt-5.1</p>
     </div>
   </div>
 );

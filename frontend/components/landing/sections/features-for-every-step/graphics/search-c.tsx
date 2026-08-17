@@ -31,8 +31,12 @@ const SearchC = () => (
             </span>
           </span>
         ))}
-        <span className="text-[11px] text-white">timeout</span>
-        <span className="h-3 w-px animate-pulse bg-white/70" />
+        {/* Caret rides in the same box as the query, so it sits on the last
+            letter instead of a flex gap away from it. */}
+        <span className="flex items-center text-[11px] text-white">
+          timeout
+          <span className="ml-px h-3 w-px shrink-0 animate-pulse bg-white/70" />
+        </span>
       </div>
     </div>
 
