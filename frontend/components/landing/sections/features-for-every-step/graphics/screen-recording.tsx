@@ -12,7 +12,7 @@ const SPANS = [
   { name: "fill(passenger)", type: SpanType.TOOL, at: "00:18" },
 ];
 
-const ScreenRecordingA = () => (
+const ScreenRecording = () => (
   <div className="absolute inset-0 overflow-hidden pl-[22px]">
     <div className="flex flex-col">
       {SPANS.map((span) => (
@@ -24,7 +24,13 @@ const ScreenRecordingA = () => (
               : "flex items-center gap-2 px-2 py-[3px]"
           }
         >
-          <SpanTypeIcon spanType={span.type} containerWidth={16} containerHeight={16} size={8} iconClassName="size-2" />
+          <SpanTypeIcon
+            spanType={span.type}
+            containerWidth={16}
+            containerHeight={16}
+            size={12}
+            iconClassName="size-3 [stroke-width:2.25]"
+          />
           <span
             className={
               span.active
@@ -79,4 +85,4 @@ const ScreenRecordingA = () => (
   </div>
 );
 
-export default ScreenRecordingA;
+export default ScreenRecording;

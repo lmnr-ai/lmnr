@@ -2,16 +2,12 @@
 
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
-import { type ComponentType, useState } from "react";
+import { useState } from "react";
 
 import { ElevatedSurface } from "@/components/ui/surface";
 
 import CardHoverGlow from "../card-hover-glow";
-import { type CardCopy } from "./cards";
-
-interface Props extends CardCopy {
-  Graphic: ComponentType;
-}
+import { type CardDef } from "./cards";
 
 /** Card's resting rung on the elevation ladder (surface-250); hover takes it to 6. */
 const RESTING_ELEVATION = 5;
@@ -21,7 +17,7 @@ const RESTING_ELEVATION = 5;
 // utilities, minus the scroll timeline. It bottoms out at 20% rather than 0:
 // the mock should recede, not disappear.
 const GRAPHIC_FADE =
-  "[mask-image:linear-gradient(to_bottom,#000_calc(100%-56px),rgba(0,0,0,0.2)),linear-gradient(to_right,#000_calc(100%-40px),rgba(0,0,0,0.2))] [mask-composite:intersect]";
+  "[mask-image:linear-gradient(to_bottom,#000_calc(100%-56px),rgba(0,0,0,0.2)),linear-gradient(to_right,#000_calc(100%-80px),rgba(0,0,0,0.2))] [mask-composite:intersect]";
 
 /** Fixed band at the foot of every card. Pinned rather than flexed, so the
  *  graphics all start on the same line no matter how tall the copy above ran. */
@@ -37,7 +33,7 @@ const GRAPHIC_H = 220;
 // `border-surface-up-2`, …), so the whole mock re-paints in step and keeps its
 // contrast at both rungs. `**:transition-colors` is what makes the descendants
 // ride the same 300ms as the card instead of snapping.
-const Card = ({ title, description, href, Graphic }: Props) => {
+const Card = ({ title, description, href, Graphic }: CardDef) => {
   const [raised, setRaised] = useState(false);
 
   return (

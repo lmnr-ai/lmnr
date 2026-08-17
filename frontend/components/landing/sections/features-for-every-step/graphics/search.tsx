@@ -7,7 +7,7 @@ const Hit = ({ children }: { children: string }) => (
   <span className="rounded-[2px] bg-primary-400/25 px-[3px] text-primary-200">{children}</span>
 );
 
-const SearchA = () => (
+const FullTextSearch = () => (
   <div className="absolute inset-0 overflow-hidden pl-[22px]">
     <div className="flex items-center gap-2 rounded-l border-y border-l border-surface-up-3 bg-surface-down px-2 py-[7px]">
       <Search className="size-3 shrink-0 text-foreground-500" strokeWidth={1.75} />
@@ -41,4 +41,4 @@ const SearchA = () => (
   </div>
 );
 
-export default SearchA;
+export default FullTextSearch;

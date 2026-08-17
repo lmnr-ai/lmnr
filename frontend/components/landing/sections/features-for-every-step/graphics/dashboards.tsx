@@ -6,7 +6,7 @@ const SPARK = [30, 44, 38, 56, 48, 66, 58, 72];
 
 const Handle = () => <GripVertical className="size-3 shrink-0 text-foreground-600" strokeWidth={1.5} />;
 
-const DashboardsA = () => (
+const Dashboards = () => (
   <div className="absolute inset-0 overflow-hidden pl-[22px]">
     <div
       className="absolute inset-0 left-5 opacity-40"
@@ -67,4 +67,4 @@ const DashboardsA = () => (
   </div>
 );
 
-export default DashboardsA;
+export default Dashboards;

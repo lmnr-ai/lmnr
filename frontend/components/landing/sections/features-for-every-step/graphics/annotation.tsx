@@ -27,7 +27,7 @@ const FieldKey = ({ children }: { children: string }) => (
   <span className="rounded bg-primary-400/15 px-1.5 py-px font-mono text-[9px] text-primary-200">{children}</span>
 );
 
-const AnnotationA = () => (
+const Annotation = () => (
   <div className="absolute inset-0 overflow-hidden pl-[22px]">
     {/* Wider than the card on purpose: the queue runs off the edge, which is
         what a 240-item queue looks like. */}
@@ -116,4 +116,4 @@ const AnnotationA = () => (
   </div>
 );
 
-export default AnnotationA;
+export default Annotation;

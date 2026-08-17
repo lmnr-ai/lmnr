@@ -11,14 +11,19 @@ import { SpanType } from "@/lib/traces/types";
 // scale the product's ratio reads as a glyph jammed into a box. `iconClassName`
 // is REQUIRED — SpanTypeIcon defaults it to `w-4 h-4`, and that class beats the
 // `size` prop, so leaving it off pins every glyph to 16px.
-const CHIP = { containerWidth: 16, containerHeight: 16, size: 8, iconClassName: "size-2" } as const;
+const CHIP = {
+  containerWidth: 16,
+  containerHeight: 16,
+  size: 12,
+  iconClassName: "size-3 [stroke-width:2.25]",
+} as const;
 
-const InputExtractionA = () => (
+const InputExtraction = () => (
   <div className="absolute inset-0 overflow-hidden pl-[22px]">
     <div className="flex flex-col gap-1 bg-blue-400/5 py-2 pl-2.5 pr-2">
       <div className="flex items-center gap-2">
         <span className="flex size-4 shrink-0 items-center justify-center rounded bg-blue-400/70">
-          <ArrowRight size={8} className="text-white" />
+          <ArrowRight size={12} strokeWidth={2.25} className="text-white" />
         </span>
         <span className="text-[11px] font-medium text-white">Input</span>
       </div>
@@ -47,4 +52,4 @@ const InputExtractionA = () => (
   </div>
 );
 
-export default InputExtractionA;
+export default InputExtraction;

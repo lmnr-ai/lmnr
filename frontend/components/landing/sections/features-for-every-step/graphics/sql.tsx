@@ -8,7 +8,7 @@ const ROWS = [
   ["sonnet-5", "1,208", "0.09"],
 ];
 
-const SqlA = () => (
+const Sql = () => (
   <div className="absolute inset-0 overflow-hidden pl-[22px]">
     <div className="rounded-tl border-t border-l border-surface-up-2 bg-surface-down px-3 py-2.5 font-mono text-[10px] leading-[15px]">
       <p>
@@ -45,4 +45,4 @@ const SqlA = () => (
   </div>
 );
 
-export default SqlA;
+export default Sql;
