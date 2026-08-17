@@ -62,7 +62,7 @@ const Card = ({ title, description, href, Graphic }: Props) => {
         </div>
         <div
           style={{ height: GRAPHIC_H }}
-          className={`relative mt-auto shrink-0 overflow-hidden **:transition-colors **:duration-300 ${GRAPHIC_FADE}`}
+          className={`relative mt-auto shrink-0 overflow-hidden opacity-70 **:transition-colors **:duration-300 ${GRAPHIC_FADE}`}
         >
           <Graphic />
         </div>
