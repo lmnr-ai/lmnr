@@ -91,7 +91,7 @@ const StackDials = ({ onChange, marks }: Props) => {
       pillEnterDepth: [D.pillEnterDepth, 0, 200, 4],
     },
     // Bump the -vN on every default change — see the timeline's id above.
-    { id: "landing-signal-stack-geometry-v2", persist: true }
+    { id: "landing-signal-stack-geometry-v3", persist: true }
   );
 
   const next: StackTiming = {

@@ -64,9 +64,13 @@ export interface StackTiming {
    *  up-left, slots after it come up from the down-right. */
   liveSlot: number;
   /** How far out the arriving cards start, as a MULTIPLE of their slot offset.
-   *  1 would mean starting already in place; large enough and they begin
-   *  outside the frame, which is the point — they come from elsewhere rather
-   *  than out of the live card. */
+   *  1 would mean starting already in place.
+   *
+   *  Note this scales OFF `dx`/`dy`, so it is not an absolute distance: at the
+   *  tight-deck spacing the backmost card starts only ~48 x 80px out, well
+   *  inside the frame, so the runs read as fanning out of the live card. It took
+   *  the old wide spacing to put them off-frame, i.e. arriving from elsewhere.
+   *  Raise this, not dx/dy, if they should come from further away. */
   entrySpread: number;
   /** Point WITHIN the flight (0-1) by which the trace panel has fully faded. */
   trayFadeEnd: number;
@@ -103,16 +107,19 @@ export const DEFAULT_STACK_TIMING: StackTiming = {
   pillEnterSpan: 0.05,
   act2At: 0.585,
 
-  entryStart: 0.35,
+  entryStart: 0.4,
   // Dead centre of five: two runs arrive from the up-left, two from the
   // down-right, and the trace's own card is the one they close around.
   liveSlot: 2,
   entrySpread: 4,
   trayFadeEnd: 0.45,
 
-  dx: 56,
-  dy: 76,
-  cardRiseFrom: 72,
+  // A tight deck, not a fanned cascade. At this step the whole stack is 408 x
+  // 166, so it sits INSIDE the 480-wide frame instead of bleeding off both
+  // edges — see `stackLeft` in ./signal-stack, whose sign flips with this.
+  dx: 6,
+  dy: 10,
+  cardRiseFrom: 96,
   pillEnterDepth: 56,
 };
 

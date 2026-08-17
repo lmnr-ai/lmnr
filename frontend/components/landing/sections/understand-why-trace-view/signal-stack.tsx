@@ -98,8 +98,13 @@ const PILL_FADE_END = 0.4;
 
 const mix = (from: number, to: number, t: number) => from + (to - from) * t;
 
-/** Left edge of the front card. The cascade is wider than the frame, so it is
- *  centred and bleeds off BOTH edges — as drawn. A negative value is expected. */
+/** Left edge of the front card, from centring the whole cascade in the frame.
+ *
+ *  The SIGN depends on `dx`: at the current tight-deck spacing the cascade is
+ *  408 wide inside a 480 frame, so this is positive and the stack sits fully
+ *  inside. Fan the deck out past the frame width (dx > 24 at five cards) and it
+ *  goes negative, which is legal — the stack is then centred and bleeds off
+ *  BOTH edges rather than being clipped on one. */
 const stackLeft = (dx: number) => (FRAME_W - (SIGNAL_CARD_W + (CARDS - 1) * dx)) / 2;
 const stackTop = (cardH: number, dy: number) => (FRAME_H - (cardH + (CARDS - 1) * dy)) / 2;
 
