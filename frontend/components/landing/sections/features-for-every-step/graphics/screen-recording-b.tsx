@@ -1,53 +1,69 @@
-// A filmstrip down the card. The URL is what the player shows above the replay,
-// and it changes as the run navigates, so each frame is stamped with both.
-const FRAMES = [
-  { at: "00:02", url: "flights.example.com/search" },
-  { at: "00:11", url: "flights.example.com/offer/48", active: true },
-  { at: "00:24", url: "flights.example.com/checkout" },
+import { Play } from "lucide-react";
+
+import { SpanType } from "@/lib/traces/types";
+import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
+
+// The condensed timeline with the session needle on it. Every bar is a span,
+// coloured by type; the needle is where the recording is paused. Scrubbing the
+// replay drags this needle, so the video and the trace share one clock.
+const BARS = [
+  { row: 0, left: 0, width: 98, type: SpanType.EXECUTOR },
+  { row: 1, left: 3, width: 34, type: SpanType.TOOL },
+  { row: 1, left: 41, width: 27, type: SpanType.TOOL },
+  { row: 1, left: 72, width: 24, type: SpanType.TOOL },
+  { row: 2, left: 8, width: 22, type: SpanType.LLM },
+  { row: 2, left: 44, width: 31, type: SpanType.LLM },
+  { row: 3, left: 12, width: 14, type: SpanType.DEFAULT },
+  { row: 3, left: 48, width: 19, type: SpanType.DEFAULT },
+  { row: 3, left: 79, width: 12, type: SpanType.EVENT },
+  { row: 4, left: 50, width: 16, type: SpanType.LLM },
+  { row: 5, left: 15, width: 20, type: SpanType.TOOL },
+  { row: 5, left: 55, width: 11, type: SpanType.DEFAULT },
+  { row: 6, left: 57, width: 25, type: SpanType.EXECUTOR },
+  { row: 7, left: 60, width: 13, type: SpanType.LLM },
 ];
+
+const ROW_H = 10;
+const NEEDLE_LEFT = 52;
 
 const ScreenRecordingB = () => (
   <div className="absolute inset-0 overflow-hidden pl-[22px]">
-    <div className="flex flex-col gap-2.5">
-      {FRAMES.map((frame) => (
-        <div key={frame.at} className="flex gap-2.5">
-          <span className="w-[30px] shrink-0 pt-1 text-right font-mono text-[9px] text-foreground-500">{frame.at}</span>
-          <div
-            className={
-              frame.active
-                ? "flex-1 overflow-hidden rounded-tl border-t border-l border-primary-400/40 bg-surface-down-3"
-                : "flex-1 overflow-hidden rounded-tl border-t border-l border-surface-up-2 bg-surface-down-3"
-            }
-          >
-            <p className="truncate border-b border-surface-up-2 bg-surface-down px-2 py-1.5 font-mono text-[8px] text-foreground-500">
-              {frame.url}
-            </p>
-            <div className="flex gap-1.5 p-2">
-              <div className="flex w-[34px] shrink-0 flex-col gap-1">
-                <span className="h-1 w-full rounded-sm bg-surface-up" />
-                <span className="h-1 w-[70%] rounded-sm bg-surface-up" />
-              </div>
-              <div className="flex flex-1 flex-col gap-1">
-                <span className="h-1.5 w-[62%] rounded-sm bg-surface-up-3" />
-                <span className="h-1.5 w-[88%] rounded-sm bg-surface-up" />
-                <span
-                  className={
-                    frame.active ? "h-3 w-[52px] rounded-sm bg-primary-400/35" : "h-3 w-[52px] rounded-sm bg-surface-up"
-                  }
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      ))}
+    <div className="flex items-center gap-2 pb-3 pr-5">
+      <span className="inline-flex items-center gap-1 rounded border border-primary-400/60 px-1.5 py-[3px] text-[9px] text-primary-200">
+        <Play className="size-2.5 fill-current" strokeWidth={0} />
+        Media
+      </span>
+      <span className="font-mono text-[9px] text-foreground-500">00:11 / 00:31</span>
     </div>
 
-    {/* The player's scrubber, parked on the lit frame. */}
-    <div className="relative ml-[40px] mr-5 mt-3.5 h-[3px] rounded-full bg-surface-up-3">
-      <span className="absolute inset-y-0 left-0 w-[36%] rounded-full bg-white/70" />
-      <span className="absolute -top-[2px] left-[36%] size-[7px] -translate-x-1/2 rounded-full bg-white" />
+    <div className="relative mr-5 h-[185px]">
+      {/* Time markers, behind the bars. */}
+      {[20, 40, 60, 80].map((left) => (
+        <span key={left} className="absolute inset-y-0 w-px bg-surface-up" style={{ left: `${left}%` }} />
+      ))}
+
+      {BARS.map((bar, i) => (
+        <span
+          key={i}
+          className="absolute rounded-xs"
+          style={{
+            left: `${bar.left}%`,
+            width: `${bar.width}%`,
+            top: bar.row * ROW_H,
+            height: ROW_H - 2,
+            backgroundColor: SPAN_TYPE_TO_COLOR[bar.type],
+          }}
+        />
+      ))}
+
+      {/* The session needle: the head sits above the bars, the line runs through. */}
+      <span className="absolute inset-y-0 z-10" style={{ left: `${NEEDLE_LEFT}%` }}>
+        <span className="absolute -top-[9px] left-0 flex size-[15px] -translate-x-1/2 items-center justify-center rounded-full bg-foreground-500">
+          <Play className="size-2 fill-black text-black" strokeWidth={0} />
+        </span>
+        <span className="absolute bottom-0 top-1 w-px bg-foreground-500" />
+      </span>
     </div>
-    <p className="ml-[40px] mt-2.5 font-mono text-[9px] text-foreground-500">00:11 / 00:31</p>
   </div>
 );
 

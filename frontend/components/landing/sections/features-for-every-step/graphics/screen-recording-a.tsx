@@ -1,14 +1,16 @@
 import { Play } from "lucide-react";
 
-// The session panel as the product builds it: play, speed, scrubber, clock, the
-// page URL at that instant, then the replay. It shares its clock with the span
-// timeline underneath, which is why the playhead lines up.
+import SpanTypeIcon from "@/components/traces/span-type-icon";
+import { SpanType } from "@/lib/traces/types";
+
+// Replay and span tree share `sessionTime`. Scrubbing the player selects the
+// span that was running; selecting a span moves the player to it.
 const SPANS = [
-  { left: 0, width: 96, lit: true },
-  { left: 6, width: 38, lit: false },
-  { left: 22, width: 30, lit: false },
-  { left: 30, width: 46, lit: true },
-  { left: 48, width: 26, lit: false },
+  { name: "goto(search)", type: SpanType.TOOL, at: "00:00" },
+  { name: "click(offer)", type: SpanType.TOOL, at: "00:07" },
+  { name: "chat.completion", type: SpanType.LLM, at: "00:11", active: true },
+  { name: "fill(passenger)", type: SpanType.TOOL, at: "00:18" },
+  { name: "verify_fare", type: SpanType.DEFAULT, at: "00:24" },
 ];
 
 const ScreenRecordingA = () => (
@@ -23,41 +25,53 @@ const ScreenRecordingA = () => (
         </span>
         <span className="shrink-0 font-mono text-[9px] text-foreground-400">00:11/00:31</span>
       </div>
-      <p className="truncate border-b border-surface-up-2 px-2.5 py-1.5 font-mono text-[9px] text-foreground-500">
-        flights.example.com/search?to=NRT
-      </p>
       <div className="relative flex gap-2 bg-surface-down-3 p-2.5">
-        <div className="flex w-[46px] shrink-0 flex-col gap-1">
+        <div className="flex w-[42px] shrink-0 flex-col gap-1">
           <span className="h-1.5 w-full rounded-sm bg-surface-up" />
           <span className="h-1.5 w-[70%] rounded-sm bg-surface-up" />
-          <span className="h-1.5 w-[85%] rounded-sm bg-surface-up" />
         </div>
         <div className="flex flex-1 flex-col gap-1.5">
-          <span className="h-2 w-[60%] rounded-sm bg-surface-up-3" />
+          <span className="h-2 w-[58%] rounded-sm bg-surface-up-3" />
           <div className="flex gap-1.5">
             <span className="h-7 flex-1 rounded-sm bg-surface-down" />
             <span className="h-7 flex-1 rounded-sm bg-surface-down" />
           </div>
-          <span className="h-[18px] w-[62px] rounded-sm bg-primary-400/35" />
         </div>
-        {/* Cursor, mid-click on the button the lit span produced. */}
-        <svg viewBox="0 0 12 14" className="absolute left-[92px] top-[62px] w-3 text-white" aria-hidden>
-          <path d="M1 1l10 6.5-4.4.9L4.3 13z" fill="currentColor" stroke="#111" strokeWidth="0.9" />
-        </svg>
+        {/* Click ripple where the selected span touched the page. */}
+        <span className="absolute left-[118px] top-[38px] size-6 rounded-full border border-primary-400/50" />
+        <span className="absolute left-[125px] top-[45px] size-2.5 rounded-full bg-primary-400/60" />
       </div>
     </div>
 
-    <div className="relative mt-3 flex flex-col gap-[7px] pr-5">
-      {SPANS.map((span, i) => (
-        <div key={i} className="h-1.5 w-full">
-          <div
-            className={span.lit ? "h-full rounded-full bg-primary-400/70" : "h-full rounded-full bg-surface-up-4"}
-            style={{ marginLeft: `${span.left}%`, width: `${span.width}%` }}
+    <div className="mt-2.5 flex flex-col">
+      {SPANS.map((span) => (
+        <div
+          key={span.name}
+          className={
+            span.active
+              ? "flex items-center gap-2 rounded-l border-y border-l border-primary-400/30 bg-primary-400/[0.08] px-2 py-[5px]"
+              : "flex items-center gap-2 px-2 py-[5px]"
+          }
+        >
+          <SpanTypeIcon
+            spanType={span.type}
+            containerWidth={15}
+            containerHeight={15}
+            size={10}
+            iconClassName="text-white"
           />
+          <span
+            className={
+              span.active
+                ? "min-w-0 flex-1 truncate text-[10px] text-white"
+                : "min-w-0 flex-1 truncate text-[10px] text-foreground-400"
+            }
+          >
+            {span.name}
+          </span>
+          <span className="shrink-0 font-mono text-[9px] text-foreground-600">{span.at}</span>
         </div>
       ))}
-      {/* One playhead for both: the panel's scrubber sets `sessionTime`. */}
-      <span className="absolute -top-[108px] bottom-0 left-[36%] w-px bg-white/40" />
     </div>
   </div>
 );

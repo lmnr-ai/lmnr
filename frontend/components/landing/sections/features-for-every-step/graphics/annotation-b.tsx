@@ -1,62 +1,78 @@
-import { Database } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Circle, Pencil, Trash2 } from "lucide-react";
 
-// Three places you can add to a queue, one queue, one dataset out the end.
-const SOURCES = ["Traces", "Datasets", "SQL results"];
+// The queue navigator: one segment per item, coloured by state, with the
+// current item boxed and the three state counts beside it. Scrubbing it jumps
+// the queue, which is why "fast" is the claim.
+const TOTAL = 34;
+const APPROVED = 17;
+const MODIFIED = 4;
+const CURRENT = 18;
 
-const ITEMS = [
-  { data: "Booked NRT, no return leg", target: "incomplete", approved: true },
-  { data: "Cancelled the wrong leg", target: "wrong", approved: true },
-  { data: "Confirmed before booking", target: "correct", approved: true },
-  { data: "Retried after a gateway 504", target: "correct", approved: false },
-];
+const segmentTone = (i: number) => {
+  if (i < APPROVED) return "bg-success-bright";
+  if (i < APPROVED + MODIFIED) return "bg-amber-500";
+  return "bg-muted-foreground/30";
+};
 
 const AnnotationB = () => (
   <div className="absolute inset-0 overflow-hidden pl-[22px]">
-    <div className="flex gap-1.5 pr-5">
-      {SOURCES.map((source) => (
-        <span
-          key={source}
-          className="flex-1 truncate rounded border border-surface-up-2 bg-surface-down px-1.5 py-1 text-center text-[10px] text-foreground-400"
-        >
-          {source}
-        </span>
-      ))}
-    </div>
-
-    {/* The funnel: a drop from each source onto one rail, then into the queue. */}
-    <div className="relative mr-5 h-4">
-      <span className="absolute left-[16%] top-0 h-2 w-px bg-surface-up-4" />
-      <span className="absolute left-1/2 top-0 h-2 w-px bg-surface-up-4" />
-      <span className="absolute left-[84%] top-0 h-2 w-px bg-surface-up-4" />
-      <span className="absolute left-[16%] top-2 h-px w-[68%] bg-surface-up-4" />
-      <span className="absolute left-1/2 top-2 h-2 w-px bg-surface-up-4" />
-    </div>
-
-    <div className="rounded-tl border-t border-l border-surface-up-2 bg-surface-down">
-      <div className="flex gap-2 border-b border-surface-up-2 px-3 py-1.5 text-[10px] text-foreground-500">
-        <span className="flex-1">data</span>
-        <span className="w-[62px] shrink-0">target</span>
-      </div>
-      {ITEMS.map((item) => (
-        <div key={item.data} className="flex items-center gap-2 border-b border-surface-up/60 px-3 py-2 last:border-0">
-          <span className="min-w-0 flex-1 truncate text-[10px] text-foreground-200">{item.data}</span>
-          <span
-            className={
-              item.approved
-                ? "w-[62px] shrink-0 truncate font-mono text-[9px] text-primary-200"
-                : "w-[62px] shrink-0 truncate font-mono text-[9px] text-foreground-600"
-            }
-          >
-            {item.target}
-          </span>
+    <div className="pr-5">
+      <div className="relative h-2.5">
+        <div className="flex h-2.5 w-full gap-px overflow-hidden rounded-sm bg-surface-up-2">
+          {Array.from({ length: TOTAL }, (_, i) => (
+            <div key={i} className={`h-full flex-1 ${segmentTone(i)}`} />
+          ))}
         </div>
-      ))}
+        {/* The cursor sitting on the item under review. */}
+        <div
+          className="absolute -bottom-0.5 -top-0.5 rounded-sm border border-foreground-300 bg-white/10"
+          style={{ left: `${((CURRENT - 1) / TOTAL) * 100}%`, width: `${(1 / TOTAL) * 100}%` }}
+        />
+      </div>
+
+      <div className="mt-2.5 flex items-center gap-2.5 text-[10px] tabular-nums text-foreground-400">
+        <span className="inline-flex items-center gap-1">
+          <Circle className="size-2.5 text-foreground-500" />
+          {TOTAL - APPROVED - MODIFIED}
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <Pencil className="size-2.5 text-amber-500" />
+          {MODIFIED}
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <Check className="size-2.5 text-success-bright" />
+          {APPROVED}
+        </span>
+      </div>
     </div>
 
-    <div className="mt-2.5 inline-flex items-center gap-1.5 rounded border border-surface-up-3 px-2 py-1">
-      <Database className="size-3 text-foreground-400" strokeWidth={1.75} />
-      <span className="text-[10px] text-foreground-300">Push to dataset</span>
+    <div className="mt-3.5 rounded-tl border-t border-l border-surface-up-2 bg-surface-down">
+      <div className="flex items-center gap-2 border-b border-surface-up-2 px-2.5 py-1.5">
+        <ChevronLeft className="size-3 text-foreground-500" strokeWidth={1.75} />
+        <span className="text-[10px] text-foreground-400">
+          Item <span className="text-white">{CURRENT}</span> of {TOTAL}
+        </span>
+        <ChevronRight className="size-3 text-foreground-500" strokeWidth={1.75} />
+      </div>
+      <p className="px-2.5 py-2.5 pr-6 text-[11px] leading-4 text-foreground-200">
+        Booked <span className="text-white">NRT</span>, departing Mar 4. Never checked the return leg.
+      </p>
+      <div className="flex items-center gap-2 border-t border-surface-up-2 px-2.5 py-2">
+        <span className="inline-flex items-center gap-1 rounded border border-success-bright/40 bg-success-bright/10 px-1.5 py-[3px] text-[9px] text-success-bright">
+          <Check className="size-2.5" strokeWidth={2.5} />
+          Approve
+        </span>
+        <span className="font-mono text-[9px] text-foreground-600">⌘ ↵</span>
+        <span className="ml-auto inline-flex items-center gap-1 rounded border border-surface-up-3 px-1.5 py-[3px] text-[9px] text-foreground-400">
+          <Trash2 className="size-2.5" strokeWidth={1.75} />
+          Discard
+        </span>
+      </div>
     </div>
+
+    <p className="mt-2.5 truncate rounded-tl border-t border-l border-surface-up-2 bg-surface-down/60 px-2.5 py-2.5 pr-6 text-[11px] text-foreground-500">
+      Cancelled the wrong leg and rebooked at a higher fare.
+    </p>
   </div>
 );
 
