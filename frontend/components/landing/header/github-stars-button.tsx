@@ -12,8 +12,9 @@ interface GitHubStarsButtonProps {
   className?: string;
 }
 
-/** Shared so every surface groups the number the same way. */
-export const formatCount = (count: number): string => count.toLocaleString();
+/** Header-local: the badge has room for the exact figure. The landing feature
+ *  row abbreviates instead, so this is deliberately NOT shared. */
+const formatCount = (count: number): string => count.toLocaleString();
 
 /** A repo's live star count, or null until it lands.
  *
