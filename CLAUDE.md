@@ -144,7 +144,7 @@ Frontend uses Husky with lint-staged: Prettier, ESLint, and `tsc --noEmit` run o
 | `docs/internal/mq-redis.md` | RabbitMQ queues + streams transport, Redis resilient connections, readiness probes |
 | `docs/internal/auth.md` | Better Auth, OAuth providers, CLI device-flow auth, project API keys |
 | `docs/internal/billing.md` | Tiers, usage warnings/hard limits, signal cost metering, custom model costs |
-| `docs/internal/signals.md` | Signals, alerts, signal events (payloads, sorting, triggers) |
+| `docs/internal/signals.md` | Signals, alerts, signal events, CLI CRUD (`trigger`/`filters`/`mode`) |
 | `docs/internal/slack.md` | Slack OAuth broker + brokered self-hosted integration |
 | `docs/internal/ai-features.md` | `getLanguageModel`, LLM provider config, Vercel AI SDK v7 |
 | `docs/internal/analytics.md` | PostHog, Loops sync, self-hosted telemetry heartbeat |

@@ -5,6 +5,8 @@ use serde_json::{Value, json};
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
+use crate::db::signal_triggers::{self, TriggerPatch, TriggerRow};
+
 /// No FK from alerts.source_id — delete in application code.
 const ALERT_TYPE_SIGNAL_EVENT: &str = "SIGNAL_EVENT";
 const ALERT_TYPE_NEW_CLUSTER: &str = "NEW_CLUSTER";
@@ -106,8 +108,10 @@ pub async fn create_signal_with_alerts(
     metadata: &Value,
     clustering_enabled: bool,
     subscriber_email: Option<&str>,
-    triggers: &[(Value, Value, i16)],
-) -> Result<(SignalRow, Vec<crate::db::signal_triggers::TriggerRow>), CreateSignalError> {
+    conditions: &Value,
+    filters: &Value,
+    mode: i16,
+) -> Result<(SignalRow, TriggerRow), CreateSignalError> {
     let mut tx = pool.begin().await.map_err(anyhow::Error::from)?;
 
     let signal = sqlx::query_as::<_, SignalRow>(
@@ -136,15 +140,15 @@ pub async fn create_signal_with_alerts(
         insert_email_alert_targets(&mut tx, project_id, &alert_ids, email).await?;
     }
 
-    let trigger_rows = crate::db::signal_triggers::replace_signal_triggers(
-        &mut tx, project_id, signal.id, triggers,
+    let trigger_row = signal_triggers::insert_signal_trigger(
+        &mut tx, project_id, signal.id, conditions, filters, mode,
     )
     .await
     .map_err(CreateSignalError::Other)?;
 
     tx.commit().await.map_err(anyhow::Error::from)?;
 
-    Ok((signal, trigger_rows))
+    Ok((signal, trigger_row))
 }
 
 async fn insert_signal_alerts(
@@ -229,13 +233,8 @@ pub async fn update_signal(
     project_id: Uuid,
     signal_id: Uuid,
     update: SignalUpdate,
-    triggers: Option<&[(Value, Value, i16)]>,
-) -> Result<
-    Option<(
-        SignalRow,
-        Option<Vec<crate::db::signal_triggers::TriggerRow>>,
-    )>,
-> {
+    trigger_patch: TriggerPatch,
+) -> Result<Option<(SignalRow, Option<TriggerRow>)>> {
     let mut tx = pool.begin().await?;
 
     let existing = sqlx::query_as::<_, SignalRow>(
@@ -273,19 +272,13 @@ pub async fn update_signal(
     .fetch_one(&mut *tx)
     .await?;
 
-    let trigger_rows = match triggers {
-        Some(triggers) => Some(
-            crate::db::signal_triggers::replace_signal_triggers(
-                &mut tx, project_id, signal_id, triggers,
-            )
-            .await?,
-        ),
-        None => None,
-    };
+    let trigger_row =
+        signal_triggers::patch_signal_trigger(&mut tx, project_id, signal_id, trigger_patch)
+            .await?;
 
     tx.commit().await?;
 
-    Ok(Some((updated, trigger_rows)))
+    Ok(Some((updated, trigger_row)))
 }
 
 fn merge_signal_metadata(stored: &Value, update: &SignalUpdate) -> Value {
@@ -421,18 +414,34 @@ mod tests {
     }
 
     #[test]
-    fn clearing_metadata_removes_keys() {
+    fn setting_sample_rate_overwrites() {
         let stored = json!({ "sampleRate": 30, "disabled": true });
+        let merged = merge_signal_metadata(
+            &stored,
+            &SignalUpdate {
+                sample_rate: Some(Some(40)),
+                ..Default::default()
+            },
+        );
+        assert_eq!(merged, json!({ "sampleRate": 40, "disabled": true }));
+    }
 
-        let cleared_sampling = merge_signal_metadata(
+    #[test]
+    fn clearing_sample_rate_removes_the_key() {
+        let stored = json!({ "sampleRate": 30, "disabled": true });
+        let cleared = merge_signal_metadata(
             &stored,
             &SignalUpdate {
                 sample_rate: Some(None),
                 ..Default::default()
             },
         );
-        assert_eq!(cleared_sampling, json!({ "disabled": true }));
+        assert_eq!(cleared, json!({ "disabled": true }));
+    }
 
+    #[test]
+    fn clearing_disabled_removes_the_key() {
+        let stored = json!({ "sampleRate": 30, "disabled": true });
         let re_enabled = merge_signal_metadata(
             &stored,
             &SignalUpdate {
