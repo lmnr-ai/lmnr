@@ -7,7 +7,7 @@ const FRAMES = [
 ];
 
 const ScreenRecordingB = () => (
-  <div className="absolute inset-0 overflow-hidden pl-6">
+  <div className="absolute inset-0 overflow-hidden pl-[22px]">
     <div className="flex flex-col gap-2.5">
       {FRAMES.map((frame) => (
         <div key={frame.at} className="flex gap-2.5">

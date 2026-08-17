@@ -5,7 +5,7 @@ const Hit = ({ children }: { children: string }) => (
 );
 
 const SearchB = () => (
-  <div className="absolute inset-0 overflow-hidden pl-6">
+  <div className="absolute inset-0 overflow-hidden pl-[22px]">
     <div className="flex items-center justify-between rounded-tl border-t border-l border-surface-up-2 bg-surface-down px-3 py-2 pr-6">
       <span className="text-[11px] text-foreground-100">chat.completion</span>
       <span className="rounded-full bg-primary-400/15 px-1.5 py-[1px] font-mono text-[9px] text-primary-200">3</span>

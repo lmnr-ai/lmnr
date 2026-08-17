@@ -14,7 +14,7 @@ const SPANS = [
 ];
 
 const ScreenRecordingC = () => (
-  <div className="absolute inset-0 overflow-hidden pl-6">
+  <div className="absolute inset-0 overflow-hidden pl-[22px]">
     <div className="rounded-tl border-t border-l border-surface-up-2 bg-surface-down">
       <div className="flex items-center gap-2 border-b border-surface-up-2 px-2.5 py-[7px]">
         <Play className="size-3 shrink-0 fill-current text-foreground-200" strokeWidth={0} />

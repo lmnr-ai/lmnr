@@ -10,7 +10,7 @@ const HITS = [
 ];
 
 const SearchA = () => (
-  <div className="absolute inset-0 overflow-hidden pl-6">
+  <div className="absolute inset-0 overflow-hidden pl-[22px]">
     <div className="flex items-center gap-2 rounded-l border-y border-l border-surface-up-3 bg-surface-down px-2 py-[7px]">
       <Search className="size-3 shrink-0 text-foreground-500" strokeWidth={1.75} />
       <span className="text-[11px] text-white">timeout</span>

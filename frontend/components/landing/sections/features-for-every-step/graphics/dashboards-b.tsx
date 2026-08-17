@@ -7,7 +7,7 @@ const points = SERIES.map((v, i) => `${(i * 120) / (SERIES.length - 1)},${110 - 
 // A saved query becomes a chart. The parameters are the product's own: charts
 // are bound to the dashboard's time range, not to a hardcoded window.
 const DashboardsB = () => (
-  <div className="absolute inset-0 overflow-hidden pl-6">
+  <div className="absolute inset-0 overflow-hidden pl-[22px]">
     <div className="rounded-tl border-t border-l border-surface-up-2 bg-surface-down px-3 py-2.5 font-mono text-[10px] leading-[15px]">
       <p className="whitespace-nowrap">
         <span className="text-primary-300">SELECT</span>{" "}

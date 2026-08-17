@@ -9,15 +9,15 @@ const ROWS = [
 ];
 
 const SqlA = () => (
-  <div className="absolute inset-0 overflow-hidden pl-6">
+  <div className="absolute inset-0 overflow-hidden pl-[22px]">
     <div className="rounded-tl border-t border-l border-surface-up-2 bg-surface-down px-3 py-2.5 font-mono text-[10px] leading-[15px]">
       <p>
         <span className="text-primary-300">SELECT</span> <span className="text-foreground-200">model,</span>
       </p>
-      <p className="pl-6 text-foreground-200">
+      <p className="pl-5 text-foreground-200">
         count(*) <span className="text-primary-300">AS</span> runs,
       </p>
-      <p className="pl-6 text-foreground-200">
+      <p className="pl-5 text-foreground-200">
         sum(total_cost) <span className="text-primary-300">AS</span> cost
       </p>
       <p>

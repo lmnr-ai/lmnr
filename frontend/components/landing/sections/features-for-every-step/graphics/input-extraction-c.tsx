@@ -1,7 +1,7 @@
 // What the SDK sent versus what the trace opens on. The raw span input is
 // dimmed and cropped on purpose: nobody should have to read it to find the task.
 const InputExtractionC = () => (
-  <div className="absolute inset-0 overflow-hidden pl-6">
+  <div className="absolute inset-0 overflow-hidden pl-[22px]">
     <div className="rounded-tl border-t border-l border-surface-up-2 bg-surface-down p-3 pr-5">
       <p className="text-[10px] text-foreground-500">agent_input</p>
       <p className="mt-1.5 text-[12px] leading-[17px] text-white">Book the cheapest direct flight to Tokyo in March.</p>

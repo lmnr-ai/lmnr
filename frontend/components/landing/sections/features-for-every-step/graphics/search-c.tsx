@@ -14,7 +14,7 @@ const RESULTS = [
 ];
 
 const SearchC = () => (
-  <div className="absolute inset-0 overflow-hidden pl-6">
+  <div className="absolute inset-0 overflow-hidden pl-[22px]">
     <div className="flex items-start gap-1.5 rounded-l border-y border-l border-surface-up-3 bg-surface-down px-2 py-1.5">
       <Search className="mt-1 size-3 shrink-0 text-foreground-500" strokeWidth={1.75} />
       <div className="flex flex-wrap items-center gap-1">

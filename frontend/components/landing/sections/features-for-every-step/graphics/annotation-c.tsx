@@ -8,7 +8,7 @@ const KEYS = [
 ];
 
 const AnnotationC = () => (
-  <div className="absolute inset-0 overflow-hidden pl-6">
+  <div className="absolute inset-0 overflow-hidden pl-[22px]">
     <div className="rounded-tl border-t border-l border-surface-up-2 bg-surface-down">
       <div className="flex items-center justify-between border-b border-surface-up-2 px-3 py-1.5 pr-6">
         <span className="text-[10px] text-foreground-500">

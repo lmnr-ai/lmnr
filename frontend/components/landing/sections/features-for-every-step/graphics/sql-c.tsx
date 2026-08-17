@@ -12,7 +12,7 @@ const TABLES = [
 ];
 
 const SqlC = () => (
-  <div className="absolute inset-0 overflow-hidden pl-6">
+  <div className="absolute inset-0 overflow-hidden pl-[22px]">
     <p className="mb-2 text-[10px] text-foreground-500">Schema</p>
     <div className="flex flex-col gap-1.5">
       {TABLES.map((table) => (

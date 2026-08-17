@@ -20,7 +20,7 @@ const ChartTitle = ({ children }: { children: string }) => (
 );
 
 const DashboardsA = () => (
-  <div className="absolute inset-0 overflow-hidden pl-6">
+  <div className="absolute inset-0 overflow-hidden pl-[22px]">
     <div className="grid grid-cols-2 gap-2">
       <div className="rounded border border-surface-up-2 bg-surface-down p-2.5">
         <ChartTitle>Total cost</ChartTitle>

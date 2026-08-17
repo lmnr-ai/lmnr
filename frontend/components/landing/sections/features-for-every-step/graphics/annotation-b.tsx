@@ -11,7 +11,7 @@ const ITEMS = [
 ];
 
 const AnnotationB = () => (
-  <div className="absolute inset-0 overflow-hidden pl-6">
+  <div className="absolute inset-0 overflow-hidden pl-[22px]">
     <div className="flex gap-1.5 pr-5">
       {SOURCES.map((source) => (
         <span

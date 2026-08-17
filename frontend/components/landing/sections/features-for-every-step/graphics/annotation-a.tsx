@@ -3,7 +3,7 @@ import { Check, ChevronLeft, ChevronRight, Database, RotateCcw, Trash2 } from "l
 // The labeling queue: the datapoint's data on the left of the split, the target
 // you edit on the right, and the queue's own controls under it.
 const AnnotationA = () => (
-  <div className="absolute inset-0 overflow-hidden pl-6">
+  <div className="absolute inset-0 overflow-hidden pl-[22px]">
     <div className="rounded-tl border-t border-l border-surface-up-2 bg-surface-down">
       <p className="border-b border-surface-up-2 px-3 py-1.5 text-[10px] text-foreground-500">data</p>
       <p className="px-3 py-2.5 pr-6 text-[11px] leading-4 text-foreground-200">

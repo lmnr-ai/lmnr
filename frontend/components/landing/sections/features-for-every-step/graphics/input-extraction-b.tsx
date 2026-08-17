@@ -13,7 +13,7 @@ const TRACES = [
 ];
 
 const InputExtractionB = () => (
-  <div className="absolute inset-0 overflow-hidden pl-6">
+  <div className="absolute inset-0 overflow-hidden pl-[22px]">
     <div className="rounded-tl border-t border-l border-surface-up-2 bg-surface-down">
       <div className="flex gap-2.5 border-b border-surface-up-2 px-2.5 py-1.5 text-[10px] text-foreground-500">
         <span className="w-[3px] shrink-0" />

@@ -11,7 +11,7 @@ const OUTPUT = [
 ];
 
 const SqlB = () => (
-  <div className="absolute inset-0 overflow-hidden pl-6">
+  <div className="absolute inset-0 overflow-hidden pl-[22px]">
     <div className="flex gap-1">
       {TABS.map((tab) => (
         <span
