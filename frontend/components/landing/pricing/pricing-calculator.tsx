@@ -47,20 +47,6 @@ const TRACE_TO_SIGNAL_COMPRESSION = 0.1;
 // Signal events are small structured outputs relative to the input they read.
 const SIGNAL_OUTPUT_RATIO = 0.02;
 
-// Everything the arithmetic on this page actually assumes, in the order it is
-// applied: tokens -> stored bytes -> what a Signal reads -> what it writes ->
-// what those tokens cost -> what usage past the allowance costs.
-//
-// Built from the same constants and rate helpers the estimate uses, so the note
-// cannot drift from the numbers it describes. Nothing here is hardcoded prose.
-const ASSUMPTIONS = [
-  `${BYTES_PER_TOKEN} bytes of stored trace data per agent token`,
-  `a Signal reads ${TRACE_TO_SIGNAL_COMPRESSION * 100}% of a trace's tokens, since Laminar compresses each trace and feeds a Signal only the part it needs`,
-  `a Signal writes back ${SIGNAL_OUTPUT_RATIO * 100}% of what it reads`,
-  `Signal tokens metered at ${formatSignalsOverageShort("hobby")}, discounted to ${formatSignalsOverageShort("pro")} on Pro`,
-  `data past the included allowance at ${formatDataOverage("hobby")} on Starter and ${formatDataOverage("pro")} on Pro`,
-];
-
 /** One metered line, read as "used against what the tier includes". */
 interface UsageLine {
   label: string;
@@ -357,14 +343,16 @@ export default function PricingCalculator() {
         {tokenSlider}
         {coverageSlider}
         {preview}
-        <div className={cn(microLabel, "text-foreground-300 text-sm space-y-2")}>
-          <p>This estimate assumes:</p>
-          <ul className="list-disc space-y-1 pl-4">
-            {ASSUMPTIONS.map((assumption) => (
-              <li key={assumption}>{assumption}</li>
-            ))}
-          </ul>
-        </div>
+        {/* Values come from the constants and rate helpers the estimate itself
+            uses, so the copy cannot drift from the numbers it describes. */}
+        <p className={cn(microLabel, "text-foreground-300 text-sm")}>
+          This estimate assumes {BYTES_PER_TOKEN} bytes of stored trace data per agent token, that a Signal reads{" "}
+          {TRACE_TO_SIGNAL_COMPRESSION * 100}% of a trace&apos;s tokens (Laminar compresses each trace and feeds a
+          Signal only the part it needs) and writes back {SIGNAL_OUTPUT_RATIO * 100}% of what it reads, and that Signal
+          tokens are metered at {formatSignalsOverageShort("hobby")}, discounted to {formatSignalsOverageShort("pro")}{" "}
+          on Pro. Data past the included allowance is {formatDataOverage("hobby")} on Starter and{" "}
+          {formatDataOverage("pro")} on Pro.
+        </p>
       </div>
     </div>
   );
