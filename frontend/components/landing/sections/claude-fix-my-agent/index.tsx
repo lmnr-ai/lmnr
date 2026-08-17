@@ -35,8 +35,7 @@ const ClaudeFixMyAgent = () => (
           MCP
         </a>{" "}
         are your coding agent's interface to Laminar. <br className="hidden md:block" />
-        It can run your agent, read the trace, <br className="hidden md:block" />
-        make changes, and run evals to verify progress.
+        It can run your agent, read traces, make changes, and run evals to verify progress.
       </p>
     </div>
     <div className="bg-surface-500 relative flex w-full overflow-hidden">

@@ -48,6 +48,10 @@ interface Props {
   /** Cap on how many rows may be revealed so far. Raising it resumes the
    *  stagger from where it stopped rather than replaying from the top. */
   visibleRows: number;
+  /** Blocks USER scrolling while leaving both `scrollTo`s below working — an
+   *  `overflow: hidden` box is still a scroll container programmatically. Set on
+   *  touch, where an inner scroller just traps the page scroll. */
+  scrollLocked?: boolean;
 }
 
 /** Walks a counter up to `limit`, one step per `stepMs`, once `enabled`. Never
@@ -130,7 +134,7 @@ const useSpanPreviews = (
   return previews;
 };
 
-const LandingTranscript = ({ onSpanSelect, visibleRows }: Props) => {
+const LandingTranscript = ({ onSpanSelect, visibleRows, scrollLocked }: Props) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inView = useInView(scrollRef, { once: true, amount: 0.3 });
   const { getTranscriptListData, spans, trace, selectedSpan } = useTraceViewBaseStore(
@@ -204,7 +208,13 @@ const LandingTranscript = ({ onSpanSelect, visibleRows }: Props) => {
   const noop = useCallback(() => {}, []);
 
   return (
-    <div ref={scrollRef} className="h-full w-full overflow-y-auto overflow-x-hidden styled-scrollbar pb-16">
+    <div
+      ref={scrollRef}
+      className={cn(
+        "h-full w-full overflow-x-hidden styled-scrollbar pb-16",
+        scrollLocked ? "overflow-y-hidden" : "overflow-y-auto"
+      )}
+    >
       {/* Only what has been revealed is MOUNTED. Holding the rest at opacity 0
           leaves them in layout, so the container reserves the whole run's
           height from the first frame and scrolls over blank space. Mounting as

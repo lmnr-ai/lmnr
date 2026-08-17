@@ -45,22 +45,17 @@ const Card = ({ title, description, children, href }: CardProps) => (
 
 const Compliance = () => (
   <section className="flex flex-col items-start gap-[52px] w-full">
-    <h2 className={subSection}>Enterprise-ready</h2>
+    <h2 className={subSection}>Built for enterprise</h2>
 
     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
       {/* The breaks are the frame's, and they only apply once a card is actually
           at its 434 design width — below lg the grid is narrower (or single
           column) and the text wraps on its own. */}
+
       <Card
-        title="PII redaction at scale"
-        description={
-          <>
-            Laminar redacts sensitive information from <br className="hidden lg:block" />
-            every span on Laminar&apos;s own infrastructure <br className="hidden lg:block" />
-            before storage.
-          </>
-        }
-        href="https://laminar.sh/docs/platform/pii-redaction"
+        title="Open Source"
+        description="Apache 2.0 licensed"
+        href="https://github.com/lmnr-ai/lmnr?tab=Apache-2.0-1-ov-file#readme"
       />
       <Card
         title="Deploy on AWS or GCP with Helm"
@@ -73,9 +68,15 @@ const Compliance = () => (
         href="https://laminar.sh/docs/hosting-options#hosting-options"
       />
       <Card
-        title="Open Source"
-        description="Apache 2.0 licensed"
-        href="https://github.com/lmnr-ai/lmnr?tab=Apache-2.0-1-ov-file#readme"
+        title="PII redaction at scale"
+        description={
+          <>
+            Laminar redacts sensitive information from <br className="hidden lg:block" />
+            every span on Laminar&apos;s own infrastructure <br className="hidden lg:block" />
+            before storage.
+          </>
+        }
+        href="https://laminar.sh/docs/platform/pii-redaction"
       />
       <Card title="HIPAA & SOC 2 Type II Compliant" href="https://compliance.laminar.sh/">
         {/* 84px badges 16px apart, sitting 24px under the title — the frame puts

@@ -67,7 +67,10 @@ const ThreadWindow = ({
     </div>
     <div
       ref={scrollRef}
-      className="thin-scrollbar flex flex-1 min-h-0 flex-col overflow-y-auto px-4 pt-4 scroll-smooth"
+      // See the debugger terminal's twin of this: `overflow-y-hidden` stops the
+      // reader scrolling the thread on touch while the follow-the-newest-message
+      // `scrollTo` keeps working.
+      className="scrollbar-none flex flex-1 min-h-0 flex-col overflow-y-hidden md:overflow-y-auto px-4 pt-4 scroll-smooth scroll-fade-y"
     >
       {children}
     </div>

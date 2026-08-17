@@ -10,10 +10,15 @@ const AskInSlack = () => (
   <section className="flex flex-col gap-10 items-start w-full">
     <div className="flex flex-col items-start">
       <span className={cn(microLabel, "mb-2")}>04.</span>
-      <h2 className={cn(subSection, "mb-2")}>{"Be notified and investigate in Slack."}</h2>
+      <h2 className={cn(subSection, "mb-2")}>
+        Be notified and
+        <br className="block sm:hidden" />
+        {` `}
+        investigate in Slack.
+      </h2>
       <p className={bodyMedium}>
-        Laminar notifies you about new failures in Slack. Mention Laminar to ask <br className="hidden md:block" />
-        anything about your traces. posts new
+        Laminar notifies you about new failures in Slack. Mention Laminar <br className="hidden md:block" />
+        to ask anything about your traces.
       </p>
     </div>
     {/* Shorter than the sibling panels' 120px: the thread card is roughly
@@ -22,9 +27,11 @@ const AskInSlack = () => (
         3px shy of the sibling panels' round number: the window came down 6 and
         the panel had to come down 12, which the extra 2x3 accounts for. */}
     <div className="bg-surface-500 relative flex items-center w-full md:py-[61px] py-[44px] overflow-hidden px-8">
-      {/* Unlike the sibling panels the mock has no intrinsic width — it caps
-          at 552 and reflows below that, so it just needs centering. */}
-      <div className="mx-auto w-full max-w-[552px]">
+      {/* Same overflow trick as the evals/debugger panels: a fixed width that
+          `shrink-0` protects, so `mx-auto` centers it when there's room and it
+          pins left and runs off the right when there isn't, rather than
+          reflowing the thread. */}
+      <div className="mx-auto w-[552px] shrink-0">
         <SlackThread />
       </div>
       <SectionFootnote name="Laminar Agent in Slack" href="https://laminar.sh/docs/platform/laminar-agent#slack" />

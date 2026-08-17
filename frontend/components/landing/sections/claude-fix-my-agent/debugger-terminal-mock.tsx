@@ -106,7 +106,10 @@ const DebuggerTerminalMock = ({ entries, typed, isTyping, finished, prompt, clas
           lives here (not the outer shell) so the scrollbar sits at the panel edge. */}
       <div
         ref={scrollRef}
-        className="thin-scrollbar flex-1 min-h-0 overflow-y-auto overflow-x-hidden scroll-smooth px-5 pt-4"
+        // `overflow-y-hidden` below md blocks USER scrolling without breaking the
+        // auto-follow below — an overflow:hidden box still scrolls
+        // programmatically. On touch an inner scroller only traps the page.
+        className="scrollbar-none flex-1 min-h-0 overflow-y-hidden md:overflow-y-auto overflow-x-hidden scroll-smooth px-5 pt-4 scroll-fade-y"
       >
         <div className="flex min-h-full flex-col justify-end gap-0">
           {!isTyping && (

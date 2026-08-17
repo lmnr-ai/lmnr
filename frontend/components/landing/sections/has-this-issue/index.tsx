@@ -32,7 +32,12 @@ const HasThisIssue = () => (
         existence 54px inside the frame instead of sliding in over its edge.
         `items-start` + `origin-top-left` then pin the scaled stage flush to the
         frame's top-left corner, which is the edge the pill has to enter from. */}
-    <div className="bg-surface-500 relative flex items-start w-full overflow-hidden px-8 h-[432px] sm:h-auto">
+    {/* `data-clusters-frame` is what the mock measures to centre the falling
+        pill on the visible frame rather than on its own wider stage. */}
+    <div
+      data-clusters-frame
+      className="bg-surface-500 relative flex items-start w-full overflow-hidden px-8 h-[432px] sm:h-auto"
+    >
       {/* mx-auto centers the mock when it fits; when it doesn't (narrow
           viewports) the auto margins collapse to 0 so the mock sticks
           to the start edge instead of overflowing symmetrically.

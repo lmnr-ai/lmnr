@@ -32,8 +32,7 @@ interface Row {
 const ROWS: Row[] = [
   { name: "Network lmnr_default          ", verb: "Created", elapsed: "0.2s" },
   { name: "Container lmnr-postgres-1     ", verb: "Started", elapsed: "1.4s" },
-  { name: "Container clickhouse          ", verb: "Started", elapsed: "1.6s" },
-  { name: "Container lmnr-quickwit-1     ", verb: "Started", elapsed: "1.7s" },
+  { name: "Container lmnr-clickhouse-1   ", verb: "Started", elapsed: "1.6s" },
   { name: "Container lmnr-app-server-1   ", verb: "Started", elapsed: "2.3s" },
   { name: "Container lmnr-frontend-1     ", verb: "Started", elapsed: "2.6s" },
 ];

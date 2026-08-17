@@ -76,20 +76,37 @@ interface Props {
 const MorphingSignalCard = ({ collapsed = false, durationMs = 0, progress, showPill = true, onMeasure }: Props) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<{ card: number; pill: PillMetrics } | null>(null);
 
-  // One measurement pass at natural size, before anything animates. The card
-  // only starts collapsing on scroll-in, so this has always landed by then.
+  // The card's natural height is derived from its CONTENT box, not measured off
+  // the card — the card's own height is what this drives, so reading it back
+  // would be a feedback loop, and reading it once races the webfont: the landing
+  // font lands after first layout, the body then needs an extra line, and a
+  // height pinned to the pre-font measurement CLIPS it (the card is
+  // overflow-hidden). The content box is a fixed width and is never animated, so
+  // observing it is both safe and self-correcting.
+  //
+  // `offsetWidth`/`offsetHeight`, NOT getBoundingClientRect: every number here is
+  // fed back out as a CSS length, and a rect is POST-transform. The mobile stack
+  // renders this inside a `scale(0.8)` stage, where a rect reads 20% short — the
+  // card then gets pinned to 104px when it needs 126 and clips a line of body,
+  // and the reported pill width comes out narrower than the same pill in the
+  // section that catches it. offset* is transform-independent.
   useLayoutEffect(() => {
-    const card = cardRef.current;
+    const content = contentRef.current;
     const pill = pillRef.current;
-    if (!card || !pill) return;
+    if (!content || !pill) return;
     const measure = () => {
-      const pillRect = pill.getBoundingClientRect();
       const next = {
-        card: card.getBoundingClientRect().height,
-        pill: { width: pillRect.width, height: pillRect.height },
+        card: content.offsetHeight + 2 * PAD_Y + 2 * BORDER,
+        pill: { width: pill.offsetWidth, height: pill.offsetHeight },
       };
+      // A zero box means this ran inside a `display: none` subtree — the mobile
+      // tree is hidden above `md` and vice versa, so a browser resized across
+      // that breakpoint gets here with nothing laid out. Storing it would pin the
+      // card to a bogus natural height until something else resizes.
+      if (next.pill.width === 0) return;
       setSize((prev) =>
         prev &&
         Math.abs(prev.card - next.card) < 0.5 &&
@@ -101,9 +118,10 @@ const MorphingSignalCard = ({ collapsed = false, durationMs = 0, progress, showP
       onMeasure?.(next.pill);
     };
     measure();
-    // Fonts land late; the pill's width is a text measurement.
+    // Fonts land late, and both of these are text measurements.
     const observer = new ResizeObserver(measure);
     observer.observe(pill);
+    observer.observe(content);
     return () => observer.disconnect();
   }, [onMeasure]);
 
@@ -198,7 +216,11 @@ const MorphingSignalCard = ({ collapsed = false, durationMs = 0, progress, showP
         </div>
       </motion.div>
 
-      <div className="flex flex-col gap-0.5 shrink-0" style={{ width: CARD_W - 2 * PAD_X - 2 * BORDER }}>
+      <div
+        ref={contentRef}
+        className="flex flex-col gap-0.5 shrink-0"
+        style={{ width: CARD_W - 2 * PAD_X - 2 * BORDER }}
+      >
         <div className="relative flex items-center justify-between gap-2">
           <motion.span
             initial={false}

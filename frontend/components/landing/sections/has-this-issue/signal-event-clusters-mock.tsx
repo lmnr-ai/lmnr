@@ -163,17 +163,42 @@ const SignalEventClustersMock = ({ className }: { className?: string }) => {
 
   const replay = useCallback(() => setRunId((n) => n + 1), []);
 
+  // ── Pill centring ───────────────────────────────────────────────────────
+  // The stage is wider than the frame and parked at its left edge, so the frame
+  // only ever shows part of it — centring the pill on the STAGE drops it into
+  // the cropped half. Measure the frame and centre on that instead.
+  //
+  // Both rects are post-transform, so dividing by the stage's measured scale
+  // converts back to stage-local px and the mobile 80% scale cancels out. The
+  // frame's padding is symmetric, so its box centre is also its content centre.
+  const [pillDx, setPillDx] = useState(0);
+  useEffect(() => {
+    const stage = stageRef.current;
+    const frame = stage?.closest<HTMLElement>("[data-clusters-frame]");
+    if (!stage || !frame) return;
+    const measure = () => {
+      const stageBox = stage.getBoundingClientRect();
+      const frameBox = frame.getBoundingClientRect();
+      const scale = stageBox.width / CLUSTERS_CARD_W;
+      if (!scale) return;
+      const next = (frameBox.left + frameBox.width / 2 - stageBox.left) / scale - CLUSTERS_CARD_W / 2;
+      setPillDx((prev) => (Math.abs(prev - next) < 0.5 ? prev : next));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(frame);
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <TooltipProvider delayDuration={200}>
       {TimingDials && <TimingDials onChange={setTiming} onReplay={replay} />}
       <div ref={stageRef} className={cn("relative", className)} style={{ width: CLUSTERS_CARD_W, height: FRAME_H }}>
-        {/* Centred from `sm` up, left-parked below it. The 720px stage runs off
-            a phone screen and the frame shows roughly its left half, so a
-            stage-centred pill drops into the half that gets cropped. 22px puts
-            it over the cluster LIST column instead — on screen, and landing on
-            the very row it is about to become. */}
-        <div className="absolute inset-0 flex items-center justify-start sm:justify-center pl-[22px] sm:pl-0">
-          <motion.div ref={pillRef} style={{ y: pillY, opacity: pillOpacity }}>
+        {/* Flex-centred on the stage, then translated onto the frame's centre by
+            `pillDx` — see the measurement above. */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <motion.div ref={pillRef} style={{ x: pillDx, y: pillY, opacity: pillOpacity }}>
             <ClusterPill />
           </motion.div>
         </div>

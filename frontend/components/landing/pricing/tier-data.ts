@@ -170,7 +170,7 @@ interface CardFeature {
 export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   free: [
     { label: `${formatDataIncluded("free")} data`, subfeature: "no overage" },
-    { label: `${formatSignalsCount("free")} in Signals`, subfeature: "no overage" },
+    { label: `${formatSignalsCount("free")} in Signals credits` },
     { label: retentionLabel("free") },
     { label: formatProjects("free") },
     { label: formatSeats("free") },
@@ -178,7 +178,7 @@ export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   ],
   hobby: [
     { label: `${formatDataIncluded("hobby")} data included`, subfeature: `then ${formatDataOverage("hobby")}` },
-    { label: `${formatSignalsCount("hobby")} in Signals`, subfeature: `then ${formatSignalsOverage("hobby")}` },
+    { label: `${formatSignalsCount("hobby")} in Signals credits` },
     { label: retentionLabel("hobby") },
     { label: formatProjects("hobby") },
     { label: formatSeats("hobby") },
@@ -186,7 +186,7 @@ export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   ],
   pro: [
     { label: `${formatDataIncluded("pro")} data included`, subfeature: `then ${formatDataOverage("pro")}` },
-    { label: `${formatSignalsCount("pro")} in Signals`, subfeature: `then ${formatSignalsOverage("pro")}` },
+    { label: `${formatSignalsCount("pro")} in Signals credits` },
     { label: retentionLabel("pro") },
     { label: formatProjects("pro") },
     { label: formatSeats("pro") },

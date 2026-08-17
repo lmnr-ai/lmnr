@@ -123,6 +123,11 @@ interface Props {
    *  here on. The card stays MOUNTED and keeps its box — unmounting it would
    *  reflow the transcript underneath at the exact frame the flight starts. */
   signalCardHidden?: boolean;
+  /** Blocks USER scrolling of the transcript. Set on touch, where an inner
+   *  scroller only traps the page. NOTE: CondensedTimeline owns a scroller of
+   *  its own that this does NOT cover — mobile keeps `showTimeline` off, so
+   *  turning it on there needs that handled too. */
+  scrollLocked?: boolean;
 }
 
 // One trace view, PANEL_W wide, stretched to its parent's height:
@@ -148,6 +153,7 @@ const TracePanel = ({
   signalsOpen,
   revealSpanId,
   signalCardHidden,
+  scrollLocked,
 }: Props) => {
   const { setSpans, setTrace, setSelectedSpan, signalsPanelOpen, setSignalsPanelOpen } = useTraceViewStore(
     (state) => ({
@@ -220,10 +226,7 @@ const TracePanel = ({
               }}
               className="rounded-md border overflow-hidden"
             >
-              <SignalContent
-                onSpanClick={handleSignalSpanClick}
-                onClose={() => setSignalsPanelOpen(false)}
-              />
+              <SignalContent onSpanClick={handleSignalSpanClick} onClose={() => setSignalsPanelOpen(false)} />
             </div>
           </motion.div>
         )}
@@ -233,9 +236,7 @@ const TracePanel = ({
           thing at full strength while it is open. Grouped under one wrapper
           rather than dimmed per-region: three separately-fading siblings would
           reveal their own borders against each other mid-transition. */}
-      <div
-        className={cn("flex flex-col flex-1 min-h-0", DIM_CLS, signalCardOpen && "opacity-40")}
-      >
+      <div className={cn("flex flex-col flex-1 min-h-0", DIM_CLS, signalCardOpen && "opacity-40")}>
         <motion.div
           initial={false}
           animate={{ height: showTimeline ? TIMELINE_HEIGHT : 0 }}
@@ -263,7 +264,7 @@ const TracePanel = ({
 
         <div className="flex-1 min-h-0 overflow-hidden relative">
           <div className="absolute inset-0">
-            <LandingTranscript onSpanSelect={handleSpanSelect} visibleRows={visibleRows} />
+            <LandingTranscript onSpanSelect={handleSpanSelect} visibleRows={visibleRows} scrollLocked={scrollLocked} />
           </div>
           {/* Fades the clipped last row into the panel's own background. Fading
               to the FRAME's colour instead would read as a haze over the card. */}

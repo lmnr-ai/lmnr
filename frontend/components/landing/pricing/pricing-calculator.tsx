@@ -122,7 +122,7 @@ function RecommendedBadge({ tooltip }: { tooltip: string }) {
     <TooltipProvider delayDuration={0}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge variant="default" className="text-xs shrink-0 cursor-help gap-1">
+          <Badge variant="outlinePrimary" className="text-xs shrink-0 cursor-help gap-1 h-5 px-2">
             Recommended
             <Info size={11} />
           </Badge>
@@ -151,17 +151,24 @@ function TierColumn({ estimate, tooltip, dataGB }: { estimate: TierEstimate; too
 
   return (
     <div className="bg-surface-500 h-full rounded p-5 space-y-4">
-      <TierHeader name={estimate.name} tooltip={tooltip} />
+      <div className={cn(subSection, "flex justify-between text-lg leading-6 text-white")}>
+        <span className="flex gap-2.5 items-center">
+          Tier
+          <RecommendedBadge />
+        </span>
+        <span>{estimate.name}</span>
+      </div>
 
       <div className="space-y-2 text-sm">
-        <div>
-          <div className="flex justify-between text-white">
+        <div className="border-t pt-3">
+          <div className={cn(subSection, "flex justify-between text-lg leading-6 text-white")}>
             <span>Base</span>
             <span>${formatDollars(estimate.basePrice)}</span>
           </div>
-          <div className={cn(microLabel, "mt-0.5 text-foreground-300")}>
-            {formatDataSize(estimate.includedDataGB)} + ${estimate.includedSignalCostUsd} in Signals included
-          </div>
+        </div>
+
+        <div className={cn("text-foreground-200")}>
+          {formatDataSize(estimate.includedDataGB)} + ${estimate.includedSignalCostUsd} in Signals included
         </div>
 
         {estimate.dataOverageCost > 0 ? (
@@ -181,7 +188,7 @@ function TierColumn({ estimate, tooltip, dataGB }: { estimate: TierEstimate; too
         {estimate.signalOverageCost > 0 ? (
           <div className="flex justify-between text-foreground-200">
             <span>
-              <span>Signals (${formatDollars(estimate.signalCostUsd)})</span>
+              <span>Signals overage (${formatDollars(estimate.signalCostUsd)})</span>
             </span>
             <span>+${formatDollars(estimate.signalOverageCost)}</span>
           </div>
@@ -193,7 +200,7 @@ function TierColumn({ estimate, tooltip, dataGB }: { estimate: TierEstimate; too
         )}
       </div>
 
-      <div className="border-t pt-3 border-surface-400">
+      <div className="border-t pt-3">
         <div className={cn(subSection, "flex justify-between text-lg leading-6 text-white")}>
           <span>Total</span>
           <span>${formatDollars(estimate.total)}/mo</span>
