@@ -118,7 +118,7 @@ interface SourceBox {
  *  but not its y, so the flight began 39px above the card it was flying from
  *  and the card jumped up before it set off. Measuring against the frame is
  *  what the consumer's coordinates actually are, and it cannot drift. */
-const useSourceBox = (): SourceBox | null => {
+const useSourceBox = (flight: MotionValue<number>): SourceBox | null => {
   const [box, setBox] = useState<SourceBox | null>(null);
 
   useLayoutEffect(() => {
@@ -144,8 +144,29 @@ const useSourceBox = (): SourceBox | null => {
     // The collapser wrapping the card animates its own maxHeight open, which
     // moves the card's TOP without resizing the card itself.
     if (card.parentElement) observer.observe(card.parentElement);
-    return () => observer.disconnect();
-  }, []);
+
+    // A ResizeObserver ALONE cannot measure this card, and the miss is silent.
+    // The collapser tweens `marginTop` 0 → 8 alongside its maxHeight, and margin
+    // is not part of an element's size, so RO never sees that half. Worse, the
+    // maxHeight it CAN see is a clamp well above the content's natural height,
+    // so the rendered height stops changing partway through and RO goes quiet
+    // while the margin is still travelling — freezing this measurement at a
+    // fraction of the 8px. The card then detaches a few px above where it was
+    // sitting, which reads as a jump up at the start of the flight.
+    //
+    // So re-measure on scroll, but only while the flight has not started: past
+    // that the value must stay frozen or the card would jump mid-flight. The
+    // tween is 300ms and the flight is a long scroll away, so by the time this
+    // matters the last scroll has caught the settled position.
+    const onScroll = () => {
+      if (flight.get() === 0) measure();
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, [flight]);
 
   return box;
 };
@@ -268,7 +289,7 @@ interface Props {
 }
 
 const SignalStack = ({ flight, collapse, pillEnter, pillRestY, visible, timing }: Props) => {
-  const source = useSourceBox();
+  const source = useSourceBox(flight);
   const [pill, setPill] = useState<PillMetrics | null>(null);
 
   // Before measurement the card simply starts where it will land, so the worst
