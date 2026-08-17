@@ -20,15 +20,21 @@ import { cn } from "@/lib/utils";
 
 import { microLabel, subSection } from "../class-names";
 
-const TOKEN_STEPS = [
-  100_000_000, 150_000_000, 200_000_000, 250_000_000, 300_000_000, 350_000_000, 400_000_000, 450_000_000, 500_000_000,
-  1_000_000_000, 2_500_000_000, 5_000_000_000, 10_000_000_000, 15_000_000_000, 20_000_000_000, 25_000_000_000,
-  35_000_000_000, 50_000_000_000, 75_000_000_000, 100_000_000_000, 250_000_000_000, 300_000_000_000, 333_333_333_334,
-  400_000_000_000, 500_000_000_000, 1_000_000_000_000, 1_666_666_666_667,
+// Monthly volume is split across two axes rather than asked for as one total,
+// because people know their own numbers in these terms — nobody knows their
+// monthly token count offhand, but everyone knows roughly how many runs they do
+// and how big a run is. Their product is what the estimate actually prices.
+const RUN_STEPS = [100, 250, 500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000];
+const TOKENS_PER_RUN_STEPS = [
+  1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000,
 ];
-// Share of traces a Signal evaluates, as a percentage. Most teams run Signals
-// on a filtered slice of their traffic, not all of it.
+// Share of runs a Signal analyzes, as a percentage. Most teams run Signals on a
+// filtered slice of their traffic, not all of it.
 const COVERAGE_STEPS = [1, 5, 10, 25, 50, 75, 100];
+
+// 1,000 runs of 100K tokens = 100M tokens/mo, a small production agent.
+const DEFAULT_RUNS_IDX = 3;
+const DEFAULT_TOKENS_PER_RUN_IDX = 6;
 
 const BYTES_PER_TOKEN = 3;
 const PRO_DATA_THRESHOLD_GB = 30;
@@ -133,16 +139,21 @@ function buildEstimate(tier: Tier, dataGB: number, signalCostUsd: number): TierE
   };
 }
 
+const TOKEN_UNITS = [
+  { limit: 1_000_000_000_000, suffix: "T" },
+  { limit: 1_000_000_000, suffix: "B" },
+  { limit: 1_000_000, suffix: "M" },
+  { limit: 1_000, suffix: "K" },
+];
+
+/** Needs the K step now that per-run token counts are in the thousands — the
+ *  old millions-only floor rendered 100,000 as "0M". One decimal only when it
+ *  changes the number, so 2.5M but 3M rather than 3.0M. */
 function formatTokens(tokens: number): string {
-  if (tokens >= 1_000_000_000_000) {
-    const trillions = tokens / 1_000_000_000_000;
-    return `${trillions % 1 === 0 ? trillions.toFixed(0) : trillions.toFixed(1)}T`;
-  }
-  if (tokens >= 1_000_000_000) {
-    const billions = tokens / 1_000_000_000;
-    return `${billions % 1 === 0 ? billions.toFixed(0) : billions.toFixed(1)}B`;
-  }
-  return `${(tokens / 1_000_000).toFixed(0)}M`;
+  const unit = TOKEN_UNITS.find((u) => tokens >= u.limit);
+  if (!unit) return String(tokens);
+  const n = tokens / unit.limit;
+  return `${n % 1 === 0 ? n.toFixed(0) : n.toFixed(1)}${unit.suffix}`;
 }
 
 function formatDollars(n: number): string {
@@ -275,12 +286,17 @@ const SliderBlock = ({ label, value, sliderValue, max, onChange, className }: Sl
 );
 
 export default function PricingCalculator() {
-  const [tokenIdx, setTokenIdx] = useState(0);
+  const [runsIdx, setRunsIdx] = useState(DEFAULT_RUNS_IDX);
+  const [tokensPerRunIdx, setTokensPerRunIdx] = useState(DEFAULT_TOKENS_PER_RUN_IDX);
   const [coverageIdx, setCoverageIdx] = useState(COVERAGE_STEPS.length - 1);
 
-  const tokens = TOKEN_STEPS[tokenIdx];
+  const runs = RUN_STEPS[runsIdx];
+  const tokensPerRun = TOKENS_PER_RUN_STEPS[tokensPerRunIdx];
+  // The two sliders multiply; everything downstream still prices one total.
+  const tokens = runs * tokensPerRun;
   const dataGB = estimateDataFromTokens(tokens);
   const coveragePct = COVERAGE_STEPS[coverageIdx];
+  const analyzedRuns = Math.round((runs * coveragePct) / 100);
 
   // Signal cost is tier-dependent (Pro is discounted), so each estimate prices
   // at its own rate.
@@ -302,54 +318,57 @@ export default function PricingCalculator() {
   // rate so it agrees with the estimate column below.
   const displayedSignalCostUsd = state === "pro" ? estimates.pro.signalCostUsd : estimates.hobby.signalCostUsd;
 
-  const tokensValue = (
-    <>
-      {formatTokens(tokens)} <span className="text-sm text-foreground-300">≈ {formatDataSize(dataGB)}</span>
-    </>
-  );
-
-  const tokenSlider = (
-    <SliderBlock
-      label="Agent tokens per month"
-      value={tokensValue}
-      sliderValue={tokenIdx}
-      max={TOKEN_STEPS.length - 1}
-      onChange={setTokenIdx}
-    />
-  );
-
-  const coverageValue = (
-    <>
-      {coveragePct}%{" "}
-      <span className="text-sm text-foreground-300">≈ ${formatDollars(displayedSignalCostUsd)} in Signals</span>
-    </>
-  );
-  const coverageSlider = (
-    <SliderBlock
-      label="Traces analyzed by Signals"
-      value={coverageValue}
-      sliderValue={coverageIdx}
-      max={COVERAGE_STEPS.length - 1}
-      onChange={setCoverageIdx}
-    />
-  );
-
   const preview = <TierColumn estimate={estimates[state]} tooltip={TOOLTIPS[state]} />;
 
   return (
     <div className="w-full space-y-6">
       <p className={cn(subSection, "text-white")}>Pricing calculator</p>
       <div className="flex flex-col gap-6 w-full">
-        {tokenSlider}
-        {coverageSlider}
+        <SliderBlock
+          label="Agent runs per month"
+          value={runs.toLocaleString()}
+          sliderValue={runsIdx}
+          max={RUN_STEPS.length - 1}
+          onChange={setRunsIdx}
+        />
+        {/* Carries the derived monthly total, since neither slider shows it
+            alone and it is what the data allowance is measured against. */}
+        <SliderBlock
+          label="Tokens per agent run"
+          value={
+            <>
+              {formatTokens(tokensPerRun)}{" "}
+              <span className="text-sm text-foreground-300">
+                ≈ {formatTokens(tokens)} tokens/mo, {formatDataSize(dataGB)}
+              </span>
+            </>
+          }
+          sliderValue={tokensPerRunIdx}
+          max={TOKENS_PER_RUN_STEPS.length - 1}
+          onChange={setTokensPerRunIdx}
+        />
+        <SliderBlock
+          label="Agent runs analyzed by Signal"
+          value={
+            <>
+              {coveragePct}%{" "}
+              <span className="text-sm text-foreground-300">
+                ≈ {analyzedRuns.toLocaleString()} runs, ${formatDollars(displayedSignalCostUsd)} in Signals
+              </span>
+            </>
+          }
+          sliderValue={coverageIdx}
+          max={COVERAGE_STEPS.length - 1}
+          onChange={setCoverageIdx}
+        />
         {preview}
         {/* Values come from the constants and rate helpers the estimate itself
             uses, so the copy cannot drift from the numbers it describes. */}
         <p className={cn(microLabel, "text-foreground-300 text-sm")}>
           This estimate assumes {BYTES_PER_TOKEN} bytes of stored trace data per agent token, that a Signal reads{" "}
-          {TRACE_TO_SIGNAL_COMPRESSION * 100}% of a trace&apos;s tokens (Laminar compresses each trace and feeds a
-          Signal only the part it needs) and writes back {SIGNAL_OUTPUT_RATIO * 100}% of what it reads, and that Signal
-          tokens are metered at {formatSignalsOverageShort("pro")} on Pro.
+          {TRACE_TO_SIGNAL_COMPRESSION * 100}% of a run&apos;s tokens (Laminar compresses each trace and feeds a Signal
+          only the part it needs) and writes back {SIGNAL_OUTPUT_RATIO * 100}% of what it reads, and that Signal tokens
+          are metered at {formatSignalsOverageShort("pro")} on Pro. Data past the included allowance is{" "}
           {formatDataOverage("pro")} on Pro.
         </p>
       </div>
