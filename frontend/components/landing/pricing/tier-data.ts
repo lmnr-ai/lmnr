@@ -6,7 +6,6 @@ import {
   formatProjects,
   formatSeats,
   formatSignalsCount,
-  formatSignalsOverage,
   formatSignalsOverageShort,
   formatSupport,
   type Tier,
@@ -105,7 +104,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
     rows: [
       tierRow("Data included", formatDataIncluded),
       tierRow("Data overage rate", formatDataOverage),
-      tierRow("Signals included", formatSignalsCount),
+      tierRow("Signals credits included", formatSignalsCount),
       // Comparison table is column-constrained, use the short per-1M-token form
       // instead of the verbose rate the cards use.
       tierRow("Signals overage rate", formatSignalsOverageShort),
