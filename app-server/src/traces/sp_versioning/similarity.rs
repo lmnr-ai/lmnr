@@ -11,7 +11,8 @@ use sha3::{Digest, Sha3_256};
 use similar::{Algorithm, DiffOp, capture_diff_slices};
 
 /// Cap on hashed lines per prompt. Prompts longer than this compare on their
-/// first `MAX_LINES` lines only — bounds both blob size and LCS cost.
+/// first `MAX_LINES` *hashable* lines only — bounds both blob size and LCS
+/// cost, both of which scale with the hash count rather than the raw text.
 pub const MAX_LINES: usize = 4096;
 
 /// 128-bit content hash of the raw prompt (memo key + byte-identity dedup).
@@ -19,15 +20,31 @@ pub fn full_prompt_hash(text: &str) -> String {
     hex::encode(blake3::hash(text.as_bytes()).as_bytes())[..32].to_string()
 }
 
-/// Per-line 64-bit hashes, in order, capped at [`MAX_LINES`].
-pub fn line_hashes(text: &str) -> Vec<u64> {
+/// The lines that participate in hashing, in order: every line except
+/// blank/whitespace-only ones, capped at [`MAX_LINES`].
+///
+/// Blanks are excluded because they carry no content yet made up a third of a
+/// measured production system prompt, and as identical repeated tokens they
+/// gave the LCS fold enormous alignment freedom — two prompts with the same
+/// content could fold to different blank counts and mint different versions.
+///
+/// This is the single definition of "a line" for the pipeline. Anything that
+/// pairs a hash back with the text it came from must walk the prompt through
+/// here too, or the two stop lining up.
+pub fn hashable_lines(text: &str) -> impl Iterator<Item = &str> {
     text.split('\n')
+        .filter(|line| !line.trim().is_empty())
         .take(MAX_LINES)
-        .map(|line| {
-            let hash = blake3::hash(line.as_bytes());
-            u64::from_le_bytes(hash.as_bytes()[..8].try_into().unwrap())
-        })
-        .collect()
+}
+
+fn hash_line(line: &str) -> u64 {
+    let hash = blake3::hash(line.as_bytes());
+    u64::from_le_bytes(hash.as_bytes()[..8].try_into().unwrap())
+}
+
+/// Per-line 64-bit hashes over [`hashable_lines`], in order.
+pub fn line_hashes(text: &str) -> Vec<u64> {
+    hashable_lines(text).map(hash_line).collect()
 }
 
 pub fn line_hash_set(hashes: &[u64]) -> HashSet<u64> {
@@ -88,19 +105,32 @@ pub fn is_subset(static_lines: &[u64], prompt_lines: &HashSet<u64>) -> bool {
     static_lines.iter().all(|h| prompt_lines.contains(h))
 }
 
+/// True iff `candidate` keeps every line of `base` and adds at least one —
+/// i.e. the static set GREW. Set semantics, matching [`is_subset`]: a
+/// repeated line counts once, and line order is irrelevant (the two are
+/// independently-ordered LCS folds, so a reordering is not a change).
+pub fn is_strict_superset(candidate: &[u64], base: &[u64]) -> bool {
+    let candidate_set = line_hash_set(candidate);
+    let base_set = line_hash_set(base);
+    candidate_set.len() > base_set.len() && base_set.is_subset(&candidate_set)
+}
+
 /// Rebuild the static part as TEXT: keep the prompt's lines whose hashes
 /// appear, in order, in `intersection`. Sound because the intersection is an
 /// LCS fold over the cluster, so it's a subsequence of every member's line
 /// hashes — including the triggering prompt's. Hashes are one-way, so this is
 /// the only way to recover the text (see the `system_prompt_version_defs`
 /// journal).
+///
+/// Walks [`hashable_lines`], so the output carries no blank lines: they aren't
+/// part of a version, and emitting them would render text the hashes don't
+/// describe.
 pub fn reconstruct_static_text(prompt: &str, intersection: &[u64]) -> String {
-    let hashes = line_hashes(prompt);
     let mut wanted = intersection.iter().copied().peekable();
     let mut out: Vec<&str> = Vec::new();
-    for (line, hash) in prompt.split('\n').zip(hashes.iter()) {
+    for line in hashable_lines(prompt) {
         let Some(target) = wanted.peek() else { break };
-        if hash == target {
+        if hash_line(line) == *target {
             out.push(line);
             wanted.next();
         }
@@ -122,6 +152,32 @@ mod tests {
         // Trailing whitespace / case are real differences.
         assert_ne!(hashes("a \nb"), hashes("a\nb"));
         assert_ne!(hashes("A\nb"), hashes("a\nb"));
+    }
+
+    #[test]
+    fn blank_lines_do_not_participate_in_hashing() {
+        assert_eq!(hashes("a\n\nb"), hashes("a\nb"));
+        assert_eq!(hashes("a\n   \n\t\nb"), hashes("a\nb"));
+        assert_eq!(hashes("\n\na\nb\n\n"), hashes("a\nb"));
+        // A line that merely *starts* blank is still content.
+        assert_ne!(hashes("a\n b\nc"), hashes("a\nb\nc"));
+    }
+
+    #[test]
+    fn paragraph_spacing_cannot_change_the_version() {
+        // The bug this fixes: identical content folding to different blank
+        // counts minted distinct versions.
+        assert_eq!(
+            version_hash(&hashes("head\n\n\nbody")),
+            version_hash(&hashes("head\nbody"))
+        );
+    }
+
+    #[test]
+    fn reconstruct_static_text_skips_blank_lines() {
+        let prompt = "head\n\nalice\n\nbody";
+        let intersection = intersect_ordered(&[&hashes(prompt), &hashes("head\n\nbob\nbody")]);
+        assert_eq!(reconstruct_static_text(prompt, &intersection), "head\nbody");
     }
 
     #[test]
@@ -210,5 +266,30 @@ mod tests {
         assert!(is_subset(&static_lines, &prompt));
         let other = line_hash_set(&hashes("head\ndynamic"));
         assert!(!is_subset(&static_lines, &other));
+    }
+
+    #[test]
+    fn strict_superset_is_growth_only() {
+        let base = hashes("head\ntail");
+        // Grew: keeps both, adds one.
+        assert!(is_strict_superset(&hashes("head\nmiddle\ntail"), &base));
+        // Identical: nothing was added.
+        assert!(!is_strict_superset(&hashes("head\ntail"), &base));
+        // Shrank: the estimator dropped a line rather than finding a new one.
+        assert!(!is_strict_superset(&hashes("head"), &base));
+        // Same size, different content — a swap is not growth.
+        assert!(!is_strict_superset(&hashes("head\nother"), &base));
+        // Bigger, but dropped one of the base lines: not a superset.
+        assert!(!is_strict_superset(&hashes("head\nx\ny"), &base));
+    }
+
+    /// The two sides are independently-ordered LCS folds, so neither line
+    /// order nor a repeat may register as growth.
+    #[test]
+    fn strict_superset_ignores_order_and_repeats() {
+        let base = hashes("head\ntail");
+        assert!(!is_strict_superset(&hashes("tail\nhead"), &base));
+        assert!(!is_strict_superset(&hashes("head\ntail\nhead"), &base));
+        assert!(is_strict_superset(&hashes("tail\nnew\nhead"), &base));
     }
 }

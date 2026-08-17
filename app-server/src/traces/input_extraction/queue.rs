@@ -20,9 +20,27 @@ pub const INPUT_EXTRACTION_ROUTING_KEY: &str = "input_extraction_routing_key";
 pub struct InputExtractionMessage {
     pub trace_id: Uuid,
     pub project_id: Uuid,
-    /// System-prompt hash of the span, part of the regex cache key.
+    /// The winning span. Lets the worker resolve the prompt's version from
+    /// ClickHouse when the memo has expired.
+    #[serde(default)]
+    pub span_id: Option<Uuid>,
+    /// First-sentence hash of the span's system prompt, a key component of both
+    /// regex cachings. `None` for LLM spans with no system message.
     #[serde(default)]
     pub prompt_hash: Option<String>,
+    /// Byte-identity hash of the system prompt — the worker's memo lookup key
+    /// when the producer couldn't resolve a version inline.
+    #[serde(default)]
+    pub full_prompt_hash: Option<String>,
+    /// Version resolved inline by the producer. `None` means the worker re-reads
+    /// (memo, then ClickHouse) before deciding between a cached regex and a
+    /// direct extraction.
+    #[serde(default)]
+    pub version_hash: Option<String>,
+    /// Whether the last turn follows assistant history — a key component of the
+    /// version-keyed cache.
+    #[serde(default)]
+    pub has_history: bool,
     /// Signposted last-turn user text, prepared once at the producer so
     /// the consumer applies the regex to byte-identical input.
     pub signposted_text: String,
