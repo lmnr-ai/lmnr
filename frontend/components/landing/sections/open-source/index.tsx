@@ -1,50 +1,69 @@
+import { ArrowUpRight } from "lucide-react";
+import Link from "next/link";
+import { type ReactNode } from "react";
+
 import { subSection } from "../../class-names";
 import SectionFootnote from "../section-footnote";
+import GitHubStarsLabel from "./github-stars-label";
 import Terminal from "./terminal";
 
-interface Step {
-  label: string;
-  /** The shell line or URL under the label. The last step has none. */
-  command?: string;
+interface Feature {
+  /** Stable list key. `label` is a node and two rows share an href, so neither
+   *  can serve as one. */
+  id: string;
+  label: ReactNode;
+  href?: string;
 }
 
-const STEPS: Step[] = [
-  { label: "Clone the repo", command: "git clone https://github.com/lmnr-ai/lmnr" },
-  { label: "Start the stack", command: "cd lmnr && docker compose up -d" },
-  { label: "Open in browser", command: "http://localhost:5667" },
-  { label: "Create a project and onboard" },
+const FEATURES: Feature[] = [
+  { id: "stars", label: <GitHubStarsLabel />, href: "https://github.com/lmnr-ai/lmnr" },
+  {
+    id: "license",
+    label: "Apache 2.0 license",
+    href: "https://github.com/lmnr-ai/lmnr?tab=Apache-2.0-1-ov-file#readme",
+  },
+  {
+    id: "docker",
+    label: "Set up with Docker with single command",
+    href: "https://laminar.sh/docs/hosting-options",
+  },
+  {
+    id: "helm",
+    label: "Deploy on AWS or GCP with Helm charts",
+    href: "https://laminar.sh/docs/hosting-options",
+  },
 ];
 
-// 24px badge. Both gaps are one step up from the frame's 16 and 8 — the badge
-// now clears its own width before the label starts, and the command reads as a
-// block under the step rather than a second line of it.
-const StepRow = ({ index, label, command }: Step & { index: number }) => (
-  <div className="flex gap-6 items-start w-full">
-    <div className="flex size-6 shrink-0 items-center justify-center rounded bg-surface-500">
-      <span className="text-sm leading-6 text-foreground-200">{index + 1}</span>
-    </div>
-    <div className="flex flex-1 min-w-0 flex-col gap-3 items-start">
-      <p className="text-lg leading-6 text-foreground-200">{label}</p>
-      {command && (
-        <div className="w-full rounded-sm bg-surface-600 px-3 py-2">
-          <p className="font-mono font-light text-xs leading-4 text-foreground-300">{command}</p>
-        </div>
-      )}
-    </div>
-  </div>
-);
+// The rule sits on TOP of each row, so the list opens with one under the
+// heading and closes flush — no trailing rule to clear.
+const FeatureRow = ({ label, href }: Feature) => {
+  const inner = (
+    <>
+      <p className="text-lg leading-6 text-foreground-300">{label}</p>
+      {href && <ArrowUpRight className="size-4 text-foreground-300 shrink-0" strokeWidth={2} />}
+    </>
+  );
+  const className = "flex items-center gap-3 h-14 w-full border-t border-foreground-600";
+  return href ? (
+    <Link href={href} target="_blank" className={`${className} hover:text-foreground-50 transition-colors`}>
+      {inner}
+    </Link>
+  ) : (
+    <div className={className}>{inner}</div>
+  );
+};
 
 const OpenSource = () => (
   <section className="flex flex-col items-start gap-10 w-full">
-    <h2 className={subSection}>Self-host anywhere</h2>
+    <h2 className={subSection}>Open-source from day zero</h2>
 
     <div className="flex flex-col md:flex-row gap-10 items-start w-full">
-      {/* LEFT — the four setup steps. 342 + 40 gap + 498 = the 880 column, and
-          the pb-6 is the frame's: it is what makes this column finish level
-          with the panel beside it. */}
-      <div className="flex w-full md:w-[342px] shrink-0 flex-col gap-8 items-start pb-6">
-        {STEPS.map((step, i) => (
-          <StepRow key={step.label} index={i} {...step} />
+      {/* LEFT — the feature rows. Fixed 380 rather than a fraction: the rows
+          are a rule-separated list, so a width that reflows with the viewport
+          would restack their labels at awkward points. */}
+      <div className="flex flex-col w-full md:w-[380px] md:min-w-0">
+        {FEATURES.map((f) => (
+          <FeatureRow key={f.id} {...f} />
         ))}
       </div>
 

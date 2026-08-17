@@ -12,9 +12,15 @@ interface GitHubStarsButtonProps {
   className?: string;
 }
 
-const formatCount = (count: number): string => count.toLocaleString();
+/** Shared so every surface groups the number the same way. */
+export const formatCount = (count: number): string => count.toLocaleString();
 
-export default function GitHubStarsButton({ owner, repo, className }: GitHubStarsButtonProps) {
+/** A repo's live star count, or null until it lands.
+ *
+ *  Unauthenticated GitHub API, so a rate-limited, offline or blocked visitor
+ *  never gets a number at all — every caller has to render something sensible
+ *  for null rather than treating it as a brief loading state. */
+export const useGitHubStars = (owner: string, repo: string): number | null => {
   const [stars, setStars] = useState<number | null>(null);
 
   useEffect(() => {
@@ -32,6 +38,12 @@ export default function GitHubStarsButton({ owner, repo, className }: GitHubStar
 
     fetchStars();
   }, [owner, repo]);
+
+  return stars;
+};
+
+export default function GitHubStarsButton({ owner, repo, className }: GitHubStarsButtonProps) {
+  const stars = useGitHubStars(owner, repo);
 
   return (
     <Link
