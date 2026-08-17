@@ -160,9 +160,9 @@ const JsonTooltip = ({ data, columnSize, className, onOpen }: JsonTooltipProps) 
     return <span className="text-muted-foreground">-</span>;
   }
 
-  const displayValue = JSON.stringify(parsedData, null, 2);
+  const displayValue = typeof parsedData === "string" ? parsedData : JSON.stringify(parsedData, null, 2);
   const tooltipData = resolvedData;
-  const jsonString = JSON.stringify(tooltipData, null, 2);
+  const jsonString = typeof tooltipData === "string" ? tooltipData : JSON.stringify(tooltipData, null, 2);
   const isObject = typeof tooltipData === "object" && tooltipData !== null && !Array.isArray(tooltipData);
 
   return (
