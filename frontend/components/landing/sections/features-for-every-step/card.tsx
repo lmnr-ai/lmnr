@@ -40,7 +40,7 @@ const Card = ({ title, description, href, Graphic }: CardDef) => {
     <ElevatedSurface asChild level={raised ? RESTING_ELEVATION + 1 : RESTING_ELEVATION}>
       <Link
         target="_blank"
-        aria-label={`Learn more about ${title}`}
+        aria-label={`Learn more about ${title.replace(/\n/g, " ")}`}
         href={href}
         onMouseEnter={() => setRaised(true)}
         onMouseLeave={() => setRaised(false)}
@@ -51,7 +51,7 @@ const Card = ({ title, description, href, Graphic }: CardDef) => {
         <CardHoverGlow />
         <div className="relative flex flex-col gap-2.5 pl-6 pr-5 pt-5">
           <div className="flex items-start justify-between gap-3 w-full">
-            <p className="leading-6 text-white text-lg">{title}</p>
+            <p className="leading-6 text-white text-lg whitespace-pre-line">{title}</p>
             <ArrowUpRight className="size-5 shrink-0 text-foreground-300" strokeWidth={1.5} />
           </div>
           <p className="text-foreground-200">{description}</p>
