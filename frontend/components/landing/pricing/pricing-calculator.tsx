@@ -333,9 +333,18 @@ export default function PricingCalculator() {
           max={RUN_STEPS.length - 1}
           onChange={setRunsIdx}
         />
+        {/* Spells out the multiplication, since the monthly total is what the
+            data allowance is measured against and neither slider shows it. */}
         <SliderBlock
           label="Tokens per agent run"
-          value={formatTokens(tokensPerRun)}
+          value={
+            <>
+              {formatTokens(tokensPerRun)}{" "}
+              <span className="text-sm text-foreground-300">
+                × {runs.toLocaleString()} runs = {formatTokens(runs * tokensPerRun)} tokens
+              </span>
+            </>
+          }
           sliderValue={tokensPerRunIdx}
           max={TOKENS_PER_RUN_STEPS.length - 1}
           onChange={setTokensPerRunIdx}
