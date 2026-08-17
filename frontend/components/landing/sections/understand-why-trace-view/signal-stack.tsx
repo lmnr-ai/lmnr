@@ -208,8 +208,8 @@ interface StackCardProps {
 //
 // OPAQUE BASE with faded CONTENT, not a faded card: fading the whole card would
 // let the one behind show through it, which reads as stacked glass. What we
-// want is depth, where each card hides the one behind. `surface-400` on the
-// frame's `surface-500` is the same one-step lift the design uses.
+// want is depth, where each card hides the one behind. `surface-300` on the
+// frame's `surface-250` is the same one-step lift the design uses.
 //
 // No explicit width — the wrapper shrink-wraps the morphing card, so the
 // backing tracks the collapse for free instead of duplicating its transforms.
@@ -266,7 +266,7 @@ const StackCard = ({
 
   return (
     <motion.div aria-hidden={!isLive} className="absolute top-0 left-0" style={{ x: cx, y: cy }}>
-      <motion.div className="absolute inset-0 rounded-md bg-surface-400" style={{ opacity: backing }} />
+      <motion.div className="absolute inset-0 rounded-md bg-surface-300" style={{ opacity: backing }} />
       <motion.div className="relative" style={{ opacity }}>
         {/* Eased: this is the card's BOX shrinking. Its own internal fades are
             keyed to fractions of the collapse's geometry, not of the scroll, so

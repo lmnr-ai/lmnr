@@ -16,7 +16,7 @@ const INITIALS = THREAD_AUTHOR.split(" ")
   .join("");
 
 const UserAvatar = () => (
-  <div className="shrink-0 size-8 rounded bg-surface-300 flex items-center justify-center">
+  <div className="shrink-0 size-8 rounded bg-surface-350 flex items-center justify-center">
     <span className="text-[11px] font-medium text-foreground-200">{INITIALS}</span>
   </div>
 );
@@ -30,7 +30,7 @@ const MessageRow = ({ author, time, body }: ThreadMessage) => (
       <div className="flex items-center gap-1 whitespace-nowrap text-xs text-white">
         <p className="font-medium">{author === "app" ? "Laminar" : THREAD_AUTHOR}</p>
         {author === "app" && (
-          <div className="rounded bg-surface-400 px-1 py-0.5">
+          <div className="rounded bg-surface-300 px-1 py-0.5">
             <p className="text-[8px] leading-none text-foreground-300">APP</p>
           </div>
         )}

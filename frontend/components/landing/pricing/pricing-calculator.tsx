@@ -150,7 +150,7 @@ function TierColumn({ estimate, tooltip, dataGB }: { estimate: TierEstimate; too
   const extraDataGB = Math.max(0, dataGB - estimate.includedDataGB);
 
   return (
-    <div className="bg-surface-500 h-full rounded p-5 space-y-4">
+    <div className="bg-surface-250 h-full rounded p-5 space-y-4">
       <div className={cn(subSection, "flex justify-between text-lg leading-6 text-white")}>
         <span className="flex gap-2.5 items-center">
           Tier
@@ -208,10 +208,10 @@ function TierColumn({ estimate, tooltip, dataGB }: { estimate: TierEstimate; too
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-surface-400 text-sm")}>
+        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-surface-300 text-sm")}>
           {estimate.retention} retention
         </span>
-        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-surface-400 text-sm")}>
+        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-surface-300 text-sm")}>
           {estimate.support} support
         </span>
       </div>
@@ -221,7 +221,7 @@ function TierColumn({ estimate, tooltip, dataGB }: { estimate: TierEstimate; too
 
 function EnterpriseTierColumn({ tooltip }: { tooltip?: string }) {
   return (
-    <div className="bg-surface-500 h-full rounded p-5 space-y-4">
+    <div className="bg-surface-250 h-full rounded p-5 space-y-4">
       <TierHeader name="Enterprise" tooltip={tooltip} />
 
       <div className="space-y-2 text-sm">
@@ -239,7 +239,7 @@ function EnterpriseTierColumn({ tooltip }: { tooltip?: string }) {
         </div>
       </div>
 
-      <div className="border-t pt-3 border-surface-400">
+      <div className="border-t pt-3 border-surface-300">
         <div className={cn(subSection, "flex justify-between text-lg leading-6 text-white")}>
           <span>Total</span>
           <span>Custom</span>
@@ -247,10 +247,10 @@ function EnterpriseTierColumn({ tooltip }: { tooltip?: string }) {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-surface-400")}>
+        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-surface-300")}>
           {retentionLabel("enterprise")}
         </span>
-        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-surface-400")}>
+        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-surface-300")}>
           Dedicated support
         </span>
       </div>

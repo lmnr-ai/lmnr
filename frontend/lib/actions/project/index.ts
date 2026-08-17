@@ -123,6 +123,8 @@ async function deleteProjectDataFromClickHouse(
     "default.signal_runs",
     "default.signal_run_messages",
     "default.events_to_clusters",
+    "default.system_prompt_versions",
+    "default.system_prompt_version_defs",
   ];
 
   const deletionPromises = tables.map(async (table) => {

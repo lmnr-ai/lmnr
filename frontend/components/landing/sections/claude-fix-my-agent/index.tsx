@@ -5,7 +5,7 @@ import SectionFootnote from "../section-footnote";
 import DebuggerScene from "./debugger-scene";
 import RotatingAgentName from "./rotating-agent-name";
 
-// Vertical stack: title + subtitle on top, then a surface-500 panel holding the
+// Vertical stack: title + subtitle on top, then a surface-250 panel holding the
 // coding-agent terminal, with a footnote pinned to the bottom.
 const ClaudeFixMyAgent = () => (
   <section className="flex flex-col gap-10 items-start w-full">
@@ -38,7 +38,7 @@ const ClaudeFixMyAgent = () => (
         It can run your agent, read traces, make changes, and run evals to verify progress.
       </p>
     </div>
-    <div className="bg-surface-500 relative flex w-full overflow-hidden">
+    <div className="bg-surface-250 relative flex w-full overflow-hidden">
       <DebuggerScene />
       <SectionFootnote name="Debugger" href="https://laminar.sh/docs/debugger/introduction" />
     </div>

@@ -45,7 +45,7 @@ interface Props {
 // past 880 and remain horizontally centered at stage 6), then the remaining
 // sections in the standard 880px column below.
 const Landing = ({ className, hasSession }: Props) => (
-  <div className={cn("bg-surface-700 overflow-x-clip flex flex-col", className)}>
+  <div className={cn("bg-surface-150 overflow-x-clip flex flex-col", className)}>
     {DialDock && <DialDock />}
     {CardGlowDials && <CardGlowDials />}
     <Hero hasSession={hasSession} />

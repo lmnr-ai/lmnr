@@ -51,7 +51,7 @@ const Panel = ({
 }) => {
   const { name, href } = STEPS[step].footnote;
   return (
-    <div className={cn("bg-surface-500 relative w-full overflow-hidden", className)} style={style}>
+    <div className={cn("bg-surface-250 relative w-full overflow-hidden", className)} style={style}>
       {children}
       <SectionFootnote name={name} href={href} />
     </div>
@@ -80,7 +80,7 @@ const CroppedPanel = ({ step, children }: { step: StepNumber; children: ReactNod
     </div>
     {/* Fades the cropped edge into the frame. `z-10` keeps it under the
         footnote, which is `z-20`. */}
-    <div className="absolute inset-x-0 bottom-0 h-[160px] bg-gradient-to-t from-surface-500 to-transparent pointer-events-none z-10" />
+    <div className="absolute inset-x-0 bottom-0 h-[160px] bg-gradient-to-t from-surface-250 to-transparent pointer-events-none z-10" />
   </Panel>
 );
 

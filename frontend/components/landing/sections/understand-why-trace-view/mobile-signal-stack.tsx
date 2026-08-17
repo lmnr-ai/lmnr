@@ -123,7 +123,7 @@ const StackCard = ({
 
   return (
     <motion.div aria-hidden={!isLive} className="absolute left-1/2 top-0" style={{ x, y }}>
-      <motion.div className="absolute inset-0 rounded-md bg-surface-400" style={{ opacity: backing }} />
+      <motion.div className="absolute inset-0 rounded-md bg-surface-300" style={{ opacity: backing }} />
       <motion.div className="relative" style={{ opacity }}>
         {/* Eased: this is the card's BOX shrinking. Its internal fades are keyed
             to fractions of that geometry, not of the scroll. */}
@@ -190,7 +190,7 @@ const MobileSignalStack = () => {
       {/* Fades the bottom edge, like the cropped panels above — and doubles as
           the pill's exit, which now dissolves into the frame instead of being cut
           off by it. `z-10` keeps it under the footnote, which is `z-20`. */}
-      <div className="absolute inset-x-0 bottom-0 h-[120px] bg-gradient-to-t from-surface-500 to-transparent pointer-events-none z-10" />
+      <div className="absolute inset-x-0 bottom-0 h-[120px] bg-gradient-to-t from-surface-250 to-transparent pointer-events-none z-10" />
     </div>
   );
 };

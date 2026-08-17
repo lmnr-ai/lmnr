@@ -2,13 +2,13 @@ import { cn } from "@/lib/utils";
 
 import { SIGNAL_EVENT_TITLE } from "./signal-event-card";
 
-export const SLACK_BORDER = "rgb(38 38 38)"; // surface-400
-export const SLACK_BG = "rgb(23 23 23)"; // surface-700
+export const SLACK_BORDER = "rgb(38 38 38)"; // surface-300
+export const SLACK_BG = "rgb(23 23 23)"; // surface-150
 
 // The Laminar mark as it appears as a Slack app avatar. Shared with the
 // ask-in-slack thread mock so both surfaces show the same bot.
 export const LaminarAppAvatar = () => (
-  <div className="shrink-0 size-8 bg-surface-900 rounded flex items-center justify-center overflow-hidden">
+  <div className="shrink-0 size-8 bg-surface-00 rounded flex items-center justify-center overflow-hidden">
     <svg width="20" height="20" viewBox="0 0 76 76" fill="none" className="size-5">
       <path
         fillRule="evenodd"
@@ -30,14 +30,14 @@ export const SlackContent = () => (
       <div className="flex flex-col gap-1 w-full">
         <div className="flex items-center gap-1 w-full whitespace-nowrap font-sans text-xs">
           <p className="text-foreground-200">Laminar</p>
-          <div className="bg-surface-400 rounded px-1 py-0.5 flex items-center justify-center">
+          <div className="bg-surface-300 rounded px-1 py-0.5 flex items-center justify-center">
             <p className="text-[8px] leading-none text-foreground-200">APP</p>
           </div>
           <p className="text-foreground-300">3:18 pm</p>
         </div>
 
         <div className="flex gap-0.5 items-center font-sans text-xs">
-          <div className="bg-muted border border-surface-200 rounded px-1.5 py-px">
+          <div className="bg-muted border border-surface-400 rounded px-1.5 py-px">
             <p className="text-primary-400/60 whitespace-nowrap">Failure</p>
           </div>
           <p className="text-foreground-200 whitespace-nowrap">: New Event</p>
@@ -53,10 +53,10 @@ export const SlackContent = () => (
       </p>
 
       <div className="flex flex-row gap-2 items-center">
-        <div className="bg-surface-400 px-2 py-1 rounded">
+        <div className="bg-surface-300 px-2 py-1 rounded">
           <p className="font-sans text-xs text-foreground-200">View Trace</p>
         </div>
-        <div className="bg-surface-400 px-2 py-1 rounded">
+        <div className="bg-surface-300 px-2 py-1 rounded">
           <p className="font-sans text-xs text-foreground-200">View similar events</p>
         </div>
       </div>

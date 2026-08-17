@@ -9,7 +9,7 @@ import SignalEventClustersMock from "./signal-event-clusters-mock";
 // step of the trace-view scrollytell instead, and the copy below is that step's
 // so the two can never drift.
 //
-// Vertical stack: title + subtitle on top, mock centered inside a surface-500
+// Vertical stack: title + subtitle on top, mock centered inside a surface-250
 // panel with a footnote pinned to the bottom.
 const STEP = STEPS[5];
 
@@ -36,7 +36,7 @@ const HasThisIssue = () => (
         pill on the visible frame rather than on its own wider stage. */}
     <div
       data-clusters-frame
-      className="bg-surface-500 relative flex items-start w-full overflow-hidden px-8 h-[432px] sm:h-auto"
+      className="bg-surface-250 relative flex items-start w-full overflow-hidden px-8 h-[432px] sm:h-auto"
     >
       {/* mx-auto centers the mock when it fits; when it doesn't (narrow
           viewports) the auto margins collapse to 0 so the mock sticks

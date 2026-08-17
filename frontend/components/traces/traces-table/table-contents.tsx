@@ -9,6 +9,7 @@ import { useSWRConfig } from "swr";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { FETCH_SIZE } from "@/components/traces/traces-table/constants";
+import { TracesEmptyRow } from "@/components/traces/traces-table/empty-row";
 import { type buildColumnDefs, buildFetchParams } from "@/components/traces/traces-table/traces-table-store";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
@@ -318,6 +319,7 @@ export const TracesTableContents = memo(function TracesTableContents({
       isLoading={isLoading || isViewLoading}
       fetchNextPage={fetchNextPage}
       getRowHref={getRowHref}
+      emptyRow={<TracesEmptyRow />}
       pinnedColumns={pinnedColumns}
       sortBy={sortBy}
       sortDirection={sortDirection}

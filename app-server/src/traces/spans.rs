@@ -1036,11 +1036,16 @@ impl Span {
         // If an LLM span is sent manually, we prefer `lmnr.span.input` and `lmnr.span.output`
         // attributes over gen_ai/vercel/LiteLLM attributes.
         // Therefore this block is outside and after the LLM span type check.
+        //
+        // Both keys are `remove`d, not read: the value is copied into
+        // `span.input` / `span.output`, and `should_keep_attribute` drops them
+        // before they reach ClickHouse anyway — so keeping them would only
+        // duplicate the payload over the queue. A non-string value is dropped
+        // too; nothing downstream reads either key.
         if let Some(serde_json::Value::String(s)) =
-            self.attributes.raw_attributes.get(INPUT_ATTRIBUTE_NAME)
+            self.attributes.raw_attributes.remove(INPUT_ATTRIBUTE_NAME)
         {
-            let input =
-                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone()));
+            let input = serde_json::from_str::<Value>(&s).unwrap_or(serde_json::Value::String(s));
             if self.is_llm_span() {
                 let input_messages = input_chat_messages_from_json(&input);
                 if let Ok(input_messages) = input_messages {
@@ -1053,12 +1058,11 @@ impl Span {
             }
         }
         if let Some(serde_json::Value::String(s)) =
-            self.attributes.raw_attributes.get(OUTPUT_ATTRIBUTE_NAME)
+            self.attributes.raw_attributes.remove(OUTPUT_ATTRIBUTE_NAME)
         {
             // TODO: try parse output as ChatMessage with tool calls
-            self.output = Some(
-                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
-            );
+            self.output =
+                Some(serde_json::from_str::<Value>(&s).unwrap_or(serde_json::Value::String(s)));
         }
 
         if let Some(TracingLevel::MetaOnly) = self.attributes.tracing_level() {
@@ -1073,9 +1077,12 @@ impl Span {
     /// raw JSON), so both are excluded here — the post-dedup loop in `processor.rs` owns
     /// their accounting symmetrically.
     /// `raw_attributes` is filtered via `should_keep_attribute` to match what CH stores
-    /// in the `attributes` column — attributes like `lmnr.span.input` / `ai.prompt.messages`
-    /// are copied into `span.input` during parsing but dropped from the CH attributes blob,
-    /// so counting them here would double-bill against the input charge.
+    /// in the `attributes` column — attributes like `ai.prompt.messages` are copied into
+    /// `span.input` during parsing but dropped from the CH attributes blob, so counting
+    /// them here would double-bill against the input charge. (`lmnr.span.input` /
+    /// `lmnr.span.output` are already gone by this point — `parse_and_enrich_attributes`
+    /// removes them — but `should_keep_attribute` still covers legacy spans that reach
+    /// the consumer unparsed.)
     pub fn estimate_size_bytes_no_payload(&mut self) {
         let size_bytes = 16 // span_id
             + 16 // trace_id
@@ -4617,6 +4624,38 @@ mod tests {
                 .attributes
                 .raw_attributes
                 .contains_key("gen_ai.output.messages")
+        );
+    }
+
+    #[test]
+    fn lmnr_span_input_output_are_removed_from_raw_attributes() {
+        // LAM-2116: the values are copied into `span.input` / `span.output`, so
+        // leaving them in `raw_attributes` duplicated the whole payload over the
+        // queue. `should_keep_attribute` dropped them at the consumer anyway.
+        let attributes = HashMap::from([
+            (INPUT_ATTRIBUTE_NAME.to_string(), json!(r#"{"goal":"fly"}"#)),
+            (OUTPUT_ATTRIBUTE_NAME.to_string(), json!(r#"{"done":true}"#)),
+        ]);
+
+        let mut span = Span {
+            span_type: SpanType::Default,
+            ..make_llm_span(attributes)
+        };
+        span.parse_and_enrich_attributes();
+
+        assert_eq!(span.input, Some(json!({"goal": "fly"})));
+        assert_eq!(span.output, Some(json!({"done": true})));
+        assert!(
+            !span
+                .attributes
+                .raw_attributes
+                .contains_key(INPUT_ATTRIBUTE_NAME)
+        );
+        assert!(
+            !span
+                .attributes
+                .raw_attributes
+                .contains_key(OUTPUT_ATTRIBUTE_NAME)
         );
     }
 

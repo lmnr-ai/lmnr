@@ -53,7 +53,7 @@ export const EvaluationCard = ({
   return (
     <div
       id={evalAnchorId(evaluation.id)}
-      className="group scroll-mt-4 overflow-hidden rounded-lg border border-[rgba(232,232,232,0.1)] bg-surface-800"
+      className="group scroll-mt-4 overflow-hidden rounded-lg border border-[rgba(232,232,232,0.1)] bg-surface-100"
     >
       {/* The collapse toggle is a full-cover button rendered BEHIND the header
           content, so the open-eval Link can be a sibling (not an anchor nested
@@ -105,7 +105,7 @@ export const EvaluationCard = ({
               with empty scores (a live eval before backfill), so points.length
               alone would mount a blank plot. */}
           {progression && progression.scores.length > 0 && (
-            <div className="h-32 px-2 py-1 bg-surface-900 border-t">
+            <div className="h-32 px-2 py-1 bg-surface-00 border-t">
               <CombinedChart
                 data={progression.points}
                 scores={progression.scores}
@@ -125,7 +125,7 @@ export const EvaluationCard = ({
             </div>
           )}
           {scores.length > 0 && (
-            <div className="grid grid-cols-2 gap-x-6 gap-y-3 border-t px-4 py-3 md:grid-cols-3 lg:grid-cols-4 bg-surface-800">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3 border-t px-4 py-3 md:grid-cols-3 lg:grid-cols-4 bg-surface-100">
               {scores.map((score) => (
                 <ScoreStat
                   key={score.name}

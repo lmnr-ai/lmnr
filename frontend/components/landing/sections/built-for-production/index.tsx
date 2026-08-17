@@ -30,7 +30,7 @@ const BuiltForProduction = () => (
         </div>
 
         <div className="flex flex-col gap-1 items-start w-full md:flex-1 md:min-w-0 py-[7px] relative overflow-hidden">
-          <div className="flex h-8.5 items-center justify-end px-3 whitespace-nowrap w-full rounded-r-md bg-surface-400 text-foreground-50">
+          <div className="flex h-8.5 items-center justify-end px-3 whitespace-nowrap w-full rounded-r-md bg-surface-300 text-foreground-50">
             <p className="font-medium">Competition</p>
           </div>
           {/* Both bars start full width; Laminar's shrinks to show the 20x. Its label

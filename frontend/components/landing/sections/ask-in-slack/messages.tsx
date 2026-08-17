@@ -55,7 +55,7 @@ const EVENT_COUNT = CRITICAL_COUNT + WARNING_COUNT;
 const B = ({ children }: { children: ReactNode }) => <strong className="font-medium text-white">{children}</strong>;
 
 const C = ({ children }: { children: ReactNode }) => (
-  <code className="rounded border border-surface-300/50 bg-surface-400/50 px-1 py-px font-mono text-[11px] text-foreground-100">
+  <code className="rounded border border-surface-350/50 bg-surface-300/50 px-1 py-px font-mono text-[11px] text-foreground-100">
     {children}
   </code>
 );
@@ -64,7 +64,7 @@ const C = ({ children }: { children: ReactNode }) => (
 // at a project that isn't the reader's.
 const Btn = ({ children }: { children: ReactNode }) => (
   <div className="pt-0.5">
-    <span className="inline-block rounded bg-surface-400 px-2 py-1 text-foreground-200">{children}</span>
+    <span className="inline-block rounded bg-surface-300 px-2 py-1 text-foreground-200">{children}</span>
   </div>
 );
 
@@ -87,7 +87,7 @@ const SeverityCount = ({ className, children }: { className: string; children: R
 // `overflow-wrap: anywhere` is what actually breaks those; the stacked layout is
 // what keeps the break from happening every three characters.
 const Field = ({ name, children }: { name: string; children: ReactNode }) => (
-  <div className="flex flex-col gap-0.5 border-b border-surface-300/40 px-2 py-1.5 last:border-b-0 sm:flex-row sm:gap-3">
+  <div className="flex flex-col gap-0.5 border-b border-surface-350/40 px-2 py-1.5 last:border-b-0 sm:flex-row sm:gap-3">
     <span className="font-medium text-white sm:w-[74px] sm:shrink-0">{name}</span>
     <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{children}</span>
   </div>
@@ -114,7 +114,7 @@ const NewEventAlert = () => (
       </span>
     </p>
 
-    <div className="rounded border border-surface-300/50 bg-surface-400/30">
+    <div className="rounded border border-surface-350/50 bg-surface-300/30">
       <Field name="category">invented_identifier</Field>
       <Field name="description">
         The column lookup returned no rows, so <SpanLink>llm</SpanLink> wrote <C>created_by_user_id</C> into the
