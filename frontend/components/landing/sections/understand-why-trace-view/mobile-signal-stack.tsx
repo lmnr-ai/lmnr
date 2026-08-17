@@ -1,7 +1,6 @@
 "use client";
 
 import { motion, type MotionValue, useScroll, useTransform } from "framer-motion";
-import dynamic from "next/dynamic";
 import { useRef, useState } from "react";
 
 import MorphingSignalCard, { type PillMetrics } from "../has-this-issue/morphing-signal-card";
@@ -27,15 +26,7 @@ import { DEFAULT_STACK_TIMING, easeInCubic, phase, smootherstep } from "./stack-
 //
 // Scroll-bound like the desktop original, so scrolling back up rewinds it frame
 // for frame. Nothing here runs on a clock. Choreography lives in
-// ./mobile-stack-timing; tune it live with ./mobile-stack-dials.
-
-// Dev-only live tuning. `IS_DEV` is inlined at build time, so the whole
-// dynamic() call — and the dialkit chunk behind it — is dead code in a
-// production build and never reaches the landing bundle.
-const IS_DEV = process.env.NODE_ENV !== "production";
-const MobileStackDials = IS_DEV
-  ? dynamic(() => import("./mobile-stack-dials.tsx").then((mod) => mod.default), { ssr: false })
-  : null;
+// ./mobile-stack-timing.
 
 /** The stack IS the cluster's events, so the card count and the pill's count are
  *  one number. */
@@ -136,15 +127,12 @@ const StackCard = ({
 const MobileSignalStack = () => {
   const stageRef = useRef<HTMLDivElement>(null);
   const [pill, setPill] = useState<PillMetrics | null>(null);
-  const [timing, setTiming] = useState<MobileStackTiming>(DEFAULT_MOBILE_STACK_TIMING);
+  const timing = DEFAULT_MOBILE_STACK_TIMING;
 
   // Full travel through the viewport. Which part of it is actually on screen is
   // what constrains the phase windows — see ./mobile-stack-timing.
   const { scrollYProgress } = useScroll({ target: stageRef, offset: ["start end", "end start"] });
 
-  // Function-form transforms, not [in]/[out] ranges: they close over `timing`,
-  // which the dials replace on the fly, and Motion re-runs the closure on every
-  // render.
   const collapse = useTransform(scrollYProgress, (t) => phase(t, timing.collapseAt, timing.collapseSpan));
   const drop = useTransform(scrollYProgress, (t) => phase(t, timing.dropAt, timing.dropSpan));
 
@@ -167,7 +155,6 @@ const MobileSignalStack = () => {
 
   return (
     <div ref={stageRef} className="relative w-full overflow-hidden" style={{ height: FRAME_H }}>
-      {MobileStackDials && <MobileStackDials onChange={setTiming} />}
       {/* `origin-top` (50% 0%) is load-bearing: it leaves the horizontal centre
           where it is, so `left-1/2` on each card still means the frame's centre. */}
       <div className="relative w-full origin-top" style={{ height: stageH, transform: `scale(${timing.scale})` }}>

@@ -1,7 +1,6 @@
 "use client";
 
 import { motion, useMotionValueEvent, useScroll, useTransform } from "framer-motion";
-import dynamic from "next/dynamic";
 import { type RefObject, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 
@@ -17,7 +16,7 @@ import TraceViewErrorBoundary from "./error-boundary";
 import { assemblyLayout, EDGE_FADE_W, FRAME_H, FRAME_W, PANEL_H } from "./geometry";
 import { SHARED_TRACE_API } from "./shared-trace-api";
 import SignalStack from "./signal-stack";
-import { DEFAULT_STACK_TIMING, phase, type StackTiming } from "./stack-timing";
+import { DEFAULT_STACK_TIMING, phase } from "./stack-timing";
 import { STEP_COUNT, STEP_NUMBERS, type StepNumber, STEPS } from "./steps";
 import TracePanel from "./trace-panel";
 
@@ -104,7 +103,7 @@ const STEP_CENTERS = STEP_STOPS.map((i) => (i / (STEP_COUNT - 1)) * COPY_END);
 /** The closing sequence's window: from the copy centring TWO steps from the end
  *  to the end of the section. Every phase in ./stack-timing is a fraction of
  *  THIS, which is what lets the flight, the collapse, the card's rise and the
- *  pill's entry share one coordinate and one dial dock.
+ *  pill's entry share one coordinate.
  *
  *  Two steps, not one. The sequence has to hit marks on BOTH of the last two
  *  copy blocks — the stack is fully formed as "Similar failures are clustered"
@@ -112,26 +111,6 @@ const STEP_CENTERS = STEP_STOPS.map((i) => (i / (STEP_COUNT - 1)) * COPY_END);
  *  occurred before?" centres — and a window opening on the first of those marks
  *  has no room to reach it. */
 const STACK_WINDOW_START = STEP_CENTERS[STEP_COUNT - 3];
-
-const inWindow = (progress: number) => (progress - STACK_WINDOW_START) / (1 - STACK_WINDOW_START);
-
-/** The two landmarks the sequence is timed against, in the window's own 0-1
- *  coordinate. Handed to the dials as read-only reference bars so a phase can
- *  be dragged onto them rather than by guesswork. */
-const STEP_MARKS_IN_WINDOW = {
-  /** Second-to-last copy block dead centre. */
-  penultimate: inWindow(STEP_CENTERS[STEP_COUNT - 2]),
-  /** Last copy block dead centre, which is also the sticky release. */
-  unpin: inWindow(UNPIN),
-};
-
-// Dev-only live tuning. `IS_DEV` is inlined at build time, so the whole
-// dynamic() call — and the dialkit chunk behind it — is dead code in a
-// production build and never reaches the landing bundle.
-const IS_DEV = process.env.NODE_ENV !== "production";
-const StackDials = IS_DEV
-  ? dynamic(() => import("./stack-dials.tsx").then((mod) => mod.default), { ssr: false })
-  : null;
 
 /** Constant visual gap between consecutive copy blocks.
  *
@@ -224,12 +203,10 @@ const UnderstandWhyTraceView = () => {
   const stackStops = useStackStops(stackRef);
   const stackY = useTransform(copyIndex, STEP_STOPS, stackStops);
 
-  const [stackTiming, setStackTiming] = useState<StackTiming>(DEFAULT_STACK_TIMING);
+  const stackTiming = DEFAULT_STACK_TIMING;
 
   // The last step's three phases, all fractions of one window so they can
-  // overlap freely and one dial dock can author all of them. Function-form
-  // transforms (not [in]/[out] ranges) so a dial change is picked up on the
-  // next render rather than being captured at mount.
+  // overlap freely.
   const stackWindow = useTransform(scrollYProgress, [STACK_WINDOW_START, 1], [0, 1]);
   const flight = useTransform(stackWindow, (t) => phase(t, stackTiming.flightAt, stackTiming.flightSpan));
   const collapse = useTransform(stackWindow, (t) => phase(t, stackTiming.collapseAt, stackTiming.collapseSpan));
@@ -280,7 +257,6 @@ const UnderstandWhyTraceView = () => {
 
   return (
     <TraceViewErrorBoundary>
-      {StackDials && <StackDials onChange={setStackTiming} marks={STEP_MARKS_IN_WINDOW} />}
       {/* Wraps the WHOLE section, not just the panel: the copy on the left has
           inline links that select spans in this same store. */}
       <TraceViewStoreProvider storeKey="landing-demo-trace" initialTrace={trace}>
@@ -368,13 +344,7 @@ const UnderstandWhyTraceView = () => {
                       {/* AFTER the stack, so the opaque clusters card paints over
                           the pill and the pill disappears INTO it rather than
                           fading out on top of it. */}
-                      <ClustersStage
-                        rise={cardRise}
-                        restY={cardTop}
-                        armed={act2}
-                        landed={act2}
-                        timing={stackTiming}
-                      />
+                      <ClustersStage rise={cardRise} restY={cardTop} armed={act2} landed={act2} timing={stackTiming} />
                     </>
                   )}
 

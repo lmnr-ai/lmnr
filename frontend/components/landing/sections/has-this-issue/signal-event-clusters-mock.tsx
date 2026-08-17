@@ -1,8 +1,7 @@
 "use client";
 
 import { motion, useMotionValueEvent, useScroll, useTransform } from "framer-motion";
-import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -10,16 +9,8 @@ import { cn } from "@/lib/utils";
 import { SIGNAL_CLUSTER_ID } from "../signal-cluster";
 import { ClusterPill } from "../signal-event-card";
 import ClustersCard, { CLUSTERS_CARD_W } from "./clusters-card";
-import { type ClustersTiming, DEFAULT_TIMING, easeInOutCubic, easeOutCubic, phase } from "./timing";
+import { DEFAULT_TIMING, easeInOutCubic, easeOutCubic, phase } from "./timing";
 import { useClusterBeats } from "./use-cluster-beats";
-
-// Dev-only live tuning. `IS_DEV` is inlined at build time, so the whole
-// dynamic() call — and the dialkit chunk behind it — is dead code in a
-// production build and never reaches the landing bundle.
-const IS_DEV = process.env.NODE_ENV !== "production";
-const TimingDials = IS_DEV
-  ? dynamic(() => import("./timing-dials.tsx").then((mod) => mod.default), { ssr: false })
-  : null;
 
 // The frame the reader sees — the grey panel is exactly this tall and carries
 // no vertical padding of its own, so the stage IS the frame. Fixed rather than
@@ -80,8 +71,7 @@ const SignalEventClustersMock = ({ className }: { className?: string }) => {
   const clustersRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
 
-  const [timing, setTiming] = useState<ClustersTiming>(DEFAULT_TIMING);
-  const [runId, setRunId] = useState(0);
+  const timing = DEFAULT_TIMING;
 
   const [pillH, setPillH] = useState(PILL_H_ESTIMATE);
   const [clustersH, setClustersH] = useState(CLUSTERS_CARD_H_ESTIMATE);
@@ -159,9 +149,7 @@ const SignalEventClustersMock = ({ className }: { className?: string }) => {
     return () => cancelAnimationFrame(id);
   }, [armAt, scrollYProgress]);
 
-  const beats = useClusterBeats(act2, timing, runId);
-
-  const replay = useCallback(() => setRunId((n) => n + 1), []);
+  const beats = useClusterBeats(act2, timing);
 
   // ── Pill centring ───────────────────────────────────────────────────────
   // The stage is wider than the frame and parked at its left edge, so the frame
@@ -193,7 +181,6 @@ const SignalEventClustersMock = ({ className }: { className?: string }) => {
 
   return (
     <TooltipProvider delayDuration={200}>
-      {TimingDials && <TimingDials onChange={setTiming} onReplay={replay} />}
       <div ref={stageRef} className={cn("relative", className)} style={{ width: CLUSTERS_CARD_W, height: FRAME_H }}>
         {/* Flex-centred on the stage, then translated onto the frame's centre by
             `pillDx` — see the measurement above. */}

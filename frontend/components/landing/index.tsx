@@ -1,7 +1,5 @@
 "use client";
 
-import dynamic from "next/dynamic";
-
 import { cn } from "@/lib/utils";
 
 import { LANDING_COLUMN_MAX_W } from "./class-names";
@@ -21,20 +19,6 @@ import Quote from "./sections/quote";
 import TwoLinesToIntegrate from "./sections/two-lines-to-integrate";
 import UnderstandWhy from "./sections/understand-why";
 
-// Dev-only animation dials. `IS_DEV` is inlined at build time, so the whole
-// dynamic() call — and the dialkit chunk behind it — is dead code in a
-// production build and never reaches the landing bundle. Mounted HERE, once:
-// the dock renders every dial registered anywhere, so one per section would
-// draw a duplicate copy of the whole thing. Sections only run the hooks.
-const IS_DEV = process.env.NODE_ENV !== "production";
-const DialDock = IS_DEV ? dynamic(() => import("./dial-dock.tsx").then((mod) => mod.default), { ssr: false }) : null;
-// Registers the card-glow knobs into that same dock. Mounted here rather than
-// in a section because the glow renders in two of them and it drives both
-// through :root.
-const CardGlowDials = IS_DEV
-  ? dynamic(() => import("./sections/card-glow-dials.tsx").then((mod) => mod.default), { ssr: false })
-  : null;
-
 interface Props {
   className?: string;
   hasSession: boolean;
@@ -46,8 +30,6 @@ interface Props {
 // sections in the standard 880px column below.
 const Landing = ({ className, hasSession }: Props) => (
   <div className={cn("bg-surface-150 overflow-x-clip flex flex-col", className)}>
-    {DialDock && <DialDock />}
-    {CardGlowDials && <CardGlowDials />}
     <Hero hasSession={hasSession} />
     {/* 80px controls the gap to the section above */}
     <UnderstandWhy className="md:mt-[calc(80px-(100vh-760px)/2)]" />

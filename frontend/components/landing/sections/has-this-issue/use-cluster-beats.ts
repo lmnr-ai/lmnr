@@ -38,20 +38,19 @@ export interface ClusterBeatTiming {
 const AT_REST: ClusterBeats = { landed: false, revealed: 0, pulsing: false, chartArmed: false };
 const SETTLED: ClusterBeats = { landed: true, revealed: CLUSTER_COUNT, pulsing: false, chartArmed: true };
 
-/** `runId` re-runs the schedule from the top without disarming — the dial
- *  dock's replay button. */
-export const useClusterBeats = (armed: boolean, timing: ClusterBeatTiming, runId = 0): ClusterBeats => {
+export const useClusterBeats = (armed: boolean, timing: ClusterBeatTiming): ClusterBeats => {
   const [beats, setBeats] = useState<ClusterBeats>(AT_REST);
-
-  // Depend on the VALUES, not the object — the dials hand back a fresh object
-  // every render, and re-running the schedule on each one would stutter it.
-  const timingKey = JSON.stringify(timing);
 
   useEffect(() => {
     // Disarmed: snap back to empty, ready to replay on the way back down. The
     // cluster rows animate their own height out (see ./cluster-list), so this
     // is not the hard cut it looks like.
+    //
+    // The write IS the point of the effect: `armed` is scroll-driven, so there
+    // is no event to hang the reset on. Was masked until now by an
+    // exhaustive-deps directive, which suppressed the whole hook.
     if (!armed) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setBeats(AT_REST);
       return;
     }
@@ -76,8 +75,8 @@ export const useClusterBeats = (armed: boolean, timing: ClusterBeatTiming, runId
       at(t.landedAt, { landed: true, revealed: 1, pulsing: true }),
       at(t.landedAt + t.pulseMs, { pulsing: false }),
       // Clusters 2..N. Each keeps `revealed` monotonic via Math.max so an
-      // out-of-order dial (a stagger dragged behind `landedAt`) can't un-reveal
-      // a row that is already on screen.
+      // out-of-order schedule (a stagger behind `landedAt`) can't un-reveal a
+      // row that is already on screen.
       ...Array.from({ length: CLUSTER_COUNT - 1 }, (_, i) => {
         const n = i + 2;
         return setTimeout(
@@ -88,8 +87,7 @@ export const useClusterBeats = (armed: boolean, timing: ClusterBeatTiming, runId
       at(t.chartAt, { chartArmed: true }),
     ];
     return () => timers.forEach(clearTimeout);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [armed, runId, timingKey]);
+  }, [armed, timing]);
 
   return beats;
 };
