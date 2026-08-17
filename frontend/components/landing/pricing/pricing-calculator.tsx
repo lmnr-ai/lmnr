@@ -6,7 +6,7 @@ import { type ReactNode, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { retentionLabel, TIER_RETENTION } from "@/lib/billing/retention";
+import { retentionLabel } from "@/lib/billing/retention";
 import { signalInputRate, signalOutputRate, type Tier, TIERS } from "@/lib/billing/tiers";
 import { cn } from "@/lib/utils";
 
@@ -39,18 +39,26 @@ const TRACE_TO_SIGNAL_COMPRESSION = 0.1;
 // Signal events are small structured outputs relative to the input they read.
 const SIGNAL_OUTPUT_RATIO = 0.02;
 
+/** One metered line, read as "used against what the tier includes". */
+interface UsageLine {
+  label: string;
+  /** "0.3 GB / 3 GB". Absent on Enterprise, which has no numbers to show. */
+  detail?: string;
+  /** "Included", "$5.00", or "Custom". */
+  value: string;
+}
+
+/** Everything the column renders is pre-formatted here, so the column itself
+ *  holds no branches. The two raw numbers are for picking WHICH tier to show
+ *  and are never displayed. */
 interface TierEstimate {
   name: string;
-  basePrice: number;
-  includedDataGB: number;
-  includedSignalCostUsd: number;
-  dataOverageRate: number;
-  dataOverageCost: number;
+  base: string;
+  usage: UsageLine[];
+  total: string;
+  badges: string[];
+  totalUsd: number;
   signalCostUsd: number;
-  signalOverageCost: number;
-  total: number;
-  retention: string;
-  support: string;
 }
 
 function estimateDataFromTokens(tokens: number): number {
@@ -69,23 +77,51 @@ function estimateSignalCostUsd(tokens: number, signalCoveragePct: number, tier: 
   );
 }
 
+/** A line costs nothing until usage passes the allowance; past it, the charge
+ *  IS the difference, so there is no separate rate to spell out. */
+const usageLine = (label: string, used: string, included: string, cost: number): UsageLine => ({
+  label,
+  detail: `${used} / ${included}`,
+  value: cost > 0 ? `$${formatDollars(cost)}` : "Included",
+});
+
 function buildEstimate(tier: Tier, dataGB: number, signalCostUsd: number): TierEstimate {
   const t = TIERS[tier];
-  const basePrice = t.basePriceMonthly ?? 0;
-  const dataOverageCost = Math.max(0, dataGB - t.includedBytesGB) * t.dataOverageRatePerGB;
-  const signalOverageCost = Math.max(0, signalCostUsd - t.includedSignalCostUsd);
+  // Identical to what both columns used to build by hand — see ./retention.
+  const badges = [retentionLabel(tier), `${t.support} support`];
+
+  // Enterprise is quoted, not computed. A null base price is the only thing
+  // that distinguishes it, so it needs no separate component.
+  if (t.basePriceMonthly === null) {
+    return {
+      name: t.name,
+      base: "Custom",
+      usage: [
+        { label: "Data", value: "Custom" },
+        { label: "Signals", value: "Custom" },
+      ],
+      total: "Custom",
+      badges,
+      totalUsd: 0,
+      signalCostUsd: 0,
+    };
+  }
+
+  const dataCost = Math.max(0, dataGB - t.includedBytesGB) * t.dataOverageRatePerGB;
+  const signalCost = Math.max(0, signalCostUsd - t.includedSignalCostUsd);
+  const totalUsd = t.basePriceMonthly + dataCost + signalCost;
+
   return {
     name: t.name,
-    basePrice,
-    includedDataGB: t.includedBytesGB,
-    includedSignalCostUsd: t.includedSignalCostUsd,
-    dataOverageRate: t.dataOverageRatePerGB,
-    dataOverageCost,
+    base: `$${formatDollars(t.basePriceMonthly)}`,
+    usage: [
+      usageLine("Data", formatDataSize(dataGB), formatDataSize(t.includedBytesGB), dataCost),
+      usageLine("Signals", `$${formatDollars(signalCostUsd)}`, `$${t.includedSignalCostUsd}`, signalCost),
+    ],
+    total: `$${formatDollars(totalUsd)}/mo`,
+    badges,
+    totalUsd,
     signalCostUsd,
-    signalOverageCost,
-    total: basePrice + dataOverageCost + signalOverageCost,
-    retention: TIER_RETENTION[tier].duration,
-    support: t.support,
   };
 }
 
@@ -135,23 +171,15 @@ function RecommendedBadge({ tooltip }: { tooltip: string }) {
   );
 }
 
-// Badge only renders when a tooltip is supplied — keeps the name-only call
-// shape valid for any future reuse without a recommendation context.
-function TierHeader({ name, tooltip }: { name: string; tooltip?: string }) {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <span className={cn(subSection, "text-white")}>{name}</span>
-      {tooltip && <RecommendedBadge tooltip={tooltip} />}
-    </div>
-  );
-}
+const HEADING = "flex justify-between text-lg leading-6 text-white";
+const BADGE = "inline-flex items-center rounded-sm px-2 py-0.5 bg-surface-300 text-sm";
 
-function TierColumn({ estimate, tooltip, dataGB }: { estimate: TierEstimate; tooltip?: string; dataGB: number }) {
-  const extraDataGB = Math.max(0, dataGB - estimate.includedDataGB);
-
+// Every tier renders through here, Enterprise included — the builder already
+// resolved "Included" vs a charge vs "Custom", so there is nothing to branch on.
+function TierColumn({ estimate, tooltip }: { estimate: TierEstimate; tooltip?: string }) {
   return (
     <div className="bg-surface-250 h-full rounded p-5 space-y-4">
-      <div className={cn(subSection, "flex justify-between text-lg leading-6 text-white")}>
+      <div className={cn(subSection, HEADING)}>
         <span className="flex gap-2.5 items-center">
           Tier
           {tooltip && <RecommendedBadge tooltip={tooltip} />}
@@ -161,104 +189,46 @@ function TierColumn({ estimate, tooltip, dataGB }: { estimate: TierEstimate; too
 
       <div className="space-y-2 text-sm">
         <div className="border-t pt-3">
-          <div className={cn(subSection, "flex justify-between text-lg leading-6 text-white")}>
+          <div className={cn(subSection, HEADING)}>
             <span>Base</span>
-            <span>${formatDollars(estimate.basePrice)}</span>
+            <span>{estimate.base}</span>
           </div>
         </div>
 
-        <div className={cn("text-foreground-200")}>
-          {formatDataSize(estimate.includedDataGB)} + ${estimate.includedSignalCostUsd} in Signals included
-        </div>
-
-        {estimate.dataOverageCost > 0 ? (
-          <div className="flex justify-between text-foreground-200">
-            <span>
-              {formatDataSize(extraDataGB)} × ${estimate.dataOverageRate}/GB
-            </span>
-            <span>+${formatDollars(estimate.dataOverageCost)}</span>
+        {estimate.usage.map(({ label, detail, value }) => (
+          <div key={label} className="flex justify-between text-foreground-200">
+            <span>{detail ? `${label} (${detail})` : label}</span>
+            <span>{value}</span>
           </div>
-        ) : (
-          <div className="flex justify-between text-foreground-300">
-            <span>Data ({formatDataSize(dataGB)})</span>
-            <span>Included</span>
-          </div>
-        )}
-
-        {estimate.signalOverageCost > 0 ? (
-          <div className="flex justify-between text-foreground-200">
-            <span>
-              <span>Signals overage (${formatDollars(estimate.signalCostUsd)})</span>
-            </span>
-            <span>+${formatDollars(estimate.signalOverageCost)}</span>
-          </div>
-        ) : (
-          <div className="flex justify-between text-foreground-300">
-            <span>Signals (${formatDollars(estimate.signalCostUsd)})</span>
-            <span>Included</span>
-          </div>
-        )}
+        ))}
       </div>
 
       <div className="border-t pt-3">
-        <div className={cn(subSection, "flex justify-between text-lg leading-6 text-white")}>
+        <div className={cn(subSection, HEADING)}>
           <span>Total</span>
-          <span>${formatDollars(estimate.total)}/mo</span>
+          <span>{estimate.total}</span>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-surface-300 text-sm")}>
-          {estimate.retention} retention
-        </span>
-        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-surface-300 text-sm")}>
-          {estimate.support} support
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function EnterpriseTierColumn({ tooltip }: { tooltip?: string }) {
-  return (
-    <div className="bg-surface-250 h-full rounded p-5 space-y-4">
-      <TierHeader name="Enterprise" tooltip={tooltip} />
-
-      <div className="space-y-2 text-sm">
-        <div className="flex justify-between text-white">
-          <span>Base</span>
-          <span>Custom</span>
-        </div>
-        <div className="flex justify-between text-foreground-300">
-          <span>Additional data</span>
-          <span>Custom</span>
-        </div>
-        <div className="flex justify-between text-foreground-300">
-          <span>Additional Signals usage</span>
-          <span>Custom</span>
-        </div>
-      </div>
-
-      <div className="border-t pt-3 border-surface-300">
-        <div className={cn(subSection, "flex justify-between text-lg leading-6 text-white")}>
-          <span>Total</span>
-          <span>Custom</span>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-surface-300")}>
-          {retentionLabel("enterprise")}
-        </span>
-        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-surface-300")}>
-          Dedicated support
-        </span>
+        {estimate.badges.map((badge) => (
+          <span key={badge} className={cn(microLabel, BADGE)}>
+            {badge}
+          </span>
+        ))}
       </div>
     </div>
   );
 }
 
 type CalculatorState = "free" | "hobby" | "pro" | "enterprise";
+
+const TOOLTIPS: Record<CalculatorState, string> = {
+  free: "Your usage fits within the Free tier. No payment needed.",
+  hobby: "Most teams at this usage level choose Starter as the safer, more predictable option.",
+  pro: "Most teams at this usage level choose Pro as the safer, more predictable option.",
+  enterprise: "Most teams at this scale choose Enterprise as the safer, more cost-effective option.",
+};
 
 function getCalculatorState(
   dataGB: number,
@@ -306,19 +276,23 @@ export default function PricingCalculator() {
 
   // Signal cost is tier-dependent (Pro is discounted), so each estimate prices
   // at its own rate.
-  const free = buildEstimate("free", dataGB, estimateSignalCostUsd(tokens, coveragePct, "free"));
-  const hobby = buildEstimate("hobby", dataGB, estimateSignalCostUsd(tokens, coveragePct, "hobby"));
-  const pro = buildEstimate("pro", dataGB, estimateSignalCostUsd(tokens, coveragePct, "pro"));
+  const estimates: Record<CalculatorState, TierEstimate> = {
+    free: buildEstimate("free", dataGB, estimateSignalCostUsd(tokens, coveragePct, "free")),
+    hobby: buildEstimate("hobby", dataGB, estimateSignalCostUsd(tokens, coveragePct, "hobby")),
+    pro: buildEstimate("pro", dataGB, estimateSignalCostUsd(tokens, coveragePct, "pro")),
+    enterprise: buildEstimate("enterprise", dataGB, 0),
+  };
 
-  const state = getCalculatorState(dataGB, hobby.signalCostUsd, free.total, hobby.total, pro.total);
+  const state = getCalculatorState(
+    dataGB,
+    estimates.hobby.signalCostUsd,
+    estimates.free.totalUsd,
+    estimates.hobby.totalUsd,
+    estimates.pro.totalUsd
+  );
   // Signal cost shown next to the coverage slider tracks the recommended tier's
   // rate so it agrees with the estimate column below.
-  const displayedSignalCostUsd = state === "pro" ? pro.signalCostUsd : hobby.signalCostUsd;
-
-  const freeTooltip = "Your usage fits within the Free tier. No payment needed.";
-  const hobbyTooltip = "Most teams at this usage level choose Starter as the safer, more predictable option.";
-  const proTooltip = "Most teams at this usage level choose Pro as the safer, more predictable option.";
-  const enterpriseTooltip = "Most teams at this scale choose Enterprise as the safer, more cost-effective option.";
+  const displayedSignalCostUsd = state === "pro" ? estimates.pro.signalCostUsd : estimates.hobby.signalCostUsd;
 
   const tokensValue = (
     <>
@@ -352,14 +326,7 @@ export default function PricingCalculator() {
     />
   );
 
-  const preview = (
-    <>
-      {state === "free" && <TierColumn estimate={free} tooltip={freeTooltip} dataGB={dataGB} />}
-      {state === "hobby" && <TierColumn estimate={hobby} tooltip={hobbyTooltip} dataGB={dataGB} />}
-      {state === "pro" && <TierColumn estimate={pro} tooltip={proTooltip} dataGB={dataGB} />}
-      {state === "enterprise" && <EnterpriseTierColumn tooltip={enterpriseTooltip} />}
-    </>
-  );
+  const preview = <TierColumn estimate={estimates[state]} tooltip={TOOLTIPS[state]} />;
 
   return (
     <div className="w-full space-y-6">
