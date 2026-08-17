@@ -16,7 +16,7 @@ const InputExtractionC = () => (
         <div key={agent.name} style={{ marginLeft: i * 10 }} className="rounded-lg border bg-surface-down/80 px-2 py-2">
           <div className="flex items-center gap-2">
             <span className="flex size-4 shrink-0 items-center justify-center rounded bg-subagent/70">
-              <Bot size={9} className="text-white" />
+              <Bot size={8} className="text-white" />
             </span>
             <span className="truncate text-[11px] font-medium text-white">{agent.name}</span>
             <span className="ml-auto shrink-0 font-mono text-[9px] text-foreground-500">{agent.tokens}</span>

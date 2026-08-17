@@ -6,10 +6,10 @@ import { Check, Circle, Pencil } from "lucide-react";
 //
 // Everything painted here sits ABOVE the card's surface (`bg-surface-up*`), not
 // below it. A pill darker than what it sits on reads as a hole.
-const TOTAL = 34;
-const APPROVED = 17;
-const MODIFIED = 4;
-const CURRENT = 18;
+const TOTAL = 64;
+const APPROVED = 24;
+const MODIFIED = 7;
+const CURRENT = 34;
 
 const VERDICTS = [
   { label: "correct", key: 1 },
@@ -29,19 +29,21 @@ const FieldKey = ({ children }: { children: string }) => (
 
 const AnnotationA = () => (
   <div className="absolute inset-0 overflow-hidden pl-[22px]">
-    <div className="pr-5">
-      <div className="relative h-[5px]">
-        <div className="flex h-[5px] w-full gap-px overflow-hidden rounded-sm bg-surface-up-2">
-          {Array.from({ length: TOTAL }, (_, i) => (
-            <div key={i} className={`h-full flex-1 ${segmentTone(i)}`} />
-          ))}
-        </div>
-        <div
-          className="absolute -bottom-[3px] -top-[3px] rounded-sm border border-foreground-300 bg-white/10"
-          style={{ left: `${((CURRENT - 1) / TOTAL) * 100}%`, width: `${(1 / TOTAL) * 100}%` }}
-        />
+    {/* Wider than the card on purpose: the queue runs off the edge, which is
+        what a 240-item queue looks like. */}
+    <div className="relative h-[5px] w-[190%]">
+      <div className="flex h-[5px] w-full gap-px overflow-hidden rounded-sm bg-surface-up-2">
+        {Array.from({ length: TOTAL }, (_, i) => (
+          <div key={i} className={`h-full flex-1 ${segmentTone(i)}`} />
+        ))}
       </div>
+      <div
+        className="absolute -bottom-[3px] -top-[3px] rounded-sm border border-foreground-300 bg-white/10"
+        style={{ left: `${((CURRENT - 1) / TOTAL) * 100}%`, width: `${(1 / TOTAL) * 100}%` }}
+      />
+    </div>
 
+    <div className="pr-5">
       <div className="mt-3 flex items-center gap-2.5 text-[10px] tabular-nums text-foreground-400">
         <span className="inline-flex items-center gap-1">
           <Circle className="size-2.5 text-foreground-500" />
@@ -60,10 +62,10 @@ const AnnotationA = () => (
 
     {/* Negative right margin so the field cards run past the card's edge. */}
     <div className="-mr-4 mt-3.5 flex flex-col gap-2">
-      <div className="rounded-lg border border-primary-400/50 bg-primary-400/[0.07] p-2.5">
+      <div className="rounded-lg bg-surface-up p-2.5">
         <div className="flex items-center gap-1.5">
           <FieldKey>verdict</FieldKey>
-          <span className="truncate text-[10px] text-foreground-300">Did the run finish the task</span>
+          <span className="truncate text-[10px] text-foreground-200">Did the run finish the task?</span>
         </div>
         <div className="mt-2.5 flex gap-1.5">
           {VERDICTS.map((verdict) => (
@@ -71,8 +73,8 @@ const AnnotationA = () => (
               key={verdict.label}
               className={
                 verdict.selected
-                  ? "inline-flex flex-1 items-center justify-center gap-1.5 rounded bg-surface-up-4 px-2.5 py-1.5 text-[10px] text-white"
-                  : "inline-flex flex-1 items-center justify-center gap-1.5 rounded bg-surface-up-2 px-2.5 py-1.5 text-[10px] text-foreground-200"
+                  ? "inline-flex flex-1 items-center justify-center gap-1.5 rounded bg-white/5 px-2.5 py-1.5 text-[10px] text-white"
+                  : "inline-flex flex-1 items-center justify-center gap-1.5 rounded bg-white/[0.02] px-2.5 py-1.5 text-[10px] text-foreground-200"
               }
             >
               {verdict.label}

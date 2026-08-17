@@ -20,11 +20,11 @@ const ScreenRecordingA = () => (
           key={span.name}
           className={
             span.active
-              ? "flex items-center gap-2 rounded-l border-y border-l border-primary-400/30 bg-primary-400/[0.08] px-2 py-[3px]"
+              ? "flex items-center gap-2 rounded-sm bg-surface-up px-2 py-[3px]"
               : "flex items-center gap-2 px-2 py-[3px]"
           }
         >
-          <SpanTypeIcon spanType={span.type} containerWidth={15} containerHeight={15} size={9} />
+          <SpanTypeIcon spanType={span.type} containerWidth={16} containerHeight={16} size={8} iconClassName="size-2" />
           <span
             className={
               span.active
