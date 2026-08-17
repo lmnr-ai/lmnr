@@ -5,9 +5,17 @@ import { type ReactNode, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
+import { ElevatedSurface } from "@/components/ui/surface";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { retentionLabel } from "@/lib/billing/retention";
-import { signalInputRate, signalOutputRate, type Tier, TIERS } from "@/lib/billing/tiers";
+import {
+  formatDataOverage,
+  formatSignalsOverageShort,
+  signalInputRate,
+  signalOutputRate,
+  type Tier,
+  TIERS,
+} from "@/lib/billing/tiers";
 import { cn } from "@/lib/utils";
 
 import { microLabel, subSection } from "../class-names";
@@ -38,6 +46,20 @@ const ENTERPRISE_SIGNAL_COST_THRESHOLD_USD = 500;
 const TRACE_TO_SIGNAL_COMPRESSION = 0.1;
 // Signal events are small structured outputs relative to the input they read.
 const SIGNAL_OUTPUT_RATIO = 0.02;
+
+// Everything the arithmetic on this page actually assumes, in the order it is
+// applied: tokens -> stored bytes -> what a Signal reads -> what it writes ->
+// what those tokens cost -> what usage past the allowance costs.
+//
+// Built from the same constants and rate helpers the estimate uses, so the note
+// cannot drift from the numbers it describes. Nothing here is hardcoded prose.
+const ASSUMPTIONS = [
+  `${BYTES_PER_TOKEN} bytes of stored trace data per agent token`,
+  `a Signal reads ${TRACE_TO_SIGNAL_COMPRESSION * 100}% of a trace's tokens, since Laminar compresses each trace and feeds a Signal only the part it needs`,
+  `a Signal writes back ${SIGNAL_OUTPUT_RATIO * 100}% of what it reads`,
+  `Signal tokens metered at ${formatSignalsOverageShort("hobby")}, discounted to ${formatSignalsOverageShort("pro")} on Pro`,
+  `data past the included allowance at ${formatDataOverage("hobby")} on Starter and ${formatDataOverage("pro")} on Pro`,
+];
 
 /** One metered line, read as "used against what the tier includes". */
 interface UsageLine {
@@ -178,7 +200,7 @@ const BADGE = "inline-flex items-center rounded-sm px-2 py-0.5 bg-surface-300 te
 // resolved "Included" vs a charge vs "Custom", so there is nothing to branch on.
 function TierColumn({ estimate, tooltip }: { estimate: TierEstimate; tooltip?: string }) {
   return (
-    <div className="bg-surface-250 h-full rounded p-5 space-y-4">
+    <ElevatedSurface offset={4} className="h-full rounded p-5 space-y-4">
       <div className={cn(subSection, HEADING)}>
         <span className="flex gap-2.5 items-center">
           Tier
@@ -217,7 +239,7 @@ function TierColumn({ estimate, tooltip }: { estimate: TierEstimate; tooltip?: s
           </span>
         ))}
       </div>
-    </div>
+    </ElevatedSurface>
   );
 }
 
@@ -318,7 +340,7 @@ export default function PricingCalculator() {
   );
   const coverageSlider = (
     <SliderBlock
-      label="Traces evaluated by Signals"
+      label="Traces analyzed by Signals"
       value={coverageValue}
       sliderValue={coverageIdx}
       max={COVERAGE_STEPS.length - 1}
@@ -335,12 +357,14 @@ export default function PricingCalculator() {
         {tokenSlider}
         {coverageSlider}
         {preview}
-        <p className={cn(microLabel, "text-foreground-300")}>
-          Signals are billed by the tokens spent reading a trace, not 1-to-1 with your agent&apos;s token usage —
-          Laminar compresses each trace to about 10% of its original size on average (in practice often much smaller,
-          depending on the agent) and only feeds a Signal what it needs, so Signals cost is a fraction of the tokens
-          above.
-        </p>
+        <div className={cn(microLabel, "text-foreground-300 text-sm space-y-2")}>
+          <p>This estimate assumes:</p>
+          <ul className="list-disc space-y-1 pl-4">
+            {ASSUMPTIONS.map((assumption) => (
+              <li key={assumption}>{assumption}</li>
+            ))}
+          </ul>
+        </div>
       </div>
     </div>
   );
