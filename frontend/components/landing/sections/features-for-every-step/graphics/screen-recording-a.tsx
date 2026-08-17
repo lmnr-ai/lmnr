@@ -1,43 +1,46 @@
-// The recording sits on the trace's own timeline, and one playhead crosses
-// both. That shared instant is the whole feature.
+import { Play } from "lucide-react";
+
+// The session panel as the product builds it: play, speed, scrubber, clock, the
+// page URL at that instant, then the replay. It shares its clock with the span
+// timeline underneath, which is why the playhead lines up.
 const SPANS = [
   { left: 0, width: 96, lit: true },
   { left: 6, width: 38, lit: false },
   { left: 22, width: 30, lit: false },
   { left: 30, width: 46, lit: true },
   { left: 48, width: 26, lit: false },
-  { left: 62, width: 34, lit: false },
 ];
 
 const ScreenRecordingA = () => (
-  <div className="absolute inset-0 overflow-hidden pl-5">
-    <div className="overflow-hidden rounded-tl border-t border-l border-surface-350 bg-surface-100">
-      <div className="flex items-center gap-1.5 border-b border-surface-350 bg-surface-200 px-2.5 py-[7px]">
-        <span className="size-[5px] rounded-full bg-surface-450" />
-        <span className="size-[5px] rounded-full bg-surface-450" />
-        <span className="ml-1.5 rounded-sm bg-surface-300 px-1.5 py-[2px] font-mono text-[8px] text-foreground-500">
-          flights.example.com
+  <div className="absolute inset-0 overflow-hidden pl-6">
+    <div className="rounded-tl border-t border-l border-surface-up-2 bg-surface-down">
+      <div className="flex items-center gap-2 border-b border-surface-up-2 px-2.5 py-[7px]">
+        <Play className="size-3 shrink-0 fill-current text-foreground-200" strokeWidth={0} />
+        <span className="shrink-0 text-[10px] text-foreground-400">1x</span>
+        <span className="relative h-[3px] flex-1 rounded-full bg-surface-up-3">
+          <span className="absolute inset-y-0 left-0 w-[36%] rounded-full bg-white/70" />
+          <span className="absolute -top-[2px] left-[36%] size-[7px] -translate-x-1/2 rounded-full bg-white" />
         </span>
-        <span className="ml-auto flex items-center gap-1 pr-1">
-          <span className="size-[5px] rounded-full bg-red-400/80" />
-          <span className="font-mono text-[8px] text-foreground-500">REC</span>
-        </span>
+        <span className="shrink-0 font-mono text-[9px] text-foreground-400">00:11/00:31</span>
       </div>
-      <div className="relative flex h-[84px] gap-2 p-2.5">
+      <p className="truncate border-b border-surface-up-2 px-2.5 py-1.5 font-mono text-[9px] text-foreground-500">
+        flights.example.com/search?to=NRT
+      </p>
+      <div className="relative flex gap-2 bg-surface-down-3 p-2.5">
         <div className="flex w-[46px] shrink-0 flex-col gap-1">
-          <span className="h-1.5 w-full rounded-sm bg-surface-300" />
-          <span className="h-1.5 w-[70%] rounded-sm bg-surface-300" />
-          <span className="h-1.5 w-[85%] rounded-sm bg-surface-300" />
+          <span className="h-1.5 w-full rounded-sm bg-surface-up" />
+          <span className="h-1.5 w-[70%] rounded-sm bg-surface-up" />
+          <span className="h-1.5 w-[85%] rounded-sm bg-surface-up" />
         </div>
         <div className="flex flex-1 flex-col gap-1.5">
-          <span className="h-2 w-[60%] rounded-sm bg-surface-400" />
+          <span className="h-2 w-[60%] rounded-sm bg-surface-up-3" />
           <div className="flex gap-1.5">
-            <span className="h-8 flex-1 rounded-sm bg-surface-200" />
-            <span className="h-8 flex-1 rounded-sm bg-surface-200" />
+            <span className="h-7 flex-1 rounded-sm bg-surface-down" />
+            <span className="h-7 flex-1 rounded-sm bg-surface-down" />
           </div>
           <span className="h-[18px] w-[62px] rounded-sm bg-primary-400/35" />
         </div>
-        {/* Cursor, mid-click on the button. */}
+        {/* Cursor, mid-click on the button the lit span produced. */}
         <svg viewBox="0 0 12 14" className="absolute left-[92px] top-[62px] w-3 text-white" aria-hidden>
           <path d="M1 1l10 6.5-4.4.9L4.3 13z" fill="currentColor" stroke="#111" strokeWidth="0.9" />
         </svg>
@@ -48,14 +51,13 @@ const ScreenRecordingA = () => (
       {SPANS.map((span, i) => (
         <div key={i} className="h-1.5 w-full">
           <div
-            className={span.lit ? "h-full rounded-full bg-primary-400/70" : "h-full rounded-full bg-surface-450"}
+            className={span.lit ? "h-full rounded-full bg-primary-400/70" : "h-full rounded-full bg-surface-up-4"}
             style={{ marginLeft: `${span.left}%`, width: `${span.width}%` }}
           />
         </div>
       ))}
-      {/* Playhead, parked on the instant of the click above. */}
-      <span className="absolute -top-[110px] bottom-0 left-[36%] w-px bg-white/45" />
-      <span className="absolute -top-[114px] left-[36%] size-[5px] -translate-x-1/2 rounded-full bg-white" />
+      {/* One playhead for both: the panel's scrubber sets `sessionTime`. */}
+      <span className="absolute -top-[108px] bottom-0 left-[36%] w-px bg-white/40" />
     </div>
   </div>
 );

@@ -17,7 +17,9 @@ const FeaturesForEveryStep = () => {
         <h2 className={subSection}>{"One platform for every stage of agent development."}</h2>
         <VariantSwitcher value={variant} onChange={setVariant} />
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 w-full">
+      {/* Two up even on the narrowest phone: a single column would stretch each
+          card past the graphic band's proportions. */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 w-full">
         {CARDS.map((card) => (
           <Card key={card.id} {...card} Graphic={GRAPHICS[card.id][variant]} />
         ))}

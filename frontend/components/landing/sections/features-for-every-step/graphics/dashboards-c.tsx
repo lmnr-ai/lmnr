@@ -1,22 +1,28 @@
-// The dashboard as a canvas: tiles of different shapes on a grid, one being
-// dragged into place. Says "build your own" without a word of copy.
+import { GripVertical, Plus } from "lucide-react";
+
+// The dashboard is a drag-and-drop grid, so the graphic is the grid: charts
+// already placed, one mid-drag, and an empty cell waiting for the next.
 const SPARK = [30, 44, 38, 56, 48, 66, 58, 72];
 
+const Handle = () => <GripVertical className="size-3 shrink-0 text-foreground-600" strokeWidth={1.5} />;
+
 const DashboardsC = () => (
-  <div className="absolute inset-0 overflow-hidden pl-5">
-    {/* The canvas the tiles snap to. */}
+  <div className="absolute inset-0 overflow-hidden pl-6">
     <div
-      className="absolute inset-0 left-5 opacity-[0.35]"
+      className="absolute inset-0 left-5 opacity-40"
       style={{
         backgroundImage:
-          "linear-gradient(to right, var(--color-surface-300) 1px, transparent 1px), linear-gradient(to bottom, var(--color-surface-300) 1px, transparent 1px)",
-        backgroundSize: "16px 16px",
+          "linear-gradient(to right, var(--color-surface-up) 1px, transparent 1px), linear-gradient(to bottom, var(--color-surface-up) 1px, transparent 1px)",
+        backgroundSize: "18px 18px",
       }}
     />
 
     <div className="relative grid grid-cols-3 gap-2">
-      <div className="col-span-2 rounded border border-surface-350 bg-surface-200 p-2.5">
-        <p className="text-[10px] text-foreground-500">Cost / run</p>
+      <div className="col-span-2 rounded border border-surface-up-2 bg-surface-down p-2.5">
+        <div className="flex items-center justify-between">
+          <p className="truncate text-[10px] text-foreground-400">Trace p90 cost</p>
+          <Handle />
+        </div>
         <p className="mt-0.5 font-mono text-base leading-6 text-white">$0.031</p>
         <svg viewBox="0 0 100 22" preserveAspectRatio="none" className="mt-1 h-[22px] w-full" aria-hidden>
           <path
@@ -28,26 +34,35 @@ const DashboardsC = () => (
         </svg>
       </div>
 
-      <div className="rounded border border-surface-350 bg-surface-200 p-2.5">
-        <p className="text-[10px] text-foreground-500">Pass</p>
-        <p className="mt-0.5 font-mono text-base leading-6 text-white">94%</p>
+      <div className="rounded border border-surface-up-2 bg-surface-down p-2.5">
+        <p className="truncate text-[10px] text-foreground-400">New traces</p>
+        <p className="mt-0.5 font-mono text-base leading-6 text-white">12.4k</p>
       </div>
 
-      <div className="col-span-3 rounded border border-surface-350 bg-surface-200 p-2.5">
-        <p className="text-[10px] text-foreground-500">Runs by hour</p>
-        <div className="mt-2 flex h-[48px] items-end gap-[4px]">
+      <div className="col-span-3 rounded border border-surface-up-2 bg-surface-down p-2.5">
+        <div className="flex items-center justify-between">
+          <p className="truncate text-[10px] text-foreground-400">Top span names</p>
+          <Handle />
+        </div>
+        <div className="mt-2 flex h-[46px] items-end gap-[4px]">
           {[38, 52, 44, 66, 58, 80, 70, 90, 62, 74, 55, 68].map((h, i) => (
-            <div key={i} className="flex-1 rounded-t-[1px] bg-surface-450" style={{ height: `${h}%` }} />
+            <div key={i} className="flex-1 rounded-t-[1px] bg-surface-up-4" style={{ height: `${h}%` }} />
           ))}
         </div>
       </div>
 
-      {/* Mid-drag: dashed outline, lifted, snapping to the next cell. */}
+      {/* Mid-drag: lifted off the grid, snapping to the next free cell. */}
       <div className="col-span-2 rounded border border-dashed border-primary-400/60 bg-primary-400/[0.06] p-2.5">
-        <p className="text-[10px] text-primary-200">Tokens / run</p>
-        <p className="mt-0.5 font-mono text-base leading-6 text-white">48.2k</p>
+        <div className="flex items-center justify-between">
+          <p className="truncate text-[10px] text-primary-200">Total tokens</p>
+          <GripVertical className="size-3 shrink-0 text-primary-300" strokeWidth={1.5} />
+        </div>
+        <p className="mt-0.5 font-mono text-base leading-6 text-white">48.2M</p>
       </div>
-      <div className="rounded border border-dashed border-surface-400" />
+
+      <div className="flex items-center justify-center rounded border border-dashed border-surface-up-3">
+        <Plus className="size-4 text-foreground-600" strokeWidth={1.5} />
+      </div>
     </div>
   </div>
 );

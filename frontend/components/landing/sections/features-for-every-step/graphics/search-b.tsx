@@ -1,17 +1,17 @@
-// Search reaches inside the payload, not just the span name. The hits are lit
-// where they actually live: in the output body and in an attribute.
+// Search reaches inside the span, not just its name. The hits are lit where
+// they live: in `output` and in `attributes`, both indexed columns.
 const Hit = ({ children }: { children: string }) => (
   <span className="rounded-[2px] bg-primary-400/25 px-[3px] text-primary-200">{children}</span>
 );
 
 const SearchB = () => (
-  <div className="absolute inset-0 overflow-hidden pl-5">
-    <div className="flex items-center justify-between rounded-tl border-t border-l border-surface-350 bg-surface-200 px-3 py-2 pr-6">
-      <span className="font-mono text-[10px] text-foreground-200">chat.completion</span>
+  <div className="absolute inset-0 overflow-hidden pl-6">
+    <div className="flex items-center justify-between rounded-tl border-t border-l border-surface-up-2 bg-surface-down px-3 py-2 pr-6">
+      <span className="text-[11px] text-foreground-100">chat.completion</span>
       <span className="rounded-full bg-primary-400/15 px-1.5 py-[1px] font-mono text-[9px] text-primary-200">3</span>
     </div>
 
-    <div className="mt-2 rounded-tl border-t border-l border-surface-350 bg-surface-200 px-3 py-2.5 font-mono text-[10px] leading-[16px] text-foreground-300">
+    <div className="mt-2 rounded-tl border-t border-l border-surface-up-2 bg-surface-down px-3 py-2.5 font-mono text-[10px] leading-[16px] text-foreground-300">
       <p className="text-foreground-500">output</p>
       <p className="mt-1">
         The request hit a <Hit>timeout</Hit> at the
@@ -25,8 +25,9 @@ const SearchB = () => (
       <p className="mt-1">
         error.type = <Hit>timeout</Hit>
       </p>
-      <p>http.status = 504</p>
+      <p>http.status_code = 504</p>
       <p>retry.count = 1</p>
+      <p>gen_ai.request.model = gpt-5.1</p>
     </div>
   </div>
 );

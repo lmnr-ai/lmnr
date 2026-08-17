@@ -1,5 +1,6 @@
-// Same data, three doors. The CLI door is open, so the graphic is a terminal.
-const TABS = ["SQL editor", "MCP", "CLI"];
+// Same tables, three doors. The CLI door is open, so the graphic is a terminal
+// running the command a coding agent would run.
+const TABS = ["Editor", "MCP", "CLI"];
 
 const OUTPUT = [
   ["gpt-5.1", "8,412"],
@@ -7,18 +8,17 @@ const OUTPUT = [
   ["haiku-4.5", "3,918"],
   ["gemini-3", "1,744"],
   ["sonnet-5", "1,208"],
-  ["o4-mini", "864"],
 ];
 
 const SqlB = () => (
-  <div className="absolute inset-0 overflow-hidden pl-5">
+  <div className="absolute inset-0 overflow-hidden pl-6">
     <div className="flex gap-1">
       {TABS.map((tab) => (
         <span
           key={tab}
           className={
             tab === "CLI"
-              ? "rounded-t border-x border-t border-surface-350 bg-surface-200 px-2 py-1 text-[10px] text-white"
+              ? "rounded-t border-x border-t border-surface-up-2 bg-surface-down px-2 py-1 text-[10px] text-white"
               : "rounded-t px-2 py-1 text-[10px] text-foreground-500"
           }
         >
@@ -27,7 +27,7 @@ const SqlB = () => (
       ))}
     </div>
 
-    <div className="rounded-tl border-t border-l border-surface-350 bg-surface-200 px-3 py-2.5 font-mono text-[10px] leading-[17px]">
+    <div className="rounded-tl border-t border-l border-surface-up-2 bg-surface-down px-3 py-2.5 font-mono text-[10px] leading-[17px]">
       <p className="whitespace-nowrap">
         <span className="text-foreground-500">$ </span>
         <span className="text-foreground-100">lmnr sql query </span>
@@ -37,7 +37,7 @@ const SqlB = () => (
         <span className="w-[76px]">model</span>
         <span>runs</span>
       </div>
-      <div className="my-1 h-px w-[140px] bg-surface-350" />
+      <div className="my-1 h-px w-[140px] bg-surface-up-2" />
       {OUTPUT.map(([model, runs]) => (
         <div key={model} className="flex text-foreground-200">
           <span className="w-[76px]">{model}</span>

@@ -1,37 +1,45 @@
-// A labeling queue mid-pass: the item under review on top, its verdict buttons
-// under it, and the next items already stacked below.
-const QUEUED = [
-  "Cancelled the wrong leg and rebooked at a higher fare.",
-  "Asked for confirmation twice before booking.",
-];
+import { Check, ChevronLeft, ChevronRight, Database, RotateCcw, Trash2 } from "lucide-react";
 
+// The labeling queue: the datapoint's data on the left of the split, the target
+// you edit on the right, and the queue's own controls under it.
 const AnnotationA = () => (
-  <div className="absolute inset-0 overflow-hidden pl-5">
-    <div className="rounded-tl border-t border-l border-surface-350 bg-surface-200">
-      <div className="flex items-center justify-between border-b border-surface-350 px-3 py-1.5 pr-6">
-        <span className="text-[10px] text-foreground-500">item 18</span>
-        <span className="font-mono text-[10px] text-foreground-500">18 / 240</span>
-      </div>
+  <div className="absolute inset-0 overflow-hidden pl-6">
+    <div className="rounded-tl border-t border-l border-surface-up-2 bg-surface-down">
+      <p className="border-b border-surface-up-2 px-3 py-1.5 text-[10px] text-foreground-500">data</p>
       <p className="px-3 py-2.5 pr-6 text-[11px] leading-4 text-foreground-200">
         Booked <span className="text-white">NRT</span>, departing Mar 4. Never checked the return leg.
       </p>
-      <div className="flex gap-1.5 px-3 pb-3">
-        <span className="rounded border border-green-400/40 bg-green-400/10 px-2 py-1 text-[10px] text-green-300">
-          correct
-        </span>
-        <span className="rounded border border-surface-400 px-2 py-1 text-[10px] text-foreground-400">incomplete</span>
-        <span className="rounded border border-surface-400 px-2 py-1 text-[10px] text-foreground-400">wrong</span>
+    </div>
+
+    <div className="mt-2 rounded-tl border-t border-l border-surface-up-2 bg-surface-down">
+      <p className="border-b border-surface-up-2 px-3 py-1.5 text-[10px] text-foreground-500">target</p>
+      <div className="px-3 py-2.5 font-mono text-[10px] leading-4 text-foreground-300">
+        <p>{"{"}</p>
+        <p className="pl-3">
+          <span className="text-foreground-500">&quot;verdict&quot;:</span>{" "}
+          <span className="text-primary-200">&quot;incomplete&quot;</span>
+        </p>
+        <p>{"}"}</p>
       </div>
     </div>
 
-    {QUEUED.map((item) => (
-      <p
-        key={item}
-        className="mt-2 truncate rounded-tl border-t border-l border-surface-350 bg-surface-200/60 px-3 py-2.5 pr-6 text-[11px] text-foreground-500"
-      >
-        {item}
-      </p>
-    ))}
+    {/* The queue's bottom controls, in their real order. */}
+    <div className="mt-3 flex items-center gap-2 rounded-l border-y border-l border-surface-up-2 bg-surface-down px-2 py-1.5">
+      <ChevronLeft className="size-3 text-foreground-500" strokeWidth={1.75} />
+      <span className="text-[10px] text-foreground-400">
+        Item <span className="text-white">18</span> of 240
+      </span>
+      <ChevronRight className="size-3 text-foreground-500" strokeWidth={1.75} />
+      <span className="ml-1 h-3.5 w-px bg-surface-up-3" />
+      <Check className="size-3 text-green-400" strokeWidth={2} />
+      <RotateCcw className="size-3 text-foreground-500" strokeWidth={1.75} />
+      <Trash2 className="size-3 text-foreground-500" strokeWidth={1.75} />
+    </div>
+
+    <div className="mt-2 inline-flex items-center gap-1.5 rounded border border-surface-up-3 px-2 py-1">
+      <Database className="size-3 text-foreground-400" strokeWidth={1.75} />
+      <span className="text-[10px] text-foreground-300">Push to dataset</span>
+    </div>
   </div>
 );
 

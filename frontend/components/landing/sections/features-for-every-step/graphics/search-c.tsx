@@ -1,8 +1,11 @@
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 
-// Full text plus structure: the free-text term narrows by attribute filters, and
-// the count updates as fast as you can type.
-const FILTERS = ["span_type = LLM", "status = error", "path ~ subagent"];
+// One box does both. Filter tags sit inline with the free text, each split into
+// field, operator and value, exactly as the product composes them.
+const TAGS = [
+  ["span_type", "=", "LLM"],
+  ["status", "=", "error"],
+];
 
 const RESULTS = [
   { before: "gateway ", after: " after 30s" },
@@ -11,30 +14,34 @@ const RESULTS = [
 ];
 
 const SearchC = () => (
-  <div className="absolute inset-0 overflow-hidden pl-5">
-    <div className="flex items-center gap-2 rounded-l border-y border-l border-surface-350 bg-surface-200 px-2.5 py-2">
-      <Search className="size-3 shrink-0 text-foreground-500" strokeWidth={1.75} />
-      <span className="font-mono text-[11px] text-white">timeout</span>
-      <span className="h-3 w-px animate-pulse bg-white/70" />
+  <div className="absolute inset-0 overflow-hidden pl-6">
+    <div className="flex items-start gap-1.5 rounded-l border-y border-l border-surface-up-3 bg-surface-down px-2 py-1.5">
+      <Search className="mt-1 size-3 shrink-0 text-foreground-500" strokeWidth={1.75} />
+      <div className="flex flex-wrap items-center gap-1">
+        {TAGS.map(([field, op, value]) => (
+          <span
+            key={field}
+            className="inline-flex h-[19px] items-center divide-x divide-surface-up-3 rounded border border-surface-up-3 bg-surface-down-2 font-mono text-[9px]"
+          >
+            <span className="px-1 text-foreground-300">{field}</span>
+            <span className="px-1 text-foreground-500">{op}</span>
+            <span className="px-1 text-foreground-100">{value}</span>
+            <span className="px-[3px]">
+              <X className="size-2 text-foreground-600" strokeWidth={2.5} />
+            </span>
+          </span>
+        ))}
+        <span className="text-[11px] text-white">timeout</span>
+        <span className="h-3 w-px animate-pulse bg-white/70" />
+      </div>
     </div>
 
-    <div className="mt-2 flex flex-wrap gap-1.5">
-      {FILTERS.map((filter) => (
-        <span
-          key={filter}
-          className="rounded border border-surface-400 bg-surface-200 px-1.5 py-[3px] font-mono text-[9px] text-foreground-400"
-        >
-          {filter}
-        </span>
-      ))}
-    </div>
-
-    <div className="mt-3 flex items-baseline gap-1.5">
+    <div className="mt-3.5 flex items-baseline gap-1.5">
       <span className="font-mono text-2xl leading-7 text-white">1,284</span>
       <span className="text-[10px] text-foreground-500">spans in 38 ms</span>
     </div>
 
-    <div className="mt-3 flex flex-col gap-1.5">
+    <div className="mt-3 flex flex-col gap-2">
       {RESULTS.map((result) => (
         <p key={result.before} className="truncate text-[10px] text-foreground-300">
           {result.before}
