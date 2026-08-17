@@ -47,8 +47,10 @@ const BYTES_PER_TOKEN_SHORT_RUN = BYTES_PER_TOKEN_FIT.a + BYTES_PER_TOKEN_FIT.c;
 const PRO_DATA_THRESHOLD_GB = 30;
 // Once the estimated Hobby bill clears this, Pro is the cheaper/safer pick.
 const HOBBY_TO_PRO_BILL_THRESHOLD_USD = 100;
-const ENTERPRISE_DATA_THRESHOLD_GB = 1000;
-const ENTERPRISE_SIGNAL_COST_THRESHOLD_USD = 500;
+// Enterprise is a bill-size question, not a usage question: whatever the mix of
+// data and Signals, once the best self-serve tier bills more than this it is
+// cheaper to be quoted.
+const ENTERPRISE_BILL_THRESHOLD_USD = 2500;
 
 // Token spend of one Signal run, fitted to the median of measured runs against
 // the size of the trace it analyzed (x in thousands of trace tokens).
@@ -78,8 +80,8 @@ interface UsageLine {
 }
 
 /** Everything the column renders is pre-formatted here, so the column itself
- *  holds no branches. The two raw numbers are for picking WHICH tier to show
- *  and are never displayed. */
+ *  holds no branches. `totalUsd` is for picking WHICH tier to show and is never
+ *  displayed. */
 interface TierEstimate {
   name: string;
   base: string;
@@ -87,7 +89,6 @@ interface TierEstimate {
   total: string;
   badges: string[];
   totalUsd: number;
-  signalCostUsd: number;
 }
 
 /** Evaluated at the PER-RUN token count, never the monthly total: dedup works
@@ -138,7 +139,6 @@ function buildEstimate(tier: Tier, dataGB: number, signalCostUsd: number): TierE
       total: "Custom",
       badges,
       totalUsd: 0,
-      signalCostUsd: 0,
     };
   }
 
@@ -156,7 +156,6 @@ function buildEstimate(tier: Tier, dataGB: number, signalCostUsd: number): TierE
     total: `$${formatDollars(totalUsd)}/mo`,
     badges,
     totalUsd,
-    signalCostUsd,
   };
 }
 
@@ -270,21 +269,16 @@ const TOOLTIPS: Record<CalculatorState, string> = {
   enterprise: "Most teams at this scale choose Enterprise as the safer, more cost-effective option.",
 };
 
-function getCalculatorState(
-  dataGB: number,
-  signalCostUsd: number,
-  freeTotal: number,
-  hobbyTotal: number,
-  proTotal: number
-): CalculatorState {
+function getCalculatorState(dataGB: number, freeTotal: number, hobbyTotal: number, proTotal: number): CalculatorState {
   if (dataGB <= 1 && freeTotal === 0) return "free";
-  if (dataGB >= ENTERPRISE_DATA_THRESHOLD_GB || signalCostUsd >= ENTERPRISE_SIGNAL_COST_THRESHOLD_USD) {
-    return "enterprise";
-  }
-  if (dataGB >= PRO_DATA_THRESHOLD_GB || hobbyTotal > HOBBY_TO_PRO_BILL_THRESHOLD_USD || proTotal < hobbyTotal) {
-    return "pro";
-  }
-  return "hobby";
+  const paid =
+    dataGB >= PRO_DATA_THRESHOLD_GB || hobbyTotal > HOBBY_TO_PRO_BILL_THRESHOLD_USD || proTotal < hobbyTotal
+      ? "pro"
+      : "hobby";
+  // Judged on the tier the reader would otherwise land on, so the threshold
+  // means "your bill", not "some tier's bill".
+  const paidTotal = paid === "pro" ? proTotal : hobbyTotal;
+  return paidTotal > ENTERPRISE_BILL_THRESHOLD_USD ? "enterprise" : paid;
 }
 
 interface SliderBlockProps {
@@ -325,13 +319,7 @@ export default function PricingCalculator() {
     enterprise: buildEstimate("enterprise", dataGB, 0),
   };
 
-  const state = getCalculatorState(
-    dataGB,
-    estimates.hobby.signalCostUsd,
-    estimates.free.totalUsd,
-    estimates.hobby.totalUsd,
-    estimates.pro.totalUsd
-  );
+  const state = getCalculatorState(dataGB, estimates.free.totalUsd, estimates.hobby.totalUsd, estimates.pro.totalUsd);
   const preview = <TierColumn estimate={estimates[state]} tooltip={TOOLTIPS[state]} />;
 
   return (
