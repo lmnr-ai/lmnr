@@ -50,15 +50,23 @@ const HOBBY_TO_PRO_BILL_THRESHOLD_USD = 100;
 const ENTERPRISE_DATA_THRESHOLD_GB = 1000;
 const ENTERPRISE_SIGNAL_COST_THRESHOLD_USD = 500;
 
-// Signals don't re-read a trace token-for-token. Laminar compresses each trace
-// and feeds a Signal only the parts it needs, so the tokens billed are a small
-// fraction of the tokens the agent originally spent. On average a trace
-// compresses to ~10% of its original size; in practice it's often much smaller
-// and depends on the agent. This factor is the share of raw trace tokens that
-// reach a Signal as input after compression.
-const TRACE_TO_SIGNAL_COMPRESSION = 0.1;
-// Signal events are small structured outputs relative to the input they read.
-const SIGNAL_OUTPUT_RATIO = 0.02;
+// Token spend of one Signal run, fitted to the median of measured runs against
+// the size of the trace it analyzed (x in thousands of trace tokens).
+//
+// Neither is proportional to the trace. Laminar compresses each trace before a
+// Signal reads it, so input is mostly fixed prompt overhead and grows only as
+// √x. Output hardly grows at all: a Signal event is a fixed-shape object, so
+// the line is nearly flat and its intercept dominates across the whole slider.
+const SIGNAL_INPUT_FIT = { a: 892.402, b: 7729.86 }; // y = a·√x + b   SSE 22.1M
+const SIGNAL_OUTPUT_FIT = { a: 2.0633, b: 2176.64 }; // y = a·x + b    SSE 2.08M
+
+function signalInputTokens(tokensPerRun: number): number {
+  return SIGNAL_INPUT_FIT.a * Math.sqrt(tokensPerRun / 1_000) + SIGNAL_INPUT_FIT.b;
+}
+
+function signalOutputTokens(tokensPerRun: number): number {
+  return (SIGNAL_OUTPUT_FIT.a * tokensPerRun) / 1_000 + SIGNAL_OUTPUT_FIT.b;
+}
 
 /** One metered line, read as "used against what the tier includes". */
 interface UsageLine {
@@ -94,16 +102,14 @@ function estimateDataGB(runs: number, tokensPerRun: number): number {
   return (runs * tokensPerRun * bytesPerToken(tokensPerRun)) / 1_000_000_000;
 }
 
-// Dollar cost of running Signals over `signalCoverage`% of `tokens` trace
-// tokens, after trace compression, at the given tier's signal token rates
-// (Pro is discounted). Returns USD.
-function estimateSignalCostUsd(tokens: number, signalCoveragePct: number, tier: Tier): number {
-  const evaluatedTokens = tokens * (signalCoveragePct / 100);
-  const signalInputTokens = evaluatedTokens * TRACE_TO_SIGNAL_COMPRESSION;
-  const signalOutputTokens = signalInputTokens * SIGNAL_OUTPUT_RATIO;
-  return (
-    (signalInputTokens / 1_000_000) * signalInputRate(tier) + (signalOutputTokens / 1_000_000) * signalOutputRate(tier)
-  );
+// Dollar cost of running one Signal over `signalCoveragePct`% of the month's
+// runs, at the given tier's signal token rates (Pro is discounted). Priced per
+// analyzed run, since both fits describe a single Signal run. Returns USD.
+function estimateSignalCostUsd(runs: number, tokensPerRun: number, signalCoveragePct: number, tier: Tier): number {
+  const analyzedRuns = runs * (signalCoveragePct / 100);
+  const inputTokens = analyzedRuns * signalInputTokens(tokensPerRun);
+  const outputTokens = analyzedRuns * signalOutputTokens(tokensPerRun);
+  return (inputTokens / 1_000_000) * signalInputRate(tier) + (outputTokens / 1_000_000) * signalOutputRate(tier);
 }
 
 /** A line costs nothing until usage passes the allowance; past it, the charge
@@ -307,17 +313,15 @@ export default function PricingCalculator() {
 
   const runs = RUN_STEPS[runsIdx];
   const tokensPerRun = TOKENS_PER_RUN_STEPS[tokensPerRunIdx];
-  // The two sliders multiply; everything downstream still prices one total.
-  const tokens = runs * tokensPerRun;
   const dataGB = estimateDataGB(runs, tokensPerRun);
   const coveragePct = COVERAGE_STEPS[coverageIdx];
 
   // Signal cost is tier-dependent (Pro is discounted), so each estimate prices
   // at its own rate.
   const estimates: Record<CalculatorState, TierEstimate> = {
-    free: buildEstimate("free", dataGB, estimateSignalCostUsd(tokens, coveragePct, "free")),
-    hobby: buildEstimate("hobby", dataGB, estimateSignalCostUsd(tokens, coveragePct, "hobby")),
-    pro: buildEstimate("pro", dataGB, estimateSignalCostUsd(tokens, coveragePct, "pro")),
+    free: buildEstimate("free", dataGB, estimateSignalCostUsd(runs, tokensPerRun, coveragePct, "free")),
+    hobby: buildEstimate("hobby", dataGB, estimateSignalCostUsd(runs, tokensPerRun, coveragePct, "hobby")),
+    pro: buildEstimate("pro", dataGB, estimateSignalCostUsd(runs, tokensPerRun, coveragePct, "pro")),
     enterprise: buildEstimate("enterprise", dataGB, 0),
   };
 
@@ -362,11 +366,10 @@ export default function PricingCalculator() {
           This estimate sizes stored trace data from a curve fitted to real traces, where a token costs about{" "}
           {BYTES_PER_TOKEN_SHORT_RUN.toFixed(1)} bytes on a short run and falls toward{" "}
           {BYTES_PER_TOKEN_FIT.c.toFixed(2)} bytes on a long one (long runs repeat their context, and Laminar dedupes
-          the repeats). It also assumes that a Signal reads {TRACE_TO_SIGNAL_COMPRESSION * 100}% of a run&apos;s tokens
-          (Laminar compresses each trace and feeds a Signal only the part it needs) and writes back{" "}
-          {SIGNAL_OUTPUT_RATIO * 100}% of what it reads, and that Signal tokens are metered at{" "}
-          {formatSignalsOverageShort("pro")} on Pro. Data past the included allowance is {formatDataOverage("pro")} on
-          Pro.
+          the repeats). Signal cost comes from the same kind of fit over real Signal runs: at this run size a Signal
+          reads about {formatTokens(signalInputTokens(tokensPerRun))} tokens and writes about{" "}
+          {formatTokens(signalOutputTokens(tokensPerRun))}, metered at {formatSignalsOverageShort("pro")} on Pro. Data
+          past the included allowance is {formatDataOverage("pro")} on Pro.
         </p>
       </div>
     </div>
