@@ -46,7 +46,7 @@ const Card = ({ title, description, href, Graphic }: CardDef) => {
         onMouseLeave={() => setRaised(false)}
         onFocus={() => setRaised(true)}
         onBlur={() => setRaised(false)}
-        className="group font-sans-landing relative overflow-hidden flex flex-col h-[420px] rounded transition-colors duration-300"
+        className="group font-sans-landing relative overflow-hidden flex flex-col h-[420px] rounded transition-colors duration-300 [--card-glow-opacity:0.3]"
       >
         <CardHoverGlow />
         <div className="relative flex flex-col gap-2.5 pl-6 pr-5 pt-5">

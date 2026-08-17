@@ -8,10 +8,9 @@ import Image from "next/image";
 // from painting outside the card while it travels.
 //
 // Every tunable is a CSS custom property with its default inline in the class,
-// so ./card-glow-dials can retune the whole page by setting five properties on
-// :root and production, where nothing sets them, runs on the fallbacks. Do not
-// move the defaults into a `style` prop — inline styles outrank :root, and the
-// dials would stop working.
+// so a caller can retune one grid without touching the others: set
+// `--card-glow-opacity` (or any of the five) on the card and the glow inherits
+// it. ./features-for-every-step/card does exactly that.
 //
 // The file is 721x314 but the shape only occupies the middle 521x114 — the blur
 // needs 100px of bleed on every side. Hence the negative offset defaults, which

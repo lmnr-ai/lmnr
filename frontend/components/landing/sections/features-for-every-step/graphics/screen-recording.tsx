@@ -7,8 +7,8 @@ import { SpanType } from "@/lib/traces/types";
 // span that was running; selecting a span moves the player to it.
 const SPANS = [
   { name: "goto(search)", type: SpanType.TOOL, at: "00:00" },
-  { name: "click(offer)", type: SpanType.TOOL, at: "00:07" },
-  { name: "chat.completion", type: SpanType.LLM, at: "00:11", active: true },
+  { name: "click(offer)", type: SpanType.TOOL, at: "00:07", active: true },
+  { name: "chat.completion", type: SpanType.LLM, at: "00:11" },
   { name: "fill(passenger)", type: SpanType.TOOL, at: "00:18" },
 ];
 
