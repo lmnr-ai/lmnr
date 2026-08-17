@@ -209,9 +209,18 @@ const MorphingSignalCard = ({ collapsed = false, durationMs = 0, progress, showP
           >
             {SIGNAL_EVENT_TITLE}
           </motion.span>
-          {/* Fades well before the card's right edge reaches it. */}
+          {/* Fades well before the card's right edge reaches it.
+              `p-0.5` is LOAD-BEARING, not styling: it mirrors the padding on
+              SignalContent's close BUTTON, so this 16px icon occupies the same
+              20px the canonical control does (the height SIGNAL_HEADER_H is
+              derived from). The header row is `items-center`, so its height is
+              its tallest child — without the padding this card's natural height
+              comes out 4px under SignalContent's, and the step-6 flight hands
+              off between the two mid-scroll. Top-left stays aligned either way,
+              so the shortfall reads as the card jumping 2px UP as it detaches. */}
           <motion.span
             initial={false}
+            className="shrink-0 p-0.5"
             style={scrubbed ? { opacity: contentOpacity } : undefined}
             animate={scrubbed ? undefined : { opacity: collapsedNow ? 0 : 1 }}
             transition={fadeTransition}
