@@ -11,9 +11,9 @@ interface Props {
 }
 
 // Absolutely-positioned label that sits at the bottom of a mock panel
-// (a surface-500 wrapper). The parent must be `relative`. Pattern:
+// (a surface-250 wrapper). The parent must be `relative`. Pattern:
 //
-//   <div className="bg-surface-500 relative ...">
+//   <div className="bg-surface-250 relative ...">
 //     <Mock />
 //     <SectionFootnote name="Evals" href="..." />
 //   </div>
