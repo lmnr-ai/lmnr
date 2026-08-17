@@ -122,4 +122,34 @@ export const clamp01 = (t: number) => Math.min(Math.max(t, 0), 1);
  *  zero span, which a dial can produce by dragging a bar shut. */
 export const phase = (t: number, at: number, span: number) => clamp01((t - at) / Math.max(span, 1e-6));
 
+// Easing for SCROLL-BOUND travel, which is not the same problem as easing a
+// timed animation. The reader owns the playhead, so their scroll speed is
+// already the outer velocity envelope; an ease-OUT on top of it spends half the
+// travel in the first fifth of the scroll and then crawls, which reads as the
+// element getting away from you. So ease-IN-OUT is the default here and
+// ease-out is the exception, the reverse of the usual rule.
+//
+// What linear actually costs is a velocity discontinuity at BOTH ends of every
+// phase — the derivative jumps 0→v at `at` and v→0 at `at + span`. On its own
+// that is a small tick; the phases here overlap deliberately, so the ticks land
+// on top of each other. Pick a curve by what the motion IS:
+//
+//   departure from rest, arriving into formation   easeInOutCubic
+//   arrival from off-frame, no prior rest state    easeOutCubic
+//   transformation overlapped on BOTH sides        smootherstep
+//   absorbed into occlusion                       easeInCubic
+//
+// Applied at the CONSUMPTION site, per property — see ./signal-stack's header.
 export const easeOutCubic = (t: number) => 1 - (1 - t) ** 3;
+
+/** Accelerates the whole way. For something being taken IN rather than coming
+ *  to rest: it should look pulled, not like it is gliding to a stop. */
+export const easeInCubic = (t: number) => t ** 3;
+
+export const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
+
+/** Quintic smoothstep. Zero velocity AND zero acceleration at both ends, where
+ *  the cubic only zeroes velocity — so a phase that hands off mid-motion to
+ *  another has no perceptible kink at either seam. Worth the extra two
+ *  multiplies only for the phases that are actually overlapped. */
+export const smootherstep = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);

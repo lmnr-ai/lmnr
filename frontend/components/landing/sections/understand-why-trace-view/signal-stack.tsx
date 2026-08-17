@@ -7,7 +7,7 @@ import MorphingSignalCard, { type PillMetrics } from "../has-this-issue/morphing
 import { SIGNAL_CLUSTER_EVENT_COUNT } from "../signal-cluster";
 import { SIGNAL_CARD_W } from "../signal-event-card";
 import { FRAME_H, FRAME_W } from "./geometry";
-import { phase, type StackTiming } from "./stack-timing";
+import { easeInCubic, easeInOutCubic, easeOutCubic, phase, smootherstep, type StackTiming } from "./stack-timing";
 
 // The last step — the signal card leaves the trace panel, becomes the front of
 // a receding stack of identical cards, collapses into its cluster pill, and
@@ -35,6 +35,29 @@ import { phase, type StackTiming } from "./stack-timing";
 // It is also why nothing needs scale correction: the card is SIGNAL_CARD_W in
 // the panel and SIGNAL_CARD_W in the stack, so the flight is a pure translate.
 // Give the stack cards a different width and the text starts stretching.
+//
+// EASING IS PER-PROPERTY, AND THAT SPLIT IS LOAD-BEARING. Each phase arrives
+// linear and is eased HERE, once, into a sibling value; ../stack-timing's header
+// explains which curve and why. The rule for choosing between them:
+//
+//   POSITION and GEOMETRY  eased    the kink at a phase boundary is visible
+//   OPACITY                linear   an eased fade-in reads as a delay
+//
+// Do NOT "simplify" this by easing the phases at their source in ./index. Three
+// things break at once: every fade below picks up the curve, the depth-ladder
+// opacity stops tracking the cards it describes, and `entry` — which is a
+// `phase()` OF the flight — would have its window non-linearly reshaped, so the
+// entryStart dial would no longer mean the fraction of the flight it says.
+const easeFor = {
+  /** Leaves a card at rest, lands in a waiting formation. */
+  flight: easeInOutCubic,
+  /** Overlapped by cardRise on the way out; must be near-stopped at its end. */
+  collapse: smootherstep,
+  /** Taken in by the clusters card. */
+  pillEnter: easeInCubic,
+  /** Arrives from off-frame with no prior rest state, so it decelerates in. */
+  entry: easeOutCubic,
+};
 
 /** The stack IS the cluster's events, so the pill's count and the number of
  *  cards are one number. */
@@ -143,9 +166,12 @@ interface StackCardProps {
    *  live card slots into a formation that is already waiting for it. */
   anchorX: MotionValue<number>;
   anchorY: MotionValue<number>;
-  /** 0 = off-frame, 1 = arrived in its slot. */
+  /** 0 = off-frame, 1 = arrived in its slot. Raw drives the fades, eased the
+   *  travel — see the easing note in this file's header. */
   entry: MotionValue<number>;
+  entryEased: MotionValue<number>;
   collapse: MotionValue<number>;
+  collapseEased: MotionValue<number>;
   timing: StackTiming;
   onMeasure?: (metrics: PillMetrics) => void;
 }
@@ -161,7 +187,20 @@ interface StackCardProps {
 //
 // No explicit width — the wrapper shrink-wraps the morphing card, so the
 // backing tracks the collapse for free instead of duplicating its transforms.
-const StackCard = ({ slot, liveSlot, x, y, anchorX, anchorY, entry, collapse, timing, onMeasure }: StackCardProps) => {
+const StackCard = ({
+  slot,
+  liveSlot,
+  x,
+  y,
+  anchorX,
+  anchorY,
+  entry,
+  entryEased,
+  collapse,
+  collapseEased,
+  timing,
+  onMeasure,
+}: StackCardProps) => {
   const offset = slot - liveSlot;
   const isLive = offset === 0;
 
@@ -179,7 +218,10 @@ const StackCard = ({ slot, liveSlot, x, y, anchorX, anchorY, entry, collapse, ti
   //
   //   entrySpread ──▶ 1 ──▶ 0
   //   off-frame     slot    on the pill
-  const factor = useTransform([entry, collapse], ([e, c]: number[]) => mix(timing.entrySpread, 1, e) * (1 - c));
+  const factor = useTransform(
+    [entryEased, collapseEased],
+    ([e, c]: number[]) => mix(timing.entrySpread, 1, e) * (1 - c)
+  );
   const cx = useTransform([baseX, factor], ([vx, f]: number[]) => vx + offset * timing.dx * f);
   const cy = useTransform([baseY, factor], ([vy, f]: number[]) => vy + offset * timing.dy * f);
 
@@ -200,7 +242,10 @@ const StackCard = ({ slot, liveSlot, x, y, anchorX, anchorY, entry, collapse, ti
     <motion.div aria-hidden={!isLive} className="absolute top-0 left-0" style={{ x: cx, y: cy }}>
       <motion.div className="absolute inset-0 rounded-md bg-surface-400" style={{ opacity: backing }} />
       <motion.div className="relative" style={{ opacity }}>
-        <MorphingSignalCard progress={collapse} showPill={isLive} onMeasure={onMeasure} />
+        {/* Eased: this is the card's BOX shrinking. Its own internal fades are
+            keyed to fractions of the collapse's geometry, not of the scroll, so
+            they stay locked to the shape they were tuned against. */}
+        <MorphingSignalCard progress={collapseEased} showPill={isLive} onMeasure={onMeasure} />
       </motion.div>
     </motion.div>
   );
@@ -244,8 +289,14 @@ const SignalStack = ({ flight, collapse, pillEnter, pillRestY, visible, timing }
   // offset rather than a translate.
   const pillX = pill ? (FRAME_W - pill.width) / 2 : liveX;
 
-  const x = useTransform([flight, collapse], ([f, c]: number[]) => mix(mix(from.x, liveX, f), pillX, c));
-  const y = useTransform([flight, collapse, pillEnter], ([f, c, e]: number[]) => {
+  // The eased siblings. Position and geometry read these; the fades below keep
+  // reading the raw phases. See this file's header for why they are separate.
+  const flightEased = useTransform(flight, easeFor.flight);
+  const collapseEased = useTransform(collapse, easeFor.collapse);
+  const pillEnterEased = useTransform(pillEnter, easeFor.pillEnter);
+
+  const x = useTransform([flightEased, collapseEased], ([f, c]: number[]) => mix(mix(from.x, liveX, f), pillX, c));
+  const y = useTransform([flightEased, collapseEased, pillEnterEased], ([f, c, e]: number[]) => {
     const parked = mix(mix(from.y, liveY, f), pillRestY, c);
     // Down past the card's top edge, so the pill is fully roofed by it. The
     // card is painted OVER the pill, so the rest of the travel is out of sight.
@@ -253,8 +304,8 @@ const SignalStack = ({ flight, collapse, pillEnter, pillRestY, visible, timing }
   });
 
   // The same two paths with the flight pinned at 1 — see `anchorX` on StackCard.
-  const anchorX = useTransform(collapse, (c) => mix(liveX, pillX, c));
-  const anchorY = useTransform([collapse, pillEnter], ([c, e]: number[]) => {
+  const anchorX = useTransform(collapseEased, (c) => mix(liveX, pillX, c));
+  const anchorY = useTransform([collapseEased, pillEnterEased], ([c, e]: number[]) => {
     const parked = mix(liveY, pillRestY, c);
     return parked + e * ((pill?.height ?? 0) + timing.pillEnterDepth);
   });
@@ -262,7 +313,10 @@ const SignalStack = ({ flight, collapse, pillEnter, pillRestY, visible, timing }
   /** The other runs sliding in from off-frame, late in the flight — but landing
    *  BEFORE it ends, so the formation is already waiting when the live card
    *  arrives rather than everything converging on the same frame. */
+  // Cut from the RAW flight, so `entryStart` still means the fraction of the
+  // flight's scroll span the dial says it does. Eased afterwards, not before.
   const entry = useTransform(flight, (f) => phase(f, timing.entryStart, ENTRY_END - timing.entryStart));
+  const entryEased = useTransform(entry, easeFor.entry);
 
   // Absorbed, not merely covered: the last of the pill visible above the card's
   // edge is already half gone. The ramp finishes EARLY because the card is
@@ -283,7 +337,9 @@ const SignalStack = ({ flight, collapse, pillEnter, pillRestY, visible, timing }
           anchorX={anchorX}
           anchorY={anchorY}
           entry={entry}
+          entryEased={entryEased}
           collapse={collapse}
+          collapseEased={collapseEased}
           timing={timing}
           onMeasure={slot === liveSlot ? setPill : undefined}
         />
