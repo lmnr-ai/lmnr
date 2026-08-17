@@ -57,17 +57,20 @@ const ENTERPRISE_BILL_THRESHOLD_USD = 2500;
 //
 // Neither is proportional to the trace. Laminar compresses each trace before a
 // Signal reads it, so input is mostly fixed prompt overhead and grows only as
-// √x. Output hardly grows at all: a Signal event is a fixed-shape object, so
-// the line is nearly flat and its intercept dominates across the whole slider.
-const SIGNAL_INPUT_FIT = { a: 892.402, b: 7729.86 }; // y = a·√x + b   SSE 22.1M
-const SIGNAL_OUTPUT_FIT = { a: 2.0633, b: 2176.64 }; // y = a·x + b    SSE 2.08M
+// √x. Output must saturate: a Signal event is a fixed-shape object, and across
+// 1,212 measured runs its median holds near 3-4K from 100K-token traces to
+// 10M-token ones. A linear output fit scored marginally worse here and then
+// predicted 40K output tokens on a 10M-token trace against 3.4K actual.
+const SIGNAL_INPUT_FIT = { a: 892.402, b: 7729.86 }; // y = a·√x + b            SSE 22.1M
+const SIGNAL_OUTPUT_FIT = { a: 3575.6, b: 0.000961453, c: 2080.5 }; // y = a·(1−e^(−b·x)) + c  SSE 1.87M
 
 function signalInputTokens(tokensPerRun: number): number {
   return SIGNAL_INPUT_FIT.a * Math.sqrt(tokensPerRun / 1_000) + SIGNAL_INPUT_FIT.b;
 }
 
 function signalOutputTokens(tokensPerRun: number): number {
-  return (SIGNAL_OUTPUT_FIT.a * tokensPerRun) / 1_000 + SIGNAL_OUTPUT_FIT.b;
+  const { a, b, c } = SIGNAL_OUTPUT_FIT;
+  return a * (1 - Math.exp((-b * tokensPerRun) / 1_000)) + c;
 }
 
 /** One metered line, read as "used against what the tier includes". */
