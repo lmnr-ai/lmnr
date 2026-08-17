@@ -41,6 +41,13 @@ import { useEvaluationsProgression } from "./use-evaluations-progression";
 
 const baseColumns: ColumnDef<Evaluation>[] = [
   {
+    id: "status",
+    accessorFn: (row) => row.status,
+    cell: EvaluationStatusCell,
+    header: "Status",
+    size: 81,
+  },
+  {
     accessorKey: "id",
     cell: (row) => {
       const id = String(row.getValue());
@@ -59,13 +66,6 @@ const baseColumns: ColumnDef<Evaluation>[] = [
     accessorKey: "name",
     header: "Name",
     size: 300,
-  },
-  {
-    id: "status",
-    accessorFn: (row) => row.status,
-    cell: EvaluationStatusCell,
-    header: "Status",
-    size: 160,
   },
   {
     id: "dataPointsCount",
@@ -210,6 +210,10 @@ function EvaluationsContent() {
 
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: "evaluations-sidebar-layout",
+    storage: layoutStorage,
+  });
+  const { defaultLayout: chartLayout, onLayoutChanged: onChartLayoutChanged } = useDefaultLayout({
+    id: "evaluations-chart-layout",
     storage: layoutStorage,
   });
 
@@ -385,8 +389,20 @@ function EvaluationsContent() {
               </label>
             </div>
           </div>
-          <ResizablePanelGroup id="evaluations-panels" className="overflow-hidden" orientation="vertical">
-            <ResizablePanel className="min-w-0" minSize={160} maxSize={500} defaultSize={220}>
+          <ResizablePanelGroup
+            id="evaluations-panels"
+            className="overflow-hidden"
+            orientation="vertical"
+            defaultLayout={chartLayout}
+            onLayoutChanged={onChartLayoutChanged}
+          >
+            <ResizablePanel
+              id="evaluations-chart-panel"
+              className="min-w-0"
+              minSize={160}
+              maxSize={500}
+              defaultSize={220}
+            >
               <ProgressionChart
                 data={progression}
                 isLoading={isProgressionLoading}
@@ -406,7 +422,12 @@ function EvaluationsContent() {
                 isResizingChart && "bg-blue-400"
               )}
             />
-            <ResizablePanel className="flex flex-1 w-full overflow-hidden" minSize={40} defaultSize={40}>
+            <ResizablePanel
+              id="evaluations-table-panel"
+              className="flex flex-1 w-full overflow-hidden"
+              minSize={40}
+              defaultSize={40}
+            >
               <EvaluationsTableContents
                 filter={filter}
                 search={search}

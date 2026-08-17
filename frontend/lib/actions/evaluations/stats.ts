@@ -7,8 +7,8 @@ export type EvaluationRunStats = EvaluationStatusCounts & { status: EvaluationSt
 
 /**
  * Per-eval datapoint counters for a set of evaluation ids: the datapoint count
- * plus the three completion axes the run status is derived from (root span
- * arrived, scores arrived, trace errored) and the last write time.
+ * plus the completion axes the run status is derived from (root span arrived,
+ * scores arrived, trace errored, and per-row complete) and the last write time.
  *
  * One grouped ClickHouse query, always scoped to an explicit id list — this
  * runs per table page, so it must never be unbounded. The counters ride the
@@ -28,6 +28,7 @@ export const getEvaluationRunStats = async (
     rooted: number;
     scored: number;
     errored: number;
+    complete: number;
     lastUpdatedAt: string;
   }>({
     projectId,
@@ -38,6 +39,14 @@ export const getEvaluationRunStats = async (
         toFloat64(countIf(top_span_id != {nilUuid:UUID})) AS rooted,
         toFloat64(countIf(scores != '' AND scores != '{}')) AS scored,
         toFloat64(countIf(trace_status = 'error')) AS errored,
+        toFloat64(countIf(
+          trace_status = 'error'
+          OR (
+            top_span_id != {nilUuid:UUID}
+            AND scores != ''
+            AND scores != '{}'
+          )
+        )) AS complete,
         formatDateTime(max(updated_at), '%Y-%m-%dT%H:%i:%S.%fZ') AS lastUpdatedAt
       FROM evaluation_datapoints
       WHERE evaluation_id IN {evaluationIds:Array(UUID)}
@@ -52,6 +61,7 @@ export const getEvaluationRunStats = async (
       rooted: Number(row.rooted) || 0,
       scored: Number(row.scored) || 0,
       errored: Number(row.errored) || 0,
+      complete: Number(row.complete) || 0,
       lastUpdatedAt: row.lastUpdatedAt,
     };
     stats.set(row.evaluationId, { ...counts, status: deriveEvaluationStatus(counts) });
@@ -61,7 +71,14 @@ export const getEvaluationRunStats = async (
   // than leaving the caller to guess from a missing key.
   for (const id of evaluationIds) {
     if (stats.has(id)) continue;
-    const counts: EvaluationStatusCounts = { total: 0, rooted: 0, scored: 0, errored: 0, lastUpdatedAt: null };
+    const counts: EvaluationStatusCounts = {
+      total: 0,
+      rooted: 0,
+      scored: 0,
+      errored: 0,
+      complete: 0,
+      lastUpdatedAt: null,
+    };
     stats.set(id, { ...counts, status: deriveEvaluationStatus(counts) });
   }
 

@@ -13,7 +13,7 @@ export type Evaluation = {
   dataPointsCount?: number;
   /** Derived run status. Decorated per page by `getEvaluations`. */
   status?: EvaluationStatus;
-  /** The counters `status` was derived from, for the tooltip. */
+  /** The counters `status` was derived from. */
   statusCounts?: { total: number; rooted: number; scored: number; errored: number };
 };
 

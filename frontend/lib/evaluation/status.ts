@@ -2,20 +2,17 @@
  * Eval-level run status, derived from aggregates over the eval's ClickHouse
  * datapoints (LAM-2062).
  *
- * A datapoint is COMPLETE when both halves have landed: its trace's root span
- * (`top_span_id` is non-nil) and its scores (`scores` is a non-empty JSON
- * object). The two arrive on independent paths — scores via the SDK's
- * `POST /v1/evals/{id}/datapoints` update, the root span via trace ingestion —
- * so "some rooted, some scored" is a normal intermediate state, not a bug.
+ * A datapoint is COMPLETE when it has both halves (root span + scores) OR its
+ * trace errored. Error is terminal — evaluators often never run, so waiting on
+ * scores would leave a failed run stuck in `incomplete`. Scores can still land
+ * on an errored datapoint (child-span exception, executor kept going); that
+ * stays `finishedWithErrors`.
  *
- * The hard constraint shaping these states: there is NO expected-datapoint
- * count anywhere. `evaluations` (Postgres) stores only id/name/group/metadata,
- * and the SDK never declares how many datapoints a run will produce. So "all
- * datapoints arrived" is unknowable — we can only see the rows that exist. That
- * is why a pure finished/in-progress split is not enough: an eval whose process
- * crashed mid-run is indistinguishable from one still working, EXCEPT by
- * staleness. Hence the `incomplete` state, split off `running` purely by how
- * long it has been since anything last changed.
+ * There is NO expected-datapoint count. `evaluations` (Postgres) stores only
+ * id/name/group/metadata, and the SDK never declares how many datapoints a run
+ * will produce. A crashed mid-run eval is indistinguishable from a live one
+ * except by staleness — hence `incomplete`, split off `running` by how long
+ * since anything last changed.
  */
 export type EvaluationStatus =
   /** No datapoints at all. The run was registered but never saved anything. */
@@ -26,7 +23,7 @@ export type EvaluationStatus =
   | "incomplete"
   /** Every datapoint is rooted + scored, and no trace errored. */
   | "finished"
-  /** Every datapoint is rooted + scored, but at least one trace errored. */
+  /** Every datapoint settled (rooted+scored, or errored). At least one error. */
   | "finishedWithErrors";
 
 /** Per-eval datapoint counters, as aggregated in ClickHouse. */
@@ -39,6 +36,11 @@ export type EvaluationStatusCounts = {
   scored: number;
   /** Datapoints whose trace resolved to an error status. */
   errored: number;
+  /**
+   * Datapoints that are done: (rooted AND scored) OR errored.
+   * Per-row in ClickHouse — `scored + errored` double-counts overlap.
+   */
+  complete: number;
   /** Most recent datapoint write, ISO string. Absent when there are none. */
   lastUpdatedAt?: string | null;
 };
@@ -60,17 +62,13 @@ export const EVALUATION_STALE_AFTER_MS = 15 * 60 * 1000;
  * boundary is testable.
  */
 export const deriveEvaluationStatus = (counts: EvaluationStatusCounts, now: number = Date.now()): EvaluationStatus => {
-  const { total, rooted, scored, errored, lastUpdatedAt } = counts;
+  const { total, complete, errored, lastUpdatedAt } = counts;
 
   if (total <= 0) return "empty";
 
-  // An errored trace never produces a root span, so it can't reach `rooted`.
-  // Counting it as settled is what lets an all-failed run terminate instead of
-  // spinning as `running` forever.
-  const settled = Math.min(total, Math.max(rooted, 0) + Math.max(errored, 0));
-  const complete = settled >= total && Math.max(scored, 0) >= total;
-
-  if (complete) return errored > 0 ? "finishedWithErrors" : "finished";
+  if (Math.min(total, Math.max(complete, 0)) >= total) {
+    return errored > 0 ? "finishedWithErrors" : "finished";
+  }
 
   const lastUpdate = lastUpdatedAt ? Date.parse(lastUpdatedAt) : NaN;
   // Unparseable / absent timestamp: prefer `running`, the non-alarming read.
