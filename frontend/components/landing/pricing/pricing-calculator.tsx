@@ -36,7 +36,14 @@ const COVERAGE_STEPS = [1, 5, 10, 25, 50, 75, 100];
 const DEFAULT_RUNS_IDX = 3;
 const DEFAULT_TOKENS_PER_RUN_IDX = 6;
 
-const BYTES_PER_TOKEN = 3;
+// Bytes of stored trace data per agent token, fitted to measured traces as a
+// saturating exponential decay in the size of the run: y = a·e^(−b·x) + c,
+// with x in thousands of tokens (SSE 1.329). A token costs ~2.8 bytes on a
+// short run and decays toward ~0.22 on a long one, because long runs repeat
+// their context and dedup collapses the repeats.
+const BYTES_PER_TOKEN_FIT = { a: 2.548, b: 0.002661, c: 0.2221 };
+const BYTES_PER_TOKEN_SHORT_RUN = BYTES_PER_TOKEN_FIT.a + BYTES_PER_TOKEN_FIT.c;
+
 const PRO_DATA_THRESHOLD_GB = 30;
 // Once the estimated Hobby bill clears this, Pro is the cheaper/safer pick.
 const HOBBY_TO_PRO_BILL_THRESHOLD_USD = 100;
@@ -75,8 +82,16 @@ interface TierEstimate {
   signalCostUsd: number;
 }
 
-function estimateDataFromTokens(tokens: number): number {
-  return (tokens * BYTES_PER_TOKEN) / 1_000_000_000;
+/** Evaluated at the PER-RUN token count, never the monthly total: dedup works
+ *  within a trace, so a month of small runs stores far more per token than one
+ *  long run of the same total size. */
+function bytesPerToken(tokensPerRun: number): number {
+  const { a, b, c } = BYTES_PER_TOKEN_FIT;
+  return a * Math.exp((-b * tokensPerRun) / 1_000) + c;
+}
+
+function estimateDataGB(runs: number, tokensPerRun: number): number {
+  return (runs * tokensPerRun * bytesPerToken(tokensPerRun)) / 1_000_000_000;
 }
 
 // Dollar cost of running Signals over `signalCoverage`% of `tokens` trace
@@ -294,7 +309,7 @@ export default function PricingCalculator() {
   const tokensPerRun = TOKENS_PER_RUN_STEPS[tokensPerRunIdx];
   // The two sliders multiply; everything downstream still prices one total.
   const tokens = runs * tokensPerRun;
-  const dataGB = estimateDataFromTokens(tokens);
+  const dataGB = estimateDataGB(runs, tokensPerRun);
   const coveragePct = COVERAGE_STEPS[coverageIdx];
 
   // Signal cost is tier-dependent (Pro is discounted), so each estimate prices
@@ -344,11 +359,14 @@ export default function PricingCalculator() {
         {/* Values come from the constants and rate helpers the estimate itself
             uses, so the copy cannot drift from the numbers it describes. */}
         <p className={cn(microLabel, "text-foreground-300 text-sm")}>
-          This estimate assumes {BYTES_PER_TOKEN} bytes of stored trace data per agent token, that a Signal reads{" "}
-          {TRACE_TO_SIGNAL_COMPRESSION * 100}% of a run&apos;s tokens (Laminar compresses each trace and feeds a Signal
-          only the part it needs) and writes back {SIGNAL_OUTPUT_RATIO * 100}% of what it reads, and that Signal tokens
-          are metered at {formatSignalsOverageShort("pro")} on Pro. Data past the included allowance is{" "}
-          {formatDataOverage("pro")} on Pro.
+          This estimate sizes stored trace data from a curve fitted to real traces, where a token costs about{" "}
+          {BYTES_PER_TOKEN_SHORT_RUN.toFixed(1)} bytes on a short run and falls toward{" "}
+          {BYTES_PER_TOKEN_FIT.c.toFixed(2)} bytes on a long one (long runs repeat their context, and Laminar dedupes
+          the repeats). It also assumes that a Signal reads {TRACE_TO_SIGNAL_COMPRESSION * 100}% of a run&apos;s tokens
+          (Laminar compresses each trace and feeds a Signal only the part it needs) and writes back{" "}
+          {SIGNAL_OUTPUT_RATIO * 100}% of what it reads, and that Signal tokens are metered at{" "}
+          {formatSignalsOverageShort("pro")} on Pro. Data past the included allowance is {formatDataOverage("pro")} on
+          Pro.
         </p>
       </div>
     </div>
