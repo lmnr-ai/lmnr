@@ -26,7 +26,7 @@ export const CARD_GLOW_DEFAULTS = {
   slide: 180,
   durationMs: 1600,
   /** The artwork is a solid fill, so this alone is what makes it faint. */
-  opacity: 0.2,
+  opacity: 0.1,
   offsetX: -140,
   offsetY: -228,
 };
@@ -34,7 +34,7 @@ export const CARD_GLOW_DEFAULTS = {
 const CardHoverGlow = () => (
   <span
     aria-hidden
-    className="pointer-events-none absolute max-w-none w-[721px] bottom-[var(--card-glow-y,-228px)] right-[var(--card-glow-x,-140px)] translate-x-[var(--card-glow-slide,180px)] opacity-0 transition-[opacity,transform] ease-out duration-[var(--card-glow-ms,1600ms)] group-hover:translate-x-0 group-hover:opacity-[var(--card-glow-opacity,0.2)]"
+    className="pointer-events-none absolute max-w-none w-[721px] bottom-[var(--card-glow-y,-228px)] right-[var(--card-glow-x,-140px)] translate-x-[var(--card-glow-slide,180px)] opacity-0 transition-[opacity,transform] ease-out duration-[var(--card-glow-ms,1600ms)] group-hover:translate-x-0 group-hover:opacity-[var(--card-glow-opacity,0.1)]"
   >
     <Image src="/assets/landing/card-hover-glow.svg" alt="" width={GLOW_W} height={GLOW_H} className="block w-full" />
   </span>
