@@ -42,19 +42,32 @@ interface EvaluationDatapointsTableProps {
   viewsResource?: string;
 }
 
+const STATUS_FILTER: ColumnFilter = {
+  key: "status",
+  name: "Status",
+  dataType: "enum",
+  options: [
+    { label: "Success", value: "success" },
+    { label: "Error", value: "error" },
+  ],
+};
+
 const buildColumnFilters = (columnDefs: ColumnDef<EvalRow>[]): ColumnFilter[] =>
   columnDefs
     .filter((c) => c.meta?.filterable)
-    .map((c) => ({
-      key: c.id!,
-      name: typeof c.header === "string" ? c.header : c.id!,
-      dataType:
-        c.meta!.dataType === "json"
-          ? ("json" as const)
-          : c.meta!.dataType === "number"
-            ? ("number" as const)
-            : ("string" as const),
-    }));
+    .map((c) => {
+      if (c.id === "status") return STATUS_FILTER;
+      return {
+        key: c.id!,
+        name: typeof c.header === "string" ? c.header : c.id!,
+        dataType:
+          c.meta!.dataType === "json"
+            ? ("json" as const)
+            : c.meta!.dataType === "number"
+              ? ("number" as const)
+              : ("string" as const),
+      };
+    });
 
 const EvaluationDatapointsTable = ({
   data,

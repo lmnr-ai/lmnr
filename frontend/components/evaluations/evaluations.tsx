@@ -15,6 +15,7 @@ import ProgressionChart from "@/components/evaluations/progression-chart";
 import { EvaluationStatusCell } from "@/components/evaluations/status-cell";
 import { EvaluationsTableContents } from "@/components/evaluations/table-contents";
 import { EvaluationsTableControls } from "@/components/evaluations/table-controls";
+import { CostCell, DurationCell, TokensCell } from "@/components/traces/cells";
 import { Button } from "@/components/ui/button";
 import CopyTooltip from "@/components/ui/copy-tooltip";
 import { useSelection } from "@/components/ui/infinite-datatable/hooks";
@@ -46,7 +47,7 @@ const baseColumns: ColumnDef<Evaluation>[] = [
     accessorFn: (row) => row.status,
     cell: EvaluationStatusCell,
     header: "Status",
-    size: 81,
+    size: 70,
   },
   {
     accessorKey: "id",
@@ -73,7 +74,32 @@ const baseColumns: ColumnDef<Evaluation>[] = [
     accessorKey: "dataPointsCount",
     header: "Datapoints",
     cell: EvaluationDatapointsCell,
-    size: 260,
+    size: 200,
+  },
+  {
+    id: "cost",
+    accessorFn: (row) => row.totals?.totalCost ?? 0,
+    header: "Cost",
+    cell: ({ row }) => <CostCell stats={row.original.totals ?? {}} />,
+    size: 100,
+  },
+  {
+    id: "tokens",
+    accessorFn: (row) => row.totals?.totalTokens ?? 0,
+    header: "Tokens",
+    cell: ({ row }) => <TokensCell stats={row.original.totals ?? {}} />,
+    size: 180,
+  },
+  {
+    id: "duration",
+    accessorFn: (row) => row.totals?.totalDuration ?? 0,
+    header: "Duration",
+    cell: ({ row }) => {
+      const totals = row.original.totals;
+      if (!totals?.datapointCount) return <span className="text-muted-foreground">-</span>;
+      return <DurationCell durationMs={totals.totalDuration * 1000} />;
+    },
+    size: 100,
   },
   {
     id: "metadata",

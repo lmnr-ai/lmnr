@@ -7,21 +7,23 @@ import { type ReactNode } from "react";
 import { CostBreakdown, TokensBreakdown } from "@/components/traces/cells";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { type EvaluationTotals } from "@/lib/evaluation/types";
-import { currencyFormatter, formatDurationMs, formatTokensCompact } from "@/lib/traces/format";
+import { formatCostNumber, formatDurationMs, formatTokensCompact } from "@/lib/traces/format";
+import { cn } from "@/lib/utils";
 
 interface RunTotalsProps {
   totals?: EvaluationTotals;
   /** Compared run's totals — shown as a second breakdown row when comparing. */
   comparedTotals?: EvaluationTotals;
   isComparison?: boolean;
+  className?: string;
 }
 
 const Shield = ({ icon, value, breakdown }: { icon: ReactNode; value: string; breakdown: ReactNode }) => (
   <Tooltip delayDuration={250}>
     <TooltipTrigger asChild>
-      <div className="flex items-center gap-1 text-xs text-secondary-foreground">
+      <div className="flex items-center gap-1 text-sm text-secondary-foreground">
         {icon}
-        <span className="tabular-nums text-foreground">{value}</span>
+        <span className="tabular-nums">{value}</span>
       </div>
     </TooltipTrigger>
     <TooltipPortal>
@@ -32,12 +34,13 @@ const Shield = ({ icon, value, breakdown }: { icon: ReactNode; value: string; br
 
 /**
  * Whole-run cost / token / duration totals, aggregated server-side over the
- * eval's datapoints under the active filters. Sits beside the score cards.
+ * eval's datapoints under the active filters. Sidecar on the scores control
+ * row — not a second summary band.
  *
  * Cost and tokens reuse the trace-cell breakdown components so the tooltip
  * wording (incl. cache-read being a subset of input) matches the trace views.
  */
-export default function RunTotals({ totals, comparedTotals, isComparison }: RunTotalsProps) {
+export default function RunTotals({ totals, comparedTotals, isComparison, className }: RunTotalsProps) {
   if (!totals) return null;
 
   const costBreakdown = (
@@ -79,7 +82,7 @@ export default function RunTotals({ totals, comparedTotals, isComparison }: RunT
         <span className="tabular-nums">{formatDurationMs(totals.totalDuration * 1000)}</span>
       </div>
       <div className="flex justify-between gap-4 text-xs">
-        <span className="text-secondary-foreground">Average duration</span>
+        <span className="text-secondary-foreground">Average datapoint duration</span>
         <span className="tabular-nums">
           {totals.datapointCount > 0
             ? formatDurationMs((totals.totalDuration / totals.datapointCount) * 1000)
@@ -90,10 +93,10 @@ export default function RunTotals({ totals, comparedTotals, isComparison }: RunT
   );
 
   return (
-    <div className="flex shrink-0 items-center gap-4">
+    <div className={cn("flex shrink-0 items-center gap-3", className)}>
       <Shield
         icon={<CircleDollarSign size={12} className="min-w-3" />}
-        value={currencyFormatter.format(totals.totalCost)}
+        value={formatCostNumber(totals.totalCost)}
         breakdown={costBreakdown}
       />
       <Shield

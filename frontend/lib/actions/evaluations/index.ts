@@ -152,6 +152,7 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
         statusCounts: stats
           ? { total: stats.total, complete: stats.complete, errored: stats.errored, stale: stats.stale }
           : undefined,
+        totals: stats?.totals,
       };
     }),
   };

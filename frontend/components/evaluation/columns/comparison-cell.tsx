@@ -1,4 +1,5 @@
 import { ArrowRight } from "lucide-react";
+import { type ReactNode } from "react";
 
 import { isValidScore } from "@/components/evaluation/utils";
 
@@ -18,8 +19,8 @@ export const ComparisonCell = ({
   originalValue,
   comparisonValue,
 }: {
-  original: string | number;
-  comparison: string | number;
+  original: ReactNode;
+  comparison: ReactNode;
   originalValue?: number;
   comparisonValue?: number;
 }) => {
