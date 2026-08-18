@@ -11,11 +11,9 @@ import { useMessageCascade } from "./use-message-cascade";
 // above it, so the thread breathes the way a channel does instead of ticking.
 // `lines` is that message's rendered height — see ./messages.
 /** Pause every message gets, whatever is above it. */
-const BEAT_MS = 700;
+const BEAT_MS = 350;
 /** Reading time added per line of the message above. */
-const PER_LINE_MS = 190;
-/** Ceiling, so the longest message can't strand the reader on a static card. */
-const MAX_BEAT_MS = 2600;
+const PER_LINE_MS = 95;
 
 /** The gap after the FIRST message, which is the one exception to the rule
  *  above: it is already rendered when the walk starts, so the reader has had it
@@ -27,12 +25,23 @@ const OPENING_BEAT_MS = 550;
  *  one-line wait. */
 const AGENT_THINK_MS = 1150;
 
-/** One entry per gap: how long the message AFTER index i waits. */
-const MESSAGE_DELAYS = THREAD_MESSAGES.slice(0, -1).map((message, i) => {
+/** Ceiling on the WHOLE run, not one gap. The section does not pin, so the
+ *  reader is holding still by choice — past a couple of seconds they scroll on
+ *  and never see the answer the thread exists to land. */
+const MAX_RUN_MS = 2500;
+
+const RAW_DELAYS = THREAD_MESSAGES.slice(0, -1).map((message, i) => {
   if (i === 0) return OPENING_BEAT_MS;
   if (message.author === "user") return AGENT_THINK_MS;
-  return Math.min(BEAT_MS + message.lines * PER_LINE_MS, MAX_BEAT_MS);
+  return BEAT_MS + message.lines * PER_LINE_MS;
 });
+
+/** One entry per gap: how long the message AFTER index i waits. Scaled to the
+ *  budget rather than clipped, so the pacing keeps its SHAPE — the beat after a
+ *  question still outlasts the beat after a one-liner — and adding a message
+ *  costs the others a little rather than overrunning. */
+const RUN_SCALE = Math.min(1, MAX_RUN_MS / RAW_DELAYS.reduce((sum, d) => sum + d, 0));
+const MESSAGE_DELAYS = RAW_DELAYS.map((d) => Math.round(d * RUN_SCALE));
 
 const INITIALS = THREAD_AUTHOR.split(" ")
   .map((part) => part[0])
@@ -108,26 +117,27 @@ const SlackThread = () => {
   const frameRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Hold until the frame is CENTRED, not merely on screen: the thread is the
-  // tallest mock on the page, and starting it as the top edge appears spends
-  // half the run above the fold. Over this range 0.5 is exactly "element centre
-  // meets viewport centre", whatever either measures. The surrounding panel is
-  // padded evenly, so its centre is this one's — no need to reach for it.
-  const { scrollYProgress } = useScroll({ target: frameRef, offset: ["start end", "end start"] });
-  const [centred, setCentred] = useState(false);
+  // Hold until the frame's BOTTOM edge clears the fold, so the whole window is
+  // on screen before anything moves in it — the thread is the tallest mock on
+  // the page, and starting it as the top edge appears spends the run below the
+  // fold. "end end" IS that moment (element end meets viewport end), so the
+  // range simply leaves 0 there and no threshold has to be guessed. The
+  // surrounding panel is padded evenly, so this measures for it too.
+  const { scrollYProgress } = useScroll({ target: frameRef, offset: ["end end", "end start"] });
+  const [framed, setFramed] = useState(false);
   useMotionValueEvent(scrollYProgress, "change", (p) => {
-    if (p >= 0.5) setCentred(true);
+    if (p > 0) setFramed(true);
   });
   // "change" only fires on a CHANGE, so a reload landing past the mark would
   // otherwise never arm. Deferred a frame so the observer has measured.
   useEffect(() => {
-    const id = requestAnimationFrame(() => setCentred((on) => on || scrollYProgress.get() >= 0.5));
+    const id = requestAnimationFrame(() => setFramed((on) => on || scrollYProgress.get() > 0));
     return () => cancelAnimationFrame(id);
   }, [scrollYProgress]);
 
   // The first message is visible the moment the thread arrives, so the walk
   // only has to cover the remaining ones.
-  const revealed = useMessageCascade(centred, MESSAGE_DELAYS);
+  const revealed = useMessageCascade(framed, MESSAGE_DELAYS);
 
   // Follow the newest message, but only downward and only once the thread is
   // long enough to need it. Hand-rolled rather than `scrollIntoView`, which
