@@ -204,16 +204,12 @@ impl UserTaskLockState {
     /// winner against a stale hash for the whole TTL.
     ///
     /// This puts an invariant on callers: **set `published` only after your
-    /// own effect landed, and only while that effect is still the trace's
-    /// current answer.** Writing back a read-time hash would roll back a
-    /// concurrent batch that published in between and reopen the gate; so
-    /// would re-claiming your own hash after a newer winner overwrote the
-    /// store. The producer takes the field out of the state it writes
-    /// (`published_before` in `process_trace_inputs`); the consumer builds a
-    /// fresh state after a successful publish and leaves `published` unset
-    /// when a re-read shows it was superseded meanwhile. Leaving it unset is
-    /// always safe — a merge from a writer that published nothing does not
-    /// touch the field.
+    /// own effect landed, never to the value you read.** Writing back a
+    /// read-time hash would roll back a concurrent batch that published in
+    /// between and reopen the gate. Both writers honour it — the producer
+    /// takes the field out of the state it writes (`published_before` in
+    /// `process_trace_inputs`) and the consumer builds a fresh state after a
+    /// successful publish.
     pub fn merge_from(&mut self, other: &Self) {
         for entry in &other.agents {
             self.register(entry.clone());

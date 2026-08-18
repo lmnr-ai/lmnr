@@ -21,7 +21,7 @@ use async_trait::async_trait;
 
 use super::accumulator::{cohort_cache_key, record_sample};
 use super::extract::extract_user_task_directly;
-use super::lock::{UserTaskLockState, WinnerState, lock_cache_key, write_lock_merged};
+use super::lock::{UserTaskLockState, lock_cache_key, write_lock_merged};
 use super::metadata::extraction_outcome_value;
 use super::queue::InputExtractionMessage;
 use super::regex::{
@@ -138,16 +138,7 @@ impl MessageHandler for InputExtractionHandler {
             let lock_key = lock_cache_key(message.project_id, message.trace_id);
             let mut local = UserTaskLockState::default();
             local.register(snapshot.clone());
-            // Claim `published` only while this text is still the one the trace
-            // wants. The publish above is a multi-round-trip, and `merge_from`
-            // takes any incoming value, so an unconditional claim can roll the
-            // field back over a newer winner that published inside that window —
-            // naming text the store no longer holds. Re-reading narrows the
-            // exposure to the gap before the write. Registration is monotone, so
-            // the representative is re-asserted either way.
-            if !self.lock_supersedes(&lock_key, snapshot).await {
-                local.published = Some(snapshot.content_hash.clone());
-            }
+            local.published = Some(snapshot.content_hash.clone());
             write_lock_merged(&self.cache, &lock_key, &local, message.trace_id).await;
         }
 
@@ -197,7 +188,10 @@ impl InputExtractionHandler {
             return false;
         };
         let lock_key = lock_cache_key(message.project_id, message.trace_id);
-        let superseded = self.lock_supersedes(&lock_key, snapshot).await;
+        let superseded = matches!(
+            self.cache.get::<UserTaskLockState>(&lock_key).await,
+            Ok(Some(current)) if current.supersedes(snapshot)
+        );
         if superseded {
             log::debug!(
                 "user-task: dropping superseded extraction for trace [{}]",
@@ -205,15 +199,6 @@ impl InputExtractionHandler {
             );
         }
         superseded
-    }
-
-    /// Whether the trace's stored lock state currently outranks `snapshot`.
-    /// Absent lock or cache error fails open (`false`).
-    async fn lock_supersedes(&self, lock_key: &str, snapshot: &WinnerState) -> bool {
-        matches!(
-            self.cache.get::<UserTaskLockState>(lock_key).await,
-            Ok(Some(current)) if current.supersedes(snapshot)
-        )
     }
 
     /// Everything past a cache miss. `None` means publish nothing — either the
