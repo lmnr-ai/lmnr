@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import ClusterBreadcrumb from "@/components/signal/clusters-section/cluster-breadcrumb";
-import ClusterStackedChart from "@/components/signal/clusters-section/cluster-stacked-chart";
 import { buildPath, type ClusterNode, findNodeById } from "@/components/signal/clusters-section/utils";
 import { getClusterColorById } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
 import { SIGNAL_CLUSTER_EVENT_COUNT, SIGNAL_CLUSTER_ID } from "../signal-cluster";
 import ClusterList from "./cluster-list";
+import ClustersChart from "./clusters-chart";
 import { MOCK_DATASETS } from "./clusters-mock-data";
 import { useTicker } from "./use-ticker";
 
@@ -226,13 +226,12 @@ const ClustersCard = ({
   // flex's default stretch fills it.
   const chart = (
     <div className="flex-1 min-w-0 py-2 pr-2 pl-1 bg-secondary" ref={chartContainerRef}>
-      <ClusterStackedChart
+      <ClustersChart
         clusters={chartClusters}
         statsData={streamedStats}
         containerWidth={chartWidth}
         colorMap={colorMap}
         yAxisMax={yAxisMax}
-        animateBars={false}
       />
     </div>
   );

@@ -20,8 +20,6 @@ interface ClusterStackedChartProps {
   colorMap: Map<string, string>;
   showTooltip?: boolean;
   runTotals?: { timestamp: string; count: number }[];
-  yAxisMax?: number;
-  animateBars?: boolean;
 }
 
 export default function ClusterStackedChart({
@@ -31,8 +29,6 @@ export default function ClusterStackedChart({
   colorMap,
   showTooltip,
   runTotals,
-  yAxisMax,
-  animateBars,
 }: ClusterStackedChartProps) {
   const hasOverlay = !!runTotals && runTotals.length > 0;
 
@@ -102,8 +98,6 @@ export default function ClusterStackedChart({
       hideZeroValues
       overlayField={hasOverlay ? RUN_TOTAL_KEY : undefined}
       overlayColor={OVERLAY_COLOR}
-      yAxisMax={yAxisMax}
-      animateBars={animateBars}
       className="!h-full"
     />
   );
