@@ -1433,6 +1433,40 @@ export const tagClasses = pgTable(
   ]
 );
 
+export const evaluationTags = pgTable(
+  "evaluation_tags",
+  {
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    evaluationId: uuid("evaluation_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    name: text().notNull(),
+  },
+  (table) => [
+    index("evaluation_tags_project_id_name_idx").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+      table.name.asc().nullsLast().op("text_ops")
+    ),
+    foreignKey({
+      columns: [table.evaluationId],
+      foreignColumns: [evaluations.id],
+      name: "evaluation_tags_evaluation_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    // Composite FK to the tag registry: renaming a tag class renames it here,
+    // deleting one detaches it from every evaluation.
+    foreignKey({
+      columns: [table.name, table.projectId],
+      foreignColumns: [tagClasses.name, tagClasses.projectId],
+      name: "evaluation_tags_name_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    primaryKey({ columns: [table.evaluationId, table.name], name: "evaluation_tags_pkey" }),
+  ]
+);
+
 export const agentVersions = pgTable(
   "agent_versions",
   {

@@ -6,6 +6,7 @@
 #[cfg(feature = "signals")]
 pub mod agent;
 pub mod datasets;
+pub mod evals;
 pub mod rollouts;
 pub mod signals;
 pub mod sql;

@@ -7,6 +7,7 @@ import { AgentHeaderToggle } from "@/components/agent";
 import DeleteEvaluationDialog from "@/components/evaluation/delete-evaluation-dialog";
 import ShareEvalButton from "@/components/evaluation/evaluation-header/share-eval-button";
 import RenameEvaluationDialog from "@/components/evaluation/rename-evaluation-dialog";
+import { EvaluationTagsButton, EvaluationTagsPills } from "@/components/tags/evaluation-tags-list";
 import { Button } from "@/components/ui/button";
 import { downloadFile } from "@/components/ui/download-button";
 import {
@@ -118,6 +119,12 @@ const EvaluationHeader = ({ evaluations, name, urlKey, datasets }: EvaluationHea
             <Button variant="outline" onClick={() => handleChange(undefined)}>
               Reset
             </Button>
+          )}
+          {typeof evaluationId === "string" && (
+            <div className="flex items-center gap-1.5 pl-1">
+              <EvaluationTagsButton evaluationId={evaluationId} />
+              <EvaluationTagsPills evaluationId={evaluationId} />
+            </div>
           )}
         </div>
       </div>

@@ -2471,6 +2471,13 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::datasets::get_datasets)
                             .service(api::v1::cli::datasets::get_datapoints)
                             .service(api::v1::cli::datasets::create_datapoints)
+                            // The `evals/{id}/tags` routes are registered before
+                            // the bare `evals/{id}` route so the dynamic segment
+                            // doesn't swallow them.
+                            .service(api::v1::cli::evals::add_eval_tags)
+                            .service(api::v1::cli::evals::remove_eval_tag)
+                            .service(api::v1::cli::evals::list_evals)
+                            .service(api::v1::cli::evals::get_eval)
                             .service(api::v1::cli::rollouts::update_name)
                             .service(api::v1::cli::rollouts::register_session)
                             .service(api::v1::cli::rollouts::list_blocks)
@@ -2559,6 +2566,10 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::datasets::get_parquet)
                                     .service(api::v1::evals::init_eval)
                                     .service(api::v1::evals::update_eval)
+                                    .service(api::v1::evals::add_eval_tags)
+                                    .service(api::v1::evals::remove_eval_tag)
+                                    .service(api::v1::evals::list_evals)
+                                    .service(api::v1::evals::get_eval)
                                     .service(api::v1::evals::save_eval_datapoints)
                                     .service(api::v1::evals::update_eval_datapoint)
                                     // Debugger session lifecycle — SDK-driven

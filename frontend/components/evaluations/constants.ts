@@ -14,6 +14,7 @@ export const defaultEvaluationsColumnOrder = [
   "cost",
   "tokens",
   "duration",
+  "tags",
   "metadata",
   "createdAt",
 ];
@@ -28,5 +29,6 @@ export const filters: ColumnFilter[] = [
     options: EVALUATION_STATUSES.map((value) => ({ label: EVALUATION_STATUS_LABELS[value], value })),
   },
   { name: "Datapoints Count", key: "dataPointsCount", dataType: "number" },
+  { name: "Tags", key: "tags", dataType: "string" },
   { name: "Metadata", key: "metadata", dataType: "json" },
 ];

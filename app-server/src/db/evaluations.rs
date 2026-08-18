@@ -21,9 +21,101 @@ pub struct Evaluation {
     pub metadata: Option<Value>,
 }
 
+/// An evaluation together with its attached tag names. Read-only projection used
+/// by the API/CLI list + get endpoints; writes go through `db::evaluation_tags`.
+#[derive(Serialize, FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct EvaluationWithTags {
+    pub id: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub name: String,
+    pub project_id: Uuid,
+    pub group_id: String,
+    pub metadata: Option<Value>,
+    pub tags: Vec<String>,
+}
+
 #[derive(FromRow)]
 pub struct EvaluationInfo {
     pub group_id: String,
+}
+
+/// List a project's evaluations, newest first. `name` is a case-insensitive
+/// substring match; `tags` narrows to evaluations carrying ALL of the given tags.
+pub async fn list_evaluations(
+    pool: &PgPool,
+    project_id: Uuid,
+    group_id: Option<&str>,
+    name: Option<&str>,
+    tags: &[String],
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<EvaluationWithTags>> {
+    let evaluations = sqlx::query_as::<_, EvaluationWithTags>(
+        "SELECT
+            e.id,
+            e.created_at,
+            e.name,
+            e.project_id,
+            e.group_id,
+            e.metadata,
+            ARRAY(
+                SELECT t.name FROM evaluation_tags t
+                WHERE t.evaluation_id = e.id
+                ORDER BY t.created_at
+            ) AS tags
+        FROM evaluations e
+        WHERE e.project_id = $1
+            AND ($2::text IS NULL OR e.group_id = $2)
+            AND ($3::text IS NULL OR e.name ILIKE '%' || $3 || '%')
+            AND (
+                cardinality($4::text[]) = 0
+                OR ARRAY(
+                    SELECT t.name FROM evaluation_tags t WHERE t.evaluation_id = e.id
+                ) @> $4::text[]
+            )
+        ORDER BY e.created_at DESC
+        LIMIT $5 OFFSET $6",
+    )
+    .bind(project_id)
+    .bind(group_id)
+    .bind(name)
+    .bind(tags)
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(evaluations)
+}
+
+pub async fn get_evaluation(
+    pool: &PgPool,
+    project_id: Uuid,
+    evaluation_id: Uuid,
+) -> Result<Option<EvaluationWithTags>> {
+    let evaluation = sqlx::query_as::<_, EvaluationWithTags>(
+        "SELECT
+            e.id,
+            e.created_at,
+            e.name,
+            e.project_id,
+            e.group_id,
+            e.metadata,
+            ARRAY(
+                SELECT t.name FROM evaluation_tags t
+                WHERE t.evaluation_id = e.id
+                ORDER BY t.created_at
+            ) AS tags
+        FROM evaluations e
+        WHERE e.project_id = $1 AND e.id = $2",
+    )
+    .bind(project_id)
+    .bind(evaluation_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(evaluation)
 }
 
 pub async fn create_evaluation(

@@ -15,6 +15,7 @@ import ProgressionChart from "@/components/evaluations/progression-chart";
 import { EvaluationStatusCell } from "@/components/evaluations/status-cell";
 import { EvaluationsTableContents } from "@/components/evaluations/table-contents";
 import { EvaluationsTableControls } from "@/components/evaluations/table-controls";
+import TagsCell from "@/components/tags/tags-cell";
 import { CostCell, DurationCell, TokensCell } from "@/components/traces/cells";
 import { Button } from "@/components/ui/button";
 import CopyTooltip from "@/components/ui/copy-tooltip";
@@ -100,6 +101,17 @@ const baseColumns: ColumnDef<Evaluation>[] = [
       return <DurationCell durationMs={totals.totalDuration * 1000} />;
     },
     size: 100,
+  },
+  {
+    id: "tags",
+    header: "Tags",
+    accessorFn: (row) => row.tags,
+    cell: (row) => {
+      const tags = row.getValue() as string[] | undefined;
+      if (tags?.length) return <TagsCell tags={tags} />;
+      return "-";
+    },
+    size: 120,
   },
   {
     id: "metadata",

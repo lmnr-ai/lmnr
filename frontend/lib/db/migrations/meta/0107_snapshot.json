@@ -1,6 +1,6 @@
 {
-  "id": "9f3a1c47-2b58-4de6-8a71-5c0e9d4b7f12",
-  "prevId": "401024a1-ab77-4a48-ba59-fffc5bba0aa4",
+  "id": "3dff5c4f-e7b9-48c3-bc6f-7221c550c5d0",
+  "prevId": "b7e4d2a9-6f13-4c8e-9a52-0d1f8e3c6b74",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -639,7 +639,7 @@
             }
           ],
           "isUnique": true,
-          "where": "\"external_id\" IS NOT NULL",
+          "where": "\"chat_messages\".\"external_id\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -1131,6 +1131,94 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.debugger_session_blocks": {
+      "name": "debugger_session_blocks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content": {
+          "name": "content",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        }
+      },
+      "indexes": {
+        "debugger_session_blocks_session_id_idx": {
+          "name": "debugger_session_blocks_session_id_idx",
+          "columns": [
+            {
+              "expression": "session_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "debugger_session_blocks_project_id_fkey": {
+          "name": "debugger_session_blocks_project_id_fkey",
+          "tableFrom": "debugger_session_blocks",
+          "tableTo": "projects",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        },
+        "debugger_session_blocks_session_id_fkey": {
+          "name": "debugger_session_blocks_session_id_fkey",
+          "tableFrom": "debugger_session_blocks",
+          "tableTo": "debugger_sessions",
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.debugger_sessions": {
       "name": "debugger_sessions",
       "schema": "",
@@ -1340,6 +1428,92 @@
           "columns": ["user_code"]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.evaluation_tags": {
+      "name": "evaluation_tags",
+      "schema": "",
+      "columns": {
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "evaluation_id": {
+          "name": "evaluation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "evaluation_tags_project_id_name_idx": {
+          "name": "evaluation_tags_project_id_name_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops"
+            },
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "text_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "evaluation_tags_evaluation_id_fkey": {
+          "name": "evaluation_tags_evaluation_id_fkey",
+          "tableFrom": "evaluation_tags",
+          "tableTo": "evaluations",
+          "columnsFrom": ["evaluation_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        },
+        "evaluation_tags_name_project_id_fkey": {
+          "name": "evaluation_tags_name_project_id_fkey",
+          "tableFrom": "evaluation_tags",
+          "tableTo": "tag_classes",
+          "columnsFrom": ["name", "project_id"],
+          "columnsTo": ["name", "project_id"],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "evaluation_tags_pkey": {
+          "name": "evaluation_tags_pkey",
+          "columns": ["evaluation_id", "name"]
+        }
+      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -3261,6 +3435,128 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.slack_channel_projects": {
+      "name": "slack_channel_projects",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "channel_id": {
+          "name": "channel_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "channel_name": {
+          "name": "channel_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "integration_id": {
+          "name": "integration_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "slack_channel_projects_workspace_channel_idx": {
+          "name": "slack_channel_projects_workspace_channel_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "channel_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "slack_channel_projects_channel_id_idx": {
+          "name": "slack_channel_projects_channel_id_idx",
+          "columns": [
+            {
+              "expression": "channel_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "slack_channel_projects_workspace_id_fkey": {
+          "name": "slack_channel_projects_workspace_id_fkey",
+          "tableFrom": "slack_channel_projects",
+          "tableTo": "workspaces",
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "slack_channel_projects_project_id_fkey": {
+          "name": "slack_channel_projects_project_id_fkey",
+          "tableFrom": "slack_channel_projects",
+          "tableTo": "projects",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "slack_channel_projects_integration_id_fkey": {
+          "name": "slack_channel_projects_integration_id_fkey",
+          "tableFrom": "slack_channel_projects",
+          "tableTo": "slack_integrations",
+          "columnsFrom": ["integration_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.slack_integrations": {
       "name": "slack_integrations",
       "schema": "",
@@ -4331,6 +4627,67 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.workspace_hard_limit_notifications": {
+      "name": "workspace_hard_limit_notifications",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "usage_item": {
+          "name": "usage_item",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_notified_at": {
+          "name": "last_notified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "workspace_hard_limit_notifications_workspace_id_fkey": {
+          "name": "workspace_hard_limit_notifications_workspace_id_fkey",
+          "tableFrom": "workspace_hard_limit_notifications",
+          "tableTo": "workspaces",
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "workspace_hard_limit_notif_workspace_id_usage_item_unique": {
+          "name": "workspace_hard_limit_notif_workspace_id_usage_item_unique",
+          "nullsNotDistinct": false,
+          "columns": ["workspace_id", "usage_item"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.workspace_invitations": {
       "name": "workspace_invitations",
       "schema": "",
@@ -4443,67 +4800,6 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.workspace_hard_limit_notifications": {
-      "name": "workspace_hard_limit_notifications",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "usage_item": {
-          "name": "usage_item",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "last_notified_at": {
-          "name": "last_notified_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "workspace_hard_limit_notifications_workspace_id_fkey": {
-          "name": "workspace_hard_limit_notifications_workspace_id_fkey",
-          "tableFrom": "workspace_hard_limit_notifications",
-          "tableTo": "workspaces",
-          "columnsFrom": ["workspace_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "cascade"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "workspace_hard_limit_notif_workspace_id_usage_item_unique": {
-          "name": "workspace_hard_limit_notif_workspace_id_usage_item_unique",
-          "nullsNotDistinct": false,
-          "columns": ["workspace_id", "usage_item"]
-        }
-      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -4686,6 +4982,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "settings": {
+          "name": "settings",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
         }
       },
       "indexes": {},
@@ -4697,219 +5000,6 @@
           "columnsFrom": ["tier_id"],
           "columnsTo": ["id"],
           "onDelete": "no action",
-          "onUpdate": "cascade"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.slack_channel_projects": {
-      "name": "slack_channel_projects",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "channel_id": {
-          "name": "channel_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "channel_name": {
-          "name": "channel_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "integration_id": {
-          "name": "integration_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "slack_channel_projects_workspace_channel_idx": {
-          "name": "slack_channel_projects_workspace_channel_idx",
-          "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last",
-              "opclass": "uuid_ops"
-            },
-            {
-              "expression": "channel_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last",
-              "opclass": "text_ops"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "slack_channel_projects_channel_id_idx": {
-          "name": "slack_channel_projects_channel_id_idx",
-          "columns": [
-            {
-              "expression": "channel_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last",
-              "opclass": "text_ops"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "slack_channel_projects_workspace_id_fkey": {
-          "name": "slack_channel_projects_workspace_id_fkey",
-          "tableFrom": "slack_channel_projects",
-          "tableTo": "workspaces",
-          "columnsFrom": ["workspace_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "slack_channel_projects_project_id_fkey": {
-          "name": "slack_channel_projects_project_id_fkey",
-          "tableFrom": "slack_channel_projects",
-          "tableTo": "projects",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "slack_channel_projects_integration_id_fkey": {
-          "name": "slack_channel_projects_integration_id_fkey",
-          "tableFrom": "slack_channel_projects",
-          "tableTo": "slack_integrations",
-          "columnsFrom": ["integration_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.debugger_session_blocks": {
-      "name": "debugger_session_blocks",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "type": {
-          "name": "type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "content": {
-          "name": "content",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
-        }
-      },
-      "indexes": {
-        "debugger_session_blocks_session_id_idx": {
-          "name": "debugger_session_blocks_session_id_idx",
-          "columns": [
-            {
-              "expression": "session_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last",
-              "opclass": "uuid_ops"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "debugger_session_blocks_project_id_fkey": {
-          "name": "debugger_session_blocks_project_id_fkey",
-          "tableFrom": "debugger_session_blocks",
-          "tableTo": "projects",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "cascade"
-        },
-        "debugger_session_blocks_session_id_fkey": {
-          "name": "debugger_session_blocks_session_id_fkey",
-          "tableFrom": "debugger_session_blocks",
-          "tableTo": "debugger_sessions",
-          "columnsFrom": ["session_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
           "onUpdate": "cascade"
         }
       },

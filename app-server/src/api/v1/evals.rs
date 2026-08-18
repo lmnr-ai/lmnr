@@ -17,12 +17,17 @@ use crate::{
     routes::types::ResponseResult,
 };
 use actix_web::{
-    HttpResponse, post,
+    HttpResponse, delete, get, post,
     web::{self, Json},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sqlx::PgPool;
 use uuid::Uuid;
+
+const DEFAULT_EVALS_PAGE_SIZE: i64 = 50;
+const MAX_EVALS_PAGE_SIZE: i64 = 500;
+const MAX_TAG_NAME_LENGTH: usize = 256;
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -112,6 +117,176 @@ pub async fn update_eval(
         Some(evaluation) => Ok(HttpResponse::Ok().json(evaluation)),
         None => Ok(HttpResponse::NotFound().json("Evaluation not found")),
     }
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListEvalsQuery {
+    #[serde(default)]
+    pub group_id: Option<String>,
+    /// Case-insensitive substring match on the evaluation name.
+    #[serde(default)]
+    pub name: Option<String>,
+    /// Comma-separated tag names. An evaluation must carry ALL of them to match.
+    #[serde(default)]
+    pub tags: Option<String>,
+    #[serde(default)]
+    pub limit: Option<i64>,
+    #[serde(default)]
+    pub offset: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EvalTagsRequest {
+    pub tags: Vec<String>,
+}
+
+fn normalize_tags<'a>(names: impl Iterator<Item = &'a str>) -> Vec<String> {
+    let mut normalized: Vec<String> = Vec::new();
+    for name in names.map(str::trim).filter(|name| !name.is_empty()) {
+        let name = name.to_string();
+        if !normalized.contains(&name) {
+            normalized.push(name);
+        }
+    }
+    normalized
+}
+
+fn bad_request(message: &str) -> HttpResponse {
+    HttpResponse::BadRequest().json(serde_json::json!({ "error": message }))
+}
+
+/// Shared body of `GET /v1/evals` and its `/v1/cli` twin.
+pub async fn list_evals_response(
+    pool: &PgPool,
+    project_id: Uuid,
+    query: ListEvalsQuery,
+) -> ResponseResult {
+    let tags = normalize_tags(query.tags.as_deref().unwrap_or_default().split(','));
+    let limit = query
+        .limit
+        .unwrap_or(DEFAULT_EVALS_PAGE_SIZE)
+        .clamp(1, MAX_EVALS_PAGE_SIZE);
+    let offset = query.offset.unwrap_or(0).max(0);
+
+    let evaluations = db::evaluations::list_evaluations(
+        pool,
+        project_id,
+        query.group_id.as_deref(),
+        query.name.as_deref(),
+        &tags,
+        limit,
+        offset,
+    )
+    .await?;
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "evaluations": evaluations })))
+}
+
+/// Shared body of `GET /v1/evals/{eval_id}` and its `/v1/cli` twin.
+pub async fn get_eval_response(pool: &PgPool, project_id: Uuid, eval_id: Uuid) -> ResponseResult {
+    match db::evaluations::get_evaluation(pool, project_id, eval_id).await? {
+        Some(evaluation) => Ok(HttpResponse::Ok().json(evaluation)),
+        None => Ok(HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Evaluation not found"
+        }))),
+    }
+}
+
+/// Shared body of `POST /v1/evals/{eval_id}/tags` and its `/v1/cli` twin.
+pub async fn add_eval_tags_response(
+    pool: &PgPool,
+    project_id: Uuid,
+    eval_id: Uuid,
+    req: EvalTagsRequest,
+) -> ResponseResult {
+    let tags = normalize_tags(req.tags.iter().map(String::as_str));
+    if tags.is_empty() {
+        return Ok(bad_request("At least one non-empty tag is required"));
+    }
+    if let Some(tag) = tags.iter().find(|tag| tag.len() > MAX_TAG_NAME_LENGTH) {
+        return Ok(bad_request(&format!(
+            "Tag \"{}\" exceeds {MAX_TAG_NAME_LENGTH} characters",
+            &tag[..MAX_TAG_NAME_LENGTH.min(tag.len())]
+        )));
+    }
+
+    // Guarded here rather than by the FK: `evaluation_tags.project_id` is not
+    // part of the evaluation FK, so an unchecked insert would let one project
+    // tag another project's evaluation.
+    if db::evaluations::get_evaluation(pool, project_id, eval_id)
+        .await?
+        .is_none()
+    {
+        return Ok(HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Evaluation not found"
+        })));
+    }
+
+    let tags = db::evaluation_tags::add_evaluation_tags(pool, project_id, eval_id, &tags).await?;
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "tags": tags })))
+}
+
+/// Shared body of `DELETE /v1/evals/{eval_id}/tags/{tag}` and its `/v1/cli` twin.
+pub async fn remove_eval_tag_response(
+    pool: &PgPool,
+    project_id: Uuid,
+    eval_id: Uuid,
+    tag: &str,
+) -> ResponseResult {
+    let tags = db::evaluation_tags::remove_evaluation_tag(pool, project_id, eval_id, tag).await?;
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "tags": tags })))
+}
+
+/// `GET /v1/evals` — list evaluations with their tags.
+#[get("/evals")]
+pub async fn list_evals(
+    query: web::Query<ListEvalsQuery>,
+    db: web::Data<DB>,
+    project_api_key: ProjectApiKey,
+) -> ResponseResult {
+    list_evals_response(&db.pool, project_api_key.project_id, query.into_inner()).await
+}
+
+/// `GET /v1/evals/{eval_id}` — a single evaluation with its tags.
+#[get("/evals/{eval_id}")]
+pub async fn get_eval(
+    eval_id: web::Path<Uuid>,
+    db: web::Data<DB>,
+    project_api_key: ProjectApiKey,
+) -> ResponseResult {
+    get_eval_response(&db.pool, project_api_key.project_id, eval_id.into_inner()).await
+}
+
+/// `POST /v1/evals/{eval_id}/tags` — attach tags, creating unknown tag classes.
+#[post("/evals/{eval_id}/tags")]
+pub async fn add_eval_tags(
+    eval_id: web::Path<Uuid>,
+    req: Json<EvalTagsRequest>,
+    db: web::Data<DB>,
+    project_api_key: ProjectApiKey,
+) -> ResponseResult {
+    add_eval_tags_response(
+        &db.pool,
+        project_api_key.project_id,
+        eval_id.into_inner(),
+        req.into_inner(),
+    )
+    .await
+}
+
+/// `DELETE /v1/evals/{eval_id}/tags/{tag}` — detach a single tag.
+#[delete("/evals/{eval_id}/tags/{tag}")]
+pub async fn remove_eval_tag(
+    path: web::Path<(Uuid, String)>,
+    db: web::Data<DB>,
+    project_api_key: ProjectApiKey,
+) -> ResponseResult {
+    let (eval_id, tag) = path.into_inner();
+    remove_eval_tag_response(&db.pool, project_api_key.project_id, eval_id, &tag).await
 }
 
 #[derive(Deserialize)]

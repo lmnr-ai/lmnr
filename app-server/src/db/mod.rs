@@ -9,6 +9,7 @@ pub mod custom_model_costs;
 pub mod datasets;
 pub mod debugger_session_blocks;
 pub mod debugger_sessions;
+pub mod evaluation_tags;
 pub mod evaluations;
 pub mod events;
 pub mod labeling_queues;

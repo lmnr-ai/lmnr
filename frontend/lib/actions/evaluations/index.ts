@@ -8,7 +8,7 @@ import { tryParseJson } from "@/lib/actions/common/utils.ts";
 import { getEvaluationRunStats } from "@/lib/actions/evaluations/stats";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
-import { evaluations } from "@/lib/db/migrations/schema";
+import { evaluations, evaluationTags } from "@/lib/db/migrations/schema";
 import { filtersToSql } from "@/lib/db/modifiers";
 import { paginatedGet } from "@/lib/db/utils";
 import { type Evaluation } from "@/lib/evaluation/types";
@@ -49,7 +49,17 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
       return sql`1=1`;
     });
 
-  const otherFilters = urlParamFilters.filter((filter) => filter.column !== "metadata");
+  const tagFilters = urlParamFilters
+    .filter((filter) => filter.column === "tags")
+    .map((filter) => {
+      const hasTag = sql`EXISTS (
+        SELECT 1 FROM ${evaluationTags}
+        WHERE ${evaluationTags.evaluationId} = ${evaluations.id} AND ${evaluationTags.name} = ${String(filter.value)}
+      )`;
+      return filter.operator === "ne" ? sql`NOT ${hasTag}` : hasTag;
+    });
+
+  const otherFilters = urlParamFilters.filter((filter) => filter.column !== "metadata" && filter.column !== "tags");
 
   const dataPointsCountFilters = otherFilters.filter((f) => f.column === "dataPointsCount");
   const statusFilters = otherFilters.filter((f) => f.column === "status");
@@ -60,7 +70,13 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
     {}
   );
 
-  const allFilters = [...baseFilters, ...(searchFilter ? [searchFilter] : []), ...metadataFilters, ...sqlFilters];
+  const allFilters = [
+    ...baseFilters,
+    ...(searchFilter ? [searchFilter] : []),
+    ...metadataFilters,
+    ...tagFilters,
+    ...sqlFilters,
+  ];
 
   // Count + status live in ClickHouse — resolve matching ids, then constrain the PG page.
   let evaluationIdFilter: SQL | null = null;
@@ -126,7 +142,15 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
 
   const result = await paginatedGet<any, Evaluation>({
     table: evaluations,
-    columns: getTableColumns(evaluations),
+    columns: {
+      ...getTableColumns(evaluations),
+      tags: sql<string[]>`COALESCE(
+        (SELECT array_agg(t.name ORDER BY t.created_at)
+         FROM ${evaluationTags} t
+         WHERE t.evaluation_id = ${evaluations.id}),
+        ARRAY[]::text[]
+      )`.as("tags"),
+    },
     filters: filtersWithEvaluationIds,
     pageSize,
     pageNumber,
