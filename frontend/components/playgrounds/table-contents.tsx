@@ -192,7 +192,7 @@ export const PlaygroundsTableContents = memo(function PlaygroundsTableContents({
         <div className="flex flex-col space-y-2">
           <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="ghost">
+              <Button aria-label="Delete" variant="ghost">
                 <Trash2 size={12} />
               </Button>
             </DialogTrigger>

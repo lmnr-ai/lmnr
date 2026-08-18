@@ -9,7 +9,9 @@ static GLOBAL: Jemalloc = Jemalloc;
 
 use actix_limitation::Limiter;
 use actix_web::{
-    App, HttpServer, dev,
+    App, HttpServer,
+    body::{BoxBody, EitherBody},
+    dev,
     http::StatusCode,
     middleware::{ErrorHandlerResponse, ErrorHandlers, Logger, NormalizePath},
     web::{self, JsonConfig, PayloadConfig},
@@ -61,7 +63,11 @@ use signals::private::{
     SignalWorkerConfig,
     batching::SignalBatchingHandler,
     pendings_consumer::SignalJobPendingBatchHandler,
-    queue::{SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_QUEUE, SIGNALS_REALTIME_ROUTING_KEY},
+    queue::{
+        SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_QUEUE, SIGNALS_REALTIME_ROUTING_KEY,
+        SIGNALS_REALTIME_WAITING_EXCHANGE, SIGNALS_REALTIME_WAITING_QUEUE,
+        SIGNALS_REALTIME_WAITING_ROUTING_KEY,
+    },
     realtime::SignalJobRealtimeHandler,
     submissions_consumer::SignalJobSubmissionBatchHandler,
 };
@@ -75,11 +81,25 @@ use traces::{
     input_extraction::{
         consumer::InputExtractionHandler,
         queue::{INPUT_EXTRACTION_EXCHANGE, INPUT_EXTRACTION_QUEUE, INPUT_EXTRACTION_ROUTING_KEY},
+        regex_agent::{
+            USER_TASK_REGEX_EXCHANGE, USER_TASK_REGEX_QUEUE, USER_TASK_REGEX_ROUTING_KEY,
+            UserTaskRegexHandler,
+        },
+    },
+    sp_versioning::{
+        SP_VERSIONING_DELAY_EXCHANGE, SP_VERSIONING_DELAY_QUEUE, SP_VERSIONING_DELAY_ROUTING_KEY,
+        SP_VERSIONING_EXCHANGE, SP_VERSIONING_QUEUE, SP_VERSIONING_ROUTING_KEY,
+        consumer::SpVersioningHandler,
     },
     static_sp_extraction::{
         STATIC_PROMPT_EXCHANGE, STATIC_PROMPT_QUEUE, STATIC_PROMPT_ROUTING_KEY,
         consumer::StaticPromptHandler,
+        worker::{
+            SP_REGEX_EXTRACTION_EXCHANGE, SP_REGEX_EXTRACTION_QUEUE,
+            SP_REGEX_EXTRACTION_ROUTING_KEY, SpRegexExtractionHandler,
+        },
     },
+    stream_consumer::StreamSpanHandler,
 };
 
 use cache::{
@@ -93,6 +113,7 @@ use quickwit::{
     SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE, SPANS_INDEXER_ROUTING_KEY,
     client::{QuickwitClient, QuickwitConfig},
     consumer::QuickwitIndexerHandler,
+    stream_consumer::StreamQuickwitIndexerHandler,
 };
 use realtime::SseConnectionMap;
 use sodiumoxide;
@@ -155,6 +176,10 @@ mod traces;
 mod utils;
 mod worker;
 
+const PAYLOAD_TOO_LARGE_MESSAGE: &str =
+    "Payload too large: the request body exceeds the server's HTTP payload limit. Send smaller \
+     batches, or raise HTTP_PAYLOAD_LIMIT if you are self-hosting.";
+
 fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, err)
 }
@@ -179,11 +204,14 @@ fn main() -> anyhow::Result<()> {
     // == Sentry ==
     let sentry_dsn = std::env::var(env::observability::SENTRY_DSN)
         .unwrap_or("https://1234567890@sentry.io/1234567890".to_string());
+    // Sentry bills by span volume, so only a fraction of transactions is sent.
+    // Sampling is per-transaction (the SDK's own knob), which keeps every sampled
+    // trace internally complete.
     let _sentry_guard = sentry::init((
         sentry_dsn,
         sentry::ClientOptions {
             release: sentry::release_name!(),
-            traces_sample_rate: 1.0,
+            traces_sample_rate: env::sentry_sampling::sample_rate(),
             environment: Some(Cow::Owned(
                 std::env::var(env::connections::ENVIRONMENT).unwrap_or("development".to_string()),
             )),
@@ -492,6 +520,36 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.5c User-task regex agent queue ====
+            // Separate from the extraction queue: an agent run takes minutes
+            // while a per-trace extraction takes seconds. Failures drop and the
+            // cohort accumulator's retry interval spaces the next attempt, so
+            // there is no delay/retry topology.
+            channel
+                .exchange_declare(
+                    USER_TASK_REGEX_EXCHANGE.into(),
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    USER_TASK_REGEX_QUEUE.into(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
             // ==== 3.6 Notifications message queue ====
             channel
                 .exchange_declare(
@@ -721,6 +779,53 @@ fn main() -> anyhow::Result<()> {
                     )
                     .await
                     .unwrap();
+
+                // Parking lot for runs waiting on a sibling to warm the trace's
+                // prefix cache. No consumer — messages expire via their
+                // per-message TTL and dead-letter back into the realtime
+                // exchange. (The realtime queue itself is bound to that exchange
+                // by `get_receiver` when a consumer subscribes.)
+                channel
+                    .exchange_declare(
+                        SIGNALS_REALTIME_WAITING_EXCHANGE.into(),
+                        ExchangeKind::Fanout,
+                        ExchangeDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
+
+                let mut realtime_waiting_args = quorum_queue_args.clone();
+                realtime_waiting_args.insert(
+                    "x-dead-letter-exchange".into(),
+                    lapin::types::AMQPValue::LongString(SIGNALS_REALTIME_EXCHANGE.into()),
+                );
+
+                channel
+                    .queue_declare(
+                        SIGNALS_REALTIME_WAITING_QUEUE.into(),
+                        QueueDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        realtime_waiting_args,
+                    )
+                    .await
+                    .unwrap();
+
+                channel
+                    .queue_bind(
+                        SIGNALS_REALTIME_WAITING_QUEUE.into(),
+                        SIGNALS_REALTIME_WAITING_EXCHANGE.into(),
+                        SIGNALS_REALTIME_WAITING_ROUTING_KEY.into(),
+                        lapin::options::QueueBindOptions::default(),
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
             }
 
             // ==== 3.11 Logs message queue ====
@@ -827,6 +932,106 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.15 SP versioning queues ====
+            channel
+                .exchange_declare(
+                    SP_VERSIONING_EXCHANGE.into(),
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    SP_VERSIONING_QUEUE.into(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
+            // Delay queue for messages that can't resolve yet. No consumer
+            // — messages expire via their per-message TTL and dead-letter
+            // back into the sp-versioning exchange for a re-check.
+            channel
+                .exchange_declare(
+                    SP_VERSIONING_DELAY_EXCHANGE.into(),
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            let mut sp_versioning_delay_args = quorum_queue_args.clone();
+            sp_versioning_delay_args.insert(
+                "x-dead-letter-exchange".into(),
+                lapin::types::AMQPValue::LongString(SP_VERSIONING_EXCHANGE.into()),
+            );
+
+            channel
+                .queue_declare(
+                    SP_VERSIONING_DELAY_QUEUE.into(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    sp_versioning_delay_args,
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_bind(
+                    SP_VERSIONING_DELAY_QUEUE.into(),
+                    SP_VERSIONING_DELAY_EXCHANGE.into(),
+                    SP_VERSIONING_DELAY_ROUTING_KEY.into(),
+                    lapin::options::QueueBindOptions::default(),
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            // ==== 3.16 SP regex extraction (demand-driven) queue ====
+            // Fed by consumers that hit a version regex-miss (the signals
+            // summarizer); failures drop and the next demand retries, so no
+            // delay/retry topology.
+            channel
+                .exchange_declare(
+                    SP_REGEX_EXTRACTION_EXCHANGE.into(),
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    SP_REGEX_EXTRACTION_QUEUE.into(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
             let max_channel_pool_size = env::mq::MAX_CHANNEL_POOL_SIZE.get();
 
             log::info!("RabbitMQ channels: {}", max_channel_pool_size);
@@ -854,6 +1059,8 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(SIGNALS_EXCHANGE, SIGNALS_QUEUE);
         // ==== 3.5b Input extraction message queue ====
         queue.register_queue(INPUT_EXTRACTION_EXCHANGE, INPUT_EXTRACTION_QUEUE);
+        // ==== 3.5c User-task regex agent queue ====
+        queue.register_queue(USER_TASK_REGEX_EXCHANGE, USER_TASK_REGEX_QUEUE);
         // ==== 3.6 Notifications message queue ====
         queue.register_queue(NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE);
         // ==== 3.6b Notification Deliveries message queue ====
@@ -899,20 +1106,13 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(CHECKPOINTS_EXCHANGE, CHECKPOINTS_QUEUE);
         // ==== 3.14 Static prompt message queue ====
         queue.register_queue(STATIC_PROMPT_EXCHANGE, STATIC_PROMPT_QUEUE);
+        // ==== 3.15 SP versioning message queue ====
+        queue.register_queue(SP_VERSIONING_EXCHANGE, SP_VERSIONING_QUEUE);
+        // ==== 3.16 SP regex extraction (demand-driven) queue ====
+        queue.register_queue(SP_REGEX_EXTRACTION_EXCHANGE, SP_REGEX_EXTRACTION_QUEUE);
         log::info!("Using tokio mpsc queue");
         Arc::new(queue.into())
     };
-
-    // Now that the queue/DB/cache exist, hand them to the internal self-tracing
-    // exporter. Until this runs the exporter drops spans; nothing emits internal
-    // spans this early on a normal boot (the agent only runs once serving starts).
-    if internal_tracing_enabled {
-        let _ = internal_ingest_deps.set(instrumentation::internal_exporter::IngestDeps {
-            queue: queue.clone(),
-            db: db.clone(),
-            cache: cache.clone(),
-        });
-    }
 
     // ==== 3.5 SSE connections map ====
     let sse_connections: SseConnectionMap = Arc::new(dashmap::DashMap::new());
@@ -1027,6 +1227,124 @@ fn main() -> anyhow::Result<()> {
             }
         };
 
+    // ==== 3.15 RabbitMQ Streams transport (LAM-2024) ====
+    // Additive to the queues above: producers prefer a stream when its publisher
+    // was built, and fall back to the quorum queue otherwise. A failure here is
+    // logged and leaves every publisher `None`, so ingest degrades to the queue
+    // path rather than failing the boot.
+    //
+    // Publishers are built in BOTH pod roles, NOT just under
+    // `enable_producer()`. Ingest (`api/v1/spans.rs`) is producer-side, but the
+    // CONSUMER also publishes spans: `publish_for_indexing` runs inside
+    // `process_span_messages`, and the metadata façades
+    // (`publish_trace_{input,output}_update` / `publish_trace_metadata_patch`) are
+    // called from the input-extraction and checkpoints consumers. Gating on
+    // `enable_producer()` left both publishers `None` on `OPERATION_MODE=consumer`,
+    // so every one of those paths silently stayed on the quorum queue — the exact
+    // path this transport exists to unload.
+    // Publishers are built only after every super stream declared successfully,
+    // so a topology failure can't leave producers writing to unread streams. The
+    // two publishers are threaded to their publish sites as explicit
+    // `Option<Arc<StreamPublisher>>` parameters (no global registry).
+    let (stream_runtime, spans_stream_publisher, indexer_stream_publisher): (
+        Option<mq::stream::StreamEnvironment>,
+        Option<Arc<mq::stream::StreamPublisher>>,
+        Option<Arc<mq::stream::StreamPublisher>>,
+    ) = if mq::stream::enabled() && is_feature_enabled(Feature::FullBuild) {
+        runtime_handle.block_on(async {
+                match mq::stream::StreamEnvironment::connect().await {
+                    Ok(environment) => {
+                        let topology = mq::stream::StreamTopology::from_env();
+                        // Declare the indexer stream only when its flag is on:
+                        // its publisher AND its reader are both gated on that same
+                        // flag, so otherwise we'd create a 32-partition super stream
+                        // nobody touches and let a failure on it abort the
+                        // observations transport too.
+                        let mut streams = vec![mq::stream::OBSERVATIONS_STREAM];
+                        if env::streams::SPANS_INDEXER_ENABLED.get() {
+                            streams.push(mq::stream::SPANS_INDEXER_STREAM);
+                        }
+                        for name in streams {
+                            if let Err(e) = topology.declare(&environment, name).await {
+                                log::error!("Failed to declare super stream '{}': {:?}", name, e);
+                                return (None, None, None);
+                            }
+                        }
+
+                        let mut spans_publisher = None;
+                        let mut indexer_publisher = None;
+                        match mq::stream::StreamPublisher::new(
+                            &environment,
+                            mq::stream::OBSERVATIONS_STREAM,
+                        )
+                        .await
+                        {
+                            Ok(publisher) => spans_publisher = Some(Arc::new(publisher)),
+                            Err(e) => {
+                                log::error!("Failed to build observations publisher: {:?}", e)
+                            }
+                        }
+                        // Gated on the SHARED config flag, not on this pod's own
+                        // `quickwit_client`. The indexer reader lives in the
+                        // consumer pod and `QuickwitClient::connect` is a
+                        // per-pod TCP dial, so "Quickwit is live here" says
+                        // nothing about whether the consumer pod started a
+                        // reader — a producer that connects while the consumer
+                        // doesn't would publish indexing jobs to a stream
+                        // nothing reads, and an unread stream is deleted by
+                        // retention (the quorum queue would have retained them).
+                        // Both roles read this same env var, so the gate is
+                        // symmetric; unset keeps `publish_for_indexing` on the
+                        // queue fallback.
+                        if env::streams::SPANS_INDEXER_ENABLED.get() {
+                            match mq::stream::StreamPublisher::new(
+                                &environment,
+                                mq::stream::SPANS_INDEXER_STREAM,
+                            )
+                            .await
+                            {
+                                Ok(publisher) => {
+                                    indexer_publisher = Some(Arc::new(publisher))
+                                }
+                                Err(e) => log::error!(
+                                    "Failed to build spans indexer publisher: {:?}",
+                                    e
+                                ),
+                            }
+                        } else {
+                            log::warn!(
+                                "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is off - not building the spans indexer stream publisher; indexing stays on the quorum queue"
+                            );
+                        }
+                        log::info!("RabbitMQ Streams transport enabled");
+                        (Some(environment), spans_publisher, indexer_publisher)
+                    }
+                    Err(e) => {
+                        log::error!(
+                            "Failed to connect to RabbitMQ Streams, falling back to queues: {:?}",
+                            e
+                        );
+                        (None, None, None)
+                    }
+                }
+            })
+    } else {
+        (None, None, None)
+    };
+
+    // Now that the queue/DB/cache (and the optional spans stream publisher)
+    // exist, hand them to the internal self-tracing exporter. Until this runs
+    // the exporter drops spans; nothing emits internal spans this early on a
+    // normal boot (the agent only runs once serving starts).
+    if internal_tracing_enabled {
+        let _ = internal_ingest_deps.set(instrumentation::internal_exporter::IngestDeps {
+            queue: queue.clone(),
+            db: db.clone(),
+            cache: cache.clone(),
+            spans_stream_publisher: spans_stream_publisher.clone(),
+        });
+    }
+
     // == PII redactor ==
     // Optional: when `PII_REDACTOR_URL` is set, span input/output fields are
     // redacted via the pii-redactor gRPC service for projects whose
@@ -1059,6 +1377,7 @@ fn main() -> anyhow::Result<()> {
     let http_client = reqwest::Client::new();
 
     let clickhouse_for_http = clickhouse.clone();
+    let spans_stream_publisher_for_http = spans_stream_publisher.clone();
 
     let storage_for_http = storage.clone();
     let sse_connections_for_http = sse_connections.clone();
@@ -1162,6 +1481,11 @@ fn main() -> anyhow::Result<()> {
 
         let num_static_prompt_workers = env::workers::NUM_STATIC_SP.get();
 
+        let num_sp_versioning_workers = env::workers::NUM_SP_VERSIONING.get();
+
+        let num_sp_regex_extraction_workers = env::workers::NUM_SP_REGEX_EXTRACTION.get();
+        let num_user_task_regex_workers = env::workers::NUM_USER_TASK_REGEX.get();
+
         let num_input_extraction_workers = env::workers::NUM_INPUT_EXTRACTION.get();
 
         log::info!(
@@ -1194,6 +1518,9 @@ fn main() -> anyhow::Result<()> {
         let pii_redactor_for_consumer = pii_redactor.clone();
         let worker_pool_clone = worker_pool.clone();
         let batch_worker_pool_clone = batch_worker_pool.clone();
+        let stream_runtime_for_consumer = stream_runtime.clone();
+        let spans_stream_publisher_for_consumer = spans_stream_publisher.clone();
+        let indexer_stream_publisher_for_consumer = indexer_stream_publisher.clone();
 
         let consumer_handle = thread::Builder::new()
             .name("consumer".to_string())
@@ -1211,6 +1538,8 @@ fn main() -> anyhow::Result<()> {
                         let clickhouse = clickhouse_for_consumer.clone();
                         let pubsub = pubsub_for_consumer.clone();
                         let pii_redactor = pii_redactor_for_consumer.clone();
+                        let indexer_stream_publisher =
+                            indexer_stream_publisher_for_consumer.clone();
 
                         let ch_cloud = CloudClickhouse::new(clickhouse.clone());
 
@@ -1225,6 +1554,7 @@ fn main() -> anyhow::Result<()> {
                                 ch: ch_cloud.clone(),
                                 pubsub: pubsub.clone(),
                                 pii_redactor: pii_redactor.clone(),
+                                indexer_stream_publisher: indexer_stream_publisher.clone(),
                                 config: BatchingConfig {
                                     size,
                                     flush_interval,
@@ -1251,6 +1581,8 @@ fn main() -> anyhow::Result<()> {
                         let clickhouse = clickhouse_for_consumer.clone();
                         let pubsub = pubsub_for_consumer.clone();
                         let pii_redactor = pii_redactor_for_consumer.clone();
+                        let indexer_stream_publisher =
+                            indexer_stream_publisher_for_consumer.clone();
 
                         let ch_data_plane = DataPlaneClickhouse::new(
                             http_client_for_consumer.clone(),
@@ -1268,6 +1600,7 @@ fn main() -> anyhow::Result<()> {
                                 ch: ch_data_plane.clone(),
                                 pubsub: pubsub.clone(),
                                 pii_redactor: pii_redactor.clone(),
+                                indexer_stream_publisher: indexer_stream_publisher.clone(),
                                 config: BatchingConfig {
                                     size,
                                     flush_interval,
@@ -1299,6 +1632,109 @@ fn main() -> anyhow::Result<()> {
                         );
                     } else {
                         log::warn!("Quickwit not available - skipping spans indexer workers");
+                    }
+
+                    // ==== Stream readers (LAM-2024) ====
+                    // Run ALONGSIDE the queue workers above during the
+                    // transition: the quorum queues drain their backlog while
+                    // streams carry new traffic. Removing the queue workers is a
+                    // later release.
+                    if let Some(stream_environment) = stream_runtime_for_consumer.as_ref() {
+                        {
+                            let db = db_for_consumer.clone();
+                            let cache = cache_for_consumer.clone();
+                            let queue = mq_for_consumer.clone();
+                            let clickhouse = clickhouse_for_consumer.clone();
+                            let pubsub = pubsub_for_consumer.clone();
+                            let pii_redactor = pii_redactor_for_consumer.clone();
+                            let ch_cloud = CloudClickhouse::new(clickhouse.clone());
+
+                            let reader = mq::stream::StreamReader::new(
+                                mq::stream::OBSERVATIONS_STREAM,
+                                mq::stream::OBSERVATIONS_CONSUMER_NAME,
+                                stream_environment.clone(),
+                                StreamSpanHandler {
+                                    db,
+                                    cache,
+                                    queue,
+                                    clickhouse,
+                                    ch: ch_cloud,
+                                    pubsub,
+                                    pii_redactor,
+                                    indexer_stream_publisher:
+                                        indexer_stream_publisher_for_consumer.clone(),
+                                    config: BatchingConfig {
+                                        size: env::batching::SPANS_SIZE.get(),
+                                        flush_interval: Duration::from_millis(
+                                            env::batching::STREAM_SPANS_FLUSH_INTERVAL_MS.get(),
+                                        ),
+                                    },
+                                },
+                                env::streams::SPANS_BATCHERS.get(),
+                            );
+                            tokio::spawn(reader.run());
+
+                            // Same shared flag the producer gates its publisher on,
+                            // so the two pod roles can't disagree about whether this
+                            // stream has a reader. The reader must NOT be gated on
+                            // this pod's own `quickwit_client`: that handle is a
+                            // boot-time TCP dial, so a Quickwit blip during THIS
+                            // pod's startup would leave the stream with no reader
+                            // while producer pods (gated only on the flag) keep
+                            // publishing — and an unread stream is deleted by
+                            // retention, unlike an undrained quorum queue. So build
+                            // a LAZY client when the boot dial failed: the handler
+                            // classifies `Unavailable` as transient, which retries
+                            // the batch in place without advancing the offset and
+                            // calls `reconnect()`, so the backlog waits on broker
+                            // disk and drains once Quickwit returns.
+                            if env::streams::SPANS_INDEXER_ENABLED.get() {
+                                let indexer_quickwit_client = match quickwit_client_for_consumer
+                                    .as_ref()
+                                {
+                                    Some(client) => Some(client.clone()),
+                                    None => {
+                                        match QuickwitClient::connect_lazy(QuickwitConfig::from_env())
+                                        {
+                                            Ok(client) => {
+                                                log::warn!(
+                                                    "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is on but Quickwit was unreachable at boot - starting the spans indexer reader with a lazy client so published indexing jobs aren't lost to retention"
+                                                );
+                                                Some(client)
+                                            }
+                                            Err(e) => {
+                                                log::error!(
+                                                    "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is on but the Quickwit endpoint is unusable ({:?}) - the spans indexer stream has NO reader here; producer pods may be publishing indexing jobs that retention will delete unread",
+                                                    e
+                                                );
+                                                None
+                                            }
+                                        }
+                                    }
+                                };
+
+                                if let Some(quickwit_client_for_indexer) = indexer_quickwit_client {
+                                    let reader = mq::stream::StreamReader::new(
+                                        mq::stream::SPANS_INDEXER_STREAM,
+                                        mq::stream::SPANS_INDEXER_CONSUMER_NAME,
+                                        stream_environment.clone(),
+                                        StreamQuickwitIndexerHandler {
+                                            quickwit_client: quickwit_client_for_indexer,
+                                            batch_size: env::batching::STREAM_SPANS_INDEXER_SIZE
+                                                .get(),
+                                            flush_interval: Duration::from_millis(
+                                                env::batching::STREAM_SPANS_INDEXER_FLUSH_INTERVAL_MS
+                                                    .get(),
+                                            ),
+                                        },
+                                        env::streams::SPANS_INDEXER_BATCHERS.get(),
+                                    );
+                                    tokio::spawn(reader.run());
+                                }
+                            }
+
+                            log::info!("Stream readers started");
+                        }
                     }
 
                     // Spawn browser events workers
@@ -1611,7 +2047,10 @@ fn main() -> anyhow::Result<()> {
                         let db = db_for_consumer.clone();
                         let cache = cache_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
+                        let clickhouse = clickhouse_for_consumer.clone();
                         let llm_client_clone = llm_client.clone();
+                        let spans_stream_publisher =
+                            spans_stream_publisher_for_consumer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::InputExtraction,
                             num_input_extraction_workers,
@@ -1619,7 +2058,9 @@ fn main() -> anyhow::Result<()> {
                                 db: db.clone(),
                                 cache: cache.clone(),
                                 queue: queue.clone(),
+                                clickhouse: clickhouse.clone(),
                                 llm_client: llm_client_clone.clone(),
+                                spans_stream_publisher: spans_stream_publisher.clone(),
                             },
                             QueueConfig::new(
                                 INPUT_EXTRACTION_QUEUE,
@@ -1630,6 +2071,31 @@ fn main() -> anyhow::Result<()> {
                     } else {
                         log::warn!(
                             "LLM provider not available - skipping input extraction workers"
+                        );
+                    }
+
+                    // Spawn user-task regex agent workers. Separate queue from
+                    // the extraction workers above: an agent run takes minutes
+                    // while an extraction takes seconds.
+                    if let Some(llm_client) = llm_provider_client.as_ref() {
+                        let cache = cache_for_consumer.clone();
+                        let llm_client = llm_client.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::UserTaskRegex,
+                            num_user_task_regex_workers,
+                            move || UserTaskRegexHandler {
+                                cache: cache.clone(),
+                                llm_client: llm_client.clone(),
+                            },
+                            QueueConfig::new(
+                                USER_TASK_REGEX_QUEUE,
+                                USER_TASK_REGEX_EXCHANGE,
+                                USER_TASK_REGEX_ROUTING_KEY,
+                            ),
+                        );
+                    } else {
+                        log::warn!(
+                            "LLM provider not available - skipping user-task regex agent workers"
                         );
                     }
 
@@ -1683,6 +2149,8 @@ fn main() -> anyhow::Result<()> {
                         let clickhouse = clickhouse_for_consumer.clone();
                         let llm_client = llm_provider_client.clone();
                         let queue = mq_for_consumer.clone();
+                        let spans_stream_publisher =
+                            spans_stream_publisher_for_consumer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Checkpoints,
                             num_checkpoints_workers,
@@ -1692,6 +2160,7 @@ fn main() -> anyhow::Result<()> {
                                 clickhouse: clickhouse.clone(),
                                 llm_client: llm_client.clone(),
                                 queue: queue.clone(),
+                                spans_stream_publisher: spans_stream_publisher.clone(),
                             },
                             QueueConfig::new(
                                 CHECKPOINTS_QUEUE,
@@ -1701,12 +2170,13 @@ fn main() -> anyhow::Result<()> {
                         );
                     }
 
-                    // Spawn static prompt workers. Gate on the shared LLM
-                    // client exactly like input-extraction: a handler without
-                    // a client can only ack-and-drop messages, so a node that
-                    // failed to build the client must NOT consume this queue —
-                    // otherwise it silently discards work another node enqueued
-                    // instead of leaving it for a consumer that can extract.
+                    // Spawn static prompt workers (legacy pipeline). Gate on
+                    // the shared LLM client exactly like input-extraction: a
+                    // handler without a client can only ack-and-drop messages,
+                    // so a node that failed to build the client must NOT
+                    // consume this queue — otherwise it silently discards work
+                    // another node enqueued instead of leaving it for a
+                    // consumer that can extract.
                     if let Some(llm_client) = llm_provider_client.as_ref() {
                         let cache = cache_for_consumer.clone();
                         let llm_client = llm_client.clone();
@@ -1724,6 +2194,60 @@ fn main() -> anyhow::Result<()> {
                         );
                     } else {
                         log::warn!("LLM provider not available - skipping static prompt workers");
+                    }
+
+                    // Spawn sp-versioning classifier workers. LLM-free (the
+                    // ingest producer gates publishing on client availability;
+                    // the extraction workers consume their own queue), so they
+                    // run unconditionally.
+                    {
+                        let cache = cache_for_consumer.clone();
+                        let clickhouse = clickhouse_for_consumer.clone();
+                        let queue = mq_for_consumer.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::SpVersioning,
+                            num_sp_versioning_workers,
+                            move || {
+                                SpVersioningHandler::new(
+                                    cache.clone(),
+                                    clickhouse.clone(),
+                                    queue.clone(),
+                                )
+                            },
+                            QueueConfig::new(
+                                SP_VERSIONING_QUEUE,
+                                SP_VERSIONING_EXCHANGE,
+                                SP_VERSIONING_ROUTING_KEY,
+                            ),
+                        );
+                    }
+
+                    // Spawn SP-regex extraction workers (demand-driven).
+                    // Same LLM-client gate as above.
+                    if let Some(llm_client) = llm_provider_client.as_ref() {
+                        let cache = cache_for_consumer.clone();
+                        let clickhouse = clickhouse_for_consumer.clone();
+                        let llm_client = llm_client.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::SpRegexExtraction,
+                            num_sp_regex_extraction_workers,
+                            move || {
+                                SpRegexExtractionHandler::new(
+                                    cache.clone(),
+                                    clickhouse.clone(),
+                                    Some(llm_client.clone()),
+                                )
+                            },
+                            QueueConfig::new(
+                                SP_REGEX_EXTRACTION_QUEUE,
+                                SP_REGEX_EXTRACTION_EXCHANGE,
+                                SP_REGEX_EXTRACTION_ROUTING_KEY,
+                            ),
+                        );
+                    } else {
+                        log::warn!(
+                            "LLM provider not available - skipping SP-regex extraction workers"
+                        );
                     }
 
                     HttpServer::new(move || {
@@ -1798,40 +2322,52 @@ fn main() -> anyhow::Result<()> {
             None
         };
 
-        let grpc_rate_limiter = if is_feature_enabled(Feature::GrpcRateLimiter) {
+        // Per-project data-ingestion rate limiter, shared by the gRPC and
+        // HTTP OTLP trace endpoints. The env limit/period are the global
+        // defaults; per-project overrides in cache
+        // (`ingestion_project_rate_limit:{id}` for N,
+        // `ingestion_project_rate_limit_period:{id}` for the window) swap in
+        // an ad-hoc limiter.
+        let ingestion_rate_limiter = if is_feature_enabled(Feature::IngestionRateLimiter) {
             let redis_url = std::env::var(env::connections::REDIS_URL).unwrap();
 
-            let grpc_limit: usize = std::env::var(env::rate_limit::GRPC_LIMIT)
+            let ingestion_limit: usize = std::env::var(env::rate_limit::INGESTION_LIMIT)
                 .unwrap()
                 .parse()
                 .unwrap();
-            let grpc_period_secs: u64 = std::env::var(env::rate_limit::GRPC_PERIOD_SECS)
+            let ingestion_period_secs: u64 = std::env::var(env::rate_limit::INGESTION_PERIOD_SECS)
                 .unwrap()
                 .parse()
                 .unwrap();
             // no key_by. .count() is called explicitly with a key manually
             match Limiter::builder(&redis_url)
-                .limit(grpc_limit)
-                .period(Duration::from_secs(grpc_period_secs))
+                .limit(ingestion_limit)
+                .period(Duration::from_secs(ingestion_period_secs))
                 .build()
             {
                 Ok(limiter) => {
                     log::info!(
-                        "gRPC Rate limiter initialized ({} req/{} s per project)",
-                        grpc_limit,
-                        grpc_period_secs
+                        "Ingestion rate limiter initialized ({} req/{} s per project)",
+                        ingestion_limit,
+                        ingestion_period_secs
                     );
-                    Some(limiter)
+                    Some(Arc::new(traces::rate_limit::IngestionRateLimiter::new(
+                        limiter,
+                        redis_url,
+                        ingestion_limit,
+                        ingestion_period_secs,
+                    )))
                 }
                 Err(e) => {
-                    log::warn!("Failed to initialize gRPC rate limiter: {:?}", e);
+                    log::warn!("Failed to initialize ingestion rate limiter: {:?}", e);
                     None
                 }
             }
         } else {
-            log::info!("gRPC rate limiter is disabled");
+            log::info!("Ingestion rate limiter is disabled");
             None
         };
+        let ingestion_rate_limiter_for_http = ingestion_rate_limiter.clone();
 
         // == HTTP server and listener workers ==
         let http_server_handle = thread::Builder::new()
@@ -1868,18 +2404,34 @@ fn main() -> anyhow::Result<()> {
                             HttpAuthentication::bearer(auth::cli_user::cli_auth_validator);
 
                         let mut app = App::new()
-                            .wrap(ErrorHandlers::new().handler(
-                                StatusCode::BAD_REQUEST,
-                                |res: dev::ServiceResponse| {
-                                    let path = res.request().path();
-                                    if path.ends_with("/sql/query") {
-                                        log::warn!("Bad request: {:?}", res.response().body());
-                                    } else {
-                                        log::error!("Bad request: {:?}", res.response().body());
-                                    }
-                                    Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
-                                },
-                            ))
+                            .wrap(
+                                ErrorHandlers::new()
+                                    .handler(StatusCode::BAD_REQUEST, |res: dev::ServiceResponse| {
+                                        let path = res.request().path();
+                                        if path.ends_with("/sql/query") {
+                                            log::warn!("Bad request: {:?}", res.response().body());
+                                        } else {
+                                            log::error!("Bad request: {:?}", res.response().body());
+                                        }
+                                        Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
+                                    })
+                                    // Actix's default 413 body depends on the extractor and the
+                                    // `Bytes` one ("payload reached size limit") is opaque, so
+                                    // SDKs log it verbatim. Normalize it for every route.
+                                    .handler(
+                                        StatusCode::PAYLOAD_TOO_LARGE,
+                                        |res: dev::ServiceResponse| {
+                                            log::warn!("Payload too large: {}", res.request().path());
+                                            Ok(ErrorHandlerResponse::Response(res.map_body(
+                                                |_, _| {
+                                                    EitherBody::right(BoxBody::new(
+                                                        PAYLOAD_TOO_LARGE_MESSAGE,
+                                                    ))
+                                                },
+                                            )))
+                                        },
+                                    ),
+                            )
                             .wrap(Logger::default().exclude("/health").exclude("/ready"))
                             .wrap(NormalizePath::trim())
                             .app_data(JsonConfig::default().limit(http_payload_limit))
@@ -1887,6 +2439,8 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::from(cache_for_http.clone()))
                             .app_data(web::Data::from(db_for_http.clone()))
                             .app_data(web::Data::new(mq_for_http.clone()))
+                            .app_data(web::Data::new(spans_stream_publisher_for_http.clone()))
+                            .app_data(web::Data::new(ingestion_rate_limiter_for_http.clone()))
                             .app_data(web::Data::new(clickhouse_for_http.clone()))
                             .app_data(web::Data::new(clickhouse_readonly_client.clone()))
                             .app_data(web::Data::new(name_generator.clone()))
@@ -1910,7 +2464,9 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::list_projects)
                             .service(api::v1::cli::resolve_project)
                             .service(
-                                web::scope("/sql").service(api::v1::cli::sql::execute_sql_query),
+                                web::scope("/sql")
+                                    .service(api::v1::cli::sql::execute_sql_query)
+                                    .service(api::v1::cli::sql::get_sql_schema),
                             )
                             .service(api::v1::cli::datasets::get_datasets)
                             .service(api::v1::cli::datasets::get_datapoints)
@@ -1918,7 +2474,15 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::rollouts::update_name)
                             .service(api::v1::cli::rollouts::register_session)
                             .service(api::v1::cli::rollouts::list_blocks)
-                            .service(api::v1::cli::rollouts::add_block);
+                            .service(api::v1::cli::rollouts::add_block)
+                            // `signals/{id}` is registered AFTER the bare
+                            // `signals` routes so the literal path isn't
+                            // shadowed by the dynamic segment.
+                            .service(api::v1::cli::signals::create_signal)
+                            .service(api::v1::cli::signals::list_signals)
+                            .service(api::v1::cli::signals::get_signal)
+                            .service(api::v1::cli::signals::update_signal)
+                            .service(api::v1::cli::signals::delete_signal);
                         #[cfg(feature = "signals")]
                         let cli_scope = cli_scope
                             .service(web::scope("/agent").service(api::v1::cli::agent::agent_chat));
@@ -2055,7 +2619,8 @@ fn main() -> anyhow::Result<()> {
                         cache.clone(),
                         clickhouse.clone(),
                         queue.clone(),
-                        grpc_rate_limiter,
+                        spans_stream_publisher.clone(),
+                        ingestion_rate_limiter,
                     );
 
                     let process_logs_service = ProcessLogsService::new(

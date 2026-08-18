@@ -37,6 +37,7 @@ const SidebarFooterComponent = () => {
               <div className="flex justify-between items-start">
                 <p className="text-xs text-muted-foreground mb-2">Laminar is fully open source</p>
                 <Button
+                  aria-label="Close"
                   variant="ghost"
                   size="icon-sm"
                   onClick={() => setShowStarCard(false)}

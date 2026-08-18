@@ -48,7 +48,7 @@ export default function ErrorPage({ error, backAction, backLabel }: ErrorPagePro
             size="lg"
             variant="outline"
           >
-            <ArrowLeft className="size-4 transition-transform group-active:-translate-x-0.5" />
+            <ArrowLeft data-icon="inline-start" className="size-4 transition-transform group-active:-translate-x-0.5" />
             {backLabel}
           </Button>
           <Button onClick={handleRetry} className="gap-2 pl-3 pr-5 transition-transform" size="lg">

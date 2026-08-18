@@ -9,7 +9,7 @@ import { executeQuery } from "@/lib/actions/sql";
 import { cache, SIGNAL_TRIGGERS_CACHE_KEY } from "@/lib/cache.ts";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { getTimeRange } from "@/lib/clickhouse/utils";
-import { DEFAULT_SIGNAL_TRIGGER_VALUE } from "@/lib/db/default-signals.ts";
+import { DEFAULT_SIGNAL_TRIGGER_FILTERS, DEFAULT_SIGNAL_TRIGGER_VALUE } from "@/lib/db/default-signals.ts";
 import { db } from "@/lib/db/drizzle";
 import { alerts, alertTargets, signals, signalTriggers } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
@@ -219,6 +219,7 @@ export async function setTemplateSignals(input: z.infer<typeof SetTemplateSignal
         projectId,
         signalId: signal.id,
         value: DEFAULT_SIGNAL_TRIGGER_VALUE,
+        filters: DEFAULT_SIGNAL_TRIGGER_FILTERS,
       });
     }
 
@@ -376,6 +377,7 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
     .select({
       id: signalTriggers.id,
       value: signalTriggers.value,
+      filters: signalTriggers.filters,
       createdAt: signalTriggers.createdAt,
       mode: signalTriggers.mode,
     })
@@ -383,6 +385,7 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
     .where(and(eq(signalTriggers.projectId, projectId), eq(signalTriggers.signalId, result.id)))) as {
     id: string;
     value: Filter[];
+    filters: Filter[];
     createdAt: string;
     mode: number;
   }[];
@@ -396,7 +399,8 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
     disabled: metadata.disabled ?? false,
     triggers: triggerRows.map((row) => ({
       id: row.id,
-      filters: row.value,
+      conditions: row.value,
+      filters: row.filters ?? [],
       createdAt: row.createdAt,
       mode: row.mode,
     })),

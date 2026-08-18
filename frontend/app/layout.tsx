@@ -23,6 +23,12 @@ export const metadata: Metadata = {
     template: "%s | Laminar",
   },
   description,
+  // Orange icon in dev so a local tab is distinguishable from a prod one.
+  // Both live in public/ rather than app/: an app/favicon.ico is always
+  // prepended to metadata.icons and would win here (vercel/next.js#55767).
+  icons: {
+    icon: process.env.NODE_ENV === "development" ? "/favicon-dev.png" : "/favicon.ico",
+  },
   keywords: [
     "laminar",
     "evals",
@@ -73,17 +79,6 @@ export default async function RootLayout({ children }: PropsWithChildren) {
     <html lang="en" className={cn("h-full antialiased", sans.variable, manrope.variable, sansLanding.variable)}>
       <body className="flex flex-col h-full">
         <BasePathFetchShim />
-        {process.env.NODE_ENV === "development" && (
-          <>
-            {/* Off by default: nothing overlays the UI until you enable scanning from the toolbar. */}
-            <script
-              dangerouslySetInnerHTML={{
-                __html: `window.__REACT_SCAN_OPTIONS__ = { enabled: false, showToolbar: true, animationSpeed: "off" };`,
-              }}
-            />
-            <script src="https://unpkg.com/react-scan/dist/auto.global.js" crossOrigin="anonymous" async />
-          </>
-        )}
         <FeatureFlagsProvider flags={featureFlags}>
           <PostHogProvider telemetryEnabled={posthogEnabled} email={email}>
             <TooltipProvider delayDuration={0}>

@@ -92,7 +92,7 @@ export default function PiiRedaction() {
               <Button asChild variant="outline">
                 <Link href={settingsHref("billing")}>
                   Upgrade plan
-                  <ArrowUpRight className="ml-1 size-3" />
+                  <ArrowUpRight data-icon="inline-end" className="ml-1 size-3" />
                 </Link>
               </Button>
             )}

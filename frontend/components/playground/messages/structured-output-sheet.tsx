@@ -46,7 +46,13 @@ export default function StructuredOutputSheet({
     if (!structuredOutput) {
       return (
         <SheetTrigger asChild>
-          <Button disabled={!model} variant="outline" size="icon" className={cn("focus-visible:ring-0", className)}>
+          <Button
+            aria-label="Edit JSON"
+            disabled={!model}
+            variant="outline"
+            size="icon"
+            className={cn("focus-visible:ring-0", className)}
+          >
             <BracesIcon className="size-3.5" />
           </Button>
         </SheetTrigger>
@@ -57,6 +63,7 @@ export default function StructuredOutputSheet({
       <div className="flex flex-row [&>*:first-child]:border-r-0 [&>*:first-child]:rounded-l [&>*:first-child]:rounded-r-none [&>*:last-child]:rounded-r [&>*:last-child]:rounded-l-none">
         <SheetTrigger asChild>
           <Button
+            aria-label="Edit JSON"
             disabled={!model}
             variant="outlinePrimary"
             size="icon"
@@ -65,7 +72,12 @@ export default function StructuredOutputSheet({
             <BracesIcon className="size-4" />
           </Button>
         </SheetTrigger>
-        <Button onClick={() => setValue("structuredOutput", undefined)} variant="outlinePrimary" size="icon">
+        <Button
+          aria-label="Clear structured output"
+          onClick={() => setValue("structuredOutput", undefined)}
+          variant="outlinePrimary"
+          size="icon"
+        >
           <X className="size-4" />
         </Button>
       </div>

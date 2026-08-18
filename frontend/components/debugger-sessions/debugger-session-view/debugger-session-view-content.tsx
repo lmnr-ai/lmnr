@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { type SessionBlock } from "@/lib/actions/debugger-sessions";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
-import { type RealtimeSpan } from "@/lib/traces/types";
+import { type RealtimeSpan, type RealtimeTracePayload } from "@/lib/traces/types";
 
 import DebuggerList from "./debugger-list";
 import NewTracePill from "./new-trace-pill";
@@ -109,10 +109,14 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId: s
       trace_update: (event: MessageEvent) => {
         const payload = JSON.parse(event.data);
         if (!Array.isArray(payload.traces)) return;
-        storeApi
-          .getState()
-          .applyTraceUpdates(payload.traces as { traceId: string; metadata?: unknown; hasBrowserSession?: boolean }[]);
+        storeApi.getState().applyTraceUpdates(payload.traces as RealtimeTracePayload[]);
         backfillPendingEvalScores();
+      },
+      // Extracted agent_input landed (async) → patch the run's input row.
+      trace_agent_input_update: (event: MessageEvent) => {
+        const payload = JSON.parse(event.data) as { traceId?: string; agentInput?: unknown };
+        if (!payload.traceId) return;
+        storeApi.getState().applyAgentInput(payload.traceId, payload.agentInput);
       },
       // Note / eval block pushed → upsert it into the timeline.
       block_update: (event: MessageEvent) => {
@@ -153,10 +157,11 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId: s
       {/* overflow-x-hidden + the article's min-w floor: at narrow widths the
           article stops compressing and slides under the span panel's left edge
           instead of crunching its content. */}
-      <div
-        ref={setScrollEl}
-        className="thin-scrollbar min-h-0 min-w-0 flex-1 scroll-smooth overflow-y-auto overflow-x-hidden"
-      >
+      {/* No CSS `scroll-smooth`: it animates every scrollTop the virtualizer
+          writes to re-anchor after a row measures, which fights the user's
+          scroll and reads as jitter. Intentional smooth scrolls pass an explicit
+          `behavior`. */}
+      <div ref={setScrollEl} className="thin-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
         <div className="mx-auto flex w-full gap-16 px-6">
           <div className="flex grow-1 justify-center shrink-0 basis-0 min-w-fit">
             {!spanPanelOpen && (

@@ -240,7 +240,7 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
         <>
           <Input
             type="text"
-            className="h-7 hide-arrow"
+            className="h-7 hide-arrow bg-transparent"
             placeholder="key"
             value={currentKey}
             onChange={(e) => {
@@ -250,7 +250,7 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
           />
           <Input
             type="text"
-            className="h-7 hide-arrow"
+            className="h-7 hide-arrow bg-transparent"
             placeholder="value"
             value={currentValue}
             onChange={(e) => {
@@ -306,7 +306,7 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
           {renderOperatorSelect()}
           <Input
             type="number"
-            className="h-7 hide-arrow"
+            className="h-7 hide-arrow bg-transparent"
             placeholder="value"
             value={filter.value}
             onChange={(e) => onValueChange({ field: "value", value: e.target.value })}
@@ -320,7 +320,7 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
           {renderOperatorSelect()}
           <Input
             type="text"
-            className="h-7 hide-arrow"
+            className="h-7 hide-arrow bg-transparent"
             placeholder="value"
             value={filter.value}
             onChange={(e) => onValueChange({ field: "value", value: e.target.value })}
@@ -365,7 +365,12 @@ const PureFilterList = ({
                 )}{" "}
                 {f.value}
               </span>
-              <Button onClick={() => onRemoveFilter(f)} className="p-0 h-fit group" variant="ghost">
+              <Button
+                aria-label={`Remove ${f.column} ${f.value} filter`}
+                onClick={() => onRemoveFilter(f)}
+                className="p-0 h-fit group"
+                variant="ghost"
+              >
                 <X className="w-3 h-3 text-primary/70 group-hover:text-primary" />
               </Button>
             </Badge>

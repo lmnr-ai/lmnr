@@ -223,7 +223,9 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
       trace_update: (event: MessageEvent) => {
         if (targetId) return;
         try {
-          const payload = JSON.parse(event.data) as { traces?: Array<Record<string, unknown> & { id: string }> };
+          const payload = JSON.parse(event.data) as {
+            traces?: Array<Record<string, unknown> & { id: string }>;
+          };
           payload.traces?.forEach((trace) => updateData((rows) => mergeTraceUpdateIntoRows(rows, trace)));
         } catch (e) {
           console.warn("Failed to parse realtime trace_update:", e);

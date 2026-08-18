@@ -138,10 +138,15 @@ pub struct UserTaskInput {
     /// The regex target: the signpost-joined last-turn user parts.
     /// Truncated.
     pub signposted_text: String,
-    /// Order-insensitive user naive signature (part of the regex cache
+    /// Order-insensitive user naive signature (part of the LEGACY regex cache
     /// key), prefixed with [`HAS_HISTORY_FINGERPRINT_PREFIX`] when the
     /// last turn follows assistant/model history.
     pub fingerprint: String,
+    /// Whether the last turn follows assistant/model history. Already encoded
+    /// into `fingerprint` above; carried separately because the version-keyed
+    /// cache uses it as a standalone key component and must not prefix-sniff a
+    /// string to recover it.
+    pub has_history: bool,
     /// Full hash of the joined last-turn user parts (hex BLAKE3). Unlike
     /// `fingerprint` (a structural signature that intentionally collapses
     /// different content into the same regex cache key), this changes
@@ -157,7 +162,8 @@ pub fn prepare_user_task_input(input: &Value) -> Option<UserTaskInput> {
     let mut fingerprint = fingerprint_user_parts(&parts);
     // The last turn's parts come after the LAST assistant message, so any
     // assistant/model message in the input is prior history.
-    if has_prior_assistant(input) {
+    let has_history = has_prior_assistant(input);
+    if has_history {
         fingerprint = format!("{HAS_HISTORY_FINGERPRINT_PREFIX}{fingerprint}");
     }
     // Hash the canonical joined text: `user_text` is already
@@ -167,6 +173,7 @@ pub fn prepare_user_task_input(input: &Value) -> Option<UserTaskInput> {
     Some(UserTaskInput {
         signposted_text: truncate_for_regex(user_text),
         fingerprint,
+        has_history,
         content_hash,
     })
 }
@@ -309,6 +316,34 @@ mod tests {
         assert_ne!(fingerprint_user_parts(&a), fingerprint_user_parts(&b));
     }
 
+    /// Documents the sharp edge of the order-insensitive fingerprint: two
+    /// layouts of the same parts share a cache key, so a regex anchored to
+    /// one captures EMPTY (`NoUserRequest`) on the other rather than
+    /// mis-extracting. Canonicalization is what keeps this rare — both
+    /// layouts normalize to the same regex target — so the divergence only
+    /// bites single-part messages that embed both pieces inline.
+    #[test]
+    fn same_fingerprint_layouts_share_a_regex_and_degrade_to_empty() {
+        use super::super::regex::{ApplyRegexResult, apply_regex};
+
+        let leading = "<ctx>scaffold</ctx>\n\nSummarize the report.";
+        let trailing = "Summarize the report.\n\n<ctx>scaffold</ctx>";
+        let fp = |s: &str| fingerprint_user_parts(&[s.to_string()]);
+        assert_eq!(fp(leading), fp(trailing));
+
+        let anchored = r"(?s).*</ctx>\s*(.*)";
+        assert_eq!(
+            apply_regex(anchored, leading),
+            ApplyRegexResult::Extracted("Summarize the report.".to_string())
+        );
+        // Never a wrong extraction — an empty capture, which the consumer
+        // stores as an empty user task.
+        assert_eq!(
+            apply_regex(anchored, trailing),
+            ApplyRegexResult::NoUserRequest
+        );
+    }
+
     // ---- prepare_user_task_input -----------------------------------------
 
     #[test]
@@ -384,6 +419,10 @@ mod tests {
         let p_followup = prepare_user_task_input(&followup).unwrap();
         assert_eq!(p_first.fingerprint, "plain");
         assert_eq!(p_followup.fingerprint, "has_history|plain");
+        // The standalone flag mirrors the fingerprint prefix — the version-keyed
+        // cache reads the flag, the legacy key reads the prefix.
+        assert!(!p_first.has_history);
+        assert!(p_followup.has_history);
         assert_eq!(p_first.signposted_text, p_followup.signposted_text);
     }
 

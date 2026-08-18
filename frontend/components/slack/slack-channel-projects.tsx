@@ -179,6 +179,7 @@ export default function SlackChannelProjects({ workspaceId, className }: SlackCh
                 <TableCell className="px-2 py-1 truncate text-xs">{b.projectName ?? b.projectId}</TableCell>
                 <TableCell className="px-2 py-1">
                   <Button
+                    aria-label="Delete"
                     variant="ghost"
                     size="icon-sm"
                     className="text-muted-foreground hover:text-destructive"

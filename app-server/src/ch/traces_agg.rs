@@ -1,3 +1,4 @@
+use anyhow::Result;
 use clickhouse::Row;
 use clickhouse::insert::Insert;
 use serde::{Deserialize, Serialize};
@@ -9,8 +10,26 @@ use super::utils::chrono_to_nanoseconds;
 use super::{
     ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS, Table,
 };
-use crate::db::trace::Trace;
 use crate::traces::input_extraction::metadata::USER_TASK_METADATA_KEY;
+
+/// Whether any partial exists for the trace. Existence probe on the
+/// `(project_id, id)` primary key: no GROUP BY (a trace is present iff it has at
+/// least one partial) and `SELECT 1 … LIMIT 1` so the scan short-circuits on the
+/// first match instead of counting every partial. `fetch_optional` maps "no row"
+/// to `None` rather than erroring. Backs the `POST /v1/traces/metadata` 404 gate.
+pub async fn trace_exists(
+    clickhouse: &clickhouse::Client,
+    project_id: Uuid,
+    trace_id: Uuid,
+) -> Result<bool> {
+    let found = clickhouse
+        .query("SELECT 1 FROM traces_agg WHERE project_id = ? AND id = ? LIMIT 1")
+        .bind(project_id)
+        .bind(trace_id)
+        .fetch_optional::<u8>()
+        .await?;
+    Ok(found.is_some())
+}
 
 /// `statuses` Enum8 values; must match the DDL enum
 /// `Enum8('success' = 1, 'error' = 2)` in the traces_agg migration.
@@ -19,11 +38,10 @@ const STATUS_ENUM_ERROR: i8 = 2;
 
 /// One per-batch partial row for the `traces_agg` AggregatingMergeTree table.
 /// Field order MUST match the CREATE TABLE column order exactly (RowBinary
-/// serialization is positional). `created_at` and the reserved
-/// `internal_metadata` column are deliberately absent: the insert names
-/// its columns, so the server fills their defaults. The extracted agent
-/// input/output live in the supplementary `trace_agent_input`/`_output`
-/// RMT tables, not here.
+/// serialization is positional). `created_at` is deliberately absent: the insert
+/// names its columns, so the server fills its default. The static trace columns
+/// (session/user id, root span, browser session) now live in `traces_static`;
+/// `metadata` is kept here so the pre-`traces_static` values stay restorable.
 #[derive(Debug, Clone, Serialize, Deserialize, Row)]
 pub struct CHTraceAgg {
     #[serde(with = "clickhouse::serde::uuid")]
@@ -45,15 +63,8 @@ pub struct CHTraceAgg {
     /// as an "any occurrence wins" per-key merge (CH has no per-key map-merge
     /// combinator that isn't min/max/sum-based).
     pub metadata: Vec<(String, String)>,
-    pub session_id: String,
-    pub user_id: String,
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub top_span_id: Uuid,
-    pub top_span_name: String,
-    pub top_span_type: u8,
     pub tags: Vec<String>,
     pub num_spans: u64,
-    pub has_browser_session: u8,
     pub span_names: Vec<String>,
     pub cache_read_input_tokens: u64,
     pub cache_creation_input_tokens: u64,
@@ -81,20 +92,6 @@ fn encode_metadata(metadata: Option<&Value>) -> Vec<(String, String)> {
         .filter(|(k, _)| k.as_str() != USER_TASK_METADATA_KEY)
         .map(|(k, v)| (k.clone(), v.to_string()))
         .collect()
-}
-
-/// `top_span_name` carries a 1-byte priority prefix: '2' when the batch saw
-/// the real root span, '1' when the name is the path-derived fallback (set
-/// without top_span_id, see `TraceAggregation::from_spans`). Under the table's
-/// `max(String)` any root-derived name then beats any fallback, keeping the
-/// name consistent with `top_span_id`/`top_span_type` (which only the root
-/// sets) and matching the PG upsert where a later batch carrying the root
-/// overwrites the fallback. The view strips the prefix with substring(_, 2).
-fn encode_top_span_name(name: Option<&str>, saw_root_span: bool) -> String {
-    match name {
-        Some(name) => format!("{}{}", if saw_root_span { '2' } else { '1' }, name),
-        None => String::new(),
-    }
 }
 
 fn status_enum_values(status: Option<&str>) -> Vec<i8> {
@@ -135,17 +132,8 @@ impl CHTraceAgg {
             output_cost: agg.output_cost,
             total_cost: agg.total_cost,
             metadata: encode_metadata(agg.metadata.as_ref()),
-            session_id: agg.session_id.clone().unwrap_or_default(),
-            user_id: agg.user_id.clone().unwrap_or_default(),
-            top_span_id: agg.top_span_id.unwrap_or(Uuid::nil()),
-            top_span_name: encode_top_span_name(
-                agg.top_span_name.as_deref(),
-                agg.top_span_id.is_some(),
-            ),
-            top_span_type: agg.top_span_type,
             tags: agg.tags.iter().cloned().collect(),
             num_spans: agg.num_spans as u64,
-            has_browser_session: agg.has_browser_session.unwrap_or(false) as u8,
             span_names: agg.span_names.iter().cloned().collect(),
             cache_read_input_tokens: agg.cache_read_input_tokens as u64,
             cache_creation_input_tokens: agg.cache_creation_input_tokens as u64,
@@ -155,69 +143,46 @@ impl CHTraceAgg {
         }
     }
 
-    /// Build a partial row for a metadata patch (POST /v1/traces/metadata),
-    /// from the PG-merged trace row the patch UPDATE returned. All aggregates
-    /// are identities except: metadata (the full merged map, unversioned —
-    /// `maxMap`'s per-key value comparison is arbitrary from an application
-    /// standpoint, so this is best-effort, not LWW) and `num_spans` (+1,
-    /// matching the PG counter bump that pays for the virtual metadata-only
-    /// span). `now_ns` is the fallback timestamp.
+    /// Build a partial row for a metadata patch (`POST /v1/traces/metadata`)
+    /// straight from the patch. Every aggregate is an identity except
+    /// `metadata` (the patched object, unversioned — `maxMap`'s per-key value
+    /// comparison is arbitrary from an application standpoint, so this is
+    /// best-effort, not LWW) and `num_spans` (+1, paying for the virtual
+    /// metadata-only span that drove the patch).
     ///
-    /// A patch that beats the trace's real span batch creates a stub row with
-    /// `now()` placeholder start/end times (`Trace::is_stub`). In
-    /// `traces_replacing`, the later aggregation upsert explicitly discards a
-    /// stub's placeholder times before applying `LEAST`/`GREATEST`, so the
-    /// placeholder is harmless there. `traces_agg`'s `end_time` is a
-    /// `SimpleAggregateFunction(max, ...)` with no such correction — once a
-    /// too-late placeholder is merged in, no later, earlier, correct partial
-    /// can ever lower it back down. So for a stub row this emits `end_time =
-    /// 0` (the `max` identity) instead of the placeholder, making this
-    /// partial a no-op on `end_time` until a real span batch's own partial
-    /// supplies the true value.
+    /// `end_time` is `0`, the `max` identity: a patch learns nothing about the
+    /// trace's end, and `max` can never be lowered back down once a too-late
+    /// value merges in.
     ///
     /// `start_time` can't use the `min` identity (epoch 0 / `i64::MAX`) the
     /// same way: `traces_agg` is `PARTITION BY toYYYYMM(start_time)`, so an
     /// epoch or far-future value would land this partial in a different
-    /// partition than the real span batch's — and the two partials would
-    /// never merge together. Instead use `now_ns + 1h`: any real trace's
-    /// `start_time` is at or before ingest time, so `min` still always picks
-    /// the real value once it arrives, while staying in the same (or an
-    /// adjacent) monthly partition as `now_ns` so the merge is local.
-    pub fn from_patched_trace(trace: &Trace, now_ns: i64) -> Self {
-        const STUB_START_TIME_OFFSET_NS: i64 = 60 * 60 * 1_000_000_000;
-
-        let (start_time, end_time) = if trace.is_stub() {
-            (now_ns + STUB_START_TIME_OFFSET_NS, 0)
-        } else {
-            (
-                trace
-                    .start_time()
-                    .map(chrono_to_nanoseconds)
-                    .unwrap_or(now_ns),
-                trace.end_time().map(chrono_to_nanoseconds).unwrap_or(now_ns),
-            )
-        };
-
+    /// partition than the span batch's, and the two would never merge.
+    /// `start_time` is the caller's resolved trace start
+    /// (`processor::resolve_static_start_times`); with none resolvable it
+    /// passes `now_ns + 1h`, which is still a `min` no-op against any real
+    /// (past-or-present) start while staying in the same or an adjacent
+    /// monthly partition so the merge stays local.
+    pub fn from_metadata_patch(
+        project_id: Uuid,
+        trace_id: Uuid,
+        metadata: Option<&Value>,
+        start_time: i64,
+    ) -> Self {
         CHTraceAgg {
-            id: trace.id(),
-            project_id: trace.project_id(),
+            id: trace_id,
+            project_id,
             start_time,
-            end_time,
+            end_time: 0,
             input_tokens: 0,
             output_tokens: 0,
             total_tokens: 0,
             input_cost: 0.0,
             output_cost: 0.0,
             total_cost: 0.0,
-            metadata: encode_metadata(trace.metadata()),
-            session_id: String::new(),
-            user_id: String::new(),
-            top_span_id: Uuid::nil(),
-            top_span_name: String::new(),
-            top_span_type: 0,
+            metadata: encode_metadata(metadata),
             tags: Vec::new(),
             num_spans: 1,
-            has_browser_session: 0,
             span_names: Vec::new(),
             cache_read_input_tokens: 0,
             cache_creation_input_tokens: 0,
@@ -227,6 +192,11 @@ impl CHTraceAgg {
         }
     }
 }
+
+/// A patch that carries no resolvable trace start is nudged an hour past ingest
+/// time so it stays a `min` no-op while landing in the same or an adjacent
+/// monthly partition as the span batch's partial.
+pub const PATCH_START_TIME_OFFSET_NS: i64 = 60 * 60 * 1_000_000_000;
 
 impl ClickhouseInsertable for CHTraceAgg {
     const TABLE: Table = Table::TracesAgg;
@@ -245,62 +215,33 @@ impl ClickhouseInsertable for CHTraceAgg {
 
 #[cfg(test)]
 mod tests {
-    use chrono::Utc;
     use serde_json::json;
 
     use super::*;
 
+    // A patch learns nothing about the trace's end, so `end_time` must be the
+    // `max` identity — `max` can never be lowered again once a too-late value
+    // merges in. `start_time` takes the caller's resolved trace start so the
+    // partial lands in the span batch's partition.
     #[test]
-    fn from_patched_trace_stub_row_avoids_placeholder_times() {
-        // A patch that beats the real span batch creates a stub row
-        // (span_names still NULL) with `now()` placeholder start/end times.
-        // Those placeholders must never ride into traces_agg's min/max
-        // aggregates as-is — otherwise a too-late placeholder `end_time`
-        // would permanently inflate the aggregate via `max`, since no later,
-        // correct, earlier partial can ever lower it back down.
-        let now_ns = 1_000_000_000;
-        let trace = Trace::test_new(
+    fn metadata_patch_uses_max_identity_end_and_the_resolved_start() {
+        let resolved_start = 1_700_000_000_000_000_000;
+        let row = CHTraceAgg::from_metadata_patch(
             Uuid::new_v4(),
             Uuid::new_v4(),
-            Some(Utc::now()),
-            Some(Utc::now()),
-            None, // span_names: None => stub
+            Some(&json!({"k": "v"})),
+            resolved_start,
         );
-        assert!(trace.is_stub());
-
-        let row = CHTraceAgg::from_patched_trace(&trace, now_ns);
-        // end_time uses the true `max` identity: harmless no-op until a real
-        // span batch supplies the actual value.
         assert_eq!(row.end_time, 0, "max identity for end_time");
-        // start_time can't use the `min` identity (epoch/i64::MAX) because
-        // traces_agg partitions on toYYYYMM(start_time) — an epoch or
-        // far-future value would land this partial in a different partition
-        // than the real span batch's, and the two would never merge. Instead
-        // it's nudged 1h into the future of ingest time: still a `min`
-        // no-op against any real (past-or-present) start_time, while staying
-        // in the same/adjacent monthly partition.
-        assert_eq!(row.start_time, now_ns + 60 * 60 * 1_000_000_000);
-    }
-
-    #[test]
-    fn from_patched_trace_real_row_keeps_its_times() {
-        // A patch against an already-real row (span_names populated by a
-        // prior aggregation upsert) must propagate the real times verbatim —
-        // only the stub case is special-cased.
-        let start = Utc::now();
-        let end = Utc::now();
-        let trace = Trace::test_new(
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            Some(start),
-            Some(end),
-            Some(json!({"some_span": true})),
-        );
-        assert!(!trace.is_stub());
-
-        let row = CHTraceAgg::from_patched_trace(&trace, 0);
-        assert_eq!(row.start_time, chrono_to_nanoseconds(start));
-        assert_eq!(row.end_time, chrono_to_nanoseconds(end));
+        assert_eq!(row.start_time, resolved_start);
+        // The +1 pays for the virtual metadata-only span that drove the patch.
+        assert_eq!(row.num_spans, 1);
+        // Every other aggregate is an identity.
+        assert_eq!(row.total_tokens, 0);
+        assert_eq!(row.total_cost, 0.0);
+        assert!(row.statuses.is_empty());
+        assert!(row.trace_types.is_empty());
+        assert!(row.span_names.is_empty());
     }
 
     #[test]
@@ -330,17 +271,6 @@ mod tests {
         let encoded = encode_metadata(Some(&metadata));
         assert!(encoded.iter().any(|(k, _)| k == "user_key"));
         assert!(!encoded.iter().any(|(k, _)| k == "lmnr_user_task"));
-    }
-
-    #[test]
-    fn top_span_name_root_beats_path_fallback_under_max() {
-        let fallback = encode_top_span_name(Some("zzz_outer_path"), false);
-        let root = encode_top_span_name(Some("agent"), true);
-        // Real root name must win max(String) even when lexicographically smaller.
-        assert!(root > fallback);
-        assert_eq!(&root[1..], "agent");
-        assert_eq!(&fallback[1..], "zzz_outer_path");
-        assert_eq!(encode_top_span_name(None, false), "");
     }
 
     #[test]

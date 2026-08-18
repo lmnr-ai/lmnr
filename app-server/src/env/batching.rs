@@ -5,6 +5,20 @@ use super::NumEnv;
 pub const SPANS_SIZE: NumEnv<usize> = NumEnv::new("SPANS_BATCH_SIZE", 128);
 pub const SPANS_FLUSH_INTERVAL_MS: NumEnv<u64> = NumEnv::new("SPANS_BATCH_FLUSH_INTERVAL_MS", 500);
 
+/// Stream readers reuse `SPANS_BATCH_SIZE` for the span count but get their own
+/// flush interval so the stream and queue transports tune independently. Safe to
+/// lengthen because a stream backlog waits on broker disk.
+pub const STREAM_SPANS_FLUSH_INTERVAL_MS: NumEnv<u64> =
+    NumEnv::new("STREAM_SPANS_BATCH_FLUSH_INTERVAL_MS", 1000);
+
+/// The queue path indexes one payload per delivery; the stream reader batches
+/// them, so Quickwit gets one ingest call per index per flush instead of per
+/// payload.
+pub const STREAM_SPANS_INDEXER_SIZE: NumEnv<usize> =
+    NumEnv::new("STREAM_SPANS_INDEXER_BATCH_SIZE", 64);
+pub const STREAM_SPANS_INDEXER_FLUSH_INTERVAL_MS: NumEnv<u64> =
+    NumEnv::new("STREAM_SPANS_INDEXER_BATCH_FLUSH_INTERVAL_MS", 1000);
+
 pub const DATA_PLANE_SPANS_SIZE: NumEnv<usize> = NumEnv::new("DATA_PLANE_SPANS_BATCH_SIZE", 256);
 pub const DATA_PLANE_SPANS_FLUSH_INTERVAL_MS: NumEnv<u64> =
     NumEnv::new("DATA_PLANE_SPANS_BATCH_FLUSH_INTERVAL_MS", 500);

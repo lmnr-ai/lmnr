@@ -176,6 +176,7 @@ const NotificationPanel = () => {
                     </Link>
                   )}
                   <Button
+                    aria-label="Close"
                     variant="ghost"
                     size="icon-sm"
                     onClick={close}

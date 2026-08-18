@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 
 import { type RecentSearch, useAdvancedSearchContext, useAdvancedSearchRefsContext } from "../store";
 import { type ColumnFilter, createTagFromFilter } from "../types";
-import { buildValueSuggestions } from "../utils";
+import { buildValueSuggestions, hasUuidSuggestion } from "../utils";
 
 interface FieldSuggestion {
   type: "field";
@@ -34,13 +34,20 @@ export type Suggestion = FieldSuggestion | ValueSuggestion | RawSearchSuggestion
 export const buildSuggestions = (
   inputValue: string,
   filters: ColumnFilter[],
-  autocompleteData: Map<string, string[]>
+  autocompleteData: Map<string, string[]>,
+  uuidFilterColumn?: string,
+  allowFreeTextSearch = true
 ): Suggestion[] => {
   const input = inputValue.trim().toLowerCase();
 
   if (!input) {
     return filters.map((filter) => ({ type: "field" as const, filter }));
   }
+
+  // A pasted UUID is an id, not prose — offer the exact-match filter first.
+  const uuidSuggestions: Suggestion[] = hasUuidSuggestion(input, filters, uuidFilterColumn)
+    ? [{ type: "value" as const, field: uuidFilterColumn as string, value: inputValue.trim() }]
+    : [];
 
   const matchingFields = filters.filter(
     (f) => f.name.toLowerCase().includes(input) || f.key.toLowerCase().includes(input)
@@ -55,22 +62,31 @@ export const buildSuggestions = (
     ({ field, value, label }) => ({ type: "value" as const, field, value, label })
   );
 
-  return [...fieldSuggestions, ...valueSuggestions, { type: "raw_search" as const, value: inputValue.trim() }];
+  return [
+    ...uuidSuggestions,
+    ...fieldSuggestions,
+    ...valueSuggestions,
+    ...(allowFreeTextSearch ? [{ type: "raw_search" as const, value: inputValue.trim() }] : []),
+  ];
 };
 
 export const getSuggestionsCount = (
   filters: ColumnFilter[],
   inputValue: string,
-  autocompleteData: Map<string, string[]>
-): number => buildSuggestions(inputValue, filters, autocompleteData).length;
+  autocompleteData: Map<string, string[]>,
+  uuidFilterColumn?: string,
+  allowFreeTextSearch = true
+): number => buildSuggestions(inputValue, filters, autocompleteData, uuidFilterColumn, allowFreeTextSearch).length;
 
 export const getSuggestionAtIndex = (
   filters: ColumnFilter[],
   inputValue: string,
   index: number,
-  autocompleteData: Map<string, string[]>
+  autocompleteData: Map<string, string[]>,
+  uuidFilterColumn?: string,
+  allowFreeTextSearch = true
 ): Suggestion | null => {
-  const suggestions = buildSuggestions(inputValue, filters, autocompleteData);
+  const suggestions = buildSuggestions(inputValue, filters, autocompleteData, uuidFilterColumn, allowFreeTextSearch);
   return suggestions[index] ?? null;
 };
 
@@ -136,6 +152,8 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
   const autocompleteData = useAdvancedSearchContext((state) => state.autocompleteData);
   const tags = useAdvancedSearchContext((state) => state.tags);
   const recentSearches = useAdvancedSearchContext((state) => state.recentSearches);
+  const allowFreeTextSearch = useAdvancedSearchContext((state) => state.allowFreeTextSearch);
+  const uuidFilterColumn = useAdvancedSearchContext((state) => state.uuidFilterColumn);
 
   const { addTag, addCompleteTag, setInputValue, setIsOpen, submit, applyRecentSearch } = useAdvancedSearchContext(
     (state) => ({
@@ -155,8 +173,8 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
   const recentContainerRef = useRef<HTMLDivElement>(null);
 
   const suggestions = useMemo(
-    () => buildSuggestions(inputValue, filters, autocompleteData),
-    [inputValue, filters, autocompleteData]
+    () => buildSuggestions(inputValue, filters, autocompleteData, uuidFilterColumn, allowFreeTextSearch),
+    [inputValue, filters, autocompleteData, uuidFilterColumn, allowFreeTextSearch]
   );
 
   const showRecent = !inputValue.trim() && tags.length === 0 && recentSearches.length > 0;

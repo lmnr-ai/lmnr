@@ -338,7 +338,7 @@ export default function DatasetPanel({
       <>
         <div className="flex flex-col h-full w-full">
           <div className="h-12 flex flex-none space-x-2 px-3 items-center border-b">
-            <Button variant="ghost" size="icon" onClick={handleClose}>
+            <Button aria-label="Collapse panel" variant="ghost" size="icon" onClick={handleClose}>
               <ChevronsRight />
             </Button>
             <div>Row</div>

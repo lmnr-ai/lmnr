@@ -15,7 +15,7 @@ use crate::{
         DB,
         spans::{Span, SpanType},
     },
-    mq::MessageQueue,
+    mq::{MessageQueue, stream::StreamPublisher},
     traces::{
         producer::publish_span_messages,
         span_attributes::{
@@ -26,10 +26,18 @@ use crate::{
     },
 };
 
+/// A post-factum metadata patch applied to a trace by the
+/// `POST /v1/traces/metadata` endpoint via a virtual metadata-only span.
+#[derive(Debug, Clone)]
+pub struct TraceMetadataPatch {
+    pub trace_id: Uuid,
+    pub project_id: Uuid,
+    pub metadata: Value,
+}
+
 /// Publish a virtual metadata-only span carrying `attributes` (which must
 /// already include the [`SPAN_METADATA_ONLY`] marker). The consumer routes
-/// it as a trace patch: not recorded to `spans`, no stats, creates a
-/// virtual trace row if the trace hasn't landed yet.
+/// it as a trace patch: not recorded to `spans`, no stats.
 ///
 /// Returns a boxed future: the user-task hook forms an async cycle
 /// (`publish_span_messages` → hook → here → `publish_span_messages`), so the
@@ -42,6 +50,7 @@ fn publish_metadata_only_span(
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    spans_stream_publisher: Option<Arc<StreamPublisher>>,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send>> {
     Box::pin(async move {
         let now = Utc::now();
@@ -73,7 +82,15 @@ fn publish_metadata_only_span(
             tool_dedup: None,
         }];
 
-        publish_span_messages(messages, project_id, queue, db, cache).await?;
+        publish_span_messages(
+            messages,
+            project_id,
+            queue,
+            db,
+            cache,
+            spans_stream_publisher,
+        )
+        .await?;
         Ok(())
     })
 }
@@ -88,6 +105,7 @@ pub fn publish_trace_metadata_patch(
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    spans_stream_publisher: Option<Arc<StreamPublisher>>,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send>> {
     if metadata.is_empty() {
         return Box::pin(async { Ok(()) });
@@ -100,26 +118,52 @@ pub fn publish_trace_metadata_patch(
             value,
         );
     }
-    publish_metadata_only_span(trace_id, project_id, attributes, queue, db, cache)
+    publish_metadata_only_span(
+        trace_id,
+        project_id,
+        attributes,
+        queue,
+        db,
+        cache,
+        spans_stream_publisher,
+    )
 }
 
 /// Set the extracted trace input. The RAW value rides the virtual span on
 /// [`SPAN_TRACE_INPUT`] with no predefined key: the processor stores it
 /// directly in the `trace_agent_input` supplementary table. The metadata
 /// key is added only on the deprecated `traces_replacing` merge path.
+/// `rollout_session_id`, when set, is stamped for debugger-channel routing.
 pub async fn publish_trace_input_update(
     trace_id: Uuid,
     project_id: Uuid,
     value: Value,
+    rollout_session_id: Option<String>,
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    spans_stream_publisher: Option<Arc<StreamPublisher>>,
 ) -> Result<()> {
-    let attributes = HashMap::from([
+    let mut attributes = HashMap::from([
         (SPAN_METADATA_ONLY.to_string(), Value::Bool(true)),
         (SPAN_TRACE_INPUT.to_string(), value),
     ]);
-    publish_metadata_only_span(trace_id, project_id, attributes, queue, db, cache).await
+    if let Some(session_id) = rollout_session_id {
+        attributes.insert(
+            format!("{ASSOCIATION_PROPERTIES_PREFIX}.metadata.rollout.session_id"),
+            Value::String(session_id),
+        );
+    }
+    publish_metadata_only_span(
+        trace_id,
+        project_id,
+        attributes,
+        queue,
+        db,
+        cache,
+        spans_stream_publisher,
+    )
+    .await
 }
 
 /// Set the extracted trace output. Same virtual-span transport as
@@ -138,6 +182,7 @@ pub async fn publish_trace_output_update(
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    spans_stream_publisher: Option<Arc<StreamPublisher>>,
 ) -> Result<()> {
     let hex_hashes: Vec<Value> = hashes
         .iter()
@@ -154,5 +199,14 @@ pub async fn publish_trace_output_update(
             Value::Number(end_time_ns.into()),
         ),
     ]);
-    publish_metadata_only_span(trace_id, project_id, attributes, queue, db, cache).await
+    publish_metadata_only_span(
+        trace_id,
+        project_id,
+        attributes,
+        queue,
+        db,
+        cache,
+        spans_stream_publisher,
+    )
+    .await
 }

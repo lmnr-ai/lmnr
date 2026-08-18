@@ -153,7 +153,7 @@ function FilterConditionRow({
           )
         }
       />
-      <Button type="button" variant="ghost" size="icon" onClick={onRemove}>
+      <Button aria-label="Remove condition" type="button" variant="ghost" size="icon" onClick={onRemove}>
         <X className="w-3.5 h-3.5" />
       </Button>
     </div>
@@ -179,7 +179,7 @@ function FilterCard({
     <div className="rounded-md border p-3 space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">All conditions must match</span>
-        <Button type="button" variant="ghost" size="icon" onClick={onRemove}>
+        <Button aria-label="Remove filter" type="button" variant="ghost" size="icon" onClick={onRemove}>
           <Trash2 className="w-3.5 h-3.5" />
         </Button>
       </div>
@@ -201,7 +201,7 @@ function FilterCard({
         disabled={columns.length === 0}
         onClick={() => append(getDefaultFilter(columns))}
       >
-        <Plus className="w-3.5 h-3.5 mr-1" />
+        <Plus data-icon="inline-start" className="w-3.5 h-3.5 mr-1" />
         Add condition
       </Button>
     </div>
@@ -236,7 +236,7 @@ export default function AlertFiltersSection({ schema }: { schema: unknown }) {
           disabled={columns.length === 0}
           onClick={() => append({ filters: [getDefaultFilter(columns)] })}
         >
-          <Plus className="w-3.5 h-3.5 mr-1" />
+          <Plus data-icon="inline-start" className="w-3.5 h-3.5 mr-1" />
           Add filter
         </Button>
       </div>

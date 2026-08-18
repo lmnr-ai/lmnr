@@ -82,7 +82,7 @@ export default function TraceControlBar({ trace, analyticsFeature = "sessions" }
           size="sm"
           className={cn("bg-transparent", !isTimelineOpen && "hover:bg-secondary")}
         >
-          <GanttChart size={14} className="mr-1" />
+          <GanttChart data-icon="inline-start" size={14} className="mr-1" />
           Timeline
         </Button>
       )}

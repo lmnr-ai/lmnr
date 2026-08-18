@@ -409,7 +409,7 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
               setTab("tree");
             }}
           >
-            <ListTree size={14} className="mr-1" />
+            <ListTree data-icon="inline-start" size={14} className="mr-1" />
             Switch to tree
           </Button>
         )}
@@ -446,7 +446,7 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
           const activeSticky = isActiveSticky(virtualRow.index);
 
           const positionStyle: CSSProperties = activeSticky
-            ? { position: "sticky", top: 0, background: "hsl(var(--background))" }
+            ? { position: "sticky", top: 0, background: "var(--color-surface)" }
             : { position: "absolute", top: 0, transform: `translateY(${virtualRow.start}px)` };
 
           if (row.type === "group") {

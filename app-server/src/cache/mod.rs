@@ -24,6 +24,18 @@ pub enum Cache {
     Redis(RedisCache),
 }
 
+/// Outcome of [`CacheTrait::try_acquire_lock_with_owner`].
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+#[derive(Debug, PartialEq, Eq)]
+pub enum LockClaim {
+    /// This call took the claim.
+    Acquired,
+    /// Someone already held it. `Some` carries the owner they stored; `None` is a
+    /// value that doesn't decode as an owner — e.g. a legacy ownerless
+    /// [`CacheTrait::try_acquire_lock`] entry, which ages out with its TTL.
+    Held(Option<String>),
+}
+
 #[enum_dispatch(Cache)]
 pub trait CacheTrait {
     async fn get<T>(&self, key: &str) -> Result<Option<T>, CacheError>
@@ -48,6 +60,29 @@ pub trait CacheTrait {
     /// Try to acquire a lock. Returns true if lock was acquired, false if already locked.
     /// Lock expires after TTL seconds if not manually released.
     async fn try_acquire_lock(&self, key: &str, ttl_seconds: u64) -> Result<bool, CacheError>;
+
+    /// Atomically claim `key` for `owner`, reporting who holds it when the claim
+    /// fails — so a redelivered task can recognize its OWN claim and re-enter
+    /// instead of waiting out the TTL.
+    ///
+    /// Differs from [`Self::try_acquire_lock`] in two ways that matter:
+    /// - the stored value is the caller's identity, hence the `Held` payload;
+    /// - the claim lives in the SAME keyspace as `insert_with_ttl`, so `get` /
+    ///   `remove` / `set_ttl` all address it. (`try_acquire_lock` keeps in-memory
+    ///   locks in a separate map that `get` cannot see.)
+    ///
+    /// Claim and owner-read are ONE atomic step, which is the whole point: use
+    /// this rather than `get`-then-`insert` whenever concurrent callers contend
+    /// for the same key, and don't decompose it back into a claim followed by a
+    /// separate `get` — that reintroduces a window where the holder releases in
+    /// between and the reader sees an empty holder for a lock that is now free.
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    async fn try_acquire_lock_with_owner(
+        &self,
+        key: &str,
+        owner: &str,
+        ttl_seconds: u64,
+    ) -> Result<LockClaim, CacheError>;
 
     /// Extend an already-held lock's expiry to `ttl_seconds` from now. Returns
     /// true if the lock still existed and was renewed, false if it had already

@@ -9,7 +9,8 @@ export const numberFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 3,
 });
 
-const chartColors = [
+// Series colors, assigned by position and wrapping past the fifth.
+const CHART_PALETTE = [
   "hsl(var(--chart-1))",
   "hsl(var(--chart-2))",
   "hsl(var(--chart-3))",
@@ -131,11 +132,11 @@ export const selectNiceTicksFromData = (
   };
 };
 
-export const generateChartConfig = (columns: string[]): ChartConfig =>
+export const generateChartConfig = (columns: string[], palette: string[] = CHART_PALETTE): ChartConfig =>
   columns.reduce((config, columnName, index) => {
     config[columnName] = {
       label: columnName,
-      color: chartColors[index % chartColors.length],
+      color: palette[index % palette.length],
     };
     return config;
   }, {} as ChartConfig);
@@ -170,12 +171,12 @@ export const getChartMargins = (yAxisValues?: any[], yAxisFormatter?: (value: an
   };
 };
 
-const createChartConfig = (columns: string[]): ChartConfig =>
+const createChartConfig = (columns: string[], palette: string[] = CHART_PALETTE): ChartConfig =>
   Object.fromEntries(
     columns.map((column, index) => [
       column,
       {
-        color: `hsl(var(--chart-${(index % 5) + 1}))`,
+        color: palette[index % palette.length],
         label: column,
         stackId: "stack",
       },

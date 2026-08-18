@@ -46,12 +46,12 @@ export default function RunScoreCard({
   evaluationId,
   scoreNames,
   allStatistics,
-  allDistributions,
   comparedAllStatistics,
-  comparedAllDistributions,
   isComparison,
   scoreDirections,
 }: RunScoreCardProps) {
+  // allDistributions/comparedAllDistributions are still accepted (and shipped by
+  // the API) for future histogram charts; the shields read exact stats now.
   const [aggregation] = useAggregation();
 
   const [storedOrder, setStoredOrder] = useLocalStorage<string[]>(
@@ -88,16 +88,14 @@ export default function RunScoreCard({
         />
         <AggregationSelect />
       </div>
-      <div className="flex items-start overflow-x-auto scroll-fade-x px-2 overflow-y-hidden no-scrollbar gap-2">
+      <div className="flex items-start overflow-x-auto scroll-fade-x px-2 overflow-y-hidden no-scrollbar gap-4 divide-x divide-foreground-600">
         {visibleScores.map((name) => (
           <ScoreCardItem
             key={name}
             name={name}
             aggregation={aggregation}
             statistics={allStatistics?.[name] ?? null}
-            distribution={allDistributions?.[name] ?? null}
             comparedStatistics={comparedAllStatistics?.[name] ?? null}
-            comparedDistribution={comparedAllDistributions?.[name] ?? null}
             isComparison={isComparison}
             isHigherBetter={scoreDirections?.[name] ?? true}
           />

@@ -3,20 +3,21 @@
 import { type Row } from "@tanstack/react-table";
 import { isEmpty, map } from "lodash";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
-import { memo, type PropsWithChildren, type RefObject, useCallback, useEffect, useMemo } from "react";
+import { memo, type PropsWithChildren, type RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import { useSWRConfig } from "swr";
 
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { FETCH_SIZE } from "@/components/traces/traces-table/constants";
-import { realtimeTraceToRow } from "@/components/traces/traces-table/realtime";
+import { TracesEmptyRow } from "@/components/traces/traces-table/empty-row";
 import { type buildColumnDefs, buildFetchParams } from "@/components/traces/traces-table/traces-table-store";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
-import { type RealtimeTracePayload, type TraceRow } from "@/lib/traces/types";
+import { applyTracePartial, mergeTraceDelta, realtimeTraceToRow, type TracePartial } from "@/lib/traces/realtime";
+import { type RealtimeAgentInputPayload, type RealtimeTracePayload, type TraceRow } from "@/lib/traces/types";
 
 export interface TracesTableContentsProps {
   refetchRef: RefObject<() => void>;
@@ -180,37 +181,77 @@ export const TracesTableContents = memo(function TracesTableContents({
     setNavigationRefList(map(traces, "id"));
   }, [setNavigationRefList, traces]);
 
+  // Realtime for a trace arrives as separate fragments (stats delta,
+  // agent_input) that can land out of order — the agent_input event is often
+  // published before the trace_update that seeds the row. Buffer fragments for
+  // not-yet-loaded rows by traceId (latest wins) and merge them in when the
+  // row appears. Held in a ref: survives renders, must not trigger one.
+  const pendingFragmentsRef = useRef<Map<string, TracePartial>>(new Map());
+
+  // Accumulate the delta onto the row; seed a new one. Any buffered fragment
+  // for the trace is merged in as the row lands.
   const updateRealtimeTrace = useCallback(
-    (traceData: TraceRow) => {
-      if (!traceData.startTime || !isTraceInTimeRange(traceData.startTime)) {
-        return;
-      }
+    (payload: RealtimeTracePayload) => {
+      const drainFragments = (row: TraceRow): TraceRow => {
+        const pending = pendingFragmentsRef.current.get(payload.id);
+        if (!pending) return row;
+        pendingFragmentsRef.current.delete(payload.id);
+        return applyTracePartial(row, pending);
+      };
 
       updateData((currentTraces) => {
-        if (!currentTraces || currentTraces.length === 0) return currentTraces;
+        if (!currentTraces) return currentTraces;
 
-        const existingTraceIndex = currentTraces.findIndex((trace) => trace.id === traceData.id);
+        const existingTraceIndex = currentTraces.findIndex((trace) => trace.id === payload.id);
 
+        // Always accumulate onto a loaded row — `startTime` is this batch's min
+        // span start, not the trace start, so the range gate would wrongly drop it.
         if (existingTraceIndex !== -1) {
           const newTraces = [...currentTraces];
-          newTraces[existingTraceIndex] = traceData;
+          newTraces[existingTraceIndex] = drainFragments(mergeTraceDelta(newTraces[existingTraceIndex], payload));
           return newTraces;
         }
 
-        const newTraces = [traceData, ...currentTraces];
+        // Range gate only decides whether to admit a NEW row.
+        if (!payload.startTime || !isTraceInTimeRange(payload.startTime)) {
+          return currentTraces;
+        }
+
+        const newTraces = [drainFragments(realtimeTraceToRow(payload)), ...currentTraces];
 
         if (newTraces.length > FETCH_SIZE) {
           newTraces.splice(FETCH_SIZE);
         }
 
-        if (traceData.startTime) {
-          incrementStat(traceData.startTime, traceData.status === "error");
-        }
+        incrementStat(payload.startTime, payload.status === "error");
 
         return newTraces;
       });
     },
     [updateData, isTraceInTimeRange, incrementStat]
+  );
+
+  // Merge a trace fragment onto its row, or buffer it if the row isn't loaded
+  // yet (the fragment's event beat the trace_update). setData runs its updater
+  // synchronously (Zustand), so `applied` is reliable right after.
+  const mergeFragmentOrBuffer = useCallback(
+    (traceId: string, fragment: TracePartial) => {
+      let applied = false;
+      updateData((currentTraces) => {
+        if (!currentTraces) return currentTraces;
+        const idx = currentTraces.findIndex((trace) => trace.id === traceId);
+        if (idx === -1) return currentTraces;
+        const newTraces = [...currentTraces];
+        newTraces[idx] = applyTracePartial(newTraces[idx], fragment);
+        applied = true;
+        return newTraces;
+      });
+      if (!applied) {
+        const prev = pendingFragmentsRef.current.get(traceId);
+        pendingFragmentsRef.current.set(traceId, { ...prev, ...fragment });
+      }
+    },
+    [updateData]
   );
 
   const eventHandlers = useMemo(
@@ -220,15 +261,25 @@ export const TracesTableContents = memo(function TracesTableContents({
           const payload = JSON.parse(event.data) as { traces?: RealtimeTracePayload[] };
           if (payload.traces && Array.isArray(payload.traces)) {
             for (const trace of payload.traces) {
-              updateRealtimeTrace(realtimeTraceToRow(trace));
+              updateRealtimeTrace(trace);
             }
           }
         } catch (e) {
           console.warn("Failed to parse realtime trace: ", e);
         }
       },
+      trace_agent_input_update: (event: MessageEvent) => {
+        try {
+          const payload = JSON.parse(event.data) as RealtimeAgentInputPayload;
+          if (payload?.traceId) {
+            mergeFragmentOrBuffer(payload.traceId, { agentInput: payload.agentInput });
+          }
+        } catch (e) {
+          console.warn("Failed to parse realtime agent input: ", e);
+        }
+      },
     }),
-    [updateRealtimeTrace]
+    [updateRealtimeTrace, mergeFragmentOrBuffer]
   );
 
   useRealtime({
@@ -268,6 +319,7 @@ export const TracesTableContents = memo(function TracesTableContents({
       isLoading={isLoading || isViewLoading}
       fetchNextPage={fetchNextPage}
       getRowHref={getRowHref}
+      emptyRow={<TracesEmptyRow />}
       pinnedColumns={pinnedColumns}
       sortBy={sortBy}
       sortDirection={sortDirection}
