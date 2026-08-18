@@ -8,7 +8,6 @@ import {
   EVALUATION_STALE_AFTER_MS,
   type EvaluationStatus,
   type EvaluationStatusCounts,
-  resolveEvaluationStatusFilter,
 } from "@/lib/evaluation/status";
 
 const NOW = Date.parse("2026-04-01T12:00:00.000Z");
@@ -94,21 +93,5 @@ describe("datapointBuckets", () => {
       stale: 0,
       errored: 3,
     });
-  });
-});
-
-describe("resolveEvaluationStatusFilter", () => {
-  const cases: [string, EvaluationStatus | null][] = [
-    ["finished", "complete"],
-    ["finishedWithErrors", "completeWithErrors"],
-    ["empty", null],
-    ["complete", "complete"],
-    ["running", "running"],
-  ];
-
-  it("maps current and legacy filter values", () => {
-    for (const [value, expected] of cases) {
-      assert.equal(resolveEvaluationStatusFilter(value), expected, value);
-    }
   });
 });

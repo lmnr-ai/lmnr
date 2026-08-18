@@ -74,17 +74,6 @@ export const DATAPOINT_STATUS_LABELS: Record<EvalDatapointStatus, string> = {
 
 export const EVALUATION_STATUSES: EvaluationStatus[] = ["running", "incomplete", "complete", "completeWithErrors"];
 
-const LEGACY_STATUS_FILTERS: Record<string, EvaluationStatus | null> = {
-  finished: "complete",
-  finishedWithErrors: "completeWithErrors",
-  empty: null,
-};
-
-export const resolveEvaluationStatusFilter = (value: string): EvaluationStatus | null => {
-  if ((EVALUATION_STATUSES as string[]).includes(value)) return value as EvaluationStatus;
-  return Object.hasOwn(LEGACY_STATUS_FILTERS, value) ? LEGACY_STATUS_FILTERS[value] : (value as EvaluationStatus);
-};
-
 export type EvaluationDatapointBuckets = {
   total: number;
   complete: number;
