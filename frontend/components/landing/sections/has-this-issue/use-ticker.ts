@@ -6,9 +6,9 @@ import { useEffect, useState } from "react";
  * Walks 0 → steps once `armed` goes true, one step per stepMs, and resets to 0
  * when it goes false again (so a replay re-runs from empty).
  *
- * Unlike ../../use-stream-in this has no viewport trigger of its own — the
- * stage owns the schedule here and arms it at the right beat. Driven by rAF so
- * it stays frame-aligned and pauses with a backgrounded tab.
+ * No viewport trigger of its own — the stage owns the schedule here and arms it
+ * at the right beat. Driven by rAF so it stays frame-aligned and pauses with a
+ * backgrounded tab.
  */
 export function useTicker(armed: boolean, { steps, stepMs }: { steps: number; stepMs: number }): number {
   const [value, setValue] = useState(0);

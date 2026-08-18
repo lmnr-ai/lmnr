@@ -3,12 +3,24 @@
 import { motion } from "framer-motion";
 import { type ReactNode, type RefObject, useEffect, useRef } from "react";
 
-import { useStreamIn } from "../../use-stream-in";
 import { LaminarAppAvatar, SLACK_BG, SLACK_BORDER } from "../slack-notification-card";
 import { THREAD_AUTHOR, THREAD_CHANNEL, THREAD_MESSAGES, type ThreadMessage } from "./messages";
+import { useMessageCascade } from "./use-message-cascade";
 
-/** Beat between messages. Long enough to register each one as it lands. */
-const MESSAGE_MS = 1200;
+// Beat before a message lands: a fixed pause plus reading time for the message
+// above it, so the thread breathes the way a channel does instead of ticking.
+// `lines` is that message's rendered height — see ./messages.
+/** Pause every message gets, whatever is above it. */
+const BEAT_MS = 700;
+/** Reading time added per line of the message above. */
+const PER_LINE_MS = 190;
+/** Ceiling, so the longest message can't strand the reader on a static card. */
+const MAX_BEAT_MS = 2600;
+
+/** One entry per gap: how long the message AFTER index i waits. */
+const MESSAGE_DELAYS = THREAD_MESSAGES.slice(0, -1).map((message) =>
+  Math.min(BEAT_MS + message.lines * PER_LINE_MS, MAX_BEAT_MS)
+);
 
 const INITIALS = THREAD_AUTHOR.split(" ")
   .map((part) => part[0])
@@ -20,7 +32,7 @@ const UserAvatar = () => (
   </div>
 );
 
-const MessageRow = ({ author, time, body }: ThreadMessage) => (
+const MessageRow = ({ author, time, body }: Omit<ThreadMessage, "lines">) => (
   <div className="flex gap-3 items-start w-full">
     {author === "app" ? <LaminarAppAvatar /> : <UserAvatar />}
     <div className="flex flex-1 flex-col gap-1 min-w-0">
@@ -43,7 +55,7 @@ const MessageRow = ({ author, time, body }: ThreadMessage) => (
 /** The window's fixed height. The thread is taller than this, which is the
  *  point — it scrolls, the way a real channel does, instead of the card
  *  growing to whatever the copy happens to need. */
-const WINDOW_H = 548;
+const WINDOW_H = 602;
 
 // The window chrome. `pt` only: each row carries its own `pb-4`, which doubles
 // as the scroll area's bottom padding.
@@ -92,7 +104,7 @@ const SlackThread = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   // The first message is visible the moment the thread scrolls in, so the walk
   // only has to cover the remaining ones.
-  const revealed = useStreamIn(frameRef, { steps: THREAD_MESSAGES.length - 1, stepMs: MESSAGE_MS });
+  const revealed = useMessageCascade(frameRef, MESSAGE_DELAYS);
 
   // Follow the newest message, the way a channel does. Only ever scrolls down,
   // and only once the thread is long enough that the new row is past the

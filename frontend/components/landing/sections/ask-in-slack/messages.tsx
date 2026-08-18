@@ -196,15 +196,22 @@ export interface ThreadMessage {
   author: "app" | "user";
   time: string;
   body: ReactNode;
+  /** Rendered height in body lines, at the card's fixed 552px width, counting
+   *  a button row as one. The NEXT message waits on this — see
+   *  ./slack-thread — so a one-line question is answered almost at once and a
+   *  table of findings is not. Authored rather than measured: the whole thread
+   *  is hand-written here, and measuring would tie the beat to a layout pass
+   *  that has not run when the walk is scheduled. */
+  lines: number;
 }
 
 export const THREAD_MESSAGES: ThreadMessage[] = [
-  { author: "app", time: "9:41 AM", body: <NewEventAlert /> },
-  { author: "app", time: "9:42 AM", body: <NewClusterAlert /> },
-  { author: "user", time: "9:44 AM", body: <AskForExample /> },
-  { author: "app", time: "9:44 AM", body: <ExampleAnswer /> },
-  { author: "user", time: "9:45 AM", body: <AskHowBad /> },
-  { author: "app", time: "9:45 AM", body: <ScopeAnswer /> },
+  { author: "app", time: "9:41 AM", body: <NewEventAlert />, lines: 7 },
+  { author: "app", time: "9:42 AM", body: <NewClusterAlert />, lines: 6 },
+  { author: "user", time: "9:44 AM", body: <AskForExample />, lines: 1 },
+  { author: "app", time: "9:44 AM", body: <ExampleAnswer />, lines: 6 },
+  { author: "user", time: "9:45 AM", body: <AskHowBad />, lines: 1 },
+  { author: "app", time: "9:45 AM", body: <ScopeAnswer />, lines: 6 },
 ];
 
 export const THREAD_AUTHOR = "Robert Kim";

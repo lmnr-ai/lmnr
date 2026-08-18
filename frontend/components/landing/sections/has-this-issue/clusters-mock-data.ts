@@ -174,7 +174,16 @@ const DETECT_FAILURES = buildScenario(
     // Named by SIGNAL_CLUSTER_NAME, not a literal — the signal-event card's pill
     // animates into this exact row, so the two must never drift.
     { id: SIGNAL_CLUSTER_ID, name: SIGNAL_CLUSTER_NAME, amplitude: 18, phase: 0, createdHoursAgo: 72 },
-    { id: "df-llm-behavior", name: "LLM behavior issues", amplitude: 14, phase: 1.4, createdHoursAgo: 80 },
+    // Named for what the model actually does, not for the layer it happens in:
+    // "LLM behavior issues" covers every cluster on the board, so it reads as a
+    // bucket rather than a finding.
+    {
+      id: "df-llm-behavior",
+      name: "Invented identifiers and templates",
+      amplitude: 14,
+      phase: 1.4,
+      createdHoursAgo: 80,
+    },
   ],
   [
     {
@@ -299,7 +308,7 @@ const DETECT_FAILURES = buildScenario(
     },
     {
       id: "df-pr-incomplete",
-      name: "Incomplete PR task completion",
+      name: "PR marked done with work missing",
       parentId: null,
       amplitude: 9,
       phase: 2.1,

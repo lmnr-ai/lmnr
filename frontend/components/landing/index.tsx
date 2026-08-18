@@ -31,8 +31,10 @@ interface Props {
 const Landing = ({ className, hasSession }: Props) => (
   <div className={cn("bg-surface-150 overflow-x-clip flex flex-col", className)}>
     <Hero hasSession={hasSession} />
-    {/* 80px controls the gap to the section above */}
-    <UnderstandWhy className="md:mt-[calc(80px-(100vh-760px)/2)]" />
+    {/* 160px controls the gap to the logo strip above. The subtraction just
+        cancels the sticky child's own centring — its frame is 760 inside an
+        h-screen box — so the number means the real gap and nothing else. */}
+    <UnderstandWhy className="md:mt-[calc(160px-(100vh-760px)/2)]" />
     <div className="flex flex-col items-center w-full px-6 lg:px-0 pt-[100px] pb-[72px] md:pb-[120px]">
       <div className={cn("flex flex-col items-start gap-[120px] w-full", LANDING_COLUMN_MAX_W)}>
         {/* Mobile only. On desktop this is the closing step of the scrollytell
