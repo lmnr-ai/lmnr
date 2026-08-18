@@ -19,11 +19,65 @@ pub struct Evaluation {
     /// Conceptually, evaluations with different group ids are used to test different features.
     pub group_id: String,
     pub metadata: Option<Value>,
+    /// Evaluation-level tag names, in attachment order. Writes go through
+    /// `db::evaluation_tags`; the names resolve to colors via `tag_classes`.
+    pub tags: Vec<String>,
 }
 
 #[derive(FromRow)]
 pub struct EvaluationInfo {
     pub group_id: String,
+}
+
+/// List a project's evaluations, newest first. `name` is a case-insensitive
+/// substring match; `tags` narrows to evaluations carrying ALL of the given tags.
+pub async fn list_evaluations(
+    pool: &PgPool,
+    project_id: Uuid,
+    group_id: Option<&str>,
+    name: Option<&str>,
+    tags: &[String],
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<Evaluation>> {
+    let evaluations = sqlx::query_as::<_, Evaluation>(
+        "SELECT id, created_at, name, project_id, group_id, metadata, tags
+        FROM evaluations
+        WHERE project_id = $1
+            AND ($2::text IS NULL OR group_id = $2)
+            AND ($3::text IS NULL OR name ILIKE '%' || $3 || '%')
+            AND tags @> $4::text[]
+        ORDER BY created_at DESC
+        LIMIT $5 OFFSET $6",
+    )
+    .bind(project_id)
+    .bind(group_id)
+    .bind(name)
+    .bind(tags)
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(evaluations)
+}
+
+pub async fn get_evaluation(
+    pool: &PgPool,
+    project_id: Uuid,
+    evaluation_id: Uuid,
+) -> Result<Option<Evaluation>> {
+    let evaluation = sqlx::query_as::<_, Evaluation>(
+        "SELECT id, created_at, name, project_id, group_id, metadata, tags
+        FROM evaluations
+        WHERE project_id = $1 AND id = $2",
+    )
+    .bind(project_id)
+    .bind(evaluation_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(evaluation)
 }
 
 pub async fn create_evaluation(
@@ -42,7 +96,8 @@ pub async fn create_evaluation(
             name,
             project_id,
             group_id,
-            metadata",
+            metadata,
+            tags",
     )
     .bind(name)
     .bind(project_id)
@@ -76,7 +131,8 @@ pub async fn update_evaluation(
             name,
             project_id,
             group_id,
-            metadata",
+            metadata,
+            tags",
     )
     .bind(evaluation_id)
     .bind(project_id)

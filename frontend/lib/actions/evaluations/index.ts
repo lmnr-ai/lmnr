@@ -49,7 +49,14 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
       return sql`1=1`;
     });
 
-  const otherFilters = urlParamFilters.filter((filter) => filter.column !== "metadata");
+  const tagFilters = urlParamFilters
+    .filter((filter) => filter.column === "tags")
+    .map((filter) => {
+      const hasTag = sql`${evaluations.tags} @> ARRAY[${String(filter.value)}]::text[]`;
+      return filter.operator === "ne" ? sql`NOT (${hasTag})` : hasTag;
+    });
+
+  const otherFilters = urlParamFilters.filter((filter) => filter.column !== "metadata" && filter.column !== "tags");
 
   const dataPointsCountFilters = otherFilters.filter((f) => f.column === "dataPointsCount");
   const statusFilters = otherFilters.filter((f) => f.column === "status");
@@ -60,7 +67,13 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
     {}
   );
 
-  const allFilters = [...baseFilters, ...(searchFilter ? [searchFilter] : []), ...metadataFilters, ...sqlFilters];
+  const allFilters = [
+    ...baseFilters,
+    ...(searchFilter ? [searchFilter] : []),
+    ...metadataFilters,
+    ...tagFilters,
+    ...sqlFilters,
+  ];
 
   // Count + status live in ClickHouse — resolve matching ids, then constrain the PG page.
   let evaluationIdFilter: SQL | null = null;
