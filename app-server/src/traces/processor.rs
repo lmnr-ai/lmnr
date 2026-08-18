@@ -20,6 +20,7 @@ use crate::{
         utils::chrono_to_nanoseconds,
     },
     db::{DB, debugger_session_blocks, spans::Span, workspaces::WorkspaceDeployment},
+    evaluations::realtime::{send_evaluation_trace_updates, send_evaluations_list_trace_update},
     features::{Feature, is_feature_enabled},
     mq::{MessageQueue, stream::StreamPublisher},
     pii_redactor::{PiiRedactorClient, redact_spans_in_place},
@@ -927,8 +928,11 @@ async fn dispatch_trace_realtime_updates(
         send_trace_updates(&project_id, "traces", &traces_data, pubsub).await;
     }
     for ((project_id, evaluation_id), traces_data) in evaluation_buckets {
-        let key = format!("evaluation_{}", evaluation_id);
-        send_trace_updates(&project_id, &key, &traces_data, pubsub).await;
+        send_evaluation_trace_updates(pubsub, &project_id, &evaluation_id, &traces_data).await;
+        // List counters only move on errors; success waits on datapoint scores.
+        if traces_data.iter().any(RealtimeTrace::is_error) {
+            send_evaluations_list_trace_update(pubsub, &project_id, &evaluation_id).await;
+        }
     }
     for ((project_id, rollout_session_id), traces_data) in debugger_buckets {
         let key = format!("rollout_session_{}", rollout_session_id);

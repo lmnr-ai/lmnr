@@ -21,7 +21,11 @@ export const EvaluationStatusCell = ({ row }: { row: { original: Evaluation } })
   const counts = row.original.statusCounts;
 
   if (status == null) {
-    return <span className="text-muted-foreground">—</span>;
+    return (
+      <div className="flex items-center justify-center">
+        <span className="text-muted-foreground">—</span>
+      </div>
+    );
   }
 
   const { icon, className } = STATUS_ICONS[status];

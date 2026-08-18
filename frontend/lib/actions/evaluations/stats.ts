@@ -1,3 +1,5 @@
+import { z } from "zod/v4";
+
 import { executeQuery } from "@/lib/actions/sql";
 import {
   deriveEvaluationStatus,
@@ -14,6 +16,11 @@ const COMPLETE_PRED = `
 const EMPTY_COUNTS: EvaluationStatusCounts = { total: 0, errored: 0, complete: 0, stale: 0 };
 
 export type EvaluationRunStats = EvaluationStatusCounts & { status: EvaluationStatus | null };
+
+export const GetEvaluationRunStatsSchema = z.object({
+  projectId: z.guid(),
+  evaluationIds: z.array(z.guid()).min(1).max(100),
+});
 
 export const getEvaluationRunStats = async (
   projectId: string,

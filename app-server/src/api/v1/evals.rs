@@ -6,7 +6,10 @@ use crate::{
     db::{self, DB, project_api_keys::ProjectApiKey},
     evaluations::{
         EvaluationDatapointResult, UpdatedDatapointStrings, insert_evaluation_datapoints,
-        realtime::{RealtimeDatapoint, cache_inserted_datapoint_trace_ids, send_datapoint_updates},
+        realtime::{
+            RealtimeDatapoint, cache_inserted_datapoint_trace_ids, send_datapoint_updates,
+            send_evaluation_created,
+        },
         update_evaluation_datapoint,
     },
     names::NameGenerator,
@@ -71,6 +74,8 @@ pub async fn init_eval(
         )
         .await;
     }
+
+    send_evaluation_created(pubsub.get_ref().as_ref(), &project_id, &evaluation).await;
 
     Ok(HttpResponse::Ok().json(evaluation))
 }
@@ -154,6 +159,7 @@ pub async fn save_eval_datapoints(
         pubsub.get_ref().as_ref(),
         &project_id,
         &eval_id,
+        &group_name,
         &realtime_points,
     )
     .await;
@@ -212,6 +218,7 @@ pub async fn update_eval_datapoint(
         pubsub.get_ref().as_ref(),
         &project_id,
         &eval_id,
+        &group_id,
         std::slice::from_ref(&realtime_point),
     )
     .await;

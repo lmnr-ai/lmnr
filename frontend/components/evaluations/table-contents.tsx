@@ -11,6 +11,7 @@ import { type Evaluation } from "@/lib/evaluation/types";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { FETCH_SIZE } from "./constants";
+import { useEvaluationsRealtime } from "./use-evaluations-realtime";
 
 export interface EvaluationsTableContentsProps {
   filter: string[];
@@ -27,6 +28,7 @@ export interface EvaluationsTableContentsProps {
   onHoveredRowChange: (id: string | undefined) => void;
   refetchRef: RefObject<() => void>;
   onEvaluationsChange: (evals: { id: string; name: string }[]) => void;
+  onProgressionInvalidate: () => void;
 }
 
 export const EvaluationsTableContents = memo(function EvaluationsTableContents({
@@ -43,6 +45,7 @@ export const EvaluationsTableContents = memo(function EvaluationsTableContents({
   onHoveredRowChange,
   refetchRef,
   onEvaluationsChange,
+  onProgressionInvalidate,
 }: PropsWithChildren<EvaluationsTableContentsProps>) {
   const { projectId } = useParams<{ projectId: string }>();
   const { toast } = useToast();
@@ -88,6 +91,7 @@ export const EvaluationsTableContents = memo(function EvaluationsTableContents({
     isLoading,
     fetchNextPage,
     refetch,
+    updateData,
   } = useInfiniteScroll<Evaluation>({
     fetchFn: fetchEvaluations,
     enabled: !isViewLoading && !isGroupDefaultPending,
@@ -97,6 +101,14 @@ export const EvaluationsTableContents = memo(function EvaluationsTableContents({
   useEffect(() => {
     refetchRef.current = refetch;
   }, [refetch, refetchRef]);
+
+  useEvaluationsRealtime({
+    projectId: projectId ?? "",
+    groupId,
+    enabled: !!projectId && !isViewLoading && !isGroupDefaultPending && !search && filter.length === 0,
+    updateData,
+    onProgressionInvalidate,
+  });
 
   // id→name list for the chart's point labels. Filter to the current groupId so the store's
   // stale rows (it refetches async on group switch) can't feed the chart a previous group's names.

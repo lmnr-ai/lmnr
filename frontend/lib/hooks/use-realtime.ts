@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-type RealtimeEventHandler<T = any> = (data: T) => void;
+type RealtimeEventHandler = (event: MessageEvent) => void;
 
 interface UseRealtimeOptions {
   key: string;
@@ -11,15 +11,19 @@ interface UseRealtimeOptions {
   onError?: (error: Event) => void;
 }
 
-export function useRealtime({
-  key,
-  projectId,
-  eventHandlers,
-  enabled = true,
-  onConnect,
-  onError,
-}: UseRealtimeOptions) {
+export function useRealtime({ key, projectId, eventHandlers, enabled = true, onConnect, onError }: UseRealtimeOptions) {
   const eventSourceRef = useRef<EventSource | null>(null);
+  const handlersRef = useRef(eventHandlers);
+  const onConnectRef = useRef(onConnect);
+  const onErrorRef = useRef(onError);
+
+  useEffect(() => {
+    handlersRef.current = eventHandlers;
+    onConnectRef.current = onConnect;
+    onErrorRef.current = onError;
+  }, [eventHandlers, onConnect, onError]);
+
+  const eventNames = Object.keys(eventHandlers).sort().join(",");
 
   useEffect(() => {
     if (!enabled || !projectId) {
@@ -30,29 +34,28 @@ export function useRealtime({
     eventSourceRef.current = eventSource;
 
     eventSource.addEventListener("open", () => {
-      onConnect?.();
+      onConnectRef.current?.();
     });
 
-    Object.entries(eventHandlers).forEach(([eventName, handler]) => {
+    for (const eventName of eventNames.split(",").filter(Boolean)) {
       eventSource.addEventListener(eventName, (event) => {
         try {
-          handler(event);
-        } catch (error) {
-          console.error(`Error processing ${eventName} event:`, error);
+          handlersRef.current[eventName]?.(event);
+        } catch {
+          // Handler threw; don't tear down the SSE connection.
         }
       });
-    });
+    }
 
     eventSource.addEventListener("error", (error) => {
-      console.error("SSE connection error:", error);
-      onError?.(error);
+      onErrorRef.current?.(error);
     });
 
     return () => {
       eventSource.close();
       eventSourceRef.current = null;
     };
-  }, [key, projectId, enabled, eventHandlers, onConnect, onError]);
+  }, [key, projectId, enabled, eventNames]);
 
   return {
     close: () => {
