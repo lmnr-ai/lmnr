@@ -2,7 +2,7 @@
 
 import { motion, type Transition, useInView } from "framer-motion";
 import { ChevronDown, ChevronsRight, List, Maximize, Radio, Sparkles } from "lucide-react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
 import { TraceStatsShields } from "@/components/traces/stats-shields";
@@ -190,12 +190,30 @@ const TracePanel = ({
   const revealed = useStagger(Math.min(visibleSpans, spans.length), inView, SPAN_STEP_MS, instantSpans);
   const streaming = revealed < spans.length;
 
+  // The root span carries the FINISHED run's end time, so feeding it in whole
+  // put the full 25s axis on screen before anything had happened — spans then
+  // arrived into a timeline that already claimed to be over. A root that is
+  // still running has no end yet, so while the run streams its end is clipped
+  // to the last span that has actually arrived, and the axis grows with the
+  // run. Identified by having no parent; every other span here is its child.
+  const revealedSpans = useMemo(() => {
+    const slice = spans.slice(0, revealed);
+    if (!streaming) return slice;
+    const arrived = slice.filter((s) => s.parentSpanId);
+    if (arrived.length === 0) return slice;
+    const frontier = arrived.reduce(
+      (max, s) => (new Date(s.endTime) > new Date(max) ? s.endTime : max),
+      arrived[0].endTime
+    );
+    return slice.map((s) => (s.parentSpanId ? s : { ...s, endTime: frontier }));
+  }, [spans, revealed, streaming]);
+
   useEffect(() => {
     if (!trace || spans.length === 0) return;
-    setSpans(enrichSpansWithPending(spans.slice(0, revealed)));
+    setSpans(enrichSpansWithPending(revealedSpans));
     setTrace(trace);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trace?.id, spans, revealed]);
+  }, [trace?.id, revealedSpans]);
 
   // Only re-runs when the STEP changes the desired state, so a user toggle of
   // the Signals button survives until the narrative moves on.
@@ -298,7 +316,7 @@ const TracePanel = ({
             <TraceStatsShields
               className="min-w-0 overflow-hidden"
               trace={trace}
-              spans={streaming ? spans.slice(0, revealed) : undefined}
+              spans={streaming ? revealedSpans : undefined}
             />
           )}
         </div>

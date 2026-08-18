@@ -150,8 +150,10 @@ const LandingTranscript = ({ onSpanSelect, scrollLocked, instantSpans = 0 }: Pro
 
   const previews = useSpanPreviews(trace, spans);
 
-  // Rows, not spans: the user's input heads the list and is not a span, so it
-  // rides in with the opening batch rather than animating on its own.
+  // The user's input heads the list and is not a span, so it rides in with the
+  // opening batch rather than animating on its own. An UPPER bound, since the
+  // leading spans include structural ones that render no row — which is all it
+  // needs to be, as the overshoot lands past the last opening row.
   const instantRows = instantSpans + (userInput ? 1 : 0);
 
   const spansById = useMemo(() => new Map(spans.map((s) => [s.spanId, s])), [spans]);

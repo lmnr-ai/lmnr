@@ -131,14 +131,15 @@ const INACTIVE_OPACITY = 0.4;
 /** How far below its arming point Act 2 disarms. */
 const ACT2_HYSTERESIS = 0.04;
 
-/** Spans the panel opens on: the agent deciding to search, the search, and the
- *  agent reading the result. One full think-act-observe loop — stopping a span
- *  earlier ends on a tool call nothing answers, which reads as the trace being
- *  cut off rather than paused. With the user's input above them that is four
- *  transcript rows.
+/** Spans the panel opens on. FOUR, not three: `spans[0]` is the run's root
+ *  (`ai.streamText`), which sets the timeline's axis but renders no transcript
+ *  row of its own. The three that follow are one full think-act-observe loop,
+ *  so the reader opens on input, LLM, tool call, LLM — stopping a span earlier
+ *  ends on a tool call nothing answers, which reads as the trace being cut off
+ *  rather than paused.
  *
  *  `pinned` lifts the cap and the rest of the run streams in. */
-const OPENING_SPANS = 3;
+const OPENING_SPANS = 4;
 
 /** Rough block height, used only to seed the stops before the first
  *  measurement. The section is far below the fold, so the seed is never on
