@@ -68,6 +68,23 @@ pub async fn load_registry(
         .map_err(|e| anyhow::anyhow!("Failed to read version registry {key}: {e:?}"))
 }
 
+/// A version's static line set, or `None` when the key has lapsed. An empty
+/// stored list reads as absent: it can neither subset-match nor be grown past,
+/// so treating it as a real (empty) set would make it match every prompt.
+pub async fn load_version_lines(
+    cache: &Cache,
+    project_id: Uuid,
+    agent_hash: &str,
+    version_hash: &str,
+) -> Option<Vec<u64>> {
+    let lines_key = version_lines_cache_key(project_id, agent_hash, version_hash);
+    cache
+        .get::<Vec<u64>>(&lines_key)
+        .await
+        .unwrap_or_default()
+        .filter(|l| !l.is_empty())
+}
+
 /// Largest-match-wins cheap classification: among live versions whose static
 /// line set is a subset of the prompt's lines, pick the one with the most
 /// lines. Checking every live version (not first-hit) matters after an
@@ -83,12 +100,8 @@ pub async fn cheap_match(
     let registry = load_registry(cache, project_id, agent_hash).await?;
     let mut best: Option<(usize, String)> = None;
     for version in registry {
-        let lines_key = version_lines_cache_key(project_id, agent_hash, &version.version_hash);
-        let Some(lines) = cache
-            .get::<Vec<u64>>(&lines_key)
-            .await
-            .unwrap_or_default()
-            .filter(|l| !l.is_empty())
+        let Some(lines) =
+            load_version_lines(cache, project_id, agent_hash, &version.version_hash).await
         else {
             continue;
         };

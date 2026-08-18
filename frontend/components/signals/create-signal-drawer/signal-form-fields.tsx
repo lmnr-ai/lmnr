@@ -60,15 +60,7 @@ export default function SignalFormFields({
   }, [setValue]);
 
   return (
-    <div
-      className={cn(
-        "grid gap-8 py-4",
-        {
-          "pb-16": !showTemplates,
-        },
-        className
-      )}
-    >
+    <div className={cn("grid gap-8 py-4 pb-16", className)}>
       {Boolean(getValues("id")) && (
         <Controller
           name="disabled"
@@ -142,7 +134,7 @@ export default function SignalFormFields({
               <TooltipTrigger asChild>
                 <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
               </TooltipTrigger>
-              <TooltipContent side="right" className="max-w-60">
+              <TooltipContent side="right" className="max-w-44">
                 <p>Describe what you&apos;re looking for in the trace.</p>
               </TooltipContent>
             </Tooltip>

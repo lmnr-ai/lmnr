@@ -81,6 +81,10 @@ use traces::{
     input_extraction::{
         consumer::InputExtractionHandler,
         queue::{INPUT_EXTRACTION_EXCHANGE, INPUT_EXTRACTION_QUEUE, INPUT_EXTRACTION_ROUTING_KEY},
+        regex_agent::{
+            USER_TASK_REGEX_EXCHANGE, USER_TASK_REGEX_QUEUE, USER_TASK_REGEX_ROUTING_KEY,
+            UserTaskRegexHandler,
+        },
     },
     sp_versioning::{
         SP_VERSIONING_DELAY_EXCHANGE, SP_VERSIONING_DELAY_QUEUE, SP_VERSIONING_DELAY_ROUTING_KEY,
@@ -507,6 +511,36 @@ fn main() -> anyhow::Result<()> {
             channel
                 .queue_declare(
                     INPUT_EXTRACTION_QUEUE.into(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
+            // ==== 3.5c User-task regex agent queue ====
+            // Separate from the extraction queue: an agent run takes minutes
+            // while a per-trace extraction takes seconds. Failures drop and the
+            // cohort accumulator's retry interval spaces the next attempt, so
+            // there is no delay/retry topology.
+            channel
+                .exchange_declare(
+                    USER_TASK_REGEX_EXCHANGE.into(),
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    USER_TASK_REGEX_QUEUE.into(),
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -1025,6 +1059,8 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(SIGNALS_EXCHANGE, SIGNALS_QUEUE);
         // ==== 3.5b Input extraction message queue ====
         queue.register_queue(INPUT_EXTRACTION_EXCHANGE, INPUT_EXTRACTION_QUEUE);
+        // ==== 3.5c User-task regex agent queue ====
+        queue.register_queue(USER_TASK_REGEX_EXCHANGE, USER_TASK_REGEX_QUEUE);
         // ==== 3.6 Notifications message queue ====
         queue.register_queue(NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE);
         // ==== 3.6b Notification Deliveries message queue ====
@@ -1448,6 +1484,7 @@ fn main() -> anyhow::Result<()> {
         let num_sp_versioning_workers = env::workers::NUM_SP_VERSIONING.get();
 
         let num_sp_regex_extraction_workers = env::workers::NUM_SP_REGEX_EXTRACTION.get();
+        let num_user_task_regex_workers = env::workers::NUM_USER_TASK_REGEX.get();
 
         let num_input_extraction_workers = env::workers::NUM_INPUT_EXTRACTION.get();
 
@@ -2010,6 +2047,7 @@ fn main() -> anyhow::Result<()> {
                         let db = db_for_consumer.clone();
                         let cache = cache_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
+                        let clickhouse = clickhouse_for_consumer.clone();
                         let llm_client_clone = llm_client.clone();
                         let spans_stream_publisher =
                             spans_stream_publisher_for_consumer.clone();
@@ -2020,6 +2058,7 @@ fn main() -> anyhow::Result<()> {
                                 db: db.clone(),
                                 cache: cache.clone(),
                                 queue: queue.clone(),
+                                clickhouse: clickhouse.clone(),
                                 llm_client: llm_client_clone.clone(),
                                 spans_stream_publisher: spans_stream_publisher.clone(),
                             },
@@ -2032,6 +2071,31 @@ fn main() -> anyhow::Result<()> {
                     } else {
                         log::warn!(
                             "LLM provider not available - skipping input extraction workers"
+                        );
+                    }
+
+                    // Spawn user-task regex agent workers. Separate queue from
+                    // the extraction workers above: an agent run takes minutes
+                    // while an extraction takes seconds.
+                    if let Some(llm_client) = llm_provider_client.as_ref() {
+                        let cache = cache_for_consumer.clone();
+                        let llm_client = llm_client.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::UserTaskRegex,
+                            num_user_task_regex_workers,
+                            move || UserTaskRegexHandler {
+                                cache: cache.clone(),
+                                llm_client: llm_client.clone(),
+                            },
+                            QueueConfig::new(
+                                USER_TASK_REGEX_QUEUE,
+                                USER_TASK_REGEX_EXCHANGE,
+                                USER_TASK_REGEX_ROUTING_KEY,
+                            ),
+                        );
+                    } else {
+                        log::warn!(
+                            "LLM provider not available - skipping user-task regex agent workers"
                         );
                     }
 
@@ -2410,7 +2474,15 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::rollouts::update_name)
                             .service(api::v1::cli::rollouts::register_session)
                             .service(api::v1::cli::rollouts::list_blocks)
-                            .service(api::v1::cli::rollouts::add_block);
+                            .service(api::v1::cli::rollouts::add_block)
+                            // `signals/{id}` is registered AFTER the bare
+                            // `signals` routes so the literal path isn't
+                            // shadowed by the dynamic segment.
+                            .service(api::v1::cli::signals::create_signal)
+                            .service(api::v1::cli::signals::list_signals)
+                            .service(api::v1::cli::signals::get_signal)
+                            .service(api::v1::cli::signals::update_signal)
+                            .service(api::v1::cli::signals::delete_signal);
                         #[cfg(feature = "signals")]
                         let cli_scope = cli_scope
                             .service(web::scope("/agent").service(api::v1::cli::agent::agent_chat));

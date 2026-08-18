@@ -104,10 +104,18 @@ export async function register() {
       // why these live here instead of in their migrations).
       // Multi-replica boots race the DDL — CH serialises it, but each replace
       // wipes the COMPLEX_KEY_CACHE, so rolling deploys briefly cold-miss.
-      // Acceptable: layout is lazy (no preload), source lookups hit each
-      // table's PK exactly, and `LIFETIME(MIN 30 MAX 60)` already
-      // evicts/refreshes every minute under normal operation.
+      // Acceptable: layout is lazy (no preload) and source lookups hit each
+      // table's PK exactly.
       const escapeChCreds = (v: string) => v.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+
+      const dictCacheOptions = () => {
+        const sizeInCells = Number(process.env.CH_CONTENT_DICT_SIZE_IN_CELLS) || 131072;
+        return `
+            SIZE_IN_CELLS ${sizeInCells}
+            ALLOW_READ_EXPIRED_KEYS 1
+            MAX_THREADS_FOR_UPDATES 8
+            QUERY_WAIT_TIMEOUT_MILLISECONDS 15000`;
+      };
 
       const ensureLlmMessagesDict = async () => {
         const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
@@ -131,8 +139,8 @@ export async function register() {
                 DB '${db}'
                 TABLE 'llm_messages'
             ))
-            LAYOUT(COMPLEX_KEY_CACHE(SIZE_IN_CELLS 131072))
-            LIFETIME(MIN 30 MAX 60)
+            LAYOUT(COMPLEX_KEY_CACHE(${dictCacheOptions()}))
+            LIFETIME(MIN 1800 MAX 3600)
           `,
         });
       };
@@ -162,8 +170,8 @@ export async function register() {
                 DB '${db}'
                 TABLE 'deduped_content'
             ))
-            LAYOUT(COMPLEX_KEY_CACHE(SIZE_IN_CELLS 131072))
-            LIFETIME(MIN 30 MAX 60)
+            LAYOUT(COMPLEX_KEY_CACHE(${dictCacheOptions()}))
+            LIFETIME(MIN 1800 MAX 3600)
           `,
         });
       };

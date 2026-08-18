@@ -185,7 +185,10 @@ export function AddWarningPopover({ workspaceId, usageItem, unit, toRawValue, on
             className="w-full"
             disabled={!form.formState.isDirty || form.formState.isSubmitting}
           >
-            <Loader2 data-icon="inline-start" className={cn("mr-1 h-3 w-3", form.formState.isSubmitting ? "animate-spin" : "hidden")} />
+            <Loader2
+              data-icon="inline-start"
+              className={cn("mr-1 h-3 w-3", form.formState.isSubmitting ? "animate-spin" : "hidden")}
+            />
             Add threshold
           </Button>
         </form>

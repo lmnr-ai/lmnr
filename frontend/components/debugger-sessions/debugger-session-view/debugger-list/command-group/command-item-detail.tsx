@@ -59,7 +59,7 @@ export default function CommandItemDetail({ commandId, command, isLastRow }: Com
         )}
       >
         <div className="min-h-0 overflow-hidden">
-          <div className="relative ml-10 mr-3 overflow-hidden rounded-lg border border-border bg-surface-800 [&>*:first-child]:border-t-0">
+          <div className="relative ml-10 mr-3 overflow-hidden rounded-lg border border-border bg-surface-100 [&>*:first-child]:border-t-0">
             <CommandBlockBody command={command} />
           </div>
         </div>
