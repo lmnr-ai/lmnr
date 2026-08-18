@@ -3,7 +3,7 @@
 import { type ReactNode } from "react";
 
 import { DEMO_FIRST_LLM_SPAN_ID, DEMO_FIRST_SEARCH_SPAN_ID } from "../demo-trace";
-import { useSelectAndRevealSpan } from "./use-select-and-reveal-span";
+import { useSpanSelection } from "./mock/selection";
 
 // ──────────────────────────────────────────────────────────────────────
 // The narrative. Four steps, scrubbed by the section's scroll progress, all
@@ -46,7 +46,13 @@ interface Step {
    *  view. Mobile has no store to select into, so it renders `body` instead —
    *  keep the two saying the same thing. */
   richBody?: ReactNode;
-  footnote: { name: string; href: string };
+  /** The outbound link under the body. Full label, not a feature name: the
+   *  wording differs per step ("about Signals", "about the trace view").
+   *
+   *  Optional, and absent on the steps that CONTINUE the one above them rather
+   *  than opening a topic — the link would be the same link twice, a hand's
+   *  width apart. */
+  learnMore?: { label: string; href: string };
 }
 
 const DOCS_TRACE_VIEW = "https://laminar.sh/docs/platform/viewing-traces";
@@ -56,11 +62,11 @@ const DOCS_CLUSTERS = "https://laminar.sh/docs/signals/clusters";
 // Underlined inline button — scrolls the transcript on the right to the named
 // span and highlights it.
 const BodyLink = ({ spanId, label }: { spanId: string; label: string }) => {
-  const selectAndRevealSpan = useSelectAndRevealSpan();
+  const { selectSpan } = useSpanSelection();
   return (
     <button
       type="button"
-      onClick={() => selectAndRevealSpan(spanId)}
+      onClick={() => selectSpan(spanId)}
       className="underline underline-offset-2 decoration-foreground-400 hover:text-foreground-50 hover:decoration-foreground-200 transition-colors cursor-pointer"
     >
       {label}
@@ -82,30 +88,30 @@ export const STEPS: Record<StepNumber, Step> = {
     title: "See clearly what\nyour agent is doing",
     body: "Laminar automatically captures LLM calls, tool calls, sub-agents, costs, and tokens, and shows it in a readable transcript view.",
     richBody: <TraceViewBody />,
-    footnote: { name: "Trace view", href: DOCS_TRACE_VIEW },
+    learnMore: { label: "Learn more about the trace view", href: DOCS_TRACE_VIEW },
   },
   2: {
     label: "02.",
-    title: "Automatic\nfailure detection.",
-    body: "Describe the failures you want to find in plain English and Laminar reads every run to surface them for you.",
-    footnote: { name: "Signals", href: DOCS_SIGNALS },
+    title: "Discover failures\nwithout defining them",
+    body: "Laminar Signals analyze every agent run to surface failure modes you didn't anticipate.",
+    learnMore: { label: "Learn more about Signals", href: DOCS_SIGNALS },
   },
   // FLAG(copy): written to bridge into the "Has this failure occurred before?"
   // section below. The Figma frame for this step has no copy in it, so this is
   // a first draft rather than signed-off wording.
   3: {
-    subtitle: "Similar failures are clustered",
-    body: "Laminar runs the signal on every trace, then groups the matches.",
-    footnote: { name: "Signals", href: DOCS_SIGNALS },
+    subtitle: "",
+    body: "Similar failures are clustered into distinct patterns to give you a high level overview.",
   },
   // Desktop only. On mobile the same copy heads its own standalone section
   // (../has-this-issue), which is why the wording is a section opener rather
   // than a continuation — see ../../index for the md gate.
   4: {
     label: "03.",
-    title: "Has this failure\noccurred before?",
-    body: "Laminar groups failures into named clusters and tracks each one over time. When a cluster stops recurring, Laminar resolves it, and reopens it if the issue returns.",
-    footnote: { name: "Signal clusters", href: DOCS_CLUSTERS },
+    //title: "Has this failure\noccurred before?",
+    title: "Understand agent\nfailures at scale",
+    body: "Signal clusters show the full distribution of your agent's failures and behaviors. Understand whether a newly reported issue has occurred before.",
+    learnMore: { label: "Learn more about Signal Clusters", href: DOCS_CLUSTERS },
   },
 };
 

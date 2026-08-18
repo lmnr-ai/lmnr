@@ -8,18 +8,6 @@ import { type NextConfig } from "next";
 // Laminar under a sub-path without a dedicated domain.
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || undefined;
 
-// The landing page's trace-view mock renders two real shared traces by id, and
-// they live in the production project — a local database has neither, so
-// without this the section renders empty in dev.
-//
-// Safe to point at production unconditionally: the destination enforces its own
-// `isTracePublic` check, so this can only ever serve traces already public. It
-// MUST stay a separate path from `/api/shared/traces` for that reason — that
-// path is gated locally by proxy.ts, which is the only place public-ness is
-// checked (the route handler does not re-check), so aliasing it would expose
-// every trace by id.
-const LANDING_TRACE_ORIGIN = "https://laminar.sh";
-
 const nextConfig: NextConfig = {
   basePath,
   deploymentId: process.env.NEXT_DEPLOYMENT_ID || undefined,
@@ -61,12 +49,6 @@ const nextConfig: NextConfig = {
         { source: "/api/auth/callback/okta", destination: "/api/auth/oauth2/callback/okta" },
         { source: "/api/auth/callback/keycloak", destination: "/api/auth/oauth2/callback/keycloak" },
         { source: "/api/auth/callback/azure-ad", destination: "/api/auth/oauth2/callback/microsoft-entra-id" },
-        // See `LANDING_TRACE_ORIGIN` above. `/api/landing-traces` is not in
-        // proxy.ts's matcher, so it never hits the local trace gate.
-        {
-          source: "/api/landing-traces/:path*",
-          destination: `${LANDING_TRACE_ORIGIN}/api/shared/traces/:path*`,
-        },
       ],
     };
   },

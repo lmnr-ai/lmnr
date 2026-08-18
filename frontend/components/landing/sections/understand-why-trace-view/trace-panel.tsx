@@ -2,20 +2,18 @@
 
 import { motion, type Transition, useInView } from "framer-motion";
 import { ChevronDown, ChevronsRight, List, Maximize, Radio, Sparkles } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { shallow } from "zustand/shallow";
+import { useMemo, useRef, useState } from "react";
 
-import { TraceStatsShields } from "@/components/traces/stats-shields";
-import CondensedTimeline from "@/components/traces/trace-view/condensed-timeline";
-import { type TraceViewSpan, type TraceViewTrace, useTraceViewStore } from "@/components/traces/trace-view/store";
-import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+import { DEMO_SPANS } from "../demo-trace";
 import { SIGNAL_BG, SIGNAL_BORDER, SignalContent } from "../signal-event-card";
 import { PANEL_W } from "./geometry";
-import LandingTranscript from "./landing-transcript";
-import { useSelectAndRevealSpan } from "./use-select-and-reveal-span";
+import { useSpanSelection } from "./mock/selection";
+import Timeline from "./mock/timeline";
+import TraceStats from "./mock/trace-stats";
+import Transcript from "./mock/transcript";
 import { useStagger } from "./use-stagger";
 
 const TWEEN: Transition = { type: "tween", duration: 0.3, ease: "easeInOut" };
@@ -32,8 +30,14 @@ const TOOLBAR_HEIGHT = 36;
 const TIMELINE_HEIGHT = 120;
 
 /** Wall-clock gap between spans arriving. Long enough to read as separate
- *  events landing rather than one list fading in. */
-const SPAN_STEP_MS = 380;
+ *  events landing rather than one list fading in — and each arrival moves four
+ *  things at once (a transcript row, a timeline bar, the axis, the stat
+ *  shields), so it needs longer than a plain list would.
+ *
+ *  The ceiling is the copy: the run has to finish before the reader scrolls
+ *  from step 1 to step 2, which is 576px past the pin. Six spans remain after
+ *  the opening batch, so this is 3.6s of run against that. */
+const SPAN_STEP_MS = 600;
 
 const HEADER_ITEM_CLS = "flex items-center h-7";
 
@@ -41,8 +45,8 @@ const HEADER_ITEM_CLS = "flex items-center h-7";
  *  so the card carries the eye. Matches the card collapser's own tween. */
 const DIM_CLS = "transition-opacity duration-300 ease-in-out";
 
-// Row 1 of the production trace-view header, trimmed for the landing page:
-// close, maximize, "Trace" + dropdown, Signals. Everything except Signals is
+// Row 1 of the trace-view header, trimmed for the landing page: close,
+// maximize, "Trace" + dropdown, Signals. Everything except Signals is
 // decorative (disabled + disabled:opacity-100).
 const PanelHeaderRow = ({
   signalsActive,
@@ -93,8 +97,6 @@ const PanelHeaderRow = ({
 );
 
 interface Props {
-  trace?: TraceViewTrace;
-  spans: TraceViewSpan[];
   /** Condensed timeline reveal. */
   showTimeline: boolean;
   /** Cap on how many spans may be revealed so far. Raising it resumes the
@@ -112,8 +114,8 @@ interface Props {
    *  reflow the transcript underneath at the exact frame the flight starts. */
   signalCardHidden?: boolean;
   /** Blocks USER scrolling of the transcript. Set on touch, where an inner
-   *  scroller only traps the page. NOTE: CondensedTimeline owns a scroller of
-   *  its own that this does NOT cover — mobile keeps `showTimeline` off, so
+   *  scroller only traps the page. NOTE: the condensed timeline owns a scroller
+   *  of its own that this does NOT cover — mobile keeps `showTimeline` off, so
    *  turning it on there needs that handled too. */
   scrollLocked?: boolean;
 }
@@ -130,11 +132,13 @@ interface Props {
 //   │ transcript      (flex-1) │
 //   └──────────────────────────┘
 //
-// Must be rendered inside its own TraceViewStoreProvider — the section mounts
-// two of these against two different traces.
+// Every part of it is drawn by ./mock — no product component, no fetch. The
+// trace is a module constant (../demo-trace), so the panel has no loading
+// state and nothing to get wrong on a cold cache.
+//
+// Must be rendered inside its own <SpanSelectionProvider>: the mobile section
+// mounts two of these.
 const TracePanel = ({
-  trace,
-  spans,
   showTimeline,
   visibleSpans,
   instantSpans = 0,
@@ -143,26 +147,16 @@ const TracePanel = ({
   signalCardHidden,
   scrollLocked,
 }: Props) => {
-  const { setSpans, setTrace, setSelectedSpan, signalsPanelOpen, setSignalsPanelOpen } = useTraceViewStore(
-    (state) => ({
-      setSpans: state.setSpans,
-      setTrace: state.setTrace,
-      setSelectedSpan: state.setSelectedSpan,
-      signalsPanelOpen: state.signalsPanelOpen,
-      setSignalsPanelOpen: state.setSignalsPanelOpen,
-    }),
-    shallow
-  );
+  const { selectedSpanId, selectSpan } = useSpanSelection();
 
-  // The run streams into the STORE, one span at a time, rather than into the
-  // transcript alone — the condensed timeline draws from the same place, so
-  // this is what keeps a span appearing on the timeline and in the transcript
-  // on the same frame. It also means the timeline's axis extends as the run
-  // arrives, which is what the product does on a live trace.
+  // The run streams into ONE list, which both the transcript and the condensed
+  // timeline render — so a span appears in the two on the same frame, and the
+  // timeline's axis extends as the run arrives, the way the product does on a
+  // live trace.
   const panelRef = useRef<HTMLDivElement>(null);
   const inView = useInView(panelRef, { once: true, amount: 0.3 });
-  const revealed = useStagger(Math.min(visibleSpans, spans.length), inView, SPAN_STEP_MS, instantSpans);
-  const streaming = revealed < spans.length;
+  const revealed = useStagger(Math.min(visibleSpans, DEMO_SPANS.length), inView, SPAN_STEP_MS, instantSpans);
+  const streaming = revealed < DEMO_SPANS.length;
 
   // The root span carries the FINISHED run's end time, so feeding it in whole
   // put the full 25s axis on screen before anything had happened — spans then
@@ -171,34 +165,23 @@ const TracePanel = ({
   // to the last span that has actually arrived, and the axis grows with the
   // run. Identified by having no parent; every other span here is its child.
   const revealedSpans = useMemo(() => {
-    const slice = spans.slice(0, revealed);
+    const slice = DEMO_SPANS.slice(0, revealed);
     if (!streaming) return slice;
-    const arrived = slice.filter((s) => s.parentSpanId);
-    if (arrived.length === 0) return slice;
-    const frontier = arrived.reduce(
-      (max, s) => (new Date(s.endTime) > new Date(max) ? s.endTime : max),
-      arrived[0].endTime
-    );
-    return slice.map((s) => (s.parentSpanId ? s : { ...s, endTime: frontier }));
-  }, [spans, revealed, streaming]);
+    const frontier = Math.max(...slice.filter((s) => s.parentSpanId).map((s) => s.endMs));
+    if (!Number.isFinite(frontier)) return slice;
+    return slice.map((s) => (s.parentSpanId ? s : { ...s, endMs: frontier }));
+  }, [revealed, streaming]);
 
-  useEffect(() => {
-    if (!trace || spans.length === 0) return;
-    setSpans(enrichSpansWithPending(revealedSpans));
-    setTrace(trace);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trace?.id, revealedSpans]);
-
-  // Only re-runs when the STEP changes the desired state, so a user toggle of
-  // the Signals button survives until the narrative moves on.
-  useEffect(() => {
+  // Step-driven, but a user toggle of the Signals button survives until the
+  // narrative moves on. Adjusted DURING render off the previous prop rather
+  // than in an effect: an effect would open the card a frame late, and every
+  // frame here is scrubbed against the scroll.
+  const [signalsPanelOpen, setSignalsPanelOpen] = useState(!!signalsOpen);
+  const [lastStepState, setLastStepState] = useState(!!signalsOpen);
+  if (lastStepState !== !!signalsOpen) {
+    setLastStepState(!!signalsOpen);
     setSignalsPanelOpen(!!signalsOpen);
-  }, [signalsOpen, setSignalsPanelOpen]);
-
-  const selectAndRevealSpan = useSelectAndRevealSpan();
-
-  const handleSpanSelect = useCallback((span: TraceViewSpan) => setSelectedSpan(span), [setSelectedSpan]);
-  const handleSignalSpanClick = useCallback((spanId: string) => selectAndRevealSpan(spanId), [selectAndRevealSpan]);
+  }
 
   const signalCardOpen = !!showSignals && signalsPanelOpen;
 
@@ -250,7 +233,7 @@ const TracePanel = ({
             }}
             className="rounded-md border overflow-hidden"
           >
-            <SignalContent onSpanClick={handleSignalSpanClick} onClose={() => setSignalsPanelOpen(false)} />
+            <SignalContent onSpanClick={selectSpan} onClose={() => setSignalsPanelOpen(false)} />
           </div>
         </motion.div>
       </div>
@@ -267,12 +250,13 @@ const TracePanel = ({
           className="overflow-hidden shrink-0"
         >
           <div style={{ height: TIMELINE_HEIGHT }} className="w-full border-b">
-            <CondensedTimeline />
+            <Timeline spans={revealedSpans} selectedSpanId={selectedSpanId} onSelect={selectSpan} />
           </div>
         </motion.div>
 
-        {/* Decorative replica of <ViewDropdown /> — the real dropdown's tree view
-            doesn't render against this mock data, so it's a static button. */}
+        {/* Decorative replica of the product's view dropdown — the real one's
+            tree view has nothing to draw against this data, so it's a static
+            button. */}
         <div
           style={{ height: TOOLBAR_HEIGHT }}
           className="w-full shrink-0 flex items-center gap-2 px-2 border-b overflow-hidden"
@@ -282,25 +266,19 @@ const TracePanel = ({
             <span className="text-primary-foreground">Transcript</span>
             <ChevronDown size={14} className="ml-1" />
           </div>
-          {trace && (
-            // Duration, tokens and cost climb with the run, then hand back to
-            // the trace's own totals so they land on the real numbers rather
-            // than a client-side re-sum of them.
-            <TraceStatsShields
-              className="min-w-0 overflow-hidden"
-              trace={trace}
-              spans={streaming ? revealedSpans : undefined}
-            />
-          )}
+          {/* Duration, tokens and cost climb with the run, then hand back to
+              the trace's own totals so they land on the real numbers rather
+              than a client-side re-sum of them. */}
+          <TraceStats className="min-w-0 overflow-hidden" spans={streaming ? revealedSpans : undefined} />
         </div>
 
         <div className="flex-1 min-h-0 overflow-hidden relative">
           <div className="absolute inset-0">
-            <LandingTranscript
-              onSpanSelect={handleSpanSelect}
-              instantSpans={instantSpans}
-              scrollLocked={scrollLocked}
-            />
+            {/* The input row is not a span, so it rides in with the opening
+                batch. An UPPER bound, since the leading spans include the root,
+                which renders no row — which is all it needs to be, as the
+                overshoot lands past the last opening row. */}
+            <Transcript spans={revealedSpans} instantRows={instantSpans + 1} scrollLocked={scrollLocked} />
           </div>
           {/* Fades the clipped last row into the panel's own background. Fading
               to the FRAME's colour instead would read as a haze over the card. */}

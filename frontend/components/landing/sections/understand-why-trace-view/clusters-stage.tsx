@@ -2,11 +2,10 @@
 
 import { motion, type MotionValue, useTransform } from "framer-motion";
 
-import ClustersCard, { CLUSTERS_CARD_COL_W } from "../has-this-issue/clusters-card";
+import ClustersCard from "../has-this-issue/clusters-card";
 import { DEFAULT_TIMING } from "../has-this-issue/timing";
 import { useClusterBeats } from "../has-this-issue/use-cluster-beats";
 import { SIGNAL_CLUSTER_ID } from "../signal-cluster";
-import { FRAME_W } from "./geometry";
 import { easeOutCubic, type StackTiming } from "./stack-timing";
 
 // The clusters card, as the closing beat of the trace-view scrollytell. It
@@ -38,7 +37,10 @@ const ClustersStage = ({ rise, restY, armed, landed, timing }: Props) => {
   const beats = useClusterBeats(armed, DEFAULT_TIMING);
 
   return (
-    <motion.div style={{ y, opacity: eased, left: (FRAME_W - CLUSTERS_CARD_COL_W) / 2 }} className="absolute top-0">
+    // Centred in CSS, not against a frame width: the frame's width is a media
+    // query, and this card is the only thing here that does not have to be
+    // lerped against a measured box.
+    <motion.div style={{ y, opacity: eased, x: "-50%" }} className="absolute top-0 left-1/2">
       <ClustersCard
         layout="column"
         armed={beats.chartArmed}

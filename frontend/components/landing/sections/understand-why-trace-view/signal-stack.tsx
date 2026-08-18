@@ -6,7 +6,7 @@ import { useLayoutEffect, useState } from "react";
 import MorphingSignalCard, { type PillMetrics } from "../has-this-issue/morphing-signal-card";
 import { SIGNAL_CLUSTER_EVENT_COUNT } from "../signal-cluster";
 import { SIGNAL_CARD_W } from "../signal-event-card";
-import { FRAME_H, FRAME_W } from "./geometry";
+import { FRAME_H } from "./geometry";
 import { easeInCubic, easeInOutCubic, easeOutCubic, phase, smootherstep, type StackTiming } from "./stack-timing";
 
 // The last step — the signal card leaves the trace panel, becomes the front of
@@ -104,8 +104,13 @@ const mix = (from: number, to: number, t: number) => from + (to - from) * t;
  *  408 wide inside a 480 frame, so this is positive and the stack sits fully
  *  inside. Fan the deck out past the frame width (dx > 24 at five cards) and it
  *  goes negative, which is legal — the stack is then centred and bleeds off
- *  BOTH edges rather than being clipped on one. */
-const stackLeft = (dx: number) => (FRAME_W - (SIGNAL_CARD_W + (CARDS - 1) * dx)) / 2;
+ *  BOTH edges rather than being clipped on one.
+ *
+ *  `frameW` is MEASURED, not a constant: the frame's width is a media query.
+ *  This is the one place in the section that still needs the number, because
+ *  the result is lerped against the measured source box below — CSS centring
+ *  has nothing to interpolate with. */
+const stackLeft = (dx: number, frameW: number) => (frameW - (SIGNAL_CARD_W + (CARDS - 1) * dx)) / 2;
 const stackTop = (cardH: number, dy: number) => (FRAME_H - (cardH + (CARDS - 1) * dy)) / 2;
 
 interface SourceBox {
@@ -114,17 +119,27 @@ interface SourceBox {
   h: number;
 }
 
-/** Where the panel's own signal card sits, in FRAME coordinates.
+interface FrameGeometry {
+  /** Where the panel's own signal card sits, in FRAME coordinates. */
+  source: SourceBox | null;
+  /** The frame's live width. 0 until the first measurement — which lands in a
+   *  layout effect, before paint, and the stack is invisible until the flight
+   *  starts a long scroll later. */
+  frameW: number;
+}
+
+/** Measures everything the flight is placed against.
  *
- *  Measured against the FRAME directly. It used to measure against the PANEL
- *  and add `PANEL_X` back — a leftover from when a tray slid horizontally and
- *  the panel's live transform had to cancel out. Nothing moves any more, and
- *  that form was silently WRONG on the vertical: it added the panel's x offset
- *  but not its y, so the flight began 39px above the card it was flying from
- *  and the card jumped up before it set off. Measuring against the frame is
- *  what the consumer's coordinates actually are, and it cannot drift. */
-const useSourceBox = (flight: MotionValue<number>): SourceBox | null => {
-  const [box, setBox] = useState<SourceBox | null>(null);
+ *  The card is measured against the FRAME directly. It used to measure against
+ *  the PANEL and add `PANEL_X` back — a leftover from when a tray slid
+ *  horizontally and the panel's live transform had to cancel out. Nothing moves
+ *  any more, and that form was silently WRONG on the vertical: it added the
+ *  panel's x offset but not its y, so the flight began 39px above the card it
+ *  was flying from and the card jumped up before it set off. Measuring against
+ *  the frame is what the consumer's coordinates actually are, and it cannot
+ *  drift. */
+const useFrameGeometry = (flight: MotionValue<number>): FrameGeometry => {
+  const [geometry, setGeometry] = useState<FrameGeometry>({ source: null, frameW: 0 });
 
   useLayoutEffect(() => {
     const card = document.querySelector<HTMLElement>("[data-landing-signal-card]");
@@ -134,12 +149,17 @@ const useSourceBox = (flight: MotionValue<number>): SourceBox | null => {
     const measure = () => {
       const c = card.getBoundingClientRect();
       const t = frame.getBoundingClientRect();
-      const next = { x: c.left - t.left, y: c.top - t.top, h: c.height };
-      setBox((prev) =>
-        prev && Math.abs(prev.x - next.x) < 0.5 && Math.abs(prev.y - next.y) < 0.5 && Math.abs(prev.h - next.h) < 0.5
+      const next = { source: { x: c.left - t.left, y: c.top - t.top, h: c.height }, frameW: t.width };
+      setGeometry((prev) => {
+        const p = prev.source;
+        return p &&
+          Math.abs(p.x - next.source.x) < 0.5 &&
+          Math.abs(p.y - next.source.y) < 0.5 &&
+          Math.abs(p.h - next.source.h) < 0.5 &&
+          Math.abs(prev.frameW - next.frameW) < 0.5
           ? prev
-          : next
-      );
+          : next;
+      });
     };
 
     measure();
@@ -173,7 +193,7 @@ const useSourceBox = (flight: MotionValue<number>): SourceBox | null => {
     };
   }, [flight]);
 
-  return box;
+  return geometry;
 };
 
 interface StackCardProps {
@@ -294,7 +314,7 @@ interface Props {
 }
 
 const SignalStack = ({ flight, collapse, pillEnter, pillRestY, visible, timing }: Props) => {
-  const source = useSourceBox(flight);
+  const { source, frameW } = useFrameGeometry(flight);
   const [pill, setPill] = useState<PillMetrics | null>(null);
 
   // Before measurement the card simply starts where it will land, so the worst
@@ -305,7 +325,7 @@ const SignalStack = ({ flight, collapse, pillEnter, pillRestY, visible, timing }
 
   // The cascade is centred as a WHOLE; the live card lands on its own slot
   // within it, which is why the flight's destination is not the cascade origin.
-  const liveX = stackLeft(timing.dx) + liveSlot * timing.dx;
+  const liveX = stackLeft(timing.dx, frameW) + liveSlot * timing.dx;
   const liveY = stackTop(cardH, timing.dy) + liveSlot * timing.dy;
   const from = source ?? { x: liveX, y: liveY };
 
@@ -313,7 +333,7 @@ const SignalStack = ({ flight, collapse, pillEnter, pillRestY, visible, timing }
   // leaves room above itself. Note MorphingSignalCard shrinks toward its own
   // top-left, so the box's origin IS what we position — hence the half-size
   // offset rather than a translate.
-  const pillX = pill ? (FRAME_W - pill.width) / 2 : liveX;
+  const pillX = pill ? (frameW - pill.width) / 2 : liveX;
 
   // The eased siblings. Position and geometry read these; the fades below keep
   // reading the raw phases. See this file's header for why they are separate.

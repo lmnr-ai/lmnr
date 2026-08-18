@@ -2,19 +2,16 @@
 
 import { motion, useMotionValueEvent, useScroll, useTransform } from "framer-motion";
 import { type RefObject, useEffect, useRef, useState } from "react";
-import useSWR from "swr";
 
-import TraceViewStoreProvider, { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
-import { cn, swrFetcher } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 import { bodyMedium, LANDING_COLUMN_MAX_W, microLabel, subSection, subSubSection } from "../../class-names";
-import { DEMO_TRACE_ID } from "../demo-trace";
-import SectionFootnote from "../section-footnote";
+import LearnMoreLink from "../learn-more-link";
 import { SIGNAL_HEADER_H } from "../signal-event-card";
 import ClustersStage from "./clusters-stage";
 import TraceViewErrorBoundary from "./error-boundary";
-import { assemblyLayout, EDGE_FADE_W, FRAME_H, FRAME_W, PANEL_H } from "./geometry";
-import { SHARED_TRACE_API } from "./shared-trace-api";
+import { assemblyLayout, EDGE_FADE_W, FRAME_H, PANEL_H } from "./geometry";
+import { SpanSelectionProvider } from "./mock/selection";
 import SignalStack from "./signal-stack";
 import { DEFAULT_STACK_TIMING, phase } from "./stack-timing";
 import { STEP_COUNT, STEP_NUMBERS, type StepNumber, STEPS } from "./steps";
@@ -276,16 +273,11 @@ const UnderstandWhyTraceView = () => {
     return () => cancelAnimationFrame(id);
   }, [scrollYProgress]);
 
-  const { data: trace } = useSWR<TraceViewTrace>(`${SHARED_TRACE_API}/${DEMO_TRACE_ID}`, swrFetcher);
-  const { data: spans } = useSWR<TraceViewSpan[]>(`${SHARED_TRACE_API}/${DEMO_TRACE_ID}/spans`, swrFetcher);
-
-  const activeStep = STEPS[step];
-
   return (
     <TraceViewErrorBoundary>
       {/* Wraps the WHOLE section, not just the panel: the copy on the left has
-          inline links that select spans in this same store. */}
-      <TraceViewStoreProvider storeKey="landing-demo-trace" initialTrace={trace}>
+          inline links that select spans in the same panel. */}
+      <SpanSelectionProvider>
         <section ref={sectionRef} className={cn("relative w-full mx-auto px-6 lg:px-0", LANDING_COLUMN_MAX_W)}>
           <div className="flex gap-18 2xl:gap-36">
             {/* LEFT — the copy stack. The wrapper's height IS the section's
@@ -314,6 +306,13 @@ const UnderstandWhyTraceView = () => {
                             {config.title && <h2 className={cn(subSection, "mb-4")}>{config.title}</h2>}
                             {config.subtitle && <h3 className={cn(subSubSection, "mb-2")}>{config.subtitle}</h3>}
                             <p className={bodyMedium}>{config.richBody ?? config.body}</p>
+                            {config.learnMore && (
+                              <LearnMoreLink
+                                className="mt-5 self-start"
+                                label={config.learnMore.label}
+                                href={config.learnMore.href}
+                              />
+                            )}
                           </div>
                         );
                       })}
@@ -330,16 +329,14 @@ const UnderstandWhyTraceView = () => {
               <div className="sticky top-0 left-0 flex justify-center items-center h-screen">
                 <div
                   data-landing-frame
-                  style={{ width: FRAME_W, height: FRAME_H }}
-                  className="rounded-sm bg-surface-250 overflow-hidden relative"
+                  style={{ height: FRAME_H }}
+                  className="rounded-sm bg-surface-250 overflow-hidden relative w-[480px] 2xl:w-[540px]"
                 >
                   <motion.div
                     style={{ height: PANEL_H, opacity: trayOpacity }}
                     className="absolute inset-y-0 my-auto left-1/2 -translate-x-1/2 rounded-md overflow-hidden border bg-background"
                   >
                     <TracePanel
-                      trace={trace}
-                      spans={spans ?? []}
                       showTimeline={pinned}
                       visibleSpans={pinned ? Number.POSITIVE_INFINITY : OPENING_SPANS}
                       instantSpans={OPENING_SPANS}
@@ -387,14 +384,12 @@ const UnderstandWhyTraceView = () => {
                     style={{ width: EDGE_FADE_W }}
                     className="absolute inset-y-0 right-0 z-10 bg-gradient-to-l from-surface-250/80 to-transparent pointer-events-none"
                   />
-
-                  <SectionFootnote name={activeStep.footnote.name} href={activeStep.footnote.href} />
                 </div>
               </div>
             </div>
           </div>
         </section>
-      </TraceViewStoreProvider>
+      </SpanSelectionProvider>
     </TraceViewErrorBoundary>
   );
 };
