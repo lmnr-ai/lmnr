@@ -1,6 +1,6 @@
 "use client";
 
-import { LandingSlider } from "./slider";
+import { Slider } from "@/components/ui/slider";
 
 interface Props {
   label: string;
@@ -18,7 +18,7 @@ const Cell = ({ label, value, slider }: Props) => (
     <span className="block text-sm text-foreground-300 h-5">{label}</span>
     <span className="block text-[28px] leading-9 text-white tabular-nums">{value}</span>
     {slider && (
-      <LandingSlider
+      <Slider
         value={[slider.value]}
         max={slider.max}
         min={0}
