@@ -6,7 +6,6 @@ import TraceViewStoreProvider, { type TraceViewSpan, type TraceViewTrace } from 
 import { swrFetcher } from "@/lib/utils";
 
 import { DEMO_TRACE_ID } from "../demo-trace";
-import { SIGNAL_SOURCE_SPAN_ID } from "../signal-event-card";
 import TraceViewErrorBoundary from "./error-boundary";
 import { SHARED_TRACE_API } from "./shared-trace-api";
 import TracePanel from "./trace-panel";
@@ -45,9 +44,6 @@ const MobileTracePanel = ({ storeKey, showSignals }: Props) => {
           visibleSpans={Number.POSITIVE_INFINITY}
           showSignals={showSignals}
           signalsOpen={showSignals}
-          // Only meaningful with the card open — it exists to point the
-          // transcript at the span the signal fired on.
-          revealSpanId={showSignals ? SIGNAL_SOURCE_SPAN_ID : undefined}
           scrollLocked
         />
       </TraceViewStoreProvider>

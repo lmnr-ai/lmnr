@@ -39,10 +39,6 @@ export const SIGNAL_EVENT_TITLE = "Failure detector";
  *  signal's NAME would read as a fragment. */
 export const SIGNAL_EVENT_SUMMARY = "Answered without citing a source";
 
-/** The span the trace panel selects and scrolls to when the signal card opens:
- *  the answer the signal is actually about. */
-export const SIGNAL_SOURCE_SPAN_ID = DEMO_ANSWER_SPAN_ID;
-
 interface SpanChipProps {
   iconBg: string;
   icon: ReactNode;

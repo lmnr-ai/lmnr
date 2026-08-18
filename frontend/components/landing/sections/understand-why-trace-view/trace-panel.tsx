@@ -31,11 +31,6 @@ const TOOLBAR_HEIGHT = 36;
 // timeline just moves the same empty space into the transcript below it.
 const TIMELINE_HEIGHT = 120;
 
-// Delay before the auto-selected span is scrolled to, relative to the moment
-// the step becomes active — lets the signal card finish opening first, so the
-// two motions read as sequential rather than fighting each other.
-const REVEAL_AT_MS = 350;
-
 /** Wall-clock gap between spans arriving. Long enough to read as separate
  *  events landing rather than one list fading in. */
 const SPAN_STEP_MS = 380;
@@ -97,24 +92,6 @@ const PanelHeaderRow = ({
   </div>
 );
 
-// Selects + scrolls to `spanId` shortly after it becomes defined. The callback
-// is held in a ref because `useSelectAndRevealSpan` re-creates it whenever a
-// transcript group expands — depending on it directly would re-fire the reveal
-// on every expansion.
-const useRevealSpan = (spanId?: string) => {
-  const selectAndRevealSpan = useSelectAndRevealSpan();
-  const selectRef = useRef(selectAndRevealSpan);
-  useEffect(() => {
-    selectRef.current = selectAndRevealSpan;
-  }, [selectAndRevealSpan]);
-
-  useEffect(() => {
-    if (!spanId) return;
-    const timer = window.setTimeout(() => selectRef.current(spanId), REVEAL_AT_MS);
-    return () => window.clearTimeout(timer);
-  }, [spanId]);
-};
-
 interface Props {
   trace?: TraceViewTrace;
   spans: TraceViewSpan[];
@@ -130,8 +107,6 @@ interface Props {
   showSignals?: boolean;
   /** Step-driven signals-panel state. A user toggle wins until this changes. */
   signalsOpen?: boolean;
-  /** Set to auto-select + scroll to a span once this panel's step is reached. */
-  revealSpanId?: string;
   /** Hands the signal card off to ./signal-stack, which draws its own copy from
    *  here on. The card stays MOUNTED and keeps its box — unmounting it would
    *  reflow the transcript underneath at the exact frame the flight starts. */
@@ -165,7 +140,6 @@ const TracePanel = ({
   instantSpans = 0,
   showSignals,
   signalsOpen,
-  revealSpanId,
   signalCardHidden,
   scrollLocked,
 }: Props) => {
@@ -221,7 +195,6 @@ const TracePanel = ({
     setSignalsPanelOpen(!!signalsOpen);
   }, [signalsOpen, setSignalsPanelOpen]);
 
-  useRevealSpan(revealSpanId);
   const selectAndRevealSpan = useSelectAndRevealSpan();
 
   const handleSpanSelect = useCallback((span: TraceViewSpan) => setSelectedSpan(span), [setSelectedSpan]);

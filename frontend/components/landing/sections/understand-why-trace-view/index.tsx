@@ -10,7 +10,7 @@ import { cn, swrFetcher } from "@/lib/utils";
 import { bodyMedium, LANDING_COLUMN_MAX_W, microLabel, subSection, subSubSection } from "../../class-names";
 import { DEMO_TRACE_ID } from "../demo-trace";
 import SectionFootnote from "../section-footnote";
-import { SIGNAL_HEADER_H, SIGNAL_SOURCE_SPAN_ID } from "../signal-event-card";
+import { SIGNAL_HEADER_H } from "../signal-event-card";
 import ClustersStage from "./clusters-stage";
 import TraceViewErrorBoundary from "./error-boundary";
 import { assemblyLayout, EDGE_FADE_W, FRAME_H, FRAME_W, PANEL_H } from "./geometry";
@@ -348,7 +348,6 @@ const UnderstandWhyTraceView = () => {
                       // this card's box, and a collapse would move it
                       // mid-flight.
                       signalsOpen={step >= 2}
-                      revealSpanId={step >= 2 ? SIGNAL_SOURCE_SPAN_ID : undefined}
                       signalCardHidden={flying}
                     />
                   </motion.div>

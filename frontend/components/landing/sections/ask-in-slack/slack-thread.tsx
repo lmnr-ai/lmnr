@@ -1,8 +1,7 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { type ReactNode, type RefObject, useEffect, useRef } from "react";
-
-import { cn } from "@/lib/utils";
 
 import { useStreamIn } from "../../use-stream-in";
 import { LaminarAppAvatar, SLACK_BG, SLACK_BORDER } from "../slack-notification-card";
@@ -83,9 +82,11 @@ const ThreadWindow = ({
 // `thread_ts`), so showing it flat here is a landing liberty — it is the only
 // way to show the alert and the conversation about it in one frame.
 //
-// The window is a FIXED height and every message occupies its space from the
-// start, so the card never resizes as the channel fills and nothing on the
-// page below it reflows. Messages only fade in; the scroll follows.
+// The window is a FIXED height, so the card never resizes as the channel fills
+// and nothing on the page below it reflows. Messages MOUNT as they arrive
+// rather than sitting at opacity 0: held in layout they reserved the whole
+// thread's height from the first frame, which left the window scrollable over
+// blank space before there was anything to scroll.
 const SlackThread = () => {
   const frameRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -93,9 +94,9 @@ const SlackThread = () => {
   // only has to cover the remaining ones.
   const revealed = useStreamIn(frameRef, { steps: THREAD_MESSAGES.length - 1, stepMs: MESSAGE_MS });
 
-  // Follow the newest message, the way a channel does. Every row is already in
-  // layout (they are only faded), so the scroll height never changes — this is
-  // purely moving the viewport onto the message that just appeared.
+  // Follow the newest message, the way a channel does. Only ever scrolls down,
+  // and only once the thread is long enough that the new row is past the
+  // bottom edge — until then the window simply fills.
   //
   // Hand-rolled rather than `scrollIntoView`, which walks up and scrolls every
   // scrollable ancestor including the page.
@@ -110,14 +111,19 @@ const SlackThread = () => {
   return (
     <div ref={frameRef} className="w-full">
       <ThreadWindow scrollRef={scrollRef}>
-        {THREAD_MESSAGES.map((message, i) => (
-          <div
+        {THREAD_MESSAGES.slice(0, revealed + 1).map((message, i) => (
+          // Framer rather than a CSS transition: a class toggled on mount has
+          // no starting frame to animate from. The first message is already on
+          // screen when the thread scrolls in, so it gets no enter at all.
+          <motion.div
             key={i}
-            aria-hidden={revealed < i}
-            className={cn("pb-4 transition-opacity duration-500 ease-out", revealed >= i ? "opacity-100" : "opacity-0")}
+            initial={i === 0 ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, ease: "easeOut" }}
+            className="pb-4"
           >
             <MessageRow {...message} />
-          </div>
+          </motion.div>
         ))}
       </ThreadWindow>
     </div>
