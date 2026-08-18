@@ -2,7 +2,7 @@
 
 import { motion, type Transition } from "framer-motion";
 import { ChevronDown, ChevronsRight, List, Maximize, Radio, Sparkles } from "lucide-react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { TraceStatsShields } from "@/components/traces/stats-shields";
@@ -19,9 +19,13 @@ import { useSelectAndRevealSpan } from "./use-select-and-reveal-span";
 
 const TWEEN: Transition = { type: "tween", duration: 0.3, ease: "easeInOut" };
 
+/** Kept separate from TWEEN even at the same duration: `DIM_CLS` below has to
+ *  mirror THIS one — the dim is the card opening, not the timeline — so
+ *  retuning the timeline must not silently desync it. */
+const CARD_TWEEN: Transition = { type: "tween", duration: 0.3, ease: "easeInOut" };
+
 const ROW1_HEIGHT = 28;
 const TOOLBAR_HEIGHT = 36;
-const SIGNAL_CARD_MAX = 320;
 // Don't shrink this for a flat run: the panel height is fixed, so a shorter
 // timeline just moves the same empty space into the transcript below it.
 const TIMELINE_HEIGHT = 120;
@@ -113,7 +117,10 @@ interface Props {
   showTimeline: boolean;
   /** Cap on transcript rows — see ./landing-transcript. */
   visibleRows: number;
-  /** Renders the Signals button + the signal-event card. */
+  /** Rows shown with no reveal animation at all — see ./landing-transcript. */
+  instantRows?: number;
+  /** Renders the Signals button, and lets the signal-event card open. The card
+   *  itself is always mounted — see the collapser below. */
   showSignals?: boolean;
   /** Step-driven signals-panel state. A user toggle wins until this changes. */
   signalsOpen?: boolean;
@@ -149,6 +156,7 @@ const TracePanel = ({
   spans,
   showTimeline,
   visibleRows,
+  instantRows,
   showSignals,
   signalsOpen,
   revealSpanId,
@@ -182,6 +190,11 @@ const TracePanel = ({
   useRevealSpan(revealSpanId);
   const selectAndRevealSpan = useSelectAndRevealSpan();
 
+  // Duration, tokens and cost climb as the transcript streams in, then hand
+  // back to the trace's own totals once it is complete (null). The setter's
+  // identity is stable, which is what keeps the reporting effect from looping.
+  const [streamingSpans, setStreamingSpans] = useState<TraceViewSpan[] | null>(null);
+
   const handleSpanSelect = useCallback((span: TraceViewSpan) => setSelectedSpan(span), [setSelectedSpan]);
   const handleSignalSpanClick = useCallback((spanId: string) => selectAndRevealSpan(spanId), [selectAndRevealSpan]);
 
@@ -202,34 +215,42 @@ const TracePanel = ({
           />
         </div>
 
-        {/* Signal card — content-sized, capped by maxHeight so the collapse
-            tweens without measuring. The collapser must stay visually EMPTY:
-            put the border on it and its top + bottom edges still paint a 2px
-            blue line at maxHeight 0. */}
-        {showSignals && (
-          <motion.div
-            initial={false}
-            animate={{ maxHeight: signalCardOpen ? SIGNAL_CARD_MAX : 0, marginTop: signalCardOpen ? 8 : 0 }}
-            transition={TWEEN}
-            className="overflow-hidden"
+        {/* Signal card. The collapser must stay visually EMPTY: put the border
+            on it and its top + bottom edges still paint a 2px blue line at
+            height 0.
+            ALWAYS MOUNTED, and `signalCardOpen` is the only thing that opens
+            it. Gating the mount on the same condition made the open a one-way
+            animation: scrolling back up unmounted the element in the same
+            commit that should have collapsed it, so it vanished instead of
+            closing. Nothing here ever needs to leave the tree — an empty
+            collapser costs no layout, and the flight measures this box.
+            `height: auto`, not a maxHeight cap. A cap has to clear the tallest
+            the card could ever be, so most of the tween runs past the content's
+            real height where nothing moves: at a 320 cap over a 126px card, 60%
+            of the duration was invisible and the easing's whole ease-out landed
+            in it, which is what made a slow open still read as a snap. */}
+        <motion.div
+          initial={false}
+          animate={{ height: signalCardOpen ? "auto" : 0, marginTop: signalCardOpen ? 8 : 0 }}
+          transition={CARD_TWEEN}
+          className="overflow-hidden"
+        >
+          {/* `data-landing-signal-card` is the measurement target for the
+              flight — see ./signal-stack. No transition on the opacity: this is
+              an instant swap between two identical cards, and a fade would
+              briefly show both. */}
+          <div
+            data-landing-signal-card
+            style={{
+              borderColor: SIGNAL_BORDER,
+              backgroundColor: SIGNAL_BG,
+              opacity: signalCardHidden ? 0 : 1,
+            }}
+            className="rounded-md border overflow-hidden"
           >
-            {/* `data-landing-signal-card` is the measurement target for the
-                step-6 flight — see ./signal-stack. No transition on the
-                opacity: this is an instant swap between two identical cards,
-                and a fade would briefly show both. */}
-            <div
-              data-landing-signal-card
-              style={{
-                borderColor: SIGNAL_BORDER,
-                backgroundColor: SIGNAL_BG,
-                opacity: signalCardHidden ? 0 : 1,
-              }}
-              className="rounded-md border overflow-hidden"
-            >
-              <SignalContent onSpanClick={handleSignalSpanClick} onClose={() => setSignalsPanelOpen(false)} />
-            </div>
-          </motion.div>
-        )}
+            <SignalContent onSpanClick={handleSignalSpanClick} onClose={() => setSignalsPanelOpen(false)} />
+          </div>
+        </motion.div>
       </div>
 
       {/* Everything below the signal card dims with it, so the card is the only
@@ -259,12 +280,20 @@ const TracePanel = ({
             <span className="text-primary-foreground">Transcript</span>
             <ChevronDown size={14} className="ml-1" />
           </div>
-          {trace && <TraceStatsShields className="min-w-0 overflow-hidden" trace={trace} />}
+          {trace && (
+            <TraceStatsShields className="min-w-0 overflow-hidden" trace={trace} spans={streamingSpans ?? undefined} />
+          )}
         </div>
 
         <div className="flex-1 min-h-0 overflow-hidden relative">
           <div className="absolute inset-0">
-            <LandingTranscript onSpanSelect={handleSpanSelect} visibleRows={visibleRows} scrollLocked={scrollLocked} />
+            <LandingTranscript
+              onSpanSelect={handleSpanSelect}
+              visibleRows={visibleRows}
+              instantRows={instantRows}
+              scrollLocked={scrollLocked}
+              onRevealedSpans={setStreamingSpans}
+            />
           </div>
           {/* Fades the clipped last row into the panel's own background. Fading
               to the FRAME's colour instead would read as a haze over the card. */}

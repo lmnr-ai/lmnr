@@ -29,10 +29,15 @@ export const SIGNAL_CARD_W = 384;
  *  below it. */
 export const SIGNAL_HEADER_H = 34;
 
-/** What the signal actually caught, as a headline. NOT the cluster name: a
- *  cluster only exists once enough events have grouped together, which is what
- *  the collapse-to-pill animation depicts. */
-export const SIGNAL_EVENT_TITLE = "Answered without citing a source";
+/** The SIGNAL's name, as the card's headline. NOT the cluster name: a cluster
+ *  only exists once enough events have grouped together, which is what the
+ *  collapse-to-pill animation depicts. */
+export const SIGNAL_EVENT_TITLE = "Failure detector";
+
+/** What this particular event caught, as a sentence. Split from the title
+ *  because ./slack-notification-card opens its message body with it, where a
+ *  signal's NAME would read as a fragment. */
+export const SIGNAL_EVENT_SUMMARY = "Answered without citing a source";
 
 /** The span the trace panel selects and scrolls to when the signal card opens:
  *  the answer the signal is actually about. */
@@ -110,35 +115,34 @@ export const ClusterPill = () => (
 // materialises its claim, and clicking one drives the transcript scroll +
 // selection.
 export const SignalCardBody = ({ onSpanClick }: Omit<SignalContentProps, "onClose"> = {}) => (
-    <p className="text-foreground-300 text-xs leading-5">
-      The agent ran{" "}
-      <SpanChip
-        iconBg="bg-tool"
-        icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
-        label="web_search"
-        spanId={DEMO_LAST_SEARCH_SPAN_ID}
-        onClick={onSpanClick}
-      />{" "}
-      three times for the same question, carried on past a{" "}
-      <code className="text-foreground-200">404</code> from{" "}
-      <SpanChip
-        iconBg="bg-tool"
-        icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
-        label="fetch_page"
-        spanId={DEMO_FAILED_FETCH_SPAN_ID}
-        onClick={onSpanClick}
-      />{" "}
-      without retrying, then{" "}
-      <SpanChip
-        iconBg="bg-llm"
-        icon={<MessageCircle className="size-3 text-white" strokeWidth={2} />}
-        label="ai.llm"
-        spanId={DEMO_ANSWER_SPAN_ID}
-        onClick={onSpanClick}
-      />{" "}
-      answered from a snippet without linking the page it read.
-    </p>
-  );
+  <p className="text-foreground-300 text-xs leading-5">
+    The agent ran{" "}
+    <SpanChip
+      iconBg="bg-tool"
+      icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
+      label="web_search"
+      spanId={DEMO_LAST_SEARCH_SPAN_ID}
+      onClick={onSpanClick}
+    />{" "}
+    three times for the same question, carried on past a <code className="text-foreground-200">404</code> from{" "}
+    <SpanChip
+      iconBg="bg-tool"
+      icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
+      label="fetch_page"
+      spanId={DEMO_FAILED_FETCH_SPAN_ID}
+      onClick={onSpanClick}
+    />{" "}
+    without retrying, then{" "}
+    <SpanChip
+      iconBg="bg-llm"
+      icon={<MessageCircle className="size-3 text-white" strokeWidth={2} />}
+      label="ai.llm"
+      spanId={DEMO_ANSWER_SPAN_ID}
+      onClick={onSpanClick}
+    />{" "}
+    answered from a snippet without linking the page it read.
+  </p>
+);
 
 // Signal event card inner content. No outer frame — callers wrap it (static
 // border/bg here; the landing trace panel supplies its own animated wrapper).

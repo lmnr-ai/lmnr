@@ -6,18 +6,22 @@ import { DEMO_FIRST_LLM_SPAN_ID, DEMO_FIRST_SEARCH_SPAN_ID } from "../demo-trace
 import { useSelectAndRevealSpan } from "./use-select-and-reveal-span";
 
 // ──────────────────────────────────────────────────────────────────────
-// The narrative. Five steps, scrubbed by the section's scroll progress, all
+// The narrative. Four steps, scrubbed by the section's scroll progress, all
 // against the SAME trace (../demo-trace) — there is no second slide and no
 // horizontal travel, so the right-hand panel never moves.
 //
 //   #  copy                              timeline  signals  stack  clusters
-//   1  Understand your agent runs  (H2)     ·         ·       ·        ·
-//   2  A clear, concise view       (H3)     ✓         ·       ·        ·
-//   3  Automatic failure detection (H2)     ✓         ✓       ·        ·
-//   4  Similar failures are ...    (H3)     ✓         ✓       ✓        ·
-//   5  Has this failure occurred…  (H2)     ·         ·       ✓        ✓
+//   1  See clearly what your agent… (H2)     ✓         ·       ·        ·
+//   2  Automatic failure detection  (H2)     ✓         ✓       ·        ·
+//   3  Similar failures are ...     (H3)     ✓         ✓       ✓        ·
+//   4  Has this failure occurred…   (H2)     ·         ·       ✓        ✓
 //
-// Steps 4 and 5 keep the panel exactly where step 3 left it: the signal card
+// Step 1's timeline and transcript are NOT step-driven: they open the frame the
+// section pins, i.e. once the panel has travelled up and stopped dead centre,
+// so the run streams in under the opener rather than waiting for a hand-off.
+// See ./index.
+//
+// Steps 3 and 4 keep the panel exactly where step 2 left it: the signal card
 // flies out of it, and the flight's measured origin would chase a live
 // transform if anything under it moved. See ./signal-stack.
 //
@@ -26,7 +30,7 @@ import { useSelectAndRevealSpan } from "./use-select-and-reveal-span";
 // getting a hand-off each, so a new step must go before them.
 // ──────────────────────────────────────────────────────────────────────
 
-export type StepNumber = 1 | 2 | 3 | 4 | 5;
+export type StepNumber = 1 | 2 | 3 | 4;
 
 interface Step {
   /** Step number rendered above the title. Only the two H2 "section roots"
@@ -64,28 +68,23 @@ const BodyLink = ({ spanId, label }: { spanId: string; label: string }) => {
   );
 };
 
-const ClearConciseBody = () => (
+const TraceViewBody = () => (
   <>
-    Laminar makes the agent run easily navigable by surfacing input,{" "}
-    <BodyLink spanId={DEMO_FIRST_LLM_SPAN_ID} label="LLM reasoning" /> and{" "}
-    <BodyLink spanId={DEMO_FIRST_SEARCH_SPAN_ID} label="tool calls" /> in a readable transcript and timeline.
+    Laminar automatically captures <BodyLink spanId={DEMO_FIRST_LLM_SPAN_ID} label="LLM calls" />,{" "}
+    <BodyLink spanId={DEMO_FIRST_SEARCH_SPAN_ID} label="tool calls" />, sub-agents, costs, and tokens, and shows it in a
+    readable transcript view.
   </>
 );
 
 export const STEPS: Record<StepNumber, Step> = {
   1: {
     label: "01.",
-    title: "Understand your\nagent runs.",
-    body: "Every run lands in Laminar with reasoning, tool calls, sub-agents, system prompts, costs, and tokens.",
+    title: "See clearly what\nyour agent is doing",
+    body: "Laminar automatically captures LLM calls, tool calls, sub-agents, costs, and tokens, and shows it in a readable transcript view.",
+    richBody: <TraceViewBody />,
     footnote: { name: "Trace view", href: DOCS_TRACE_VIEW },
   },
   2: {
-    subtitle: "A clear, concise view",
-    body: "Laminar makes the agent run easily navigable by surfacing input, LLM reasoning and tool calls in a readable transcript and timeline.",
-    richBody: <ClearConciseBody />,
-    footnote: { name: "Transcript view", href: DOCS_TRACE_VIEW },
-  },
-  3: {
     label: "02.",
     title: "Automatic\nfailure detection.",
     body: "Describe the failures you want to find in plain English and Laminar reads every run to surface them for you.",
@@ -94,7 +93,7 @@ export const STEPS: Record<StepNumber, Step> = {
   // FLAG(copy): written to bridge into the "Has this failure occurred before?"
   // section below. The Figma frame for this step has no copy in it, so this is
   // a first draft rather than signed-off wording.
-  4: {
+  3: {
     subtitle: "Similar failures are clustered",
     body: "Laminar runs the signal on every trace, then groups the matches.",
     footnote: { name: "Signals", href: DOCS_SIGNALS },
@@ -102,7 +101,7 @@ export const STEPS: Record<StepNumber, Step> = {
   // Desktop only. On mobile the same copy heads its own standalone section
   // (../has-this-issue), which is why the wording is a section opener rather
   // than a continuation — see ../../index for the md gate.
-  5: {
+  4: {
     label: "03.",
     title: "Has this failure\noccurred before?",
     body: "Laminar groups failures into named clusters and tracks each one over time. When a cluster stops recurring, Laminar resolves it, and reopens it if the issue returns.",
@@ -110,5 +109,5 @@ export const STEPS: Record<StepNumber, Step> = {
   },
 };
 
-export const STEP_NUMBERS = [1, 2, 3, 4, 5] as const;
+export const STEP_NUMBERS = [1, 2, 3, 4] as const;
 export const STEP_COUNT = STEP_NUMBERS.length;

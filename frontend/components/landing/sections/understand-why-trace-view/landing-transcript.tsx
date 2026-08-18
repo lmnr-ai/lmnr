@@ -26,10 +26,14 @@ import { SHARED_TRACE_API } from "./shared-trace-api";
 // virtualization is safe because the trace is ten spans; do NOT point this at
 // a large trace.
 //
-// The reveal runs in BATCHES, capped by the caller's `visibleRows`: the
-// section's opening step shows only the head of the run and the next step lets
-// the rest stream in. A whole trace dumped at once is both a wall to read and
-// a wasted beat.
+// The reveal runs in BATCHES, capped by the caller's `visibleRows`: the panel
+// opens on the head of the run and the caller lifts the cap to let the rest
+// stream in. A whole trace dumped at once is both a wall to read and a wasted
+// beat.
+//
+// The list does NOT follow its own tail. Rows arriving below the fold are meant
+// to be missed: chasing them scrolls the transcript to the end of the run and
+// leaves the reader looking at the last span instead of the first.
 //
 // Behaviours of the product transcript deliberately NOT reimplemented, because
 // this trace has no subagents and no realtime feed: sticky group headers,
@@ -52,13 +56,24 @@ interface Props {
    *  `overflow: hidden` box is still a scroll container programmatically. Set on
    *  touch, where an inner scroller just traps the page scroll. */
   scrollLocked?: boolean;
+  /** Spans revealed so far, or null once the whole run is in. Lets the panel's
+   *  stats shields count up with the transcript instead of showing a finished
+   *  trace's totals over a half-empty list — and the null hands them back to the
+   *  trace's own aggregates at the end, so they land on the real numbers rather
+   *  than on a client-side re-sum of them. Must be a stable identity. */
+  onRevealedSpans?: (spans: TraceViewSpan[] | null) => void;
+  /** Rows the panel opens ON. They are present from the first paint and never
+   *  staggered — the head of the run is the panel's resting state, not part of
+   *  the reveal, so animating it in makes an idle panel look like it is loading.
+   *  Only what comes after these streams. */
+  instantRows?: number;
 }
 
-/** Walks a counter up to `limit`, one step per `stepMs`, once `enabled`. Never
- *  counts back down: a step that lowered the cap would retract rows the reader
- *  has already seen arrive. */
-const useStagger = (limit: number, enabled: boolean, stepMs: number): number => {
-  const [revealed, setRevealed] = useState(0);
+/** Walks a counter up to `limit`, one step per `stepMs`, once `enabled`.
+ *  Starts at `from` rather than 0, and never counts back down: a step that
+ *  lowered the cap would retract rows the reader has already seen arrive. */
+const useStagger = (limit: number, enabled: boolean, stepMs: number, from: number): number => {
+  const [revealed, setRevealed] = useState(from);
   // Read once rather than per tick: a preference flipped mid-page should not
   // restart a reveal that is already running.
   const [instant] = useState(
@@ -134,7 +149,7 @@ const useSpanPreviews = (
   return previews;
 };
 
-const LandingTranscript = ({ onSpanSelect, visibleRows, scrollLocked }: Props) => {
+const LandingTranscript = ({ onSpanSelect, visibleRows, scrollLocked, onRevealedSpans, instantRows = 0 }: Props) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inView = useInView(scrollRef, { once: true, amount: 0.3 });
   const { getTranscriptListData, spans, trace, selectedSpan } = useTraceViewBaseStore(
@@ -167,10 +182,21 @@ const LandingTranscript = ({ onSpanSelect, visibleRows, scrollLocked }: Props) =
 
   const previews = useSpanPreviews(trace, spans);
 
-  const revealed = useStagger(Math.min(visibleRows, rows.length), inView, ROW_STEP_MS);
+  const revealed = useStagger(Math.min(visibleRows, rows.length), inView, ROW_STEP_MS, instantRows);
 
   const spansById = useMemo(() => new Map(spans.map((s) => [s.spanId, s])), [spans]);
   const selectedSpanId = selectedSpan?.spanId;
+
+  const revealedSpans = useMemo(() => {
+    if (revealed >= rows.length) return null;
+    return rows
+      .slice(0, revealed)
+      .flatMap((row) => (row.type === "span" ? (spansById.get(row.span.spanId) ?? []) : []));
+  }, [rows, revealed, spansById]);
+
+  useEffect(() => {
+    onRevealedSpans?.(revealedSpans);
+  }, [revealedSpans, onRevealedSpans]);
 
   // The product transcript scrolls to a selection through the virtualizer; with
   // real DOM nodes the element can just do it itself.
@@ -180,21 +206,6 @@ const LandingTranscript = ({ onSpanSelect, visibleRows, scrollLocked }: Props) =
       ?.querySelector(`[data-landing-span="${CSS.escape(selectedSpanId)}"]`)
       ?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [selectedSpanId]);
-
-  // Follow the tail as rows land, the way a live log does. Without it most of
-  // the run arrives below the panel's fold and the reveal is invisible.
-  //
-  // Hand-rolled rather than `scrollIntoView`: that walks up and scrolls every
-  // scrollable ancestor, and the ancestor here is the PAGE, whose scroll
-  // position is what drives the entire section. Only ever scrolls down, and
-  // only when the new row is actually past the bottom edge.
-  useEffect(() => {
-    const el = scrollRef.current;
-    const row = el?.children[revealed - 1] as HTMLElement | undefined;
-    if (!el || !row) return;
-    const target = row.offsetTop + row.offsetHeight - el.clientHeight;
-    if (target > el.scrollTop) el.scrollTo({ top: target, behavior: "smooth" });
-  }, [revealed]);
 
   const handleSelect = useCallback(
     (listSpan: TraceViewListSpan) => {
@@ -236,7 +247,9 @@ const LandingTranscript = ({ onSpanSelect, visibleRows, scrollLocked }: Props) =
           <motion.div
             key={spanId ?? row.type + i}
             data-landing-span={spanId}
-            initial={{ opacity: 0, y: ROW_RISE_PX }}
+            // The opening rows are the panel's resting state, so they get no
+            // enter animation at all — `initial={false}` snaps them to `animate`.
+            initial={i < instantRows ? false : { opacity: 0, y: ROW_RISE_PX }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45, ease: "easeOut" }}
             className={cn(needsSpacing && "pt-4")}

@@ -19,8 +19,8 @@
 //
 //   0          .28    .44   .53 .58                          1
 //   ├───────────┼──────┼─────┼───┼──────────────────────────┤
-//       ▓▓▓▓▓▓▓▓                     flight    (panel → stack front)
-//             ╎                      ← stack holds through .31
+//   ▓▓▓▓▓▓▓▓▓▓▓▓                     flight    (panel → stack front)
+//             ╎                      ← lands just before the copy centres (.31)
 //             ▓▓▓▓▓                  collapse  (stack → cluster pill)
 //              ▓▓▓▓▓▓▓▓              cardRise  (clusters card rises to meet it)
 //                     ▓▓▓            pillEnter (pill drops into the card)
@@ -55,7 +55,8 @@ export interface StackTiming {
   act2At: number;
 
   /** Point WITHIN the flight (0-1) where the OTHER runs start sliding in from
-   *  off-frame. Late, so the flight still reads as one card arriving. */
+   *  off-frame. Not at 0, so the flight opens as one card leaving one panel
+   *  before it becomes a pile. */
   entryStart: number;
   /** Which slot the trace's card lands in, 0 = front. The other cards arrive
    *  from off-frame on either side of it: slots before it come down from the
@@ -84,15 +85,17 @@ export interface StackTiming {
 }
 
 export const DEFAULT_STACK_TIMING: StackTiming = {
-  // Lands the formed stack at .275, so it is already holding when the copy
-  // centres at .31 rather than still assembling under the reader. Starting later
-  // than the window's opening beat is deliberate: the reader gets a moment on the
-  // trace panel before anything leaves it.
+  // Both ends are set against the STEP the gesture plays over — the 80vh
+  // between "Automatic failure detection" centring at 0 and "Similar failures
+  // are clustered" centring at .308. The card leaves the panel 12% into that
+  // step and the stack is complete at 95% of it, which is the whole step bar a
+  // beat at each end.
   //
-  // The span is what makes the runs fan in at a readable pace, and it can only
-  // grow toward .31 — past that the stack is still assembling under its own copy.
-  flightAt: 0.155,
-  flightSpan: 0.12,
+  // That leaves only ~.016 of hold before the copy centres, so the stack lands
+  // just as its caption arrives rather than sitting formed and waiting. Pulling
+  // the end any later would have it still assembling under its own copy.
+  flightAt: 0.037,
+  flightSpan: 0.255,
 
   // Nothing moves between .275 and .34: the stack is the picture that belongs
   // to "Similar failures are clustered", so it gets the copy's whole beat.
@@ -108,7 +111,7 @@ export const DEFAULT_STACK_TIMING: StackTiming = {
   pillEnterSpan: 0.05,
   act2At: 0.585,
 
-  entryStart: 0.4,
+  entryStart: 0.25,
   // Dead centre of five: two runs arrive from the up-left, two from the
   // down-right, and the trace's own card is the one they close around.
   liveSlot: 2,

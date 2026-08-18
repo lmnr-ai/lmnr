@@ -38,10 +38,7 @@ const ClustersStage = ({ rise, restY, armed, landed, timing }: Props) => {
   const beats = useClusterBeats(armed, DEFAULT_TIMING);
 
   return (
-    <motion.div
-      style={{ y, opacity: eased, left: (FRAME_W - CLUSTERS_CARD_COL_W) / 2 }}
-      className="absolute top-0"
-    >
+    <motion.div style={{ y, opacity: eased, left: (FRAME_W - CLUSTERS_CARD_COL_W) / 2 }} className="absolute top-0">
       <ClustersCard
         layout="column"
         armed={beats.chartArmed}

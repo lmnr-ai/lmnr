@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-import { SIGNAL_EVENT_TITLE } from "./signal-event-card";
+import { SIGNAL_EVENT_SUMMARY } from "./signal-event-card";
 
 export const SLACK_BORDER = "rgb(38 38 38)"; // surface-300
 export const SLACK_BG = "rgb(23 23 23)"; // surface-150
@@ -47,9 +47,9 @@ export const SlackContent = () => (
       {/* Same event the signal card describes — see ./signal-event-card, and
           keep the two saying the same thing. */}
       <p className="font-sans text-xs leading-relaxed text-foreground-200 w-full">
-        {SIGNAL_EVENT_TITLE}. The agent ran <code>web_search</code> three times for the same question, carried on past a{" "}
-        <code>404</code> from <code>fetch_page</code> without retrying, then answered from a snippet without linking the
-        page it read.
+        {SIGNAL_EVENT_SUMMARY}. The agent ran <code>web_search</code> three times for the same question, carried on past
+        a <code>404</code> from <code>fetch_page</code> without retrying, then answered from a snippet without linking
+        the page it read.
       </p>
 
       <div className="flex flex-row gap-2 items-center">

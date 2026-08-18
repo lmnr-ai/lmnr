@@ -131,14 +131,13 @@ const INACTIVE_OPACITY = 0.4;
 /** How far below its arming point Act 2 disarms. */
 const ACT2_HYSTERESIS = 0.04;
 
-/** Transcript rows the opening step shows: the question, the agent deciding to
+/** Transcript rows the panel opens on: the question, the agent deciding to
  *  search, the search, and the agent reading the result. One full think-act-
  *  observe loop — stopping a row earlier ends on a tool call nothing answers,
  *  which reads as the trace being cut off rather than paused.
  *
- *  Step 2 lifts the cap and the rest streams in, which is the step whose copy
- *  is about a long run staying legible. Counts ROWS, not spans: the
- *  user-input row is the first one. */
+ *  `pinned` lifts the cap and the rest streams in. Counts ROWS, not spans:
+ *  the user-input row is the first one. */
 const OPENING_ROWS = 4;
 
 /** Rough block height, used only to seed the stops before the first
@@ -250,6 +249,32 @@ const UnderstandWhyTraceView = () => {
   const [flying, setFlying] = useState(false);
   useMotionValueEvent(flight, "change", (v) => setFlying(v > 0));
 
+  // The panel's opening gesture fires when the frame has travelled up and
+  // STOPPED, dead centre of the viewport. That moment is the sticky pin: the
+  // child is `top-0 h-screen` with the frame centred inside it, so its centre
+  // sits at `sectionTop + 50vh` while the section approaches and lands on the
+  // viewport's centre exactly when `sectionTop` hits 0.
+  //
+  // Which is what this observer already calls 0 — `offset: ["start start", …]`.
+  // No second `useScroll`, no IntersectionObserver: an element-crossing test
+  // would fire on the frame's leading EDGE, 340px of scrolling early, while it
+  // is still half off the bottom of the screen and still moving.
+  //
+  // The clamp is the trick. Approaching the section the progress is pinned at 0
+  // and never moves, so it emits no change events; the first change it ever
+  // reports is the pin itself. Latched, because a stream-in has nothing to
+  // rewind to.
+  const [pinned, setPinned] = useState(false);
+  useMotionValueEvent(scrollYProgress, "change", (t) => {
+    if (t > 0) setPinned(true);
+  });
+  // "change" only fires on a CHANGE, so a reload landing inside the section
+  // would otherwise never arm. Deferred a frame so the observer has measured.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setPinned((on) => on || scrollYProgress.get() > 0));
+    return () => cancelAnimationFrame(id);
+  }, [scrollYProgress]);
+
   const { data: trace } = useSWR<TraceViewTrace>(`${SHARED_TRACE_API}/${DEMO_TRACE_ID}`, swrFetcher);
   const { data: spans } = useSWR<TraceViewSpan[]>(`${SHARED_TRACE_API}/${DEMO_TRACE_ID}/spans`, swrFetcher);
 
@@ -314,14 +339,15 @@ const UnderstandWhyTraceView = () => {
                     <TracePanel
                       trace={trace}
                       spans={spans ?? []}
-                      showTimeline={step >= 2}
-                      visibleRows={step >= 2 ? Number.POSITIVE_INFINITY : OPENING_ROWS}
-                      showSignals={step >= 3}
+                      showTimeline={pinned}
+                      visibleRows={pinned ? Number.POSITIVE_INFINITY : OPENING_ROWS}
+                      instantRows={OPENING_ROWS}
+                      showSignals={step >= 2}
                       // Stays open through the last step: the stack measures
                       // this card's box, and a collapse would move it
                       // mid-flight.
-                      signalsOpen={step >= 3}
-                      revealSpanId={step >= 3 ? SIGNAL_SOURCE_SPAN_ID : undefined}
+                      signalsOpen={step >= 2}
+                      revealSpanId={step >= 2 ? SIGNAL_SOURCE_SPAN_ID : undefined}
                       signalCardHidden={flying}
                     />
                   </motion.div>
@@ -331,7 +357,7 @@ const UnderstandWhyTraceView = () => {
                       actually reveals it. Deliberately BELOW the z-10 vignettes
                       — the front card bleeds off the left edge and the gradient
                       softens that crop. */}
-                  {step >= 3 && (
+                  {step >= 2 && (
                     <>
                       <SignalStack
                         flight={flight}

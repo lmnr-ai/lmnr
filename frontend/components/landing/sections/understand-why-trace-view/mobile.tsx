@@ -10,9 +10,9 @@ import MobileSignalStack from "./mobile-signal-stack";
 import MobileTracePanel from "./mobile-trace-panel";
 import { type StepNumber, STEPS } from "./steps";
 
-// Mobile runs the same six-step copy as the desktop scrolly-tell (imported
-// from ./steps so the words can't drift) but drops the scroll choreography —
-// each step is a plain block, and the H2 opener carries no panel at all.
+// Mobile runs the same copy as the desktop scrolly-tell (imported from ./steps
+// so the words can't drift) but drops the scroll choreography — each step is a
+// plain block.
 //
 // Mock widths deliberately overflow a phone viewport; the page root has
 // `overflow-x-clip` so the visuals read at full scale without side-scroll.
@@ -86,19 +86,16 @@ const CroppedPanel = ({ step, children }: { step: StepNumber; children: ReactNod
 
 const UnderstandWhyTraceViewMobile = () => (
   <section className="w-full flex flex-col gap-16 px-6 py-16">
-    {/* 01. Section opener — headline only. */}
-    <Block step={1} />
-
-    {/* Transcript — the same live panel step 3 uses, without the signal card. */}
-    <Block step={2}>
-      <CroppedPanel step={2}>
+    {/* 01. Section opener, over the live transcript its copy describes. */}
+    <Block step={1}>
+      <CroppedPanel step={1}>
         <MobileTracePanel storeKey="landing-trace-mobile-transcript" />
       </CroppedPanel>
     </Block>
 
     {/* 02. Signals — the same panel with the signal event card open on it. */}
-    <Block step={3}>
-      <CroppedPanel step={3}>
+    <Block step={2}>
+      <CroppedPanel step={2}>
         <MobileTracePanel storeKey="landing-trace-mobile-signals" showSignals />
       </CroppedPanel>
     </Block>
@@ -107,8 +104,8 @@ const UnderstandWhyTraceViewMobile = () => (
         its cluster pill and the pill falls out through the bottom edge, which is
         where ../has-this-issue picks it up. No padding: the frame's edge IS the
         clip the pill leaves through. */}
-    <Block step={4}>
-      <Panel step={4}>
+    <Block step={3}>
+      <Panel step={3}>
         <MobileSignalStack />
       </Panel>
     </Block>

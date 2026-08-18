@@ -11,7 +11,7 @@ import SignalEventClustersMock from "./signal-event-clusters-mock";
 //
 // Vertical stack: title + subtitle on top, mock centered inside a surface-250
 // panel with a footnote pinned to the bottom.
-const STEP = STEPS[5];
+const STEP = STEPS[4];
 
 const HasThisIssue = () => (
   <section className="flex flex-col gap-10 items-start w-full">

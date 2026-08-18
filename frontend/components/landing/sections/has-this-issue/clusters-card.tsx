@@ -284,10 +284,7 @@ const ClustersCard = ({
           onNavigateToBreadcrumb={navigateToBreadcrumb}
         />
         <div className="rounded-md border bg-secondary overflow-hidden">{list}</div>
-        <div
-          style={{ height: COL_CHART_CARD_H }}
-          className="flex rounded-md border bg-secondary overflow-hidden pb-1 pl-1"
-        >
+        <div style={{ height: COL_CHART_CARD_H }} className="flex rounded-md border bg-secondary overflow-hidden">
           {chart}
         </div>
       </div>
