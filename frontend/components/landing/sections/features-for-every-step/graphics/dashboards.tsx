@@ -2,7 +2,10 @@ import { GripVertical, Plus } from "lucide-react";
 
 // The dashboard is a drag-and-drop grid, so the graphic is the grid: charts
 // already placed, one mid-drag, and an empty cell waiting for the next.
-const SPARK = [30, 44, 38, 56, 48, 66, 58, 72];
+// Trends up without alternating: a strict up-down-up-down saw reads as a
+// generated shape, not a measurement. Runs of two in the same direction and
+// steps of uneven size are what make it look sampled.
+const SPARK = [26, 31, 29, 41, 38, 52, 47, 45, 60, 71, 66, 76];
 
 const Handle = () => <GripVertical className="size-3 shrink-0 text-foreground-600" strokeWidth={1.5} />;
 

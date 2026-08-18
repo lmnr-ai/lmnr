@@ -30,7 +30,7 @@ const BuiltForProduction = () => (
         </div>
 
         <div className="flex flex-col gap-1 items-start w-full md:flex-1 md:min-w-0 py-[7px] relative overflow-hidden">
-          <div className="flex h-8.5 items-center justify-end px-3 whitespace-nowrap w-full rounded-r-md bg-surface-300 text-foreground-50">
+          <div className="flex h-8.5 items-center justify-end px-3 whitespace-nowrap w-full rounded-sm bg-surface-300 text-foreground-50">
             <p className="font-medium">Competition</p>
           </div>
           {/* Both bars start full width; Laminar's shrinks to show the 20x. Its label
@@ -43,7 +43,7 @@ const BuiltForProduction = () => (
             viewport={{ once: true, amount: 0.6 }}
           >
             <motion.div
-              className="relative flex h-full items-center rounded-r-md bg-primary-300"
+              className="relative flex h-full items-center rounded-sm bg-primary-300"
               variants={{ full: { width: "100%" }, compressed: { width: "5%" } }}
               transition={BAR_TRANSITION}
             >

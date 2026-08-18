@@ -42,7 +42,7 @@ const MobileTracePanel = ({ storeKey, showSignals }: Props) => {
           // Off on mobile: the crop is short and the transcript is what the
           // copy is about, so a timeline only costs it 120px.
           showTimeline={false}
-          visibleRows={Number.POSITIVE_INFINITY}
+          visibleSpans={Number.POSITIVE_INFINITY}
           showSignals={showSignals}
           signalsOpen={showSignals}
           // Only meaningful with the card open — it exists to point the

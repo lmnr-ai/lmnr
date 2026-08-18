@@ -131,14 +131,14 @@ const INACTIVE_OPACITY = 0.4;
 /** How far below its arming point Act 2 disarms. */
 const ACT2_HYSTERESIS = 0.04;
 
-/** Transcript rows the panel opens on: the question, the agent deciding to
- *  search, the search, and the agent reading the result. One full think-act-
- *  observe loop — stopping a row earlier ends on a tool call nothing answers,
- *  which reads as the trace being cut off rather than paused.
+/** Spans the panel opens on: the agent deciding to search, the search, and the
+ *  agent reading the result. One full think-act-observe loop — stopping a span
+ *  earlier ends on a tool call nothing answers, which reads as the trace being
+ *  cut off rather than paused. With the user's input above them that is four
+ *  transcript rows.
  *
- *  `pinned` lifts the cap and the rest streams in. Counts ROWS, not spans:
- *  the user-input row is the first one. */
-const OPENING_ROWS = 4;
+ *  `pinned` lifts the cap and the rest of the run streams in. */
+const OPENING_SPANS = 3;
 
 /** Rough block height, used only to seed the stops before the first
  *  measurement. The section is far below the fold, so the seed is never on
@@ -340,8 +340,8 @@ const UnderstandWhyTraceView = () => {
                       trace={trace}
                       spans={spans ?? []}
                       showTimeline={pinned}
-                      visibleRows={pinned ? Number.POSITIVE_INFINITY : OPENING_ROWS}
-                      instantRows={OPENING_ROWS}
+                      visibleSpans={pinned ? Number.POSITIVE_INFINITY : OPENING_SPANS}
+                      instantSpans={OPENING_SPANS}
                       showSignals={step >= 2}
                       // Stays open through the last step: the stack measures
                       // this card's box, and a collapse would move it

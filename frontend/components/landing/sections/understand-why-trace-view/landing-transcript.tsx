@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useInView } from "framer-motion";
+import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -26,9 +26,10 @@ import { SHARED_TRACE_API } from "./shared-trace-api";
 // virtualization is safe because the trace is ten spans; do NOT point this at
 // a large trace.
 //
-// The reveal runs in BATCHES, capped by the caller's `visibleRows`: the panel
-// opens on the head of the run and the caller lifts the cap to let the rest
-// stream in. A whole trace dumped at once is both a wall to read and a wasted
+// It does NOT own the reveal. The store is filled one span at a time by
+// ../trace-panel, so this list simply renders what the store has — which is
+// what keeps it in step with the condensed timeline, whose spans come from the
+// same place. A whole trace dumped at once is both a wall to read and a wasted
 // beat.
 //
 // The list does NOT follow its own tail. Rows arriving below the fold are meant
@@ -40,66 +41,29 @@ import { SHARED_TRACE_API } from "./shared-trace-api";
 // group expand/collapse, pending-span preview deferral, and visible-time-range
 // reporting to the condensed timeline.
 
-/** Wall-clock gap between rows arriving. Long enough to read as separate
- *  events landing rather than one list fading in. */
-const ROW_STEP_MS = 380;
-
 /** How far a row rises as it arrives. */
 const ROW_RISE_PX = 10;
 
 interface Props {
   onSpanSelect: (span: TraceViewSpan) => void;
-  /** Cap on how many rows may be revealed so far. Raising it resumes the
-   *  stagger from where it stopped rather than replaying from the top. */
-  visibleRows: number;
   /** Blocks USER scrolling while leaving both `scrollTo`s below working — an
    *  `overflow: hidden` box is still a scroll container programmatically. Set on
    *  touch, where an inner scroller just traps the page scroll. */
   scrollLocked?: boolean;
-  /** Spans revealed so far, or null once the whole run is in. Lets the panel's
-   *  stats shields count up with the transcript instead of showing a finished
-   *  trace's totals over a half-empty list — and the null hands them back to the
-   *  trace's own aggregates at the end, so they land on the real numbers rather
-   *  than on a client-side re-sum of them. Must be a stable identity. */
-  onRevealedSpans?: (spans: TraceViewSpan[] | null) => void;
-  /** Rows the panel opens ON. They are present from the first paint and never
-   *  staggered — the head of the run is the panel's resting state, not part of
-   *  the reveal, so animating it in makes an idle panel look like it is loading.
-   *  Only what comes after these streams. */
-  instantRows?: number;
+  /** Spans the panel opens ON. Their rows get no enter animation: the head of
+   *  the run is the panel's resting state, not part of the reveal, and
+   *  animating it in makes an idle panel look like it is loading. Everything
+   *  the store gains after them arrives one at a time and does animate. */
+  instantSpans?: number;
 }
-
-/** Walks a counter up to `limit`, one step per `stepMs`, once `enabled`.
- *  Starts at `from` rather than 0, and never counts back down: a step that
- *  lowered the cap would retract rows the reader has already seen arrive. */
-const useStagger = (limit: number, enabled: boolean, stepMs: number, from: number): number => {
-  const [revealed, setRevealed] = useState(from);
-  // Read once rather than per tick: a preference flipped mid-page should not
-  // restart a reveal that is already running.
-  const [instant] = useState(
-    () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
-  );
-
-  useEffect(() => {
-    if (!enabled || revealed >= limit) return;
-    // Reduced motion jumps the whole batch, but still through the timer — a
-    // synchronous setState in an effect body cascades renders.
-    const id = window.setTimeout(
-      () => setRevealed((n) => (instant ? limit : Math.min(n + 1, limit))),
-      instant ? 0 : stepMs
-    );
-    return () => window.clearTimeout(id);
-  }, [revealed, limit, enabled, stepMs, instant]);
-
-  return revealed;
-};
 
 /** Row bodies, in ONE request for the whole trace.
  *
  *  Not the product's `useBatchedSpanPreviews`: that debounces around what the
  *  virtualizer currently has on screen and hardcodes the shared-trace base,
  *  and this list has neither a virtualizer nor a local copy of the trace to
- *  read. Four spans fetched once is the whole job. */
+ *  read. It re-runs as the store gains spans, which is bounded by the size of
+ *  the trace — do NOT point this at a large one. */
 const useSpanPreviews = (
   trace: { id?: string; startTime?: string; endTime?: string } | undefined,
   spans: { spanId: string; spanType: string }[]
@@ -137,7 +101,12 @@ const useSpanPreviews = (
       signal: controller.signal,
     })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
-      .then((data: { previews?: Record<string, string | null> }) => setPreviews(data.previews ?? {}))
+      // MERGED, not replaced: the store gains one span at a time, so this runs
+      // once per arrival and a replace would drop the bodies of the rows
+      // already on screen every time a new one landed.
+      .then((data: { previews?: Record<string, string | null> }) =>
+        setPreviews((prev) => ({ ...prev, ...(data.previews ?? {}) }))
+      )
       // A landing mock with no row bodies still reads as a trace; a toast on a
       // marketing page does not.
       .catch(() => {});
@@ -149,9 +118,8 @@ const useSpanPreviews = (
   return previews;
 };
 
-const LandingTranscript = ({ onSpanSelect, visibleRows, scrollLocked, onRevealedSpans, instantRows = 0 }: Props) => {
+const LandingTranscript = ({ onSpanSelect, scrollLocked, instantSpans = 0 }: Props) => {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inView = useInView(scrollRef, { once: true, amount: 0.3 });
   const { getTranscriptListData, spans, trace, selectedSpan } = useTraceViewBaseStore(
     (state) => ({
       getTranscriptListData: state.getTranscriptListData,
@@ -182,21 +150,12 @@ const LandingTranscript = ({ onSpanSelect, visibleRows, scrollLocked, onRevealed
 
   const previews = useSpanPreviews(trace, spans);
 
-  const revealed = useStagger(Math.min(visibleRows, rows.length), inView, ROW_STEP_MS, instantRows);
+  // Rows, not spans: the user's input heads the list and is not a span, so it
+  // rides in with the opening batch rather than animating on its own.
+  const instantRows = instantSpans + (userInput ? 1 : 0);
 
   const spansById = useMemo(() => new Map(spans.map((s) => [s.spanId, s])), [spans]);
   const selectedSpanId = selectedSpan?.spanId;
-
-  const revealedSpans = useMemo(() => {
-    if (revealed >= rows.length) return null;
-    return rows
-      .slice(0, revealed)
-      .flatMap((row) => (row.type === "span" ? (spansById.get(row.span.spanId) ?? []) : []));
-  }, [rows, revealed, spansById]);
-
-  useEffect(() => {
-    onRevealedSpans?.(revealedSpans);
-  }, [revealedSpans, onRevealedSpans]);
 
   // The product transcript scrolls to a selection through the virtualizer; with
   // real DOM nodes the element can just do it itself.
@@ -226,13 +185,13 @@ const LandingTranscript = ({ onSpanSelect, visibleRows, scrollLocked, onRevealed
         scrollLocked ? "overflow-y-hidden" : "overflow-y-auto"
       )}
     >
-      {/* Only what has been revealed is MOUNTED. Holding the rest at opacity 0
-          leaves them in layout, so the container reserves the whole run's
-          height from the first frame and scrolls over blank space. Mounting as
-          they arrive also means the list visibly grows, which is the point.
-          Hence framer rather than a CSS transition: a class toggled on mount
-          has no starting frame to animate from. */}
-      {rows.slice(0, revealed).map((row, i) => {
+      {/* The store holds only what has been revealed, so this renders all of
+          it. Rows MOUNT as spans arrive rather than sitting at opacity 0:
+          holding the whole run in layout would reserve its full height from the
+          first frame and scroll over blank space, and mounting is what makes
+          the list visibly grow. Hence framer rather than a CSS transition — a
+          class toggled on mount has no starting frame to animate from. */}
+      {rows.map((row, i) => {
         const spanId = row.type === "span" ? row.span.spanId : undefined;
         const prev = rows[i - 1];
         // Matches the product's spacing rule: an LLM row gets air above it

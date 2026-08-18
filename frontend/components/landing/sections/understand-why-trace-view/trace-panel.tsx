@@ -1,8 +1,8 @@
 "use client";
 
-import { motion, type Transition } from "framer-motion";
+import { motion, type Transition, useInView } from "framer-motion";
 import { ChevronDown, ChevronsRight, List, Maximize, Radio, Sparkles } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
 import { TraceStatsShields } from "@/components/traces/stats-shields";
@@ -16,6 +16,7 @@ import { SIGNAL_BG, SIGNAL_BORDER, SignalContent } from "../signal-event-card";
 import { PANEL_W } from "./geometry";
 import LandingTranscript from "./landing-transcript";
 import { useSelectAndRevealSpan } from "./use-select-and-reveal-span";
+import { useStagger } from "./use-stagger";
 
 const TWEEN: Transition = { type: "tween", duration: 0.3, ease: "easeInOut" };
 
@@ -34,6 +35,10 @@ const TIMELINE_HEIGHT = 120;
 // the step becomes active — lets the signal card finish opening first, so the
 // two motions read as sequential rather than fighting each other.
 const REVEAL_AT_MS = 350;
+
+/** Wall-clock gap between spans arriving. Long enough to read as separate
+ *  events landing rather than one list fading in. */
+const SPAN_STEP_MS = 380;
 
 const HEADER_ITEM_CLS = "flex items-center h-7";
 
@@ -115,10 +120,11 @@ interface Props {
   spans: TraceViewSpan[];
   /** Condensed timeline reveal. */
   showTimeline: boolean;
-  /** Cap on transcript rows — see ./landing-transcript. */
-  visibleRows: number;
-  /** Rows shown with no reveal animation at all — see ./landing-transcript. */
-  instantRows?: number;
+  /** Cap on how many spans may be revealed so far. Raising it resumes the
+   *  stream from where it stopped rather than replaying from the top. */
+  visibleSpans: number;
+  /** Spans present from the first paint, with no reveal animation. */
+  instantSpans?: number;
   /** Renders the Signals button, and lets the signal-event card open. The card
    *  itself is always mounted — see the collapser below. */
   showSignals?: boolean;
@@ -155,8 +161,8 @@ const TracePanel = ({
   trace,
   spans,
   showTimeline,
-  visibleRows,
-  instantRows,
+  visibleSpans,
+  instantSpans = 0,
   showSignals,
   signalsOpen,
   revealSpanId,
@@ -174,12 +180,22 @@ const TracePanel = ({
     shallow
   );
 
+  // The run streams into the STORE, one span at a time, rather than into the
+  // transcript alone — the condensed timeline draws from the same place, so
+  // this is what keeps a span appearing on the timeline and in the transcript
+  // on the same frame. It also means the timeline's axis extends as the run
+  // arrives, which is what the product does on a live trace.
+  const panelRef = useRef<HTMLDivElement>(null);
+  const inView = useInView(panelRef, { once: true, amount: 0.3 });
+  const revealed = useStagger(Math.min(visibleSpans, spans.length), inView, SPAN_STEP_MS, instantSpans);
+  const streaming = revealed < spans.length;
+
   useEffect(() => {
     if (!trace || spans.length === 0) return;
-    setSpans(enrichSpansWithPending(spans));
+    setSpans(enrichSpansWithPending(spans.slice(0, revealed)));
     setTrace(trace);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trace?.id, spans.length]);
+  }, [trace?.id, spans, revealed]);
 
   // Only re-runs when the STEP changes the desired state, so a user toggle of
   // the Signals button survives until the narrative moves on.
@@ -190,18 +206,13 @@ const TracePanel = ({
   useRevealSpan(revealSpanId);
   const selectAndRevealSpan = useSelectAndRevealSpan();
 
-  // Duration, tokens and cost climb as the transcript streams in, then hand
-  // back to the trace's own totals once it is complete (null). The setter's
-  // identity is stable, which is what keeps the reporting effect from looping.
-  const [streamingSpans, setStreamingSpans] = useState<TraceViewSpan[] | null>(null);
-
   const handleSpanSelect = useCallback((span: TraceViewSpan) => setSelectedSpan(span), [setSelectedSpan]);
   const handleSignalSpanClick = useCallback((spanId: string) => selectAndRevealSpan(spanId), [selectAndRevealSpan]);
 
   const signalCardOpen = !!showSignals && signalsPanelOpen;
 
   return (
-    <div className="flex flex-col shrink-0 h-full" style={{ width: PANEL_W }}>
+    <div ref={panelRef} className="flex flex-col shrink-0 h-full" style={{ width: PANEL_W }}>
       {/* Bottom padding exists only to keep the timeline's axis labels off
           whatever ends the header — the Signals button, or the signal card.
           When the timeline is closed the transcript toolbar follows, and its
@@ -281,7 +292,14 @@ const TracePanel = ({
             <ChevronDown size={14} className="ml-1" />
           </div>
           {trace && (
-            <TraceStatsShields className="min-w-0 overflow-hidden" trace={trace} spans={streamingSpans ?? undefined} />
+            // Duration, tokens and cost climb with the run, then hand back to
+            // the trace's own totals so they land on the real numbers rather
+            // than a client-side re-sum of them.
+            <TraceStatsShields
+              className="min-w-0 overflow-hidden"
+              trace={trace}
+              spans={streaming ? spans.slice(0, revealed) : undefined}
+            />
           )}
         </div>
 
@@ -289,10 +307,8 @@ const TracePanel = ({
           <div className="absolute inset-0">
             <LandingTranscript
               onSpanSelect={handleSpanSelect}
-              visibleRows={visibleRows}
-              instantRows={instantRows}
+              instantSpans={instantSpans}
               scrollLocked={scrollLocked}
-              onRevealedSpans={setStreamingSpans}
             />
           </div>
           {/* Fades the clipped last row into the panel's own background. Fading
