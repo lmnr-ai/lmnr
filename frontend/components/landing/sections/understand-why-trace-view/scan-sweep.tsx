@@ -23,7 +23,7 @@ const TO = `${-(BAND_TOP + BAND_H)}%`;
 /** Symmetric: light passing over the rows, with no leading edge and so no
  *  direction of its own — the travel is what carries that. Plain white and
  *  barely there, so it lifts the dimmed text rather than tinting it. */
-const BAND = "linear-gradient(to bottom, transparent, rgb(255 255 255 / 0.07), transparent)";
+const BAND = "linear-gradient(to bottom, transparent, rgb(255 255 255 / 0.05), transparent)";
 
 /** Mostly linear through the middle — a scan is a machine, not a thrown ball —
  *  but eased at both ends so it neither starts nor stops on a hard edge. */
