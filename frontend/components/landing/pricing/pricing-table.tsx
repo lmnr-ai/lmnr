@@ -5,15 +5,12 @@ import { cn } from "@/lib/utils";
 
 import { microLabel, subSection } from "../class-names";
 import LandingButton from "../landing-button";
+import InfoTooltip from "./info-tooltip";
 import { FEATURE_GROUPS, type FeatureGroup, type FeatureValue, TIER_COLUMNS } from "./tier-data";
 
-// Flat comparison table — no per-tier highlight. Header has tier name +
-// price + CTA; rows are grouped by FEATURE_GROUPS with a small section
-// header above each group.
-// Sticky header: each header cell gets `sticky top-0` + a page-bg so it pins
-// when the user scrolls past it. `md:overflow-visible` is required because an
-// `overflow-x: auto` ancestor breaks page-relative sticky positioning — on
-// mobile we accept losing sticky to keep the horizontal-scroll fallback.
+// Flat comparison table, no per-tier highlight, rows grouped by FEATURE_GROUPS.
+// `md:overflow-visible` is required for the sticky header: an `overflow-x: auto`
+// ancestor breaks page-relative sticky, so mobile trades it for the scroll.
 export default function PricingTable() {
   return (
     <div className="w-full overflow-x-auto md:overflow-visible">
@@ -65,7 +62,12 @@ function FeatureGroupRows({ group }: { group: FeatureGroup }) {
 function FeatureRowCells({ row }: { row: FeatureGroup["rows"][number] }) {
   return (
     <>
-      <div className="pl-0 pr-5 py-3 text-sm text-foreground-200 border-t border-surface-300/50">{row.label}</div>
+      <div className="pl-0 pr-5 py-3 text-sm text-foreground-200 border-t border-surface-300/50">
+        <span className="inline-flex items-center gap-1.5">
+          {row.label}
+          {row.tooltip && <InfoTooltip>{row.tooltip}</InfoTooltip>}
+        </span>
+      </div>
       {TIER_COLUMNS.map((tier) => (
         <div key={tier.id} className="px-5 py-3 text-sm text-white border-t border-surface-300/50">
           <FeatureCell value={row.values[tier.id]} />

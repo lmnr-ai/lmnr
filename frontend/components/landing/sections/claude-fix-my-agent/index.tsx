@@ -1,23 +1,22 @@
 import { cn } from "@/lib/utils";
 
 import { bodyMedium, microLabel, subSection } from "../../class-names";
-import SectionFootnote from "../section-footnote";
+import LearnMoreLink from "../learn-more-link";
 import DebuggerScene from "./debugger-scene";
 import RotatingAgentName from "./rotating-agent-name";
 
-// Vertical stack: title + subtitle on top, then a surface-250 panel holding the
-// coding-agent terminal (left) beside a mock of the Laminar debugger session it
-// drives (right), with a footnote pinned to the bottom.
+// Vertical stack: title + subtitle + learn-more on top, then a surface-250
+// panel holding the coding-agent terminal.
 const ClaudeFixMyAgent = () => (
   <section className="flex flex-col gap-10 items-start w-full">
     <div className="flex flex-col items-start">
-      <span className={cn(microLabel, "mb-2")}>04.</span>
+      <span className={cn(microLabel, "mb-2")}>05.</span>
       <h2 className={cn(subSection, "mb-2")}>
         <RotatingAgentName />
-        {", fix my agent"}
+        {", fix my agent with Laminar"}
       </h2>
       <p className={bodyMedium}>
-        With Laminar{" "}
+        The Laminar{" "}
         <a
           href="https://laminar.sh/docs/platform/cli"
           target="_blank"
@@ -34,14 +33,19 @@ const ClaudeFixMyAgent = () => (
           className="underline hover:text-foreground-200"
         >
           MCP
-        </a>
-        , your coding agent fully owns the iteration loop for the agents you're building. It runs your agent, reads the
-        trace, fixes, and re-runs with cached state. You can then review its work in the Debugger session UI.
+        </a>{" "}
+        give your coding agent everything it <br className="hidden md:block" />
+        needs to debug your agent. Query traces, evals, signals with SQL, <br className="hidden md:block" />
+        replay from any checkpoint, verify the fix.
       </p>
+      <LearnMoreLink
+        className="mt-5"
+        label="Learn more about the Debugger"
+        href="https://laminar.sh/docs/debugger/introduction"
+      />
     </div>
     <div className="bg-surface-250 relative flex w-full overflow-hidden">
       <DebuggerScene />
-      <SectionFootnote name="Debugger" href="https://laminar.sh/docs/debugger/introduction" />
     </div>
   </section>
 );

@@ -188,7 +188,9 @@
   --color-foreground-500: oklch(0.4962 0 0); /* #626262 */
   --color-foreground-600: oklch(0.3904 0 0); /* #454545 */
 
-  /* Primary brand ramp — 400 is the canonical brand orange (= --color-primary). */
+  /* Primary brand ramp — 400 is the canonical brand orange (= --color-primary).
+     Each step up keeps the ramp's own slope: +0.023 L, -0.005 C, +1.66 H. */
+  --color-primary-100: oklch(0.7249 0.1109 47.71); /* rgb(223 144 103) */
   --color-primary-200: oklch(0.7019 0.1158 46.05); /* rgb(218 135 95) */
   --color-primary-300: oklch(0.6789 0.1207 44.39); /* rgb(213 126 87) */
   --color-primary-400: oklch(0.6559 0.1262 43.33); /* rgb(208 117 78) */
@@ -639,27 +641,6 @@
 
 .landing-caret-blink {
   animation: landing-caret-blink 1s step-end infinite;
-}
-
-/* Single 600ms ease-in-out pulse used by the SignalEventCard chip
-   during the phase 1→2 sequence. Lifts to the lighter primary-200 at
-   the midpoint (more eye-catching against the muted signal card bg
-   than primary-400 was) with a near-opaque fill and a wider shadow
-   ring, then settles back. */
-@keyframes signal-span-flash {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgb(218 135 95 / 0);
-    background-color: rgb(234 232 224 / 0.15);
-  }
-  50% {
-    box-shadow: 0 0 0 6px rgb(218 135 95 / 0.6);
-    background-color: rgb(218 135 95 / 0.9);
-  }
-}
-
-.signal-span-flash {
-  animation: signal-span-flash 0.6s ease-in-out 1;
 }
 
 @layer base {
