@@ -344,7 +344,7 @@ export const tableSchemas: Record<string, TableSchema> = {
       {
         name: "summary",
         type: "String",
-        description: "Short, human-readable description of the event. May be empty for older events",
+        description: "Short human-readable description (may be empty)",
       },
       {
         name: "clusters",
@@ -365,7 +365,11 @@ export const tableSchemas: Record<string, TableSchema> = {
         description: "Level of the cluster in the hierarchy. Higher levels are coarser groupings",
       },
       { name: "parent_id", type: "UUID", description: "ID of the parent cluster. Nil UUID for top-level clusters" },
-      { name: "num_signal_events", type: "UInt32", description: "Number of signal events in the cluster" },
+      {
+        name: "num_signal_events",
+        type: "UInt32",
+        description: "Number of clustered event summaries in the cluster (an event contributes once per summary)",
+      },
       { name: "num_children_clusters", type: "UInt16", description: "Number of immediate child clusters" },
       { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the cluster was created" },
       { name: "updated_at", type: "DateTime64(9, 'UTC')", description: "When the cluster was last updated" },

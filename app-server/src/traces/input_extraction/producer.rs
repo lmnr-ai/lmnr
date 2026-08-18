@@ -159,7 +159,7 @@ pub async fn process_user_task_candidates(
     }
 
     #[cfg(feature = "signals")]
-    if std::env::var(crate::env::private::signals::INTERNAL_PROJECT_ID)
+    if std::env::var(crate::env::connections::SIGNALS_INTERNAL_PROJECT_ID)
         .is_ok_and(|internal_project_id_str| internal_project_id_str == project_id.to_string())
     {
         return;
