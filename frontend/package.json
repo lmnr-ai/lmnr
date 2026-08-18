@@ -150,6 +150,7 @@
     "stripe": "^20.3.1",
     "swr": "^2.3.6",
     "tw-shimmer": "^0.4.2",
+    "unified": "^11.0.5",
     "use-stick-to-bottom": "^1.1.1",
     "uuid": "^14.0.0",
     "yaml": "^2.8.3",
