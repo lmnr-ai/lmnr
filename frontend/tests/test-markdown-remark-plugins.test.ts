@@ -1,28 +1,23 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import rehypeStringify from "rehype-stringify";
-import remarkParse from "remark-parse";
-import remarkRehype from "remark-rehype";
-import { unified } from "unified";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
-import { markdownRemarkPlugins } from "@/components/ui/content-renderer/remark-plugins";
+import { MarkdownRenderer } from "@/components/ui/content-renderer/markdown";
 
-/** Mirrors the pipeline Streamdown builds internally:
- *  remark-parse -> remarkPlugins -> remark-rehype -> rehypePlugins. */
-const render = (markdown: string): string =>
-  String(
-    unified()
-      .use(remarkParse)
-      .use(markdownRemarkPlugins)
-      .use(remarkRehype, { allowDangerousHtml: true })
-      .use(rehypeStringify, { allowDangerousHtml: true })
-      .processSync(markdown)
-  );
+/** Renders the real component, so these cover the whole chain the app uses:
+ *  `markdownRemarkPlugins` -> Streamdown -> rehype sanitize/harden. In particular a
+ *  regression in how Streamdown merges `remarkPlugins` (it replaces its defaults
+ *  rather than merging, so gfm has to be re-added) shows up here as a missing table. */
+const render = (markdown: string): string => renderToStaticMarkup(createElement(MarkdownRenderer, { value: markdown }));
 
-describe("markdownRemarkPlugins", () => {
+/** Drop attributes so assertions read against structure, not Tailwind classes. */
+const structure = (markdown: string): string => render(markdown).replace(/<(\/?[a-z0-9]+)[^>]*?(\/?)>/gi, "<$1$2>");
+
+describe("markdown rendering of custom XML-like tags", () => {
   it("keeps paragraphs and newlines around a multi-line custom tag block", () => {
-    const html = render(
+    const html = structure(
       [
         "Before the block.",
         "",
@@ -35,56 +30,54 @@ describe("markdownRemarkPlugins", () => {
       ].join("\n")
     );
 
-    // Three separate paragraphs: html-flow would have merged the tag block into one
-    // bare text node and dropped the wrappers entirely.
+    // Three separate paragraphs: html-flow used to merge the tag block into one bare
+    // text node in flow position, dropping the wrappers (and their margins) entirely.
     assert.equal(html.match(/<p>/g)?.length, 3);
     assert.match(html, /<p>Before the block\.<\/p>/);
     assert.match(html, /<p>After the block\.<\/p>/);
-    // Tag survives as escaped text, and the internal newlines survive as <br>.
-    assert.match(html, /&#x3C;prompt id="sp_82e0192b">/);
-    assert.match(html, /line one<br>\s*line two/);
-    assert.match(html, /&#x3C;\/prompt>/);
+    // Tag survives as escaped text, and the newlines inside it survive as <br>.
+    assert.match(
+      html,
+      /<p>&lt;prompt id=&quot;sp_82e0192b&quot;&gt;<br\/>\s*line one<br\/>\s*line two<br\/>\s*&lt;\/prompt&gt;<\/p>/
+    );
   });
 
-  it("still renders GFM tables in a document that also contains a custom tag", () => {
-    const html = render(["<prompt>", "", "| a | b |", "| --- | --- |", "| 1 | 2 |"].join("\n"));
+  it("still renders a GFM table in a document that also contains a custom tag", () => {
+    const html = structure(["<prompt>", "", "| a | b |", "| --- | --- |", "| 1 | 2 |"].join("\n"));
 
     assert.match(html, /<table>/);
     assert.match(html, /<th>a<\/th>/);
     assert.match(html, /<td>1<\/td>/);
-    assert.match(html, /&#x3C;prompt>/);
+    assert.match(html, /&lt;prompt&gt;/);
   });
 
-  it("renders an inline tag mid-paragraph without breaking the surrounding markdown", () => {
-    const html = render("Use the <tool_call> tag with **bold** text.");
+  it("renders an inline tag mid-paragraph without breaking surrounding markdown", () => {
+    const html = structure("Use the <tool_call> tag with **bold** text.");
 
-    assert.match(html, /<p>Use the &#x3C;tool_call> tag with <strong>bold<\/strong> text\.<\/p>/);
+    assert.match(html, /<p>Use the &lt;tool_call&gt; tag with <span>bold<\/span> text\.<\/p>/);
   });
 
   it("leaves autolinks and fenced code blocks intact", () => {
-    const autolink = render("See <https://example.com> for details.");
-    assert.match(autolink, /<a href="https:\/\/example\.com">https:\/\/example\.com<\/a>/);
+    assert.match(render("See <https://example.com> here."), /<a[^>]*href="https:\/\/example\.com\/?"/);
 
-    const code = render(["```ts", "const a = <T,>() => 1;", "```"].join("\n"));
-    assert.match(code, /<pre><code class="language-ts">/);
-    assert.match(code, /const a = &#x3C;T,>\(\) => 1;/);
-    // No <br> injected inside code: remark-breaks only touches text nodes.
-    assert.doesNotMatch(code, /<br>/);
+    // The `code` override replaces Streamdown's lazy CodeBlock, so the code text is
+    // present in static markup. remark-breaks must not inject <br> into it.
+    const code = structure(["```ts", "const a = <T,>() => 1;", "const b = 2;", "```"].join("\n"));
+    assert.match(code, /<code>const a = &lt;T,&gt;\(\) =&gt; 1;\nconst b = 2;\n<\/code>/);
+    assert.doesNotMatch(code, /<br\/>/);
   });
 
   it("renders HTML comments as visible text", () => {
     // Intended tradeoff of disabling htmlFlow/htmlText: comments are no longer
     // swallowed by the parser, so they show up as escaped text instead of vanishing.
-    const html = render("Alpha\n\n<!-- hidden note -->\n\nBeta");
+    const html = structure("Alpha\n\n<!-- hidden note -->\n\nBeta");
 
-    assert.match(html, /<p>&#x3C;!-- hidden note --><\/p>/);
+    assert.match(html, /<p>&lt;!-- hidden note --&gt;<\/p>/);
     assert.match(html, /<p>Alpha<\/p>/);
     assert.match(html, /<p>Beta<\/p>/);
   });
 
   it("turns single newlines into <br> instead of collapsing them to a space", () => {
-    const html = render("first line\nsecond line");
-
-    assert.match(html, /<p>first line<br>\s*second line<\/p>/);
+    assert.match(structure("first line\nsecond line"), /<p>first line<br\/>\s*second line<\/p>/);
   });
 });

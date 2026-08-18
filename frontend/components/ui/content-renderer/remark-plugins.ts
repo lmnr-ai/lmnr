@@ -1,6 +1,10 @@
 import remarkBreaks from "remark-breaks";
 import { defaultRemarkPlugins } from "streamdown";
-import type { Plugin } from "unified";
+
+// Shape of the bit of unified's processor data we touch. `micromarkExtensions` is
+// declared by remark-parse's `unified.Data` augmentation, which isn't in scope here —
+// remark-parse is only a transitive dep of streamdown.
+type MicromarkProcessor = { data: () => { micromarkExtensions?: unknown[] } };
 
 /**
  * Parse XML-like tags (`<prompt>`, `<thinking>`) as ordinary character data.
@@ -8,13 +12,11 @@ import type { Plugin } from "unified";
  * the next blank line into one node, so newlines, paragraphs and any markdown inside
  * the block are lost before mdast is built. Tradeoff: HTML comments become visible text.
  */
-const remarkDisableHtml: Plugin = function () {
-  // `micromarkExtensions` is declared by remark-parse's `unified.Data` augmentation,
-  // which isn't in scope here — remark-parse is only a transitive dep of streamdown.
-  const data = this.data() as { micromarkExtensions?: unknown[] };
+function remarkDisableHtml(this: MicromarkProcessor) {
+  const data = this.data();
   const extensions = (data.micromarkExtensions ??= []);
   extensions.push({ disable: { null: ["htmlFlow", "htmlText"] } });
-};
+}
 
 // Streamdown's `remarkPlugins` prop REPLACES its defaults, so gfm must be re-added
 // explicitly or tables silently stop rendering.
