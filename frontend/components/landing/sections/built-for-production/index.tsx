@@ -1,17 +1,10 @@
-"use client";
-
-import { motion } from "framer-motion";
-
 import { cn } from "@/lib/utils";
 
 import { bodyMedium } from "../../class-names";
-import LearnMoreLink from "../two-lines-to-integrate/learn-more-link";
+import LearnMoreLink from "../learn-more-link";
 
 // FLAG: "Read more" needs a real destination — once we publish a compression
 // deep-dive, swap `/blog` for that post.
-
-// Shared so the bar and its label stay locked together.
-const BAR_TRANSITION = { duration: 0.5, ease: "easeOut" } as const;
 
 const BuiltForProduction = () => (
   <section className="flex flex-col items-start w-full py-20">
@@ -33,29 +26,18 @@ const BuiltForProduction = () => (
           <div className="flex h-8.5 items-center justify-end px-3 whitespace-nowrap w-full rounded-sm bg-surface-300 text-foreground-50">
             <p className="font-medium">Competition</p>
           </div>
-          {/* Both bars start full width; Laminar's shrinks to show the 20x. Its label
-              rides the shrinking right edge — `left-full` anchors it there, so it only
-              has to unhook from `x: -100%` (right-aligned inside) to `0` (outside). */}
-          <motion.div
-            className="flex h-8.5 items-center w-full"
-            initial="full"
-            whileInView="compressed"
-            viewport={{ once: true, amount: 0.6 }}
-          >
-            <motion.div
-              className="relative flex h-full items-center rounded-sm bg-primary-300"
-              variants={{ full: { width: "100%" }, compressed: { width: "5%" } }}
-              transition={BAR_TRANSITION}
-            >
-              <motion.p
-                className="absolute left-full top-0 flex h-full items-center px-3 whitespace-nowrap text-foreground-50"
-                variants={{ full: { x: "-100%" }, compressed: { x: "0%" } }}
-                transition={BAR_TRANSITION}
-              >
+          {/* Laminar's bar is a twentieth of the one above it, drawn at rest.
+              It used to shrink into that on scroll, which spent half a second
+              showing the two as equal — the one thing the section is arguing
+              they are not. Its label rides outside the bar (`left-full`), the
+              only place it fits at this width. */}
+          <div className="flex h-8.5 items-center w-full">
+            <div className="relative flex h-full w-[5%] items-center rounded-sm bg-primary-300">
+              <p className="absolute left-full top-0 flex h-full items-center px-3 whitespace-nowrap text-foreground-50">
                 Laminar
-              </motion.p>
-            </motion.div>
-          </motion.div>
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>

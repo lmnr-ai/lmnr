@@ -3,21 +3,23 @@ import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
-import { microLabel } from "../../class-names";
-
 interface Props {
   label: string;
   href: string;
   className?: string;
 }
 
+// The one outbound link a section gets, sitting under its body copy.
+//
+// It replaced a footnote pinned inside each mock panel, which put the link on
+// the artwork instead of on the sentence it belongs to, and left every panel
+// carrying a label it did not need.
 const LearnMoreLink = ({ label, href, className }: Props) => (
   <Link
     href={href}
     target={href.startsWith("http") ? "_blank" : undefined}
     className={cn(
-      microLabel,
-      "inline-flex text-base items-center gap-2 hover:text-foreground-200 transition-colors",
+      "font-sans-landing inline-flex text-base items-center gap-2 text-primary-300 hover:text-primary-100 transition-colors",
       className
     )}
   >

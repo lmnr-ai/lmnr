@@ -20,10 +20,8 @@ export const subSubSection =
 // Section body copy under each subSection — "MCP, CLI, and SQL API to bring Laminar...", etc.
 export const bodyMedium = "font-sans-landing text-foreground-200 whitespace-pre-line text-lg";
 
-// Tiny, wide-tracked muted label — used for step numbers above section
-// titles ("03.", "04.", ...) and for the SectionFootnote name + LEARN
-// MORE row at the bottom of each surface-250 mock panel. Single source
-// of truth so all those labels stay visually consistent.
+// Tiny muted label — used for the step numbers above section titles
+// ("03.", "04.", ...). Single source of truth so they stay consistent.
 export const microLabel = "font-sans-landing text-foreground-300";
 
 // Center-column width for the landing/blog/pricing pages. Scales up on

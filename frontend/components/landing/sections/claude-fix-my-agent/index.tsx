@@ -1,12 +1,12 @@
 import { cn } from "@/lib/utils";
 
 import { bodyMedium, microLabel, subSection } from "../../class-names";
-import SectionFootnote from "../section-footnote";
+import LearnMoreLink from "../learn-more-link";
 import DebuggerScene from "./debugger-scene";
 import RotatingAgentName from "./rotating-agent-name";
 
-// Vertical stack: title + subtitle on top, then a surface-250 panel holding the
-// coding-agent terminal, with a footnote pinned to the bottom.
+// Vertical stack: title + subtitle + learn-more on top, then a surface-250
+// panel holding the coding-agent terminal.
 const ClaudeFixMyAgent = () => (
   <section className="flex flex-col gap-10 items-start w-full">
     <div className="flex flex-col items-start">
@@ -35,12 +35,16 @@ const ClaudeFixMyAgent = () => (
           MCP
         </a>{" "}
         are your coding agent's interface to Laminar. <br className="hidden md:block" />
-        It can run your agent, read traces, make changes, and run evals to verify progress.
+        It can find failures, run your agent, read traces, make changes, and run evals to verify progress.
       </p>
+      <LearnMoreLink
+        className="mt-5"
+        label="Learn more about the Debugger"
+        href="https://laminar.sh/docs/debugger/introduction"
+      />
     </div>
     <div className="bg-surface-250 relative flex w-full overflow-hidden">
       <DebuggerScene />
-      <SectionFootnote name="Debugger" href="https://laminar.sh/docs/debugger/introduction" />
     </div>
   </section>
 );
