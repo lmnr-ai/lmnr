@@ -11,11 +11,11 @@ import { useEffect, useState } from "react";
  *  being looked at" before anything looks. Mirrors DIM_CLS in ./trace-panel. */
 const SCAN_AT = 200;
 
-export const SCAN_MS = 660;
+export const SCAN_MS = 1150;
 
 /** The card opens with the band's last fifth still running, so the sweep hands
  *  it up rather than finishing and leaving a beat where nothing moves. */
-const CARD_AT = 740;
+const CARD_AT = 1160;
 
 /** Arms on `armed`; `skip` jumps straight to the open card for the paths with
  *  no beat to spend — a static mobile crop, or a reader who scrolled into the

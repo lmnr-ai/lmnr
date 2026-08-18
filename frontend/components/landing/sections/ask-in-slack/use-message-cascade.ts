@@ -1,12 +1,12 @@
 "use client";
 
-import { type RefObject, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
-/** Walks 0 → delays.length once the element scrolls into view, waiting
- *  `delays[i]` before the message after index i. They vary because a channel
- *  does not tick — the gap before a reply is the time it took to read the one
- *  above. Reduced motion jumps to the end. */
-export const useMessageCascade = (ref: RefObject<HTMLElement | null>, delays: number[]): number => {
+/** Walks 0 → delays.length once `armed`, waiting `delays[i]` before the message
+ *  after index i. They vary because a channel does not tick — the gap before a
+ *  reply is the time it took to read the one above. Reduced motion jumps to the
+ *  end. The caller owns WHEN this starts; see ./slack-thread. */
+export const useMessageCascade = (armed: boolean, delays: number[]): number => {
   const [revealed, setRevealed] = useState(0);
   // Read once rather than per walk, and NOT into the initial state — the server
   // has no `matchMedia`, so seeding from it would hydrate against a different
@@ -16,8 +16,7 @@ export const useMessageCascade = (ref: RefObject<HTMLElement | null>, delays: nu
   );
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el || delays.length === 0) return;
+    if (!armed || delays.length === 0) return;
 
     let timer = 0;
 
@@ -35,24 +34,12 @@ export const useMessageCascade = (ref: RefObject<HTMLElement | null>, delays: nu
         step(i + 1);
       }, delays[i]);
     };
+    step(0);
 
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry.isIntersecting) return;
-        io.disconnect();
-        step(0);
-      },
-      { threshold: 0.4 }
-    );
-    io.observe(el);
-
-    return () => {
-      io.disconnect();
-      window.clearTimeout(timer);
-    };
+    return () => window.clearTimeout(timer);
     // `delays` must be a STABLE array — a fresh one per render restarts the
     // walk from the top. ./slack-thread builds it once, at module scope.
-  }, [ref, delays, instant]);
+  }, [armed, delays, instant]);
 
   return revealed;
 };

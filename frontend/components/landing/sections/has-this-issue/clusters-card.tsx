@@ -5,8 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ClusterBreadcrumb from "@/components/signal/clusters-section/cluster-breadcrumb";
 import ClusterStackedChart from "@/components/signal/clusters-section/cluster-stacked-chart";
 import { buildPath, type ClusterNode, findNodeById } from "@/components/signal/clusters-section/utils";
-import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
-import { getClusterColorById, UNCLUSTERED_COLOR } from "@/lib/clusters/colors";
+import { getClusterColorById } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
 import { SIGNAL_CLUSTER_EVENT_COUNT, SIGNAL_CLUSTER_ID } from "../signal-cluster";
@@ -29,8 +28,7 @@ const TOTAL_TICKS = Math.ceil((BUCKET_COUNT + GROW_BUCKETS) * TICKS_PER_BUCKET);
 /** Wall-clock length of the bar stream-in. The stage schedules around it. */
 export const CLUSTER_FILL_MS = (TOTAL_TICKS * BUCKET_MS) / TICKS_PER_BUCKET;
 
-/** Top-level clusters, which the stage reveals one at a time. Excludes the
- *  synthetic "Unclustered Events" bucket — that one is never revealed. */
+/** Top-level clusters, which the stage reveals one at a time. */
 export const CLUSTER_COUNT = DATASET.clusterTree.length;
 
 /** Card's fixed outer width per layout. `row` is the product's proportions, for
@@ -132,28 +130,12 @@ const ClustersCard = ({
     () => (selectedClusterId ? findNodeById(DATASET.clusterTree, selectedClusterId) : null),
     [selectedClusterId]
   );
-  const isLeaf = selectedClusterId === UNCLUSTERED_ID || (currentNode !== null && currentNode.children.length === 0);
+  const isLeaf = currentNode !== null && currentNode.children.length === 0;
   const displayId = isLeaf ? (currentNode?.parentId ?? null) : selectedClusterId;
   const displayNode = useMemo(() => (displayId ? findNodeById(DATASET.clusterTree, displayId) : null), [displayId]);
 
   const visibleClusters: ClusterNode[] = displayNode ? displayNode.children : DATASET.clusterTree;
   const drillDownDepth = displayNode ? displayNode.level + 1 : 0;
-
-  const unclusteredCount = Math.max(0, DATASET.totalEventCount - DATASET.clusteredEventCount);
-  const unclusteredVirtualCluster: ClusterNode = useMemo(
-    () => ({
-      id: UNCLUSTERED_ID,
-      name: "Unclustered Events",
-      parentId: null,
-      level: 0,
-      numChildrenClusters: 0,
-      numEvents: unclusteredCount,
-      createdAt: "",
-      updatedAt: "",
-      children: [],
-    }),
-    [unclusteredCount]
-  );
 
   const filteredCountByCluster = useMemo(() => {
     const m = new Map<string, number>();
@@ -165,23 +147,17 @@ const ClustersCard = ({
       const landed = entered && c.id === SIGNAL_CLUSTER_ID ? SIGNAL_CLUSTER_EVENT_COUNT : 0;
       m.set(c.id, Math.round(c.numEvents * fill) + landed);
     }
-    m.set(UNCLUSTERED_ID, Math.round(unclusteredCount * fill));
     return m;
-  }, [visibleClusters, unclusteredCount, fill, entered]);
+  }, [visibleClusters, fill, entered]);
 
   const chartClusters: ClusterNode[] = useMemo(() => {
-    if (selectedClusterId === UNCLUSTERED_ID) return [unclusteredVirtualCluster];
     if (currentNode && currentNode.children.length === 0) return [currentNode];
-    const visible = displayNode ? displayNode.children : DATASET.clusterTree;
-    const list: ClusterNode[] = [...visible];
-    if (drillDownDepth === 0 && unclusteredCount > 0) list.push(unclusteredVirtualCluster);
-    return list;
-  }, [selectedClusterId, currentNode, displayNode, drillDownDepth, unclusteredCount, unclusteredVirtualCluster]);
+    return displayNode ? displayNode.children : DATASET.clusterTree;
+  }, [currentNode, displayNode]);
 
   const colorMap = useMemo(() => {
     const m = new Map<string, string>();
     visibleClusters.forEach((c) => m.set(c.id, getClusterColorById(c.id)));
-    m.set(UNCLUSTERED_ID, UNCLUSTERED_COLOR);
     return m;
   }, [visibleClusters]);
 
@@ -236,8 +212,6 @@ const ClustersCard = ({
       drillDownDepth={drillDownDepth}
       filteredCountByCluster={filteredCountByCluster}
       visibleClusters={visibleClusters}
-      unclusteredCount={unclusteredCount}
-      unclusteredVirtualCluster={unclusteredVirtualCluster}
       selectedClusterId={selectedClusterId}
       onNavigateToCluster={navigateToCluster}
       rangeTotal={DATASET.totalEventCount}

@@ -1,7 +1,7 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { type ReactNode, type RefObject, useEffect, useRef } from "react";
+import { motion, useMotionValueEvent, useScroll } from "framer-motion";
+import { type ReactNode, type RefObject, useEffect, useRef, useState } from "react";
 
 import { LaminarAppAvatar, SLACK_BG, SLACK_BORDER } from "../slack-notification-card";
 import { THREAD_AUTHOR, THREAD_CHANNEL, THREAD_MESSAGES, type ThreadMessage } from "./messages";
@@ -95,9 +95,27 @@ const ThreadWindow = ({
 const SlackThread = () => {
   const frameRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  // The first message is visible the moment the thread scrolls in, so the walk
+
+  // Hold until the frame is CENTRED, not merely on screen: the thread is the
+  // tallest mock on the page, and starting it as the top edge appears spends
+  // half the run above the fold. Over this range 0.5 is exactly "element centre
+  // meets viewport centre", whatever either measures. The surrounding panel is
+  // padded evenly, so its centre is this one's — no need to reach for it.
+  const { scrollYProgress } = useScroll({ target: frameRef, offset: ["start end", "end start"] });
+  const [centred, setCentred] = useState(false);
+  useMotionValueEvent(scrollYProgress, "change", (p) => {
+    if (p >= 0.5) setCentred(true);
+  });
+  // "change" only fires on a CHANGE, so a reload landing past the mark would
+  // otherwise never arm. Deferred a frame so the observer has measured.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setCentred((on) => on || scrollYProgress.get() >= 0.5));
+    return () => cancelAnimationFrame(id);
+  }, [scrollYProgress]);
+
+  // The first message is visible the moment the thread arrives, so the walk
   // only has to cover the remaining ones.
-  const revealed = useMessageCascade(frameRef, MESSAGE_DELAYS);
+  const revealed = useMessageCascade(centred, MESSAGE_DELAYS);
 
   // Follow the newest message, but only downward and only once the thread is
   // long enough to need it. Hand-rolled rather than `scrollIntoView`, which

@@ -6,8 +6,7 @@ import { useMemo } from "react";
 import { type IconVariant } from "@/components/signal/clusters-section/cluster-list/cluster-icon";
 import ClusterListEmptyState from "@/components/signal/clusters-section/cluster-list/empty-state";
 import { type ClusterNode } from "@/components/signal/clusters-section/utils";
-import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
-import { getClusterColorById, UNCLUSTERED_COLOR } from "@/lib/clusters/colors";
+import { getClusterColorById } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
 import ClusterItem from "./cluster-item";
@@ -18,8 +17,6 @@ interface Props {
   drillDownDepth: number;
   filteredCountByCluster: Map<string, number>;
   visibleClusters: ClusterNode[];
-  unclusteredCount: number;
-  unclusteredVirtualCluster: ClusterNode;
   selectedClusterId: string | null;
   onNavigateToCluster: (clusterId: string) => void;
   /** Total events in the selected range — denominator for the global proportion bars. */
@@ -28,9 +25,7 @@ interface Props {
   pulsingClusterId?: string | null;
   pulseMs: number;
   /** How many clusters have been discovered so far. The rest are not in the
-   *  list yet — they unfold in one at a time as the stage reveals them.
-   *  "Unclustered Events" is deliberately outside this count: it is present
-   *  from the first frame, since it is the bucket everything starts in. */
+   *  list yet — they unfold in one at a time as the stage reveals them. */
   revealedCount: number;
   revealMs: number;
   className?: string;
@@ -40,8 +35,6 @@ export default function ClusterList({
   drillDownDepth,
   filteredCountByCluster,
   visibleClusters,
-  unclusteredCount,
-  unclusteredVirtualCluster,
   selectedClusterId,
   onNavigateToCluster,
   rangeTotal,
@@ -51,9 +44,7 @@ export default function ClusterList({
   revealMs,
   className,
 }: Props) {
-  const showUnclustered = drillDownDepth === 0;
-  const hasUnclustered = showUnclustered && unclusteredCount > 0;
-  const isEmpty = visibleClusters.length === 0 && !hasUnclustered;
+  const isEmpty = visibleClusters.length === 0;
 
   // Sort clusters so empty ones (0 items in selected range) sink to the bottom,
   // THEN take the revealed prefix — so a cluster keeps its slot as the counts
@@ -73,7 +64,7 @@ export default function ClusterList({
   if (isEmpty) {
     return (
       <div className={cn("border-r bg-secondary overflow-hidden min-w-0", className)}>
-        <ClusterListEmptyState title={showUnclustered ? "No clusters during this period" : "No sub-clusters"} />
+        <ClusterListEmptyState title={drillDownDepth === 0 ? "No clusters during this period" : "No sub-clusters"} />
       </div>
     );
   }
@@ -110,22 +101,6 @@ export default function ClusterList({
             );
           })}
         </AnimatePresence>
-
-        {hasUnclustered && (
-          <>
-            {shownClusters.length > 0 && <div className="border-t my-1" />}
-            <ClusterItem
-              cluster={unclusteredVirtualCluster}
-              iconVariant="circle-dashed"
-              color={UNCLUSTERED_COLOR}
-              isSelected={selectedClusterId === UNCLUSTERED_ID}
-              filteredCount={filteredCountByCluster.get(UNCLUSTERED_ID)}
-              total={rangeTotal}
-              onClick={() => onNavigateToCluster(UNCLUSTERED_ID)}
-              pulseMs={pulseMs}
-            />
-          </>
-        )}
       </div>
     </div>
   );

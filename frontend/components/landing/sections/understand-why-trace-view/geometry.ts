@@ -21,7 +21,7 @@ const PILL_CARD_GAP = 16;
 
 /** The clusters card at its settled height. Only a SEED for the frames before
  *  ./clusters-stage has measured the live one. */
-export const CLUSTERS_CARD_H_SEED = 449;
+export const CLUSTERS_CARD_H_SEED = 404;
 
 /** Top of the clusters card, with the pill parked a gap above it. Centred on
  *  the card's LIVE height, so it stays centred as its list grows through Act 2

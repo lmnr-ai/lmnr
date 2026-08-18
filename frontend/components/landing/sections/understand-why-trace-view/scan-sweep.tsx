@@ -6,15 +6,13 @@ import { AnimatePresence, motion } from "framer-motion";
 // looks like in the second the step has to say it. Rows carry no background of
 // their own, so the band reads THROUGH the dimmed text rather than over it.
 
-/** The signal card's blue, so the sweep and what it turns up are one colour. */
-const SIGNAL_RGB = "49 134 255";
-
 /** Where the band sits inside the sweeping element, as percentages of its
  *  height. The travel below is derived from them, so the band enters exactly at
- *  the bottom edge and leaves exactly at the top one — a budget this short can
- *  afford no dead frames at either end. */
-const BAND_TOP = 35;
-const BAND_H = 30;
+ *  the bottom edge and leaves exactly at the top one — no dead frames at either
+ *  end. Half the box tall: symmetric light needs room to arrive and leave, where
+ *  a hard-edged one could be thin and still read. */
+const BAND_TOP = 25;
+const BAND_H = 50;
 
 /** Percentages, NOT px, and load-bearing: the signal card opening shortens this
  *  box by its own height mid-pass. In % the band stays exactly clipped at each
@@ -22,13 +20,10 @@ const BAND_H = 30;
 const FROM = `${100 - BAND_TOP}%`;
 const TO = `${-(BAND_TOP + BAND_H)}%`;
 
-/** Brightest under the leading edge and falling away behind it, so the band has
- *  a direction on its own — a symmetric glow reads as a pulse, not a pass. */
-const TAIL = `linear-gradient(to bottom, rgb(${SIGNAL_RGB} / 0.13), rgb(${SIGNAL_RGB} / 0.04) 55%, transparent)`;
-
-/** Faded at both ends: a full-bleed rule would read as a divider the panel had
- *  grown rather than something travelling across it. */
-const EDGE = `linear-gradient(to right, transparent, rgb(${SIGNAL_RGB} / 0.6) 22%, rgb(${SIGNAL_RGB} / 0.6) 78%, transparent)`;
+/** Symmetric: light passing over the rows, with no leading edge and so no
+ *  direction of its own — the travel is what carries that. Plain white and
+ *  barely there, so it lifts the dimmed text rather than tinting it. */
+const BAND = "linear-gradient(to bottom, transparent, rgb(255 255 255 / 0.07), transparent)";
 
 /** Mostly linear through the middle — a scan is a machine, not a thrown ball —
  *  but eased at both ends so it neither starts nor stops on a hard edge. */
@@ -51,8 +46,7 @@ const ScanSweep = ({ active, durationMs }: Props) => (
         exit={{ opacity: 0, transition: { duration: 0.15 } }}
         transition={{ duration: durationMs / 1000, ease: SWEEP_EASE }}
       >
-        <div className="absolute inset-x-0" style={{ top: `${BAND_TOP}%`, height: `${BAND_H}%`, background: TAIL }} />
-        <div className="absolute inset-x-0 h-px" style={{ top: `${BAND_TOP}%`, background: EDGE }} />
+        <div className="absolute inset-x-0" style={{ top: `${BAND_TOP}%`, height: `${BAND_H}%`, background: BAND }} />
       </motion.div>
     )}
   </AnimatePresence>
