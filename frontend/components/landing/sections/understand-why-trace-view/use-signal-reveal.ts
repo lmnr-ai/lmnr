@@ -13,9 +13,10 @@ const SCAN_AT = 200;
 
 export const SCAN_MS = 1150;
 
-/** The card opens with the band's last fifth still running, so the sweep hands
- *  it up rather than finishing and leaving a beat where nothing moves. */
-const CARD_AT = 1160;
+/** The card opens with the band's last third still running — while it is still
+ *  visibly moving, not once it has all but arrived — so the sweep hands the card
+ *  up rather than finishing and leaving a beat where nothing moves. */
+const CARD_AT = 980;
 
 /** Arms on `armed`; `skip` jumps straight to the open card for the paths with
  *  no beat to spend — a static mobile crop, or a reader who scrolled into the
