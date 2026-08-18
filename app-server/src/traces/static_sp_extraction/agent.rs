@@ -44,7 +44,7 @@ const MAX_OUTPUT_TOKENS: i32 = 32_000;
 pub struct ExtractionConfig {
     /// Provider override on the request (e.g. `"bedrock"`, `"gemini"`);
     /// `None` uses the default `LLM_PROVIDER`. Defaults from
-    /// `SYSTEM_EXTRACTION_LLM_PROVIDER` (see `ExtractionConfig::default`).
+    /// `SP_EXTRACTION_LLM_PROVIDER` (see `ExtractionConfig::default`).
     pub provider: Option<String>,
     pub model_size: Option<ModelSize>,
     pub max_steps: usize,
@@ -62,7 +62,7 @@ impl Default for ExtractionConfig {
     }
 }
 
-/// Provider override from `SYSTEM_EXTRACTION_LLM_PROVIDER`. Unset/empty ⇒
+/// Provider override from `SP_EXTRACTION_LLM_PROVIDER`. Unset/empty ⇒
 /// `None` (uses the default `LLM_PROVIDER`).
 fn extraction_provider() -> Option<String> {
     // `mod env` shadows `std::env`, hence the fully-qualified read.
