@@ -19,8 +19,7 @@ export interface CardDef {
 export const CARDS: CardDef[] = [
   {
     title: "Automatic agent input extraction",
-    description:
-      "Laminar parses the task prompt out of every run, however deep it is buried, so a trace opens on what was asked.",
+    description: "Laminar parses the task prompt out of every run, so a trace opens on what was asked.",
     href: "https://laminar.sh/docs/platform/viewing-traces#inputs-to-every-agent-and-subagent-surfaced-for-free",
     Graphic: InputExtraction,
   },
@@ -43,7 +42,7 @@ export const CARDS: CardDef[] = [
     Graphic: Annotation,
   },
   {
-    title: "Screen recording\nfor browser agents",
+    title: "Screen recording for browser agents",
     description: "Capture your agent's browser session alongside the trace.",
     href: "https://laminar.sh/docs/tracing/browser-agent-observability",
     Graphic: ScreenRecording,

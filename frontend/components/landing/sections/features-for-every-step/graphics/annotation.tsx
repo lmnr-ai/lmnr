@@ -28,7 +28,7 @@ const FieldKey = ({ children }: { children: string }) => (
 );
 
 const Annotation = () => (
-  <div className="absolute inset-0 overflow-hidden pl-[22px]">
+  <div className="absolute inset-0 overflow-hidden">
     {/* Wider than the card on purpose: the queue runs off the edge, which is
         what a 240-item queue looks like. */}
     <div className="relative h-[5px] w-[190%]">

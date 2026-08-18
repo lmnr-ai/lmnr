@@ -49,7 +49,7 @@ const OpenSource = () => (
     <div className="flex flex-col md:flex-row gap-10 items-start w-full">
       {/* LEFT — existing feature rows. */}
       <div className="flex flex-col w-full md:w-[380px] md:min-w-0">
-        <h2 className={cn(subSection, "mb-13")}>Self-host anywhere</h2>
+        <h2 className={cn(subSection, "mb-13")}>Open source from day zero</h2>
         {FEATURES.map((f) => (
           <FeatureRow key={f.id} {...f} />
         ))}

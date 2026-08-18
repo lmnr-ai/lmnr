@@ -17,11 +17,20 @@ const RESTING_ELEVATION = 5;
 // utilities, minus the scroll timeline. It bottoms out at 20% rather than 0:
 // the mock should recede, not disappear.
 const GRAPHIC_FADE =
-  "[mask-image:linear-gradient(to_bottom,#000_calc(100%-56px),rgba(0,0,0,0.2)),linear-gradient(to_right,#000_calc(100%-80px),rgba(0,0,0,0.2))] [mask-composite:intersect]";
+  "[mask-image:linear-gradient(to_bottom,#000_calc(100%-56px),rgba(0,0,0,0.2)),linear-gradient(to_right,#000_calc(100%-120px),rgba(0,0,0,0.2))] [mask-composite:intersect]";
 
 /** Fixed band at the foot of every card. Pinned rather than flexed, so the
  *  graphics all start on the same line no matter how tall the copy above ran. */
 const GRAPHIC_H = 220;
+
+/** Where the mocks start inside the band. Every mock is `absolute inset-0`, and
+ *  absolute insets resolve against the PADDING box — padding here would do
+ *  nothing — so the inset is an offset positioned box instead, and it is the one
+ *  place all six are aligned from. Left and top only: they are meant to bleed
+ *  off the bottom and the right, which is the crop that sells them as a real
+ *  screen. Sits a hair inside the copy's own `pl-8`: a mock reads as flush at
+ *  the same measure, since its own first pixel is a container edge, not ink. */
+const GRAPHIC_INSET = "absolute left-7 top-3 right-0 bottom-0";
 
 // Tall narrow card: header and copy at the top, graphic in the band at the
 // bottom. Header follows ../compliance — title on the row with the arrow, no
@@ -46,10 +55,10 @@ const Card = ({ title, description, href, Graphic }: CardDef) => {
         onMouseLeave={() => setRaised(false)}
         onFocus={() => setRaised(true)}
         onBlur={() => setRaised(false)}
-        className="group font-sans-landing relative overflow-hidden flex flex-col h-[420px] rounded transition-colors duration-300 [--card-glow-opacity:0.3]"
+        className="group font-sans-landing relative overflow-hidden flex flex-col h-[360px] rounded transition-colors duration-300 [--card-glow-opacity:0.3]"
       >
         <CardHoverGlow />
-        <div className="relative flex flex-col gap-2.5 pl-6 pr-5 pt-5">
+        <div className="relative flex flex-col gap-2.5 pl-8 pr-6 pt-6">
           <div className="flex items-start justify-between gap-3 w-full">
             <p className="leading-6 text-white text-lg whitespace-pre-line">{title}</p>
             <ArrowUpRight className="size-5 shrink-0 text-foreground-300" strokeWidth={1.5} />
@@ -60,7 +69,9 @@ const Card = ({ title, description, href, Graphic }: CardDef) => {
           style={{ height: GRAPHIC_H }}
           className={`relative mt-auto shrink-0 overflow-hidden opacity-70 **:transition-colors **:duration-300 ${GRAPHIC_FADE}`}
         >
-          <Graphic />
+          <div className={GRAPHIC_INSET}>
+            <Graphic />
+          </div>
         </div>
       </Link>
     </ElevatedSurface>

@@ -7,7 +7,7 @@ const SPARK = [30, 44, 38, 56, 48, 66, 58, 72];
 const Handle = () => <GripVertical className="size-3 shrink-0 text-foreground-600" strokeWidth={1.5} />;
 
 const Dashboards = () => (
-  <div className="absolute inset-0 overflow-hidden pl-[22px]">
+  <div className="absolute inset-0 overflow-hidden">
     <div
       className="absolute inset-0 left-5 opacity-40"
       style={{
@@ -20,10 +20,10 @@ const Dashboards = () => (
     <div className="relative grid grid-cols-3 gap-2">
       <div className="col-span-2 rounded border border-surface-up-2 bg-surface-down p-2.5">
         <div className="flex items-center justify-between">
-          <p className="truncate text-[10px] text-foreground-400">Trace p90 cost</p>
+          <p className="truncate text-[10px] text-foreground-400">Subagents per run</p>
           <Handle />
         </div>
-        <p className="mt-0.5 font-mono text-base leading-6 text-white">$0.031</p>
+        <p className="mt-0.5 font-mono text-base leading-6 text-white">4.34</p>
         <svg viewBox="0 0 100 22" preserveAspectRatio="none" className="mt-1 h-[22px] w-full" aria-hidden>
           <path
             d={`M${SPARK.map((v, i) => `${(i * 100) / (SPARK.length - 1)},${22 - (v / 80) * 22}`).join(" L")}`}

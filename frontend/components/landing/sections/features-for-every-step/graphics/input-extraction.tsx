@@ -19,7 +19,7 @@ const CHIP = {
 } as const;
 
 const InputExtraction = () => (
-  <div className="absolute inset-0 overflow-hidden pl-[22px]">
+  <div className="absolute inset-0 overflow-hidden">
     <div className="flex flex-col gap-1 bg-blue-400/5 py-2 pl-2.5 pr-2">
       <div className="flex items-center gap-2">
         <span className="flex size-4 shrink-0 items-center justify-center rounded bg-blue-400/70">

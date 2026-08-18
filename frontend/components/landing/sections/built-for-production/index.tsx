@@ -14,7 +14,7 @@ import LearnMoreLink from "../two-lines-to-integrate/learn-more-link";
 const BAR_TRANSITION = { duration: 0.5, ease: "easeOut" } as const;
 
 const BuiltForProduction = () => (
-  <section className="flex flex-col items-start w-full">
+  <section className="flex flex-col items-start w-full py-20">
     <div className="flex flex-col gap-10 w-full">
       <p className="font-sans-landing font-medium text-foreground-50 text-[48px] leading-[50px] md:leading-[60px] tracking-[-0.02em]">
         20x cheaper storage

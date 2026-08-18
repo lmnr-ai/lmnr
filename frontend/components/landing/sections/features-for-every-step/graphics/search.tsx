@@ -8,7 +8,7 @@ const Hit = ({ children }: { children: string }) => (
 );
 
 const FullTextSearch = () => (
-  <div className="absolute inset-0 overflow-hidden pl-[22px]">
+  <div className="absolute inset-0 overflow-hidden">
     <div className="flex items-center gap-2 rounded-l border-y border-l border-surface-up-3 bg-surface-down px-2 py-[7px]">
       <Search className="size-3 shrink-0 text-foreground-500" strokeWidth={1.75} />
       {/* Caret rides in the same box as the query, so it sits on the last
@@ -23,18 +23,22 @@ const FullTextSearch = () => (
     <div className="mt-2.5 rounded-tl border-t border-l border-surface-up-2 bg-surface-down px-3 py-2.5 font-mono text-[10px] leading-[16px] text-foreground-300">
       <p className="text-foreground-500">output</p>
       <p className="mt-1">
-        The request hit a <Hit>timeout</Hit> at the
+        The request hit a <Hit>timeout</Hit> at the booking gateway after 30s.
       </p>
       <p>
-        booking gateway. Retried once, same <Hit>timeout</Hit>,
+        Retried once and saw the same <Hit>timeout</Hit>, then fell back to the
       </p>
-      <p>then fell back to the cached fare.</p>
+      <p>cached fare quote from the previous search.</p>
 
       <p className="mt-2.5 text-foreground-500">attributes</p>
       <p className="mt-1">
         error.type = <Hit>timeout</Hit>
       </p>
+      <p>
+        error.message = upstream <Hit>timeout</Hit> after 30000ms
+      </p>
       <p>http.status_code = 504</p>
+      <p>http.route = /v1/offers/search</p>
       <p>retry.count = 1</p>
       <p>gen_ai.request.model = gpt-5.1</p>
     </div>
