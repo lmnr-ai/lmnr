@@ -2,9 +2,10 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 
-// A pass DOWN the transcript, behind the rows: what "every run is analyzed"
-// looks like in the second the step has to say it. Rows carry no background of
-// their own, so the band reads THROUGH the dimmed text rather than over it.
+// A pass DOWN the trace window — timeline, toolbar and transcript: what "every
+// run is analyzed" looks like in the second the step has to say it. Laid OVER
+// them, since the timeline paints its own surface; the alphas are low enough
+// that nothing under it loses legibility.
 
 /** primary-400. Literal, not `var(--color-*)`: these are composed into gradient
  *  strings, where a variable reference cannot carry an alpha. */
@@ -27,7 +28,7 @@ const TO = `${100 - BAND_TOP}%`;
 
 /** Builds to the crest at the BOTTOM — the leading edge of a fall — with the
  *  tail draining away above it. */
-const BAND = `linear-gradient(to bottom, transparent, rgb(${PRIMARY_400} / 0.05))`;
+const BAND = `linear-gradient(to bottom, transparent, rgb(${PRIMARY_400} / 0.1))`;
 
 /** The crest itself. Faded at both ends: a full-bleed rule would read as a
  *  divider the panel had grown rather than something travelling down it. */

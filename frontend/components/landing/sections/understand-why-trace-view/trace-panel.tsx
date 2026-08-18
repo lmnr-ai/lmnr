@@ -168,10 +168,10 @@ const TracePanel = ({
       {/* Everything below the signal card dims with it, so the card is the only
           thing at full strength. The two BORDERED regions share one wrapper —
           fading them apart reveals their borders against each other — but the
-          transcript dims on its own below, so the scan can sit behind it at full
-          strength instead of inheriting the 40%. Both use DIM_CLS, so they still
-          move as one. */}
-      <div className="flex flex-col flex-1 min-h-0">
+          transcript dims on its own below, so neither inherits the other's
+          opacity. Both use DIM_CLS, so they still move as one. The scan spans
+          all three, which is what `relative` is here for. */}
+      <div className="flex flex-col flex-1 min-h-0 relative overflow-hidden">
         <div className={cn("flex flex-col shrink-0", DIM_CLS, signalsArmed && "opacity-40")}>
           <motion.div
             initial={false}
@@ -204,10 +204,6 @@ const TracePanel = ({
         </div>
 
         <div className="flex-1 min-h-0 overflow-hidden relative">
-          {/* BEFORE the transcript, so it paints behind rows that carry no
-              background of their own, and outside the dim so the pass stays at
-              full strength while what it reads over drops back. */}
-          <ScanSweep active={scanning} durationMs={SCAN_MS} />
           <div className={cn("absolute inset-0", DIM_CLS, signalsArmed && "opacity-40")}>
             <Transcript spans={revealedSpans} instantSpans={instantSpans} scrollLocked={scrollLocked} />
           </div>
@@ -215,6 +211,12 @@ const TracePanel = ({
               to the FRAME's colour instead would read as a haze over the card. */}
           <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-background to-transparent pointer-events-none" />
         </div>
+
+        {/* Over the content, not behind it: the timeline paints its own
+            surface, so a pass underneath would vanish for the top 156px and
+            only reappear on the transparent transcript. Last child and outside
+            both dims, so it crosses all three regions at full strength. */}
+        <ScanSweep active={scanning} durationMs={SCAN_MS} />
       </div>
     </div>
   );
