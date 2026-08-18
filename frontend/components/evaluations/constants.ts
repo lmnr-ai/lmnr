@@ -6,8 +6,8 @@ export const RESOURCE = "evaluations";
 
 export const defaultEvaluationsColumnOrder = [
   "__row_selection",
-  "__chart_visibility",
   "status",
+  "__chart_visibility",
   "id",
   "name",
   "dataPointsCount",

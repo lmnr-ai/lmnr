@@ -19,7 +19,10 @@ async fn cache_trace_evaluation_id(
     trace_id: &Uuid,
     evaluation_id: &Uuid,
 ) {
-    let key = format!("{}:{}:{}", TRACE_EVALUATION_ID_CACHE_KEY, project_id, trace_id);
+    let key = format!(
+        "{}:{}:{}",
+        TRACE_EVALUATION_ID_CACHE_KEY, project_id, trace_id
+    );
     if let Err(e) = cache
         .insert_with_ttl(&key, *evaluation_id, TRACE_EVALUATION_ID_TTL_SECONDS)
         .await
@@ -33,7 +36,10 @@ pub async fn lookup_trace_evaluation_id(
     project_id: &Uuid,
     trace_id: &Uuid,
 ) -> Option<Uuid> {
-    let key = format!("{}:{}:{}", TRACE_EVALUATION_ID_CACHE_KEY, project_id, trace_id);
+    let key = format!(
+        "{}:{}:{}",
+        TRACE_EVALUATION_ID_CACHE_KEY, project_id, trace_id
+    );
     match cache.get::<Uuid>(&key).await {
         Ok(Some(eval_id)) => Some(eval_id),
         Ok(None) => None,
@@ -114,21 +120,176 @@ impl<'a> RealtimeDatapoint<'a> {
     }
 }
 
+/// Project-level list channel. The per-eval `evaluation_{id}` key is unchanged
+/// (detail page); this extra hop lets the evaluations table subscribe once.
+pub const EVALUATIONS_LIST_KEY: &str = "evaluations";
+
+/// Detail-page datapoint upsert. Serializes the full `RealtimeDatapoint`.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DatapointUpsert<'a> {
+    evaluation_id: &'a Uuid,
+    group_id: &'a str,
+    datapoints: &'a [RealtimeDatapoint<'a>],
+}
+
+/// List-channel datapoint. Field set IS the cut — a new body field on
+/// `RealtimeDatapoint` cannot leak here.
+#[derive(Serialize, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
+struct ListDatapoint<'a> {
+    id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    index: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    scores: Option<&'a str>,
+}
+
+impl<'a> From<&RealtimeDatapoint<'a>> for ListDatapoint<'a> {
+    fn from(dp: &RealtimeDatapoint<'a>) -> Self {
+        Self {
+            id: dp.id,
+            index: dp.index,
+            scores: dp.scores,
+        }
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ListDatapointUpsert<'a> {
+    evaluation_id: &'a Uuid,
+    group_id: &'a str,
+    datapoints: Vec<ListDatapoint<'a>>,
+}
+
+impl<'a> ListDatapointUpsert<'a> {
+    fn from_datapoints(
+        evaluation_id: &'a Uuid,
+        group_id: &'a str,
+        datapoints: &'a [RealtimeDatapoint<'a>],
+    ) -> Self {
+        Self {
+            evaluation_id,
+            group_id,
+            datapoints: datapoints.iter().map(ListDatapoint::from).collect(),
+        }
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EvaluationTraceUpdate<'a, T: Serialize> {
+    evaluation_id: &'a Uuid,
+    traces: &'a [T],
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ListTraceUpdate<'a> {
+    evaluation_id: &'a Uuid,
+}
+
+fn sse_message(event_type: &str, data: impl Serialize) -> SseMessage {
+    SseMessage {
+        event_type: event_type.to_string(),
+        data: serde_json::to_value(data).expect("sse payload"),
+    }
+}
+
 pub async fn send_datapoint_updates(
     pubsub: &PubSub,
     project_id: &Uuid,
     evaluation_id: &Uuid,
+    group_id: &str,
     datapoints: &[RealtimeDatapoint<'_>],
 ) {
     if datapoints.is_empty() {
         return;
     }
-    let message = SseMessage {
-        event_type: "datapoint_upsert".to_string(),
-        data: serde_json::json!({ "datapoints": datapoints }),
-    };
     let key = format!("evaluation_{}", evaluation_id);
-    send_to_key(pubsub, project_id, &key, message).await;
+    send_to_key(
+        pubsub,
+        project_id,
+        &key,
+        sse_message(
+            "datapoint_upsert",
+            DatapointUpsert {
+                evaluation_id,
+                group_id,
+                datapoints,
+            },
+        ),
+    )
+    .await;
+    send_to_key(
+        pubsub,
+        project_id,
+        EVALUATIONS_LIST_KEY,
+        sse_message(
+            "datapoint_upsert",
+            ListDatapointUpsert::from_datapoints(evaluation_id, group_id, datapoints),
+        ),
+    )
+    .await;
+}
+
+pub async fn send_evaluation_created(
+    pubsub: &PubSub,
+    project_id: &Uuid,
+    evaluation: &crate::db::evaluations::Evaluation,
+) {
+    send_to_key(
+        pubsub,
+        project_id,
+        EVALUATIONS_LIST_KEY,
+        sse_message(
+            "evaluation_created",
+            serde_json::json!({ "evaluation": evaluation }),
+        ),
+    )
+    .await;
+}
+
+pub async fn send_evaluation_trace_updates<T: Serialize>(
+    pubsub: &PubSub,
+    project_id: &Uuid,
+    evaluation_id: &Uuid,
+    traces: &[T],
+) {
+    if traces.is_empty() {
+        return;
+    }
+    let key = format!("evaluation_{}", evaluation_id);
+    send_to_key(
+        pubsub,
+        project_id,
+        &key,
+        sse_message(
+            "trace_update",
+            EvaluationTraceUpdate {
+                evaluation_id,
+                traces,
+            },
+        ),
+    )
+    .await;
+}
+
+/// List channel: identity only. Successful traces don't move list counters
+/// (complete waits on scores via datapoint_upsert); call this for errors.
+pub async fn send_evaluations_list_trace_update(
+    pubsub: &PubSub,
+    project_id: &Uuid,
+    evaluation_id: &Uuid,
+) {
+    send_to_key(
+        pubsub,
+        project_id,
+        EVALUATIONS_LIST_KEY,
+        sse_message("trace_update", ListTraceUpdate { evaluation_id }),
+    )
+    .await;
 }
 
 fn clip_str(s: &str, max_chars: usize) -> &str {
@@ -240,8 +401,14 @@ mod tests {
         let v = serde_json::to_value(&dp).unwrap();
         assert_eq!(v["traceId"], json!(trace_id.to_string()));
         assert_eq!(v["data"].as_str().unwrap().chars().count(), TRUNCATE_CHARS);
-        assert_eq!(v["target"].as_str().unwrap().chars().count(), TRUNCATE_CHARS);
-        assert_eq!(v["output"].as_str().unwrap().chars().count(), TRUNCATE_CHARS);
+        assert_eq!(
+            v["target"].as_str().unwrap().chars().count(),
+            TRUNCATE_CHARS
+        );
+        assert_eq!(
+            v["output"].as_str().unwrap().chars().count(),
+            TRUNCATE_CHARS
+        );
     }
 
     #[test]
@@ -272,5 +439,86 @@ mod tests {
         assert!(v.get("traceId").is_none());
         assert_eq!(v["output"], json!(r#"{"x":1}"#));
         assert_eq!(v["scores"], json!(r#"{"a":0.5}"#));
+    }
+
+    #[test]
+    fn datapoint_upsert_payload_stamps_evaluation_and_group() {
+        let eval_id = Uuid::new_v4();
+        let row = sample_row();
+        let dp = RealtimeDatapoint::from_ch_insert(&row);
+        let v = serde_json::to_value(DatapointUpsert {
+            evaluation_id: &eval_id,
+            group_id: "default",
+            datapoints: std::slice::from_ref(&dp),
+        })
+        .unwrap();
+        assert_eq!(v["evaluationId"], json!(eval_id.to_string()));
+        assert_eq!(v["groupId"], json!("default"));
+        assert!(v["datapoints"].as_array().unwrap().len() == 1);
+        // Detail page keeps reading `datapoints`; extra top-level keys are ignored.
+        assert_eq!(v["datapoints"][0]["scores"], json!(r#"{"accuracy":0.9}"#));
+    }
+
+    #[test]
+    fn list_datapoint_projection_cannot_emit_body_fields() {
+        let trace_id = Uuid::new_v4();
+        let row = CHEvaluationDatapoint {
+            trace_id,
+            data: r#"{"input":"why was I charged twice"}"#.into(),
+            target: "refund the extra charge".into(),
+            metadata: r#"{"query_category":"billing"}"#.into(),
+            executor_output: "Processed response".into(),
+            ..sample_row()
+        };
+        let dp = RealtimeDatapoint::from_ch_insert(&row);
+        let v = serde_json::to_value(ListDatapoint::from(&dp)).unwrap();
+        let obj = v.as_object().unwrap();
+        assert_eq!(obj.get("id").unwrap(), &json!(row.id.to_string()));
+        assert_eq!(obj.get("index").unwrap(), &json!(0));
+        assert_eq!(obj.get("scores").unwrap(), &json!(r#"{"accuracy":0.9}"#));
+        assert_eq!(obj.len(), 3);
+    }
+
+    #[test]
+    fn list_datapoint_upsert_payload_drops_body_fields() {
+        let eval_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+        let row = CHEvaluationDatapoint {
+            trace_id,
+            data: r#"{"input":"why was I charged twice"}"#.into(),
+            target: "refund the extra charge".into(),
+            metadata: r#"{"query_category":"billing"}"#.into(),
+            executor_output: "Processed response".into(),
+            ..sample_row()
+        };
+        let dp = RealtimeDatapoint::from_ch_insert(&row);
+        let v = serde_json::to_value(ListDatapointUpsert::from_datapoints(
+            &eval_id,
+            "default",
+            std::slice::from_ref(&dp),
+        ))
+        .unwrap();
+        assert_eq!(v["evaluationId"], json!(eval_id.to_string()));
+        assert_eq!(v["groupId"], json!("default"));
+        let dp_v = &v["datapoints"][0];
+        assert_eq!(dp_v["id"], json!(row.id.to_string()));
+        assert_eq!(dp_v["index"], json!(0));
+        assert_eq!(dp_v["scores"], json!(r#"{"accuracy":0.9}"#));
+        assert!(dp_v.get("traceId").is_none());
+        assert!(dp_v.get("data").is_none());
+        assert!(dp_v.get("target").is_none());
+        assert!(dp_v.get("metadata").is_none());
+        assert!(dp_v.get("output").is_none());
+        assert_eq!(dp_v.as_object().unwrap().len(), 3);
+    }
+
+    #[test]
+    fn list_trace_update_payload_is_evaluation_id_only() {
+        let eval_id = Uuid::new_v4();
+        let v = serde_json::to_value(ListTraceUpdate {
+            evaluation_id: &eval_id,
+        })
+        .unwrap();
+        assert_eq!(v, json!({ "evaluationId": eval_id }));
     }
 }

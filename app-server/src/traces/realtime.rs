@@ -285,6 +285,10 @@ fn rollout_session_id_from_metadata(metadata: Option<&Value>) -> Option<String> 
 }
 
 impl RealtimeTrace {
+    pub fn is_error(&self) -> bool {
+        self.status.as_deref() == Some("error")
+    }
+
     /// Per-batch delta payload, accumulated by the frontend.
     pub fn from_aggregation(agg: &TraceAggregation) -> Self {
         Self {

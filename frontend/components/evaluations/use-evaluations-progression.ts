@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import useSWR from "swr";
 
 import { type AggregationFunction } from "@/lib/clickhouse/types";
@@ -17,6 +17,7 @@ interface UseEvaluationsProgressionResult {
   scoreRanges: Record<string, ScoreRange>;
   /** Every run id in the group (whole group, not just the loaded table page). */
   allRunIds: string[];
+  mutateProgression: () => void;
 }
 
 /**
@@ -36,21 +37,22 @@ export function useEvaluationsProgression(
     : null;
   const body = useMemo(() => ({ aggregate }), [aggregate]);
 
-  const { data: progression, isLoading } = useSWR<EvaluationTimeProgression[]>(
-    url ? [url, body] : null,
-    async ([u, b]: [string, object]) => {
-      const res = await fetch(u, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(b),
-      });
-      if (!res.ok) {
-        const err = (await res.json()) as { error: string };
-        throw new Error(err.error);
-      }
-      return res.json();
+  const {
+    data: progression,
+    isLoading,
+    mutate,
+  } = useSWR<EvaluationTimeProgression[]>(url ? [url, body] : null, async ([u, b]: [string, object]) => {
+    const res = await fetch(u, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(b),
+    });
+    if (!res.ok) {
+      const err = (await res.json()) as { error: string };
+      throw new Error(err.error);
     }
-  );
+    return res.json();
+  });
 
   const { scoreNames, scoresByEvalId } = useMemo(() => {
     const names = Array.from(new Set(progression?.flatMap((p) => p.names) ?? [])).sort();
@@ -90,5 +92,9 @@ export function useEvaluationsProgression(
     return out;
   }, [scoreNames, scoresByEvalId]);
 
-  return { progression, isLoading, scoreNames, scoresByEvalId, scoreRanges, allRunIds };
+  const mutateProgression = useCallback(() => {
+    void mutate();
+  }, [mutate]);
+
+  return { progression, isLoading, scoreNames, scoresByEvalId, scoreRanges, allRunIds, mutateProgression };
 }

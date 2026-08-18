@@ -174,7 +174,7 @@ export default function Evaluations() {
   return (
     <InfiniteDataTableProvider
       defaults={{ columnOrder: defaultEvaluationsColumnOrder }}
-      lockedColumns={["__row_selection", "__chart_visibility", "status"]}
+      lockedColumns={["__row_selection", "status", "__chart_visibility"]}
       views={{ projectId, resource: RESOURCE }}
     >
       <EvaluationsContent />
@@ -255,6 +255,7 @@ function EvaluationsContent() {
     scoresByEvalId,
     scoreRanges,
     allRunIds,
+    mutateProgression,
   } = useEvaluationsProgression(params?.projectId, groupId, aggregationFunction);
 
   // Resolved eval-score directions (override > app-wide LLM default > true).
@@ -470,6 +471,7 @@ function EvaluationsContent() {
                 onHoveredRowChange={setHoveredEvaluationId}
                 refetchRef={refetchRef}
                 onEvaluationsChange={onEvaluationsChange}
+                onProgressionInvalidate={mutateProgression}
               >
                 <EvaluationsTableControls
                   projectId={params.projectId}
