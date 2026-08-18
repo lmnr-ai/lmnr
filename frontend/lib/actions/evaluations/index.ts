@@ -11,7 +11,6 @@ import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
 import { filtersToSql } from "@/lib/db/modifiers";
 import { paginatedGet } from "@/lib/db/utils";
-import { resolveEvaluationStatusFilter } from "@/lib/evaluation/status";
 import { type Evaluation } from "@/lib/evaluation/types";
 
 export const GetEvaluationsSchema = PaginationFiltersSchema.extend({
@@ -104,7 +103,7 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
       if (!countMatches) return false;
 
       return statusFilters.every((filter) => {
-        const value = resolveEvaluationStatusFilter(String(filter.value));
+        const value = String(filter.value);
         switch (filter.operator) {
           case "eq":
             return stats?.status === value;

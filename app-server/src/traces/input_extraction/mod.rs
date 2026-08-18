@@ -33,9 +33,12 @@
 //!   - `queue` / `consumer` — the regex-generation queue and its worker;
 //!   - `self_tracing` — internal OTEL spans for the consumer's LLM work.
 
+pub mod accumulator;
 pub mod consumer;
+pub mod extract;
 pub mod fingerprint;
 pub mod generate;
+pub mod generate_multi;
 pub mod input;
 pub mod lock;
 pub mod messages;
@@ -44,10 +47,11 @@ pub mod output;
 pub mod producer;
 pub mod queue;
 pub mod regex;
+pub mod regex_agent;
 pub mod self_tracing;
 
 pub use output::{OutputCandidate, capture_output_candidate};
 pub use producer::{
-    UserTaskCandidate, UserTaskSpanContext, capture_user_task_candidate,
+    SystemPromptIdentity, UserTaskCandidate, UserTaskSpanContext, capture_user_task_candidate,
     process_user_task_candidates,
 };

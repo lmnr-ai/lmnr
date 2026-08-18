@@ -138,10 +138,15 @@ pub struct UserTaskInput {
     /// The regex target: the signpost-joined last-turn user parts.
     /// Truncated.
     pub signposted_text: String,
-    /// Order-insensitive user naive signature (part of the regex cache
+    /// Order-insensitive user naive signature (part of the LEGACY regex cache
     /// key), prefixed with [`HAS_HISTORY_FINGERPRINT_PREFIX`] when the
     /// last turn follows assistant/model history.
     pub fingerprint: String,
+    /// Whether the last turn follows assistant/model history. Already encoded
+    /// into `fingerprint` above; carried separately because the version-keyed
+    /// cache uses it as a standalone key component and must not prefix-sniff a
+    /// string to recover it.
+    pub has_history: bool,
     /// Full hash of the joined last-turn user parts (hex BLAKE3). Unlike
     /// `fingerprint` (a structural signature that intentionally collapses
     /// different content into the same regex cache key), this changes
@@ -157,7 +162,8 @@ pub fn prepare_user_task_input(input: &Value) -> Option<UserTaskInput> {
     let mut fingerprint = fingerprint_user_parts(&parts);
     // The last turn's parts come after the LAST assistant message, so any
     // assistant/model message in the input is prior history.
-    if has_prior_assistant(input) {
+    let has_history = has_prior_assistant(input);
+    if has_history {
         fingerprint = format!("{HAS_HISTORY_FINGERPRINT_PREFIX}{fingerprint}");
     }
     // Hash the canonical joined text: `user_text` is already
@@ -167,6 +173,7 @@ pub fn prepare_user_task_input(input: &Value) -> Option<UserTaskInput> {
     Some(UserTaskInput {
         signposted_text: truncate_for_regex(user_text),
         fingerprint,
+        has_history,
         content_hash,
     })
 }
@@ -412,6 +419,10 @@ mod tests {
         let p_followup = prepare_user_task_input(&followup).unwrap();
         assert_eq!(p_first.fingerprint, "plain");
         assert_eq!(p_followup.fingerprint, "has_history|plain");
+        // The standalone flag mirrors the fingerprint prefix — the version-keyed
+        // cache reads the flag, the legacy key reads the prefix.
+        assert!(!p_first.has_history);
+        assert!(p_followup.has_history);
         assert_eq!(p_first.signposted_text, p_followup.signposted_text);
     }
 

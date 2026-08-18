@@ -295,12 +295,7 @@ export function buildEvalStatsQuery(options: EvalStatsQueryOptions): QueryResult
 
 // -- Totals query builder --
 
-/**
- * Whole-run cost / token / duration totals over the same filtered row set the
- * stats query uses. Every aggregate is cast to Float64 so the JSON response
- * carries numbers — ClickHouse renders Int64/UInt64/Decimal as strings, and
- * `duration` is a Decimal in the view.
- */
+/** Whole-run cost / token / duration over the same filtered rows as the stats query. */
 export function buildEvalTotalsQuery(options: EvalStatsQueryOptions): QueryResult {
   const { evaluationId, traceIds, filters, columns } = options;
   const parameters: QueryParams = {};
@@ -319,17 +314,17 @@ export function buildEvalTotalsQuery(options: EvalStatsQueryOptions): QueryResul
 
   const query = `
     SELECT
-      toFloat64(count()) AS datapointCount,
-      toFloat64(sum(input_cost)) AS inputCost,
-      toFloat64(sum(output_cost)) AS outputCost,
-      toFloat64(sum(total_cost)) AS totalCost,
-      toFloat64(sum(input_tokens)) AS inputTokens,
-      toFloat64(sum(output_tokens)) AS outputTokens,
-      toFloat64(sum(total_tokens)) AS totalTokens,
-      toFloat64(sum(cache_read_input_tokens)) AS cacheReadInputTokens,
-      toFloat64(sum(cache_creation_input_tokens)) AS cacheCreationInputTokens,
-      toFloat64(sum(reasoning_tokens)) AS reasoningTokens,
-      toFloat64(sum(toFloat64(duration))) AS totalDuration
+      count() AS datapointCount,
+      sum(input_cost) AS inputCost,
+      sum(output_cost) AS outputCost,
+      sum(total_cost) AS totalCost,
+      sum(input_tokens) AS inputTokens,
+      sum(output_tokens) AS outputTokens,
+      sum(total_tokens) AS totalTokens,
+      sum(cache_read_input_tokens) AS cacheReadInputTokens,
+      sum(cache_creation_input_tokens) AS cacheCreationInputTokens,
+      sum(reasoning_tokens) AS reasoningTokens,
+      sum(toFloat64(duration)) AS totalDuration
     FROM evaluation_datapoints
     WHERE ${whereConditions.join(" AND ")}
   `;

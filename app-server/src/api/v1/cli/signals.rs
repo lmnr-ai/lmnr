@@ -8,27 +8,15 @@ use crate::auth::cli_user::CliProjectAuth;
 use crate::cache::Cache;
 use crate::db::{self, DB};
 use crate::features::{Feature, is_feature_enabled};
-use crate::signals::service::{self, SignalInput, TriggerInput, UpdateSignalInput};
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CreateSignalRequest {
-    #[serde(flatten)]
-    signal: SignalInput,
-    /// Omitted → seed the `[]` default;
-    #[serde(default)]
-    triggers: Option<Vec<TriggerInput>>,
-}
+use crate::signals::service::{self, SignalInput, UpdateSignalInput};
 
 #[post("signals")]
 pub async fn create_signal(
     auth: CliProjectAuth,
-    body: web::Json<CreateSignalRequest>,
+    body: web::Json<SignalInput>,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
 ) -> actix_web::Result<HttpResponse> {
-    let CreateSignalRequest { signal, triggers } = body.into_inner();
-
     // CLI JWT has no email; subscribe the creator like the drawer does.
     let email = db::users::get_user_email(&db.pool, auth.user_id)
         .await
@@ -39,8 +27,7 @@ pub async fn create_signal(
         cache.get_ref(),
         auth.project_id,
         email.as_deref(),
-        signal,
-        triggers,
+        body.into_inner(),
         is_feature_enabled(Feature::Clustering),
     )
     .await;

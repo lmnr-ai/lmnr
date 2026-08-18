@@ -70,23 +70,23 @@ export const getEvaluationRunStats = async (
     query: `
       SELECT
         evaluation_id AS evaluationId,
-        toFloat64(count()) AS total,
-        toFloat64(countIf(trace_status = 'error')) AS errored,
-        toFloat64(countIf(${COMPLETE_PRED})) AS complete,
-        toFloat64(countIf(
+        count() AS total,
+        countIf(trace_status = 'error') AS errored,
+        countIf(${COMPLETE_PRED}) AS complete,
+        countIf(
           NOT (${COMPLETE_PRED})
           AND updated_at < toDateTime64({staleBefore:String}, 9, 'UTC')
-        )) AS stale,
-        toFloat64(sum(input_cost)) AS inputCost,
-        toFloat64(sum(output_cost)) AS outputCost,
-        toFloat64(sum(total_cost)) AS totalCost,
-        toFloat64(sum(input_tokens)) AS inputTokens,
-        toFloat64(sum(output_tokens)) AS outputTokens,
-        toFloat64(sum(total_tokens)) AS totalTokens,
-        toFloat64(sum(cache_read_input_tokens)) AS cacheReadInputTokens,
-        toFloat64(sum(cache_creation_input_tokens)) AS cacheCreationInputTokens,
-        toFloat64(sum(reasoning_tokens)) AS reasoningTokens,
-        toFloat64(sum(toFloat64(duration))) AS totalDuration
+        ) AS stale,
+        sum(input_cost) AS inputCost,
+        sum(output_cost) AS outputCost,
+        sum(total_cost) AS totalCost,
+        sum(input_tokens) AS inputTokens,
+        sum(output_tokens) AS outputTokens,
+        sum(total_tokens) AS totalTokens,
+        sum(cache_read_input_tokens) AS cacheReadInputTokens,
+        sum(cache_creation_input_tokens) AS cacheCreationInputTokens,
+        sum(reasoning_tokens) AS reasoningTokens,
+        sum(toFloat64(duration)) AS totalDuration
       FROM evaluation_datapoints
       WHERE evaluation_id IN {evaluationIds:Array(UUID)}
       GROUP BY evaluation_id
