@@ -2,10 +2,14 @@ import { GripVertical, Plus } from "lucide-react";
 
 // The dashboard is a drag-and-drop grid, so the graphic is the grid: charts
 // already placed, one mid-drag, and an empty cell waiting for the next.
-// Trends up without alternating: a strict up-down-up-down saw reads as a
-// generated shape, not a measurement. Runs of two in the same direction and
-// steps of uneven size are what make it look sampled.
-const SPARK = [26, 31, 29, 41, 38, 52, 47, 45, 60, 71, 66, 76];
+// Peaks and troughs the whole way across, at uneven size, trending up. Two
+// things read as a straight line here and both had to go: steps of similar
+// magnitude (noise on a ramp), and variation saved for one end (a flat opening
+// that then climbs). The plot is wide and short, so the series also has to
+// spend most of SPARK_MAX or it flattens whatever it does.
+const SPARK = [12, 34, 26, 31, 21, 46, 38, 43, 62, 50, 58, 76, 67, 74];
+const SPARK_MAX = 80;
+const SPARK_H = 22;
 
 const Handle = () => <GripVertical className="size-3 shrink-0 text-foreground-600" strokeWidth={1.5} />;
 
@@ -27,9 +31,17 @@ const Dashboards = () => (
           <Handle />
         </div>
         <p className="mt-0.5 font-mono text-base leading-6 text-white">4.34</p>
-        <svg viewBox="0 0 100 22" preserveAspectRatio="none" className="mt-1 h-[22px] w-full" aria-hidden>
+        <svg
+          viewBox={`0 0 100 ${SPARK_H}`}
+          preserveAspectRatio="none"
+          style={{ height: SPARK_H }}
+          className="mt-1 w-full"
+          aria-hidden
+        >
           <path
-            d={`M${SPARK.map((v, i) => `${(i * 100) / (SPARK.length - 1)},${22 - (v / 80) * 22}`).join(" L")}`}
+            d={`M${SPARK.map((v, i) => `${(i * 100) / (SPARK.length - 1)},${SPARK_H - (v / SPARK_MAX) * SPARK_H}`).join(
+              " L"
+            )}`}
             className="fill-none stroke-primary-400"
             strokeWidth="1.5"
             vectorEffect="non-scaling-stroke"
