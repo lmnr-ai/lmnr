@@ -8,7 +8,7 @@ export async function DELETE(
 ): Promise<Response> {
   try {
     const { projectId, evaluationId, tagName } = await props.params;
-    const tags = await removeEvaluationTag({ projectId, evaluationId, name: decodeURIComponent(tagName) });
+    const tags = await removeEvaluationTag({ projectId, evaluationId, name: tagName });
     return Response.json(tags);
   } catch (error) {
     if (error instanceof ZodError) {

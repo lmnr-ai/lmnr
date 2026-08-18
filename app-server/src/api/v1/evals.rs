@@ -28,6 +28,8 @@ use uuid::Uuid;
 const DEFAULT_EVALS_PAGE_SIZE: i64 = 50;
 const MAX_EVALS_PAGE_SIZE: i64 = 500;
 const MAX_TAG_NAME_LENGTH: usize = 256;
+/// How much of an over-long tag to echo back in the rejection message.
+const TAG_NAME_PREVIEW_CHARS: usize = 32;
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -205,10 +207,14 @@ pub async fn add_eval_tags_response(
     if tags.is_empty() {
         return Ok(bad_request("At least one non-empty tag is required"));
     }
-    if let Some(tag) = tags.iter().find(|tag| tag.len() > MAX_TAG_NAME_LENGTH) {
+    if let Some(tag) = tags
+        .iter()
+        .find(|tag| tag.chars().count() > MAX_TAG_NAME_LENGTH)
+    {
+        // Take chars, not bytes — a byte slice can land mid-codepoint and panic.
+        let preview: String = tag.chars().take(TAG_NAME_PREVIEW_CHARS).collect();
         return Ok(bad_request(&format!(
-            "Tag \"{}\" exceeds {MAX_TAG_NAME_LENGTH} characters",
-            &tag[..MAX_TAG_NAME_LENGTH.min(tag.len())]
+            "Tag \"{preview}…\" exceeds {MAX_TAG_NAME_LENGTH} characters"
         )));
     }
 
