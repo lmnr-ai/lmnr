@@ -15,6 +15,8 @@ import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { type TraceSignal, type TraceSignalEvent } from "@/components/traces/trace-view/store/base";
 import Markdown from "@/components/traces/trace-view/transcript/markdown.tsx";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ElevatedSurface } from "@/components/ui/surface";
 import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
 import { SEVERITY_LABELS } from "@/lib/actions/alerts/types";
 import { getClusterColorById } from "@/lib/clusters/colors";
@@ -62,11 +64,7 @@ function PayloadValue({
     case "boolean":
       return <span>{value ? "true" : "false"}</span>;
     case "enum":
-      return (
-        <span className="inline-flex items-center rounded-full border border-blue-400/30 px-2 py-0.5 text-xs font-medium text-secondary-foreground">
-          {String(value)}
-        </span>
-      );
+      return <Badge variant="secondary">{String(value)}</Badge>;
     case "number":
       return <span className="tabular-nums">{String(value)}</span>;
     case "string":
@@ -113,27 +111,23 @@ function FindingCard({
   }, [highlighted]);
 
   return (
-    <div
+    <ElevatedSurface
       ref={ref}
-      className={cn(
-        "flex flex-col gap-2.5 rounded-lg border p-3",
-        highlighted && "border-blue-400/60 ring-1 ring-blue-400/40 bg-blue-400/8"
-      )}
+      offset={1}
+      className={cn("flex flex-col gap-2.5 rounded-lg border p-3", highlighted && "border-primary/50 bg-surface-up")}
     >
       <div className="flex items-center gap-1.5 flex-wrap">
         <Badge variant="outline" className={cn("rounded-full font-medium", severityClassName)}>
           {severityLabel}
         </Badge>
         {leafCluster && clusterHref && (
-          <Link
-            href={clusterHref}
-            target="_blank"
-            className="group flex items-center gap-1.5 min-w-0 rounded-full bg-blue-400/8 border-blue-400/30 border px-2 py-1 hover:bg-blue-400/12"
-          >
-            <ClusterIcon iconVariant="box" color={getClusterColorById(leafCluster.id)} />
-            <span className="truncate text-xs font-medium">{leafCluster.name}</span>
-            <ArrowUpRight className="size-3.5 shrink-0" />
-          </Link>
+          <Button variant="outline" size="sm" asChild className="min-w-0">
+            <Link href={clusterHref} target="_blank">
+              <ClusterIcon iconVariant="box" color={getClusterColorById(leafCluster.id)} />
+              <span className="truncate">{leafCluster.name}</span>
+              <ArrowUpRight data-icon="inline-end" />
+            </Link>
+          </Button>
         )}
       </div>
       <div className="flex flex-col gap-2.5">
@@ -146,7 +140,7 @@ function FindingCard({
           </div>
         ))}
       </div>
-    </div>
+    </ElevatedSurface>
   );
 }
 
@@ -190,23 +184,17 @@ export default function SignalDetails({ traceId, signal }: Props) {
   return (
     <div className="px-2 pt-2 pb-0.5 flex flex-col gap-3">
       <div className="flex items-center gap-1.5 flex-wrap">
-        <Link
-          href={signalHref}
-          target="_blank"
-          className="group flex items-center gap-1.5 min-w-0 rounded-full bg-blue-400/8 border-blue-400/30 border px-2 py-1 hover:bg-blue-400/12"
-        >
-          <span className="truncate text-xs font-medium">Open in Signals</span>
-          <ArrowUpRight className="size-3.5 shrink-0" />
-        </Link>
+        <Button className="gap-1" variant="outline" size="sm" asChild>
+          <Link href={signalHref} target="_blank">
+            Open in Signals
+            <ArrowUpRight className="size-3.5 shrink-0" data-icon="inline-end" />
+          </Link>
+        </Button>
         {featureFlags[Feature.AGENT] && (
-          <button
-            type="button"
-            onClick={handleOpenInChat}
-            className="group flex items-center gap-1.5 min-w-0 rounded-full bg-blue-400/8 border-blue-400/30 border px-2 py-1 hover:bg-blue-400/12"
-          >
-            <Sparkles className="size-3.5 shrink-0" />
-            <span className="truncate text-xs font-medium">Open in AI Chat</span>
-          </button>
+          <Button className="gap-1" variant="outline" size="sm" onClick={handleOpenInChat}>
+            <Sparkles className="size-3.5 shrink-0" data-icon="inline-start" />
+            <span>Open in AI Chat</span>
+          </Button>
         )}
       </div>
       {events.length === 0 ? (

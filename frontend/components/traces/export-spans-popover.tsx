@@ -91,7 +91,6 @@ export default function ExportSpansPopover({
           {children || (
             <Button
               icon="database"
-              size="sm"
               variant={buttonVariant}
               className={cn(buttonVariant === "ghost" && "hover:bg-secondary")}
             >

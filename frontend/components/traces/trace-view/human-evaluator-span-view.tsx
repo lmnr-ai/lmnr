@@ -41,7 +41,7 @@ export function HumanEvaluatorSpanView({ spanId, traceId, onClose, isAlwaysSelec
 
   if (isLoading || !span) {
     return (
-      <div className="flex flex-col space-y-2 p-4">
+      <div className="flex flex-col gap-2 p-4">
         <Skeleton className="h-8 w-full" />
         <Skeleton className="h-8 w-full" />
         <Skeleton className="h-8 w-full" />
@@ -51,7 +51,7 @@ export function HumanEvaluatorSpanView({ spanId, traceId, onClose, isAlwaysSelec
 
   if (span.attributes["gen_ai.prompt.user"]) {
     return (
-      <div className="whitespace-pre-wrap p-4 border rounded-md bg-muted/50">
+      <div className="whitespace-pre-wrap p-4 m-2 border rounded-md bg-surface-up">
         {span.attributes["gen_ai.prompt.user"]}
       </div>
     );

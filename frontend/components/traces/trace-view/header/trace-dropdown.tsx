@@ -44,12 +44,21 @@ export default function TraceDropdown({ traceId }: TraceDropdownProps) {
     }
   }, [sessionId, toast]);
 
-  // TODO: add userId to TraceViewTrace to enable "Copy user ID"
+  const userId = trace?.userId;
+  const hasUser = userId && userId !== "<null>" && userId !== "";
+
+  const handleCopyUserId = useCallback(async () => {
+    if (userId) {
+      await navigator.clipboard.writeText(userId);
+      toast({ title: "Copied user ID", duration: 1000 });
+    }
+  }, [userId, toast]);
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button aria-label="Trace actions" variant="ghost" size="icon-sm" className="hover:bg-secondary">
+        <Button aria-label="Trace actions" variant="ghost" className="gap-2 text-base font-medium hover:bg-surface-up">
+          Trace
           <ChevronDown className="size-3.5" />
         </Button>
       </DropdownMenuTrigger>
@@ -64,7 +73,12 @@ export default function TraceDropdown({ traceId }: TraceDropdownProps) {
             Copy session ID
           </DropdownMenuItem>
         )}
-        {/* TODO: add userId to TraceViewTrace to enable "Copy user ID" */}
+        {hasUser && (
+          <DropdownMenuItem onClick={handleCopyUserId}>
+            <Copy size={14} />
+            Copy user ID
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem disabled={isSqlLoading} onClick={openInSql}>
           {isSqlLoading ? <Loader className="size-3.5 animate-spin" /> : <Database className="size-3.5" />}
           Open in SQL editor

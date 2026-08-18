@@ -12,6 +12,7 @@ import OpenAIContentParts from "@/components/traces/span-view/openai-parts";
 import OpenAIResponsesContentParts from "@/components/traces/span-view/openai-responses-parts";
 import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
 import { Button } from "@/components/ui/button";
+import { ElevatedSurface } from "@/components/ui/surface";
 // Detection logic lives in `lib/spans/process-messages.ts` (a plain TS module)
 // so tests can import it without pulling component CSS into the module graph.
 import { type ProcessedMessages, processMessages, responsesItemRole } from "@/lib/spans/process-messages";
@@ -309,13 +310,13 @@ function PureMessages({
       <div className="size-full relative">
         <div
           // adjust for scrollbar on the right
-          className="absolute top-0 left-0 right-[15px] z-20 bg-background transition-opacity duration-150"
+          className="absolute top-0 left-0 right-[15px] z-20 bg-surface transition-opacity duration-150"
           ref={overlayRef}
           style={{ opacity: 0, pointerEvents: "none" }}
         >
-          <div className="mx-2 flex items-center px-2 py-1 gap-2 border bg-background rounded-t shadow-sm">
+          <ElevatedSurface offset={1} className="mx-2 flex items-center px-2 py-1 gap-2 border rounded-t-lg">
             <span ref={labelRef} className="text-sm font-medium" />
-          </div>
+          </ElevatedSurface>
         </div>
         <div
           ref={parentRef}

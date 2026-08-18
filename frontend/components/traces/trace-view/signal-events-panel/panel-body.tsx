@@ -9,9 +9,9 @@ import { shallow } from "zustand/shallow";
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ElevatedSurface } from "@/components/ui/surface";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 import SignalDetails from "./signal-details";
 
@@ -97,9 +97,15 @@ export default function PanelBody({ traceId, onClose }: Props) {
   const activeSignal = traceSignals.find((s) => s.signalId === effectiveTabId);
 
   const closeButton = (
-    <Tooltip>
+    <Tooltip delayDuration={400}>
       <TooltipTrigger asChild>
-        <Button aria-label="Close" variant="ghost" size="icon-sm" className="shrink-0" onClick={onClose}>
+        <Button
+          aria-label="Close"
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0 hover:bg-surface-up"
+          onClick={onClose}
+        >
           <X className="size-3.5" />
         </Button>
       </TooltipTrigger>
@@ -110,39 +116,27 @@ export default function PanelBody({ traceId, onClose }: Props) {
   );
 
   return (
-    <div className="flex flex-col rounded-md border bg-blue-400/12 overflow-hidden border-blue-400/30">
+    <ElevatedSurface offset={1} className="flex flex-col rounded-lg border overflow-hidden">
       {isTraceSignalsLoading ? (
         <div className="flex items-center justify-center py-8 text-muted-foreground">
           <Loader2 className="size-4 animate-spin" />
         </div>
       ) : (
         <Tabs value={effectiveTabId} onValueChange={setActiveSignalTabId} className="flex flex-col gap-0">
-          <TooltipProvider delayDuration={300}>
-            <div className="shrink-0 flex items-center gap-2 justify-between px-2 py-1 bg-blue-400/12">
-              {isSingleSignal && activeSignal ? (
-                <span className="flex items-center min-w-0 pl-1 text-xs font-medium">
-                  <span className="truncate">{activeSignal.signalName}</span>
-                </span>
-              ) : (
-                <TabsList className="flex-1 min-w-0 h-auto bg-transparent p-0 gap-1 justify-start">
-                  {traceSignals.map((signal) => (
-                    <TabsTrigger
-                      key={signal.signalId}
-                      value={signal.signalId}
-                      className={cn(
-                        "flex-1 min-w-0 h-auto px-2 py-1 text-xs rounded-md",
-                        "data-[state=active]:bg-gray-900 data-[state=active]:shadow-none data-[state=active]:text-foreground",
-                        "text-secondary-foreground hover:text-foreground"
-                      )}
-                    >
-                      <span className="block w-full truncate text-center">{signal.signalName}</span>
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              )}
-              {closeButton}
-            </div>
-          </TooltipProvider>
+          <div className="shrink-0 flex items-center gap-2 justify-between px-2 py-1.5">
+            {isSingleSignal && activeSignal ? (
+              <span className="min-w-0 truncate pl-1 text-xs font-medium">{activeSignal.signalName}</span>
+            ) : (
+              <TabsList size="sm" className="min-w-0 max-w-full justify-start overflow-x-auto">
+                {traceSignals.map((signal) => (
+                  <TabsTrigger key={signal.signalId} value={signal.signalId} className="shrink-0">
+                    <span className="max-w-40 truncate">{signal.signalName}</span>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            )}
+            {closeButton}
+          </div>
           <ScrollArea
             className="[&>div>div]:!block [&>[data-radix-scroll-area-viewport]]:!h-full"
             style={bodyHeight !== null ? { height: bodyHeight } : undefined}
@@ -163,12 +157,12 @@ export default function PanelBody({ traceId, onClose }: Props) {
             role="separator"
             aria-orientation="horizontal"
             onPointerDown={handleResizePointerDown}
-            className="group h-1.5 shrink-0 cursor-row-resize flex items-center justify-center hover:bg-blue-300/10 transition-colors"
+            className="group h-1.5 shrink-0 cursor-row-resize flex items-center justify-center hover:bg-surface-up transition-colors"
           >
-            <div className="h-0.5 w-8 rounded-full bg-primary-foreground/20" />
+            <div className="h-0.5 w-8 rounded-full bg-border" />
           </div>
         </Tabs>
       )}
-    </div>
+    </ElevatedSurface>
   );
 }

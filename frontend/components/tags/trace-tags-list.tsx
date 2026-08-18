@@ -2,14 +2,14 @@
 
 import { Tag } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import useSWR from "swr";
 
-import { Button } from "@/components/ui/button";
+import { HeaderIconButton } from "@/components/traces/trace-view/header/header-icon-button";
 import { DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type TagClass } from "@/lib/traces/types";
-import { cn, swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/utils";
 
 import { Badge } from "../ui/badge";
 import TagsDropdown, { type Tag as TagType } from "./tags-dropdown";
@@ -48,6 +48,7 @@ interface TraceTagsProps {
 export const TraceTagsButton = ({ traceId, className }: TraceTagsProps) => {
   const { projectId, tagClasses, rawTags, tags, mutateTagClasses, mutateTags } = useTraceTags(traceId);
   const { toast } = useToast();
+  const [open, setOpen] = useState(false);
 
   const onAttach = async (tagClassName: string) => {
     try {
@@ -153,12 +154,10 @@ export const TraceTagsButton = ({ traceId, className }: TraceTagsProps) => {
       onAttach={onAttach}
       onDetach={onDetach}
       onCreateAndAttach={onCreateAndAttach}
+      onOpenChange={setOpen}
     >
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className={cn("gap-1.5 hover:bg-secondary", className)}>
-          <Tag className="size-3.5" />
-          Tags
-        </Button>
+        <HeaderIconButton icon={<Tag className="size-3.5" />} label="Tags" active={open} className={className} />
       </DropdownMenuTrigger>
     </TagsDropdown>
   );

@@ -69,8 +69,8 @@ const ShareTraceButton = ({ projectId }: { projectId: string; refetch?: () => vo
         <Tooltip>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
-              <Button className="relative hover:bg-secondary px-1.5" variant="ghost">
-                {trace.visibility === "public" ? <Globe className="h-4 w-4" /> : <Share className="h-4 w-4" />}
+              <Button className="relative hover:bg-surface-up px-1.5" variant="ghost">
+                {trace.visibility === "public" ? <Globe className="h-3.5 w-3.5" /> : <Share className="h-3.5 w-3.5" />}
               </Button>
             </PopoverTrigger>
           </TooltipTrigger>

@@ -62,7 +62,7 @@ const PureSpanOverview = ({ span }: { span: Span }) => {
   return (
     <ContentRenderer
       className="rounded-none border-0"
-      codeEditorClassName="rounded-none border-none bg-background contain-strict"
+      codeEditorClassName="rounded-none border-none contain-strict"
       readOnly
       value={mergedValue}
       defaultMode="messages"

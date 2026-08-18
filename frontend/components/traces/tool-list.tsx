@@ -123,7 +123,7 @@ export const ToolList = ({ tools }: { tools: Tool[] }) => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex h-6 w-fit items-center gap-1 text-xs font-mono border rounded-md px-2 border-tool bg-tool/20 text-tool hover:bg-tool/30 transition-colors">
+        <button className="flex h-6 w-fit items-center gap-1 rounded-md px-2 text-xs font-mono bg-tool/20 text-tool hover:bg-tool/30 transition-colors outline-0">
           <Bolt size={12} className="min-w-3" />
           <span>{pluralize(tools.length, "tool", "tools")}</span>
           <ChevronDown size={12} />

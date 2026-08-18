@@ -100,7 +100,7 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
             <Button
               variant="ghost"
               size="icon-sm"
-              className="ml-auto flex-shrink-0"
+              className="ml-auto flex-shrink-0 hover:bg-surface-up"
               onClick={onClose}
               aria-label="Close span panel"
             >
@@ -109,8 +109,8 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
           )}
         </div>
         <div className="flex flex-col flex-wrap gap-1.5">
+          <SpanStatsShields span={span} className="w-fit" />
           <div className="flex items-center gap-2 flex-wrap">
-            <SpanStatsShields span={span} variant="outline" />
             <ModelIndicator attributes={span.attributes} />
             <ToolList tools={resolveTools(span)} />
             <StructuredOutputSchema
@@ -118,8 +118,13 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
             />
           </div>
 
-          <div className="flex gap-2 gap-y-1 flex-wrap items-center">
-            <AddToLabelingQueuePopover spanId={span.spanId} traceId={span.traceId} buttonVariant="ghost" />
+          <div className="flex gap-1 gap-y-1 flex-wrap items-center">
+            <AddToLabelingQueuePopover
+              spanId={span.spanId}
+              traceId={span.traceId}
+              buttonVariant="ghost"
+              buttonSize="default"
+            />
             <ExportSpansPopover span={span} buttonVariant="ghost" />
             <SpanTagsList spanId={span.spanId} />
           </div>
