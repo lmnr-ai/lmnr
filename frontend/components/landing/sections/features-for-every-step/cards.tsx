@@ -19,12 +19,13 @@ export interface CardDef {
 export const CARDS: CardDef[] = [
   {
     title: "Automatic agent input extraction",
-    description: "Laminar parses the task prompt out of every run, so a trace opens on what was asked.",
+    description:
+      "Laminar extracts the agent's task from every run. Use it to easily create e2e eval datasets from production traces.",
     href: "https://laminar.sh/docs/platform/viewing-traces#inputs-to-every-agent-and-subagent-surfaced-for-free",
     Graphic: InputExtraction,
   },
   {
-    title: "Custom Dashboards",
+    title: "Custom dashboards",
     description: "Build dashboards to track statistics from traces and signals with custom SQL queries.",
     href: "https://laminar.sh/docs/custom-dashboards/overview",
     Graphic: Dashboards,

@@ -17,12 +17,13 @@ const AskInSlack = () => (
         investigate in Slack.
       </h2>
       <p className={bodyMedium}>
-        Laminar notifies you about new failures in Slack. Mention Laminar <br className="hidden md:block" />
-        to ask anything about your traces.
+        Laminar notifies you about new failures and clusters in Slack.
+        <br className="hidden md:block" />
+        Mention Laminar to ask anything about your traces.
       </p>
       <LearnMoreLink
         className="mt-5"
-        label="Learn more about Laminar Agent"
+        label="Learn more about Laminar Agent in Slack"
         href="https://laminar.sh/docs/platform/laminar-agent#slack"
       />
     </div>

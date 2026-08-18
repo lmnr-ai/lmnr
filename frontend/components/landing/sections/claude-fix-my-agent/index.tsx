@@ -34,11 +34,9 @@ const ClaudeFixMyAgent = () => (
         >
           MCP
         </a>{" "}
-        are your coding agent's interface to Laminar.
-        <br className="hidden md:block" />
-        It can find failures, run your agent, read traces, make changes,
-        <br className="hidden md:block" />
-        and run evals to verify progress.
+        give your coding agent everything it <br className="hidden md:block" />
+        needs to debug your agent. Query traces, evals, signals with SQL, <br className="hidden md:block" />
+        replay from any checkpoint, verify the fix.
       </p>
       <LearnMoreLink
         className="mt-5"

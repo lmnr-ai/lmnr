@@ -7,42 +7,9 @@ import { LaminarAppAvatar, SLACK_BG, SLACK_BORDER } from "../slack-notification-
 import { THREAD_AUTHOR, THREAD_CHANNEL, THREAD_MESSAGES, type ThreadMessage } from "./messages";
 import { useMessageCascade } from "./use-message-cascade";
 
-// Beat before a message lands: a fixed pause plus reading time for the message
-// above it, so the thread breathes the way a channel does instead of ticking.
-// `lines` is that message's rendered height — see ./messages.
-/** Pause every message gets, whatever is above it. */
-const BEAT_MS = 350;
-/** Reading time added per line of the message above. */
-const PER_LINE_MS = 95;
-
-/** The gap after the FIRST message, which is the one exception to the rule
- *  above: it is already rendered when the walk starts, so the reader has had it
- *  in view and wants the thread to get going, not a full read's worth of wait. */
-const OPENING_BEAT_MS = 550;
-
-/** The gap after a message from the human. What follows it is the agent
- *  working, not the reader reading, so a one-line question does not earn a
- *  one-line wait. */
-const AGENT_THINK_MS = 1150;
-
-/** Ceiling on the WHOLE run, not one gap. The section does not pin, so the
- *  reader is holding still by choice — past a couple of seconds they scroll on
- *  and never see the answer the thread exists to land. */
-const MAX_RUN_MS = 3900;
-
-const RAW_DELAYS = THREAD_MESSAGES.slice(0, -1).map((message, i) => {
-  if (message.holdMs) return message.holdMs;
-  if (i === 0) return OPENING_BEAT_MS;
-  if (message.author === "user") return AGENT_THINK_MS;
-  return BEAT_MS + message.lines * PER_LINE_MS;
-});
-
-/** One entry per gap: how long the message AFTER index i waits. Scaled to the
- *  budget rather than clipped, so the pacing keeps its SHAPE — the beat after a
- *  question still outlasts the beat after a one-liner — and adding a message
- *  costs the others a little rather than overrunning. */
-const RUN_SCALE = Math.min(1, MAX_RUN_MS / RAW_DELAYS.reduce((sum, d) => sum + d, 0));
-const MESSAGE_DELAYS = RAW_DELAYS.map((d) => Math.round(d * RUN_SCALE));
+// One entry per gap: how long the message AFTER index i waits. Raw numbers
+// hand-set per message from its word count — see `gapAfterMs` in ./messages.
+const MESSAGE_DELAYS = THREAD_MESSAGES.slice(0, -1).map((message) => message.gapAfterMs);
 
 const INITIALS = THREAD_AUTHOR.split(" ")
   .map((part) => part[0])
@@ -54,7 +21,7 @@ const UserAvatar = () => (
   </div>
 );
 
-const MessageRow = ({ author, time, body }: Omit<ThreadMessage, "lines">) => (
+const MessageRow = ({ author, time, body }: Omit<ThreadMessage, "gapAfterMs">) => (
   <div className="flex gap-3 items-start w-full">
     {author === "app" ? <LaminarAppAvatar /> : <UserAvatar />}
     <div className="flex flex-1 flex-col gap-1 min-w-0">
@@ -160,9 +127,11 @@ const SlackThread = () => {
           // screen when the thread scrolls in, so it gets no enter at all.
           <motion.div
             key={i}
-            initial={i === 0 ? false : { opacity: 0, y: 8 }}
+            initial={i === 0 ? false : { opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45, ease: "easeOut" }}
+            // Long tail (expo-style ease-out): most of the travel lands early,
+            // then it settles gently instead of popping to a stop.
+            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
             className="pb-4"
           >
             <MessageRow {...message} />

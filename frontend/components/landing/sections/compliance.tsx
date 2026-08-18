@@ -41,7 +41,7 @@ const Card = ({ title, description, children, href }: CardProps) => (
 
 const Compliance = () => (
   <section className="flex flex-col items-start gap-[52px] w-full">
-    <h2 className={subSection}>Built for enterprise</h2>
+    <h2 className={subSection}>Ready for Enterprise</h2>
 
     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
       {/* The breaks are the frame's, and they only apply once a card is actually

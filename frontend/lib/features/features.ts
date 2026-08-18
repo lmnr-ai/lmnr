@@ -35,7 +35,8 @@ const AUTH_PROVIDER_FEATURES = [
 // right now all managed-version features are disabled in local environment
 export const isFeatureEnabled = (feature: Feature): boolean => {
   if (feature === Feature.LANDING) {
-    return process.env.ENVIRONMENT === "PRODUCTION" ? true : false;
+    // return process.env.ENVIRONMENT === "PRODUCTION" ? true : false;
+    return true;
   }
 
   if (feature === Feature.EMAIL_AUTH) {

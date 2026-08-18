@@ -147,24 +147,30 @@ export interface ThreadMessage {
   author: "app" | "user";
   time: string;
   body: ReactNode;
-  /** Rendered height in body lines at the card's 552px, a button row counting
-   *  as one. The NEXT message waits on it — see ./slack-thread. */
-  lines: number;
-  /** Overrides the gap AFTER this message, before ./slack-thread scales the run
-   *  to its budget. For a beat the line count cannot predict. */
-  holdMs?: number;
+  /** The gap AFTER this message, before the next one lands. Hand-set from the
+   *  message's word count (noted per entry) so the reader finishes it before
+   *  the thread moves — NOT computed, so recount after editing any copy. On
+   *  the human's questions the gap is the agent working, not the reader
+   *  reading, so it stays a think-beat regardless of word count. */
+  gapAfterMs: number;
 }
 
 export const THREAD_MESSAGES: ThreadMessage[] = [
-  { author: "app", time: "9:41 AM", body: <NewEventAlert />, lines: 7 },
-  { author: "app", time: "9:42 AM", body: <NewClusterAlert />, lines: 6 },
-  // Longest beat in the thread: this question sends the agent off to find and
-  // read a specific trace, where the second one only counts events it has
-  // already grouped.
-  { author: "user", time: "9:44 AM", body: <AskForExample />, lines: 1, holdMs: 1725 },
-  { author: "app", time: "9:44 AM", body: <ExampleAnswer />, lines: 6 },
-  { author: "user", time: "9:45 AM", body: <AskHowBad />, lines: 1 },
-  { author: "app", time: "9:45 AM", body: <ScopeAnswer />, lines: 6 },
+  // 29 words, but already on screen when the walk starts — the reader has had
+  // it in view, so it gets an opening beat, not a full read.
+  { author: "app", time: "9:41 AM", body: <NewEventAlert />, gapAfterMs: 700 },
+  // 30 words.
+  { author: "app", time: "9:42 AM", body: <NewClusterAlert />, gapAfterMs: 1400 },
+  // 6 words; think-beat. Longest think in the thread: this question sends the
+  // agent off to find and read a specific trace, where the second one only
+  // counts events it has already grouped.
+  { author: "user", time: "9:44 AM", body: <AskForExample />, gapAfterMs: 2000 },
+  // 46 words, the longest read in the thread.
+  { author: "app", time: "9:44 AM", body: <ExampleAnswer />, gapAfterMs: 2100 },
+  // 9 words; think-beat.
+  { author: "user", time: "9:45 AM", body: <AskHowBad />, gapAfterMs: 1600 },
+  // Last message — nothing waits on it.
+  { author: "app", time: "9:45 AM", body: <ScopeAnswer />, gapAfterMs: 0 },
 ];
 
 export const THREAD_AUTHOR = "Robert Kim";
