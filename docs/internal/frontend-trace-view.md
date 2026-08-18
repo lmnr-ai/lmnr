@@ -26,26 +26,16 @@
 
 ## ContentRenderer modes
 
-- **`ContentRenderer` has no markdown mode.** Modes are `text` / `yaml` / `json` / `custom` / `messages`; everything except `custom` and `messages` is CodeMirror (`isCodeMode`). Don't re-add a markdown branch — see "Markdown cannot render prompt-shaped content" below. Markdown lives only in components that render genuinely prose content (`trace-view/transcript/markdown.tsx`, run notes, `json-tooltip`, `agent-prompt-box`).
+- Modes are `text` / `yaml` / `json` / `custom` / `messages`; everything except `custom` and `messages` is CodeMirror (`isCodeMode`). **There is deliberately no markdown mode** — markdown strips leading indentation at parse time, so prompt-shaped content (embedded JSON schemas, XML-like tags) renders flat and no CSS can recover it. Render that content as text; markdown belongs only where content is genuinely prose (`trace-view/transcript/markdown.tsx`, run notes, `json-tooltip`, `agent-prompt-box`).
 - Mode state is lowercase (`"json"`, `"text"`) but the `modes` prop lists are UPPERCASE (`["JSON", "TEXT", ...]`) — `TemplatePickerView` lowercases on selection. Mode persists to localStorage under `formatter-mode-${presetKey}`. The picker renders whenever `modes.length > 1`, and also carries the CUSTOM templates, so it is usually visible even with a single explicit mode.
-- Span-view search (`SpanSearchProvider`) registers **searchable sources**, not bare `EditorView`s — `SearchableSource` in `span-view/searchable/`, now CodeMirror-only. `custom` and `messages` do not register (`messages` nests its own ContentRenderers). `code-sheet.tsx` needs its own render branch per non-CodeMirror mode.
-- Span payloads arrive JSON-stringified (`"\"# H\\n...\""`), so `resolveContentMode` (`lib/spans/resolve-content-mode.ts`) unwraps once for every span content part. Any renderer that shows the value verbatim MUST go through it, or raw quotes and `\n` escapes leak into the view. (This unwrap used to live in `getMarkdownSource`, which was deleted along with the markdown mode.)
+- A persisted mode is never trusted blindly: `pickMode` (`content-renderer/mode.ts`) falls back to `defaultMode` unless the value is in `modes`. That's what keeps a stale `"markdown"` in localStorage — from before the mode was removed — from selecting a branch that no longer exists, and it also reconciles virtualized rows that reuse a mounted ContentRenderer across spans.
+- Span-view search (`SpanSearchProvider`) registers **searchable sources**, not bare `EditorView`s — `SearchableSource` in `span-view/searchable/`, CodeMirror-only. `custom` and `messages` do not register (`messages` nests its own ContentRenderers). `code-sheet.tsx` needs its own render branch per non-CodeMirror mode.
+- Span payloads arrive JSON-stringified (`"\"# H\\n...\""`), so `resolveContentMode` (`lib/spans/resolve-content-mode.ts`) unwraps once for every span content part. Any renderer that shows the value verbatim MUST go through it, or raw quotes and `\n` escapes leak into the view.
 
-## Markdown cannot render prompt-shaped content
+## Streamdown wiring (transcript view)
 
-Don't try to fix indentation loss inside the markdown pipeline — every symptom below is CommonMark behaving correctly, not a bug in the renderer:
-
-- Leading whitespace is stripped from paragraph continuation lines **at parse time**, so the spaces never reach the DOM. No CSS can restore them.
-- Indentation is lost *inconsistently*: a 4-space-indented line after a blank line becomes an indented code block (indentation kept, monospace styling), while the same line as a paragraph continuation is flattened. Identical source, two renderings.
-- Runs of blank lines collapse to a single paragraph break, so vertical spacing does not survive round-trip either.
-
-That's why markdown was removed from `ContentRenderer` entirely rather than demoted to an opt-in mode. Use markdown only where the content is genuinely prose (transcript view, run notes, json-tooltip).
-
-## Streamdown wiring
-
-- Streamdown's `remarkPlugins` / `rehypePlugins` props **replace** its defaults, they do not merge. Spread the matching `defaultRemarkPlugins` / `defaultRehypePlugins` export — this is why `transcript/markdown.tsx` lists `raw, sanitize, harden` explicitly, and why a bare `remarkPlugins` array would drop gfm and silently stop rendering tables. `defaultRemarkPlugins` only holds `gfm`; math and CJK come from the separate `plugins` prop.
-- The transcript keeps `defaultRehypePlugins.raw`, so XML-like tags (`<prompt>`) are parsed as HTML and then dropped by `sanitize`. That's accepted: transcript content is model prose, not prompts. **Don't add remark plugins to work around it** — that was tried (disabling micromark's `htmlFlow`/`htmlText`) and reverted as not worth the dependency weight for content that shouldn't contain such tags.
-- If a future case really does need XML-like tags visible inside markdown, note that a `remarkRehypeOptions.handlers.html` mapping does **not** work: micromark's html-flow rule has already swallowed the tag through to the next blank line into one `html` node, so paragraphs, newlines and inner markdown are gone before hast is built. It has to be handled at parse time, or — better — rendered as text instead.
+- Streamdown's `remarkPlugins` / `rehypePlugins` props **replace** its defaults, they do not merge. Spread the matching `defaultRemarkPlugins` / `defaultRehypePlugins` export — this is why `transcript/markdown.tsx` lists `raw, sanitize, harden` explicitly, and why a bare `remarkPlugins` array would drop gfm and silently stop rendering tables.
+- `defaultRehypePlugins.raw` means XML-like tags (`<prompt>`) are parsed as HTML and then dropped by `sanitize`. Accepted: transcript content is model prose. Making such tags visible via remark plugins was tried and reverted — not worth the dependency weight for content that shouldn't contain them. Render that content as text instead.
 
 ## Span-view Message Parsing
 

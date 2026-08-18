@@ -8,6 +8,7 @@ import { createCodeMirrorSearchSource } from "@/components/traces/span-view/sear
 import { useSpanSearchRegistration } from "@/components/traces/span-view/span-search-context.tsx";
 import { Button } from "@/components/ui/button";
 import CodeSheet from "@/components/ui/content-renderer/code-sheet";
+import { pickMode } from "@/components/ui/content-renderer/mode";
 import {
   baseExtensions,
   createImageDecorationPlugin,
@@ -94,20 +95,14 @@ const PureContentRenderer = ({
   const [editorMountKey, setEditorMountKey] = useState(0);
 
   const [selectedMode, setSelectedMode] = useState(() => {
-    const allowed = modes.map((m) => m.toLowerCase());
-    if (presetKey && typeof window !== "undefined") {
-      const savedMode = localStorage.getItem(`formatter-mode-${presetKey}`);
-      if (savedMode && allowed.includes(savedMode.toLowerCase())) return savedMode.toLowerCase();
-    }
-    return defaultMode;
+    const savedMode =
+      presetKey && typeof window !== "undefined" ? localStorage.getItem(`formatter-mode-${presetKey}`) : null;
+    return pickMode(savedMode, modes, defaultMode);
   });
   // `defaultMode`/`modes` are content-derived at some call sites (resolveContentMode)
   // and can change on a mounted instance (virtualized rows reuse components across
   // span switches) — reconcile instead of trusting the once-initialized selection.
-  const mode = useMemo(
-    () => (modes.some((m) => m.toLowerCase() === selectedMode) ? selectedMode : defaultMode),
-    [modes, selectedMode, defaultMode]
-  );
+  const mode = useMemo(() => pickMode(selectedMode, modes, defaultMode), [modes, selectedMode, defaultMode]);
 
   const [shouldRenderImages, setShouldRenderImages] = useState(renderBase64Images);
 
