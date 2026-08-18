@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button";
 import { useElevation } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
-import { MAX_ZOOM, MIN_ZOOM } from "./zoom";
-
 interface Props {
-  zoom: number;
+  /** The bounds as booleans, not the zoom level: the chips only ever ask
+   *  whether the buttons are live, so they need none of ./timeline's scale. */
+  canZoomIn: boolean;
+  canZoomOut: boolean;
   onZoom: (direction: "in" | "out") => void;
   heatmap: boolean;
   onToggleHeatmap: () => void;
@@ -21,7 +22,7 @@ interface Props {
 // ./timeline, which is where the <ElevatedSurface> itself is, it would resolve
 // against the ambient level OUTSIDE that surface and the chips would paint a
 // step too low.
-const TimelineControls = ({ zoom, onZoom, heatmap, onToggleHeatmap }: Props) => {
+const TimelineControls = ({ canZoomIn, canZoomOut, onZoom, heatmap, onToggleHeatmap }: Props) => {
   const { className: raisedSurface } = useElevation({ offset: 2 });
 
   return (
@@ -40,7 +41,7 @@ const TimelineControls = ({ zoom, onZoom, heatmap, onToggleHeatmap }: Props) => 
       <div className={cn("flex items-center border rounded-md px-0.5 h-[24px]", raisedSurface)}>
         <Button
           aria-label="Zoom in"
-          disabled={zoom >= MAX_ZOOM}
+          disabled={!canZoomIn}
           className="size-5 min-w-5"
           variant="ghost"
           size="icon"
@@ -50,7 +51,7 @@ const TimelineControls = ({ zoom, onZoom, heatmap, onToggleHeatmap }: Props) => 
         </Button>
         <Button
           aria-label="Zoom out"
-          disabled={zoom <= MIN_ZOOM}
+          disabled={!canZoomOut}
           className="size-5 min-w-5"
           variant="ghost"
           size="icon"

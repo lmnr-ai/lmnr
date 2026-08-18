@@ -10,11 +10,15 @@ import { spanColor } from "./span-type-icon";
 import TimelineControls from "./timeline-controls";
 import { formatTimeMarkerLabel, timelineLayout, timeMarkers } from "./timeline-layout";
 import { useElementWidth } from "./use-element-width";
-import { MAX_ZOOM, MIN_ZOOM, ZOOM_INCREMENT } from "./zoom";
 
 /** One lane of bars. The content is `(totalRows + 1)` of these tall, so there
  *  is always a lane of air under the deepest row. */
 const ROW_HEIGHT = 8;
+
+/** Horizontal zoom, as a multiple of the container's width. */
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 25;
+const ZOOM_INCREMENT = 0.5;
 
 interface Props {
   spans: MockSpan[];
@@ -163,7 +167,8 @@ const Timeline = ({ spans, selectedSpanId, onSelect }: Props) => {
       )}
 
       <TimelineControls
-        zoom={zoom}
+        canZoomIn={zoom < MAX_ZOOM}
+        canZoomOut={zoom > MIN_ZOOM}
         onZoom={handleZoom}
         heatmap={heatmap}
         onToggleHeatmap={() => setHeatmap((on) => !on)}

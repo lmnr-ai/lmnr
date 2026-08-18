@@ -1,15 +1,15 @@
 "use client";
 
 import { motion, type Transition, useInView } from "framer-motion";
-import { ChevronDown, ChevronsRight, List, Maximize, Radio, Sparkles } from "lucide-react";
+import { ChevronDown, List } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 import { DEMO_SPANS } from "../demo-trace";
 import { SIGNAL_BG, SIGNAL_BORDER, SignalContent } from "../signal-event-card";
 import { PANEL_W } from "./geometry";
+import PanelHeaderRow from "./mock/panel-header-row";
 import { useSpanSelection } from "./mock/selection";
 import Timeline from "./mock/timeline";
 import TraceStats from "./mock/trace-stats";
@@ -39,62 +39,9 @@ const TIMELINE_HEIGHT = 120;
  *  the opening batch, so this is 3.6s of run against that. */
 const SPAN_STEP_MS = 600;
 
-const HEADER_ITEM_CLS = "flex items-center h-7";
-
 /** Everything that is not the signal card drops back while the card is open,
  *  so the card carries the eye. Matches the card collapser's own tween. */
 const DIM_CLS = "transition-opacity duration-300 ease-in-out";
-
-// Row 1 of the trace-view header, trimmed for the landing page: close,
-// maximize, "Trace" + dropdown, Signals. Everything except Signals is
-// decorative (disabled + disabled:opacity-100).
-const PanelHeaderRow = ({
-  signalsActive,
-  showSignals,
-  onSignalsToggle,
-}: {
-  signalsActive: boolean;
-  showSignals: boolean;
-  onSignalsToggle: () => void;
-}) => (
-  <div className="flex items-center gap-1">
-    <span className={cn(HEADER_ITEM_CLS, "gap-0.5")}>
-      <Button aria-label="Collapse panel" variant="ghost" disabled className="h-7 px-0.5 disabled:opacity-100">
-        <ChevronsRight className="w-5 h-5" />
-      </Button>
-      <Button aria-label="Expand" variant="ghost" disabled className="h-7 px-0.5 disabled:opacity-100">
-        <Maximize className="w-4 h-4" />
-      </Button>
-    </span>
-
-    <span className={HEADER_ITEM_CLS}>
-      <span className="text-base font-medium pl-2 flex-shrink-0">Trace</span>
-      <Button aria-label="Expand" variant="ghost" disabled className="h-7 px-1 disabled:opacity-100">
-        <ChevronDown className="w-3 h-3" />
-      </Button>
-    </span>
-
-    <span className={HEADER_ITEM_CLS}>
-      <Button variant="outline" disabled className="h-6 text-xs px-1.5 disabled:opacity-100">
-        <Sparkles data-icon="inline-start" size={14} className="mr-1" />
-        Chat
-      </Button>
-    </span>
-
-    {showSignals && (
-      <span className={HEADER_ITEM_CLS}>
-        <Button
-          variant="outline"
-          onClick={onSignalsToggle}
-          className={cn("h-6 text-xs px-1.5", signalsActive && "border-primary text-primary")}
-        >
-          <Radio data-icon="inline-start" size={14} className="mr-1" />
-          Signals (1)
-        </Button>
-      </span>
-    )}
-  </div>
-);
 
 interface Props {
   /** Condensed timeline reveal. */
@@ -274,11 +221,7 @@ const TracePanel = ({
 
         <div className="flex-1 min-h-0 overflow-hidden relative">
           <div className="absolute inset-0">
-            {/* The input row is not a span, so it rides in with the opening
-                batch. An UPPER bound, since the leading spans include the root,
-                which renders no row — which is all it needs to be, as the
-                overshoot lands past the last opening row. */}
-            <Transcript spans={revealedSpans} instantRows={instantSpans + 1} scrollLocked={scrollLocked} />
+            <Transcript spans={revealedSpans} instantSpans={instantSpans} scrollLocked={scrollLocked} />
           </div>
           {/* Fades the clipped last row into the panel's own background. Fading
               to the FRAME's colour instead would read as a haze over the card. */}

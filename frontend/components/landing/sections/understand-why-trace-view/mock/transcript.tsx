@@ -30,17 +30,18 @@ const ROW_RISE_PX = 10;
 
 interface Props {
   spans: MockSpan[];
-  /** Rows present from the first paint, with no enter animation: the head of
-   *  the run is the panel's resting state, and animating it in makes an idle
-   *  panel look like it is loading. */
-  instantRows: number;
+  /** Leading spans that get no enter animation: the head of the run is the
+   *  panel's resting state, and animating it in makes an idle panel look like
+   *  it is loading. An UPPER bound, since those spans include the root, which
+   *  renders no row — which is all it needs to be. */
+  instantSpans: number;
   /** Blocks USER scrolling while leaving `scrollIntoView` working — an
    *  `overflow: hidden` box is still a scroll container programmatically. Set
    *  on touch, where an inner scroller only traps the page. */
   scrollLocked?: boolean;
 }
 
-const Transcript = ({ spans, instantRows, scrollLocked }: Props) => {
+const Transcript = ({ spans, instantSpans, scrollLocked }: Props) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { selectedSpanId, selectSpan } = useSpanSelection();
 
@@ -63,16 +64,15 @@ const Transcript = ({ spans, instantRows, scrollLocked }: Props) => {
         scrollLocked ? "overflow-y-hidden" : "overflow-y-auto"
       )}
     >
-      <motion.div initial={false} animate={{ opacity: 1, y: 0 }}>
-        <InputRow text={DEMO_AGENT_INPUT} />
-      </motion.div>
+      {/* The task is not a span, so it is simply there from the first frame. */}
+      <InputRow text={DEMO_AGENT_INPUT} />
 
       {rows.map((span, i) => (
         <motion.div
           key={span.spanId}
           data-landing-span={span.spanId}
           // `initial={false}` snaps the opening rows straight to `animate`.
-          initial={i + 1 < instantRows ? false : { opacity: 0, y: ROW_RISE_PX }}
+          initial={i < instantSpans ? false : { opacity: 0, y: ROW_RISE_PX }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: "easeOut" }}
           // An LLM row gets air above it unless it directly follows the input,
