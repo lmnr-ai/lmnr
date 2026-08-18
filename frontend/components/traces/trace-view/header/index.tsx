@@ -1,7 +1,8 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUpRight, ChevronsRight, Layers, Maximize, Radio, Sparkles, User } from "lucide-react";
+import { ChevronsRight, Layers, Maximize, Radio, Sparkles, User } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
+import { createSerializer, parseAsArrayOf, parseAsString } from "nuqs";
 import { memo, useCallback, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -13,10 +14,10 @@ import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
 import { type TraceSignal, type TraceSignalClusterNode } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
 import { type Filter } from "@/lib/actions/common/filters";
+import { Operator } from "@/lib/actions/common/operators";
 import { type EventRow } from "@/lib/events/types";
 import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -25,12 +26,22 @@ import { cn } from "@/lib/utils";
 
 import Metadata from "../metadata";
 import SignalEventsPanel from "../signal-events-panel";
+import { HeaderIconButton } from "./header-icon-button";
+import { HeaderLinkButton } from "./header-link-button";
 import CondensedTimelineControls from "./timeline-toggle";
 import TraceDropdown from "./trace-dropdown";
 
 const HEADER_ITEM_CLS = "flex items-center h-7";
 
 const FREE_TIER_RETENTION_DAYS = 7;
+
+// The traces table reads `filter` through nuqs `parseAsArrayOf(parseAsString)`, which
+// splits on unescaped commas — so hand-built `URLSearchParams` shred the filter JSON.
+// Serialize with nuqs so the escaping matches the reader.
+const serializeTracesFilterQuery = createSerializer({
+  filter: parseAsArrayOf(parseAsString),
+  pastHours: parseAsString,
+});
 
 interface HeaderProps {
   // Undefined ⇒ the close button is hidden (always-open panel).
@@ -184,11 +195,12 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
 
   const handleOpenUserTraces = useCallback(() => {
     if (!hasUser) return;
-    const params = new URLSearchParams();
-    params.append("filter", JSON.stringify({ column: "user_id", value: userId, operator: "eq" }));
     const retentionDays = project?.logRetentionDays ?? FREE_TIER_RETENTION_DAYS;
-    params.set("pastHours", String(retentionDays * 24));
-    window.open(`/project/${projectId}/traces?${params.toString()}`, "_blank");
+    const query = serializeTracesFilterQuery({
+      filter: [JSON.stringify({ column: "user_id", operator: Operator.Eq, value: userId, dataType: "string" })],
+      pastHours: String(retentionDays * 24),
+    });
+    window.open(`/project/${projectId}/traces${query}`, "_blank");
   }, [hasUser, userId, projectId, project?.logRetentionDays]);
 
   return (
@@ -199,13 +211,19 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           {!params?.traceId && (
             <span className={cn(HEADER_ITEM_CLS, "gap-0.5")}>
               {handleClose && (
-                <Button variant="ghost" size="icon" onClick={handleClose}>
+                <Button
+                  aria-label="Collapse panel"
+                  variant="ghost"
+                  size="icon"
+                  className="hover:bg-surface-up"
+                  onClick={handleClose}
+                >
                   <ChevronsRight className="w-5 h-5" />
                 </Button>
               )}
               {trace && (
                 <NextLink passHref href={`/project/${projectId}/traces/${trace?.id}?${fullScreenParams.toString()}`}>
-                  <Button variant="ghost" size="icon">
+                  <Button aria-label="Expand" variant="ghost" size="icon" className="hover:bg-surface-up">
                     <Maximize className="w-4 h-4" />
                   </Button>
                 </NextLink>
@@ -214,26 +232,27 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           )}
           {trace && (
             <span className={HEADER_ITEM_CLS}>
-              <span className="text-base font-medium pl-2 flex-shrink-0">Trace</span>
               <TraceDropdown traceId={traceId} />
             </span>
           )}
+        </div>
+        <div className="flex items-center gap-1 flex-shrink-0">
           {signalCount > 0 && (
             <span className={HEADER_ITEM_CLS}>
-              <Button
+              <HeaderIconButton
+                icon={<Radio size={14} />}
+                label={`Signals (${signalCount})`}
+                active={signalsPanelOpen}
                 onClick={() => setSignalsPanelOpen(!signalsPanelOpen)}
-                variant={signalsPanelOpen ? "outlinePrimary" : "ghost"}
-                size="sm"
-                className={cn(!signalsPanelOpen && "hover:bg-secondary")}
-              >
-                <Radio size={14} className="mr-1" />
-                Signals ({signalCount})
-              </Button>
+              />
             </span>
           )}
           {featureFlags[Feature.AGENT] && spans.length > 0 && (
             <span className={HEADER_ITEM_CLS}>
-              <Button
+              <HeaderIconButton
+                icon={<Sparkles size={14} />}
+                label="Chat"
+                active={agentOpen}
                 onClick={() => {
                   if (agentOpen) {
                     collapseAgent();
@@ -242,67 +261,43 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                     openAgent();
                   }
                 }}
-                variant={agentOpen ? "outlinePrimary" : "ghost"}
-                size="sm"
-                className={cn(!agentOpen && "hover:bg-secondary")}
-              >
-                <Sparkles size={14} className="mr-1" />
-                Chat
-              </Button>
+              />
+            </span>
+          )}
+          {trace?.metadata && (
+            <span className={HEADER_ITEM_CLS}>
+              <Metadata metadata={trace?.metadata} />
             </span>
           )}
           <span className={HEADER_ITEM_CLS}>
-            <Metadata metadata={trace?.metadata} />
-          </span>
-          <span className={HEADER_ITEM_CLS}>
             <TraceTagsButton traceId={traceId} />
           </span>
+          {trace && <ShareTraceButton projectId={projectId} />}
         </div>
-        {trace && <ShareTraceButton projectId={projectId} />}
       </div>
       {/* Row 2: context pills (session, user, tags) */}
       {hasRow2 && (
         <div className="flex flex-wrap items-center gap-1 mt-1.5">
           {hasSession && (
             <span className={HEADER_ITEM_CLS}>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      onClick={handleOpenSession}
-                      variant="ghost"
-                      size="sm"
-                      className="hover:bg-secondary max-w-56"
-                    >
-                      <Layers size={14} className="mr-1 flex-shrink-0" />
-                      <span className="truncate">{sessionId}</span>
-                      <ArrowUpRight size={16} className="ml-1 flex-shrink-0 text-muted-foreground" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">Open session in a new tab</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <HeaderLinkButton
+                icon={<Layers size={14} className="flex-shrink-0" />}
+                label={sessionId}
+                tooltip="Open session in a new tab"
+                onClick={handleOpenSession}
+                className="max-w-56"
+              />
             </span>
           )}
           {hasUser && (
             <span className={HEADER_ITEM_CLS}>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      onClick={handleOpenUserTraces}
-                      variant="ghost"
-                      size="sm"
-                      className="hover:bg-secondary max-w-40"
-                    >
-                      <User size={14} className="mr-1 flex-shrink-0" />
-                      <span className="truncate">{userId}</span>
-                      <ArrowUpRight size={16} className="ml-1 flex-shrink-0 text-muted-foreground" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">See user traces in a new tab</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <HeaderLinkButton
+                icon={<User size={14} className="flex-shrink-0" />}
+                label={userId}
+                tooltip="See user traces in a new tab"
+                onClick={handleOpenUserTraces}
+                className="max-w-40"
+              />
             </span>
           )}
           <TraceTagsPills traceId={traceId} />

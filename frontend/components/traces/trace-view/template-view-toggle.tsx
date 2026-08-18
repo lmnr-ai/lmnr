@@ -13,6 +13,7 @@ import {
 import { type MouseEvent, useCallback, useMemo, useState } from "react";
 
 import { type ViewTab } from "@/components/traces/trace-view/view-toggle";
+import { Button } from "@/components/ui/button.tsx";
 import {
   Command,
   CommandGroup,
@@ -118,16 +119,17 @@ export default function TemplateViewToggle({
     <div className="flex items-center min-w-0">
       <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
-          <button
+          <Button
+            variant="outline"
             className={cn(
-              "flex items-center h-6 px-1.5 text-xs border rounded-md focus-visible:outline-0",
+              "flex h-6.5 items-center focus-visible:outline-0 bg-surface-100",
               isTreeView && "rounded-r-none border-r-0 outline-inset -outline-offset-1 hover:bg-secondary"
             )}
           >
             <CurrentIcon size={14} className="mr-1 flex-shrink-0" />
             <span className={cn("truncate max-w-[160px]", !isCustom && "capitalize")}>{current.label}</span>
             <ChevronDown size={14} className="ml-1 flex-shrink-0" />
-          </button>
+          </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-[280px] p-0" onWheel={(e) => e.stopPropagation()}>
           <Command shouldFilter={false}>
@@ -205,16 +207,17 @@ export default function TemplateViewToggle({
       </Popover>
       {/* Content toggle (only visible in tree view) */}
       {isTreeView && (
-        <button
+        <Button
+          variant="outline"
           onClick={onToggleContent}
           className={cn(
-            "flex items-center h-6 px-1.5 text-xs border rounded-md rounded-l-none text-muted-foreground overflow-hidden",
+            "flex items-center h-6.5 rounded-l-none text-muted-foreground overflow-hidden bg-surface-100",
             showContent ? "text-white hover:bg-muted" : "border-input hover:bg-secondary/50"
           )}
         >
           {showContent ? <Eye size={14} className="flex-shrink-0" /> : <EyeOff size={14} className="flex-shrink-0" />}
           <span className="ml-1 truncate">Content</span>
-        </button>
+        </Button>
       )}
     </div>
   );

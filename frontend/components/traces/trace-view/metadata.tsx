@@ -1,7 +1,9 @@
-import { FileText } from "lucide-react";
-import React from "react";
+"use client";
 
-import { Button } from "@/components/ui/button.tsx";
+import { FileText } from "lucide-react";
+import { useState } from "react";
+
+import { HeaderIconButton } from "@/components/traces/trace-view/header/header-icon-button";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 
@@ -10,17 +12,16 @@ interface MetadataProps {
 }
 
 const Metadata = ({ metadata }: MetadataProps) => {
+  const [open, setOpen] = useState(false);
+
   if (!metadata) {
     return null;
   }
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" className="hover:bg-secondary">
-          <FileText size={14} className="mr-1" />
-          <span>Metadata</span>
-        </Button>
+        <HeaderIconButton icon={<FileText size={14} />} label="Metadata" active={open} />
       </PopoverTrigger>
       <PopoverContent className="p-0 overflow-hidden">
         <ContentRenderer

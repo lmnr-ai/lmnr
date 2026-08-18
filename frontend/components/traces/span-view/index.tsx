@@ -92,7 +92,7 @@ const SpanViewTabs = ({
         <TabsContent value="attributes" className="w-full h-full">
           <ContentRenderer
             className="rounded-none border-0"
-            codeEditorClassName="rounded-none border-none bg-background contain-strict"
+            codeEditorClassName="rounded-none border-none contain-strict"
             readOnly
             value={JSON.stringify(span.attributes)}
             defaultMode="yaml"
@@ -102,7 +102,7 @@ const SpanViewTabs = ({
         <TabsContent value="events" className="w-full h-full">
           <ContentRenderer
             className="rounded-none border-0"
-            codeEditorClassName="rounded-none border-none bg-background contain-strict"
+            codeEditorClassName="rounded-none border-none contain-strict"
             readOnly
             value={JSON.stringify(span.events)}
             defaultMode="yaml"
@@ -171,7 +171,7 @@ export function SpanView({
 
   if (span && get(span.attributes, "gen_ai.prompt.user")) {
     return (
-      <div className="whitespace-pre-wrap p-4 border rounded-md bg-muted/50">
+      <div className="whitespace-pre-wrap p-4 m-2 border rounded-md bg-surface-up">
         {get(span.attributes, "gen_ai.prompt.user")}
       </div>
     );
