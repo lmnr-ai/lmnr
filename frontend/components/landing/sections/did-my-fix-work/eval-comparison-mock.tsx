@@ -80,23 +80,23 @@ interface Datapoint {
 
 const DATAPOINTS: Datapoint[] = [
   {
-    target: '"pyknotid"',
-    data: '"pyknotid is a knot identification library — implement the new identifier."',
+    target: "pyknotid",
+    data: "pyknotid is a knot identification library — implement the new identifier.",
     meta: '{ "lang": "py", "tier": "swe-bench" }',
   },
   {
-    target: '"pMARS sim"',
-    data: '"Build pMARS (the Multi-Arena Redcode Simulator) from the seed sources."',
+    target: "pMARS sim",
+    data: "Build pMARS (the Multi-Arena Redcode Simulator) from the seed sources.",
     meta: '{ "lang": "c", "tier": "swe-bench" }',
   },
   {
-    target: '"flat ancestry"',
-    data: '"You\'re given a tree of users — produce a flat ancestry mapping."',
+    target: "flat ancestry",
+    data: "You're given a tree of users — produce a flat ancestry mapping.",
     meta: '{ "lang": "py", "tier": "easy" }',
   },
   {
-    target: '"husky hook"',
-    data: '"Configure a git pre-commit hook that runs lint and type-check."',
+    target: "husky hook",
+    data: "Configure a git pre-commit hook that runs lint and type-check.",
     meta: '{ "lang": "shell", "tier": "easy" }',
   },
 ];

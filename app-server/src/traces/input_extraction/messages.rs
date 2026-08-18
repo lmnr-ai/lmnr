@@ -42,23 +42,10 @@ pub fn normalize_role(msg: &Value) -> Role {
 // Message-array discovery & part collection
 // ---------------------------------------------------------------------------
 
-pub(super) fn find_messages_array(input: &Value) -> Option<&Vec<Value>> {
-    match input {
-        Value::Array(arr) => Some(arr),
-        Value::Object(map) => {
-            // `messages` covers OpenAI/Anthropic SDK wrappers, `contents`
-            // covers Gemini, `input` covers a few normalisers that wrap
-            // an inner array. First match wins.
-            for key in ["messages", "contents", "input"] {
-                if let Some(Value::Array(arr)) = map.get(key) {
-                    return Some(arr);
-                }
-            }
-            None
-        }
-        _ => None,
-    }
-}
+// Canonical definition lives in `prompt_hash` — the lowest module that needs
+// it, since system-prompt extraction has to agree with user-task extraction on
+// what counts as a messages array.
+pub(super) use crate::traces::prompt_hash::find_messages_array;
 
 pub(super) fn collect_message_parts(msg: &Value) -> Vec<String> {
     // GenAI uses `parts:`; everyone else uses `content:`. A few payloads
