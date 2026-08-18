@@ -1,7 +1,6 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -25,30 +24,23 @@ interface Props {
    *  it is loading. An UPPER bound, since those spans include the root, which
    *  renders no row — which is all it needs to be. */
   instantSpans: number;
-  /** Blocks USER scrolling while leaving `scrollIntoView` working — an
-   *  `overflow: hidden` box is still a scroll container programmatically. Set
-   *  on touch, where an inner scroller only traps the page. */
+  /** Blocks USER scrolling of the transcript. Set on touch, where an inner
+   *  scroller only traps the page. */
   scrollLocked?: boolean;
 }
 
+// Selecting a span highlights its row and nothing else — the list does NOT
+// scroll to it. The panel is a picture the copy is talking over, so a row
+// moving under the reader reads as the page grabbing the view.
 const Transcript = ({ spans, instantSpans, scrollLocked }: Props) => {
-  const scrollRef = useRef<HTMLDivElement>(null);
   const { selectedSpanId, selectSpan } = useSpanSelection();
 
   // The run's root renders no row of its own — it is the whole run, and the
   // rows below it are what it contains.
   const rows = spans.filter((span) => span.spanType !== "DEFAULT");
 
-  useEffect(() => {
-    if (!selectedSpanId) return;
-    scrollRef.current
-      ?.querySelector(`[data-landing-span="${CSS.escape(selectedSpanId)}"]`)
-      ?.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [selectedSpanId]);
-
   return (
     <div
-      ref={scrollRef}
       className={cn(
         "h-full w-full overflow-x-hidden styled-scrollbar pb-16",
         scrollLocked ? "overflow-y-hidden" : "overflow-y-auto"
@@ -60,7 +52,6 @@ const Transcript = ({ spans, instantSpans, scrollLocked }: Props) => {
       {rows.map((span, i) => (
         <motion.div
           key={span.spanId}
-          data-landing-span={span.spanId}
           // `initial={false}` snaps the opening rows straight to `animate`.
           initial={i < instantSpans ? false : { opacity: 0, y: ROW_RISE_PX }}
           animate={{ opacity: 1, y: 0 }}
