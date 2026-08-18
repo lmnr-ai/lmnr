@@ -1,8 +1,7 @@
 "use client";
 
-import { Slider } from "@/components/ui/slider";
-
 import Cell from "./cell";
+import { LandingSlider } from "./slider";
 import { COVERAGE_STEPS, formatTokens, RUN_STEPS, TOKENS_PER_RUN_STEPS, type VolumeProps } from "./steps";
 
 /** Sits on the number line, not the cell's centre. Dropped below `sm`, where
@@ -54,7 +53,7 @@ const VolumeInputs = ({
           <span className="text-white">Agent runs analyzed by Signals</span>
           <span className="text-white tabular-nums">{COVERAGE_STEPS[coverageIdx]}%</span>
         </div>
-        <Slider
+        <LandingSlider
           value={[coverageIdx]}
           max={COVERAGE_STEPS.length - 1}
           min={0}
