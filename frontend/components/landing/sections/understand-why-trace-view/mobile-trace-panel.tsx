@@ -23,6 +23,9 @@ const MobileTracePanel = ({ showSignals }: Props) => (
         visibleSpans={Number.POSITIVE_INFINITY}
         showSignals={showSignals}
         signalsOpen={showSignals}
+        // No scan beat here: the card is this panel's resting state, and the run
+        // is still streaming in when it arrives, so there is nothing to scan.
+        instantSignals
         scrollLocked
       />
     </SpanSelectionProvider>
