@@ -643,12 +643,6 @@
   animation: landing-caret-blink 1s step-end infinite;
 }
 
-/* Single 600ms ease-in-out pulse used by the SignalEventCard chip
-   during the phase 1→2 sequence. Lifts to the lighter primary-200 at
-   the midpoint (more eye-catching against the muted signal card bg
-   than primary-400 was) with a near-opaque fill and a wider shadow
-   ring, then settles back. */
-
 @layer base {
   * {
     @apply border-border;
