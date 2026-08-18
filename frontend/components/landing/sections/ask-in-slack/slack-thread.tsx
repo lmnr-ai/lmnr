@@ -17,10 +17,22 @@ const PER_LINE_MS = 190;
 /** Ceiling, so the longest message can't strand the reader on a static card. */
 const MAX_BEAT_MS = 2600;
 
+/** The gap after the FIRST message, which is the one exception to the rule
+ *  above: it is already rendered when the walk starts, so the reader has had it
+ *  in view and wants the thread to get going, not a full read's worth of wait. */
+const OPENING_BEAT_MS = 550;
+
+/** The gap after a message from the human. What follows it is the agent
+ *  working, not the reader reading, so a one-line question does not earn a
+ *  one-line wait. */
+const AGENT_THINK_MS = 1150;
+
 /** One entry per gap: how long the message AFTER index i waits. */
-const MESSAGE_DELAYS = THREAD_MESSAGES.slice(0, -1).map((message) =>
-  Math.min(BEAT_MS + message.lines * PER_LINE_MS, MAX_BEAT_MS)
-);
+const MESSAGE_DELAYS = THREAD_MESSAGES.slice(0, -1).map((message, i) => {
+  if (i === 0) return OPENING_BEAT_MS;
+  if (message.author === "user") return AGENT_THINK_MS;
+  return Math.min(BEAT_MS + message.lines * PER_LINE_MS, MAX_BEAT_MS);
+});
 
 const INITIALS = THREAD_AUTHOR.split(" ")
   .map((part) => part[0])
