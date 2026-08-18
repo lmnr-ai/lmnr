@@ -2,8 +2,7 @@ import { tryParseJson } from "@/lib/utils";
 
 export interface ResolvedContentMode {
   mode: "json" | "text";
-  /** Modes offered in the picker. Prose keeps MARKDOWN reachable for model output
-   *  that really is markdown (headings, tables, fenced code). */
+  /** Modes offered in the picker, alongside the CUSTOM templates ContentRenderer adds. */
   modes: string[];
   value: string;
 }
@@ -24,8 +23,7 @@ export const resolveContentMode = (content: unknown): ResolvedContentMode => {
     return { mode: "json", modes: ["JSON"], value: JSON.stringify(parsed, null, 2) };
   }
 
-  // Payloads arrive JSON-stringified (`"\"line 1\\nline 2\""`). The markdown branch used
-  // to unwrap this itself via `getMarkdownSource`; text mode shows the value verbatim, so
-  // unwrap here or the raw quotes and \n escapes leak into the view.
-  return { mode: "text", modes: ["TEXT", "MARKDOWN"], value: typeof parsed === "string" ? parsed : raw };
+  // Payloads arrive JSON-stringified (`"\"line 1\\nline 2\""`), so unwrap or the raw
+  // quotes and \n escapes leak into the view.
+  return { mode: "text", modes: ["TEXT"], value: typeof parsed === "string" ? parsed : raw };
 };

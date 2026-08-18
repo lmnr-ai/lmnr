@@ -4,13 +4,13 @@ import { describe, it } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { MarkdownRenderer } from "@/components/ui/content-renderer/markdown";
+import Markdown from "@/components/traces/trace-view/transcript/markdown";
 
-/** Renders the real component, so these cover the whole chain the app uses:
+/** Renders the real transcript renderer, so these cover the whole chain it uses:
  *  `markdownRemarkPlugins` -> Streamdown -> rehype sanitize/harden. In particular a
  *  regression in how Streamdown merges `remarkPlugins` (it replaces its defaults
  *  rather than merging, so gfm has to be re-added) shows up here as a missing table. */
-const render = (markdown: string): string => renderToStaticMarkup(createElement(MarkdownRenderer, { value: markdown }));
+const render = (markdown: string): string => renderToStaticMarkup(createElement(Markdown, { output: markdown }));
 
 /** Drop attributes so assertions read against structure, not Tailwind classes. */
 const structure = (markdown: string): string => render(markdown).replace(/<(\/?[a-z0-9]+)[^>]*?(\/?)>/gi, "<$1$2>");

@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { defaultRehypePlugins, Streamdown } from "streamdown";
 
 import { MarkdownSpanBadge, type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
-import { markdownRemarkPlugins } from "@/components/ui/content-renderer/remark-plugins";
+import { markdownRemarkPlugins } from "@/lib/markdown/remark-plugins";
 import { parseSpanLinks } from "@/lib/traces/span-link-parsing";
 import { cn } from "@/lib/utils.ts";
 

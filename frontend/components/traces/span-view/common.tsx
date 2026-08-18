@@ -258,7 +258,7 @@ const PureThinkingContentPart = ({
     <ContentRenderer
       readOnly
       defaultMode="text"
-      modes={["TEXT", "MARKDOWN"]}
+      modes={["TEXT"]}
       codeEditorClassName="rounded"
       value={content}
       presetKey={`editor-${presetKey}`}

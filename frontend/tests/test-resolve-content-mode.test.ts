@@ -13,8 +13,7 @@ describe("resolveContentMode", () => {
   });
 
   it("unwraps JSON-stringified string payloads so escapes do not leak into the text view", () => {
-    // Span payloads arrive double-encoded. The markdown branch used to unwrap this via
-    // `getMarkdownSource`; text mode shows the value verbatim, so it must be unwrapped here.
+    // Span payloads arrive double-encoded, and text mode shows the value verbatim.
     const { mode, value } = resolveContentMode(JSON.stringify("line 1\nline 2"));
 
     assert.equal(mode, "text");
@@ -27,11 +26,11 @@ describe("resolveContentMode", () => {
     assert.equal(resolveContentMode(schema).value, schema);
   });
 
-  it("defaults prose to text while keeping markdown reachable in the picker", () => {
+  it("renders prose as text — markdown is no longer a span-view mode", () => {
     const { mode, modes } = resolveContentMode("# Heading\n\nSome prose.");
 
     assert.equal(mode, "text");
-    assert.deepEqual(modes, ["TEXT", "MARKDOWN"]);
+    assert.deepEqual(modes, ["TEXT"]);
   });
 
   it("coerces null and undefined to an empty string instead of rendering 'null'", () => {
