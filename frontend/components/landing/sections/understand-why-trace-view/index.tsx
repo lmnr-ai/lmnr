@@ -184,6 +184,22 @@ const UnderstandWhyTraceView = () => {
   const [flying, setFlying] = useState(false);
   useMotionValueEvent(flight, "change", (v) => setFlying(v > 0));
 
+  // Mount-time sync for the two latches above, matching `act2` and `pinned`.
+  // Belt-and-braces today: the observer's first measurement moves progress off
+  // zero, which IS a change, so both handlers already fire on a restored
+  // scroll. It is here so all four latches arm the same way rather than two of
+  // them resting on that being true.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      setStep((prev) => {
+        const next = (Math.round(copyIndex.get()) + 1) as StepNumber;
+        return prev === next ? prev : next;
+      });
+      setFlying(flight.get() > 0);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [copyIndex, flight]);
+
   // The panel opens at the sticky pin, which is what this observer already
   // calls 0: approaching the section progress is clamped and emits nothing, so
   // its first change IS the pin. An IntersectionObserver would fire on the
