@@ -24,34 +24,15 @@ fn color_for_tag(name: &str) -> &'static str {
     TAG_COLORS[hash as usize % TAG_COLORS.len()]
 }
 
-pub async fn get_evaluation_tags(
-    pool: &PgPool,
-    project_id: Uuid,
-    evaluation_id: Uuid,
-) -> Result<Vec<String>> {
-    let tags = sqlx::query_scalar::<_, String>(
-        "SELECT name
-        FROM evaluation_tags
-        WHERE project_id = $1 AND evaluation_id = $2
-        ORDER BY created_at",
-    )
-    .bind(project_id)
-    .bind(evaluation_id)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(tags)
-}
-
-/// Attach tags to an evaluation, registering any unknown tag class first —
-/// `evaluation_tags` has a composite FK onto `tag_classes(name, project_id)`.
-/// Returns the evaluation's full tag list.
+/// Attach tags to an evaluation's `tags` array, registering any unknown tag
+/// class first so the name resolves to a color in the UI pickers. Returns the
+/// evaluation's full tag list, or `None` when it isn't in the project.
 pub async fn add_evaluation_tags(
     pool: &PgPool,
     project_id: Uuid,
     evaluation_id: Uuid,
     names: &[String],
-) -> Result<Vec<String>> {
+) -> Result<Option<Vec<String>>> {
     let colors: Vec<&str> = names.iter().map(|name| color_for_tag(name)).collect();
 
     let mut tx = pool.begin().await?;
@@ -67,38 +48,48 @@ pub async fn add_evaluation_tags(
     .execute(&mut *tx)
     .await?;
 
-    sqlx::query(
-        "INSERT INTO evaluation_tags (evaluation_id, project_id, name)
-        SELECT $1, $2, n FROM UNNEST($3::text[]) AS t(n)
-        ON CONFLICT (evaluation_id, name) DO NOTHING",
+    // Append only the names not already attached, so re-tagging is idempotent
+    // and existing order is preserved. `names` is deduped by the caller.
+    let tags = sqlx::query_scalar::<_, Vec<String>>(
+        "UPDATE evaluations
+        SET tags = tags || (
+            SELECT COALESCE(array_agg(n ORDER BY ord), '{}')
+            FROM UNNEST($3::text[]) WITH ORDINALITY AS incoming(n, ord)
+            WHERE NOT tags @> ARRAY[n]
+        )
+        WHERE id = $1 AND project_id = $2
+        RETURNING tags",
     )
     .bind(evaluation_id)
     .bind(project_id)
     .bind(names)
-    .execute(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await?;
 
     tx.commit().await?;
 
-    get_evaluation_tags(pool, project_id, evaluation_id).await
+    Ok(tags)
 }
 
-/// Detach a tag from an evaluation. Returns the remaining tag list.
+/// Detach a tag from an evaluation. Returns the remaining tag list, or `None`
+/// when the evaluation isn't in the project.
 pub async fn remove_evaluation_tag(
     pool: &PgPool,
     project_id: Uuid,
     evaluation_id: Uuid,
     name: &str,
-) -> Result<Vec<String>> {
-    sqlx::query(
-        "DELETE FROM evaluation_tags
-        WHERE project_id = $1 AND evaluation_id = $2 AND name = $3",
+) -> Result<Option<Vec<String>>> {
+    let tags = sqlx::query_scalar::<_, Vec<String>>(
+        "UPDATE evaluations
+        SET tags = array_remove(tags, $3)
+        WHERE id = $1 AND project_id = $2
+        RETURNING tags",
     )
-    .bind(project_id)
     .bind(evaluation_id)
+    .bind(project_id)
     .bind(name)
-    .execute(pool)
+    .fetch_optional(pool)
     .await?;
 
-    get_evaluation_tags(pool, project_id, evaluation_id).await
+    Ok(tags)
 }

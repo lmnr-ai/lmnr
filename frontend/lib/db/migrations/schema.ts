@@ -707,6 +707,10 @@ export const evaluations = pgTable(
     name: text().notNull(),
     groupId: text("group_id").default("default").notNull(),
     metadata: jsonb(),
+    tags: text()
+      .array()
+      .default(sql`'{}'::text[]`)
+      .notNull(),
   },
   (table) => [
     index("evaluations_project_id_hash_idx").using("hash", table.projectId.asc().nullsLast().op("uuid_ops")),
@@ -1430,40 +1434,6 @@ export const tagClasses = pgTable(
       .onDelete("cascade"),
     primaryKey({ columns: [table.name, table.projectId], name: "tag_classes_pkey" }),
     unique("tag_classes_name_project_id_unique").on(table.name, table.projectId),
-  ]
-);
-
-export const evaluationTags = pgTable(
-  "evaluation_tags",
-  {
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    evaluationId: uuid("evaluation_id").notNull(),
-    projectId: uuid("project_id").notNull(),
-    name: text().notNull(),
-  },
-  (table) => [
-    index("evaluation_tags_project_id_name_idx").using(
-      "btree",
-      table.projectId.asc().nullsLast().op("uuid_ops"),
-      table.name.asc().nullsLast().op("text_ops")
-    ),
-    foreignKey({
-      columns: [table.evaluationId],
-      foreignColumns: [evaluations.id],
-      name: "evaluation_tags_evaluation_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-    // Composite FK to the tag registry: renaming a tag class renames it here,
-    // deleting one detaches it from every evaluation.
-    foreignKey({
-      columns: [table.name, table.projectId],
-      foreignColumns: [tagClasses.name, tagClasses.projectId],
-      name: "evaluation_tags_name_project_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-    primaryKey({ columns: [table.evaluationId, table.name], name: "evaluation_tags_pkey" }),
   ]
 );
 

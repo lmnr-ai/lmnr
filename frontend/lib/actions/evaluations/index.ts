@@ -8,7 +8,7 @@ import { tryParseJson } from "@/lib/actions/common/utils.ts";
 import { getEvaluationRunStats } from "@/lib/actions/evaluations/stats";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
-import { evaluations, evaluationTags } from "@/lib/db/migrations/schema";
+import { evaluations } from "@/lib/db/migrations/schema";
 import { filtersToSql } from "@/lib/db/modifiers";
 import { paginatedGet } from "@/lib/db/utils";
 import { type Evaluation } from "@/lib/evaluation/types";
@@ -52,11 +52,8 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
   const tagFilters = urlParamFilters
     .filter((filter) => filter.column === "tags")
     .map((filter) => {
-      const hasTag = sql`EXISTS (
-        SELECT 1 FROM ${evaluationTags}
-        WHERE ${evaluationTags.evaluationId} = ${evaluations.id} AND ${evaluationTags.name} = ${String(filter.value)}
-      )`;
-      return filter.operator === "ne" ? sql`NOT ${hasTag}` : hasTag;
+      const hasTag = sql`${evaluations.tags} @> ARRAY[${String(filter.value)}]::text[]`;
+      return filter.operator === "ne" ? sql`NOT (${hasTag})` : hasTag;
     });
 
   const otherFilters = urlParamFilters.filter((filter) => filter.column !== "metadata" && filter.column !== "tags");
@@ -142,15 +139,7 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
 
   const result = await paginatedGet<any, Evaluation>({
     table: evaluations,
-    columns: {
-      ...getTableColumns(evaluations),
-      tags: sql<string[]>`COALESCE(
-        (SELECT array_agg(t.name ORDER BY t.created_at)
-         FROM ${evaluationTags} t
-         WHERE t.evaluation_id = ${evaluations.id}),
-        ARRAY[]::text[]
-      )`.as("tags"),
-    },
+    columns: getTableColumns(evaluations),
     filters: filtersWithEvaluationIds,
     pageSize,
     pageNumber,

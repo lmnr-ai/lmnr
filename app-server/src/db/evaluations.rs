@@ -19,19 +19,8 @@ pub struct Evaluation {
     /// Conceptually, evaluations with different group ids are used to test different features.
     pub group_id: String,
     pub metadata: Option<Value>,
-}
-
-/// An evaluation together with its attached tag names. Read-only projection used
-/// by the API/CLI list + get endpoints; writes go through `db::evaluation_tags`.
-#[derive(Serialize, FromRow)]
-#[serde(rename_all = "camelCase")]
-pub struct EvaluationWithTags {
-    pub id: Uuid,
-    pub created_at: DateTime<Utc>,
-    pub name: String,
-    pub project_id: Uuid,
-    pub group_id: String,
-    pub metadata: Option<Value>,
+    /// Evaluation-level tag names, in attachment order. Writes go through
+    /// `db::evaluation_tags`; the names resolve to colors via `tag_classes`.
     pub tags: Vec<String>,
 }
 
@@ -50,31 +39,15 @@ pub async fn list_evaluations(
     tags: &[String],
     limit: i64,
     offset: i64,
-) -> Result<Vec<EvaluationWithTags>> {
-    let evaluations = sqlx::query_as::<_, EvaluationWithTags>(
-        "SELECT
-            e.id,
-            e.created_at,
-            e.name,
-            e.project_id,
-            e.group_id,
-            e.metadata,
-            ARRAY(
-                SELECT t.name FROM evaluation_tags t
-                WHERE t.evaluation_id = e.id
-                ORDER BY t.created_at
-            ) AS tags
-        FROM evaluations e
-        WHERE e.project_id = $1
-            AND ($2::text IS NULL OR e.group_id = $2)
-            AND ($3::text IS NULL OR e.name ILIKE '%' || $3 || '%')
-            AND (
-                cardinality($4::text[]) = 0
-                OR ARRAY(
-                    SELECT t.name FROM evaluation_tags t WHERE t.evaluation_id = e.id
-                ) @> $4::text[]
-            )
-        ORDER BY e.created_at DESC
+) -> Result<Vec<Evaluation>> {
+    let evaluations = sqlx::query_as::<_, Evaluation>(
+        "SELECT id, created_at, name, project_id, group_id, metadata, tags
+        FROM evaluations
+        WHERE project_id = $1
+            AND ($2::text IS NULL OR group_id = $2)
+            AND ($3::text IS NULL OR name ILIKE '%' || $3 || '%')
+            AND tags @> $4::text[]
+        ORDER BY created_at DESC
         LIMIT $5 OFFSET $6",
     )
     .bind(project_id)
@@ -93,22 +66,11 @@ pub async fn get_evaluation(
     pool: &PgPool,
     project_id: Uuid,
     evaluation_id: Uuid,
-) -> Result<Option<EvaluationWithTags>> {
-    let evaluation = sqlx::query_as::<_, EvaluationWithTags>(
-        "SELECT
-            e.id,
-            e.created_at,
-            e.name,
-            e.project_id,
-            e.group_id,
-            e.metadata,
-            ARRAY(
-                SELECT t.name FROM evaluation_tags t
-                WHERE t.evaluation_id = e.id
-                ORDER BY t.created_at
-            ) AS tags
-        FROM evaluations e
-        WHERE e.project_id = $1 AND e.id = $2",
+) -> Result<Option<Evaluation>> {
+    let evaluation = sqlx::query_as::<_, Evaluation>(
+        "SELECT id, created_at, name, project_id, group_id, metadata, tags
+        FROM evaluations
+        WHERE project_id = $1 AND id = $2",
     )
     .bind(project_id)
     .bind(evaluation_id)
@@ -134,7 +96,8 @@ pub async fn create_evaluation(
             name,
             project_id,
             group_id,
-            metadata",
+            metadata,
+            tags",
     )
     .bind(name)
     .bind(project_id)
@@ -168,7 +131,8 @@ pub async fn update_evaluation(
             name,
             project_id,
             group_id,
-            metadata",
+            metadata,
+            tags",
     )
     .bind(evaluation_id)
     .bind(project_id)

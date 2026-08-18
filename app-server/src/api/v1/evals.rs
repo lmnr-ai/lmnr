@@ -218,21 +218,12 @@ pub async fn add_eval_tags_response(
         )));
     }
 
-    // Guarded here rather than by the FK: `evaluation_tags.project_id` is not
-    // part of the evaluation FK, so an unchecked insert would let one project
-    // tag another project's evaluation.
-    if db::evaluations::get_evaluation(pool, project_id, eval_id)
-        .await?
-        .is_none()
-    {
-        return Ok(HttpResponse::NotFound().json(serde_json::json!({
+    match db::evaluation_tags::add_evaluation_tags(pool, project_id, eval_id, &tags).await? {
+        Some(tags) => Ok(HttpResponse::Ok().json(serde_json::json!({ "tags": tags }))),
+        None => Ok(HttpResponse::NotFound().json(serde_json::json!({
             "error": "Evaluation not found"
-        })));
+        }))),
     }
-
-    let tags = db::evaluation_tags::add_evaluation_tags(pool, project_id, eval_id, &tags).await?;
-
-    Ok(HttpResponse::Ok().json(serde_json::json!({ "tags": tags })))
 }
 
 /// Shared body of `DELETE /v1/evals/{eval_id}/tags/{tag}` and its `/v1/cli` twin.
@@ -242,9 +233,12 @@ pub async fn remove_eval_tag_response(
     eval_id: Uuid,
     tag: &str,
 ) -> ResponseResult {
-    let tags = db::evaluation_tags::remove_evaluation_tag(pool, project_id, eval_id, tag).await?;
-
-    Ok(HttpResponse::Ok().json(serde_json::json!({ "tags": tags })))
+    match db::evaluation_tags::remove_evaluation_tag(pool, project_id, eval_id, tag).await? {
+        Some(tags) => Ok(HttpResponse::Ok().json(serde_json::json!({ "tags": tags }))),
+        None => Ok(HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Evaluation not found"
+        }))),
+    }
 }
 
 /// `GET /v1/evals` — list evaluations with their tags.

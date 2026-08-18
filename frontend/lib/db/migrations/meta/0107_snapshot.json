@@ -1,5 +1,5 @@
 {
-  "id": "3dff5c4f-e7b9-48c3-bc6f-7221c550c5d0",
+  "id": "ba31315f-0e79-4c54-bbf9-749181898dde",
   "prevId": "b7e4d2a9-6f13-4c8e-9a52-0d1f8e3c6b74",
   "version": "7",
   "dialect": "postgresql",
@@ -1432,92 +1432,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.evaluation_tags": {
-      "name": "evaluation_tags",
-      "schema": "",
-      "columns": {
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "evaluation_id": {
-          "name": "evaluation_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "evaluation_tags_project_id_name_idx": {
-          "name": "evaluation_tags_project_id_name_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last",
-              "opclass": "uuid_ops"
-            },
-            {
-              "expression": "name",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last",
-              "opclass": "text_ops"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "evaluation_tags_evaluation_id_fkey": {
-          "name": "evaluation_tags_evaluation_id_fkey",
-          "tableFrom": "evaluation_tags",
-          "tableTo": "evaluations",
-          "columnsFrom": ["evaluation_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "cascade"
-        },
-        "evaluation_tags_name_project_id_fkey": {
-          "name": "evaluation_tags_name_project_id_fkey",
-          "tableFrom": "evaluation_tags",
-          "tableTo": "tag_classes",
-          "columnsFrom": ["name", "project_id"],
-          "columnsTo": ["name", "project_id"],
-          "onDelete": "cascade",
-          "onUpdate": "cascade"
-        }
-      },
-      "compositePrimaryKeys": {
-        "evaluation_tags_pkey": {
-          "name": "evaluation_tags_pkey",
-          "columns": ["evaluation_id", "name"]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.evaluations": {
       "name": "evaluations",
       "schema": "",
@@ -1560,6 +1474,13 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
+        },
+        "tags": {
+          "name": "tags",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
         }
       },
       "indexes": {

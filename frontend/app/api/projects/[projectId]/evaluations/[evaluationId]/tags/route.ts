@@ -14,6 +14,9 @@ export async function GET(
     if (error instanceof ZodError) {
       return Response.json({ error: prettifyError(error) }, { status: 400 });
     }
+    if (error instanceof Error && error.message === "Evaluation not found") {
+      return Response.json({ error: "Evaluation not found" }, { status: 404 });
+    }
     return Response.json({ error: "Failed to get evaluation tags" }, { status: 500 });
   }
 }
