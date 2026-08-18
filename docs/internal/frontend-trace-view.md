@@ -35,19 +35,17 @@
 
 Don't try to fix indentation loss inside the markdown pipeline — every symptom below is CommonMark behaving correctly, not a bug in the renderer:
 
-- Leading whitespace is stripped from paragraph continuation lines **at parse time**, so the spaces never reach the DOM. `whitespace-pre-wrap` fixes newlines but can do nothing for indentation.
+- Leading whitespace is stripped from paragraph continuation lines **at parse time**, so the spaces never reach the DOM. No CSS can restore them.
 - Indentation is lost *inconsistently*: a 4-space-indented line after a blank line becomes an indented code block (indentation kept, monospace styling), while the same line as a paragraph continuation is flattened. Identical source, two renderings.
 - Runs of blank lines collapse to a single paragraph break, so vertical spacing does not survive round-trip either.
 
 That's why markdown was removed from `ContentRenderer` entirely rather than demoted to an opt-in mode. Use markdown only where the content is genuinely prose (transcript view, run notes, json-tooltip).
 
-## Streamdown plugin wiring
+## Streamdown wiring
 
-- Streamdown's `remarkPlugins` / `rehypePlugins` props **replace** its defaults, they do not merge. Always spread the matching `defaultRemarkPlugins` / `defaultRehypePlugins` export — passing a bare `remarkPlugins` array drops gfm and tables silently stop rendering. `defaultRemarkPlugins` only holds `gfm`; math and CJK come from the separate `plugins` prop, not the defaults.
-- Custom XML-like tags (`<prompt>`, `<thinking>`) render as text because `markdownRemarkPlugins` (`content-renderer/remark-plugins.ts`) pushes `{ disable: { null: ["htmlFlow", "htmlText"] } }` onto `micromarkExtensions`. Fixing this at the mdast→hast stage instead (a `remarkRehypeOptions.handlers.html` mapping) does **not** work: micromark's html-flow rule already swallowed the tag through the next blank line into one `html` node, so paragraphs, newlines and inner markdown are gone before hast is built. Intended tradeoff: HTML comments are now visible text.
-- `micromarkExtensions` on `this.data()` is typed by remark-parse's `unified.Data` augmentation, which is not in scope for app code (remark-parse is only a transitive dep of streamdown) — cast the `data()` result locally. Type the plugin as `unified`'s `Plugin` (hence `unified` as a direct dep): a structural `this` type such as `function (this: { data: () => {...} })` is NOT assignable to `PluggableList`, because `Processor["data"]` returns `Data`, which has no properties in common with the structural shape.
-- `remark-breaks` turns single newlines into `<br>` — agent output is written with hard line breaks, not markdown soft-break semantics. Prefer it over `whitespace-pre-line` CSS, which produces no DOM node and so is invisible to anything that walks the tree (search adapters, text extraction).
-- Test markdown rendering by rendering the real component through `renderToStaticMarkup` (`tests/test-markdown-remark-plugins.test.ts`), not by rebuilding the unified pipeline by hand — a hand-built pipeline needs 4 extra dev deps and still cannot catch the replace-not-merge trap above, since it never exercises Streamdown's prop wiring. Caveat: Streamdown's default `code` component is `lazy()`+`Suspense`, so fenced-code content is absent from static markup unless the component under test overrides `code` (which `transcript/markdown.tsx` does).
+- Streamdown's `remarkPlugins` / `rehypePlugins` props **replace** its defaults, they do not merge. Spread the matching `defaultRemarkPlugins` / `defaultRehypePlugins` export — this is why `transcript/markdown.tsx` lists `raw, sanitize, harden` explicitly, and why a bare `remarkPlugins` array would drop gfm and silently stop rendering tables. `defaultRemarkPlugins` only holds `gfm`; math and CJK come from the separate `plugins` prop.
+- The transcript keeps `defaultRehypePlugins.raw`, so XML-like tags (`<prompt>`) are parsed as HTML and then dropped by `sanitize`. That's accepted: transcript content is model prose, not prompts. **Don't add remark plugins to work around it** — that was tried (disabling micromark's `htmlFlow`/`htmlText`) and reverted as not worth the dependency weight for content that shouldn't contain such tags.
+- If a future case really does need XML-like tags visible inside markdown, note that a `remarkRehypeOptions.handlers.html` mapping does **not** work: micromark's html-flow rule has already swallowed the tag through to the next blank line into one `html` node, so paragraphs, newlines and inner markdown are gone before hast is built. It has to be handled at parse time, or — better — rendered as text instead.
 
 ## Span-view Message Parsing
 
