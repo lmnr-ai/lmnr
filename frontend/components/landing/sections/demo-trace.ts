@@ -1,27 +1,7 @@
-// The one trace every landing mock renders, hardcoded.
-//
-// An assistant asked "What is Laminar?" that searches, searches again, opens a
-// docs page that 404s, searches a third time, and answers from a snippet
-// without citing it. Those three failures are what the signal-event card
-// describes.
-//
-//   ai.streamText
-//   ├─ ai.llm    "let me search for this"           → web_search "Laminar"
-//   ├─ ai.llm    answers, "let me search further"   → web_search "Laminar agent observability"
-//   ├─ ai.llm    "the docs page looks authoritative"→ fetch_page  ← 404, never retried
-//   ├─ ai.llm    "search once more instead"         → web_search "Laminar open source"
-//   └─ ai.llm    the answer, citing nothing
-//
-// The second LLM span is answer-shaped deliberately: it is the last row the
-// scrollytell's opening step shows, so it has to read like a plausible end to
-// the run. See OPENING_SPANS in ./understand-why-trace-view.
-//
-// HARDCODED, not fetched. It used to be read live off a public trace on
-// laminar.sh through an `/api/landing-traces` rewrite, which put a marketing
-// page's first impression behind a cross-origin request, a share flag someone
-// could revoke, and the product's own span/preview response shapes. The numbers
-// below are that trace, transcribed — durations in ms from the run's start,
-// which is the only form ./understand-why-trace-view/mock needs.
+// The one trace every landing mock renders: an assistant that searches three
+// times, carries on past a 404, and answers without citing. HARDCODED,
+// transcribed from the public trace this used to fetch across origins. The
+// SECOND llm is answer-shaped, being the last row the opening step shows.
 
 export type MockSpanType = "DEFAULT" | "LLM" | "TOOL";
 

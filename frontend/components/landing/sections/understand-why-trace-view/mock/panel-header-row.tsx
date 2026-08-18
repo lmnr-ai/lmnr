@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronsRight, Maximize, Radio, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronsRight, Maximize, Radio } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -12,7 +12,7 @@ interface Props {
 }
 
 // Row 1 of the trace-view header, trimmed for the landing page: close,
-// maximize, "Trace" + dropdown, Chat, Signals. Everything except Signals is
+// maximize, "Trace" + dropdown, Signals. Everything except Signals is
 // decorative (disabled + disabled:opacity-100).
 const PanelHeaderRow = ({ signalsActive, showSignals, onSignalsToggle }: Props) => (
   <div className="flex items-center gap-1">
@@ -29,13 +29,6 @@ const PanelHeaderRow = ({ signalsActive, showSignals, onSignalsToggle }: Props) 
       <span className="text-base font-medium pl-2 flex-shrink-0">Trace</span>
       <Button aria-label="Expand" variant="ghost" disabled className="h-7 px-1 disabled:opacity-100">
         <ChevronDown className="w-3 h-3" />
-      </Button>
-    </span>
-
-    <span className={ITEM_CLS}>
-      <Button variant="outline" disabled className="h-6 text-xs px-1.5 disabled:opacity-100">
-        <Sparkles data-icon="inline-start" size={14} className="mr-1" />
-        Chat
       </Button>
     </span>
 

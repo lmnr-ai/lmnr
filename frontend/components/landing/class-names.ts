@@ -1,9 +1,6 @@
-// Common text classnames for the redesigned landing page.
-// Import and combine with cn() from "@/lib/utils".
-//
-// All text is left-aligned by default (the redesign uses an 880px center
-// column with left-aligned content). `whitespace-pre-line` is kept so callers
-// can still pass `\n` for explicit line breaks where it matches Figma.
+// Common text classnames for the landing page, combined with cn(). All of it is
+// left-aligned in an 880px column, and `whitespace-pre-line` stays so callers
+// can pass `\n` where Figma breaks a line.
 
 // Hero title — used once for "Open-source Agent Monitoring".
 export const mainTitle =

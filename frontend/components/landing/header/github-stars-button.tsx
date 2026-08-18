@@ -16,11 +16,9 @@ interface GitHubStarsButtonProps {
  *  row abbreviates instead, so this is deliberately NOT shared. */
 const formatCount = (count: number): string => count.toLocaleString();
 
-/** A repo's live star count, or null until it lands.
- *
- *  Unauthenticated GitHub API, so a rate-limited, offline or blocked visitor
- *  never gets a number at all — every caller has to render something sensible
- *  for null rather than treating it as a brief loading state. */
+/** A repo's live star count, or null. Unauthenticated GitHub API, so a
+ *  rate-limited or offline visitor never gets one — null is a permanent state
+ *  every caller has to render for, not a brief loading one. */
 export const useGitHubStars = (owner: string, repo: string): number | null => {
   const [stars, setStars] = useState<number | null>(null);
 

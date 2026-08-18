@@ -11,13 +11,10 @@ import { cn } from "@/lib/utils";
 import ClusterIcon from "./cluster-icon";
 import ClusterHoverCard, { type HoverRect } from "./hover-card";
 
-// Landing copy of components/signal/clusters-section/cluster-list/cluster-item.
-//
-// Duplicated on purpose: the `pulsing` prop below exists only to acknowledge a
-// signal-event pill landing in this row, which is pure landing-page theatre.
-// Threading it through the production row would put animation state in a
-// component the whole app renders. Keep the two in visual sync by hand — the
-// paywall path is the only production behaviour deliberately dropped here.
+// Landing copy of the production cluster row. Duplicated on purpose: `pulsing`
+// is landing-page theatre, and threading it through production would put
+// animation state in a component the whole app renders. The paywall path is the
+// only production behaviour deliberately dropped.
 
 /** Icon scale keyframes for the one-shot pulse. */
 const PULSE_SCALE = [1, 1.3, 1];

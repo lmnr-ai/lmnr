@@ -88,17 +88,10 @@ const ThreadWindow = ({
   </div>
 );
 
-// The alerts channel: a signal-event notification, the new-cluster digest it
-// rolls up into, then the mention-driven Q&A the agent answers. The Q&A really
-// lands in a thread off the cluster alert (the agent posts with the parent's
-// `thread_ts`), so showing it flat here is a landing liberty — it is the only
-// way to show the alert and the conversation about it in one frame.
-//
-// The window is a FIXED height, so the card never resizes as the channel fills
-// and nothing on the page below it reflows. Messages MOUNT as they arrive
-// rather than sitting at opacity 0: held in layout they reserved the whole
-// thread's height from the first frame, which left the window scrollable over
-// blank space before there was anything to scroll.
+// The alerts channel: a notification, the digest it rolls up into, then the
+// mention-driven Q&A — shown flat rather than threaded, the only way to fit both
+// in one frame. The window is a FIXED height so nothing below reflows, and
+// messages MOUNT as they arrive rather than sitting at opacity 0.
 const SlackThread = () => {
   const frameRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -106,12 +99,9 @@ const SlackThread = () => {
   // only has to cover the remaining ones.
   const revealed = useMessageCascade(frameRef, MESSAGE_DELAYS);
 
-  // Follow the newest message, the way a channel does. Only ever scrolls down,
-  // and only once the thread is long enough that the new row is past the
-  // bottom edge — until then the window simply fills.
-  //
-  // Hand-rolled rather than `scrollIntoView`, which walks up and scrolls every
-  // scrollable ancestor including the page.
+  // Follow the newest message, but only downward and only once the thread is
+  // long enough to need it. Hand-rolled rather than `scrollIntoView`, which
+  // walks up and scrolls every ancestor including the page.
   useEffect(() => {
     const el = scrollRef.current;
     const row = el?.children[revealed] as HTMLElement | undefined;

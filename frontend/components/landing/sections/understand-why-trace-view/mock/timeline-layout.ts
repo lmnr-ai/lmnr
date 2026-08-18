@@ -15,14 +15,9 @@ export interface TimelineLayout {
   totalDurationMs: number;
 }
 
-/**
- * Bar positions, from the product's condensed-timeline transform.
- *
- * Two denominators, deliberately, because the product has two: the BARS are
- * drawn against the duration rounded up to a whole second, the MARKERS against
- * the real duration. That is what leaves the root bar stopping just short of
- * the right edge on a run that is not a round number of seconds.
- */
+/** Bar positions. TWO denominators, deliberately, because the product has two:
+ *  bars are drawn against the duration rounded up to a whole second, markers
+ *  against the real one — which is what leaves the root bar short of the edge. */
 export const timelineLayout = (spans: MockSpan[]): TimelineLayout => {
   if (spans.length === 0) return { bars: [], totalRows: 0, totalDurationMs: 0 };
 

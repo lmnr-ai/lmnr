@@ -1,11 +1,8 @@
 import { Check, Circle, Pencil } from "lucide-react";
 
-// The queue navigator over the labelling form: one segment per item coloured by
-// state, then the dimensions your schema asks for, each option carrying the
-// number key that picks it.
-//
-// Everything painted here sits ABOVE the card's surface (`bg-surface-up*`), not
-// below it. A pill darker than what it sits on reads as a hole.
+// The queue navigator over the labelling form: one segment per item, then the
+// schema's dimensions with the number key that picks each option. Everything
+// here paints ABOVE the card's surface — a darker pill reads as a hole.
 const TOTAL = 64;
 const APPROVED = 24;
 const MODIFIED = 7;

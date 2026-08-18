@@ -2,15 +2,10 @@
 
 import { useEffect, useState } from "react";
 
-/** Walks a counter up to `limit`, one step per `stepMs`, once `enabled`.
- *  Starts at `from` rather than 0, and never counts back down: a step that
- *  lowered the cap would retract what the reader has already seen arrive.
- *
- *  Lives above the transcript rather than inside it because its output is what
- *  the trace-view store is filled from, and the store is what BOTH the
- *  transcript and the condensed timeline read. Owning it in the transcript made
- *  the limit a function of the rows the store had already produced, which is a
- *  loop: reveal 3, store holds 3, limit becomes 3, counter stops. */
+/** Walks a counter to `limit`, one step per `stepMs`, once `enabled`. Starts at
+ *  `from` and never counts back down — that would retract what the reader has
+ *  already seen. Owned ABOVE the transcript, which renders its output: inside,
+ *  the limit becomes a function of the rows it already produced, and stalls. */
 export const useStagger = (limit: number, enabled: boolean, stepMs: number, from: number): number => {
   const [revealed, setRevealed] = useState(from);
   // Read once rather than per tick: a preference flipped mid-page should not

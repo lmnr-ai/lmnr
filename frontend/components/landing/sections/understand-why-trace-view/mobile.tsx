@@ -10,12 +10,9 @@ import MobileSignalStack from "./mobile-signal-stack";
 import MobileTracePanel from "./mobile-trace-panel";
 import { type StepNumber, STEPS } from "./steps";
 
-// Mobile runs the same copy as the desktop scrolly-tell (imported from ./steps
-// so the words can't drift) but drops the scroll choreography — each step is a
-// plain block.
-//
-// Mock widths deliberately overflow a phone viewport; the page root has
-// `overflow-x-clip` so the visuals read at full scale without side-scroll.
+// The desktop copy (imported from ./steps so the words can't drift) without the
+// scroll choreography. Mock widths deliberately overflow a phone viewport; the
+// page root's `overflow-x-clip` keeps them full scale without side-scroll.
 
 const Copy = ({ step }: { step: StepNumber }) => {
   const config = STEPS[step];

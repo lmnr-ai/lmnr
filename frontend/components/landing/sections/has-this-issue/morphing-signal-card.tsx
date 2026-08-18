@@ -15,33 +15,11 @@ import {
 } from "../signal-event-card";
 import { EASE_OUT } from "./timing";
 
-// FLAG: lives here for historical reasons — this section used to open with the
-// card collapsing into its pill, and now opens with the pill already formed,
-// falling in from above. The ONLY caller left is
-// ../understand-why-trace-view/signal-stack, which drives it with `progress`
-// off scroll. The boolean `collapsed` / `durationMs` path is therefore
-// currently unused; keep it or delete it, but do not assume it is exercised.
-//
-// A signal-event card that collapses into its own cluster pill.
-//
-//   ┌─────────────────────────────┐        ╭──────────────────╮
-//   │ ╭──────────────────╮      × │   ──▶  │ ▣ Cluster name ↗ │
-//   │ ╰──────────────────╯        │        ╰──────────────────╯
-//   │ Agent run flagged 4 issues… │
-//   └─────────────────────────────┘
-//
-// Nothing here translates. The card's own box shrinks — width, height and
-// padding all land exactly on the pill — so the pill ends up flush inside a
-// now-invisible frame. The parent is flex-centred, which means the shrinking
-// box re-centres itself for free and the pill finishes dead centre.
-//
-// The content sits at a FIXED width inside an overflow-hidden card, so the
-// paragraph never reflows as the card narrows; it is clipped (and faded) away
-// instead. Reflowing text mid-collapse reads as a glitch.
+// A signal-event card collapsing into its own cluster pill. Nothing translates:
+// the card's box shrinks onto the pill and the flex-centred parent re-centres it,
+// while the content stays at a FIXED width so it clips rather than reflows.
+// FLAG: the boolean `collapsed`/`durationMs` path has no caller left.
 
-/** Card width. Shared with the trace panel above this section, so the two read
- *  as — and in the stack animation literally are — the same card. */
-const CARD_W = SIGNAL_CARD_W;
 const PAD_X = 12;
 const PAD_Y = 8;
 const BORDER = 1;
@@ -71,28 +49,29 @@ interface Props {
   /** Reports the pill's natural size once measured — the stage needs its
    *  height to park the pill above the clusters card. */
   onMeasure?: (metrics: PillMetrics) => void;
+  /** The card's open width. Defaults to the base breakpoint's; the desktop
+   *  stack passes the panel card's MEASURED width, which the panel widens at
+   *  2xl, so the flight hands over between two boxes of the same size. */
+  cardW?: number;
 }
 
-const MorphingSignalCard = ({ collapsed = false, durationMs = 0, progress, showPill = true, onMeasure }: Props) => {
+const MorphingSignalCard = ({
+  collapsed = false,
+  durationMs = 0,
+  progress,
+  showPill = true,
+  onMeasure,
+  cardW: CARD_W = SIGNAL_CARD_W,
+}: Props) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<{ card: number; pill: PillMetrics } | null>(null);
 
-  // The card's natural height is derived from its CONTENT box, not measured off
-  // the card — the card's own height is what this drives, so reading it back
-  // would be a feedback loop, and reading it once races the webfont: the landing
-  // font lands after first layout, the body then needs an extra line, and a
-  // height pinned to the pre-font measurement CLIPS it (the card is
-  // overflow-hidden). The content box is a fixed width and is never animated, so
-  // observing it is both safe and self-correcting.
-  //
-  // `offsetWidth`/`offsetHeight`, NOT getBoundingClientRect: every number here is
-  // fed back out as a CSS length, and a rect is POST-transform. The mobile stack
-  // renders this inside a `scale(0.8)` stage, where a rect reads 20% short — the
-  // card then gets pinned to 104px when it needs 126 and clips a line of body,
-  // and the reported pill width comes out narrower than the same pill in the
-  // section that catches it. offset* is transform-independent.
+  // Measured off the CONTENT box, not the card, whose height this DRIVES — and
+  // observed rather than read once, which would race the webfont into a clipped
+  // line. `offset*`, NOT getBoundingClientRect: these come back out as CSS
+  // lengths and a rect is post-transform, 20% short inside the mobile stack.
   useLayoutEffect(() => {
     const content = contentRef.current;
     const pill = pillRef.current;
@@ -137,10 +116,8 @@ const MorphingSignalCard = ({ collapsed = false, durationMs = 0, progress, showP
   const closedW = size ? size.pill.width + 2 * BORDER : CARD_W;
   const closedH = SIGNAL_HEADER_H + 2 * BORDER;
 
-  // Scrubbed mode. Hooks run unconditionally against a parked stand-in when the
-  // caller is in boolean mode; the resulting values are simply not applied.
-  // Function-form transforms (not [in]/[out] ranges) so they read the CURRENT
-  // `size` — it lands a render after mount, and a range captured at zero would
+  // Function-form transforms, not [in]/[out] ranges, so they read the CURRENT
+  // `size`: it lands a render after mount, and a range captured at zero would
   // collapse the card to nothing.
   const parked = useMotionValue(0);
   const p = progress ?? parked;

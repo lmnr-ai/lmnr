@@ -11,15 +11,10 @@ const Operator = ({ glyph }: { glyph: string }) => (
   <span className="text-2xl text-foreground-400 self-start pt-6 hidden sm:block">{glyph}</span>
 );
 
-// The arithmetic IS the layout: two inputs and one output, read left to right
-// as a sentence. Nothing here explains that the first two numbers multiply into
-// the third, because nothing has to.
-//
-// Coverage sits BELOW the equation at full width rather than in it: it is a
-// percentage of the runs, not a fourth term, and a fourth cell on that line
-// would read as part of the multiplication. It gets 40px of air on both sides
-// — `space-y-10` above, `pb-4` on top of the parent's own 24px below — because
-// at the default gap it read as the equation's next line.
+// The arithmetic IS the layout: two inputs and one output, read left to right.
+// Coverage sits BELOW at full width, not in the equation — it is a percentage of
+// the runs, and a fourth cell on that line would read as part of the product. It
+// needs 40px of air either side or it reads as the equation's next line.
 const VolumeInputs = ({
   runsIdx,
   tokensPerRunIdx,

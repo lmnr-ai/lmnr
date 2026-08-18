@@ -1,9 +1,6 @@
-// Monthly token volume is asked for as TWO factors rather than one total,
-// because people know their own numbers in those terms — nobody knows their
-// monthly token count offhand, but everyone knows roughly how many runs they do
-// and how big a run is. Their product is what the estimate actually prices,
-// which is why ./index lays the two out as a multiplication rather than as a
-// pair of unrelated sliders.
+// Monthly token volume is asked for as TWO factors, not one total: nobody knows
+// their token count offhand, but everyone knows roughly how many runs they do
+// and how big one is. ./index lays them out as the multiplication they are.
 export const RUN_STEPS = [
   100, 250, 500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000,
   5_000_000, 10_000_000,

@@ -3,14 +3,10 @@ import { ArrowRight } from "lucide-react";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { SpanType } from "@/lib/traces/types";
 
-// The transcript, as the trace view renders it: the Input item leads, in its
-// blue tint behind the blue arrow chip, before a single model call is shown.
-// That is what "a trace opens on what was asked" looks like on screen.
-//
-// Icons run smaller in their chips here than they do in the product: at this
-// scale the product's ratio reads as a glyph jammed into a box. `iconClassName`
-// is REQUIRED — SpanTypeIcon defaults it to `w-4 h-4`, and that class beats the
-// `size` prop, so leaving it off pins every glyph to 16px.
+// The transcript with the Input item leading, before a single model call — what
+// "a trace opens on what was asked" looks like. `iconClassName` is REQUIRED:
+// SpanTypeIcon defaults it to `w-4 h-4`, which beats the `size` prop and would
+// pin every glyph to 16px, too big for these chips.
 const CHIP = {
   containerWidth: 16,
   containerHeight: 16,

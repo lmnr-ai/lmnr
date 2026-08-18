@@ -33,20 +33,15 @@ export const CLUSTER_FILL_MS = (TOTAL_TICKS * BUCKET_MS) / TICKS_PER_BUCKET;
  *  synthetic "Unclustered Events" bucket — that one is never revealed. */
 export const CLUSTER_COUNT = DATASET.clusterTree.length;
 
-/** Card's fixed outer width per layout — each stage sizes itself from these.
- *
- *  `row` is the product's own proportions and is what the standalone clusters
- *  section (mobile) renders. `column` exists because the desktop trace-view
- *  frame is 480 wide: side by side, the list and the chart would each be too
- *  narrow to read, so they stack instead. */
+/** Card's fixed outer width per layout. `row` is the product's proportions, for
+ *  mobile; `column` exists because the desktop trace-view frame is 480 wide,
+ *  where a side-by-side list and chart would both be too narrow to read. */
 export const CLUSTERS_CARD_W = 720;
 export const CLUSTERS_CARD_COL_W = 440;
 
-// Column layout only, and it is the CHART SUB-CARD's height, borders and
-// padding included — the chart inside simply stretches to fill it. The list is
-// deliberately NOT sized here: it hugs its rows, so the card grows as the stage
-// reveals clusters. The row layout takes both heights from the container's
-// single `h-[230px]` instead.
+// Column layout only, and it is the CHART SUB-CARD's height including borders.
+// The list is deliberately NOT sized: it hugs its rows, so the card grows as
+// clusters are revealed. The row layout uses the container's `h-[230px]`.
 const COL_CHART_CARD_H = 190;
 
 // Decelerate into the final height.

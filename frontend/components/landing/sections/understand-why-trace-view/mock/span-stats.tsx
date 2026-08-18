@@ -6,12 +6,8 @@ import { type MockSpan } from "../../demo-trace";
 
 const ITEM_CLS = "text-muted-foreground inline-flex items-center gap-1 whitespace-nowrap";
 
-// The per-row stats on the right of a transcript row: duration, tokens in →
-// out with the cached share in green, cost. Tokens and cost are dropped when
-// they are zero, which is what keeps a tool row down to a duration.
-//
-// The product's `SpanStatsShield` in its `inline` variant, with the `badge`
-// variant's branches removed — nothing here draws the badge.
+// Duration, tokens in → out with the cached share in green, cost. Zero tokens
+// and zero cost are dropped, which is what keeps a tool row to a duration.
 const SpanStats = ({ span }: { span: MockSpan }) => {
   const hasTokens = !!span.inputTokens || !!span.outputTokens;
 

@@ -16,11 +16,9 @@ import {
   TOKENS_PER_RUN_STEPS,
 } from "./volume-inputs/steps";
 
-// Bytes of stored trace data per agent token, fitted to measured traces as a
-// saturating exponential decay in the size of the run: y = a·e^(−b·x) + c,
-// with x in thousands of tokens (SSE 1.329). A token costs ~2.8 bytes on a
-// short run and decays toward ~0.22 on a long one, because long runs repeat
-// their context and dedup collapses the repeats.
+// Bytes of stored trace data per agent token: a saturating exponential decay
+// y = a·e^(−b·x) + c fitted to measured traces, x in thousands of tokens. ~2.8
+// bytes on a short run, decaying toward ~0.22 as dedup collapses repeats.
 const BYTES_PER_TOKEN_FIT = { a: 2.548, b: 0.002661, c: 0.2221 };
 
 const PRO_DATA_THRESHOLD_GB = 30;
@@ -31,15 +29,10 @@ const HOBBY_TO_PRO_BILL_THRESHOLD_USD = 100;
 // cheaper to be quoted.
 const ENTERPRISE_BILL_THRESHOLD_USD = 2500;
 
-// Token spend of one Signal run, fitted to the median of measured runs against
-// the size of the trace it analyzed (x in thousands of trace tokens).
-//
-// Neither is proportional to the trace. Laminar compresses each trace before a
-// Signal reads it, so input is mostly fixed prompt overhead and grows only as
-// √x. Output must saturate: a Signal event is a fixed-shape object, and across
-// 1,212 measured runs its median holds near 3-4K from 100K-token traces to
-// 10M-token ones. A linear output fit scored marginally worse here and then
-// predicted 40K output tokens on a 10M-token trace against 3.4K actual.
+// Token spend of one Signal run, fitted to the median of measured runs. NEITHER
+// term is proportional to the trace: compression leaves input as mostly fixed
+// prompt overhead growing as √x, and output saturates because a Signal event is
+// a fixed-shape object — its median holds near 3-4K across 1,212 runs.
 const SIGNAL_INPUT_FIT = { a: 892.402, b: 7729.86 }; // y = a·√x + b            SSE 22.1M
 const SIGNAL_OUTPUT_FIT = { a: 3575.6, b: 0.000961453, c: 2080.5 }; // y = a·(1−e^(−b·x)) + c  SSE 1.87M
 
@@ -182,14 +175,10 @@ function recommendTier(dataGB: number, estimates: Record<Tier, TierEstimate>): T
   return estimates[paid].totalUsd > ENTERPRISE_BILL_THRESHOLD_USD ? "enterprise" : paid;
 }
 
-// One grid, four tier columns, so the reader compares across a row rather than
-// holding one column in their head. Every cell is pre-formatted by
-// `buildEstimate`; nothing here branches on a tier.
-//
-// EMPHASIS IS THE WHOLE SIGNAL. White is spent on the recommended column and
-// nothing else — no badge, no accent, no outline. Four columns of equally loud
-// numbers is a table you have to read; one lit column is an answer you can see,
-// and the other three are still there to be read second.
+// One grid, four tier columns, so the reader compares across a row. Every cell
+// is pre-formatted by `buildEstimate`; nothing here branches on a tier.
+// EMPHASIS IS THE WHOLE SIGNAL: white is spent on the recommended column and
+// nothing else — four equally loud ones are a table you have to read.
 const GRID = "min-w-[600px] grid grid-cols-[minmax(0,1.3fr)_repeat(4,minmax(0,1fr))]";
 const CELL = "px-[14px] py-3 text-left";
 

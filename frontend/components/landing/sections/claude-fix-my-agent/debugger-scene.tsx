@@ -56,6 +56,10 @@ const SEQUENCE: Step[] = [
 
 const TYPE_MS = 22;
 
+/** Every `delay` above is multiplied by this. The RHYTHM between steps is
+ *  authored in the table; this is the single dial for how fast the run reads. */
+const PACE = 1.4;
+
 // Owns the animation clock and renders the terminal.
 // Gated on `useInView`, runs once when scrolled into view.
 const DebuggerScene = () => {
@@ -80,7 +84,7 @@ const DebuggerScene = () => {
   // SEQUENCE[0].delay doubles as the post-typing pause before the first step.
   useEffect(() => {
     if (!isInView || isTyping || revealed >= SEQUENCE.length) return;
-    const t = setTimeout(() => setRevealed((r) => r + 1), SEQUENCE[revealed].delay);
+    const t = setTimeout(() => setRevealed((r) => r + 1), SEQUENCE[revealed].delay * PACE);
     return () => clearTimeout(t);
   }, [isInView, isTyping, revealed]);
 

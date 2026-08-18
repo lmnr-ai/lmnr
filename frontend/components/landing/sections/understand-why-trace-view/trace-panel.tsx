@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 import { DEMO_SPANS } from "../demo-trace";
 import { SIGNAL_BG, SIGNAL_BORDER, SignalContent } from "../signal-event-card";
-import { PANEL_W } from "./geometry";
+import { PANEL_W_CLS } from "./geometry";
 import PanelHeaderRow from "./mock/panel-header-row";
 import { useSpanSelection } from "./mock/selection";
 import Timeline from "./mock/timeline";
@@ -29,14 +29,9 @@ const TOOLBAR_HEIGHT = 36;
 // timeline just moves the same empty space into the transcript below it.
 const TIMELINE_HEIGHT = 120;
 
-/** Wall-clock gap between spans arriving. Long enough to read as separate
- *  events landing rather than one list fading in — and each arrival moves four
- *  things at once (a transcript row, a timeline bar, the axis, the stat
- *  shields), so it needs longer than a plain list would.
- *
- *  The ceiling is the copy: the run has to finish before the reader scrolls
- *  from step 1 to step 2, which is 576px past the pin. Six spans remain after
- *  the opening batch, so this is 3.6s of run against that. */
+/** Wall-clock gap between spans arriving. Each one moves four things at once
+ *  (row, bar, axis, shields), so it needs longer than a plain list. Ceiling is
+ *  the copy: the run must finish inside the 576px from the pin to step 2. */
 const SPAN_STEP_MS = 600;
 
 /** Everything that is not the signal card drops back while the card is open,
@@ -67,24 +62,9 @@ interface Props {
   scrollLocked?: boolean;
 }
 
-// One trace view, PANEL_W wide, stretched to its parent's height:
-//
-//   ┌──────────────────────────┐
-//   │ header row + signal card │
-//   ├──────────────────────────┤
-//   │ condensed timeline       │  showTimeline
-//   ├──────────────────────────┤
-//   │ transcript toolbar       │
-//   ├──────────────────────────┤
-//   │ transcript      (flex-1) │
-//   └──────────────────────────┘
-//
-// Every part of it is drawn by ./mock — no product component, no fetch. The
-// trace is a module constant (../demo-trace), so the panel has no loading
-// state and nothing to get wrong on a cold cache.
-//
-// Must be rendered inside its own <SpanSelectionProvider>: the mobile section
-// mounts two of these.
+// One trace view: header + signal card, timeline, toolbar, transcript. Every
+// part is drawn by ./mock — no product component, no fetch, so no loading
+// state. Must be rendered inside its OWN <SpanSelectionProvider>.
 const TracePanel = ({
   showTimeline,
   visibleSpans,
@@ -105,12 +85,9 @@ const TracePanel = ({
   const revealed = useStagger(Math.min(visibleSpans, DEMO_SPANS.length), inView, SPAN_STEP_MS, instantSpans);
   const streaming = revealed < DEMO_SPANS.length;
 
-  // The root span carries the FINISHED run's end time, so feeding it in whole
-  // put the full 25s axis on screen before anything had happened — spans then
-  // arrived into a timeline that already claimed to be over. A root that is
-  // still running has no end yet, so while the run streams its end is clipped
-  // to the last span that has actually arrived, and the axis grows with the
-  // run. Identified by having no parent; every other span here is its child.
+  // The root carries the FINISHED run's end, which put the whole 25s axis on
+  // screen before anything had happened. While streaming it is clipped to the
+  // last span that has arrived, so the axis grows with the run.
   const revealedSpans = useMemo(() => {
     const slice = DEMO_SPANS.slice(0, revealed);
     if (!streaming) return slice;
@@ -133,7 +110,7 @@ const TracePanel = ({
   const signalCardOpen = !!showSignals && signalsPanelOpen;
 
   return (
-    <div ref={panelRef} className="flex flex-col shrink-0 h-full" style={{ width: PANEL_W }}>
+    <div ref={panelRef} className={cn("flex flex-col shrink-0 h-full", PANEL_W_CLS)}>
       {/* Bottom padding exists only to keep the timeline's axis labels off
           whatever ends the header — the Signals button, or the signal card.
           When the timeline is closed the transcript toolbar follows, and its
@@ -147,20 +124,10 @@ const TracePanel = ({
           />
         </div>
 
-        {/* Signal card. The collapser must stay visually EMPTY: put the border
-            on it and its top + bottom edges still paint a 2px blue line at
-            height 0.
-            ALWAYS MOUNTED, and `signalCardOpen` is the only thing that opens
-            it. Gating the mount on the same condition made the open a one-way
-            animation: scrolling back up unmounted the element in the same
-            commit that should have collapsed it, so it vanished instead of
-            closing. Nothing here ever needs to leave the tree — an empty
-            collapser costs no layout, and the flight measures this box.
-            `height: auto`, not a maxHeight cap. A cap has to clear the tallest
-            the card could ever be, so most of the tween runs past the content's
-            real height where nothing moves: at a 320 cap over a 126px card, 60%
-            of the duration was invisible and the easing's whole ease-out landed
-            in it, which is what made a slow open still read as a snap. */}
+        {/* Signal card. ALWAYS MOUNTED — gating the mount on `signalCardOpen`
+            made the open one-way, since scrolling up unmounted it in the same
+            commit that should have collapsed it. `height: auto`, not a cap: a
+            cap runs most of the tween past the content where nothing moves. */}
         <motion.div
           initial={false}
           animate={{ height: signalCardOpen ? "auto" : 0, marginTop: signalCardOpen ? 8 : 0 }}

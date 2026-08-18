@@ -23,25 +23,16 @@ const GRAPHIC_FADE =
  *  graphics all start on the same line no matter how tall the copy above ran. */
 const GRAPHIC_H = 220;
 
-/** Where the mocks start inside the band. Every mock is `absolute inset-0`, and
- *  absolute insets resolve against the PADDING box — padding here would do
- *  nothing — so the inset is an offset positioned box instead, and it is the one
- *  place all six are aligned from. Left and top only: they are meant to bleed
- *  off the bottom and the right, which is the crop that sells them as a real
- *  screen. Sits a hair inside the copy's own `pl-8`: a mock reads as flush at
- *  the same measure, since its own first pixel is a container edge, not ink. */
+/** Where the mocks start inside the band, and the one place all six align from.
+ *  An offset positioned box, not padding: mocks are `absolute inset-0` and
+ *  insets resolve against the PADDING box, so padding here would do nothing.
+ *  Left and top only — they are meant to bleed off the bottom and the right. */
 const GRAPHIC_INSET = "absolute left-7 top-3 right-0 bottom-0";
 
-// Tall narrow card: header and copy at the top, graphic in the band at the
-// bottom. Header follows ../compliance — title on the row with the arrow, no
-// icon. The band has no padding of its own, so a graphic may bleed off any
-// edge; that crop is what sells it as a slice of the real product.
-//
-// Elevation, not a hardcoded fill: hovering raises the card one rung, and every
-// panel inside is painted with a RELATIVE surface utility (`bg-surface-down`,
-// `border-surface-up-2`, …), so the whole mock re-paints in step and keeps its
-// contrast at both rungs. `**:transition-colors` is what makes the descendants
-// ride the same 300ms as the card instead of snapping.
+// Header and copy on top, graphic in the band below, bleeding off the bottom
+// and right — that crop is what sells it as a slice of the real product.
+// Elevation, not a hardcoded fill: hover raises the card a rung and the mock's
+// RELATIVE surface utilities re-paint in step, on the card's own 300ms.
 const Card = ({ title, description, href, Graphic }: CardDef) => {
   const [raised, setRaised] = useState(false);
 

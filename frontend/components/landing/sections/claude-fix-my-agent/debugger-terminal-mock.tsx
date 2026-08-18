@@ -41,14 +41,10 @@ const EntryRow = ({ entry, active }: { entry: Entry; active: boolean }) => {
           <span className="text-primary-300">✻</span> {entry.text}
         </p>
       );
-    // The commands themselves are the point of the scene, so they carry the
-    // only highlight in the transcript. Every `tool` line here is a Laminar
-    // invocation (`lmnr-cli`, or the debugger's LMNR_DEBUG env vars) — if a
-    // plain shell command is ever added, split it into its own kind rather
-    // than tinting it as Laminar.
-    //
-    // `-mx-2 px-2` bleeds the band into the panel's own padding, so the text
-    // stays on the same left edge as every other line.
+    // The commands are the point of the scene, so they carry the only highlight.
+    // Every `tool` line is a Laminar invocation — a plain shell command would
+    // need its own kind rather than being tinted as one. `-mx-2 px-2` bleeds the
+    // band into the panel's padding so the text keeps the same left edge.
     case "tool":
       return (
         <p className={cn(monoBase, "text-primary-400 whitespace-pre -mx-2 rounded-sm bg-primary-400/10 px-2")}>
@@ -59,11 +55,9 @@ const EntryRow = ({ entry, active }: { entry: Entry; active: boolean }) => {
       return <p className={cn(monoBase, "text-foreground-500 whitespace-pre")}>{`  └─ ${entry.text}`}</p>;
     case "diff":
       return (
-        // Muted and untinted, at the same weight as the `result` lines. The
-        // only colour in the transcript belongs to the Laminar commands, so the
-        // diff carries its meaning through the sign column alone. This
-        // transcript has no removals; if one is ever added it will need a
-        // colour of its own to read as removed rather than added.
+        // Muted and untinted: the only colour belongs to the Laminar commands,
+        // so the diff carries its meaning through the sign column alone. A
+        // removal would need a colour of its own; this transcript has none.
         <div className="flex items-center pl-1 pr-2 text-foreground-500">
           <span className={cn(monoBase, "w-4 text-center shrink-0")}>{entry.sign === " " ? "" : entry.sign}</span>
           <span className={cn(monoBase, "whitespace-pre")}>{entry.text}</span>

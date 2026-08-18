@@ -1,42 +1,7 @@
-// Choreography for the last step: the signal card leaves the trace panel,
-// becomes a stack, collapses to its cluster pill, and the pill drops into the
-// clusters card that has risen to meet it.
-//
-// Every number here is a fraction of the CLOSING WINDOW — the slice of the
-// section's scroll that runs from the third-from-last step's copy centring to
-// the end of the section, i.e. the last TWO copy hand-offs. 0 = the window
-// opens, 1 = it closes. Nothing here is a duration: the whole sequence is
-// bound to scroll, so it rewinds frame for frame and a "slow" phase just means
-// it takes more scrolling.
-//
-// TWO MARKS ARE LOAD-BEARING, and the phases exist to hit them:
-//
-//   .31  the second-to-last copy block ("Similar failures are clustered") is
-//        dead centre — the stack must be fully formed and holding.
-//   .62  the last block ("Has this failure occurred before?") is dead centre,
-//        which is also the sticky release — the pill must already be inside the
-//        clusters card.
-//
-//   0          .28    .44   .53 .58                          1
-//   ├───────────┼──────┼─────┼───┼──────────────────────────┤
-//   ▓▓▓▓▓▓▓▓▓▓▓▓                     flight    (panel → stack front)
-//             ╎                      ← lands just before the copy centres (.31)
-//             ▓▓▓▓▓                  collapse  (stack → cluster pill)
-//              ▓▓▓▓▓▓▓▓              cardRise  (clusters card rises to meet it)
-//                     ▓▓▓            pillEnter (pill drops into the card)
-//                        ╎           ← sticky release (.62)
-//                        ╎  section leaving, Act 2 playing
-//
-// The pinned part of this window is exactly two STEP_VH (see ./index), so
-// EVERYTHING that has to happen while the frame is still pinned must fit before
-// the release. Past it the section is scrolling away, so screen-space motion
-// there is the element's own travel MINUS the page scroll — keep it to Act 2,
-// which is time-based and does not care.
-//
-// Act 2 (pulse / cluster stagger / chart fill) is armed at `act2At` and then
-// runs on a clock, in ms — see ../has-this-issue/use-cluster-beats.
-//
-// Phases are absolute and may overlap; editing one never shifts another.
+// Every number is a fraction of the CLOSING WINDOW (the last two copy
+// hand-offs), not a duration; phases are absolute and may overlap. Two marks are
+// load-bearing: the stack must be formed by .31 and the pill inside the clusters
+// card by .62, which is also the sticky release.
 
 export interface StackTiming {
   /** Card leaves the trace panel and flies to the front of the stack. */
@@ -62,14 +27,10 @@ export interface StackTiming {
    *  from off-frame on either side of it: slots before it come down from the
    *  up-left, slots after it come up from the down-right. */
   liveSlot: number;
-  /** How far out the arriving cards start, as a MULTIPLE of their slot offset.
-   *  1 would mean starting already in place.
-   *
-   *  Note this scales OFF `dx`/`dy`, so it is not an absolute distance: at the
-   *  tight-deck spacing the backmost card starts only ~48 x 80px out, well
-   *  inside the frame, so the runs read as fanning out of the live card. It took
-   *  the old wide spacing to put them off-frame, i.e. arriving from elsewhere.
-   *  Raise this, not dx/dy, if they should come from further away. */
+  /** How far out arriving cards start, as a MULTIPLE of their slot offset (1 =
+   *  already in place). Scales off `dx`/`dy`, so at tight spacing they fan out
+   *  of the live card rather than arriving from off-frame. Raise THIS, not
+   *  dx/dy, to bring them from further away. */
   entrySpread: number;
   /** Point WITHIN the flight (0-1) by which the trace panel has fully faded. */
   trayFadeEnd: number;
@@ -85,15 +46,9 @@ export interface StackTiming {
 }
 
 export const DEFAULT_STACK_TIMING: StackTiming = {
-  // Both ends are set against the STEP the gesture plays over — the 80vh
-  // between "Automatic failure detection" centring at 0 and "Similar failures
-  // are clustered" centring at .308. The card leaves the panel 12% into that
-  // step and the stack is complete at 95% of it, which is the whole step bar a
-  // beat at each end.
-  //
-  // That leaves only ~.016 of hold before the copy centres, so the stack lands
-  // just as its caption arrives rather than sitting formed and waiting. Pulling
-  // the end any later would have it still assembling under its own copy.
+  // Set against the 80vh step the gesture plays over: the card leaves at 12% of
+  // it and the stack is complete at 95%, landing just as its caption centres
+  // rather than sitting formed and waiting.
   flightAt: 0.037,
   flightSpan: 0.255,
 
@@ -133,24 +88,10 @@ export const clamp01 = (t: number) => Math.min(Math.max(t, 0), 1);
  *  zero span, which a dial can produce by dragging a bar shut. */
 export const phase = (t: number, at: number, span: number) => clamp01((t - at) / Math.max(span, 1e-6));
 
-// Easing for SCROLL-BOUND travel, which is not the same problem as easing a
-// timed animation. The reader owns the playhead, so their scroll speed is
-// already the outer velocity envelope; an ease-OUT on top of it spends half the
-// travel in the first fifth of the scroll and then crawls, which reads as the
-// element getting away from you. So ease-IN-OUT is the default here and
-// ease-out is the exception, the reverse of the usual rule.
-//
-// What linear actually costs is a velocity discontinuity at BOTH ends of every
-// phase — the derivative jumps 0→v at `at` and v→0 at `at + span`. On its own
-// that is a small tick; the phases here overlap deliberately, so the ticks land
-// on top of each other. Pick a curve by what the motion IS:
-//
-//   departure from rest, arriving into formation   easeInOutCubic
-//   arrival from off-frame, no prior rest state    easeOutCubic
-//   transformation overlapped on BOTH sides        smootherstep
-//   absorbed into occlusion                       easeInCubic
-//
-// Applied at the CONSUMPTION site, per property — see ./signal-stack's header.
+// Easing for SCROLL-BOUND travel: the reader's scroll is already the velocity
+// envelope, so ease-IN-OUT is the default and ease-out the exception — the
+// reverse of the usual rule. Pick by what the motion IS: into formation →
+// easeInOutCubic, from off-frame → easeOutCubic, overlapped → smootherstep.
 export const easeOutCubic = (t: number) => 1 - (1 - t) ** 3;
 
 /** Accelerates the whole way. For something being taken IN rather than coming

@@ -6,11 +6,8 @@ import { STEPS } from "../understand-why-trace-view/steps";
 import SignalEventClustersMock from "./signal-event-clusters-mock";
 
 // MOBILE ONLY — see the md gate in ../../index. On desktop this is the closing
-// step of the trace-view scrollytell instead, and the copy below is that step's
-// so the two can never drift.
-//
-// Vertical stack: title + subtitle + learn-more on top, mock centered inside a
-// surface-250 panel.
+// step of the trace-view scrollytell, and the copy is imported from that step so
+// the two can never drift.
 const STEP = STEPS[4];
 
 const HasThisIssue = () => (

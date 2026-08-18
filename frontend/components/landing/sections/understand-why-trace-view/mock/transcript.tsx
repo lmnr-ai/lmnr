@@ -10,20 +10,10 @@ import InputRow from "./input-row";
 import { useSpanSelection } from "./selection";
 import SpanRow from "./span-row";
 
-// The run as a readable list: the task, then one row per span in start order.
-//
-// It does NOT own the reveal. `spans` is the prefix the panel has revealed so
-// far, which is the same prefix the condensed timeline draws — that is what
-// keeps a span appearing in both on the same frame.
-//
-// Rows MOUNT as they arrive rather than sitting at opacity 0. Held in layout
-// they would reserve the whole run's height from the first frame, and the list
-// would scroll over blank space instead of visibly growing. Hence framer rather
-// than a CSS transition: a class toggled on mount has no starting frame.
-//
-// The list does NOT follow its own tail. Rows arriving below the fold are meant
-// to be missed — chasing them would leave the reader looking at the end of the
-// run instead of the start.
+// The task, then one row per span. It does NOT own the reveal — `spans` is the
+// prefix the panel revealed, the same one the timeline draws. Rows MOUNT as they
+// arrive rather than sitting at opacity 0, which would reserve the run's whole
+// height up front, and the list does NOT chase its own tail.
 
 /** How far a row rises as it arrives. */
 const ROW_RISE_PX = 10;

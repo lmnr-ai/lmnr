@@ -16,12 +16,9 @@ interface Props {
   onToggleHeatmap: () => void;
 }
 
-// The chips floating over the bottom-right of the timeline.
-//
-// Its own component so `useElevation` reads the surface it is INSIDE. Called in
-// ./timeline, which is where the <ElevatedSurface> itself is, it would resolve
-// against the ambient level OUTSIDE that surface and the chips would paint a
-// step too low.
+// The chips over the timeline's bottom-right. Its own component so
+// `useElevation` reads the surface it is INSIDE — called in ./timeline, where
+// the <ElevatedSurface> is, it would resolve a step too low.
 const TimelineControls = ({ canZoomIn, canZoomOut, onZoom, heatmap, onToggleHeatmap }: Props) => {
   const { className: raisedSurface } = useElevation({ offset: 2 });
 

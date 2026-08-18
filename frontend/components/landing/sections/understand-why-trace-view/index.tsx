@@ -10,40 +10,17 @@ import LearnMoreLink from "../learn-more-link";
 import { SIGNAL_HEADER_H } from "../signal-event-card";
 import ClustersStage from "./clusters-stage";
 import TraceViewErrorBoundary from "./error-boundary";
-import { assemblyLayout, EDGE_FADE_W, FRAME_H, PANEL_H } from "./geometry";
+import { assemblyLayout, CLUSTERS_CARD_H_SEED, EDGE_FADE_W_CLS, FRAME_H, PANEL_H } from "./geometry";
 import { SpanSelectionProvider } from "./mock/selection";
 import SignalStack from "./signal-stack";
 import { DEFAULT_STACK_TIMING, phase } from "./stack-timing";
 import { STEP_COUNT, STEP_NUMBERS, type StepNumber, STEPS } from "./steps";
 import TracePanel from "./trace-panel";
 
-// ──────────────────────────────────────────────────────────────────────
-// Scroll model
-//
-// One trace, one panel, one scroll observer. The panel never travels — every
-// step is a change of STATE inside it (timeline opens, signals open, a span is
-// revealed), so the only thing moving vertically is the copy:
-//
-//   copyIndex  linear  ╱────────────────────╱   the copy is text being read —
-//                                               constant velocity, no
-//                                               plateaus, no ramps.
-//
-// The discrete `step` flips at `Math.round(copyIndex)`, i.e. as a block
-// crosses the midpoint to its neighbour, so the panel's state change, the copy
-// hand-off and the opacity swap all land on the same frame.
-//
-// THE COPY NEVER STOPS while the section is pinned. It travels the entire
-// pinned range and lands its last block on the exact frame the section
-// releases, after which it simply leaves with the page. There is no hold, no
-// tail, and no pinned scroll it does not use — a pinned section that consumes
-// scroll while nothing moves vertically is scroll-jacking, which is the one
-// thing the linear copy curve exists to prevent.
-//
-// The signal stack's collapse and the pill's exit therefore run OVER the last
-// step's travel and on into the post-release overrun, rather than in a quiet
-// window of their own. They are the one part of the section not quantised to a
-// step, because they are a single continuous gesture rather than a hand-off.
-// ──────────────────────────────────────────────────────────────────────
+// One trace, one panel, one scroll observer. The panel never travels; only the
+// copy does, at constant velocity across every bit of the pinned range — a
+// pinned section that consumes scroll while nothing moves is scroll-jacking.
+// The closing gesture therefore plays OVER the last step, not in its own window.
 
 /** Whole-number index of every step — the input range for the per-step maps. */
 const STEP_STOPS = STEP_NUMBERS.map((_, i) => i);
@@ -52,13 +29,9 @@ const STEP_STOPS = STEP_NUMBERS.map((_, i) => i);
  *  sticky children are `h-screen`, so this is exact, not an estimate. */
 const VIEWPORT_VH = 100;
 
-/** Scroll length per copy step.
- *
- *  It is also the ONLY lever on how much pinned scroll the closing sequence
- *  gets: the sticky tail after the last copy hand-off works out to exactly one
- *  STEP_VH, whatever STEP_COUNT is. Everything from the card's flight to the
- *  pill entering the clusters card has to fit in it, which is why this is 80
- *  and not the 60 the section ran at before it absorbed the clusters beat. */
+/** Scroll length per copy step, and the only lever on how much pinned scroll
+ *  the closing sequence gets — the sticky tail after the last hand-off is
+ *  exactly one of these, whatever STEP_COUNT is. */
 const STEP_VH = 80;
 
 /** How long the section stays pinned — one step of travel per hand-off, and
@@ -69,58 +42,27 @@ const PINNED_VH = (STEP_COUNT - 1) * STEP_VH;
  *  AFTER the release, which is where Act 2 plays as the section departs. */
 export const SECTION_VH = PINNED_VH + VIEWPORT_VH;
 
-/** Where the sticky children RELEASE, in scroll progress.
- *
- *  The observer below runs to `"end start"` — the section fully clear of the
- *  viewport — not to `"end end"`, which is exactly the frame the sticky child
- *  unpins. That distinction is the whole point: with a range ending at the
- *  release there is no coordinate for "after the release", so the pill could
- *  never still be falling as the section leaves. The last VIEWPORT_VH of the
- *  range is that overrun.
- *
- *  Exact rather than measured — both terms are vh and the sticky children are
- *  `h-screen`, so no ResizeObserver is needed to find it. */
+/** Where the sticky children RELEASE. The observer runs to `"end start"`, not
+ *  `"end end"`, so there is a coordinate for "after the release" — otherwise
+ *  the pill could never still be falling as the section leaves. */
 const UNPIN = PINNED_VH / SECTION_VH;
 
-/** Where the copy finishes travelling: the release, exactly. NOT a fraction of
- *  it.
- *
- *  This was 0.72 of the pinned range, leaving the last block centred and frozen
- *  for the remaining ~110vh — about 800px of scrolling with nothing moving
- *  vertically on the left — so the stack had a quiet window to collapse in. A
- *  hold that long is scroll-jacking however good the reason, so the stack now
- *  shares the last step's travel instead. Do not reintroduce a tail here: to
- *  give the stack more room, lengthen STEP_VH (which moves the copy slower but
- *  never stops it) or the post-release overrun. */
+/** Where the copy finishes travelling: the release, EXACTLY, not a fraction of
+ *  it. Do not reintroduce a tail — to give the stack more room, lengthen
+ *  STEP_VH or the post-release overrun. */
 const COPY_END = UNPIN;
 
 /** Scroll progress at which each copy block sits dead centre (linear). */
 const STEP_CENTERS = STEP_STOPS.map((i) => (i / (STEP_COUNT - 1)) * COPY_END);
 
-/** The closing sequence's window: from the copy centring TWO steps from the end
- *  to the end of the section. Every phase in ./stack-timing is a fraction of
- *  THIS, which is what lets the flight, the collapse, the card's rise and the
- *  pill's entry share one coordinate.
- *
- *  Two steps, not one. The sequence has to hit marks on BOTH of the last two
- *  copy blocks — the stack is fully formed as "Similar failures are clustered"
- *  centres, and the pill is inside the clusters card as "Has this failure
- *  occurred before?" centres — and a window opening on the first of those marks
- *  has no room to reach it. */
+/** The closing sequence's window, and the shared coordinate every phase in
+ *  ./stack-timing is a fraction of. TWO steps, not one: the sequence has marks
+ *  on both of the last two copy blocks. */
 const STACK_WINDOW_START = STEP_CENTERS[STEP_COUNT - 3];
 
-/** Constant visual gap between consecutive copy blocks.
- *
- *  This used to be a fixed 320px slot per block with the content centred in it,
- *  which made centring the active block a single multiplication. But equal
- *  slots do NOT give equal gaps: centring splits each slot's leftover space
- *  between its two neighbours, so the gap between blocks i and i+1 comes out as
- *  `SLOT_H - (height_i + height_i+1) / 2` — a function of the two blocks'
- *  heights. Measured against the real copy that was [132, 190, 178, 134]px for
- *  what is meant to read as one rhythm.
- *
- *  Blocks are now their natural height with a real gap, so the stack's stops
- *  have to be measured instead of computed. See `useStackStops`. */
+/** Constant visual gap between copy blocks. Equal SLOTS would not give equal
+ *  gaps — centring splits each slot's leftover between its neighbours — so
+ *  blocks are their natural height and the stops are measured. */
 const STEP_GAP = 150;
 
 const INACTIVE_OPACITY = 0.4;
@@ -128,14 +70,9 @@ const INACTIVE_OPACITY = 0.4;
 /** How far below its arming point Act 2 disarms. */
 const ACT2_HYSTERESIS = 0.04;
 
-/** Spans the panel opens on. FOUR, not three: `spans[0]` is the run's root
- *  (`ai.streamText`), which sets the timeline's axis but renders no transcript
- *  row of its own. The three that follow are one full think-act-observe loop,
- *  so the reader opens on input, LLM, tool call, LLM — stopping a span earlier
- *  ends on a tool call nothing answers, which reads as the trace being cut off
- *  rather than paused.
- *
- *  `pinned` lifts the cap and the rest of the run streams in. */
+/** Spans the panel opens on. FOUR, not three: the first is the run's root,
+ *  which renders no row, so this is input + LLM + tool + LLM — one whole
+ *  think-act-observe loop. `pinned` lifts the cap. */
 const OPENING_SPANS = 4;
 
 /** Rough block height, used only to seed the stops before the first
@@ -143,12 +80,9 @@ const OPENING_SPANS = 4;
  *  screen; it exists so the very first paint isn't stacked at zero. */
 const ESTIMATED_BLOCK_H = 180;
 
-/** The y offset that puts each block dead centre in the frame, derived from
- *  layout. `stackY[i] = stackHeight / 2 - centreOf(block i)`, which reduces to
- *  the old `((n-1)/2 - i) * SLOT_H` when every block is the same height — so
- *  this generalises the previous closed form rather than replacing the model.
- *  Everything downstream is untouched: the scroll curves still map step index
- *  to a keyframe array, that array is just measured now. */
+/** The y offset that centres each block: `stackHeight / 2 - centreOf(block)`.
+ *  Downstream is untouched — the scroll curves still map a step index to a
+ *  keyframe array, that array is just measured now. */
 const useStackStops = (stackRef: RefObject<HTMLDivElement | null>): number[] => {
   const [stops, setStops] = useState<number[]>(() =>
     STEP_STOPS.map((i) => ((STEP_COUNT - 1) / 2 - i) * (ESTIMATED_BLOCK_H + STEP_GAP))
@@ -215,7 +149,10 @@ const UnderstandWhyTraceView = () => {
 
   // The pill and the clusters card rest as one top-anchored assembly — see
   // ./geometry for why it is not centred on a measurement.
-  const { pillTop, cardTop } = assemblyLayout(SIGNAL_HEADER_H);
+  // The clusters card grows as Act 2 reveals its rows, and the assembly stays
+  // centred on it — so its height has to come back up here.
+  const [clustersCardH, setClustersCardH] = useState(CLUSTERS_CARD_H_SEED);
+  const { pillTop, cardTop } = assemblyLayout(SIGNAL_HEADER_H, clustersCardH);
 
   // Act 2 is time-based, so it needs a boolean, not a scrubbed value. It
   // disarms BELOW its arming point, not at it — otherwise a scroll resting
@@ -247,21 +184,10 @@ const UnderstandWhyTraceView = () => {
   const [flying, setFlying] = useState(false);
   useMotionValueEvent(flight, "change", (v) => setFlying(v > 0));
 
-  // The panel's opening gesture fires when the frame has travelled up and
-  // STOPPED, dead centre of the viewport. That moment is the sticky pin: the
-  // child is `top-0 h-screen` with the frame centred inside it, so its centre
-  // sits at `sectionTop + 50vh` while the section approaches and lands on the
-  // viewport's centre exactly when `sectionTop` hits 0.
-  //
-  // Which is what this observer already calls 0 — `offset: ["start start", …]`.
-  // No second `useScroll`, no IntersectionObserver: an element-crossing test
-  // would fire on the frame's leading EDGE, 340px of scrolling early, while it
-  // is still half off the bottom of the screen and still moving.
-  //
-  // The clamp is the trick. Approaching the section the progress is pinned at 0
-  // and never moves, so it emits no change events; the first change it ever
-  // reports is the pin itself. Latched, because a stream-in has nothing to
-  // rewind to.
+  // The panel opens at the sticky pin, which is what this observer already
+  // calls 0: approaching the section progress is clamped and emits nothing, so
+  // its first change IS the pin. An IntersectionObserver would fire on the
+  // frame's leading edge, while it is still moving. Latched, not scrubbed.
   const [pinned, setPinned] = useState(false);
   useMotionValueEvent(scrollYProgress, "change", (t) => {
     if (t > 0) setPinned(true);
@@ -367,7 +293,14 @@ const UnderstandWhyTraceView = () => {
                       {/* AFTER the stack, so the opaque clusters card paints over
                           the pill and the pill disappears INTO it rather than
                           fading out on top of it. */}
-                      <ClustersStage rise={cardRise} restY={cardTop} armed={act2} landed={act2} timing={stackTiming} />
+                      <ClustersStage
+                        rise={cardRise}
+                        restY={cardTop}
+                        onHeight={setClustersCardH}
+                        armed={act2}
+                        landed={act2}
+                        timing={stackTiming}
+                      />
                     </>
                   )}
 
@@ -377,12 +310,16 @@ const UnderstandWhyTraceView = () => {
                       Held at 80% so a card stays legible through them rather
                       than dissolving into the frame. */}
                   <div
-                    style={{ width: EDGE_FADE_W }}
-                    className="absolute inset-y-0 left-0 z-10 bg-gradient-to-r from-surface-250/80 to-transparent pointer-events-none"
+                    className={cn(
+                      "absolute inset-y-0 left-0 z-10 bg-gradient-to-r from-surface-250/80 to-transparent pointer-events-none",
+                      EDGE_FADE_W_CLS
+                    )}
                   />
                   <div
-                    style={{ width: EDGE_FADE_W }}
-                    className="absolute inset-y-0 right-0 z-10 bg-gradient-to-l from-surface-250/80 to-transparent pointer-events-none"
+                    className={cn(
+                      "absolute inset-y-0 right-0 z-10 bg-gradient-to-l from-surface-250/80 to-transparent pointer-events-none",
+                      EDGE_FADE_W_CLS
+                    )}
                   />
                 </div>
               </div>

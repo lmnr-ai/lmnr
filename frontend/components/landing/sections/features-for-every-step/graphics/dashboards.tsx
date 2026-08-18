@@ -1,12 +1,9 @@
 import { GripVertical, Plus } from "lucide-react";
 
-// The dashboard is a drag-and-drop grid, so the graphic is the grid: charts
-// already placed, one mid-drag, and an empty cell waiting for the next.
-// Peaks and troughs the whole way across, at uneven size, trending up. Two
-// things read as a straight line here and both had to go: steps of similar
-// magnitude (noise on a ramp), and variation saved for one end (a flat opening
-// that then climbs). The plot is wide and short, so the series also has to
-// spend most of SPARK_MAX or it flattens whatever it does.
+// The dashboard is a drag-and-drop grid, so the graphic is one: charts placed,
+// one mid-drag, an empty cell waiting. The series needs uneven steps the whole
+// way across — even ones read as noise on a ramp, and variation saved for one
+// end reads as a flat opening — and has to spend most of SPARK_MAX to show up.
 const SPARK = [12, 34, 26, 31, 21, 46, 38, 43, 62, 50, 58, 76, 67, 74];
 const SPARK_MAX = 80;
 const SPARK_H = 22;

@@ -4,15 +4,9 @@ import { useEffect, useState } from "react";
 
 import { CLUSTER_COUNT } from "./clusters-card";
 
-// Act 2 of the clusters animation: the landed cluster appears and pulses, the
-// rest stagger in, the chart fills. Time-based, NOT scroll-bound — it is armed
-// by a scroll position and then plays out on its own clock, so it does not
-// rewind. Scrolling back past the trigger disarms it and coming down again
-// replays it from the start.
-//
-// Shared by both stages that show the clusters card: the standalone section on
-// mobile (./signal-event-clusters-mock) and the desktop trace-view scrollytell
-// (../understand-why-trace-view/clusters-stage).
+// Act 2: the landed cluster pulses, the rest stagger in, the chart fills. Armed
+// by a scroll position but played on its own clock, so it REPLAYS rather than
+// rewinding. Shared by both stages that show the clusters card.
 
 // One flag per track. Each is flipped by its own absolute timer, so tracks are
 // independent and free to overlap — there is no phase counter forcing them
@@ -42,13 +36,9 @@ export const useClusterBeats = (armed: boolean, timing: ClusterBeatTiming): Clus
   const [beats, setBeats] = useState<ClusterBeats>(AT_REST);
 
   useEffect(() => {
-    // Disarmed: snap back to empty, ready to replay on the way back down. The
-    // cluster rows animate their own height out (see ./cluster-list), so this
-    // is not the hard cut it looks like.
-    //
-    // The write IS the point of the effect: `armed` is scroll-driven, so there
-    // is no event to hang the reset on. Was masked until now by an
-    // exhaustive-deps directive, which suppressed the whole hook.
+    // Disarmed: snap back to empty, ready to replay. Not the hard cut it looks
+    // like — the rows animate their own height out. The write IS the point of
+    // the effect: `armed` is scroll-driven, with no event to hang a reset on.
     if (!armed) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setBeats(AT_REST);

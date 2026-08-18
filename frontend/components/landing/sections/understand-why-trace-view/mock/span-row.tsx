@@ -13,12 +13,9 @@ interface Props {
   onSelect: (spanId: string) => void;
 }
 
-// One transcript row.
-//
-// Where the output goes is the whole difference between the two shapes: a tool
-// call's result is short enough to sit inline beside its name, an LLM's is not
-// and gets its own line beneath the row. That is the product's `showInlinePreview`
-// rule, and it is why the run reads as alternating short and tall rows.
+// One transcript row. Where the output goes is the whole difference between the
+// two shapes: a tool result sits inline beside the name, an LLM's gets its own
+// line beneath — which is why the run reads as alternating short and tall rows.
 const SpanRow = ({ span, isSelected, onSelect }: Props) => {
   const isLLM = span.spanType === "LLM";
   const displayName = isLLM && span.model ? span.model : span.name;

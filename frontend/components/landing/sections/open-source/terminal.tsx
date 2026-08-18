@@ -3,11 +3,9 @@
 import { useInView } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 
-// Combined terminal: types `git clone`, shows clone output, types
-// `cd lmnr && docker compose up -d`, shows the real Docker v2 output
-// (`[+] Running N/M` header + per-container spinner→✔ transitions).
-// Animation is gated on `useInView` so it only starts once the panel is
-// actually visible to the reader (and only fires once per page load).
+// Types `git clone`, shows its output, then `docker compose up -d` and the real
+// Docker v2 output. Gated on `useInView`, so it starts when the panel is
+// actually visible and fires once per page load.
 
 const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
@@ -22,13 +20,9 @@ interface Row {
   verb: "Created" | "Started";
   elapsed: string;
 }
-// Mirrors the real `docker-compose.yml` from `cd lmnr`:
-// - Project name: `lmnr` → containers prefixed `lmnr-<service>-1` unless
-//   the service has a `container_name:` override (clickhouse does — its
-//   container is just `clickhouse`).
-// - Services: postgres, clickhouse, quickwit, app-server,
-//   frontend (+ the implicit `lmnr_default` network).
-// Names padded to a common width so the verb/elapsed column lines up.
+// Mirrors the real `docker-compose.yml`: project `lmnr`, so containers are
+// `lmnr-<service>-1` unless overridden (clickhouse is just `clickhouse`). Names
+// padded to a common width so the verb/elapsed column lines up.
 const ROWS: Row[] = [
   { name: "Network lmnr_default          ", verb: "Created", elapsed: "0.2s" },
   { name: "Container lmnr-postgres-1     ", verb: "Started", elapsed: "1.4s" },

@@ -9,11 +9,9 @@ interface Props {
   className?: string;
 }
 
-// The one outbound link a section gets, sitting under its body copy.
-//
-// It replaced a footnote pinned inside each mock panel, which put the link on
-// the artwork instead of on the sentence it belongs to, and left every panel
-// carrying a label it did not need.
+// The one outbound link a section gets, under its body copy. It replaced a
+// footnote pinned inside each mock panel, which put the link on the artwork
+// rather than on the sentence it belongs to.
 const LearnMoreLink = ({ label, href, className }: Props) => (
   <Link
     href={href}

@@ -18,14 +18,10 @@ interface CardProps {
   href: string;
 }
 
-// Shell borrowed from ./features-for-every-step (surface, radius, hover), sized
-// to the Figma frame: 434 x 200 cards on a 12px grid inside the 880 column, 24px
-// left padding, 20px top, and a 360px text measure — narrower than the card, so
-// the descriptions wrap where the design wraps them.
-//
-// Two departures from the frame, both requested: there is no icon, so the title
-// takes the top row beside the arrow, and the "Learn more" row at the bottom of
-// each card is dropped (the arrow is the affordance).
+// Shell borrowed from ./features-for-every-step, sized to the Figma frame. The
+// 360px text measure is narrower than the card on purpose, so descriptions wrap
+// where the design wraps them. Two requested departures: no icon (the title
+// takes the top row beside the arrow) and no "Learn more" row.
 const Card = ({ title, description, children, href }: CardProps) => (
   <Link
     target="_blank"

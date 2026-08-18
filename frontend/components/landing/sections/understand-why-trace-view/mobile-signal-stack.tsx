@@ -9,24 +9,10 @@ import { SIGNAL_CARD_W, SIGNAL_HEADER_H } from "../signal-event-card";
 import { DEFAULT_MOBILE_STACK_TIMING, type MobileStackTiming } from "./mobile-stack-timing";
 import { DEFAULT_STACK_TIMING, easeInCubic, phase, smootherstep } from "./stack-timing";
 
-// Mobile twin of the desktop step-5 gesture (./signal-stack), minus the flight:
-// the cards are already stacked here, so this owns only the last two beats.
-//
-//   ┌── frame ─────────┐   ┌──────────────────┐   ┌──────────────────┐
-//   │ ┌──────┐╲╲╲      │   │     ╭─pill─╮     │   │                  │
-//   │ └──────┘  ghosts │──▶│      centred     │──▶│        ╷         │
-//   │                  │   │                  │   │        ▼ out     │
-//   └──────────────────┘   └──────────────────┘   └──────────────────┘
-//       collapse 0→1            formed                 drop 0→1
-//
-// The pill leaves through the bottom edge because the NEXT section catches it:
-// ../has-this-issue drops the same pill in from above and lands it on the
-// clusters card. That hand-off is why the pill has to exit CENTRED on the frame
-// — it re-enters centred on the next one, which measures its own frame to do it.
-//
-// Scroll-bound like the desktop original, so scrolling back up rewinds it frame
-// for frame. Nothing here runs on a clock. Choreography lives in
-// ./mobile-stack-timing.
+// Mobile twin of ./signal-stack minus the flight: the cards start stacked, so
+// this owns only the collapse and the drop. Scroll-bound, choreography in
+// ./mobile-stack-timing. The pill exits CENTRED because ../has-this-issue
+// catches it on the same centre line.
 
 /** The stack IS the cluster's events, so the card count and the pill's count are
  *  one number. */

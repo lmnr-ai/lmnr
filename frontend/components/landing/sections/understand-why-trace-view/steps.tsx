@@ -5,30 +5,10 @@ import { type ReactNode } from "react";
 import { DEMO_FIRST_LLM_SPAN_ID, DEMO_FIRST_SEARCH_SPAN_ID } from "../demo-trace";
 import { useSpanSelection } from "./mock/selection";
 
-// ──────────────────────────────────────────────────────────────────────
-// The narrative. Four steps, scrubbed by the section's scroll progress, all
-// against the SAME trace (../demo-trace) — there is no second slide and no
-// horizontal travel, so the right-hand panel never moves.
-//
-//   #  copy                              timeline  signals  stack  clusters
-//   1  See clearly what your agent… (H2)     ✓         ·       ·        ·
-//   2  Automatic failure detection  (H2)     ✓         ✓       ·        ·
-//   3  Similar failures are ...     (H3)     ✓         ✓       ✓        ·
-//   4  Has this failure occurred…   (H2)     ·         ·       ✓        ✓
-//
-// Step 1's timeline and transcript are NOT step-driven: they open the frame the
-// section pins, i.e. once the panel has travelled up and stopped dead centre,
-// so the run streams in under the opener rather than waiting for a hand-off.
-// See ./index.
-//
-// Steps 3 and 4 keep the panel exactly where step 2 left it: the signal card
-// flies out of it, and the flight's measured origin would chase a live
-// transform if anything under it moved. See ./signal-stack.
-//
-// Add a step by appending to STEPS — STEP_COUNT and every scroll mapping
-// follow. Note the last two steps SHARE one continuous gesture rather than
-// getting a hand-off each, so a new step must go before them.
-// ──────────────────────────────────────────────────────────────────────
+// Four steps scrubbed by scroll, all against one trace. Step 1's panel opens on
+// the PIN, not a hand-off, and steps 3-4 leave it exactly where step 2 did.
+// Append to STEPS to add one — but the last two share ONE gesture, so a new
+// step has to go before them.
 
 export type StepNumber = 1 | 2 | 3 | 4;
 
@@ -46,12 +26,9 @@ interface Step {
    *  view. Mobile has no store to select into, so it renders `body` instead —
    *  keep the two saying the same thing. */
   richBody?: ReactNode;
-  /** The outbound link under the body. Full label, not a feature name: the
-   *  wording differs per step ("about Signals", "about the trace view").
-   *
-   *  Optional, and absent on the steps that CONTINUE the one above them rather
-   *  than opening a topic — the link would be the same link twice, a hand's
-   *  width apart. */
+  /** The outbound link under the body — a full label, since the wording differs
+   *  per step. Absent on steps that CONTINUE the one above them, where it would
+   *  be the same link twice a hand's width apart. */
   learnMore?: { label: string; href: string };
 }
 

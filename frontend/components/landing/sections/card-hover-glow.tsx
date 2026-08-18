@@ -1,21 +1,9 @@
 import Image from "next/image";
 
-// The faint swoosh that slides into a card's bottom-right corner on hover.
-// Shared by the Enterprise-ready and "every stage of agent development" grids.
-//
-// The card it sits in MUST be `group relative overflow-hidden` — `group` drives
-// the transition, `relative` anchors it, and `overflow-hidden` is what keeps it
-// from painting outside the card while it travels.
-//
-// Every tunable is a CSS custom property with its default inline in the class,
-// so a caller can retune one grid without touching the others: set
-// `--card-glow-opacity` (or any of the five) on the card and the glow inherits
-// it. ./features-for-every-step/card does exactly that.
-//
-// The file is 721x314 but the shape only occupies the middle 521x114 — the blur
-// needs 100px of bleed on every side. Hence the negative offset defaults, which
-// put the SHAPE's bottom-right on the card's bottom-right rather than the
-// file's.
+// The swoosh sliding into a card's bottom-right on hover. Its card MUST be
+// `group relative overflow-hidden`, and every tunable is a `--card-glow-*`
+// property. The shape occupies only the middle 521x114 of a 721x314 file (the
+// blur needs bleed), hence the negative offset defaults.
 const GLOW_W = 721;
 const GLOW_H = 314;
 

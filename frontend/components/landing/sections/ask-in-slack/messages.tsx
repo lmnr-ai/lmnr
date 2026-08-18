@@ -1,49 +1,9 @@
 import { type ReactNode } from "react";
 
-// ──────────────────────────────────────────────────────────────────────
-// The channel. Three kinds of message, produced by three different code
-// paths, which is why they look different:
-//
-//   0. The signal-event alert is a BLOCK payload assembled by
-//      `format_event_identification_blocks`: a `header` block reading
-//      "{signal name} - :red_circle: Critical event", then a `table` block
-//      whose first row is a literal "Field"/"Value" header and whose
-//      remaining rows are the event payload's keys IN SCHEMA ORDER, then an
-//      `actions` row. Condensed here — the real message keeps the Field/Value
-//      header row, adds a third "Manage alerts" button, and closes with a
-//      `context` statline ("*project* · Jul 2, 2026 at 2:32 PM UTC").
-//
-//      The payload keys are whatever the signal's `structured_output_schema`
-//      defines, so `category` / `description` is an example shape, not a fixed
-//      one. Values are capped at 2000 chars; a real `description` runs several
-//      hundred. Span references inside it arrive already rewritten into
-//      markdown links by `replace_span_tags_with_links`, which is why one word
-//      of the sentence below is a link.
-//
-//   1. The new-cluster alert is a BLOCK payload assembled by
-//      `format_new_cluster_blocks`: a fixed template plus an `actions` button
-//      and a context row naming the signal + alert. Heavily condensed here —
-//      the real template also prints the cluster name, `Events:`,
-//      `First seen:`, `Last seen:` and a bulleted `Example events:` list, its
-//      button reads "View Cluster", and the context row is dropped entirely,
-//      because at landing scale the full digest is mostly chrome.
-//
-//   2. Everything the agent says afterwards is the model's own prose, and its
-//      Slack output rules are mrkdwn-only (*bold*, `code`, "• " bullets,
-//      `<url|label>` links; no headings, no tables).
-//
-//      DEPARTURE: the reply here ends in a button. In production the agent
-//      posts ONE plain message via `post_thread_message` with no blocks, so a
-//      real reply can only ever offer an inline link. The button is a
-//      deliberate landing-page liberty for legibility, not a behaviour to
-//      match — if the agent should really emit one, that is a change to
-//      `slack_events.rs`, not to this mock.
-//
-// The failure continues section 03's "detect failures" scenario: the counts
-// match its `Hallucinated invalid IDs` cluster and the worked example is the
-// made-up-Postgres-column entry from that cluster's own event list, so the
-// thread stays about the same coding agent as the rest of the page.
-// ──────────────────────────────────────────────────────────────────────
+// A signal-event alert, a new-cluster alert (both condensed block payloads),
+// then the agent's own mrkdwn prose — continuing section 03's cluster so both
+// stay about one coding agent. DEPARTURE: the replies end in buttons, where a
+// real agent posts one plain message and could only offer an inline link.
 
 const SIGNAL_NAME = "Hallucination Detector";
 /** `severity_counts` sums to `num_signal_events` in the real payload. */
@@ -77,15 +37,9 @@ const SeverityCount = ({ className, children }: { className: string; children: R
   </span>
 );
 
-// A row of the payload table. Slack renders these as a real `table` block, so
-// the key column is `is_wrapped: false` (fixed, never wraps) and the value
-// column wraps — mirrored here with a fixed-width key and a flexible value.
-//
-// Two columns only once there is room for them: the values are schema field
-// values, so they are frequently one long unbroken token (`invented_identifier`,
-// a column name) that cannot wrap and would run out of the card at phone width.
-// `overflow-wrap: anywhere` is what actually breaks those; the stacked layout is
-// what keeps the break from happening every three characters.
+// A row of the payload table: fixed key column, wrapping value, as Slack's own
+// `table` block renders it. Values are often one unbroken token, so they need
+// `overflow-wrap: anywhere` AND the stacked layout below `sm` to stay in the card.
 const Field = ({ name, children }: { name: string; children: ReactNode }) => (
   <div className="flex flex-col gap-0.5 border-b border-surface-350/40 px-2 py-1.5 last:border-b-0 sm:flex-row sm:gap-3">
     <span className="font-medium text-white sm:w-[74px] sm:shrink-0">{name}</span>
@@ -154,11 +108,8 @@ const AskForExample = () => (
   </p>
 );
 
-// The agent reaches the example by querying: `query_sql` for a trace in the
-// cluster, then `get_trace_context` to read it. One unbroken paragraph rather
-// than the bulleted form the Slack rules also allow: the whole point is a
-// causal chain (empty lookup, invented name, failed query, success anyway), and
-// splitting it into bullets reads as four unrelated observations.
+// One unbroken paragraph rather than the bullets the Slack rules also allow:
+// this is a causal chain, and bullets read as unrelated observations.
 const ExampleAnswer = () => (
   <div className="flex flex-col gap-2.5">
     <p>
@@ -196,12 +147,8 @@ export interface ThreadMessage {
   author: "app" | "user";
   time: string;
   body: ReactNode;
-  /** Rendered height in body lines, at the card's fixed 552px width, counting
-   *  a button row as one. The NEXT message waits on this — see
-   *  ./slack-thread — so a one-line question is answered almost at once and a
-   *  table of findings is not. Authored rather than measured: the whole thread
-   *  is hand-written here, and measuring would tie the beat to a layout pass
-   *  that has not run when the walk is scheduled. */
+  /** Rendered height in body lines at the card's 552px, a button row counting
+   *  as one. The NEXT message waits on it — see ./slack-thread. */
   lines: number;
 }
 

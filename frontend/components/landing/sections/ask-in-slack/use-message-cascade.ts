@@ -2,14 +2,10 @@
 
 import { type RefObject, useEffect, useState } from "react";
 
-/**
- * Walks 0 → delays.length once the element scrolls into view, waiting
- * `delays[i]` before revealing the message after index i.
- *
- * The delays vary per message because a channel does not tick: the gap before a
- * reply is the time it took to read the message above it. Reduced motion jumps
- * to the end.
- */
+/** Walks 0 → delays.length once the element scrolls into view, waiting
+ *  `delays[i]` before the message after index i. They vary because a channel
+ *  does not tick — the gap before a reply is the time it took to read the one
+ *  above. Reduced motion jumps to the end. */
 export const useMessageCascade = (ref: RefObject<HTMLElement | null>, delays: number[]): number => {
   const [revealed, setRevealed] = useState(0);
   // Read once rather than per walk, and NOT into the initial state — the server

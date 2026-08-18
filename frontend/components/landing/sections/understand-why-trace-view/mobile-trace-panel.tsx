@@ -9,17 +9,10 @@ interface Props {
   showSignals?: boolean;
 }
 
-// The desktop trace panel, reused verbatim on mobile — same component, same
-// trace, same steps' worth of state — so the two can never drift.
-//
-// Desktop gives it a 680px frame; here the caller crops it instead, so the
-// transcript runs off the bottom edge under a gradient rather than ending. Its
-// scroll is locked for that reason: on touch an inner scroller only traps the
-// page.
-//
-// Its OWN selection provider, not the section's: this page mounts the panel
-// twice, and one provider would let a chip in either copy scroll both
-// transcripts.
+// The desktop panel reused verbatim, so the two can never drift. The caller
+// CROPS it rather than sizing it, so the transcript runs off the bottom under a
+// gradient — and its scroll is locked, since on touch an inner scroller only
+// traps the page. Its OWN provider: this page mounts the panel twice.
 const MobileTracePanel = ({ showSignals }: Props) => (
   <TraceViewErrorBoundary>
     <SpanSelectionProvider>

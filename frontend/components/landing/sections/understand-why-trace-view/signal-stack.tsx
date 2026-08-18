@@ -9,45 +9,10 @@ import { SIGNAL_CARD_W } from "../signal-event-card";
 import { FRAME_H } from "./geometry";
 import { easeInCubic, easeInOutCubic, easeOutCubic, phase, smootherstep, type StackTiming } from "./stack-timing";
 
-// The last step — the signal card leaves the trace panel, becomes the front of
-// a receding stack of identical cards, collapses into its cluster pill, and
-// the pill drops into the clusters card that rose to meet it (./clusters-stage
-// owns that card).
-//
-//   ┌── frame ────────┐   ┌─────────────────┐   ┌─────────────────┐
-//   │ ┌ trace ┐       │   │ ┌──────┐        │   │    ╭─pill─╮     │
-//   │ │[card] │ ─────▶│   │ │[card]│╲╲╲     │──▶│       ↓         │
-//   │ └───────┘ flight│   │ └──────┘ ghosts │   │  ┌──clusters──┐ │
-//   └─────────────────┘   └─────────────────┘   └─────────────────┘
-//        flight 0→1            collapse 0→1         pillEnter 0→1
-//
-// EVERY position below is a pure function of a scroll-derived MotionValue.
-// Nothing runs on a clock, so scrolling back up rewinds it frame for frame,
-// which is what the rest of this section already does.
-//
-// That requirement is why this is NOT `layoutId`. A shared-layout animation is
-// driven by its own spring/tween the instant a re-render moves the element —
-// there is no way to bind it to a MotionValue, so a reversal mid-flight snaps
-// instead of rewinding. The flight is a plain lerp between a MEASURED source
-// box and a DERIVED destination instead, which costs one ResizeObserver and
-// buys full scrubbing.
-//
-// It is also why nothing needs scale correction: the card is SIGNAL_CARD_W in
-// the panel and SIGNAL_CARD_W in the stack, so the flight is a pure translate.
-// Give the stack cards a different width and the text starts stretching.
-//
-// EASING IS PER-PROPERTY, AND THAT SPLIT IS LOAD-BEARING. Each phase arrives
-// linear and is eased HERE, once, into a sibling value; ../stack-timing's header
-// explains which curve and why. The rule for choosing between them:
-//
-//   POSITION and GEOMETRY  eased    the kink at a phase boundary is visible
-//   OPACITY                linear   an eased fade-in reads as a delay
-//
-// Do NOT "simplify" this by easing the phases at their source in ./index. Three
-// things break at once: every fade below picks up the curve, the depth-ladder
-// opacity stops tracking the cards it describes, and `entry` — which is a
-// `phase()` OF the flight — would have its window non-linearly reshaped, so the
-// entryStart dial would no longer mean the fraction of the flight it says.
+// The last step: the card leaves the panel, fronts a receding stack, collapses
+// to its pill, and the pill drops into ./clusters-stage's card. Every position
+// is a pure function of a scroll MotionValue, which is why it is NOT `layoutId`.
+// Phases arrive linear and are eased HERE: POSITION eased, OPACITY linear.
 const easeFor = {
   /** Leaves a card at rest, lands in a waiting formation. */
   flight: easeInOutCubic,
@@ -98,63 +63,53 @@ const PILL_FADE_END = 0.4;
 
 const mix = (from: number, to: number, t: number) => from + (to - from) * t;
 
-/** Left edge of the front card, from centring the whole cascade in the frame.
- *
- *  The SIGN depends on `dx`: at the current tight-deck spacing the cascade is
- *  408 wide inside a 480 frame, so this is positive and the stack sits fully
- *  inside. Fan the deck out past the frame width (dx > 24 at five cards) and it
- *  goes negative, which is legal — the stack is then centred and bleeds off
- *  BOTH edges rather than being clipped on one.
- *
- *  `frameW` is MEASURED, not a constant: the frame's width is a media query.
- *  This is the one place in the section that still needs the number, because
- *  the result is lerped against the measured source box below — CSS centring
- *  has nothing to interpolate with. */
-const stackLeft = (dx: number, frameW: number) => (frameW - (SIGNAL_CARD_W + (CARDS - 1) * dx)) / 2;
+/** Left edge of the front card, centring the whole cascade. Legally negative
+ *  once the deck fans past the frame — it then bleeds off both edges. `frameW`
+ *  is measured because the result is lerped against a measured box, and CSS
+ *  centring has nothing to interpolate with. */
+const stackLeft = (dx: number, frameW: number, cardW: number) => (frameW - (cardW + (CARDS - 1) * dx)) / 2;
 const stackTop = (cardH: number, dy: number) => (FRAME_H - (cardH + (CARDS - 1) * dy)) / 2;
 
 interface SourceBox {
   x: number;
   y: number;
+  w: number;
   h: number;
 }
 
 interface FrameGeometry {
   /** Where the panel's own signal card sits, in FRAME coordinates. */
   source: SourceBox | null;
-  /** The frame's live width. 0 until the first measurement — which lands in a
-   *  layout effect, before paint, and the stack is invisible until the flight
-   *  starts a long scroll later. */
+  /** The frame's live width. 0 until the first measurement, which lands in a
+   *  layout effect long before the stack is visible. */
   frameW: number;
 }
 
-/** Measures everything the flight is placed against.
- *
- *  The card is measured against the FRAME directly. It used to measure against
- *  the PANEL and add `PANEL_X` back — a leftover from when a tray slid
- *  horizontally and the panel's live transform had to cancel out. Nothing moves
- *  any more, and that form was silently WRONG on the vertical: it added the
- *  panel's x offset but not its y, so the flight began 39px above the card it
- *  was flying from and the card jumped up before it set off. Measuring against
- *  the frame is what the consumer's coordinates actually are, and it cannot
- *  drift. */
+/** Measures what the flight is placed against, in FRAME coordinates — which is
+ *  what the consumer's own coordinates are, so it cannot drift. */
 const useFrameGeometry = (flight: MotionValue<number>): FrameGeometry => {
   const [geometry, setGeometry] = useState<FrameGeometry>({ source: null, frameW: 0 });
 
   useLayoutEffect(() => {
-    const card = document.querySelector<HTMLElement>("[data-landing-signal-card]");
+    // Card looked up THROUGH the frame: mobile mounts panels of its own, and a
+    // document-wide query would measure whichever one happens to be first.
     const frame = document.querySelector<HTMLElement>("[data-landing-frame]");
+    const card = frame?.querySelector<HTMLElement>("[data-landing-signal-card]");
     if (!card || !frame) return;
 
     const measure = () => {
       const c = card.getBoundingClientRect();
       const t = frame.getBoundingClientRect();
-      const next = { source: { x: c.left - t.left, y: c.top - t.top, h: c.height }, frameW: t.width };
+      const next = {
+        source: { x: c.left - t.left, y: c.top - t.top, w: c.width, h: c.height },
+        frameW: t.width,
+      };
       setGeometry((prev) => {
         const p = prev.source;
         return p &&
           Math.abs(p.x - next.source.x) < 0.5 &&
           Math.abs(p.y - next.source.y) < 0.5 &&
+          Math.abs(p.w - next.source.w) < 0.5 &&
           Math.abs(p.h - next.source.h) < 0.5 &&
           Math.abs(prev.frameW - next.frameW) < 0.5
           ? prev
@@ -170,19 +125,9 @@ const useFrameGeometry = (flight: MotionValue<number>): FrameGeometry => {
     // moves the card's TOP without resizing the card itself.
     if (card.parentElement) observer.observe(card.parentElement);
 
-    // A ResizeObserver ALONE cannot measure this card, and the miss is silent.
-    // The collapser tweens `marginTop` 0 → 8 alongside its maxHeight, and margin
-    // is not part of an element's size, so RO never sees that half. Worse, the
-    // maxHeight it CAN see is a clamp well above the content's natural height,
-    // so the rendered height stops changing partway through and RO goes quiet
-    // while the margin is still travelling — freezing this measurement at a
-    // fraction of the 8px. The card then detaches a few px above where it was
-    // sitting, which reads as a jump up at the start of the flight.
-    //
-    // So re-measure on scroll, but only while the flight has not started: past
-    // that the value must stay frozen or the card would jump mid-flight. The
-    // tween is 300ms and the flight is a long scroll away, so by the time this
-    // matters the last scroll has caught the settled position.
+    // A ResizeObserver alone misses the collapser's `marginTop` tween — margin
+    // is not part of an element's size — so the card detached a few px high.
+    // Only while the flight is at 0; past that a re-measure jumps it mid-air.
     const onScroll = () => {
       if (flight.get() === 0) measure();
     };
@@ -202,14 +147,10 @@ interface StackCardProps {
   /** The LIVE card's position, including its flight out of the trace panel. */
   x: MotionValue<number>;
   y: MotionValue<number>;
-  /** The same path with the flight already FINISHED — the stack's destination,
-   *  travelling on to the pill through the collapse. Every other slot is an
-   *  offset from this, not from the live card.
-   *
-   *  That distinction is the whole feel of the beat. Offsetting from the live
-   *  card makes the others chase it down the frame, escorting it; offsetting
-   *  from the destination makes them assemble where the stack will BE, and the
-   *  live card slots into a formation that is already waiting for it. */
+  /** The same path with the flight already FINISHED. Every other slot offsets
+   *  from THIS, not the live card: offsetting from the live card makes them
+   *  chase it down the frame, offsetting from here makes them assemble where
+   *  the stack will be and the live card slot into a waiting formation. */
   anchorX: MotionValue<number>;
   anchorY: MotionValue<number>;
   /** 0 = off-frame, 1 = arrived in its slot. Raw drives the fades, eased the
@@ -218,21 +159,16 @@ interface StackCardProps {
   entryEased: MotionValue<number>;
   collapse: MotionValue<number>;
   collapseEased: MotionValue<number>;
+  /** The panel card's measured width, so the stack's copies are the same box. */
+  cardW: number;
   timing: StackTiming;
   onMeasure?: (metrics: PillMetrics) => void;
 }
 
-// One run in the stack, live or not. Every card runs the SAME morph, so the
-// whole stack collapses together; only the live one grows the pill, because
-// five events resolve to one cluster, not five.
-//
-// OPAQUE BASE with faded CONTENT, not a faded card: fading the whole card would
-// let the one behind show through it, which reads as stacked glass. What we
-// want is depth, where each card hides the one behind. `surface-300` on the
-// frame's `surface-250` is the same one-step lift the design uses.
-//
-// No explicit width — the wrapper shrink-wraps the morphing card, so the
-// backing tracks the collapse for free instead of duplicating its transforms.
+// One run in the stack. Every card runs the same morph so they collapse
+// together; only the live one grows the pill, since five events make one
+// cluster. Opaque base with faded CONTENT — fading the whole card would let the
+// one behind show through, which reads as glass rather than depth.
 const StackCard = ({
   slot,
   liveSlot,
@@ -244,6 +180,7 @@ const StackCard = ({
   entryEased,
   collapse,
   collapseEased,
+  cardW,
   timing,
   onMeasure,
 }: StackCardProps) => {
@@ -256,14 +193,9 @@ const StackCard = ({
   const baseX = isLive ? x : anchorX;
   const baseY = isLive ? y : anchorY;
 
-  // ONE scalar places every card, and its SIGN is the whole trick: slots before
-  // the live one have a negative offset so they come in from up-LEFT, slots
-  // after it from down-RIGHT. They arrive from opposite sides rather than
-  // splitting out of the live card, and they converge onto the pill rather than
-  // retreating the way they came.
-  //
-  //   entrySpread ──▶ 1 ──▶ 0
-  //   off-frame     slot    on the pill
+  // One scalar places every card, and its SIGN is the trick: slots before the
+  // live one come in from up-LEFT, slots after it from down-RIGHT, so they
+  // arrive from opposite sides. entrySpread ▶ 1 ▶ 0 = off-frame, slot, pill.
   const factor = useTransform(
     [entryEased, collapseEased],
     ([e, c]: number[]) => mix(timing.entrySpread, 1, e) * (1 - c)
@@ -291,7 +223,7 @@ const StackCard = ({
         {/* Eased: this is the card's BOX shrinking. Its own internal fades are
             keyed to fractions of the collapse's geometry, not of the scroll, so
             they stay locked to the shape they were tuned against. */}
-        <MorphingSignalCard progress={collapseEased} showPill={isLive} onMeasure={onMeasure} />
+        <MorphingSignalCard progress={collapseEased} showPill={isLive} cardW={cardW} onMeasure={onMeasure} />
       </motion.div>
     </motion.div>
   );
@@ -320,12 +252,13 @@ const SignalStack = ({ flight, collapse, pillEnter, pillRestY, visible, timing }
   // Before measurement the card simply starts where it will land, so the worst
   // case is a flight with no distance rather than one from a wrong place.
   const cardH = source?.h ?? CARD_H_ESTIMATE;
+  const cardW = source?.w ?? SIGNAL_CARD_W;
   // Clamped because it indexes SLOT_OPACITY, and it arrives from a dial.
   const liveSlot = Math.min(Math.max(Math.round(timing.liveSlot), 0), CARDS - 1);
 
   // The cascade is centred as a WHOLE; the live card lands on its own slot
   // within it, which is why the flight's destination is not the cascade origin.
-  const liveX = stackLeft(timing.dx, frameW) + liveSlot * timing.dx;
+  const liveX = stackLeft(timing.dx, frameW, cardW) + liveSlot * timing.dx;
   const liveY = stackTop(cardH, timing.dy) + liveSlot * timing.dy;
   const from = source ?? { x: liveX, y: liveY };
 
@@ -356,11 +289,9 @@ const SignalStack = ({ flight, collapse, pillEnter, pillRestY, visible, timing }
     return parked + e * ((pill?.height ?? 0) + timing.pillEnterDepth);
   });
 
-  /** The other runs sliding in from off-frame, late in the flight — but landing
-   *  BEFORE it ends, so the formation is already waiting when the live card
-   *  arrives rather than everything converging on the same frame. */
-  // Cut from the RAW flight, so `entryStart` still means the fraction of the
-  // flight's scroll span the dial says it does. Eased afterwards, not before.
+  /** The other runs sliding in late in the flight but landing BEFORE it ends,
+   *  so the formation is waiting when the live card arrives. Cut from the RAW
+   *  flight, so `entryStart` still means the fraction the dial says. */
   const entry = useTransform(flight, (f) => phase(f, timing.entryStart, ENTRY_END - timing.entryStart));
   const entryEased = useTransform(entry, easeFor.entry);
 
@@ -386,6 +317,7 @@ const SignalStack = ({ flight, collapse, pillEnter, pillRestY, visible, timing }
           entryEased={entryEased}
           collapse={collapse}
           collapseEased={collapseEased}
+          cardW={cardW}
           timing={timing}
           onMeasure={slot === liveSlot ? setPill : undefined}
         />

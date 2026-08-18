@@ -12,21 +12,16 @@ import { SIGNAL_CLUSTER_COLOR, SIGNAL_CLUSTER_EVENT_COUNT, SIGNAL_CLUSTER_NAME }
 export const SIGNAL_BORDER = "rgb(49 134 255 / 0.6)";
 export const SIGNAL_BG = "rgb(49 134 255 / 0.12)";
 
-/** The card's width wherever it is drawn standalone: inside the trace panel it
- *  is PANEL_W (400) less the header's `px-2` gutters, and the two animations
- *  that move it out of the panel (the signal stack, the collapse-to-pill morph)
- *  must use the SAME number or the card silently resizes mid-flight. */
+/** The card's width at the base breakpoint: the trace panel's 400 less the
+ *  header's `px-2` gutters. The panel widens at 2xl, so the desktop stack
+ *  MEASURES the live card instead and this is only its seed — the two must agree
+ *  or the card resizes at the frame the flight hands over. */
 export const SIGNAL_CARD_W = 384;
 
-/** The cluster pill's box height — the morph's collapse target, and the box the
- *  pill-plus-clusters-card assembly is laid out against. A CONSTANT rather than
- *  the measured pill, because deriving it from a text measurement would make
- *  the two disagree for a frame while fonts settle. Must equal the pill's
- *  natural height: icon (20) + py-1.5 (12) + border (2).
- *
- *  It is NOT a header row height. It used to double as one, which pinned every
- *  signal card's title inside a 34px box and left ~9px of dead air above and
- *  below it. */
+/** The cluster pill's box height, and the morph's collapse target. A CONSTANT,
+ *  not the measured pill, which would disagree for a frame while fonts settle:
+ *  icon (20) + py-1.5 (12) + border (2). NOT a header row height — it used to
+ *  double as one and left ~9px of dead air around every card title. */
 export const SIGNAL_HEADER_H = 34;
 
 /** The SIGNAL's name, as the card's headline. NOT the cluster name: a cluster
@@ -80,15 +75,10 @@ interface SignalContentProps {
   onClose?: () => void;
 }
 
-// The cluster this event was grouped into. Decorative — signals the row would
-// be clickable in the real product.
-//
-// The icon is drawn here rather than via the production `ClusterIcon`, which
-// pins itself inside a `size-4` box and takes no className: the pill is a
-// standalone badge and wants a larger glyph than a dense list row does. Fill
-// and stroke treatment are copied from it so the two still read as the same
-// mark. Any size change here must be mirrored in SIGNAL_HEADER_H, which is the
-// box the card collapses onto.
+// The cluster this event was grouped into. Its icon is drawn here rather than
+// via the production `ClusterIcon`, which pins itself in a `size-4` box: a
+// standalone badge wants a bigger glyph than a dense list row. Any size change
+// must be mirrored in SIGNAL_HEADER_H, the box the card collapses onto.
 export const ClusterPill = () => (
   <div className="flex items-center gap-2 min-w-0 rounded-full border border-foreground-600 bg-white/5 px-2.5 py-1.5">
     <Boxes
@@ -103,13 +93,9 @@ export const ClusterPill = () => (
   </div>
 );
 
-// Signal event card payload. Split out from SignalContent so the clusters
-// animation can collapse it away independently of the pill above it.
-//
-// The three failures the signal caught in ../demo-trace — redundant searches, a
-// swallowed 404, an unsourced answer. Each chip points at the span that
-// materialises its claim, and clicking one drives the transcript scroll +
-// selection.
+// The card's payload, split out of SignalContent so the clusters animation can
+// collapse it away independently of the pill. Each chip points at the span that
+// materialises its claim, and clicking one scrolls the transcript to it.
 export const SignalCardBody = ({ onSpanClick }: Omit<SignalContentProps, "onClose"> = {}) => (
   <p className="text-foreground-300 text-xs leading-5">
     The agent ran{" "}

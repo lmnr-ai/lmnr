@@ -31,12 +31,9 @@ const Shield = ({ icon, value }: { icon: ReactNode; value: string }) => (
   </button>
 );
 
-// Duration, tokens and cost for the whole run, in the transcript's toolbar.
-//
-// While the run streams these climb with it; once it is complete the caller
-// stops passing `spans` and they hand back to the trace's OWN totals, so the
-// numbers land on what the trace row says rather than on a client-side re-sum
-// of it.
+// Duration, tokens and cost for the whole run. They climb while it streams,
+// then hand back to the trace's OWN totals once the caller stops passing
+// `spans`, so they land on the real numbers rather than a re-sum of them.
 const TraceStats = ({ spans, className }: Props) => {
   const stats = spans && spans.length > 0 ? streamedStats(spans) : DEMO_TRACE_TOTALS;
 

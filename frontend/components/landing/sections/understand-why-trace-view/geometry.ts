@@ -1,60 +1,32 @@
-// Geometry of the right-hand column.
-//
-// The frame is a window of fixed HEIGHT holding ONE trace panel, centred:
-//
-//   frame:  ┌───────────────┐
-//           │  [  trace  ]  │
-//           └───────────────┘
-//
-// Its WIDTH is a media query (see ./index), so NOTHING here may derive from
-// one. Horizontal placement is CSS centring wherever it can be — and where a
-// number is genuinely needed, because the value is lerped against a measured
-// box, the consumer measures the frame itself (see ./signal-stack).
+// Geometry of the right-hand column: a window of fixed HEIGHT holding one
+// centred trace panel. Its WIDTH is a media query, so nothing here may derive
+// from one — horizontal placement is CSS centring, and the one consumer that
+// needs a number measures the frame itself (see ./signal-stack).
 
 export const FRAME_H = 760;
 
-export const PANEL_W = 400;
 export const PANEL_H = 680;
 
-/** The panel is a bordered card, so its outer width is 2px wider than its
- *  content. Counted here so the centring is exact rather than 2px off. */
-const PANEL_BORDER = 2;
+/** The panel's width, on the SAME breakpoint the frame uses — it gets the extra
+ *  room the wider frame buys rather than leaving it all to the margins. */
+export const PANEL_W_CLS = "w-[400px] 2xl:w-[420px]";
 
-/** Width of the frame's edge vignettes. Exactly the panel's resting margin, so
- *  they sit over bare frame background and only bite on the signal stack's
- *  cascade, which is wider than the frame and bleeds off both edges.
- *
- *  A calc against the frame's own width rather than a number: the margin is
- *  half of whatever the media query leaves over. */
-export const EDGE_FADE_W = `calc((100% - ${PANEL_W + PANEL_BORDER}px) / 2)`;
+/** The frame's edge vignettes: exactly the panel's resting margin, so they sit
+ *  over bare background and only bite on the signal stack's wider cascade. The
+ *  402/422 are the widths above plus the panel's own 2px border. */
+export const EDGE_FADE_W_CLS = "w-[calc((100%-402px)/2)] 2xl:w-[calc((100%-422px)/2)]";
 
 /** Gap between the resting pill and the clusters card below it. */
 const PILL_CARD_GAP = 16;
 
-/** The clusters card at its settled height, every cluster revealed. MEASURED.
- *  Re-measure if the cluster count changes, or if a cluster NAME does: the
- *  names wrap inside the card's 440px column, so a longer one costs a row. */
-const CLUSTERS_CARD_H = 449;
+/** The clusters card at its settled height. Only a SEED for the frames before
+ *  ./clusters-stage has measured the live one. */
+export const CLUSTERS_CARD_H_SEED = 449;
 
-/** Top of the clusters card inside the frame, and of the pill parked above it:
- *
- *    ╭─pill─╮   ← pillTop
- *      ↕ gap
- *    ┌────────┐ ← cardTop
- *    │clusters│  grows downward
- *    └────────┘
- *
- *  The CARD is what is centred, not the pill-plus-card pair. At rest the pill
- *  has dropped inside the card and is out of sight, so centring the pair left
- *  the only thing still visible sitting ~35px low.
- *
- *  Centred on the CONSTANT above, not on a live measurement. The card's list
- *  hugs its rows, so it grows through Act 2, and centring a measured height
- *  would drag it upward under the reader while they were still watching those
- *  rows arrive. Growth extends downward off this line instead. */
-const CARD_TOP = Math.round((FRAME_H - CLUSTERS_CARD_H) / 2);
-
-export const assemblyLayout = (pillH: number) => ({
-  pillTop: CARD_TOP - PILL_CARD_GAP - pillH,
-  cardTop: CARD_TOP,
-});
+/** Top of the clusters card, with the pill parked a gap above it. Centred on
+ *  the card's LIVE height, so it stays centred as its list grows through Act 2
+ *  rather than only at the end, and the pill's rest follows it. */
+export const assemblyLayout = (pillH: number, cardH: number) => {
+  const cardTop = Math.round((FRAME_H - cardH) / 2);
+  return { pillTop: cardTop - PILL_CARD_GAP - pillH, cardTop };
+};

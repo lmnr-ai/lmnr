@@ -26,15 +26,9 @@ interface Props {
   onSelect: (spanId: string) => void;
 }
 
-// The condensed timeline: every span in the run as a bar, on as few lanes as
-// the parent-child order allows, over a time axis.
-//
-// The product's own component reads all of this off the trace-view store and
-// carries drag-to-filter selection, subagent group boxes, a transcript scroll
-// indicator and a session-replay needle. None of those have anything to act on
-// here — one flat run, no subagents, no replay — so this keeps what a reader
-// can actually see and use: the axis, the bars, the hover needle, zoom and the
-// cost heatmap.
+// Every span as a bar, on as few lanes as the parent-child order allows. The
+// product's drag-to-filter, subagent boxes and replay needle have nothing to act
+// on here, so this keeps only what a reader can see and use.
 const Timeline = ({ spans, selectedSpanId, onSelect }: Props) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(MIN_ZOOM);
