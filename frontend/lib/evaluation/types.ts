@@ -12,6 +12,8 @@ export type Evaluation = {
   dataPointsCount?: number;
   status?: EvaluationStatus | null;
   statusCounts?: { total: number; complete: number; errored: number; stale: number };
+  /** Whole-eval sums from traces_agg, attached by getEvaluations. */
+  totals?: EvaluationTotals;
 };
 
 /** A dataset an evaluation's datapoints are linked to. */

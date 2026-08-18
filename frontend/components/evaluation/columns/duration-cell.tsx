@@ -1,29 +1,31 @@
 import { type CellContext } from "@tanstack/react-table";
 
+import { DurationCell as TraceDurationCell } from "@/components/traces/cells";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 import { ComparisonCell } from "./comparison-cell";
 
-const formatDuration = (seconds: number): string => `${seconds.toFixed(2)}s`;
+const secondsToMs = (v: unknown): number | undefined => {
+  if (v == null || v === "") return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n * 1000 : undefined;
+};
 
 export const DurationCell = ({ row, table }: CellContext<EvalRow, unknown>) => {
   const isComparison = table.options.meta?.evalCellMeta?.isComparison ?? false;
-  const duration = row.original["duration"] as number | undefined;
+  const durationMs = secondsToMs(row.original["duration"]);
 
   if (isComparison) {
-    const comparedDuration = row.original["compared:duration"] as number | undefined;
-    const format = (s: number | undefined) => (s != null ? formatDuration(s) : "-");
-
+    const comparedMs = secondsToMs(row.original["compared:duration"]);
     return (
       <ComparisonCell
-        original={format(duration)}
-        comparison={format(comparedDuration)}
-        originalValue={duration}
-        comparisonValue={comparedDuration}
+        original={<TraceDurationCell durationMs={durationMs} />}
+        comparison={<TraceDurationCell durationMs={comparedMs} />}
+        originalValue={durationMs}
+        comparisonValue={comparedMs}
       />
     );
   }
 
-  if (duration == null) return "-";
-  return <span>{formatDuration(duration)}</span>;
+  return <TraceDurationCell durationMs={durationMs} />;
 };

@@ -3,8 +3,13 @@
 import { useCallback, useMemo } from "react";
 
 import { AggregationSelect, useAggregation } from "@/components/evaluation/metrics-panel/aggregation-select";
+import RunTotals from "@/components/evaluation/run-totals";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { type EvaluationScoreDistributionBucket, type EvaluationScoreStatistics } from "@/lib/evaluation/types";
+import {
+  type EvaluationScoreDistributionBucket,
+  type EvaluationScoreStatistics,
+  type EvaluationTotals,
+} from "@/lib/evaluation/types";
 
 import ScoreCardItem from "./score-card-item";
 import ScoresVisibilityPopover from "./scores-visibility-popover";
@@ -17,6 +22,8 @@ interface RunScoreCardProps {
   allDistributions?: Record<string, EvaluationScoreDistributionBucket[]>;
   comparedAllStatistics?: Record<string, EvaluationScoreStatistics>;
   comparedAllDistributions?: Record<string, EvaluationScoreDistributionBucket[]>;
+  totals?: EvaluationTotals;
+  comparedTotals?: EvaluationTotals;
   isComparison?: boolean;
   /** Resolved score directions (name -> isHigherBetter). Absent = higher is better. */
   scoreDirections?: Record<string, boolean>;
@@ -38,15 +45,18 @@ function computeEffectiveOrder(storedOrder: string[], scoreNames: string[]): str
 }
 
 // Whole-run aggregates shown above the table: a scores popover (reorder + show/
-// hide) + the aggregation picker, then one card per visible score in a
-// horizontally scrollable row. Order and hidden set persist per (project, eval)
-// in localStorage; newly-arriving scores default to visible + appended last.
+// hide) + the aggregation picker, with cost/tokens/duration as a sidecar on
+// that same row, then one card per visible score. Order and hidden set persist
+// per (project, eval) in localStorage; newly-arriving scores default to visible
+// + appended last.
 export default function RunScoreCard({
   projectId,
   evaluationId,
   scoreNames,
   allStatistics,
   comparedAllStatistics,
+  totals,
+  comparedTotals,
   isComparison,
   scoreDirections,
 }: RunScoreCardProps) {
@@ -78,17 +88,20 @@ export default function RunScoreCard({
   );
 
   return (
-    <>
-      <div className="flex items-center gap-1.5">
-        <ScoresVisibilityPopover
-          scoreOrder={scoreOrder}
-          hiddenScores={hiddenScores}
-          onToggle={onToggle}
-          onReorder={setStoredOrder}
-        />
-        <AggregationSelect />
+    <div className="flex flex-col gap-4">
+      <div className="flex min-w-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5">
+          <ScoresVisibilityPopover
+            scoreOrder={scoreOrder}
+            hiddenScores={hiddenScores}
+            onToggle={onToggle}
+            onReorder={setStoredOrder}
+          />
+          <AggregationSelect />
+        </div>
+        <RunTotals className="ml-auto" totals={totals} comparedTotals={comparedTotals} isComparison={isComparison} />
       </div>
-      <div className="flex items-start overflow-x-auto scroll-fade-x px-2 overflow-y-hidden no-scrollbar gap-4 divide-x divide-foreground-600">
+      <div className="flex items-start overflow-x-auto px-2 overflow-y-hidden no-scrollbar gap-4 divide-x divide-foreground-600">
         {visibleScores.map((name) => (
           <ScoreCardItem
             key={name}
@@ -101,6 +114,6 @@ export default function RunScoreCard({
           />
         ))}
       </div>
-    </>
+    </div>
   );
 }

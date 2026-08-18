@@ -15,7 +15,6 @@ import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapo
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import RowScoreChips from "@/components/evaluation/row-score-chips";
 import RunScoreCard from "@/components/evaluation/run-score-card";
-import RunTotals from "@/components/evaluation/run-totals";
 import {
   buildColumnDefs,
   buildFetchParams,
@@ -356,24 +355,19 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
           <EvalTraceLayout
             table={
               <div className="flex h-full w-full flex-col gap-6 overflow-hidden pb-4">
-                <div className="flex flex-col gap-4">
-                  <RunScoreCard
-                    projectId={params.projectId}
-                    evaluationId={evaluationId}
-                    scoreNames={scoreNames}
-                    allStatistics={statsData?.allStatistics}
-                    allDistributions={statsData?.allDistributions}
-                    comparedAllStatistics={targetStatsData?.allStatistics}
-                    comparedAllDistributions={targetStatsData?.allDistributions}
-                    isComparison={isComparison}
-                    scoreDirections={scoreDirections}
-                  />
-                  <RunTotals
-                    totals={statsData?.totals}
-                    comparedTotals={targetStatsData?.totals}
-                    isComparison={isComparison}
-                  />
-                </div>
+                <RunScoreCard
+                  projectId={params.projectId}
+                  evaluationId={evaluationId}
+                  scoreNames={scoreNames}
+                  allStatistics={statsData?.allStatistics}
+                  allDistributions={statsData?.allDistributions}
+                  comparedAllStatistics={targetStatsData?.allStatistics}
+                  comparedAllDistributions={targetStatsData?.allDistributions}
+                  totals={statsData?.totals}
+                  comparedTotals={targetStatsData?.totals}
+                  isComparison={isComparison}
+                  scoreDirections={scoreDirections}
+                />
                 <div className="flex min-h-0 flex-1 overflow-hidden">{table}</div>
               </div>
             }

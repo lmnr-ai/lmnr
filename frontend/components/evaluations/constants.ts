@@ -11,6 +11,9 @@ export const defaultEvaluationsColumnOrder = [
   "id",
   "name",
   "dataPointsCount",
+  "cost",
+  "tokens",
+  "duration",
   "metadata",
   "createdAt",
 ];

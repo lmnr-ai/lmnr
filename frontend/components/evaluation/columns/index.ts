@@ -31,7 +31,16 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Status",
     size: 82,
     enableSorting: false,
-    meta: { dataType: "string", filterable: false, comparable: false },
+    meta: {
+      // SELECT stays the raw trace flag. Filter Success = scored and not error
+      // (excludes running/stale); Error = trace_status error.
+      sql: "trace_status",
+      filterSql: `multiIf(trace_status = 'error', 'error', scores != '' AND scores != '{}', 'success', 'pending')`,
+      dataType: "string",
+      filterable: true,
+      comparable: false,
+      dbType: "String",
+    },
   },
   {
     id: "index",

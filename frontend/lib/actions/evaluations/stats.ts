@@ -7,6 +7,7 @@ import {
   type EvaluationStatus,
   type EvaluationStatusCounts,
 } from "@/lib/evaluation/status";
+import { type EvaluationTotals } from "@/lib/evaluation/types";
 
 const COMPLETE_PRED = `
   trace_status = 'error'
@@ -15,7 +16,26 @@ const COMPLETE_PRED = `
 
 const EMPTY_COUNTS: EvaluationStatusCounts = { total: 0, errored: 0, complete: 0, stale: 0 };
 
-export type EvaluationRunStats = EvaluationStatusCounts & { status: EvaluationStatus | null };
+const EMPTY_TOTALS: EvaluationTotals = {
+  datapointCount: 0,
+  inputCost: 0,
+  outputCost: 0,
+  totalCost: 0,
+  inputTokens: 0,
+  outputTokens: 0,
+  totalTokens: 0,
+  cacheReadInputTokens: 0,
+  cacheCreationInputTokens: 0,
+  reasoningTokens: 0,
+  totalDuration: 0,
+};
+
+export type EvaluationRunStats = EvaluationStatusCounts & {
+  status: EvaluationStatus | null;
+  totals: EvaluationTotals;
+};
+
+const num = (v: unknown): number => Number(v) || 0;
 
 export const GetEvaluationRunStatsSchema = z.object({
   projectId: z.guid(),
@@ -35,6 +55,16 @@ export const getEvaluationRunStats = async (
     errored: number;
     complete: number;
     stale: number;
+    inputCost: number;
+    outputCost: number;
+    totalCost: number;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    cacheReadInputTokens: number;
+    cacheCreationInputTokens: number;
+    reasoningTokens: number;
+    totalDuration: number;
   }>({
     projectId,
     query: `
@@ -46,7 +76,17 @@ export const getEvaluationRunStats = async (
         toFloat64(countIf(
           NOT (${COMPLETE_PRED})
           AND updated_at < toDateTime64({staleBefore:String}, 9, 'UTC')
-        )) AS stale
+        )) AS stale,
+        toFloat64(sum(input_cost)) AS inputCost,
+        toFloat64(sum(output_cost)) AS outputCost,
+        toFloat64(sum(total_cost)) AS totalCost,
+        toFloat64(sum(input_tokens)) AS inputTokens,
+        toFloat64(sum(output_tokens)) AS outputTokens,
+        toFloat64(sum(total_tokens)) AS totalTokens,
+        toFloat64(sum(cache_read_input_tokens)) AS cacheReadInputTokens,
+        toFloat64(sum(cache_creation_input_tokens)) AS cacheCreationInputTokens,
+        toFloat64(sum(reasoning_tokens)) AS reasoningTokens,
+        toFloat64(sum(toFloat64(duration))) AS totalDuration
       FROM evaluation_datapoints
       WHERE evaluation_id IN {evaluationIds:Array(UUID)}
       GROUP BY evaluation_id
@@ -60,17 +100,33 @@ export const getEvaluationRunStats = async (
 
   for (const row of rows) {
     const counts: EvaluationStatusCounts = {
-      total: Number(row.total) || 0,
-      errored: Number(row.errored) || 0,
-      complete: Number(row.complete) || 0,
-      stale: Number(row.stale) || 0,
+      total: num(row.total),
+      errored: num(row.errored),
+      complete: num(row.complete),
+      stale: num(row.stale),
     };
-    stats.set(row.evaluationId, { ...counts, status: deriveEvaluationStatus(counts) });
+    stats.set(row.evaluationId, {
+      ...counts,
+      status: deriveEvaluationStatus(counts),
+      totals: {
+        datapointCount: counts.total,
+        inputCost: num(row.inputCost),
+        outputCost: num(row.outputCost),
+        totalCost: num(row.totalCost),
+        inputTokens: num(row.inputTokens),
+        outputTokens: num(row.outputTokens),
+        totalTokens: num(row.totalTokens),
+        cacheReadInputTokens: num(row.cacheReadInputTokens),
+        cacheCreationInputTokens: num(row.cacheCreationInputTokens),
+        reasoningTokens: num(row.reasoningTokens),
+        totalDuration: num(row.totalDuration),
+      },
+    });
   }
 
   for (const id of evaluationIds) {
     if (stats.has(id)) continue;
-    stats.set(id, { ...EMPTY_COUNTS, status: null });
+    stats.set(id, { ...EMPTY_COUNTS, status: null, totals: EMPTY_TOTALS });
   }
 
   return stats;
