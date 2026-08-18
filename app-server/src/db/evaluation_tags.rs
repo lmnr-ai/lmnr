@@ -33,21 +33,11 @@ pub async fn add_evaluation_tags(
     evaluation_id: Uuid,
     names: &[String],
 ) -> Result<Option<Vec<String>>> {
-    let colors: Vec<&str> = names.iter().map(|name| color_for_tag(name)).collect();
-
     let mut tx = pool.begin().await?;
 
-    sqlx::query(
-        "INSERT INTO tag_classes (name, project_id, color)
-        SELECT n, $2, c FROM UNNEST($1::text[], $3::text[]) AS t(n, c)
-        ON CONFLICT (name, project_id) DO NOTHING",
-    )
-    .bind(names)
-    .bind(project_id)
-    .bind(&colors)
-    .execute(&mut *tx)
-    .await?;
-
+    // The evaluation UPDATE runs FIRST so a bad id can't leave new tag classes
+    // behind in the project's shared picker: no row matched ⇒ return before the
+    // registry insert, and the dropped transaction rolls back.
     // Append only the names not already attached, so re-tagging is idempotent
     // and existing order is preserved. `names` is deduped by the caller.
     let tags = sqlx::query_scalar::<_, Vec<String>>(
@@ -66,9 +56,25 @@ pub async fn add_evaluation_tags(
     .fetch_optional(&mut *tx)
     .await?;
 
+    let Some(tags) = tags else {
+        return Ok(None);
+    };
+
+    let colors: Vec<&str> = names.iter().map(|name| color_for_tag(name)).collect();
+    sqlx::query(
+        "INSERT INTO tag_classes (name, project_id, color)
+        SELECT n, $2, c FROM UNNEST($1::text[], $3::text[]) AS t(n, c)
+        ON CONFLICT (name, project_id) DO NOTHING",
+    )
+    .bind(names)
+    .bind(project_id)
+    .bind(&colors)
+    .execute(&mut *tx)
+    .await?;
+
     tx.commit().await?;
 
-    Ok(tags)
+    Ok(Some(tags))
 }
 
 /// Detach a tag from an evaluation. Returns the remaining tag list, or `None`
