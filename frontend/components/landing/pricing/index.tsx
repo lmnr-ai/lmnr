@@ -76,8 +76,11 @@ export default function Pricing() {
             <CardsVariant />
           </div>
 
-          {/* Calculator */}
-          <div className="w-full max-w-[640px] mb-[240px]">
+          {/* Calculator. Wider than the old 640px column since it compares four
+              tiers side by side, but capped short of the page: past ~800px the
+              gap between a row's label and its last column stops being
+              scannable. */}
+          <div className="w-full max-w-[800px] mb-[240px]">
             <PricingCalculator />
           </div>
 
