@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { defaultRehypePlugins, Streamdown } from "streamdown";
 
 import { MarkdownSpanBadge, type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
-import { htmlAsTextRemarkRehypeOptions } from "@/components/ui/content-renderer/html-as-text";
+import { markdownRemarkPlugins } from "@/components/ui/content-renderer/remark-plugins";
 import { parseSpanLinks } from "@/lib/traces/span-link-parsing";
 import { cn } from "@/lib/utils.ts";
 
@@ -34,7 +34,7 @@ const Markdown = ({ output, className, contentClassName, spanRefCallbacks }: Mar
           parseIncompleteMarkdown={false}
           isAnimating={false}
           className="rounded text-wrap"
-          remarkRehypeOptions={htmlAsTextRemarkRehypeOptions}
+          remarkPlugins={markdownRemarkPlugins}
           rehypePlugins={[defaultRehypePlugins.sanitize, defaultRehypePlugins.harden]}
           components={{
             h1: ({ children, className, ...props }) => (

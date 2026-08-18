@@ -1,7 +1,7 @@
 import { memo, type Ref } from "react";
 import { defaultRehypePlugins, Streamdown } from "streamdown";
 
-import { htmlAsTextRemarkRehypeOptions } from "@/components/ui/content-renderer/html-as-text";
+import { markdownRemarkPlugins } from "@/components/ui/content-renderer/remark-plugins";
 import { cn, tryParseJson } from "@/lib/utils";
 
 export const getMarkdownSource = (value: string): string => {
@@ -30,7 +30,7 @@ const PureMarkdownRenderer = ({ value, className, containerRef }: MarkdownRender
       )}
       controls={{ mermaid: { download: false, fullscreen: false } }}
       // omit raw: XML-like tags render as text. sanitize/harden still cover markdown links.
-      remarkRehypeOptions={htmlAsTextRemarkRehypeOptions}
+      remarkPlugins={markdownRemarkPlugins}
       rehypePlugins={[defaultRehypePlugins.sanitize, defaultRehypePlugins.harden]}
       components={{
         h1: ({ node: _node, children, className, ...props }) => (
