@@ -28,7 +28,7 @@ const AGENT_THINK_MS = 1150;
 /** Ceiling on the WHOLE run, not one gap. The section does not pin, so the
  *  reader is holding still by choice — past a couple of seconds they scroll on
  *  and never see the answer the thread exists to land. */
-const MAX_RUN_MS = 2500;
+const MAX_RUN_MS = 3500;
 
 const RAW_DELAYS = THREAD_MESSAGES.slice(0, -1).map((message, i) => {
   if (i === 0) return OPENING_BEAT_MS;
