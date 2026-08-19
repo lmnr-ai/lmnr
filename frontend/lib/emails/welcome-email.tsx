@@ -3,58 +3,61 @@ import { Html, Link, Preview, Text } from "@react-email/components";
 export default function WelcomeEmail() {
   return (
     <Html lang="en">
-      <Preview>Welcome to Laminar - observability purpose-built for AI agents</Preview>
+      <Preview>Welcome to Laminar - the platform for shipping reliable AI agents</Preview>
       <div style={container}>
         <Text style={heading}>Welcome to Laminar! 👋</Text>
         <Text style={text}>I{"'"}m Robert, CEO of Laminar. Stoked to have you join our community!</Text>
         <Text style={text}>
-          Laminar is an open-source observability platform purpose-built for AI agents. Trace every LLM call, tool
-          execution, and custom function, then use captured data to debug, analyze, and improve your agents at scale.
+          Laminar is an open-source platform for shipping reliable AI agents. We catch every agent failure, surface what
+          to fix, and confirm the fix resolved it. Agents aren{"'"}t just one LLM call — they loop, branch, and call
+          tools, so Laminar is built around the whole run, not a single prompt.
         </Text>
-        <Text style={text}>Here{"'"}s what you can do:</Text>
+        <Text style={text}>Here{"'"}s how teams get there:</Text>
         <div style={bulletList}>
           <Text style={bulletPoint}>
             •{" "}
-            <Link style={link} href="https://docs.lmnr.ai/tracing/introduction" target="_blank">
-              Trace your agents
+            <Link style={link} href="https://laminar.sh/docs/tracing/introduction" target="_blank">
+              Tracing
             </Link>
             {
-              " — capture every LLM call and tool invocation with first-class support for AI SDK, LangChain, Browser Use, and more."
+              " — capture every LLM call, tool execution, and decision your agent makes in one trace. OpenTelemetry-native, with first-class support for AI SDK, LangChain, Browser Use, OpenAI Agents, and more."
             }
           </Text>
           <Text style={bulletPoint}>
             •{" "}
-            <Link style={link} href="https://docs.lmnr.ai/signals" target="_blank">
+            <Link style={link} href="https://laminar.sh/docs/signals/introduction" target="_blank">
               Signals
             </Link>
             {
-              " — describe patterns, errors, and outcomes in natural language and track them across all your traces automatically."
+              ' — describe what to watch for in plain language ("the agent looped without progress," "the user gave up") and Laminar reads every trace, extracts a structured event, and lets you query, cluster, and alert on it across thousands of runs.'
             }
           </Text>
           <Text style={bulletPoint}>
             •{" "}
-            <Link style={link} href="https://docs.lmnr.ai/platform/debugger" target="_blank">
+            <Link style={link} href="https://laminar.sh/docs/platform/debugger" target="_blank">
               Debugger
             </Link>
             {
-              " — rerun long-running agents from any checkpoint without leaving the browser. Tweak prompts, rerun, and inspect the new trace on the same page."
+              " — rerun a long-running agent from any step without leaving the browser. Set a checkpoint, tweak the prompt or config, rerun from there, and inspect the new trace on the same page — no waiting for the agent to crawl back to the moment you care about."
             }
           </Text>
           <Text style={bulletPoint}>
             •{" "}
-            <Link style={link} href="https://docs.lmnr.ai/platform/sql-editor" target="_blank">
+            <Link style={link} href="https://laminar.sh/docs/platform/sql-editor" target="_blank">
               SQL engine
             </Link>
             {
-              " — query all your trace data, signals, and evaluations directly with SQL. Find patterns the dashboard doesn't anticipate."
+              " — query all your traces, spans, signal events, and evaluations directly with SQL. Build datasets, answer questions the dashboard doesn't anticipate, or let your own agent query the data via MCP or CLI."
             }
           </Text>
           <Text style={bulletPoint}>
             •{" "}
-            <Link style={link} href="https://docs.lmnr.ai/evaluations" target="_blank">
+            <Link style={link} href="https://laminar.sh/docs/evaluations/introduction" target="_blank">
               Evaluations
             </Link>
-            {" — run evals against datasets locally or in CI. Catch regressions before they ship."}
+            {
+              " — run a new prompt, model, or agent version against a fixed set of inputs, score every output, and compare runs so you catch regressions before they ship."
+            }
           </Text>
         </div>
         <Text style={text}>
