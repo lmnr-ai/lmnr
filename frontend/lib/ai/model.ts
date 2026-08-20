@@ -41,7 +41,7 @@ const DEFAULT_MODELS: Record<LLMProvider, Record<ModelTier, string>> = {
   foundry: {
     small: "claude-haiku-4-5",
     medium: "claude-sonnet-5",
-    large: "claude-opus-4-8",
+    large: "claude-opus-5",
   },
 };
 
