@@ -515,7 +515,7 @@ const TABLES: &[Table] = &[
             col(
                 "num_signal_events",
                 "UInt32",
-                "Number of signal events in the cluster",
+                "Number of clustered event summaries in the cluster (an event contributes once per summary)",
             ),
             col(
                 "num_children_clusters",

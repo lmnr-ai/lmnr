@@ -22,7 +22,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v6
         with:
-          version: 10
+          version: 11
 
       # Step 3: Set up Node.js
       - name: Set up Node.js

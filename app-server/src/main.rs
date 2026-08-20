@@ -176,8 +176,7 @@ mod traces;
 mod utils;
 mod worker;
 
-const PAYLOAD_TOO_LARGE_MESSAGE: &str =
-    "Payload too large: the request body exceeds the server's HTTP payload limit. Send smaller \
+const PAYLOAD_TOO_LARGE_MESSAGE: &str = "Payload too large: the request body exceeds the server's HTTP payload limit. Send smaller \
      batches, or raise HTTP_PAYLOAD_LIMIT if you are self-hosting.";
 
 fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
@@ -2406,22 +2405,36 @@ fn main() -> anyhow::Result<()> {
                         let mut app = App::new()
                             .wrap(
                                 ErrorHandlers::new()
-                                    .handler(StatusCode::BAD_REQUEST, |res: dev::ServiceResponse| {
-                                        let path = res.request().path();
-                                        if path.ends_with("/sql/query") {
-                                            log::warn!("Bad request: {:?}", res.response().body());
-                                        } else {
-                                            log::error!("Bad request: {:?}", res.response().body());
-                                        }
-                                        Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
-                                    })
+                                    .handler(
+                                        StatusCode::BAD_REQUEST,
+                                        |res: dev::ServiceResponse| {
+                                            let path = res.request().path();
+                                            if path.ends_with("/sql/query") {
+                                                log::warn!(
+                                                    "Bad request: {:?}",
+                                                    res.response().body()
+                                                );
+                                            } else {
+                                                log::error!(
+                                                    "Bad request: {:?}",
+                                                    res.response().body()
+                                                );
+                                            }
+                                            Ok(ErrorHandlerResponse::Response(
+                                                res.map_into_left_body(),
+                                            ))
+                                        },
+                                    )
                                     // Actix's default 413 body depends on the extractor and the
                                     // `Bytes` one ("payload reached size limit") is opaque, so
                                     // SDKs log it verbatim. Normalize it for every route.
                                     .handler(
                                         StatusCode::PAYLOAD_TOO_LARGE,
                                         |res: dev::ServiceResponse| {
-                                            log::warn!("Payload too large: {}", res.request().path());
+                                            log::warn!(
+                                                "Payload too large: {}",
+                                                res.request().path()
+                                            );
                                             Ok(ErrorHandlerResponse::Response(res.map_body(
                                                 |_, _| {
                                                     EitherBody::right(BoxBody::new(
@@ -2586,6 +2599,8 @@ fn main() -> anyhow::Result<()> {
                                 let scope = scope
                                     .service(crate::signals::private::routes::submit_signal_job)
                                     .service(crate::signals::private::routes::test_signal)
+                                    .service(crate::signals::private::routes::eval_signal)
+                                    .service(crate::signals::private::routes::eval_signal_prewarm)
                                     .service(crate::agent::routes::post_agent_chat);
                                 scope
                             });

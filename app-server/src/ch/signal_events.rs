@@ -21,7 +21,13 @@ pub struct CHSignalEvent {
     pub payload: String,
     /// Timestamp in nanoseconds
     pub timestamp: i64,
+    /// LEGACY — written empty for new events; readers fall back to this
+    /// column for pre-existing rows. New events carry `summaries` instead.
     pub summary: String,
+    /// The finding's clustering summaries — one short string per distinct
+    /// issue. Each is also written as its own `events_to_clusters.content`
+    /// membership row (kept there for fast per-cluster lookup at naming time).
+    pub summaries: Vec<String>,
     /// 0 = info, 1 = warning, 2 = critical
     pub severity: u8,
 }
@@ -88,6 +94,10 @@ pub struct SignalEventContextRow {
 
 /// Get the most recent signal events (up to `limit`) for the given project and time range.
 /// Returns id, signal_id, trace_id, summary, and payload for use as LLM summary context.
+///
+/// `summary` is resolved from the event's `summaries` array (joined with
+/// `'; '`), falling back to the legacy `summary` column for pre-existing rows
+/// written before summaries moved to the array.
 pub async fn get_signal_events_for_summary(
     clickhouse: &clickhouse::Client,
     project_id: &Uuid,
@@ -103,7 +113,9 @@ pub async fn get_signal_events_for_summary(
     let placeholders: Vec<String> = signal_ids.iter().map(|_| "?".to_string()).collect();
 
     let query_str = format!(
-        "SELECT id, signal_id, trace_id, summary, payload, timestamp, severity
+        "SELECT id, signal_id, trace_id,
+                if(notEmpty(summaries), arrayStringConcat(summaries, '; '), summary) AS summary,
+                payload, timestamp, severity
          FROM signal_events
          WHERE project_id = ?
            AND signal_id IN ({})
