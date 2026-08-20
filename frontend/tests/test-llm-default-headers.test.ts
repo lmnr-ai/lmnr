@@ -110,9 +110,9 @@ describe("foundry provider config", () => {
     );
   });
 
-  // The AI SDK's Anthropic provider authenticates with `x-api-key`, which
-  // Foundry rejects — this drives a real request to prove the swap happens.
-  it("sends api-key (not x-api-key) to the anthropic messages route", async () => {
+  // Foundry accepts either `x-api-key` or `api-key` for key auth; this drives a
+  // real request to prove the key reaches the anthropic messages route at all.
+  it("sends the api key to the anthropic messages route", async () => {
     let captured: { url?: string; headers?: IncomingMessage["headers"] } = {};
     const server: Server = createServer((req, res) => {
       captured = { url: req.url, headers: req.headers };
@@ -150,8 +150,7 @@ describe("foundry provider config", () => {
 
       assert.strictEqual(result.text, "pong");
       assert.strictEqual(captured.url, "/anthropic/v1/messages");
-      assert.strictEqual(captured.headers?.["api-key"], "foundry-test-key");
-      assert.strictEqual(captured.headers?.["x-api-key"], undefined);
+      assert.strictEqual(captured.headers?.["x-api-key"], "foundry-test-key");
       assert.strictEqual(captured.headers?.["anthropic-version"], "2023-06-01");
     } finally {
       restoreEnv("LLM_PROVIDER", previous.provider);

@@ -26,6 +26,10 @@ use crate::llm::{
 /// body field is Bedrock-only.
 const ANTHROPIC_VERSION: &str = "2023-06-01";
 
+/// Foundry accepts either `x-api-key` or `api-key` for key auth, so this is a
+/// free choice — `Authorization: Bearer` is the separate Entra ID path.
+const AUTH_HEADER: &str = "x-api-key";
+
 #[derive(Debug, Error)]
 pub enum FoundryError {
     #[error("Request failed: {0}")]
@@ -169,7 +173,7 @@ impl FoundryClient {
         let response = self
             .client
             .post(format!("{}/v1/messages", self.api_base_url))
-            .header("x-api-key", &self.api_key)
+            .header(AUTH_HEADER, &self.api_key)
             .header("anthropic-version", ANTHROPIC_VERSION)
             .header("Content-Type", "application/json")
             .json(body)
@@ -299,7 +303,7 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/anthropic/v1/messages"))
-            .and(header("x-api-key", "foundry-test-key"))
+            .and(header(AUTH_HEADER, "foundry-test-key"))
             .and(header("anthropic-version", ANTHROPIC_VERSION))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "content": [{"type": "text", "text": "pong"}],

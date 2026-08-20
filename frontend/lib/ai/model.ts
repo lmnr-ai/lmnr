@@ -117,19 +117,6 @@ export function foundryBaseUrl(rawBaseUrl: string): string {
   return `${root}/anthropic/v1`;
 }
 
-/**
- * Foundry authenticates with `api-key`; `createAnthropic` always sends
- * `x-api-key`, which Foundry rejects.
- */
-const withFoundryAuth =
-  (apiKey: string): typeof globalThis.fetch =>
-  (input, init) => {
-    const headers = new Headers(init?.headers);
-    headers.delete("x-api-key");
-    headers.set("api-key", apiKey);
-    return fetch(input, { ...init, headers });
-  };
-
 /** `createAzure` only appends `api-version` for `*.openai.azure.com` hosts. */
 const appendApiVersion =
   (apiVersion: string): typeof globalThis.fetch =>
@@ -234,10 +221,11 @@ export function getLanguageModel(tier: ModelTier = "large"): LanguageModel {
     const baseURL = foundryBaseUrl(
       foundryBase ?? `https://${nonEmptyEnv("FOUNDRY_RESOURCE_ID")}.services.ai.azure.com`
     );
+    // Foundry accepts `createAnthropic`'s native `x-api-key` (its other key
+    // header is `api-key`; `Authorization: Bearer` is the Entra ID path).
     const anthropic = createAnthropic({
       apiKey,
       baseURL,
-      fetch: withFoundryAuth(apiKey ?? ""),
       ...(headers ? { headers } : {}),
     });
     return anthropic(modelName);
