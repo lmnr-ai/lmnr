@@ -169,7 +169,7 @@ impl FoundryClient {
         let response = self
             .client
             .post(format!("{}/v1/messages", self.api_base_url))
-            .header("api-key", &self.api_key)
+            .header("x-api-key", &self.api_key)
             .header("anthropic-version", ANTHROPIC_VERSION)
             .header("Content-Type", "application/json")
             .json(body)
@@ -299,7 +299,7 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/anthropic/v1/messages"))
-            .and(header("api-key", "foundry-test-key"))
+            .and(header("x-api-key", "foundry-test-key"))
             .and(header("anthropic-version", ANTHROPIC_VERSION))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "content": [{"type": "text", "text": "pong"}],
