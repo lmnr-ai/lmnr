@@ -84,14 +84,19 @@ fn foundry_base_url() -> FoundryResult<String> {
     )))
 }
 
-/// Accepts the portal endpoint (`https://r.services.ai.azure.com`) or the
-/// already-complete `/anthropic` root.
+/// Accepts the portal endpoint (`https://r.services.ai.azure.com`), the
+/// `/anthropic` root, or a full `/anthropic/v1` URL — the callers append
+/// `/v1/messages`, so the version segment is trimmed back off.
 fn normalize_base_url(raw: &str) -> String {
     let trimmed = raw.trim().trim_end_matches('/');
-    if trimmed.ends_with("/anthropic") {
-        trimmed.to_string()
+    let root = match trimmed.strip_suffix("/v1") {
+        Some(root) if root.ends_with("/anthropic") => root,
+        _ => trimmed,
+    };
+    if root.ends_with("/anthropic") {
+        root.to_string()
     } else {
-        format!("{trimmed}/anthropic")
+        format!("{root}/anthropic")
     }
 }
 
@@ -261,6 +266,12 @@ mod tests {
             normalize_base_url("https://my-resource.services.ai.azure.com/anthropic"),
             "https://my-resource.services.ai.azure.com/anthropic"
         );
+        // `send` appends `/v1/messages`, so a pasted endpoint that already
+        // carries the version segment must trim back to the `/anthropic` root.
+        assert_eq!(
+            normalize_base_url("https://my-resource.services.ai.azure.com/anthropic/v1/"),
+            "https://my-resource.services.ai.azure.com/anthropic"
+        );
     }
 
     fn text_request(text: &str) -> ProviderRequest {
@@ -298,10 +309,15 @@ mod tests {
             .mount(&server)
             .await;
 
+        // Endpoint pasted with the version segment already on it — the route must
+        // still come out as a single `/anthropic/v1/messages`.
         let client = crate::llm::with_env_vars(
             &[
                 (env::llm::API_KEY, "foundry-test-key"),
-                (env::llm::FOUNDRY_BASE_URL, &server.uri()),
+                (
+                    env::llm::FOUNDRY_BASE_URL,
+                    &format!("{}/anthropic/v1", server.uri()),
+                ),
             ],
             || FoundryClient::new().unwrap(),
         );
