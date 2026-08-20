@@ -463,13 +463,13 @@ pub fn model_for_size(provider: &str, size: ModelSize) -> String {
         ("gemini", ModelSize::Large) => "gemini-3.1-pro-preview".to_string(),
         ("bedrock", ModelSize::Small) => "us.anthropic.claude-haiku-4-5-20251001-v1:0".to_string(),
         ("bedrock", ModelSize::Medium) => "us.anthropic.claude-sonnet-5".to_string(),
-        ("bedrock", ModelSize::Large) => "us.anthropic.claude-opus-4-8".to_string(),
+        ("bedrock", ModelSize::Large) => "us.anthropic.claude-opus-5".to_string(),
         // Foundry model ids are deployment names; Foundry's portal defaults each
         // deployment to the bare model name, which is also what the
         // adaptive-thinking gates in `bedrock::build_request_body` match on.
         ("foundry", ModelSize::Small) => "claude-haiku-4-5".to_string(),
         ("foundry", ModelSize::Medium) => "claude-sonnet-5".to_string(),
-        ("foundry", ModelSize::Large) => "claude-opus-4-8".to_string(),
+        ("foundry", ModelSize::Large) => "claude-opus-5".to_string(),
         // Azure model ids are deployment names, so these defaults only hold when
         // deployments are named after the model; otherwise set `LLM_MODEL_<SIZE>`.
         ("openai" | "openai_responses" | "azure" | "azure_responses", ModelSize::Small) => {
