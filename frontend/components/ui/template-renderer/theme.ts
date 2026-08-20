@@ -13,20 +13,20 @@
  */
 export const LAMINAR_IFRAME_THEME = {
   colors: {
-    background: "#0A0A0A",
+    background: "#161617",
     foreground: "#E6E2E2",
 
-    card: { DEFAULT: "#121212", foreground: "#CACACE" },
-    popover: { DEFAULT: "#141414", foreground: "#E6E2E2" },
+    card: { DEFAULT: "#202021", foreground: "#CACACE" },
+    popover: { DEFAULT: "#252526", foreground: "#E6E2E2" },
 
     primary: { DEFAULT: "#CB7B4F", foreground: "#E8E8E8" },
-    secondary: { DEFAULT: "#121212", foreground: "#B5B5B5" },
+    secondary: { DEFAULT: "#1B1B1C", foreground: "#B5B5B5" },
 
-    muted: { DEFAULT: "#22232A", foreground: "#858585" },
-    accent: { DEFAULT: "#27282F", foreground: "#FFFFFF" },
+    muted: { DEFAULT: "#2E2E2F", foreground: "#999999" },
+    accent: { DEFAULT: "#343437", foreground: "#FFFFFF" },
 
-    border: "#2B2C36",
-    input: "#2B2C36",
+    border: "#3B3B3F",
+    input: "#3B3B3F",
     ring: "#9CC3F5",
 
     destructive: { DEFAULT: "#CC3333", foreground: "#F8FAFC" },
