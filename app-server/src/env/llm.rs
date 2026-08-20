@@ -7,16 +7,27 @@
 
 use super::{BoolEnv, NumEnv};
 
-/// `openai` | `gemini` | `bedrock` | `mock`. The single provider switch.
+/// `openai` | `openai_responses` | `gemini` | `bedrock` | `azure` |
+/// `azure_responses` | `mock`. The single provider switch.
 pub const PROVIDER: &str = "LLM_PROVIDER";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const PARSING_PROVIDER: &str = "SIGNALS_PARSING_LLM_PROVIDER";
-/// Shared single-provider API key (openai / gemini).
+/// Shared single-provider API key (openai / gemini / azure).
 pub const API_KEY: &str = "LLM_API_KEY";
 /// Optional OpenAI-compatible base URL override (provider-specific default).
 pub const BASE_URL: &str = "LLM_BASE_URL";
 /// Optional JSON map of default headers sent on every LLM request.
 pub const DEFAULT_HEADERS_JSON: &str = "LLM_DEFAULT_HEADERS_JSON";
+
+/// Azure OpenAI resource name — the `<name>` in `https://<name>.openai.azure.com`.
+/// Either this or [`AZURE_BASE_URL`] is required when `LLM_PROVIDER=azure*`.
+pub const AZURE_RESOURCE_ID: &str = "AZURE_OPENAI_RESOURCE_ID";
+/// Full Azure OpenAI endpoint, for private endpoints / gateways that don't follow
+/// the `<resource>.openai.azure.com` pattern. Takes precedence over the resource id.
+pub const AZURE_BASE_URL: &str = "AZURE_OPENAI_BASE_URL";
+/// Optional `api-version` query param. The v1 route is GA and needs none, but some
+/// resources still require an explicit version (e.g. `preview`) for it.
+pub const AZURE_API_VERSION: &str = "AZURE_OPENAI_API_VERSION";
 
 /// Per-size model id overrides (provider-specific hardcoded defaults).
 pub const MODEL_SMALL: &str = "LLM_MODEL_SMALL";

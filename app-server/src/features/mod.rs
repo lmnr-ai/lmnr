@@ -1,6 +1,6 @@
 /// This module contains feature flags that can be used to enable or disable certain features in the application.
 // TODO: consider https://doc.rust-lang.org/reference/conditional-compilation.html instead
-use crate::env;
+use crate::{env, llm};
 
 const PRODUCER: &str = "producer";
 const CONSUMER: &str = "consumer";
@@ -130,6 +130,7 @@ fn has_llm_provider() -> bool {
         && std::env::var(env::secrets::AWS_REGION).is_ok_and(|s| !s.is_empty());
     match provider.as_str() {
         "gemini" | "openai" | "openai_responses" => has_llm_api_key,
+        "azure" | "azure_responses" => has_llm_api_key && llm::has_azure_endpoint(),
         "bedrock" => has_aws,
         "mock" => true,
         _ => false,

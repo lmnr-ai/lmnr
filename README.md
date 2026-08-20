@@ -123,6 +123,13 @@ LLM_PROVIDER=bedrock
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 AWS_REGION=us-east-1
+
+# Option D: Azure OpenAI. Model ids are deployment names, so set LLM_MODEL_* unless
+# your deployments are named after the models.
+LLM_PROVIDER=azure
+LLM_API_KEY=your_azure_key
+AZURE_OPENAI_RESOURCE_ID=your_resource_name   # or AZURE_OPENAI_BASE_URL for private endpoints
+# AZURE_OPENAI_API_VERSION=preview            # optional; only for resources that require it
 ```
 
 ### Custom Postgres schema (optional)
