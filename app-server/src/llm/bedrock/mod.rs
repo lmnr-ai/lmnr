@@ -16,7 +16,9 @@ use serde_json::Value;
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 
-mod accumulator;
+// Bedrock's InvokeModel body IS the Anthropic Messages body, so the conversions
+// and the stream accumulator are shared with `llm::foundry` (Claude on Azure).
+pub(super) mod accumulator;
 use accumulator::BedrockStreamAccumulator;
 
 fn cache_control_ephemeral() -> Value {
@@ -111,7 +113,7 @@ fn build_message_blocks(parts: &[ProviderPart]) -> Vec<Value> {
     blocks
 }
 
-fn build_request_body(model: &str, request: &ProviderRequest) -> ProviderResult<Value> {
+pub(super) fn build_request_body(model: &str, request: &ProviderRequest) -> ProviderResult<Value> {
     {
         let thinking_level = request
             .generation_config
@@ -313,7 +315,7 @@ fn parse_usage(usage_obj: Option<&Value>) -> ProviderUsageMetadata {
 }
 
 /// Parse a full (non-streaming) Anthropic `InvokeModel` response body into a `ProviderResponse`.
-fn parse_response_body(model: &str, resp_body: &Value) -> ProviderResponse {
+pub(super) fn parse_response_body(model: &str, resp_body: &Value) -> ProviderResponse {
     let mut provider_parts = Vec::new();
     if let Some(content) = resp_body.get("content").and_then(|c| c.as_array()) {
         for block in content {

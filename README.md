@@ -130,6 +130,12 @@ LLM_PROVIDER=azure
 LLM_API_KEY=your_azure_key
 AZURE_OPENAI_RESOURCE_ID=your_resource_name   # or AZURE_OPENAI_BASE_URL for private endpoints
 # AZURE_OPENAI_API_VERSION=preview            # optional; only for resources that require it
+
+# Option E: Claude on Microsoft Foundry (Azure). A different endpoint from Option D —
+# Foundry serves Anthropic models on Anthropic's own API, not the OpenAI-compatible one.
+LLM_PROVIDER=foundry
+LLM_API_KEY=your_foundry_key
+FOUNDRY_RESOURCE_ID=your_resource_name        # or FOUNDRY_BASE_URL for private endpoints
 ```
 
 ### Custom Postgres schema (optional)

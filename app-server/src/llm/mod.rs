@@ -1,4 +1,5 @@
 pub mod bedrock;
+pub mod foundry;
 pub mod gemini;
 pub mod mock;
 pub mod models;
@@ -7,6 +8,7 @@ pub mod openai_responses;
 pub(crate) mod sse;
 
 pub use bedrock::BedrockClient;
+pub use foundry::FoundryClient;
 pub use gemini::GeminiClient;
 pub use mock::MockProviderClient;
 pub use models::*;
@@ -155,6 +157,7 @@ pub(crate) trait LanguageModelClient: Send + Sync {
 pub(crate) enum ProviderClient {
     Gemini(GeminiClient),
     Bedrock(BedrockClient),
+    Foundry(FoundryClient),
     OpenAI(OpenAIClient),
     OpenAIResponses(OpenAIResponsesClient),
     Mock(MockProviderClient),
@@ -232,6 +235,19 @@ fn has_azure_credentials() -> bool {
 /// True when `LLM_PROVIDER=azure_responses` (Responses API against Azure OpenAI).
 fn has_azure_responses_credentials() -> bool {
     llm_provider_env() == "azure_responses" && has_llm_api_key() && has_azure_endpoint()
+}
+
+/// Foundry needs an endpoint on top of `LLM_API_KEY`: either the resource name
+/// or a full base URL.
+pub fn has_foundry_endpoint() -> bool {
+    [env::llm::FOUNDRY_RESOURCE_ID, env::llm::FOUNDRY_BASE_URL]
+        .iter()
+        .any(|name| std::env::var(name).is_ok_and(|v| !v.trim().is_empty()))
+}
+
+/// True when `LLM_PROVIDER=foundry` (Claude on Microsoft Foundry).
+fn has_foundry_credentials() -> bool {
+    llm_provider_env() == "foundry" && has_llm_api_key() && has_foundry_endpoint()
 }
 
 /// True when `LLM_PROVIDER=gemini` and `LLM_API_KEY` is set.
@@ -342,6 +358,39 @@ pub fn request_to_tools_attr(request: &ProviderRequest) -> Option<serde_json::Va
     }
 }
 
+/// Run `f` with `vars` set, restoring the previous values afterwards. Provider
+/// clients resolve their endpoint and auth from process-global env at
+/// construction, and several of them read the same `LLM_API_KEY`, so those
+/// tests would clobber each other if they ran concurrently — the lock
+/// serializes them.
+#[cfg(test)]
+pub(crate) fn with_env_vars<T>(vars: &[(&str, &str)], f: impl FnOnce() -> T) -> T {
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let previous: Vec<_> = vars
+        .iter()
+        .map(|(name, _)| (*name, std::env::var(name).ok()))
+        .collect();
+    unsafe {
+        for (name, value) in vars {
+            std::env::set_var(name, value);
+        }
+    }
+
+    let out = f();
+
+    unsafe {
+        for (name, value) in previous {
+            match value {
+                Some(value) => std::env::set_var(name, value),
+                None => std::env::remove_var(name),
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -415,6 +464,12 @@ pub fn model_for_size(provider: &str, size: ModelSize) -> String {
         ("bedrock", ModelSize::Small) => "us.anthropic.claude-haiku-4-5-20251001-v1:0".to_string(),
         ("bedrock", ModelSize::Medium) => "us.anthropic.claude-sonnet-5".to_string(),
         ("bedrock", ModelSize::Large) => "us.anthropic.claude-opus-4-8".to_string(),
+        // Foundry model ids are deployment names; Foundry's portal defaults each
+        // deployment to the bare model name, which is also what the
+        // adaptive-thinking gates in `bedrock::build_request_body` match on.
+        ("foundry", ModelSize::Small) => "claude-haiku-4-5".to_string(),
+        ("foundry", ModelSize::Medium) => "claude-sonnet-5".to_string(),
+        ("foundry", ModelSize::Large) => "claude-opus-4-8".to_string(),
         // Azure model ids are deployment names, so these defaults only hold when
         // deployments are named after the model; otherwise set `LLM_MODEL_<SIZE>`.
         ("openai" | "openai_responses" | "azure" | "azure_responses", ModelSize::Small) => {
@@ -522,6 +577,15 @@ impl LlmClient {
                 "azure_responses".to_string(),
                 ProviderClient::OpenAIResponses(client),
             );
+        }
+
+        if has_foundry_credentials() {
+            let client = FoundryClient::new()?;
+            log::info!(
+                "Initialized Foundry provider (Anthropic Messages) at {}",
+                client.api_base_url()
+            );
+            providers.insert("foundry".to_string(), ProviderClient::Foundry(client));
         }
 
         if default_provider == "mock" {

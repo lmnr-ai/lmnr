@@ -115,8 +115,7 @@ mod tests {
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     /// Azure resolves its endpoint and auth from env at construction time, so the
-    /// only way to cover that wiring is to set the vars. No other test in this
-    /// binary reads them.
+    /// only way to cover that wiring is to set the vars.
     #[tokio::test]
     async fn azure_client_posts_to_v1_route_with_api_key_header() {
         let server = MockServer::start().await;
@@ -129,19 +128,13 @@ mod tests {
             .mount(&server)
             .await;
 
-        let previous_key = std::env::var(env::llm::API_KEY).ok();
-        unsafe {
-            std::env::set_var(env::llm::API_KEY, "azure-test-key");
-            std::env::set_var(env::llm::AZURE_BASE_URL, server.uri());
-        }
-        let client = OpenAIClient::azure().unwrap();
-        unsafe {
-            match previous_key {
-                Some(key) => std::env::set_var(env::llm::API_KEY, key),
-                None => std::env::remove_var(env::llm::API_KEY),
-            }
-            std::env::remove_var(env::llm::AZURE_BASE_URL);
-        }
+        let client = crate::llm::with_env_vars(
+            &[
+                (env::llm::API_KEY, "azure-test-key"),
+                (env::llm::AZURE_BASE_URL, &server.uri()),
+            ],
+            || OpenAIClient::azure().unwrap(),
+        );
 
         let request = ProviderRequest {
             contents: vec![ProviderContent {

@@ -141,15 +141,19 @@ services:
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
       QUICKWIT_SEARCH_URL: http://quickwit:7280
       # LLM provider for frontend AI features (chat-with-trace, SQL-with-AI).
-      # openai | gemini | bedrock | azure. openai/gemini use LLM_API_KEY (+ optional
-      # LLM_BASE_URL); bedrock uses AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_REGION;
-      # azure uses LLM_API_KEY + AZURE_OPENAI_RESOURCE_ID (or AZURE_OPENAI_BASE_URL).
+      # openai | gemini | bedrock | azure | foundry. openai/gemini use LLM_API_KEY (+
+      # optional LLM_BASE_URL); bedrock uses AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY /
+      # AWS_REGION; azure uses LLM_API_KEY + AZURE_OPENAI_RESOURCE_ID (or
+      # AZURE_OPENAI_BASE_URL); foundry (Claude on Azure) uses LLM_API_KEY +
+      # FOUNDRY_RESOURCE_ID (or FOUNDRY_BASE_URL).
       LLM_PROVIDER: ${LLM_PROVIDER}
       LLM_BASE_URL: ${LLM_BASE_URL}
       LLM_API_KEY: ${LLM_API_KEY}
       AZURE_OPENAI_RESOURCE_ID: ${AZURE_OPENAI_RESOURCE_ID}
       AZURE_OPENAI_BASE_URL: ${AZURE_OPENAI_BASE_URL}
       AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION}
+      FOUNDRY_RESOURCE_ID: ${FOUNDRY_RESOURCE_ID}
+      FOUNDRY_BASE_URL: ${FOUNDRY_BASE_URL}
       # LLM_MODEL_* overrides (optional — per-provider defaults apply when unset).
       LLM_MODEL_SMALL: ${LLM_MODEL_SMALL}
       LLM_MODEL_MEDIUM: ${LLM_MODEL_MEDIUM}

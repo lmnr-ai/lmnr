@@ -8,7 +8,7 @@
 use super::{BoolEnv, NumEnv};
 
 /// `openai` | `openai_responses` | `gemini` | `bedrock` | `azure` |
-/// `azure_responses` | `mock`. The single provider switch.
+/// `azure_responses` | `foundry` | `mock`. The single provider switch.
 pub const PROVIDER: &str = "LLM_PROVIDER";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const PARSING_PROVIDER: &str = "SIGNALS_PARSING_LLM_PROVIDER";
@@ -28,6 +28,14 @@ pub const AZURE_BASE_URL: &str = "AZURE_OPENAI_BASE_URL";
 /// Optional `api-version` query param. The v1 route is GA and needs none, but some
 /// resources still require an explicit version (e.g. `preview`) for it.
 pub const AZURE_API_VERSION: &str = "AZURE_OPENAI_API_VERSION";
+
+/// Microsoft Foundry resource name — the `<name>` in
+/// `https://<name>.services.ai.azure.com`. Serves Claude on Anthropic's native
+/// Messages API, which is a different endpoint from `AZURE_OPENAI_*`.
+pub const FOUNDRY_RESOURCE_ID: &str = "FOUNDRY_RESOURCE_ID";
+/// Full Foundry endpoint, for private endpoints / gateways. Takes precedence
+/// over the resource id.
+pub const FOUNDRY_BASE_URL: &str = "FOUNDRY_BASE_URL";
 
 /// Per-size model id overrides (provider-specific hardcoded defaults).
 pub const MODEL_SMALL: &str = "LLM_MODEL_SMALL";

@@ -1,4 +1,5 @@
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
+import { createAnthropic } from "@ai-sdk/anthropic";
 import { createAzure } from "@ai-sdk/azure";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -10,7 +11,7 @@ import type { LanguageModel } from "ai";
  */
 type ModelTier = "small" | "medium" | "large";
 
-type LLMProvider = "openai" | "gemini" | "bedrock" | "azure";
+type LLMProvider = "openai" | "gemini" | "bedrock" | "azure" | "foundry";
 type LlmDefaultHeaders = Record<string, string>;
 
 // Per-provider defaults. Used when LLM_MODEL_<TIER> is not set.
@@ -30,12 +31,17 @@ const DEFAULT_MODELS: Record<LLMProvider, Record<ModelTier, string>> = {
     medium: "gpt-5.4",
     large: "gpt-5.5",
   },
-  // Azure model ids are deployment names — these only hold when deployments are
-  // named after the model; otherwise set LLM_MODEL_<TIER>.
+  // Azure and Foundry model ids are deployment names — these only hold when
+  // deployments are named after the model; otherwise set LLM_MODEL_<TIER>.
   azure: {
     small: "gpt-5.4-mini",
     medium: "gpt-5.4",
     large: "gpt-5.5",
+  },
+  foundry: {
+    small: "claude-haiku-4-5",
+    medium: "claude-sonnet-5",
+    large: "claude-opus-4-8",
   },
 };
 
@@ -52,6 +58,10 @@ function hasAzureCreds(): boolean {
   );
 }
 
+function hasFoundryCreds(): boolean {
+  return !!process.env.LLM_API_KEY && !!(nonEmptyEnv("FOUNDRY_RESOURCE_ID") || nonEmptyEnv("FOUNDRY_BASE_URL"));
+}
+
 function getConfiguredLLMProvider(): LLMProvider | null {
   const provider = process.env.LLM_PROVIDER;
   if (provider === "bedrock") {
@@ -61,6 +71,9 @@ function getConfiguredLLMProvider(): LLMProvider | null {
   // Completions to the same endpoint either way.
   if (provider === "azure" || provider === "azure_responses") {
     return hasAzureCreds() ? "azure" : null;
+  }
+  if (provider === "foundry") {
+    return hasFoundryCreds() ? "foundry" : null;
   }
   if (provider === "openai" || provider === "openai_responses") {
     return process.env.LLM_API_KEY ? "openai" : null;
@@ -88,6 +101,34 @@ export function azureBaseUrl(rawBaseUrl: string): string {
   }
   return isAzureHost(root) ? `${root}/openai` : `${root}/openai/v1`;
 }
+
+/**
+ * Base URL for `createAnthropic`, which appends `/messages`. Accepts the portal
+ * endpoint, the `/anthropic` root, or a full `/anthropic/v1` URL.
+ */
+export function foundryBaseUrl(rawBaseUrl: string): string {
+  const root = rawBaseUrl
+    .trim()
+    .replace(/\/+$/, "")
+    .replace(/\/anthropic(\/v1)?$/, "");
+  if (!URL.parse(root)) {
+    throw new Error(`Invalid FOUNDRY_BASE_URL: '${rawBaseUrl}' is not an absolute URL`);
+  }
+  return `${root}/anthropic/v1`;
+}
+
+/**
+ * Foundry authenticates with `api-key`; `createAnthropic` always sends
+ * `x-api-key`, which Foundry rejects.
+ */
+const withFoundryAuth =
+  (apiKey: string): typeof globalThis.fetch =>
+  (input, init) => {
+    const headers = new Headers(init?.headers);
+    headers.delete("x-api-key");
+    headers.set("api-key", apiKey);
+    return fetch(input, { ...init, headers });
+  };
 
 /** `createAzure` only appends `api-version` for `*.openai.azure.com` hosts. */
 const appendApiVersion =
@@ -169,9 +210,10 @@ export function getLanguageModel(tier: ModelTier = "large"): LanguageModel {
   const provider = getConfiguredLLMProvider();
   if (!provider) {
     throw new Error(
-      "No AI provider configured. Set LLM_PROVIDER to openai, gemini, azure, or bedrock. " +
+      "No AI provider configured. Set LLM_PROVIDER to openai, gemini, azure, foundry, or bedrock. " +
         "openai/gemini require LLM_API_KEY (with optional LLM_BASE_URL); " +
         "azure requires LLM_API_KEY and AZURE_OPENAI_RESOURCE_ID or AZURE_OPENAI_BASE_URL; " +
+        "foundry requires LLM_API_KEY and FOUNDRY_RESOURCE_ID or FOUNDRY_BASE_URL; " +
         "bedrock requires AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION."
     );
   }
@@ -186,6 +228,20 @@ export function getLanguageModel(tier: ModelTier = "large"): LanguageModel {
   const apiKey = process.env.LLM_API_KEY;
   const baseURL = process.env.LLM_BASE_URL;
   const headers = parseLlmDefaultHeaders();
+
+  if (provider === "foundry") {
+    const foundryBase = nonEmptyEnv("FOUNDRY_BASE_URL");
+    const baseURL = foundryBaseUrl(
+      foundryBase ?? `https://${nonEmptyEnv("FOUNDRY_RESOURCE_ID")}.services.ai.azure.com`
+    );
+    const anthropic = createAnthropic({
+      apiKey,
+      baseURL,
+      fetch: withFoundryAuth(apiKey ?? ""),
+      ...(headers ? { headers } : {}),
+    });
+    return anthropic(modelName);
+  }
 
   if (provider === "azure") {
     const azureBase = nonEmptyEnv("AZURE_OPENAI_BASE_URL");

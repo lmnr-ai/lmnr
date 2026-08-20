@@ -1,7 +1,17 @@
 import assert from "node:assert/strict";
+import { createServer, type IncomingMessage, type Server } from "node:http";
+import { type AddressInfo } from "node:net";
 import { describe, it } from "node:test";
 
-import { azureBaseUrl, isAiProviderConfigured, parseLlmDefaultHeaders } from "@/lib/ai/model";
+import { generateText } from "ai";
+
+import {
+  azureBaseUrl,
+  foundryBaseUrl,
+  getLanguageModel,
+  isAiProviderConfigured,
+  parseLlmDefaultHeaders,
+} from "@/lib/ai/model";
 
 describe("parseLlmDefaultHeaders", () => {
   it("returns undefined when unset or blank", () => {
@@ -84,6 +94,71 @@ describe("azure provider config", () => {
       restoreEnv("LLM_PROVIDER", previous.provider);
       restoreEnv("LLM_API_KEY", previous.apiKey);
       restoreEnv("AZURE_OPENAI_RESOURCE_ID", previous.resourceId);
+    }
+  });
+});
+
+describe("foundry provider config", () => {
+  it("normalizes every accepted endpoint form to the anthropic v1 route", () => {
+    assert.strictEqual(
+      foundryBaseUrl("https://my-resource.services.ai.azure.com/"),
+      "https://my-resource.services.ai.azure.com/anthropic/v1"
+    );
+    assert.strictEqual(
+      foundryBaseUrl("https://my-resource.services.ai.azure.com/anthropic/v1"),
+      "https://my-resource.services.ai.azure.com/anthropic/v1"
+    );
+  });
+
+  // The AI SDK's Anthropic provider authenticates with `x-api-key`, which
+  // Foundry rejects — this drives a real request to prove the swap happens.
+  it("sends api-key (not x-api-key) to the anthropic messages route", async () => {
+    let captured: { url?: string; headers?: IncomingMessage["headers"] } = {};
+    const server: Server = createServer((req, res) => {
+      captured = { url: req.url, headers: req.headers };
+      req.resume();
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          id: "msg_1",
+          type: "message",
+          role: "assistant",
+          model: "my-deployment",
+          content: [{ type: "text", text: "pong" }],
+          stop_reason: "end_turn",
+          usage: { input_tokens: 3, output_tokens: 1 },
+        })
+      );
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address() as AddressInfo;
+
+    const previous = {
+      provider: process.env.LLM_PROVIDER,
+      apiKey: process.env.LLM_API_KEY,
+      baseUrl: process.env.FOUNDRY_BASE_URL,
+      large: process.env.LLM_MODEL_LARGE,
+    };
+
+    try {
+      process.env.LLM_PROVIDER = "foundry";
+      process.env.LLM_API_KEY = "foundry-test-key";
+      process.env.FOUNDRY_BASE_URL = `http://127.0.0.1:${port}`;
+      process.env.LLM_MODEL_LARGE = "my-deployment";
+
+      const result = await generateText({ model: getLanguageModel("large"), prompt: "ping" });
+
+      assert.strictEqual(result.text, "pong");
+      assert.strictEqual(captured.url, "/anthropic/v1/messages");
+      assert.strictEqual(captured.headers?.["api-key"], "foundry-test-key");
+      assert.strictEqual(captured.headers?.["x-api-key"], undefined);
+      assert.strictEqual(captured.headers?.["anthropic-version"], "2023-06-01");
+    } finally {
+      restoreEnv("LLM_PROVIDER", previous.provider);
+      restoreEnv("LLM_API_KEY", previous.apiKey);
+      restoreEnv("FOUNDRY_BASE_URL", previous.baseUrl);
+      restoreEnv("LLM_MODEL_LARGE", previous.large);
+      await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
     }
   });
 });
