@@ -1,41 +1,31 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import YAML from "yaml";
-
 import { resolveContentMode } from "@/lib/spans/resolve-content-mode";
 
 describe("resolveContentMode", () => {
-  it("defaults object payloads to YAML, keeping JSON in the picker", () => {
+  it("defaults object payloads to JSON with a single mode so the part picker stays hidden", () => {
     assert.deepEqual(resolveContentMode({ a: 1 }), {
-      mode: "yaml",
-      modes: ["YAML", "JSON"],
+      mode: "json",
+      modes: ["JSON"],
       value: '{\n  "a": 1\n}',
     });
   });
 
-  it("defaults JSON-stringified object payloads to YAML", () => {
+  it("defaults JSON-stringified object payloads to JSON", () => {
     assert.deepEqual(resolveContentMode('{"a":1}'), {
-      mode: "yaml",
-      modes: ["YAML", "JSON"],
+      mode: "json",
+      modes: ["JSON"],
       value: '{\n  "a": 1\n}',
     });
   });
 
-  it("emits a value YAML mode can render losslessly", () => {
-    // `renderText("yaml", …)` is YAML.stringify(YAML.parse(value)), so the value must
-    // stay valid YAML. JSON is a YAML subset, and multi-line strings survive as `|-`
-    // literal blocks rather than being folded.
+  it("pretty-prints structured payloads", () => {
     const payload = { prompt: "line one\n  indented two\nline three", n: 1 };
-    const { value } = resolveContentMode(payload);
-
-    const rendered = YAML.stringify(YAML.parse(value));
-    assert.match(rendered, /prompt: \|-/);
-    assert.deepEqual(YAML.parse(rendered), payload);
+    assert.equal(resolveContentMode(payload).value, JSON.stringify(payload, null, 2));
   });
 
   it("unwraps JSON-stringified string payloads so escapes do not leak into the text view", () => {
-    // Span payloads arrive double-encoded, and text mode shows the value verbatim.
     const { mode, value } = resolveContentMode(JSON.stringify("line 1\nline 2"));
 
     assert.equal(mode, "text");
@@ -48,16 +38,12 @@ describe("resolveContentMode", () => {
     assert.equal(resolveContentMode(schema).value, schema);
   });
 
-  it("keeps free-form content on TEXT, because YAML mode mangles prose", () => {
+  it("keeps free-form content on TEXT", () => {
     const prose = "# Heading\n\nSome prose.";
     const { mode, modes } = resolveContentMode(prose);
 
     assert.equal(mode, "text");
-    assert.deepEqual(modes, ["TEXT", "YAML"]);
-
-    // Why text is the default and not yaml: YAML treats `#` as a comment, so rendering
-    // this as YAML silently drops the heading entirely.
-    assert.doesNotMatch(YAML.stringify(YAML.parse(prose)), /Heading/);
+    assert.deepEqual(modes, ["TEXT"]);
   });
 
   it("coerces null and undefined to an empty string instead of rendering 'null'", () => {
