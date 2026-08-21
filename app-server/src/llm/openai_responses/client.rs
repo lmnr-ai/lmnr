@@ -6,8 +6,7 @@ use super::conversions::{
     provider_request_to_responses_stream_body,
 };
 use crate::llm::openai::{
-    OpenAIError, OpenAIFlavor, OpenAIHttpConfig, OpenAIResult, build_http_config, endpoint_url,
-    send_openai_request,
+    OpenAIError, OpenAIHttpConfig, OpenAIResult, build_http_config, send_openai_request,
 };
 use crate::llm::{
     LanguageModelClient, ProviderResult,
@@ -24,47 +23,24 @@ pub struct OpenAIResponsesClient {
     client: reqwest::Client,
     api_key: String,
     api_base_url: String,
-    api_version: Option<String>,
-    flavor: OpenAIFlavor,
 }
 
 impl OpenAIResponsesClient {
     pub fn new() -> OpenAIResult<Self> {
-        Self::with_flavor(OpenAIFlavor::OpenAI)
-    }
-
-    /// Azure OpenAI over the Responses API; `model` is the deployment name.
-    pub fn azure() -> OpenAIResult<Self> {
-        Self::with_flavor(OpenAIFlavor::Azure)
-    }
-
-    fn with_flavor(flavor: OpenAIFlavor) -> OpenAIResult<Self> {
         let OpenAIHttpConfig {
             client,
             api_key,
             api_base_url,
-            api_version,
-            flavor,
-        } = build_http_config(flavor)?;
+        } = build_http_config()?;
         Ok(Self {
             client,
             api_key,
             api_base_url,
-            api_version,
-            flavor,
         })
     }
 
     pub fn api_base_url(&self) -> &str {
         &self.api_base_url
-    }
-
-    fn url(&self) -> String {
-        endpoint_url(
-            &self.api_base_url,
-            "/responses",
-            self.api_version.as_deref(),
-        )
     }
 }
 
@@ -75,10 +51,9 @@ impl LanguageModelClient for OpenAIResponsesClient {
         request: &ProviderRequest,
     ) -> ProviderResult<ProviderResponse> {
         let body = provider_request_to_responses_body(model, request)?;
-        let url = self.url();
+        let url = format!("{}/responses", self.api_base_url);
 
-        let response =
-            send_openai_request(&self.client, self.flavor, &self.api_key, &url, &body).await?;
+        let response = send_openai_request(&self.client, &self.api_key, &url, &body).await?;
         let response_text = response.text().await.map_err(OpenAIError::from)?;
         let response_json: serde_json::Value =
             serde_json::from_str(&response_text).map_err(OpenAIError::from)?;
@@ -93,10 +68,9 @@ impl LanguageModelClient for OpenAIResponsesClient {
         chunk_tx: &UnboundedSender<ProviderStreamChunk>,
     ) -> ProviderResult<ProviderResponse> {
         let body = provider_request_to_responses_stream_body(model, request)?;
-        let url = self.url();
+        let url = format!("{}/responses", self.api_base_url);
 
-        let response =
-            send_openai_request(&self.client, self.flavor, &self.api_key, &url, &body).await?;
+        let response = send_openai_request(&self.client, &self.api_key, &url, &body).await?;
 
         accumulate_sse::<OpenAIResponsesStreamAccumulator, OpenAIError>(
             response.bytes_stream(),
