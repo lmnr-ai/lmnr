@@ -79,7 +79,6 @@ export type TraceSignal = {
   signalId: string;
   signalName: string;
   prompt: string;
-  leafCluster: TraceSignalClusterNode | null;
   schemaFields: Array<{ name: string; type: string; description?: string }>;
   events: TraceSignalEvent[];
 };

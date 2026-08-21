@@ -28,7 +28,6 @@ export type TraceSignal = {
   signalName: string;
   prompt: string;
   structuredOutput: Record<string, unknown>;
-  leafCluster: TraceSignalClusterNode | null;
   events: TraceSignalEvent[];
 };
 
@@ -50,8 +49,8 @@ function pickLeafClusters(
 
 /**
  * Signals (with their events) that fired on a trace, for the trace-view panel.
- * Each event carries its own L1 (finest named) clusters; the signal-level leaf
- * cluster (its latest event's first) drives the panel accent color.
+ * Each event carries its own L1 (finest named) clusters — there is deliberately
+ * no signal-level cluster, since one signal's events can land in unrelated ones.
  */
 export async function getTraceSignals(input: z.infer<typeof GetTraceSignalsSchema>): Promise<TraceSignal[]> {
   const { projectId, traceId } = GetTraceSignalsSchema.parse(input);
@@ -125,7 +124,6 @@ export async function getTraceSignals(input: z.infer<typeof GetTraceSignalsSchem
       signalName: signal.name,
       prompt: signal.prompt,
       structuredOutput: signal.structuredOutputSchema as Record<string, unknown>,
-      leafCluster: mappedEvents[0]?.leafClusters[0] ?? null,
       events: mappedEvents,
     };
   });
