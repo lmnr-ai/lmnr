@@ -72,7 +72,7 @@ export type TraceSignalEvent = {
   payload: string;
   timestamp: string;
   severity: number;
-  leafCluster: TraceSignalClusterNode | null;
+  leafClusters: TraceSignalClusterNode[];
 };
 
 export type TraceSignal = {

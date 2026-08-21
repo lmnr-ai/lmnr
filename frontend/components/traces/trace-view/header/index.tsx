@@ -116,7 +116,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           prompt: string;
           structuredOutput: Record<string, unknown>;
           leafCluster?: TraceSignalClusterNode | null;
-          events: Array<EventRow & { leafCluster?: TraceSignalClusterNode | null }>;
+          events: Array<EventRow & { leafClusters?: TraceSignalClusterNode[] | null }>;
         }>;
         if (!Array.isArray(data)) return;
 
@@ -138,7 +138,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                 payload: e.payload,
                 timestamp: e.timestamp,
                 severity: e.severity,
-                leafCluster: e.leafCluster ?? null,
+                leafClusters: e.leafClusters ?? [],
               }))
             : [],
         }));
