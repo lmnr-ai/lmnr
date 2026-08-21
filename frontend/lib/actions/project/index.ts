@@ -113,7 +113,6 @@ async function deleteProjectDataFromClickHouse(
     "default.logs",
     "default.evaluation_scores",
     "default.evaluation_datapoints",
-    "default.evaluation_datapoint_executor_outputs",
     "default.dataset_datapoints",
     "default.labeling_queue_items",
     "default.notifications",
