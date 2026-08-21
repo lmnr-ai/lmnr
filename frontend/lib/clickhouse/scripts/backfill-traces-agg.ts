@@ -265,8 +265,9 @@ const manualCommandHint = (w: Window): string =>
   `To finish manually, re-run the backfill for windows at or before ` +
   `${formatDateTime64(w.to)} (UTC). See lib/clickhouse/backfill/traces-agg.ts.`;
 
-// `surrendered` is never persisted: the replica that took the lock over owns the
-// record, and writing from the loser could clobber its `completed`.
+// Only a run still holding the lock persists an outcome (`surrendered` never
+// does): the replica that took the lock over owns the record, and a write from
+// the loser could clobber it with a staler one.
 type BackfillOutcome =
   | { state: "completed"; reason: string }
   | { state: "partial"; reason: string; earliestMigrated: string }
@@ -474,7 +475,12 @@ export const startTracesAggBackfill = async (): Promise<void> => {
 
   try {
     const outcome = await runBackfill(new Date(), lock.lost);
-    if (outcome.state !== "surrendered") {
+    // Re-check the lease rather than trusting `surrendered` alone: the lease can
+    // lapse during the last window's insert, and the terminal returns after it
+    // don't check again — so a run CAN come back `completed`/`partial` while a
+    // successor already owns the work. Writing then could clobber the
+    // successor's record with a staler one.
+    if (outcome.state !== "surrendered" && !lock.lost()) {
       await writeStatus({ ...outcome, at: new Date().toISOString() });
     }
   } catch {
