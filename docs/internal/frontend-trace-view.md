@@ -26,10 +26,18 @@
 
 ## ContentRenderer modes
 
-- `ContentRenderer` (`frontend/components/ui/content-renderer/index.tsx`) mode state is lowercase (`"json"`, `"markdown"`) but the `modes` prop lists are UPPERCASE (`["JSON", "MARKDOWN", ...]`) — `TemplatePickerView` lowercases on selection. Mode persists to localStorage under `formatter-mode-${presetKey}`.
-- Span-view search (`SpanSearchProvider`) registers **searchable sources**, not bare `EditorView`s — `SearchableSource` in `span-view/searchable/` with a CodeMirror adapter (JSON/text modes) and a DOM adapter (markdown / Streamdown via CSS Custom Highlight). `custom` and `messages` do not register at the top level (`messages` nests its own ContentRenderers). Settings popover is CodeMirror-only (`isCodeMode`). `code-sheet.tsx` needs its own render branch per non-CodeMirror mode.
-- Markdown search matches **rendered `textContent`**, not the raw markdown source — offsets map to DOM `Range`s; highlight via `::highlight(span-search-match)` / `::highlight(span-search-active)` in `globals.css`.
-- Span payloads arrive JSON-stringified (a markdown string is `"\"# H\\n...\""`), so the markdown branch unwraps via `getMarkdownSource` (`content-renderer/markdown.tsx`) before rendering with Streamdown.
+- Modes are `text` / `yaml` / `json` / `custom` / `messages`; everything except `custom` and `messages` is CodeMirror (`isCodeMode`). **There is deliberately no markdown mode** — markdown strips leading indentation at parse time, so prompt-shaped content (embedded JSON schemas, XML-like tags) renders flat and no CSS can recover it. Render that content as text; markdown belongs only where content is genuinely prose (`trace-view/transcript/markdown.tsx`, run notes, `json-tooltip`, `agent-prompt-box`).
+- Mode state is lowercase (`"json"`, `"text"`) but the `modes` prop lists are UPPERCASE (`["JSON", "TEXT", ...]`) — `TemplatePickerView` lowercases on selection. Mode persists to localStorage under `formatter-mode-${presetKey}`. The picker renders only when `modes.length > 1`; when it does, it also lists CUSTOM templates. Pass a single mode to hide it (span content parts do this).
+- A persisted mode is never trusted blindly: `pickMode` (`content-renderer/mode.ts`) falls back to `defaultMode` unless the value is in `modes`. That's what keeps a stale `"markdown"` in localStorage — from before the mode was removed — from selecting a branch that no longer exists, and it also reconciles virtualized rows that reuse a mounted ContentRenderer across spans.
+- Span-view search (`SpanSearchProvider`) registers **searchable sources**, not bare `EditorView`s — `SearchableSource` in `span-view/searchable/`, CodeMirror-only. `custom` and `messages` do not register (`messages` nests its own ContentRenderers). `code-sheet.tsx` needs its own render branch per non-CodeMirror mode.
+- Span payloads arrive JSON-stringified (`"\"# H\\n...\""`), so `resolveContentMode` (`lib/spans/resolve-content-mode.ts`) unwraps once for every span content part. Any renderer that shows the value verbatim MUST go through it, or raw quotes and `\n` escapes leak into the view.
+- `resolveContentMode` defaults **structured payloads to JSON** and **free-form content to TEXT**, each as a **single-item `modes` list**. ContentRenderer only renders the picker when `modes.length > 1`, so per-part pickers stay hidden. JSON/YAML/TEXT switching lives on the parent span ContentRenderer (`span-content.tsx` / `span-overview.tsx`), not on each message part.
+- **Never default free-form content to YAML.** `renderText("yaml", …)` is `YAML.stringify(YAML.parse(…))`, which is destructive on prose: a `# Heading` line parses as a comment and is silently dropped, and `Error:\n  detail` collapses into one folded line. (Display only — the copy buttons always copy the raw `value`.)
+
+## Streamdown wiring (transcript view)
+
+- Streamdown's `remarkPlugins` / `rehypePlugins` props **replace** its defaults, they do not merge. Spread the matching `defaultRemarkPlugins` / `defaultRehypePlugins` export — this is why `transcript/markdown.tsx` lists `raw, sanitize, harden` explicitly, and why a bare `remarkPlugins` array would drop gfm and silently stop rendering tables.
+- `defaultRehypePlugins.raw` means XML-like tags (`<prompt>`) are parsed as HTML and then dropped by `sanitize`. Accepted: transcript content is model prose. Making such tags visible via remark plugins was tried and reverted — not worth the dependency weight for content that shouldn't contain them. Render that content as text instead.
 
 ## Span-view Message Parsing
 
