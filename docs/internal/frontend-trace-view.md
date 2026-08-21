@@ -31,6 +31,8 @@
 - A persisted mode is never trusted blindly: `pickMode` (`content-renderer/mode.ts`) falls back to `defaultMode` unless the value is in `modes`. That's what keeps a stale `"markdown"` in localStorage — from before the mode was removed — from selecting a branch that no longer exists, and it also reconciles virtualized rows that reuse a mounted ContentRenderer across spans.
 - Span-view search (`SpanSearchProvider`) registers **searchable sources**, not bare `EditorView`s — `SearchableSource` in `span-view/searchable/`, CodeMirror-only. `custom` and `messages` do not register (`messages` nests its own ContentRenderers). `code-sheet.tsx` needs its own render branch per non-CodeMirror mode.
 - Span payloads arrive JSON-stringified (`"\"# H\\n...\""`), so `resolveContentMode` (`lib/spans/resolve-content-mode.ts`) unwraps once for every span content part. Any renderer that shows the value verbatim MUST go through it, or raw quotes and `\n` escapes leak into the view.
+- `resolveContentMode` defaults **structured payloads to YAML** (JSON stays in the picker) and **free-form content to TEXT**. It keeps `value` as pretty JSON either way — JSON is a YAML subset, so `renderText("yaml", …)` converts it for display and the round trip is lossless (multi-line strings become `|-` literal blocks, preserving newlines and indentation).
+- **Never default free-form content to YAML.** `renderText("yaml", …)` is `YAML.stringify(YAML.parse(…))`, which is destructive on prose: a `# Heading` line parses as a comment and is silently dropped, and `Error:\n  detail` collapses into one folded line. It's offered in the picker for prose but must not be the default. (Display only — the copy buttons always copy the raw `value`.)
 
 ## Streamdown wiring (transcript view)
 
