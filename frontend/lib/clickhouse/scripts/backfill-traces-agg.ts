@@ -1,3 +1,4 @@
+import { cache } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { acquireBackfillLock } from "@/lib/clickhouse/scripts/backfill-lock";
 
@@ -252,9 +253,8 @@ const parseChTimestamp = (value: string | null): Date | null => {
   return parsed;
 };
 
-// Resume point. There is deliberately NO persisted state: the destination is its
-// own progress marker, so a restart re-derives where to continue and an
-// already-migrated deployment converges to a cheap no-op.
+// Resume point. The destination is its own progress marker, so a restart
+// re-derives where to continue without trusting the persisted status below.
 const destinationWatermark = async (): Promise<Date | null> =>
   parseChTimestamp(await scalar(`SELECT min(start_time) AS m FROM traces_static`));
 
@@ -265,20 +265,56 @@ const manualCommandHint = (w: Window): string =>
   `To finish manually, re-run the backfill for windows at or before ` +
   `${formatDateTime64(w.to)} (UTC). See lib/clickhouse/backfill/traces-agg.ts.`;
 
-const runBackfill = async (now: Date, lostLease: () => boolean = () => false): Promise<void> => {
+// `surrendered` is never persisted: the replica that took the lock over owns the
+// record, and writing from the loser could clobber its `completed`.
+type BackfillOutcome =
+  | { state: "completed"; reason: string }
+  | { state: "partial"; reason: string; earliestMigrated: string }
+  | { state: "surrendered" };
+
+type BackfillStatus = Exclude<BackfillOutcome, { state: "surrendered" }> & { at: string };
+
+// Bump this key if the backfill's semantics change and every deployment should
+// walk its history again.
+const STATUS_KEY = "traces_agg_backfill_status";
+
+// The status is an OPTIMIZATION, not the resume marker — losing it only costs a
+// re-derivation from the destination watermark, which converges to the same
+// no-op. So an unreachable Redis must never block the migration.
+const readStatus = async (): Promise<BackfillStatus | null> => {
+  try {
+    return await cache.get<BackfillStatus>(STATUS_KEY);
+  } catch (error) {
+    console.error("[traces-agg-backfill] could not read the saved status", error);
+    return null;
+  }
+};
+
+// No TTL: a finished migration stays finished.
+const writeStatus = async (status: BackfillStatus): Promise<void> => {
+  try {
+    await cache.set(STATUS_KEY, status);
+  } catch (error) {
+    console.error("[traces-agg-backfill] could not save the status; the next boot will walk again", error);
+  }
+};
+
+const runBackfill = async (now: Date, lostLease: () => boolean = () => false): Promise<BackfillOutcome> => {
+  // The source has had no writer since the cutover, so "absent"/"empty" is a
+  // permanent answer rather than a not-yet — safe to record as completed.
   if (!(await tableExists("traces_replacing"))) {
     console.log("[traces-agg-backfill] traces_replacing is absent; nothing to migrate");
-    return;
+    return { state: "completed", reason: "traces_replacing is absent" };
   }
   if ((await approximateSourceRows()) === 0) {
     console.log("[traces-agg-backfill] traces_replacing is empty; nothing to migrate");
-    return;
+    return { state: "completed", reason: "traces_replacing is empty" };
   }
 
   const oldestSource = await oldestSourceTrace();
   if (!oldestSource) {
     console.log("[traces-agg-backfill] traces_replacing has no readable rows; nothing to migrate");
-    return;
+    return { state: "completed", reason: "traces_replacing has no readable rows" };
   }
 
   // No destination rows yet (fresh cutover) means start from now.
@@ -289,7 +325,7 @@ const runBackfill = async (now: Date, lostLease: () => boolean = () => false): P
     console.log(
       `[traces-agg-backfill] destination already covers history back to ${formatDateTime64(watermark)}; nothing to do`
     );
-    return;
+    return { state: "completed", reason: `destination covers history back to ${formatDateTime64(watermark)}` };
   }
 
   // The first window is a PARTIAL one: it runs from the batch-aligned floor of
@@ -316,7 +352,7 @@ const runBackfill = async (now: Date, lostLease: () => boolean = () => false): P
         `[traces-agg-backfill] stopping at ${formatDateTime64(cursor)} after losing the lock lease; ` +
           `${migratedAgg} traces_agg / ${migratedStatic} traces_static rows written`
       );
-      return;
+      return { state: "surrendered" };
     }
 
     const to = cursor;
@@ -341,7 +377,7 @@ const runBackfill = async (now: Date, lostLease: () => boolean = () => false): P
             `stopping before the traces_static write. traces_agg for this window is already committed, ` +
             `so the next run's anti-join will skip those ids and only backfill the missing traces_static rows.`
         );
-        return;
+        return { state: "surrendered" };
       }
       migratedStatic += await insertStatic(w);
     } catch (error) {
@@ -365,7 +401,7 @@ const runBackfill = async (now: Date, lostLease: () => boolean = () => false): P
         `[traces-agg-backfill] reached oldest source trace ${formatDateTime64(oldestSource)}; ` +
           `migrated ${migratedAgg} traces_agg / ${migratedStatic} traces_static rows`
       );
-      return;
+      return { state: "completed", reason: `reached oldest source trace ${formatDateTime64(oldestSource)}` };
     }
 
     if (from < horizon) {
@@ -373,7 +409,11 @@ const runBackfill = async (now: Date, lostLease: () => boolean = () => false): P
         `[traces-agg-backfill] reached the ${MAX_DAYS}-day limit; earliest migrated timestamp ` +
           `${formatDateTime64(from)}; migrated ${migratedAgg} traces_agg / ${migratedStatic} traces_static rows`
       );
-      return;
+      return {
+        state: "partial",
+        reason: `reached the ${MAX_DAYS}-day limit`,
+        earliestMigrated: formatDateTime64(from),
+      };
     }
 
     if (windowIndex % COUNT_CHECK_EVERY_WINDOWS === 0) {
@@ -383,7 +423,11 @@ const runBackfill = async (now: Date, lostLease: () => boolean = () => false): P
           `[traces-agg-backfill] reached the ${MAX_TRACES}-trace limit (~${migratedSoFar}); ` +
             `earliest migrated timestamp ${formatDateTime64(from)}. ${manualCommandHint(w)}`
         );
-        return;
+        return {
+          state: "partial",
+          reason: `reached the ${MAX_TRACES}-trace limit`,
+          earliestMigrated: formatDateTime64(from),
+        };
       }
       console.log(
         `[traces-agg-backfill] progress: back to ${formatDateTime64(from)}, ` +
@@ -396,6 +440,11 @@ const runBackfill = async (now: Date, lostLease: () => boolean = () => false): P
     `[traces-agg-backfill] stopped after ${MAX_WINDOWS} windows at ${formatDateTime64(cursor)}; ` +
       `re-run to continue if older data still needs migrating`
   );
+  return {
+    state: "partial",
+    reason: `stopped after ${MAX_WINDOWS} windows`,
+    earliestMigrated: formatDateTime64(cursor),
+  };
 };
 
 // Deliberately NO SIGTERM/SIGINT/exit handlers. Registering a signal listener
@@ -406,16 +455,31 @@ const runBackfill = async (now: Date, lostLease: () => boolean = () => false): P
 // the pod on shutdown in the manual-handle configuration. Releasing the lock a
 // few minutes early isn't worth that risk; the lock TTL covers a pod that dies.
 export const startTracesAggBackfill = async (): Promise<void> => {
+  const status = await readStatus();
+  // Silent on purpose: a migration that already finished should leave no trace
+  // in the logs of every subsequent boot, which is the whole point of the record.
+  if (status?.state === "completed") return;
+
   const lock = await acquireBackfillLock();
   if (!lock) {
     console.log("[traces-agg-backfill] another replica holds the lock; skipping");
     return;
   }
 
+  if (status?.state === "partial") {
+    console.log(
+      `[traces-agg-backfill] previous run stopped at ${status.earliestMigrated} (${status.reason}); continuing`
+    );
+  }
+
   try {
-    await runBackfill(new Date(), lock.lost);
+    const outcome = await runBackfill(new Date(), lock.lost);
+    if (outcome.state !== "surrendered") {
+      await writeStatus({ ...outcome, at: new Date().toISOString() });
+    }
   } catch {
-    // runBackfill already logged the resume point and the manual hint.
+    // runBackfill already logged the resume point and the manual hint. The status
+    // is deliberately left untouched so the next boot retries.
   } finally {
     await lock.release();
   }
