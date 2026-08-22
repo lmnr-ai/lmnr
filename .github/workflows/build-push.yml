@@ -139,15 +139,30 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ matrix.image }}
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: index
 
       - name: Create multi-platform image
         id: manifest
         working-directory: /tmp/digests
         env:
-          DOCKER_METADATA_OUTPUT_JSON: ${{ steps.meta.outputs.json }}
+          DOCKER_METADATA_OUTPUT_TAGS: ${{ steps.meta.outputs.tags }}
+          DOCKER_METADATA_OUTPUT_ANNOTATIONS: ${{ steps.meta.outputs.annotations }}
         run: |
+          tag_args=()
+          annotation_args=()
+          while IFS= read -r tag; do
+            [ -z "$tag" ] && continue
+            tag_args+=("-t" "$tag")
+          done <<< "$DOCKER_METADATA_OUTPUT_TAGS"
+          while IFS= read -r annotation; do
+            [ -z "$annotation" ] && continue
+            annotation_args+=("--annotation" "$annotation")
+          done <<< "$DOCKER_METADATA_OUTPUT_ANNOTATIONS"
+
           docker buildx imagetools create \
-            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            "${tag_args[@]}" \
+            "${annotation_args[@]}" \
             $(printf '${{ matrix.image }}@sha256:%s ' *) \
             --metadata-file /tmp/manifest-metadata.json
           echo "digest=$(jq -r '."containerimage.descriptor".digest' /tmp/manifest-metadata.json)" >> "$GITHUB_OUTPUT"
