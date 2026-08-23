@@ -101,6 +101,7 @@ jobs:
 
   merge:
     needs: build
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -117,12 +118,17 @@ jobs:
       id-token: write
 
     steps:
-      - name: Download image digests
+      - name: Download amd64 image digest
         uses: actions/download-artifact@v4
         with:
-          pattern: digests-${{ matrix.image-name }}-*
+          name: digests-${{ matrix.image-name }}-amd64
           path: /tmp/digests
-          merge-multiple: true
+
+      - name: Download arm64 image digest
+        uses: actions/download-artifact@v4
+        with:
+          name: digests-${{ matrix.image-name }}-arm64
+          path: /tmp/digests
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -160,10 +166,31 @@ jobs:
             annotation_args+=("--annotation" "$annotation")
           done <<< "$DOCKER_METADATA_OUTPUT_ANNOTATIONS"
 
+          source_args=()
+          for digest in *; do
+            source_args+=("${{ matrix.image }}@sha256:$digest")
+          done
+          if [ "${#source_args[@]}" -ne 2 ]; then
+            echo "Expected 2 image digests, got: ${#source_args[@]}" >&2
+            exit 1
+          fi
+
+          dry_run_manifest=$(docker buildx imagetools create \
+            "${annotation_args[@]}" \
+            --dry-run \
+            "${source_args[@]}")
+          platforms=$(jq -r \
+            '[.manifests[].platform | "\(.os)/\(.architecture)"] | sort | join(",")' \
+            <<< "$dry_run_manifest")
+          if [ "$platforms" != "linux/amd64,linux/arm64" ]; then
+            echo "Expected linux/amd64 and linux/arm64, got: $platforms" >&2
+            exit 1
+          fi
+
           docker buildx imagetools create \
             "${tag_args[@]}" \
             "${annotation_args[@]}" \
-            $(printf '${{ matrix.image }}@sha256:%s ' *) \
+            "${source_args[@]}" \
             --metadata-file /tmp/manifest-metadata.json
           echo "digest=$(jq -r '."containerimage.descriptor".digest' /tmp/manifest-metadata.json)" >> "$GITHUB_OUTPUT"
 
