@@ -1,20 +1,18 @@
+// Keep in sync with the "Failure Detector" entry in components/signals/prompts.ts.
 export const DEFAULT_SIGNAL = {
   name: "Failure Detector",
-  prompt: `Analyze this trace for concrete issues: tool call failures, API errors, \
-loops or repeated calls, wrong tool selection, and logic errors. \
-Only report problems visible in the trace data.`,
+  prompt: `Find the most significant error the agent made in this run, if any: \
+a wrong action, flawed logic, or failure that affected the outcome or wasted \
+significant work. Minor issues the agent immediately recovered from are not \
+findings. Cite the specific spans and quote the decisive evidence. \
+Most runs have no reportable error.`,
   structuredOutputSchema: {
     type: "object",
-    required: ["description", "category"],
+    required: ["description"],
     properties: {
       description: {
         type: "string",
-        description: "Description of the issue: what happened, which span(s) are involved, and the impact",
-      },
-      category: {
-        type: "string",
-        enum: ["tool_error", "api_error", "logic_error", "looping", "wrong_tool", "timeout", "other"],
-        description: "Category of the issue",
+        description: "What went wrong, the decisive evidence with span references, and the impact on the run's outcome",
       },
     },
   },
