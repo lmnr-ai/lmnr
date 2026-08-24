@@ -101,7 +101,6 @@ jobs:
 
   merge:
     needs: build
-    if: ${{ always() }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
