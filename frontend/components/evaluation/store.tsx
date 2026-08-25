@@ -31,6 +31,7 @@ function toColumnsPayload(columnDefs: ColumnDef<EvalRow>[]): EvalQueryColumn[] {
       comparable: c.meta!.comparable ?? false,
       ...(c.meta!.filterSql && { filterSql: c.meta!.filterSql }),
       ...(c.meta!.dbType && { dbType: c.meta!.dbType }),
+      ...(c.meta!.truncated && { truncated: true }),
     }));
 }
 
@@ -82,6 +83,9 @@ export function buildColumnDefs({
           filterable: true,
           comparable: true,
           isCustom: true,
+          // Preserve the origin suggestion id so an edit through the columns menu
+          // doesn't wipe the cross-user/rename guard.
+          suggestionKey: cc.suggestionKey,
         },
       }));
   return [...STATIC_COLUMNS, ...scoreCols, ...customCols];

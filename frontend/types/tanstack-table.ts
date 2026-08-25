@@ -58,6 +58,14 @@ declare module "@tanstack/react-table" {
     // Marks dynamically-created custom columns so components can identify them
     // from columnDefs without reaching into the separate `customColumns` array.
     isCustom?: boolean;
+    // Origin suggestion id for a kept-suggestion custom column. Carried on meta so
+    // the edit round-trip (columns-menu) can preserve it — otherwise a rename/edit
+    // wipes the cross-user/rename guard the suggestion relies on.
+    suggestionKey?: string;
+    // Marks a not-yet-accepted suggested column (e.g. the eval "Label" suggestion).
+    // Renders with a subtle primary (brand) tint so the user knows it's a proposal
+    // they can keep/discard, not a saved column.
+    suggested?: boolean;
     // The untruncated SQL expression for columns whose SELECT uses substring().
     // Used by DataCell to fetch the full value on hover.
     fullSql?: string;

@@ -338,12 +338,30 @@ export async function register() {
       console.log("Local DB is not enabled, skipping migrations and initial data");
     }
     if (process.env.LMNR_PROJECT_API_KEY) {
-      const { LaminarAiSdkTelemetry } = await import("@lmnr-ai/lmnr");
+      const { Laminar, LaminarAiSdkTelemetry } = await import("@lmnr-ai/lmnr");
       const { registerTelemetry } = await import("ai");
       console.log("Initializing Laminar");
-      // LaminarAiSdkTelemetry's constructor calls Laminar.initialize() itself
-      // (reading projectApiKey from LMNR_PROJECT_API_KEY), so no explicit init.
-      // The env-var guard stays: without a key that self-init would throw.
+      // Initialize explicitly so a self-hosted ingest port is honored. Laminar
+      // STRIPS the port from baseUrl and reads the gRPC port from `grpcPort`
+      // (default 8443), so LMNR_BASE_URL alone can't target e.g. localhost:8011 —
+      // LMNR_GRPC_PORT must be passed. Guarded on LMNR_BASE_URL so Cloud (no base
+      // url) keeps its defaults. LaminarAiSdkTelemetry's own init then no-ops.
+      Laminar.initialize({
+        projectApiKey: process.env.LMNR_PROJECT_API_KEY,
+        ...(process.env.LMNR_BASE_URL && {
+          baseUrl: process.env.LMNR_BASE_URL,
+          // Guard with isFinite so a non-numeric value is skipped rather than
+          // passed through as NaN.
+          ...(process.env.LMNR_HTTP_PORT &&
+            Number.isFinite(Number(process.env.LMNR_HTTP_PORT)) && {
+              httpPort: Number(process.env.LMNR_HTTP_PORT),
+            }),
+          ...(process.env.LMNR_GRPC_PORT &&
+            Number.isFinite(Number(process.env.LMNR_GRPC_PORT)) && {
+              grpcPort: Number(process.env.LMNR_GRPC_PORT),
+            }),
+        }),
+      });
       registerTelemetry(new LaminarAiSdkTelemetry());
     }
 

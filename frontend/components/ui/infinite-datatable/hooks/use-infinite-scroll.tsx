@@ -63,7 +63,10 @@ export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }:
 
       try {
         setIsFetching(true);
-        if (shouldReset) {
+        // Full-table skeleton only on a cold load (no rows yet). On a warm reset
+        // refetch (deps changed while rows exist), keep the stale rows on screen
+        // and let replaceData swap them in atomically — no skeleton flash.
+        if (shouldReset && store.getState().data.length === 0) {
           setIsLoading(true);
         }
 
@@ -81,7 +84,7 @@ export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }:
         setIsLoading(false);
       }
     },
-    [enabled, setIsFetching, fetchFn, setCurrentPage, setIsLoading, replaceData, appendData, setError]
+    [enabled, setIsFetching, fetchFn, setCurrentPage, setIsLoading, replaceData, appendData, setError, store]
   );
 
   const fetchNextPage = useCallback(() => {
@@ -104,7 +107,11 @@ export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }:
 
   useEffect(() => {
     if (enabled && !isViewLoading) {
-      resetInfiniteScroll();
+      // Cold load: clear to skeleton. Warm reload (deps changed while rows exist):
+      // leave the rows in place; fetchPage swaps them in via replaceData with no flash.
+      if (store.getState().data.length === 0) {
+        resetInfiniteScroll();
+      }
       fetchPage(0, true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

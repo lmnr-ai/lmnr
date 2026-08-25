@@ -39,6 +39,7 @@ export function InfiniteTableHead<TData extends RowData>({
 
   const isOtherDragging = draggingColumnId && draggingColumnId !== columnId;
   const isPinned = header.column.getIsPinned() === "left";
+  const isSuggested = header.column.columnDef.meta?.suggested === true;
 
   const transformValue = CSS.Translate.toString(transform);
   const scaleValue = isDragging ? "scale(1.02)" : "";
@@ -70,8 +71,11 @@ export function InfiniteTableHead<TData extends RowData>({
         display: "flex",
       }}
       className={cn(
-        "m-0 relative text-secondary-foreground truncate hover:bg-transparent",
+        "m-0 relative text-secondary-foreground truncate",
         isDragging && "shadow-lg",
+        // Suggested header keeps its primary tint and deepens on hover (base cells
+        // clear to transparent on hover, which would wipe the tint).
+        isSuggested ? "bg-primary/5 hover:bg-primary/15" : "hover:bg-transparent",
         isPinned && "bg-secondary border-r shadow-[2px_0_6px_-2px_rgba(0,0,0,0.35)]"
       )}
       key={header.id}
@@ -96,6 +100,7 @@ export function InfiniteTableHead<TData extends RowData>({
           onClick={(e) => e.stopPropagation()}
         >
           {isControllable &&
+            !isSuggested &&
             (header.column.getCanSort() || onHideColumn || header.column.columnDef.meta?.customDropdownItems) && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

@@ -218,7 +218,19 @@ export function VirtualizedScroll<TData extends RowData>({
       const oldIndex = effectiveColumnOrder.indexOf(active.id as string);
       const newIndex = effectiveColumnOrder.indexOf(over.id as string);
       if (oldIndex !== -1 && newIndex !== -1) {
-        setColumnOrder(arrayMove(effectiveColumnOrder, oldIndex, newIndex) as string[]);
+        // Never persist ephemeral suggested columns (e.g. `custom:Label`) into the
+        // stored order — they'd leave a ghost entry in the columns menu after
+        // discard. computeEffectiveOrder re-injects them (via orderPins) each render.
+        const suggestedIds = new Set(
+          table
+            .getAllColumns()
+            .filter((c) => c.columnDef.meta?.suggested)
+            .map((c) => c.id)
+        );
+        const next = (arrayMove(effectiveColumnOrder, oldIndex, newIndex) as string[]).filter(
+          (id) => !suggestedIds.has(id)
+        );
+        setColumnOrder(next);
       }
     }
   }

@@ -31,6 +31,7 @@ pub async fn query(
 
     span.set_attribute(KeyValue::new("sql.query", query.clone()));
     span.set_attribute(KeyValue::new("project_id", project_id.to_string()));
+
     let mut clickhouse_query = clickhouse_ro
         .query(&query)
         .with_setting("default_format", "JSON")
