@@ -66,7 +66,7 @@ pub type OpenAIResult<T> = Result<T, OpenAIError>;
 #[derive(Clone, Copy)]
 pub(super) enum OpenAIFlavor {
     OpenAI,
-    Azure,
+    AzureOpenAI,
 }
 
 /// Shared HTTP setup for the OpenAI-compatible clients (Chat Completions and
@@ -90,9 +90,9 @@ pub(super) fn build_http_config(flavor: OpenAIFlavor) -> OpenAIResult<OpenAIHttp
                 .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
             (raw_base_url.trim_end_matches('/').to_string(), None)
         }
-        OpenAIFlavor::Azure => (
+        OpenAIFlavor::AzureOpenAI => (
             azure_base_url()?,
-            non_empty_env(env::llm::AZURE_API_VERSION),
+            non_empty_env(env::llm::AZURE_OPENAI_API_VERSION),
         ),
     };
     let default_headers = default_headers_from_env().map_err(OpenAIError::config)?;
@@ -123,12 +123,12 @@ fn non_empty_env(name: &str) -> Option<String> {
 /// `AZURE_OPENAI_BASE_URL` wins over `AZURE_OPENAI_RESOURCE_ID`; both normalize to
 /// the v1 route, which serves both `/chat/completions` and `/responses`.
 fn azure_base_url() -> OpenAIResult<String> {
-    if let Some(base_url) = non_empty_env(env::llm::AZURE_BASE_URL) {
+    if let Some(base_url) = non_empty_env(env::llm::AZURE_OPENAI_BASE_URL) {
         return Ok(normalize_azure_base_url(&base_url));
     }
-    let resource_id = non_empty_env(env::llm::AZURE_RESOURCE_ID).ok_or_else(|| {
+    let resource_id = non_empty_env(env::llm::AZURE_OPENAI_RESOURCE_ID).ok_or_else(|| {
         OpenAIError::config(
-            "AZURE_OPENAI_RESOURCE_ID or AZURE_OPENAI_BASE_URL must be set when LLM_PROVIDER is azure",
+            "AZURE_OPENAI_RESOURCE_ID or AZURE_OPENAI_BASE_URL must be set when LLM_PROVIDER is azure_openai",
         )
     })?;
     Ok(normalize_azure_base_url(&format!(
@@ -170,7 +170,7 @@ pub(super) async fn send_openai_request(
         OpenAIFlavor::OpenAI => client
             .post(url)
             .header("Authorization", format!("Bearer {api_key}")),
-        OpenAIFlavor::Azure => client.post(url).header("api-key", api_key),
+        OpenAIFlavor::AzureOpenAI => client.post(url).header("api-key", api_key),
     };
     let response = request
         .header("Content-Type", "application/json")

@@ -6,8 +6,8 @@ import { describe, it } from "node:test";
 import { generateText } from "ai";
 
 import {
-  azureBaseUrl,
-  foundryBaseUrl,
+  azureOpenAIBaseUrl,
+  foundryAnthropicBaseUrl,
   getLanguageModel,
   isAiProviderConfigured,
   parseLlmDefaultHeaders,
@@ -57,22 +57,25 @@ describe("parseLlmDefaultHeaders", () => {
   });
 });
 
-describe("azure provider config", () => {
+describe("azure_openai provider config", () => {
   it("normalizes every accepted endpoint form to the v1 route", () => {
     // createAzure appends /v1 itself for azure.com hosts, but not for gateways.
     assert.strictEqual(
-      azureBaseUrl("https://my-resource.openai.azure.com/"),
+      azureOpenAIBaseUrl("https://my-resource.openai.azure.com/"),
       "https://my-resource.openai.azure.com/openai"
     );
     assert.strictEqual(
-      azureBaseUrl("https://my-resource.openai.azure.com/openai/v1"),
+      azureOpenAIBaseUrl("https://my-resource.openai.azure.com/openai/v1"),
       "https://my-resource.openai.azure.com/openai"
     );
-    assert.strictEqual(azureBaseUrl("https://gateway.internal/azure"), "https://gateway.internal/azure/openai/v1");
+    assert.strictEqual(
+      azureOpenAIBaseUrl("https://gateway.internal/azure"),
+      "https://gateway.internal/azure/openai/v1"
+    );
   });
 
   it("rejects an endpoint that is not an absolute URL", () => {
-    assert.throws(() => azureBaseUrl("my-resource.openai.azure.com"), /not an absolute URL/);
+    assert.throws(() => azureOpenAIBaseUrl("my-resource.openai.azure.com"), /not an absolute URL/);
   });
 
   it("requires a non-blank endpoint on top of the api key", () => {
@@ -83,7 +86,7 @@ describe("azure provider config", () => {
     };
 
     try {
-      process.env.LLM_PROVIDER = "azure";
+      process.env.LLM_PROVIDER = "azure_openai";
       process.env.LLM_API_KEY = "test-key";
       process.env.AZURE_OPENAI_RESOURCE_ID = "  ";
       assert.strictEqual(isAiProviderConfigured(), false);
@@ -98,21 +101,21 @@ describe("azure provider config", () => {
   });
 });
 
-describe("foundry provider config", () => {
+describe("foundry_anthropic provider config", () => {
   it("normalizes every accepted endpoint form to the anthropic v1 route", () => {
     assert.strictEqual(
-      foundryBaseUrl("https://my-resource.services.ai.azure.com/"),
+      foundryAnthropicBaseUrl("https://my-resource.services.ai.azure.com/"),
       "https://my-resource.services.ai.azure.com/anthropic/v1"
     );
     assert.strictEqual(
-      foundryBaseUrl("https://my-resource.services.ai.azure.com/anthropic/v1"),
+      foundryAnthropicBaseUrl("https://my-resource.services.ai.azure.com/anthropic/v1"),
       "https://my-resource.services.ai.azure.com/anthropic/v1"
     );
   });
 
-  // Foundry accepts either `x-api-key` or `api-key` for key auth; this drives a
-  // real request to prove the key reaches the anthropic messages route at all.
-  it("sends the api key to the anthropic messages route", async () => {
+  // Foundry 401s on `api-key` and wants `x-api-key`; this drives a real request
+  // to prove the header the app-server sends is the one that goes out here too.
+  it("sends x-api-key to the anthropic messages route", async () => {
     let captured: { url?: string; headers?: IncomingMessage["headers"] } = {};
     const server: Server = createServer((req, res) => {
       captured = { url: req.url, headers: req.headers };
@@ -136,14 +139,14 @@ describe("foundry provider config", () => {
     const previous = {
       provider: process.env.LLM_PROVIDER,
       apiKey: process.env.LLM_API_KEY,
-      baseUrl: process.env.FOUNDRY_BASE_URL,
+      baseUrl: process.env.FOUNDRY_ANTHROPIC_BASE_URL,
       large: process.env.LLM_MODEL_LARGE,
     };
 
     try {
-      process.env.LLM_PROVIDER = "foundry";
+      process.env.LLM_PROVIDER = "foundry_anthropic";
       process.env.LLM_API_KEY = "foundry-test-key";
-      process.env.FOUNDRY_BASE_URL = `http://127.0.0.1:${port}`;
+      process.env.FOUNDRY_ANTHROPIC_BASE_URL = `http://127.0.0.1:${port}`;
       process.env.LLM_MODEL_LARGE = "my-deployment";
 
       const result = await generateText({ model: getLanguageModel("large"), prompt: "ping" });
@@ -155,7 +158,7 @@ describe("foundry provider config", () => {
     } finally {
       restoreEnv("LLM_PROVIDER", previous.provider);
       restoreEnv("LLM_API_KEY", previous.apiKey);
-      restoreEnv("FOUNDRY_BASE_URL", previous.baseUrl);
+      restoreEnv("FOUNDRY_ANTHROPIC_BASE_URL", previous.baseUrl);
       restoreEnv("LLM_MODEL_LARGE", previous.large);
       await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
     }

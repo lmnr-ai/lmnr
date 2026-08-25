@@ -2,7 +2,7 @@
 
 //! Claude on Microsoft Foundry (Azure). Foundry serves Anthropic models on the
 //! native Messages API at `{endpoint}/anthropic/v1/messages` — the
-//! OpenAI-compatible route the `azure` provider uses 404s on a Claude
+//! OpenAI-compatible route the `azure_openai` provider uses 404s on a Claude
 //! deployment — so the wire format here is Bedrock's InvokeModel body, which is
 //! the Anthropic Messages body, sent over plain HTTP.
 
@@ -26,8 +26,8 @@ use crate::llm::{
 /// body field is Bedrock-only.
 const ANTHROPIC_VERSION: &str = "2023-06-01";
 
-/// Foundry accepts either `x-api-key` or `api-key` for key auth, so this is a
-/// free choice — `Authorization: Bearer` is the separate Entra ID path.
+/// `api-key` 401s against Foundry in practice despite the docs listing it —
+/// `x-api-key` is the one that works. (`Authorization: Bearer` is Entra ID.)
 const AUTH_HEADER: &str = "x-api-key";
 
 #[derive(Debug, Error)]
@@ -71,15 +71,15 @@ impl From<FoundryError> for ProviderError {
 
 type FoundryResult<T> = Result<T, FoundryError>;
 
-/// `FOUNDRY_BASE_URL` wins over `FOUNDRY_RESOURCE_ID`; both normalize to the
+/// `FOUNDRY_ANTHROPIC_BASE_URL` wins over `FOUNDRY_ANTHROPIC_RESOURCE_ID`; both normalize to the
 /// `/anthropic` root that serves `/v1/messages`.
 fn foundry_base_url() -> FoundryResult<String> {
-    if let Some(base_url) = non_empty_env(env::llm::FOUNDRY_BASE_URL) {
+    if let Some(base_url) = non_empty_env(env::llm::FOUNDRY_ANTHROPIC_BASE_URL) {
         return Ok(normalize_base_url(&base_url));
     }
-    let resource_id = non_empty_env(env::llm::FOUNDRY_RESOURCE_ID).ok_or_else(|| {
+    let resource_id = non_empty_env(env::llm::FOUNDRY_ANTHROPIC_RESOURCE_ID).ok_or_else(|| {
         FoundryError::ConfigError(
-            "FOUNDRY_RESOURCE_ID or FOUNDRY_BASE_URL must be set when LLM_PROVIDER is foundry"
+            "FOUNDRY_ANTHROPIC_RESOURCE_ID or FOUNDRY_ANTHROPIC_BASE_URL must be set when LLM_PROVIDER is foundry_anthropic"
                 .to_string(),
         )
     })?;
@@ -116,13 +116,13 @@ fn non_empty_env(name: &str) -> Option<String> {
 /// (adaptive thinking, dropped sampling params) only fire when the deployment
 /// is named after the model — which is Foundry's own default.
 #[derive(Clone)]
-pub struct FoundryClient {
+pub struct FoundryAnthropicClient {
     client: reqwest::Client,
     api_key: String,
     api_base_url: String,
 }
 
-impl FoundryClient {
+impl FoundryAnthropicClient {
     pub fn new() -> ProviderResult<Self> {
         Self::build().map_err(Into::into)
     }
@@ -203,7 +203,7 @@ impl FoundryClient {
     }
 }
 
-impl LanguageModelClient for FoundryClient {
+impl LanguageModelClient for FoundryAnthropicClient {
     async fn generate_content(
         &self,
         model: &str,
@@ -225,7 +225,7 @@ impl LanguageModelClient for FoundryClient {
         let body = self.body_for(model, request, true)?;
         let response = self.send(&body).await.map_err(ProviderError::from)?;
 
-        accumulate_sse::<FoundryStreamAccumulator, FoundryError>(
+        accumulate_sse::<FoundryAnthropicStreamAccumulator, FoundryError>(
             response.bytes_stream(),
             model,
             chunk_tx,
@@ -238,9 +238,9 @@ impl LanguageModelClient for FoundryClient {
 /// Foundry streams the same Anthropic events Bedrock does, framed as SSE
 /// instead of an AWS event stream.
 #[derive(Default)]
-struct FoundryStreamAccumulator(BedrockStreamAccumulator);
+struct FoundryAnthropicStreamAccumulator(BedrockStreamAccumulator);
 
-impl StreamAccumulator for FoundryStreamAccumulator {
+impl StreamAccumulator for FoundryAnthropicStreamAccumulator {
     type Chunk = Value;
     type Error = Infallible;
 
@@ -319,11 +319,11 @@ mod tests {
             &[
                 (env::llm::API_KEY, "foundry-test-key"),
                 (
-                    env::llm::FOUNDRY_BASE_URL,
+                    env::llm::FOUNDRY_ANTHROPIC_BASE_URL,
                     &format!("{}/anthropic/v1", server.uri()),
                 ),
             ],
-            || FoundryClient::new().unwrap(),
+            || FoundryAnthropicClient::new().unwrap(),
         );
 
         let response = client
@@ -386,9 +386,9 @@ mod tests {
         let client = crate::llm::with_env_vars(
             &[
                 (env::llm::API_KEY, "foundry-test-key"),
-                (env::llm::FOUNDRY_BASE_URL, &server.uri()),
+                (env::llm::FOUNDRY_ANTHROPIC_BASE_URL, &server.uri()),
             ],
-            || FoundryClient::new().unwrap(),
+            || FoundryAnthropicClient::new().unwrap(),
         );
 
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();

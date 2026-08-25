@@ -17,7 +17,7 @@ use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 
 // Bedrock's InvokeModel body IS the Anthropic Messages body, so the conversions
-// and the stream accumulator are shared with `llm::foundry` (Claude on Azure).
+// and the stream accumulator are shared with `llm::foundry_anthropic` (Claude on Azure).
 pub(super) mod accumulator;
 use accumulator::BedrockStreamAccumulator;
 
@@ -558,7 +558,7 @@ mod tests {
 
     #[test]
     fn opus_5_requires_adaptive_and_drops_sampling_params() {
-        // The default Large model for bedrock and foundry — a miss here sends
+        // The default Large model for bedrock and foundry_anthropic — a miss here sends
         // legacy `budget_tokens` and `temperature`, both 400s on Claude 5.x.
         assert!(requires_adaptive_thinking("us.anthropic.claude-opus-5"));
         assert!(requires_adaptive_thinking("claude-opus-5"));

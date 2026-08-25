@@ -34,8 +34,8 @@ impl OpenAIResponsesClient {
     }
 
     /// Azure OpenAI over the Responses API; `model` is the deployment name.
-    pub fn azure() -> OpenAIResult<Self> {
-        Self::with_flavor(OpenAIFlavor::Azure)
+    pub fn azure_openai() -> OpenAIResult<Self> {
+        Self::with_flavor(OpenAIFlavor::AzureOpenAI)
     }
 
     fn with_flavor(flavor: OpenAIFlavor) -> OpenAIResult<Self> {

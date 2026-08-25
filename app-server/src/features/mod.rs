@@ -130,8 +130,10 @@ fn has_llm_provider() -> bool {
         && std::env::var(env::secrets::AWS_REGION).is_ok_and(|s| !s.is_empty());
     match provider.as_str() {
         "gemini" | "openai" | "openai_responses" => has_llm_api_key,
-        "azure" | "azure_responses" => has_llm_api_key && llm::has_azure_endpoint(),
-        "foundry" => has_llm_api_key && llm::has_foundry_endpoint(),
+        "azure_openai" | "azure_openai_responses" => {
+            has_llm_api_key && llm::has_azure_openai_endpoint()
+        }
+        "foundry_anthropic" => has_llm_api_key && llm::has_foundry_anthropic_endpoint(),
         "bedrock" => has_aws,
         "mock" => true,
         _ => false,
