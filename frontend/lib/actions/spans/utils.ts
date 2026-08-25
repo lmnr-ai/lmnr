@@ -125,6 +125,11 @@ export interface BuildSpansQueryOptions {
   columns?: string[];
   projectId: string;
   spanIds?: string[];
+  /** Trace ids owning `spanIds`. `spans` is ORDER BY (project_id, trace_id,
+   *  start_time, span_id), so a span_id filter without these cannot prune the
+   *  primary key and scans every granule in the project. Omit only when the
+   *  caller already scopes traces via `filters` / `customConditions`. */
+  traceIds?: string[];
   filters: Filter[];
   limit?: number;
   offset?: number;
@@ -141,9 +146,30 @@ export interface BuildSpansQueryOptions {
   }>;
 }
 
+// A span_id filter is always paired with its owning trace ids when the caller
+// has them: `spans` is ORDER BY (project_id, trace_id, start_time, span_id), so
+// span_id alone cannot prune the primary key and ClickHouse scans every granule
+// in the project. Callers that scope traces structurally pass no `traceIds`.
+const spanIdConditions = (spanIds: string[], traceIds: string[]): Array<{ condition: string; params: QueryParams }> => {
+  if (!spanIds?.length) {
+    return [];
+  }
+  if (traceIds?.length) {
+    return [
+      {
+        condition: `trace_id IN ({spanTraceIds:Array(UUID)}) AND span_id IN ({spanIds:Array(UUID)})`,
+        params: { spanIds, spanTraceIds: traceIds },
+      },
+    ];
+  }
+  // eslint-disable-next-line lmnr-clickhouse/span-id-needs-trace-id -- trace scoping is supplied by the caller via `filters` / `customConditions`; see callers in lib/actions/spans/index.ts and lib/actions/sessions/search-spans.ts.
+  return [{ condition: `span_id IN ({spanIds:Array(UUID)})`, params: { spanIds } }];
+};
+
 export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): QueryResult => {
   const {
     spanIds = [],
+    traceIds = [],
     filters,
     limit,
     offset,
@@ -158,17 +184,7 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
   const customConditions: Array<{
     condition: string;
     params: QueryParams;
-  }> = [
-    ...additionalConditions,
-    ...(spanIds?.length > 0
-      ? [
-          {
-            condition: `span_id IN ({spanIds:Array(UUID)})`,
-            params: { spanIds },
-          },
-        ]
-      : []),
-  ];
+  }> = [...additionalConditions, ...spanIdConditions(spanIds, traceIds)];
 
   const queryOptions: SelectQueryOptions = {
     select: {
@@ -205,22 +221,20 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
 export const buildSpansCountQueryWithParams = (
   options: Omit<BuildSpansQueryOptions, "limit" | "offset">
 ): QueryResult => {
-  const { spanIds = [], filters, startTime, endTime, pastHours, customConditions: additionalConditions = [] } = options;
+  const {
+    spanIds = [],
+    traceIds = [],
+    filters,
+    startTime,
+    endTime,
+    pastHours,
+    customConditions: additionalConditions = [],
+  } = options;
 
   const customConditions: Array<{
     condition: string;
     params: QueryParams;
-  }> = [
-    ...additionalConditions,
-    ...(spanIds?.length > 0
-      ? [
-          {
-            condition: `span_id IN ({spanIds:Array(UUID)})`,
-            params: { spanIds },
-          },
-        ]
-      : []),
-  ];
+  }> = [...additionalConditions, ...spanIdConditions(spanIds, traceIds)];
 
   const queryOptions: SelectQueryOptions = {
     select: {

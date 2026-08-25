@@ -372,6 +372,9 @@ importers:
         specifier: ^4.5.7
         version: 4.5.7(@types/react@19.2.8)(react@19.2.3)
     devDependencies:
+      '@oxlint/plugins':
+        specifier: 1.80.0
+        version: 1.80.0
       '@tailwindcss/postcss':
         specifier: ^4.3.0
         version: 4.3.0
@@ -2689,6 +2692,10 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [win32]
+
+  '@oxlint/plugins@1.80.0':
+    resolution: {integrity: sha512-QRgH1XqQEYNHa4f1vvPQ5fAdNdncHGIUG1ZWLlGIZHky3qwCEeAKYitZNbZMtaXtAQAAFFTOwqUfzESvimqZNA==}
+    engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
 
   '@posthog/core@1.35.1':
     resolution: {integrity: sha512-2a9JgJgR+Ow8lrUQHVZYXH9EgXskYDlpbgNW6UvtsVxp8pEEFD8PxjZMnzq73Dx3NhAwNUrnVpb8KeZzHAtoSA==}
@@ -9204,6 +9211,8 @@ snapshots:
 
   '@oxlint/binding-win32-x64-msvc@1.80.0':
     optional: true
+
+  '@oxlint/plugins@1.80.0': {}
 
   '@posthog/core@1.35.1':
     dependencies:

@@ -35,6 +35,7 @@ export const PushSpanSchema = z.object({
 export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
   const { spanId, traceId, projectId } = GetSpanSchema.parse(input);
 
+  // eslint-disable-next-line lmnr-clickhouse/span-id-needs-trace-id -- trace_id is appended just below when the caller has it; `exportSpanToDataset` / `pushSpanToLabelingQueue` reach this from span-scoped routes that carry no trace id.
   const whereConditions = [`span_id = {spanId: UUID}`];
   const parameters: Record<string, any> = { spanId };
 
@@ -174,12 +175,13 @@ export async function getSpanType(input: z.infer<typeof GetSpanTypeSchema>): Pro
 export const GetSpanTypesSchema = z.object({
   projectId: z.guid(),
   spanIds: z.array(z.string()),
+  traceIds: z.array(z.string()),
 });
 
 export async function getSpanTypes(input: z.infer<typeof GetSpanTypesSchema>): Promise<Record<string, SpanType>> {
-  const { projectId, spanIds } = GetSpanTypesSchema.parse(input);
+  const { projectId, spanIds, traceIds } = GetSpanTypesSchema.parse(input);
 
-  if (spanIds.length === 0) {
+  if (spanIds.length === 0 || traceIds.length === 0) {
     return {};
   }
 
@@ -188,9 +190,9 @@ export async function getSpanTypes(input: z.infer<typeof GetSpanTypesSchema>): P
     query: `
       SELECT span_id as spanId, span_type as spanType
       FROM spans
-      WHERE span_id IN ({spanIds: Array(UUID)})
+      WHERE trace_id IN ({traceIds: Array(UUID)}) AND span_id IN ({spanIds: Array(UUID)})
     `,
-    parameters: { spanIds },
+    parameters: { spanIds, traceIds },
   });
 
   return Object.fromEntries(rows.map((r) => [r.spanId, r.spanType]));

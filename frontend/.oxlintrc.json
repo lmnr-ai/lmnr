@@ -1,5 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "jsPlugins": ["./.oxlint-plugins/span-id-needs-trace-id.ts"],
   "plugins": ["typescript", "react", "nextjs", "import", "unicorn", "oxc"],
   "categories": {
     "correctness": "warn"
@@ -29,7 +30,9 @@
 
     "react/rules-of-hooks": "error",
     "react/exhaustive-deps": "warn",
-    "react/preserve-manual-memoization": "warn"
+    "react/preserve-manual-memoization": "warn",
+
+    "lmnr-clickhouse/span-id-needs-trace-id": "error"
   },
   "overrides": [
     {

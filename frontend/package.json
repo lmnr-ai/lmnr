@@ -152,6 +152,7 @@
     "zustand": "^4.5.7"
   },
   "devDependencies": {
+    "@oxlint/plugins": "1.80.0",
     "@tailwindcss/postcss": "^4.3.0",
     "@tailwindcss/typography": "^0.5.16",
     "@types/d3-scale": "^4.0.9",

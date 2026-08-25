@@ -34,17 +34,23 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 export async function attachSpanTypes(projectId: string, items: EventRow[]): Promise<EventRow[]> {
   const idsByRow = new Map<string, string[]>();
   const allSpanIds = new Set<string>();
+  // Collected alongside the span ids so the lookup can scope to the spans
+  // primary key; a span_id-only filter scans every granule in the project.
+  const allTraceIds = new Set<string>();
 
   for (const item of items) {
     // The span-link regex matches `[0-9a-f-]+`, which can capture non-UUID
     // fragments — keep only well-formed ids so the `Array(UUID)` query (and its
-    // schema) don't reject the whole batch.
-    const ids = parseSpanLinks(item.payload)
-      .map((link) => link.spanId)
-      .filter((id): id is string => Boolean(id) && UUID_REGEX.test(id!));
+    // schema) don't reject the whole batch. A link needs both ids to be usable.
+    const links = parseSpanLinks(item.payload).filter(
+      (link) =>
+        Boolean(link.spanId) && UUID_REGEX.test(link.spanId!) && Boolean(link.traceId) && UUID_REGEX.test(link.traceId!)
+    );
+    const ids = links.map((link) => link.spanId!);
     if (ids.length > 0) {
       idsByRow.set(item.id, ids);
       ids.forEach((id) => allSpanIds.add(id));
+      links.forEach((link) => allTraceIds.add(link.traceId!));
     }
   }
 
@@ -52,7 +58,11 @@ export async function attachSpanTypes(projectId: string, items: EventRow[]): Pro
     return items;
   }
 
-  const typeMap = await getSpanTypes({ projectId, spanIds: [...allSpanIds] });
+  const typeMap = await getSpanTypes({
+    projectId,
+    spanIds: [...allSpanIds],
+    traceIds: [...allTraceIds],
+  });
 
   return items.map((item) => {
     const ids = idsByRow.get(item.id);

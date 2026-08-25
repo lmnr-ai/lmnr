@@ -117,6 +117,9 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
       })
     : [];
   const spanIds = spanHits.map((span) => span.span_id);
+  // Search hits carry their trace id; passing it lets the span_id filter prune
+  // the spans primary key instead of scanning every granule in the project.
+  const spanTraceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 
   if (search) {
     if (spanIds?.length === 0) {
@@ -131,6 +134,7 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
   const { query: mainQuery, parameters: mainParams } = buildSpansQueryWithParams({
     projectId,
     spanIds,
+    traceIds: spanTraceIds,
     filters,
     limit,
     offset,

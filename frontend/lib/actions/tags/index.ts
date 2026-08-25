@@ -59,6 +59,7 @@ export const addTagToCHSpan = async (input: z.infer<typeof AddTagToSpanSchema>):
 
   // With mutations_sync=0, this returns immediately while the mutation runs in the background.
   await clickhouseClient.command({
+    // eslint-disable-next-line lmnr-clickhouse/span-id-needs-trace-id -- ALTER..UPDATE mutation, not a read-path granule scan; the tags route is span-scoped and carries no trace id.
     query: `
       ALTER TABLE spans
       UPDATE tags_array = arrayDistinct(arrayConcat(tags_array, [{tag: String}]))
@@ -86,6 +87,7 @@ export const removeTagFromCHSpan = async (input: z.infer<typeof RemoveTagFromSpa
 
   // With mutations_sync=0, this returns immediately while the mutation runs in the background.
   await clickhouseClient.command({
+    // eslint-disable-next-line lmnr-clickhouse/span-id-needs-trace-id -- ALTER..UPDATE mutation, not a read-path granule scan; the tags route is span-scoped and carries no trace id.
     query: `
       ALTER TABLE spans
       UPDATE tags_array = arrayFilter(x -> x != {tag: String}, tags_array)
@@ -110,6 +112,7 @@ export const getSpanTags = async (
   const { spanId, projectId } = GetSpanTagsSchema.parse(input);
 
   const chResponse = await clickhouseClient.query({
+    // eslint-disable-next-line lmnr-clickhouse/span-id-needs-trace-id -- reached from GET /projects/:projectId/spans/:spanId/tags, whose URL contract carries no trace id; threading one through is an API change, tracked separately.
     query: `
       SELECT DISTINCT arrayJoin(tags_array) as name
       FROM spans
