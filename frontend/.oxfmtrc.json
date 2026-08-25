@@ -10,10 +10,10 @@
     ".next/**",
     "next-env.d.ts",
     "lib/db/migrations/**",
-    "**/*.json",
     "**/*.css",
-    "**/*.md",
     "**/*.yaml",
-    "**/*.yml"
+    "**/*.yml",
+    "lib/policies/content/**",
+    "assets/blog/**"
   ]
 }
