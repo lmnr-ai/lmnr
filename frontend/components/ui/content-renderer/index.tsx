@@ -2,13 +2,13 @@ import { type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import CodeMirror, { type ReactCodeMirrorProps, type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { Settings } from "lucide-react";
-import React, { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
-import { createCodeMirrorSearchSource, createDomSearchSource } from "@/components/traces/span-view/searchable";
+import { createCodeMirrorSearchSource } from "@/components/traces/span-view/searchable";
 import { useSpanSearchRegistration } from "@/components/traces/span-view/span-search-context.tsx";
 import { Button } from "@/components/ui/button";
 import CodeSheet from "@/components/ui/content-renderer/code-sheet";
-import { getMarkdownSource, MarkdownRenderer } from "@/components/ui/content-renderer/markdown";
+import { pickMode } from "@/components/ui/content-renderer/mode";
 import {
   baseExtensions,
   createImageDecorationPlugin,
@@ -89,31 +89,20 @@ const PureContentRenderer = ({
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
   const editorId = useId();
 
-  // Distinct ids per source kind: the code-mode effect's stale cleanup runs AFTER the
-  // markdown layout effect's setup on a mode switch, so a shared id would let it
-  // unregister the just-registered DOM source.
   const cmSourceIdRef = useRef(`editor-${editorId}-cm`);
-  const domSourceIdRef = useRef(`editor-${editorId}-dom`);
   const searchRegistration = useSpanSearchRegistration();
   const currentViewRef = useRef<EditorView | null>(null);
-  const markdownContainerRef = useRef<HTMLDivElement | null>(null);
   const [editorMountKey, setEditorMountKey] = useState(0);
 
   const [selectedMode, setSelectedMode] = useState(() => {
-    const allowed = modes.map((m) => m.toLowerCase());
-    if (presetKey && typeof window !== "undefined") {
-      const savedMode = localStorage.getItem(`formatter-mode-${presetKey}`);
-      if (savedMode && allowed.includes(savedMode.toLowerCase())) return savedMode.toLowerCase();
-    }
-    return defaultMode;
+    const savedMode =
+      presetKey && typeof window !== "undefined" ? localStorage.getItem(`formatter-mode-${presetKey}`) : null;
+    return pickMode(savedMode, modes, defaultMode);
   });
   // `defaultMode`/`modes` are content-derived at some call sites (resolveContentMode)
   // and can change on a mounted instance (virtualized rows reuse components across
   // span switches) — reconcile instead of trusting the once-initialized selection.
-  const mode = useMemo(
-    () => (modes.some((m) => m.toLowerCase() === selectedMode) ? selectedMode : defaultMode),
-    [modes, selectedMode, defaultMode]
-  );
+  const mode = useMemo(() => pickMode(selectedMode, modes, defaultMode), [modes, selectedMode, defaultMode]);
 
   const [shouldRenderImages, setShouldRenderImages] = useState(renderBase64Images);
 
@@ -199,7 +188,7 @@ const PureContentRenderer = ({
     setEditorMountKey((k) => k + 1);
   }, []);
 
-  const isCodeMode = mode !== "custom" && mode !== "messages" && mode !== "markdown";
+  const isCodeMode = mode !== "custom" && mode !== "messages";
   const canPickMode = modes.length > 1;
 
   useEffect(() => {
@@ -219,30 +208,6 @@ const PureContentRenderer = ({
     };
   }, [searchRegistration, editorMountKey, messageIndex, contentPartIndex, isCodeMode]);
 
-  useLayoutEffect(() => {
-    if (!searchRegistration || mode !== "markdown") return;
-
-    const container = markdownContainerRef.current;
-    if (!container) return;
-
-    searchRegistration.registerSource(
-      createDomSearchSource({
-        id: domSourceIdRef.current,
-        container,
-        messageIndex,
-        contentPartIndex,
-      })
-    );
-
-    return () => {
-      searchRegistration.unregisterSource(domSourceIdRef.current);
-    };
-  }, [searchRegistration, mode, messageIndex, contentPartIndex, value]);
-
-  // Markdown is the only mode that changes the encoding of what's shown
-  // (unwrapping JSON-stringified payloads) — copy what the user sees.
-  const copyText = mode === "markdown" ? getMarkdownSource(value) : value;
-
   const actionButtons = (
     <>
       <CopyButton
@@ -253,7 +218,7 @@ const PureContentRenderer = ({
         iconClassName="h-3.5 w-3.5"
         size="icon"
         variant="ghost"
-        text={copyText}
+        text={value}
       />
       <div
         className={cn(
@@ -305,13 +270,6 @@ const PureContentRenderer = ({
       return (
         <div className="flex-1 flex bg-muted/50 overflow-auto w-full min-h-0 border-t">
           <TemplatePickerPreview data={renderedValue} />
-        </div>
-      );
-    }
-    if (mode === "markdown") {
-      return (
-        <div className="flex-1 flex w-full min-w-0 min-h-0 overflow-y-auto overflow-x-hidden">
-          <MarkdownRenderer value={getMarkdownSource(value)} className="p-2" containerRef={markdownContainerRef} />
         </div>
       );
     }

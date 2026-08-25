@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { type ModelMessage } from "ai";
+
 import { type Message } from "@/lib/playground/types";
-import { parseSystemMessages, transformFromLegacy } from "@/lib/playground/utils";
+import { extractInstructions, parseSystemMessages, transformFromLegacy } from "@/lib/playground/utils";
 
 // ─── parseSystemMessages ───────────────────────────────────────────────────
 
@@ -72,6 +74,52 @@ describe("parseSystemMessages", () => {
     const result = parseSystemMessages(messages);
     assert.deepStrictEqual((result[0] as any).providerOptions, providerOptions);
     assert.deepStrictEqual((result[1] as any).providerOptions, providerOptions);
+  });
+});
+
+// ─── extractInstructions ───────────────────────────────────────────────────
+
+describe("extractInstructions", () => {
+  it("lifts a leading system message into instructions", () => {
+    const messages: ModelMessage[] = [
+      { role: "system", content: "You are a DOCX editing assistant." },
+      { role: "user", content: "Insert a citation paragraph." },
+    ];
+    const result = extractInstructions(messages);
+    assert.deepStrictEqual(result.instructions, [{ role: "system", content: "You are a DOCX editing assistant." }]);
+    assert.deepStrictEqual(result.messages, [{ role: "user", content: "Insert a citation paragraph." }]);
+    assert.equal(result.allowSystemInMessages, undefined);
+  });
+
+  it("lifts multiple system messages, preserving providerOptions", () => {
+    const providerOptions = { anthropic: { cacheControl: { type: "ephemeral" } } };
+    const messages: ModelMessage[] = [
+      { role: "system", content: "You are helpful.", providerOptions },
+      { role: "system", content: "Be brief." },
+      { role: "user", content: "Hi" },
+    ];
+    const result = extractInstructions(messages);
+    assert.deepStrictEqual(result.instructions, [
+      { role: "system", content: "You are helpful.", providerOptions },
+      { role: "system", content: "Be brief." },
+    ]);
+    assert.deepStrictEqual(result.messages, [{ role: "user", content: "Hi" }]);
+  });
+
+  it("leaves a prompt with no system messages unchanged", () => {
+    const messages: ModelMessage[] = [{ role: "user", content: "Hi" }];
+    const result = extractInstructions(messages);
+    assert.equal(result.instructions, undefined);
+    assert.deepStrictEqual(result.messages, messages);
+    assert.equal(result.allowSystemInMessages, undefined);
+  });
+
+  it("keeps a system-only prompt in messages and opts into allowSystemInMessages", () => {
+    const messages: ModelMessage[] = [{ role: "system", content: "You are helpful." }];
+    const result = extractInstructions(messages);
+    assert.equal(result.instructions, undefined);
+    assert.deepStrictEqual(result.messages, messages);
+    assert.equal(result.allowSystemInMessages, true);
   });
 });
 

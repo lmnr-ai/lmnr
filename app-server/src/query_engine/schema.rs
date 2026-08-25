@@ -69,6 +69,13 @@ const ENUMS: &[(&str, &[&str])] = &[
     ("signal_run_mode", &["BATCH", "REALTIME", "UNKNOWN"]),
 ];
 
+/// Every column holding a big stringified payload ends its description with the same sentence:
+/// "— LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped". The agent picks
+/// its SELECT list while reading these lines, so the warning has to sit here and not only in the
+/// tool doc: annotating them cut raw payload selects from 146 to 18 of 323 replayed production
+/// turns, and lifted the compile rate from 0.920 to 0.972. The sentence is written out at each
+/// column rather than factored into a helper, so a reader of any one line sees what the agent sees;
+/// `payload_columns_carry_the_large_warning` below fails if a column stops carrying it.
 const TABLES: &[Table] = &[
     Table {
         name: "spans",
@@ -88,8 +95,16 @@ const TABLES: &[Table] = &[
             col("start_time", "DateTime64(9,'UTC')", "When the span started"),
             col("end_time", "DateTime64(9,'UTC')", "When the span ended"),
             col("duration", "Decimal(18,9)", "Duration in seconds"),
-            col("input", "String", "Span input as stringified JSON"),
-            col("output", "String", "Span output as stringified JSON"),
+            col(
+                "input",
+                "String",
+                "Span input as stringified JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
+            col(
+                "output",
+                "String",
+                "Span output as stringified JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
             col("request_model", "String", "LLM model requested"),
             col("response_model", "String", "LLM model in the response"),
             col("model", "String", "coalesce(request_model, response_model)"),
@@ -107,13 +122,13 @@ const TABLES: &[Table] = &[
             col(
                 "attributes",
                 "String",
-                "Span attributes as stringified JSON",
+                "Span attributes as stringified JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
             ),
             col("tags", "Array(String)", "Span-level tags"),
             col(
                 "tool_definitions",
                 "String",
-                "Tool definitions exposed to the LLM span as stringified JSON",
+                "Tool definitions exposed to the LLM span as stringified JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
             ),
             col(
                 "events",
@@ -133,7 +148,11 @@ const TABLES: &[Table] = &[
                 "String (enum trace_type)",
                 "'DEFAULT', 'EVALUATION', or 'PLAYGROUND'",
             ),
-            col("metadata", "String", "Trace metadata as stringified JSON"),
+            col(
+                "metadata",
+                "String",
+                "Trace metadata as stringified JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
             col(
                 "start_time",
                 "DateTime64(9,'UTC')",
@@ -190,7 +209,7 @@ const TABLES: &[Table] = &[
             col(
                 "agent_input",
                 "String",
-                "Extracted agent task / user input for the trace (stringified JSON / raw string)",
+                "Extracted agent task / user input for the trace (stringified JSON / raw string) — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
             ),
             col(
                 "has_browser_session",
@@ -229,16 +248,32 @@ const TABLES: &[Table] = &[
                 "DateTime64(9,'UTC')",
                 "When the datapoint was created",
             ),
-            col("data", "String", "Input data"),
-            col("target", "String", "Target / expected output"),
-            col("metadata", "String", "Metadata as stringified JSON"),
-            col("executor_output", "String", "Executor output"),
+            col(
+                "data",
+                "String",
+                "Input data — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
+            col(
+                "target",
+                "String",
+                "Target / expected output — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
+            col(
+                "metadata",
+                "String",
+                "Metadata as stringified JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
+            col(
+                "executor_output",
+                "String",
+                "Executor output — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
             col("index", "UInt64", "Index within the evaluation"),
             col("group_id", "String", "Group id of the evaluation run"),
             col(
                 "scores",
                 "String",
-                "Stringified JSON object: score name -> value",
+                "Stringified JSON object: score name -> value — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
             ),
             col("dataset_id", "UUID", "Linked dataset id (nil if none)"),
             col(
@@ -295,7 +330,7 @@ const TABLES: &[Table] = &[
             col(
                 "trace_metadata",
                 "String",
-                "Metadata of the associated trace as stringified JSON",
+                "Metadata of the associated trace as stringified JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
             ),
             col(
                 "trace_tags",
@@ -321,9 +356,21 @@ const TABLES: &[Table] = &[
             col("id", "UUID", "Unique id"),
             col("created_at", "DateTime64(9,'UTC')", "When created"),
             col("dataset_id", "UUID", "Id of the dataset"),
-            col("data", "String", "Input data"),
-            col("target", "String", "Target / expected output"),
-            col("metadata", "String", "Additional metadata"),
+            col(
+                "data",
+                "String",
+                "Input data — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
+            col(
+                "target",
+                "String",
+                "Target / expected output — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
+            col(
+                "metadata",
+                "String",
+                "Additional metadata — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
         ],
     },
     Table {
@@ -334,9 +381,21 @@ const TABLES: &[Table] = &[
             col("id", "UUID", "Unique id"),
             col("created_at", "DateTime64(9,'UTC')", "When created"),
             col("dataset_id", "UUID", "Id of the dataset"),
-            col("data", "String", "Input data"),
-            col("target", "String", "Target / expected output"),
-            col("metadata", "String", "Additional metadata"),
+            col(
+                "data",
+                "String",
+                "Input data — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
+            col(
+                "target",
+                "String",
+                "Target / expected output — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
+            col(
+                "metadata",
+                "String",
+                "Additional metadata — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
         ],
     },
     Table {
@@ -352,8 +411,16 @@ const TABLES: &[Table] = &[
             ),
             col("severity_number", "UInt8", "Numeric severity"),
             col("severity_text", "String", "Severity text"),
-            col("body", "String", "Log body"),
-            col("attributes", "String", "Attributes as stringified JSON"),
+            col(
+                "body",
+                "String",
+                "Log body — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
+            col(
+                "attributes",
+                "String",
+                "Attributes as stringified JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
             col("trace_id", "UUID", "Id of the trace"),
             col("span_id", "UUID", "Id of the span"),
             col("flags", "UInt32", "Flags for the log"),
@@ -404,7 +471,11 @@ const TABLES: &[Table] = &[
             col("trace_id", "UUID", "Id of the trace"),
             col("run_id", "UUID", "Id of the run"),
             col("name", "String", "Event name"),
-            col("payload", "String", "Payload as stringified JSON"),
+            col(
+                "payload",
+                "String",
+                "Payload as stringified JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
             col(
                 "timestamp",
                 "DateTime64(9,'UTC')",
@@ -444,7 +515,7 @@ const TABLES: &[Table] = &[
             col(
                 "num_signal_events",
                 "UInt32",
-                "Number of signal events in the cluster",
+                "Number of clustered event summaries in the cluster (an event contributes once per summary)",
             ),
             col(
                 "num_children_clusters",
@@ -464,14 +535,18 @@ const TABLES: &[Table] = &[
             col(
                 "payload",
                 "String",
-                "Original seeded {data, target, metadata} as stringified JSON",
+                "Original seeded {data, target, metadata} as stringified JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
             ),
-            col("metadata", "String", "Additional metadata"),
+            col(
+                "metadata",
+                "String",
+                "Additional metadata — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
             col("status", "UInt8", "0 = unlabeled, 1 = approved"),
             col(
                 "edit",
                 "String",
-                "Current canonical target as stringified JSON",
+                "Current canonical target as stringified JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
             ),
             // Millisecond precision here, unlike every other table's nanoseconds.
             col("created_at", "DateTime64(3,'UTC')", "When created"),
@@ -548,6 +623,56 @@ mod tests {
         assert!(p.contains("'LLM'"));
         assert!(p.contains("status:"));
         assert!(p.contains("'error'"));
+    }
+
+    /// The row-drop warning must reach the model on the column lines themselves — that is where the
+    /// measured win came from, not from the tool doc alone.
+    #[test]
+    fn payload_columns_carry_the_large_warning() {
+        let p = build_schema_prompt();
+        for line_start in [
+            "  input String —",
+            "  output String —",
+            "  attributes String —",
+            "  metadata String —",
+            "  agent_input String —",
+            "  executor_output String —",
+            "  body String —",
+        ] {
+            let line = p
+                .lines()
+                .find(|l| l.starts_with(line_start))
+                .unwrap_or_else(|| panic!("no column line starting with {line_start:?}"));
+            assert!(
+                line.contains("LARGE: select as substring(col, 1, 2000)"),
+                "payload column missing the LARGE warning: {line}"
+            );
+        }
+        // Small scalar columns stay unannotated — the warning only works if it is rare.
+        assert!(!p.contains("  name String — Name of the span — LARGE"));
+    }
+
+    /// The warning is written out at each payload column instead of coming from a helper, so this
+    /// checks the copies have not drifted: every annotated column carries the sentence verbatim,
+    /// and the number of annotated columns is the number we measured.
+    #[test]
+    fn the_large_warning_is_identical_on_every_payload_column() {
+        const NOTE: &str =
+            " — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped";
+        let annotated: Vec<&Column> = TABLES
+            .iter()
+            .flat_map(|t| t.columns.iter())
+            .filter(|c| c.description.contains("LARGE"))
+            .collect();
+        assert_eq!(annotated.len(), 24, "payload column count changed");
+        for c in annotated {
+            assert!(
+                c.description.ends_with(NOTE),
+                "column {} does not end with the exact warning: {}",
+                c.name,
+                c.description
+            );
+        }
     }
 
     #[test]

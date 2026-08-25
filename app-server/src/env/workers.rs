@@ -12,8 +12,15 @@ pub const NUM_LOGS: NumEnv<usize> = NumEnv::new("NUM_LOGS_WORKERS", 4);
 pub const NUM_REPORTS: NumEnv<usize> = NumEnv::new("NUM_REPORTS_WORKERS", 2);
 pub const NUM_CHECKPOINTS: NumEnv<usize> = NumEnv::new("NUM_CHECKPOINTS_WORKERS", 2);
 pub const NUM_STATIC_SP: NumEnv<usize> = NumEnv::new("NUM_STATIC_SP_WORKERS", 2);
+pub const NUM_SP_VERSIONING: NumEnv<usize> = NumEnv::new("NUM_SP_VERSIONING_WORKERS", 2);
+pub const NUM_SP_REGEX_EXTRACTION: NumEnv<usize> =
+    NumEnv::new("NUM_SP_REGEX_EXTRACTION_WORKERS", 2);
 
 pub const NUM_INPUT_EXTRACTION: NumEnv<usize> = NumEnv::new("NUM_INPUT_EXTRACTION_WORKERS", 2);
+/// Separate from `NUM_INPUT_EXTRACTION` because an agent run takes minutes
+/// while a per-trace extraction takes seconds — sharing one queue would block
+/// the fast path behind the slow one.
+pub const NUM_USER_TASK_REGEX: NumEnv<usize> = NumEnv::new("NUM_USER_TASK_REGEX_WORKERS", 2);
 
 pub const NUM_NOTIFICATION: NumEnv<usize> = NumEnv::new("NUM_NOTIFICATION_WORKERS", 2);
 pub const NUM_NOTIFICATION_DELIVERY: NumEnv<usize> =

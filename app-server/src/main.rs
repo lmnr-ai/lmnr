@@ -81,10 +81,23 @@ use traces::{
     input_extraction::{
         consumer::InputExtractionHandler,
         queue::{INPUT_EXTRACTION_EXCHANGE, INPUT_EXTRACTION_QUEUE, INPUT_EXTRACTION_ROUTING_KEY},
+        regex_agent::{
+            USER_TASK_REGEX_EXCHANGE, USER_TASK_REGEX_QUEUE, USER_TASK_REGEX_ROUTING_KEY,
+            UserTaskRegexHandler,
+        },
+    },
+    sp_versioning::{
+        SP_VERSIONING_DELAY_EXCHANGE, SP_VERSIONING_DELAY_QUEUE, SP_VERSIONING_DELAY_ROUTING_KEY,
+        SP_VERSIONING_EXCHANGE, SP_VERSIONING_QUEUE, SP_VERSIONING_ROUTING_KEY,
+        consumer::SpVersioningHandler,
     },
     static_sp_extraction::{
         STATIC_PROMPT_EXCHANGE, STATIC_PROMPT_QUEUE, STATIC_PROMPT_ROUTING_KEY,
         consumer::StaticPromptHandler,
+        worker::{
+            SP_REGEX_EXTRACTION_EXCHANGE, SP_REGEX_EXTRACTION_QUEUE,
+            SP_REGEX_EXTRACTION_ROUTING_KEY, SpRegexExtractionHandler,
+        },
     },
     stream_consumer::StreamSpanHandler,
 };
@@ -163,8 +176,7 @@ mod traces;
 mod utils;
 mod worker;
 
-const PAYLOAD_TOO_LARGE_MESSAGE: &str =
-    "Payload too large: the request body exceeds the server's HTTP payload limit. Send smaller \
+const PAYLOAD_TOO_LARGE_MESSAGE: &str = "Payload too large: the request body exceeds the server's HTTP payload limit. Send smaller \
      batches, or raise HTTP_PAYLOAD_LIMIT if you are self-hosting.";
 
 fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
@@ -498,6 +510,36 @@ fn main() -> anyhow::Result<()> {
             channel
                 .queue_declare(
                     INPUT_EXTRACTION_QUEUE.into(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
+            // ==== 3.5c User-task regex agent queue ====
+            // Separate from the extraction queue: an agent run takes minutes
+            // while a per-trace extraction takes seconds. Failures drop and the
+            // cohort accumulator's retry interval spaces the next attempt, so
+            // there is no delay/retry topology.
+            channel
+                .exchange_declare(
+                    USER_TASK_REGEX_EXCHANGE.into(),
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    USER_TASK_REGEX_QUEUE.into(),
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -889,6 +931,106 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.15 SP versioning queues ====
+            channel
+                .exchange_declare(
+                    SP_VERSIONING_EXCHANGE.into(),
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    SP_VERSIONING_QUEUE.into(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
+            // Delay queue for messages that can't resolve yet. No consumer
+            // — messages expire via their per-message TTL and dead-letter
+            // back into the sp-versioning exchange for a re-check.
+            channel
+                .exchange_declare(
+                    SP_VERSIONING_DELAY_EXCHANGE.into(),
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            let mut sp_versioning_delay_args = quorum_queue_args.clone();
+            sp_versioning_delay_args.insert(
+                "x-dead-letter-exchange".into(),
+                lapin::types::AMQPValue::LongString(SP_VERSIONING_EXCHANGE.into()),
+            );
+
+            channel
+                .queue_declare(
+                    SP_VERSIONING_DELAY_QUEUE.into(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    sp_versioning_delay_args,
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_bind(
+                    SP_VERSIONING_DELAY_QUEUE.into(),
+                    SP_VERSIONING_DELAY_EXCHANGE.into(),
+                    SP_VERSIONING_DELAY_ROUTING_KEY.into(),
+                    lapin::options::QueueBindOptions::default(),
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            // ==== 3.16 SP regex extraction (demand-driven) queue ====
+            // Fed by consumers that hit a version regex-miss (the signals
+            // summarizer); failures drop and the next demand retries, so no
+            // delay/retry topology.
+            channel
+                .exchange_declare(
+                    SP_REGEX_EXTRACTION_EXCHANGE.into(),
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    SP_REGEX_EXTRACTION_QUEUE.into(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
             let max_channel_pool_size = env::mq::MAX_CHANNEL_POOL_SIZE.get();
 
             log::info!("RabbitMQ channels: {}", max_channel_pool_size);
@@ -916,6 +1058,8 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(SIGNALS_EXCHANGE, SIGNALS_QUEUE);
         // ==== 3.5b Input extraction message queue ====
         queue.register_queue(INPUT_EXTRACTION_EXCHANGE, INPUT_EXTRACTION_QUEUE);
+        // ==== 3.5c User-task regex agent queue ====
+        queue.register_queue(USER_TASK_REGEX_EXCHANGE, USER_TASK_REGEX_QUEUE);
         // ==== 3.6 Notifications message queue ====
         queue.register_queue(NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE);
         // ==== 3.6b Notification Deliveries message queue ====
@@ -961,6 +1105,10 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(CHECKPOINTS_EXCHANGE, CHECKPOINTS_QUEUE);
         // ==== 3.14 Static prompt message queue ====
         queue.register_queue(STATIC_PROMPT_EXCHANGE, STATIC_PROMPT_QUEUE);
+        // ==== 3.15 SP versioning message queue ====
+        queue.register_queue(SP_VERSIONING_EXCHANGE, SP_VERSIONING_QUEUE);
+        // ==== 3.16 SP regex extraction (demand-driven) queue ====
+        queue.register_queue(SP_REGEX_EXTRACTION_EXCHANGE, SP_REGEX_EXTRACTION_QUEUE);
         log::info!("Using tokio mpsc queue");
         Arc::new(queue.into())
     };
@@ -1331,6 +1479,11 @@ fn main() -> anyhow::Result<()> {
         let num_checkpoints_workers = env::workers::NUM_CHECKPOINTS.get();
 
         let num_static_prompt_workers = env::workers::NUM_STATIC_SP.get();
+
+        let num_sp_versioning_workers = env::workers::NUM_SP_VERSIONING.get();
+
+        let num_sp_regex_extraction_workers = env::workers::NUM_SP_REGEX_EXTRACTION.get();
+        let num_user_task_regex_workers = env::workers::NUM_USER_TASK_REGEX.get();
 
         let num_input_extraction_workers = env::workers::NUM_INPUT_EXTRACTION.get();
 
@@ -1893,6 +2046,7 @@ fn main() -> anyhow::Result<()> {
                         let db = db_for_consumer.clone();
                         let cache = cache_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
+                        let clickhouse = clickhouse_for_consumer.clone();
                         let llm_client_clone = llm_client.clone();
                         let spans_stream_publisher =
                             spans_stream_publisher_for_consumer.clone();
@@ -1903,6 +2057,7 @@ fn main() -> anyhow::Result<()> {
                                 db: db.clone(),
                                 cache: cache.clone(),
                                 queue: queue.clone(),
+                                clickhouse: clickhouse.clone(),
                                 llm_client: llm_client_clone.clone(),
                                 spans_stream_publisher: spans_stream_publisher.clone(),
                             },
@@ -1915,6 +2070,31 @@ fn main() -> anyhow::Result<()> {
                     } else {
                         log::warn!(
                             "LLM provider not available - skipping input extraction workers"
+                        );
+                    }
+
+                    // Spawn user-task regex agent workers. Separate queue from
+                    // the extraction workers above: an agent run takes minutes
+                    // while an extraction takes seconds.
+                    if let Some(llm_client) = llm_provider_client.as_ref() {
+                        let cache = cache_for_consumer.clone();
+                        let llm_client = llm_client.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::UserTaskRegex,
+                            num_user_task_regex_workers,
+                            move || UserTaskRegexHandler {
+                                cache: cache.clone(),
+                                llm_client: llm_client.clone(),
+                            },
+                            QueueConfig::new(
+                                USER_TASK_REGEX_QUEUE,
+                                USER_TASK_REGEX_EXCHANGE,
+                                USER_TASK_REGEX_ROUTING_KEY,
+                            ),
+                        );
+                    } else {
+                        log::warn!(
+                            "LLM provider not available - skipping user-task regex agent workers"
                         );
                     }
 
@@ -1989,12 +2169,13 @@ fn main() -> anyhow::Result<()> {
                         );
                     }
 
-                    // Spawn static prompt workers. Gate on the shared LLM
-                    // client exactly like input-extraction: a handler without
-                    // a client can only ack-and-drop messages, so a node that
-                    // failed to build the client must NOT consume this queue —
-                    // otherwise it silently discards work another node enqueued
-                    // instead of leaving it for a consumer that can extract.
+                    // Spawn static prompt workers (legacy pipeline). Gate on
+                    // the shared LLM client exactly like input-extraction: a
+                    // handler without a client can only ack-and-drop messages,
+                    // so a node that failed to build the client must NOT
+                    // consume this queue — otherwise it silently discards work
+                    // another node enqueued instead of leaving it for a
+                    // consumer that can extract.
                     if let Some(llm_client) = llm_provider_client.as_ref() {
                         let cache = cache_for_consumer.clone();
                         let llm_client = llm_client.clone();
@@ -2012,6 +2193,60 @@ fn main() -> anyhow::Result<()> {
                         );
                     } else {
                         log::warn!("LLM provider not available - skipping static prompt workers");
+                    }
+
+                    // Spawn sp-versioning classifier workers. LLM-free (the
+                    // ingest producer gates publishing on client availability;
+                    // the extraction workers consume their own queue), so they
+                    // run unconditionally.
+                    {
+                        let cache = cache_for_consumer.clone();
+                        let clickhouse = clickhouse_for_consumer.clone();
+                        let queue = mq_for_consumer.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::SpVersioning,
+                            num_sp_versioning_workers,
+                            move || {
+                                SpVersioningHandler::new(
+                                    cache.clone(),
+                                    clickhouse.clone(),
+                                    queue.clone(),
+                                )
+                            },
+                            QueueConfig::new(
+                                SP_VERSIONING_QUEUE,
+                                SP_VERSIONING_EXCHANGE,
+                                SP_VERSIONING_ROUTING_KEY,
+                            ),
+                        );
+                    }
+
+                    // Spawn SP-regex extraction workers (demand-driven).
+                    // Same LLM-client gate as above.
+                    if let Some(llm_client) = llm_provider_client.as_ref() {
+                        let cache = cache_for_consumer.clone();
+                        let clickhouse = clickhouse_for_consumer.clone();
+                        let llm_client = llm_client.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::SpRegexExtraction,
+                            num_sp_regex_extraction_workers,
+                            move || {
+                                SpRegexExtractionHandler::new(
+                                    cache.clone(),
+                                    clickhouse.clone(),
+                                    Some(llm_client.clone()),
+                                )
+                            },
+                            QueueConfig::new(
+                                SP_REGEX_EXTRACTION_QUEUE,
+                                SP_REGEX_EXTRACTION_EXCHANGE,
+                                SP_REGEX_EXTRACTION_ROUTING_KEY,
+                            ),
+                        );
+                    } else {
+                        log::warn!(
+                            "LLM provider not available - skipping SP-regex extraction workers"
+                        );
                     }
 
                     HttpServer::new(move || {
@@ -2170,22 +2405,36 @@ fn main() -> anyhow::Result<()> {
                         let mut app = App::new()
                             .wrap(
                                 ErrorHandlers::new()
-                                    .handler(StatusCode::BAD_REQUEST, |res: dev::ServiceResponse| {
-                                        let path = res.request().path();
-                                        if path.ends_with("/sql/query") {
-                                            log::warn!("Bad request: {:?}", res.response().body());
-                                        } else {
-                                            log::error!("Bad request: {:?}", res.response().body());
-                                        }
-                                        Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
-                                    })
+                                    .handler(
+                                        StatusCode::BAD_REQUEST,
+                                        |res: dev::ServiceResponse| {
+                                            let path = res.request().path();
+                                            if path.ends_with("/sql/query") {
+                                                log::warn!(
+                                                    "Bad request: {:?}",
+                                                    res.response().body()
+                                                );
+                                            } else {
+                                                log::error!(
+                                                    "Bad request: {:?}",
+                                                    res.response().body()
+                                                );
+                                            }
+                                            Ok(ErrorHandlerResponse::Response(
+                                                res.map_into_left_body(),
+                                            ))
+                                        },
+                                    )
                                     // Actix's default 413 body depends on the extractor and the
                                     // `Bytes` one ("payload reached size limit") is opaque, so
                                     // SDKs log it verbatim. Normalize it for every route.
                                     .handler(
                                         StatusCode::PAYLOAD_TOO_LARGE,
                                         |res: dev::ServiceResponse| {
-                                            log::warn!("Payload too large: {}", res.request().path());
+                                            log::warn!(
+                                                "Payload too large: {}",
+                                                res.request().path()
+                                            );
                                             Ok(ErrorHandlerResponse::Response(res.map_body(
                                                 |_, _| {
                                                     EitherBody::right(BoxBody::new(
@@ -2238,7 +2487,15 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::rollouts::update_name)
                             .service(api::v1::cli::rollouts::register_session)
                             .service(api::v1::cli::rollouts::list_blocks)
-                            .service(api::v1::cli::rollouts::add_block);
+                            .service(api::v1::cli::rollouts::add_block)
+                            // `signals/{id}` is registered AFTER the bare
+                            // `signals` routes so the literal path isn't
+                            // shadowed by the dynamic segment.
+                            .service(api::v1::cli::signals::create_signal)
+                            .service(api::v1::cli::signals::list_signals)
+                            .service(api::v1::cli::signals::get_signal)
+                            .service(api::v1::cli::signals::update_signal)
+                            .service(api::v1::cli::signals::delete_signal);
                         #[cfg(feature = "signals")]
                         let cli_scope = cli_scope
                             .service(web::scope("/agent").service(api::v1::cli::agent::agent_chat));
@@ -2342,6 +2599,8 @@ fn main() -> anyhow::Result<()> {
                                 let scope = scope
                                     .service(crate::signals::private::routes::submit_signal_job)
                                     .service(crate::signals::private::routes::test_signal)
+                                    .service(crate::signals::private::routes::eval_signal)
+                                    .service(crate::signals::private::routes::eval_signal_prewarm)
                                     .service(crate::agent::routes::post_agent_chat);
                                 scope
                             });

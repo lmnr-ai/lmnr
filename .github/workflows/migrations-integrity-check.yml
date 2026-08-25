@@ -1,0 +1,198 @@
+name: Migrations Integrity Check
+
+# Pre-release gate. Applies the Postgres (drizzle) and ClickHouse migrations of
+# the dispatched ref twice, against fresh containers each time:
+#   fresh-install         — clean databases, i.e. a first-time Laminar install
+#   upgrade-from-baseline — baseline ref first, then the dispatched ref on top,
+#                           i.e. an existing deployment pulling the new release
+# Run it on `dev` before merging into `main` and cutting a release, since the
+# release builds and publishes the server images to GHCR.
+#
+# Migrations are applied by the frontend's instrumentation hook on boot, so a
+# run means "boot the frontend and wait". The hook exits the process with a
+# non-zero code on any migration failure (drizzle throws out of `register()`;
+# clickhouse-migrations calls `process.exit(1)` itself, including on its
+# checksum / removed-file integrity guards), so a crash is a real failure.
+#
+# The manual version of this renames the compose volumes to avoid clobbering
+# local data — unnecessary here, every job starts on a fresh runner.
+
+on:
+  workflow_dispatch:
+    inputs:
+      baseline_ref:
+        description: "Ref representing the currently released state"
+        required: false
+        default: main
+      timeout_seconds:
+        description: "Max seconds to wait for a single migration run"
+        required: false
+        default: "1200"
+
+jobs:
+  check:
+    name: ${{ matrix.scenario }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [fresh-install, upgrade-from-baseline]
+
+    env:
+      # Consumed by compose interpolation when starting the services, and by the
+      # frontend when it connects. Next.js never overrides an already-set
+      # process env var, so these win over the frontend/.env.local the run
+      # copies from the example — the example only supplies the unrelated boot
+      # vars (auth secrets, AEAD key).
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_passwordabc
+      POSTGRES_DB: postgres
+      CLICKHOUSE_USER: ch_user
+      CLICKHOUSE_PASSWORD: ch_passwd
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: adminpasswd
+      DATABASE_URL: postgres://postgres:postgres_passwordabc@localhost:5433/postgres
+      CLICKHOUSE_URL: http://localhost:8123
+      CLICKHOUSE_DB: default
+      ENVIRONMENT: LITE
+      # Per-statement client timeout for ClickHouse migrations (default 30s).
+      # Raised because a shared runner is slower than a dev machine and a
+      # timeout here would be a false alarm, not a broken migration.
+      CH_MIGRATIONS_TIMEOUT: "300000"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          # The upgrade scenario needs to check out the baseline ref too.
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "26" # match the one in frontend/Dockerfile
+          cache: "pnpm"
+          cache-dependency-path: ./frontend/pnpm-lock.yaml
+
+      - name: Start Postgres and ClickHouse
+        run: |
+          docker compose -f docker-compose-local-dev-full.yml up -d --wait postgres clickhouse
+          # ClickHouse has no compose healthcheck, so --wait only proves the
+          # container started.
+          for _ in $(seq 1 90); do
+            if curl -sf http://localhost:8123/ping >/dev/null; then
+              echo "ClickHouse is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::ClickHouse did not become ready"
+          exit 1
+
+      - name: Apply migrations
+        env:
+          SCENARIO: ${{ matrix.scenario }}
+          BASELINE_REF: ${{ inputs.baseline_ref }}
+          TIMEOUT_SECONDS: ${{ inputs.timeout_seconds }}
+        run: |
+          set -euo pipefail
+
+          # Guard before the value reaches an arithmetic expansion, which would
+          # otherwise evaluate a `$(...)` in the dispatch input.
+          case "$TIMEOUT_SECONDS" in
+            '' | *[!0-9]*)
+              echo "::error::timeout_seconds must be a positive integer"
+              exit 1
+              ;;
+          esac
+
+          # Boot the frontend, wait for both migrators to report success, then
+          # shut it down. `pnpm dev` never exits on success, so the success
+          # markers — not the exit code — are what we poll for.
+          run_phase() {
+            local phase="$1" sha="$2"
+            local log="$RUNNER_TEMP/$phase.log"
+
+            echo "::group::[$phase] checkout $sha"
+            git checkout --force --detach "$sha"
+            git log -1 --oneline
+            rm -rf frontend/.next
+            cp frontend/.env.local.example frontend/.env.local
+            pnpm --dir frontend install --frozen-lockfile
+            echo "::endgroup::"
+
+            echo "[$phase] booting frontend to apply migrations"
+            # setsid so the whole `pnpm`/`next` tree can be killed by pgid,
+            # otherwise the next phase finds port 3000 taken.
+            setsid pnpm --dir frontend dev >"$log" 2>&1 &
+            local srv=$! status=timeout code=0
+            local deadline=$((SECONDS + TIMEOUT_SECONDS))
+
+            while [ "$SECONDS" -lt "$deadline" ]; do
+              if grep -qF "Local DB is not enabled" "$log"; then
+                status=disabled
+                break
+              fi
+              if grep -qF "Postgres migrations applied successfully" "$log" &&
+                grep -qF "ClickHouse schema applied successfully" "$log"; then
+                status=ok
+                break
+              fi
+              if ! kill -0 "$srv" 2>/dev/null; then
+                status=crashed
+                break
+              fi
+              sleep 2
+            done
+
+            if [ "$status" = crashed ]; then
+              wait "$srv" 2>/dev/null || code=$?
+            else
+              kill -- "-$srv" 2>/dev/null || true
+              wait "$srv" 2>/dev/null || true
+            fi
+
+            echo "::group::[$phase] frontend log"
+            cat "$log"
+            echo "::endgroup::"
+
+            case "$status" in
+              ok)
+                echo "[$phase] migrations applied cleanly"
+                return 0
+                ;;
+              crashed)
+                echo "::error::[$phase] frontend exited (code $code) before migrations finished"
+                ;;
+              disabled)
+                echo "::error::[$phase] migrations were skipped — Feature.LOCAL_DB is off, check ENVIRONMENT"
+                ;;
+              timeout)
+                echo "::error::[$phase] migrations did not finish within ${TIMEOUT_SECONDS}s"
+                ;;
+            esac
+            if [ "$phase" = baseline ]; then
+              echo "::notice::the baseline ref ($BASELINE_REF) is already released and is expected to migrate cleanly, so this is a pre-existing problem rather than a regression in the dispatched ref"
+            fi
+            return 1
+          }
+
+          phases=("target:$(git rev-parse HEAD)")
+          if [ "$SCENARIO" = upgrade-from-baseline ]; then
+            git fetch --no-tags origin "$BASELINE_REF"
+            phases=("baseline:$(git rev-parse FETCH_HEAD)" "${phases[@]}")
+          fi
+
+          for entry in "${phases[@]}"; do
+            run_phase "${entry%%:*}" "${entry#*:}"
+          done
+
+      - name: Database logs
+        if: failure()
+        run: docker compose -f docker-compose-local-dev-full.yml logs --tail 200 postgres clickhouse

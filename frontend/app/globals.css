@@ -58,16 +58,20 @@
   --font-sans-landing: var(--font-general-sans);
   --font-manrope: var(--font-manrope);
 
-  --color-border: var(--color-surface-300);
+  /* Base-plane border. `border` is a DYNAMIC surface-bound color: every painted surface overrides
+     --color-border inline to the surface fill 5 elevation-steps up (see surfaceVars), which clamps
+     at the top of the ladder (surface-800). This is the base-plane fallback for bare elements. The global
+     `* { @apply border-border }` means borders lighten with elevation everywhere. */
+  --color-border: var(--color-surface-250);
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
-  --color-background: var(--color-surface-1000);
+  --color-background: var(--color-surface-00);
   --color-foreground: hsl(var(--foreground));
 
   --color-primary: var(--color-primary-400);
   --color-primary-foreground: var(--color-foreground-100);
 
-  --color-secondary: var(--color-surface-800);
+  --color-secondary: var(--color-surface-100);
   --color-secondary-foreground: var(--color-foreground-200);
 
   --color-success: hsl(var(--success));
@@ -79,16 +83,16 @@
   --color-success-bright: hsl(var(--success-bright));
   --color-destructive-bright: hsl(var(--destructive-bright));
 
-  --color-muted: var(--color-surface-500);
+  --color-muted: var(--color-surface-250);
   --color-muted-foreground: var(--color-foreground-400);
 
-  --color-accent: var(--color-surface-400);
+  --color-accent: var(--color-surface-300);
   --color-accent-foreground: hsl(var(--accent-foreground));
 
-  --color-popover: var(--color-surface-800);
+  --color-popover: var(--color-surface-100);
   --color-popover-foreground: hsl(var(--popover-foreground));
 
-  --color-card: var(--color-surface-800);
+  --color-card: var(--color-surface-100);
   --color-card-foreground: hsl(var(--card-foreground));
 
   --color-sidebar: hsl(var(--sidebar-background));
@@ -107,16 +111,73 @@
 
   --color-subagent: hsl(var(--subagent));
 
-  /* Surface elevation ramp — neutral, dark-theme  */
-  --color-surface-200: oklch(0.3092 0 0); /* #303030 */
-  --color-surface-300: oklch(0.2891 0 0); /* #2b2b2b */
-  --color-surface-400: oklch(0.2686 0 0); /* #262626 */
-  --color-surface-500: oklch(0.2478 0 0); /* #212121 */
-  --color-surface-600: oklch(0.2264 0 0); /* #1c1c1c */
-  --color-surface-700: oklch(0.2046 0 0); /* #171717 */
-  --color-surface-800: oklch(0.1822 0 0); /* #121212 */
-  --color-surface-900: oklch(0.1591 0 0); /* #0d0d0d */
-  --color-surface-1000: oklch(0.1344 0 0); /* #080808 */
+  /* Surface ramp: a 50-step scale from surface-00 (base plane / darkest) to surface-800
+     (lightest). OKLCH lightness in ~0.022 steps; surface-50 splits the old base→card jump so the
+     ramp is even. surface-450..800 extend past the old top to give room for the dynamic border. */
+  --color-surface-00: oklch(0.1344 0 0); /* background */
+  --color-surface-50: oklch(0.1583 0 0);
+  --color-surface-100: oklch(0.1822 0 0); /* secondary / card / popover */
+  --color-surface-150: oklch(0.204 0 0);
+  --color-surface-200: oklch(0.226 0 0);
+  --color-surface-250: oklch(0.248 0 0); /* muted */
+  --color-surface-300: oklch(0.27 0 0); /* accent + base-plane border */
+  --color-surface-350: oklch(0.292 0 0);
+  --color-surface-400: oklch(0.314 0 0);
+  --color-surface-450: oklch(0.336 0 0);
+  --color-surface-500: oklch(0.358 0 0);
+  --color-surface-550: oklch(0.38 0 0);
+  --color-surface-600: oklch(0.402 0 0);
+  --color-surface-650: oklch(0.424 0 0);
+  --color-surface-700: oklch(0.446 0 0);
+  --color-surface-750: oklch(0.468 0 0);
+  --color-surface-800: oklch(0.49 0 0);
+
+  /* Relative-neighbour surface utilities (`bg-surface` = current fill, `bg-surface-up` / `-up-2` /
+     `-up-3` / `-down` / `-down-2` / `-down-3` = steps up/down). These are the BASE-PLANE fallback;
+     every painted surface overrides these same `--color-surface-*` vars inline (see surfaceVars) so
+     the steps re-scope to whatever surface an element sits on. Values reference the static ramp
+     tokens (never an intermediate var) so per-surface overrides can't freeze at :root. */
+  --color-surface: var(--color-surface-00);
+  --color-surface-up: var(--color-surface-100);
+  --color-surface-up-2: var(--color-surface-150);
+  --color-surface-up-3: var(--color-surface-200);
+  --color-surface-up-4: var(--color-surface-250);
+  --color-surface-up-5: var(--color-surface-300);
+  --color-surface-up-6: var(--color-surface-350);
+  --color-surface-up-7: var(--color-surface-400);
+  --color-surface-up-8: var(--color-surface-450);
+  --color-surface-down: var(--color-surface-00);
+  --color-surface-down-2: var(--color-surface-00);
+  --color-surface-down-3: var(--color-surface-00);
+  --color-surface-down-4: var(--color-surface-00);
+  --color-surface-down-5: var(--color-surface-00);
+  --color-surface-down-6: var(--color-surface-00);
+  --color-surface-down-7: var(--color-surface-00);
+  --color-surface-down-8: var(--color-surface-00);
+
+  /* Layered dark drop shadows for the elevation ramp; -100 is flat, -800 heaviest.
+     Named apart from the surface COLORS so `shadow-surface-N` stays free to mean a
+     surface-tinted shadow. Drop shadows only — borders stay flat (--color-border);
+     elevation reads through the bg lift plus these shadows. */
+  --dm-drop: rgba(0, 0, 0, 0.18);
+  --shadow-elevation-100: none;
+  --shadow-elevation-200: 0 1px 1px -0.5px var(--dm-drop);
+  --shadow-elevation-300: 0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop);
+  --shadow-elevation-400:
+    0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop);
+  --shadow-elevation-500:
+    0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop),
+    0 12px 12px -6px var(--dm-drop);
+  --shadow-elevation-600:
+    0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop),
+    0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop);
+  --shadow-elevation-700:
+    0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop),
+    0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop), 0 48px 48px -24px var(--dm-drop);
+  --shadow-elevation-800:
+    0 1px 1px -0.5px var(--dm-drop), 0 3px 3px -1.5px var(--dm-drop), 0 6px 6px -3px var(--dm-drop),
+    0 12px 12px -6px var(--dm-drop), 0 24px 24px -12px var(--dm-drop), 0 48px 48px -24px var(--dm-drop),
+    0 96px 96px -48px var(--dm-drop);
 
   /* Foreground (text) ramp — neutral, dark-theme */
   --color-foreground-50: oklch(1 0 0); /* #ffffff */
@@ -127,7 +188,9 @@
   --color-foreground-500: oklch(0.4962 0 0); /* #626262 */
   --color-foreground-600: oklch(0.3904 0 0); /* #454545 */
 
-  /* Primary brand ramp — 400 is the canonical brand orange (= --color-primary). */
+  /* Primary brand ramp — 400 is the canonical brand orange (= --color-primary).
+     Each step up keeps the ramp's own slope: +0.023 L, -0.005 C, +1.66 H. */
+  --color-primary-100: oklch(0.7249 0.1109 47.71); /* rgb(223 144 103) */
   --color-primary-200: oklch(0.7019 0.1158 46.05); /* rgb(218 135 95) */
   --color-primary-300: oklch(0.6789 0.1207 44.39); /* rgb(213 126 87) */
   --color-primary-400: oklch(0.6559 0.1262 43.33); /* rgb(208 117 78) */
@@ -578,27 +641,6 @@
 
 .landing-caret-blink {
   animation: landing-caret-blink 1s step-end infinite;
-}
-
-/* Single 600ms ease-in-out pulse used by the SignalEventCard chip
-   during the phase 1→2 sequence. Lifts to the lighter primary-200 at
-   the midpoint (more eye-catching against the muted signal card bg
-   than primary-400 was) with a near-opaque fill and a wider shadow
-   ring, then settles back. */
-@keyframes signal-span-flash {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgb(218 135 95 / 0);
-    background-color: rgb(234 232 224 / 0.15);
-  }
-  50% {
-    box-shadow: 0 0 0 6px rgb(218 135 95 / 0.6);
-    background-color: rgb(218 135 95 / 0.9);
-  }
-}
-
-.signal-span-flash {
-  animation: signal-span-flash 0.6s ease-in-out 1;
 }
 
 @layer base {

@@ -39,6 +39,10 @@ const MAX_OUTPUT_TOKENS: i32 = 16384;
 const TRY_TOOL_NAME: &str = "try_extraction_regex";
 const SUBMIT_TOOL_NAME: &str = "submit_extraction_regex";
 
+/// Self-tracing span name for this pipeline's provider calls. Must be one of the
+/// literals `self_tracing::SpanBuilder::llm` matches on.
+const GENERATE_SPAN_NAME: &str = "generate_extraction_regex";
+
 /// How a generation pipeline ended.
 pub enum GenerationVerdict {
     /// Accepted submit: a pattern that extracts non-empty text from the
@@ -138,7 +142,7 @@ pub async fn generate_extraction_regex(
 
     for _ in 0..MAX_LLM_CALLS {
         let request = build_request(contents.clone());
-        let response = call_llm(llm_client, &request, scope).await?;
+        let response = call_llm(llm_client, &request, scope, GENERATE_SPAN_NAME).await?;
 
         let model_content = response
             .candidates
@@ -362,7 +366,7 @@ fn build_request(contents: Vec<ProviderContent>) -> ProviderRequest {
         }),
         service_tier: None,
         provider: Some(extraction_provider()),
-        model_size: Some(ModelSize::Medium),
+        model_size: Some(ModelSize::Small),
     }
 }
 
@@ -370,13 +374,13 @@ fn build_request(contents: Vec<ProviderContent>) -> ProviderRequest {
 /// defaulting to bedrock (medium → Sonnet 5). Either way, a provider without
 /// a registered client (missing credentials) silently falls back to the
 /// `LLM_PROVIDER` default inside `LlmClient::resolve`.
-fn extraction_provider() -> String {
+pub(super) fn extraction_provider() -> String {
     // `mod env` shadows `std::env`, hence the fully-qualified read.
     std::env::var(crate::env::user_task::INPUT_EXTRACTION_LLM_PROVIDER)
         .ok()
         .map(|v| v.trim().to_lowercase())
         .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| "bedrock".to_string())
+        .unwrap_or_else(|| "gemini".to_string())
 }
 
 /// A failed provider call: the message plus whether the failure is worth
@@ -389,12 +393,15 @@ struct LlmCallError {
 
 /// One LLM call with conventional exponential-backoff retries for
 /// transient failures (`backoff` crate, like the worker connect loop).
-/// Each attempt is its own traced provider call. Errors only when the
-/// retry window is exhausted or the failure is non-retryable.
-async fn call_llm(
+/// Each attempt is its own traced provider call, named `span_name` (which must
+/// be one of the literals `self_tracing::SpanBuilder::llm` knows — tracing span
+/// names can't be dynamic). Errors only when the retry window is exhausted or
+/// the failure is non-retryable.
+pub(super) async fn call_llm(
     llm_client: &Arc<LlmClient>,
     request: &ProviderRequest,
     scope: &SpanScope,
+    span_name: &str,
 ) -> anyhow::Result<ProviderResponse> {
     let backoff = ExponentialBackoffBuilder::new()
         .with_initial_interval(std::time::Duration::from_secs(
@@ -406,7 +413,7 @@ async fn call_llm(
         .build();
 
     backoff::future::retry(backoff, || async {
-        call_llm_once(llm_client, request, scope)
+        call_llm_once(llm_client, request, scope, span_name)
             .await
             .map_err(|e| {
                 if e.retryable {
@@ -425,13 +432,14 @@ async fn call_llm_once(
     llm_client: &Arc<LlmClient>,
     request: &ProviderRequest,
     scope: &SpanScope,
+    span_name: &str,
 ) -> Result<ProviderResponse, LlmCallError> {
     // Build the span before the call — spans can't be backdated, so a
     // span built after the call returns would record ~zero duration.
     let (model, provider) = llm_client.resolve_model_provider(request);
     let span_input = request_to_span_input(request);
     let span_tools = request_to_tools_attr(request);
-    let span = SpanBuilder::llm(scope, "generate_extraction_regex")
+    let span = SpanBuilder::llm(scope, span_name)
         .input(&span_input)
         .model(&provider, &model)
         .tools(span_tools.as_ref())
@@ -493,7 +501,11 @@ mod tests {
     }
 
     fn test_scope() -> SpanScope {
-        SpanScope::new(Uuid::new_v4(), Uuid::new_v4())
+        SpanScope::new(
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            super::super::self_tracing::RunKind::LegacyFingerprint,
+        )
     }
 
     // ---- call_llm retries ---------------------------------------------------
@@ -510,7 +522,7 @@ mod tests {
         let client = mock_llm_client(mock);
         let request = build_request(vec![]);
 
-        let result = call_llm(&client, &request, &test_scope()).await;
+        let result = call_llm(&client, &request, &test_scope(), GENERATE_SPAN_NAME).await;
         assert!(result.is_ok());
         assert_eq!(counter.generate_call_count(), 3);
     }
@@ -525,7 +537,7 @@ mod tests {
         let client = mock_llm_client(mock);
         let request = build_request(vec![]);
 
-        let result = call_llm(&client, &request, &test_scope()).await;
+        let result = call_llm(&client, &request, &test_scope(), GENERATE_SPAN_NAME).await;
         assert!(result.is_err());
         assert_eq!(counter.generate_call_count(), 1);
     }

@@ -154,7 +154,7 @@ fn mock_submit_identification() -> ProviderFunctionCall {
         args: Some(serde_json::json!({
             "identified": true,
             "data": { "foo": "bar" },
-            "summary": "This is a test summary"
+            "summaries": ["This is a test summary"]
         })),
     }
 }

@@ -5,15 +5,12 @@ import { cn } from "@/lib/utils";
 
 import { microLabel, subSection } from "../class-names";
 import LandingButton from "../landing-button";
+import InfoTooltip from "./info-tooltip";
 import { FEATURE_GROUPS, type FeatureGroup, type FeatureValue, TIER_COLUMNS } from "./tier-data";
 
-// Flat comparison table — no per-tier highlight. Header has tier name +
-// price + CTA; rows are grouped by FEATURE_GROUPS with a small section
-// header above each group.
-// Sticky header: each header cell gets `sticky top-0` + a page-bg so it pins
-// when the user scrolls past it. `md:overflow-visible` is required because an
-// `overflow-x: auto` ancestor breaks page-relative sticky positioning — on
-// mobile we accept losing sticky to keep the horizontal-scroll fallback.
+// Flat comparison table, no per-tier highlight, rows grouped by FEATURE_GROUPS.
+// `md:overflow-visible` is required for the sticky header: an `overflow-x: auto`
+// ancestor breaks page-relative sticky, so mobile trades it for the scroll.
 export default function PricingTable() {
   return (
     <div className="w-full overflow-x-auto md:overflow-visible">
@@ -22,11 +19,11 @@ export default function PricingTable() {
         style={{ gridTemplateColumns: `1.4fr repeat(${TIER_COLUMNS.length}, 1fr)` }}
       >
         {/* Header row — sticky on md+ */}
-        <div className="sticky top-0 z-10 bg-surface-700 after:content-[''] after:absolute after:inset-x-0 after:top-full after:h-6 after:bg-gradient-to-b after:from-surface-700 after:to-transparent after:pointer-events-none" />
+        <div className="sticky top-0 z-10 bg-surface-150 after:content-[''] after:absolute after:inset-x-0 after:top-full after:h-6 after:bg-gradient-to-b after:from-surface-150 after:to-transparent after:pointer-events-none" />
         {TIER_COLUMNS.map((tier) => (
           <div
             key={tier.id}
-            className="sticky top-0 z-10 bg-surface-700 after:content-[''] after:absolute after:inset-x-0 after:top-full after:h-6 after:bg-gradient-to-b after:from-surface-700 after:to-transparent after:pointer-events-none relative px-5 pt-6 pb-5 flex flex-col items-start gap-3"
+            className="sticky top-0 z-10 bg-surface-150 after:content-[''] after:absolute after:inset-x-0 after:top-full after:h-6 after:bg-gradient-to-b after:from-surface-150 after:to-transparent after:pointer-events-none relative px-5 pt-6 pb-5 flex flex-col items-start gap-3"
           >
             <div className="flex flex-col gap-1">
               <p className={cn(subSection, "text-white")}>{tier.name}</p>
@@ -65,9 +62,14 @@ function FeatureGroupRows({ group }: { group: FeatureGroup }) {
 function FeatureRowCells({ row }: { row: FeatureGroup["rows"][number] }) {
   return (
     <>
-      <div className="pl-0 pr-5 py-3 text-sm text-foreground-200 border-t border-surface-400/50">{row.label}</div>
+      <div className="pl-0 pr-5 py-3 text-sm text-foreground-200 border-t border-surface-300/50">
+        <span className="inline-flex items-center gap-1.5">
+          {row.label}
+          {row.tooltip && <InfoTooltip>{row.tooltip}</InfoTooltip>}
+        </span>
+      </div>
       {TIER_COLUMNS.map((tier) => (
-        <div key={tier.id} className="px-5 py-3 text-sm text-white border-t border-surface-400/50">
+        <div key={tier.id} className="px-5 py-3 text-sm text-white border-t border-surface-300/50">
           <FeatureCell value={row.values[tier.id]} />
         </div>
       ))}

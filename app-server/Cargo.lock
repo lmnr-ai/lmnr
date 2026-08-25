@@ -4877,8 +4877,7 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 [[package]]
 name = "rabbitmq-stream-client"
 version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7e766fd5cccfba5caa077d0b00de81840f0553a15325f22b59e87322f235d10"
+source = "git+https://github.com/lmnr-ai/rabbitmq-stream-rust-client?branch=configurable-channel-capacity#4255b912436869bf1bc0cc528333aca6cc0d445d"
 dependencies = [
  "async-trait",
  "bytes",
@@ -4902,8 +4901,7 @@ dependencies = [
 [[package]]
 name = "rabbitmq-stream-protocol"
 version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97fedda81585bf2b5f8b91be49a592d2c91cb060c2c1927840617c52a67d1b7d"
+source = "git+https://github.com/lmnr-ai/rabbitmq-stream-rust-client?branch=configurable-channel-capacity#4255b912436869bf1bc0cc528333aca6cc0d445d"
 dependencies = [
  "byteorder",
  "chrono",

@@ -4,7 +4,6 @@ import { tryParseJson } from "@/lib/actions/common/utils";
 import { createDatapoints } from "@/lib/actions/datapoints";
 import { pushQueueItems } from "@/lib/actions/queue";
 import { executeQuery } from "@/lib/actions/sql";
-import { clickhouseClient } from "@/lib/clickhouse/client";
 import { downloadSpanImages } from "@/lib/spans/utils";
 import { type Span, type SpanType } from "@/lib/traces/types.ts";
 
@@ -12,13 +11,6 @@ export const GetSpanSchema = z.object({
   spanId: z.guid(),
   projectId: z.guid(),
   traceId: z.guid().optional(),
-});
-
-export const UpdateSpanOutputSchema = z.object({
-  spanId: z.guid(),
-  projectId: z.guid(),
-  traceId: z.guid(),
-  output: z.any(),
 });
 
 export const ExportSpanSchema = z.object({
@@ -112,24 +104,6 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
       attributes: tryParseJson(event.attributes) || {},
     })),
   };
-}
-
-export async function updateSpanOutput(input: z.infer<typeof UpdateSpanOutputSchema>) {
-  const { spanId, projectId, traceId, output } = UpdateSpanOutputSchema.parse(input);
-
-  await clickhouseClient.command({
-    query: `
-      ALTER TABLE spans
-      UPDATE output = {output: String}
-      WHERE project_id = {projectId: UUID} AND trace_id = {traceId: UUID} AND span_id = {spanId: UUID}
-    `,
-    query_params: {
-      output: JSON.stringify(output),
-      spanId,
-      projectId,
-      traceId,
-    },
-  });
 }
 
 export async function exportSpanToDataset(input: z.infer<typeof ExportSpanSchema>) {

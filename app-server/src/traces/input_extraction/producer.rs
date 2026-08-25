@@ -1,5 +1,5 @@
 //! Producer-side hook, called from `publish_span_messages`: candidate
-//! capture, roster-based winner arbitration, inline cached-regex
+//! capture, per-agent winner arbitration, inline cached-regex
 //! application, enqueueing regex generation on cache miss, and the
 //! inline trace-output pass (LAM-1953).
 //!
@@ -7,12 +7,11 @@
 //! does not partially fail.** It's best-effort — errors are logged and
 //! swallowed — but the design does not try to recover a trace from a
 //! publish that failed mid-way: a swallowed failure just means that
-//! trace's `lmnr_user_task` is (rarely) missing, not that a weaker
-//! candidate must later heal it. This is what lets arbitration stay
-//! simple — a shallower span ALWAYS wins by resetting `lock.depth`, and
-//! once a legit span is seen at some depth no deeper span can own the
-//! task (no "deeper interim winner" recovery path). If both stores fail
-//! the whole flush fails and Rabbit redelivers.
+//! trace's `lmnr_user_task` is (rarely) missing, not that a later
+//! candidate must heal it. Arbitration itself is stateless-ish and
+//! self-correcting (see [`super::lock`]): the winner is re-derived from the
+//! per-agent map on every batch, so a lost publish is the only unrecovered
+//! case. If both stores fail the whole flush fails and Rabbit redelivers.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -21,21 +20,37 @@ use uuid::Uuid;
 
 use super::input::prepare_user_task_input;
 use super::lock::{
-    RosterEntry, UserTaskLockState, WinnerState, lock_cache_key, main_agent_path_cache_key,
-    roster_span_key, write_lock_merged, write_main_agent_path,
+    UserTaskLockState, WinnerState, lock_cache_key, main_agent_path_cache_key, span_key,
+    write_lock_merged, write_main_agent_path,
 };
 use super::metadata::extraction_outcome_value;
 use super::output::{OutputCandidate, process_trace_output_candidate};
 use super::queue::{InputExtractionMessage, push_to_input_extraction_queue};
-use super::regex::{regex_cache_key, try_apply_cached_regex};
+use super::regex::{
+    RegexTarget, Resolution, record_resolution, regex_target, try_apply_cached_regex,
+};
 use crate::cache::{Cache, CacheTrait};
 use crate::db::{DB, spans::Span};
 use crate::features::{Feature, is_feature_enabled};
 use crate::llm::llm_client_available;
 use crate::mq::{MessageQueue, stream::StreamPublisher};
 use crate::traces::metadata::publish_trace_input_update;
+use crate::traces::sp_versioning::producer::VersionVerdicts;
 use crate::traces::spans::SpanAttributes;
 use crate::traces::utils::get_llm_usage_for_span;
+
+/// The span's system-prompt identity, threaded from the ingest producer. The
+/// agent hash is a key component of both regex cachings; the byte-identity hash
+/// is how the candidate looks its prompt's version up in the batch's
+/// [`VersionVerdicts`].
+#[derive(Debug, Clone, Copy)]
+pub struct SystemPromptIdentity<'a> {
+    /// First-sentence hash (NOT the skeleton hash stamped on
+    /// `lmnr.span.prompt_hash`): permutations of the system prompt's XML
+    /// scaffolding must not fork the user-regex cache key.
+    pub agent_hash: &'a str,
+    pub full_prompt_hash: &'a str,
+}
 
 /// Per-span input candidate captured inside `preprocess_for_queue`,
 /// BEFORE the dedup strip removes `span.input` — the only point where the
@@ -44,10 +59,16 @@ use crate::traces::utils::get_llm_usage_for_span;
 pub struct UserTaskCandidate {
     pub signposted_text: String,
     pub fingerprint: String,
-    /// First-sentence hash of the system prompt (NOT the skeleton hash
-    /// stamped on `lmnr.span.prompt_hash`): permutations of the system
-    /// prompt's XML scaffolding must not fork the user-regex cache key.
+    /// Whether the last turn follows assistant history — a key component of the
+    /// version-keyed cache (already encoded in `fingerprint` for the legacy one).
+    pub has_history: bool,
+    /// First-sentence hash of the system prompt. `None` for LLM spans carrying
+    /// no system message, which can never have a version and so stay on the
+    /// legacy keying forever.
     pub prompt_hash: Option<String>,
+    /// Byte-identity hash of the system prompt; looks the resolved version up in
+    /// the batch's verdict map. `None` alongside `prompt_hash`.
+    pub full_prompt_hash: Option<String>,
     /// Full hash of the joined last-turn user parts; gates re-extraction
     /// when a stronger challenger carries identical content.
     pub content_hash: String,
@@ -83,7 +104,7 @@ fn rollout_session_id_from_attributes(attributes: &SpanAttributes) -> Option<Str
 
 pub fn capture_user_task_candidate(
     span: &Span,
-    first_sentence_hash: Option<&str>,
+    system_prompt: Option<SystemPromptIdentity<'_>>,
 ) -> Option<UserTaskCandidate> {
     if !span.is_llm_span() {
         return None;
@@ -92,7 +113,9 @@ pub fn capture_user_task_candidate(
     Some(UserTaskCandidate {
         signposted_text: prepared.signposted_text,
         fingerprint: prepared.fingerprint,
-        prompt_hash: first_sentence_hash.map(str::to_string),
+        has_history: prepared.has_history,
+        prompt_hash: system_prompt.map(|s| s.agent_hash.to_string()),
+        full_prompt_hash: system_prompt.map(|s| s.full_prompt_hash.to_string()),
         content_hash: prepared.content_hash,
     })
 }
@@ -107,17 +130,22 @@ struct InputContender {
     state: WinnerState,
     path: Vec<String>,
     rollout_session_id: Option<String>,
+    span_id: Uuid,
+    /// The prompt version resolved inline by the sp-versioning producer, if any.
+    version_hash: Option<String>,
 }
 
 /// Producer-side extraction pipeline, run after the batch is published.
-/// Pass 1 arbitrates user-task inputs per trace via the roster lock and
+/// Pass 1 arbitrates user-task inputs per trace via the per-agent lock and
 /// runs the effect (inline cached-regex apply, or enqueue for LLM regex
 /// generation) for the strongest eligible candidate. Pass 2 processes
 /// trace outputs. All failures are logged and swallowed — extraction
 /// must never block or fail span ingestion.
+#[allow(clippy::too_many_arguments)]
 pub async fn process_user_task_candidates(
     contexts: Vec<UserTaskSpanContext>,
     project_id: Uuid,
+    version_verdicts: VersionVerdicts,
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -131,7 +159,7 @@ pub async fn process_user_task_candidates(
     }
 
     #[cfg(feature = "signals")]
-    if std::env::var(crate::env::private::signals::INTERNAL_PROJECT_ID)
+    if std::env::var(crate::env::connections::SIGNALS_INTERNAL_PROJECT_ID)
         .is_ok_and(|internal_project_id_str| internal_project_id_str == project_id.to_string())
     {
         return;
@@ -141,11 +169,11 @@ pub async fn process_user_task_candidates(
         return;
     }
 
-    // Path is computed once up front. `extend_span_path` runs BEFORE the
-    // consumer's `prepare_span_for_recording` does the same, so depth here
-    // matches what ingest records (an auto-instrumented span otherwise
-    // lacks its own trailing segment and would tie one level shallower than
-    // it should). Contexts are sorted by start time so roster registration
+    // Path is computed once up front for the main-agent path cache Pass 2
+    // matches against. `extend_span_path` runs BEFORE the consumer's
+    // `prepare_span_for_recording` does the same, so the path here matches
+    // what ingest records (an auto-instrumented span otherwise lacks its own
+    // trailing segment). Contexts are sorted by start time so registration
     // order within the batch is deterministic.
     let mut contexts: Vec<(UserTaskSpanContext, Vec<String>)> = contexts
         .into_iter()
@@ -157,8 +185,8 @@ pub async fn process_user_task_candidates(
         .collect();
     contexts.sort_by_key(|(ctx, _)| ctx.start_time_ns);
 
-    // Pass 1: user-task inputs. Winner/roster arbitration and main-agent
-    // path caching run UNCONDITIONALLY — depth + token comparison needs no
+    // Pass 1: user-task inputs. Winner arbitration and main-agent
+    // path caching run UNCONDITIONALLY — the comparison needs no
     // LLM, and Pass 2 (trace outputs) depends on the path this pass
     // establishes. Only the extraction EFFECT (publishing `lmnr_user_task`
     // via a cached-regex apply, or enqueueing LLM-backed regex generation
@@ -192,12 +220,19 @@ pub async fn process_user_task_candidates(
         // helper above the main agent. (Tokens, not cost — cost is zero when
         // the model doesn't resolve in the pricing tables.)
         let state = WinnerState {
-            depth: path.len(),
+            // Empty for a span with no system message: ungroupable, so they
+            // all share one bucket.
+            agent_hash: candidate.prompt_hash.clone().unwrap_or_default(),
             input_tokens: usage.input_tokens,
             start_time_ns: ctx.start_time_ns,
-            span_id: roster_span_key(ctx.span_id),
+            span_id: span_key(ctx.span_id),
             content_hash,
         };
+        let version_hash = candidate
+            .full_prompt_hash
+            .as_deref()
+            .and_then(|hash| version_verdicts.get(hash))
+            .cloned();
         contenders
             .entry(ctx.trace_id)
             .or_default()
@@ -206,6 +241,8 @@ pub async fn process_user_task_candidates(
                 state,
                 path: path.clone(),
                 rollout_session_id,
+                span_id: ctx.span_id,
+                version_hash,
             });
     }
 
@@ -282,46 +319,28 @@ pub async fn process_user_task_candidates(
     }
 }
 
-/// Can this candidate challenge? Only spans at the shallowest depth seen
-/// for the trace (`lock.depth`) AND inside the earliest-N roster window.
-/// `process_trace_inputs` resets `lock.depth` to the batch's minimum
-/// before this runs, so every contender is at or below `lock.depth` in
-/// depth terms (never shallower); the `== lock.depth` check therefore
-/// gates out deeper (subagent) spans, and the roster gate seals the trace
-/// once the window fills. There is no depth/winner bypass: a shallower
-/// span always wins by resetting `lock.depth` (see `process_trace_inputs`),
-/// so once a shallower span is seen a deeper one can never own the task.
-fn is_eligible(state: &WinnerState, lock: &UserTaskLockState) -> bool {
-    state.depth == lock.depth && lock.roster.iter().any(|e| e.span_id == state.span_id)
+/// Should the derived winner's extraction run? Only when its text differs
+/// from what was last published — a winner change that carries identical
+/// text is a wasteful no-op. This replaced a "challenger must beat the
+/// published winner" ratchet, which the per-agent model can't use: the
+/// winner legitimately moves DOWN in tokens when a genuinely earlier step
+/// for the winning agent arrives late.
+fn should_run_effect(winner: &WinnerState, published: Option<&str>) -> bool {
+    published != Some(winner.content_hash.as_str())
 }
 
-/// Should this challenger run the effect against the published winner?
-/// It must strictly beat the winner (depth/tokens) OR — when they tie on
-/// strength — carry genuinely new content. Identical content from a
-/// stronger-or-equal span was already extracted, so re-publishing it is a
-/// wasteful no-op; new content always runs.
-fn should_run_effect(challenger: &WinnerState, winner: Option<&WinnerState>) -> bool {
-    match winner {
-        None => true,
-        Some(winner) => challenger.beats(winner) && challenger.content_hash != winner.content_hash,
-    }
-}
-
-/// Roster arbitration + effect for one trace's batch contenders.
+/// Per-agent arbitration + effect for one trace's batch contenders.
 ///
-/// Protocol: read the lock (absent → fresh at the batch's shallowest
-/// depth; a strictly shallower batch resets it — the previous depth's
-/// roster and winner were subagent-level); register every contender at
-/// the lock's depth (the roster keeps the [`super::lock::ROSTER_CAP`]
-/// earliest starters); pick the strongest eligible contender (see
-/// [`is_eligible`]) and cache its path unconditionally — that's pure
-/// depth/token arbitration, no LLM involved, and Pass 2 needs it regardless
+/// Protocol: read the lock (absent → fresh); fold every contender into its
+/// agent's slot, keeping that agent's earliest start; derive the winner (the
+/// biggest agent's representative) and cache its path unconditionally —
+/// that's pure arbitration, no LLM involved, and Pass 2 needs it regardless
 /// of whether the text extraction below runs. The LLM-backed extraction
 /// effect (cached-regex apply, or enqueue for regex generation) only runs
 /// when [`should_run_effect`] holds AND `user_task_agent_enabled` — without
 /// a client the extraction workers never spawn, so enqueueing would strand
 /// messages. The lock is written back merge-guarded regardless;
-/// `lock.winner` moves as soon as that effect lands.
+/// `lock.published` moves as soon as that effect lands.
 #[allow(clippy::too_many_arguments)]
 async fn process_trace_inputs(
     trace_id: Uuid,
@@ -344,61 +363,85 @@ async fn process_trace_inputs(
         }
     };
 
-    let batch_min_depth = trace_contenders
-        .iter()
-        .map(|c| c.state.depth)
-        .min()
-        .unwrap_or(usize::MAX);
-    // A strictly shallower batch resets depth + roster (the previous
-    // roster was subagent-level) but CARRIES the published winner: the
-    // winner axis is independent of lock depth (`merge_from` keeps the
-    // stronger winner across depths too), so candidates keep challenging
-    // whatever value actually owns `lmnr_user_task` — forgetting it here
-    // would let a weaker candidate publish a redundant overwrite.
-    let mut lock = match current {
-        Some(l) if l.depth <= batch_min_depth => l,
-        Some(l) => UserTaskLockState {
-            winner: l.winner,
-            ..UserTaskLockState::new(batch_min_depth)
-        },
-        None => UserTaskLockState::new(batch_min_depth),
-    };
+    let mut lock = current.unwrap_or_default();
 
-    // Register every contender at the lock's depth FIRST, then derive
-    // eligibility from the FINAL roster — `register`'s return value is a
-    // point-in-time verdict and a later same-start registration can
-    // evict an earlier-accepted span (equal `start_time_ns` ties break
-    // on span id), so snapshotting eligibility inside the loop could
-    // publish a winner that isn't in the persisted window.
+    // Split "what was published" from "what this run asserts". `merge_from`
+    // takes the incoming `published`, so carrying the read-time hash into a
+    // write would roll back a concurrent batch that published in between;
+    // `lock.published` is therefore left empty until this run's own effect
+    // lands, and every gate below reads the snapshot instead.
+    let published_before = lock.published.take();
+
     for contender in &trace_contenders {
-        if contender.state.depth != lock.depth {
-            continue;
-        }
-        lock.register(RosterEntry {
-            start_time_ns: contender.state.start_time_ns,
-            span_id: contender.state.span_id.clone(),
-        });
+        lock.register(contender.state.clone());
     }
-    let eligible = trace_contenders
-        .iter()
-        .filter(|c| is_eligible(&c.state, &lock));
 
-    let challenger = eligible.reduce(|best, c| if c.state.beats(&best.state) { c } else { best });
+    // The effect needs the winner's prepared text, which only THIS batch's
+    // contenders carry — the lock stores hashes, not text. Usually that's
+    // enough: an unchanged winner was already published when it was current,
+    // and both a new agent and an earlier step for the winning agent arrive
+    // in this batch.
+    //
+    // KNOWN GAP (tracked by the gated log below): a DEMOTION reorders without
+    // changing the promoted agent's representative. When this batch supplies
+    // an earlier — hence lower-token — step for the current winner, that
+    // agent's rank drops and an already-stored agent can take the top spot;
+    // its representative came from a previous batch, so we hold no text and
+    // `published` keeps the superseded value with no later batch to heal it.
+    // Reaching it needs one agent's steps to arrive out of order (export
+    // reordering or concurrent batches), which is why this is measured rather
+    // than assumed.
+    //
+    // Do NOT "fix" this by ranking agents on max(tokens) seen: that removes
+    // demotion but makes the out-of-batch case COMMON in the mirror direction
+    // — a helper whose first step outranks the main agent's first step wins at
+    // cold start, then the main agent's loop grows in a later batch and
+    // promotes it while its representative sits in the earlier one. The real
+    // fix is resolving a winner's text by span id in the worker (it already
+    // holds the ClickHouse client and the span id), transient-erroring while
+    // the span isn't inserted yet so redelivery heals it.
+    let winner = lock.winner().cloned();
+    let challenger = winner.as_ref().and_then(|w| {
+        trace_contenders
+            .iter()
+            .find(|c| c.state.span_id == w.span_id)
+    });
+
+    // An out-of-batch winner is the STEADY STATE of a multi-batch loop — the
+    // representative stays the first step while later batches carry later
+    // steps — so it is only the gap when the effect is actually owed. Gating on
+    // `should_run_effect` is what keeps this rare enough to be both an ERROR
+    // and a usable measure of how often demotion really bites.
+    if let Some(winner) = winner.as_ref()
+        && challenger.is_none()
+        && should_run_effect(winner, published_before.as_deref())
+    {
+        log::error!(
+            "user-task: derived winner is not in this batch and its text is owed, extraction \
+             skipped for trace [{trace_id}] (project [{project_id}], agent [{}], span [{}], \
+             {} tokens, content [{}], published [{}]) — see the KNOWN GAP note in \
+             `process_trace_inputs`",
+            winner.agent_hash,
+            winner.span_id,
+            winner.input_tokens,
+            winner.content_hash,
+            published_before.as_deref().unwrap_or("none"),
+        );
+    }
 
     if let Some(challenger) = challenger {
-        // Cache the strongest eligible span's path whenever it wins the
-        // depth/token comparison — independent of `should_run_effect` below,
+        // Cache the winner's path independent of `should_run_effect` below,
         // which only gates the LLM-backed text extraction. Otherwise a
-        // same-content shallower span (should_run_effect = false, since
-        // content didn't change) would leave Pass 2 matching against a
-        // stale, deeper path until the cache entry expires. Must stay the
-        // same "drop own segment" heuristic as Pass 2's match check above.
+        // same-content winner (should_run_effect = false) would leave Pass 2
+        // matching against a stale path until the entry expires. Must stay
+        // the same "drop own segment" heuristic as Pass 2's match check
+        // above.
         let prefix = &challenger.path[..challenger.path.len().saturating_sub(1)];
         write_main_agent_path(&cache, project_id, trace_id, prefix).await;
     }
 
     if let Some(challenger) = challenger
-        && should_run_effect(&challenger.state, lock.winner.as_ref())
+        && should_run_effect(&challenger.state, published_before.as_deref())
     {
         let state = challenger.state.clone();
         let candidate = &challenger.candidate;
@@ -409,19 +452,60 @@ async fn process_trace_inputs(
             return;
         }
 
-        let regex_key = regex_cache_key(
+        // Persist the agent map BEFORE the effect, so a consumer can never read
+        // a map older than the decision we're about to dispatch. Without it the
+        // ordering is enqueue-then-write, and a consumer that picks the message
+        // up inside that window sees the pre-batch representative: its
+        // `supersedes` check then compares our snapshot against the stale
+        // winner, drops the correcting extraction, and the `published` we set
+        // below makes every later batch skip — leaving the superseded text
+        // stored for good. Effects only run when the winner's text changes, so
+        // this extra round-trip is rare rather than per-batch. It carries the
+        // map alone (`published` is still empty here), and earliest-per-agent
+        // is commutative, so it composes with a concurrent batch's write; the
+        // inline re-read below still catches a genuinely newer winner.
+        write_lock_merged(&cache, &lock_key, &lock, trace_id).await;
+
+        // A prompt whose version isn't minted yet has no cacheable key, so the
+        // inline fast path is skipped entirely and the worker owns the
+        // resolution (re-read, then a direct extraction).
+        let target = regex_target(
             project_id,
             candidate.prompt_hash.as_deref(),
+            challenger.version_hash.as_deref(),
             &candidate.fingerprint,
+            candidate.has_history,
         );
-        let inline_result = try_apply_cached_regex(
-            &cache,
-            &regex_key,
-            &candidate.signposted_text,
-            project_id,
-            trace_id,
-        )
-        .await;
+        let inline_result = match &target {
+            RegexTarget::Keyed { key, .. } => {
+                try_apply_cached_regex(
+                    &cache,
+                    key,
+                    &candidate.signposted_text,
+                    project_id,
+                    trace_id,
+                )
+                .await
+            }
+            RegexTarget::Unversioned => None,
+        };
+        // Recorded only for the versioned pipeline: the legacy keying serves
+        // prompts that can never have a version, so counting its hits would
+        // inflate the denominator of the fallback-rate metric.
+        if inline_result.is_some()
+            && let RegexTarget::Keyed {
+                version: Some(version),
+                ..
+            } = &target
+        {
+            record_resolution(
+                Resolution::Cached,
+                project_id,
+                trace_id,
+                Some(version),
+                candidate.has_history,
+            );
+        }
 
         if inline_result.is_some() {
             // Re-read the winner lock before the inline publish: a
@@ -440,10 +524,10 @@ async fn process_trace_inputs(
         }
 
         // Whether the candidate's effect (metadata publish on cache hit,
-        // extraction enqueue on miss) actually landed. The winner field
-        // moves only on success — moving it eagerly would gate retries
-        // for the whole lock TTL after a swallowed failure, possibly
-        // never writing `lmnr_user_task` at all.
+        // extraction enqueue on miss) actually landed. `published` moves
+        // only on success — moving it eagerly would gate retries for the
+        // whole lock TTL after a swallowed failure, possibly never writing
+        // `lmnr_user_task` at all.
         let effect_landed = match inline_result {
             Some(result) => {
                 let value = extraction_outcome_value(&result);
@@ -472,7 +556,11 @@ async fn process_trace_inputs(
                 let message = InputExtractionMessage {
                     trace_id,
                     project_id,
+                    span_id: Some(challenger.span_id),
                     prompt_hash: candidate.prompt_hash.clone(),
+                    full_prompt_hash: candidate.full_prompt_hash.clone(),
+                    version_hash: challenger.version_hash.clone(),
+                    has_history: candidate.has_history,
                     signposted_text: candidate.signposted_text.clone(),
                     fingerprint: candidate.fingerprint.clone(),
                     winner_state: Some(state.clone()),
@@ -491,7 +579,7 @@ async fn process_trace_inputs(
         };
 
         if effect_landed {
-            lock.winner = Some(state);
+            lock.published = Some(state.content_hash);
         }
     }
 
@@ -505,12 +593,12 @@ mod tests {
     use serde_json::json;
     use std::collections::HashMap;
 
-    fn winner(depth: usize, tokens: i64, id: &str, content: &str) -> WinnerState {
+    fn winner(content: &str) -> WinnerState {
         WinnerState {
-            depth,
-            input_tokens: tokens,
+            agent_hash: "agent".to_string(),
+            input_tokens: 100,
             start_time_ns: 0,
-            span_id: id.to_string(),
+            span_id: "span".to_string(),
             content_hash: content.to_string(),
         }
     }
@@ -544,59 +632,23 @@ mod tests {
     }
 
     #[test]
-    fn should_run_effect_no_winner_always_runs() {
-        assert!(should_run_effect(&winner(2, 100, "a", "h1"), None));
+    fn should_run_effect_publishes_when_nothing_published_yet() {
+        assert!(should_run_effect(&winner("h1"), None));
     }
 
     #[test]
-    fn should_run_effect_skips_stronger_challenger_with_same_content() {
-        // A strictly stronger challenger (more tokens) but identical
-        // content: already extracted, no re-run.
-        let published = winner(2, 100, "old", "same");
-        let challenger = winner(2, 500, "new", "same");
-        assert!(challenger.beats(&published));
-        assert!(!should_run_effect(&challenger, Some(&published)));
+    fn should_run_effect_skips_a_winner_carrying_the_published_text() {
+        // The winner can change (a late earlier step, a new agent) while
+        // carrying the same text — republishing it is a no-op.
+        assert!(!should_run_effect(&winner("same"), Some("same")));
     }
 
     #[test]
-    fn should_run_effect_runs_stronger_challenger_with_new_content() {
-        let published = winner(2, 100, "old", "h1");
-        let challenger = winner(2, 500, "new", "h2");
-        assert!(should_run_effect(&challenger, Some(&published)));
-    }
-
-    #[test]
-    fn should_run_effect_skips_non_beating_challenger() {
-        // Weaker challenger never runs, even with new content.
-        let published = winner(2, 500, "old", "h1");
-        let challenger = winner(2, 100, "new", "h2");
-        assert!(!should_run_effect(&challenger, Some(&published)));
-    }
-
-    #[test]
-    fn is_eligible_requires_roster_membership_at_lock_depth() {
-        let mut lock = UserTaskLockState::new(2);
-        lock.register(RosterEntry {
-            start_time_ns: 0,
-            span_id: "member".to_string(),
-        });
-        // At lock depth AND in the roster window: eligible.
-        assert!(is_eligible(&winner(2, 50, "member", "h"), &lock));
-        // At lock depth but not in the roster window: gated out.
-        assert!(!is_eligible(&winner(2, 9000, "stranger", "h"), &lock));
-    }
-
-    #[test]
-    fn is_eligible_gates_out_deeper_spans() {
-        // Eligibility is winner-independent: a deeper span is never
-        // eligible once the trace has a shallower `lock.depth`, even with
-        // no published winner (a shallower span always resets lock.depth
-        // and wins).
-        let mut lock = UserTaskLockState::new(1);
-        lock.register(RosterEntry {
-            start_time_ns: 0,
-            span_id: "deep".to_string(),
-        });
-        assert!(!is_eligible(&winner(3, 9000, "deep", "h"), &lock));
+    fn should_run_effect_runs_on_any_text_change() {
+        // Deliberately NOT gated on beating the previous winner: the
+        // per-agent model lets the winner move DOWN in tokens when a
+        // genuinely earlier step for the winning agent arrives late, and
+        // that correction must publish.
+        assert!(should_run_effect(&winner("h2"), Some("h1")));
     }
 }

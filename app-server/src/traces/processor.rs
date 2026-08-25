@@ -163,7 +163,9 @@ fn collect_static_agent_io_rows(
             CHTraceStatic::from_agent_io(
                 entry.project_id,
                 entry.trace_id,
-                entry.input.as_ref().map(Value::to_string),
+                // Not `Value::to_string`: that JSON-encodes a string task, and
+                // every reader renders this column verbatim.
+                entry.input.as_ref().map(crate::utils::json_value_to_string),
                 output_hashes,
                 start_time,
             )
@@ -1063,5 +1065,41 @@ mod tests {
             999,
         );
         assert_eq!(rows[0].start_time, 999);
+    }
+
+    // The stored column is the task TEXT. `Value::to_string()` here wrapped
+    // every task in literal quotes and escaped its newlines, and every reader
+    // renders the column verbatim, so the encoding reached the UI.
+    #[test]
+    fn agent_input_is_stored_unencoded() {
+        let project_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+        let io = |input: Value| {
+            collect_static_agent_io_rows(
+                &[RawTraceIo {
+                    project_id,
+                    trace_id,
+                    input: Some(input),
+                    output_hashes: None,
+                    rollout_session_id: None,
+                }],
+                &HashMap::new(),
+                0,
+            )
+        };
+
+        assert_eq!(
+            io(json!("fix the test")).remove(0).input.unwrap(),
+            "fix the test"
+        );
+        // Multi-line and embedded quotes survive as themselves, not as `\n` /
+        // `\"` escape sequences.
+        let multiline = "summarize:\n\n\"the report\"";
+        assert_eq!(io(json!(multiline)).remove(0).input.unwrap(), multiline);
+        // A non-string has no text form, so it still serializes as JSON.
+        assert_eq!(
+            io(json!({ "role": "user" })).remove(0).input.unwrap(),
+            r#"{"role":"user"}"#
+        );
     }
 }

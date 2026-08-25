@@ -5,6 +5,7 @@ use crate::env;
 const PRODUCER: &str = "producer";
 const CONSUMER: &str = "consumer";
 
+#[derive(Clone, Copy)]
 pub enum Feature {
     UsageLimit,
     /// Remote storage, such as S3
@@ -29,6 +30,20 @@ pub enum Feature {
     /// Checkpoints / agent-versioning pipeline (LAM-1987). Temporarily
     /// gated behind `CHECKPOINTS_ENABLED`, default off.
     Checkpoints,
+    /// v2 static system-prompt extraction: per-agent prompt windows +
+    /// line-level version detection replacing the skeleton-hash keying.
+    /// Gated behind `SP_VERSIONING_ENABLED`, default off.
+    SystemPromptVersioning,
+    /// Signals resolve static prompts through the v2 version registry rather
+    /// than the legacy per-naive-signature regex cache. Separate from
+    /// `SystemPromptVersioning` so versioning can run (and be inspected) for a
+    /// while before summarization consumes it; needs BOTH switches on.
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    SignalsVersionedPrompts,
+    /// User-task extraction keys its regexes by prompt version instead of the
+    /// legacy agent-hash + tag-fingerprint pair. Needs BOTH switches on, and
+    /// `InputExtraction` for the pipeline to run at all.
+    VersionedInputExtraction,
     RateLimiter,
     /// Per-project data-ingestion rate limit (gRPC + HTTP OTLP traces).
     IngestionRateLimiter,
@@ -77,6 +92,15 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
                 && std::env::var(env::secrets::RESEND_API_KEY).is_ok_and(|s| !s.is_empty())
         }
         Feature::Checkpoints => env::checkpoints::ENABLED.get(),
+        Feature::SystemPromptVersioning => env::static_sp::V2_ENABLED.get(),
+        Feature::SignalsVersionedPrompts => {
+            is_feature_enabled(Feature::SystemPromptVersioning)
+                && env::static_sp::SIGNALS_ENABLED.get()
+        }
+        Feature::VersionedInputExtraction => {
+            is_feature_enabled(Feature::SystemPromptVersioning)
+                && env::static_sp::INPUT_EXTRACTION_ENABLED.get()
+        }
         Feature::RateLimiter => {
             std::env::var(env::connections::REDIS_URL).is_ok()
                 && std::env::var(env::rate_limit::HTTP_LIMIT).is_ok()

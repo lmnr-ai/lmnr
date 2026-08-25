@@ -29,6 +29,10 @@ pub const SPAN_TYPE: &str = "lmnr.span.type";
 pub const SPAN_PATH: &str = "lmnr.span.path";
 pub const SPAN_IDS_PATH: &str = "lmnr.span.ids_path";
 pub const SPAN_PROMPT_HASH: &str = "lmnr.span.prompt_hash";
+/// First-sentence hash of the span's system prompt — the "agent identity"
+/// key for static-prompt version tracking (blind to structural scaffolding,
+/// unlike the skeleton hash above).
+pub const SPAN_AGENT_HASH: &str = "lmnr.span.agent_hash";
 /// Marker on virtual spans produced by `POST /v1/traces/metadata`. The
 /// consumer treats them as a metadata patch against an existing trace:
 /// the row is not written to `spans`, doesn't index in Quickwit, and

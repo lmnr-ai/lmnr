@@ -1,273 +1,348 @@
 "use client";
 
-import {
-  animate,
-  motion,
-  type Transition,
-  useMotionValue,
-  useMotionValueEvent,
-  useScroll,
-  useTransform,
-} from "framer-motion";
-import { type ReactNode, useEffect, useRef, useState } from "react";
-import useSWR from "swr";
+import { motion, useMotionValueEvent, useScroll, useTransform } from "framer-motion";
+import { type RefObject, useEffect, useRef, useState } from "react";
 
-import TraceViewStoreProvider, { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
-import { cn, swrFetcher } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 import { bodyMedium, LANDING_COLUMN_MAX_W, microLabel, subSection, subSubSection } from "../../class-names";
-import SectionFootnote from "../section-footnote";
+import LearnMoreLink from "../learn-more-link";
+import { SIGNAL_HEADER_H } from "../signal-event-card";
+import ClustersStage from "./clusters-stage";
 import TraceViewErrorBoundary from "./error-boundary";
-import TraceBento, { type Phase } from "./trace-bento";
-import { useSelectAndRevealSpan } from "./use-select-and-reveal-span";
+import { assemblyLayout, CLUSTERS_CARD_H_SEED, EDGE_FADE_W_CLS, FRAME_H, PANEL_H } from "./geometry";
+import { SpanSelectionProvider } from "./mock/selection";
+import SignalStack from "./signal-stack";
+import { DEFAULT_STACK_TIMING, phase } from "./stack-timing";
+import { STEP_COUNT, STEP_NUMBERS, type StepNumber, STEPS } from "./steps";
+import TracePanel from "./trace-panel";
 
-const TWEEN: Transition = { type: "tween", duration: 0.3, ease: "easeInOut" };
+// One trace, one panel, one scroll observer. The panel never travels; only the
+// copy does, at constant velocity across every bit of the pinned range — a
+// pinned section that consumes scroll while nothing moves is scroll-jacking.
+// The closing gesture therefore plays OVER the last step, not in its own window.
 
-const TRACE_ID = "f4a22e85-089a-0959-fd1e-3002e236e42f";
+/** Whole-number index of every step — the input range for the per-step maps. */
+const STEP_STOPS = STEP_NUMBERS.map((_, i) => i);
 
-// Real spans inside trace f4a22e85-089a-0959-fd1e-3002e236e42f (opencode
-// REST-client scaffold). Used by the Timeline body's three underlined
-// links — click drives a transcript scroll + highlight inside the bento.
-// - LLM_REASONING: the top-level verify LLM (ai.streamText.doStream) whose
-//   tool-call output planned the bad `python` invocation — same span the
-//   signal-event card's first chip points at.
-// - TOOL_CALL: a successful Bash (the first to print "All smoke tests
-//   passed!") so the demo lands on a clean tool-call example, not a failure.
-// - SUBAGENT: the auth-writer `task` subagent — selectAndRevealSpan expands
-//   the group before selecting.
-const LLM_REASONING_SPAN_ID = "00000000-0000-0000-5d0e-4970807b7819";
-const TOOL_CALL_SPAN_ID = "00000000-0000-0000-83ed-49566094bd47";
-const SUBAGENT_SPAN_ID = "00000000-0000-0000-d798-4ee614097dc8";
+/** Height of the viewport, in the same vh units as everything below. The
+ *  sticky children are `h-screen`, so this is exact, not an estimate. */
+const VIEWPORT_VH = 100;
 
-const T_PHASE_2 = 0.25;
-const T_PHASE_3 = 0.5;
-const T_PHASE_4 = 0.75;
+/** Scroll length per copy step, and the only lever on how much pinned scroll
+ *  the closing sequence gets — the sticky tail after the last hand-off is
+ *  exactly one of these, whatever STEP_COUNT is. */
+const STEP_VH = 80;
+
+/** How long the section stays pinned — one step of travel per hand-off, and
+ *  the copy uses every bit of it. See COPY_END. */
+const PINNED_VH = (STEP_COUNT - 1) * STEP_VH;
+
+/** The section's scroll length: the pinned range plus one viewport of overrun
+ *  AFTER the release, which is where Act 2 plays as the section departs. */
+export const SECTION_VH = PINNED_VH + VIEWPORT_VH;
+
+/** Where the sticky children RELEASE. The observer runs to `"end start"`, not
+ *  `"end end"`, so there is a coordinate for "after the release" — otherwise
+ *  the pill could never still be falling as the section leaves. */
+const UNPIN = PINNED_VH / SECTION_VH;
+
+/** Where the copy finishes travelling: the release, EXACTLY, not a fraction of
+ *  it. Do not reintroduce a tail — to give the stack more room, lengthen
+ *  STEP_VH or the post-release overrun. */
+const COPY_END = UNPIN;
+
+/** Scroll progress at which each copy block sits dead centre (linear). */
+const STEP_CENTERS = STEP_STOPS.map((i) => (i / (STEP_COUNT - 1)) * COPY_END);
+
+/** The closing sequence's window, and the shared coordinate every phase in
+ *  ./stack-timing is a fraction of. TWO steps, not one: the sequence has marks
+ *  on both of the last two copy blocks. */
+const STACK_WINDOW_START = STEP_CENTERS[STEP_COUNT - 3];
+
+/** Constant visual gap between copy blocks. Equal SLOTS would not give equal
+ *  gaps — centring splits each slot's leftover between its neighbours — so
+ *  blocks are their natural height and the stops are measured. */
+const STEP_GAP = 150;
 
 const INACTIVE_OPACITY = 0.4;
 
-// Stack y endpoints expressed as % of the motion.div's own height (framer
-// resolves string `y` values against the element's height). At progress 0
-// the stack shifts DOWN by STACK_Y_TRAVEL%, pushing block 1 into the upper
-// portion of the viewport; at progress 1 it shifts UP by the same amount
-// so block 4 takes that slot. Knob: bump STACK_Y_TRAVEL to push the
-// active block further from the geometric center.
+/** How far below its arming point Act 2 disarms. */
+const ACT2_HYSTERESIS = 0.04;
 
-interface BandConfig {
-  /** Footnote label inside the right rectangle. Should match the bento's
-   *  visual state for this phase (see Phase comment in trace-bento.tsx). */
-  name: string;
-  /** Top-level section title — only present on phases 1 and 2 (the
-   *  "section roots"). Phases 3 and 4 are subsections of phase 2 and
-   *  use `subtitle` instead. */
-  title?: string;
-  /** Subsection title — used by phases 3 and 4, which sit under
-   *  phase 2's "Understand why in seconds." parent. Rendered with
-   *  the `subSubSection` style (smaller than `subSection`). */
-  subtitle?: string;
-  body: ReactNode;
-  learnMoreHref: string;
-}
+/** Spans the panel opens on. FOUR, not three: the first is the run's root,
+ *  which renders no row, so this is input + LLM + tool + LLM — one whole
+ *  think-act-observe loop. `pinned` lifts the cap. */
+const OPENING_SPANS = 4;
 
-// Phases 3 and 4 are unlabeled subsections of "Understand why in seconds" —
-// they reuse "02." visually and pick up at "03." in has-this-issue.
-const STEP_LABELS: Partial<Record<1 | 2 | 3 | 4, string>> = {
-  1: "01.",
-  2: "02.",
-};
+/** Rough block height, used only to seed the stops before the first
+ *  measurement. The section is far below the fold, so the seed is never on
+ *  screen; it exists so the very first paint isn't stacked at zero. */
+const ESTIMATED_BLOCK_H = 180;
 
-// Underlined inline button — used inside the Timeline body to drive a
-// transcript scroll + highlight on click. Renders inline with the rest of the
-// paragraph (no block break); the trace-view store delegate handles subagent
-// reveal for nested spans.
-const TimelineBodyLink = ({ spanId, label }: { spanId: string; label: string }) => {
-  const selectAndRevealSpan = useSelectAndRevealSpan();
-  return (
-    <button
-      type="button"
-      onClick={() => selectAndRevealSpan(spanId)}
-      className="underline underline-offset-2 decoration-foreground-400 hover:text-foreground-50 hover:decoration-foreground-200 transition-colors cursor-pointer"
-    >
-      {label}
-    </button>
+/** The y offset that centres each block: `stackHeight / 2 - centreOf(block)`.
+ *  Downstream is untouched — the scroll curves still map a step index to a
+ *  keyframe array, that array is just measured now. */
+const useStackStops = (stackRef: RefObject<HTMLDivElement | null>): number[] => {
+  const [stops, setStops] = useState<number[]>(() =>
+    STEP_STOPS.map((i) => ((STEP_COUNT - 1) / 2 - i) * (ESTIMATED_BLOCK_H + STEP_GAP))
   );
+
+  useEffect(() => {
+    const stack = stackRef.current;
+    if (!stack) return;
+
+    const measure = () => {
+      const stackRect = stack.getBoundingClientRect();
+      // Positions are read RELATIVE to the stack, so an in-flight scroll
+      // transform on the stack itself cancels out and can't skew them.
+      const blocks = Array.from(stack.children) as HTMLElement[];
+      const next = blocks.map((block) => {
+        const rect = block.getBoundingClientRect();
+        return stackRect.height / 2 - (rect.top - stackRect.top + rect.height / 2);
+      });
+      // Bail on a no-op: this runs from a ResizeObserver, and setting state
+      // unconditionally would loop.
+      setStops((prev) =>
+        prev.length === next.length && prev.every((v, i) => Math.abs(v - next[i]) < 0.5) ? prev : next
+      );
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(stack);
+    // Observe the blocks too: the stack's own height changing is not the only
+    // way the centres move (a body re-wrapping shifts its siblings).
+    Array.from(stack.children).forEach((block) => observer.observe(block));
+    return () => observer.disconnect();
+  }, [stackRef]);
+
+  return stops;
 };
 
-const TimelineBody = () => (
-  <>
-    Laminar makes the agent run easily navigable by surfacing input,{" "}
-    <TimelineBodyLink spanId={LLM_REASONING_SPAN_ID} label="LLM reasoning" />,{" "}
-    <TimelineBodyLink spanId={TOOL_CALL_SPAN_ID} label="tool calls" />, and{" "}
-    <TimelineBodyLink spanId={SUBAGENT_SPAN_ID} label="sub-agents" /> in a readable transcript and timeline.
-  </>
-);
-
-const BANDS: Record<1 | 2 | 3 | 4, BandConfig> = {
-  1: {
-    name: "Signals",
-    title: "Get alerts when\nyour agent breaks.",
-    body: 'Signals let you describe the error in plain English – "agent is stuck in a loop". Laminar reads every agent run and pings you in Slack when it happens.',
-    learnMoreHref: "https://laminar.sh/docs/signals/introduction",
-  },
-  2: {
-    name: "Transcript view",
-    title: "Understand why\nin seconds.",
-    body: "Go from issue description to the\nexact step that caused it.",
-    learnMoreHref: "https://laminar.sh/docs/platform/viewing-traces",
-  },
-  3: {
-    name: "Transcript view",
-    subtitle: "A clear, concise view\nof your agent run",
-    body: <TimelineBody />,
-    learnMoreHref: "https://laminar.sh/docs/platform/viewing-traces",
-  },
-  4: {
-    name: "Ask AI",
-    subtitle: "Ask any question about your agent run",
-    body: "Dive deep into any issue within the agent run by simply asking. Get answers that reference specific context that you can jump to directly.",
-    learnMoreHref: "https://laminar.sh/docs/platform/viewing-traces#chat-with-trace",
-  },
-};
-
-const progressToPhase = (p: number): Phase => {
-  if (p < T_PHASE_2) return 1;
-  if (p < T_PHASE_3) return 2;
-  if (p < T_PHASE_4) return 3;
-  return 4;
-};
-
-// LEFT-stack: only the stack `y` is a continuous MotionValue derived
-// from `scrollYProgress` via `useTransform` — that's what keeps the
-// stack glide smooth across phase boundaries instead of snapping.
-// Per-block opacity is driven by the discrete `phase` state (see the
-// JSX below) so it just toggles between 1 and INACTIVE_OPACITY at the
-// phase thresholds, with a CSS transition softening the change.
 const UnderstandWhyTraceView = () => {
   // Single scroll observer for the whole section. Don't add a second
   // `useScroll` — two observers can drift on resize.
   const sectionRef = useRef<HTMLElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start start", "end end"],
-  });
+  // "end start", not "end end" — see UNPIN. The range deliberately overruns the
+  // sticky release by one viewport so the drop has somewhere to finish.
+  const { scrollYProgress } = useScroll({ target: sectionRef, offset: ["start start", "end start"] });
 
-  // Phase is discrete (1|2|3|4) — drives the BENTO and footnote only.
-  // `useMotionValueEvent` fires every frame but we only `setPhase` when
-  // the bucket actually changes — so React renders exactly at the three
-  // phase boundaries.
-  const [phase, setPhase] = useState<Phase>(1);
-  useMotionValueEvent(scrollYProgress, "change", (p) => {
-    const next = progressToPhase(p);
-    setPhase((prev) => (prev === next ? prev : next));
-  });
+  const copyIndex = useTransform(scrollYProgress, [0, COPY_END], [0, STEP_COUNT - 1]);
 
-  // Smooth left-stack y, derived directly from scrollYProgress so the
-  // stack glides continuously rather than snapping at phase boundaries.
-  // String values resolve as % of the motion.div's own height — works for
-  // any natural block heights, no measurement needed.
-  const stackY = useTransform(scrollYProgress, (v) => `calc(${v * -100 + 50}% - ${(1 - v) * 131}px)`);
+  const stackRef = useRef<HTMLDivElement>(null);
+  const stackStops = useStackStops(stackRef);
+  const stackY = useTransform(copyIndex, STEP_STOPS, stackStops);
 
-  // Slack→signal morph progress (0 = slack, 1 = signal). Driven by phase
-  // via framer's `animate` helper so `SlackToSignalMorph` keeps its
-  // existing `MotionValue<number>` contract.
-  const morphProgress = useMotionValue(0);
+  const stackTiming = DEFAULT_STACK_TIMING;
+
+  // The last step's three phases, all fractions of one window so they can
+  // overlap freely.
+  const stackWindow = useTransform(scrollYProgress, [STACK_WINDOW_START, 1], [0, 1]);
+  const flight = useTransform(stackWindow, (t) => phase(t, stackTiming.flightAt, stackTiming.flightSpan));
+  const collapse = useTransform(stackWindow, (t) => phase(t, stackTiming.collapseAt, stackTiming.collapseSpan));
+  const cardRise = useTransform(stackWindow, (t) => phase(t, stackTiming.cardRiseAt, stackTiming.cardRiseSpan));
+  const pillEnter = useTransform(stackWindow, (t) => phase(t, stackTiming.pillEnterAt, stackTiming.pillEnterSpan));
+
+  // The trace fades out under the card as it leaves.
+  const trayOpacity = useTransform(flight, (f) => 1 - phase(f, 0, stackTiming.trayFadeEnd));
+
+  // The pill and the clusters card rest as one top-anchored assembly — see
+  // ./geometry for why it is not centred on a measurement.
+  // The clusters card grows as Act 2 reveals its rows, and the assembly stays
+  // centred on it — so its height has to come back up here.
+  const [clustersCardH, setClustersCardH] = useState(CLUSTERS_CARD_H_SEED);
+  const { pillTop, cardTop } = assemblyLayout(SIGNAL_HEADER_H, clustersCardH);
+
+  // Act 2 is time-based, so it needs a boolean, not a scrubbed value. It
+  // disarms BELOW its arming point, not at it — otherwise a scroll resting
+  // exactly on the trigger re-runs the whole thing on every jitter of the
+  // wheel.
+  const [act2, setAct2] = useState(false);
+  const act2At = stackTiming.act2At;
+  useMotionValueEvent(stackWindow, "change", (t) =>
+    setAct2((on) => (on ? t >= act2At - ACT2_HYSTERESIS : t >= act2At))
+  );
+  // "change" only fires on a CHANGE, so a reload landing past the trigger — or
+  // a dial dragged under the current scroll position — would otherwise never
+  // arm. Deferred a frame so the observer has measured.
   useEffect(() => {
-    const controls = animate(morphProgress, phase >= 2 ? 1 : 0, TWEEN);
-    return () => controls.stop();
-  }, [phase, morphProgress]);
+    const id = requestAnimationFrame(() => setAct2(stackWindow.get() >= act2At));
+    return () => cancelAnimationFrame(id);
+  }, [act2At, stackWindow]);
 
-  const { data: trace } = useSWR<TraceViewTrace>(`/api/shared/traces/${TRACE_ID}`, swrFetcher);
-  const { data: spans } = useSWR<TraceViewSpan[]>(`/api/shared/traces/${TRACE_ID}/spans`, swrFetcher);
+  const [step, setStep] = useState<StepNumber>(1);
+  useMotionValueEvent(copyIndex, "change", (i) => {
+    const next = (Math.round(i) + 1) as StepNumber;
+    setStep((prev) => (prev === next ? prev : next));
+  });
 
-  // `progressToPhase` only returns 1..4; cast narrows the broader `Phase`
-  // type (which includes the reserved `5`) to the BANDS key set.
-  const activeBand = BANDS[phase as 1 | 2 | 3 | 4];
+  // The single boolean that hands the card between the panel and the stack.
+  // One flag drives BOTH sides, so the card can never be drawn twice (which
+  // would double the translucent blue) or zero times. It flips the instant the
+  // flight leaves zero, where the two copies are still pixel-aligned.
+  const [flying, setFlying] = useState(false);
+  useMotionValueEvent(flight, "change", (v) => setFlying(v > 0));
+
+  // Mount-time sync for the two latches above, matching `act2` and `pinned`.
+  // Belt-and-braces today: the observer's first measurement moves progress off
+  // zero, which IS a change, so both handlers already fire on a restored
+  // scroll. It is here so all four latches arm the same way rather than two of
+  // them resting on that being true.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      setStep((prev) => {
+        const next = (Math.round(copyIndex.get()) + 1) as StepNumber;
+        return prev === next ? prev : next;
+      });
+      setFlying(flight.get() > 0);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [copyIndex, flight]);
+
+  // The panel opens at the sticky pin, which is what this observer already
+  // calls 0: approaching the section progress is clamped and emits nothing, so
+  // its first change IS the pin. An IntersectionObserver would fire on the
+  // frame's leading edge, while it is still moving. Latched, not scrubbed.
+  const [pinned, setPinned] = useState(false);
+  useMotionValueEvent(scrollYProgress, "change", (t) => {
+    if (t > 0) setPinned(true);
+  });
+  // "change" only fires on a CHANGE, so a reload landing inside the section
+  // would otherwise never arm. Deferred a frame so the observer has measured.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setPinned((on) => on || scrollYProgress.get() > 0));
+    return () => cancelAnimationFrame(id);
+  }, [scrollYProgress]);
 
   return (
     <TraceViewErrorBoundary>
-      {/* Provider wraps BOTH columns — the left column's Timeline body has
-          underlined links that drive selection inside the bento on the right,
-          so it needs the same store context as TraceBento. */}
-      <TraceViewStoreProvider storeKey="landing-understand-why" initialTrace={trace}>
+      {/* Wraps the WHOLE section, not just the panel: the copy on the left has
+          inline links that select spans in the same panel. */}
+      <SpanSelectionProvider>
         <section ref={sectionRef} className={cn("relative w-full mx-auto px-6 lg:px-0", LANDING_COLUMN_MAX_W)}>
           <div className="flex gap-18 2xl:gap-36">
-            {/* LEFT — sticky stacked text. The relative wrapper's
-              `minHeight` drives the grid row height (= section's scroll
-              length). The sticky child pins for the entire section. */}
-            <div className="relative min-w-0 h-[240vh] flex-1">
+            {/* LEFT — the copy stack. The wrapper's height IS the section's
+                scroll length (every step, plus the outro); the sticky child
+                pins for all of it. */}
+            <div className="relative min-w-0 flex-1" style={{ height: `${SECTION_VH}vh` }}>
               <div className="sticky top-0 h-screen overflow-hidden flex flex-col justify-center items-center">
-                <div className="h-[760px] w-full overflow-hidden relative">
-                  {/* Top gradient — text fades into page bg at top of viewport */}
-                  <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-surface-700 to-transparent pointer-events-none h-[100px]" />
+                <div className="w-full overflow-hidden relative" style={{ height: FRAME_H }}>
+                  <div className="absolute top-0 left-0 right-0 z-10 h-[100px] bg-gradient-to-b from-surface-150 to-transparent pointer-events-none" />
 
-                  {/* Stack wrapper — vertically centered in viewport via flex
-                  items-center. Inner motion.div uses `style={{ y }}` with
-                  a MotionValue, so framer updates the transform on every
-                  scroll frame without re-rendering React. */}
+                  {/* `items-center` puts the stack's centre at the frame's
+                      centre when y = 0, which is the origin `useStackStops`
+                      measures its offsets against. */}
                   <div className="absolute inset-0 flex items-center">
-                    <motion.div style={{ y: stackY }} className="flex flex-col gap-32 w-full">
-                      {([1, 2, 3, 4] as const).map((n) => {
-                        const config = BANDS[n];
+                    <motion.div ref={stackRef} style={{ y: stackY, gap: STEP_GAP }} className="flex flex-col w-full">
+                      {STEP_NUMBERS.map((n) => {
+                        const config = STEPS[n];
                         return (
-                          // Opacity driven by the discrete `phase` state —
-                          // snaps between full and INACTIVE_OPACITY on phase
-                          // change, softened by a CSS opacity transition.
-                          // No framer involvement; remove the transition
-                          // class if you want a hard snap.
                           <div
                             key={n}
-                            style={{ opacity: phase === n ? 1 : INACTIVE_OPACITY }}
-                            className="flex flex-col transition-opacity duration-300 ease-out"
+                            data-landing-step={n}
+                            style={{ opacity: step === n ? 1 : INACTIVE_OPACITY }}
+                            className="flex flex-col shrink-0 transition-opacity duration-300 ease-out"
                           >
-                            {STEP_LABELS[n] && <span className={cn(microLabel, "mb-4")}>{STEP_LABELS[n]}</span>}
+                            {config.label && <span className={cn(microLabel, "mb-4")}>{config.label}</span>}
                             {config.title && <h2 className={cn(subSection, "mb-4")}>{config.title}</h2>}
                             {config.subtitle && <h3 className={cn(subSubSection, "mb-2")}>{config.subtitle}</h3>}
-                            <p className={cn(bodyMedium, "")}>{config.body}</p>
+                            <p className={bodyMedium}>{config.richBody ?? config.body}</p>
+                            {config.learnMore && (
+                              <LearnMoreLink
+                                className="mt-5 self-start"
+                                label={config.learnMore.label}
+                                href={config.learnMore.href}
+                              />
+                            )}
                           </div>
                         );
                       })}
                     </motion.div>
                   </div>
 
-                  {/* Bottom gradient — text fades into page bg at bottom of viewport */}
-                  <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-surface-700 to-transparent pointer-events-none h-[120px]" />
+                  <div className="absolute bottom-0 left-0 right-0 z-10 h-[120px] bg-gradient-to-t from-surface-150 to-transparent pointer-events-none" />
                 </div>
               </div>
             </div>
 
-            {/* RIGHT — see LAYOUT comment above for the outer/inner pattern.
-              `min-w-full shrink-0` on the inner keeps the bento centered
-              when its natural width fits, and right-anchored when it
-              overflows (the inner grows past parent's content area, and
-              `justify-end` on outer pins its right edge).
-              Top + bottom gradient fades mirror the LEFT column, but
-              fade INTO the rectangle's own bg (`surface-500`)
-              rather than the page bg. z-10 puts gradients above the
-              bento (z-0) and below the footnote (z-20 inside
-              SectionFootnote), so the footnote stays legible over the
-              bottom gradient. */}
+            {/* RIGHT — the frame, and the tray that slides inside it. */}
             <div className="relative">
               <div className="sticky top-0 left-0 flex justify-center items-center h-screen">
-                <div className="w-[480px] h-[760px] rounded-sm bg-surface-500 overflow-hidden flex items-center justify-end px-5 relative">
-                  <div className="min-w-full shrink-0 flex items-center justify-center">
-                    <TraceBento phase={phase} morphProgress={morphProgress} trace={trace} spans={spans ?? []} />
-                  </div>
+                <div
+                  data-landing-frame
+                  style={{ height: FRAME_H }}
+                  className="rounded-sm bg-surface-250 overflow-hidden relative w-[480px] 2xl:w-[540px]"
+                >
+                  <motion.div
+                    style={{ height: PANEL_H, opacity: trayOpacity }}
+                    className="absolute inset-y-0 my-auto left-1/2 -translate-x-1/2 rounded-md overflow-hidden border bg-background"
+                  >
+                    <TracePanel
+                      showTimeline={pinned}
+                      visibleSpans={pinned ? Number.POSITIVE_INFINITY : OPENING_SPANS}
+                      instantSpans={OPENING_SPANS}
+                      showSignals={step >= 2}
+                      // Stays open through the last step: the stack measures
+                      // this card's box, and a collapse would move it
+                      // mid-flight.
+                      signalsOpen={step >= 2}
+                      signalCardHidden={flying}
+                    />
+                  </motion.div>
 
-                  {/* Left gradient — only in the Ask AI phase, where chat content
-                    bleeds toward the left edge and needs the fade. */}
-                  {phase === 4 && (
-                    <div className="absolute bottom-0 left-0 top-0 z-10 bg-gradient-to-r from-surface-500/80 to-transparent pointer-events-none w-[80px]" />
+                  {/* Mounted a step early so its measurements and first layout
+                      are done before the flight starts; `visible` is what
+                      actually reveals it. Deliberately BELOW the z-10 vignettes
+                      — the front card bleeds off the left edge and the gradient
+                      softens that crop. */}
+                  {step >= 2 && (
+                    <>
+                      <SignalStack
+                        flight={flight}
+                        collapse={collapse}
+                        pillEnter={pillEnter}
+                        pillRestY={pillTop}
+                        visible={flying}
+                        timing={stackTiming}
+                      />
+                      {/* AFTER the stack, so the opaque clusters card paints over
+                          the pill and the pill disappears INTO it rather than
+                          fading out on top of it. */}
+                      <ClustersStage
+                        rise={cardRise}
+                        restY={cardTop}
+                        onHeight={setClustersCardH}
+                        armed={act2}
+                        landed={act2}
+                        timing={stackTiming}
+                      />
+                    </>
                   )}
 
-                  {/* Bottom gradient */}
-                  <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-surface-500 to-transparent pointer-events-none h-[120px]" />
-
-                  <SectionFootnote name={activeBand.name} href={activeBand.learnMoreHref} />
+                  {/* Vignettes: exactly the panel's resting margin wide, so
+                      they sit over bare frame background and only bite on the
+                      signal stack's cascade, which is wider than the frame.
+                      Held at 80% so a card stays legible through them rather
+                      than dissolving into the frame. */}
+                  <div
+                    className={cn(
+                      "absolute inset-y-0 left-0 z-10 bg-gradient-to-r from-surface-250/80 to-transparent pointer-events-none",
+                      EDGE_FADE_W_CLS
+                    )}
+                  />
+                  <div
+                    className={cn(
+                      "absolute inset-y-0 right-0 z-10 bg-gradient-to-l from-surface-250/80 to-transparent pointer-events-none",
+                      EDGE_FADE_W_CLS
+                    )}
+                  />
                 </div>
               </div>
             </div>
           </div>
         </section>
-      </TraceViewStoreProvider>
+      </SpanSelectionProvider>
     </TraceViewErrorBoundary>
   );
 };
