@@ -3,6 +3,7 @@ pub mod gemini;
 pub mod mock;
 pub mod models;
 pub mod openai;
+pub mod openai_responses;
 pub(crate) mod sse;
 
 pub use bedrock::BedrockClient;
@@ -10,6 +11,7 @@ pub use gemini::GeminiClient;
 pub use mock::MockProviderClient;
 pub use models::*;
 pub use openai::OpenAIClient;
+pub use openai_responses::OpenAIResponsesClient;
 
 use enum_dispatch::enum_dispatch;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
@@ -62,6 +64,20 @@ impl ProviderError {
 }
 
 pub type ProviderResult<T> = Result<T, ProviderError>;
+
+/// Walks the `source()` chain — `reqwest::Error`'s `Display` drops the
+/// underlying cause (connection reset, TLS/DNS failure, timeout).
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub(crate) fn format_error_chain(err: &(dyn std::error::Error + 'static)) -> String {
+    let mut out = err.to_string();
+    let mut source = err.source();
+    while let Some(cause) = source {
+        out.push_str(": ");
+        out.push_str(&cause.to_string());
+        source = cause.source();
+    }
+    out
+}
 
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub(crate) fn emit_response_as_chunks(
@@ -140,6 +156,7 @@ pub(crate) enum ProviderClient {
     Gemini(GeminiClient),
     Bedrock(BedrockClient),
     OpenAI(OpenAIClient),
+    OpenAIResponses(OpenAIResponsesClient),
     Mock(MockProviderClient),
 }
 
@@ -203,9 +220,16 @@ fn has_gemini_credentials() -> bool {
     llm_provider_env() == "gemini" && has_llm_api_key()
 }
 
-/// True when `LLM_PROVIDER=openai` and `LLM_API_KEY` is set.
+/// True when `LLM_PROVIDER=openai` (Chat Completions) and `LLM_API_KEY` is set.
 fn has_openai_credentials() -> bool {
     llm_provider_env() == "openai" && has_llm_api_key()
+}
+
+/// True when `LLM_PROVIDER=openai_responses` (Responses API) and `LLM_API_KEY`
+/// is set. Separate from `has_openai_credentials` since the two are distinct
+/// client impls registered under their own provider names.
+fn has_openai_responses_credentials() -> bool {
+    llm_provider_env() == "openai_responses" && has_llm_api_key()
 }
 
 /// Bedrock initializes whenever AWS creds are present, independent of
@@ -366,15 +390,16 @@ pub fn model_for_size(provider: &str, size: ModelSize) -> String {
     }
 
     match (provider, size) {
-        ("gemini", ModelSize::Small) => "gemini-3.1-flash-lite".to_string(),
+        ("gemini", ModelSize::Small) => "gemini-3.5-flash-lite".to_string(),
         ("gemini", ModelSize::Medium) => "gemini-3-flash-preview".to_string(),
         ("gemini", ModelSize::Large) => "gemini-3.1-pro-preview".to_string(),
         ("bedrock", ModelSize::Small) => "us.anthropic.claude-haiku-4-5-20251001-v1:0".to_string(),
         ("bedrock", ModelSize::Medium) => "us.anthropic.claude-sonnet-5".to_string(),
         ("bedrock", ModelSize::Large) => "us.anthropic.claude-opus-4-8".to_string(),
-        ("openai", ModelSize::Small) => "gpt-5.4-mini".to_string(),
-        ("openai", ModelSize::Medium) => "gpt-5.4".to_string(),
+        ("openai" | "openai_responses", ModelSize::Small) => "gpt-5.4-mini".to_string(),
+        ("openai" | "openai_responses", ModelSize::Medium) => "gpt-5.4".to_string(),
         ("openai", ModelSize::Large) => "gpt-5.5".to_string(),
+        ("openai_responses", ModelSize::Large) => "gpt-5.6".to_string(),
         _ => "".to_string(),
     }
 }
@@ -424,8 +449,25 @@ impl LlmClient {
             let client = OpenAIClient::new().map_err(|e| {
                 ProviderError::ConfigError(format!("Failed to create OpenAI client: {e}"))
             })?;
-            log::info!("Initialized OpenAI provider at {}", client.api_base_url());
+            log::info!(
+                "Initialized OpenAI provider (Chat Completions) at {}",
+                client.api_base_url()
+            );
             providers.insert("openai".to_string(), ProviderClient::OpenAI(client));
+        }
+
+        if has_openai_responses_credentials() {
+            let client = OpenAIResponsesClient::new().map_err(|e| {
+                ProviderError::ConfigError(format!("Failed to create OpenAI Responses client: {e}"))
+            })?;
+            log::info!(
+                "Initialized OpenAI provider (Responses API) at {}",
+                client.api_base_url()
+            );
+            providers.insert(
+                "openai_responses".to_string(),
+                ProviderClient::OpenAIResponses(client),
+            );
         }
 
         if default_provider == "mock" {
@@ -524,7 +566,13 @@ impl LlmClient {
         };
         let size = request.model_size.unwrap_or(ModelSize::Medium);
         let model = model_for_size(resolved_provider, size);
-        (model, resolved_provider.to_string())
+        // Report the Responses client under the canonical `openai` name so
+        // cost/observability keying matches Chat Completions.
+        let reported_provider = match resolved_provider {
+            "openai_responses" => "openai",
+            other => other,
+        };
+        (model, reported_provider.to_string())
     }
 
     #[cfg_attr(not(feature = "signals"), allow(dead_code))]

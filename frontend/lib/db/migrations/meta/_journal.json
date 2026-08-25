@@ -722,6 +722,34 @@
       "when": 1782997824498,
       "tag": "0102_signals_metadata",
       "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1782997824499,
+      "tag": "0103_agent_chat_session_name",
+      "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1785346058190,
+      "tag": "0104_cynical_white_queen",
+      "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1786381209609,
+      "tag": "0105_signal_trigger_filters",
+      "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1786381210609,
+      "tag": "0106_workspace_settings",
+      "breakpoints": true
     }
   ]
 }

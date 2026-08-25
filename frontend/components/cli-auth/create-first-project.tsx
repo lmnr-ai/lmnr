@@ -11,7 +11,7 @@ import { authClient } from "@/lib/auth-client";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { createProjectInWorkspace, createWorkspaceWithProject } from "./create-project";
-import { Centered, Field } from "./index";
+import { Centered, Field } from "./shared";
 
 interface Props {
   userCode: string;
@@ -131,9 +131,9 @@ export function CreateFirstProject({ userCode, workspaces, onApproved, onDenied 
                 />
               </Field>
             ) : workspaces.length > 1 ? (
-              <Field label="Workspace">
+              <Field label="Workspace" as="div">
                 <Select value={workspaceId} onValueChange={setWorkspaceId} disabled={busy}>
-                  <SelectTrigger className="h-9">
+                  <SelectTrigger className="h-9" aria-label="Workspace">
                     <SelectValue placeholder="Select a workspace" />
                   </SelectTrigger>
                   <SelectContent>

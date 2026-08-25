@@ -1,4 +1,4 @@
-import { type TableConfig } from "../model/table-config-store";
+import { type TableConfig } from "../model/table-config-types";
 import { type ViewParams } from "./params";
 
 // Wire shape: column config (TableConfig fields) merged with view-managed

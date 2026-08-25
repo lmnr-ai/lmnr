@@ -4,7 +4,10 @@ import { Search, X } from "lucide-react";
 import React, { type ChangeEvent, type FocusEvent, type KeyboardEvent, memo, useCallback, useRef } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
-import { getSuggestionAtIndex, getSuggestionsCount } from "@/components/common/advanced-search/utils.ts";
+import {
+  getSuggestionAtIndex,
+  getSuggestionsCount,
+} from "@/components/common/advanced-search/components/suggestions.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Operator } from "@/lib/actions/common/operators";
@@ -41,6 +44,8 @@ const FilterSearchInput = ({
   const autocompleteData = useAdvancedSearchContext((state) => state.autocompleteData);
   const activeTagId = useAdvancedSearchContext((state) => state.getActiveTagId());
   const recentSearches = useAdvancedSearchContext((state) => state.recentSearches);
+  const allowFreeTextSearch = useAdvancedSearchContext((state) => state.allowFreeTextSearch);
+  const uuidFilterColumn = useAdvancedSearchContext((state) => state.uuidFilterColumn);
 
   const {
     setInputValue,
@@ -120,7 +125,7 @@ const FilterSearchInput = ({
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
       const input = mainInputRef.current;
-      const count = getSuggestionsCount(filters, inputValue, autocompleteData);
+      const count = getSuggestionsCount(filters, inputValue, autocompleteData, uuidFilterColumn, allowFreeTextSearch);
       const showRecent = !inputValue.trim() && tags.length === 0 && recentSearches.length > 0;
 
       if ((e.metaKey || e.ctrlKey) && e.key === "z") {
@@ -231,7 +236,14 @@ const FilterSearchInput = ({
       if (e.key === "Enter") {
         e.preventDefault();
         if (isOpen && count > 0 && activeIndex >= 0) {
-          const suggestion = getSuggestionAtIndex(filters, inputValue, activeIndex, autocompleteData);
+          const suggestion = getSuggestionAtIndex(
+            filters,
+            inputValue,
+            activeIndex,
+            autocompleteData,
+            uuidFilterColumn,
+            allowFreeTextSearch
+          );
           if (suggestion) {
             if (suggestion.type === "field") {
               addTag(suggestion.filter.key);
@@ -292,7 +304,9 @@ const FilterSearchInput = ({
       activeIndex,
       activeRecentIndex,
       autocompleteData,
+      allowFreeTextSearch,
       recentSearches,
+      uuidFilterColumn,
       setInputValue,
       setIsOpen,
       setActiveIndex,
@@ -343,10 +357,12 @@ const FilterSearchInput = ({
       onClick={() => mainInputRef.current?.focus()}
       onBlur={handleContainerBlur}
     >
-      <span className="py-1 pl-1">
-        <Search className="text-secondary-foreground size-3.5 mt-0.25 shrink-0" />
-      </span>
-      <div className="flex items-center gap-1 flex-wrap flex-1">
+      {allowFreeTextSearch && (
+        <span className="py-1 pl-1">
+          <Search className="text-secondary-foreground size-3.5 mt-0.25 shrink-0" />
+        </span>
+      )}
+      <div className={cn("flex items-center gap-1 flex-wrap flex-1", !allowFreeTextSearch && "pl-1")}>
         {tags.map((tag) => (
           <FilterTag
             key={tag.id}

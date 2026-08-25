@@ -3,6 +3,7 @@ import "@/app/globals.css";
 import { cookies } from "next/headers";
 import { type ReactNode } from "react";
 
+import LaminarAgent, { RouteAgentContext } from "@/components/agent";
 import SessionSyncProvider from "@/components/auth/session-sync-provider";
 import WorkspaceGroupTracker from "@/components/common/workspace-group-tracker";
 import NotificationPanel from "@/components/notifications/notification-panel";
@@ -50,10 +51,17 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
           <div className="fixed inset-0 flex overflow-clip md:pt-2 bg-sidebar">
             <SidebarProvider cookieName={projectSidebarCookieName} className="bg-sidebar" defaultOpen={defaultOpen}>
               <ProjectSidebar details={projectDetails} />
-              <SidebarInset className="relative flex flex-col h-[calc(100%-8px)]! border-l border-t flex-1 md:rounded-tl-lg overflow-hidden">
-                <NotificationPanel />
-                {showBanner && <ProjectUsageBanner details={projectDetails} />}
-                {children}
+              <SidebarInset className="relative flex flex-row h-[calc(100%-8px)]! border-l border-t flex-1 md:rounded-tl-lg overflow-hidden">
+                {/* `relative` so the trace-view drawer (absolute) anchors here and reflows within the
+                    space left of the agent column, rather than under it. */}
+                <div className="relative flex flex-1 min-w-0 flex-col overflow-hidden">
+                  <NotificationPanel />
+                  {showBanner && <ProjectUsageBanner details={projectDetails} />}
+                  {children}
+                  {isFeatureEnabled(Feature.AGENT) && <RouteAgentContext />}
+                </div>
+                {/* Flex sibling: opening it shrinks the content column instead of overlaying it. */}
+                {isFeatureEnabled(Feature.AGENT) && <LaminarAgent />}
               </SidebarInset>
             </SidebarProvider>
           </div>

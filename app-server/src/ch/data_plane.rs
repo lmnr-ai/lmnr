@@ -17,7 +17,8 @@ use super::deduped_content::CHDedupedContent;
 use super::notification_deliveries::CHNotificationDelivery;
 use super::notifications::CHNotification;
 use super::spans::CHSpan;
-use super::traces::CHTrace;
+use super::traces_agg::CHTraceAgg;
+use super::traces_static::CHTraceStatic;
 use super::{ClickhouseInsertable, ClickhouseTrait};
 
 /// Batched data for data plane write requests.
@@ -26,7 +27,8 @@ use super::{ClickhouseInsertable, ClickhouseTrait};
 #[serde(tag = "table", content = "data", rename_all = "snake_case")]
 pub enum DataPlaneBatch {
     Spans(Vec<CHSpan>),
-    Traces(Vec<CHTrace>),
+    TracesAgg(Vec<CHTraceAgg>),
+    TracesStatic(Vec<CHTraceStatic>),
     NotificationDeliveries(Vec<CHNotificationDelivery>),
     Notifications(Vec<CHNotification>),
     DedupedContent(Vec<CHDedupedContent>),

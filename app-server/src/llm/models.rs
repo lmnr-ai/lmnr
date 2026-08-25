@@ -227,6 +227,10 @@ pub struct ProviderUsageMetadata {
     pub cache_read_input_tokens: Option<i32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cache_creation_input_tokens: Option<i32>,
+    /// Reasoning/thinking tokens, when the provider reports them separately.
+    /// Already counted within `candidates_token_count`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning_token_count: Option<i32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

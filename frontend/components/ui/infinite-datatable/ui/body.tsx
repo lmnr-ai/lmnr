@@ -1,6 +1,7 @@
 import { type Row, type RowData } from "@tanstack/react-table";
 import { Loader2 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useMemo } from "react";
 
 import { Button } from "@/components/ui/button.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
@@ -23,6 +24,7 @@ export function InfiniteDatatableBody<TData extends RowData>({
   emptyRow,
   loadingRow,
   getRowHref,
+  getRowClassName,
   loadMoreButton,
   fetchNextPage,
 }: InfiniteDataTableBodyProps<TData>) {
@@ -43,6 +45,19 @@ export function InfiniteDatatableBody<TData extends RowData>({
   const totalSize = rowVirtualizer.getTotalSize();
   const buttonHeight = loadMoreButton && hasMore ? 36 : 0;
   const isEmpty = rows.length === 0;
+
+  // Layout signal so memoized rows re-render on column visibility/order/sizing change.
+  const columnSignature = table
+    .getVisibleLeafColumns()
+    .map((col) => `${col.id}:${col.getSize()}:${col.getIsPinned() || ""}`)
+    .join("|");
+
+  // Re-renders memoized cells whose content closes over out-of-row state (rebuilt
+  // columns or changed meta); stable otherwise so memoization is preserved.
+  const cellRenderToken = useMemo(
+    () => ({ columns: table.options.columns, meta: table.options.meta }),
+    [table.options.columns, table.options.meta]
+  );
 
   return (
     <TableBody
@@ -73,11 +88,15 @@ export function InfiniteDatatableBody<TData extends RowData>({
                 key={row.id}
                 virtualRow={virtualRow}
                 row={row}
-                rowVirtualizer={rowVirtualizer}
                 onRowClick={onRowClick}
                 onHoveredRowChange={onHoveredRowChange}
                 focusedRowId={focusedRowId}
                 href={getRowHref?.(row)}
+                className={getRowClassName?.(row)}
+                measureElement={rowVirtualizer.measureElement}
+                isSelected={row.getIsSelected()}
+                columnSignature={columnSignature}
+                cellRenderToken={cellRenderToken}
               />
             );
           })}

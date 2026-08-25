@@ -6,7 +6,11 @@ import { REPORT_TARGET_TYPE } from "@/lib/actions/reports/types";
 import { createSignal } from "@/lib/actions/signals";
 import { getServerSession } from "@/lib/auth-session";
 import { defaultReports } from "@/lib/db/default-charts.ts";
-import { DEFAULT_SIGNAL, DEFAULT_SIGNAL_TRIGGER_VALUE } from "@/lib/db/default-signals.ts";
+import {
+  DEFAULT_SIGNAL,
+  DEFAULT_SIGNAL_TRIGGER_FILTERS,
+  DEFAULT_SIGNAL_TRIGGER_VALUE,
+} from "@/lib/db/default-signals.ts";
 import { db } from "@/lib/db/drizzle";
 import {
   membersOfWorkspaces,
@@ -102,6 +106,7 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
           projectId,
           signalId: signal.id,
           value: DEFAULT_SIGNAL_TRIGGER_VALUE,
+          filters: DEFAULT_SIGNAL_TRIGGER_FILTERS,
         });
       }
 

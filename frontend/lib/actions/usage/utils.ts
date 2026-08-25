@@ -11,7 +11,7 @@ import { db } from "@/lib/db/drizzle";
 import { projects, subscriptionTiers, workspaceHardLimitNotifications, workspaces } from "@/lib/db/migrations/schema";
 import { getHasClusteringAccess } from "@/lib/features/clustering";
 
-import type { UsageLimitType } from "./custom-usage-limits";
+import type { UsageLimitType } from "./types";
 
 export const isFreeTierWorkspace = async (workspaceId: string): Promise<boolean> => {
   const result = await db

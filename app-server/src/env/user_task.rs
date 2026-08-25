@@ -2,11 +2,12 @@
 
 use super::NumEnv;
 
-/// Per-trace user-task winner-lock TTL (~6h). Bounds how long a winning
+/// Per-trace user-task winner-lock TTL (90m). Bounds how long a winning
 /// span's lock gates weaker candidates; after expiry the next candidate
-/// re-extracts from scratch.
+/// re-extracts from scratch. Also used as the TTL for the output lock
+/// (`TRACE_OUTPUT_LOCK_CACHE_KEY`).
 pub const USER_TASK_LOCK_TTL_SECONDS: NumEnv<u64> =
-    NumEnv::new("USER_TASK_LOCK_TTL_SECONDS", 21600);
+    NumEnv::new("USER_TASK_LOCK_TTL_SECONDS", 5400);
 
 /// Destination project for user-task internal (self-)tracing spans. Unset /
 /// unparsable ⇒ `None` ⇒ the spans are no-ops in the internal exporter.

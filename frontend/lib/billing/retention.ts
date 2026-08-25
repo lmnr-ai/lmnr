@@ -22,9 +22,11 @@ export const retentionLabel = (tier: RetentionTier) => `${TIER_RETENTION[tier].d
 
 // Earliest timestamp a tier may query back to, null = no enforcement. Matches
 // the raw tier name directly (not `normalizeTier`, which would fold unknown
-// tiers like self-hosted `unlimited` to `free`).
+// tiers like self-hosted `unlimited` to `free`), except "Starter" — the
+// display name DB rows may carry for the internal "hobby" tier.
 export const retentionCutoff = (tierName: string, now: Date = new Date()): Date | null => {
-  const window = TIER_RETENTION[tierName.trim().toLowerCase() as RetentionTier]?.window;
+  const key = tierName.trim().toLowerCase();
+  const window = TIER_RETENTION[(key === "starter" ? "hobby" : key) as RetentionTier]?.window;
   if (!window) {
     return null;
   }

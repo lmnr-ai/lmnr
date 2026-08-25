@@ -2,8 +2,32 @@ import type { Filter } from "@/lib/actions/common/filters";
 import type { Operator } from "@/lib/actions/common/operators";
 
 import type { AutocompleteCache, ColumnFilter, FilterTag, FilterTagFocusState } from "../types";
-import type { RecentSearch, RecentsSlice } from "./recents-slice";
-import type { UndoRedoSlice, UndoSnapshot } from "./undo-redo-slice";
+
+export interface RecentSearch {
+  filters: Filter[];
+  search: string;
+  timestamp: number;
+}
+
+export interface RecentsSlice {
+  recentSearches: RecentSearch[];
+  addRecentSearch: (filters: Filter[], search: string) => void;
+}
+
+export interface UndoSnapshot {
+  tags: FilterTag[];
+  inputValue: string;
+}
+
+export interface UndoRedoSlice {
+  undoStack: UndoSnapshot[];
+  redoStack: UndoSnapshot[];
+  pushUndoSnapshot: () => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+}
 
 export interface SliceContext {
   storageKey?: string;
@@ -31,6 +55,10 @@ export interface AdvancedSearchStore extends RecentsSlice, UndoRedoSlice {
   tagFocusStates: Map<string, FilterTagFocusState>;
   filters: ColumnFilter[];
   resource?: string;
+  // When false the bar builds filters only: no full-text suggestion is offered
+  // and the typed query is never committed as `search`.
+  allowFreeTextSearch: boolean;
+  uuidFilterColumn?: string;
 
   getActiveTagId: () => string | null;
   setAutocompleteData: (data: AutocompleteCache) => void;

@@ -7,6 +7,7 @@ import {
   invalidateProjectCacheForWorkspace,
   invalidateUsageWarningsCacheForWorkspace,
 } from "@/lib/actions/usage/utils";
+import { preservePrivacyModeOnDowngrade } from "@/lib/actions/workspace/settings";
 import {
   cache,
   WORKSPACE_BYTES_USAGE_CACHE_KEY,
@@ -35,6 +36,13 @@ interface ManageWorkspaceSubscriptionEventArgs {
   subscriptionId: string;
   cancel?: boolean;
 }
+
+// DB tier rows may carry either the old "Hobby" or the new "Starter" display name
+// for the internal "hobby" tier; normalize both to the internal key.
+const normalizeTierName = (name?: string | null): string | undefined => {
+  const key = name?.trim().toLowerCase();
+  return key === "starter" ? "hobby" : key;
+};
 
 export async function getUserSubscriptionInfo(
   email: string
@@ -69,7 +77,7 @@ export const manageWorkspaceSubscriptionEvent = async ({
       subscriptionTier: true,
     },
   });
-  const currentTier = workspace?.subscriptionTier?.name.trim().toLowerCase();
+  const currentTier = normalizeTierName(workspace?.subscriptionTier?.name);
 
   const updatedRows = await db
     .update(workspaces)
@@ -123,7 +131,7 @@ export const manageWorkspaceSubscriptionEvent = async ({
     const newTier = await db.query.subscriptionTiers.findFirst({
       where: eq(subscriptionTiers.id, newTierId),
     });
-    const newTierName = newTier?.name?.toLowerCase()?.trim();
+    const newTierName = normalizeTierName(newTier?.name);
     const newPaidTier = ["hobby", "pro"].includes(newTierName ?? "") ? (newTierName as PaidTier) : undefined;
     const currentPaidTier = ["hobby", "pro"].includes(currentTier ?? "") ? (currentTier as PaidTier) : undefined;
     const currentTierConfig = currentPaidTier ? TIER_CONFIG[currentPaidTier] : undefined;
@@ -138,6 +146,10 @@ export const manageWorkspaceSubscriptionEvent = async ({
     if (currentPaidTier === "hobby" && newPaidTier !== "hobby") {
       await clearHobbyOverageWarnings(workspaceId);
     }
+    // A plan change must never lower Privacy Mode protection: stamp the
+    // protection floor when an unset workspace leaves a default-ON tier for a
+    // default-OFF one (e.g. Pro → Free).
+    await preservePrivacyModeOnDowngrade(workspaceId, currentTier, newTierName);
     if (newPaidTier) {
       await insertNewTierUsageWarnings({
         workspaceId,

@@ -452,6 +452,7 @@ export const projects = pgTable(
     name: text().notNull(),
     workspaceId: uuid("workspace_id").notNull(),
     settings: jsonb().default({}).notNull(),
+    hasTraces: boolean("has_traces"),
   },
   (table) => [
     index("projects_workspace_id_idx").using("btree", table.workspaceId.asc().nullsLast().op("uuid_ops")),
@@ -504,6 +505,7 @@ export const workspaces = pgTable(
       .default(sql`'0'`)
       .notNull(),
     resetTime: timestamp("reset_time", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    settings: jsonb().default({}).notNull(),
   },
   (table) => [
     foreignKey({
@@ -1242,6 +1244,7 @@ export const signalTriggers = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     projectId: uuid("project_id").notNull(),
     value: jsonb().notNull(),
+    filters: jsonb().default([]).notNull(),
     signalId: uuid("signal_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     mode: smallint().default(0).notNull(),
@@ -1338,6 +1341,7 @@ export const chatSessions = pgTable(
     lastUsedAt: timestamp("last_used_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     userId: uuid("user_id"),
     traceId: uuid("trace_id"),
+    name: text("name"),
   },
   (table) => [
     uniqueIndex("chat_sessions_project_user_trace_key")

@@ -8,6 +8,7 @@ import { useSWRConfig } from "swr";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import PrivacyMode from "@/components/workspace/privacy-mode";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
@@ -177,7 +178,7 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
         <Dialog open={isRenameDialogOpen} onOpenChange={resetAndCloseRenameDialog}>
           <DialogTrigger asChild>
             <Button disabled={!isOwner} onClick={() => setIsRenameDialogOpen(true)} variant="outline" className="w-fit">
-              <Edit className="w-4 h-4 mr-2" />
+              <Edit data-icon="inline-start" className="w-4 h-4 mr-2" />
               Rename
             </Button>
           </DialogTrigger>
@@ -211,6 +212,7 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
               <DialogFooter className="mt-4">
                 <Button type="submit" disabled={!renameForm.formState.isValid || renameForm.formState.isSubmitting}>
                   <Loader2
+                    data-icon="inline-start"
                     className={cn("mr-2 h-4 w-4", renameForm.formState.isSubmitting ? "animate-spin" : "hidden")}
                   />
                   Rename
@@ -220,6 +222,8 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
           </DialogContent>
         </Dialog>
       </SettingsSection>
+
+      <PrivacyMode workspace={workspace} isOwner={isOwner} />
 
       <SettingsSection>
         <SettingsSectionHeader
@@ -235,7 +239,7 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
               variant="outline"
               className="w-fit text-destructive border-destructive"
             >
-              <Trash2 className="w-4 h-4 mr-2" />
+              <Trash2 data-icon="inline-start" className="w-4 h-4 mr-2" />
               Delete
             </Button>
           </DialogTrigger>
@@ -290,6 +294,7 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
                 </Button>
                 <Button type="submit" variant="destructive" disabled={!isDeleteEnabled}>
                   <Loader2
+                    data-icon="inline-start"
                     className={cn("mr-2 h-4 w-4", deleteForm.formState.isSubmitting ? "animate-spin" : "hidden")}
                   />
                   Delete

@@ -1,6 +1,5 @@
 "use client";
 
-import { capitalize } from "lodash";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { memo, useEffect } from "react";
@@ -10,7 +9,7 @@ import { SettingsSection, SettingsSectionHeader } from "@/components/settings/se
 import { ChartContainer } from "@/components/ui/chart";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type WorkspaceStats } from "@/lib/actions/usage/types";
-import { normalizeTier, signalInputRate, signalOutputRate } from "@/lib/billing/tiers";
+import { normalizeTier, signalInputRate, signalOutputRate, TIERS } from "@/lib/billing/tiers";
 import { Feature } from "@/lib/features/features";
 import { track } from "@/lib/posthog";
 import { type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
@@ -69,12 +68,19 @@ const TIER_USAGE_HINTS: Record<string, TierHint> = {
 
 const DEFAULT_USAGE_DESCRIPTION = "Your workspace data and signal usage.";
 
+// Keyed by the internal tier key ("hobby"), while DB rows may carry either the
+// old "Hobby" or the new "Starter" display name.
+const getTierUsageHint = (tierName: string): TierHint | null => {
+  const key = tierName.toLowerCase().trim();
+  return TIER_USAGE_HINTS[key === "starter" ? "hobby" : key] ?? null;
+};
+
 const getUsageDescription = (tierName?: string): string => {
   if (!tierName) return DEFAULT_USAGE_DESCRIPTION;
-  const tierHintInfo = TIER_USAGE_HINTS[tierName.toLowerCase().trim()];
+  const tierHintInfo = getTierUsageHint(tierName);
   if (!tierHintInfo) return DEFAULT_USAGE_DESCRIPTION;
   const tier = normalizeTier(tierName);
-  const tierHint = `${capitalize(tierName)} tier comes with ${tierHintInfo.data} data and ${tierHintInfo.signalBudget} of included Signals usage per month.`;
+  const tierHint = `${TIERS[tier].name} tier comes with ${tierHintInfo.data} data and ${tierHintInfo.signalBudget} of included Signals usage per month.`;
   const tierHintOverages =
     "If you exceed these limits, " +
     (tierHintInfo.isOverageAllowed
@@ -88,7 +94,7 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
     track("usage", "page_viewed");
   }, []);
   const featureFlags = useFeatureFlags();
-  const tierHint = TIER_USAGE_HINTS[workspace.tierName.toLowerCase().trim()] ?? null;
+  const tierHint = getTierUsageHint(workspace.tierName);
   const gbUsedThisMonth = workspaceStats?.gbUsedThisMonth ?? 0;
   const gbLimit = workspaceStats?.gbLimit ?? 0;
   const signalCostUsed = workspaceStats?.signalCostUsedThisMonth ?? 0;

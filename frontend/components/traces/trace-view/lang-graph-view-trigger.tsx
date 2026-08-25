@@ -11,6 +11,7 @@ const LangGraphViewTrigger = ({ open, setOpen }: { open: boolean; setOpen: (b: b
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
+          aria-label="View LangGraph"
           className="hover:bg-secondary px-1.5"
           variant="ghost"
           onClick={() => {

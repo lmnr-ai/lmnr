@@ -23,6 +23,12 @@ export const ProjectSettingsSchema = z
     /// Route every span on this project through the pii-redactor before
     /// storage. Pro-tier gated server-side.
     removePii: z.boolean(),
+    /// Per-project manual overrides of eval-score direction (score name ->
+    /// isHigherBetter). Layered over the app-wide LLM-inferred defaults.
+    /// Frontend-only; the Rust app-server ignores this key. Write the FULL
+    /// map (JSONB `||` shallow-merges top-level keys, so a partial map would
+    /// drop the other overrides).
+    scoreDirectionOverrides: z.record(z.string(), z.boolean()),
   })
   // `.strict()` rejects unknown keys — a typo in the UI surfaces as 400
   // rather than silently dropping into the JSONB row.
@@ -34,6 +40,7 @@ export type ProjectSettings = z.infer<typeof ProjectSettingsSchema>;
 /// Rust `Default for ProjectSettings`.
 export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
   removePii: false,
+  scoreDirectionOverrides: {},
 };
 
 export const UpdateProjectSettingsSchema = z.object({

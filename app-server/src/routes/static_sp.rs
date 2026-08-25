@@ -14,6 +14,7 @@ use crate::llm::{LlmClient, models::ModelSize};
 use crate::routes::ResponseResult;
 use crate::traces::static_sp_extraction::{
     ExtractionConfig, ExtractionResult, ExtractionTracing, extract_static_regexes,
+    tool::LabeledRegex,
 };
 
 #[derive(Deserialize)]
@@ -35,7 +36,9 @@ pub struct ExtractSystemPromptRequest {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtractSystemPromptResponse {
-    pub regexes: Vec<String>,
+    /// Ordered `{pattern, label}` removal regexes; the label travels with
+    /// every span the pattern removes.
+    pub regexes: Vec<LabeledRegex>,
     /// Total `regex`-tool invocations across all retry attempts.
     pub tool_calls: usize,
 }

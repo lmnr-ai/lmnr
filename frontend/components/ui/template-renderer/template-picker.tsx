@@ -37,9 +37,10 @@ import {
   type Template,
   type TemplateScope,
 } from "./index";
+import { type ManageTemplateMode } from "./manage-template-mode";
 import { useTemplateRenderer } from "./template-renderer-store";
 
-export type ManageTemplateMode = "create" | "edit" | null;
+export type { ManageTemplateMode };
 
 interface TemplateInfo {
   id: string;
@@ -84,12 +85,15 @@ export const TemplatePickerProvider = ({
   traceId,
   children,
 }: PropsWithChildren<TemplatePickerProviderProps>) => {
-  const { projectId } = useParams();
+  const { projectId } = useParams<{ projectId?: string }>();
   const { toast } = useToast();
 
-  const templatesBaseUrl = `/api/projects/${projectId}/render-templates`;
-
-  const { data: templates } = useSWR<TemplateInfo[]>(`${templatesBaseUrl}?type=${scope}`, swrFetcher);
+  // Shared pages have no projectId; fetching would 401 → sign-in via swrFetcher.
+  const templatesBaseUrl = projectId ? `/api/projects/${projectId}/render-templates` : null;
+  const { data: templates } = useSWR<TemplateInfo[]>(
+    templatesBaseUrl ? `${templatesBaseUrl}?type=${scope}` : null,
+    swrFetcher
+  );
 
   const { setPresetTemplate, getPresetTemplate } = useTemplateRenderer();
 
@@ -115,6 +119,7 @@ export const TemplatePickerProvider = ({
 
   const fetchTemplate = useCallback(
     async (templateId: string): Promise<Template | null> => {
+      if (!templatesBaseUrl) return null;
       try {
         const res = await fetch(`${templatesBaseUrl}/${templateId}`);
         if (!res.ok) {
@@ -415,7 +420,7 @@ export const TemplatePickerActions = ({ className }: { className?: string }) => 
         onClick={openEdit}
         title="Edit template"
       >
-        <PencilIcon className="size-3.5" />
+        <PencilIcon data-icon="inline-start" className="size-3.5" />
         Edit template
       </Button>
     </div>
@@ -448,7 +453,7 @@ export const TemplatePickerPreview = ({ data, className, onSelectSpan }: Templat
             : "Create a template to render this content as a custom view."}
         </p>
         <Button variant="secondary" onClick={openCreate}>
-          <Plus className="mr-1.5 size-3.5" />
+          <Plus data-icon="inline-start" className="mr-1.5 size-3.5" />
           Template
         </Button>
       </div>

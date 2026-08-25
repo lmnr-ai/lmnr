@@ -2,7 +2,7 @@
 
 import { ArrowUpRight, Lock } from "lucide-react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useState } from "react";
 
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
@@ -18,13 +18,14 @@ import { SettingsSection, SettingsSectionHeader } from "./settings-section";
 const PRO_TIERS: WorkspaceTier[] = [WorkspaceTier.PRO, WorkspaceTier.ENTERPRISE];
 
 export default function PiiRedaction() {
-  const { project, workspace, settingsHref } = useProjectContext();
+  const { project, workspace, settingsHref, mutateProject } = useProjectContext();
   const { projectId } = useParams();
-  const router = useRouter();
   const { toast } = useToast();
   const flags = useFeatureFlags();
 
-  const [enabled, setEnabled] = useState<boolean>(project?.settings.removePii ?? false);
+  // Read straight off the live (SWR-backed) project so the toggle reflects the
+  // shared source of truth and stays correct across remounts.
+  const enabled = project?.settings.removePii ?? false;
   const [isLoading, setIsLoading] = useState(false);
 
   // Self-hosted installs aren't on tiered billing, so the Pro gate only
@@ -33,11 +34,16 @@ export default function PiiRedaction() {
   const isCloud = flags[Feature.LAMINAR_CLOUD];
   const isProTier = !isCloud || (workspace ? PRO_TIERS.includes(workspace.tierName) : false);
 
+  // Optimistically flip removePii in the shared project cache; revert on error.
+  const setRemovePii = (value: boolean) =>
+    mutateProject((cur) => (cur ? { ...cur, settings: { ...cur.settings, removePii: value } } : cur), {
+      revalidate: false,
+    });
+
   const onToggle = async (next: boolean) => {
     if (!isProTier) return;
-    // Optimistic — revert on error.
     const previous = enabled;
-    setEnabled(next);
+    setRemovePii(next);
     setIsLoading(true);
 
     try {
@@ -56,13 +62,11 @@ export default function PiiRedaction() {
           variant: "destructive",
           title: errMessage ?? "Failed to update PII redaction setting",
         });
-        setEnabled(previous);
-        return;
+        setRemovePii(previous);
       }
-      router.refresh();
     } catch {
       toast({ variant: "destructive", title: "Failed to update PII redaction setting" });
-      setEnabled(previous);
+      setRemovePii(previous);
     } finally {
       setIsLoading(false);
     }
@@ -88,7 +92,7 @@ export default function PiiRedaction() {
               <Button asChild size="sm" variant="outline" className="h-7">
                 <Link href={settingsHref("billing")}>
                   Upgrade plan
-                  <ArrowUpRight className="ml-1 size-3" />
+                  <ArrowUpRight data-icon="inline-end" className="ml-1 size-3" />
                 </Link>
               </Button>
             )}

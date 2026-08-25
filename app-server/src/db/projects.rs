@@ -15,6 +15,9 @@ pub struct ProjectSettings {
     /// PII redaction toggle. Enabling routes every span on this project
     /// through the pii-redactor before storage. Pro-tier gated frontend-side.
     pub remove_pii: bool,
+    /// Per-project eval-score direction overrides (score name -> isHigherBetter).
+    /// Frontend-only concern; mirrored here so the JSONB round-trips losslessly.
+    pub score_direction_overrides: std::collections::HashMap<String, bool>,
 }
 
 #[derive(Deserialize, Serialize, FromRow, Clone)]
@@ -202,7 +205,8 @@ pub async fn get_projects_for_team(
         FROM projects p
         JOIN slack_integrations si ON si.workspace_id = p.workspace_id
         WHERE si.team_id = $1
-        ORDER BY p.name
+        -- lower() first: a C-collation database sorts every capital ahead of every lowercase.
+        ORDER BY lower(p.name), p.name
         "#,
     )
     .bind(team_id)
@@ -210,6 +214,16 @@ pub async fn get_projects_for_team(
     .await?;
 
     Ok(projects)
+}
+
+/// Fetch a single project's name by id.
+pub async fn get_project_name(pool: &PgPool, project_id: &Uuid) -> anyhow::Result<String> {
+    let name = sqlx::query_scalar::<_, String>("SELECT name FROM projects WHERE id = $1")
+        .bind(project_id)
+        .fetch_one(pool)
+        .await?;
+
+    Ok(name)
 }
 
 /// Returns true if `user_id` is a member of the workspace that owns `project_id`.
@@ -259,7 +273,8 @@ pub async fn get_projects_for_user(
          JOIN members_of_workspaces m ON m.workspace_id = p.workspace_id
          JOIN workspaces w ON w.id = p.workspace_id
          WHERE m.user_id = $1
-         ORDER BY w.name, p.name
+         -- lower() first: a C-collation database sorts every capital ahead of every lowercase.
+         ORDER BY lower(w.name), w.name, lower(p.name), p.name
          LIMIT 1000",
     )
     .bind(user_id)

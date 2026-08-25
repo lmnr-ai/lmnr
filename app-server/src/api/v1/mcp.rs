@@ -75,6 +75,7 @@ scoped to your project — never filter on or reference a `project_id` column. O
 const MCP_SQL_EXTRAS: &str = r#"<joins>
 - spans.trace_id = traces.id
 - signal_events.trace_id = traces.id
+- trace_outputs.trace_id = traces.id
 - has(signal_events.clusters, clusters.id) to match events to the specific clusters they belong to
   (clusters.signal_id = signal_events.signal_id only scopes by signal — it is a many-to-many cross
   product, NOT an event-to-cluster match).
@@ -294,7 +295,10 @@ impl LaminarMcpServer {
         }
 
         let extractor = Arc::new(PreviewExtractor::new());
-        let compressor = TraceCompressor::new(extractor, self.cache.clone(), llm_client);
+        // No clickhouse/queue: chat compression never summarizes, so it never
+        // looks up prompt versions or demands regex generation.
+        let compressor =
+            TraceCompressor::new(extractor, self.cache.clone(), llm_client, None, None);
         let compressed = compressor
             .compress_for_chat(&spans, project_id, trace_id, None)
             .await
@@ -365,6 +369,7 @@ impl LaminarMcpServer {
             query_engine: self.query_engine.clone(),
             clickhouse_ro,
             http_client: self.http_client.clone(),
+            pubsub: None,
             internal_project_id,
             // Persist so a follow-up `ask_agent` with the same conversationId sees this turn.
             persist: Some(conversation_id.clone()),

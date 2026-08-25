@@ -80,6 +80,7 @@ export default function ProviderApiKeys() {
             <td className="px-4">
               <div className="flex justify-end">
                 <Button
+                  aria-label="Delete"
                   variant="ghost"
                   size="sm"
                   className="h-8 w-8 p-0"

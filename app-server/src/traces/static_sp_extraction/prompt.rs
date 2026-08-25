@@ -10,9 +10,14 @@ pub fn build_user_message(examples: &[String], include_diff: bool) -> String {
     let n = examples.len();
     let mut message = format!(
         "Here are {n} example system prompts from the SAME template family. They differ only in \
-         dynamically-injected values. Hypothesize and test regexes with the `regex` tool (it runs \
-         them against ALL shown examples), then produce the final ordered list of regexes that \
-         strip all dynamic spans so every example collapses to the same static skeleton.\n\n"
+         dynamically-injected content. Hypothesize and test labeled regexes with the `regex` \
+         tool (it runs them against ALL shown examples), then produce the final ordered list of \
+         {{pattern, label}} regexes that remove every injected LOGICAL BLOCK — whole labeled \
+         lines, whole record/profile blocks (with the headers/tags that introduce them), whole \
+         injected lists — so every example collapses to the same static skeleton. Each removed \
+         span is later shown with its pattern's label as the ONLY context, so `label + span` \
+         must be fully understandable on its own; the skeleton must read as clean template \
+         prose with no orphaned labels and no empty section headers.\n\n"
     );
 
     message.push_str(
@@ -24,13 +29,18 @@ pub fn build_user_message(examples: &[String], include_diff: bool) -> String {
          which of (a)-(c) would break it. Rewrite brittle ones — zone sweeps between \
          pure-template landmarks instead of per-section removals or state-dependent anchors, \
          wide character classes instead of observed-value ranges — then re-verify with the \
-         tool.\n\n",
+         tool. Also re-check each entry: the pattern removes a whole logical block (never a \
+         bare value out of a labeled data line, never a block's contents without the header or \
+         deictic companion text that frames it), and the label makes the removed span \
+         self-sufficient (names the variable/section role, marks echoes of already-captured \
+         variables).\n\n",
     );
 
     message.push_str(
-        "When you are done, respond with ONLY a JSON array of the final ordered regex pattern \
-         strings — e.g. [\"^Current date: .*$\", \"(?<=Working directory: ).*\"] — with no prose \
-         and no markdown code fences.\n\n",
+        "When you are done, respond with ONLY a JSON array of the final ordered {pattern, \
+         label} objects — e.g. [{\"pattern\": \"^Working directory: .*\\n?\", \"label\": \
+         \"working directory of the coding session\"}] — with no prose and no markdown code \
+         fences.\n\n",
     );
 
     let examples_block = examples
@@ -71,7 +81,7 @@ mod tests {
         assert!(message.contains(
             "MANDATORY HARDENING PASS before you finish: you are scored on UNSEEN prompts"
         ));
-        assert!(message.contains("respond with ONLY a JSON array"));
+        assert!(message.contains("respond with ONLY a JSON array of the final ordered {pattern"));
         assert!(message.contains(
             "Example 1 of 2:\n<system_prompt>\nstatic\ndate: 2026-01-01\n</system_prompt>"
         ));

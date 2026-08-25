@@ -2,9 +2,11 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUpRight, ChevronsRight, Layers, Maximize, Radio, Sparkles, User } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
+import { createSerializer, parseAsArrayOf, parseAsString } from "nuqs";
 import { memo, useCallback, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
+import { useLaminarAgentStore } from "@/components/agent";
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import { TraceTagsButton, TraceTagsPills, useTraceTags } from "@/components/tags/trace-tags-list";
 import ShareTraceButton from "@/components/traces/share-trace-button";
@@ -16,6 +18,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
 import { type Filter } from "@/lib/actions/common/filters";
+import { Operator } from "@/lib/actions/common/operators";
 import { type EventRow } from "@/lib/events/types";
 import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -30,6 +33,14 @@ import TraceDropdown from "./trace-dropdown";
 const HEADER_ITEM_CLS = "flex items-center h-7";
 
 const FREE_TIER_RETENTION_DAYS = 7;
+
+// The traces table reads `filter` through nuqs `parseAsArrayOf(parseAsString)`, which
+// splits on unescaped commas — so hand-built `URLSearchParams` shred the filter JSON.
+// Serialize with nuqs so the escaping matches the reader.
+const serializeTracesFilterQuery = createSerializer({
+  filter: parseAsArrayOf(parseAsString),
+  pastHours: parseAsString,
+});
 
 interface HeaderProps {
   // Undefined ⇒ the close button is hidden (always-open panel).
@@ -46,14 +57,15 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   const { toast } = useToast();
   const { project } = useProjectContext();
   const featureFlags = useFeatureFlags();
+  const agentOpen = useLaminarAgentStore((s) => s.viewMode === "open");
+  const openAgent = useLaminarAgentStore((s) => s.open);
+  const collapseAgent = useLaminarAgentStore((s) => s.collapse);
 
   const {
     trace,
     tab,
     condensedTimelineEnabled,
     setCondensedTimelineEnabled,
-    tracesAgentOpen,
-    setTracesAgentOpen,
     signalsPanelOpen,
     setSignalsPanelOpen,
     traceSignals,
@@ -68,8 +80,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
       tab: state.tab,
       condensedTimelineEnabled: state.condensedTimelineEnabled,
       setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
-      tracesAgentOpen: state.tracesAgentOpen,
-      setTracesAgentOpen: state.setTracesAgentOpen,
       signalsPanelOpen: state.signalsPanelOpen,
       setSignalsPanelOpen: state.setSignalsPanelOpen,
       traceSignals: state.traceSignals,
@@ -105,8 +115,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           signalName: string;
           prompt: string;
           structuredOutput: Record<string, unknown>;
-          leafCluster?: TraceSignalClusterNode | null;
-          events: Array<EventRow & { leafCluster?: TraceSignalClusterNode | null }>;
+          events: Array<EventRow & { leafClusters?: TraceSignalClusterNode[] | null }>;
         }>;
         if (!Array.isArray(data)) return;
 
@@ -114,7 +123,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           signalId: s.signalId,
           signalName: s.signalName,
           prompt: s.prompt ?? "",
-          leafCluster: s.leafCluster ?? null,
           schemaFields: jsonSchemaToSchemaFields(s.structuredOutput).map((f) => ({
             name: f.name,
             type: f.type,
@@ -128,7 +136,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                 payload: e.payload,
                 timestamp: e.timestamp,
                 severity: e.severity,
-                leafCluster: e.leafCluster ?? null,
+                leafClusters: e.leafClusters ?? [],
               }))
             : [],
         }));
@@ -184,11 +192,12 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
 
   const handleOpenUserTraces = useCallback(() => {
     if (!hasUser) return;
-    const params = new URLSearchParams();
-    params.append("filter", JSON.stringify({ column: "user_id", value: userId, operator: "eq" }));
     const retentionDays = project?.logRetentionDays ?? FREE_TIER_RETENTION_DAYS;
-    params.set("pastHours", String(retentionDays * 24));
-    window.open(`/project/${projectId}/traces?${params.toString()}`, "_blank");
+    const query = serializeTracesFilterQuery({
+      filter: [JSON.stringify({ column: "user_id", operator: Operator.Eq, value: userId, dataType: "string" })],
+      pastHours: String(retentionDays * 24),
+    });
+    window.open(`/project/${projectId}/traces${query}`, "_blank");
   }, [hasUser, userId, projectId, project?.logRetentionDays]);
 
   return (
@@ -199,13 +208,13 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           {!params?.traceId && (
             <span className={cn(HEADER_ITEM_CLS, "gap-0.5")}>
               {handleClose && (
-                <Button variant="ghost" className="h-7 px-0.5" onClick={handleClose}>
+                <Button aria-label="Collapse panel" variant="ghost" className="h-7 px-0.5" onClick={handleClose}>
                   <ChevronsRight className="w-5 h-5" />
                 </Button>
               )}
               {trace && (
                 <NextLink passHref href={`/project/${projectId}/traces/${trace?.id}?${fullScreenParams.toString()}`}>
-                  <Button variant="ghost" className="h-7 px-0.5">
+                  <Button aria-label="Expand" variant="ghost" className="h-7 px-0.5">
                     <Maximize className="w-4 h-4" />
                   </Button>
                 </NextLink>
@@ -216,21 +225,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
             <span className={HEADER_ITEM_CLS}>
               <span className="text-base font-medium pl-2 flex-shrink-0">Trace</span>
               <TraceDropdown traceId={traceId} />
-            </span>
-          )}
-          {featureFlags[Feature.AGENT] && spans.length > 0 && (
-            <span className={HEADER_ITEM_CLS}>
-              <Button
-                onClick={() => setTracesAgentOpen(!tracesAgentOpen)}
-                variant="outline"
-                className={cn(
-                  "h-6 text-xs px-1.5",
-                  tracesAgentOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
-                )}
-              >
-                <Sparkles size={14} className="mr-1" />
-                Chat
-              </Button>
             </span>
           )}
           {signalCount > 0 && (
@@ -245,6 +239,28 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
               >
                 <Radio size={14} className="mr-1" />
                 Signals ({signalCount})
+              </Button>
+            </span>
+          )}
+          {featureFlags[Feature.AGENT] && spans.length > 0 && (
+            <span className={HEADER_ITEM_CLS}>
+              <Button
+                onClick={() => {
+                  if (agentOpen) {
+                    collapseAgent();
+                  } else {
+                    track("sessions", "agent_panel_opened", { surface: "trace_header" });
+                    openAgent();
+                  }
+                }}
+                variant="outline"
+                className={cn(
+                  "h-6 text-xs px-1.5",
+                  agentOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
+                )}
+              >
+                <Sparkles data-icon="inline-start" size={14} className="mr-1" />
+                Chat
               </Button>
             </span>
           )}

@@ -1,4 +1,4 @@
-import { Edit, Ellipsis, GripVertical, Pen, Trash2 } from "lucide-react";
+import { Copy, Edit, Ellipsis, GripVertical, Pen, Trash2 } from "lucide-react";
 import Link from "next/link";
 import React, { type FocusEvent, type KeyboardEventHandler, useCallback, useEffect, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
@@ -26,6 +26,14 @@ const deleteChart = async (id: string, projectId: string) => {
   await fetch(`/api/projects/${projectId}/dashboard-charts/${id}`, {
     method: "DELETE",
   });
+};
+
+const duplicateChart = async (id: string, projectId: string) => {
+  const res = await fetch(`/api/projects/${projectId}/dashboard-charts/${id}/duplicate`, {
+    method: "POST",
+  });
+
+  if (!res.ok) throw new Error("Failed to duplicate chart");
 };
 
 const updateChart = async (id: string, projectId: string, name: string) => {
@@ -61,6 +69,21 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
     } catch (e) {
       toast({
         title: "Failed to delete chart. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [id, mutate, projectId, toast]);
+
+  const handleDuplicateChart = useCallback(async () => {
+    try {
+      await duplicateChart(id, projectId);
+      // Refetch rather than appending the new chart: duplicating also shifts the
+      // siblings it displaced, so the server holds the only complete layout.
+      await mutate(`/api/projects/${projectId}/dashboard-charts`);
+      track("dashboards", "chart_duplicated");
+    } catch (e) {
+      toast({
+        title: "Failed to duplicate chart. Please try again.",
         variant: "destructive",
       });
     }
@@ -136,6 +159,7 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
+              aria-label="More options"
               variant="ghost"
               size="sm"
               className="h-6 w-6 text-muted-foreground p-0 ml-auto focus-visible:ring-0"
@@ -161,6 +185,16 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
                 Edit
               </DropdownMenuItem>
             </Link>
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDuplicateChart();
+              }}
+              className="cursor-pointer"
+            >
+              <Copy className="h-3.5 w-3.5 mr-1 text-inherit" />
+              Duplicate
+            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={(e) => {
                 e.stopPropagation();

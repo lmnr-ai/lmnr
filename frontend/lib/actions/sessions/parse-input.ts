@@ -1,12 +1,8 @@
 import { tryParseJson } from "@/lib/actions/common/utils";
 import { PROVIDERS } from "@/lib/spans/providers";
+import { type ParsedInput, type TextPart } from "@/lib/spans/providers/message-types";
 
-export type TextPart = { text: string };
-
-export interface ParsedInput {
-  systemText: string | null;
-  userParts: TextPart[];
-}
+export type { ParsedInput, TextPart };
 
 /**
  * Build a synthetic messages array from the first and last elements

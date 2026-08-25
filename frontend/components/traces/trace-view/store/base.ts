@@ -3,11 +3,10 @@ import { createContext, useContext } from "react";
 import { type StoreApi } from "zustand";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 
-import { type SnippetInfo } from "@/lib/actions/traces/search";
-import { type SpanEvent } from "@/lib/events/types";
 import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { type SpanType } from "@/lib/traces/types";
 
+import type { TraceViewSpan, TranscriptListEntry } from "./types";
 import {
   buildTranscriptListEntries,
   computePathInfoMap,
@@ -23,96 +22,14 @@ export const MAX_ZOOM = 25;
 export const MIN_ZOOM = 1;
 export const ZOOM_INCREMENT = 0.5;
 
-export type TraceViewSpan = {
-  spanId: string;
-  parentSpanId?: string;
-  traceId: string;
-  name: string;
-  startTime: string;
-  endTime: string;
-  attributes: Record<string, any>;
-  spanType: SpanType;
-  path: string;
-  events: SpanEvent[];
-  status?: string;
-  model?: string;
-  pending?: boolean;
-  collapsed: boolean;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  cacheReadInputTokens?: number;
-  reasoningTokens?: number;
-  inputCost: number;
-  outputCost: number;
-  totalCost: number;
-  aggregatedMetrics?: {
-    inputTokens: number;
-    outputTokens: number;
-    totalCost: number;
-    cacheReadInputTokens?: number;
-    reasoningTokens?: number;
-    hasLLMDescendants: boolean;
-  };
-  inputSnippet?: SnippetInfo;
-  outputSnippet?: SnippetInfo;
-  attributesSnippet?: SnippetInfo;
-};
-
-export type TraceViewListSpan = {
-  spanId: string;
-  parentSpanId?: string;
-  spanType: SpanType;
-  name: string;
-  model?: string;
-  path: string;
-  startTime: string;
-  endTime: string;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadInputTokens?: number;
-  totalCost: number;
-  pending?: boolean;
-  status?: string;
-  inputSnippet?: SnippetInfo;
-  outputSnippet?: SnippetInfo;
-  attributesSnippet?: SnippetInfo;
-};
-
-export type TranscriptListGroup = {
-  type: "group";
-  groupId: string;
-  name: string;
-  path: string;
-  firstSpan: TraceViewListSpan;
-  firstLlmSpanId: string | null;
-  lastLlmSpanId: string | null;
-  startTime: string;
-  endTime: string;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadInputTokens: number;
-  totalCost: number;
-};
-
-export type TranscriptGroupInput = {
-  type: "group-input";
-  groupId: string;
-  firstLlmSpanId: string;
-};
-
-export type TranscriptGroupSpan = {
-  type: "group-span";
-  span: TraceViewListSpan;
-  groupId: string;
-  isLast: boolean;
-};
-
-export type TranscriptListEntry =
-  | { type: "span"; span: TraceViewListSpan }
-  | TranscriptListGroup
-  | TranscriptGroupInput
-  | TranscriptGroupSpan;
+export type {
+  TraceViewListSpan,
+  TraceViewSpan,
+  TranscriptGroupInput,
+  TranscriptGroupSpan,
+  TranscriptListEntry,
+  TranscriptListGroup,
+} from "./types";
 
 export type TraceViewTrace = {
   id: string;
@@ -136,6 +53,8 @@ export type TraceViewTrace = {
   hasBrowserSession: boolean;
   sessionId?: string;
   userId?: string;
+  // Ingestion-time-extracted agent task (traces_v0.agent_input).
+  agentInput?: string | null;
 };
 
 export type TraceSignalClusterNode = {
@@ -153,14 +72,13 @@ export type TraceSignalEvent = {
   payload: string;
   timestamp: string;
   severity: number;
-  leafCluster: TraceSignalClusterNode | null;
+  leafClusters: TraceSignalClusterNode[];
 };
 
 export type TraceSignal = {
   signalId: string;
   signalName: string;
   prompt: string;
-  leafCluster: TraceSignalClusterNode | null;
   schemaFields: Array<{ name: string; type: string; description?: string }>;
   events: TraceSignalEvent[];
 };
@@ -193,7 +111,6 @@ export interface BaseTraceViewState {
 
   // Panel visibility
   spanPanelOpen: boolean;
-  tracesAgentOpen: boolean;
   signalsPanelOpen: boolean;
 
   // True while a react-resizable-panels handle is being dragged. The custom-view
@@ -211,13 +128,6 @@ export interface BaseTraceViewState {
   initialSignalId?: string;
 
   initialSearch: string;
-
-  // Pending signal→chat injection. Written by openSignalInChat, consumed
-  // once by the Chat component's effect, then nulled.
-  pendingChatInjection: {
-    signalDefinition: string;
-    eventPayload: string;
-  } | null;
 
   // Layout options
   isAlwaysSelectSpan: boolean;
@@ -259,7 +169,6 @@ export interface BaseTraceViewActions {
 
   // Panel visibility actions
   setSpanPanelOpen: (open: boolean) => void;
-  setTracesAgentOpen: (open: boolean) => void;
   setSignalsPanelOpen: (open: boolean) => void;
   setIsResizing: (isResizing: boolean) => void;
 
@@ -267,10 +176,6 @@ export interface BaseTraceViewActions {
   setTraceSignals: (signals: TraceSignal[]) => void;
   setIsTraceSignalsLoading: (loading: boolean) => void;
   setActiveSignalTabId: (id: string | null) => void;
-
-  // Traces Agent injection actions
-  openSignalInChat: (signalDefinition: string, eventPayload: string) => void;
-  consumePendingChatInjection: () => { signalDefinition: string; eventPayload: string } | null;
 
   toggleTranscriptGroup: (groupId: string) => void;
   requestScrollToGroup: (groupId: string) => void;
@@ -292,7 +197,6 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     initialTrace?: TraceViewTrace;
     isAlwaysSelectSpan?: boolean;
     initialSignalId?: string;
-    initialChatOpen?: boolean;
     initialSearch?: string;
   }
 ): BaseTraceViewStore {
@@ -323,7 +227,6 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     // span panel closed until the user selects a span. In the full-width trace page the
     // panel is driven by isAlwaysSelectSpan instead.
     spanPanelOpen: false,
-    tracesAgentOpen: options?.initialChatOpen ?? false,
     signalsPanelOpen: false,
     isResizing: false,
 
@@ -333,9 +236,6 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     activeSignalTabId: null,
     initialSignalId: options?.initialSignalId,
     initialSearch: options?.initialSearch ?? "",
-
-    // Traces Agent injection defaults
-    pendingChatInjection: null,
 
     // Layout options
     isAlwaysSelectSpan: options?.isAlwaysSelectSpan ?? false,
@@ -475,26 +375,12 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
 
     // Panel visibility actions
     setSpanPanelOpen: (open: boolean) => set({ spanPanelOpen: open } as Partial<T>),
-    setTracesAgentOpen: (open: boolean) => set({ tracesAgentOpen: open } as Partial<T>),
     setSignalsPanelOpen: (open: boolean) => set({ signalsPanelOpen: open } as Partial<T>),
 
     // Signal data actions
     setTraceSignals: (signals: TraceSignal[]) => set({ traceSignals: signals } as Partial<T>),
     setIsTraceSignalsLoading: (loading: boolean) => set({ isTraceSignalsLoading: loading } as Partial<T>),
     setActiveSignalTabId: (id: string | null) => set({ activeSignalTabId: id } as Partial<T>),
-
-    // Traces Agent injection actions
-    openSignalInChat: (signalDefinition: string, eventPayload: string) => {
-      get().setTracesAgentOpen(true);
-      set({ pendingChatInjection: { signalDefinition, eventPayload } } as Partial<T>);
-    },
-    consumePendingChatInjection: () => {
-      const pending = get().pendingChatInjection;
-      if (pending) {
-        set({ pendingChatInjection: null } as Partial<T>);
-      }
-      return pending;
-    },
   };
 }
 

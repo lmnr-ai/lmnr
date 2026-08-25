@@ -15,7 +15,7 @@ use uuid::Uuid;
 use super::generate::{GenerationVerdict, generate_extraction_regex};
 use super::input::split_signposts_and_rejoin;
 use super::self_tracing::{self, SpanBuilder, SpanScope};
-use crate::cache::keys::USER_TASK_REGEX_CACHE_KEY;
+use crate::cache::keys::{USER_TASK_REGEX_CACHE_KEY, USER_TASK_VERSION_REGEX_CACHE_KEY};
 use crate::cache::{Cache, CacheTrait};
 use crate::llm::LlmClient;
 
@@ -101,7 +101,7 @@ pub fn is_passthrough_regex(pattern: &str) -> bool {
 
 /// Render an application result as the FINAL user-visible outcome: the
 /// extracted text is signpost-stripped exactly like the stored metadata
-/// (`build_metadata_patch` applies the same strip). Serves both as the
+/// (`extraction_outcome_value` applies the same strip). Serves both as the
 /// probe-tool response shown to the generation model and as the tool-span
 /// output, so what the model judges is what the user gets.
 pub fn apply_result_to_json(result: &ApplyRegexResult) -> serde_json::Value {
@@ -190,6 +190,121 @@ pub fn regex_cache_key(project_id: Uuid, prompt_hash: Option<&str>, fingerprint:
     format!("{USER_TASK_REGEX_CACHE_KEY}:{project_id}:{h}:{fp_hash}")
 }
 
+/// Version-keyed regex cache key. The prompt VERSION replaces the user-message
+/// tag fingerprint, so a change to the system prompt's static part — not the
+/// noisier variation in the user message's tag set — is what regenerates the
+/// regex. `agent_hash` stays in the key because `version_hash` is only 32 bits
+/// (`sp_versioning::similarity::version_hash` truncates to 8 hex chars), and
+/// `has_history` stays because a first turn and a follow-up carry different
+/// layouts.
+pub fn versioned_regex_cache_key(
+    project_id: Uuid,
+    agent_hash: &str,
+    version_hash: &str,
+    has_history: bool,
+) -> String {
+    let history = if has_history { "h" } else { "n" };
+    format!(
+        "{USER_TASK_VERSION_REGEX_CACHE_KEY}:{project_id}:{agent_hash}:{version_hash}:{history}"
+    )
+}
+
+/// The regex cache lookup a candidate resolves to.
+pub enum RegexTarget {
+    /// A key that may hold a regex. `version` is `Some` on the version-keyed
+    /// path and `None` for the legacy buckets.
+    Keyed {
+        key: String,
+        version: Option<String>,
+    },
+    /// The prompt has no live version, so nothing can be cached against it and
+    /// extraction is a one-shot direct LLM call.
+    Unversioned,
+}
+
+/// Pick the cache key for a candidate. With `VersionedInputExtraction` off this
+/// is always the legacy agent-hash + tag-fingerprint key.
+///
+/// With it on there are three cases, and the middle one is the reason this
+/// returns an enum: a span with NO system message can never have a version, so
+/// it keeps the legacy keying permanently rather than paying an LLM call every
+/// trace forever; a span whose version simply hasn't been minted yet gets no key
+/// at all, because the two keyings hold regexes generated under different
+/// cohort definitions and must never read each other's entries.
+pub fn regex_target(
+    project_id: Uuid,
+    agent_hash: Option<&str>,
+    version_hash: Option<&str>,
+    fingerprint: &str,
+    has_history: bool,
+) -> RegexTarget {
+    let legacy = || RegexTarget::Keyed {
+        key: regex_cache_key(project_id, agent_hash, fingerprint),
+        version: None,
+    };
+    if !crate::features::is_feature_enabled(crate::features::Feature::VersionedInputExtraction) {
+        return legacy();
+    }
+    match (agent_hash, version_hash) {
+        (Some(agent), Some(version)) => RegexTarget::Keyed {
+            key: versioned_regex_cache_key(project_id, agent, version, has_history),
+            version: Some(version.to_string()),
+        },
+        (None, _) => RegexTarget::Keyed {
+            key: regex_cache_key(project_id, None, fingerprint),
+            version: None,
+        },
+        (Some(_), None) => RegexTarget::Unversioned,
+    }
+}
+
+/// How a candidate's extraction was resolved. Recorded per candidate so the
+/// fallback rate — the health metric for version-keyed extraction — is
+/// queryable. There is deliberately no `Stale` variant: a cached regex that
+/// stopped matching already shows up as `regex_from_cache=true` with
+/// `success=false` on the application span below.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Resolution {
+    /// A cached regex for the resolved version was applied.
+    Cached,
+    /// The version resolved but carried no regex yet, so a direct LLM
+    /// extraction ran. Should trend to zero as cohorts accumulate samples.
+    Fallback,
+    /// No live version for this prompt — a cold-start agent, or an LLM span with
+    /// no system message at all (permanent for those).
+    NoVersion,
+}
+
+impl Resolution {
+    fn as_str(self) -> &'static str {
+        match self {
+            Resolution::Cached => "cached",
+            Resolution::Fallback => "fallback",
+            Resolution::NoVersion => "no_version",
+        }
+    }
+}
+
+/// Emit the per-candidate resolution to the external observability backend.
+/// Default `target` keeps it out of the `lmnr::internal` tree, so it is safe on
+/// the ingest path (see [`apply_regex_externally_traced`]).
+pub fn record_resolution(
+    resolution: Resolution,
+    project_id: Uuid,
+    trace_id: Uuid,
+    version_hash: Option<&str>,
+    has_history: bool,
+) {
+    tracing::info_span!(
+        "user_task.resolve",
+        project_id = %project_id,
+        trace_id = %trace_id,
+        resolution = resolution.as_str(),
+        version_hash = version_hash.unwrap_or(""),
+        has_history,
+    );
+}
+
 /// Consult the regex cache and apply on hit. `None` means "no
 /// usable cached regex" — either a true miss or a stale entry that no
 /// longer matches (removed so the consumer regenerates). Emits no
@@ -221,7 +336,7 @@ pub async fn try_apply_cached_regex(
 /// own sample is not worth caching). Infallible by design: the message
 /// finishes on the first pass instead of looping through an LLM call
 /// per requeue. Every no-pattern ending falls back to the passthrough
-/// regex — the full reconstructed input beats a wrong `false`:
+/// regex — the full reconstructed input beats a wrong empty value:
 /// - an exhausted call budget means the model never delivered an
 ///   accepted submit;
 /// - an LLM failure (per-call retry budget exhausted or a non-retryable
@@ -275,6 +390,44 @@ mod tests {
     use super::*;
 
     // ---- apply_regex --------------------------------------------------------
+
+    /// The two keyings must never collide: a version-keyed entry and a legacy
+    /// entry for the same agent hold regexes generated under different cohort
+    /// definitions.
+    #[test]
+    fn version_and_legacy_keys_never_collide() {
+        let project_id = Uuid::new_v4();
+        let versioned = versioned_regex_cache_key(project_id, "agent01", "deadbeef", false);
+        let legacy = regex_cache_key(project_id, Some("agent01"), "plain");
+        assert_ne!(versioned, legacy);
+        assert!(versioned.starts_with(USER_TASK_VERSION_REGEX_CACHE_KEY));
+        assert!(legacy.starts_with(USER_TASK_REGEX_CACHE_KEY));
+    }
+
+    #[test]
+    fn version_key_forks_on_every_component() {
+        let project_id = Uuid::new_v4();
+        let base = versioned_regex_cache_key(project_id, "agent01", "deadbeef", false);
+        // has_history: a first turn and a follow-up carry different layouts.
+        assert_ne!(
+            base,
+            versioned_regex_cache_key(project_id, "agent01", "deadbeef", true)
+        );
+        // A new version is the whole point — it regenerates the regex.
+        assert_ne!(
+            base,
+            versioned_regex_cache_key(project_id, "agent01", "cafebabe", false)
+        );
+        // The agent hash is in the key because `version_hash` is only 32 bits.
+        assert_ne!(
+            base,
+            versioned_regex_cache_key(project_id, "agent02", "deadbeef", false)
+        );
+        assert_ne!(
+            base,
+            versioned_regex_cache_key(Uuid::new_v4(), "agent01", "deadbeef", false)
+        );
+    }
 
     #[test]
     fn apply_regex_extracts_capture_group_one() {
@@ -365,5 +518,30 @@ mod tests {
         // Same fingerprint → same key; different → different.
         assert_eq!(key, regex_cache_key(pid, Some("abc"), "plain"));
         assert_ne!(key, regex_cache_key(pid, Some("abc"), "env,/env"));
+    }
+
+    /// LAM-2049 end-to-end: the key is built from the system prompt's
+    /// FIRST-SENTENCE hash, so permuting the system prompt's XML
+    /// scaffolding must not re-trigger user-regex generation.
+    #[test]
+    fn regex_cache_key_survives_system_prompt_tag_permutations() {
+        use crate::traces::prompt_hash::prompt_hashes;
+
+        let pid = Uuid::nil();
+        let sp_a = "You are an AI agent for testing.\n<alpha>x</alpha>";
+        let sp_b = "You are an AI agent for testing.\n<gamma>z</gamma><beta>y</beta>";
+        let key_for = |sp: &str| {
+            regex_cache_key(
+                pid,
+                Some(&prompt_hashes(sp).first_sentence),
+                "plain,env,/env",
+            )
+        };
+        assert_eq!(key_for(sp_a), key_for(sp_b));
+        // A genuinely different agent still gets its own key.
+        assert_ne!(
+            key_for(sp_a),
+            key_for("You are Claude Code, an AI coding assistant.\n<alpha>x</alpha>")
+        );
     }
 }

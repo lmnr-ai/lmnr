@@ -139,8 +139,8 @@ export default function AlertsManager({ projectId, workspaceId, userEmail, fixed
           ))}
         </div>
       ) : isEmptyState ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-12 text-center">
-          <div className="flex size-10 items-center justify-center rounded-full bg-muted">
+        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border py-12 text-center">
+          <div className="flex size-10 items-center justify-center rounded-full bg-surface-up-2">
             <Bell className="size-5 text-muted-foreground" />
           </div>
           <div className="flex flex-col gap-1">
@@ -195,6 +195,7 @@ export default function AlertsManager({ projectId, workspaceId, userEmail, fixed
                     </div>
                     <div className="flex shrink-0 items-center">
                       <Button
+                        aria-label="Delete"
                         variant="ghost"
                         size="icon"
                         className={cn(

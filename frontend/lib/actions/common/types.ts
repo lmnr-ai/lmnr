@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-import { FilterSchema } from "./filters";
+import { FilterSchema } from "./filter-schemas";
 
 export { FilterSchema };
 

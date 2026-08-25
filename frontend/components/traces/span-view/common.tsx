@@ -8,6 +8,7 @@ import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import DownloadButton from "@/components/ui/download-button";
 import PdfRenderer from "@/components/ui/pdf-renderer";
 import { isStorageUrl } from "@/lib/s3";
+import { resolveContentMode } from "@/lib/spans/resolve-content-mode";
 import { cn } from "@/lib/utils";
 
 interface RoleColorConfig {
@@ -73,29 +74,33 @@ const PureToolCallContentPart = ({
   presetKey,
   messageIndex = 0,
   contentPartIndex = 0,
-}: ToolCallContentPartProps) => (
-  <div className="flex flex-col gap-2 p-2 bg-background rounded-b">
-    <span
-      className="flex items-center gap-1.5 text-xs font-medium"
-      style={{ color: ROLE_COLORS.tool.badgeText, opacity: 0.85 }}
-    >
-      <Bolt size={14} className="min-w-3.5" />
-      {toolName}
-      {toolCallId && toolCallId !== toolName && <span className="opacity-50 font-normal">{toolCallId}</span>}
-    </span>
-    <ContentRenderer
-      readOnly
-      defaultMode="json"
-      codeEditorClassName="rounded"
-      value={JSON.stringify(content, null, 2)}
-      presetKey={`editor-${presetKey}`}
-      className="border-0 bg-card"
-      messageIndex={messageIndex}
-      contentPartIndex={contentPartIndex}
-      customTheme={spanViewTheme}
-    />
-  </div>
-);
+}: ToolCallContentPartProps) => {
+  const { mode, modes, value } = resolveContentMode(content);
+  return (
+    <div className="flex flex-col gap-2 p-2 bg-background rounded-b">
+      <span
+        className="flex items-center gap-1.5 text-xs font-medium"
+        style={{ color: ROLE_COLORS.tool.badgeText, opacity: 0.85 }}
+      >
+        <Bolt size={14} className="min-w-3.5" />
+        {toolName}
+        {toolCallId && toolCallId !== toolName && <span className="opacity-50 font-normal">{toolCallId}</span>}
+      </span>
+      <ContentRenderer
+        readOnly
+        defaultMode={mode}
+        modes={modes}
+        codeEditorClassName="rounded"
+        value={value}
+        presetKey={`editor-${presetKey}`}
+        className="border-0 bg-card"
+        messageIndex={messageIndex}
+        contentPartIndex={contentPartIndex}
+        customTheme={spanViewTheme}
+      />
+    </div>
+  );
+};
 
 interface ToolResultContentPartProps {
   toolCallId: string;
@@ -103,6 +108,8 @@ interface ToolResultContentPartProps {
   content: string | any;
   presetKey: string;
   children?: ReactNode;
+  messageIndex?: number;
+  contentPartIndex?: number;
 }
 
 const PureToolResultContentPart = ({
@@ -111,24 +118,37 @@ const PureToolResultContentPart = ({
   content,
   presetKey,
   children,
-}: ToolResultContentPartProps) => (
-  <div className="flex flex-col gap-2 p-2 bg-background rounded-b">
-    <span
-      className="flex items-center gap-1.5 text-xs font-medium"
-      style={{ color: ROLE_COLORS.tool.badgeText, opacity: 0.85 }}
-    >
-      <Bolt size={14} className="min-w-3.5" />
-      {toolName ?? toolCallId}
-      {toolName && toolCallId !== toolName && <span className="opacity-50 font-normal">{toolCallId}</span>}
-    </span>
-    {children || (
-      <TextContentPart
-        content={typeof content === "string" ? content : JSON.stringify(content, null, 2)}
-        presetKey={presetKey}
-      />
-    )}
-  </div>
-);
+  messageIndex = 0,
+  contentPartIndex = 0,
+}: ToolResultContentPartProps) => {
+  const { mode, modes, value } = resolveContentMode(content);
+  return (
+    <div className="flex flex-col gap-2 p-2 bg-background rounded-b">
+      <span
+        className="flex items-center gap-1.5 text-xs font-medium"
+        style={{ color: ROLE_COLORS.tool.badgeText, opacity: 0.85 }}
+      >
+        <Bolt size={14} className="min-w-3.5" />
+        {toolName ?? toolCallId}
+        {toolName && toolCallId !== toolName && <span className="opacity-50 font-normal">{toolCallId}</span>}
+      </span>
+      {children || (
+        <ContentRenderer
+          readOnly
+          defaultMode={mode}
+          modes={modes}
+          codeEditorClassName="rounded"
+          value={value}
+          presetKey={`editor-${presetKey}`}
+          className="border-0 bg-card"
+          messageIndex={messageIndex}
+          contentPartIndex={contentPartIndex}
+          customTheme={spanViewTheme}
+        />
+      )}
+    </div>
+  );
+};
 
 interface FileContentPartProps {
   data: string;
@@ -160,21 +180,25 @@ const PureTextContentPart = ({
   codeEditorClassName,
   messageIndex = 0,
   contentPartIndex = 0,
-}: TextContentPartProps) => (
-  <div>
-    <ContentRenderer
-      defaultMode="json"
-      readOnly
-      value={content}
-      presetKey={`editor-${presetKey}`}
-      className={cn("border-0 bg-card", className)}
-      codeEditorClassName={codeEditorClassName}
-      messageIndex={messageIndex}
-      contentPartIndex={contentPartIndex}
-      customTheme={spanViewTheme}
-    />
-  </div>
-);
+}: TextContentPartProps) => {
+  const { mode, modes, value } = resolveContentMode(content);
+  return (
+    <div>
+      <ContentRenderer
+        defaultMode={mode}
+        modes={modes}
+        readOnly
+        value={value}
+        presetKey={`editor-${presetKey}`}
+        className={cn("border-0 bg-card", className)}
+        codeEditorClassName={codeEditorClassName}
+        messageIndex={messageIndex}
+        contentPartIndex={contentPartIndex}
+        customTheme={spanViewTheme}
+      />
+    </div>
+  );
+};
 
 interface RoleHeaderProps {
   role?: string;
@@ -233,7 +257,8 @@ const PureThinkingContentPart = ({
     </span>
     <ContentRenderer
       readOnly
-      defaultMode="json"
+      defaultMode="text"
+      modes={["TEXT"]}
       codeEditorClassName="rounded"
       value={content}
       presetKey={`editor-${presetKey}`}

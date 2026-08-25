@@ -9,8 +9,8 @@ import { authClient } from "@/lib/auth-client";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { CreateFirstProject } from "./create-first-project";
-import { Centered, CompletionScreen, UserCodeDisplay } from "./index";
 import { ProjectPicker } from "./project-picker";
+import { Centered, CompletionScreen, UserCodeDisplay } from "./shared";
 
 interface Props {
   userEmail: string;

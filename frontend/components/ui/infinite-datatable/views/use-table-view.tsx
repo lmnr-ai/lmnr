@@ -4,7 +4,7 @@ import { parseAsArrayOf, parseAsString, useQueryStates } from "nuqs";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 
-import { type Filter, FilterSchemaRelaxed } from "@/lib/actions/common/filters";
+import { type Filter, FilterSchemaRelaxed } from "@/lib/actions/common/filter-schemas";
 import { swrFetcher } from "@/lib/utils";
 
 import { useLastViewStore } from "./last-view-store";

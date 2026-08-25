@@ -1,8 +1,12 @@
-//! Consumer for the static-prompt queue.
+//! Consumer for the legacy static-prompt queue (skeleton-hash pipeline).
 //!
 //! Accumulates raw system prompts per naive signature until enough samples
 //! exist, then runs the extraction agent once (under a per-signature lock)
 //! and caches the produced regex list.
+//!
+//! The version-tracking pipeline (`Feature::StaticSpV2`) lives in
+//! `traces::sp_versioning` with its own queue; the ingest producer routes to
+//! exactly one of the two.
 
 use std::sync::{Arc, LazyLock};
 
@@ -12,7 +16,7 @@ use uuid::Uuid;
 
 use super::{
     ExtractionConfig, ExtractionTracing, accumulator_cache_key, accumulator_occurrences_cache_key,
-    extract_static_regexes, extraction_lock_cache_key, static_regex_cache_key,
+    extract_static_regexes, extraction_lock_cache_key, static_regex_cache_key, tool::LabeledRegex,
 };
 use crate::{
     cache::{Cache, CacheTrait},
@@ -22,8 +26,7 @@ use crate::{
 };
 
 /// Number of same-signature system prompts to accumulate before triggering the
-/// extraction agent. More samples let the agent tell static text from dynamic
-/// fragments reliably. Read once — this is on the per-message consumer path.
+/// extraction agent. Read once — this is on the per-message consumer path.
 static PROMPT_SAMPLES: LazyLock<usize> = LazyLock::new(|| env::static_sp::PROMPT_SAMPLES.get());
 
 /// TTL (seconds) on the accumulated raw prompts, so signatures that never reach
@@ -31,12 +34,10 @@ static PROMPT_SAMPLES: LazyLock<usize> = LazyLock::new(|| env::static_sp::PROMPT
 static ACCUMULATOR_TTL_SECONDS: LazyLock<u64> =
     LazyLock::new(|| env::static_sp::ACCUMULATOR_TTL_SECONDS.get());
 
-/// Fallback trigger: total same-signature occurrences after which we resolve a
-/// signature even though its unique samples never reached `PROMPT_SAMPLES`. A
-/// byte-identical (fully static) prompt collapses to one unique sample forever,
-/// so without this it would never extract and the producer would re-enqueue on
-/// every trace. Set high so we only conclude "no diversity" after a fair chance
-/// at seeing it — at low volume the perpetual-miss cost is negligible anyway.
+/// Fallback trigger: total occurrences after which a prompt is resolved even
+/// though distinct samples never materialized. A byte-identical (fully
+/// static) prompt collapses to one unique sample forever, so without this it
+/// would never extract.
 static STATIC_PROMPT_OCCURRENCE_THRESHOLD: LazyLock<u64> =
     LazyLock::new(|| env::static_sp::OCCURRENCE_THRESHOLD.get());
 
@@ -45,16 +46,16 @@ static STATIC_PROMPT_OCCURRENCE_THRESHOLD: LazyLock<u64> =
 /// are high just in case, so leave generous headroom)
 const EXTRACTION_LOCK_TTL_SECONDS: u64 = 60 * 60;
 
-const STATIC_REGEX_TTL_SECONDS: u64 = 7 * 24 * 3600;
+pub const STATIC_REGEX_TTL_SECONDS: u64 = 7 * 24 * 3600;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StaticPromptQueueMessage {
     pub project_id: Uuid,
     /// Source trace of this prompt — the accumulator dedups on it.
     pub trace_id: Uuid,
-    /// Naive signature (`lmnr.span.prompt_hash`) shared by all runs of the
-    /// same agent.
+    /// Naive signature (`lmnr.span.prompt_hash`).
     pub prompt_hash: String,
+    /// Raw prompt body.
     pub system_prompt: String,
 }
 
@@ -107,22 +108,29 @@ impl StaticPromptHandler {
             .and_then(|s| s.parse().ok())
     }
 
-    /// Run the extraction agent on the accumulated samples. The agent itself
-    /// never errors — an empty regex list means every attempt failed, which
-    /// is surfaced as an error so the caller keeps the extraction lock held
-    /// (its TTL then rate-limits retries).
+    /// Run the extraction agent on the samples and return the ordered
+    /// `{pattern, label}` removal regexes exactly as the agent produced them.
+    /// The agent itself never errors — an empty regex list means every
+    /// attempt failed, which is surfaced as an error so the caller keeps the
+    /// extraction lock held (its TTL then rate-limits retries).
     async fn run_extraction(
         &self,
         samples: &[String],
         prompt_hash: &str,
         source_project_id: Uuid,
-    ) -> anyhow::Result<Vec<String>> {
+    ) -> anyhow::Result<Vec<LabeledRegex>> {
         #[cfg(test)]
         if let Some(regexes) = &self.test_regexes {
             if regexes.is_empty() {
                 anyhow::bail!("Simulated extraction failure");
             }
-            return Ok(regexes.clone());
+            return Ok(regexes
+                .iter()
+                .map(|p| LabeledRegex {
+                    pattern: p.clone(),
+                    label: String::new(),
+                })
+                .collect());
         }
 
         let Some(llm_client) = &self.llm_client else {
@@ -439,7 +447,13 @@ mod tests {
 
         handler
             .cache
-            .insert::<Vec<String>>(&regex_key, vec![r"\d+".to_string()])
+            .insert::<Vec<LabeledRegex>>(
+                &regex_key,
+                vec![LabeledRegex {
+                    pattern: r"\d+".to_string(),
+                    label: String::new(),
+                }],
+            )
             .await
             .unwrap();
 
@@ -614,7 +628,7 @@ mod tests {
 
         let cached = handler
             .cache
-            .get::<Vec<String>>(&regex_key)
+            .get::<Vec<LabeledRegex>>(&regex_key)
             .await
             .unwrap()
             .unwrap();
@@ -653,5 +667,26 @@ mod tests {
             .unwrap();
 
         assert!(!handler.cache.exists(&regex_key).await.unwrap());
+    }
+
+    #[test]
+    fn v2_era_queue_messages_deserialize_ignoring_extra_fields() {
+        // In-flight messages published by a pre-split v2 producer carry extra
+        // fields on this queue; serde ignores them and the legacy fields
+        // still bind.
+        let v2_era = serde_json::json!({
+            "project_id": Uuid::new_v4(),
+            "trace_id": Uuid::new_v4(),
+            "prompt_hash": "abcd1234",
+            "system_prompt": "You are a helpful assistant.",
+            "agent_hash": "aabbccdd",
+            "full_prompt_hash": "ffff0000ffff0000ffff0000ffff0000",
+            "span_refs": [],
+            "known_version_hash": null,
+            "retry_count": 0
+        });
+        let message: StaticPromptQueueMessage = serde_json::from_value(v2_era).unwrap();
+        assert_eq!(message.prompt_hash, "abcd1234");
+        assert!(!message.system_prompt.is_empty());
     }
 }

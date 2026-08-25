@@ -6,6 +6,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
+import { laminarAgentStore } from "@/components/agent";
 import ClusterIcon from "@/components/signal/clusters-section/cluster-list/cluster-icon";
 import { jsonSchemaToSchemaFields, type SchemaField } from "@/components/signals/utils";
 import { type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
@@ -77,8 +78,8 @@ function PayloadValue({
   }
 }
 
-/** One finding card: the event's severity + its own leaf cluster link, then the
- *  event payload rendered field-by-field from the signal's schema. */
+/** One finding card: the event's severity + a link per leaf cluster it belongs to,
+ *  then the event payload rendered field-by-field from the signal's schema. */
 function FindingCard({
   event,
   projectId,
@@ -97,12 +98,8 @@ function FindingCard({
   highlighted?: boolean;
 }) {
   const parsed = useMemo(() => parsePayload(event.payload), [event.payload]);
-  const leafCluster = event.leafCluster;
   const severityLabel = SEVERITY_LABELS[event.severity as keyof typeof SEVERITY_LABELS] ?? "Info";
   const severityClassName = SEVERITY_STYLES[event.severity] ?? SEVERITY_STYLES[0];
-  const clusterHref = leafCluster
-    ? `/project/${projectId}/signals/${signalId}?clusterId=${leafCluster.id}&traceId=${traceId}&eventId=${event.id}`
-    : undefined;
 
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -123,17 +120,18 @@ function FindingCard({
         <Badge variant="outline" className={cn("rounded-full font-medium", severityClassName)}>
           {severityLabel}
         </Badge>
-        {leafCluster && clusterHref && (
+        {event.leafClusters.map((cluster) => (
           <Link
-            href={clusterHref}
+            key={cluster.id}
+            href={`/project/${projectId}/signals/${signalId}?clusterId=${cluster.id}&traceId=${traceId}&eventId=${event.id}`}
             target="_blank"
             className="group flex items-center gap-1.5 min-w-0 rounded-full bg-blue-400/8 border-blue-400/30 border px-2 py-1 hover:bg-blue-400/12"
           >
-            <ClusterIcon iconVariant="box" color={getClusterColorById(leafCluster.id)} />
-            <span className="truncate text-xs font-medium">{leafCluster.name}</span>
+            <ClusterIcon iconVariant="box" color={getClusterColorById(cluster.id)} />
+            <span className="truncate text-xs font-medium">{cluster.name}</span>
             <ArrowUpRight className="size-3.5 shrink-0" />
           </Link>
-        )}
+        ))}
       </div>
       <div className="flex flex-col gap-2.5">
         {validFields.map((field) => (
@@ -157,22 +155,20 @@ export default function SignalDetails({ traceId, signal }: Props) {
   const searchParams = useSearchParams();
   const highlightedEventId = searchParams.get("eventId");
   const featureFlags = useFeatureFlags();
-  const { selectSpanById, spans, openSignalInChat } = useTraceViewStore(
+  const { selectSpanById, spans } = useTraceViewStore(
     (state) => ({
       selectSpanById: state.selectSpanById,
       spans: state.spans,
-      openSignalInChat: state.openSignalInChat,
     }),
     shallow
   );
 
   const events = signal.events ?? [];
-  const latestEvent = events[0];
 
+  // Chat is the global agent column now; open it (already scoped to this trace's context via the
+  // registered trace store). Signal-definition/payload injection was dropped with the old inline chat.
   const handleOpenInChat = () => {
-    const signalDefinition = `### ${signal.signalName}\n${signal.prompt}`;
-    const eventPayload = latestEvent ? latestEvent.payload : "No events found";
-    openSignalInChat(signalDefinition, eventPayload);
+    laminarAgentStore.getState().open();
   };
 
   const schemaFields = useMemo(

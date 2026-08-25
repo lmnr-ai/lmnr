@@ -19,3 +19,5 @@ export interface DashboardChart {
 }
 
 export const dragHandleKey = "drag-handle";
+
+export const GRID_COLS = 12;

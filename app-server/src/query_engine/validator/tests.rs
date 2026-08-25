@@ -105,6 +105,48 @@ fn test_validate_basic_traces_select() {
 }
 
 #[test]
+fn test_validate_trace_outputs_select() {
+    // Not time-parameterized — only project_id is injected.
+    let result = validate_ok("SELECT trace_id, agent_output FROM trace_outputs");
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM trace_outputs_v0(project_id = '{SAMPLE_PROJECT_ID}') AS trace_outputs")
+        ),
+        "got: {result}"
+    );
+}
+
+/// Columns the shared schema advertises must also be allowlisted here, or a
+/// table-qualified reference to one is rejected as nonexistent even though the
+/// `_v0` view exposes it. `spans.events` and `traces.has_browser_session` were
+/// advertised without being allowlisted. Only the TABLE-qualified form hits the
+/// allowlist, which is why the unqualified spelling always worked.
+#[test]
+fn test_schema_advertised_columns_are_allowlisted() {
+    validate_ok("SELECT spans.events FROM spans");
+    validate_ok("SELECT traces.has_browser_session FROM traces");
+}
+
+/// `trace_outputs` exposes `start_time`, not `updated_at`. The allowlist used to
+/// say the opposite, so a table-qualified `trace_outputs.updated_at` passed
+/// validation and then died in ClickHouse with UNKNOWN_IDENTIFIER, while the
+/// real `trace_outputs.start_time` was rejected here as a non-existent column.
+/// Only the TABLE-qualified form exercises the allowlist — an alias qualifier
+/// isn't in the registry, so that path skips the check entirely.
+#[test]
+fn test_trace_outputs_time_column_is_start_time() {
+    validate_ok("SELECT trace_outputs.start_time FROM trace_outputs");
+
+    let err = validate("SELECT trace_outputs.updated_at FROM trace_outputs")
+        .expect_err("updated_at is not a trace_outputs column");
+    assert!(
+        err.contains("Column 'updated_at' does not exist"),
+        "got: {err}"
+    );
+}
+
+#[test]
 fn test_validate_evaluation_datapoints_select() {
     let result = validate_ok("SELECT id, evaluation_id FROM evaluation_datapoints");
     assert!(

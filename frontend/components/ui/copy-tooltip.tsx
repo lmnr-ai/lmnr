@@ -3,7 +3,7 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { type PropsWithChildren, useCallback, useEffect, useRef, useState } from "react";
 
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 interface CopyTooltipProps {
@@ -26,24 +26,28 @@ export default function CopyTooltip({
   const [open, setOpen] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(value);
+  const handleCopy = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      try {
+        await navigator.clipboard.writeText(value);
 
-      setCopied(true);
-      setOpen(true);
+        setCopied(true);
+        setOpen(true);
 
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
+
+        timeoutRef.current = setTimeout(() => {
+          setOpen(false);
+        }, 2000);
+      } catch (err) {
+        console.error("Failed to copy text: ", err);
       }
-
-      timeoutRef.current = setTimeout(() => {
-        setOpen(false);
-      }, 2000);
-    } catch (err) {
-      console.error("Failed to copy text: ", err);
-    }
-  }, [value]);
+    },
+    [value]
+  );
 
   const handleOpenChange = useCallback((newOpen: boolean) => {
     if (newOpen) {
@@ -65,19 +69,17 @@ export default function CopyTooltip({
   );
 
   return (
-    <TooltipProvider delayDuration={delayDuration}>
-      <Tooltip open={open} onOpenChange={handleOpenChange}>
-        <TooltipTrigger asChild>
-          <span onClick={handleCopy} className={cn("cursor-pointer", className)}>
-            {children}
-          </span>
-        </TooltipTrigger>
-        <TooltipPortal>
-          <TooltipContent>
-            <p>{copied ? copiedText : text}</p>
-          </TooltipContent>
-        </TooltipPortal>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip open={open} onOpenChange={handleOpenChange} delayDuration={delayDuration}>
+      <TooltipTrigger asChild>
+        <span onClick={handleCopy} className={cn("cursor-pointer", className)}>
+          {children}
+        </span>
+      </TooltipTrigger>
+      <TooltipPortal>
+        <TooltipContent>
+          <p>{copied ? copiedText : text}</p>
+        </TooltipContent>
+      </TooltipPortal>
+    </Tooltip>
   );
 }

@@ -14,18 +14,14 @@ use crate::{
         ClickhouseTrait,
         deduped_content::CHDedupedContent,
         spans::CHSpan,
-        traces::{CHTrace, TraceAggregation},
+        traces::TraceAggregation,
+        traces_agg::{CHTraceAgg, PATCH_START_TIME_OFFSET_NS},
+        traces_static::CHTraceStatic,
+        utils::chrono_to_nanoseconds,
     },
-    db::{
-        DB, debugger_session_blocks,
-        spans::Span,
-        trace::{
-            Trace, TraceMetadataPatch, merge_trace_metadata_batch, upsert_trace_statistics_batch,
-        },
-        workspaces::WorkspaceDeployment,
-    },
+    db::{DB, debugger_session_blocks, spans::Span, workspaces::WorkspaceDeployment},
     features::{Feature, is_feature_enabled},
-    mq::MessageQueue,
+    mq::{MessageQueue, stream::StreamPublisher},
     pii_redactor::{PiiRedactorClient, redact_spans_in_place},
     pubsub::PubSub,
     quickwit::{
@@ -34,11 +30,13 @@ use crate::{
     },
     traces::{
         input_dedup::{DedupBatch, MessageDedup, build_dedup_batch, mark_seen},
+        metadata::TraceMetadataPatch,
         provider::convert_span_to_provider_format,
         realtime::{
-            RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_trace,
+            RealtimeTrace, TraceChannel, channels_for_aggregation, send_agent_input_update,
             send_span_updates, send_trace_updates,
         },
+        span_attributes::{SPAN_TRACE_INPUT, SPAN_TRACE_OUTPUT_HASHES},
         spans::SpanUsage,
         tool_dedup::{ToolDedup, resolve_tool_dedup},
         utils::{get_llm_usage_for_span, prepare_span_for_recording},
@@ -48,6 +46,8 @@ use crate::{
 };
 
 const MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES: usize = 5120; // 5KB
+
+const ROLLOUT_SESSION_METADATA_KEY: &str = "rollout.session_id";
 
 /// Billed bytes for one field (input or output) of one span. Input and output
 /// are accounted identically (both are excluded from
@@ -104,6 +104,75 @@ fn tool_bytes(
     }
 }
 
+/// Raw extracted trace io carried on a metadata-only virtual span, split out
+/// before the regular pipeline. `input` is the verbatim JSON the façade put on
+/// `SPAN_TRACE_INPUT`; `output_hashes` are the per-message hashes into
+/// `deduped_content`. Both land in `traces_static`'s own io columns.
+struct RawTraceIo {
+    project_id: Uuid,
+    trace_id: Uuid,
+    input: Option<Value>,
+    output_hashes: Option<Vec<[u8; 32]>>,
+    /// Stamped by the extraction façade; routes the agent_input event to the
+    /// debugger channel.
+    rollout_session_id: Option<String>,
+}
+
+/// Resolves each trace's `start_time` from this batch's span aggregation, for
+/// the writes that carry no span times of their own (metadata patches, extracted
+/// agent io). `start_time` is the partition key on `traces_agg` /
+/// `traces_static`, so those writes MUST agree with the span-batch writes' value
+/// or they land in a different partition and drop out of `start_time`-bounded
+/// reads.
+///
+/// A trace whose spans arrived in an EARLIER flush isn't in this map — the
+/// caller falls back per table (`now_ns` for `traces_static`, `now_ns +
+/// PATCH_START_TIME_OFFSET_NS` for `traces_agg`'s `min` aggregate). That's exact
+/// whenever the trace started in the current partition period; one that started
+/// in a previous month lands a partition late, which `SELECT ... FINAL` still
+/// coalesces but a tight `start_time` filter can clip.
+fn resolve_static_start_times(aggregations: &[TraceAggregation]) -> HashMap<(Uuid, Uuid), i64> {
+    aggregations
+        .iter()
+        .filter_map(|agg| {
+            agg.start_time
+                .map(|st| ((agg.project_id, agg.trace_id), chrono_to_nanoseconds(st)))
+        })
+        .collect()
+}
+
+/// Build `traces_static` writes for the extracted agent io (LAM-2026). Output
+/// hashes are concatenated hex (64 chars each) because the column can't be a
+/// `Nullable(Array(...))` — see `ch::traces_static`. `start_time` comes from
+/// [`resolve_static_start_times`].
+fn collect_static_agent_io_rows(
+    io: &[RawTraceIo],
+    start_time_by_trace: &HashMap<(Uuid, Uuid), i64>,
+    now_ns: i64,
+) -> Vec<CHTraceStatic> {
+    io.iter()
+        .filter_map(|entry| {
+            let output_hashes = entry
+                .output_hashes
+                .as_ref()
+                .map(|hashes| hashes.iter().map(hex::encode).collect::<String>());
+            let start_time = start_time_by_trace
+                .get(&(entry.project_id, entry.trace_id))
+                .copied()
+                .unwrap_or(now_ns);
+            CHTraceStatic::from_agent_io(
+                entry.project_id,
+                entry.trace_id,
+                // Not `Value::to_string`: that JSON-encodes a string task, and
+                // every reader renders this column verbatim.
+                entry.input.as_ref().map(crate::utils::json_value_to_string),
+                output_hashes,
+                start_time,
+            )
+        })
+        .collect()
+}
+
 #[instrument(skip(
     messages,
     db,
@@ -113,7 +182,8 @@ fn tool_bytes(
     pubsub,
     ch,
     pii_redactor,
-    config
+    config,
+    indexer_stream_publisher
 ))]
 pub async fn process_span_messages(
     messages: Vec<RabbitMqSpanMessage>,
@@ -125,6 +195,7 @@ pub async fn process_span_messages(
     ch: impl ClickhouseTrait,
     pii_redactor: Option<PiiRedactorClient>,
     config: Option<&WorkspaceDeployment>,
+    indexer_stream_publisher: Option<Arc<StreamPublisher>>,
 ) -> Result<(), HandlerError> {
     // Producer-side preprocessing already ran `parse_and_enrich_attributes`
     // and `convert_span_to_provider_format` for `pre_processed` messages.
@@ -140,42 +211,87 @@ pub async fn process_span_messages(
         })
         .collect();
 
-    // Split metadata-only virtual spans (POST /v1/traces/metadata) out before
-    // the regular pipeline. They don't contribute span / token / time stats,
-    // they aren't recorded to ClickHouse, and their PG path is a metadata
-    // merge upsert against the trace row (creating a virtual row when the
-    // span batch hasn't landed yet).
-    let metadata_patches: Vec<TraceMetadataPatch> = messages
+    // Split metadata-only virtual spans out before the regular pipeline. They
+    // don't contribute span / token / time stats and aren't recorded to
+    // ClickHouse. Two flavours share the marker:
+    //   - genuine metadata patches (POST /v1/traces/metadata);
+    //   - extracted trace io (LAM-1953): the RAW value on `SPAN_TRACE_INPUT`
+    //     (input) / hex-encoded hashes on `SPAN_TRACE_OUTPUT_HASHES` (output),
+    //     routed to `traces_static`'s own io columns.
+    let mut raw_trace_io: Vec<RawTraceIo> = Vec::new();
+    // Genuine customer metadata patches (`POST /v1/traces/metadata`) only —
+    // extracted io never joins this vec: `traces_static.metadata` is one
+    // whole-object column with SET semantics, so a synthetic delta would REPLACE
+    // the customer's keys rather than sit beside them. Io has its own columns.
+    let mut metadata_patches: Vec<TraceMetadataPatch> = Vec::new();
+    for m in messages
         .iter()
         .filter(|m| m.span.attributes.is_metadata_only())
-        .filter_map(|m| {
-            let Some(metadata) = m.span.attributes.metadata() else {
-                log::warn!(
-                    "metadata-only span {} (trace {}) has no metadata attributes; patch dropped",
-                    m.span.span_id,
-                    m.span.trace_id
-                );
-                return None;
-            };
-            match serde_json::to_value(&metadata) {
-                Ok(metadata_value) => Some(TraceMetadataPatch {
-                    trace_id: m.span.trace_id,
-                    project_id: m.span.project_id,
-                    metadata: metadata_value,
-                }),
-                Err(e) => {
+    {
+        let attrs = &m.span.attributes.raw_attributes;
+        let input = attrs.get(SPAN_TRACE_INPUT).cloned();
+        let output_hashes = attrs.get(SPAN_TRACE_OUTPUT_HASHES).and_then(|v| {
+            v.as_array().and_then(|arr| {
+                let decoded: Vec<[u8; 32]> = arr
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .filter_map(|s| {
+                        let bytes = hex::decode(s).ok()?;
+                        <[u8; 32]>::try_from(bytes).ok()
+                    })
+                    .collect();
+                if decoded.len() < arr.len() {
                     log::warn!(
-                        "metadata-only span {} (trace {}): failed to serialize metadata; patch dropped: {:?}",
+                        "trace-output: {} of {} hashes failed to decode on span {}",
+                        arr.len() - decoded.len(),
+                        arr.len(),
                         m.span.span_id,
-                        m.span.trace_id,
-                        e
                     );
-                    None
                 }
-            }
-        })
-        .collect();
+                (!decoded.is_empty()).then_some(decoded)
+            })
+        });
+        if input.is_some() || output_hashes.is_some() {
+            let rollout_session_id = m.span.attributes.metadata().and_then(|meta| {
+                meta.get(ROLLOUT_SESSION_METADATA_KEY)?
+                    .as_str()
+                    .map(String::from)
+            });
+            raw_trace_io.push(RawTraceIo {
+                project_id: m.span.project_id,
+                trace_id: m.span.trace_id,
+                input,
+                output_hashes,
+                rollout_session_id,
+            });
+            continue;
+        }
+        let Some(metadata) = m.span.attributes.metadata() else {
+            log::warn!(
+                "metadata-only span {} (trace {}) has no metadata attributes; patch dropped",
+                m.span.span_id,
+                m.span.trace_id
+            );
+            continue;
+        };
+        match serde_json::to_value(&metadata) {
+            Ok(metadata_value) => metadata_patches.push(TraceMetadataPatch {
+                trace_id: m.span.trace_id,
+                project_id: m.span.project_id,
+                metadata: metadata_value,
+            }),
+            Err(e) => log::warn!(
+                "metadata-only span {} (trace {}): failed to serialize metadata; patch dropped: {:?}",
+                m.span.span_id,
+                m.span.trace_id,
+                e
+            ),
+        }
+    }
     messages.retain(|m| !m.span.attributes.is_metadata_only());
+
+    // Live agent_input — the stat delta can't carry it (extraction is async).
+    dispatch_input_realtime_updates(&raw_trace_io, cache.clone(), &pubsub).await;
 
     // Enrich spans with usage info
     let mut span_usage_vec = Vec::with_capacity(messages.len());
@@ -429,112 +545,89 @@ pub async fn process_span_messages(
     let ch = &ch;
 
     let trace_branch = async {
-        // The aggregation upsert and the metadata-patch UPDATE target the same
-        // `(project_id, id)` row lock, but their failure modes are independent:
-        // a single flush can mix span ingestion for trace A with a metadata
-        // patch for unrelated trace B, and an aggregation upsert error must
-        // not drop B's patch. Run each step independently.
-        //
-        // Aggregation results are tracked separately so signals only see
-        // traces whose state actually changed via real span ingestion —
-        // metadata patches don't touch any field signals evaluate, and
-        // passing patch-only traces (from a pure metadata-only flush, or
-        // from a mixed flush touching different traces) to
-        // `check_and_push_signals` would trigger spurious re-evaluations.
-        let had_aggregations = !trace_aggregations.is_empty();
-        let mut aggregation_traces: Vec<Trace> = Vec::new();
-        let aggregation_ok = if had_aggregations {
-            match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
-                Ok(traces) => {
-                    aggregation_traces = traces;
-                    true
-                }
-                Err(e) => {
-                    log::error!("Failed to upsert trace statistics to PostgreSQL: {:?}", e);
-                    false
-                }
-            }
-        } else {
-            true
-        };
+        let now_ns = chrono_to_nanoseconds(chrono::Utc::now());
 
-        // Patches that beat the trace's span batch create a virtual row that
-        // the aggregation upsert later fills in — see
-        // `merge_trace_metadata_batch` for the known stub-row caveat.
-        let mut patched_traces: Vec<Trace> = Vec::new();
-        if !metadata_patches.is_empty() {
-            match merge_trace_metadata_batch(&db.pool, &metadata_patches).await {
-                Ok(patched) => patched_traces = patched,
-                Err(e) => {
-                    log::error!("Failed to merge trace metadata patches: {:?}", e);
-                }
-            }
-        }
-        // Stub rows (patch beat the span batch) carry `now()` placeholder
-        // times — see `merge_trace_metadata_batch` — so they are safe to
-        // ship to ClickHouse (`CHTrace` maps NULL times to epoch 0, which
-        // would strand the row in the epoch partition where the later
-        // real-month row can't replace it).
-
-        // Build the CH / realtime payload as the deduped union, keeping the
-        // LATEST occurrence per `(project_id, id)`. When a single flush
-        // touches the same trace via BOTH the aggregation upsert AND a
-        // metadata patch, both stages return the same row keyed by
-        // `(project_id, id)`. The patch UPDATE bumps `num_spans` by 1, so
-        // `traces_replacing` (ReplacingMergeTree(num_spans)) would pick the
-        // patched row even if we shipped both — but skipping the redundant
-        // pre-patch insert saves a part on the hot ingest table. Patches
-        // are appended after aggregation, so last-write-wins preserves the
-        // patched metadata.
-        let mut updated_traces: Vec<Trace> =
-            Vec::with_capacity(aggregation_traces.len() + patched_traces.len());
-        updated_traces.extend(aggregation_traces.iter().cloned());
-        updated_traces.extend(patched_traces);
-        if updated_traces.len() > 1 {
-            let mut last_idx_by_key: HashMap<(Uuid, Uuid), usize> =
-                HashMap::with_capacity(updated_traces.len());
-            for (i, t) in updated_traces.iter().enumerate() {
-                last_idx_by_key.insert((t.project_id(), t.id()), i);
-            }
-            let kept: std::collections::HashSet<usize> = last_idx_by_key.into_values().collect();
-            let mut idx = 0;
-            updated_traces.retain(|_| {
-                let keep = kept.contains(&idx);
-                idx += 1;
-                keep
-            });
+        if !trace_aggregations.is_empty() {
+            debugger_session_blocks::upsert_blocks_for_traces(&db.pool, &trace_aggregations).await;
+            dispatch_trace_realtime_updates(&trace_aggregations, cache.clone(), &pubsub).await;
         }
 
-        if !updated_traces.is_empty() {
-            let ch_traces: Vec<CHTrace> = updated_traces
+        // `start_time` is the partition key on both tables, so writes that
+        // carry no span times of their own (metadata patches, extracted agent
+        // io) resolve it from this batch's aggregation — otherwise they'd land
+        // in a different partition than the span-batch writes for the same
+        // trace. `resolve_static_start_times` returns nothing for a trace whose
+        // spans arrived in an earlier flush; those fall back per table (see
+        // `PATCH_START_TIME_OFFSET_NS` for the `min`-safe agg fallback).
+        let start_time_by_trace = resolve_static_start_times(&trace_aggregations);
+
+        // Aggregate partials come from the in-memory per-batch deltas — never a
+        // cumulative row, which would double-count every `sum` column on each
+        // batch. Metadata patches contribute an identity partial carrying only
+        // the patched metadata map.
+        let mut traces_agg_rows: Vec<CHTraceAgg> =
+            Vec::with_capacity(trace_aggregations.len() + metadata_patches.len());
+        traces_agg_rows.extend(
+            trace_aggregations
                 .iter()
-                .map(|trace| CHTrace::from_db_trace(trace))
-                .collect();
-
-            if let Err(e) = ch.insert_batch(&ch_traces, config).await {
-                log::error!(
-                    "Failed to upsert {} traces to ClickHouse: {:?}",
-                    ch_traces.len(),
-                    e
-                );
-            }
-
-            debugger_session_blocks::upsert_blocks_for_traces(&db.pool, &updated_traces).await;
-
-            dispatch_trace_realtime_updates(&updated_traces, cache.clone(), &pubsub).await;
+                .map(|agg| CHTraceAgg::from_aggregation(agg, now_ns)),
+        );
+        traces_agg_rows.extend(metadata_patches.iter().map(|patch| {
+            CHTraceAgg::from_metadata_patch(
+                patch.project_id,
+                patch.trace_id,
+                Some(&patch.metadata),
+                start_time_by_trace
+                    .get(&(patch.project_id, patch.trace_id))
+                    .copied()
+                    .unwrap_or(now_ns + PATCH_START_TIME_OFFSET_NS),
+            )
+        }));
+        if !traces_agg_rows.is_empty()
+            && let Err(e) = ch.insert_batch(&traces_agg_rows, config).await
+        {
+            log::error!(
+                "Failed to insert {} trace aggregation partials to ClickHouse: {:?}",
+                traces_agg_rows.len(),
+                e
+            );
         }
 
-        // Return only the aggregation results to the signals path. `None`
-        // suppresses `check_and_push_signals` entirely — used for both an
-        // aggregation upsert error AND a pure metadata-only flush (no real
-        // spans aggregated). Metadata patches never need signal evaluation:
-        // they don't touch any field signals filter on, and re-running
-        // signals against a patched-only trace would spuriously refire any
-        // signal that already triggered for the trace.
-        if aggregation_ok && had_aggregations {
-            Some(aggregation_traces)
-        } else {
-            None
+        // Set-once columns go to `traces_static` (CoalescingMergeTree): each
+        // column resolves independently, so a write only touches what it
+        // carries and a batch that learned nothing static produces no row.
+        // Metadata patches carry ONLY the patched object — SET, not patch,
+        // semantics (see `ch::traces_static`).
+        let mut traces_static_rows: Vec<CHTraceStatic> = Vec::new();
+        traces_static_rows.extend(
+            trace_aggregations
+                .iter()
+                .filter_map(|agg| CHTraceStatic::from_aggregation(agg, now_ns)),
+        );
+        traces_static_rows.extend(metadata_patches.iter().filter_map(|patch| {
+            CHTraceStatic::from_metadata_patch(
+                patch.project_id,
+                patch.trace_id,
+                Some(&patch.metadata),
+                start_time_by_trace
+                    .get(&(patch.project_id, patch.trace_id))
+                    .copied()
+                    .unwrap_or(now_ns),
+            )
+        }));
+        traces_static_rows.extend(collect_static_agent_io_rows(
+            &raw_trace_io,
+            &start_time_by_trace,
+            now_ns,
+        ));
+        if !traces_static_rows.is_empty()
+            && let Err(e) = ch.insert_batch(&traces_static_rows, config).await
+        {
+            log::error!(
+                "Failed to insert {} traces_static rows to ClickHouse: {:?}",
+                traces_static_rows.len(),
+                e
+            );
         }
     };
 
@@ -616,21 +709,21 @@ pub async fn process_span_messages(
         Ok(())
     };
 
-    let (updated_traces, span_result) = tokio::join!(trace_branch, span_branch);
+    let ((), span_result) = tokio::join!(trace_branch, span_branch);
     span_result?;
 
-    // Must run AFTER the spans insert so the signal agent sees the trace data.
-    if let Some(updated_traces) = &updated_traces {
-        crate::signals::check_and_push_signals(
-            updated_traces,
-            &spans,
-            db.clone(),
-            cache.clone(),
-            clickhouse.clone(),
-            queue.clone(),
-        )
-        .await;
-    }
+    // Must run AFTER the spans insert: triggers are decided from the in-memory
+    // batch delta, but filters read the trace's cumulative state back out of
+    // ClickHouse traces_agg, and the signal agent needs the span data too.
+    crate::signals::check_and_push_signals(
+        &trace_aggregations,
+        &spans,
+        db.clone(),
+        cache.clone(),
+        clickhouse.clone(),
+        queue.clone(),
+    )
+    .await;
 
     // Send realtime span updates
     let recordable_refs: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
@@ -711,15 +804,23 @@ pub async fn process_span_messages(
         .collect();
 
     if !quickwit_spans.is_empty() {
-        if let Err(e) =
-            publish_for_indexing(&IndexerQueuePayload::Spans(quickwit_spans), queue.clone()).await
+        if let Err(e) = publish_for_indexing(
+            &IndexerQueuePayload::Spans(quickwit_spans),
+            queue.clone(),
+            indexer_stream_publisher.clone(),
+        )
+        .await
         {
             log::error!("Failed to publish spans for Quickwit indexing: {:?}", e);
         }
     }
     if !quickwit_events.is_empty() {
-        if let Err(e) =
-            publish_for_indexing(&IndexerQueuePayload::Events(quickwit_events), queue.clone()).await
+        if let Err(e) = publish_for_indexing(
+            &IndexerQueuePayload::Events(quickwit_events),
+            queue.clone(),
+            indexer_stream_publisher.clone(),
+        )
+        .await
         {
             log::error!("Failed to publish events for Quickwit indexing: {:?}", e);
         }
@@ -728,14 +829,16 @@ pub async fn process_span_messages(
     // Emit checkpoints for conversation-start LLM spans. Best-effort: the
     // system prompt is trace-new for these spans, so it's available in
     // `input_batch.span_trace_new_contents` even when storage-deduped.
-    crate::checkpoints::producer::publish_checkpoints_for_batch(
-        &spans,
-        &recordable_indices,
-        &input_batch,
-        &tool_dedups,
-        queue.clone(),
-    )
-    .await;
+    if is_feature_enabled(Feature::Checkpoints) {
+        crate::checkpoints::producer::publish_checkpoints_for_batch(
+            &spans,
+            &recordable_indices,
+            &input_batch,
+            &tool_dedups,
+            queue.clone(),
+        )
+        .await;
+    }
 
     // Populate autocomplete cache per project
     let project_ids: Vec<Uuid> = spans.iter().map(|s| s.project_id).unique().collect();
@@ -784,35 +887,39 @@ pub async fn process_span_messages(
     Ok(())
 }
 
-async fn dispatch_trace_realtime_updates(traces: &[Trace], cache: Arc<Cache>, pubsub: &PubSub) {
-    if traces.is_empty() {
+async fn dispatch_trace_realtime_updates(
+    aggregations: &[TraceAggregation],
+    cache: Arc<Cache>,
+    pubsub: &PubSub,
+) {
+    if aggregations.is_empty() {
         return;
     }
 
     let mut project_buckets: HashMap<Uuid, Vec<RealtimeTrace>> = HashMap::new();
     let mut evaluation_buckets: HashMap<(Uuid, Uuid), Vec<RealtimeTrace>> = HashMap::new();
-    let mut debugger_buckets: HashMap<(Uuid, String), Vec<RealtimeDebuggerTrace>> = HashMap::new();
+    let mut debugger_buckets: HashMap<(Uuid, String), Vec<RealtimeTrace>> = HashMap::new();
 
-    for trace in traces {
-        for channel in channels_for_trace(trace, cache.as_ref()).await {
+    for agg in aggregations {
+        for channel in channels_for_aggregation(agg, cache.as_ref()).await {
             match channel {
                 TraceChannel::Project => {
                     project_buckets
-                        .entry(trace.project_id())
+                        .entry(agg.project_id)
                         .or_default()
-                        .push(RealtimeTrace::from_trace(trace));
+                        .push(RealtimeTrace::from_aggregation(agg));
                 }
                 TraceChannel::Evaluation(evaluation_id) => {
                     evaluation_buckets
-                        .entry((trace.project_id(), evaluation_id))
+                        .entry((agg.project_id, evaluation_id))
                         .or_default()
-                        .push(RealtimeTrace::from_trace(trace));
+                        .push(RealtimeTrace::from_aggregation(agg));
                 }
                 TraceChannel::RolloutDebugger(rollout_session_id) => {
                     debugger_buckets
-                        .entry((trace.project_id(), rollout_session_id))
+                        .entry((agg.project_id, rollout_session_id))
                         .or_default()
-                        .push(RealtimeDebuggerTrace::from_trace(trace));
+                        .push(RealtimeTrace::from_aggregation(agg));
                 }
             }
         }
@@ -828,5 +935,171 @@ async fn dispatch_trace_realtime_updates(traces: &[Trace], cache: Arc<Cache>, pu
     for ((project_id, rollout_session_id), traces_data) in debugger_buckets {
         let key = format!("rollout_session_{}", rollout_session_id);
         send_trace_updates(&project_id, &key, &traces_data, pubsub).await;
+    }
+}
+
+/// Dispatch each trace's extracted agent_input to its realtime channels.
+async fn dispatch_input_realtime_updates(io: &[RawTraceIo], cache: Arc<Cache>, pubsub: &PubSub) {
+    for entry in io {
+        if let Some(value) = &entry.input {
+            send_agent_input_update(
+                pubsub,
+                cache.as_ref(),
+                &entry.project_id,
+                entry.trace_id,
+                value,
+                entry.rollout_session_id.as_deref(),
+            )
+            .await;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use chrono::{TimeZone, Utc};
+    use serde_json::json;
+
+    use super::*;
+
+    fn agg(
+        project_id: Uuid,
+        trace_id: Uuid,
+        start: Option<chrono::DateTime<Utc>>,
+    ) -> TraceAggregation {
+        TraceAggregation {
+            trace_id,
+            project_id,
+            start_time: start,
+            end_time: None,
+            input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+            reasoning_tokens: 0,
+            input_cost: 0.0,
+            output_cost: 0.0,
+            total_cost: 0.0,
+            session_id: None,
+            user_id: None,
+            status: None,
+            metadata: None,
+            tags: HashSet::new(),
+            num_spans: 0,
+            top_span_id: None,
+            top_span_name: None,
+            top_span_type: 0,
+            trace_type: 0,
+            has_browser_session: None,
+            span_names: HashSet::new(),
+        }
+    }
+
+    // `start_time` is the partition key on both trace tables, so the patch /
+    // agent-io writes must resolve the SAME value the span-batch write uses.
+    #[test]
+    fn batch_start_time_is_the_resolved_value() {
+        let project_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+        let batch_start = Utc.timestamp_opt(1_700_000_500, 0).unwrap();
+
+        let resolved = resolve_static_start_times(&[agg(project_id, trace_id, Some(batch_start))]);
+        assert_eq!(
+            resolved.get(&(project_id, trace_id)).copied(),
+            Some(chrono_to_nanoseconds(batch_start))
+        );
+    }
+
+    // A patch / io write for a trace whose spans arrived in an EARLIER flush has
+    // no aggregation to read, so it resolves to nothing and the caller applies
+    // its own per-table fallback.
+    #[test]
+    fn a_trace_with_no_spans_in_this_flush_resolves_to_nothing() {
+        let project_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+
+        let resolved = resolve_static_start_times(&[]);
+        assert!(resolved.get(&(project_id, trace_id)).is_none());
+
+        // Same when the batch carried the trace but with no span times at all.
+        let resolved = resolve_static_start_times(&[agg(project_id, trace_id, None)]);
+        assert!(resolved.get(&(project_id, trace_id)).is_none());
+    }
+
+    // Agent-io rows must carry the resolved trace start, never their own
+    // per-write timestamp, or they'd land in a foreign partition.
+    #[test]
+    fn agent_io_rows_use_the_resolved_start_time() {
+        let project_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+        let batch_start = Utc.timestamp_opt(1_700_000_500, 0).unwrap();
+        let resolved = resolve_static_start_times(&[agg(project_id, trace_id, Some(batch_start))]);
+
+        let rows = collect_static_agent_io_rows(
+            &[RawTraceIo {
+                project_id,
+                trace_id,
+                input: Some(json!("the task")),
+                output_hashes: None,
+                rollout_session_id: None,
+            }],
+            &resolved,
+            999,
+        );
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].start_time, chrono_to_nanoseconds(batch_start));
+
+        // With nothing resolvable, the caller's now_ns is the last resort.
+        let rows = collect_static_agent_io_rows(
+            &[RawTraceIo {
+                project_id,
+                trace_id,
+                input: Some(json!("the task")),
+                output_hashes: None,
+                rollout_session_id: None,
+            }],
+            &HashMap::new(),
+            999,
+        );
+        assert_eq!(rows[0].start_time, 999);
+    }
+
+    // The stored column is the task TEXT. `Value::to_string()` here wrapped
+    // every task in literal quotes and escaped its newlines, and every reader
+    // renders the column verbatim, so the encoding reached the UI.
+    #[test]
+    fn agent_input_is_stored_unencoded() {
+        let project_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+        let io = |input: Value| {
+            collect_static_agent_io_rows(
+                &[RawTraceIo {
+                    project_id,
+                    trace_id,
+                    input: Some(input),
+                    output_hashes: None,
+                    rollout_session_id: None,
+                }],
+                &HashMap::new(),
+                0,
+            )
+        };
+
+        assert_eq!(
+            io(json!("fix the test")).remove(0).input.unwrap(),
+            "fix the test"
+        );
+        // Multi-line and embedded quotes survive as themselves, not as `\n` /
+        // `\"` escape sequences.
+        let multiline = "summarize:\n\n\"the report\"";
+        assert_eq!(io(json!(multiline)).remove(0).input.unwrap(), multiline);
+        // A non-string has no text form, so it still serializes as JSON.
+        assert_eq!(
+            io(json!({ "role": "user" })).remove(0).input.unwrap(),
+            r#"{"role":"user"}"#
+        );
     }
 }

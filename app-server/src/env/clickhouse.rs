@@ -11,9 +11,9 @@ pub const RO_USER: &str = "CLICKHOUSE_RO_USER";
 pub const RO_PASSWORD: &str = "CLICKHOUSE_RO_PASSWORD";
 
 /// Cap (ms) for CH's adaptive `async_insert_busy_timeout` on the hot ingest
-/// tables (`spans`, `traces_replacing`, `deduped_content`). Stored as a string
-/// because it's passed straight into a CH setting. Read once into a `LazyLock`
-/// in `ch/mod.rs`.
+/// tables (`spans`, `traces_agg`, `traces_static`, `deduped_content`). Stored as
+/// a string because it's passed straight into a CH setting. Read once into a
+/// `LazyLock` in `ch/mod.rs`.
 pub const ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS: StringEnv =
     StringEnv::new("SPANS_CH_WAIT_FOR_ASYNC_INSERT_MS", "400");
 

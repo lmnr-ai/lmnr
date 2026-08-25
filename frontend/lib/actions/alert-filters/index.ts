@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { type Filter, FilterSchema } from "@/lib/actions/common/filters";
+import { type Filter, FilterSchema } from "@/lib/actions/common/filter-schemas";
 import { ALERT_FILTERS_CACHE_KEY, cache } from "@/lib/cache.ts";
 import { db } from "@/lib/db/drizzle";
 import { alertFilters } from "@/lib/db/migrations/schema";

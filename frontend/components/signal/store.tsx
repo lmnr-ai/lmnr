@@ -4,7 +4,7 @@ import { createContext, type Dispatch, type PropsWithChildren, type SetStateActi
 import { createStore } from "zustand";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 
-import { type ManageSignalForm } from "@/components/signals/create-signal-drawer";
+import { type ManageSignalForm } from "@/components/signals/create-signal-drawer/types";
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import { type ClusterStatsDataPoint, type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { type Filter } from "@/lib/actions/common/filters.ts";
@@ -203,7 +203,12 @@ export const createSignalStore = (initProps: EventsProps) =>
       ...initProps.signal,
       prompt: initProps.signal.prompt,
       schemaFields: jsonSchemaToSchemaFields(initProps.signal.structuredOutput as Record<string, unknown>),
-      triggers: (initProps.signal.triggers ?? []).map((t) => ({ id: t.id, filters: t.filters, mode: t.mode ?? 0 })),
+      triggers: (initProps.signal.triggers ?? []).map((t) => ({
+        id: t.id,
+        conditions: t.conditions ?? [],
+        filters: t.filters ?? [],
+        mode: t.mode ?? 0,
+      })),
     },
     setSignal: (signal) => set({ signal }),
     setTraceId: (traceId) => set({ traceId }),

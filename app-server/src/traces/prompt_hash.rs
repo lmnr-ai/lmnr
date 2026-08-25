@@ -22,19 +22,46 @@ pub fn strip_claude_code_billing_header(text: &str) -> Cow<'_, str> {
     CLAUDE_CODE_BILLING_HEADER_REGEX.replace_all(text, "")
 }
 
+/// The two hashes derived from one system prompt. Callers that only need the
+/// skeleton use [`structural_skeleton_hash`].
+pub struct PromptHashes {
+    /// First sentence + sorted XML tag names.
+    pub skeleton: String,
+    /// First sentence only. Blind to which scaffolding tags the prompt
+    /// carries, so adding/removing one doesn't fork a cache key.
+    pub first_sentence: String,
+}
+
+/// Both hashes of a system prompt in one pass. Volatile client/SDK version
+/// headers (e.g. Claude Code's `x-anthropic-billing-header`) are stripped
+/// first so both are stable across SDK versions.
+pub fn prompt_hashes(text: &str) -> PromptHashes {
+    let text = strip_claude_code_billing_header(text);
+    let first_sentence = normalized_first_sentence(text.as_ref());
+    let tag_names = sorted_tag_names(text.as_ref());
+    PromptHashes {
+        skeleton: hash8(&format!("{}|{}", first_sentence, tag_names.join(","))),
+        first_sentence: hash8(&first_sentence),
+    }
+}
+
 /// Hash a system prompt by its structural skeleton: first sentence + sorted XML tag names.
 /// Resistant to dynamic content inside tags (config values, user context, tool lists)
 /// while preserving the stable identity of the prompt template.
-/// Volatile client/SDK version headers (e.g. Claude Code's `x-anthropic-billing-header`)
-/// are stripped first so the hash is stable across SDK versions.
 pub fn structural_skeleton_hash(text: &str) -> String {
-    let text = strip_claude_code_billing_header(text);
-    let text = text.as_ref();
-    // Extract first sentence from original text (before whitespace normalization
-    // destroys newline boundaries). Cut at the first real sentence boundary after
-    // 20+ chars: either a newline, or a '.' followed by whitespace / end-of-text.
-    // Periods inside words (e.g. "3.5", "v1.0", "gpt-4.1") are not treated as
-    // boundaries.
+    prompt_hashes(text).skeleton
+}
+
+fn hash8(skeleton: &str) -> String {
+    let digest = Sha3_256::digest(skeleton.as_bytes());
+    format!("{:x}", digest)[..8].to_string()
+}
+
+/// Whitespace-collapsed, lowercased first sentence. The cut is taken on the
+/// original text — normalizing first would destroy the newline boundaries.
+/// Boundary = first newline, or '.' followed by whitespace / end-of-text,
+/// after 20+ chars; periods inside words ("3.5", "gpt-4.1") don't count.
+fn normalized_first_sentence(text: &str) -> String {
     let bytes = text.as_bytes();
     let boundary = text.char_indices().find(|(i, c)| {
         if *i < 20 {
@@ -63,23 +90,22 @@ pub fn structural_skeleton_hash(text: &str) -> String {
         &text[..end]
     });
 
-    let first_sentence = raw_first_sentence
+    raw_first_sentence
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
-        .to_lowercase();
+        .to_lowercase()
+}
 
-    // Extract unique XML/HTML tag names (lowercased to match normalized first_sentence)
+/// Unique XML/HTML tag names, lowercased to match the normalized first sentence.
+fn sorted_tag_names(text: &str) -> Vec<String> {
     let mut tag_names: Vec<String> = XML_TAG_NAME_RE
         .captures_iter(text)
         .map(|cap| cap.get(1).unwrap().as_str().to_lowercase())
         .collect();
     tag_names.sort();
     tag_names.dedup();
-
-    let skeleton = format!("{}|{}", first_sentence, tag_names.join(","));
-    let digest = Sha3_256::digest(skeleton.as_bytes());
-    format!("{:x}", digest)[..8].to_string()
+    tag_names
 }
 
 /// Extract the text of a single `role: "system"` message across the content
@@ -123,10 +149,38 @@ pub fn extract_system_text(msg: &Value) -> Option<String> {
     (!sys_text.is_empty()).then_some(sys_text)
 }
 
-/// Extract the system message from a parsed LLM input message array.
-/// Returns `(system_text, remaining_messages)` if a `role: "system"` message is found.
+/// The messages array inside an LLM span's input, across the shapes we ingest.
+///
+/// A bare array is the common case, but plenty of instrumentations record the
+/// provider's whole request body instead: `messages` covers the OpenAI /
+/// Anthropic SDK wrappers, `contents` covers Gemini, and `input` covers
+/// normalisers that nest an inner array. First match wins.
+///
+/// Anything that reads roles out of a span's input has to go through here —
+/// matching only on the bare array silently ignores every wrapped span, and
+/// the failure is invisible because "no messages" and "no system message" are
+/// the same `None`.
+pub fn find_messages_array(input: &Value) -> Option<&Vec<Value>> {
+    match input {
+        Value::Array(arr) => Some(arr),
+        Value::Object(map) => {
+            ["messages", "contents", "input"]
+                .iter()
+                .find_map(|key| match map.get(*key) {
+                    Some(Value::Array(arr)) => Some(arr),
+                    _ => None,
+                })
+        }
+        _ => None,
+    }
+}
+
+/// Extract the system message from an LLM span's input.
+/// Returns `(system_text, remaining_messages)` if a `role: "system"` message is
+/// found. The remaining messages are always a bare array, even when the input
+/// was a wrapper object.
 pub fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
-    let messages = parsed.as_array()?;
+    let messages = find_messages_array(parsed)?;
     let sys_idx = messages.iter().position(|m| {
         m.get("role")
             .and_then(|r| r.as_str())
@@ -390,6 +444,59 @@ Do not fabricate data.
     }
 
     // ===================================================================
+    // prompt_hashes (first-sentence half)
+    // ===================================================================
+
+    #[test]
+    fn test_first_sentence_hash_ignores_tag_permutations() {
+        // The whole point of the split: reordering / adding / removing
+        // scaffolding tags forks the skeleton but not the first sentence.
+        let a = "You are an AI agent for testing.\n<alpha>x</alpha>";
+        let b = "You are an AI agent for testing.\n<beta>y</beta><gamma>z</gamma>";
+        assert_ne!(
+            structural_skeleton_hash(a),
+            structural_skeleton_hash(b),
+            "skeleton must still distinguish differing tag sets"
+        );
+        assert_eq!(
+            prompt_hashes(a).first_sentence,
+            prompt_hashes(b).first_sentence
+        );
+    }
+
+    #[test]
+    fn test_first_sentence_hash_differs_for_different_agents() {
+        let browser = "You are an AI agent designed to automate browser tasks.\n<rules>x</rules>";
+        let coder = "You are Claude Code, an AI coding assistant.\n<rules>x</rules>";
+        assert_ne!(
+            prompt_hashes(browser).first_sentence,
+            prompt_hashes(coder).first_sentence
+        );
+    }
+
+    #[test]
+    fn test_first_sentence_hash_strips_billing_header() {
+        let with_header = "x-anthropic-billing-header: cc_version=2.1.112.186; cc_entrypoint=sdk-ts; You are a helpful assistant.";
+        let without = "You are a helpful assistant.";
+        assert_eq!(
+            prompt_hashes(with_header).first_sentence,
+            prompt_hashes(without).first_sentence
+        );
+        let newer_sdk = "x-anthropic-billing-header: cc_version=2.2.0.1; cc_entrypoint=cli; You are a helpful assistant.";
+        assert_eq!(
+            prompt_hashes(with_header).first_sentence,
+            prompt_hashes(newer_sdk).first_sentence
+        );
+    }
+
+    #[test]
+    fn test_prompt_hashes_skeleton_matches_standalone_fn() {
+        let text = "You are a helpful assistant.\n<rules>be nice</rules>";
+        assert_eq!(prompt_hashes(text).skeleton, structural_skeleton_hash(text));
+        assert_eq!(prompt_hashes(text).first_sentence.len(), 8);
+    }
+
+    // ===================================================================
     // extract_system_message
     // ===================================================================
 
@@ -442,5 +549,68 @@ Do not fabricate data.
     fn test_extract_system_message_none_for_non_array() {
         let input = serde_json::json!({"role": "system", "content": "test"});
         assert!(extract_system_message(&input).is_none());
+    }
+
+    /// Instrumentations that record the provider's whole request body wrap the
+    /// messages array. Matching only the bare array dropped every such span:
+    /// no prompt hash, no agent hash, and therefore no version — silently,
+    /// because "no messages" and "no system message" are the same `None`.
+    #[test]
+    fn test_extract_system_message_through_wrapper_objects() {
+        for key in ["messages", "contents", "input"] {
+            let input = serde_json::json!({
+                key: [
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": "Hello"}
+                ]
+            });
+            let (sys_text, remaining) = extract_system_message(&input)
+                .unwrap_or_else(|| panic!("wrapper key `{key}` should resolve"));
+            assert_eq!(sys_text, "You are a helpful assistant.");
+            // Remaining is always a bare array, never the wrapper.
+            assert_eq!(remaining.as_array().unwrap().len(), 1);
+            assert_eq!(remaining[0]["role"], "user");
+        }
+    }
+
+    /// A wrapped span must hash identically to the same conversation sent bare,
+    /// or the wrapper alone would fork the agent identity.
+    #[test]
+    fn test_wrapper_and_bare_input_agree_on_hashes() {
+        let messages = serde_json::json!([
+            {"role": "system", "content": "You are an AI agent for testing.\n<rules>x</rules>"},
+            {"role": "user", "content": "Hello"}
+        ]);
+        let wrapped = serde_json::json!({"messages": messages.clone()});
+        let (bare_text, _) = extract_system_message(&messages).unwrap();
+        let (wrapped_text, _) = extract_system_message(&wrapped).unwrap();
+        assert_eq!(bare_text, wrapped_text);
+        assert_eq!(
+            prompt_hashes(&bare_text).first_sentence,
+            prompt_hashes(&wrapped_text).first_sentence
+        );
+    }
+
+    #[test]
+    fn test_find_messages_array_shapes() {
+        use serde_json::json;
+        assert_eq!(
+            find_messages_array(&json!([{"role": "user"}])).map(Vec::len),
+            Some(1)
+        );
+        assert_eq!(
+            find_messages_array(&json!({"messages": [{"role": "user"}]})).map(Vec::len),
+            Some(1)
+        );
+        // First match wins when several wrapper keys are present.
+        assert_eq!(
+            find_messages_array(&json!({"messages": [{"a": 1}], "contents": [{"b": 2}, {"c": 3}]}))
+                .map(Vec::len),
+            Some(1)
+        );
+        // A wrapper key whose value isn't an array doesn't count.
+        assert!(find_messages_array(&json!({"messages": "nope"})).is_none());
+        assert!(find_messages_array(&json!({"foo": "bar"})).is_none());
+        assert!(find_messages_array(&json!("plain")).is_none());
     }
 }

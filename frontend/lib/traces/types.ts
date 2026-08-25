@@ -135,6 +135,8 @@ export type TraceRow = {
   outputTokens: number;
   totalTokens: number;
   cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
+  reasoningTokens?: number;
 
   inputCost: number;
   outputCost: number;
@@ -147,37 +149,45 @@ export type TraceRow = {
   status: string;
   spanTags: string[];
   traceTags: string[];
-  rootSpanInput?: string;
-  rootSpanOutput?: string;
+  agentInput?: string;
   inputSnippet?: { text: string; highlight: [number, number] };
   outputSnippet?: { text: string; highlight: [number, number] };
   attributesSnippet?: { text: string; highlight: [number, number] };
   snippetsCount?: number;
 };
 
+// Wire shape of one trace in a `trace_update` SSE event — mirrors the Rust
+// `RealtimeTrace` (app-server/src/traces/realtime.rs), camelCase serde. Numbers
+// are per-batch deltas the frontend accumulates. Keep in sync with
+// `realtimeTraceToRow` / `mergeTraceDelta` / `tracesSelectColumns`.
 export type RealtimeTracePayload = {
   id: string;
-  session_id: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  sessionId: string | null;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  cacheReadInputTokens: number;
+  cacheCreationInputTokens: number;
+  reasoningTokens: number;
+  inputCost: number;
+  outputCost: number;
+  totalCost: number;
   metadata: Record<string, any> | null;
-  project_id: string;
-  end_time: string | null;
-  start_time: string | null;
-  total_token_count: number;
-  cost: number;
-  created_at: string;
-  trace_type: "DEFAULT" | "EVENT" | "EVALUATION" | "PLAYGROUND";
-  input_token_count: number;
-  output_token_count: number;
-  input_cost: number;
-  output_cost: number;
-  has_browser_session: boolean | null;
-  top_span_id: string | null;
-  agent_session_id: string | null;
-  visibility: string | null;
+  topSpanId: string | null;
+  traceType: "DEFAULT" | "EVENT" | "EVALUATION" | "PLAYGROUND";
+  topSpanName: string | null;
+  topSpanType: string | null;
   status: string | null;
-  user_id: string | null;
-  root_span_input: string | null;
-  root_span_output: string | null;
+  userId: string | null;
+  tags: string[];
+};
+
+// `trace_agent_input_update` SSE event — real agent_input, delivered async.
+export type RealtimeAgentInputPayload = {
+  traceId: string;
+  agentInput: unknown;
 };
 
 export type TracePreview = {

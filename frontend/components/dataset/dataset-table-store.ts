@@ -1,6 +1,6 @@
 import { type ColumnDef } from "@tanstack/react-table";
 
-import { type CustomColumn } from "@/components/ui/columns-menu";
+import type { CustomColumn } from "@/components/ui/columns-menu/types";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 // Reuse the server-side wire contract (mirrors evaluation's EvalQueryColumn) so the
 // payload shape lives in one place.

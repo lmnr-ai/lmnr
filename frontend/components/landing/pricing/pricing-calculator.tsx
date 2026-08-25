@@ -1,104 +1,151 @@
 "use client";
 
-import { Info } from "lucide-react";
 import { type ReactNode, useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
-import { Slider } from "@/components/ui/slider";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { retentionLabel, TIER_RETENTION } from "@/lib/billing/retention";
-import { signalInputRate, signalOutputRate, type Tier, TIERS } from "@/lib/billing/tiers";
+import { ElevatedSurface } from "@/components/ui/surface";
+import { signalInputRate, signalOutputRate, type Tier, TIER_ORDER, TIERS } from "@/lib/billing/tiers";
 import { cn } from "@/lib/utils";
 
 import { microLabel, subSection } from "../class-names";
+import VolumeInputs from "./volume-inputs";
+import {
+  COVERAGE_STEPS,
+  DEFAULT_RUNS_IDX,
+  DEFAULT_TOKENS_PER_RUN_IDX,
+  RUN_STEPS,
+  TOKENS_PER_RUN_STEPS,
+} from "./volume-inputs/steps";
 
-const TOKEN_STEPS = [
-  100_000_000, 150_000_000, 200_000_000, 250_000_000, 300_000_000, 350_000_000, 400_000_000, 450_000_000, 500_000_000,
-  1_000_000_000, 2_500_000_000, 5_000_000_000, 10_000_000_000, 15_000_000_000, 20_000_000_000, 25_000_000_000,
-  35_000_000_000, 50_000_000_000, 75_000_000_000, 100_000_000_000, 250_000_000_000, 300_000_000_000, 333_333_333_334,
-  400_000_000_000, 500_000_000_000, 1_000_000_000_000, 1_666_666_666_667,
-];
-// Share of traces a Signal evaluates, as a percentage. Most teams run Signals
-// on a filtered slice of their traffic, not all of it.
-const COVERAGE_STEPS = [1, 5, 10, 25, 50, 75, 100];
+// Bytes of stored trace data per agent token: a saturating exponential decay
+// y = a·e^(−b·x) + c fitted to measured traces, x in thousands of tokens. ~2.8
+// bytes on a short run, decaying toward ~0.22 as dedup collapses repeats.
+const BYTES_PER_TOKEN_FIT = { a: 2.548, b: 0.002661, c: 0.2221 };
 
-const BYTES_PER_TOKEN = 3;
 const PRO_DATA_THRESHOLD_GB = 30;
 // Once the estimated Hobby bill clears this, Pro is the cheaper/safer pick.
 const HOBBY_TO_PRO_BILL_THRESHOLD_USD = 100;
-const ENTERPRISE_DATA_THRESHOLD_GB = 1000;
-const ENTERPRISE_SIGNAL_COST_THRESHOLD_USD = 500;
+// Enterprise is a bill-size question, not a usage question: whatever the mix of
+// data and Signals, once the best self-serve tier bills more than this it is
+// cheaper to be quoted.
+const ENTERPRISE_BILL_THRESHOLD_USD = 2500;
 
-// Signals don't re-read a trace token-for-token. Laminar compresses each trace
-// and feeds a Signal only the parts it needs, so the tokens billed are a small
-// fraction of the tokens the agent originally spent. On average a trace
-// compresses to ~10% of its original size; in practice it's often much smaller
-// and depends on the agent. This factor is the share of raw trace tokens that
-// reach a Signal as input after compression.
-const TRACE_TO_SIGNAL_COMPRESSION = 0.1;
-// Signal events are small structured outputs relative to the input they read.
-const SIGNAL_OUTPUT_RATIO = 0.02;
+// Token spend of one Signal run, fitted to the median of measured runs. NEITHER
+// term is proportional to the trace: compression leaves input as mostly fixed
+// prompt overhead growing as √x, and output saturates because a Signal event is
+// a fixed-shape object — its median holds near 3-4K across 1,212 runs.
+const SIGNAL_INPUT_FIT = { a: 892.402, b: 7729.86 }; // y = a·√x + b            SSE 22.1M
+const SIGNAL_OUTPUT_FIT = { a: 3575.6, b: 0.000961453, c: 2080.5 }; // y = a·(1−e^(−b·x)) + c  SSE 1.87M
 
+function signalInputTokens(tokensPerRun: number): number {
+  return SIGNAL_INPUT_FIT.a * Math.sqrt(tokensPerRun / 1_000) + SIGNAL_INPUT_FIT.b;
+}
+
+function signalOutputTokens(tokensPerRun: number): number {
+  const { a, b, c } = SIGNAL_OUTPUT_FIT;
+  return a * (1 - Math.exp((-b * tokensPerRun) / 1_000)) + c;
+}
+
+/** One metered line of one tier's column: what the bill picks up, and the
+ *  usage that produced it. */
+interface UsageCell {
+  /** "$5.00", "Included", "Not available", or "Custom". */
+  charge: string;
+  /** "1.1 GB / 3 GB". Absent on Enterprise, which has no numbers to show. */
+  detail?: string;
+}
+
+/** Everything a column renders is pre-formatted here, so the table itself holds
+ *  no branches. `totalUsd` picks the recommended column and is never shown. */
 interface TierEstimate {
   name: string;
-  basePrice: number;
-  includedDataGB: number;
-  includedSignalCostUsd: number;
-  dataOverageRate: number;
-  dataOverageCost: number;
-  signalCostUsd: number;
-  signalOverageCost: number;
-  total: number;
-  retention: string;
-  support: string;
+  base: string;
+  data: UsageCell;
+  signals: UsageCell;
+  total: string;
+  totalUsd: number;
+  /** False once usage passes an allowance the tier has no overage rate for —
+   *  Free simply stops, it does not bill. This is the whole reason the table
+   *  shows four columns instead of one: it puts the ceiling on screen. */
+  available: boolean;
 }
 
-function estimateDataFromTokens(tokens: number): number {
-  return (tokens * BYTES_PER_TOKEN) / 1_000_000_000;
+/** Evaluated at the PER-RUN token count, never the monthly total: dedup works
+ *  within a trace, so a month of small runs stores far more per token than one
+ *  long run of the same total size. */
+function bytesPerToken(tokensPerRun: number): number {
+  const { a, b, c } = BYTES_PER_TOKEN_FIT;
+  return a * Math.exp((-b * tokensPerRun) / 1_000) + c;
 }
 
-// Dollar cost of running Signals over `signalCoverage`% of `tokens` trace
-// tokens, after trace compression, at the given tier's signal token rates
-// (Pro is discounted). Returns USD.
-function estimateSignalCostUsd(tokens: number, signalCoveragePct: number, tier: Tier): number {
-  const evaluatedTokens = tokens * (signalCoveragePct / 100);
-  const signalInputTokens = evaluatedTokens * TRACE_TO_SIGNAL_COMPRESSION;
-  const signalOutputTokens = signalInputTokens * SIGNAL_OUTPUT_RATIO;
-  return (
-    (signalInputTokens / 1_000_000) * signalInputRate(tier) + (signalOutputTokens / 1_000_000) * signalOutputRate(tier)
-  );
+function estimateDataGB(runs: number, tokensPerRun: number): number {
+  return (runs * tokensPerRun * bytesPerToken(tokensPerRun)) / 1_000_000_000;
 }
+
+// Dollar cost of running one Signal over `signalCoveragePct`% of the month's
+// runs, at the given tier's signal token rates (Pro is discounted). Priced per
+// analyzed run, since both fits describe a single Signal run. Returns USD.
+function estimateSignalCostUsd(runs: number, tokensPerRun: number, signalCoveragePct: number, tier: Tier): number {
+  const analyzedRuns = runs * (signalCoveragePct / 100);
+  const inputTokens = analyzedRuns * signalInputTokens(tokensPerRun);
+  const outputTokens = analyzedRuns * signalOutputTokens(tokensPerRun);
+  return (inputTokens / 1_000_000) * signalInputRate(tier) + (outputTokens / 1_000_000) * signalOutputRate(tier);
+}
+
+/** A line costs nothing until usage passes the allowance; past it, the charge
+ *  IS the difference, so there is no separate rate to spell out. A tier with no
+ *  overage rate cannot bill the difference at all, so it stops instead. */
+const usageCell = (used: string, included: string, over: number, overageRate: number): UsageCell => {
+  const detail = `${used} / ${included}`;
+  if (over > 0 && overageRate === 0) return { charge: "Not available", detail };
+  const cost = over * overageRate;
+  return { charge: cost > 0 ? `$${formatDollars(cost)}` : "Included", detail };
+};
+
+const CUSTOM_CELL: UsageCell = { charge: "Custom" };
 
 function buildEstimate(tier: Tier, dataGB: number, signalCostUsd: number): TierEstimate {
   const t = TIERS[tier];
-  const basePrice = t.basePriceMonthly ?? 0;
-  const dataOverageCost = Math.max(0, dataGB - t.includedBytesGB) * t.dataOverageRatePerGB;
-  const signalOverageCost = Math.max(0, signalCostUsd - t.includedSignalCostUsd);
+
+  // Enterprise is quoted, not computed. A null base price is the only thing
+  // that distinguishes it, so it needs no separate component.
+  if (t.basePriceMonthly === null) {
+    return {
+      name: t.name,
+      base: "Custom",
+      data: CUSTOM_CELL,
+      signals: CUSTOM_CELL,
+      total: "Custom",
+      totalUsd: 0,
+      available: true,
+    };
+  }
+
+  const dataOver = Math.max(0, dataGB - t.includedBytesGB);
+  const signalOver = Math.max(0, signalCostUsd - t.includedSignalCostUsd);
+  // Signals overage is already priced in dollars, so its "rate" is 1 per dollar
+  // — the tier either bills the excess or it does not.
+  const signalOverageRate = t.dataOverageRatePerGB > 0 ? 1 : 0;
+
+  const data = usageCell(formatDataSize(dataGB), formatDataSize(t.includedBytesGB), dataOver, t.dataOverageRatePerGB);
+  const signals = usageCell(
+    `$${formatDollars(signalCostUsd)}`,
+    `$${t.includedSignalCostUsd}`,
+    signalOver,
+    signalOverageRate
+  );
+
+  const totalUsd = t.basePriceMonthly + dataOver * t.dataOverageRatePerGB + signalOver * signalOverageRate;
+  const available = data.charge !== "Not available" && signals.charge !== "Not available";
+
   return {
     name: t.name,
-    basePrice,
-    includedDataGB: t.includedBytesGB,
-    includedSignalCostUsd: t.includedSignalCostUsd,
-    dataOverageRate: t.dataOverageRatePerGB,
-    dataOverageCost,
-    signalCostUsd,
-    signalOverageCost,
-    total: basePrice + dataOverageCost + signalOverageCost,
-    retention: TIER_RETENTION[tier].duration,
-    support: t.support,
+    base: `$${formatDollars(t.basePriceMonthly)}`,
+    data,
+    signals,
+    total: available ? `$${formatDollars(totalUsd)}` : "Not available",
+    totalUsd,
+    available,
   };
-}
-
-function formatTokens(tokens: number): string {
-  if (tokens >= 1_000_000_000_000) {
-    const trillions = tokens / 1_000_000_000_000;
-    return `${trillions % 1 === 0 ? trillions.toFixed(0) : trillions.toFixed(1)}T`;
-  }
-  if (tokens >= 1_000_000_000) {
-    const billions = tokens / 1_000_000_000;
-    return `${billions % 1 === 0 ? billions.toFixed(0) : billions.toFixed(1)}B`;
-  }
-  return `${(tokens / 1_000_000).toFixed(0)}M`;
 }
 
 function formatDollars(n: number): string {
@@ -115,257 +162,140 @@ function formatDataSize(gb: number): string {
   return `${gb.toFixed(1)} GB`;
 }
 
-// Tooltip is required — the badge only makes sense paired with a "why this
-// tier is recommended" explanation.
-function RecommendedBadge({ tooltip }: { tooltip: string }) {
-  return (
-    <TooltipProvider delayDuration={0}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Badge variant="default" className="text-xs shrink-0 cursor-help gap-1">
-            Recommended
-            <Info size={11} />
-          </Badge>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="max-w-56 text-xs leading-relaxed">
-          {tooltip}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
+function recommendTier(dataGB: number, estimates: Record<Tier, TierEstimate>): Tier {
+  if (estimates.free.available) return "free";
+  const paid =
+    dataGB >= PRO_DATA_THRESHOLD_GB ||
+    estimates.hobby.totalUsd > HOBBY_TO_PRO_BILL_THRESHOLD_USD ||
+    estimates.pro.totalUsd < estimates.hobby.totalUsd
+      ? "pro"
+      : "hobby";
+  // Judged on the tier the reader would otherwise land on, so the threshold
+  // means "your bill", not "some tier's bill".
+  return estimates[paid].totalUsd > ENTERPRISE_BILL_THRESHOLD_USD ? "enterprise" : paid;
 }
 
-// Badge only renders when a tooltip is supplied — keeps the name-only call
-// shape valid for any future reuse without a recommendation context.
-function TierHeader({ name, tooltip }: { name: string; tooltip?: string }) {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <span className={cn(subSection, "text-white")}>{name}</span>
-      {tooltip && <RecommendedBadge tooltip={tooltip} />}
-    </div>
-  );
-}
+// One grid, four tier columns, so the reader compares across a row. Every cell
+// is pre-formatted by `buildEstimate`; nothing here branches on a tier.
+// EMPHASIS IS THE WHOLE SIGNAL: white is spent on the recommended column and
+// nothing else — four equally loud ones are a table you have to read.
+const GRID = "min-w-[600px] grid grid-cols-[minmax(0,1.3fr)_repeat(4,minmax(0,1fr))]";
+const CELL = "px-[14px] py-3 text-left";
 
-function TierColumn({ estimate, tooltip, dataGB }: { estimate: TierEstimate; tooltip?: string; dataGB: number }) {
-  const extraDataGB = Math.max(0, dataGB - estimate.includedDataGB);
+const emphasis = (isRecommended: boolean) => (isRecommended ? "text-white" : "text-foreground-400");
+const detailEmphasis = (isRecommended: boolean) => (isRecommended ? "text-foreground-300" : "text-foreground-500");
 
-  return (
-    <div className="bg-surface-500 h-full rounded p-5 space-y-4">
-      <TierHeader name={estimate.name} tooltip={tooltip} />
+/** Label + one cell per tier. A fragment so every cell is a direct child of the
+ *  grid and the columns line up on their own. */
+const Row = ({ label, children }: { label: ReactNode; children: ReactNode }) => (
+  <>
+    <div className="px-[14px] py-3 text-foreground-200">{label}</div>
+    {children}
+  </>
+);
 
-      <div className="space-y-2 text-sm">
-        <div>
-          <div className="flex justify-between text-white">
-            <span>Base</span>
-            <span>${formatDollars(estimate.basePrice)}</span>
-          </div>
-          <div className={cn(microLabel, "mt-0.5 text-foreground-300")}>
-            {formatDataSize(estimate.includedDataGB)} + ${estimate.includedSignalCostUsd} in Signals included
-          </div>
-        </div>
-
-        {estimate.dataOverageCost > 0 ? (
-          <div className="flex justify-between text-foreground-200">
-            <span>
-              {formatDataSize(extraDataGB)} × ${estimate.dataOverageRate}/GB
-            </span>
-            <span>+${formatDollars(estimate.dataOverageCost)}</span>
-          </div>
-        ) : (
-          <div className="flex justify-between text-foreground-300">
-            <span>Data ({formatDataSize(dataGB)})</span>
-            <span>Included</span>
-          </div>
-        )}
-
-        {estimate.signalOverageCost > 0 ? (
-          <div className="flex justify-between text-foreground-200">
-            <span>
-              <span>Signals (${formatDollars(estimate.signalCostUsd)})</span>
-            </span>
-            <span>+${formatDollars(estimate.signalOverageCost)}</span>
-          </div>
-        ) : (
-          <div className="flex justify-between text-foreground-300">
-            <span>Signals (${formatDollars(estimate.signalCostUsd)})</span>
-            <span>Included</span>
-          </div>
-        )}
-      </div>
-
-      <div className="border-t pt-3 border-surface-400">
-        <div className={cn(subSection, "flex justify-between text-lg leading-6 text-white")}>
-          <span>Total</span>
-          <span>${formatDollars(estimate.total)}/mo</span>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-surface-400 text-sm")}>
-          {estimate.retention} retention
-        </span>
-        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-surface-400 text-sm")}>
-          {estimate.support} support
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function EnterpriseTierColumn({ tooltip }: { tooltip?: string }) {
-  return (
-    <div className="bg-surface-500 h-full rounded p-5 space-y-4">
-      <TierHeader name="Enterprise" tooltip={tooltip} />
-
-      <div className="space-y-2 text-sm">
-        <div className="flex justify-between text-white">
-          <span>Base</span>
-          <span>Custom</span>
-        </div>
-        <div className="flex justify-between text-foreground-300">
-          <span>Additional data</span>
-          <span>Custom</span>
-        </div>
-        <div className="flex justify-between text-foreground-300">
-          <span>Additional Signals usage</span>
-          <span>Custom</span>
-        </div>
-      </div>
-
-      <div className="border-t pt-3 border-surface-400">
-        <div className={cn(subSection, "flex justify-between text-lg leading-6 text-white")}>
-          <span>Total</span>
-          <span>Custom</span>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-surface-400")}>
-          {retentionLabel("enterprise")}
-        </span>
-        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-surface-400")}>
-          Dedicated support
-        </span>
-      </div>
-    </div>
-  );
-}
-
-type CalculatorState = "free" | "hobby" | "pro" | "enterprise";
-
-function getCalculatorState(
-  dataGB: number,
-  signalCostUsd: number,
-  freeTotal: number,
-  hobbyTotal: number,
-  proTotal: number
-): CalculatorState {
-  if (dataGB <= 1 && freeTotal === 0) return "free";
-  if (dataGB >= ENTERPRISE_DATA_THRESHOLD_GB || signalCostUsd >= ENTERPRISE_SIGNAL_COST_THRESHOLD_USD) {
-    return "enterprise";
-  }
-  if (dataGB >= PRO_DATA_THRESHOLD_GB || hobbyTotal > HOBBY_TO_PRO_BILL_THRESHOLD_USD || proTotal < hobbyTotal) {
-    return "pro";
-  }
-  return "hobby";
-}
-
-interface SliderBlockProps {
-  label: string;
-  value: ReactNode;
-  sliderValue: number;
-  max: number;
-  onChange: (v: number) => void;
-  className?: string;
-}
-
-const SliderBlock = ({ label, value, sliderValue, max, onChange, className }: SliderBlockProps) => (
-  <div className={cn("space-y-2", className)}>
-    <div className="flex justify-between">
-      <span className="text-white">{label}</span>
-      <span className="text-white">{value}</span>
-    </div>
-    <Slider value={[sliderValue]} max={max} min={0} step={1} onValueChange={(v) => onChange(v[0])} className="w-full" />
+const UsageValue = ({ cell, isRecommended }: { cell: UsageCell; isRecommended: boolean }) => (
+  <div className="flex flex-col items-start gap-0.5">
+    <span className={emphasis(isRecommended)}>{cell.charge}</span>
+    {cell.detail && <span className={cn("text-xs", detailEmphasis(isRecommended))}>{cell.detail}</span>}
   </div>
 );
 
+function TierComparison({ estimates, recommended }: { estimates: Record<Tier, TierEstimate>; recommended: Tier }) {
+  return (
+    <ElevatedSurface offset={3} className="rounded overflow-x-auto">
+      <div className={cn(GRID, "text-sm")}>
+        <div className="px-[14px] pt-4 pb-3" />
+        {TIER_ORDER.map((tier) => (
+          <div key={tier} className="px-[14px] pt-4 pb-3">
+            <span className={cn(subSection, "text-base leading-5", emphasis(tier === recommended))}>
+              {estimates[tier].name}
+            </span>
+          </div>
+        ))}
+
+        <div className="col-span-5 border-t mx-[14px]" />
+
+        <Row label="Base">
+          {TIER_ORDER.map((tier) => (
+            <div key={tier} className={cn(CELL, emphasis(tier === recommended))}>
+              {estimates[tier].base}
+            </div>
+          ))}
+        </Row>
+        <Row label="Data">
+          {TIER_ORDER.map((tier) => (
+            <div key={tier} className={CELL}>
+              <UsageValue cell={estimates[tier].data} isRecommended={tier === recommended} />
+            </div>
+          ))}
+        </Row>
+        <Row label="Signals">
+          {TIER_ORDER.map((tier) => (
+            <div key={tier} className={CELL}>
+              <UsageValue cell={estimates[tier].signals} isRecommended={tier === recommended} />
+            </div>
+          ))}
+        </Row>
+
+        <div className="col-span-5 border-t mx-[14px]" />
+
+        <Row label={<span className="text-white">Estimated monthly total</span>}>
+          {TIER_ORDER.map((tier) => (
+            <div key={tier} className={cn(CELL, "pb-4", emphasis(tier === recommended))}>
+              {estimates[tier].total}
+              {estimates[tier].available && estimates[tier].totalUsd > 0 && (
+                <span className={detailEmphasis(tier === recommended)}>/mo</span>
+              )}
+            </div>
+          ))}
+        </Row>
+      </div>
+    </ElevatedSurface>
+  );
+}
+
 export default function PricingCalculator() {
-  const [tokenIdx, setTokenIdx] = useState(0);
+  const [runsIdx, setRunsIdx] = useState(DEFAULT_RUNS_IDX);
+  const [tokensPerRunIdx, setTokensPerRunIdx] = useState(DEFAULT_TOKENS_PER_RUN_IDX);
   const [coverageIdx, setCoverageIdx] = useState(COVERAGE_STEPS.length - 1);
 
-  const tokens = TOKEN_STEPS[tokenIdx];
-  const dataGB = estimateDataFromTokens(tokens);
+  const runs = RUN_STEPS[runsIdx];
+  const tokensPerRun = TOKENS_PER_RUN_STEPS[tokensPerRunIdx];
+  const dataGB = estimateDataGB(runs, tokensPerRun);
   const coveragePct = COVERAGE_STEPS[coverageIdx];
 
   // Signal cost is tier-dependent (Pro is discounted), so each estimate prices
   // at its own rate.
-  const free = buildEstimate("free", dataGB, estimateSignalCostUsd(tokens, coveragePct, "free"));
-  const hobby = buildEstimate("hobby", dataGB, estimateSignalCostUsd(tokens, coveragePct, "hobby"));
-  const pro = buildEstimate("pro", dataGB, estimateSignalCostUsd(tokens, coveragePct, "pro"));
+  const estimates: Record<Tier, TierEstimate> = {
+    free: buildEstimate("free", dataGB, estimateSignalCostUsd(runs, tokensPerRun, coveragePct, "free")),
+    hobby: buildEstimate("hobby", dataGB, estimateSignalCostUsd(runs, tokensPerRun, coveragePct, "hobby")),
+    pro: buildEstimate("pro", dataGB, estimateSignalCostUsd(runs, tokensPerRun, coveragePct, "pro")),
+    enterprise: buildEstimate("enterprise", dataGB, 0),
+  };
 
-  const state = getCalculatorState(dataGB, hobby.signalCostUsd, free.total, hobby.total, pro.total);
-  // Signal cost shown next to the coverage slider tracks the recommended tier's
-  // rate so it agrees with the estimate column below.
-  const displayedSignalCostUsd = state === "pro" ? pro.signalCostUsd : hobby.signalCostUsd;
-
-  const freeTooltip = "Your usage fits within the Free tier. No payment needed.";
-  const hobbyTooltip = "Most teams at this usage level choose Hobby as the safer, more predictable option.";
-  const proTooltip = "Most teams at this usage level choose Pro as the safer, more predictable option.";
-  const enterpriseTooltip = "Most teams at this scale choose Enterprise as the safer, more cost-effective option.";
-
-  const tokensValue = (
-    <>
-      {formatTokens(tokens)} <span className="text-sm text-foreground-300">≈ {formatDataSize(dataGB)}</span>
-    </>
-  );
-
-  const tokenSlider = (
-    <SliderBlock
-      label="Agent tokens per month"
-      value={tokensValue}
-      sliderValue={tokenIdx}
-      max={TOKEN_STEPS.length - 1}
-      onChange={setTokenIdx}
-    />
-  );
-
-  const coverageValue = (
-    <>
-      {coveragePct}%{" "}
-      <span className="text-sm text-foreground-300">≈ ${formatDollars(displayedSignalCostUsd)} in Signals</span>
-    </>
-  );
-  const coverageSlider = (
-    <SliderBlock
-      label="Traces evaluated by Signals"
-      value={coverageValue}
-      sliderValue={coverageIdx}
-      max={COVERAGE_STEPS.length - 1}
-      onChange={setCoverageIdx}
-    />
-  );
-
-  const preview = (
-    <>
-      {state === "free" && <TierColumn estimate={free} tooltip={freeTooltip} dataGB={dataGB} />}
-      {state === "hobby" && <TierColumn estimate={hobby} tooltip={hobbyTooltip} dataGB={dataGB} />}
-      {state === "pro" && <TierColumn estimate={pro} tooltip={proTooltip} dataGB={dataGB} />}
-      {state === "enterprise" && <EnterpriseTierColumn tooltip={enterpriseTooltip} />}
-    </>
-  );
+  const recommended = recommendTier(dataGB, estimates);
 
   return (
     <div className="w-full space-y-6">
       <p className={cn(subSection, "text-white")}>Pricing calculator</p>
       <div className="flex flex-col gap-6 w-full">
-        {tokenSlider}
-        {coverageSlider}
-        {preview}
-        <p className={cn(microLabel, "text-foreground-300")}>
-          Signals are billed by the tokens spent reading a trace, not 1-to-1 with your agent&apos;s token usage —
-          Laminar compresses each trace to about 10% of its original size on average (in practice often much smaller,
-          depending on the agent) and only feeds a Signal what it needs, so Signals cost is a fraction of the tokens
-          above.
+        {/* Every input the calculator has. Coverage is in there rather than
+            here because where it sits relative to the two volume factors is
+            part of how the multiplication reads. */}
+        <VolumeInputs
+          runsIdx={runsIdx}
+          tokensPerRunIdx={tokensPerRunIdx}
+          coverageIdx={coverageIdx}
+          onRunsIdx={setRunsIdx}
+          onTokensPerRunIdx={setTokensPerRunIdx}
+          onCoverageIdx={setCoverageIdx}
+        />
+        <TierComparison estimates={estimates} recommended={recommended} />
+        <p className={cn(microLabel, "text-foreground-300 text-sm")}>
+          Prices above are estimates only. Storage costs are not proportional to token count due to trace compression.
+          Signals are billed by tokens used during analysis by our internal Signals Agent. Estimates above are based on
+          real production trace size and cost data.
         </p>
       </div>
     </div>

@@ -54,6 +54,40 @@ pub async fn create_evaluation(
     Ok(evaluation)
 }
 
+/// Update evaluation name and/or metadata. Fields left as `None` are kept.
+/// `group_id` is deliberately not updatable. Returns `None` when the
+/// evaluation doesn't exist in the project.
+pub async fn update_evaluation(
+    pool: &PgPool,
+    evaluation_id: Uuid,
+    project_id: Uuid,
+    name: &Option<String>,
+    metadata: &Option<Value>,
+) -> Result<Option<Evaluation>> {
+    let evaluation = sqlx::query_as::<_, Evaluation>(
+        "UPDATE evaluations
+        SET
+            name = COALESCE($3, name),
+            metadata = COALESCE($4, metadata)
+        WHERE id = $1 AND project_id = $2
+        RETURNING
+            id,
+            created_at,
+            name,
+            project_id,
+            group_id,
+            metadata",
+    )
+    .bind(evaluation_id)
+    .bind(project_id)
+    .bind(name)
+    .bind(metadata)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(evaluation)
+}
+
 /// Get evaluation group_id for ClickHouse operations
 pub async fn get_evaluation_group_id(
     pool: &PgPool,

@@ -1,6 +1,6 @@
 "use client";
 
-import { HelpCircle, Loader2, Mail, Send, Slack } from "lucide-react";
+import { HelpCircle, Loader2, Mail, Send } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Controller, FormProvider, useForm, useWatch } from "react-hook-form";
 import useSWR from "swr";
@@ -14,6 +14,7 @@ import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import DateRangeFilter from "@/components/ui/date-range-filter";
+import { IconSlack } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -715,7 +716,7 @@ export function AlertForm({
                         render={({ field, fieldState }) => (
                           <div className="grid gap-2 p-3">
                             <div className="flex items-center gap-3">
-                              <Slack className="size-4 shrink-0 text-muted-foreground" />
+                              <IconSlack className="size-4 shrink-0 text-muted-foreground" />
                               <Label className="text-sm font-medium">Slack channels</Label>
                             </div>
                             <div className="flex items-center gap-2 pl-7">

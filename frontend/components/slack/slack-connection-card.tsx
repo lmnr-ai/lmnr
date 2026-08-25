@@ -163,7 +163,7 @@ export default function SlackConnectionCard({
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
+                <Button aria-label="More options" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
                   <EllipsisVertical size={14} />
                 </Button>
               </DropdownMenuTrigger>
@@ -205,12 +205,12 @@ export default function SlackConnectionCard({
   return (
     <>
       {children ? (
-        <div className={cn("flex flex-col rounded-lg border border-border bg-surface-800 overflow-hidden", className)}>
-          <div className="flex items-center gap-4 p-4 bg-surface-700">{integrationRow}</div>
+        <div className={cn("flex flex-col rounded-lg border border-border bg-surface-100 overflow-hidden", className)}>
+          <div className="flex items-center gap-4 p-4">{integrationRow}</div>
           {slackIntegration && <div className="border-t border-border">{children}</div>}
         </div>
       ) : (
-        <div className={cn("rounded-lg border border-border p-4 flex items-center gap-4", className)}>
+        <div className={cn("rounded-lg border border-border p-4 flex items-center gap-4 bg-surface-100", className)}>
           {integrationRow}
         </div>
       )}

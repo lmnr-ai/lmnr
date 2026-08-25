@@ -1,7 +1,12 @@
+import { type Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import DebuggerSessionView from "@/components/debugger-sessions/debugger-session-view";
 import { getDebuggerSession } from "@/lib/actions/debugger-sessions";
+
+export const metadata: Metadata = {
+  title: "Debugger session",
+};
 
 export default async function DebuggerSessionPage(props: { params: Promise<{ projectId: string; id: string }> }) {
   const { projectId, id } = await props.params;

@@ -15,12 +15,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { track } from "@/lib/posthog";
 import { cn, tryParseJson } from "@/lib/utils";
 
-import { type ManageSignalContentVariant } from "./manage-signal-content";
 import SamplingSection from "./sampling-section";
 import SchemaFieldsBuilder from "./schema-fields-builder";
 import TemplatePicker from "./template-picker";
 import TriggersSection from "./triggers-section";
-import { type ManageSignalForm } from "./types";
+import { type ManageSignalContentVariant, type ManageSignalForm } from "./types";
 
 export default function SignalFormFields({
   variant,
@@ -61,15 +60,7 @@ export default function SignalFormFields({
   }, [setValue]);
 
   return (
-    <div
-      className={cn(
-        "grid gap-8 py-4",
-        {
-          "pb-16": !showTemplates,
-        },
-        className
-      )}
-    >
+    <div className={cn("grid gap-8 py-4 pb-16", className)}>
       {Boolean(getValues("id")) && (
         <Controller
           name="disabled"
@@ -143,7 +134,7 @@ export default function SignalFormFields({
               <TooltipTrigger asChild>
                 <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
               </TooltipTrigger>
-              <TooltipContent side="right" className="max-w-60">
+              <TooltipContent side="right" className="max-w-44">
                 <p>Describe what you&apos;re looking for in the trace.</p>
               </TooltipContent>
             </Tooltip>

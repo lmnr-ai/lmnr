@@ -1,7 +1,16 @@
-import { buildSuggestions, type Suggestion } from "@/components/common/advanced-search/components/suggestions.tsx";
 import { type ColumnFilter, type TagFocusPosition } from "@/components/common/advanced-search/types.ts";
 
 const FIELD_ORDER: TagFocusPosition[] = ["field", "operator", "value", "remove"];
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const isUuid = (value: string): boolean => UUID_REGEX.test(value.trim());
+
+// Single source of truth for "does this input resolve to the id suggestion",
+// shared by the suggestion list builder and the store's pre-selection so the
+// two can never drift apart.
+export const hasUuidSuggestion = (value: string, filters: ColumnFilter[], uuidFilterColumn?: string): boolean =>
+  !!uuidFilterColumn && isUuid(value) && filters.some((f) => f.key === uuidFilterColumn);
 
 export const getNextField = (current: TagFocusPosition): TagFocusPosition | null => {
   const index = FIELD_ORDER.indexOf(current);
@@ -49,19 +58,4 @@ export const buildValueSuggestions = (
   });
 
   return valueSuggestions;
-};
-export const getSuggestionsCount = (
-  filters: ColumnFilter[],
-  inputValue: string,
-  autocompleteData: Map<string, string[]>
-): number => buildSuggestions(inputValue, filters, autocompleteData).length;
-
-export const getSuggestionAtIndex = (
-  filters: ColumnFilter[],
-  inputValue: string,
-  index: number,
-  autocompleteData: Map<string, string[]>
-): Suggestion | null => {
-  const suggestions = buildSuggestions(inputValue, filters, autocompleteData);
-  return suggestions[index] ?? null;
 };

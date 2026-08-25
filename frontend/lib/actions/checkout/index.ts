@@ -8,6 +8,7 @@ import { stripe } from "@/lib/actions/checkout/stripe";
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
 import { getWorkspaceUsage } from "@/lib/actions/workspace";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
+import { normalizeTier } from "@/lib/billing/tiers";
 import { db } from "@/lib/db/drizzle";
 import { subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 
@@ -49,7 +50,8 @@ export async function getSubscriptionDetails(workspaceId: string): Promise<Subsc
     expand: ["latest_invoice.lines"],
   });
 
-  const tierName = workspace.subscriptionTier.name.toLowerCase().trim() as PaidTier;
+  // DB rows may carry the "Starter" display name for the internal "hobby" tier.
+  const tierName = normalizeTier(workspace.subscriptionTier.name) as PaidTier;
 
   const stripeCustomerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
 
@@ -197,7 +199,7 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
     throw new Error("No active subscription found. Use the checkout page to subscribe.");
   }
 
-  const currentTierName = workspace[0].tierName.toLowerCase().trim();
+  const currentTierName = normalizeTier(workspace[0].tierName);
   if (currentTierName === newTier) {
     throw new Error(`Already on the ${newTier} tier`);
   }

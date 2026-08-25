@@ -12,9 +12,23 @@ export type Tier = RetentionTier; // "free" | "hobby" | "pro" | "enterprise"
 // Map an arbitrary tier-name string (as stored on `subscription_tiers.name`)
 // to the `Tier` union, defaulting unknown values to the standard-rate "free".
 // Used by the metering path to select the per-tier signal token rate.
+// "Starter" is the display name of the internal "hobby" tier (renamed 2026-07);
+// DB rows may carry either name during the rollout.
 export const normalizeTier = (name: string): Tier => {
   const key = name.trim().toLowerCase();
+  if (key === "starter") return "hobby";
   return key === "hobby" || key === "pro" || key === "enterprise" ? key : "free";
+};
+
+// Display name for an arbitrary tier-name string as stored in the DB. Maps
+// known tiers through `TIERS` (so a "Hobby" DB row renders as "Starter");
+// unknown names (e.g. custom enterprise tier rows like "unlimited") pass
+// through unchanged.
+export const tierDisplayName = (name: string): string => {
+  const key = name.trim().toLowerCase();
+  return key === "free" || key === "hobby" || key === "starter" || key === "pro" || key === "enterprise"
+    ? TIERS[normalizeTier(name)].name
+    : name;
 };
 
 interface TierData {
@@ -117,7 +131,9 @@ export const TIERS: Record<Tier, TierData> = {
     support: "Community",
   },
   hobby: {
-    name: "Hobby",
+    // Display name only — the internal key stays "hobby" everywhere (Tier
+    // union, Stripe lookup keys, subscription_tiers rows, Rust enum).
+    name: "Starter",
     basePriceMonthly: 30,
     includedBytesGB: 3,
     includedSignalCostUsd: 15,

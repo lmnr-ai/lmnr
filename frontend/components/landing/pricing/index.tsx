@@ -33,7 +33,7 @@ export default function Pricing() {
         <>
           Signals are billed by the tokens the agent spends to read a trace and generate a structured event: $0.50 per
           1M input tokens and $3 per 1M output tokens. Each plan includes a dollar amount of Signals usage ($5 Free, $15
-          Hobby, $50 Pro); usage past that is billed at the same per-token rates. You pay for what a Signal reads and
+          Starter, $50 Pro); usage past that is billed at the same per-token rates. You pay for what a Signal reads and
           writes, not for the spans your agent emits. Read more in the{" "}
           <a
             href="https://laminar.sh/docs/signals/introduction"
@@ -76,14 +76,17 @@ export default function Pricing() {
             <CardsVariant />
           </div>
 
-          {/* Detailed comparison table */}
-          <div className="w-full mb-[240px]">
-            <PricingTable />
+          {/* Calculator. Wider than the old 640px column since it compares four
+              tiers side by side, but capped short of the page: past ~800px the
+              gap between a row's label and its last column stops being
+              scannable. */}
+          <div className="w-full max-w-[800px] mb-[240px]">
+            <PricingCalculator />
           </div>
 
-          {/* Calculator */}
-          <div className="w-full max-w-[640px] mb-[160px]">
-            <PricingCalculator />
+          {/* Detailed comparison table */}
+          <div className="w-full mb-[160px]">
+            <PricingTable />
           </div>
 
           <div className={cn("w-full", LANDING_COLUMN_MAX_W)}>
@@ -95,7 +98,7 @@ export default function Pricing() {
             <h2 className={cn(subSection, "text-white")}>Frequently asked questions</h2>
             <Accordion type="single" collapsible className="w-full">
               {faqItems.map((item) => (
-                <AccordionItem key={item.id} value={item.id} className="border-surface-400">
+                <AccordionItem key={item.id} value={item.id} className="border-surface-300">
                   <AccordionTrigger
                     className={cn("text-white text-lg leading-6 py-6")}
                     onClick={() => handleQuestionClick(item.question)}

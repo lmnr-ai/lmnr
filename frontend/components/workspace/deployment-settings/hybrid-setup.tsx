@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { CopyButton } from "@/components/ui/copy-button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
-import { type DeploymentManagementForm } from "@/components/workspace/deployment-settings/workspace-deployment.tsx";
+import { type DeploymentManagementForm } from "@/components/workspace/deployment-settings/types";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { cn } from "@/lib/utils.ts";
 

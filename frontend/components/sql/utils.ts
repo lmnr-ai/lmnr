@@ -132,6 +132,21 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "input_tokens", type: "Int64", description: "Number of input tokens" },
       { name: "output_tokens", type: "Int64", description: "Number of output tokens" },
       { name: "total_tokens", type: "Int64", description: "Total tokens used" },
+      {
+        name: "cache_read_input_tokens",
+        type: "Int64",
+        description: "Tokens read from prompt cache (summed across LLM spans)",
+      },
+      {
+        name: "cache_creation_input_tokens",
+        type: "Int64",
+        description: "Tokens written to prompt cache (summed across LLM spans)",
+      },
+      {
+        name: "reasoning_tokens",
+        type: "Int64",
+        description: "Reasoning tokens (summed across LLM spans)",
+      },
       { name: "input_cost", type: "Float64", description: "Cost for input tokens" },
       { name: "output_cost", type: "Float64", description: "Cost for output tokens" },
       { name: "total_cost", type: "Float64", description: "Total cost of the span" },
@@ -168,16 +183,28 @@ export const tableSchemas: Record<string, TableSchema> = {
         description: "De-duplicated list of span names produced anywhere in the trace",
       },
       {
-        name: "root_span_input",
+        name: "agent_input",
         type: "String",
-        description: "Input of the trace's top span as stringified JSON or raw string",
-      },
-      {
-        name: "root_span_output",
-        type: "String",
-        description: "Output of the trace's top span as stringified JSON or raw string",
+        description: "Extracted agent task / user input for the trace as stringified JSON or raw string",
       },
       { name: "has_browser_session", type: "Bool", description: "Whether the trace has a browser session" },
+    ],
+  },
+  trace_outputs: {
+    description:
+      "Extracted final agent output per trace: the output messages of the last LLM call on the trace's main-agent path",
+    columns: [
+      { name: "trace_id", type: "UUID", description: "ID of the trace" },
+      {
+        name: "updated_at",
+        type: "DateTime64(9, 'UTC')",
+        description: "End time of the span the output was extracted from",
+      },
+      {
+        name: "agent_output",
+        type: "Array(String)",
+        description: "Output messages of the trace's final LLM call, one stringified JSON message per element",
+      },
     ],
   },
   dataset_datapoints: {
@@ -317,7 +344,7 @@ export const tableSchemas: Record<string, TableSchema> = {
       {
         name: "summary",
         type: "String",
-        description: "Short, human-readable description of the event. May be empty for older events",
+        description: "Short human-readable description (may be empty)",
       },
       {
         name: "clusters",
@@ -338,7 +365,11 @@ export const tableSchemas: Record<string, TableSchema> = {
         description: "Level of the cluster in the hierarchy. Higher levels are coarser groupings",
       },
       { name: "parent_id", type: "UUID", description: "ID of the parent cluster. Nil UUID for top-level clusters" },
-      { name: "num_signal_events", type: "UInt32", description: "Number of signal events in the cluster" },
+      {
+        name: "num_signal_events",
+        type: "UInt32",
+        description: "Number of clustered event summaries in the cluster (an event contributes once per summary)",
+      },
       { name: "num_children_clusters", type: "UInt16", description: "Number of immediate child clusters" },
       { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the cluster was created" },
       { name: "updated_at", type: "DateTime64(9, 'UTC')", description: "When the cluster was last updated" },

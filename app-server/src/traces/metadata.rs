@@ -15,43 +15,44 @@ use crate::{
         DB,
         spans::{Span, SpanType},
     },
-    mq::MessageQueue,
+    mq::{MessageQueue, stream::StreamPublisher},
     traces::{
         producer::publish_span_messages,
-        span_attributes::{ASSOCIATION_PROPERTIES_PREFIX, SPAN_METADATA_ONLY},
+        span_attributes::{
+            ASSOCIATION_PROPERTIES_PREFIX, SPAN_METADATA_ONLY, SPAN_TRACE_INPUT,
+            SPAN_TRACE_OUTPUT_END_TIME, SPAN_TRACE_OUTPUT_HASHES,
+        },
         spans::SpanAttributes,
     },
 };
 
-/// Merge `metadata` onto a trace via a virtual metadata-only span, creating a
-/// virtual trace row when the trace doesn't exist yet. No-op when empty.
+/// A post-factum metadata patch applied to a trace by the
+/// `POST /v1/traces/metadata` endpoint via a virtual metadata-only span.
+#[derive(Debug, Clone)]
+pub struct TraceMetadataPatch {
+    pub trace_id: Uuid,
+    pub project_id: Uuid,
+    pub metadata: Value,
+}
+
+/// Publish a virtual metadata-only span carrying `attributes` (which must
+/// already include the [`SPAN_METADATA_ONLY`] marker). The consumer routes
+/// it as a trace patch: not recorded to `spans`, no stats.
 ///
 /// Returns a boxed future: the user-task hook forms an async cycle
 /// (`publish_span_messages` → hook → here → `publish_span_messages`), so the
 /// type must be erased here to break the E0733 / Send inference cycle. The
 /// runtime recursion is bounded — the virtual span yields no candidate.
-pub fn publish_trace_metadata_patch(
+fn publish_metadata_only_span(
     trace_id: Uuid,
     project_id: Uuid,
-    metadata: HashMap<String, Value>,
+    attributes: HashMap<String, Value>,
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    spans_stream_publisher: Option<Arc<StreamPublisher>>,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send>> {
     Box::pin(async move {
-        if metadata.is_empty() {
-            return Ok(());
-        }
-
-        let mut attributes: HashMap<String, Value> = HashMap::with_capacity(metadata.len() + 1);
-        attributes.insert(SPAN_METADATA_ONLY.to_string(), Value::Bool(true));
-        for (key, value) in metadata {
-            attributes.insert(
-                format!("{ASSOCIATION_PROPERTIES_PREFIX}.metadata.{key}"),
-                value,
-            );
-        }
-
         let now = Utc::now();
         let span = Span {
             span_id: Uuid::new_v4(),
@@ -81,7 +82,131 @@ pub fn publish_trace_metadata_patch(
             tool_dedup: None,
         }];
 
-        publish_span_messages(messages, project_id, queue, db, cache).await?;
+        publish_span_messages(
+            messages,
+            project_id,
+            queue,
+            db,
+            cache,
+            spans_stream_publisher,
+        )
+        .await?;
         Ok(())
     })
+}
+
+/// Merge `metadata` onto a trace via a virtual metadata-only span. No-op
+/// when empty. Used by the public `POST /v1/traces/metadata` endpoint and
+/// internal callers patching genuine trace metadata.
+pub fn publish_trace_metadata_patch(
+    trace_id: Uuid,
+    project_id: Uuid,
+    metadata: HashMap<String, Value>,
+    queue: Arc<MessageQueue>,
+    db: Arc<DB>,
+    cache: Arc<Cache>,
+    spans_stream_publisher: Option<Arc<StreamPublisher>>,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send>> {
+    if metadata.is_empty() {
+        return Box::pin(async { Ok(()) });
+    }
+    let mut attributes: HashMap<String, Value> = HashMap::with_capacity(metadata.len() + 1);
+    attributes.insert(SPAN_METADATA_ONLY.to_string(), Value::Bool(true));
+    for (key, value) in metadata {
+        attributes.insert(
+            format!("{ASSOCIATION_PROPERTIES_PREFIX}.metadata.{key}"),
+            value,
+        );
+    }
+    publish_metadata_only_span(
+        trace_id,
+        project_id,
+        attributes,
+        queue,
+        db,
+        cache,
+        spans_stream_publisher,
+    )
+}
+
+/// Set the extracted trace input. The RAW value rides the virtual span on
+/// [`SPAN_TRACE_INPUT`] with no predefined key: the processor stores it
+/// directly in the `trace_agent_input` supplementary table. The metadata
+/// key is added only on the deprecated `traces_replacing` merge path.
+/// `rollout_session_id`, when set, is stamped for debugger-channel routing.
+pub async fn publish_trace_input_update(
+    trace_id: Uuid,
+    project_id: Uuid,
+    value: Value,
+    rollout_session_id: Option<String>,
+    queue: Arc<MessageQueue>,
+    db: Arc<DB>,
+    cache: Arc<Cache>,
+    spans_stream_publisher: Option<Arc<StreamPublisher>>,
+) -> Result<()> {
+    let mut attributes = HashMap::from([
+        (SPAN_METADATA_ONLY.to_string(), Value::Bool(true)),
+        (SPAN_TRACE_INPUT.to_string(), value),
+    ]);
+    if let Some(session_id) = rollout_session_id {
+        attributes.insert(
+            format!("{ASSOCIATION_PROPERTIES_PREFIX}.metadata.rollout.session_id"),
+            Value::String(session_id),
+        );
+    }
+    publish_metadata_only_span(
+        trace_id,
+        project_id,
+        attributes,
+        queue,
+        db,
+        cache,
+        spans_stream_publisher,
+    )
+    .await
+}
+
+/// Set the extracted trace output. Same virtual-span transport as
+/// [`publish_trace_input_update`], but carries per-message output HASHES
+/// (hex-encoded, into `deduped_content`) on [`SPAN_TRACE_OUTPUT_HASHES`]
+/// rather than a rendered string — every output message is already
+/// content-hashed by the dedup pipeline, so storing hashes avoids
+/// duplicating bytes that already live in `deduped_content`. The winning
+/// span's `end_time_ns` on [`SPAN_TRACE_OUTPUT_END_TIME`] is the
+/// `trace_agent_output` RMT version.
+pub async fn publish_trace_output_update(
+    trace_id: Uuid,
+    project_id: Uuid,
+    hashes: Vec<[u8; 32]>,
+    end_time_ns: i64,
+    queue: Arc<MessageQueue>,
+    db: Arc<DB>,
+    cache: Arc<Cache>,
+    spans_stream_publisher: Option<Arc<StreamPublisher>>,
+) -> Result<()> {
+    let hex_hashes: Vec<Value> = hashes
+        .iter()
+        .map(|h| Value::String(hex::encode(h)))
+        .collect();
+    let attributes = HashMap::from([
+        (SPAN_METADATA_ONLY.to_string(), Value::Bool(true)),
+        (
+            SPAN_TRACE_OUTPUT_HASHES.to_string(),
+            Value::Array(hex_hashes),
+        ),
+        (
+            SPAN_TRACE_OUTPUT_END_TIME.to_string(),
+            Value::Number(end_time_ns.into()),
+        ),
+    ]);
+    publish_metadata_only_span(
+        trace_id,
+        project_id,
+        attributes,
+        queue,
+        db,
+        cache,
+        spans_stream_publisher,
+    )
+    .await
 }

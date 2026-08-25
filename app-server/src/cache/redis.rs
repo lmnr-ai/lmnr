@@ -3,7 +3,7 @@ use std::sync::Arc;
 use redis::{AsyncCommands, RedisResult};
 use serde::{Deserialize, Serialize};
 
-use super::{CacheError, CacheTrait, connection::ResilientRedisConnection};
+use super::{CacheError, CacheTrait, LockClaim, connection::ResilientRedisConnection};
 
 pub struct RedisCache {
     connection: Arc<ResilientRedisConnection>,
@@ -145,6 +145,47 @@ impl CacheTrait for RedisCache {
             Ok(None) => Ok(false),   // Lock already held
             Err(e) => {
                 self.on_error("try_acquire_lock", &e);
+                Err(CacheError::InternalError(anyhow::Error::from(e)))
+            }
+        }
+    }
+
+    async fn try_acquire_lock_with_owner(
+        &self,
+        key: &str,
+        owner: &str,
+        ttl_seconds: u64,
+    ) -> Result<LockClaim, CacheError> {
+        // JSON-encoded so `get::<String>` round-trips the owner, matching how
+        // `insert` writes every other value in this keyspace.
+        let value = serde_json::to_vec(owner).map_err(CacheError::SerDeError)?;
+
+        // GET makes SET return the PREVIOUS value, so one command answers both
+        // "did I claim it" and "who holds it" — a separate `get` afterwards could
+        // catch the holder mid-release and report nobody for a lock that is free.
+        //
+        // Needs Redis >= 7.0 (NX and GET were only allowed together there; 6.2
+        // answers `ERR syntax error`). Our chart ships Valkey, which is 7.2.4 on
+        // the compat version. A self-hoster pointing REDIS_URL at an older server
+        // would degrade via the caller's fail-open path, not break.
+        let result: RedisResult<Option<Vec<u8>>> = redis::cmd("SET")
+            .arg(key)
+            .arg(&value)
+            .arg("NX")
+            .arg("GET")
+            .arg("EX")
+            .arg(ttl_seconds)
+            .query_async(&mut self.connection.current_clone())
+            .await;
+
+        match result {
+            // No previous value: the key was absent, so the SET happened.
+            Ok(None) => Ok(LockClaim::Acquired),
+            // A previous value means NX rejected us — and a rejected SET applies
+            // no EX, so a retrying contender can't extend the holder's deadline.
+            Ok(Some(held)) => Ok(LockClaim::Held(serde_json::from_slice(&held).ok())),
+            Err(e) => {
+                self.on_error("try_acquire_lock_with_owner", &e);
                 Err(CacheError::InternalError(anyhow::Error::from(e)))
             }
         }

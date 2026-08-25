@@ -1,49 +1,40 @@
 "use client";
 
 import { type ColumnDef } from "@tanstack/react-table";
-import { Eye, EyeOff, Settings as SettingsIcon } from "lucide-react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { Eye, EyeOff } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { useQueryState } from "nuqs";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { type LayoutStorage, useDefaultLayout } from "react-resizable-panels";
 import useSWR from "swr";
 
-import AdvancedSearch from "@/components/common/advanced-search";
 import HeatmapValue from "@/components/evaluation/heatmap-value";
 import { formatScoreValue, isValidScore } from "@/components/evaluation/utils";
 import ProgressionChart from "@/components/evaluations/progression-chart";
+import { EvaluationsTableContents } from "@/components/evaluations/table-contents";
+import { EvaluationsTableControls } from "@/components/evaluations/table-controls";
 import { Button } from "@/components/ui/button";
-import { ColumnsMenu } from "@/components/ui/columns-menu";
 import CopyTooltip from "@/components/ui/copy-tooltip";
-import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
+import { useSelection } from "@/components/ui/infinite-datatable/hooks";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
-import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar.tsx";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import { Switch } from "@/components/ui/switch";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
 import { type ScoreRange } from "@/lib/colors";
 import { type Evaluation } from "@/lib/evaluation/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
-import { swrFetcher } from "@/lib/utils";
+import { cn, swrFetcher } from "@/lib/utils";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
+import { higherBetterMenuItem } from "../evaluation/columns/score-cell";
+import { useScoreDirections } from "../evaluation/use-score-directions";
 import Header from "../ui/header";
 import Mono from "../ui/mono";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { defaultEvaluationsColumnOrder, RESOURCE } from "./constants";
 import GroupsList from "./groups-list";
 import { useEvaluationsProgression } from "./use-evaluations-progression";
 
@@ -92,77 +83,54 @@ function buildScoreColumns(
   scoreNames: string[],
   scoresByEvalId: Record<string, Record<string, number | null>>,
   heatmapEnabled: boolean,
-  scoreRanges: Record<string, ScoreRange>
+  scoreRanges: Record<string, ScoreRange>,
+  isHigherBetter: (scoreName: string) => boolean,
+  onToggleScoreDirection?: (scoreName: string) => void
 ): ColumnDef<Evaluation>[] {
-  return scoreNames.map((scoreName) => ({
-    id: `score:${scoreName}`,
-    header: scoreName,
-    accessorFn: (row) => scoresByEvalId[row.id]?.[scoreName] ?? null,
-    cell: (cell) => {
-      const v = cell.getValue() as number | null;
-      if (!isValidScore(v)) return <span className="text-muted-foreground">—</span>;
-      const range = scoreRanges[scoreName];
-      if (heatmapEnabled && range) {
-        return <HeatmapValue value={v} range={range} text={<Mono>{formatScoreValue(v)}</Mono>} />;
-      }
-      return <Mono>{Number.isInteger(v) ? v.toString() : v.toFixed(3)}</Mono>;
-    },
-    size: 120,
-  }));
+  return scoreNames.map((scoreName) => {
+    const higherBetter = isHigherBetter(scoreName);
+    return {
+      id: `score:${scoreName}`,
+      header: scoreName,
+      accessorFn: (row) => scoresByEvalId[row.id]?.[scoreName] ?? null,
+      cell: (cell) => {
+        const v = cell.getValue() as number | null;
+        if (!isValidScore(v)) return <span className="text-muted-foreground">—</span>;
+        const range = scoreRanges[scoreName];
+        if (heatmapEnabled && range) {
+          return (
+            <HeatmapValue
+              value={v}
+              range={range}
+              isHigherBetter={higherBetter}
+              text={<Mono>{formatScoreValue(v)}</Mono>}
+            />
+          );
+        }
+        return <Mono>{Number.isInteger(v) ? v.toString() : v.toFixed(3)}</Mono>;
+      },
+      size: 120,
+      meta: onToggleScoreDirection
+        ? {
+            customDropdownItems: () => [higherBetterMenuItem(higherBetter, () => onToggleScoreDirection(scoreName))],
+          }
+        : undefined,
+    };
+  });
 }
 
-export const defaultEvaluationsColumnOrder = [
-  "__row_selection",
-  "__chart_visibility",
-  "id",
-  "name",
-  "dataPointsCount",
-  "metadata",
-  "createdAt",
-];
-
-const filters: ColumnFilter[] = [
-  {
-    name: "ID",
-    key: "id",
-    dataType: "string",
-  },
-  {
-    name: "Name",
-    key: "name",
-    dataType: "string",
-  },
-  {
-    name: "Datapoints Count",
-    key: "dataPointsCount",
-    dataType: "number",
-  },
-  {
-    name: "Metadata",
-    key: "metadata",
-    dataType: "json",
-  },
-];
-
-const FETCH_SIZE = 50;
-const RESOURCE = "evaluations";
-
-const EMPTY_HIDDEN_IDS: string[] = [];
-
-// useDefaultLayout's default storage dereferences `localStorage` at call time,
-// which throws during SSR — guard it behind a window check.
 const layoutStorage: LayoutStorage = {
   getItem: (key) => (typeof window === "undefined" ? null : localStorage.getItem(key)),
   setItem: (key, value) => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(key, value);
-    }
+    if (typeof window !== "undefined") localStorage.setItem(key, value);
   },
 };
 
 const emptySubscribe = () => () => {};
 const getClientSnapshot = () => true;
 const getServerSnapshot = () => false;
+
+const EMPTY_HIDDEN_IDS: string[] = [];
 
 export default function Evaluations() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -180,19 +148,19 @@ export default function Evaluations() {
 function EvaluationsContent() {
   const params = useParams<{ projectId: string }>();
   const router = useRouter();
-  const { toast } = useToast();
-  const searchParams = useSearchParams();
   const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
+  const { rowSelection, onRowSelectionChange } = useSelection();
+
   const searchValue = useMemo(
     () => ({ filters: effective.filters, search: effective.search }),
     [effective.filters, effective.search]
   );
-  const groupId = searchParams.get("groupId");
+  // Canonical group selection lives in the URL via nuqs — read here, written
+  // by the groups list. nuqs merges into (never clobbers) the other query params.
+  const [groupId] = useQueryState("groupId");
   const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
   const search = effective.search.length > 0 ? effective.search : null;
 
-  // The groups list defaults groupId to the first group on load. Until that default
-  // resolves, hold off fetching so the table never flashes the unfiltered (all-groups) list.
   const { data: groups, isLoading: isGroupsLoading } = useSWR<{ groupId: string }[]>(
     `/api/projects/${params?.projectId}/evaluation-groups`,
     swrFetcher
@@ -206,6 +174,17 @@ function EvaluationsContent() {
   const [aggregationFunction, setAggregationFunction] = useState<AggregationFunction>(AggregationFunction.AVG);
   const [hoveredEvaluationId, setHoveredEvaluationId] = useState<string | undefined>(undefined);
   const [heatmapEnabled, setHeatmapEnabled] = useState(true);
+  const [chartEvaluations, setChartEvaluations] = useState<{ id: string; name: string }[]>([]);
+  // Off (default): 0–1 scores plot on a fixed 0–1 axis, others on their own min/max.
+  // On: every score stretches to its own min/max so it fills the full chart height.
+  const [fillHeight, setFillHeight] = useLocalStorage<boolean>(
+    `evaluations-chart-fill-height:${params?.projectId}`,
+    false
+  );
+  // Keep the resize handles blue while a drag is in flight (not just on hover),
+  // matching the trace-view affordance.
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
+  const [isResizingChart, setIsResizingChart] = useState(false);
 
   const [hiddenEvaluationIds, setHiddenEvaluationIds] = useLocalStorage<string[]>(
     `evaluations-chart-hidden:${params?.projectId}:${groupId ?? ""}`,
@@ -226,79 +205,8 @@ function EvaluationsContent() {
     storage: layoutStorage,
   });
 
-  // Mount the panel group only on the client so the persisted layout is
-  // available at Group registration time (same pattern as queue-content.tsx).
   const isClient = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
 
-  const fetchEvaluations = useCallback(
-    async (pageNumber: number) => {
-      try {
-        const urlParams = new URLSearchParams();
-        urlParams.set("pageNumber", pageNumber.toString());
-        urlParams.set("pageSize", FETCH_SIZE.toString());
-
-        if (groupId) {
-          urlParams.set("groupId", groupId);
-        }
-
-        if (search && search.trim() !== "") {
-          urlParams.set("search", search);
-        }
-
-        filter.forEach((f) => urlParams.append("filter", f));
-
-        const url = `/api/projects/${params?.projectId}/evaluations?${urlParams.toString()}`;
-
-        const res = await fetch(url, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!res.ok) {
-          const text = (await res.json()) as { error: string };
-          throw new Error(text.error);
-        }
-
-        const data = (await res.json()) as { items: Evaluation[]; totalCount: number };
-        return { items: data.items, count: data.totalCount };
-      } catch (error) {
-        toast({
-          title: error instanceof Error ? error.message : "Failed to load evaluations. Please try again.",
-          variant: "destructive",
-        });
-        throw error;
-      }
-    },
-    [filter, groupId, params?.projectId, search, toast]
-  );
-
-  const {
-    data: evaluations,
-    hasMore,
-    isFetching,
-    isLoading,
-    fetchNextPage,
-    refetch,
-  } = useInfiniteScroll<Evaluation>({
-    fetchFn: fetchEvaluations,
-    enabled: !isViewLoading && !isGroupDefaultPending,
-    deps: [filter, groupId, params?.projectId, search],
-  });
-
-  const { rowSelection, onRowSelectionChange } = useSelection();
-
-  // When exactly one (or more — we take the first) eval is row-selected, the progression
-  // charts subtract that run's scores from every other run so it becomes the zero baseline.
-  const selectedEvaluationId = useMemo(() => {
-    const ids = Object.keys(rowSelection).filter((id) => rowSelection[id]);
-    return ids.length > 0 ? ids[0] : undefined;
-  }, [rowSelection]);
-
-  // Single source for the group-scoped progression (no `ids` ⇒ every run in the
-  // group). Drives the table's per-score columns, the heatmap ranges, and the
-  // full run set for the chart's Hide-all / visibility — all parsed once.
   const {
     progression,
     isLoading: isProgressionLoading,
@@ -307,6 +215,9 @@ function EvaluationsContent() {
     scoreRanges,
     allRunIds,
   } = useEvaluationsProgression(params?.projectId, groupId, aggregationFunction);
+
+  // Resolved eval-score directions (override > app-wide LLM default > true).
+  const { isHigherBetter, toggle: toggleScoreDirection } = useScoreDirections(params?.projectId, scoreNames);
 
   const columns = useMemo<ColumnDef<Evaluation>[]>(
     () => [
@@ -359,7 +270,14 @@ function EvaluationsContent() {
         },
       },
       ...baseColumns,
-      ...buildScoreColumns(scoreNames, scoresByEvalId, heatmapEnabled, scoreRanges),
+      ...buildScoreColumns(
+        scoreNames,
+        scoresByEvalId,
+        heatmapEnabled,
+        scoreRanges,
+        isHigherBetter,
+        toggleScoreDirection
+      ),
     ],
     [
       scoreNames,
@@ -370,39 +288,32 @@ function EvaluationsContent() {
       toggleEvaluationVisibility,
       setHiddenEvaluationIds,
       allRunIds,
+      isHigherBetter,
+      toggleScoreDirection,
     ]
   );
 
-  const handleDeleteEvaluations = async (evaluationIds: string[]) => {
-    try {
-      const response = await fetch(`/api/projects/${params?.projectId}/evaluations`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          evaluationIds,
-        }),
-      });
+  // Baseline mode is a strictly single-selection gesture: when EXACTLY one eval is
+  // row-selected, the progression charts subtract that run's scores from every other
+  // run so it becomes the zero baseline. Multi-select (incl. select-all) is a bulk-action
+  // gesture (Delete), so it must NOT hijack the chart into a baseline — otherwise
+  // toggling select-all visibly "switches" the chart.
+  const selectedEvaluationId = useMemo(() => {
+    const ids = Object.keys(rowSelection).filter((id) => rowSelection[id]);
+    return ids.length === 1 ? ids[0] : undefined;
+  }, [rowSelection]);
 
-      if (response.ok) {
-        await refetch();
+  const refetchRef = useRef<() => void>(() => {});
 
-        toast({
-          title: "Evaluations deleted",
-          description: `Successfully deleted ${evaluationIds.length} evaluation(s).`,
-        });
-      } else {
-        throw new Error("Failed to delete evaluations");
+  const onEvaluationsChange = useCallback((evals: { id: string; name: string }[]) => {
+    // Bail when the id→name set is unchanged so the chart doesn't recompute needlessly.
+    setChartEvaluations((prev) => {
+      if (prev.length === evals.length && prev.every((p, i) => p.id === evals[i].id && p.name === evals[i].name)) {
+        return prev;
       }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete evaluations. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
+      return evals;
+    });
+  }, []);
 
   if (!isClient) {
     return <Header path="evaluations" />;
@@ -410,7 +321,12 @@ function EvaluationsContent() {
 
   return (
     <>
-      <Header path="evaluations" />
+      <Header
+        path={[
+          { name: "evaluations", href: `/project/${params?.projectId}/evaluations` },
+          ...(groupId ? [{ name: groupId }] : []),
+        ]}
+      />
       <ResizablePanelGroup
         id="evaluations-sidebar-panels"
         orientation="horizontal"
@@ -418,13 +334,27 @@ function EvaluationsContent() {
         defaultLayout={defaultLayout}
         onLayoutChanged={onLayoutChanged}
       >
-        <ResizablePanel id="evaluations-groups-panel" defaultSize="288px" minSize="160px" maxSize="50%">
+        <ResizablePanel
+          id="evaluations-groups-panel"
+          defaultSize="288px"
+          minSize="160px"
+          maxSize="50%"
+          // Without flex-col the panel's default flex-row content wrapper (min-width:auto)
+          // sizes to the widest group and overflows a narrowed panel; flex-col stretches it.
+          className="flex flex-col min-w-0 overflow-hidden"
+        >
           <GroupsList />
         </ResizablePanel>
-        <ResizableHandle className="z-30 mx-2 bg-transparent transition-colors duration-200" />
+        <ResizableHandle
+          onDragChange={setIsResizingSidebar}
+          className={cn(
+            "z-30 mx-3 transition-colors hover:bg-blue-400 hover:scale-200",
+            isResizingSidebar && "bg-blue-400"
+          )}
+        />
         <ResizablePanel id="evaluations-main-panel" className="flex flex-col w-full min-w-0 gap-2 overflow-hidden">
-          <div className="flex gap-4 items-center">
-            <div className="font-medium text-lg">{searchParams.get("groupId")}</div>
+          <div className="flex gap-2 items-center">
+            {/* Group name is shown in the breadcrumb; only the aggregation control lives here. */}
             <Select
               value={aggregationFunction}
               onValueChange={(value) => setAggregationFunction(value as AggregationFunction)}
@@ -440,89 +370,61 @@ function EvaluationsContent() {
                 ))}
               </SelectContent>
             </Select>
+            <div className="flex items-center gap-2 pl-1 pr-2 border rounded-md bg-background h-7">
+              <Switch id="fill-height" checked={fillHeight} onCheckedChange={setFillHeight} />
+              <label htmlFor="fill-height" className="text-xs cursor-pointer font-medium text-secondary-foreground">
+                Normalize per score
+              </label>
+            </div>
           </div>
           <ResizablePanelGroup id="evaluations-panels" className="overflow-hidden" orientation="vertical">
-            <ResizablePanel className="min-w-0" minSize={20} defaultSize={20}>
+            <ResizablePanel className="min-w-0" minSize={160} maxSize={500} defaultSize={220}>
               <ProgressionChart
                 data={progression}
                 isLoading={isProgressionLoading}
-                evaluations={evaluations.map(({ id, name }) => ({ id, name }))}
+                evaluations={chartEvaluations}
                 hiddenEvaluationIds={hiddenEvaluationIds}
                 className="h-full"
                 baselineEvaluationId={selectedEvaluationId}
                 hoveredEvaluationId={hoveredEvaluationId}
                 onPointClick={(id) => router.push(`/project/${params?.projectId}/evaluations/${id}`)}
+                fillHeight={fillHeight}
               />
             </ResizablePanel>
-            <ResizableHandle className="my-2 bg-transparent transition-colors duration-200" />
+            <ResizableHandle
+              onDragChange={setIsResizingChart}
+              className={cn(
+                "mb-2 bg-transparent transition-colors hover:bg-blue-400 hover:scale-200",
+                isResizingChart && "bg-blue-400"
+              )}
+            />
             <ResizablePanel className="flex flex-1 w-full overflow-hidden" minSize={40} defaultSize={40}>
-              <InfiniteDataTable<Evaluation>
-                className="w-full"
-                enableRowSelection
+              <EvaluationsTableContents
+                filter={filter}
+                search={search}
+                groupId={groupId}
+                isViewLoading={isViewLoading}
+                isGroupDefaultPending={isGroupDefaultPending}
                 columns={columns}
-                data={evaluations}
-                getRowId={(evaluation) => evaluation.id}
-                getRowHref={(row) => `/project/${params?.projectId}/evaluations/${row.original.id}`}
-                hasMore={hasMore}
-                isFetching={isFetching}
-                isLoading={isLoading || isViewLoading || isGroupDefaultPending}
-                fetchNextPage={fetchNextPage}
-                state={{ rowSelection }}
+                hiddenEvaluationIds={hiddenEvaluationIds}
+                rowSelection={rowSelection}
                 onRowSelectionChange={onRowSelectionChange}
-                onHoveredRowChange={(row) => setHoveredEvaluationId(row?.original.id)}
-                selectionPanel={(selectedRowIds) => (
-                  <div className="flex flex-col space-y-2">
-                    <DeleteSelectedRows
-                      selectedRowIds={selectedRowIds}
-                      onDelete={handleDeleteEvaluations}
-                      entityName="evaluations"
-                    />
-                  </div>
-                )}
+                onHoveredRowChange={setHoveredEvaluationId}
+                refetchRef={refetchRef}
+                onEvaluationsChange={onEvaluationsChange}
               >
-                <div className="flex flex-1 w-full space-x-2">
-                  <DataTableFilter columns={filters} filters={effective.filters} onFiltersChange={setFilters} />
-                  <ColumnsMenu
-                    columnLabels={columns
-                      .filter((column) => column.id !== "__chart_visibility")
-                      .map((column) => ({
-                        id: column.id!,
-                        label: typeof column.header === "string" ? column.header : column.id!,
-                      }))}
-                  />
-                  <ViewsToolbar projectId={params.projectId} resource={RESOURCE} />
-                  {scoreNames.length > 0 && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button className="h-7 w-7" variant="outline" size="icon">
-                          <SettingsIcon className="h-4 w-4 text-secondary-foreground" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="w-64">
-                        <DropdownMenuLabel className="text-xs font-medium">Settings</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <div className="flex items-center justify-between px-2 py-2">
-                          <div className="flex flex-col">
-                            <span className="text-xs">Scores Heatmap</span>
-                            <span className="text-xs text-muted-foreground">Color-code score values</span>
-                          </div>
-                          <Switch checked={heatmapEnabled} onCheckedChange={setHeatmapEnabled} />
-                        </div>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                </div>
-                <div className="w-full">
-                  <AdvancedSearch
-                    value={searchValue}
-                    onChange={setSearchAndFilters}
-                    storageKey={`evaluations-${params?.projectId}`}
-                    filters={filters}
-                    placeholder="Search evaluations..."
-                    className="w-full flex-1"
-                  />
-                </div>
-              </InfiniteDataTable>
+                <EvaluationsTableControls
+                  projectId={params.projectId}
+                  activeFilters={effective.filters}
+                  onFiltersChange={setFilters}
+                  columns={columns}
+                  scoreNames={scoreNames}
+                  heatmapEnabled={heatmapEnabled}
+                  onHeatmapEnabledChange={setHeatmapEnabled}
+                  searchValue={searchValue}
+                  onSearchChange={setSearchAndFilters}
+                />
+              </EvaluationsTableContents>
             </ResizablePanel>
           </ResizablePanelGroup>
         </ResizablePanel>

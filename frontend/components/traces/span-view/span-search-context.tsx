@@ -1,5 +1,3 @@
-import { closeSearchPanel, findNext, openSearchPanel, SearchQuery, setSearchQuery } from "@codemirror/search";
-import { type EditorView } from "@codemirror/view";
 import {
   createContext,
   type PropsWithChildren,
@@ -11,11 +9,10 @@ import {
   useState,
 } from "react";
 
-interface EditorInstance {
-  id: string;
-  view: EditorView;
-  messageIndex: number;
-  contentPartIndex: number;
+import { type SearchableSource } from "@/components/traces/span-view/searchable";
+
+interface RegisteredSource {
+  source: SearchableSource;
   matchCount: number;
 }
 
@@ -29,8 +26,8 @@ interface SpanSearchStateContextValue {
 }
 
 interface SpanSearchRegistrationContextValue {
-  registerEditor: (id: string, view: EditorView, messageIndex: number, contentPartIndex: number) => void;
-  unregisterEditor: (id: string) => void;
+  registerSource: (source: SearchableSource) => void;
+  unregisterSource: (id: string) => void;
 }
 
 const SpanSearchStateContext = createContext<SpanSearchStateContextValue | null>(null);
@@ -39,93 +36,8 @@ const SpanSearchRegistrationContext = createContext<SpanSearchRegistrationContex
 export const useSpanSearchState = () => useContext(SpanSearchStateContext);
 export const useSpanSearchRegistration = () => useContext(SpanSearchRegistrationContext);
 
-function buildSearchRegex(query: string): RegExp | null {
-  const tokens = query
-    .split(/[^a-zA-Z0-9]+/)
-    .filter((t) => t.length > 0)
-    .map((t) => t.replace(/[\\.*+?^${}()|[\]]/g, "\\$&"));
-
-  if (tokens.length === 0) {
-    return null;
-  }
-
-  const core = tokens.length === 1 ? tokens[0] : tokens.join("[^a-zA-Z0-9]+");
-
-  return new RegExp(core, "i");
-}
-
-function applySearchAndCount(view: EditorView, searchTerm: string): number {
-  const trimmed = searchTerm.trim();
-  if (!trimmed) {
-    closeSearchPanel(view);
-    view.dispatch({
-      effects: setSearchQuery.of(new SearchQuery({ search: "" })),
-    });
-    return 0;
-  }
-
-  const regex = buildSearchRegex(trimmed);
-  if (!regex) {
-    closeSearchPanel(view);
-    view.dispatch({
-      effects: setSearchQuery.of(new SearchQuery({ search: "" })),
-    });
-    return 0;
-  }
-
-  const docText = view.state.doc.toString();
-
-  openSearchPanel(view);
-  view.dispatch({
-    effects: setSearchQuery.of(
-      new SearchQuery({
-        search: regex.source,
-        caseSensitive: false,
-        literal: false,
-        wholeWord: false,
-        regexp: true,
-      })
-    ),
-  });
-
-  const globalRegex = new RegExp(regex.source, "gi");
-  const matches = docText.match(globalRegex);
-  return matches ? matches.length : 0;
-}
-
-function navigateToMatch(view: EditorView, searchTerm: string, localIndex: number) {
-  const regex = buildSearchRegex(searchTerm);
-  if (!regex) return;
-
-  view.dispatch({
-    selection: { anchor: 0, head: 0 },
-    scrollIntoView: false,
-  });
-
-  closeSearchPanel(view);
-  openSearchPanel(view);
-
-  view.dispatch({
-    effects: setSearchQuery.of(
-      new SearchQuery({
-        search: regex.source,
-        caseSensitive: false,
-        literal: false,
-        wholeWord: false,
-        regexp: true,
-      })
-    ),
-  });
-
-  requestAnimationFrame(() => {
-    for (let i = 0; i <= localIndex; i++) {
-      findNext(view);
-    }
-  });
-}
-
 export function SpanSearchProvider({ children, initialSearchTerm }: PropsWithChildren<{ initialSearchTerm?: string }>) {
-  const editors = useRef<Map<string, EditorInstance>>(new Map());
+  const sources = useRef<Map<string, RegisteredSource>>(new Map());
   const searchTermRef = useRef(initialSearchTerm ?? "");
   const [searchTerm, setSearchTermState] = useState(initialSearchTerm ?? "");
   const [totalMatches, setTotalMatches] = useState(0);
@@ -139,8 +51,8 @@ export function SpanSearchProvider({ children, initialSearchTerm }: PropsWithChi
 
   const syncTotals = useCallback(() => {
     let total = 0;
-    editors.current.forEach((editor) => {
-      total += editor.matchCount;
+    sources.current.forEach((entry) => {
+      total += entry.matchCount;
     });
     setTotalMatches(total);
     setCurrentGlobalIndex((prev) => {
@@ -149,11 +61,10 @@ export function SpanSearchProvider({ children, initialSearchTerm }: PropsWithChi
     });
   }, []);
 
-  // Apply search + count in a single pass per editor when searchTerm changes
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      editors.current.forEach((editor) => {
-        editor.matchCount = applySearchAndCount(editor.view, searchTerm);
+      sources.current.forEach((entry) => {
+        entry.matchCount = entry.source.apply(searchTerm);
       });
       syncTotals();
     });
@@ -161,77 +72,83 @@ export function SpanSearchProvider({ children, initialSearchTerm }: PropsWithChi
     return () => cancelAnimationFrame(frame);
   }, [searchTerm, syncTotals]);
 
-  const registerEditor = useCallback(
-    (id: string, view: EditorView, messageIndex: number, contentPartIndex: number) => {
-      const term = searchTermRef.current;
-      const matchCount = term ? applySearchAndCount(view, term) : 0;
-      editors.current.set(id, { id, view, messageIndex, contentPartIndex, matchCount });
-      if (term) {
+  const registerSource = useCallback(
+    (source: SearchableSource) => {
+      const existing = sources.current.get(source.id);
+      if (existing && existing.source !== source) {
+        existing.source.destroy();
+      }
+
+      const matchCount = source.apply(searchTermRef.current);
+      sources.current.set(source.id, { source, matchCount });
+      requestAnimationFrame(() => syncTotals());
+    },
+    [syncTotals]
+  );
+
+  const unregisterSource = useCallback(
+    (id: string) => {
+      const entry = sources.current.get(id);
+      if (entry) {
+        entry.source.destroy();
+        sources.current.delete(id);
         requestAnimationFrame(() => syncTotals());
       }
     },
     [syncTotals]
   );
 
-  const unregisterEditor = useCallback(
-    (id: string) => {
-      editors.current.delete(id);
-      requestAnimationFrame(() => syncTotals());
-    },
-    [syncTotals]
-  );
-
-  const getSortedEditors = useCallback(
-    (): EditorInstance[] =>
-      Array.from(editors.current.values())
+  const getSortedSources = useCallback(
+    (): RegisteredSource[] =>
+      Array.from(sources.current.values())
         .filter((e) => e.matchCount > 0)
         .sort((a, b) => {
-          if (a.messageIndex !== b.messageIndex) return a.messageIndex - b.messageIndex;
-          return a.contentPartIndex - b.contentPartIndex;
+          if (a.source.messageIndex !== b.source.messageIndex) {
+            return a.source.messageIndex - b.source.messageIndex;
+          }
+          return a.source.contentPartIndex - b.source.contentPartIndex;
         }),
     []
   );
 
-  const getEditorForGlobalIndex = useCallback(
-    (globalIndex: number): { editor: EditorInstance; localIndex: number } | null => {
-      const sortedEditors = getSortedEditors();
+  const getSourceForGlobalIndex = useCallback(
+    (globalIndex: number): { entry: RegisteredSource; localIndex: number } | null => {
+      const sorted = getSortedSources();
       let accumulated = 0;
 
-      for (const editor of sortedEditors) {
-        if (globalIndex < accumulated + editor.matchCount) {
+      for (const entry of sorted) {
+        if (globalIndex < accumulated + entry.matchCount) {
           return {
-            editor,
+            entry,
             localIndex: globalIndex - accumulated,
           };
         }
-        accumulated += editor.matchCount;
+        accumulated += entry.matchCount;
       }
 
       return null;
     },
-    [getSortedEditors]
+    [getSortedSources]
   );
 
   const goToGlobalMatch = useCallback(
     (globalIndex: number) => {
-      const result = getEditorForGlobalIndex(globalIndex);
+      const result = getSourceForGlobalIndex(globalIndex);
       if (!result) return;
 
-      const { editor, localIndex } = result;
+      const { entry, localIndex } = result;
 
       setCurrentGlobalIndex(globalIndex + 1);
 
-      editors.current.forEach((ed) => {
-        if (ed.id !== editor.id) {
-          ed.view.dispatch({
-            selection: { anchor: 0, head: 0 },
-          });
+      sources.current.forEach((other) => {
+        if (other.source.id !== entry.source.id) {
+          other.source.clearActive();
         }
       });
 
-      navigateToMatch(editor.view, searchTermRef.current.trim(), localIndex);
+      entry.source.goTo(localIndex);
     },
-    [getEditorForGlobalIndex]
+    [getSourceForGlobalIndex]
   );
 
   const goToNext = useCallback(() => {
@@ -260,15 +177,16 @@ export function SpanSearchProvider({ children, initialSearchTerm }: PropsWithChi
 
   const registrationValue = useMemo(
     () => ({
-      registerEditor,
-      unregisterEditor,
+      registerSource,
+      unregisterSource,
     }),
-    [registerEditor, unregisterEditor]
+    [registerSource, unregisterSource]
   );
 
   useEffect(
     () => () => {
-      editors.current.clear();
+      sources.current.forEach((entry) => entry.source.destroy());
+      sources.current.clear();
     },
     []
   );

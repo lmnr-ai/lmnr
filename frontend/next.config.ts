@@ -10,11 +10,14 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH || undefined;
 
 const nextConfig: NextConfig = {
   basePath,
+  deploymentId: process.env.NEXT_DEPLOYMENT_ID || undefined,
   env: {
     LAMINAR_CLOUD: process.env.LAMINAR_CLOUD,
   },
   experimental: {
     turbopackFileSystemCacheForDev: true,
+    // Avoid production-only missing module factories during client navigation.
+    turbopackScopeHoisting: false,
     // Rewrites barrel imports from "recharts" into direct submodule imports at build
     // time. Reshapes the chunk graph to avoid the Turbopack production interop split that
     // left recharts' internal usePrefersReducedMotion unlinked ("(0, v.usePrefersReducedMotion) is not a function").
@@ -28,6 +31,14 @@ const nextConfig: NextConfig = {
   },
   serverExternalPackages: ["@lmnr-ai/lmnr", "@sentry/nextjs"],
   output: "standalone",
+  // Policy markdown is read with fs at request time, which the standalone
+  // file tracer can't see — without this the .md files are missing in the
+  // production image and /policies/* 500s.
+  outputFileTracingIncludes: {
+    // Key is a minimatch glob over route names; "[slug]" would parse as a
+    // character class, so match the whole segment with a wildcard.
+    "/policies/*": ["./lib/policies/content/*.md"],
+  },
   async rewrites() {
     // Forward LEGACY NextAuth genericOAuth callbacks to Better Auth's handler so
     // self-hosted Okta/Keycloak/Azure SSO keeps working with no IdP change (paired

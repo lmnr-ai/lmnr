@@ -1,26 +1,24 @@
+// Keep in sync with the "Failure Detector" entry in components/signals/prompts.ts.
 export const DEFAULT_SIGNAL = {
   name: "Failure Detector",
-  prompt: `Analyze this trace for concrete issues: tool call failures, API errors, \
-loops or repeated calls, wrong tool selection, and logic errors. \
-Only report problems visible in the trace data.`,
+  prompt: `Find the most significant error the agent made in this run, if any: \
+a wrong action, flawed logic, or failure that affected the outcome or wasted \
+significant work. Minor issues the agent immediately recovered from are not \
+findings. Cite the specific spans and quote the decisive evidence.`,
   structuredOutputSchema: {
     type: "object",
-    required: ["description", "category"],
+    required: ["description"],
     properties: {
       description: {
         type: "string",
-        description: "Description of the issue: what happened, which span(s) are involved, and the impact",
-      },
-      category: {
-        type: "string",
-        enum: ["tool_error", "api_error", "logic_error", "looping", "wrong_tool", "timeout", "other"],
-        description: "Category of the issue",
+        description: "What went wrong, the decisive evidence with span references, and the impact on the run's outcome",
       },
     },
   },
 };
 
-export const DEFAULT_SIGNAL_TRIGGER_VALUE = [
-  { column: "total_token_count", operator: "gt", value: "1000" },
-  { column: "root_span_finished", operator: "eq", value: "true" },
-];
+/** When the signal is evaluated. Always exactly one condition. */
+export const DEFAULT_SIGNAL_TRIGGER_VALUE = [{ column: "root_span_finished", operator: "eq", value: "true" }];
+
+/** Whether a fired trigger actually runs — keeps trivial traces from being billed. */
+export const DEFAULT_SIGNAL_TRIGGER_FILTERS = [{ column: "total_token_count", operator: "gt", value: "1000" }];

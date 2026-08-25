@@ -7,6 +7,7 @@ import { type PropsWithChildren } from "react";
 
 import BasePathFetchShim from "@/components/common/base-path-fetch-shim";
 import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flags-context";
 import { getServerSession } from "@/lib/auth-session";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
@@ -22,6 +23,12 @@ export const metadata: Metadata = {
     template: "%s | Laminar",
   },
   description,
+  // Orange icon in dev so a local tab is distinguishable from a prod one.
+  // Both live in public/ rather than app/: an app/favicon.ico is always
+  // prepended to metadata.icons and would win here (vercel/next.js#55767).
+  icons: {
+    icon: process.env.NODE_ENV === "development" ? "/favicon-dev.png" : "/favicon.ico",
+  },
   keywords: [
     "laminar",
     "evals",
@@ -68,27 +75,25 @@ export default async function RootLayout({ children }: PropsWithChildren) {
   const session = posthogEnabled ? await getServerSession().catch(() => null) : null;
   const email = session?.user?.email ?? undefined;
 
-  const body = (
-    <body className="flex flex-col h-full">
-      <BasePathFetchShim />
-      <NuqsAdapter>
-        <div className="flex">
-          <div className="flex flex-col grow max-w-full min-h-screen">
-            <main className="z-10 flex flex-col grow">{children}</main>
-            <Toaster />
-          </div>
-        </div>
-      </NuqsAdapter>
-    </body>
-  );
-
   return (
     <html lang="en" className={cn("h-full antialiased", sans.variable, manrope.variable, sansLanding.variable)}>
-      <FeatureFlagsProvider flags={featureFlags}>
-        <PostHogProvider telemetryEnabled={posthogEnabled} email={email}>
-          {body}
-        </PostHogProvider>
-      </FeatureFlagsProvider>
+      <body className="flex flex-col h-full">
+        <BasePathFetchShim />
+        <FeatureFlagsProvider flags={featureFlags}>
+          <PostHogProvider telemetryEnabled={posthogEnabled} email={email}>
+            <TooltipProvider delayDuration={0}>
+              <NuqsAdapter>
+                <div className="flex">
+                  <div className="flex flex-col grow max-w-full min-h-screen">
+                    <main className="z-10 flex flex-col grow">{children}</main>
+                    <Toaster />
+                  </div>
+                </div>
+              </NuqsAdapter>
+            </TooltipProvider>
+          </PostHogProvider>
+        </FeatureFlagsProvider>
+      </body>
     </html>
   );
 }

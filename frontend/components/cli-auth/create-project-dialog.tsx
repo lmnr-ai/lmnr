@@ -17,7 +17,7 @@ import { type SessionProject, type SessionWorkspace } from "@/lib/actions/cli-au
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { createProjectInWorkspace, createWorkspaceWithProject } from "./create-project";
-import { Field } from "./index";
+import { Field } from "./shared";
 
 interface Props {
   open: boolean;
@@ -77,9 +77,7 @@ export function CreateProjectDialog({ open, onOpenChange, workspaces, onCreated 
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>{hasWorkspace ? "Create project" : "Create your first project"}</DialogTitle>
-          <DialogDescription>
-            {hasWorkspace ? "Name a project." : "Name a workspace and project."}
-          </DialogDescription>
+          <DialogDescription>{hasWorkspace ? "Name a project." : "Name a workspace and project."}</DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           {!hasWorkspace ? (
@@ -92,9 +90,9 @@ export function CreateProjectDialog({ open, onOpenChange, workspaces, onCreated 
               />
             </Field>
           ) : workspaces.length > 1 ? (
-            <Field label="Workspace">
+            <Field label="Workspace" as="div">
               <Select value={workspaceId} onValueChange={setWorkspaceId}>
-                <SelectTrigger className="h-9">
+                <SelectTrigger className="h-9" aria-label="Workspace">
                   <SelectValue placeholder="Select a workspace" />
                 </SelectTrigger>
                 <SelectContent>

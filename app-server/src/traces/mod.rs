@@ -11,12 +11,15 @@ pub mod processor;
 pub mod producer;
 pub mod prompt_hash;
 pub mod provider;
+pub mod rate_limit;
 pub mod realtime;
 #[cfg(feature = "signals")]
 pub mod sampling;
+pub mod sp_versioning;
 pub mod span_attributes;
 pub mod spans;
 pub mod static_sp_extraction;
+pub mod stream_consumer;
 pub mod tool_dedup;
 pub mod utils;
 

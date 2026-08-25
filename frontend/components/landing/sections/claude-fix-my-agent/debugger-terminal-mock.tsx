@@ -41,45 +41,26 @@ const EntryRow = ({ entry, active }: { entry: Entry; active: boolean }) => {
           <span className="text-primary-300">✻</span> {entry.text}
         </p>
       );
+    // The commands are the point of the scene, so they carry the only highlight.
+    // Every `tool` line is a Laminar invocation — a plain shell command would
+    // need its own kind rather than being tinted as one. `-mx-2 px-2` bleeds the
+    // band into the panel's padding so the text keeps the same left edge.
     case "tool":
       return (
-        <p className={cn(monoBase, "text-foreground-400 whitespace-pre")}>
-          <span className="text-foreground-500">●</span> {entry.text}
+        <p className={cn(monoBase, "text-primary-400 whitespace-pre -mx-2 rounded-sm bg-primary-400/10 px-2")}>
+          <span className="text-primary-400/60">●</span> {entry.text}
         </p>
       );
     case "result":
       return <p className={cn(monoBase, "text-foreground-500 whitespace-pre")}>{`  └─ ${entry.text}`}</p>;
     case "diff":
       return (
-        <div
-          className={cn(
-            "flex items-center pl-1 pr-2",
-            entry.sign === "-" && "bg-surface-400/60",
-            entry.sign === "+" && "bg-primary-400/10"
-          )}
-        >
-          <span
-            className={cn(
-              monoBase,
-              "w-4 text-center shrink-0",
-              entry.sign === "+" && "text-primary-300",
-              entry.sign === "-" && "text-foreground-400",
-              entry.sign === " " && "text-foreground-500"
-            )}
-          >
-            {entry.sign === " " ? "" : entry.sign}
-          </span>
-          <span
-            className={cn(
-              monoBase,
-              "whitespace-pre",
-              entry.sign === "+" && "text-primary-300",
-              entry.sign === "-" && "text-foreground-400",
-              entry.sign === " " && "text-foreground-300"
-            )}
-          >
-            {entry.text}
-          </span>
+        // Muted and untinted: the only colour belongs to the Laminar commands,
+        // so the diff carries its meaning through the sign column alone. A
+        // removal would need a colour of its own; this transcript has none.
+        <div className="flex items-center pl-1 pr-2 text-foreground-500">
+          <span className={cn(monoBase, "w-4 text-center shrink-0")}>{entry.sign === " " ? "" : entry.sign}</span>
+          <span className={cn(monoBase, "whitespace-pre")}>{entry.text}</span>
         </div>
       );
   }
@@ -110,7 +91,7 @@ const DebuggerTerminalMock = ({ entries, typed, isTyping, finished, prompt, clas
   return (
     <div
       className={cn(
-        "h-[480px] w-[400px] shrink-0 rounded-md border border-surface-400 bg-surface-700 flex flex-col",
+        "h-[480px] w-[600px] shrink-0 rounded-md border border-surface-300 bg-surface-150 flex flex-col",
         className
       )}
     >
@@ -119,7 +100,10 @@ const DebuggerTerminalMock = ({ entries, typed, isTyping, finished, prompt, clas
           lives here (not the outer shell) so the scrollbar sits at the panel edge. */}
       <div
         ref={scrollRef}
-        className="thin-scrollbar flex-1 min-h-0 overflow-y-auto overflow-x-hidden scroll-smooth px-5 pt-4"
+        // `overflow-y-hidden` below md blocks USER scrolling without breaking the
+        // auto-follow below — an overflow:hidden box still scrolls
+        // programmatically. On touch an inner scroller only traps the page.
+        className="scrollbar-none flex-1 min-h-0 overflow-y-hidden md:overflow-y-auto overflow-x-hidden scroll-smooth px-5 pt-4 scroll-fade-y"
       >
         <div className="flex min-h-full flex-col justify-end gap-0">
           {!isTyping && (
@@ -137,7 +121,7 @@ const DebuggerTerminalMock = ({ entries, typed, isTyping, finished, prompt, clas
           prompt is "submitted". pt-4 replaces the old outer gap; pb-4/px-5 replace
           the old outer padding. */}
       <div className="shrink-0 flex flex-col gap-1.5 px-5 pb-4 pt-4">
-        <div className="flex items-center gap-2 rounded-md border border-surface-400 bg-surface-600 px-3 py-2.5">
+        <div className="flex items-center gap-2 rounded-md border border-surface-300 bg-surface-200 px-3 py-2.5">
           <span className={cn(monoBase, "font-medium text-primary-300")}>&gt;</span>
           <span className={cn(monoBase, "text-foreground-200")}>
             {isTyping ? typed : ""}

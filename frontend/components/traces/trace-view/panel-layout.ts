@@ -8,28 +8,25 @@
  * Targets are persisted; rendered widths are not.
  */
 
-export type ResizablePanel = "trace" | "span" | "chat";
+export type ResizablePanel = "trace" | "span";
 
 export type Targets = Readonly<Record<ResizablePanel, number>>;
 export type Widths = Targets;
-export type Visible = Readonly<{ span: boolean; chat: boolean }>;
+export type Visible = Readonly<{ span: boolean }>;
 
 export const PANELS: Readonly<Record<ResizablePanel, { min: number; default: number }>> = {
-  trace: { min: 488, default: 500 },
+  trace: { min: 400, default: 500 },
   span: { min: 400, default: 405 },
-  chat: { min: 375, default: 385 },
 };
 
 export const DEFAULT_TARGETS: Targets = {
   trace: PANELS.trace.default,
   span: PANELS.span.default,
-  chat: PANELS.chat.default,
 };
 
 function visibleOrder(visible: Visible): ResizablePanel[] {
   const out: ResizablePanel[] = ["trace"];
   if (visible.span) out.push("span");
-  if (visible.chat) out.push("chat");
   return out;
 }
 
@@ -56,7 +53,7 @@ export function computeLayout(targets: Targets, visible: Visible, maxWidth: numb
 
   let deficit = sum - maxWidth;
 
-  const slack: Record<ResizablePanel, number> = { trace: 0, span: 0, chat: 0 };
+  const slack: Record<ResizablePanel, number> = { trace: 0, span: 0 };
   let totalSlack = 0;
   for (const k of order) {
     slack[k] = Math.max(0, widths[k] - PANELS[k].min);

@@ -6,6 +6,7 @@ import { buildTimeRangeWithFill } from "@/lib/actions/common/query-builder";
 import { executeQuery } from "@/lib/actions/sql";
 import { GetTracesSchema } from "@/lib/actions/traces";
 import { searchSpans } from "@/lib/actions/traces/search";
+import { type TracesStatsDataPoint } from "@/lib/actions/traces/stats-types";
 import {
   buildTracesStatsWhereConditions,
   generateEmptyTimeBuckets,
@@ -22,11 +23,7 @@ export const GetTraceStatsSchema = GetTracesSchema.omit({
   intervalUnit: z.enum(["minute", "hour", "day"]).default("hour"),
 });
 
-export type TracesStatsDataPoint = {
-  timestamp: string;
-  successCount: number;
-  errorCount: number;
-} & Record<string, number>;
+export type { TracesStatsDataPoint };
 
 export async function getTraceStats(
   input: z.infer<typeof GetTraceStatsSchema>

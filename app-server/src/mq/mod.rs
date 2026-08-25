@@ -5,6 +5,7 @@ use lapin::{
 };
 // pub mod connection;
 pub mod rabbit;
+pub mod stream;
 pub mod tokio_mpsc;
 pub mod utils;
 

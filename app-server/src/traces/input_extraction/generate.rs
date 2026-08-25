@@ -39,6 +39,10 @@ const MAX_OUTPUT_TOKENS: i32 = 16384;
 const TRY_TOOL_NAME: &str = "try_extraction_regex";
 const SUBMIT_TOOL_NAME: &str = "submit_extraction_regex";
 
+/// Self-tracing span name for this pipeline's provider calls. Must be one of the
+/// literals `self_tracing::SpanBuilder::llm` matches on.
+const GENERATE_SPAN_NAME: &str = "generate_extraction_regex";
+
 /// How a generation pipeline ended.
 pub enum GenerationVerdict {
     /// Accepted submit: a pattern that extracts non-empty text from the
@@ -64,6 +68,14 @@ Every piece of the message is one of two kinds of text:
 
 Your regex will be cached and re-applied to future messages from the same template. Those messages share the static text but carry entirely different variable text, so the pattern must anchor ONLY on static text and capture the instruction. Anchoring on any of this message's variable text (its specific words, names, data) makes the pattern fail or mis-extract on the very next message.
 
+# Two kinds of variable text — only one of them is the instruction
+
+VARIABLE text itself splits into two kinds that are easy to conflate, because both change from message to message:
+- The user's own words: what the requester actually typed or asked — the instruction itself, or content they explicitly provided for the agent to work on (a pasted document, quoted text, embedded data they want processed). This is what you must capture.
+- Injected DYNAMIC STATE: harness-supplied data that also varies per message but was never authored by the requester — a live current-state summary, a snapshot of some external system, tool output, "current page contents," "current cart," a data dump the harness attached for the agent's situational awareness. This changes per message just like the instruction does, but it is scaffolding, not instruction — strip it the same as any static boilerplate, even though it isn't static.
+
+Do not use "changes per message" as a proxy for "is the instruction" — that test only tells you a span is VARIABLE, not which kind. Ask instead: did the requester write or provide this themselves as part of what they want done, or did the harness attach it as background/context the agent might need? A "current state" or "current context" block that the requester never saw or authored is dynamic scaffolding, however large or specific it looks, and belongs with the discarded material — not the extracted instruction.
+
 # What scaffolding looks like
 
 Injected blocks are delimited in whatever syntax the harness happened to pick, and the syntax itself carries no meaning. XML-like tags, delimiter lines ("=== ENVIRONMENT ==="), markdown headings, ALL-CAPS labels, bracketed section headers, and JSON envelopes all play the same role. Classify every marker by its FUNCTION — does it delimit injected material, or the instruction? — never by its syntax.
@@ -83,7 +95,10 @@ The message may carry "== lmnr_part_separator ==" lines separating sibling messa
    - No scaffolding, or no reliable static anchor → (?s)(.*) — passthrough. When unsure, prefer passthrough: capturing too much is recoverable, silently dropping the instruction is not.
    The message was sent to an agent, so it carries an instruction — a pattern that captures nothing is always wrong. If the message looks like pure scaffolding, the instruction is hiding inside one of the blocks: find it, or fall back to passthrough.
 4. Narrow when the structure supports it: if the instruction region is itself structured (say, a JSON object where one field is the task), capture just that field, anchoring on its static field name.
-5. Probe with try_extraction_regex whenever you are not fully certain — unusual layout, an anchor occurring more than once, any narrowing. If the probe result is wrong, rethink your segmentation and anchors. A single confident passthrough may be submitted without probing.
+5. Before concluding there is no anchor, actively look for one — scan for labels immediately before or after the instruction (a heading, a colon-terminated label like "Content to summarize:" or "Original:", a wrapper tag, a delimiter line), even in long or noisy messages where scaffolding is spread out or the instruction sits deep inside the text. A long message is not evidence that no anchor exists; it is a reason to look more carefully, since scaffolding-to-instruction ratio does not correlate with anchor presence.
+   - If you found a plausible anchor: probe it with try_extraction_regex before submitting.
+   - If, after that active search, you are still submitting the passthrough (?s)(.*): probe it with try_extraction_regex first to confirm the full message is genuinely all you can rely on — a passthrough submitted without ever calling try_extraction_regex is never acceptable.
+   - The only submission allowed without a prior probe is a non-passthrough pattern anchored on a single, unambiguous, unmistakable wrapper (e.g. one pair of instruction tags with no other plausible reading) where probing would be pure formality.
 6. Finish with submit_extraction_regex — submitting is the only way to finish. The submitted pattern must extract non-empty text from this message; when no reliable pattern can be produced, submit the passthrough.
 
 # Tools
@@ -127,7 +142,7 @@ pub async fn generate_extraction_regex(
 
     for _ in 0..MAX_LLM_CALLS {
         let request = build_request(contents.clone());
-        let response = call_llm(llm_client, &request, scope).await?;
+        let response = call_llm(llm_client, &request, scope, GENERATE_SPAN_NAME).await?;
 
         let model_content = response
             .candidates
@@ -351,7 +366,7 @@ fn build_request(contents: Vec<ProviderContent>) -> ProviderRequest {
         }),
         service_tier: None,
         provider: Some(extraction_provider()),
-        model_size: Some(ModelSize::Medium),
+        model_size: Some(ModelSize::Small),
     }
 }
 
@@ -359,13 +374,13 @@ fn build_request(contents: Vec<ProviderContent>) -> ProviderRequest {
 /// defaulting to bedrock (medium → Sonnet 5). Either way, a provider without
 /// a registered client (missing credentials) silently falls back to the
 /// `LLM_PROVIDER` default inside `LlmClient::resolve`.
-fn extraction_provider() -> String {
+pub(super) fn extraction_provider() -> String {
     // `mod env` shadows `std::env`, hence the fully-qualified read.
     std::env::var(crate::env::user_task::INPUT_EXTRACTION_LLM_PROVIDER)
         .ok()
         .map(|v| v.trim().to_lowercase())
         .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| "bedrock".to_string())
+        .unwrap_or_else(|| "gemini".to_string())
 }
 
 /// A failed provider call: the message plus whether the failure is worth
@@ -378,12 +393,15 @@ struct LlmCallError {
 
 /// One LLM call with conventional exponential-backoff retries for
 /// transient failures (`backoff` crate, like the worker connect loop).
-/// Each attempt is its own traced provider call. Errors only when the
-/// retry window is exhausted or the failure is non-retryable.
-async fn call_llm(
+/// Each attempt is its own traced provider call, named `span_name` (which must
+/// be one of the literals `self_tracing::SpanBuilder::llm` knows — tracing span
+/// names can't be dynamic). Errors only when the retry window is exhausted or
+/// the failure is non-retryable.
+pub(super) async fn call_llm(
     llm_client: &Arc<LlmClient>,
     request: &ProviderRequest,
     scope: &SpanScope,
+    span_name: &str,
 ) -> anyhow::Result<ProviderResponse> {
     let backoff = ExponentialBackoffBuilder::new()
         .with_initial_interval(std::time::Duration::from_secs(
@@ -395,7 +413,7 @@ async fn call_llm(
         .build();
 
     backoff::future::retry(backoff, || async {
-        call_llm_once(llm_client, request, scope)
+        call_llm_once(llm_client, request, scope, span_name)
             .await
             .map_err(|e| {
                 if e.retryable {
@@ -414,13 +432,14 @@ async fn call_llm_once(
     llm_client: &Arc<LlmClient>,
     request: &ProviderRequest,
     scope: &SpanScope,
+    span_name: &str,
 ) -> Result<ProviderResponse, LlmCallError> {
     // Build the span before the call — spans can't be backdated, so a
     // span built after the call returns would record ~zero duration.
     let (model, provider) = llm_client.resolve_model_provider(request);
     let span_input = request_to_span_input(request);
     let span_tools = request_to_tools_attr(request);
-    let span = SpanBuilder::llm(scope, "generate_extraction_regex")
+    let span = SpanBuilder::llm(scope, span_name)
         .input(&span_input)
         .model(&provider, &model)
         .tools(span_tools.as_ref())
@@ -482,7 +501,11 @@ mod tests {
     }
 
     fn test_scope() -> SpanScope {
-        SpanScope::new(Uuid::new_v4(), Uuid::new_v4())
+        SpanScope::new(
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            super::super::self_tracing::RunKind::LegacyFingerprint,
+        )
     }
 
     // ---- call_llm retries ---------------------------------------------------
@@ -499,7 +522,7 @@ mod tests {
         let client = mock_llm_client(mock);
         let request = build_request(vec![]);
 
-        let result = call_llm(&client, &request, &test_scope()).await;
+        let result = call_llm(&client, &request, &test_scope(), GENERATE_SPAN_NAME).await;
         assert!(result.is_ok());
         assert_eq!(counter.generate_call_count(), 3);
     }
@@ -514,7 +537,7 @@ mod tests {
         let client = mock_llm_client(mock);
         let request = build_request(vec![]);
 
-        let result = call_llm(&client, &request, &test_scope()).await;
+        let result = call_llm(&client, &request, &test_scope(), GENERATE_SPAN_NAME).await;
         assert!(result.is_err());
         assert_eq!(counter.generate_call_count(), 1);
     }

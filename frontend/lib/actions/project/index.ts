@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { getWorkspaceUsage } from "@/lib/actions/workspace";
+import { getWorkspaceUsage } from "@/lib/actions/workspace/usage-summary";
 import { cache, PROJECT_API_KEY_CACHE_KEY, PROJECT_CACHE_KEY } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
@@ -24,13 +24,16 @@ export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) 
   // A workspace must always retain at least one project — refuse to delete the last one.
   // Guard + delete run in one transaction with the sibling rows locked FOR UPDATE, so two
   // concurrent deletes can't both pass the count check and empty the workspace.
-  const { workspaceId, apiKeyHashes } = await db.transaction(async (tx) => {
+  // A missing row is NOT an error: a prior attempt may have committed the Postgres delete
+  // and then failed on the ClickHouse purge, so the retry must be able to re-run the purge
+  // instead of throwing "Project not found" forever.
+  const deleted = await db.transaction(async (tx) => {
     const projectRow = await tx.query.projects.findFirst({
       where: eq(projects.id, projectId),
       columns: { workspaceId: true },
     });
     if (!projectRow) {
-      throw new Error("Project not found");
+      return null;
     }
 
     const siblingProjects = await tx
@@ -54,17 +57,23 @@ export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) 
     return { workspaceId: projectRow.workspaceId, apiKeyHashes };
   });
 
-  try {
-    const result = await deleteProjectApiKeysFromCache(apiKeyHashes);
-    if (!result.success) {
-      console.error("Failed to delete project api keys from cache. Failed keys:", result.failedKeys);
+  if (deleted) {
+    try {
+      const result = await deleteProjectApiKeysFromCache(deleted.apiKeyHashes);
+      if (!result.success) {
+        console.error("Failed to delete project api keys from cache. Failed keys:", result.failedKeys);
+      }
+    } catch (error) {
+      console.error("Failed to delete project api keys from cache", error);
     }
-  } catch (error) {
-    console.error("Failed to delete project api keys from cache", error);
+
+    await deleteAllProjectsWorkspaceInfoFromCache(deleted.workspaceId);
   }
 
-  await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
-
+  // The Postgres delete has already committed, but a failed ClickHouse purge must still
+  // surface to the caller — success here would stop the user from retrying, and there is
+  // no background reconciliation for the retained rows. The retry is what re-runs the
+  // purge (the missing-row path above makes it reachable).
   const result = await deleteProjectDataFromClickHouse(projectId);
 
   if (!result.success) {
@@ -94,15 +103,14 @@ async function deleteProjectDataFromClickHouse(
   const tables = [
     "default.spans",
     "default.traces_replacing",
+    "default.traces_agg",
+    "default.traces_static",
     "default.trace_tags",
-    "default.trace_summaries",
     "default.browser_session_events",
     "default.deduped_content",
     "default.llm_messages",
     "default.logs",
-    "default.evaluation_scores",
     "default.evaluation_datapoints",
-    "default.evaluation_datapoint_executor_outputs",
     "default.dataset_datapoints",
     "default.labeling_queue_items",
     "default.notifications",
@@ -112,6 +120,8 @@ async function deleteProjectDataFromClickHouse(
     "default.signal_runs",
     "default.signal_run_messages",
     "default.events_to_clusters",
+    "default.system_prompt_versions",
+    "default.system_prompt_version_defs",
   ];
 
   const deletionPromises = tables.map(async (table) => {

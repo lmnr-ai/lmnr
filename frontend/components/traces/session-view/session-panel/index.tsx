@@ -43,7 +43,7 @@ export default function SessionPanel({ searchSlot, timelineToggle, timelinePanel
       {/* Header */}
       <div className="flex flex-col gap-1.5 px-2 py-2 shrink-0">
         <div className="flex h-7 items-center justify-start gap-2">
-          {sessionStats && <StatsShields stats={sessionStats} labelPrefix="Session" />}
+          {sessionStats && <StatsShields stats={sessionStats} />}
           {traces.length > 0 && timelineToggle}
         </div>
         {searchSlot}

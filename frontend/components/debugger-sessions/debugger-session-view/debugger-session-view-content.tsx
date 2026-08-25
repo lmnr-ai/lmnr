@@ -2,7 +2,7 @@
 
 import { AlertTriangle } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import SessionSpanPanel from "@/components/traces/session-view/session-span-panel";
@@ -11,17 +11,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { type SessionBlock } from "@/lib/actions/debugger-sessions";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
-import { type RealtimeSpan } from "@/lib/traces/types";
+import { type RealtimeSpan, type RealtimeTracePayload } from "@/lib/traces/types";
 
-import DebuggerTraceList from "./debugger-trace-list";
+import DebuggerList from "./debugger-list";
 import NewTracePill from "./new-trace-pill";
 import SessionHeader from "./session-header";
 import SessionOutline from "./session-outline";
 import { type SessionBlockView, useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "./store";
-
-// "Pinned" slack for stick-to-bottom. Must exceed the article's 160px bottom
-// padding (stopping at the last trace counts) yet let a scroll-up unpin.
-const PIN_SLACK_PX = 200;
+import { useStickToBottom } from "./use-stick-to-bottom";
 
 // Session-level meta derived from the timeline blocks: created = earliest block
 // created_at, updated = latest block created_at (blocks are ordered, but min/max
@@ -45,7 +42,7 @@ const summarizeBlocks = (blocks: SessionBlockView[]) => {
 
 // Page scroll container with a sticky left outline, a 720px article column, and
 // a right spacer; span clicks open the in-flow SessionSpanPanel.
-export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: string }) {
+export default function DebuggerSessionViewContent({ sessionId }: { sessionId: string }) {
   const { projectId } = useParams<{ projectId: string }>();
   const router = useRouter();
   const { toast } = useToast();
@@ -63,20 +60,15 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
   const sessionName = useDebuggerSessionViewStore((s) => s.sessionName);
   const blocks = useDebuggerSessionViewStore((s) => s.blocks);
 
-  // The page-owned scroll container — the virtualizer (DebuggerTraceList) binds
+  // The page-owned scroll container — the virtualizer (DebuggerList) binds
   // to it and the outline shares the same scroll context.
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
-
-  const scrollToBottom = useCallback(() => {
-    scrollEl?.scrollTo({ top: scrollEl.scrollHeight, behavior: "smooth" });
-  }, [scrollEl]);
 
   // Eval blocks are pushed at creation with empty scores. When a later block
   // arrives, backfill any still-scoreless eval by refetching once (the eval has
   // usually finished by then). Guarded on isTracesLoading so it can't stack.
   const backfillPendingEvalScores = useCallback(
     (arrivedBlockId?: string) => {
-      if (!sessionId) return;
       const state = storeApi.getState();
       if (state.isTracesLoading) return;
       const pending = state.blocks.some(
@@ -90,49 +82,19 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
   // Stick-to-bottom decisions only start once the initial runs fetch has
   // settled: during loading the page is trivially short, so an "at the bottom"
   // reading taken before history renders would drag an old session's viewport
-  // to the bottom. The /alpha harness (no sessionId) seeds traces at store
-  // creation, so it settles immediately.
-  const [scrollSettled, setScrollSettled] = useState(() => !sessionId);
+  // to the bottom.
+  const [scrollSettled, setScrollSettled] = useState(false);
 
-  // Initial fetch of the session's runs (skipped for the /alpha single-trace
-  // harness, which seeded base `traces` with one row at store creation).
+  // Initial fetch of the session's runs.
   useEffect(() => {
-    if (!sessionId) return;
     void storeApi
       .getState()
       .fetchSessionBlocks(sessionId)
       .finally(() => setScrollSettled(true));
   }, [sessionId, storeApi]);
 
-  // Seed the pre-growth height AFTER the settle commit (the fetched trace list
-  // is in the DOM by layout-effect time), so the history render itself never
-  // reads as growth from a short page.
-  const prevScrollHeightRef = useRef(0);
-  useLayoutEffect(() => {
-    if (!scrollSettled || !scrollEl) return;
-    prevScrollHeightRef.current = scrollEl.scrollHeight;
-  }, [scrollSettled, scrollEl]);
-
-  // iMessage-style stick-to-bottom, decided at growth time: when content
-  // height changes, follow it iff the viewport was within PIN_SLACK_PX of the
-  // bottom of the PREVIOUS content height. No scroll listener — geometry at
-  // the moment of growth is the whole state, so a fresh live session follows
-  // streamed spans without the user ever having scrolled.
-  useEffect(() => {
-    if (!scrollSettled || !scrollEl) return;
-    const content = scrollEl.firstElementChild;
-    if (!content) return;
-    const observer = new ResizeObserver(() => {
-      const prev = prevScrollHeightRef.current;
-      prevScrollHeightRef.current = scrollEl.scrollHeight;
-      const wasAtBottom = scrollEl.scrollTop + scrollEl.clientHeight >= prev - PIN_SLACK_PX;
-      // "instant" overrides the container's scroll-smooth — an animated snap
-      // lags behind rapid streaming growth.
-      if (wasAtBottom) scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior: "instant" });
-    });
-    observer.observe(content);
-    return () => observer.disconnect();
-  }, [scrollSettled, scrollEl]);
+  // Follow streamed/growing content to the bottom once the initial fetch settles.
+  const scrollToBottom = useStickToBottom(scrollEl, { enabled: scrollSettled });
 
   const { createdMs, updatedMs, traceCount, evalCount } = useMemo(() => summarizeBlocks(blocks), [blocks]);
 
@@ -147,15 +109,19 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
       trace_update: (event: MessageEvent) => {
         const payload = JSON.parse(event.data);
         if (!Array.isArray(payload.traces)) return;
-        storeApi
-          .getState()
-          .applyTraceUpdates(payload.traces as { traceId: string; metadata?: unknown; hasBrowserSession?: boolean }[]);
+        storeApi.getState().applyTraceUpdates(payload.traces as RealtimeTracePayload[]);
         backfillPendingEvalScores();
+      },
+      // Extracted agent_input landed (async) → patch the run's input row.
+      trace_agent_input_update: (event: MessageEvent) => {
+        const payload = JSON.parse(event.data) as { traceId?: string; agentInput?: unknown };
+        if (!payload.traceId) return;
+        storeApi.getState().applyAgentInput(payload.traceId, payload.agentInput);
       },
       // Note / eval block pushed → upsert it into the timeline.
       block_update: (event: MessageEvent) => {
         const payload = JSON.parse(event.data) as { sessionId?: string; block?: SessionBlock };
-        if (!sessionId || payload.sessionId !== sessionId || !payload.block) return;
+        if (payload.sessionId !== sessionId || !payload.block) return;
         storeApi.getState().applyBlockUpdate(payload.block);
         backfillPendingEvalScores(payload.block.id);
       },
@@ -171,7 +137,7 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
       // (snake_case, see rollouts.rs::delete); the channel is per-session.
       session_deleted: (event: MessageEvent) => {
         const payload = JSON.parse(event.data) as { session_id?: string };
-        if (sessionId && payload.session_id && payload.session_id !== sessionId) return;
+        if (payload.session_id && payload.session_id !== sessionId) return;
         toast({ variant: "destructive", title: "Session deleted" });
         router.push(`/project/${projectId}/debugger-sessions`);
       },
@@ -182,7 +148,7 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
   useRealtime({
     key: `rollout_session_${sessionId}`,
     projectId: projectId as string,
-    enabled: !!sessionId && !!projectId,
+    enabled: !!projectId,
     eventHandlers,
   });
 
@@ -191,26 +157,27 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
       {/* overflow-x-hidden + the article's min-w floor: at narrow widths the
           article stops compressing and slides under the span panel's left edge
           instead of crunching its content. */}
-      <div
-        ref={setScrollEl}
-        className="thin-scrollbar min-h-0 min-w-0 flex-1 scroll-smooth overflow-y-auto overflow-x-hidden"
-      >
+      {/* No CSS `scroll-smooth`: it animates every scrollTop the virtualizer
+          writes to re-anchor after a row measures, which fights the user's
+          scroll and reads as jitter. Intentional smooth scrolls pass an explicit
+          `behavior`. */}
+      <div ref={setScrollEl} className="thin-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
         <div className="mx-auto flex w-full gap-16 px-6">
           <div className="flex grow-1 justify-center shrink-0 basis-0 min-w-fit">
             {!spanPanelOpen && (
-              <div className="sticky top-0 hidden h-[calc(100vh-80px)] w-[220px] flex-none shrink-0 self-start pb-16 pt-[180px] lg:flex">
+              <div className="sticky top-0 hidden h-[calc(100vh-80px)] 3xl:w-[320px] w-[220px] flex-none shrink-0 self-start pb-16 pt-[180px] lg:flex">
                 <SessionOutline className="max-h-full w-full" />
               </div>
             )}
           </div>
-          <div className="min-w-[560px] w-[720px] pb-[160px]">
+          <div className="min-w-[560px] 3xl:w-[800px] w-[720px] pb-[160px]">
             <SessionHeader
               title={sessionName}
               createdMs={createdMs}
               updatedMs={updatedMs}
               traceCount={traceCount}
               evalCount={evalCount}
-              sessionId={sessionId ?? ""}
+              sessionId={sessionId}
             />
             {/* One interleaved timeline of trace / evaluation / text blocks,
                 ordered by block created_at, fetched via fetchSessionBlocks and
@@ -223,7 +190,7 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
                 <p className="text-sm text-muted-foreground">{tracesError}</p>
               </div>
             ) : blocks.length > 0 ? (
-              <DebuggerTraceList scrollEl={scrollEl} projectId={projectId} sessionId={sessionId} />
+              <DebuggerList scrollEl={scrollEl} projectId={projectId} sessionId={sessionId} />
             ) : isTracesLoading ? (
               <div className="flex flex-col gap-2 py-3">
                 <Skeleton className="h-10 w-full" />

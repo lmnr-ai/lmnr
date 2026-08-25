@@ -2,11 +2,18 @@
 //! and calls [`push_spans_to_queue`] directly (no OTLP loopback, no API key). Destination project
 //! is read per-span from [`INTERNAL_PROJECT_ID_ATTR`], so one exporter fans out to many projects.
 //!
+//! Alternative HTTP mode: when `INTERNAL_TRACING_HTTP_URL` + `INTERNAL_TRACING_HTTP_API_KEY` are
+//! both set, spans are instead POSTed to `{url}/v1/traces` as OTLP/HTTP+protobuf with the project
+//! API key as bearer auth — i.e. exported like a regular external client. The key's project is the
+//! destination; the per-span routing attribute still gates emission (spans without it are dropped)
+//! but no longer picks the project.
+//!
 //! Threading: the batch processor drives [`SpanExporter::export`] on its own non-tokio thread, so
 //! the exporter holds a runtime [`Handle`] and `block_on`s the async ingest on it.
 //!
 //! Deferred deps: `setup_tracing_and_logging` runs before the queue/DB/cache exist, so the exporter
-//! holds a [`OnceLock`] of [`IngestDeps`] that `main` fills later (spans drop until then).
+//! holds a [`OnceLock`] of [`IngestDeps`] that `main` fills later (spans drop until then). The HTTP
+//! mode doesn't need them.
 
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
@@ -19,7 +26,7 @@ use uuid::Uuid;
 
 use crate::cache::Cache;
 use crate::db::DB;
-use crate::mq::MessageQueue;
+use crate::mq::{MessageQueue, stream::StreamPublisher};
 use crate::opentelemetry_proto::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest;
 use crate::opentelemetry_proto::opentelemetry_proto_common_v1::{
     AnyValue, ArrayValue, KeyValue, any_value::Value as ProtoValue,
@@ -37,37 +44,98 @@ pub struct IngestDeps {
     pub queue: Arc<MessageQueue>,
     pub db: Arc<DB>,
     pub cache: Arc<Cache>,
+    pub spans_stream_publisher: Option<Arc<StreamPublisher>>,
 }
 
 /// Shared, late-populated handle to [`IngestDeps`]; `main` fills it after building the services.
 pub type SharedIngestDeps = Arc<OnceLock<IngestDeps>>;
 
+/// OTLP/HTTP export target, active when both env vars are set (see module docs).
+#[derive(Clone)]
+struct HttpExport {
+    /// Full `{base}/v1/traces` endpoint.
+    endpoint: String,
+    api_key: String,
+    client: reqwest::Client,
+}
+
+impl HttpExport {
+    fn from_env() -> Option<Self> {
+        let url = std::env::var(crate::env::observability::INTERNAL_TRACING_HTTP_URL).ok()?;
+        let api_key = std::env::var(crate::env::observability::INTERNAL_TRACING_HTTP_API_KEY).ok()?;
+        let (url, api_key) = (url.trim().trim_end_matches('/'), api_key.trim());
+        if url.is_empty() || api_key.is_empty() {
+            return None;
+        }
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .ok()?;
+        Some(Self {
+            endpoint: format!("{url}/v1/traces"),
+            api_key: api_key.to_string(),
+            client,
+        })
+    }
+
+    async fn send(&self, request: &ExportTraceServiceRequest) -> anyhow::Result<()> {
+        use prost::Message;
+        let response = self
+            .client
+            .post(&self.endpoint)
+            .header("Content-Type", "application/x-protobuf")
+            .bearer_auth(&self.api_key)
+            .body(request.encode_to_vec())
+            .send()
+            .await?;
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            anyhow::bail!("OTLP/HTTP export failed with {status}: {body}");
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone)]
 pub struct InProcessInternalExporter {
     deps: SharedIngestDeps,
     runtime: Handle,
+    http: Option<HttpExport>,
 }
 
 impl std::fmt::Debug for InProcessInternalExporter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("InProcessInternalExporter")
             .field("deps_ready", &self.deps.get().is_some())
+            .field("http_mode", &self.http.is_some())
             .finish()
     }
 }
 
 impl InProcessInternalExporter {
     pub fn new(deps: SharedIngestDeps, runtime: Handle) -> Self {
-        Self { deps, runtime }
+        let http = HttpExport::from_env();
+        if let Some(http) = &http {
+            log::info!(
+                "Internal self-tracing spans will be exported over OTLP/HTTP to {}",
+                http.endpoint
+            );
+        }
+        Self {
+            deps,
+            runtime,
+            http,
+        }
     }
 }
 
 impl SpanExporter for InProcessInternalExporter {
     async fn export(&self, batch: Vec<SpanData>) -> OTelSdkResult {
-        let Some(deps) = self.deps.get() else {
-            // No deps yet (pre-boot) — nothing can be ingested. Drop silently.
+        if self.http.is_none() && self.deps.get().is_none() {
+            // Queue mode with no deps yet (pre-boot) — nothing can be ingested. Drop silently.
             return Ok(());
-        };
+        }
 
         // Each span carries its own destination project id, so group the batch by project and run
         // one ingest per group. Spans without a routable project id are dropped (logged).
@@ -97,15 +165,32 @@ impl SpanExporter for InProcessInternalExporter {
                 }],
             };
 
-            let queue = deps.queue.clone();
-            let db = deps.db.clone();
-            let cache = deps.cache.clone();
-
             // The processor calls us on a dedicated non-tokio thread, so drive the async ingest on
             // the runtime handle. block_on is safe here: this thread exists only to run exports.
-            let result = self.runtime.block_on(async move {
-                push_spans_to_queue(request, project_id, queue, db, cache).await
-            });
+            let result = if let Some(http) = &self.http {
+                // HTTP mode: the API key picks the destination project server-side.
+                self.runtime.block_on(http.send(&request))
+            } else {
+                // Unreachable `else` — the top-of-fn guard returned when deps were absent.
+                let Some(deps) = self.deps.get() else {
+                    continue;
+                };
+                let (queue, db, cache) = (deps.queue.clone(), deps.db.clone(), deps.cache.clone());
+                let spans_stream_publisher = deps.spans_stream_publisher.clone();
+                self.runtime
+                    .block_on(async move {
+                        push_spans_to_queue(
+                            request,
+                            project_id,
+                            queue,
+                            db,
+                            cache,
+                            spans_stream_publisher,
+                        )
+                        .await
+                    })
+                    .map(|_| ())
+            };
             if let Err(e) = result {
                 log::error!("internal span ingest failed for project {project_id}: {e:#}");
                 last_err = Some(e);

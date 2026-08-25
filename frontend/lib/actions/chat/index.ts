@@ -17,10 +17,12 @@ import { decodeApiKey } from "@/lib/crypto";
 import { db } from "@/lib/db/drizzle";
 import { providerApiKeys } from "@/lib/db/migrations/schema";
 import { getModel } from "@/lib/playground/providersRegistry";
+import { extractInstructions } from "@/lib/playground/utils";
 
+import { type JsonObject } from "./types";
 import { createSpanAttributes, sendSpanData, type SpanData } from "./utils";
 
-export type JsonObject = { [key: PropertyKey]: JsonObject | string | number | boolean | null | JsonObject[] } | null;
+export type { JsonObject };
 
 export const zJsonObject = z
   .string()
@@ -138,6 +140,7 @@ export async function generateChatResponse(
   }
 
   const startTime = new Date();
+  const prompt = extractInstructions(messages);
 
   let result: any;
 
@@ -148,7 +151,7 @@ export async function generateChatResponse(
     result = await generateText({
       abortSignal,
       model: getModel(model as `${Provider}:${string}`, decodedKey),
-      messages,
+      ...prompt,
       maxOutputTokens: maxTokens,
       temperature,
       topK,
@@ -160,7 +163,7 @@ export async function generateChatResponse(
     result = await generateText({
       abortSignal,
       model: getModel(model as `${Provider}:${string}`, decodedKey),
-      messages,
+      ...prompt,
       maxOutputTokens: maxTokens,
       temperature,
       topK,

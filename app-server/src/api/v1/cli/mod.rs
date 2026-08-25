@@ -7,6 +7,7 @@
 pub mod agent;
 pub mod datasets;
 pub mod rollouts;
+pub mod signals;
 pub mod sql;
 
 use actix_web::{HttpResponse, get, post, web};

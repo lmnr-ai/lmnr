@@ -9,13 +9,44 @@
 use std::collections::HashSet;
 
 use fancy_regex::Regex;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use similar::{ChangeTag, TextDiff};
 
 use crate::llm::models::{ProviderFunctionDeclaration, ProviderTool};
 
 pub const REGEX_TOOL_NAME: &str = "regex";
+
+/// A removal pattern plus the label attached to every span it removes — a
+/// short name (2-5 words, e.g. "user profile") shown next to the extracted
+/// content, adding only what the content itself doesn't show.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LabeledRegex {
+    pub pattern: String,
+    #[serde(default)]
+    pub label: String,
+}
+
+/// Tool-input item: the canonical `{pattern, label}` object, with a bare
+/// pattern string tolerated so a partially-compliant model turn still tests.
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum RegexToolItem {
+    Labeled(LabeledRegex),
+    Bare(String),
+}
+
+impl RegexToolItem {
+    pub fn into_labeled(self) -> LabeledRegex {
+        match self {
+            RegexToolItem::Labeled(labeled) => labeled,
+            RegexToolItem::Bare(pattern) => LabeledRegex {
+                pattern,
+                label: String::new(),
+            },
+        }
+    }
+}
 
 const REMOVED_CAP: usize = 700;
 /// Shared-removed substrings are found via 48-gram intersection.
@@ -30,7 +61,7 @@ const DIVERGENCE_AFTER: usize = 140;
 /// What the model sees. Deliberately omits `residuals` / `residualLengths` /
 /// `offset` — ablated: the model already holds the raw examples, and echoing
 /// residuals per call blows the input budget.
-const REGEX_TOOL_DESCRIPTION: &str = r#"Test a list of candidate regexes against ALL of the shown example system prompts. The regexes are applied SEQUENTIALLY as REMOVALS (each match replaced with the empty string) using fixed `gm` flags to each example independently; the output of one regex is the input to the next. Returns:
+const REGEX_TOOL_DESCRIPTION: &str = r#"Test a list of candidate regexes against ALL of the shown example system prompts. Each item is {pattern, label}: `pattern` is the regex, `label` is a short description attached to every span the pattern removes (only patterns are executed; labels ride along so your final verified list carries them). The patterns are applied SEQUENTIALLY as REMOVALS (each match replaced with the empty string) using fixed `gm` flags to each example independently; the output of one regex is the input to the next. Returns:
 - `isValid` / `failingRegex`: whether all regexes compiled+ran, and the first that failed.
 - `isResultInAllIdenticalOutput`: true iff every residual is identical — the collapse goal.
 - `residualDivergences`: when not collapsed, deduplicated {a, b} pairs — a = example 1's residual around the first differing byte, b = the differing example's. This pinpoints the dynamic text you have not handled yet; read it first.
@@ -39,11 +70,35 @@ const REGEX_TOOL_DESCRIPTION: &str = r#"Test a list of candidate regexes against
 
 #[derive(Debug, Deserialize)]
 pub struct RegexToolInput {
-    pub regexes: Vec<String>,
+    pub regexes: Vec<RegexToolItem>,
+}
+
+impl RegexToolInput {
+    pub fn into_labeled(self) -> Vec<LabeledRegex> {
+        self.regexes
+            .into_iter()
+            .map(RegexToolItem::into_labeled)
+            .collect()
+    }
+}
+
+/// Bare pattern strings out of a labeled list (the shape `run_regex_tool` and
+/// every downstream applier consume).
+pub fn patterns(regexes: &[LabeledRegex]) -> Vec<String> {
+    regexes.iter().map(|r| r.pattern.clone()).collect()
 }
 
 /// Tool declaration handed to the LLM. The raw examples are held harness-side;
 /// the model only ever passes patterns.
+///
+/// The schema is INTENTIONALLY stricter than the deserializer: it advertises
+/// only the `{pattern, label}` object shape to steer generation toward always
+/// labeling, while `RegexToolItem` tolerates bare pattern strings for
+/// partially-compliant turns. No provider in use hard-rejects model-generated
+/// arguments against this schema (constrained-decoding providers make the
+/// bare shape unrepresentable instead), and a rejected parse only produces a
+/// recoverable tool-error turn — don't widen the schema with `anyOf` for the
+/// legacy shape.
 pub fn regex_tool() -> ProviderTool {
     ProviderTool {
         function_declarations: vec![ProviderFunctionDeclaration {
@@ -55,8 +110,21 @@ pub fn regex_tool() -> ProviderTool {
                 "properties": {
                     "regexes": {
                         "type": "array",
-                        "items": { "type": "string" },
-                        "description": "Ordered list of regex patterns to apply as removals against every shown example prompt."
+                        "items": {
+                            "type": "object",
+                            "required": ["pattern", "label"],
+                            "properties": {
+                                "pattern": {
+                                    "type": "string",
+                                    "description": "Regex pattern to apply as a removal against every shown example prompt."
+                                },
+                                "label": {
+                                    "type": "string",
+                                    "description": "Short name (2-5 words) for what this pattern removes, shown next to the raw span — add only what the span itself doesn't show, never repeat its contents."
+                                }
+                            }
+                        },
+                        "description": "Ordered list of {pattern, label} removal regexes."
                     }
                 }
             }),
@@ -70,7 +138,7 @@ pub fn run_regex_tool(regexes: &[String], examples: &[String]) -> Value {
     let mut failing_regex: Option<String> = None;
 
     'patterns: for pattern in regexes {
-        let compiled = match Regex::new(&format!("(?m){pattern}")) {
+        let compiled = match compile_removal_regex(pattern) {
             Ok(re) => re,
             Err(_) => {
                 failing_regex = Some(pattern.clone());
@@ -132,18 +200,41 @@ pub fn run_regex_tool(regexes: &[String], examples: &[String]) -> Value {
     })
 }
 
+/// Compile a single removal pattern with the canonical flags (`m` — multiline
+/// `^`/`$`, no dotall, lookbehind via `fancy_regex`). This is the ONE place the
+/// removal-regex compile convention lives; every applier (this tool, the
+/// signals summarizer) must go through it so the regexes are applied exactly as
+/// they were tested when the agent produced them.
+pub fn compile_removal_regex(pattern: &str) -> Result<Regex, fancy_regex::Error> {
+    Regex::new(&format!("(?m){pattern}"))
+}
+
 /// Delete every match of `re` from `text`. Manual loop instead of
 /// `Regex::replace_all` so runtime errors surface as `Err` instead of a panic.
-fn remove_all(re: &Regex, text: &str) -> Result<String, fancy_regex::Error> {
+pub fn remove_all(re: &Regex, text: &str) -> Result<String, fancy_regex::Error> {
+    remove_all_collect(re, text).map(|(residual, _)| residual)
+}
+
+/// Like [`remove_all`], but also returns the removed match texts in order.
+/// The matches are the pattern's dynamic content — consumers pair them with
+/// the pattern's label (see [`LabeledRegex`]) to surface what was stripped.
+pub fn remove_all_collect(
+    re: &Regex,
+    text: &str,
+) -> Result<(String, Vec<String>), fancy_regex::Error> {
     let mut out = String::with_capacity(text.len());
+    let mut removed = Vec::new();
     let mut last = 0;
     for m in re.find_iter(text) {
         let m = m?;
         out.push_str(&text[last..m.start()]);
+        if !m.as_str().is_empty() {
+            removed.push(m.as_str().to_string());
+        }
         last = m.end();
     }
     out.push_str(&text[last..]);
-    Ok(out)
+    Ok((out, removed))
 }
 
 /// Cap `s` to roughly `cap` chars: head of `cap - 120` chars + omission
@@ -336,6 +427,15 @@ mod tests {
         // "ac" doesn't match the original; it only matches after "b" is removed.
         let out = run_regex_tool(&["b".to_string(), "ac".to_string()], &examples);
         assert_eq!(out["removed"][0], json!("abc"));
+    }
+
+    #[test]
+    fn remove_all_collect_returns_removed_matches() {
+        let re = compile_removal_regex(r"(?<=Current date: )\d{4}-\d{2}-\d{2}").unwrap();
+        let text = "Current date: 2026-07-01\nrules\nCurrent date: 2026-07-02";
+        let (residual, removed) = remove_all_collect(&re, text).unwrap();
+        assert_eq!(residual, "Current date: \nrules\nCurrent date: ");
+        assert_eq!(removed, vec!["2026-07-01", "2026-07-02"]);
     }
 
     #[test]

@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { type Metadata } from "next";
 
 import Evaluations from "@/components/evaluations/evaluations";
-import EvalsPagePlaceholder from "@/components/evaluations/page-placeholder";
+import EvalsPagePlaceholder from "@/components/evaluations/placeholder";
 import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
 

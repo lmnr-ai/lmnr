@@ -1,6 +1,7 @@
 import { type ColumnDef } from "@tanstack/react-table";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
+import { DurationCell, TokensCell } from "@/components/traces/cells";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { SpanType, type TraceRow } from "@/lib/traces/types";
@@ -48,15 +49,6 @@ const TopSpanCell = ({ row }: { row: TraceRow }) => {
   );
 };
 
-const TokensCell = ({ row }: { row: TraceRow }) => (
-  <div className="truncate">
-    {`${row.inputTokens ?? "-"}`}
-    {" → "}
-    {`${row.outputTokens ?? "-"}`}
-    {` (${row.totalTokens ?? "-"})`}
-  </div>
-);
-
 export const tracePickerColumns: ColumnDef<TraceRow, any>[] = [
   {
     cell: (row) => <StatusCell value={row.getValue()} />,
@@ -80,22 +72,17 @@ export const tracePickerColumns: ColumnDef<TraceRow, any>[] = [
     size: 120,
   },
   {
-    accessorFn: (row) => {
-      const start = new Date(row.startTime);
-      const end = new Date(row.endTime);
-      if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return "-";
-      return `${((end.getTime() - start.getTime()) / 1000).toFixed(2)}s`;
-    },
     header: "Duration",
     id: "duration",
-    size: 120,
+    cell: (row) => <DurationCell startTime={row.row.original.startTime} endTime={row.row.original.endTime} />,
+    size: 100,
   },
   {
-    accessorFn: (row) => row.totalTokens ?? "-",
+    accessorFn: (row) => row.totalTokens ?? 0,
     header: "Tokens",
     id: "total_tokens",
-    cell: (row) => <TokensCell row={row.row.original} />,
-    size: 150,
+    cell: (row) => <TokensCell stats={row.row.original} />,
+    size: 160,
   },
 ];
 

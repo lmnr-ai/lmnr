@@ -36,6 +36,18 @@ fn format_sdk_error(e: &dyn std::error::Error) -> String {
     msg
 }
 
+/// Log a failed Bedrock call. 503s (ServiceUnavailableException — transient
+/// capacity issues on AWS's side we can't act on) are downgraded to `warn` so
+/// they don't feed error monitoring; everything else stays at `error`.
+/// Mirrors the Gemini flex-tier capacity-error downgrade in `gemini/client.rs`.
+fn log_bedrock_api_error(operation: &str, status: u16, detail: &str) {
+    if status == 503 {
+        log::warn!("AWS Bedrock {operation} unavailable (503). {detail}");
+    } else {
+        log::error!("Failed to call AWS Bedrock {operation}. {detail}");
+    }
+}
+
 #[derive(Clone)]
 pub struct BedrockClient {
     client: AwsBedrockClient,
@@ -243,6 +255,7 @@ fn build_request_body(model: &str, request: &ProviderRequest) -> ProviderResult<
             // the caller's level is forwarded only as a soft `effort` hint.
             body["thinking"] = serde_json::json!({
                 "type": "adaptive",
+                "display": "summarized"
             });
             // `effort` MUST be a sibling of `thinking` under `output_config` —
             // nesting it inside `thinking` triggers a Bedrock ValidationException.
@@ -295,6 +308,7 @@ fn parse_usage(usage_obj: Option<&Value>) -> ProviderUsageMetadata {
         ),
         cache_read_input_tokens: cache_read,
         cache_creation_input_tokens: cache_write,
+        reasoning_token_count: None,
     }
 }
 
@@ -392,8 +406,8 @@ impl LanguageModelClient for BedrockClient {
             .await
             .map_err(|e| {
                 let detail = format_sdk_error(&e);
-                log::error!("Failed to call AWS Bedrock InvokeModel. {detail}");
                 let status = e.raw_response().map(|r| r.status().as_u16()).unwrap_or(500);
+                log_bedrock_api_error("InvokeModel", status, &detail);
                 ProviderError::ApiError {
                     status_code: status,
                     message: detail,
@@ -429,8 +443,8 @@ impl LanguageModelClient for BedrockClient {
             .await
             .map_err(|e| {
                 let detail = format_sdk_error(&e);
-                log::error!("Failed to call AWS Bedrock InvokeModelWithResponseStream. {detail}");
                 let status = e.raw_response().map(|r| r.status().as_u16()).unwrap_or(500);
+                log_bedrock_api_error("InvokeModelWithResponseStream", status, &detail);
                 ProviderError::ApiError {
                     status_code: status,
                     message: detail,

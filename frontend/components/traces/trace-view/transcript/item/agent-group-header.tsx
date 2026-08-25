@@ -1,5 +1,5 @@
 import { Bot, ChevronRight } from "lucide-react";
-import React, { useCallback, useMemo } from "react";
+import React, { memo, useCallback, useMemo } from "react";
 
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
 import { type TranscriptListGroup } from "@/components/traces/trace-view/store/base";
@@ -7,6 +7,7 @@ import {
   CollapsedPreviewBlock,
   type PreviewMap,
 } from "@/components/traces/trace-view/transcript/item/collapsed-preview-block";
+import { useElevation } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
 export interface AgentGroupHeaderProps {
@@ -19,7 +20,7 @@ export interface AgentGroupHeaderProps {
   className?: string;
 }
 
-export function AgentGroupHeader({
+function AgentGroupHeaderInner({
   group,
   collapsed,
   previews,
@@ -58,10 +59,15 @@ export function AgentGroupHeader({
   const isLoadingOutput = outputPreview === undefined;
   const outputText = typeof outputPreview === "string" && outputPreview !== "" ? outputPreview : null;
 
+  // The subagent card floats two surfaces above the transcript around it (no shadow),
+  // and hover steps further up via the published bg-surface-up-2 utility.
+  const { className: elevationClassName } = useElevation({ offset: 2 });
+
   return (
     <div
       className={cn(
-        "mx-2 border bg-muted/80 overflow-hidden cursor-pointer transition-colors hover:bg-muted",
+        "mx-2 border overflow-hidden cursor-pointer transition-colors hover:bg-surface-up-2",
+        elevationClassName,
         collapsed ? "rounded-lg" : "rounded-t-lg",
         className
       )}
@@ -108,6 +114,35 @@ export function AgentGroupHeader({
     </div>
   );
 }
+
+// Compare only the map entries this header reads so an unrelated preview
+// landing doesn't re-render every header.
+function areAgentGroupHeaderPropsEqual(prev: AgentGroupHeaderProps, next: AgentGroupHeaderProps) {
+  if (
+    prev.group !== next.group ||
+    prev.collapsed !== next.collapsed ||
+    prev.onToggle !== next.onToggle ||
+    prev.className !== next.className
+  ) {
+    return false;
+  }
+
+  const firstLlmSpanId = next.group.firstLlmSpanId;
+  const outputSpanId = next.group.lastLlmSpanId ?? next.group.firstLlmSpanId;
+
+  const agentNameKey = firstLlmSpanId ?? "";
+  if (prev.agentNames[agentNameKey] !== next.agentNames[agentNameKey]) return false;
+
+  // Preview lookups only feed the collapsed layout.
+  if (next.collapsed) {
+    if (firstLlmSpanId && prev.inputPreviews[firstLlmSpanId] !== next.inputPreviews[firstLlmSpanId]) return false;
+    if (outputSpanId && prev.previews[outputSpanId] !== next.previews[outputSpanId]) return false;
+  }
+
+  return true;
+}
+
+export const AgentGroupHeader = memo(AgentGroupHeaderInner, areAgentGroupHeaderPropsEqual);
 
 export function GroupChildWrapper({
   isLast = false,

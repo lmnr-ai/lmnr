@@ -1,6 +1,6 @@
 import { type ColumnDef } from "@tanstack/react-table";
 
-import { type CustomColumn } from "@/components/ui/columns-menu";
+import type { CustomColumn } from "@/components/ui/columns-menu/types";
 import { type TraceRow } from "@/lib/traces/types";
 
 import { columns } from "./columns";

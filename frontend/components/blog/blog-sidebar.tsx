@@ -21,7 +21,7 @@ export default function BlogSidebar({ tocItems, className }: Props) {
   // is shrink-0; the TOC nav (inside <TableOfContents>) is the flex-1 child
   // that does the scrolling.
   return (
-    <aside className={cn("flex flex-col gap-8 max-h-[calc(100vh-6rem)]", className)}>
+    <aside className={cn("flex flex-col gap-8 max-h-[calc(100vh-8rem)]", className)}>
       <Link
         href="/sign-up"
         className="flex items-center justify-center w-full h-[36px] rounded-sm bg-primary-200 hover:bg-primary-400 transition-colors no-underline shrink-0"
@@ -30,7 +30,7 @@ export default function BlogSidebar({ tocItems, className }: Props) {
       </Link>
 
       {tocItems.length > 0 && (
-        <div className="flex flex-col gap-3 pt-6 border-t border-surface-400 flex-1 min-h-0">
+        <div className="flex flex-col gap-3 pt-6 border-t border-surface-300 flex-1 min-h-0">
           <TableOfContents headings={tocItems} className="flex-1 min-h-0" />
         </div>
       )}

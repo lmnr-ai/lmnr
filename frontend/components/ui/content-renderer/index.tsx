@@ -4,10 +4,11 @@ import CodeMirror, { type ReactCodeMirrorProps, type ReactCodeMirrorRef } from "
 import { Settings } from "lucide-react";
 import React, { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
-import Messages, { type MessageLabel, type ProcessedMessages } from "@/components/traces/span-view/messages";
+import { createCodeMirrorSearchSource } from "@/components/traces/span-view/searchable";
 import { useSpanSearchRegistration } from "@/components/traces/span-view/span-search-context.tsx";
 import { Button } from "@/components/ui/button";
 import CodeSheet from "@/components/ui/content-renderer/code-sheet";
+import { pickMode } from "@/components/ui/content-renderer/mode";
 import {
   baseExtensions,
   createImageDecorationPlugin,
@@ -26,7 +27,7 @@ import {
   TemplatePickerProvider,
   TemplatePickerView,
 } from "@/components/ui/template-renderer/template-picker";
-import { cn, tryParseJson } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 interface ContentRendererProps {
   onChange?: ReactCodeMirrorProps["onChange"];
@@ -44,11 +45,7 @@ interface ContentRendererProps {
   defaultShowLineNumbers?: boolean;
   messageIndex?: number;
   contentPartIndex?: number;
-  hideScrollToBottom?: boolean;
-  messageMaxHeight?: number;
-  messageLabels?: MessageLabel[];
-  // Pre-detected messages for MESSAGES mode; other modes still use raw `value`.
-  processedMessages?: ProcessedMessages;
+  renderMessages?: (ctx: { value: string; presetKey: string }) => React.ReactNode;
   customTheme?: Parameters<typeof CodeMirror>[0]["theme"];
   /**
    * Extra CodeMirror extensions appended to the built-in set. Use `Prec.highest`
@@ -85,28 +82,27 @@ const PureContentRenderer = ({
   defaultShowLineNumbers = false,
   messageIndex = 0,
   contentPartIndex = 0,
-  hideScrollToBottom,
-  messageMaxHeight,
-  messageLabels,
-  processedMessages,
+  renderMessages,
   customTheme,
   extraExtensions,
 }: ContentRendererProps) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
   const editorId = useId();
 
-  const editorIdRef = useRef(`editor-${editorId}`);
+  const cmSourceIdRef = useRef(`editor-${editorId}-cm`);
   const searchRegistration = useSpanSearchRegistration();
   const currentViewRef = useRef<EditorView | null>(null);
   const [editorMountKey, setEditorMountKey] = useState(0);
 
-  const [mode, setMode] = useState(() => {
-    if (presetKey && typeof window !== "undefined") {
-      const savedMode = localStorage.getItem(`formatter-mode-${presetKey}`);
-      return savedMode || defaultMode;
-    }
-    return defaultMode;
+  const [selectedMode, setSelectedMode] = useState(() => {
+    const savedMode =
+      presetKey && typeof window !== "undefined" ? localStorage.getItem(`formatter-mode-${presetKey}`) : null;
+    return pickMode(savedMode, modes, defaultMode);
   });
+  // `defaultMode`/`modes` are content-derived at some call sites (resolveContentMode)
+  // and can change on a mounted instance (virtualized rows reuse components across
+  // span switches) — reconcile instead of trusting the once-initialized selection.
+  const mode = useMemo(() => pickMode(selectedMode, modes, defaultMode), [modes, selectedMode, defaultMode]);
 
   const [shouldRenderImages, setShouldRenderImages] = useState(renderBase64Images);
 
@@ -122,7 +118,7 @@ const PureContentRenderer = ({
 
   const handleModeChange = useCallback(
     (newMode: string) => {
-      setMode(newMode);
+      setSelectedMode(newMode);
       if (presetKey && typeof window !== "undefined") {
         localStorage.setItem(`formatter-mode-${presetKey}`, newMode);
       }
@@ -192,33 +188,31 @@ const PureContentRenderer = ({
     setEditorMountKey((k) => k + 1);
   }, []);
 
-  useEffect(() => {
-    if (searchRegistration && currentViewRef.current && mode !== "custom" && mode !== "messages") {
-      searchRegistration.registerEditor(editorIdRef.current, currentViewRef.current, messageIndex, contentPartIndex);
-
-      return () => {
-        searchRegistration.unregisterEditor(editorIdRef.current);
-      };
-    }
-  }, [searchRegistration, editorMountKey, messageIndex, contentPartIndex, mode]);
-
-  // Settings popover only applies to the CodeMirror branch.
   const isCodeMode = mode !== "custom" && mode !== "messages";
+  const canPickMode = modes.length > 1;
 
-  const renderHeaderContent = () => (
+  useEffect(() => {
+    if (!searchRegistration || !isCodeMode || !currentViewRef.current) return;
+
+    searchRegistration.registerSource(
+      createCodeMirrorSearchSource({
+        id: cmSourceIdRef.current,
+        view: currentViewRef.current,
+        messageIndex,
+        contentPartIndex,
+      })
+    );
+
+    return () => {
+      searchRegistration.unregisterSource(cmSourceIdRef.current);
+    };
+  }, [searchRegistration, editorMountKey, messageIndex, contentPartIndex, isCodeMode]);
+
+  const actionButtons = (
     <>
-      <TemplatePickerView mode={mode} onModeChange={handleModeChange} modes={modes} />
-      {mode === "custom" && (
-        <TemplatePickerActions
-          className={cn(
-            "transition-opacity data-[state=open]:opacity-100",
-            isHovered || isSettingsOpen ? "opacity-100" : "opacity-0"
-          )}
-        />
-      )}
       <CopyButton
         className={cn(
-          "ml-auto text-foreground/80 transition-opacity data-[state=open]:opacity-100",
+          "text-foreground/80 transition-opacity data-[state=open]:opacity-100",
           isHovered || isSettingsOpen ? "opacity-100" : "opacity-0"
         )}
         iconClassName="h-3.5 w-3.5"
@@ -245,6 +239,7 @@ const PureContentRenderer = ({
         <Popover onOpenChange={setIsSettingsOpen}>
           <PopoverTrigger asChild>
             <Button
+              aria-label="Settings"
               variant="ghost"
               size="icon"
               className={cn(
@@ -270,6 +265,40 @@ const PureContentRenderer = ({
     </>
   );
 
+  const content = (() => {
+    if (mode === "custom") {
+      return (
+        <div className="flex-1 flex bg-muted/50 overflow-auto w-full min-h-0 border-t">
+          <TemplatePickerPreview data={renderedValue} />
+        </div>
+      );
+    }
+    if (mode === "messages") {
+      return (
+        <div className="flex-1 flex w-full min-h-0">{renderMessages?.({ value, presetKey: presetKey ?? "" })}</div>
+      );
+    }
+    return (
+      <div className={cn("flex-1 flex w-full overflow-hidden", !showLineNumbers && "pl-1", codeEditorClassName)}>
+        <CodeMirror
+          ref={editorRef}
+          className="w-full"
+          placeholder={placeholder}
+          onChange={handleChange}
+          theme={customTheme ?? defaultTheme}
+          basicSetup={{
+            lineNumbers: showLineNumbers,
+            foldGutter: showLineNumbers,
+          }}
+          extensions={extensions}
+          value={renderedValue}
+          readOnly={readOnly}
+          onCreateEditor={handleCreateEditor}
+        />
+      </div>
+    );
+  })();
+
   return (
     <TemplatePickerProvider presetKey={presetKey ?? null} testData={value}>
       <div
@@ -277,41 +306,26 @@ const PureContentRenderer = ({
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        <div className={cn("flex justify-end items-center gap-1 pl-2 pr-1 w-full rounded-t bg-transparent")}>
-          {renderHeaderContent()}
-        </div>
-        {mode === "custom" ? (
-          <div className="flex-1 flex bg-muted/50 overflow-auto w-full min-h-0 border-t">
-            <TemplatePickerPreview data={renderedValue} />
-          </div>
-        ) : mode === "messages" ? (
-          <div className="flex-1 flex w-full min-h-0">
-            <Messages
-              messages={tryParseJson(value) ?? []}
-              processed={processedMessages}
-              presetKey={presetKey ?? ""}
-              hideScrollToBottom={hideScrollToBottom}
-              maxHeight={messageMaxHeight}
-              labels={messageLabels}
-            />
-          </div>
+        {canPickMode ? (
+          <>
+            <div className="flex justify-end items-center gap-1 pl-2 pr-1 w-full rounded-t bg-transparent">
+              <TemplatePickerView mode={mode} onModeChange={handleModeChange} modes={modes} />
+              {mode === "custom" && (
+                <TemplatePickerActions
+                  className={cn(
+                    "transition-opacity data-[state=open]:opacity-100",
+                    isHovered || isSettingsOpen ? "opacity-100" : "opacity-0"
+                  )}
+                />
+              )}
+              <div className="ml-auto flex items-center gap-1">{actionButtons}</div>
+            </div>
+            {content}
+          </>
         ) : (
-          <div className={cn("flex-1 flex w-full overflow-hidden", !showLineNumbers && "pl-1", codeEditorClassName)}>
-            <CodeMirror
-              ref={editorRef}
-              className="w-full"
-              placeholder={placeholder}
-              onChange={handleChange}
-              theme={customTheme ?? defaultTheme}
-              basicSetup={{
-                lineNumbers: showLineNumbers,
-                foldGutter: showLineNumbers,
-              }}
-              extensions={extensions}
-              value={renderedValue}
-              readOnly={readOnly}
-              onCreateEditor={handleCreateEditor}
-            />
+          <div className="flex flex-1 min-h-0 w-full">
+            <div className="flex-1 min-w-0 min-h-0 flex flex-col">{content}</div>
+            <div className="flex items-center self-start shrink-0 gap-0.5 pl-0.5">{actionButtons}</div>
           </div>
         )}
       </div>

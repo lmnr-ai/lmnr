@@ -1,6 +1,6 @@
 import { type z } from "zod/v4";
 
-import { type ParsedInput, type TextPart } from "@/lib/actions/sessions/parse-input";
+import { type ParsedInput, type TextPart } from "@/lib/spans/providers/message-types";
 import { GenAIMessagesSchema, looksLikeGenAIMessages } from "@/lib/spans/types/gen-ai";
 
 import { type ProviderAdapter } from "./types";

@@ -229,7 +229,7 @@ const SessionPlayer = ({ traceId, onClose }: SessionPlayerProps) => {
     <div className="relative w-full h-full flex flex-col">
       <div className="h-8 border-b pl-4 flex items-center gap-0 shrink-0">
         <span className="text-sm font-medium">Session</span>
-        <Button onClick={onClose} className="ml-auto" variant="ghost">
+        <Button aria-label="Close" onClick={onClose} className="ml-auto" variant="ghost">
           <X className="w-4 h-4" />
         </Button>
       </div>

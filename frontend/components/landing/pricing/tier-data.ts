@@ -6,7 +6,6 @@ import {
   formatProjects,
   formatSeats,
   formatSignalsCount,
-  formatSignalsOverage,
   formatSignalsOverageShort,
   formatSupport,
   type Tier,
@@ -69,13 +68,16 @@ export const TIER_COLUMNS: PricingColumn[] = PRICING_COLUMNS.map((c) => ({
   price: formatPrice(c.id),
 }));
 
-export const RECOMMENDED_TIER: TierId = "pro";
+export const RECOMMENDED_TIER: TierId = "hobby";
 
 // `false` / `null` cells render as an em-dash via the table renderer.
 export type FeatureValue = string | boolean | null;
 
 interface FeatureRow {
   label: string;
+  /** Renders an info icon beside the label. For rows whose number means
+   *  something other than what it looks like. */
+  tooltip?: string;
   values: Record<TierId, FeatureValue>;
 }
 
@@ -86,8 +88,9 @@ export interface FeatureGroup {
 
 // Helper to build a row whose value depends on the tier — saves repeating
 // the four-key object literal for every usage-limits row.
-const tierRow = (label: string, get: (tier: TierId) => FeatureValue): FeatureRow => ({
+const tierRow = (label: string, get: (tier: TierId) => FeatureValue, tooltip?: string): FeatureRow => ({
   label,
+  tooltip,
   values: {
     free: get("free"),
     hobby: get("hobby"),
@@ -105,10 +108,16 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
     rows: [
       tierRow("Data included", formatDataIncluded),
       tierRow("Data overage rate", formatDataOverage),
-      tierRow("Signals included", formatSignalsCount),
+      tierRow("Signals credits included", formatSignalsCount),
       // Comparison table is column-constrained, use the short per-1M-token form
-      // instead of the verbose rate the cards use.
-      tierRow("Signals overage rate", formatSignalsOverageShort),
+      // instead of the verbose rate the cards use. The tooltip is load-bearing:
+      // a per-1M-token rate on a page about the reader's own agent reads as
+      // their token count unless it says otherwise.
+      tierRow(
+        "Signals overage rate",
+        formatSignalsOverageShort,
+        "Signals run Laminar's own agent over your traces, so this rate is billed on the tokens that agent spends, not on your agent's tokens. Laminar compresses each trace first, so it typically works out to about 10% of your agent's token count."
+      ),
       tierRow("Retention", (t) => (t === "enterprise" ? "Custom" : TIER_RETENTION[t].durationPlural)),
       tierRow("Projects", (t) => TIERS[t].projects),
       tierRow("Seats", (t) => TIERS[t].seats),
@@ -170,7 +179,7 @@ interface CardFeature {
 export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   free: [
     { label: `${formatDataIncluded("free")} data`, subfeature: "no overage" },
-    { label: `${formatSignalsCount("free")} in Signals`, subfeature: "no overage" },
+    { label: `${formatSignalsCount("free")} in Signals credits` },
     { label: retentionLabel("free") },
     { label: formatProjects("free") },
     { label: formatSeats("free") },
@@ -178,7 +187,7 @@ export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   ],
   hobby: [
     { label: `${formatDataIncluded("hobby")} data included`, subfeature: `then ${formatDataOverage("hobby")}` },
-    { label: `${formatSignalsCount("hobby")} in Signals`, subfeature: `then ${formatSignalsOverage("hobby")}` },
+    { label: `${formatSignalsCount("hobby")} in Signals credits` },
     { label: retentionLabel("hobby") },
     { label: formatProjects("hobby") },
     { label: formatSeats("hobby") },
@@ -186,7 +195,7 @@ export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   ],
   pro: [
     { label: `${formatDataIncluded("pro")} data included`, subfeature: `then ${formatDataOverage("pro")}` },
-    { label: `${formatSignalsCount("pro")} in Signals`, subfeature: `then ${formatSignalsOverage("pro")}` },
+    { label: `${formatSignalsCount("pro")} in Signals credits` },
     { label: retentionLabel("pro") },
     { label: formatProjects("pro") },
     { label: formatSeats("pro") },

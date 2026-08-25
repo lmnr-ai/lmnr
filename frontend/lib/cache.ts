@@ -251,10 +251,7 @@ export const WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY = "workspace_signal_r
 export const WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY = "workspace_signal_runs_usage_cache_read_tokens";
 export const WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY = "workspace_signal_runs_usage_output_tokens";
 export const TRACE_CHATS_CACHE_KEY = "trace_chats";
-export const TRACE_SUMMARIES_CACHE_KEY = "trace_summaries";
-// `_v2`: must match app-server `SIGNAL_TRIGGERS_CACHE_KEY` (signal sample_rate
-// moved into metadata jsonb in migration 0099 — see app-server cache/keys.rs).
-export const SIGNAL_TRIGGERS_CACHE_KEY = "signal_triggers_v2";
+export const SIGNAL_TRIGGERS_CACHE_KEY = "signal_triggers";
 export const ALERT_FILTERS_CACHE_KEY = "alert_filters";
 export const SUMMARY_TRIGGER_SPANS_CACHE_KEY = "summary_trigger_spans";
 export const WORKSPACE_DEPLOYMENTS_CACHE_KEY = "workspace_deployment_config";
@@ -273,3 +270,8 @@ export const AUTOCOMPLETE_CACHE_KEY = (resource: string, projectId: string, fiel
 
 export const SPAN_RENDERING_KEY_CACHE_KEY = (projectId: string, schemaFingerprint: string): string =>
   `span_rendering_key:${projectId}:${schemaFingerprint}`;
+
+// App-wide (NOT project-scoped) LLM-inferred eval-score direction. The key is
+// the normalized score name; the value is a boolean isHigherBetter.
+export const SCORE_DIRECTION_CACHE_KEY = (normalizedScoreName: string): string =>
+  `score_direction:${normalizedScoreName}`;

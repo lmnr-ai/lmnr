@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren } from "react";
 
+import { AgentHeaderToggle } from "@/components/agent";
 import CopyTooltip from "@/components/ui/copy-tooltip.tsx";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
@@ -39,8 +40,10 @@ export default function Header({
       : path;
 
   return (
-    <div className={cn("font-medium flex items-center justify-between flex-none h-12 w-full pl-2.5 pr-4", className)}>
-      <div className={cn("flex flex-1 items-center", childrenContainerClassName)}>
+    <div
+      className={cn("font-medium flex gap-2 items-center justify-between flex-none h-12 w-full pl-2.5 pr-4", className)}
+    >
+      <div className={cn("flex flex-1 min-w-0 items-center", childrenContainerClassName)}>
         {showSidebarTrigger && <SidebarTrigger className="hover:bg-secondary size-7" />}
         {segments.map((segment, index) => (
           <div key={index} className="flex items-center">
@@ -60,6 +63,7 @@ export default function Header({
         ))}
         {children}
       </div>
+      <AgentHeaderToggle />
     </div>
   );
 }

@@ -40,6 +40,9 @@ services:
       - type: bind
         source: ./clickhouse-profiles-config.xml
         target: /etc/clickhouse-server/users.d/lmnr.xml
+      - type: bind
+        source: ./clickhouse-server-config.xml
+        target: /etc/clickhouse-server/config.d/lmnr.xml
     environment:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
