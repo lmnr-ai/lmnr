@@ -124,11 +124,18 @@ AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 AWS_REGION=us-east-1
 
-# Option D: Claude on Microsoft Foundry (Azure). Model ids are deployment names,
-# so set LLM_MODEL_* unless your deployments are named after the models.
+# Option D: Azure OpenAI. Model ids are deployment names, so set LLM_MODEL_* unless
+# your deployments are named after the models.
+LLM_PROVIDER=azure
+LLM_API_KEY=your_azure_key
+AZURE_OPENAI_RESOURCE_ID=your_resource_name   # or AZURE_OPENAI_BASE_URL for private endpoints
+# AZURE_OPENAI_API_VERSION=preview            # optional; only for resources that require it
+
+# Option E: Claude on Microsoft Foundry (Azure). A different endpoint from Option D —
+# Foundry serves Anthropic models on Anthropic's own API, not the OpenAI-compatible one.
 LLM_PROVIDER=foundry
 LLM_API_KEY=your_foundry_key
-FOUNDRY_RESOURCE_ID=your_resource_name   # or FOUNDRY_BASE_URL for private endpoints
+FOUNDRY_RESOURCE_ID=your_resource_name        # or FOUNDRY_BASE_URL for private endpoints
 ```
 
 ### Custom Postgres schema (optional)

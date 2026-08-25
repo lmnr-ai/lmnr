@@ -26,8 +26,8 @@ use crate::llm::{
 /// body field is Bedrock-only.
 const ANTHROPIC_VERSION: &str = "2023-06-01";
 
-/// `api-key` 401s against Foundry in practice despite the docs listing it —
-/// `x-api-key` is the one that works. (`Authorization: Bearer` is Entra ID.)
+/// Foundry accepts either `x-api-key` or `api-key` for key auth, so this is a
+/// free choice — `Authorization: Bearer` is the separate Entra ID path.
 const AUTH_HEADER: &str = "x-api-key";
 
 #[derive(Debug, Error)]

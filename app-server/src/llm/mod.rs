@@ -212,10 +212,29 @@ pub fn parsing_provider() -> Option<String> {
 }
 
 /// `LLM_API_KEY` is the single key shared by single-key providers (gemini,
-/// openai, foundry). It belongs to whichever provider `LLM_PROVIDER` names —
+/// openai, azure). It belongs to whichever provider `LLM_PROVIDER` names —
 /// gemini and openai cannot both initialize from it.
 fn has_llm_api_key() -> bool {
     std::env::var(env::llm::API_KEY).is_ok_and(|v| !v.is_empty())
+}
+
+/// Azure needs an endpoint on top of `LLM_API_KEY`: either the resource name or
+/// a full base URL.
+pub fn has_azure_endpoint() -> bool {
+    [env::llm::AZURE_RESOURCE_ID, env::llm::AZURE_BASE_URL]
+        .iter()
+        .any(|name| std::env::var(name).is_ok_and(|v| !v.trim().is_empty()))
+}
+
+/// True when `LLM_PROVIDER=azure` (Chat Completions against Azure OpenAI) and
+/// both the key and an endpoint are set.
+fn has_azure_credentials() -> bool {
+    llm_provider_env() == "azure" && has_llm_api_key() && has_azure_endpoint()
+}
+
+/// True when `LLM_PROVIDER=azure_responses` (Responses API against Azure OpenAI).
+fn has_azure_responses_credentials() -> bool {
+    llm_provider_env() == "azure_responses" && has_llm_api_key() && has_azure_endpoint()
 }
 
 /// Foundry needs an endpoint on top of `LLM_API_KEY`: either the resource name
@@ -451,9 +470,17 @@ pub fn model_for_size(provider: &str, size: ModelSize) -> String {
         ("foundry", ModelSize::Small) => "claude-haiku-4-5".to_string(),
         ("foundry", ModelSize::Medium) => "claude-sonnet-5".to_string(),
         ("foundry", ModelSize::Large) => "claude-opus-5".to_string(),
-        ("openai" | "openai_responses", ModelSize::Small) => "gpt-5.4-mini".to_string(),
-        ("openai" | "openai_responses", ModelSize::Medium) => "gpt-5.4".to_string(),
-        ("openai", ModelSize::Large) => "gpt-5.5".to_string(),
+        // Azure model ids are deployment names, so these defaults only hold when
+        // deployments are named after the model; otherwise set `LLM_MODEL_<SIZE>`.
+        ("openai" | "openai_responses" | "azure" | "azure_responses", ModelSize::Small) => {
+            "gpt-5.4-mini".to_string()
+        }
+        ("openai" | "openai_responses" | "azure" | "azure_responses", ModelSize::Medium) => {
+            "gpt-5.4".to_string()
+        }
+        // Both azure providers share one default so the frontend (which has no
+        // Responses variant) resolves the same deployment name.
+        ("openai" | "azure" | "azure_responses", ModelSize::Large) => "gpt-5.5".to_string(),
         ("openai_responses", ModelSize::Large) => "gpt-5.6".to_string(),
         _ => "".to_string(),
     }
@@ -521,6 +548,33 @@ impl LlmClient {
             );
             providers.insert(
                 "openai_responses".to_string(),
+                ProviderClient::OpenAIResponses(client),
+            );
+        }
+
+        if has_azure_credentials() {
+            let client = OpenAIClient::azure().map_err(|e| {
+                ProviderError::ConfigError(format!("Failed to create Azure OpenAI client: {e}"))
+            })?;
+            log::info!(
+                "Initialized Azure OpenAI provider (Chat Completions) at {}",
+                client.api_base_url()
+            );
+            providers.insert("azure".to_string(), ProviderClient::OpenAI(client));
+        }
+
+        if has_azure_responses_credentials() {
+            let client = OpenAIResponsesClient::azure().map_err(|e| {
+                ProviderError::ConfigError(format!(
+                    "Failed to create Azure OpenAI Responses client: {e}"
+                ))
+            })?;
+            log::info!(
+                "Initialized Azure OpenAI provider (Responses API) at {}",
+                client.api_base_url()
+            );
+            providers.insert(
+                "azure_responses".to_string(),
                 ProviderClient::OpenAIResponses(client),
             );
         }
@@ -630,10 +684,11 @@ impl LlmClient {
         };
         let size = request.model_size.unwrap_or(ModelSize::Medium);
         let model = model_for_size(resolved_provider, size);
-        // Report the Responses client under the canonical `openai` name so
+        // Report the Responses clients under their canonical provider name so
         // cost/observability keying matches Chat Completions.
         let reported_provider = match resolved_provider {
             "openai_responses" => "openai",
+            "azure_responses" => "azure",
             other => other,
         };
         (model, reported_provider.to_string())

@@ -60,24 +60,41 @@ impl From<OpenAIError> for super::ProviderError {
 
 pub type OpenAIResult<T> = Result<T, OpenAIError>;
 
+/// Which OpenAI-compatible endpoint a client talks to. Azure OpenAI speaks the
+/// same wire format but derives its base URL from the resource name and
+/// authenticates with an `api-key` header instead of `Authorization: Bearer`.
+#[derive(Clone, Copy)]
+pub(super) enum OpenAIFlavor {
+    OpenAI,
+    Azure,
+}
+
 /// Shared HTTP setup for the OpenAI-compatible clients (Chat Completions and
-/// Responses). Both read the same `LLM_API_KEY` / `LLM_BASE_URL` and build an
-/// identically-configured `reqwest::Client`.
+/// Responses). Both read the same `LLM_API_KEY` and build an identically
+/// configured `reqwest::Client`; the base URL and auth depend on the flavor.
 pub(super) struct OpenAIHttpConfig {
     pub client: reqwest::Client,
     pub api_key: String,
     pub api_base_url: String,
+    pub api_version: Option<String>,
+    pub flavor: OpenAIFlavor,
 }
 
-pub(super) fn build_http_config() -> OpenAIResult<OpenAIHttpConfig> {
+pub(super) fn build_http_config(flavor: OpenAIFlavor) -> OpenAIResult<OpenAIHttpConfig> {
     let api_key = std::env::var(env::llm::API_KEY)
         .map_err(|_| OpenAIError::config("LLM_API_KEY environment variable not set"))?;
 
-    let raw_base_url = std::env::var(env::llm::BASE_URL)
-        .ok()
-        .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
-    let api_base_url = raw_base_url.trim_end_matches('/').to_string();
+    let (api_base_url, api_version) = match flavor {
+        OpenAIFlavor::OpenAI => {
+            let raw_base_url = non_empty_env(env::llm::BASE_URL)
+                .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
+            (raw_base_url.trim_end_matches('/').to_string(), None)
+        }
+        OpenAIFlavor::Azure => (
+            azure_base_url()?,
+            non_empty_env(env::llm::AZURE_API_VERSION),
+        ),
+    };
     let default_headers = default_headers_from_env().map_err(OpenAIError::config)?;
 
     let client = reqwest::Client::builder()
@@ -91,7 +108,52 @@ pub(super) fn build_http_config() -> OpenAIResult<OpenAIHttpConfig> {
         client,
         api_key,
         api_base_url,
+        api_version,
+        flavor,
     })
+}
+
+fn non_empty_env(name: &str) -> Option<String> {
+    std::env::var(name)
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+}
+
+/// `AZURE_OPENAI_BASE_URL` wins over `AZURE_OPENAI_RESOURCE_ID`; both normalize to
+/// the v1 route, which serves both `/chat/completions` and `/responses`.
+fn azure_base_url() -> OpenAIResult<String> {
+    if let Some(base_url) = non_empty_env(env::llm::AZURE_BASE_URL) {
+        return Ok(normalize_azure_base_url(&base_url));
+    }
+    let resource_id = non_empty_env(env::llm::AZURE_RESOURCE_ID).ok_or_else(|| {
+        OpenAIError::config(
+            "AZURE_OPENAI_RESOURCE_ID or AZURE_OPENAI_BASE_URL must be set when LLM_PROVIDER is azure",
+        )
+    })?;
+    Ok(normalize_azure_base_url(&format!(
+        "https://{resource_id}.openai.azure.com"
+    )))
+}
+
+/// Accepts the portal endpoint (`https://r.openai.azure.com`), the `/openai` root,
+/// or an already-complete `/openai/v1` URL — all end up on the v1 route.
+fn normalize_azure_base_url(raw: &str) -> String {
+    let trimmed = raw.trim().trim_end_matches('/');
+    if trimmed.ends_with("/openai/v1") {
+        trimmed.to_string()
+    } else if trimmed.ends_with("/openai") {
+        format!("{trimmed}/v1")
+    } else {
+        format!("{trimmed}/openai/v1")
+    }
+}
+
+pub(super) fn endpoint_url(base_url: &str, path: &str, api_version: Option<&str>) -> String {
+    match api_version {
+        Some(version) => format!("{base_url}{path}?api-version={version}"),
+        None => format!("{base_url}{path}"),
+    }
 }
 
 /// POST a JSON body to an OpenAI-compatible endpoint. On a non-success status,
@@ -99,13 +161,18 @@ pub(super) fn build_http_config() -> OpenAIResult<OpenAIHttpConfig> {
 /// hands back the raw response for the caller to read as text or a byte stream.
 pub(super) async fn send_openai_request(
     client: &reqwest::Client,
+    flavor: OpenAIFlavor,
     api_key: &str,
     url: &str,
     body: &Value,
 ) -> OpenAIResult<reqwest::Response> {
-    let response = client
-        .post(url)
-        .header("Authorization", format!("Bearer {api_key}"))
+    let request = match flavor {
+        OpenAIFlavor::OpenAI => client
+            .post(url)
+            .header("Authorization", format!("Bearer {api_key}")),
+        OpenAIFlavor::Azure => client.post(url).header("api-key", api_key),
+    };
+    let response = request
         .header("Content-Type", "application/json")
         .json(body)
         .send()
@@ -131,4 +198,38 @@ pub(super) async fn send_openai_request(
     }
 
     Ok(response)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_azure_base_url_appends_v1_route() {
+        assert_eq!(
+            normalize_azure_base_url("https://my-resource.openai.azure.com/"),
+            "https://my-resource.openai.azure.com/openai/v1"
+        );
+        assert_eq!(
+            normalize_azure_base_url("https://my-resource.openai.azure.com/openai"),
+            "https://my-resource.openai.azure.com/openai/v1"
+        );
+        assert_eq!(
+            normalize_azure_base_url("https://my-resource.openai.azure.com/openai/v1"),
+            "https://my-resource.openai.azure.com/openai/v1"
+        );
+    }
+
+    #[test]
+    fn endpoint_url_appends_api_version_when_set() {
+        let base = "https://my-resource.openai.azure.com/openai/v1";
+        assert_eq!(
+            endpoint_url(base, "/chat/completions", None),
+            format!("{base}/chat/completions")
+        );
+        assert_eq!(
+            endpoint_url(base, "/responses", Some("preview")),
+            format!("{base}/responses?api-version=preview")
+        );
+    }
 }

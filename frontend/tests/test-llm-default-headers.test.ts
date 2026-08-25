@@ -5,7 +5,13 @@ import { describe, it } from "node:test";
 
 import { generateText } from "ai";
 
-import { foundryBaseUrl, getLanguageModel, isAiProviderConfigured, parseLlmDefaultHeaders } from "@/lib/ai/model";
+import {
+  azureBaseUrl,
+  foundryBaseUrl,
+  getLanguageModel,
+  isAiProviderConfigured,
+  parseLlmDefaultHeaders,
+} from "@/lib/ai/model";
 
 describe("parseLlmDefaultHeaders", () => {
   it("returns undefined when unset or blank", () => {
@@ -51,6 +57,47 @@ describe("parseLlmDefaultHeaders", () => {
   });
 });
 
+describe("azure provider config", () => {
+  it("normalizes every accepted endpoint form to the v1 route", () => {
+    // createAzure appends /v1 itself for azure.com hosts, but not for gateways.
+    assert.strictEqual(
+      azureBaseUrl("https://my-resource.openai.azure.com/"),
+      "https://my-resource.openai.azure.com/openai"
+    );
+    assert.strictEqual(
+      azureBaseUrl("https://my-resource.openai.azure.com/openai/v1"),
+      "https://my-resource.openai.azure.com/openai"
+    );
+    assert.strictEqual(azureBaseUrl("https://gateway.internal/azure"), "https://gateway.internal/azure/openai/v1");
+  });
+
+  it("rejects an endpoint that is not an absolute URL", () => {
+    assert.throws(() => azureBaseUrl("my-resource.openai.azure.com"), /not an absolute URL/);
+  });
+
+  it("requires a non-blank endpoint on top of the api key", () => {
+    const previous = {
+      provider: process.env.LLM_PROVIDER,
+      apiKey: process.env.LLM_API_KEY,
+      resourceId: process.env.AZURE_OPENAI_RESOURCE_ID,
+    };
+
+    try {
+      process.env.LLM_PROVIDER = "azure";
+      process.env.LLM_API_KEY = "test-key";
+      process.env.AZURE_OPENAI_RESOURCE_ID = "  ";
+      assert.strictEqual(isAiProviderConfigured(), false);
+
+      process.env.AZURE_OPENAI_RESOURCE_ID = "my-resource";
+      assert.strictEqual(isAiProviderConfigured(), true);
+    } finally {
+      restoreEnv("LLM_PROVIDER", previous.provider);
+      restoreEnv("LLM_API_KEY", previous.apiKey);
+      restoreEnv("AZURE_OPENAI_RESOURCE_ID", previous.resourceId);
+    }
+  });
+});
+
 describe("foundry provider config", () => {
   it("normalizes every accepted endpoint form to the anthropic v1 route", () => {
     assert.strictEqual(
@@ -63,9 +110,9 @@ describe("foundry provider config", () => {
     );
   });
 
-  // Foundry 401s on `api-key` and wants `x-api-key`; this drives a real request
-  // to prove the header the app-server sends is the one that goes out here too.
-  it("sends x-api-key to the anthropic messages route", async () => {
+  // Foundry accepts either `x-api-key` or `api-key` for key auth; this drives a
+  // real request to prove the key reaches the anthropic messages route at all.
+  it("sends the api key to the anthropic messages route", async () => {
     let captured: { url?: string; headers?: IncomingMessage["headers"] } = {};
     const server: Server = createServer((req, res) => {
       captured = { url: req.url, headers: req.headers };
