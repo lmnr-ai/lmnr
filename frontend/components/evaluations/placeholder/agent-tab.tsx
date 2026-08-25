@@ -26,10 +26,7 @@ export function AgentTab() {
         </p>
       </div>
 
-      <AgentPromptBox
-        prompt={AGENT_PROMPT}
-        onCopy={() => track("onboarding", "evals_coding_agent_command_copied")}
-      />
+      <AgentPromptBox prompt={AGENT_PROMPT} onCopy={() => track("onboarding", "evals_coding_agent_command_copied")} />
     </div>
   );
 }

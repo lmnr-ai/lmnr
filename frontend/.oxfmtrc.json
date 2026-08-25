@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "tabWidth": 2,
+  "printWidth": 120,
+  "trailingComma": "es5",
+  "endOfLine": "lf",
+  "sortImports": true,
+  "sortPackageJson": false,
+  "ignorePatterns": [
+    ".next/**",
+    "next-env.d.ts",
+    "lib/db/migrations/**",
+    "**/*.json",
+    "**/*.css",
+    "**/*.md",
+    "**/*.yaml",
+    "**/*.yml"
+  ]
+}

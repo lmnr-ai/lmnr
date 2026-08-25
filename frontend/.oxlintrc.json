@@ -1,0 +1,48 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "react", "nextjs", "import", "unicorn", "oxc"],
+  "categories": {
+    "correctness": "warn"
+  },
+  "ignorePatterns": [".next/**", "node_modules/**", "next-env.d.ts", "lib/db/migrations/**"],
+  "rules": {
+    "arrow-body-style": ["warn", "as-needed"],
+    "no-duplicate-imports": "error",
+    "no-console": "warn",
+
+    "typescript/no-explicit-any": "warn",
+    "typescript/no-unused-vars": [
+      "warn",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_"
+      }
+    ],
+    "typescript/consistent-type-imports": [
+      "warn",
+      {
+        "prefer": "type-imports",
+        "fixStyle": "inline-type-imports"
+      }
+    ],
+    "typescript/no-require-imports": "error",
+
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "warn",
+    "react/preserve-manual-memoization": "warn"
+  },
+  "overrides": [
+    {
+      "files": ["app/api/**/*.ts", "app/webhook/**/*.ts", "instrumentation.ts", "scripts/**/*.{js,mjs}"],
+      "rules": {
+        "no-console": "off"
+      }
+    },
+    {
+      "files": ["*.config.ts", "*.config.js", "instrumentation.ts"],
+      "rules": {
+        "typescript/no-require-imports": "off"
+      }
+    }
+  ]
+}
