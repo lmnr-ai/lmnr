@@ -109,7 +109,7 @@ export async function register() {
       const escapeChCreds = (v: string) => v.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 
       const dictCacheOptions = () => {
-        const sizeInCells = Number(process.env.CH_CONTENT_DICT_SIZE_IN_CELLS) || 131072;
+        const sizeInCells = Number(process.env.CH_CONTENT_DICT_SIZE_IN_CELLS) || 262144;
         return `
             SIZE_IN_CELLS ${sizeInCells}
             ALLOW_READ_EXPIRED_KEYS 1
