@@ -17,8 +17,7 @@ const templates: EventTemplate[] = [
     prompt: `Find the most significant error the agent made in this run, if any: \
 a wrong action, flawed logic, or failure that affected the outcome or wasted \
 significant work. Minor issues the agent immediately recovered from are not \
-findings. Cite the specific spans and quote the decisive evidence. \
-Most runs have no reportable error.`,
+findings. Cite the specific spans and quote the decisive evidence.`,
     structuredOutputSchema: JSON.stringify(
       {
         type: "object",
