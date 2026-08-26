@@ -11,8 +11,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
     const body = await req.json();
 
     const result = await createExportJob({
-      projectId,
       ...body,
+      projectId,
     });
 
     return NextResponse.json({
