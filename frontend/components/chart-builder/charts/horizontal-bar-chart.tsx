@@ -1,6 +1,6 @@
 import { ArrowUpRight } from "lucide-react";
 import React, { useMemo } from "react";
-import { Bar, BarChart as RechartsBarChart, LabelList, XAxis, YAxis } from "recharts";
+import { Bar, BarChart as RechartsBarChart, LabelList, Rectangle, XAxis, YAxis } from "recharts";
 
 import { type DisplayMode } from "@/components/chart-builder/types";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -136,21 +136,12 @@ const HorizontalBarChart = ({
                 dataKey={valueColumn}
                 fill={config.color}
                 shape={(props: any) => {
-                  const { payload, x, y: barY, width, height, fill, fillOpacity, opacity, stroke, strokeWidth } = props;
-                  const isClickable = onBarClick && (payload?.trace_id || payload?.id);
+                  const isClickable = onBarClick && (props.payload?.trace_id || props.payload?.id);
                   return (
-                    <rect
-                      x={x}
-                      y={barY}
-                      width={width}
-                      height={height}
-                      fill={fill}
-                      fillOpacity={fillOpacity}
-                      opacity={opacity}
-                      stroke={stroke}
-                      strokeWidth={strokeWidth}
+                    <Rectangle
+                      {...props}
+                      radius={4}
                       className={cn({ "hover:opacity-60 transition-opacity cursor-pointer": isClickable })}
-                      rx={4}
                     />
                   );
                 }}
