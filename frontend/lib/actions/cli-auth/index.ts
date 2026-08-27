@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 
 import { DEFAULT_PROJECT_NAME, workspaceNameFromEmail } from "@/lib/actions/cli-auth/defaults";
 import { createProject } from "@/lib/actions/projects";
-import { createWorkspace } from "@/lib/actions/workspaces";
+import { createWorkspace, seedFirstProject } from "@/lib/actions/workspaces";
 import { auth } from "@/lib/auth";
 import { getServerSession } from "@/lib/auth-session";
 import { isUserMemberOfProject } from "@/lib/authorization";
@@ -118,20 +118,26 @@ export const listWorkspacesForCurrentSession = async (): Promise<SessionWorkspac
 // one — the zero-friction path where approving is the last step. Reuses an
 // existing project when there is one, otherwise creates `dev` (in the user's
 // workspace, or in a fresh workspace named after their email domain).
-// `createdWorkspace` marks a brand-new account, which drives the welcome email.
+// `isFirstProject` marks a brand-new account, which drives the welcome email.
 const resolveDefaultProject = async (
   userEmail: string | null | undefined
-): Promise<{ projectId: string; createdWorkspace: boolean } | { error: string }> => {
+): Promise<{ projectId: string; isFirstProject: boolean } | { error: string }> => {
   const existingProjects = await listProjectsForCurrentSession();
   // Ordering matches the browser's default selection (workspace A→Z, project A→Z),
   // so a direct API caller that omits projectId lands on the same project the UI shows.
-  if (existingProjects.length > 0) return { projectId: existingProjects[0].id, createdWorkspace: false };
+  if (existingProjects.length > 0) return { projectId: existingProjects[0].id, isFirstProject: false };
 
+  // Zero projects => whatever we create IS this account's first project, workspace
+  // or no workspace. An existing workspace here means a half-failed create (they
+  // aren't transactional), NOT a used account, so it still gets the first-project
+  // onboarding seed rather than a bare `dev`.
   const existingWorkspaces = await listWorkspacesForCurrentSession();
   try {
     if (existingWorkspaces.length > 0) {
-      const project = await createProject({ name: DEFAULT_PROJECT_NAME, workspaceId: existingWorkspaces[0].id });
-      return { projectId: project.id, createdWorkspace: false };
+      const workspaceId = existingWorkspaces[0].id;
+      const project = await createProject({ name: DEFAULT_PROJECT_NAME, workspaceId });
+      await seedFirstProject({ workspaceId, projectId: project.id, userEmail });
+      return { projectId: project.id, isFirstProject: true };
     }
 
     const workspace = await createWorkspace({
@@ -140,7 +146,7 @@ const resolveDefaultProject = async (
       isFirstProject: true,
     });
     if (!workspace.projectId) return { error: "Failed to create a project" };
-    return { projectId: workspace.projectId, createdWorkspace: true };
+    return { projectId: workspace.projectId, isFirstProject: true };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to create a project" };
   }
@@ -200,9 +206,9 @@ export const approveDeviceWithProject = async (
     const resolved = await resolveDefaultProject(session.user.email);
     if ("error" in resolved) return { error: resolved.error };
     targetProjectId = resolved.projectId;
-    // A user who had no workspace at all is a brand-new account, so send the
+    // A user who had no project at all is a brand-new account, so send the
     // onboarding welcome email (onboarding parity); everyone else was welcomed before.
-    sendWelcome = resolved.createdWorkspace;
+    sendWelcome = resolved.isFirstProject;
   }
 
   // 1) Write the chosen project into `metadata` WHILE the row is pending.
