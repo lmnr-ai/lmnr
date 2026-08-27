@@ -132,24 +132,30 @@ const resolveDefaultProject = async (
   // aren't transactional), NOT a used account, so it still gets the first-project
   // onboarding seed rather than a bare `dev`.
   const existingWorkspaces = await listWorkspacesForCurrentSession();
-  try {
-    if (existingWorkspaces.length > 0) {
-      const workspaceId = existingWorkspaces[0].id;
-      const project = await createProject({ name: DEFAULT_PROJECT_NAME, workspaceId });
-      await seedFirstProject({ workspaceId, projectId: project.id, userEmail });
-      return { projectId: project.id, isFirstProject: true };
-    }
 
-    const workspace = await createWorkspace({
-      name: workspaceNameFromEmail(userEmail),
-      projectName: DEFAULT_PROJECT_NAME,
-      isFirstProject: true,
-    });
-    if (!workspace.projectId) return { error: "Failed to create a project" };
-    return { projectId: workspace.projectId, isFirstProject: true };
+  let workspaceId: string;
+  let projectId: string;
+  try {
+    // Seeded separately below instead of via createWorkspace's projectName/isFirstProject,
+    // so both branches (fresh workspace and leftover workspace) get identical treatment.
+    workspaceId = existingWorkspaces[0]?.id ?? (await createWorkspace({ name: workspaceNameFromEmail(userEmail) })).id;
+    projectId = (await createProject({ name: DEFAULT_PROJECT_NAME, workspaceId })).id;
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to create a project" };
   }
+
+  // Best-effort, deliberately AFTER the point of no return: createProject commits on
+  // its own, so failing the approval here wouldn't roll the project back — it would
+  // just leave a project behind that makes the retry look like an existing account
+  // (isFirstProject: false), losing these extras AND the welcome email for good.
+  // Approving with a plain `dev` project is the better failure mode.
+  try {
+    await seedFirstProject({ workspaceId, projectId, userEmail });
+  } catch (e) {
+    console.error(`Failed to seed first-project defaults for project ${projectId}, continuing`, e);
+  }
+
+  return { projectId, isFirstProject: true };
 };
 
 // Approves the device code AND hands the chosen projectId back to the CLI.
