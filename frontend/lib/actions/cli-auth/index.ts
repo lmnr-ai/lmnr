@@ -1,6 +1,9 @@
 import { and, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 
+import { DEFAULT_PROJECT_NAME, workspaceNameFromEmail } from "@/lib/actions/cli-auth/defaults";
+import { createProject } from "@/lib/actions/projects";
+import { createWorkspace } from "@/lib/actions/workspaces";
 import { auth } from "@/lib/auth";
 import { getServerSession } from "@/lib/auth-session";
 import { isUserMemberOfProject } from "@/lib/authorization";
@@ -111,6 +114,38 @@ export const listWorkspacesForCurrentSession = async (): Promise<SessionWorkspac
     .orderBy(...ascNameFold(workspaces.name));
 };
 
+// Resolves the project the CLI should be pointed at when the browser didn't send
+// one — the zero-friction path where approving is the last step. Reuses an
+// existing project when there is one, otherwise creates `dev` (in the user's
+// workspace, or in a fresh workspace named after their email domain).
+// `createdWorkspace` marks a brand-new account, which drives the welcome email.
+const resolveDefaultProject = async (
+  userEmail: string | null | undefined
+): Promise<{ projectId: string; createdWorkspace: boolean } | { error: string }> => {
+  const existingProjects = await listProjectsForCurrentSession();
+  // Ordering matches the browser's default selection (workspace A→Z, project A→Z),
+  // so a direct API caller that omits projectId lands on the same project the UI shows.
+  if (existingProjects.length > 0) return { projectId: existingProjects[0].id, createdWorkspace: false };
+
+  const existingWorkspaces = await listWorkspacesForCurrentSession();
+  try {
+    if (existingWorkspaces.length > 0) {
+      const project = await createProject({ name: DEFAULT_PROJECT_NAME, workspaceId: existingWorkspaces[0].id });
+      return { projectId: project.id, createdWorkspace: false };
+    }
+
+    const workspace = await createWorkspace({
+      name: workspaceNameFromEmail(userEmail),
+      projectName: DEFAULT_PROJECT_NAME,
+      isFirstProject: true,
+    });
+    if (!workspace.projectId) return { error: "Failed to create a project" };
+    return { projectId: workspace.projectId, createdWorkspace: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to create a project" };
+  }
+};
+
 // Approves the device code AND hands the chosen projectId back to the CLI.
 //
 // The projectId rides in the deviceCode `metadata` column; the /device/token
@@ -123,12 +158,13 @@ export const listWorkspacesForCurrentSession = async (): Promise<SessionWorkspac
 // wrote metadata after approve, the CLI poll could win the race in between,
 // receive no metadata, and the row is then deleted at token issuance — the
 // projectId is lost permanently. Sequence: update metadata (pending) -> approve.
-// `sendWelcome` is set only by the brand-new-account path (CreateFirstProject);
-// the picker passes false so existing users don't get a duplicate welcome email.
+//
+// `projectId` is optional: the browser only sends one when the user actually has
+// a choice (>1 project). Otherwise the project is resolved/created server-side so
+// approving is the last step of CLI onboarding — nothing to name, nothing to pick.
 export const approveDeviceWithProject = async (
   rawUserCode: string,
-  projectId: string,
-  sendWelcome = false
+  projectId?: string
 ): Promise<{ error?: string }> => {
   const session = await getServerSession();
   if (!session?.user) return { error: "Unauthorized" };
@@ -149,13 +185,25 @@ export const approveDeviceWithProject = async (
   // userId (claim never bound) is rejected as well.
   if (context.userId !== session.user.id) return { error: "Unauthorized" };
 
-  // Authorize project membership BEFORE the metadata write — the picker is
-  // session-scoped but the projectId rides in from the client, so verify the
-  // user actually belongs to it before storing it on the device row.
-  // Fresh check (no cache): a since-removed user must not poison the row on a
-  // stale 30-day cached `true`.
-  const isMember = await isUserMemberOfProject(projectId, session.user.id, { skipCache: true });
-  if (!isMember) return { error: "You do not have access to this project" };
+  let targetProjectId = projectId;
+  let sendWelcome = false;
+
+  if (targetProjectId) {
+    // Authorize project membership BEFORE the metadata write — the selector is
+    // session-scoped but the projectId rides in from the client, so verify the
+    // user actually belongs to it before storing it on the device row.
+    // Fresh check (no cache): a since-removed user must not poison the row on a
+    // stale 30-day cached `true`.
+    const isMember = await isUserMemberOfProject(targetProjectId, session.user.id, { skipCache: true });
+    if (!isMember) return { error: "You do not have access to this project" };
+  } else {
+    const resolved = await resolveDefaultProject(session.user.email);
+    if ("error" in resolved) return { error: resolved.error };
+    targetProjectId = resolved.projectId;
+    // A user who had no workspace at all is a brand-new account, so send the
+    // onboarding welcome email (onboarding parity); everyone else was welcomed before.
+    sendWelcome = resolved.createdWorkspace;
+  }
 
   // 1) Write the chosen project into `metadata` WHILE the row is pending.
   //    deviceApprove only writes { status, userId }, so this survives approve;
@@ -163,7 +211,7 @@ export const approveDeviceWithProject = async (
   //    it to the polling CLI as the x-lmnr-metadata response header.
   await db
     .update(deviceCodes)
-    .set({ metadata: JSON.stringify({ projectId }) })
+    .set({ metadata: JSON.stringify({ projectId: targetProjectId }) })
     .where(eq(deviceCodes.userCode, userCode));
 
   // 2) Now approve.

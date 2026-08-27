@@ -8,8 +8,7 @@ import { type DeviceApprovalContext, type SessionProject, type SessionWorkspace 
 import { authClient } from "@/lib/auth-client";
 import { useToast } from "@/lib/hooks/use-toast";
 
-import { CreateFirstProject } from "./create-first-project";
-import { ProjectPicker } from "./project-picker";
+import { ProjectSelect } from "./project-select";
 import { Centered, CompletionScreen, UserCodeDisplay } from "./shared";
 
 interface Props {
@@ -21,10 +20,17 @@ interface Props {
   claimFailed?: boolean;
 }
 
+// Approve is the last step of CLI onboarding. A user with 0 or 1 projects sends
+// no projectId at all and the server resolves it (creating `dev` in a workspace
+// named after their email domain for a brand-new account); only a user with a
+// real choice to make sees the project selector, pre-selected so Approve still
+// takes a single click.
 export function ApprovalForm({ userEmail, rawUserCode, context, projects, workspaces, claimFailed }: Props) {
   const { toast } = useToast();
+  const [options, setOptions] = useState<SessionProject[]>(projects);
+  const [selectedId, setSelectedId] = useState<string>(projects.length > 1 ? projects[0].id : "");
+  const [approving, setApproving] = useState(false);
   const [denying, setDenying] = useState(false);
-  const [step, setStep] = useState<"approve" | "pick-project">("approve");
   const [completed, setCompleted] = useState<null | "approved" | "denied">(null);
 
   // Invalid / expired / wrong-status banners.
@@ -37,37 +43,34 @@ export function ApprovalForm({ userEmail, rawUserCode, context, projects, worksp
   else if (claimFailed)
     banner = "We couldn't verify this code for your account. Re-run `lmnr-cli login` and try again.";
 
-  if (completed) {
-    return <CompletionScreen result={completed} />;
-  }
+  const busy = approving || denying;
 
-  // Step 2 — project selection. The device row is approved (with the chosen
-  // project written into its metadata) only after a project is selected/created.
-  // A user with no projects skips the (empty) picker and creates their first
-  // project directly; everyone else picks from / creates within the picker.
-  if (step === "pick-project" && context) {
-    if (projects.length === 0) {
-      return (
-        <CreateFirstProject
-          userCode={context.userCode}
-          workspaces={workspaces}
-          onApproved={() => setCompleted("approved")}
-          onDenied={() => setCompleted("denied")}
-        />
-      );
+  const onApprove = async () => {
+    if (!context) return;
+    setApproving(true);
+    try {
+      const res = await fetch("/api/cli/device/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // No projectId => the server picks/creates the default project.
+        body: JSON.stringify({ userCode: context.userCode, ...(selectedId ? { projectId: selectedId } : {}) }),
+      });
+      if (!res.ok) {
+        const errMessage = await res
+          .json()
+          .then((d) => d?.error)
+          .catch(() => null);
+        toast({ variant: "destructive", title: errMessage ?? "Failed to authorize device" });
+        return;
+      }
+      setCompleted("approved");
+    } catch {
+      toast({ variant: "destructive", title: "Something went wrong" });
+    } finally {
+      setApproving(false);
     }
-    return (
-      <ProjectPicker
-        userCode={context.userCode}
-        projects={projects}
-        workspaces={workspaces}
-        onApproved={() => setCompleted("approved")}
-        onDenied={() => setCompleted("denied")}
-      />
-    );
-  }
+  };
 
-  // Deny is terminal and does not need a project.
   const onDeny = async () => {
     if (!context) return;
     setDenying(true);
@@ -84,6 +87,17 @@ export function ApprovalForm({ userEmail, rawUserCode, context, projects, worksp
       setDenying(false);
     }
   };
+
+  // New project lands in the dropdown and becomes the selection — it does NOT
+  // approve; Approve stays the only authorize trigger.
+  const onProjectCreated = (project: SessionProject) => {
+    setOptions((prev) => [project, ...prev.filter((p) => p.id !== project.id)]);
+    setSelectedId(project.id);
+  };
+
+  if (completed) {
+    return <CompletionScreen result={completed} />;
+  }
 
   return (
     <Centered>
@@ -103,13 +117,22 @@ export function ApprovalForm({ userEmail, rawUserCode, context, projects, worksp
             </p>
           ) : (
             <>
+              {options.length > 1 ? (
+                <ProjectSelect
+                  projects={options}
+                  workspaces={workspaces}
+                  value={selectedId}
+                  onChange={setSelectedId}
+                  onCreated={onProjectCreated}
+                  disabled={busy}
+                />
+              ) : null}
               <div className="flex gap-2 pt-2">
-                <Button type="button" variant="outline" onClick={onDeny} disabled={denying} className="flex-1">
+                <Button type="button" variant="outline" onClick={onDeny} disabled={busy} className="flex-1">
                   {denying ? "Denying…" : "Deny"}
                 </Button>
-                {/* Approve advances to the picker — the row is NOT approved yet. */}
-                <Button type="button" onClick={() => setStep("pick-project")} disabled={denying} className="flex-1">
-                  Approve
+                <Button type="button" onClick={onApprove} disabled={busy} className="flex-1">
+                  {approving ? "Authorizing…" : "Approve"}
                 </Button>
               </div>
             </>
