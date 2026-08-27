@@ -1,9 +1,6 @@
-// Common text classnames for the redesigned landing page.
-// Import and combine with cn() from "@/lib/utils".
-//
-// All text is left-aligned by default (the redesign uses an 880px center
-// column with left-aligned content). `whitespace-pre-line` is kept so callers
-// can still pass `\n` for explicit line breaks where it matches Figma.
+// Common text classnames for the landing page, combined with cn(). All of it is
+// left-aligned in an 880px column, and `whitespace-pre-line` stays so callers
+// can pass `\n` where Figma breaks a line.
 
 // Hero title — used once for "Open-source Agent Monitoring".
 export const mainTitle =
@@ -20,10 +17,8 @@ export const subSubSection =
 // Section body copy under each subSection — "MCP, CLI, and SQL API to bring Laminar...", etc.
 export const bodyMedium = "font-sans-landing text-foreground-200 whitespace-pre-line text-lg";
 
-// Tiny, wide-tracked muted label — used for step numbers above section
-// titles ("03.", "04.", ...) and for the SectionFootnote name + LEARN
-// MORE row at the bottom of each surface-250 mock panel. Single source
-// of truth so all those labels stay visually consistent.
+// Tiny muted label — used for the step numbers above section titles
+// ("03.", "04.", ...). Single source of truth so they stay consistent.
 export const microLabel = "font-sans-landing text-foreground-300";
 
 // Center-column width for the landing/blog/pricing pages. Scales up on

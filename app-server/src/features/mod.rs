@@ -5,6 +5,7 @@ use crate::env;
 const PRODUCER: &str = "producer";
 const CONSUMER: &str = "consumer";
 
+#[derive(Clone, Copy)]
 pub enum Feature {
     UsageLimit,
     /// Remote storage, such as S3

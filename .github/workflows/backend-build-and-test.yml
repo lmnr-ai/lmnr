@@ -30,7 +30,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-app-server-pr-${{ hashFiles('Cargo.lock') }}
+          key: ${{ runner.os }}-buildx-app-server-pr-${{ hashFiles('app-server/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-buildx-app-server-pr-
 

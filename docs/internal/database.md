@@ -22,6 +22,17 @@ npx drizzle-kit generate && pnpm db:strip-schema
 - When writing migrations manually, also create a `meta/NNNN_snapshot.json`. Copy the previous snapshot, apply the schema change (e.g. add/remove columns), set `prevId` to the previous snapshot's `id`, and generate a new UUID for `id`. Without a snapshot, the next `drizzle-kit generate` will produce a duplicate migration.
 - **ClickHouse migrations** (`frontend/lib/clickhouse/migrations/`) are tracked by the migration tool and only run once. Never modify an already-applied migration file — changes won't execute on existing deployments and may cause checksum errors. Always create a new numbered migration file instead.
 
+## How migration failures surface (and the pre-release check)
+
+Migrations run from the frontend's `instrumentation.ts` `register()` hook on boot, gated on `Feature.LOCAL_DB` (`ENVIRONMENT !== "PRODUCTION"` or `FORCE_RUN_MIGRATIONS=true`). Any failure takes the process down with exit code 1, but by two different routes:
+
+- **Postgres** — `migrate()` throws out of `register()`; Next.js prints `An error occurred while loading instrumentation hook: …` and exits 1. drizzle wraps all pending migrations in a single transaction, so a mid-run failure rolls the whole batch back and the `__drizzle_migrations` tracker is left untouched.
+- **ClickHouse** — `clickhouse-migrations`' `migration()` calls `process.exit(1)` internally instead of throwing, so it **bypasses the `try/catch` in `initializeClickHouse`**: a ClickHouse failure never logs `Failed to apply ClickHouse migrations`, the process just dies. Its integrity guards (migration file changed or removed after apply, statement failure, `_migrations` table unreadable) all exit the same way.
+
+On success `pnpm dev` keeps running, so anything automating a migration run must poll the log for `✓ Postgres migrations applied successfully` and `✓ ClickHouse schema applied successfully` rather than waiting on an exit code. `.github/workflows/migrations-integrity-check.yml` (manual dispatch) does exactly that, applying the dispatched ref's migrations both to empty databases and on top of `main`, and is the gate to run before merging `dev` into `main` and cutting a release.
+
+**Env precedence gotcha:** an already-exported `DATABASE_URL` / `CLICKHOUSE_URL` wins over `frontend/.env.local` — Next.js and `dotenv` (`config()` in `lib/db/drizzle.ts`) both skip vars already present in `process.env`. A shell that exports these silently points migrations at a different database than the `.env.local` you just edited, with no warning in the log.
+
 ## Configurable Postgres schema (`POSTGRES_SCHEMA`)
 
 - `POSTGRES_SCHEMA` (default `public`) is the schema all Postgres tables live in. It's applied as the connection `search_path` in BOTH services — frontend `lib/db/drizzle.ts` (`connection: { search_path }` on the `postgres()` client) and app-server `db/mod.rs` (`PgConnectOptions::options([("search_path", …)])`, descriptor `env::database::SCHEMA`). All queries use unqualified table names, so the search_path is the only routing mechanism; the two services MUST be set to the same value.

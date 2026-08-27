@@ -128,16 +128,17 @@ impl MessageHandler for InputExtractionHandler {
         .await
         .map_err(HandlerError::transient)?;
 
-        // Re-assert the winner lock for the state whose extraction just
-        // published — retries the producer lock write that may have failed after
-        // the enqueue, so future arbitration compares against the actual metadata
-        // owner. `write_lock_merged` re-reads and merges, so a genuinely newer
-        // lock written while this message was in flight keeps its stronger
-        // winner. Best-effort.
+        // Re-assert the lock for the state whose extraction just published:
+        // record its text as published and re-register it as its agent's
+        // representative, retrying the producer lock write that may have failed
+        // after the enqueue. `write_lock_merged` re-reads and folds, so a
+        // genuinely newer map written while this message was in flight keeps its
+        // own earliest-per-agent entries. Best-effort.
         if let Some(snapshot) = &message.winner_state {
             let lock_key = lock_cache_key(message.project_id, message.trace_id);
-            let mut local = UserTaskLockState::new(snapshot.depth);
-            local.winner = Some(snapshot.clone());
+            let mut local = UserTaskLockState::default();
+            local.register(snapshot.clone());
+            local.published = Some(snapshot.content_hash.clone());
             write_lock_merged(&self.cache, &lock_key, &local, message.trace_id).await;
         }
 

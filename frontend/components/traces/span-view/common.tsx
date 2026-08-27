@@ -9,7 +9,8 @@ import DownloadButton from "@/components/ui/download-button";
 import PdfRenderer from "@/components/ui/pdf-renderer";
 import { ElevatedSurface } from "@/components/ui/surface";
 import { isStorageUrl } from "@/lib/s3";
-import { cn, tryParseJson } from "@/lib/utils";
+import { resolveContentMode } from "@/lib/spans/resolve-content-mode";
+import { cn } from "@/lib/utils";
 
 interface RoleColorConfig {
   border: string;
@@ -58,22 +59,6 @@ export function getRoleColors(role?: string): RoleColorConfig {
   return ROLE_COLORS[normalized] ?? ROLE_COLORS.system;
 }
 
-// Shared by tool and text parts: JSON object/array payloads render as JSON,
-// prose renders as markdown. Several callers funnel JSON.stringify'd parts
-// through TextContentPart (e.g. GenericUnknownContentPart), which markdown
-// would mangle.
-function resolveContentMode(content: unknown): { mode: "json" | "markdown"; value: string } {
-  if (content !== null && typeof content === "object") {
-    return { mode: "json", value: JSON.stringify(content, null, 2) };
-  }
-  const raw = typeof content === "string" ? content : String(content ?? "");
-  const parsed = tryParseJson(raw);
-  if (parsed !== null && typeof parsed === "object") {
-    return { mode: "json", value: JSON.stringify(parsed, null, 2) };
-  }
-  return { mode: "markdown", value: raw };
-}
-
 interface ToolCallContentPartProps {
   toolName: string;
   toolCallId?: string;
@@ -91,7 +76,7 @@ const PureToolCallContentPart = ({
   messageIndex = 0,
   contentPartIndex = 0,
 }: ToolCallContentPartProps) => {
-  const { mode, value } = resolveContentMode(content);
+  const { mode, modes, value } = resolveContentMode(content);
   return (
     <div className="flex flex-col gap-2 p-2">
       <span
@@ -105,7 +90,7 @@ const PureToolCallContentPart = ({
       <ContentRenderer
         readOnly
         defaultMode={mode}
-        modes={[mode.toUpperCase()]}
+        modes={modes}
         codeEditorClassName="rounded"
         value={value}
         presetKey={`editor-${presetKey}`}
@@ -137,7 +122,7 @@ const PureToolResultContentPart = ({
   messageIndex = 0,
   contentPartIndex = 0,
 }: ToolResultContentPartProps) => {
-  const { mode, value } = resolveContentMode(content);
+  const { mode, modes, value } = resolveContentMode(content);
   return (
     <div className="flex flex-col gap-2 p-2">
       <span
@@ -152,7 +137,7 @@ const PureToolResultContentPart = ({
         <ContentRenderer
           readOnly
           defaultMode={mode}
-          modes={[mode.toUpperCase()]}
+          modes={modes}
           codeEditorClassName="rounded"
           value={value}
           presetKey={`editor-${presetKey}`}
@@ -197,12 +182,12 @@ const PureTextContentPart = ({
   messageIndex = 0,
   contentPartIndex = 0,
 }: TextContentPartProps) => {
-  const { mode, value } = resolveContentMode(content);
+  const { mode, modes, value } = resolveContentMode(content);
   return (
     <div>
       <ContentRenderer
         defaultMode={mode}
-        modes={[mode.toUpperCase()]}
+        modes={modes}
         readOnly
         value={value}
         presetKey={`editor-${presetKey}`}
@@ -273,8 +258,8 @@ const PureThinkingContentPart = ({
     </span>
     <ContentRenderer
       readOnly
-      defaultMode="markdown"
-      modes={["MARKDOWN"]}
+      defaultMode="text"
+      modes={["TEXT"]}
       codeEditorClassName="rounded"
       value={content}
       presetKey={`editor-${presetKey}`}

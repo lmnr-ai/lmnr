@@ -42,3 +42,8 @@
 ## Dashboard Charts API
 
 - `app/api/projects/[projectId]/dashboard-charts/route.ts` exposes `GET` (list), `POST` (create), and `PATCH` (bulk layout update). There is NO `PUT`. Creating a chart from the chart-builder/sql-editor must use `POST`, not `PUT` (which would silently 405 and never reach `createChart`).
+
+## Recharts
+
+- Pinned at v2 (`^2.15.4`). A previous v3 upgrade was reverted due to a runtime bug; do NOT bump to v3 without revalidating it. Use only v2 APIs.
+- `<YAxis width="auto">` is v3-only — on v2 `width` must be a number (omit it for the default). `CategoricalChartFunc` imports from `recharts/types/chart/generateCategoricalChart`, which exists in v2.
