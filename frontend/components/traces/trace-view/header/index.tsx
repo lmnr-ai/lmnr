@@ -216,13 +216,13 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                   className="hover:bg-surface-up"
                   onClick={handleClose}
                 >
-                  <ChevronsRight className="w-5 h-5" />
+                  <ChevronsRight className="w-4.5 h-4.5" />
                 </Button>
               )}
               {trace && (
                 <NextLink passHref href={`/project/${projectId}/traces/${trace?.id}?${fullScreenParams.toString()}`}>
                   <Button aria-label="Expand" variant="ghost" size="icon" className="hover:bg-surface-up">
-                    <Maximize className="w-4 h-4" />
+                    <Maximize className="w-3.5 h-3.5" />
                   </Button>
                 </NextLink>
               )}
@@ -248,7 +248,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           {featureFlags[Feature.AGENT] && spans.length > 0 && (
             <span className={HEADER_ITEM_CLS}>
               <HeaderIconButton
-                icon={<Sparkles size={14} />}
+                icon={<Sparkles className={cn({ "text-primary": agentOpen })} size={14} />}
                 label="Chat"
                 active={agentOpen}
                 onClick={() => {

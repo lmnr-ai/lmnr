@@ -57,7 +57,7 @@ export default function TraceDropdown({ traceId }: TraceDropdownProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button aria-label="Trace actions" variant="ghost" className="gap-2 text-base font-medium hover:bg-surface-up">
+        <Button aria-label="Trace actions" variant="ghost" className="gap-1 text-base font-medium hover:bg-surface-up">
           Trace
           <ChevronDown className="size-3.5" />
         </Button>
