@@ -16,6 +16,12 @@ export const QUICK_RANGES: DateRange[] = [
   { name: "6 months", value: (24 * 30 * 6).toString() },
 ];
 
+export const getNextQuickRange = (currentHours: number, maxHours?: number): DateRange | undefined =>
+  QUICK_RANGES.find((range) => {
+    const hours = parseInt(range.value, 10);
+    return hours > currentHours && (maxHours == null || hours <= maxHours);
+  });
+
 const RANGE_UNITS = [
   { singular: "hour", plural: "hours", aliases: ["h", "hr", "hrs", "hour", "hours"], hours: 1 },
   { singular: "day", plural: "days", aliases: ["d", "day", "days"], hours: 24 },
