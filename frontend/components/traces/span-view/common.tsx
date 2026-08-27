@@ -316,10 +316,9 @@ export const MessageWrapper = ({
   const showToggle = isOverflowing || isExpanded;
 
   return (
-    <ElevatedSurface
-      offset={1}
-      className={cn("relative border rounded-lg overflow-hidden", { "border-b-0": showToggle })}
-    >
+    // overflow-clip (not hidden): clips to radius without creating a scroll
+    // container, so sticky can still pin to the messages list.
+    <ElevatedSurface offset={1} className="relative border rounded-lg overflow-clip">
       <RoleHeader role={role} className={stickyHeader ? "sticky top-0 z-10 bg-surface" : undefined} />
       <div
         ref={containerRef}
@@ -329,18 +328,18 @@ export const MessageWrapper = ({
         <div className="flex flex-col divide-y">{children}</div>
       </div>
       {showToggle && (
-        <div className="sticky bottom-0 z-30 flex flex-col items-center rounded-b">
+        <div className="sticky bottom-0 z-30 flex flex-col items-center rounded-b-lg">
           <div
-            className="w-full pointer-events-none bg-gradient-to-b from-transparent to-surface"
+            className="w-full pointer-events-none bg-gradient-to-b from-background/0 to-background"
             style={{
               height: isExpanded ? 16 : 36,
               marginTop: isExpanded ? -8 : -36,
             }}
           />
-          <div className="w-full bg-surface rounded-b">
+          <div className="w-full bg-background rounded-b-lg">
             <button
               onClick={() => setIsExpanded((prev) => !prev)}
-              className="h-3 relative w-full flex items-center justify-center text-secondary-foreground cursor-pointer rounded-b border-b transition-colors hover:bg-surface-up"
+              className="h-3 relative w-full flex items-center justify-center cursor-pointer rounded-b-lg"
             >
               <span className="absolute -top-2.5 w-full flex justify-center">
                 {isExpanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
