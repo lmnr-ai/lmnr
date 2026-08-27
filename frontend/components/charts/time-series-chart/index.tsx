@@ -2,14 +2,13 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useId, useMemo, useState } from "react";
-import { Area, Bar, BarChart, CartesianGrid, ComposedChart, ReferenceArea, XAxis, YAxis } from "recharts";
-import { type CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
+import { Area, Bar, BarChart, BarStack, CartesianGrid, ComposedChart, ReferenceArea, XAxis, YAxis } from "recharts";
 
+import { type CategoricalChartFunc } from "@/components/chart-builder/charts/line-chart";
 import { numberFormatter, parseUtcTimestamp, selectNiceTicksFromData } from "@/components/chart-builder/charts/utils";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
 
-import RoundedBar from "./bar";
 import { type TimeSeriesChartProps, type TimeSeriesDataPoint } from "./types";
 import { getTickCountForWidth, isValidZoomRange, normalizeTimeRange } from "./utils";
 
@@ -105,11 +104,6 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
     [refArea.left]
   );
 
-  const BarShapeWithConfig = useCallback(
-    (props: any) => <RoundedBar {...props} chartConfig={chartConfig} fields={fields} />,
-    [chartConfig, fields]
-  );
-
   const ChartComp = overlayField ? ComposedChart : BarChart;
 
   return (
@@ -117,7 +111,7 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
       <ChartContainer config={chartConfig} className={cn("h-48 w-full", className)}>
         <ChartComp
           data={data}
-          margin={{ left: -8, top: 8 }}
+          margin={{ left: 8, right: 8, top: 8, bottom: 4 }}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={zoom}
@@ -129,18 +123,19 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
             dataKey="timestamp"
             tickLine={false}
             axisLine={false}
+            tickMargin={8}
             tickFormatter={smartTicksResult?.formatter}
             allowDataOverflow
             ticks={smartTicksResult?.ticks}
           />
-          <YAxis tickLine={false} axisLine={false} tickFormatter={formatValue} />
+          <YAxis tickLine={false} axisLine={false} tickFormatter={formatValue} width="auto" />
           {overlayField && (
             <YAxis
               yAxisId="overlay"
               orientation="right"
               tickLine={false}
               axisLine={false}
-              width={32}
+              width="auto"
               tickFormatter={formatValue}
             />
           )}
@@ -178,20 +173,13 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
               }
             />
           )}
-          {fields.map((fieldKey) => {
-            const config = chartConfig[fieldKey];
-            if (!config) return null;
-
-            return (
-              <Bar
-                key={fieldKey}
-                dataKey={fieldKey}
-                fill={config.color}
-                stackId={config.stackId}
-                shape={BarShapeWithConfig}
-              />
-            );
-          })}
+          <BarStack radius={[4, 4, 4, 4]}>
+            {fields.map((fieldKey) => {
+              const config = chartConfig[fieldKey];
+              if (!config) return null;
+              return <Bar key={fieldKey} dataKey={fieldKey} fill={config.color} stackId={config.stackId} />;
+            })}
+          </BarStack>
           {refArea.left && refArea.right && (
             <ReferenceArea
               x1={refArea.left}

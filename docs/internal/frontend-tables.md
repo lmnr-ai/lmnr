@@ -45,5 +45,7 @@
 
 ## Recharts
 
-- Pinned at v2 (`^2.15.4`). A previous v3 upgrade was reverted due to a runtime bug; do NOT bump to v3 without revalidating it. Use only v2 APIs.
-- `<YAxis width="auto">` is v3-only — on v2 `width` must be a number (omit it for the default). `CategoricalChartFunc` imports from `recharts/types/chart/generateCategoricalChart`, which exists in v2.
+- On v3 (`^3.10.1`). `recharts/types/chart/generateCategoricalChart` no longer exists — `CategoricalChartFunc` is defined locally in `frontend/components/chart-builder/charts/line-chart.tsx` from the exported `MouseHandlerDataParam` and imported from that module in all consumers (`traces-chart`, `time-series-chart`, `dashboards/chart`).
+- `MouseHandlerDataParam.activeLabel` is typed `string | number | undefined` (was `string`). Any state setter or store that stores it as `string` must wrap with `String(e.activeLabel)` AND use `!= null` checks (not truthy) so the numeric 0 is not dropped.
+- `<YAxis width="auto">` sizes the axis to its ticks. Rounded stacked bars use the native `<BarStack radius={[4,4,4,4]}>` wrapper — do NOT reintroduce a custom `shape` just to round stacked-bar corners.
+- The `ChartTooltipContent` in `components/ui/chart.tsx` intersects `Omit<RechartsPrimitive.DefaultTooltipContentProps<TooltipValueType, TooltipNameType>, 'accessibilityLayer'>` to type `payload`/`label`. Filter payload arrays with `item.type !== 'none'` before rendering. Custom `shape={...}` render props on `<Bar>` receive recharts-internal props (`stackedBarStart`, `parentViewBox`, `originalDataIndex`, `isActive`, …) — destructure and drop them before spreading onto a DOM `<rect>`.

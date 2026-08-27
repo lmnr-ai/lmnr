@@ -7,7 +7,7 @@ import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } f
 import { cn } from "@/lib/utils";
 
 import { formatMetricValue } from "./format-value";
-import { calculateDisplayValue, createAxisFormatter, getChartMargins } from "./utils";
+import { calculateDisplayValue, createAxisFormatter } from "./utils";
 
 interface HorizontalBarChartProps {
   data: Record<string, any>[];
@@ -88,7 +88,7 @@ const HorizontalBarChart = ({
           barCategoryGap={0}
           layout="vertical"
           data={data}
-          margin={{ ...getChartMargins(), right: maxTextWidth }}
+          margin={{ right: maxTextWidth }}
         >
           <XAxis
             hide
@@ -104,7 +104,7 @@ const HorizontalBarChart = ({
             yAxisId={0}
             tickLine={false}
             axisLine={false}
-            tickMargin={8}
+            width="auto"
             dataKey={categoryColumn}
             tickFormatter={yAxisFormatter}
           />
@@ -136,11 +136,19 @@ const HorizontalBarChart = ({
                 dataKey={valueColumn}
                 fill={config.color}
                 shape={(props: any) => {
-                  const { payload, tooltipPayload, tooltipPosition, dataKey, ...svgProps } = props;
+                  const { payload, x, y: barY, width, height, fill, fillOpacity, opacity, stroke, strokeWidth } = props;
                   const isClickable = onBarClick && (payload?.trace_id || payload?.id);
                   return (
                     <rect
-                      {...svgProps}
+                      x={x}
+                      y={barY}
+                      width={width}
+                      height={height}
+                      fill={fill}
+                      fillOpacity={fillOpacity}
+                      opacity={opacity}
+                      stroke={stroke}
+                      strokeWidth={strokeWidth}
                       className={cn({ "hover:opacity-60 transition-opacity cursor-pointer": isClickable })}
                       rx={4}
                     />
