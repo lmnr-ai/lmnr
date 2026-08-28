@@ -31,6 +31,8 @@ const DEFAULT_MODELS: Record<LLMProvider, Record<ModelTier, string>> = {
     medium: "gpt-5.6-terra",
     large: "gpt-5.6-sol",
   },
+  // Azure model ids are deployment names — these only hold when deployments are
+  // named after the model; otherwise set LLM_MODEL_<TIER>.
   azure_chat_completions: {
     small: "gpt-5.6-luna",
     medium: "gpt-5.6-terra",
