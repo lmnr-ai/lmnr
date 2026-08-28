@@ -123,6 +123,17 @@ LLM_PROVIDER=bedrock
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 AWS_REGION=us-east-1
+
+# Option D: Azure AI Foundry. One resource serves three API shapes; pick the one
+# matching your deployment. Model ids are deployment names, so set LLM_MODEL_*
+# unless your deployments are named after the models.
+#   azure_chat_completions -> <resource>.services.ai.azure.com/openai/v1/chat/completions
+#   azure_responses        -> <resource>.services.ai.azure.com/openai/v1/responses
+#   azure_anthropic        -> <resource>.services.ai.azure.com/anthropic/v1/messages (Claude)
+LLM_PROVIDER=azure_chat_completions
+LLM_API_KEY=your_azure_key
+AZURE_RESOURCE_ID=your_resource_name   # or AZURE_BASE_URL for private endpoints
+# AZURE_API_VERSION=preview            # optional; only for resources that require it
 ```
 
 ### Custom Postgres schema (optional)
