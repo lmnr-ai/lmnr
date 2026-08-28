@@ -27,21 +27,19 @@ const DEFAULT_MODELS: Record<LLMProvider, Record<ModelTier, string>> = {
     large: "us.anthropic.claude-opus-4-7",
   },
   openai: {
-    small: "gpt-5.4-mini",
-    medium: "gpt-5.4",
-    large: "gpt-5.5",
+    small: "gpt-5.6-luna",
+    medium: "gpt-5.6-terra",
+    large: "gpt-5.6-sol",
   },
-  // Azure model ids are deployment names — these only hold when deployments are
-  // named after the model; otherwise set LLM_MODEL_<TIER>.
   azure_chat_completions: {
-    small: "gpt-5.4-mini",
-    medium: "gpt-5.4",
-    large: "gpt-5.5",
+    small: "gpt-5.6-luna",
+    medium: "gpt-5.6-terra",
+    large: "gpt-5.6-sol",
   },
   azure_responses: {
-    small: "gpt-5.4-mini",
-    medium: "gpt-5.4",
-    large: "gpt-5.5",
+    small: "gpt-5.6-luna",
+    medium: "gpt-5.6-terra",
+    large: "gpt-5.6-sol",
   },
   azure_anthropic: {
     small: "claude-haiku-4-5",
