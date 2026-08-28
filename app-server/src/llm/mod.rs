@@ -445,20 +445,18 @@ pub fn model_for_size(provider: &str, size: ModelSize) -> String {
         ("azure_anthropic", ModelSize::Small) => "claude-haiku-4-5".to_string(),
         ("azure_anthropic", ModelSize::Medium) => "claude-sonnet-5".to_string(),
         ("azure_anthropic", ModelSize::Large) => "claude-opus-5".to_string(),
-        // Azure deployment names again, so these defaults only hold when deployments
-        // are named after the model; otherwise set `LLM_MODEL_<SIZE>`.
         (
             "openai" | "openai_responses" | "azure_chat_completions" | "azure_responses",
             ModelSize::Small,
-        ) => "gpt-5.4-mini".to_string(),
+        ) => "gpt-5.6-luna".to_string(),
         (
             "openai" | "openai_responses" | "azure_chat_completions" | "azure_responses",
             ModelSize::Medium,
-        ) => "gpt-5.4".to_string(),
-        ("openai" | "azure_chat_completions" | "azure_responses", ModelSize::Large) => {
-            "gpt-5.5".to_string()
-        }
-        ("openai_responses", ModelSize::Large) => "gpt-5.6".to_string(),
+        ) => "gpt-5.6-terra".to_string(),
+        (
+            "openai" | "openai_responses" | "azure_chat_completions" | "azure_responses",
+            ModelSize::Large,
+        ) => "gpt-5.6-sol".to_string(),
         _ => "".to_string(),
     }
 }
