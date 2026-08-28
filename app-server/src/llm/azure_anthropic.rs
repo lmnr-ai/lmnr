@@ -1,10 +1,10 @@
 #![cfg_attr(not(feature = "signals"), allow(dead_code))]
 
-//! Claude on Microsoft Foundry (Azure). Foundry serves Anthropic models on the
-//! native Messages API at `{endpoint}/anthropic/v1/messages` — the
-//! OpenAI-compatible route the `azure_openai` provider uses 404s on a Claude
-//! deployment — so the wire format here is Bedrock's InvokeModel body, which is
-//! the Anthropic Messages body, sent over plain HTTP.
+//! Claude on Azure AI Foundry. Azure serves Anthropic models on the native
+//! Messages API at `{endpoint}/anthropic/v1/messages` — the OpenAI-shaped routes
+//! the sibling `azure_chat_completions` / `azure_responses` providers use 404 on a
+//! Claude deployment — so the wire format here is Bedrock's InvokeModel body,
+//! which is the Anthropic Messages body, sent over plain HTTP.
 
 use std::convert::Infallible;
 use std::time::Duration;
@@ -15,48 +15,49 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::env;
 use crate::llm::{
-    LanguageModelClient, ProviderError, ProviderResult,
+    LanguageModelClient, ProviderError, ProviderResult, azure,
     bedrock::{accumulator::BedrockStreamAccumulator, build_request_body, parse_response_body},
     default_headers_from_env,
     models::{ProviderRequest, ProviderResponse, ProviderStreamChunk},
     sse::{StreamAccumulator, accumulate_sse},
 };
 
-/// Foundry pins the Anthropic API version with a header; the `anthropic_version`
+/// Azure pins the Anthropic API version with a header; the `anthropic_version`
 /// body field is Bedrock-only.
 const ANTHROPIC_VERSION: &str = "2023-06-01";
 
-/// `api-key` 401s against Foundry in practice despite the docs listing it —
-/// `x-api-key` is the one that works. (`Authorization: Bearer` is Entra ID.)
+/// `api-key` 401s against the Anthropic route in practice despite the docs listing
+/// it — `x-api-key` is the one that works. (`Authorization: Bearer` is Entra ID.)
+/// Note the OpenAI-shaped `azure_*` providers take the opposite header.
 const AUTH_HEADER: &str = "x-api-key";
 
 #[derive(Debug, Error)]
-pub enum FoundryError {
+pub enum AzureAnthropicError {
     #[error("Request failed: {0}")]
     RequestError(#[from] reqwest::Error),
     #[error("Failed to parse response: {0}")]
     ParseError(#[from] serde_json::Error),
     #[error("Configuration error: {0}")]
     ConfigError(String),
-    #[error("Foundry API error ({status_code}): {message}")]
+    #[error("Azure Anthropic API error ({status_code}): {message}")]
     ApiError { status_code: u16, message: String },
 }
 
-impl From<Infallible> for FoundryError {
+impl From<Infallible> for AzureAnthropicError {
     fn from(never: Infallible) -> Self {
         match never {}
     }
 }
 
-impl From<FoundryError> for ProviderError {
-    fn from(e: FoundryError) -> Self {
+impl From<AzureAnthropicError> for ProviderError {
+    fn from(e: AzureAnthropicError) -> Self {
         match e {
-            FoundryError::RequestError(e) => {
+            AzureAnthropicError::RequestError(e) => {
                 ProviderError::RequestError(super::format_error_chain(&e))
             }
-            FoundryError::ParseError(e) => ProviderError::ParseError(e.to_string()),
-            FoundryError::ConfigError(s) => ProviderError::ConfigError(s),
-            FoundryError::ApiError {
+            AzureAnthropicError::ParseError(e) => ProviderError::ParseError(e.to_string()),
+            AzureAnthropicError::ConfigError(s) => ProviderError::ConfigError(s),
+            AzureAnthropicError::ApiError {
                 status_code,
                 message,
             } => ProviderError::ApiError {
@@ -69,77 +70,46 @@ impl From<FoundryError> for ProviderError {
     }
 }
 
-type FoundryResult<T> = Result<T, FoundryError>;
+type AzureAnthropicResult<T> = Result<T, AzureAnthropicError>;
 
-/// `FOUNDRY_ANTHROPIC_BASE_URL` wins over `FOUNDRY_ANTHROPIC_RESOURCE_ID`; both normalize to the
-/// `/anthropic` root that serves `/v1/messages`.
-fn foundry_base_url() -> FoundryResult<String> {
-    if let Some(base_url) = non_empty_env(env::llm::FOUNDRY_ANTHROPIC_BASE_URL) {
-        return Ok(normalize_base_url(&base_url));
-    }
-    let resource_id = non_empty_env(env::llm::FOUNDRY_ANTHROPIC_RESOURCE_ID).ok_or_else(|| {
-        FoundryError::ConfigError(
-            "FOUNDRY_ANTHROPIC_RESOURCE_ID or FOUNDRY_ANTHROPIC_BASE_URL must be set when LLM_PROVIDER is foundry_anthropic"
-                .to_string(),
-        )
-    })?;
-    Ok(normalize_base_url(&format!(
-        "https://{resource_id}.services.ai.azure.com"
-    )))
+/// The `/anthropic` root that serves `/v1/messages`.
+fn anthropic_base_url() -> AzureAnthropicResult<String> {
+    let root = azure::resource_root().map_err(AzureAnthropicError::ConfigError)?;
+    Ok(format!("{root}/anthropic"))
 }
 
-/// Accepts the portal endpoint (`https://r.services.ai.azure.com`), the
-/// `/anthropic` root, or a full `/anthropic/v1` URL — the callers append
-/// `/v1/messages`, so the version segment is trimmed back off.
-fn normalize_base_url(raw: &str) -> String {
-    let trimmed = raw.trim().trim_end_matches('/');
-    let root = match trimmed.strip_suffix("/v1") {
-        Some(root) if root.ends_with("/anthropic") => root,
-        _ => trimmed,
-    };
-    if root.ends_with("/anthropic") {
-        root.to_string()
-    } else {
-        format!("{root}/anthropic")
-    }
-}
-
-fn non_empty_env(name: &str) -> Option<String> {
-    std::env::var(name)
-        .ok()
-        .map(|v| v.trim().to_string())
-        .filter(|v| !v.is_empty())
-}
-
-/// Anthropic provider backed by a Microsoft Foundry deployment. `model` is the
+/// Anthropic provider backed by an Azure AI Foundry deployment. `model` is the
 /// deployment name, so the model-capability gates in `build_request_body`
 /// (adaptive thinking, dropped sampling params) only fire when the deployment
-/// is named after the model — which is Foundry's own default.
+/// is named after the model — which is Azure's own default.
 #[derive(Clone)]
-pub struct FoundryAnthropicClient {
+pub struct AzureAnthropicClient {
     client: reqwest::Client,
     api_key: String,
     api_base_url: String,
 }
 
-impl FoundryAnthropicClient {
+impl AzureAnthropicClient {
     pub fn new() -> ProviderResult<Self> {
         Self::build().map_err(Into::into)
     }
 
-    fn build() -> FoundryResult<Self> {
+    fn build() -> AzureAnthropicResult<Self> {
         let api_key = std::env::var(env::llm::API_KEY).map_err(|_| {
-            FoundryError::ConfigError("LLM_API_KEY environment variable not set".to_string())
+            AzureAnthropicError::ConfigError("LLM_API_KEY environment variable not set".to_string())
         })?;
-        let api_base_url = foundry_base_url()?;
-        let default_headers = default_headers_from_env().map_err(FoundryError::ConfigError)?;
+        let api_base_url = anthropic_base_url()?;
+        let default_headers =
+            default_headers_from_env().map_err(AzureAnthropicError::ConfigError)?;
 
         let client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(10))
             .timeout(Duration::from_secs(env::llm::HTTP_TIMEOUT_SECS.get()))
             .default_headers(default_headers)
             .build()
-            .map_err(|e| FoundryError::ConfigError(format!("Failed to build HTTP client: {e}")))?;
+            .map_err(|e| {
+                AzureAnthropicError::ConfigError(format!("Failed to build HTTP client: {e}"))
+            })?;
 
         Ok(Self {
             client,
@@ -169,7 +139,7 @@ impl FoundryAnthropicClient {
         Ok(body)
     }
 
-    async fn send(&self, body: &Value) -> FoundryResult<reqwest::Response> {
+    async fn send(&self, body: &Value) -> AzureAnthropicResult<reqwest::Response> {
         let response = self
             .client
             .post(format!("{}/v1/messages", self.api_base_url))
@@ -183,7 +153,7 @@ impl FoundryAnthropicClient {
         let status = response.status();
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            log::error!("Foundry API error ({}): {}", status, error_text);
+            log::error!("Azure Anthropic API error ({}): {}", status, error_text);
             let message = serde_json::from_str::<Value>(&error_text)
                 .ok()
                 .and_then(|v| {
@@ -193,7 +163,7 @@ impl FoundryAnthropicClient {
                         .map(|s| s.to_string())
                 })
                 .unwrap_or(error_text);
-            return Err(FoundryError::ApiError {
+            return Err(AzureAnthropicError::ApiError {
                 status_code: status.as_u16(),
                 message,
             });
@@ -203,7 +173,7 @@ impl FoundryAnthropicClient {
     }
 }
 
-impl LanguageModelClient for FoundryAnthropicClient {
+impl LanguageModelClient for AzureAnthropicClient {
     async fn generate_content(
         &self,
         model: &str,
@@ -211,7 +181,7 @@ impl LanguageModelClient for FoundryAnthropicClient {
     ) -> ProviderResult<ProviderResponse> {
         let body = self.body_for(model, request, false)?;
         let response = self.send(&body).await.map_err(ProviderError::from)?;
-        let response_json: Value = response.json().await.map_err(FoundryError::from)?;
+        let response_json: Value = response.json().await.map_err(AzureAnthropicError::from)?;
 
         Ok(parse_response_body(model, &response_json))
     }
@@ -225,7 +195,7 @@ impl LanguageModelClient for FoundryAnthropicClient {
         let body = self.body_for(model, request, true)?;
         let response = self.send(&body).await.map_err(ProviderError::from)?;
 
-        accumulate_sse::<FoundryAnthropicStreamAccumulator, FoundryError>(
+        accumulate_sse::<AzureAnthropicStreamAccumulator, AzureAnthropicError>(
             response.bytes_stream(),
             model,
             chunk_tx,
@@ -235,12 +205,12 @@ impl LanguageModelClient for FoundryAnthropicClient {
     }
 }
 
-/// Foundry streams the same Anthropic events Bedrock does, framed as SSE
-/// instead of an AWS event stream.
+/// Azure streams the same Anthropic events Bedrock does, framed as SSE instead of
+/// an AWS event stream.
 #[derive(Default)]
-struct FoundryAnthropicStreamAccumulator(BedrockStreamAccumulator);
+struct AzureAnthropicStreamAccumulator(BedrockStreamAccumulator);
 
-impl StreamAccumulator for FoundryAnthropicStreamAccumulator {
+impl StreamAccumulator for AzureAnthropicStreamAccumulator {
     type Chunk = Value;
     type Error = Infallible;
 
@@ -260,22 +230,31 @@ mod tests {
     use wiremock::matchers::{header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
+    /// `send` appends `/v1/messages`, so every accepted endpoint form has to come
+    /// back as the bare `/anthropic` root.
     #[test]
-    fn normalize_base_url_appends_anthropic_root() {
-        assert_eq!(
-            normalize_base_url("https://my-resource.services.ai.azure.com/"),
-            "https://my-resource.services.ai.azure.com/anthropic"
-        );
-        assert_eq!(
-            normalize_base_url("https://my-resource.services.ai.azure.com/anthropic"),
-            "https://my-resource.services.ai.azure.com/anthropic"
-        );
-        // `send` appends `/v1/messages`, so a pasted endpoint that already
-        // carries the version segment must trim back to the `/anthropic` root.
-        assert_eq!(
-            normalize_base_url("https://my-resource.services.ai.azure.com/anthropic/v1/"),
-            "https://my-resource.services.ai.azure.com/anthropic"
-        );
+    fn anthropic_base_url_resolves_to_the_anthropic_root() {
+        for (resource_id, base_url) in [
+            ("my-resource", ""),
+            ("", "https://my-resource.services.ai.azure.com/"),
+            ("", "https://my-resource.services.ai.azure.com/anthropic"),
+            (
+                "",
+                "https://my-resource.services.ai.azure.com/anthropic/v1/",
+            ),
+        ] {
+            let resolved = crate::llm::with_env_vars(
+                &[
+                    (env::llm::AZURE_RESOURCE_ID, resource_id),
+                    (env::llm::AZURE_BASE_URL, base_url),
+                ],
+                || anthropic_base_url().unwrap(),
+            );
+            assert_eq!(
+                resolved, "https://my-resource.services.ai.azure.com/anthropic",
+                "{resource_id} / {base_url}"
+            );
+        }
     }
 
     fn text_request(text: &str) -> ProviderRequest {
@@ -296,14 +275,14 @@ mod tests {
         }
     }
 
-    /// Foundry resolves its endpoint and auth from env at construction time, so
-    /// the only way to cover that wiring is to set the vars.
+    /// The client resolves its endpoint and auth from env at construction time,
+    /// so the only way to cover that wiring is to set the vars.
     #[tokio::test]
     async fn posts_anthropic_messages_with_api_key_header() {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/anthropic/v1/messages"))
-            .and(header(AUTH_HEADER, "foundry-test-key"))
+            .and(header(AUTH_HEADER, "azure-test-key"))
             .and(header("anthropic-version", ANTHROPIC_VERSION))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "content": [{"type": "text", "text": "pong"}],
@@ -317,13 +296,13 @@ mod tests {
         // still come out as a single `/anthropic/v1/messages`.
         let client = crate::llm::with_env_vars(
             &[
-                (env::llm::API_KEY, "foundry-test-key"),
+                (env::llm::API_KEY, "azure-test-key"),
                 (
-                    env::llm::FOUNDRY_ANTHROPIC_BASE_URL,
+                    env::llm::AZURE_BASE_URL,
                     &format!("{}/anthropic/v1", server.uri()),
                 ),
             ],
-            || FoundryAnthropicClient::new().unwrap(),
+            || AzureAnthropicClient::new().unwrap(),
         );
 
         let response = client
@@ -337,7 +316,7 @@ mod tests {
         assert_eq!(body["model"], "my-deployment");
         assert!(
             body.get("anthropic_version").is_none(),
-            "the bedrock-only body field must not reach Foundry"
+            "the bedrock-only body field must not reach Azure"
         );
         assert_eq!(body["messages"][0]["content"][0]["text"], "ping");
         assert_eq!(
@@ -354,7 +333,7 @@ mod tests {
         );
     }
 
-    /// Foundry frames Anthropic events as SSE where Bedrock uses an AWS event
+    /// Azure frames Anthropic events as SSE where Bedrock uses an AWS event
     /// stream, so the shared accumulator has to survive the reframing.
     #[tokio::test]
     async fn streams_anthropic_sse_events_into_text_chunks() {
@@ -385,10 +364,10 @@ mod tests {
 
         let client = crate::llm::with_env_vars(
             &[
-                (env::llm::API_KEY, "foundry-test-key"),
-                (env::llm::FOUNDRY_ANTHROPIC_BASE_URL, &server.uri()),
+                (env::llm::API_KEY, "azure-test-key"),
+                (env::llm::AZURE_BASE_URL, &server.uri()),
             ],
-            || FoundryAnthropicClient::new().unwrap(),
+            || AzureAnthropicClient::new().unwrap(),
         );
 
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();

@@ -7,35 +7,29 @@
 
 use super::{BoolEnv, NumEnv};
 
-/// `openai` | `openai_responses` | `gemini` | `bedrock` | `azure_openai` |
-/// `azure_openai_responses` | `foundry_anthropic` | `mock`. The single provider switch.
+/// `openai` | `openai_responses` | `gemini` | `bedrock` | `azure_chat_completions` |
+/// `azure_responses` | `azure_anthropic` | `mock`. The single provider switch.
 pub const PROVIDER: &str = "LLM_PROVIDER";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const PARSING_PROVIDER: &str = "SIGNALS_PARSING_LLM_PROVIDER";
-/// Shared single-provider API key (openai / gemini / azure_openai).
+/// Shared single-provider API key (openai / gemini / azure_*).
 pub const API_KEY: &str = "LLM_API_KEY";
 /// Optional OpenAI-compatible base URL override (provider-specific default).
 pub const BASE_URL: &str = "LLM_BASE_URL";
 /// Optional JSON map of default headers sent on every LLM request.
 pub const DEFAULT_HEADERS_JSON: &str = "LLM_DEFAULT_HEADERS_JSON";
 
-/// Azure OpenAI resource name — the `<name>` in `https://<name>.openai.azure.com`.
-/// Either this or [`AZURE_OPENAI_BASE_URL`] is required when `LLM_PROVIDER=azure_openai*`.
-pub const AZURE_OPENAI_RESOURCE_ID: &str = "AZURE_OPENAI_RESOURCE_ID";
-/// Full Azure OpenAI endpoint, for private endpoints / gateways that don't follow
-/// the `<resource>.openai.azure.com` pattern. Takes precedence over the resource id.
-pub const AZURE_OPENAI_BASE_URL: &str = "AZURE_OPENAI_BASE_URL";
-/// Optional `api-version` query param. The v1 route is GA and needs none, but some
-/// resources still require an explicit version (e.g. `preview`) for it.
-pub const AZURE_OPENAI_API_VERSION: &str = "AZURE_OPENAI_API_VERSION";
-
-/// Microsoft Foundry resource name — the `<name>` in
-/// `https://<name>.services.ai.azure.com`. Serves Claude on Anthropic's native
-/// Messages API, which is a different endpoint from `AZURE_OPENAI_*`.
-pub const FOUNDRY_ANTHROPIC_RESOURCE_ID: &str = "FOUNDRY_ANTHROPIC_RESOURCE_ID";
-/// Full Foundry endpoint, for private endpoints / gateways. Takes precedence
-/// over the resource id.
-pub const FOUNDRY_ANTHROPIC_BASE_URL: &str = "FOUNDRY_ANTHROPIC_BASE_URL";
+/// Azure AI Foundry resource name — the `<name>` in
+/// `https://<name>.services.ai.azure.com`. One host serves every API shape, so all
+/// three `azure_*` providers read this; either it or [`AZURE_BASE_URL`] is required.
+pub const AZURE_RESOURCE_ID: &str = "AZURE_RESOURCE_ID";
+/// Full Azure endpoint, for private endpoints / gateways that don't follow the
+/// `<resource>.services.ai.azure.com` pattern. Takes precedence over the resource id.
+pub const AZURE_BASE_URL: &str = "AZURE_BASE_URL";
+/// Optional `api-version` query param for the OpenAI-shaped routes. The v1 route is
+/// GA and needs none, but some resources still require an explicit version (e.g.
+/// `preview`) for it.
+pub const AZURE_API_VERSION: &str = "AZURE_API_VERSION";
 
 /// Per-size model id overrides (provider-specific hardcoded defaults).
 pub const MODEL_SMALL: &str = "LLM_MODEL_SMALL";

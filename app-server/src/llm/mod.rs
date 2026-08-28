@@ -1,5 +1,6 @@
+pub(crate) mod azure;
+pub mod azure_anthropic;
 pub mod bedrock;
-pub mod foundry_anthropic;
 pub mod gemini;
 pub mod mock;
 pub mod models;
@@ -7,8 +8,8 @@ pub mod openai;
 pub mod openai_responses;
 pub(crate) mod sse;
 
+pub use azure_anthropic::AzureAnthropicClient;
 pub use bedrock::BedrockClient;
-pub use foundry_anthropic::FoundryAnthropicClient;
 pub use gemini::GeminiClient;
 pub use mock::MockProviderClient;
 pub use models::*;
@@ -157,7 +158,7 @@ pub(crate) trait LanguageModelClient: Send + Sync {
 pub(crate) enum ProviderClient {
     Gemini(GeminiClient),
     Bedrock(BedrockClient),
-    FoundryAnthropic(FoundryAnthropicClient),
+    AzureAnthropic(AzureAnthropicClient),
     OpenAI(OpenAIClient),
     OpenAIResponses(OpenAIResponsesClient),
     Mock(MockProviderClient),
@@ -212,52 +213,16 @@ pub fn parsing_provider() -> Option<String> {
 }
 
 /// `LLM_API_KEY` is the single key shared by single-key providers (gemini,
-/// openai, azure_openai). It belongs to whichever provider `LLM_PROVIDER` names —
+/// openai, azure_*). It belongs to whichever provider `LLM_PROVIDER` names —
 /// gemini and openai cannot both initialize from it.
 fn has_llm_api_key() -> bool {
     std::env::var(env::llm::API_KEY).is_ok_and(|v| !v.is_empty())
 }
 
-/// Azure OpenAI needs an endpoint on top of `LLM_API_KEY`: either the resource name or
-/// a full base URL.
-pub fn has_azure_openai_endpoint() -> bool {
-    [
-        env::llm::AZURE_OPENAI_RESOURCE_ID,
-        env::llm::AZURE_OPENAI_BASE_URL,
-    ]
-    .iter()
-    .any(|name| std::env::var(name).is_ok_and(|v| !v.trim().is_empty()))
-}
-
-/// True when `LLM_PROVIDER=azure_openai` (Chat Completions against Azure OpenAI) and
-/// both the key and an endpoint are set.
-fn has_azure_openai_credentials() -> bool {
-    llm_provider_env() == "azure_openai" && has_llm_api_key() && has_azure_openai_endpoint()
-}
-
-/// True when `LLM_PROVIDER=azure_openai_responses` (Responses API against Azure OpenAI).
-fn has_azure_openai_responses_credentials() -> bool {
-    llm_provider_env() == "azure_openai_responses"
-        && has_llm_api_key()
-        && has_azure_openai_endpoint()
-}
-
-/// Foundry needs an endpoint on top of `LLM_API_KEY`: either the resource name
-/// or a full base URL.
-pub fn has_foundry_anthropic_endpoint() -> bool {
-    [
-        env::llm::FOUNDRY_ANTHROPIC_RESOURCE_ID,
-        env::llm::FOUNDRY_ANTHROPIC_BASE_URL,
-    ]
-    .iter()
-    .any(|name| std::env::var(name).is_ok_and(|v| !v.trim().is_empty()))
-}
-
-/// True when `LLM_PROVIDER=foundry_anthropic` (Claude on Microsoft Foundry).
-fn has_foundry_anthropic_credentials() -> bool {
-    llm_provider_env() == "foundry_anthropic"
-        && has_llm_api_key()
-        && has_foundry_anthropic_endpoint()
+/// True when `LLM_PROVIDER` names the given Azure provider and both the key and an
+/// endpoint are set. All three share one resource, so only the name differs.
+fn has_azure_credentials(provider: &str) -> bool {
+    llm_provider_env() == provider && has_llm_api_key() && azure::has_endpoint()
 }
 
 /// True when `LLM_PROVIDER=gemini` and `LLM_API_KEY` is set.
@@ -474,25 +439,23 @@ pub fn model_for_size(provider: &str, size: ModelSize) -> String {
         ("bedrock", ModelSize::Small) => "us.anthropic.claude-haiku-4-5-20251001-v1:0".to_string(),
         ("bedrock", ModelSize::Medium) => "us.anthropic.claude-sonnet-5".to_string(),
         ("bedrock", ModelSize::Large) => "us.anthropic.claude-opus-5".to_string(),
-        // Foundry model ids are deployment names; Foundry's portal defaults each
+        // Azure model ids are deployment names; Azure's portal defaults each
         // deployment to the bare model name, which is also what the
         // adaptive-thinking gates in `bedrock::build_request_body` match on.
-        ("foundry_anthropic", ModelSize::Small) => "claude-haiku-4-5".to_string(),
-        ("foundry_anthropic", ModelSize::Medium) => "claude-sonnet-5".to_string(),
-        ("foundry_anthropic", ModelSize::Large) => "claude-opus-5".to_string(),
-        // Azure OpenAI model ids are deployment names, so these defaults only hold when
-        // deployments are named after the model; otherwise set `LLM_MODEL_<SIZE>`.
+        ("azure_anthropic", ModelSize::Small) => "claude-haiku-4-5".to_string(),
+        ("azure_anthropic", ModelSize::Medium) => "claude-sonnet-5".to_string(),
+        ("azure_anthropic", ModelSize::Large) => "claude-opus-5".to_string(),
+        // Azure deployment names again, so these defaults only hold when deployments
+        // are named after the model; otherwise set `LLM_MODEL_<SIZE>`.
         (
-            "openai" | "openai_responses" | "azure_openai" | "azure_openai_responses",
+            "openai" | "openai_responses" | "azure_chat_completions" | "azure_responses",
             ModelSize::Small,
         ) => "gpt-5.4-mini".to_string(),
         (
-            "openai" | "openai_responses" | "azure_openai" | "azure_openai_responses",
+            "openai" | "openai_responses" | "azure_chat_completions" | "azure_responses",
             ModelSize::Medium,
         ) => "gpt-5.4".to_string(),
-        // Both Azure OpenAI providers share one default so the frontend (which has no
-        // Responses variant) resolves the same deployment name.
-        ("openai" | "azure_openai" | "azure_openai_responses", ModelSize::Large) => {
+        ("openai" | "azure_chat_completions" | "azure_responses", ModelSize::Large) => {
             "gpt-5.5".to_string()
         }
         ("openai_responses", ModelSize::Large) => "gpt-5.6".to_string(),
@@ -566,42 +529,43 @@ impl LlmClient {
             );
         }
 
-        if has_azure_openai_credentials() {
-            let client = OpenAIClient::azure_openai().map_err(|e| {
-                ProviderError::ConfigError(format!("Failed to create Azure OpenAI client: {e}"))
+        if has_azure_credentials("azure_chat_completions") {
+            let client = OpenAIClient::azure().map_err(|e| {
+                ProviderError::ConfigError(format!("Failed to create Azure client: {e}"))
             })?;
             log::info!(
-                "Initialized Azure OpenAI provider (Chat Completions) at {}",
-                client.api_base_url()
-            );
-            providers.insert("azure_openai".to_string(), ProviderClient::OpenAI(client));
-        }
-
-        if has_azure_openai_responses_credentials() {
-            let client = OpenAIResponsesClient::azure_openai().map_err(|e| {
-                ProviderError::ConfigError(format!(
-                    "Failed to create Azure OpenAI Responses client: {e}"
-                ))
-            })?;
-            log::info!(
-                "Initialized Azure OpenAI provider (Responses API) at {}",
+                "Initialized Azure provider (Chat Completions) at {}",
                 client.api_base_url()
             );
             providers.insert(
-                "azure_openai_responses".to_string(),
+                "azure_chat_completions".to_string(),
+                ProviderClient::OpenAI(client),
+            );
+        }
+
+        if has_azure_credentials("azure_responses") {
+            let client = OpenAIResponsesClient::azure().map_err(|e| {
+                ProviderError::ConfigError(format!("Failed to create Azure Responses client: {e}"))
+            })?;
+            log::info!(
+                "Initialized Azure provider (Responses API) at {}",
+                client.api_base_url()
+            );
+            providers.insert(
+                "azure_responses".to_string(),
                 ProviderClient::OpenAIResponses(client),
             );
         }
 
-        if has_foundry_anthropic_credentials() {
-            let client = FoundryAnthropicClient::new()?;
+        if has_azure_credentials("azure_anthropic") {
+            let client = AzureAnthropicClient::new()?;
             log::info!(
-                "Initialized Foundry provider (Anthropic Messages) at {}",
+                "Initialized Azure provider (Anthropic Messages) at {}",
                 client.api_base_url()
             );
             providers.insert(
-                "foundry_anthropic".to_string(),
-                ProviderClient::FoundryAnthropic(client),
+                "azure_anthropic".to_string(),
+                ProviderClient::AzureAnthropic(client),
             );
         }
 
@@ -705,7 +669,7 @@ impl LlmClient {
         // cost/observability keying matches Chat Completions.
         let reported_provider = match resolved_provider {
             "openai_responses" => "openai",
-            "azure_openai_responses" => "azure_openai",
+            "azure_responses" => "azure_chat_completions",
             other => other,
         };
         (model, reported_provider.to_string())

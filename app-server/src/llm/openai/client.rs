@@ -30,10 +30,10 @@ impl OpenAIClient {
         Self::with_flavor(OpenAIFlavor::OpenAI)
     }
 
-    /// Azure OpenAI over the same Chat Completions wire format; `model` is the
+    /// Azure over the same Chat Completions wire format; `model` is the
     /// deployment name.
-    pub fn azure_openai() -> OpenAIResult<Self> {
-        Self::with_flavor(OpenAIFlavor::AzureOpenAI)
+    pub fn azure() -> OpenAIResult<Self> {
+        Self::with_flavor(OpenAIFlavor::Azure)
     }
 
     fn with_flavor(flavor: OpenAIFlavor) -> OpenAIResult<Self> {
@@ -131,9 +131,9 @@ mod tests {
         let client = crate::llm::with_env_vars(
             &[
                 (env::llm::API_KEY, "azure-test-key"),
-                (env::llm::AZURE_OPENAI_BASE_URL, &server.uri()),
+                (env::llm::AZURE_BASE_URL, &server.uri()),
             ],
-            || OpenAIClient::azure_openai().unwrap(),
+            || OpenAIClient::azure().unwrap(),
         );
 
         let request = ProviderRequest {

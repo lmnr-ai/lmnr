@@ -60,13 +60,13 @@ impl From<OpenAIError> for super::ProviderError {
 
 pub type OpenAIResult<T> = Result<T, OpenAIError>;
 
-/// Which OpenAI-compatible endpoint a client talks to. Azure OpenAI speaks the
-/// same wire format but derives its base URL from the resource name and
-/// authenticates with an `api-key` header instead of `Authorization: Bearer`.
+/// Which OpenAI-compatible endpoint a client talks to. Azure speaks the same wire
+/// format but derives its base URL from the resource name and authenticates with
+/// an `api-key` header instead of `Authorization: Bearer`.
 #[derive(Clone, Copy)]
 pub(super) enum OpenAIFlavor {
     OpenAI,
-    AzureOpenAI,
+    Azure,
 }
 
 /// Shared HTTP setup for the OpenAI-compatible clients (Chat Completions and
@@ -90,9 +90,9 @@ pub(super) fn build_http_config(flavor: OpenAIFlavor) -> OpenAIResult<OpenAIHttp
                 .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
             (raw_base_url.trim_end_matches('/').to_string(), None)
         }
-        OpenAIFlavor::AzureOpenAI => (
-            azure_base_url()?,
-            non_empty_env(env::llm::AZURE_OPENAI_API_VERSION),
+        OpenAIFlavor::Azure => (
+            azure_openai_base_url()?,
+            non_empty_env(env::llm::AZURE_API_VERSION),
         ),
     };
     let default_headers = default_headers_from_env().map_err(OpenAIError::config)?;
@@ -120,33 +120,10 @@ fn non_empty_env(name: &str) -> Option<String> {
         .filter(|v| !v.is_empty())
 }
 
-/// `AZURE_OPENAI_BASE_URL` wins over `AZURE_OPENAI_RESOURCE_ID`; both normalize to
-/// the v1 route, which serves both `/chat/completions` and `/responses`.
-fn azure_base_url() -> OpenAIResult<String> {
-    if let Some(base_url) = non_empty_env(env::llm::AZURE_OPENAI_BASE_URL) {
-        return Ok(normalize_azure_base_url(&base_url));
-    }
-    let resource_id = non_empty_env(env::llm::AZURE_OPENAI_RESOURCE_ID).ok_or_else(|| {
-        OpenAIError::config(
-            "AZURE_OPENAI_RESOURCE_ID or AZURE_OPENAI_BASE_URL must be set when LLM_PROVIDER is azure_openai",
-        )
-    })?;
-    Ok(normalize_azure_base_url(&format!(
-        "https://{resource_id}.openai.azure.com"
-    )))
-}
-
-/// Accepts the portal endpoint (`https://r.openai.azure.com`), the `/openai` root,
-/// or an already-complete `/openai/v1` URL — all end up on the v1 route.
-fn normalize_azure_base_url(raw: &str) -> String {
-    let trimmed = raw.trim().trim_end_matches('/');
-    if trimmed.ends_with("/openai/v1") {
-        trimmed.to_string()
-    } else if trimmed.ends_with("/openai") {
-        format!("{trimmed}/v1")
-    } else {
-        format!("{trimmed}/openai/v1")
-    }
+/// The `/openai/v1` route, which serves both `/chat/completions` and `/responses`.
+fn azure_openai_base_url() -> OpenAIResult<String> {
+    let root = super::azure::resource_root().map_err(OpenAIError::config)?;
+    Ok(format!("{root}/openai/v1"))
 }
 
 pub(super) fn endpoint_url(base_url: &str, path: &str, api_version: Option<&str>) -> String {
@@ -170,7 +147,7 @@ pub(super) async fn send_openai_request(
         OpenAIFlavor::OpenAI => client
             .post(url)
             .header("Authorization", format!("Bearer {api_key}")),
-        OpenAIFlavor::AzureOpenAI => client.post(url).header("api-key", api_key),
+        OpenAIFlavor::Azure => client.post(url).header("api-key", api_key),
     };
     let response = request
         .header("Content-Type", "application/json")
@@ -204,25 +181,33 @@ pub(super) async fn send_openai_request(
 mod tests {
     use super::*;
 
+    /// Every accepted endpoint form has to land on the one v1 route, whether the
+    /// resource id or a pasted base URL is what's configured.
     #[test]
-    fn normalize_azure_base_url_appends_v1_route() {
-        assert_eq!(
-            normalize_azure_base_url("https://my-resource.openai.azure.com/"),
-            "https://my-resource.openai.azure.com/openai/v1"
-        );
-        assert_eq!(
-            normalize_azure_base_url("https://my-resource.openai.azure.com/openai"),
-            "https://my-resource.openai.azure.com/openai/v1"
-        );
-        assert_eq!(
-            normalize_azure_base_url("https://my-resource.openai.azure.com/openai/v1"),
-            "https://my-resource.openai.azure.com/openai/v1"
-        );
+    fn azure_openai_base_url_resolves_to_the_v1_route() {
+        for (resource_id, base_url) in [
+            ("my-resource", ""),
+            ("", "https://my-resource.services.ai.azure.com/"),
+            ("", "https://my-resource.services.ai.azure.com/openai"),
+            ("", "https://my-resource.services.ai.azure.com/openai/v1"),
+        ] {
+            let resolved = crate::llm::with_env_vars(
+                &[
+                    (env::llm::AZURE_RESOURCE_ID, resource_id),
+                    (env::llm::AZURE_BASE_URL, base_url),
+                ],
+                || azure_openai_base_url().unwrap(),
+            );
+            assert_eq!(
+                resolved, "https://my-resource.services.ai.azure.com/openai/v1",
+                "{resource_id} / {base_url}"
+            );
+        }
     }
 
     #[test]
     fn endpoint_url_appends_api_version_when_set() {
-        let base = "https://my-resource.openai.azure.com/openai/v1";
+        let base = "https://my-resource.services.ai.azure.com/openai/v1";
         assert_eq!(
             endpoint_url(base, "/chat/completions", None),
             format!("{base}/chat/completions")

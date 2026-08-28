@@ -11,7 +11,7 @@ import type { LanguageModel } from "ai";
  */
 type ModelTier = "small" | "medium" | "large";
 
-type LLMProvider = "openai" | "gemini" | "bedrock" | "azure_openai" | "foundry_anthropic";
+type LLMProvider = "openai" | "gemini" | "bedrock" | "azure_chat_completions" | "azure_responses" | "azure_anthropic";
 type LlmDefaultHeaders = Record<string, string>;
 
 // Per-provider defaults. Used when LLM_MODEL_<TIER> is not set.
@@ -31,14 +31,19 @@ const DEFAULT_MODELS: Record<LLMProvider, Record<ModelTier, string>> = {
     medium: "gpt-5.4",
     large: "gpt-5.5",
   },
-  // Azure and Foundry model ids are deployment names — these only hold when
-  // deployments are named after the model; otherwise set LLM_MODEL_<TIER>.
-  azure_openai: {
+  // Azure model ids are deployment names — these only hold when deployments are
+  // named after the model; otherwise set LLM_MODEL_<TIER>.
+  azure_chat_completions: {
     small: "gpt-5.4-mini",
     medium: "gpt-5.4",
     large: "gpt-5.5",
   },
-  foundry_anthropic: {
+  azure_responses: {
+    small: "gpt-5.4-mini",
+    medium: "gpt-5.4",
+    large: "gpt-5.5",
+  },
+  azure_anthropic: {
     small: "claude-haiku-4-5",
     medium: "claude-sonnet-5",
     large: "claude-opus-5",
@@ -52,17 +57,10 @@ function hasBedrockCreds(): boolean {
 // Blank values must read as unset — k8s ConfigMaps materialize absent keys as "".
 const nonEmptyEnv = (name: string): string | undefined => process.env[name]?.trim() || undefined;
 
-function hasAzureOpenAICreds(): boolean {
-  return (
-    !!process.env.LLM_API_KEY && !!(nonEmptyEnv("AZURE_OPENAI_RESOURCE_ID") || nonEmptyEnv("AZURE_OPENAI_BASE_URL"))
-  );
-}
-
-function hasFoundryAnthropicCreds(): boolean {
-  return (
-    !!process.env.LLM_API_KEY &&
-    !!(nonEmptyEnv("FOUNDRY_ANTHROPIC_RESOURCE_ID") || nonEmptyEnv("FOUNDRY_ANTHROPIC_BASE_URL"))
-  );
+// All three azure_* providers live on one resource and differ only in the
+// API-shape path below it, so they share one endpoint pair.
+function hasAzureCreds(): boolean {
+  return !!process.env.LLM_API_KEY && !!(nonEmptyEnv("AZURE_RESOURCE_ID") || nonEmptyEnv("AZURE_BASE_URL"));
 }
 
 function getConfiguredLLMProvider(): LLMProvider | null {
@@ -70,13 +68,8 @@ function getConfiguredLLMProvider(): LLMProvider | null {
   if (provider === "bedrock") {
     return hasBedrockCreds() ? "bedrock" : null;
   }
-  // The Responses API is a backend-only path, so the UI features talk Chat
-  // Completions to the same endpoint either way.
-  if (provider === "azure_openai" || provider === "azure_openai_responses") {
-    return hasAzureOpenAICreds() ? "azure_openai" : null;
-  }
-  if (provider === "foundry_anthropic") {
-    return hasFoundryAnthropicCreds() ? "foundry_anthropic" : null;
+  if (provider === "azure_chat_completions" || provider === "azure_responses" || provider === "azure_anthropic") {
+    return hasAzureCreds() ? provider : null;
   }
   if (provider === "openai" || provider === "openai_responses") {
     return process.env.LLM_API_KEY ? "openai" : null;
@@ -87,37 +80,36 @@ function getConfiguredLLMProvider(): LLMProvider | null {
   return null;
 }
 
+const azureEndpoint = (): string =>
+  nonEmptyEnv("AZURE_BASE_URL") ?? `https://${nonEmptyEnv("AZURE_RESOURCE_ID")}.services.ai.azure.com`;
+
 const isAzureOpenAIHost = (url: string): boolean => URL.parse(url)?.hostname.endsWith(".openai.azure.com") ?? false;
 
-/**
- * Base URL for `createAzure`, which appends `/v1` itself only for
- * `*.openai.azure.com` hosts. Accepts the portal endpoint, the `/openai` root or
- * a full `/openai/v1` URL, matching the app-server's normalization.
- */
-export function azureOpenAIBaseUrl(rawBaseUrl: string): string {
+/** Host root with any API-shape path trimmed back off, so callers append their own. */
+function azureResourceRoot(rawBaseUrl: string): string {
   const root = rawBaseUrl
     .trim()
     .replace(/\/+$/, "")
-    .replace(/\/openai(\/v1)?$/, "");
+    .replace(/\/(openai|anthropic)(\/v1)?$/, "");
   if (!URL.parse(root)) {
-    throw new Error(`Invalid AZURE_OPENAI_BASE_URL: '${rawBaseUrl}' is not an absolute URL`);
+    throw new Error(`Invalid AZURE_BASE_URL: '${rawBaseUrl}' is not an absolute URL`);
   }
-  return isAzureOpenAIHost(root) ? `${root}/openai` : `${root}/openai/v1`;
+  return root;
 }
 
 /**
- * Base URL for `createAnthropic`, which appends `/messages`. Accepts the portal
- * endpoint, the `/anthropic` root, or a full `/anthropic/v1` URL.
+ * Base URL for `createAzure`, which appends `/v1` itself only for
+ * `*.openai.azure.com` hosts — the Foundry host it never matches, so that route
+ * has to be spelled out in full.
  */
-export function foundryAnthropicBaseUrl(rawBaseUrl: string): string {
-  const root = rawBaseUrl
-    .trim()
-    .replace(/\/+$/, "")
-    .replace(/\/anthropic(\/v1)?$/, "");
-  if (!URL.parse(root)) {
-    throw new Error(`Invalid FOUNDRY_ANTHROPIC_BASE_URL: '${rawBaseUrl}' is not an absolute URL`);
-  }
-  return `${root}/anthropic/v1`;
+export function azureOpenAIBaseUrl(rawBaseUrl: string): string {
+  const root = azureResourceRoot(rawBaseUrl);
+  return isAzureOpenAIHost(root) ? `${root}/openai` : `${root}/openai/v1`;
+}
+
+/** Base URL for `createAnthropic`, which appends `/messages`. */
+export function azureAnthropicBaseUrl(rawBaseUrl: string): string {
+  return `${azureResourceRoot(rawBaseUrl)}/anthropic/v1`;
 }
 
 /** `createAzure` only appends `api-version` for `*.openai.azure.com` hosts. */
@@ -200,10 +192,9 @@ export function getLanguageModel(tier: ModelTier = "large"): LanguageModel {
   const provider = getConfiguredLLMProvider();
   if (!provider) {
     throw new Error(
-      "No AI provider configured. Set LLM_PROVIDER to openai, gemini, azure_openai, foundry_anthropic, or bedrock. " +
-        "openai/gemini require LLM_API_KEY (with optional LLM_BASE_URL); " +
-        "azure_openai requires LLM_API_KEY and AZURE_OPENAI_RESOURCE_ID or AZURE_OPENAI_BASE_URL; " +
-        "foundry_anthropic requires LLM_API_KEY and FOUNDRY_ANTHROPIC_RESOURCE_ID or FOUNDRY_ANTHROPIC_BASE_URL; " +
+      "No AI provider configured. Set LLM_PROVIDER to openai, gemini, azure_chat_completions, azure_responses, " +
+        "azure_anthropic, or bedrock. openai/gemini require LLM_API_KEY (with optional LLM_BASE_URL); " +
+        "the azure_* providers require LLM_API_KEY and AZURE_RESOURCE_ID or AZURE_BASE_URL; " +
         "bedrock requires AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION."
     );
   }
@@ -219,35 +210,29 @@ export function getLanguageModel(tier: ModelTier = "large"): LanguageModel {
   const baseURL = process.env.LLM_BASE_URL;
   const headers = parseLlmDefaultHeaders();
 
-  if (provider === "foundry_anthropic") {
-    const foundryBase = nonEmptyEnv("FOUNDRY_ANTHROPIC_BASE_URL");
-    const baseURL = foundryAnthropicBaseUrl(
-      foundryBase ?? `https://${nonEmptyEnv("FOUNDRY_ANTHROPIC_RESOURCE_ID")}.services.ai.azure.com`
-    );
-    // `createAnthropic`'s native `x-api-key` is the header Foundry accepts;
-    // `api-key` 401s in practice despite the docs listing it.
+  if (provider === "azure_anthropic") {
+    // `createAnthropic`'s native `x-api-key` is the header the Anthropic route
+    // accepts; `api-key` 401s in practice despite the docs listing it.
     const anthropic = createAnthropic({
       apiKey,
-      baseURL,
+      baseURL: azureAnthropicBaseUrl(azureEndpoint()),
       ...(headers ? { headers } : {}),
     });
     return anthropic(modelName);
   }
 
-  if (provider === "azure_openai") {
-    const azureBase = nonEmptyEnv("AZURE_OPENAI_BASE_URL");
-    const resolvedBase = azureBase ? azureOpenAIBaseUrl(azureBase) : undefined;
-    const apiVersion = nonEmptyEnv("AZURE_OPENAI_API_VERSION");
+  if (provider === "azure_chat_completions" || provider === "azure_responses") {
+    const resolvedBase = azureOpenAIBaseUrl(azureEndpoint());
+    const apiVersion = nonEmptyEnv("AZURE_API_VERSION");
     const azure = createAzure({
       apiKey,
-      ...(resolvedBase ? { baseURL: resolvedBase } : { resourceName: nonEmptyEnv("AZURE_OPENAI_RESOURCE_ID") }),
+      baseURL: resolvedBase,
       ...(apiVersion ? { apiVersion } : {}),
       ...(headers ? { headers } : {}),
-      ...(apiVersion && resolvedBase && !isAzureOpenAIHost(resolvedBase)
-        ? { fetch: appendApiVersion(apiVersion) }
-        : {}),
+      ...(apiVersion && !isAzureOpenAIHost(resolvedBase) ? { fetch: appendApiVersion(apiVersion) } : {}),
     });
-    return azure(modelName);
+    // `azure(id)` is the Responses model; Chat Completions needs `.chat`.
+    return provider === "azure_responses" ? azure(modelName) : azure.chat(modelName);
   }
 
   if (provider === "openai") {

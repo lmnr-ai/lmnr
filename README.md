@@ -124,18 +124,16 @@ AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 AWS_REGION=us-east-1
 
-# Option D: Azure OpenAI. Model ids are deployment names, so set LLM_MODEL_* unless
-# your deployments are named after the models.
-LLM_PROVIDER=azure_openai
+# Option D: Azure AI Foundry. One resource serves three API shapes; pick the one
+# matching your deployment. Model ids are deployment names, so set LLM_MODEL_*
+# unless your deployments are named after the models.
+#   azure_chat_completions -> <resource>.services.ai.azure.com/openai/v1/chat/completions
+#   azure_responses        -> <resource>.services.ai.azure.com/openai/v1/responses
+#   azure_anthropic        -> <resource>.services.ai.azure.com/anthropic/v1/messages (Claude)
+LLM_PROVIDER=azure_chat_completions
 LLM_API_KEY=your_azure_key
-AZURE_OPENAI_RESOURCE_ID=your_resource_name   # or AZURE_OPENAI_BASE_URL for private endpoints
-# AZURE_OPENAI_API_VERSION=preview            # optional; only for resources that require it
-
-# Option E: Claude on Microsoft Foundry (Azure). A different endpoint from Option D —
-# Foundry serves Anthropic models on Anthropic's own API, not the OpenAI-compatible one.
-LLM_PROVIDER=foundry_anthropic
-LLM_API_KEY=your_foundry_key
-FOUNDRY_ANTHROPIC_RESOURCE_ID=your_resource_name   # or FOUNDRY_ANTHROPIC_BASE_URL for private endpoints
+AZURE_RESOURCE_ID=your_resource_name   # or AZURE_BASE_URL for private endpoints
+# AZURE_API_VERSION=preview            # optional; only for resources that require it
 ```
 
 ### Custom Postgres schema (optional)
