@@ -8,7 +8,9 @@
   "sortPackageJson": false,
   "ignorePatterns": [
     ".next/**",
+    "node_modules/**",
     "next-env.d.ts",
+    "*.tsbuildinfo",
     "lib/db/migrations/**",
     "**/*.css",
     "**/*.yaml",

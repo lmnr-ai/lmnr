@@ -4,20 +4,20 @@
   "categories": {
     "correctness": "warn"
   },
-  "ignorePatterns": [".next/**", "node_modules/**", "next-env.d.ts", "lib/db/migrations/**"],
+  "ignorePatterns": [".next/**", "node_modules/**", "next-env.d.ts", "*.tsbuildinfo", "lib/db/migrations/**"],
   "rules": {
     "arrow-body-style": ["warn", "as-needed"],
     "no-duplicate-imports": "error",
     "no-console": "warn",
-
-    "typescript/no-explicit-any": "warn",
-    "typescript/no-unused-vars": [
+    "no-unused-vars": [
       "warn",
       {
         "argsIgnorePattern": "^_",
-        "varsIgnorePattern": "^_"
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_"
       }
     ],
+    "typescript/no-explicit-any": "warn",
     "typescript/consistent-type-imports": [
       "warn",
       {
