@@ -49,30 +49,30 @@ const EvaluationHeader = ({ evaluations, name, urlKey, datasets }: EvaluationHea
   };
 
   return (
-    <div className="font-medium flex-none flex gap-2 items-center justify-between w-full h-12 pl-2.5 pr-4">
-      <div className="flex items-center gap-2 flex-1 min-w-0">
-        <SidebarTrigger className="hover:bg-secondary size-7" />
-        <Link
-          href={`/project/${projectId}/evaluations`}
-          className="hover:bg-muted rounded-lg px-2 p-0.5 text-secondary-foreground"
-        >
-          evaluations
-        </Link>
-        {groupId && (
-          <>
-            <div className="text-secondary-foreground/40">/</div>
-            <Link
-              href={`/project/${projectId}/evaluations?groupId=${encodeURIComponent(groupId)}`}
-              className="hover:bg-muted rounded-lg px-2 p-0.5 text-secondary-foreground truncate min-w-0"
-            >
-              {groupId}
-            </Link>
-          </>
-        )}
-        <div className="text-secondary-foreground/40">/</div>
-        <div>
+    <div className="font-medium flex-none flex items-center gap-2 w-full min-w-0 h-12 pl-2.5 pr-4">
+      <div className="flex min-w-0 flex-1 items-center overflow-x-auto overflow-y-hidden no-scrollbar">
+        <div className="flex items-center gap-2 min-w-max">
+          <SidebarTrigger className="hover:bg-secondary size-7" />
+          <Link
+            href={`/project/${projectId}/evaluations`}
+            className="hover:bg-muted rounded-lg px-2 p-0.5 text-secondary-foreground"
+          >
+            evaluations
+          </Link>
+          {groupId && (
+            <>
+              <div className="text-secondary-foreground/40">/</div>
+              <Link
+                href={`/project/${projectId}/evaluations?groupId=${encodeURIComponent(groupId)}`}
+                className="hover:bg-muted rounded-lg px-2 p-0.5 text-secondary-foreground"
+              >
+                {groupId}
+              </Link>
+            </>
+          )}
+          <div className="text-secondary-foreground/40">/</div>
           <Select key={targetId} value={targetId ?? undefined} onValueChange={handleChange}>
-            <SelectTrigger disabled={evaluations.length <= 1} className="flex font-medium truncate">
+            <SelectTrigger disabled={evaluations.length <= 1} className="w-auto font-medium">
               <SelectValue placeholder="Select compared evaluation" />
             </SelectTrigger>
             <SelectContent>
@@ -88,11 +88,9 @@ const EvaluationHeader = ({ evaluations, name, urlKey, datasets }: EvaluationHea
                 ))}
             </SelectContent>
           </Select>
-        </div>
-        <div className="flex-none text-secondary-foreground">
-          <ArrowRight size={16} />
-        </div>
-        <div>
+          <div className="text-secondary-foreground">
+            <ArrowRight size={16} />
+          </div>
           <Select
             key={String(evaluationId)}
             value={String(evaluationId)}
@@ -100,7 +98,7 @@ const EvaluationHeader = ({ evaluations, name, urlKey, datasets }: EvaluationHea
               router.push(`/project/${projectId}/evaluations/${value}?${searchParams.toString()}`);
             }}
           >
-            <SelectTrigger className="flex font-medium">
+            <SelectTrigger className="w-auto font-medium">
               <SelectValue placeholder="Select evaluation" />
             </SelectTrigger>
             <SelectContent>
@@ -116,12 +114,12 @@ const EvaluationHeader = ({ evaluations, name, urlKey, datasets }: EvaluationHea
                 ))}
             </SelectContent>
           </Select>
+          {targetId && (
+            <Button variant="outline" onClick={() => handleChange(undefined)}>
+              Reset
+            </Button>
+          )}
         </div>
-        {targetId && (
-          <Button variant="outline" onClick={() => handleChange(undefined)}>
-            Reset
-          </Button>
-        )}
       </div>
       <div className="flex items-center gap-2 shrink-0">
         <DropdownMenu>

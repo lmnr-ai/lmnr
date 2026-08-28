@@ -292,3 +292,42 @@ export function buildEvalStatsQuery(options: EvalStatsQueryOptions): QueryResult
 
   return { query: query.trim(), parameters };
 }
+
+// -- Totals query builder --
+
+/** Whole-run cost / token / duration over the same filtered rows as the stats query. */
+export function buildEvalTotalsQuery(options: EvalStatsQueryOptions): QueryResult {
+  const { evaluationId, traceIds, filters, columns } = options;
+  const parameters: QueryParams = {};
+
+  const whereConditions: string[] = [`evaluation_id = {evaluationId:UUID}`];
+  parameters.evaluationId = evaluationId;
+
+  if (traceIds.length > 0) {
+    whereConditions.push(`trace_id IN ({traceIds:Array(UUID)})`);
+    parameters.traceIds = traceIds;
+  }
+
+  const { conditions: filterConditions, params: filterParams } = buildFilterConditions(filters, columns ?? [], "tf");
+  whereConditions.push(...filterConditions);
+  Object.assign(parameters, filterParams);
+
+  const query = `
+    SELECT
+      count() AS datapointCount,
+      sum(input_cost) AS inputCost,
+      sum(output_cost) AS outputCost,
+      sum(total_cost) AS totalCost,
+      sum(input_tokens) AS inputTokens,
+      sum(output_tokens) AS outputTokens,
+      sum(total_tokens) AS totalTokens,
+      sum(cache_read_input_tokens) AS cacheReadInputTokens,
+      sum(cache_creation_input_tokens) AS cacheCreationInputTokens,
+      sum(reasoning_tokens) AS reasoningTokens,
+      sum(toFloat64(duration)) AS totalDuration
+    FROM evaluation_datapoints
+    WHERE ${whereConditions.join(" AND ")}
+  `;
+
+  return { query: query.trim().replace(/\s+/g, " "), parameters };
+}

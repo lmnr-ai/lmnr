@@ -5,7 +5,7 @@ import { z } from "zod/v4";
 import { type Filter } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema } from "@/lib/actions/common/types";
 import { tryParseJson } from "@/lib/actions/common/utils.ts";
-import { executeQuery } from "@/lib/actions/sql";
+import { getEvaluationRunStats } from "@/lib/actions/evaluations/stats";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
@@ -52,21 +52,19 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
   const otherFilters = urlParamFilters.filter((filter) => filter.column !== "metadata");
 
   const dataPointsCountFilters = otherFilters.filter((f) => f.column === "dataPointsCount");
+  const statusFilters = otherFilters.filter((f) => f.column === "status");
 
-  // For filtering purposes, create an expression that checks against the count map
-  // Since we can't use ClickHouse in Drizzle filters, we'll filter before paginating
   const sqlFilters = filtersToSql(
-    otherFilters.filter((f) => f.column !== "dataPointsCount"),
+    otherFilters.filter((f) => f.column !== "dataPointsCount" && f.column !== "status"),
     [],
     {}
   );
 
   const allFilters = [...baseFilters, ...(searchFilter ? [searchFilter] : []), ...metadataFilters, ...sqlFilters];
 
-  // If dataPointsCount filters are present, we need to filter by evaluation IDs first
+  // Count + status live in ClickHouse — resolve matching ids, then constrain the PG page.
   let evaluationIdFilter: SQL | null = null;
-  if (dataPointsCountFilters.length > 0) {
-    // First, get all evaluation IDs that match the base filters (project, group, search, metadata)
+  if (dataPointsCountFilters.length > 0 || statusFilters.length > 0) {
     const allEvaluations = await db
       .select({ id: evaluations.id })
       .from(evaluations)
@@ -75,43 +73,15 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
     const allEvaluationIds = allEvaluations.map((e) => e.id);
 
     if (allEvaluationIds.length === 0) {
-      // No evaluations exist with the base filters
-      return {
-        items: [],
-        totalCount: 0,
-      };
+      return { items: [], totalCount: 0 };
     }
 
-    // Get counts from ClickHouse for these evaluations
-    const datapointCounts = await executeQuery<{ evaluation_id: string; count: number }>({
-      projectId,
-      query: `
-        SELECT 
-          evaluation_id,
-          COUNT(*) as count
-        FROM evaluation_datapoints
-        WHERE evaluation_id IN {evaluationIds:Array(String)}
-        GROUP BY evaluation_id
-      `,
-      parameters: {
-        projectId,
-        evaluationIds: allEvaluationIds,
-      },
-    });
+    const statsMap = await getEvaluationRunStats(projectId, allEvaluationIds);
 
-    // Create a count map, defaulting to 0 for evaluations not in ClickHouse results
-    const countMap = new Map<string, number>();
-    for (const evalId of allEvaluationIds) {
-      countMap.set(evalId, 0); // Default to 0
-    }
-    for (const row of datapointCounts) {
-      countMap.set(row.evaluation_id, row.count);
-    }
-
-    // Filter evaluation IDs based on dataPointsCount filters
     const matchingEvaluationIds = allEvaluationIds.filter((evalId) => {
-      const count = countMap.get(evalId) || 0;
-      return dataPointsCountFilters.every((filter) => {
+      const stats = statsMap.get(evalId);
+      const count = stats?.total ?? 0;
+      const countMatches = dataPointsCountFilters.every((filter) => {
         const value = Number(filter.value);
         switch (filter.operator) {
           case "eq":
@@ -130,14 +100,23 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
             return true;
         }
       });
+      if (!countMatches) return false;
+
+      return statusFilters.every((filter) => {
+        const value = String(filter.value);
+        switch (filter.operator) {
+          case "eq":
+            return stats?.status === value;
+          case "ne":
+            return stats?.status !== value;
+          default:
+            return true;
+        }
+      });
     });
 
     if (matchingEvaluationIds.length === 0) {
-      // No evaluations match the filter, return empty result
-      return {
-        items: [],
-        totalCount: 0,
-      };
+      return { items: [], totalCount: 0 };
     }
 
     evaluationIdFilter = inArray(evaluations.id, matchingEvaluationIds);
@@ -154,36 +133,27 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
     orderBy: [desc(evaluations.createdAt)],
   });
 
-  // Fetch counts for the returned evaluations to include in the response
-  let itemsWithCounts = result.items;
-  if (result.items.length > 0) {
-    const datapointCounts = await executeQuery<{ evaluation_id: string; count: number }>({
-      projectId,
-      query: `
-        SELECT 
-          evaluation_id,
-          COUNT(*) as count
-        FROM evaluation_datapoints
-        WHERE evaluation_id IN {evaluationIds:Array(String)}
-        GROUP BY evaluation_id
-      `,
-      parameters: {
-        projectId,
-        evaluationIds: result.items.map((e: Evaluation) => e.id),
-      },
-    });
+  if (result.items.length === 0) return result;
 
-    const countMap = new Map(datapointCounts.map((row) => [row.evaluation_id, row.count]));
-
-    itemsWithCounts = result.items.map((evaluation: Evaluation) => ({
-      ...evaluation,
-      dataPointsCount: countMap.get(evaluation.id) || 0,
-    }));
-  }
+  const statsMap = await getEvaluationRunStats(
+    projectId,
+    result.items.map((e: Evaluation) => e.id)
+  );
 
   return {
     ...result,
-    items: itemsWithCounts,
+    items: result.items.map((evaluation: Evaluation) => {
+      const stats = statsMap.get(evaluation.id);
+      return {
+        ...evaluation,
+        dataPointsCount: stats?.total ?? 0,
+        status: stats?.status ?? null,
+        statusCounts: stats
+          ? { total: stats.total, complete: stats.complete, errored: stats.errored, stale: stats.stale }
+          : undefined,
+        totals: stats?.totals,
+      };
+    }),
   };
 }
 

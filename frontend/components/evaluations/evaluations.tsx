@@ -10,9 +10,12 @@ import useSWR from "swr";
 
 import HeatmapValue from "@/components/evaluation/heatmap-value";
 import { formatScoreValue, isValidScore } from "@/components/evaluation/utils";
+import { EvaluationDatapointsCell } from "@/components/evaluations/datapoints-cell";
 import ProgressionChart from "@/components/evaluations/progression-chart";
+import { EvaluationStatusCell } from "@/components/evaluations/status-cell";
 import { EvaluationsTableContents } from "@/components/evaluations/table-contents";
 import { EvaluationsTableControls } from "@/components/evaluations/table-controls";
+import { CostCell, DurationCell, TokensCell } from "@/components/traces/cells";
 import { Button } from "@/components/ui/button";
 import CopyTooltip from "@/components/ui/copy-tooltip";
 import { useSelection } from "@/components/ui/infinite-datatable/hooks";
@@ -40,6 +43,13 @@ import { useEvaluationsProgression } from "./use-evaluations-progression";
 
 const baseColumns: ColumnDef<Evaluation>[] = [
   {
+    id: "status",
+    accessorFn: (row) => row.status,
+    cell: EvaluationStatusCell,
+    header: "Status",
+    size: 70,
+  },
+  {
     accessorKey: "id",
     cell: (row) => {
       const id = String(row.getValue());
@@ -63,6 +73,33 @@ const baseColumns: ColumnDef<Evaluation>[] = [
     id: "dataPointsCount",
     accessorKey: "dataPointsCount",
     header: "Datapoints",
+    cell: EvaluationDatapointsCell,
+    size: 200,
+  },
+  {
+    id: "cost",
+    accessorFn: (row) => row.totals?.totalCost ?? 0,
+    header: "Cost",
+    cell: ({ row }) => <CostCell stats={row.original.totals ?? {}} />,
+    size: 100,
+  },
+  {
+    id: "tokens",
+    accessorFn: (row) => row.totals?.totalTokens ?? 0,
+    header: "Tokens",
+    cell: ({ row }) => <TokensCell stats={row.original.totals ?? {}} />,
+    size: 180,
+  },
+  {
+    id: "duration",
+    accessorFn: (row) => row.totals?.totalDuration ?? 0,
+    header: "Duration",
+    cell: ({ row }) => {
+      const totals = row.original.totals;
+      if (!totals?.datapointCount) return <span className="text-muted-foreground">-</span>;
+      return <DurationCell durationMs={totals.totalDuration * 1000} />;
+    },
+    size: 100,
   },
   {
     id: "metadata",
@@ -137,7 +174,7 @@ export default function Evaluations() {
   return (
     <InfiniteDataTableProvider
       defaults={{ columnOrder: defaultEvaluationsColumnOrder }}
-      lockedColumns={["__row_selection", "__chart_visibility"]}
+      lockedColumns={["__row_selection", "__chart_visibility", "status"]}
       views={{ projectId, resource: RESOURCE }}
     >
       <EvaluationsContent />
@@ -202,6 +239,10 @@ function EvaluationsContent() {
 
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: "evaluations-sidebar-layout",
+    storage: layoutStorage,
+  });
+  const { defaultLayout: chartLayout, onLayoutChanged: onChartLayoutChanged } = useDefaultLayout({
+    id: "evaluations-chart-layout",
     storage: layoutStorage,
   });
 
@@ -377,8 +418,20 @@ function EvaluationsContent() {
               </label>
             </div>
           </div>
-          <ResizablePanelGroup id="evaluations-panels" className="overflow-hidden" orientation="vertical">
-            <ResizablePanel className="min-w-0" minSize={160} maxSize={500} defaultSize={220}>
+          <ResizablePanelGroup
+            id="evaluations-panels"
+            className="overflow-hidden"
+            orientation="vertical"
+            defaultLayout={chartLayout}
+            onLayoutChanged={onChartLayoutChanged}
+          >
+            <ResizablePanel
+              id="evaluations-chart-panel"
+              className="min-w-0"
+              minSize={160}
+              maxSize={500}
+              defaultSize={220}
+            >
               <ProgressionChart
                 data={progression}
                 isLoading={isProgressionLoading}
@@ -398,7 +451,12 @@ function EvaluationsContent() {
                 isResizingChart && "bg-blue-400"
               )}
             />
-            <ResizablePanel className="flex flex-1 w-full overflow-hidden" minSize={40} defaultSize={40}>
+            <ResizablePanel
+              id="evaluations-table-panel"
+              className="flex flex-1 w-full overflow-hidden"
+              minSize={40}
+              defaultSize={40}
+            >
               <EvaluationsTableContents
                 filter={filter}
                 search={search}

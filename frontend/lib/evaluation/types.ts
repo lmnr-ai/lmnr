@@ -1,3 +1,5 @@
+import { type EvaluationStatus } from "@/lib/evaluation/status";
+
 export type EvalRow = Record<string, unknown>;
 
 export type Evaluation = {
@@ -7,6 +9,11 @@ export type Evaluation = {
   name: string;
   projectId: string;
   metadata: Record<string, unknown> | null;
+  dataPointsCount?: number;
+  status?: EvaluationStatus | null;
+  statusCounts?: { total: number; complete: number; errored: number; stale: number };
+  /** Whole-eval sums from traces_agg, attached by getEvaluations. */
+  totals?: EvaluationTotals;
 };
 
 /** A dataset an evaluation's datapoints are linked to. */
@@ -26,6 +33,26 @@ export type EvaluationScoreStatistics = {
   p90?: number;
   p95?: number;
   p99?: number;
+};
+
+/**
+ * Whole-run cost / token / duration totals, summed over the eval's datapoints
+ * under the active filters. `cacheReadInputTokens` is a SUBSET of
+ * `inputTokens` (providers already count cached reads in the prompt total), so
+ * never add the two together.
+ */
+export type EvaluationTotals = {
+  datapointCount: number;
+  inputCost: number;
+  outputCost: number;
+  totalCost: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  cacheReadInputTokens: number;
+  cacheCreationInputTokens: number;
+  reasoningTokens: number;
+  totalDuration: number;
 };
 
 export type EvaluationScoreDistributionBucket = {

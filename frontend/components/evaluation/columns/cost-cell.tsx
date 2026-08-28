@@ -1,30 +1,39 @@
 import { type CellContext } from "@tanstack/react-table";
-import { round } from "lodash";
 
-import { formatCostIntl } from "@/components/evaluation/utils";
+import { CostCell as TraceCostCell } from "@/components/traces/cells";
 import { type EvalRow } from "@/lib/evaluation/types";
+import { type CostStats } from "@/lib/traces/format";
 
 import { ComparisonCell } from "./comparison-cell";
 
+const num = (v: unknown): number | undefined => {
+  if (v == null || v === "") return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
+
+const costStats = (row: EvalRow, prefix = ""): CostStats => ({
+  inputCost: num(row[`${prefix}inputCost`]),
+  outputCost: num(row[`${prefix}outputCost`]),
+  totalCost: num(row[`${prefix}cost`]) ?? num(row[`${prefix}totalCost`]),
+});
+
 export const CostCell = ({ row, table }: CellContext<EvalRow, unknown>) => {
   const isComparison = table.options.meta?.evalCellMeta?.isComparison ?? false;
-  const rawCost = row.original["cost"] as number | undefined;
-  const cost = rawCost != null ? round(rawCost, 5) : undefined;
+  const stats = costStats(row.original);
+  const total = stats.totalCost;
 
   if (isComparison) {
-    const rawComparedCost = row.original["compared:cost"] as number | undefined;
-    const comparedCost = rawComparedCost != null ? round(rawComparedCost, 5) : undefined;
-
+    const compared = costStats(row.original, "compared:");
     return (
       <ComparisonCell
-        original={cost != null ? formatCostIntl(cost) : "-"}
-        comparison={comparedCost != null ? formatCostIntl(comparedCost) : "-"}
-        originalValue={cost}
-        comparisonValue={comparedCost}
+        original={<TraceCostCell stats={stats} />}
+        comparison={<TraceCostCell stats={compared} />}
+        originalValue={total ?? undefined}
+        comparisonValue={compared.totalCost ?? undefined}
       />
     );
   }
 
-  if (cost == null) return "-";
-  return <span>{formatCostIntl(cost)}</span>;
+  return <TraceCostCell stats={stats} />;
 };

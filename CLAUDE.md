@@ -151,7 +151,7 @@ Frontend uses Husky with lint-staged: Prettier, ESLint, and `tsc --noEmit` run o
 | `docs/internal/analytics.md` | PostHog, Loops sync, self-hosted telemetry heartbeat |
 | `docs/internal/labeling-queues.md` | Labeling queues (ClickHouse RMT items, dirty-state, push-to-dataset) |
 | `docs/internal/debugger.md` | Debugger replay cache, debugger session blocks/timeline |
-| `docs/internal/frontend-tables.md` | Data-table filters, advanced search, evaluations page, dashboards |
+| `docs/internal/frontend-tables.md` | Data-table filters, advanced search, evaluations page, eval run status, dashboards |
 | `docs/internal/frontend-trace-view.md` | Trace view, span rendering/message parsing, ContentRenderer, rrweb replay |
 | `docs/internal/frontend-app.md` | Settings pages, onboarding, base-path serving, render templates, SSE proxy routes, landing page, agent stubs |
 | `docs/internal/frontend-best-practices.md` | Any new frontend component/table/store work |

@@ -12,7 +12,7 @@ import { type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 import { DataCell } from "./columns/data-cell";
-import { createScoreColumnDef, STATIC_COLUMNS } from "./columns/index";
+import { createScoreColumnDef, scoreColumnSql, STATIC_COLUMNS } from "./columns/index";
 
 interface RawUrlParams {
   search: string | null;
@@ -119,7 +119,7 @@ export function buildStatsParams(
         if (!scoreNames.includes(name)) return;
         filterColPayload.push({
           id,
-          sql: `simpleJSONExtractFloat(scores, '${name.replace(/[\\']/g, "\\$&")}')`,
+          sql: scoreColumnSql(name),
           comparable: true,
           dbType: "Float64",
         });

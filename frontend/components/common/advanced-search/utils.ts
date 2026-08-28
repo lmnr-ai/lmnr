@@ -27,6 +27,19 @@ export interface ValueSuggestion {
   label?: string;
 }
 
+/** Enum filters store the option value; UI should show the option label. */
+export const displayFilterValue = (columnFilter: ColumnFilter | undefined, value: string | string[]): string => {
+  const parts = Array.isArray(value) ? value : [value];
+  return parts
+    .map((part) => {
+      if (columnFilter?.dataType === "enum") {
+        return columnFilter.options.find((opt) => opt.value === part)?.label ?? part;
+      }
+      return part;
+    })
+    .join(", ");
+};
+
 export const buildValueSuggestions = (
   input: string,
   filters: ColumnFilter[],

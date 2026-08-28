@@ -1,6 +1,6 @@
 import { type ColumnDef } from "@tanstack/react-table";
 
-import { deriveStatus } from "@/components/evaluation/utils";
+import { deriveDatapointStatus } from "@/lib/evaluation/status";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 import { CostCell } from "./cost-cell";
@@ -8,8 +8,6 @@ import { DataCell } from "./data-cell";
 import { DurationCell } from "./duration-cell";
 import { createScoreColumnCell, scoreDirectionDropdownItems } from "./score-cell";
 import { StatusCell } from "./status-cell";
-
-// -- Static column definitions --
 
 export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
   {
@@ -28,12 +26,21 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
   },
   {
     id: "status",
-    accessorFn: (row) => deriveStatus(row),
+    accessorFn: (row) => deriveDatapointStatus(row),
     cell: StatusCell,
     header: "Status",
-    size: 70,
+    size: 82,
     enableSorting: false,
-    meta: { dataType: "string", filterable: false, comparable: false },
+    meta: {
+      // SELECT stays the raw trace flag. Filter Success = scored and not error
+      // (excludes running/stale); Error = trace_status error.
+      sql: "trace_status",
+      filterSql: `multiIf(trace_status = 'error', 'error', scores != '' AND scores != '{}', 'success', 'pending')`,
+      dataType: "string",
+      filterable: true,
+      comparable: false,
+      dbType: "String",
+    },
   },
   {
     id: "index",
@@ -98,7 +105,10 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
       sql: "substring(executor_output, 1, 200)",
       dataType: "string",
       filterable: false,
-      comparable: false,
+      // Comparable so the datapoint-comparison view can show both runs' outputs
+      // side by side. `data` / `target` stay non-comparable — they're the same
+      // dataset row at a given index, so there is nothing to diff.
+      comparable: true,
       fullSql: "executor_output",
       truncated: true,
     },
@@ -187,6 +197,47 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     meta: { sql: "total_cost", dataType: "number", filterable: false, comparable: true, hidden: true },
   },
   {
+    id: "inputTokens",
+    accessorFn: (row) => row["inputTokens"],
+    header: "Input Tokens",
+    enableSorting: false,
+    meta: { sql: "input_tokens", dataType: "number", filterable: false, comparable: true, hidden: true },
+  },
+  {
+    id: "outputTokens",
+    accessorFn: (row) => row["outputTokens"],
+    header: "Output Tokens",
+    enableSorting: false,
+    meta: { sql: "output_tokens", dataType: "number", filterable: false, comparable: true, hidden: true },
+  },
+  {
+    id: "totalTokens",
+    accessorFn: (row) => row["totalTokens"],
+    header: "Total Tokens",
+    enableSorting: false,
+    meta: { sql: "total_tokens", dataType: "number", filterable: false, comparable: true, hidden: true },
+  },
+  {
+    id: "cacheReadInputTokens",
+    accessorFn: (row) => row["cacheReadInputTokens"],
+    header: "Cache Input Tokens",
+    enableSorting: false,
+    meta: {
+      sql: "cache_read_input_tokens",
+      dataType: "number",
+      filterable: false,
+      comparable: true,
+      hidden: true,
+    },
+  },
+  {
+    id: "reasoningTokens",
+    accessorFn: (row) => row["reasoningTokens"],
+    header: "Reasoning Tokens",
+    enableSorting: false,
+    meta: { sql: "reasoning_tokens", dataType: "number", filterable: false, comparable: true, hidden: true },
+  },
+  {
     id: "scores",
     accessorFn: (row) => row["scores"],
     header: "Scores",
@@ -200,6 +251,19 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     enableSorting: true,
     meta: {
       sql: "formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ')",
+      dataType: "datetime",
+      filterable: false,
+      comparable: false,
+      hidden: true,
+    },
+  },
+  {
+    id: "updatedAt",
+    accessorFn: (row) => row["updatedAt"],
+    header: "Updated At",
+    enableSorting: false,
+    meta: {
+      sql: "formatDateTime(updated_at, '%Y-%m-%dT%H:%i:%S.%fZ')",
       dataType: "datetime",
       filterable: false,
       comparable: false,
@@ -222,7 +286,11 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
   },
 ];
 
-// -- Score column factory --
+/** NULL when the key is absent — `simpleJSONExtractFloat` alone returns 0. */
+export const scoreColumnSql = (name: string): string => {
+  const escaped = name.replace(/[\\']/g, "\\$&");
+  return `if(JSONHas(scores, '${escaped}'), simpleJSONExtractFloat(scores, '${escaped}'), NULL)`;
+};
 
 export function createScoreColumnDef(name: string): ColumnDef<EvalRow> {
   return {
@@ -233,7 +301,7 @@ export function createScoreColumnDef(name: string): ColumnDef<EvalRow> {
     cell: createScoreColumnCell(name),
     enableSorting: true,
     meta: {
-      sql: `simpleJSONExtractFloat(scores, '${name.replace(/[\\']/g, "\\$&")}')`,
+      sql: scoreColumnSql(name),
       dataType: "number",
       filterable: true,
       comparable: true,

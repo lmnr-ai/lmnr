@@ -4,11 +4,12 @@ import { type Row } from "@tanstack/react-table";
 import { debounce } from "lodash";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
 import { parseAsString, useQueryState } from "nuqs";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { shallow } from "zustand/shallow";
 
 import { useReportAgentContextName } from "@/components/agent";
+import DatapointComparison from "@/components/evaluation/datapoint-comparison";
 import EvalTraceLayout from "@/components/evaluation/eval-trace-layout";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
@@ -32,6 +33,7 @@ import {
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableConfigStore, useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   type EvalRow,
   type Evaluation as EvaluationType,
@@ -58,6 +60,8 @@ const BASE_COLUMN_ORDER = ["status", "index", "data", "target", "metadata", "out
 const RESOURCE = "evaluation-v1.1";
 // Default visibility: status + data + score:*.
 const DEFAULT_HIDDEN_COLUMNS = ["index", "target", "metadata", "output", "duration", "cost"];
+
+type PanelTab = "trace" | "compare";
 
 function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationProps) {
   const pathName = usePathname();
@@ -92,6 +96,12 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
   const addScoreName = useEvalStore((s) => s.addScoreName);
 
   const isComparison = !!targetId;
+  // Side-panel tab. Derived-with-fallback rather than plain state: leaving
+  // comparison mode must never leave the panel stuck on a tab that no longer
+  // renders, and the `compare` branch is gated on `isComparison` anyway.
+  const [requestedTab, setRequestedTab] = useState<PanelTab>("trace");
+  const panelTab: PanelTab = isComparison ? requestedTab : "trace";
+
   const columnDefs = useMemo(
     () => buildColumnDefs({ scoreNames, customColumns, isShared }),
     [scoreNames, customColumns, isShared]
@@ -353,6 +363,8 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
                   allDistributions={statsData?.allDistributions}
                   comparedAllStatistics={targetStatsData?.allStatistics}
                   comparedAllDistributions={targetStatsData?.allDistributions}
+                  totals={statsData?.totals}
+                  comparedTotals={targetStatsData?.totals}
                   isComparison={isComparison}
                   scoreDirections={scoreDirections}
                 />
@@ -370,9 +382,35 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
                     row={selectedRow}
                   />
                 </div>
+                {/* In comparison mode the panel gains a Compare tab holding the
+                    two runs' values for this datapoint side by side. */}
+                {isComparison && (
+                  <div className="flex-none border-b px-3">
+                    <Tabs value={panelTab} onValueChange={(v) => setRequestedTab(v as PanelTab)}>
+                      <TabsList className="h-8 bg-transparent p-0">
+                        <TabsTrigger value="trace" className="text-xs">
+                          Trace
+                        </TabsTrigger>
+                        <TabsTrigger value="compare" className="text-xs">
+                          Compare
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  </div>
+                )}
                 <div className="flex min-h-0 flex-1 overflow-hidden">
-                  {/* No onClose ⇒ always-open: the trace header shows no close button. */}
-                  {traceId && <TraceView key={traceId} traceId={traceId} />}
+                  {isComparison && panelTab === "compare" ? (
+                    <DatapointComparison
+                      row={selectedRow}
+                      scoreNames={scoreNames}
+                      scoreDirections={scoreDirections}
+                      currentName={statsData?.evaluation?.name}
+                      comparedName={targetStatsData?.evaluation?.name}
+                    />
+                  ) : (
+                    /* No onClose ⇒ always-open: the trace header shows no close button. */
+                    traceId && <TraceView key={traceId} traceId={traceId} />
+                  )}
                 </div>
               </div>
             }
@@ -402,6 +440,7 @@ export default function Evaluation(props: EvaluationProps) {
         key={RESOURCE}
         views={{ projectId, resource: RESOURCE }}
         defaults={{ columnOrder: defaultColumnOrder, columnVisibility: defaultColumnVisibility }}
+        lockedColumns={["status"]}
       >
         <EvaluationContent {...props} />
       </InfiniteDataTableProvider>

@@ -279,6 +279,17 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "output_tokens", type: "Int64", description: "Number of output tokens from associated trace" },
       { name: "total_tokens", type: "Int64", description: "Total tokens used from associated trace" },
       {
+        name: "cache_read_input_tokens",
+        type: "UInt64",
+        description: "Cached input tokens from associated trace. A subset of input_tokens",
+      },
+      {
+        name: "cache_creation_input_tokens",
+        type: "UInt64",
+        description: "Prompt-cache write tokens from associated trace",
+      },
+      { name: "reasoning_tokens", type: "UInt64", description: "Reasoning tokens from associated trace" },
+      {
         name: "trace_status",
         type: "String",
         enumType: "status",
