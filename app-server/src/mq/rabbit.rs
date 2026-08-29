@@ -1,4 +1,4 @@
-use backoff::ExponentialBackoffBuilder;
+use backon::Retryable;
 use deadpool::managed::{Manager, Pool, PoolError, RecycleError};
 use futures_util::StreamExt;
 use lapin::{
@@ -13,6 +13,18 @@ use super::{
     MessageQueueAcker, MessageQueueDelivery, MessageQueueDeliveryTrait, MessageQueueReceiver,
     MessageQueueReceiverTrait, MessageQueueTrait,
 };
+use crate::utils::retry;
+
+/// `backon` decides retryability from the error value alone, so the publish
+/// closure's failures — all `anyhow::Error` — need the transient/permanent
+/// split that `backoff::Error` used to carry alongside them.
+#[derive(thiserror::Error, Debug)]
+enum PublishError {
+    #[error("{0}")]
+    Transient(anyhow::Error),
+    #[error("{0}")]
+    Permanent(anyhow::Error),
+}
 
 /// Whole-chain timeout for consumer setup (`create_channel` → `basic_qos` →
 /// `queue_bind` → `basic_consume`). Tunable because a memory-pressured broker
@@ -58,19 +70,18 @@ impl Manager for RabbitChannelManager {
     type Error = anyhow::Error;
 
     async fn create(&self) -> Result<Channel, Self::Error> {
-        let create_channel = || async {
-            self.connection.create_channel().await.map_err(|e| {
-                log::warn!("Failed to create channel: {:?}", e);
-                backoff::Error::transient(anyhow::Error::from(e))
-            })
-        };
-        let backoff = ExponentialBackoffBuilder::new()
-            .with_initial_interval(std::time::Duration::from_millis(100))
-            .with_max_interval(std::time::Duration::from_secs(5))
-            .with_max_elapsed_time(Some(std::time::Duration::from_secs(30)))
-            .build();
+        let create_channel = || async { self.connection.create_channel().await };
+        let backoff = retry::bounded_delay(
+            Duration::from_millis(100),
+            Duration::from_secs(5),
+            Duration::from_secs(30),
+        );
 
-        match backoff::future::retry(backoff, create_channel).await {
+        match create_channel
+            .retry(backoff)
+            .notify(|e, _| log::warn!("Failed to create channel: {:?}", e))
+            .await
+        {
             Ok(channel) => {
                 log::debug!("Successfully created channel");
                 Ok(channel)
@@ -193,14 +204,14 @@ impl RabbitMQ {
                 Ok(channel) => channel,
                 Err(PoolError::Backend(e)) => {
                     log::warn!("Failed to get channel from pool: {}", e);
-                    return Err(backoff::Error::transient(anyhow::anyhow!(
+                    return Err(PublishError::Transient(anyhow::anyhow!(
                         "Failed to get channel from pool: {}",
                         e
                     )));
                 }
                 Err(e) => {
                     log::error!("Pool error: {}", e);
-                    return Err(backoff::Error::permanent(anyhow::anyhow!(
+                    return Err(PublishError::Permanent(anyhow::anyhow!(
                         "Pool error: {}",
                         e
                     )));
@@ -210,7 +221,7 @@ impl RabbitMQ {
             // Check if channel is still connected before using it
             if !channel.status().connected() {
                 log::warn!("Channel is not connected, retrying...");
-                return Err(backoff::Error::transient(anyhow::anyhow!(
+                return Err(PublishError::Transient(anyhow::anyhow!(
                     "Channel is not connected"
                 )));
             }
@@ -229,23 +240,27 @@ impl RabbitMQ {
                     Ok(_confirmation) => Ok(()),
                     Err(e) => {
                         log::warn!("Failed to publish message promise: {:?}", e);
-                        Err(backoff::Error::transient(anyhow::Error::from(e)))
+                        Err(PublishError::Transient(anyhow::Error::from(e)))
                     }
                 },
                 Err(e) => {
                     log::warn!("Failed to get call promise from basic_publish: {:?}", e);
-                    Err(backoff::Error::transient(anyhow::Error::from(e)))
+                    Err(PublishError::Transient(anyhow::Error::from(e)))
                 }
             }
         };
 
-        let backoff = ExponentialBackoffBuilder::new()
-            .with_initial_interval(std::time::Duration::from_millis(100))
-            .with_max_interval(std::time::Duration::from_secs(2))
-            .with_max_elapsed_time(Some(std::time::Duration::from_secs(60)))
-            .build();
+        let backoff = retry::bounded_delay(
+            Duration::from_millis(100),
+            Duration::from_secs(2),
+            Duration::from_secs(60),
+        );
 
-        match backoff::future::retry(backoff, publish_with_retry).await {
+        match publish_with_retry
+            .retry(backoff)
+            .when(|e| matches!(e, PublishError::Transient(_)))
+            .await
+        {
             Ok(()) => Ok(()),
             Err(e) => {
                 log::error!("Failed to publish message after retries: {:?}", e);
