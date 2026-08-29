@@ -42,7 +42,7 @@ pub async fn list_latest_agent_versions(
 ) -> Result<Vec<AgentVersion>> {
     let agents = sqlx::query_as::<_, AgentVersion>(
         "SELECT DISTINCT ON (agent_id)
-            project_id, agent_id, version_hash, system_prompt, tool_definitions, model, created_at
+            agent_id, system_prompt, created_at
          FROM agent_versions
          WHERE project_id = $1
          ORDER BY agent_id, created_at DESC, version_hash DESC",
