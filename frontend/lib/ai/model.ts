@@ -17,14 +17,14 @@ type LlmDefaultHeaders = Record<string, string>;
 // Per-provider defaults. Used when LLM_MODEL_<TIER> is not set.
 const DEFAULT_MODELS: Record<LLMProvider, Record<ModelTier, string>> = {
   gemini: {
-    small: "gemini-3.1-flash-lite",
+    small: "gemini-3.5-flash-lite",
     medium: "gemini-3-flash-preview",
     large: "gemini-3.1-pro-preview",
   },
   bedrock: {
     small: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
-    medium: "us.anthropic.claude-sonnet-4-6",
-    large: "us.anthropic.claude-opus-4-7",
+    medium: "us.anthropic.claude-sonnet-5",
+    large: "us.anthropic.claude-opus-5",
   },
   openai: {
     small: "gpt-5.6-luna",
