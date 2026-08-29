@@ -1,8 +1,8 @@
 name: Build & publish lmnr images
 on:
-  release:
-    types:
-      - published
+  push:
+    branches:
+      - chore/test/fix/native-multiarch-images
 
 env:
   REGISTRY_GH: ghcr.io
@@ -79,7 +79,7 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           platforms: ${{ matrix.platform }}
-          push: true
+          push: false
           labels: ${{ steps.meta.outputs.labels }}
           build-args: ${{ matrix.build-args }}
           outputs: type=image,name=${{ matrix.image }},push-by-digest=true,name-canonical=true,push=true
@@ -151,8 +151,7 @@ jobs:
         id: manifest
         working-directory: /tmp/digests
         env:
-          DOCKER_METADATA_OUTPUT_TAGS: ${{ steps.meta.outputs.tags }}
-          DOCKER_METADATA_OUTPUT_ANNOTATIONS: ${{ steps.meta.outputs.annotations }}
+          DOCKER_METADATA_OUTPUT_TAGS: "0.2.3-alpha.1,alpha"
         run: |
           tag_args=()
           annotation_args=()
@@ -211,4 +210,4 @@ jobs:
         with:
           subject-name: ${{ matrix.image }}
           subject-digest: ${{ steps.manifest.outputs.digest }}
-          push-to-registry: true
+          push-to-registry: false
