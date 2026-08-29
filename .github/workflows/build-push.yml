@@ -151,7 +151,10 @@ jobs:
         id: manifest
         working-directory: /tmp/digests
         env:
-          DOCKER_METADATA_OUTPUT_TAGS: "0.2.3-alpha.1,alpha"
+          DOCKER_METADATA_OUTPUT_TAGS: |
+            ${{ matrix.image }}:0.2.3-alpha.1
+            ${{ matrix.image }}:alpha
+
         run: |
           tag_args=()
           annotation_args=()
