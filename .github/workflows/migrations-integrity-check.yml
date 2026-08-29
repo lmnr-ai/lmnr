@@ -32,7 +32,7 @@ on:
 jobs:
   check:
     name: ${{ matrix.scenario }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 90
     strategy:
       fail-fast: false
