@@ -8,14 +8,10 @@ use crate::utils::sanitize_string;
 /// A single agent version row, identified by `(project_id, version_hash)`.
 #[derive(Debug, Clone, FromRow)]
 pub struct AgentVersion {
-    pub project_id: Uuid,
     pub agent_id: Uuid,
-    /// BLAKE3-256 hash, hex-encoded (64 chars).
-    pub version_hash: String,
     pub system_prompt: String,
-    pub tool_definitions: String,
-    pub model: String,
     pub created_at: DateTime<Utc>,
+    // ... other columns, not used.
 }
 
 /// Find the agent that owns a version with this exact `(project_id,
@@ -46,7 +42,7 @@ pub async fn list_latest_agent_versions(
 ) -> Result<Vec<AgentVersion>> {
     let agents = sqlx::query_as::<_, AgentVersion>(
         "SELECT DISTINCT ON (agent_id)
-            project_id, agent_id, version_hash, system_prompt, tool_definitions, model, created_at
+            agent_id, system_prompt, created_at
          FROM agent_versions
          WHERE project_id = $1
          ORDER BY agent_id, created_at DESC, version_hash DESC",
