@@ -18,7 +18,7 @@ async-trait = "0.1"
 aws-config = "1.8.18"
 aws-sdk-bedrockruntime = {version = "1.135.0", default-features = false, features = ["default-https-client", "rt-tokio"]}
 aws-sdk-s3 =  {version = "1.137.0", default-features = false, features = ["default-https-client", "rt-tokio", "sigv4a", "http-1x"]}
-backoff = {version = "0.4.0", features = ["tokio"]}
+backon = {version = "1.6.0", default-features = false, features = ["std", "tokio-sleep"]}
 base64 = "0.22.1"
 blake3 = "1.8"
 bytes = "1.11.1"
