@@ -8,14 +8,10 @@ use crate::utils::sanitize_string;
 /// A single agent version row, identified by `(project_id, version_hash)`.
 #[derive(Debug, Clone, FromRow)]
 pub struct AgentVersion {
-    pub project_id: Uuid,
     pub agent_id: Uuid,
-    /// BLAKE3-256 hash, hex-encoded (64 chars).
-    pub version_hash: String,
     pub system_prompt: String,
-    pub tool_definitions: String,
-    pub model: String,
     pub created_at: DateTime<Utc>,
+    // ... other columns, not used.
 }
 
 /// Find the agent that owns a version with this exact `(project_id,

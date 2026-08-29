@@ -252,6 +252,7 @@ pub async fn post_thread_message(
 /// context when the agent is first mentioned mid-thread. The caller persists each as a `user` turn
 /// (the agent's own replies are written live as `assistant`), so authorship isn't distinguished here.
 /// Best-effort — the caller treats a failure as "no backfill".
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub async fn fetch_thread_replies(
     slack_client: &Client,
     token: &str,
@@ -307,6 +308,7 @@ pub async fn fetch_thread_replies(
 /// One backfilled thread message. Persisted as a `user` turn regardless of author (see
 /// `fetch_thread_replies`).
 #[derive(Debug, Clone)]
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub struct ThreadMessage {
     pub text: String,
     pub ts: Option<String>,
@@ -509,10 +511,7 @@ mod tests {
         let v = format_new_cluster_blocks(&[&kind]);
         let blocks = blocks_of(&v);
         // header names the signal, singular form
-        assert_eq!(
-            blocks[0]["text"]["text"],
-            "`Failure Detector`: New Cluster"
-        );
+        assert_eq!(blocks[0]["text"]["text"], "`Failure Detector`: New Cluster");
         // one cluster section with name, event count, seen dates, severity line
         let section = blocks[1]["text"]["text"].as_str().unwrap();
         assert!(section.contains("Bad args"));
@@ -524,10 +523,7 @@ mod tests {
         assert!(!section.contains("Warning"));
         // per-cluster actions block with a View Cluster button
         assert_eq!(blocks[2]["type"], "actions");
-        assert_eq!(
-            blocks[2]["elements"][0]["text"]["text"],
-            "View Cluster"
-        );
+        assert_eq!(blocks[2]["elements"][0]["text"]["text"], "View Cluster");
         // trailing context (signal + alert links) and divider
         let context = &blocks[blocks.len() - 2];
         assert_eq!(context["type"], "context");
