@@ -1,11 +1,11 @@
 use anyhow::Result;
+use chacha20poly1305::{
+    Key, XChaCha20Poly1305, XNonce,
+    aead::{Aead, KeyInit, Payload},
+};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sodiumoxide::{
-    crypto::aead::xchacha20poly1305_ietf::{Key, Nonce, open},
-    hex,
-};
 use uuid::Uuid;
 
 use super::NotificationKind;
@@ -31,21 +31,27 @@ pub fn decode_slack_token(
     let key_hex = std::env::var(crate::env::secrets::SLACK_ENCRYPTION_KEY)
         .map_err(|_| anyhow::anyhow!("SLACK_ENCRYPTION_KEY environment variable is not set"))?;
 
-    let key = Key::from_slice(
-        hex::decode(key_hex)
-            .map_err(|e| anyhow::anyhow!("Failed to decode SLACK_ENCRYPTION_KEY hex: {:?}", e))?
-            .as_slice(),
-    )
-    .ok_or_else(|| anyhow::anyhow!("Invalid SLACK_ENCRYPTION_KEY"))?;
+    let key_bytes = hex::decode(key_hex)
+        .map_err(|e| anyhow::anyhow!("Failed to decode SLACK_ENCRYPTION_KEY hex: {:?}", e))?;
+    let key = Key::try_from(&key_bytes[..])
+        .map_err(|_| anyhow::anyhow!("Invalid SLACK_ENCRYPTION_KEY"))?;
+    let cipher = XChaCha20Poly1305::new(&key);
 
     let nonce_bytes = hex::decode(nonce_hex)
         .map_err(|e| anyhow::anyhow!("Failed to decode nonce hex: {:?}", e))?;
-    let nonce = Nonce::from_slice(&nonce_bytes).ok_or_else(|| anyhow::anyhow!("Invalid nonce"))?;
+    let nonce = XNonce::try_from(&nonce_bytes[..]).map_err(|_| anyhow::anyhow!("Invalid nonce"))?;
 
     let encrypted_bytes = hex::decode(encrypted_value)
         .map_err(|e| anyhow::anyhow!("Failed to decode encrypted value hex: {:?}", e))?;
 
-    let decrypted = open(&encrypted_bytes, Some(team_id.as_bytes()), &nonce, &key)
+    let decrypted = cipher
+        .decrypt(
+            &nonce,
+            Payload {
+                msg: &encrypted_bytes,
+                aad: team_id.as_bytes(),
+            },
+        )
         .map_err(|_| anyhow::anyhow!("Failed to decrypt Slack token"))?;
 
     String::from_utf8(decrypted)

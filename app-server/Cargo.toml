@@ -9,25 +9,27 @@ signals = ["dep:half", "dep:ndarray", "dep:ort", "dep:tokenizers"]
 
 [dependencies]
 actix-limitation = {version = "0.6.0", default-features = false, features = ["redis-rustls"]}
-actix-web = "4.13"
+actix-web = "4.14.1"
 actix-web-httpauth = "0.8.2"
-anyhow = "1"
+anyhow = "1.0"
 arc-swap = "1.7"
 async-stream = "0.3.6"
 async-trait = "0.1"
-aws-config = "1.8.18"
-aws-sdk-bedrockruntime = {version = "1.135.0", default-features = false, features = ["default-https-client", "rt-tokio"]}
-aws-sdk-s3 =  {version = "1.137.0", default-features = false, features = ["default-https-client", "rt-tokio", "sigv4a", "http-1x"]}
+aws-config = "1.10.1"
+aws-sdk-bedrockruntime = {version = "1.139.0", default-features = false, features = ["default-https-client", "rt-tokio"]}
+aws-sdk-s3 =  {version = "1.141.0", default-features = false, features = ["default-https-client", "rt-tokio", "sigv4a", "http-1x"]}
 backon = {version = "1.6.0", default-features = false, features = ["std", "tokio-sleep"]}
 base64 = "0.22.1"
 blake3 = "1.8"
-bytes = "1.11.1"
-chrono = {version = "0.4.43", features = ["serde"]}
+bytes = "1.12.1"
+chacha20poly1305 = "0.11"
+chrono = {version = "0.4.45", features = ["serde"]}
 clickhouse = {version = "0.15.1", features = ["rustls-tls", "uuid"]}
 dashmap = "6.1.0"
 deadpool = "0.12.2"
 dotenv = "0.15"
-enum_delegate = "0.2.0"
+# Ed25519 keys are libsodium-format (64-byte seed||pubkey), which `SecretKey::from_slice` accepts as-is.
+ed25519-compact = "2.4"
 enum_dispatch = "0.3.13"
 eventsource-stream = "0.2.3"
 fancy-regex = "0.18"
@@ -36,15 +38,15 @@ half = {version = "2.7.1", features = ["serde"], optional = true}
 hex = "0.4"
 indexmap = {version = "2.13.0", features = ["serde"]}
 itertools = "0.14.0"
-jsonwebtoken = {version = "10", default-features = false, features = ["use_pem", "rust_crypto"]}
+jsonwebtoken = {version = "11", default-features = false, features = ["use_pem", "rust_crypto"]}
 jwks_client_rs = "0.6"
-lapin = "4.7"
-log = "0.4.29"
+lapin = "4.10"
+log = "0.4.34"
 moka = {version = "0.12", features = ["sync", "future"]}
 ndarray = {version = "0.17", optional = true}
 num_cpus = "1.17.0"
-opentelemetry = {version = "0.29.1", features = ["trace"]}
-opentelemetry_sdk = {version = "0.29.0", features = ["trace"]}
+opentelemetry = {version = "0.32.0", features = ["trace"]}
+opentelemetry_sdk = {version = "0.32", features = ["trace"]}
 ort = {version = "=2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic", "api-24"], optional = true}
 prost = "0.14"
 # `serde` unlocks `Environment::from_client_option`, the only public way to
@@ -62,18 +64,17 @@ rand = "0.10"
 rayon = "1.11.0"
 redis = {version = "1.6.0", features = ["tokio-comp", "tokio-rustls-comp"]}
 regex = "1.12.3"
-reqwest = {version = "0.12.22", features = ["json", "stream"]}
+reqwest = {version = "0.13.4", features = ["json", "stream"]}
 resend-rs = "0.21"
 rmcp = {version = "1", features = ["server"]}
 rustls = {version = "0.23", features = ["ring"]}
-# Sentry SDK must be compatible with the opentelemetry version. For sentry = 0.46.0, opentelemetry = 0.29
-sentry = {version = "0.48.0", features = ["opentelemetry", "tracing"]}
+# Sentry SDK must be compatible with the opentelemetry version. For sentry = 0.49, opentelemetry = 0.32
+sentry = {version = "0.49.1", features = ["opentelemetry", "tracing"]}
 schemars = {version = "1", features = ["uuid1"]}
 serde = "1.0"
 serde_json = {version = "1.0.149", features = ["preserve_order"]}
 sha3 = "0.10.8"
 similar = "3.1.1"
-sodiumoxide = "0.2.7"
 sqlparser = {version = "0.62", features = ["visitor"]}
 sqlx = {version = "0.9", features = ["runtime-tokio", "postgres", "uuid", "json", "chrono", "bigdecimal", "tls-rustls"]}
 thiserror = "2"
@@ -83,16 +84,16 @@ thiserror = "2"
 # arenas and RSS grows until OOM (LAM-2024 prod leak, zstd contexts); the
 # Rust-side `#[global_allocator]` alone doesn't cover C code.
 tikv-jemallocator = {version = "0.6.1", features = ["unprefixed_malloc_on_supported_platforms"]}
-tokenizers = {version = "0.21", default-features = false, features = ["onig"], optional = true}
+tokenizers = {version = "0.23.1", default-features = false, features = ["onig"], optional = true}
 tokio = {version = "1.49", features = ["macros", "rt-multi-thread"]}
 tokio-stream = {version = "0.1", features = ["net"]}
 tonic = {version = "0.14", features = ["gzip"]}
 tonic-prost = "0.14"
-tracing = {version = "0.1.41", features = ["attributes"]}
+tracing = {version = "0.1.44", features = ["attributes"]}
 # Tracing opentelemetry must be compatible with the opentelemetry version. For tracing-opentelemetry = 0.30.0, opentelemetry = 0.29
 # Mappings usually updated on major releases: https://github.com/tokio-rs/tracing-opentelemetry/releases
 # There are newer versions of both this crate and `opentelemetry`, but `sentry-opentelemetry` is still pinned to 0.29.0
-tracing-opentelemetry = "0.30.0"
+tracing-opentelemetry = "0.33.0"
 tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt"]}
 unicode-normalization = "0.1"
 url = "2.5"
@@ -104,7 +105,6 @@ zstd = "0.13"
 tonic-prost-build = "0.14"
 
 [dev-dependencies]
-ed25519-dalek = {version = "2", features = ["pkcs8", "rand_core"]}
 # `test-util` (only in dev builds) enables `#[tokio::test(start_paused = true)]`
 # so retry/backoff tests fast-forward the virtual clock instead of sleeping.
 tokio = {version = "1.49", features = ["test-util"]}
