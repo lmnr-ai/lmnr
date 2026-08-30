@@ -117,7 +117,6 @@ use quickwit::{
     stream_consumer::StreamQuickwitIndexerHandler,
 };
 use realtime::SseConnectionMap;
-use sodiumoxide;
 use std::{
     borrow::Cow,
     io::{self, Error},
@@ -187,9 +186,6 @@ fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
 }
 
 fn main() -> anyhow::Result<()> {
-    // == Crypto utils ==
-    sodiumoxide::init().expect("failed to initialize sodiumoxide");
-
     rustls::crypto::ring::default_provider()
         .install_default()
         .expect("Failed to install rustls crypto provider");
@@ -211,15 +207,13 @@ fn main() -> anyhow::Result<()> {
     // trace internally complete.
     let _sentry_guard = sentry::init((
         sentry_dsn,
-        sentry::ClientOptions {
-            release: sentry::release_name!(),
-            traces_sample_rate: env::sentry_sampling::sample_rate(),
-            environment: Some(Cow::Owned(
+        sentry::ClientOptions::new()
+            .release(sentry::release_name!().unwrap_or(Cow::Owned("0.1.0".to_string())))
+            .traces_sample_rate(env::sentry_sampling::sample_rate())
+            .environment(Cow::Owned(
                 std::env::var(env::connections::ENVIRONMENT).unwrap_or("development".to_string()),
-            )),
-            before_send: Some(std::sync::Arc::new(instrumentation::sentry_before_send)),
-            ..Default::default()
-        },
+            ))
+            .before_send(instrumentation::sentry_before_send),
     ));
 
     if !is_feature_enabled(Feature::Tracing)
