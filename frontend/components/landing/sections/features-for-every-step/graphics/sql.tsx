@@ -4,7 +4,7 @@
 const COLS = [
   { key: "model", w: "w-[86px]", align: "" },
   { key: "runs", w: "w-[46px]", align: "text-right" },
-  { key: "p50_ms", w: "w-[52px]", align: "text-right" },
+  { key: "avg_ms", w: "w-[52px]", align: "text-right" },
   { key: "tokens", w: "w-[52px]", align: "text-right" },
   { key: "cost", w: "w-[46px]", align: "text-right" },
 ];
@@ -29,7 +29,7 @@ const Sql = () => (
       </p>
       <p className="pl-5 text-foreground-200">
         count(*) <span className="text-primary-300">AS</span> runs, avg(duration){" "}
-        <span className="text-primary-300">AS</span> p50_ms,
+        <span className="text-primary-300">AS</span> avg_ms,
       </p>
       <p className="pl-5 text-foreground-200">
         sum(total_tokens) <span className="text-primary-300">AS</span> tokens, sum(total_cost){" "}
