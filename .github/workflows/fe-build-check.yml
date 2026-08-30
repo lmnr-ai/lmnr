@@ -26,7 +26,7 @@ jobs:
 
       # Step 3: Set up Node.js
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "26" # match the one in frontend/Dockerfile
           cache: "pnpm"
