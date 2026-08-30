@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
@@ -42,7 +42,7 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
       maxTokens: parsed.data.maxTokens,
       providerOptions: parsed.data.providerOptions,
     })
-    .where(eq(playgrounds.id, params.playgroundId))
+    .where(and(eq(playgrounds.id, params.playgroundId), eq(playgrounds.projectId, params.projectId)))
     .returning();
 
   return new Response(JSON.stringify(res));
