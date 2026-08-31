@@ -28,14 +28,8 @@ export const SIGNAL_FILTER_COLUMNS: ColumnFilter[] = [
       { label: "Error", value: "error" },
     ],
   },
-  // Set membership over the trace's cumulative state: `includes` matches any of
-  // the listed names, `not_includes` only when none are present.
-  //
-  // Plural: a statement about the trace's whole set of span names, matched
-  // anywhere in the trace (the `span_name` TRIGGER sees only the firing batch).
+  // Distinct from `span_name` trigger: any of these names anywhere in the trace.
   { name: "Span names", key: "span_names", dataType: "array" },
-  // The trace's whole set of span tags (`traces_v0.tags` = distinct union of
-  // every span's `tags_array`).
   { name: "Span tags", key: "tags", dataType: "array" },
 ];
 
@@ -45,10 +39,7 @@ export const getRootSpanFinishedCondition = (): Filter => ({
   value: "true",
 });
 
-/**
- * `includes` is what the shared `FilterSchema` requires for an array value, and
- * it reads correctly: the trace's spans include any of these names.
- */
+/** `includes` is required for an array-valued condition. */
 export const getSpanNameCondition = (spanNames: string[]): Filter => ({
   column: TRIGGER_KIND.SPAN_NAME,
   operator: Operator.Includes,
