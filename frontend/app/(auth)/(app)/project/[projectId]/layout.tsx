@@ -1,5 +1,4 @@
 import "@/app/globals.css";
-
 import { cookies } from "next/headers";
 import { type ReactNode } from "react";
 

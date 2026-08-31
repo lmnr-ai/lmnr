@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import React from "react";
 
@@ -15,11 +15,16 @@ export default function PreHighlighter({ children, className }: PreHighlighterPr
     return null;
   }
   const code = (children.props as any).children;
-  const language = (children.props as any).className.split(" ").find((c: string) => c.startsWith("language-"))?.split("-")[1];
-  return <CodeHighlighter
-    code={code}
-    language={language}
-    className={cn("bg-secondary rounded-md mt-4", className)}
-    copyable
-  />;
+  const language = (children.props as any).className
+    .split(" ")
+    .find((c: string) => c.startsWith("language-"))
+    ?.split("-")[1];
+  return (
+    <CodeHighlighter
+      code={code}
+      language={language}
+      className={cn("bg-secondary rounded-md mt-4", className)}
+      copyable
+    />
+  );
 }

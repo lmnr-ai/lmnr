@@ -24,8 +24,8 @@ Some features (Signals evaluation, Laminar Agent, clustering) are enterprise-onl
 cd frontend
 pnpm install        # Install dependencies
 pnpm run dev        # Start dev server with Turbopack
-pnpm lint           # Check linting (lint:fix to auto-fix)
-pnpm format:write   # Format with Prettier
+pnpm lint           # oxlint (lint:fix to auto-fix)
+pnpm format:write   # oxfmt
 pnpm type-check     # TypeScript type checking
 pnpm test           # Run tests (tsx --test tests/**/*.test.ts)
 pnpm build          # Production build
@@ -128,7 +128,7 @@ Keep comments short: a single terse line covering the WHY (non-obvious constrain
 
 ## Pre-commit Hooks
 
-Frontend uses Husky with lint-staged: Prettier, ESLint, and `tsc --noEmit` run on staged files. If type-check fails on pre-existing SVG/PNG asset-import errors, verify your own files are clean (`npx tsc --noEmit 2>&1 | grep "your-file"`) before using `--no-verify`.
+Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, and `tsc --noEmit` run on staged files. Config lives in `frontend/.oxfmtrc.json` and `frontend/.oxlintrc.json`. If type-check fails on pre-existing SVG/PNG asset-import errors, verify your own files are clean (`npx tsc --noEmit 2>&1 | grep "your-file"`) before using `--no-verify`.
 
 ## Detailed topic notes (read on demand)
 
