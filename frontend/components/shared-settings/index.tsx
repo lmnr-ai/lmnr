@@ -117,6 +117,7 @@ const SharedSettings = ({
   const isSectionEnabled = (section: Section): boolean => {
     if (section === "billing") return !!featureFlags[Feature.SUBSCRIPTION];
     if (section === "deployment") return !!featureFlags[Feature.DEPLOYMENT];
+    if (section === "reports") return !!featureFlags[Feature.SEND_EMAIL];
     return true;
   };
 
@@ -142,7 +143,9 @@ const SharedSettings = ({
       items.push({ label: "Data residency", section: "deployment", icon: Cloud });
     }
     items.push({ label: "Integrations", section: "integrations", icon: Unplug });
-    items.push({ label: "Signal reports", section: "reports", icon: FileBarChart });
+    if (featureFlags[Feature.SEND_EMAIL]) {
+      items.push({ label: "Signal reports", section: "reports", icon: FileBarChart });
+    }
     if (featureFlags[Feature.SUBSCRIPTION]) {
       items.push({ label: "Billing", section: "billing", icon: CreditCard });
     }
