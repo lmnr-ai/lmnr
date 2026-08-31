@@ -217,6 +217,7 @@ pub async fn get_projects_for_team(
 }
 
 /// Fetch a single project's name by id.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub async fn get_project_name(pool: &PgPool, project_id: &Uuid) -> anyhow::Result<String> {
     let name = sqlx::query_scalar::<_, String>("SELECT name FROM projects WHERE id = $1")
         .bind(project_id)

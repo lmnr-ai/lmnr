@@ -1,5 +1,4 @@
 import "server-only";
-
 import { z } from "zod/v4";
 
 import { executeQuery } from "@/lib/actions/sql";

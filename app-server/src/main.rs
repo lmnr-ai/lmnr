@@ -64,9 +64,10 @@ use signals::private::{
     batching::SignalBatchingHandler,
     pendings_consumer::SignalJobPendingBatchHandler,
     queue::{
-        SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_QUEUE, SIGNALS_REALTIME_ROUTING_KEY,
-        SIGNALS_REALTIME_WAITING_EXCHANGE, SIGNALS_REALTIME_WAITING_QUEUE,
-        SIGNALS_REALTIME_WAITING_ROUTING_KEY,
+        SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_QUEUE, SIGNALS_REALTIME_RETRY_EXCHANGE,
+        SIGNALS_REALTIME_RETRY_QUEUE, SIGNALS_REALTIME_RETRY_ROUTING_KEY,
+        SIGNALS_REALTIME_ROUTING_KEY, SIGNALS_REALTIME_WAITING_EXCHANGE,
+        SIGNALS_REALTIME_WAITING_QUEUE, SIGNALS_REALTIME_WAITING_ROUTING_KEY,
     },
     realtime::SignalJobRealtimeHandler,
     submissions_consumer::SignalJobSubmissionBatchHandler,
@@ -116,7 +117,6 @@ use quickwit::{
     stream_consumer::StreamQuickwitIndexerHandler,
 };
 use realtime::SseConnectionMap;
-use sodiumoxide;
 use std::{
     borrow::Cow,
     io::{self, Error},
@@ -128,6 +128,8 @@ use storage::{Storage, mock::MockStorage};
 
 use crate::batch_worker::{BatchWorkerType, config::BatchingConfig, worker_pool::BatchWorkerPool};
 use crate::features::{enable_consumer, enable_producer};
+#[cfg(feature = "signals")]
+use crate::worker::RetryConfig;
 use crate::worker::{QueueConfig, WorkerPool, WorkerType};
 use crate::{
     ch::{cloud::CloudClickhouse, data_plane::DataPlaneClickhouse, service::ClickhouseService},
@@ -184,9 +186,6 @@ fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
 }
 
 fn main() -> anyhow::Result<()> {
-    // == Crypto utils ==
-    sodiumoxide::init().expect("failed to initialize sodiumoxide");
-
     rustls::crypto::ring::default_provider()
         .install_default()
         .expect("Failed to install rustls crypto provider");
@@ -208,15 +207,13 @@ fn main() -> anyhow::Result<()> {
     // trace internally complete.
     let _sentry_guard = sentry::init((
         sentry_dsn,
-        sentry::ClientOptions {
-            release: sentry::release_name!(),
-            traces_sample_rate: env::sentry_sampling::sample_rate(),
-            environment: Some(Cow::Owned(
+        sentry::ClientOptions::new()
+            .release(sentry::release_name!().unwrap_or(Cow::Owned("0.1.0".to_string())))
+            .traces_sample_rate(env::sentry_sampling::sample_rate())
+            .environment(Cow::Owned(
                 std::env::var(env::connections::ENVIRONMENT).unwrap_or("development".to_string()),
-            )),
-            before_send: Some(std::sync::Arc::new(instrumentation::sentry_before_send)),
-            ..Default::default()
-        },
+            ))
+            .before_send(instrumentation::sentry_before_send),
     ));
 
     if !is_feature_enabled(Feature::Tracing)
@@ -820,6 +817,60 @@ fn main() -> anyhow::Result<()> {
                         SIGNALS_REALTIME_WAITING_QUEUE.into(),
                         SIGNALS_REALTIME_WAITING_EXCHANGE.into(),
                         SIGNALS_REALTIME_WAITING_ROUTING_KEY.into(),
+                        lapin::options::QueueBindOptions::default(),
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
+
+                // Holding pen for transiently-failed realtime steps. Same
+                // shape as the waiting queue above — no consumer, messages
+                // dead-letter back into the realtime exchange once their TTL
+                // expires — but separate so the retry delay and the park delay
+                // stay independent knobs.
+                channel
+                    .exchange_declare(
+                        SIGNALS_REALTIME_RETRY_EXCHANGE.into(),
+                        ExchangeKind::Fanout,
+                        ExchangeDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
+
+                let mut realtime_retry_args = quorum_queue_args.clone();
+                realtime_retry_args.insert(
+                    "x-dead-letter-exchange".into(),
+                    lapin::types::AMQPValue::LongString(SIGNALS_REALTIME_EXCHANGE.into()),
+                );
+                // The target is a fanout exchange, which ignores routing keys —
+                // set explicitly so the return path doesn't silently depend on
+                // that if the exchange kind ever changes.
+                realtime_retry_args.insert(
+                    "x-dead-letter-routing-key".into(),
+                    lapin::types::AMQPValue::LongString(SIGNALS_REALTIME_ROUTING_KEY.into()),
+                );
+
+                channel
+                    .queue_declare(
+                        SIGNALS_REALTIME_RETRY_QUEUE.into(),
+                        QueueDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        realtime_retry_args,
+                    )
+                    .await
+                    .unwrap();
+
+                channel
+                    .queue_bind(
+                        SIGNALS_REALTIME_RETRY_QUEUE.into(),
+                        SIGNALS_REALTIME_RETRY_EXCHANGE.into(),
+                        SIGNALS_REALTIME_RETRY_ROUTING_KEY.into(),
                         lapin::options::QueueBindOptions::default(),
                         FieldTable::default(),
                     )
@@ -2035,7 +2086,14 @@ fn main() -> anyhow::Result<()> {
                                 SIGNALS_REALTIME_QUEUE,
                                 SIGNALS_REALTIME_EXCHANGE,
                                 SIGNALS_REALTIME_ROUTING_KEY,
-                            ),
+                            )
+                            .with_retry(RetryConfig {
+                                exchange: SIGNALS_REALTIME_RETRY_EXCHANGE,
+                                routing_key: SIGNALS_REALTIME_RETRY_ROUTING_KEY,
+                                delay_ms: env::private::signals::TRANSIENT_RETRY_DELAY_MS.get(),
+                                max_attempts: env::private::signals::TRANSIENT_RETRY_MAX_ATTEMPTS
+                                    .get(),
+                            }),
                         );
                     } else {
                         log::warn!("LLM provider not available - skipping realtime workers");

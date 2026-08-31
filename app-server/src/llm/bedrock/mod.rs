@@ -16,7 +16,9 @@ use serde_json::Value;
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 
-mod accumulator;
+// Bedrock's InvokeModel body IS the Anthropic Messages body, so the conversions
+// and the stream accumulator are shared with `llm::azure_anthropic` (Claude on Azure).
+pub(super) mod accumulator;
 use accumulator::BedrockStreamAccumulator;
 
 fn cache_control_ephemeral() -> Value {
@@ -111,7 +113,7 @@ fn build_message_blocks(parts: &[ProviderPart]) -> Vec<Value> {
     blocks
 }
 
-fn build_request_body(model: &str, request: &ProviderRequest) -> ProviderResult<Value> {
+pub(super) fn build_request_body(model: &str, request: &ProviderRequest) -> ProviderResult<Value> {
     {
         let thinking_level = request
             .generation_config
@@ -313,7 +315,7 @@ fn parse_usage(usage_obj: Option<&Value>) -> ProviderUsageMetadata {
 }
 
 /// Parse a full (non-streaming) Anthropic `InvokeModel` response body into a `ProviderResponse`.
-fn parse_response_body(model: &str, resp_body: &Value) -> ProviderResponse {
+pub(super) fn parse_response_body(model: &str, resp_body: &Value) -> ProviderResponse {
     let mut provider_parts = Vec::new();
     if let Some(content) = resp_body.get("content").and_then(|c| c.as_array()) {
         for block in content {
@@ -512,16 +514,17 @@ fn thinking_level_to_adaptive_effort(level: &super::models::ProviderThinkingLeve
 fn requires_adaptive_thinking(model: &str) -> bool {
     model.contains("claude-opus-4-7")
         || model.contains("claude-opus-4-8")
+        || model.contains("claude-opus-5")
         || model.contains("claude-sonnet-5")
 }
 
 /// False for models that deprecated the `temperature`/`top_p` sampling knobs
 /// and 400 when they're present ("`temperature` is deprecated for this model").
-/// Same generation as `requires_adaptive_thinking` (Claude 5.x / Opus 4.7+).
+/// Exactly the generation `requires_adaptive_thinking` covers (Claude 5.x /
+/// Opus 4.7+) — kept as one list so a new model can't be added to one and
+/// missed in the other.
 fn supports_sampling_params(model: &str) -> bool {
-    !(model.contains("claude-opus-4-7")
-        || model.contains("claude-opus-4-8")
-        || model.contains("claude-sonnet-5"))
+    !requires_adaptive_thinking(model)
 }
 
 #[cfg(test)]
@@ -551,6 +554,18 @@ mod tests {
             "global.anthropic.claude-sonnet-5"
         ));
         assert!(requires_adaptive_thinking("claude-sonnet-5"));
+    }
+
+    #[test]
+    fn opus_5_requires_adaptive_and_drops_sampling_params() {
+        // The default Large model for bedrock and azure_anthropic — a miss here sends
+        // legacy `budget_tokens` and `temperature`, both 400s on Claude 5.x.
+        assert!(requires_adaptive_thinking("us.anthropic.claude-opus-5"));
+        assert!(requires_adaptive_thinking("claude-opus-5"));
+        assert!(!supports_sampling_params("us.anthropic.claude-opus-5"));
+        // Opus 4.5 predates the adaptive-only generation and keeps both.
+        assert!(!requires_adaptive_thinking("us.anthropic.claude-opus-4-5"));
+        assert!(supports_sampling_params("us.anthropic.claude-opus-4-5"));
     }
 
     #[test]

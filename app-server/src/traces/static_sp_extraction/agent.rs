@@ -7,7 +7,7 @@
 
 use std::time::Duration;
 
-use backoff::ExponentialBackoffBuilder;
+use backon::Retryable;
 use serde_json::{Value, json};
 use tracing::{Instrument, info_span};
 
@@ -23,14 +23,21 @@ use crate::llm::{
     self, LlmClient, ProviderContent, ProviderError, ProviderGenerationConfig, ProviderPart,
     ProviderRequest,
 };
+use crate::utils::retry;
 
 /// Agent-loop step cap (one step = one LLM call, which may contain tool
 /// calls). Large example families need more refinement iterations — the loop
 /// was hitting the cap ending on a tool call (no final answer), falling back
 /// to the last tool-verified regex list instead of a converged one.
 const MAX_STEPS: usize = 20;
-/// Exponential-backoff bounds for retrying a transient LLM failure
+/// Exponential-backoff bounds for retrying a transient LLM failure.
+/// `LLM_RETRY_MAX_ELAPSED` is the real bound and is enforced by a
+/// `tokio::time::timeout` around the retry, because `backon` bounds attempts
+/// rather than elapsed time. `LLM_RETRY_MAX_RETRIES` is only a backstop —
+/// its sleeps sum past the window, so it should not bind first.
 const LLM_RETRY_INITIAL_BACKOFF: Duration = Duration::from_secs(2);
+const LLM_RETRY_MAX_INTERVAL: Duration = Duration::from_secs(60);
+const LLM_RETRY_MAX_RETRIES: usize = 20;
 const LLM_RETRY_MAX_ELAPSED: Duration = Duration::from_secs(600);
 /// Cap on output tokens per LLM call. Must be large enough that a reasoning
 /// model (e.g. Claude Sonnet-5 adaptive thinking) can finish its thinking AND
@@ -257,25 +264,28 @@ async fn run_agent_loop(
             .step(step)
             .build();
 
-        let retry_backoff = ExponentialBackoffBuilder::new()
-            .with_initial_interval(LLM_RETRY_INITIAL_BACKOFF)
-            .with_max_elapsed_time(Some(LLM_RETRY_MAX_ELAPSED))
-            .build();
-        let response = backoff::future::retry(retry_backoff, || async {
-            match llm_client
+        let retry_backoff = retry::bounded_attempts(
+            LLM_RETRY_INITIAL_BACKOFF,
+            LLM_RETRY_MAX_INTERVAL,
+            LLM_RETRY_MAX_RETRIES,
+        );
+        let retried = (|| {
+            llm_client
                 .generate_content(&request)
                 .instrument(llm_span.clone())
-                .await
-            {
-                Ok(response) => Ok(response),
-                Err(e) if e.is_retryable() => {
-                    log::warn!("[STATIC_PROMPT] LLM call failed, will retry: {e}");
-                    Err(backoff::Error::transient(e))
-                }
-                Err(e) => Err(backoff::Error::permanent(e)),
-            }
         })
-        .await;
+        .retry(retry_backoff)
+        .when(ProviderError::is_retryable)
+        .notify(|e, _| log::warn!("[STATIC_PROMPT] LLM call failed, will retry: {e}"));
+
+        let response = tokio::time::timeout(LLM_RETRY_MAX_ELAPSED, retried)
+            .await
+            .unwrap_or_else(|_| {
+                Err(ProviderError::RequestError(format!(
+                    "LLM call exceeded the {}s retry window",
+                    LLM_RETRY_MAX_ELAPSED.as_secs()
+                )))
+            });
         let response = match response {
             Ok(response) => response,
             Err(e) => {
