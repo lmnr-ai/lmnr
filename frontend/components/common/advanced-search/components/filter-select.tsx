@@ -173,6 +173,18 @@ const FilterSelect = ({
     [onValueChange]
   );
 
+  // Nothing to choose: render the label as plain text, with no trigger, no
+  // hover affordance and no popover.
+  if (options.length <= 1) {
+    return (
+      <div ref={containerRef} className={cn("relative", className)}>
+        <span className={cn("flex items-center justify-center gap-1 select-none w-fit font-medium", triggerClassName)}>
+          <span className="truncate">{selectedOption?.label ?? placeholder}</span>
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div ref={containerRef} className={cn("relative", className)} {...props}>
       <button

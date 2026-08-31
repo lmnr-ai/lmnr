@@ -28,9 +28,15 @@ export const SIGNAL_FILTER_COLUMNS: ColumnFilter[] = [
       { label: "Error", value: "error" },
     ],
   },
+  // Set membership over the trace's cumulative state: `includes` matches any of
+  // the listed names, `not_includes` only when none are present.
+  //
   // Plural: a statement about the trace's whole set of span names, matched
   // anywhere in the trace (the `span_name` TRIGGER sees only the firing batch).
-  { name: "Span names", key: "span_names", dataType: "string" },
+  { name: "Span names", key: "span_names", dataType: "array" },
+  // The trace's whole set of span tags (`traces_v0.tags` = distinct union of
+  // every span's `tags_array`).
+  { name: "Span tags", key: "tags", dataType: "array" },
 ];
 
 export const getRootSpanFinishedCondition = (): Filter => ({
