@@ -36,6 +36,10 @@ impl MessageQueueDeliveryTrait for TokioMpscDelivery {
     fn delivery_tag(&self) -> u64 {
         self.delivery_tag
     }
+
+    fn retry_attempt(&self) -> u32 {
+        0
+    }
 }
 
 impl MessageQueueReceiverTrait for TokioMpscReceiver {
@@ -117,6 +121,22 @@ impl MessageQueueTrait for TokioMpscQueue {
             .await?;
 
         Ok(())
+    }
+
+    /// Unsupported: the in-memory queue has neither TTL nor dead-lettering, so a
+    /// message parked here would be delivered immediately or not at all. Callers
+    /// fall back to an immediate requeue on this error.
+    async fn publish_retry(
+        &self,
+        _message: &[u8],
+        _exchange: &str,
+        _routing_key: &str,
+        _ttl_ms: u64,
+        _attempt: u32,
+    ) -> anyhow::Result<()> {
+        Err(anyhow::anyhow!(
+            "In-memory queue cannot delay retries (no TTL, no dead-lettering)"
+        ))
     }
 
     async fn get_receiver(
