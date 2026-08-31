@@ -64,7 +64,7 @@ const describeFilter = (filter: Filter): SummaryPart[] | null => {
     }
     case "span_names": {
       if (values.length === 0) return null;
-      const verb = isExclude(filter.operator) ? "does not include " : "includes ";
+      const verb = isExclude(filter.operator) ? "does not include spans with names " : "includes spans with names ";
       return [{ type: "text", text: verb }, ...joinOr(values)];
     }
     case "tags": {
