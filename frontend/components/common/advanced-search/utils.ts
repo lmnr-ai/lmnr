@@ -12,13 +12,17 @@ export const isUuid = (value: string): boolean => UUID_REGEX.test(value.trim());
 export const hasUuidSuggestion = (value: string, filters: ColumnFilter[], uuidFilterColumn?: string): boolean =>
   !!uuidFilterColumn && isUuid(value) && filters.some((f) => f.key === uuidFilterColumn);
 
-export const getNextField = (current: TagFocusPosition): TagFocusPosition | null => {
-  const index = FIELD_ORDER.indexOf(current);
-  return index < FIELD_ORDER.length - 1 ? FIELD_ORDER[index + 1] : null;
+// `skip` holds positions that render as static text (a single-option operator),
+// so arrow keys step over them instead of landing on nothing focusable.
+export const getNextField = (current: TagFocusPosition, skip: TagFocusPosition[] = []): TagFocusPosition | null => {
+  let index = FIELD_ORDER.indexOf(current) + 1;
+  while (index < FIELD_ORDER.length && skip.includes(FIELD_ORDER[index])) index++;
+  return index < FIELD_ORDER.length ? FIELD_ORDER[index] : null;
 };
-export const getPreviousField = (current: TagFocusPosition): TagFocusPosition | null => {
-  const index = FIELD_ORDER.indexOf(current);
-  return index > 0 ? FIELD_ORDER[index - 1] : null;
+export const getPreviousField = (current: TagFocusPosition, skip: TagFocusPosition[] = []): TagFocusPosition | null => {
+  let index = FIELD_ORDER.indexOf(current) - 1;
+  while (index >= 0 && skip.includes(FIELD_ORDER[index])) index--;
+  return index >= 0 ? FIELD_ORDER[index] : null;
 };
 
 export interface ValueSuggestion {
