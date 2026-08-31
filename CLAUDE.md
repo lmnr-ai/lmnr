@@ -23,7 +23,7 @@ Some features (Signals evaluation, Laminar Agent, clustering) are enterprise-onl
 ```bash
 cd frontend
 pnpm install        # Install dependencies
-pnpm run dev        # Start dev server with Turbopack
+pnpm run dev        # Start dev server (Turbopack)
 pnpm lint           # oxlint (lint:fix to auto-fix)
 pnpm format:write   # oxfmt
 pnpm type-check     # TypeScript type checking
@@ -33,7 +33,7 @@ pnpm build          # Production build
 
 - In a fresh checkout, `pnpm type-check` (and the husky pre-commit hook) fails with `TS2307: Cannot find module '@/assets/...svg'` errors — `next-env.d.ts` is gitignored. Fix: `npx next typegen` (or any `next dev`/`next build` run).
 - `tsconfig.json` sets `"incremental": true`, so a bare `npx tsc --noEmit` can report **zero errors on files it skipped** and give a false green. When verifying a type fix, run `npx tsc --noEmit --incremental false` (the pre-commit hook does a full check and will catch what you missed otherwise).
-- **Both `next dev` and `next build` run Turbopack with no CLI flag** — it is the default for both in Next 16.3. `--webpack` is the only opt-out. `next dev` generates `frontend/AGENTS.md` on every run; it is gitignored (do not commit it).
+- **Turbopack is the Next 16.3 default for both commands; `build` opts out with `--webpack`, `dev` does not.** Turbopack's production output miscompiled chunks (`module factory is not available` on client navigation). So both bundler blocks in `next.config.ts` are live, and a production repro needs `pnpm build`, not a bare `next build`. `next dev` generates `frontend/AGENTS.md` on every run; it is gitignored (do not commit it).
 
 ### Backend (Rust)
 
