@@ -173,8 +173,14 @@ export default function CombinedChart({
           accessibilityLayer
           onClick={
             onPointClick
-              ? (state: { activePayload?: Array<{ payload?: Row }> }) => {
-                  const id = state?.activePayload?.[0]?.payload?.evaluationId;
+              ? (state) => {
+                  const index =
+                    typeof state.activeIndex === "number"
+                      ? state.activeIndex
+                      : typeof state.activeLabel === "number"
+                        ? state.activeLabel
+                        : Number(state.activeLabel);
+                  const id = Number.isInteger(index) ? rows[index]?.evaluationId : undefined;
                   if (typeof id === "string") onPointClick(id);
                 }
               : undefined

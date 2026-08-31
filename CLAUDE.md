@@ -33,6 +33,7 @@ pnpm build          # Production build
 
 - In a fresh checkout, `pnpm type-check` (and the husky pre-commit hook) fails with `TS2307: Cannot find module '@/assets/...svg'` errors — `next-env.d.ts` is gitignored. Fix: `npx next typegen` (or any `next dev`/`next build` run).
 - `tsconfig.json` sets `"incremental": true`, so a bare `npx tsc --noEmit` can report **zero errors on files it skipped** and give a false green. When verifying a type fix, run `npx tsc --noEmit --incremental false` (the pre-commit hook does a full check and will catch what you missed otherwise).
+- **Both `next dev` and `next build` run Turbopack with no CLI flag** — it is the default for both in Next 16.3. `--webpack` is the only opt-out. `next dev` generates `frontend/AGENTS.md` on every run; it is gitignored (do not commit it).
 
 ### Backend (Rust)
 
@@ -116,7 +117,7 @@ Keep comments short: a single terse line covering the WHY (non-obvious constrain
 - One component per file; keep components <150 lines; related components in a folder with `index.tsx`.
 - Complex state belongs in a Zustand store (with `shallow` selectors); use nuqs for URL param state — never sync URL params into a store via `useEffect`.
 - Client fetches: `try/catch`, check `res.ok`, toast on error. API routes: `try/catch`, 400 for `ZodError`, 500 otherwise, always JSON with an `error` field. Use `AbortController` for superseded in-flight fetches.
-- Recharts is pinned at v2 (`^2.15.4`); a v3 upgrade was reverted — use only v2 APIs.
+- Recharts is on v3 (`^3.10.1`). `CategoricalChartFunc` is defined from `MouseHandlerDataParam` in `chart-builder/charts/line-chart.tsx` (the v2 `recharts/types/chart/generateCategoricalChart` path is gone). Use `<YAxis width="auto">` and `<BarStack>` for stacked rounded bars — do not reintroduce a custom bar `shape`.
 - New data tables MUST follow the `InfiniteDataTable` split pattern (index/contents/controls/constants). Full patterns: `docs/internal/frontend-best-practices.md`.
 
 ## Key Technical Details

@@ -147,30 +147,6 @@ export const calculateDataMax = (data: Record<string, any>[], yColumns: string[]
     return Math.max(max, ...values);
   }, 0);
 
-export const getChartMargins = (yAxisValues?: any[], yAxisFormatter?: (value: any) => string) => {
-  if (yAxisValues && yAxisFormatter && yAxisValues.length > 0) {
-    const formattedValues = yAxisValues.map((value) => yAxisFormatter(value));
-    const longestLabel = formattedValues.reduce(
-      (longest, current) => (current.length > longest.length ? current : longest),
-      ""
-    );
-
-    return {
-      left: Math.max(4, longestLabel.length * 3),
-      right: 0,
-      top: 0,
-      bottom: 0,
-    };
-  }
-
-  return {
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-  };
-};
-
 const createChartConfig = (columns: string[], palette: string[] = CHART_PALETTE): ChartConfig =>
   Object.fromEntries(
     columns.map((column, index) => [

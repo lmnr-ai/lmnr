@@ -1,10 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, BarStack, CartesianGrid, XAxis, YAxis } from "recharts";
 
 import { numberFormatter, selectNiceTicksFromData } from "@/components/chart-builder/charts/utils";
-import RoundedBar from "@/components/charts/time-series-chart/bar";
 import { type TimeSeriesChartConfig, type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
 import { getTickCountForWidth } from "@/components/charts/time-series-chart/utils";
 import { ChartContainer } from "@/components/ui/chart";
@@ -74,7 +73,7 @@ const ClustersChart = ({ clusters, statsData, containerWidth, colorMap, yAxisMax
   return (
     <div className="flex flex-col items-start h-full">
       <ChartContainer config={chartConfig} className="h-48 w-full !h-full">
-        <BarChart data={data} margin={{ left: -8, top: 8 }} barCategoryGap={2}>
+        <BarChart data={data} margin={{ left: 8, right: 8, top: 8, bottom: 4 }} barCategoryGap={2}>
           <CartesianGrid vertical={false} />
           <XAxis
             dataKey="timestamp"
@@ -88,18 +87,20 @@ const ClustersChart = ({ clusters, statsData, containerWidth, colorMap, yAxisMax
             tickLine={false}
             axisLine={false}
             tickFormatter={numberFormatter.format}
+            width="auto"
             domain={yAxisMax != null ? [0, yAxisMax] : undefined}
           />
-          {fields.map((key) => (
-            <Bar
-              key={key}
-              dataKey={key}
-              fill={chartConfig[key]?.color}
-              stackId={chartConfig[key]?.stackId}
-              shape={(props: object) => <RoundedBar {...props} chartConfig={chartConfig} fields={fields} />}
-              isAnimationActive={false}
-            />
-          ))}
+          <BarStack radius={[4, 4, 4, 4]}>
+            {fields.map((key) => (
+              <Bar
+                key={key}
+                dataKey={key}
+                fill={chartConfig[key]?.color}
+                stackId={chartConfig[key]?.stackId}
+                isAnimationActive={false}
+              />
+            ))}
+          </BarStack>
         </BarChart>
       </ChartContainer>
     </div>
