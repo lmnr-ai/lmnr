@@ -77,9 +77,6 @@ const describeFilter = (filter: Filter): SummaryPart[] | null => {
   }
 };
 
-export const summaryToText = (parts: SummaryPart[]): string =>
-  parts.map((p) => (p.type === "name" ? p.value : p.text)).join("");
-
 /** One-sentence recap. Null while a span-name trigger has no names yet. */
 export const buildConditionSummary = (conditions: Filter[], filters: Filter[]): SummaryPart[] | null => {
   const kind = getTriggerKind(conditions);
