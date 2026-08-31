@@ -3,6 +3,7 @@
 import { X } from "lucide-react";
 import {
   type InputHTMLAttributes,
+  Fragment,
   type KeyboardEvent,
   type Ref,
   useCallback,
@@ -27,6 +28,7 @@ interface TagInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "onC
   open?: boolean;
   // Standalone field: keep input mounted; drive dropdown off focus+typing.
   alwaysEditable?: boolean;
+  joinLabel?: string;
   inputClassName?: string;
   chipClassName?: string;
   onNavigateLeft?: () => void;
@@ -44,6 +46,7 @@ const TagInput = ({
   className,
   open = false,
   alwaysEditable = false,
+  joinLabel,
   inputClassName,
   chipClassName,
   onNavigateLeft,
@@ -286,36 +289,40 @@ const TagInput = ({
     >
       <>
         {values.map((value, index) => (
-          <span
-            key={value}
-            data-tag-chip
-            ref={(el) => {
-              tagRefs.current[index] = el;
-            }}
-            tabIndex={0}
-            onKeyDown={(e) => handleTagKeyDown(e, index)}
-            onFocus={() => setFocusedTagIndex(index)}
-            onBlur={() => setFocusedTagIndex(null)}
-            className={cn(
-              "inline-flex items-center gap-0.5 px-1 py-0.25 text-xs rounded-md bg-muted text-secondary-foreground outline-none",
-              focusedTagIndex === index && "ring-1 ring-primary",
-              chipClassName
+          <Fragment key={value}>
+            {joinLabel && index > 0 && (
+              <span className="text-[11px] text-muted-foreground select-none">{joinLabel}</span>
             )}
-          >
-            <span className="truncate max-w-24">{value}</span>
-            <button
-              type="button"
-              tabIndex={-1}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleRemoveValue(value);
+            <span
+              data-tag-chip
+              ref={(el) => {
+                tagRefs.current[index] = el;
               }}
-              onMouseDown={(e) => e.preventDefault()}
-              className="ml-0.5 hover:text-foreground focus:outline-none"
+              tabIndex={0}
+              onKeyDown={(e) => handleTagKeyDown(e, index)}
+              onFocus={() => setFocusedTagIndex(index)}
+              onBlur={() => setFocusedTagIndex(null)}
+              className={cn(
+                "inline-flex items-center gap-0.5 px-1 py-0.25 text-xs rounded-md bg-muted text-secondary-foreground outline-none",
+                focusedTagIndex === index && "ring-1 ring-primary",
+                chipClassName
+              )}
             >
-              <X className="w-3 h-3" />
-            </button>
-          </span>
+              <span className="truncate max-w-24">{value}</span>
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRemoveValue(value);
+                }}
+                onMouseDown={(e) => e.preventDefault()}
+                className="ml-0.5 hover:text-foreground focus:outline-none"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          </Fragment>
         ))}
       </>
       {(alwaysEditable || open || values.length === 0) && (

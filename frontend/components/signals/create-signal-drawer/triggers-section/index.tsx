@@ -7,6 +7,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { Feature } from "@/lib/features/features";
 
+import ConditionSummary from "./condition-summary";
 import FiltersField from "./filters-field";
 import ProcessingModeSelect from "./processing-mode-select";
 import TriggerPicker from "./trigger-picker";
@@ -25,7 +26,7 @@ export default function TriggersSection() {
               <TooltipTrigger asChild>
                 <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
               </TooltipTrigger>
-              <TooltipContent side="right" className="max-w-60">
+              <TooltipContent side="right" className="max-w-64">
                 <p>When should this Signal run?</p>
               </TooltipContent>
             </Tooltip>
@@ -42,14 +43,16 @@ export default function TriggersSection() {
               <TooltipTrigger asChild>
                 <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
               </TooltipTrigger>
-              <TooltipContent side="right" className="max-w-40">
-                <p>Which traces should this Signal run on?</p>
+              <TooltipContent side="right" className="max-w-64">
+                <p>Checked against the trace at the moment of the trigger. Every filter must match (AND).</p>
               </TooltipContent>
             </Tooltip>
           </div>
         </TooltipProvider>
         <FiltersField />
       </div>
+
+      <ConditionSummary />
 
       {batchEnabled && <ProcessingModeSelect />}
     </div>
