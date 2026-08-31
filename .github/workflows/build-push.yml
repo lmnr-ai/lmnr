@@ -118,13 +118,13 @@ jobs:
 
     steps:
       - name: Download amd64 image digest
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: digests-${{ matrix.image-name }}-amd64
           path: /tmp/digests
 
       - name: Download arm64 image digest
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: digests-${{ matrix.image-name }}-arm64
           path: /tmp/digests
