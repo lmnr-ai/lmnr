@@ -32,7 +32,7 @@ on:
 jobs:
   check:
     name: ${{ matrix.scenario }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -156,6 +156,15 @@ jobs:
             else
               kill -- "-$srv" 2>/dev/null || true
               wait "$srv" 2>/dev/null || true
+              # `wait` only reaps $srv itself; compiler/trace worker processes
+              # in the same group can still be unwinding and writing under
+              # frontend/.next/dev, racing the next phase's `rm -rf`. Block
+              # until the whole group is gone, then make sure of it.
+              for _ in $(seq 1 30); do
+                kill -0 -- "-$srv" 2>/dev/null || break
+                sleep 1
+              done
+              kill -9 -- "-$srv" 2>/dev/null || true
             fi
 
             echo "::group::[$phase] frontend log"

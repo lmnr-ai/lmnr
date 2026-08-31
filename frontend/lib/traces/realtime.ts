@@ -62,7 +62,7 @@ export const mergeTraceDelta = (existing: TraceRow, delta: RealtimeTracePayload)
   totalCost: (existing.totalCost ?? 0) + delta.totalCost,
   // Error-wins, matching the view's `has(statuses, 'error')`.
   status: existing.status === "error" || delta.status === "error" ? "error" : delta.status || existing.status,
-  metadata: { ...existing.metadata, ...(delta.metadata ?? {}) },
+  metadata: { ...existing.metadata, ...delta.metadata },
   // Top-span fields land only on the batch carrying the root span.
   topSpanId: delta.topSpanId ?? existing.topSpanId,
   topSpanName: delta.topSpanName ?? existing.topSpanName,

@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-use backoff::ExponentialBackoffBuilder;
+use backon::Retryable;
 use tracing::Instrument;
 
 use super::regex::{ApplyRegexResult, apply_regex, apply_result_to_json};
@@ -19,12 +19,17 @@ use crate::llm::models::{
     ProviderThinkingConfig, ProviderThinkingLevel, ProviderTool,
 };
 use crate::llm::{LlmClient, request_to_span_input, request_to_tools_attr};
+use crate::utils::retry;
 
 const REGEX_LLM_TIMEOUT_SECS: u64 = 120;
 /// Initial backoff before the first LLM retry (grows exponentially).
 const LLM_RETRY_INITIAL_BACKOFF_SECS: u64 = 2;
+/// Backstop on transient-failure retries per LLM call. Only a backstop: its
+/// sleeps sum past `LLM_RETRY_MAX_ELAPSED_SECS`, which is the real bound.
+const LLM_RETRY_MAX_RETRIES: usize = 20;
 /// Stop retrying transient LLM failures once this much wall-clock time
-/// has elapsed (the attempts themselves included).
+/// has elapsed (the attempts themselves included). `backon` bounds attempts
+/// rather than elapsed time, so this ceiling needs its own timeout.
 const LLM_RETRY_MAX_ELAPSED_SECS: u64 = 300;
 /// Total LLM-call budget per pipeline (initial call + probe round-trips).
 /// The prompt tells the model probing is unlimited; this cap only bounds
@@ -392,7 +397,7 @@ struct LlmCallError {
 }
 
 /// One LLM call with conventional exponential-backoff retries for
-/// transient failures (`backoff` crate, like the worker connect loop).
+/// transient failures (`backon`, like the worker connect loop).
 /// Each attempt is its own traced provider call, named `span_name` (which must
 /// be one of the literals `self_tracing::SpanBuilder::llm` knows — tracing span
 /// names can't be dynamic). Errors only when the retry window is exhausted or
@@ -403,28 +408,26 @@ pub(super) async fn call_llm(
     scope: &SpanScope,
     span_name: &str,
 ) -> anyhow::Result<ProviderResponse> {
-    let backoff = ExponentialBackoffBuilder::new()
-        .with_initial_interval(std::time::Duration::from_secs(
-            LLM_RETRY_INITIAL_BACKOFF_SECS,
-        ))
-        .with_max_elapsed_time(Some(std::time::Duration::from_secs(
-            LLM_RETRY_MAX_ELAPSED_SECS,
-        )))
-        .build();
+    let backoff = retry::bounded_attempts(
+        std::time::Duration::from_secs(LLM_RETRY_INITIAL_BACKOFF_SECS),
+        std::time::Duration::from_secs(60),
+        LLM_RETRY_MAX_RETRIES,
+    );
 
-    backoff::future::retry(backoff, || async {
-        call_llm_once(llm_client, request, scope, span_name)
-            .await
-            .map_err(|e| {
-                if e.retryable {
-                    log::warn!("user-task: LLM call failed, will retry: {}", e.message);
-                    backoff::Error::transient(anyhow::anyhow!(e.message))
-                } else {
-                    backoff::Error::permanent(anyhow::anyhow!(e.message))
-                }
-            })
-    })
+    let retried = (|| call_llm_once(llm_client, request, scope, span_name))
+        .retry(backoff)
+        .when(|e| e.retryable)
+        .notify(|e, _| log::warn!("user-task: LLM call failed, will retry: {}", e.message));
+
+    tokio::time::timeout(
+        std::time::Duration::from_secs(LLM_RETRY_MAX_ELAPSED_SECS),
+        retried,
+    )
     .await
+    .map_err(|_| {
+        anyhow::anyhow!("LLM call exceeded the {LLM_RETRY_MAX_ELAPSED_SECS}s retry window")
+    })?
+    .map_err(|e| anyhow::anyhow!(e.message))
 }
 
 /// One traced provider call with a timeout.
@@ -509,11 +512,6 @@ mod tests {
     }
 
     // ---- call_llm retries ---------------------------------------------------
-    //
-    // The retry budget is time-based (`max_elapsed_time`), which the
-    // `backoff` crate measures on the real clock, so there is no
-    // "gives up after N attempts" test — a fail-forever run would need
-    // real minutes to exhaust the window.
 
     #[tokio::test(start_paused = true)]
     async fn call_llm_retries_transient_failures_until_success() {
@@ -540,6 +538,34 @@ mod tests {
         let result = call_llm(&client, &request, &test_scope(), GENERATE_SPAN_NAME).await;
         assert!(result.is_err());
         assert_eq!(counter.generate_call_count(), 1);
+    }
+
+    /// A provider that fails forever must not retry forever: the input-extraction
+    /// worker holds a run lock while this call is outstanding. `backoff`'s budget
+    /// ran on the real clock, so this was previously untestable.
+    #[tokio::test(start_paused = true)]
+    async fn call_llm_gives_up_on_a_provider_that_fails_forever() {
+        let mock = MockProviderClient::with_generate_failure(
+            usize::MAX,
+            GenerateFailureMode::Retryable429,
+        );
+        let counter = mock.clone();
+        let client = mock_llm_client(mock);
+        let request = build_request(vec![]);
+
+        let started = tokio::time::Instant::now();
+        let result = call_llm(&client, &request, &test_scope(), GENERATE_SPAN_NAME).await;
+
+        assert!(result.is_err());
+        assert!(counter.generate_call_count() > 1, "the failure was retried");
+        assert!(
+            counter.generate_call_count() <= LLM_RETRY_MAX_RETRIES + 1,
+            "the attempt backstop was exceeded"
+        );
+        assert!(
+            started.elapsed() <= std::time::Duration::from_secs(LLM_RETRY_MAX_ELAPSED_SECS),
+            "the retry window is the binding bound and must be honoured"
+        );
     }
 
     // ---- reject_submission --------------------------------------------------

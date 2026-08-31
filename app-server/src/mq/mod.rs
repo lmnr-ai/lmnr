@@ -84,6 +84,13 @@ pub trait MessageQueueDeliveryTrait {
     fn acker(&self) -> MessageQueueAcker;
     fn data(self) -> Vec<u8>;
     fn delivery_tag(&self) -> u64;
+
+    /// Delayed retries this message has already been through, as stamped by
+    /// [`MessageQueueTrait::publish_retry`]. `0` on a first delivery.
+    ///
+    /// A delayed retry republishes the message, so the broker's own redelivery
+    /// count restarts at zero and can't bound the loop — this is what does.
+    fn retry_attempt(&self) -> u32;
 }
 
 #[enum_dispatch(MessageQueue)]
@@ -101,6 +108,21 @@ pub trait MessageQueueTrait {
         exchange: &str,
         routing_key: &str,
         ttl_ms: Option<u64>,
+    ) -> anyhow::Result<()>;
+
+    /// Publish into a retry queue: the message waits out `ttl_ms` there, then the
+    /// broker dead-letters it back into the queue it came from. `attempt` is
+    /// stamped on the message so the next delivery knows how much budget is left.
+    ///
+    /// Errors when the transport can't delay (the in-memory queue), so callers
+    /// must have a fallback rather than treating this as always available.
+    async fn publish_retry(
+        &self,
+        message: &[u8],
+        exchange: &str,
+        routing_key: &str,
+        ttl_ms: u64,
+        attempt: u32,
     ) -> anyhow::Result<()>;
 
     async fn get_receiver(

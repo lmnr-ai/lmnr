@@ -1,4 +1,4 @@
-use backoff::ExponentialBackoffBuilder;
+use backon::Retryable;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -10,6 +10,7 @@ use crate::mq::{
     MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiver,
     MessageQueueReceiverTrait, MessageQueueTrait,
 };
+use crate::utils::retry;
 use crate::worker::{HandlerError, QueueConfig};
 
 /// A queue worker that maintains internal state across messages.
@@ -146,11 +147,11 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
 
     /// Connect to the queue
     async fn connect(&self) -> anyhow::Result<MessageQueueReceiver> {
-        let backoff = ExponentialBackoffBuilder::new()
-            .with_initial_interval(Duration::from_secs(1))
-            .with_max_interval(Duration::from_secs(5))
-            .with_max_elapsed_time(Some(Duration::from_secs(300)))
-            .build();
+        let backoff = retry::bounded_delay(
+            Duration::from_secs(1),
+            Duration::from_secs(5),
+            Duration::from_secs(300),
+        );
 
         let queue = self.queue.clone();
         let queue_name = self.config.queue_name;
@@ -160,23 +161,23 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
         let worker_id = self.id;
         let worker_type = self.worker_type;
 
-        backoff::future::retry(backoff, || {
+        (|| {
             let queue = queue.clone();
 
             async move {
                 queue
                     .get_receiver(queue_name, exchange, routing_key, prefetch_count)
                     .await
-                    .map_err(|e| {
-                        log::error!(
-                            "Worker {} ({:?}) failed to connect: {:?}",
-                            worker_id,
-                            worker_type,
-                            e
-                        );
-                        backoff::Error::transient(e)
-                    })
             }
+        })
+        .retry(backoff)
+        .notify(|e, _| {
+            log::error!(
+                "Worker {} ({:?}) failed to connect: {:?}",
+                worker_id,
+                worker_type,
+                e
+            )
         })
         .await
     }
