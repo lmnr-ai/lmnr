@@ -198,7 +198,7 @@ const JsonTooltip = ({ data, columnSize, className, onOpen }: JsonTooltipProps) 
               <CopyButton
                 size="icon"
                 variant="ghost"
-                className="size-3.5 absolute right-2 top-2 bg-secondary z-10"
+                className="size-3.5 absolute bg-surface right-2 top-2 z-10"
                 iconClassName="size-3.5 text-secondary-foreground"
                 text={jsonString}
               />
