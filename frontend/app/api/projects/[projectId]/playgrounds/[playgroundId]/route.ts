@@ -8,9 +8,9 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
     const body = await req.json();
 
     const result = await updatePlayground({
+      ...body,
       projectId: params.projectId,
       playgroundId: params.playgroundId,
-      ...body,
     });
 
     return Response.json(result);
