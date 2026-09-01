@@ -6,6 +6,10 @@
 
 ## Frontend Best Practices
 
+### Lint and format
+
+Frontend lint is oxlint (`frontend/.oxlintrc.json`), format is oxfmt (`frontend/.oxfmtrc.json`). Do not add ESLint or Prettier. Policy markdown and blog MDX are oxfmt-ignored — see the policy-pages note in `docs/internal/frontend-app.md`.
+
 ### One component per file
 
 Related components should be in a folder named by the parent component (`my-list/`) and the parent component should follow the index.tsx pattern (`my-list/index.tsx`) and all related components should be in the folder (`my-list/my-list-item.tsx`).

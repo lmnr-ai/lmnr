@@ -14,15 +14,6 @@ const nextConfig: NextConfig = {
   env: {
     LAMINAR_CLOUD: process.env.LAMINAR_CLOUD,
   },
-  experimental: {
-    turbopackFileSystemCacheForDev: true,
-    // Avoid production-only missing module factories during client navigation.
-    turbopackScopeHoisting: false,
-    // Rewrites barrel imports from "recharts" into direct submodule imports at build
-    // time. Reshapes the chunk graph to avoid the Turbopack production interop split that
-    // left recharts' internal usePrefersReducedMotion unlinked ("(0, v.usePrefersReducedMotion) is not a function").
-    optimizePackageImports: ["recharts"],
-  },
   reactStrictMode: false,
   logging: {
     fetches: {
@@ -104,6 +95,8 @@ const nextConfig: NextConfig = {
     ],
   },
 
+  // react-pdf's pdfjs reaches for the optional native `canvas` module: stub it out of the
+  // browser bundle, keep it external on the server.
   webpack: (config, { isServer }) => {
     config.resolve.alias["canvas"] = false;
 
@@ -114,6 +107,8 @@ const nextConfig: NextConfig = {
     }
     return config;
   },
+
+  // Only `dev` runs Turbopack; `build` passes --webpack, so both bundler blocks are live.
   turbopack: {
     resolveExtensions: [".ts", ".tsx", ".js", ".jsx", ".json", ".css", ".scss"],
   },
@@ -143,11 +138,14 @@ if (process.env.ENVIRONMENT === "PRODUCTION" && process.env.FRONTEND_SENTRY_DSN)
     // side errors will fail.
     tunnelRoute: "/monitoring",
 
-    // Automatically tree-shake Sentry logger statements to reduce bundle size
+    // Tree-shake Sentry logger statements to reduce bundle size.
     webpack: {
       treeshake: {
         removeDebugLogging: true,
       },
+    },
+    bundleSizeOptimizations: {
+      excludeDebugStatements: true,
     },
   });
 } else {

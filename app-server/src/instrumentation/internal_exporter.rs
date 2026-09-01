@@ -62,7 +62,8 @@ struct HttpExport {
 impl HttpExport {
     fn from_env() -> Option<Self> {
         let url = std::env::var(crate::env::observability::INTERNAL_TRACING_HTTP_URL).ok()?;
-        let api_key = std::env::var(crate::env::observability::INTERNAL_TRACING_HTTP_API_KEY).ok()?;
+        let api_key =
+            std::env::var(crate::env::observability::INTERNAL_TRACING_HTTP_API_KEY).ok()?;
         let (url, api_key) = (url.trim().trim_end_matches('/'), api_key.trim());
         if url.is_empty() || api_key.is_empty() {
             return None;
@@ -364,6 +365,7 @@ mod tests {
             links: SpanLinks::default(),
             status: Status::Unset,
             instrumentation_scope: InstrumentationScope::builder("test").build(),
+            parent_span_is_remote: false,
         }
     }
 

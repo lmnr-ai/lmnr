@@ -55,7 +55,7 @@ export default function FiltersField() {
       onChange={handleChange}
       filters={SIGNAL_FILTER_COLUMNS}
       allowFreeTextSearch={false}
-      placeholder="Add a filter, e.g. total tokens > 1000"
+      placeholder="Add a filter, e.g. span names include …"
       className="w-full"
       options={{ disableHotKey: true }}
     />

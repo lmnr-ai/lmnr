@@ -182,7 +182,7 @@ export class CacheManager {
     if (this.useRedis) {
       const client = await this.getRedisClient();
       try {
-        return await client.zrange(key, start, stop);
+        return await client.zrange(key, start, String(stop));
       } catch (e) {
         console.error("Error getting zrange from cache", e);
         return [];

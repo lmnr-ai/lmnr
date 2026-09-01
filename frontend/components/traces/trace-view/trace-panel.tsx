@@ -3,8 +3,8 @@ import { useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { TraceStatsShields } from "@/components/traces/stats-shields";
-import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
+import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";

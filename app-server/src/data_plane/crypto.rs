@@ -1,49 +1,58 @@
 use anyhow::{Result, anyhow};
-use sodiumoxide::crypto::aead::xchacha20poly1305_ietf;
+use chacha20poly1305::{
+    Key, XChaCha20Poly1305, XNonce,
+    aead::{Aead, Generate, KeyInit, Payload},
+};
 use uuid::Uuid;
 
 /// Get the encryption key from the AEAD_SECRET_KEY environment variable
-fn get_key_from_env() -> Result<xchacha20poly1305_ietf::Key> {
+fn cipher_from_env() -> Result<XChaCha20Poly1305> {
     let key_hex = std::env::var(crate::env::secrets::AEAD_SECRET_KEY)
         .map_err(|_| anyhow!("AEAD_SECRET_KEY environment variable not set"))?;
 
     let key_bytes = hex::decode(&key_hex)
         .map_err(|e| anyhow!("Failed to decode AEAD_SECRET_KEY from hex: {}", e))?;
 
-    if key_bytes.len() != 32 {
-        return Err(anyhow!(
+    let key = Key::try_from(&key_bytes[..]).map_err(|_| {
+        anyhow!(
             "AEAD_SECRET_KEY must be 32 bytes (64 hex characters), got {} bytes",
             key_bytes.len()
-        ));
-    }
+        )
+    })?;
 
-    xchacha20poly1305_ietf::Key::from_slice(&key_bytes)
-        .ok_or_else(|| anyhow!("Failed to create key from bytes"))
+    Ok(XChaCha20Poly1305::new(&key))
 }
 
 #[allow(dead_code)]
 pub fn encrypt(workspace_id: Uuid, val: &str) -> Result<(String, String)> {
-    let key = get_key_from_env()?;
+    let cipher = cipher_from_env()?;
 
     // Generate random nonce (24 bytes for XChaCha20-Poly1305)
-    let nonce = xchacha20poly1305_ietf::gen_nonce();
+    let nonce = XNonce::try_generate().map_err(|e| anyhow!("Failed to generate nonce: {}", e))?;
 
     // Use workspace_id as additional authenticated data
     let additional_data = workspace_id.to_string();
-    let aad = additional_data.as_bytes();
 
-    // Encrypt
-    let ciphertext = xchacha20poly1305_ietf::seal(val.as_bytes(), Some(aad), &nonce, &key);
+    // Encrypt; the 16-byte Poly1305 tag is appended to the ciphertext (libsodium "combined" mode).
+    let ciphertext = cipher
+        .encrypt(
+            &nonce,
+            Payload {
+                msg: val.as_bytes(),
+                aad: additional_data.as_bytes(),
+            },
+        )
+        .map_err(|_| anyhow!("Failed to encrypt"))?;
 
     // Format as nonce_hex:ciphertext_hex
-    let nonce_hex = hex::encode(nonce.as_ref());
+    let nonce_hex = hex::encode(nonce);
     let ciphertext_hex = hex::encode(&ciphertext);
 
     Ok((nonce_hex, ciphertext_hex))
 }
 
 pub fn decrypt(workspace_id: Uuid, nonce: &str, encrypted: &str) -> Result<String> {
-    let key = get_key_from_env()?;
+    let cipher = cipher_from_env()?;
 
     // Decode hex
     let nonce_bytes =
@@ -51,16 +60,21 @@ pub fn decrypt(workspace_id: Uuid, nonce: &str, encrypted: &str) -> Result<Strin
     let ciphertext_bytes = hex::decode(encrypted)
         .map_err(|e| anyhow!("Failed to decode ciphertext from hex: {}", e))?;
 
-    // Create nonce
-    let nonce = xchacha20poly1305_ietf::Nonce::from_slice(&nonce_bytes)
-        .ok_or_else(|| anyhow!("Invalid nonce length, expected 24 bytes"))?;
+    let nonce = XNonce::try_from(&nonce_bytes[..])
+        .map_err(|_| anyhow!("Invalid nonce length, expected 24 bytes"))?;
 
     // Use workspace_id as additional authenticated data
     let additional_data = workspace_id.to_string();
-    let aad = additional_data.as_bytes();
 
     // Decrypt
-    let plaintext_bytes = xchacha20poly1305_ietf::open(&ciphertext_bytes, Some(aad), &nonce, &key)
+    let plaintext_bytes = cipher
+        .decrypt(
+            &nonce,
+            Payload {
+                msg: &ciphertext_bytes,
+                aad: additional_data.as_bytes(),
+            },
+        )
         .map_err(|_| anyhow!("Failed to decrypt (authentication failed or corrupted data)"))?;
 
     // Convert to string
@@ -81,7 +95,6 @@ mod tests {
                 "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
             );
         }
-        sodiumoxide::init().unwrap();
 
         let workspace_id = uuid::uuid!("00000000-0000-0000-0000-000000000000");
         let url = "http://localhost:80";
@@ -101,7 +114,6 @@ mod tests {
                 "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
             );
         }
-        sodiumoxide::init().unwrap();
 
         let workspace_id = Uuid::new_v4();
         let wrong_workspace_id = Uuid::new_v4();
@@ -112,5 +124,25 @@ mod tests {
         // Attempt to decrypt with wrong workspace_id should fail
         let result = decrypt(wrong_workspace_id, &nonce, &encrypted);
         assert!(result.is_err());
+    }
+
+    /// Ciphertexts already in the DB were produced by libsodium (frontend `lib/crypto.ts`,
+    /// previously sodiumoxide here). Pinned vector proves the RustCrypto port reads them.
+    #[test]
+    fn test_decrypts_libsodium_ciphertext() {
+        unsafe {
+            std::env::set_var(
+                crate::env::secrets::AEAD_SECRET_KEY,
+                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            );
+        }
+
+        let decrypted = decrypt(
+            uuid::uuid!("00000000-0000-0000-0000-000000000000"),
+            "070707070707070707070707070707070707070707070707",
+            "34bb5c03be7295b9ea0d002f33bfa979e0dedb9662a019adc02e6107090d5c950fe3e0",
+        )
+        .unwrap();
+        assert_eq!(decrypted, "http://localhost:80");
     }
 }
