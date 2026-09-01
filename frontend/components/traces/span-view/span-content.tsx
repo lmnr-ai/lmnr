@@ -96,6 +96,7 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
             messages={tryParseJson(ctx.value) ?? []}
             presetKey={ctx.presetKey}
             maxHeight={type === "input" ? 320 : 560}
+            defaultExpanded={type === "output"}
           />
         )}
       />

@@ -321,8 +321,8 @@ export const TemplatePickerView = ({ mode, onModeChange, modes, triggerClassName
       <PopoverTrigger asChild>
         <Button
           size="sm"
-          variant="outline"
-          className={cn("h-5 gap-1 px-1.5 text-[0.7rem] font-medium", triggerClassName)}
+          variant="ghost"
+          className={cn("h-5 gap-1 px-1.5 text-xs font-medium text-secondary-foreground", triggerClassName)}
         >
           <span className={cn("truncate max-w-[160px]")}>
             {triggerLabel} {inCustomMode && <span className="font-semibold">(custom)</span>}

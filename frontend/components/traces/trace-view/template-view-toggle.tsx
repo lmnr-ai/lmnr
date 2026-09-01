@@ -212,7 +212,7 @@ export default function TemplateViewToggle({
           onClick={onToggleContent}
           className={cn(
             "flex items-center h-6.5 rounded-l-none text-muted-foreground overflow-hidden bg-surface-100",
-            showContent ? "text-white hover:bg-muted" : "border-input hover:bg-secondary/50"
+            showContent ? "text-foreground" : "border-input"
           )}
         >
           {showContent ? <Eye size={14} className="flex-shrink-0" /> : <EyeOff size={14} className="flex-shrink-0" />}

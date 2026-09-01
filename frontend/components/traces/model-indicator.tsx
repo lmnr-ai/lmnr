@@ -5,8 +5,11 @@ interface ModelIndicatorProps {
   attributes: Record<string, any>;
 }
 
+export const getSpanModel = (attributes?: Record<string, any>): string =>
+  get(attributes, "gen_ai.response.model") || get(attributes, "gen_ai.request.model") || "";
+
 export const ModelIndicator = ({ attributes }: ModelIndicatorProps) => {
-  const model = get(attributes, "gen_ai.response.model") || get(attributes, "gen_ai.request.model") || "";
+  const model = getSpanModel(attributes);
 
   if (!model) return null;
 
