@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { type Metadata } from "next";
 import { notFound } from "next/navigation";
 
@@ -65,7 +65,7 @@ export default async function PlaygroundPage(props: {
 
   try {
     const playground = await db.query.playgrounds.findFirst({
-      where: eq(playgrounds.id, params.playgroundId),
+      where: and(eq(playgrounds.id, params.playgroundId), eq(playgrounds.projectId, params.projectId)),
     });
 
     if (!playground) {
