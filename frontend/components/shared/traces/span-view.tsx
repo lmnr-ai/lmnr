@@ -4,7 +4,7 @@ import React, { useMemo } from "react";
 import useSWR from "swr";
 
 import ErrorCard from "@/components/traces/error-card";
-import { ModelIndicator } from "@/components/traces/model-indicator";
+import { getSpanModel, ModelIndicator } from "@/components/traces/model-indicator";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import SpanContent from "@/components/traces/span-view/span-content.tsx";
 import SpanStatsShields from "@/components/traces/stats-shields";
@@ -43,6 +43,9 @@ export function SpanView({ spanId, traceId, onClose }: SpanViewProps) {
     );
   }
 
+  const tools = resolveTools(span);
+  const schema = span.attributes?.["gen_ai.request.structured_output_schema"] || span.attributes?.["ai.schema"];
+
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
       <div className="flex flex-col px-2 pt-2 gap-1">
@@ -70,13 +73,13 @@ export function SpanView({ spanId, traceId, onClose }: SpanViewProps) {
               {new Date(span.startTime).toLocaleString()}
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <ModelIndicator attributes={span.attributes} />
-            <ToolList tools={resolveTools(span)} />
-            <StructuredOutputSchema
-              schema={span.attributes?.["gen_ai.request.structured_output_schema"] || span.attributes?.["ai.schema"]}
-            />
-          </div>
+          {(getSpanModel(span.attributes) || tools.length > 0 || schema) && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <ModelIndicator attributes={span.attributes} />
+              <ToolList tools={tools} />
+              <StructuredOutputSchema schema={schema} />
+            </div>
+          )}
         </div>
         {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}
       </div>

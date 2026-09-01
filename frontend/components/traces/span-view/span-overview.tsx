@@ -76,6 +76,7 @@ const PureSpanOverview = ({ span }: { span: Span }) => {
           presetKey={ctx.presetKey}
           maxHeight={560}
           labels={messageLabels}
+          expandFromIndex={messageLabels.find((label) => label.text === "Output")?.beforeIndex}
         />
       )}
     />

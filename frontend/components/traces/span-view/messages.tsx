@@ -170,6 +170,9 @@ interface MessagesProps {
   labels?: MessageLabel[];
   // Pre-detected messages; when set, detection is skipped (used by the Overview).
   processed?: ProcessedMessages;
+  defaultExpanded?: boolean;
+  /** Expand messages at this index and after (Overview output). */
+  expandFromIndex?: number;
 }
 
 type VirtualItem =
@@ -206,6 +209,8 @@ function PureMessages({
   maxHeight,
   labels,
   processed,
+  defaultExpanded = false,
+  expandFromIndex,
 }: MessagesProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -373,6 +378,7 @@ function PureMessages({
                       presetKey={`collapse-${messageIndex}-${presetKey}`}
                       maxHeight={maxHeight}
                       stickyHeader={false}
+                      defaultExpanded={defaultExpanded || (expandFromIndex != null && messageIndex >= expandFromIndex)}
                     >
                       {renderMessageContent(processedResult, messageIndex, presetKey, toolNameMap)}
                     </MessageWrapper>
@@ -398,6 +404,9 @@ function PureMessages({
 }
 const Messages = memo(PureMessages, (prevProps, nextProps) => {
   if (prevProps.processed !== nextProps.processed) return false;
+  if (prevProps.defaultExpanded !== nextProps.defaultExpanded) return false;
+  if (prevProps.expandFromIndex !== nextProps.expandFromIndex) return false;
+  if (prevProps.maxHeight !== nextProps.maxHeight) return false;
   if (!isEqual(prevProps.labels, nextProps.labels)) return false;
   if (isNil(prevProps.messages) && isNil(nextProps.messages)) return true;
   if (isNil(prevProps.messages) || isNil(nextProps.messages)) return false;

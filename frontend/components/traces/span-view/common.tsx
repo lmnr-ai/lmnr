@@ -285,15 +285,17 @@ export const MessageWrapper = ({
   role,
   maxHeight = DEFAULT_MESSAGE_MAX_HEIGHT,
   stickyHeader = true,
+  defaultExpanded = false,
 }: PropsWithChildren<{
   role?: string;
   presetKey: string;
   maxHeight?: number;
   stickyHeader?: boolean;
+  defaultExpanded?: boolean;
 }>) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isOverflowing, setIsOverflowing] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   const checkOverflow = useCallback(() => {
     const el = containerRef.current;
@@ -313,7 +315,7 @@ export const MessageWrapper = ({
     return () => resizeObserver.disconnect();
   }, [checkOverflow]);
 
-  const showToggle = isOverflowing || isExpanded;
+  const showToggle = isOverflowing;
 
   return (
     // overflow-clip (not hidden): clips to radius without creating a scroll

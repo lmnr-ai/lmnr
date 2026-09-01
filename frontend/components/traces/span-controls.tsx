@@ -1,8 +1,9 @@
 import { ChevronDown, Copy, Database, Loader, PlayCircle, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { type PropsWithChildren, useCallback, useMemo } from "react";
+import { type PropsWithChildren, useMemo } from "react";
 
+import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SpanTagsList from "@/components/tags/span-tags-list";
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import ErrorCard from "@/components/traces/error-card";
@@ -22,7 +23,7 @@ import { track } from "@/lib/posthog";
 import { type Span, SpanType } from "@/lib/traces/types";
 import { type ErrorEventAttributes } from "@/lib/types";
 
-import { ModelIndicator } from "./model-indicator";
+import { ModelIndicator, getSpanModel } from "./model-indicator";
 import SpanTypeIcon from "./span-type-icon";
 import SpanStatsShields from "./stats-shields";
 import { StructuredOutputSchema } from "./structured-output-schema";
@@ -48,12 +49,15 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
     params: { type: "span", spanId: span.spanId, traceId: span.traceId },
   });
 
-  const handleCopySpanId = useCallback(async () => {
+  const handleCopySpanId = async () => {
     if (span?.spanId) {
       await navigator.clipboard.writeText(span.spanId);
       toast({ title: "Copied span ID", duration: 1000 });
     }
-  }, [span?.spanId, toast]);
+  };
+
+  const tools = resolveTools(span);
+  const schema = span.attributes?.["gen_ai.request.structured_output_schema"] || span.attributes?.["ai.schema"];
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
@@ -64,7 +68,7 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                className="h-6 px-1 text-base font-medium focus-visible:outline-0 truncate text-left min-w-0"
+                className="px-1 text-base font-medium focus-visible:outline-0 truncate text-left min-w-0 hover:bg-surface-up"
               >
                 <span className="truncate">{span.name}</span>
                 <ChevronDown className="ml-1 min-w-3.5 size-3.5" />
@@ -72,7 +76,11 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
               <DropdownMenuLabel className="text-xs font-normal font-mono text-muted-foreground">
-                {new Date(span.startTime).toLocaleString()}
+                <ClientTimestampFormatter
+                  absolute
+                  timestamp={span.startTime}
+                  className="text-xs font-mono text-muted-foreground"
+                />
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleCopySpanId}>
@@ -110,13 +118,13 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
         </div>
         <div className="flex flex-col flex-wrap gap-1.5">
           <SpanStatsShields span={span} className="w-fit" />
-          <div className="flex items-center gap-2 flex-wrap">
-            <ModelIndicator attributes={span.attributes} />
-            <ToolList tools={resolveTools(span)} />
-            <StructuredOutputSchema
-              schema={span.attributes?.["gen_ai.request.structured_output_schema"] || span.attributes?.["ai.schema"]}
-            />
-          </div>
+          {(getSpanModel(span.attributes) || tools.length > 0 || schema) && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <ModelIndicator attributes={span.attributes} />
+              <ToolList tools={tools} />
+              <StructuredOutputSchema schema={schema} />
+            </div>
+          )}
 
           <div className="flex gap-1 gap-y-1 flex-wrap items-center">
             <AddToLabelingQueuePopover
