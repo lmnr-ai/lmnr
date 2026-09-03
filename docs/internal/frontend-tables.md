@@ -24,6 +24,7 @@
 ## Advanced Search filter tags
 
 - The search-bar filter tag (`frontend/components/common/advanced-search/components/tag.tsx`) and the field dropdown (`.../components/select.tsx`) must render filters whose `column` is NOT in the registered `ColumnFilter[]` (`filters` prop). A shared/bookmarked URL can carry a filter for a column the current user hasn't configured — most commonly a per-user `custom:<name>` column that lives only in the URL-author's table config. If `getColumnFilter` returns undefined, synthesize a fallback `{ name: field, key: field, dataType: tag.dataType ?? "string" }` instead of returning `null`; otherwise the tag silently disappears while the filter stays ACTIVE on the query (invisible + un-removable). Applies to every `AdvancedSearch` consumer (traces/spans/sessions/signal-events).
+- Recent-search chips (`.../components/suggestions.tsx`) and the tag remove label must show enum **labels**, not stored values (`displayFilterValue`). The live tag already does this via `EnumValueInput`; recents were rendering `has_event = event` instead of `Has event = Yes`.
 
 ## Add-filter popover (`datatable-filter`)
 

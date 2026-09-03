@@ -32,7 +32,7 @@ export const enumValues = {
   span_type: ["DEFAULT", "LLM", "EXECUTOR", "EVALUATOR", "EVALUATION", "TOOL", "HUMAN_EVALUATOR", "CACHED", "UNKNOWN"],
   trace_type: ["DEFAULT", "EVALUATION", "PLAYGROUND"],
   status: ["success", "error"],
-  signal_run_status: ["PENDING", "COMPLETED", "FAILED", "UNKNOWN"],
+  signal_run_status: ["PENDING", "PROCESSING", "COMPLETED", "FAILED", "UNKNOWN"],
   signal_run_mode: ["BATCH", "REALTIME", "UNKNOWN"],
 } as const satisfies Record<string, readonly string[]>;
 
@@ -306,7 +306,8 @@ export const tableSchemas: Record<string, TableSchema> = {
         name: "status",
         type: "String",
         enumType: "signal_run_status",
-        description: "Status of the signal run",
+        description:
+          "Pipeline stage of the signal run: 'PENDING' (elected, waiting on the agent), 'PROCESSING' (agent running), 'COMPLETED', 'FAILED'",
       },
       {
         name: "mode",

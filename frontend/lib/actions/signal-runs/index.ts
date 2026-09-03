@@ -2,55 +2,29 @@ import { eq } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
-import { buildTimeRangeWithFill } from "@/lib/actions/common/query-builder";
-import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
+import { buildTimeRangeWithFill, buildWhereClause, type QueryParams } from "@/lib/actions/common/query-builder";
+import { FiltersSchema, PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
 import { normalizeTier, signalTokenCostMicroUsd } from "@/lib/billing/tiers";
 import { db } from "@/lib/db/drizzle";
 import { projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 
-import { buildSignalRunsQueryWithParams } from "./utils";
+import { getClustersByEventIds } from "./clusters";
+import {
+  NON_ANALYZED_SIGNAL_RUN_STATUSES,
+  type SignalRunRow,
+  type SignalRunStatsDataPoint,
+  type SignalRunStatus,
+} from "./types";
+import { buildSignalRunsQueryWithParams, signalRunsColumnFilterConfig } from "./utils";
+
+export * from "./types";
 
 export const GetSignalRunsSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
   projectId: z.guid(),
   signalId: z.guid(),
 });
-
-export type SignalRun = {
-  projectId: string;
-  signalId: string;
-  jobId: string;
-  triggerId: string;
-  runId: string;
-  traceId: string;
-  status: "PENDING" | "COMPLETED" | "FAILED" | "UNKNOWN";
-  eventId: string;
-  updatedAt: string;
-  mode: "BATCH" | "REALTIME" | "UNKNOWN";
-  inputTokens: number;
-  cacheReadTokens: number;
-  outputTokens: number;
-};
-
-export type SignalRunRow = Pick<
-  SignalRun,
-  | "jobId"
-  | "runId"
-  | "traceId"
-  | "triggerId"
-  | "status"
-  | "eventId"
-  | "updatedAt"
-  | "inputTokens"
-  | "cacheReadTokens"
-  | "outputTokens"
-> & {
-  // Run cost is priced server-side so the SIGNAL_*_TOKEN_PRICE_PER_MILLION env
-  // overrides (unavailable in the client bundle) are honoured and the displayed
-  // cost matches metered usage. See `signalTokenCostMicroUsd` in lib/billing/tiers.
-  costMicroUsd: number;
-};
 
 export const getSignalRuns = async (input: z.infer<typeof GetSignalRunsSchema>) => {
   const { projectId, pageSize, pageNumber, pastHours, startDate, endDate, filter, signalId } = input;
@@ -70,7 +44,7 @@ export const getSignalRuns = async (input: z.infer<typeof GetSignalRunsSchema>) 
   });
 
   const [rows, tierRows] = await Promise.all([
-    executeQuery<Omit<SignalRunRow, "costMicroUsd">>({
+    executeQuery<Omit<SignalRunRow, "costMicroUsd" | "clusters">>({
       query: mainQuery,
       parameters: mainParams,
       projectId,
@@ -88,6 +62,13 @@ export const getSignalRuns = async (input: z.infer<typeof GetSignalRunsSchema>) 
   // displayed cost matches metered usage.
   const tier = normalizeTier(tierRows[0]?.tierName ?? "free");
 
+  // Resolved for the fetched page only, so pagination stays a single-table scan.
+  const clusters = await getClustersByEventIds({
+    projectId,
+    signalId,
+    eventIds: rows.map((row) => row.eventId),
+  });
+
   const items: SignalRunRow[] = rows.map((row) => ({
     ...row,
     costMicroUsd: signalTokenCostMicroUsd(
@@ -96,6 +77,7 @@ export const getSignalRuns = async (input: z.infer<typeof GetSignalRunsSchema>) 
       Number(row.outputTokens),
       tier
     ),
+    clusters: clusters[row.eventId] ?? [],
   }));
 
   return {
@@ -106,24 +88,26 @@ export const getSignalRuns = async (input: z.infer<typeof GetSignalRunsSchema>) 
 export const GetSignalRunStatsSchema = z.object({
   projectId: z.guid(),
   signalId: z.guid(),
+  ...FiltersSchema.shape,
   ...TimeRangeSchema.shape,
   intervalValue: z.coerce.number().default(1),
   intervalUnit: z.enum(["minute", "hour", "day"]).default("hour"),
 });
 
-export type SignalRunStatsDataPoint = { timestamp: string; count: number };
+const NIL_EVENT_ID = "00000000-0000-0000-0000-000000000000";
+const IN_PROGRESS_STATUSES: SignalRunStatus[] = ["PENDING", "PROCESSING"];
 
-// Count of signal runs per time bucket — the population of traces this signal
-// actually evaluated (post-trigger), used as the background overlay on the cluster
-// frequency chart. uniqExact(run_id) dedups the ReplacingMergeTree rows within a
-// bucket; a run whose rows straddle a bucket boundary (rare) may be counted twice.
+const toCount = (value: unknown): number => Number(value) || 0;
+
+// Per-bucket run counts; `count` stays analyzed-only for the cluster-chart overlay, the rest stack to all runs.
 export const getSignalRunStats = async (
   input: z.infer<typeof GetSignalRunStatsSchema>
 ): Promise<{ items: SignalRunStatsDataPoint[] }> => {
-  const { projectId, signalId, pastHours, startDate, endDate, intervalValue, intervalUnit } = input;
+  const { projectId, signalId, pastHours, startDate, endDate, intervalValue, intervalUnit, filter } = input;
+
+  const filters = compact(filter);
 
   const {
-    condition: timeCondition,
     params: timeParams,
     fillFrom,
     fillTo,
@@ -136,8 +120,24 @@ export const getSignalRunStats = async (
     intervalUnit,
   });
 
-  const conditions = ["signal_id = {signalId:UUID}"];
-  if (timeCondition) conditions.push(timeCondition);
+  const customConditions: Array<{ condition: string; params: QueryParams }> = [
+    {
+      condition: "signal_id = {signalId:UUID}",
+      params: { signalId },
+    },
+  ];
+
+  const whereResult = buildWhereClause({
+    timeRange: {
+      startTime: startDate,
+      endTime: endDate,
+      pastHours,
+      timeColumn: "updated_at",
+    },
+    filters,
+    columnFilterConfig: signalRunsColumnFilterConfig,
+    customConditions,
+  });
 
   const withFillClause =
     fillFrom && fillTo
@@ -150,19 +150,40 @@ export const getSignalRunStats = async (
   const query = `
     SELECT
       toStartOfInterval(updated_at, toInterval({intervalValue:UInt32}, {intervalUnit:String})) as timestamp,
-      uniqExact(run_id) as count
+      uniqExactIf(run_id, status NOT IN ({nonAnalyzedStatuses:Array(String)})) as count,
+      uniqExactIf(run_id, status = 'COMPLETED' AND event_id != {nilEventId:UUID}) as eventCreated,
+      uniqExactIf(run_id, status = 'COMPLETED' AND event_id = {nilEventId:UUID}) as noEvent,
+      uniqExactIf(run_id, status = 'FAILED') as failed,
+      uniqExactIf(run_id, status IN ({inProgressStatuses:Array(String)})) as inProgress
     FROM signal_runs
-    WHERE ${conditions.join(" AND ")}
+    ${whereResult.query}
     GROUP BY timestamp
     ORDER BY timestamp ASC
     ${withFillClause}
   `;
 
-  const items = await executeQuery<SignalRunStatsDataPoint>({
+  const rows = await executeQuery<Record<string, unknown>>({
     query,
-    parameters: { signalId, ...timeParams, intervalValue, intervalUnit },
+    parameters: {
+      ...whereResult.parameters,
+      ...timeParams,
+      nonAnalyzedStatuses: NON_ANALYZED_SIGNAL_RUN_STATUSES,
+      inProgressStatuses: IN_PROGRESS_STATUSES,
+      nilEventId: NIL_EVENT_ID,
+      intervalValue,
+      intervalUnit,
+    },
     projectId,
   });
+
+  const items: SignalRunStatsDataPoint[] = rows.map((row) => ({
+    timestamp: String(row.timestamp),
+    count: toCount(row.count),
+    eventCreated: toCount(row.eventCreated),
+    noEvent: toCount(row.noEvent),
+    failed: toCount(row.failed),
+    inProgress: toCount(row.inProgress),
+  }));
 
   return { items };
 };

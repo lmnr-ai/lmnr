@@ -64,7 +64,7 @@ const ENUMS: &[(&str, &[&str])] = &[
     ("status", &["success", "error"]),
     (
         "signal_run_status",
-        &["PENDING", "COMPLETED", "FAILED", "UNKNOWN"],
+        &["PENDING", "PROCESSING", "COMPLETED", "FAILED", "UNKNOWN"],
     ),
     ("signal_run_mode", &["BATCH", "REALTIME", "UNKNOWN"]),
 ];
@@ -436,7 +436,11 @@ const TABLES: &[Table] = &[
             col("trigger_id", "UUID", "Id of the trigger"),
             col("run_id", "UUID", "Id of the run"),
             col("trace_id", "UUID", "Id of the trace"),
-            col("status", "String (enum signal_run_status)", "Run status"),
+            col(
+                "status",
+                "String (enum signal_run_status)",
+                "Pipeline stage: 'PENDING' (elected, waiting on the agent), 'PROCESSING' (agent running), 'COMPLETED', 'FAILED'",
+            ),
             col(
                 "mode",
                 "String (enum signal_run_mode)",

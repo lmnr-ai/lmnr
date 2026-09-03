@@ -30,6 +30,7 @@ import {
   getColumnFilter,
   type TagFocusPosition,
 } from "../types";
+import { displayFilterValue } from "../utils";
 import FilterSelect from "./select";
 
 interface FilterTagProps {
@@ -75,7 +76,7 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
   // Include operator + value so several filters on the SAME column get distinct
   // remove-button names (e.g. "Remove metadata = foo filter"); fall back to the
   // bare name while the tag is still being built and has no value yet.
-  const valueText = Array.isArray(tag.value) ? tag.value.join(", ") : tag.value;
+  const valueText = displayFilterValue(columnFilter, tag.value);
   const removeLabel = valueText
     ? `Remove ${columnFilter.name} ${OperatorLabelMap[tag.operator]} ${valueText} filter`
     : `Remove ${columnFilter.name} filter`;
