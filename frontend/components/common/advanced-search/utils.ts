@@ -31,6 +31,12 @@ export interface ValueSuggestion {
   label?: string;
 }
 
+export const displayFilterValue = (columnFilter: ColumnFilter | undefined, value: string | string[]): string => {
+  const parts = Array.isArray(value) ? value : [String(value)];
+  if (columnFilter?.dataType !== "enum") return parts.join(", ");
+  return parts.map((part) => columnFilter.options.find((option) => option.value === part)?.label ?? part).join(", ");
+};
+
 export const buildValueSuggestions = (
   input: string,
   filters: ColumnFilter[],

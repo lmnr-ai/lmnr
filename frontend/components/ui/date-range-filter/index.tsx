@@ -1,7 +1,6 @@
 import { formatDate, subDays, subYears } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, CalendarIcon, ChevronRight } from "lucide-react";
-import Link from "next/link";
+import { ArrowLeft, CalendarIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { type DateRange as ReactDateRange } from "react-day-picker";
@@ -13,14 +12,14 @@ import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip.tsx";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context.tsx";
 import { Feature } from "@/lib/features/features";
 import { cn } from "@/lib/utils.ts";
 
+import { QuickRangesList } from "./quick-ranges-list";
 import { DateRangeFilterProvider, useDateRangeFilterContext } from "./store";
-import { type DateRange, getTimeDifference, QUICK_RANGES } from "./utils.ts";
+import { type DateRange, getTimeDifference } from "./utils.ts";
 
 const useIsMounted = () =>
   useSyncExternalStore(
@@ -43,7 +42,7 @@ const DateRangeButton = ({ displayRange }: { displayRange: { from: Date; to: Dat
 
   return (
     <div className="flex items-center space-x-2">
-      <Badge className="text-xs bg-accent hover:bg-secondary py-px px-2 mr-2">
+      <Badge className="pointer-events-none text-xs bg-surface-up group-hover:bg-surface-up-3 py-px px-2 mr-2">
         {getTimeDifference(displayRange.from, displayRange.to)}
       </Badge>
       <span className="text-muted-foreground">
@@ -52,90 +51,6 @@ const DateRangeButton = ({ displayRange }: { displayRange: { from: Date; to: Dat
     </div>
   );
 };
-
-const QuickRangesList = ({
-  pastHours,
-  onSelect,
-  onAbsoluteClick,
-  maxHours,
-  billingHref,
-  ranges = QUICK_RANGES,
-  hideAbsoluteDate = false,
-}: {
-  pastHours: string | null;
-  onSelect: (value: string) => void;
-  onAbsoluteClick: () => void;
-  maxHours?: number;
-  // Resolved by the caller (which has project context); kept a plain string so this ui/ primitive
-  // stays route-agnostic. Absent → no upgrade link.
-  billingHref?: string;
-  ranges?: DateRange[];
-  hideAbsoluteDate?: boolean;
-}) => (
-  <motion.div
-    key="ranges"
-    initial={{ x: -20, opacity: 0 }}
-    animate={{ x: 0, opacity: 1 }}
-    exit={{ x: -20, opacity: 0 }}
-    transition={{ duration: 0.1 }}
-  >
-    <div className="p-1 w-62">
-      <div className="px-2 py-1.5 text-xs text-muted-foreground mb-1">Quick ranges</div>
-      <div>
-        {ranges.map((range) => {
-          const exceedsRetention = maxHours != null && parseInt(range.value) > maxHours;
-          const item = (
-            <div
-              key={range.value}
-              className={cn(
-                "relative flex w-full select-none items-center rounded-sm py-1.5 px-2 text-xs outline-none transition-colors",
-                exceedsRetention
-                  ? "cursor-not-allowed text-muted-foreground opacity-50"
-                  : "cursor-pointer hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
-                pastHours === range.value && "bg-accent text-accent-foreground"
-              )}
-              onClick={exceedsRetention ? undefined : () => onSelect(range.value)}
-            >
-              {range.name}
-            </div>
-          );
-
-          if (exceedsRetention) {
-            return (
-              <TooltipProvider key={range.value} delayDuration={0}>
-                <Tooltip>
-                  <TooltipTrigger asChild>{item}</TooltipTrigger>
-                  <TooltipContent side="right" className="flex flex-col gap-1 p-2">
-                    <p className="text-xs">
-                      Data retention is limited to {maxHours != null ? Math.floor(maxHours / 24) : 0} days on your
-                      current plan.
-                    </p>
-                    {billingHref && (
-                      <Link href={billingHref} className="text-xs text-primary hover:underline">
-                        Upgrade to see more data
-                      </Link>
-                    )}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            );
-          }
-
-          return item;
-        })}
-        {!hideAbsoluteDate && (
-          <div
-            className="relative flex w-full cursor-pointer select-none items-center justify-between rounded-sm py-1.5 px-2 text-xs outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-            onClick={onAbsoluteClick}
-          >
-            <span className="font-medium">Absolute date</span>
-            <ChevronRight className="size-4" />
-          </div>
-        )}
-      </div>
-    </div>
-  </motion.div>
-);
 
 const TimeSelector = ({
   label,
@@ -274,7 +189,7 @@ export const DateRangeFilterInner = ({
         <Button
           disabled={buttonDisabled}
           variant="outline"
-          className={cn("justify-between text-left font-normal text-xs", className)}
+          className={cn("justify-between text-left font-normal text-xs outline-0 group", className)}
         >
           <DateRangeButton displayRange={getDisplayRange()} />
           <CalendarIcon className="ml-2 size-3.5 opacity-50" />

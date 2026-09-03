@@ -1,15 +1,15 @@
 "use client";
 
+import { differenceInHours } from "date-fns";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { getNextQuickRange } from "@/components/ui/date-range-filter/utils";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
 import { Feature } from "@/lib/features/features";
-
-const PAST_90_DAYS_HOURS = String(24 * 90);
 
 const findHorizontalScrollParent = (element: HTMLElement | null): HTMLElement | null => {
   let node = element?.parentElement ?? null;
@@ -20,9 +20,6 @@ const findHorizontalScrollParent = (element: HTMLElement | null): HTMLElement | 
   return null;
 };
 
-// The row spans the full table width, which is usually wider than what's on
-// screen — centering against it lands off to the right. Track the scroll
-// viewport instead so the empty state is centered on what the user can see.
 const useVisibleWidth = (element: HTMLElement | null) => {
   const [width, setWidth] = useState<number>();
 
@@ -48,21 +45,29 @@ export function TracesEmptyRow() {
   const visibleWidth = useVisibleWidth(container);
 
   const hasFilters = searchParams.get("filter") !== null;
+  const pastHours = searchParams.get("pastHours");
+  const startDate = searchParams.get("startDate");
+  const endDate = searchParams.get("endDate");
   const retentionDays = featureFlags[Feature.SUBSCRIPTION] ? project?.logRetentionDays : null;
-  // Hide the widen-range shortcut when the plan can't reach back that far, or
-  // when we're already looking at 90 days.
-  const canSearch90Days =
-    (retentionDays == null || retentionDays >= 90) && searchParams.get("pastHours") !== PAST_90_DAYS_HOURS;
+  const maxHours = retentionDays != null ? retentionDays * 24 : undefined;
 
-  const searchPast90Days = useCallback(() => {
+  const currentHours = pastHours
+    ? parseInt(pastHours, 10)
+    : startDate && endDate
+      ? differenceInHours(new Date(endDate), new Date(startDate))
+      : 24;
+  const nextRange = Number.isNaN(currentHours) ? undefined : getNextQuickRange(currentHours, maxHours);
+
+  const searchWiderRange = useCallback(() => {
+    if (!nextRange) return;
     const sp = new URLSearchParams(searchParams.toString());
     sp.delete("startDate");
     sp.delete("endDate");
     sp.delete("groupByInterval");
-    sp.set("pastHours", PAST_90_DAYS_HOURS);
+    sp.set("pastHours", nextRange.value);
     sp.set("pageNumber", "0");
     router.push(`${pathName}?${sp.toString()}`);
-  }, [pathName, router, searchParams]);
+  }, [nextRange, pathName, router, searchParams]);
 
   const clearFilters = useCallback(() => {
     const sp = new URLSearchParams(searchParams.toString());
@@ -78,11 +83,11 @@ export function TracesEmptyRow() {
           style={{ width: visibleWidth }}
           className="sticky left-0 flex flex-col items-center gap-2 p-10"
         >
-          <span className="text-sm text-secondary-foreground">No results in selected time window</span>
+          <span className="text-sm text-secondary-foreground">No traces in this time range</span>
           <div className="flex items-center gap-2">
-            {canSearch90Days && (
-              <Button variant="outline" className="text-secondary-foreground" onClick={searchPast90Days}>
-                Search in the past 90 days
+            {nextRange && (
+              <Button variant="outline" className="text-secondary-foreground" onClick={searchWiderRange}>
+                Search last {nextRange.name.replace(/^1 /, "")}
               </Button>
             )}
             {hasFilters && (

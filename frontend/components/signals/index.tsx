@@ -26,7 +26,6 @@ const SIGNAL_QUICK_RANGES: DateRange[] = [
   { name: "1 day", value: "24" },
   { name: "3 days", value: String(24 * 3) },
   { name: "1 week", value: String(24 * 7) },
-  { name: "2 weeks", value: String(24 * 14) },
   { name: "1 month", value: String(24 * 30) },
 ];
 

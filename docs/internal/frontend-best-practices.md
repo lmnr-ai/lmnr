@@ -31,6 +31,12 @@ Row/cell memoization lives inside `InfiniteDataTable` (row + cell are `memo`'d w
 
 There is ONE app-wide `<TooltipProvider>` in `app/layout.tsx`. Cell components (and anything rendered per-row) MUST NOT wrap their tooltip in a local `<TooltipProvider>` — that mounts a provider per cell and is a measurable render cost at 50 rows × N columns. Use a bare `<Tooltip delayDuration={…}>` (delay goes on the `Tooltip`, not a provider) with `<TooltipTrigger>` + `<TooltipPortal><TooltipContent/></TooltipPortal>`. Same rule for shared cell-level components (`CopyTooltip`, `JsonTooltip`, `ClientTimestampFormatter`, tag/cost/tokens/duration cells).
 
+### Never import a VALUE from a server-action module into a client component
+
+A `"use client"` component importing a **value** (a const array, an enum, a helper fn) from anything under `lib/actions/` drags that module's whole transitive import graph into the browser bundle. Most of those modules import drizzle, which imports `postgres`, which imports `fs` — the dev server and the build both die with `Module not found: Can't resolve 'fs'`. **`tsc --noEmit` cannot catch this**; only a real render (or `pnpm build`) will. A TYPE-only import is fine — it's erased — which is why the trap only springs when someone later needs the actual value (e.g. building a filter dropdown from the status list that used to be a bare type union).
+
+Fix: split the client-safe surface into its own leaf module with no server imports (`lib/actions/<resource>/types.ts`), re-export it from `index.ts` (`export * from "./types"`) so server callers are unaffected, and point client components at the leaf path directly. See `lib/actions/signal-runs/types.ts`.
+
 ### Bias towards complex logic and state in the Zustand store
 
 When you anticipate lots of complex state management with useState and useEffects, this would be a good time to rethink or refactor and move state into a shared store and expose derived state via selectors.

@@ -61,9 +61,14 @@ use signals::private::{
     SIGNAL_JOB_WAITING_BATCH_EXCHANGE, SIGNAL_JOB_WAITING_BATCH_QUEUE,
     SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY, SIGNALS_EXCHANGE, SIGNALS_QUEUE, SIGNALS_ROUTING_KEY,
     SignalWorkerConfig,
+    admission::SignalAdmissionHandler,
     batching::SignalBatchingHandler,
     pendings_consumer::SignalJobPendingBatchHandler,
     queue::{
+        SIGNALS_ADMISSION_EXCHANGE, SIGNALS_ADMISSION_QUEUE, SIGNALS_ADMISSION_RETRY_EXCHANGE,
+        SIGNALS_ADMISSION_RETRY_QUEUE, SIGNALS_ADMISSION_RETRY_ROUTING_KEY,
+        SIGNALS_ADMISSION_ROUTING_KEY, SIGNALS_ADMISSION_WAITING_EXCHANGE,
+        SIGNALS_ADMISSION_WAITING_QUEUE, SIGNALS_ADMISSION_WAITING_ROUTING_KEY,
         SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_QUEUE, SIGNALS_REALTIME_RETRY_EXCHANGE,
         SIGNALS_REALTIME_RETRY_QUEUE, SIGNALS_REALTIME_RETRY_ROUTING_KEY,
         SIGNALS_REALTIME_ROUTING_KEY, SIGNALS_REALTIME_WAITING_EXCHANGE,
@@ -876,6 +881,133 @@ fn main() -> anyhow::Result<()> {
                     )
                     .await
                     .unwrap();
+
+                // Admission gate in front of the realtime queue: claim, settle
+                // and filter trigger-based runs, then publish the survivors on.
+                // Same three-queue shape as the realtime side (main + park +
+                // retry), because the gate parks and retries for its own
+                // reasons and must not push that churn onto the agent's queue.
+                channel
+                    .exchange_declare(
+                        SIGNALS_ADMISSION_EXCHANGE.into(),
+                        ExchangeKind::Fanout,
+                        ExchangeDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
+
+                channel
+                    .queue_declare(
+                        SIGNALS_ADMISSION_QUEUE.into(),
+                        QueueDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        quorum_queue_args.clone(),
+                    )
+                    .await
+                    .unwrap();
+
+                // Parking lot for runs waiting on their trace to settle. No
+                // consumer — messages expire via their per-message TTL and
+                // dead-letter back into the admission exchange. (The admission
+                // queue itself is bound to that exchange by `get_receiver` when
+                // a consumer subscribes.)
+                channel
+                    .exchange_declare(
+                        SIGNALS_ADMISSION_WAITING_EXCHANGE.into(),
+                        ExchangeKind::Fanout,
+                        ExchangeDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
+
+                let mut admission_waiting_args = quorum_queue_args.clone();
+                admission_waiting_args.insert(
+                    "x-dead-letter-exchange".into(),
+                    lapin::types::AMQPValue::LongString(SIGNALS_ADMISSION_EXCHANGE.into()),
+                );
+
+                channel
+                    .queue_declare(
+                        SIGNALS_ADMISSION_WAITING_QUEUE.into(),
+                        QueueDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        admission_waiting_args,
+                    )
+                    .await
+                    .unwrap();
+
+                channel
+                    .queue_bind(
+                        SIGNALS_ADMISSION_WAITING_QUEUE.into(),
+                        SIGNALS_ADMISSION_WAITING_EXCHANGE.into(),
+                        SIGNALS_ADMISSION_WAITING_ROUTING_KEY.into(),
+                        lapin::options::QueueBindOptions::default(),
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
+
+                // Holding pen for transiently-failed admission checks.
+                channel
+                    .exchange_declare(
+                        SIGNALS_ADMISSION_RETRY_EXCHANGE.into(),
+                        ExchangeKind::Fanout,
+                        ExchangeDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
+
+                let mut admission_retry_args = quorum_queue_args.clone();
+                admission_retry_args.insert(
+                    "x-dead-letter-exchange".into(),
+                    lapin::types::AMQPValue::LongString(SIGNALS_ADMISSION_EXCHANGE.into()),
+                );
+                // The target is a fanout exchange, which ignores routing keys —
+                // set explicitly so the return path doesn't silently depend on
+                // that if the exchange kind ever changes.
+                admission_retry_args.insert(
+                    "x-dead-letter-routing-key".into(),
+                    lapin::types::AMQPValue::LongString(SIGNALS_ADMISSION_ROUTING_KEY.into()),
+                );
+
+                channel
+                    .queue_declare(
+                        SIGNALS_ADMISSION_RETRY_QUEUE.into(),
+                        QueueDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        admission_retry_args,
+                    )
+                    .await
+                    .unwrap();
+
+                channel
+                    .queue_bind(
+                        SIGNALS_ADMISSION_RETRY_QUEUE.into(),
+                        SIGNALS_ADMISSION_RETRY_EXCHANGE.into(),
+                        SIGNALS_ADMISSION_RETRY_ROUTING_KEY.into(),
+                        lapin::options::QueueBindOptions::default(),
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
             }
 
             // ==== 3.11 Logs message queue ====
@@ -1145,7 +1277,9 @@ fn main() -> anyhow::Result<()> {
                 SIGNAL_JOB_WAITING_BATCH_EXCHANGE,
                 SIGNAL_JOB_WAITING_BATCH_QUEUE,
             );
-            // ==== 3.10b Signals Realtime message queue ====
+            // ==== 3.10b Signals Admission message queue ====
+            queue.register_queue(SIGNALS_ADMISSION_EXCHANGE, SIGNALS_ADMISSION_QUEUE);
+            // ==== 3.10c Signals Realtime message queue ====
             queue.register_queue(SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_QUEUE);
         }
         // ==== 3.11 Logs message queue ====
@@ -2097,6 +2231,47 @@ fn main() -> anyhow::Result<()> {
                         );
                     } else {
                         log::warn!("LLM provider not available - skipping realtime workers");
+                    }
+
+                    // Spawn admission workers (the gate in front of the agent).
+                    // Gated on the LLM client like the realtime workers even
+                    // though the gate never calls the provider: admitting runs
+                    // that nothing can then process would just fill the agent's
+                    // queue.
+                    #[cfg(feature = "signals")]
+                    if llm_provider_client.is_some() {
+                        let db = db_for_consumer.clone();
+                        let queue = mq_for_consumer.clone();
+                        let clickhouse = clickhouse_for_consumer.clone();
+                        let cache = cache_for_consumer.clone();
+                        let config = Arc::new(SignalWorkerConfig::from_env());
+                        worker_pool_clone.spawn(
+                            WorkerType::SignalAdmission,
+                            env::workers::NUM_SIGNAL_ADMISSION.get(),
+                            move || {
+                                SignalAdmissionHandler::new(
+                                    db.clone(),
+                                    cache.clone(),
+                                    queue.clone(),
+                                    clickhouse.clone(),
+                                    config.clone(),
+                                )
+                            },
+                            QueueConfig::new(
+                                SIGNALS_ADMISSION_QUEUE,
+                                SIGNALS_ADMISSION_EXCHANGE,
+                                SIGNALS_ADMISSION_ROUTING_KEY,
+                            )
+                            .with_retry(RetryConfig {
+                                exchange: SIGNALS_ADMISSION_RETRY_EXCHANGE,
+                                routing_key: SIGNALS_ADMISSION_RETRY_ROUTING_KEY,
+                                delay_ms: env::private::signals::TRANSIENT_RETRY_DELAY_MS.get(),
+                                max_attempts: env::private::signals::TRANSIENT_RETRY_MAX_ATTEMPTS
+                                    .get(),
+                            }),
+                        );
+                    } else {
+                        log::warn!("LLM provider not available - skipping admission workers");
                     }
 
                     // Spawn input extraction workers (ingestion-time user-task regex)
