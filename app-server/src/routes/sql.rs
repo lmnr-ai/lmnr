@@ -122,7 +122,7 @@ pub async fn validate_sql_query(
     match query_engine
         .into_inner()
         .as_ref()
-        .validate_query(query, project_id)
+        .validate_query(query, project_id, None)
         .await
     {
         Ok(validation_result) => {

@@ -9,6 +9,7 @@ mod json_to_sql;
 mod sql_to_json;
 
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use types::QueryStructure;
@@ -30,15 +31,20 @@ impl QueryEngine {
         Self::default()
     }
 
+    /// `retention_cutoff` is the earliest instant the caller may read back to
+    /// (`None` = unbounded); it becomes a clamp on every time-parameterized view.
     pub async fn validate_query(
         &self,
         query: String,
         project_id: Uuid,
+        retention_cutoff: Option<DateTime<Utc>>,
     ) -> Result<QueryEngineValidationResult> {
-        match self
-            .validator
-            .validate_and_secure_query(&query, &project_id.to_string())
-        {
+        let cutoff = retention_cutoff.map(|c| c.format("%Y-%m-%d %H:%M:%S").to_string());
+        match self.validator.validate_and_secure_query(
+            &query,
+            &project_id.to_string(),
+            cutoff.as_deref(),
+        ) {
             Ok(validated_query) => Ok(QueryEngineValidationResult::Success { validated_query }),
             Err(error) => Ok(QueryEngineValidationResult::Error { error }),
         }

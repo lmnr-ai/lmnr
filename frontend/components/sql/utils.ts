@@ -188,6 +188,33 @@ export const tableSchemas: Record<string, TableSchema> = {
         description: "Extracted agent task / user input for the trace as stringified JSON or raw string",
       },
       { name: "has_browser_session", type: "Bool", description: "Whether the trace has a browser session" },
+      {
+        name: "signals",
+        type: "Array(String)",
+        description: "De-duplicated names of signals that emitted an event on this trace",
+      },
+      { name: "signal_ids", type: "Array(UUID)", description: "IDs of signals that emitted an event on this trace" },
+      { name: "signal_event_ids", type: "Array(UUID)", description: "IDs of signal events on this trace" },
+      {
+        name: "signal_severity",
+        type: "UInt8",
+        description: "Highest signal event severity on the trace. 0 = INFO, 1 = WARNING, 2 = CRITICAL",
+      },
+      {
+        name: "signal_summaries",
+        type: "Array(String)",
+        description: "De-duplicated summaries of signal events on this trace",
+      },
+      {
+        name: "clusters",
+        type: "Array(String)",
+        description: "Names of clusters any signal event on this trace belongs to. Excludes L0 clusters",
+      },
+      {
+        name: "cluster_ids",
+        type: "Array(UUID)",
+        description: "IDs of clusters any signal event on this trace belongs to. Excludes L0 clusters",
+      },
     ],
   },
   trace_outputs: {
@@ -348,10 +375,23 @@ export const tableSchemas: Record<string, TableSchema> = {
         description: "Short human-readable description (may be empty)",
       },
       {
+        name: "summaries",
+        type: "Array(String)",
+        description: "All summaries produced for the event (`summary` is the first one)",
+      },
+      {
         name: "clusters",
         type: "Array(UUID)",
         description: "Cluster IDs this event belongs to. Excludes L0 clusters",
       },
+      {
+        name: "trace_start_time",
+        type: "DateTime64(9, 'UTC')",
+        description: "Start time of the trace the event belongs to (copied from the trace at event creation)",
+      },
+      { name: "user_id", type: "String", description: "User ID of the trace the event belongs to" },
+      { name: "session_id", type: "String", description: "Session ID of the trace the event belongs to" },
+      { name: "top_span_name", type: "String", description: "Top-level span name of the trace the event belongs to" },
     ],
   },
   clusters: {

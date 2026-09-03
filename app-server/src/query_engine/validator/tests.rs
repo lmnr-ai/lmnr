@@ -22,8 +22,19 @@ fn contains_ws(haystack: &str, needle: &str) -> bool {
     norm(haystack).contains(&norm(needle))
 }
 
+/// Default (unbounded) time-window arguments the rewriter emits when the query
+/// carries no time filter on the relation.
+const DEFAULT_START_TIME_BOUNDS: &str = "min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)";
+const DEFAULT_TIMESTAMP_BOUNDS: &str = "min_timestamp = toDateTime64('1970-01-01 00:00:00', 9), max_timestamp = toDateTime64('2099-12-31 00:00:00', 9)";
+
 fn validate(query: &str) -> Result<String, String> {
-    QueryValidator::new().validate_and_secure_query(query, SAMPLE_PROJECT_ID)
+    QueryValidator::new().validate_and_secure_query(query, SAMPLE_PROJECT_ID, None)
+}
+
+fn validate_with_retention(query: &str, cutoff: &str) -> String {
+    QueryValidator::new()
+        .validate_and_secure_query(query, SAMPLE_PROJECT_ID, Some(cutoff))
+        .unwrap_or_else(|e| panic!("expected query to validate, got error: {e}\nquery: {query}"))
 }
 
 fn validate_ok(query: &str) -> String {
@@ -153,8 +164,158 @@ fn test_validate_evaluation_datapoints_select() {
         contains_ws(
             &result,
             &format!(
-                "FROM evaluation_datapoints_v0(project_id = '{SAMPLE_PROJECT_ID}') AS evaluation_datapoints"
+                "FROM evaluation_datapoints_v0(project_id = '{SAMPLE_PROJECT_ID}', {DEFAULT_START_TIME_BOUNDS}, evaluation_ids = []) AS evaluation_datapoints"
             )
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_evaluation_datapoints_scoped_by_evaluation_id_equality() {
+    let result = validate_ok(
+        "SELECT id FROM evaluation_datapoints WHERE evaluation_id = {evaluationId: UUID} AND index > 3",
+    );
+    assert!(
+        contains_ws(&result, "evaluation_ids = [{evaluationId: UUID}]"),
+        "got: {result}"
+    );
+    // The user's own predicate is kept intact.
+    assert!(
+        contains_ws(
+            &result,
+            "WHERE evaluation_id = {evaluationId: UUID} AND index > 3"
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_evaluation_datapoints_scoped_by_evaluation_id_in_list() {
+    let result = validate_ok(
+        "SELECT e.id FROM evaluation_datapoints e WHERE e.evaluation_id IN ('a1', 'b2')",
+    );
+    assert!(
+        contains_ws(&result, "evaluation_ids = ['a1', 'b2']"),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_evaluation_datapoints_or_without_both_sides_is_unscoped() {
+    // `OR unrelated` could match datapoints of any evaluation, so no scoping.
+    let result =
+        validate_ok("SELECT id FROM evaluation_datapoints WHERE evaluation_id = 'a1' OR index = 1");
+    assert!(contains_ws(&result, "evaluation_ids = []"), "got: {result}");
+    // Both OR branches pin an evaluation → the union is used.
+    let result = validate_ok(
+        "SELECT id FROM evaluation_datapoints WHERE evaluation_id = 'a1' OR evaluation_id = 'b2'",
+    );
+    assert!(
+        contains_ws(&result, "evaluation_ids = ['a1', 'b2']"),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_evaluation_datapoints_other_relation_evaluation_id_ignored() {
+    // A qualifier naming a different relation must not scope this one, and a
+    // column-valued comparison can't be pushed into a scalar view argument.
+    let result = validate_ok(
+        "SELECT e.id FROM evaluation_datapoints e JOIN traces t ON t.id = e.trace_id WHERE t.evaluation_id = 'a1'",
+    );
+    assert!(contains_ws(&result, "evaluation_ids = []"), "got: {result}");
+    let result =
+        validate_ok("SELECT id FROM evaluation_datapoints WHERE evaluation_id = dataset_id");
+    assert!(contains_ws(&result, "evaluation_ids = []"), "got: {result}");
+}
+
+#[test]
+fn test_evaluation_datapoints_time_bounds_from_start_time() {
+    let result = validate_ok(
+        "SELECT id FROM evaluation_datapoints WHERE start_time >= '2026-06-01 00:00:00'",
+    );
+    assert!(
+        contains_ws(
+            &result,
+            "min_start_time = toDateTime64('2026-06-01 00:00:00', 9) - INTERVAL 3 HOUR"
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_signal_events_time_bounds_from_timestamp() {
+    let result = validate_ok(
+        "SELECT id FROM signal_events WHERE timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 00:00:00'",
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!(
+                "signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}', min_timestamp = toDateTime64('2026-06-01 00:00:00', 9) - INTERVAL 3 HOUR, max_timestamp = toDateTime64('2026-06-02 00:00:00', 9) + INTERVAL 3 HOUR) AS signal_events"
+            )
+        ),
+        "got: {result}"
+    );
+    // `start_time` is not a signal_events time column, so it derives nothing.
+    let result = validate_ok(
+        "SELECT id FROM signal_events_all WHERE trace_start_time >= '2026-06-01 00:00:00'",
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!(
+                "signal_events_all_v0(project_id = '{SAMPLE_PROJECT_ID}', {DEFAULT_TIMESTAMP_BOUNDS}) AS signal_events_all"
+            )
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_retention_cutoff_clamps_lower_bound() {
+    // No user filter → the cutoff alone is the lower bound.
+    let result = validate_with_retention("SELECT id FROM traces", "2026-05-01 00:00:00");
+    assert!(
+        contains_ws(
+            &result,
+            "min_start_time = toDateTime64('2026-05-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)"
+        ),
+        "got: {result}"
+    );
+    // A user filter older than the cutoff is clamped up to the cutoff.
+    let result = validate_with_retention(
+        "SELECT id FROM traces WHERE start_time >= '2026-01-01 00:00:00'",
+        "2026-05-01 00:00:00",
+    );
+    assert!(
+        contains_ws(
+            &result,
+            "min_start_time = greatest(toDateTime64('2026-01-01 00:00:00', 9) - INTERVAL 3 HOUR, toDateTime64('2026-05-01 00:00:00', 9))"
+        ),
+        "got: {result}"
+    );
+    // Every time-parameterized view gets the clamp, not just traces.
+    let result = validate_with_retention("SELECT id FROM signal_events", "2026-05-01 00:00:00");
+    assert!(
+        contains_ws(
+            &result,
+            "min_timestamp = toDateTime64('2026-05-01 00:00:00', 9)"
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_traces_signal_columns_allowed() {
+    let result = validate_ok(
+        "SELECT id, signals, cluster_ids FROM traces WHERE has(clusters, 'Cluster One') AND signal_severity = 2",
+    );
+    assert!(
+        contains_ws(
+            &result,
+            "WHERE has(clusters, 'Cluster One') AND signal_severity = 2"
         ),
         "got: {result}"
     );
@@ -532,7 +693,9 @@ fn test_multiple_tables_in_join() {
     assert!(
         contains_ws(
             &result,
-            &format!("signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}') AS se")
+            &format!(
+                "signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}', {DEFAULT_TIMESTAMP_BOUNDS}) AS se"
+            )
         ),
         "got: {result}"
     );
@@ -967,7 +1130,9 @@ fn test_array_join_column_not_rewritten() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}') AS signal_events")
+            &format!(
+                "FROM signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}', {DEFAULT_TIMESTAMP_BOUNDS}) AS signal_events"
+            )
         ),
         "got: {result}"
     );
@@ -1060,7 +1225,9 @@ fn test_full_clusters_emerging_query() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}') AS signal_events")
+            &format!(
+                "FROM signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}', {DEFAULT_TIMESTAMP_BOUNDS}) AS signal_events"
+            )
         ),
         "got: {result}"
     );

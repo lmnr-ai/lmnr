@@ -30,7 +30,7 @@ use crate::cache::{Cache, CacheTrait};
 use crate::ch::deduped_content::CHDedupedContent;
 use crate::db::spans::Span;
 use crate::traces::input_dedup::canonical_json;
-use crate::utils::sanitize_string;
+use crate::utils::{retention::NEVER_EXPIRES, sanitize_string};
 
 fn storage_seen_key(project_id: Uuid, hash: &[u8; 32]) -> String {
     // Same `s:` namespace as messages — the `shared_content` table is
@@ -208,6 +208,8 @@ pub fn resolve_tool_dedup(
         project_id: span.project_id,
         content_hash: dedup.hash,
         content: content.clone(),
+        // Stamped per tier by the processor before the insert.
+        expires_at: NEVER_EXPIRES,
     });
     bytes
 }

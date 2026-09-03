@@ -15,6 +15,7 @@ import {
   WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY,
   WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY,
 } from "@/lib/cache";
+import { extendRetentionForWorkspace } from "@/lib/clickhouse/retention";
 import { db } from "@/lib/db/drizzle";
 import {
   subscriptionTiers,
@@ -162,6 +163,12 @@ export const manageWorkspaceSubscriptionEvent = async ({
       invalidateUsageWarningsCacheForWorkspace(workspaceId),
       invalidateProjectCacheForWorkspace(workspaceId),
     ]);
+    if (newTier?.name) {
+      // Best-effort: pushes ClickHouse `expires_at` out to the new tier's window.
+      extendRetentionForWorkspace(workspaceId, newTier.name).catch((e) => {
+        console.error(`Failed to extend ClickHouse retention for workspace ${workspaceId}, Error: ${e}`);
+      });
+    }
   } catch (e) {
     console.error(`Failed to sync usage warnings/limits for workspace ${workspaceId}, Error: ${e}`);
   }

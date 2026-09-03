@@ -22,6 +22,7 @@ use crate::{
     data_plane::get_workspace_deployment,
     db::{DB, workspaces::DeploymentMode},
     query_engine::{QueryEngine, QueryEngineValidationResult},
+    utils::retention::retention_cutoff_for_project,
 };
 
 pub struct ClickhouseReadonlyClient(clickhouse::Client);
@@ -108,13 +109,17 @@ pub async fn execute_sql_query(
 ) -> Result<Vec<Value>, SqlQueryError> {
     let tracer = global::tracer("app-server");
 
-    // Validate query first
-    let validated_query = match validate_query(query, project_id, query_engine).await {
-        Ok(validated_query) => validated_query,
-        Err(e) => {
-            return Err(e);
-        }
-    };
+    // Tier retention is enforced at validation time as a clamp on the views'
+    // lower time bound, so expired-but-not-yet-merged rows are never read.
+    let retention_cutoff =
+        retention_cutoff_for_project(db.clone(), cache.clone(), project_id).await;
+    let validated_query =
+        match validate_query(query, project_id, retention_cutoff, query_engine).await {
+            Ok(validated_query) => validated_query,
+            Err(e) => {
+                return Err(e);
+            }
+        };
 
     // Execute query
     let res = route_and_run_query(
@@ -203,6 +208,7 @@ fn remove_query_from_error_message(error_message: &str) -> String {
 pub async fn validate_query(
     query: String,
     project_id: Uuid,
+    retention_cutoff: Option<chrono::DateTime<chrono::Utc>>,
     query_engine: Arc<QueryEngine>,
 ) -> Result<String, SqlQueryError> {
     let tracer = global::tracer("app-server");
@@ -210,7 +216,9 @@ pub async fn validate_query(
     span.set_attribute(KeyValue::new("sql.query", query.clone()));
     span.set_attribute(KeyValue::new("project_id", project_id.to_string()));
 
-    let validation_result = query_engine.validate_query(query, project_id).await;
+    let validation_result = query_engine
+        .validate_query(query, project_id, retention_cutoff)
+        .await;
 
     let validated_query = match validation_result {
         Ok(QueryEngineValidationResult::Success { validated_query }) => validated_query,

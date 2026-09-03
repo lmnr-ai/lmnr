@@ -132,6 +132,59 @@ export const getSpanTags = async (
   }));
 };
 
+const TraceTagsSchema = z.object({
+  projectId: z.guid(),
+  traceId: z.guid(),
+});
+
+export const getTraceTags = async (input: z.infer<typeof TraceTagsSchema>): Promise<string[]> => {
+  const { projectId, traceId } = TraceTagsSchema.parse(input);
+
+  const result = await clickhouseClient.query({
+    query: `
+      SELECT tags
+      FROM trace_tags FINAL
+      WHERE project_id = {projectId:UUID} AND trace_id = {traceId:UUID}
+    `,
+    format: "JSONEachRow",
+    query_params: { projectId, traceId },
+  });
+
+  const rows = await result.json<{ tags: string[] }>();
+  return rows.length > 0 ? rows[0].tags : [];
+};
+
+const SetTraceTagsSchema = TraceTagsSchema.extend({
+  tags: z.array(z.string()),
+});
+
+// Writes the full tag set as a new `trace_tags` version (ReplacingMergeTree
+// keeps the latest `updated_at`). `start_time` is copied from the trace so
+// `traces_v0` can bound its `trace_tags` scan; a trace with no aggregate yet
+// falls back to the column default (epoch), which the view also matches.
+export const setTraceTags = async (input: z.infer<typeof SetTraceTagsSchema>): Promise<void> => {
+  const { projectId, traceId, tags } = SetTraceTagsSchema.parse(input);
+
+  const startTimeResult = await clickhouseClient.query({
+    query: `
+      SELECT toString(min(start_time)) AS start_time
+      FROM traces_agg
+      WHERE project_id = {projectId:UUID} AND id = {traceId:UUID}
+      HAVING count() > 0
+    `,
+    format: "JSONEachRow",
+    query_params: { projectId, traceId },
+  });
+  const startTimeRows = await startTimeResult.json<{ start_time: string }>();
+  const startTime = startTimeRows.length > 0 ? { start_time: startTimeRows[0].start_time } : {};
+
+  await clickhouseClient.insert({
+    table: "trace_tags",
+    values: [{ project_id: projectId, trace_id: traceId, tags, ...startTime }],
+    format: "JSONEachRow",
+  });
+};
+
 const CreateOrUpdateTagClassSchema = z.object({
   projectId: z.guid(),
   name: z.string(),

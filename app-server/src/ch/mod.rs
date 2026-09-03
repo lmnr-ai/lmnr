@@ -15,6 +15,9 @@ pub mod service;
 pub mod signal_events;
 pub mod spans;
 pub mod system_prompt_versions;
+// Written only by the enterprise signals pipeline; OSS ships the schema and helpers.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub mod trace_signal_events;
 pub mod traces;
 pub mod traces_agg;
 pub mod traces_static;

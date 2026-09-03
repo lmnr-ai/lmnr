@@ -216,6 +216,33 @@ const TABLES: &[Table] = &[
                 "Bool",
                 "Whether the trace has a recorded browser session",
             ),
+            col(
+                "signals",
+                "Array(String)",
+                "Names of the signals that fired on this trace; filter with has(signals, 'name')",
+            ),
+            col("signal_ids", "Array(UUID)", "Ids of the signals that fired"),
+            col(
+                "signal_event_ids",
+                "Array(UUID)",
+                "Ids of the trace's signal events (join key to signal_events.id)",
+            ),
+            col(
+                "signal_severity",
+                "Nullable(UInt8)",
+                "Highest severity across the trace's signal events (0 = INFO, 1 = WARNING, 2 = CRITICAL); NULL when none fired",
+            ),
+            col(
+                "signal_summaries",
+                "Array(String)",
+                "Short summaries of the trace's signal events",
+            ),
+            col(
+                "clusters",
+                "Array(String)",
+                "Names of the clusters (excluding L0) the trace's signal events belong to; filter with has(clusters, 'name')",
+            ),
+            col("cluster_ids", "Array(UUID)", "Ids of those clusters"),
         ],
     },
     Table {
@@ -238,7 +265,8 @@ const TABLES: &[Table] = &[
     },
     Table {
         name: "evaluation_datapoints",
-        description: "Results from evaluations: scores, executor output, and denormalized trace data.",
+        description: "Results from evaluations: scores, executor output, and denormalized trace data. \
+               Filter on evaluation_id and start_time to bound the scan.",
         columns: &[
             col("id", "UUID", "Unique id of the evaluation datapoint"),
             col("evaluation_id", "UUID", "Id of the evaluation"),
@@ -468,7 +496,9 @@ const TABLES: &[Table] = &[
     },
     Table {
         name: "signal_events",
-        description: "Events emitted by signals during execution. Excludes L0 clusters in `clusters`.",
+        description: "Events emitted by signals during execution. Excludes L0 clusters in `clusters`. \
+               Carries the trace's start time, user, session and top span, so most trace context \
+               needs no join. Filter on timestamp to bound the scan.",
         columns: &[
             col("id", "UUID", "Unique id of the signal event"),
             col("signal_id", "UUID", "Id of the signal"),
@@ -490,6 +520,23 @@ const TABLES: &[Table] = &[
                 "summary",
                 "String",
                 "Short human-readable description (may be empty)",
+            ),
+            col(
+                "summaries",
+                "Array(String)",
+                "One short summary per distinct issue the event describes",
+            ),
+            col(
+                "trace_start_time",
+                "DateTime64(9,'UTC')",
+                "Start time of the trace the event belongs to",
+            ),
+            col("user_id", "String", "User id of the trace"),
+            col("session_id", "String", "Session id of the trace"),
+            col(
+                "top_span_name",
+                "String",
+                "Name of the trace's top-level span",
             ),
             col(
                 "clusters",

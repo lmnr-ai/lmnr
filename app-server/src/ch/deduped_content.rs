@@ -23,6 +23,10 @@ pub struct CHDedupedContent {
     pub project_id: Uuid,
     pub content_hash: [u8; 32],
     pub content: String,
+    /// Unix seconds; drives the table TTL. The RMT keeps the row with the
+    /// latest `last_seen_at`, so a re-seen hash also carries its extended expiry.
+    #[serde(default = "crate::utils::retention::never_expires")]
+    pub expires_at: u32,
 }
 
 pub async fn get_content_by_hash(

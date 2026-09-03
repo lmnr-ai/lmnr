@@ -30,6 +30,17 @@ pub struct CHSignalEvent {
     pub summaries: Vec<String>,
     /// 0 = info, 1 = warning, 2 = critical
     pub severity: u8,
+    /// Trace fields denormalized at creation so `signal_events` needs no
+    /// join back to `traces` (see `ch::trace_signal_events::TraceSignalContext`).
+    /// Nanoseconds; 0 for rows written before the columns existed.
+    #[serde(default)]
+    pub trace_start_time: i64,
+    #[serde(default)]
+    pub user_id: String,
+    #[serde(default)]
+    pub session_id: String,
+    #[serde(default)]
+    pub top_span_name: String,
 }
 
 /// ClickHouse row for signal event counts

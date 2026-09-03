@@ -12,9 +12,10 @@ use std::collections::{HashMap, HashSet};
 use std::ops::ControlFlow;
 
 use sqlparser::ast::{
-    BinaryOperator, Expr, FunctionArg, FunctionArgExpr, FunctionArgOperator, FunctionArguments,
-    Ident, JoinOperator, ObjectName, ObjectNamePart, Query, Select, Statement, TableAlias,
-    TableFactor, TableFunctionArgs, Value, ValueWithSpan, Visit, VisitMut, Visitor, VisitorMut,
+    Array, BinaryOperator, Expr, FunctionArg, FunctionArgExpr, FunctionArgOperator,
+    FunctionArguments, Ident, JoinOperator, ObjectName, ObjectNamePart, Query, Select, Statement,
+    TableAlias, TableFactor, TableFunctionArgs, Value, ValueWithSpan, Visit, VisitMut, Visitor,
+    VisitorMut,
 };
 use sqlparser::dialect::{ClickHouseDialect, Dialect, Precedence};
 use sqlparser::keywords::Keyword;
@@ -23,12 +24,55 @@ use sqlparser::tokenizer::{Span, Token, Tokenizer};
 
 const VIEW_VERSION: &str = "v0";
 
-/// The `traces_v0` view is parameterized by `min_start_time` / `max_start_time`,
-/// which narrow the scan before the trace rows are materialized. These bounds are
-/// derived from the user's WHERE filters on `start_time` / `end_time` (padded ±3h,
-/// see [`START_TIME_PADDING`]); when the query has no time filter on traces, the
-/// broad epoch defaults below are used so every trace is visible.
 const TRACES_TABLE: &str = "traces";
+const EVALUATION_DATAPOINTS_TABLE: &str = "evaluation_datapoints";
+const SIGNAL_EVENTS_TABLE: &str = "signal_events";
+const SIGNAL_EVENTS_ALL_TABLE: &str = "signal_events_all";
+/// View parameter that scopes `evaluation_datapoints_v0` to the evaluations the
+/// query filters on; an empty array means "all evaluations of the project".
+const EVALUATION_IDS_PARAM: &str = "evaluation_ids";
+const EVALUATION_ID_COLUMN: &str = "evaluation_id";
+
+/// Some `_v0` views are parameterized by a `min_*` / `max_*` time pair that
+/// narrows the scan before rows are materialized. The bounds are derived from
+/// the user's WHERE filters on the view's time columns (padded ±3h, see
+/// [`START_TIME_PADDING`]); with no time filter the broad epoch defaults are
+/// used so every row stays visible. The lower bound is additionally clamped to
+/// the caller's retention cutoff when one is supplied.
+#[derive(Clone, Copy)]
+struct TimeBoundSpec {
+    /// Column the view is bounded on (`start_time` / `timestamp`).
+    primary_col: &'static str,
+    /// Column whose UPPER bound also upper-bounds `primary_col` (traces'
+    /// `end_time >= start_time` always holds); `None` when the view has no such column.
+    end_col: Option<&'static str>,
+    min_param: &'static str,
+    max_param: &'static str,
+}
+
+const TRACE_TIME_BOUNDS: TimeBoundSpec = TimeBoundSpec {
+    primary_col: "start_time",
+    end_col: Some("end_time"),
+    min_param: "min_start_time",
+    max_param: "max_start_time",
+};
+
+const SIGNAL_EVENT_TIME_BOUNDS: TimeBoundSpec = TimeBoundSpec {
+    primary_col: "timestamp",
+    end_col: None,
+    min_param: "min_timestamp",
+    max_param: "max_timestamp",
+};
+
+fn time_bound_spec(table_name: &str) -> Option<TimeBoundSpec> {
+    match table_name {
+        // evaluation_datapoints exposes the associated trace's start/end time,
+        // and its view bounds the trace legs by them.
+        TRACES_TABLE | EVALUATION_DATAPOINTS_TABLE => Some(TRACE_TIME_BOUNDS),
+        SIGNAL_EVENTS_TABLE | SIGNAL_EVENTS_ALL_TABLE => Some(SIGNAL_EVENT_TIME_BOUNDS),
+        _ => None,
+    }
+}
 /// 1970-01-01 UTC — the lower default when the query has no lower time bound.
 const DEFAULT_MIN_START_TIME: &str = "1970-01-01 00:00:00";
 /// 2099-12-31 UTC — the upper default when the query has no upper time bound.
@@ -448,6 +492,15 @@ impl TableRegistry {
             "agent_input",
             "internal_metadata",
             "has_browser_session",
+            // Denormalized from `trace_signal_events` (one row per event ×
+            // summary × cluster), aggregated per trace inside the view.
+            "signals",
+            "signal_ids",
+            "signal_event_ids",
+            "signal_severity",
+            "signal_summaries",
+            "clusters",
+            "cluster_ids",
         ];
 
         // Extracted agent outputs live in their own view (`trace_outputs_v0`,
@@ -497,6 +550,13 @@ impl TableRegistry {
             "timestamp",
             "severity",
             "summary",
+            "summaries",
+            // Trace fields copied onto the event at creation so event queries
+            // don't need a join against `traces`.
+            "trace_start_time",
+            "user_id",
+            "session_id",
+            "top_span_name",
             "clusters",
         ];
 
@@ -641,10 +701,17 @@ impl QueryValidator {
 
     /// Validates and secures a SQL query using virtual views. Returns the
     /// rewritten query or an error message describing why it was rejected.
+    ///
+    /// `retention_cutoff` (`YYYY-MM-DD HH:MM:SS`, UTC) clamps the lower time
+    /// bound of every time-parameterized view so rows older than the caller's
+    /// retention window are never scanned. Rows past their `expires_at` TTL are
+    /// still readable until a merge drops them, which is why the read clamp
+    /// exists alongside the TTL.
     pub fn validate_and_secure_query(
         &self,
         sql_query: &str,
         project_id: &str,
+        retention_cutoff: Option<&str>,
     ) -> Result<String, String> {
         let mut statements =
             parse_clickhouse_sql(sql_query).map_err(|e| format!("Query validation failed: {e}"))?;
@@ -674,6 +741,7 @@ impl QueryValidator {
         let mut rewriter = ViewRewriter {
             registry: &self.registry,
             project_id,
+            retention_cutoff,
             cte_names,
             array_join_spans: &array_join_spans,
             where_stack: Vec::new(),
@@ -993,6 +1061,8 @@ impl Visitor for PostRewriteChecker<'_> {
 struct ViewRewriter<'a> {
     registry: &'a TableRegistry,
     project_id: &'a str,
+    /// `YYYY-MM-DD HH:MM:SS` UTC; clamps every derived lower time bound.
+    retention_cutoff: Option<&'a str>,
     cte_names: HashSet<String>,
     array_join_spans: &'a HashSet<Span>,
     where_stack: Vec<Option<Expr>>,
@@ -1058,19 +1128,29 @@ impl VisitorMut for ViewRewriter<'_> {
 
             *name = ObjectName(vec![ObjectNamePart::Identifier(Ident::new(view_name))]);
             let mut view_args = vec![named_arg("project_id", string_expr(self.project_id))];
-            // Only `traces_v0` is parameterized by start_time bounds; derive them
-            // from the enclosing WHERE so the view narrows its scan. Columns are
-            // matched against this relation's alias (or the
-            // bare table name) so a joined table's `start_time` is not confused
-            // for the traces one. `where_stack` only ever carries the enclosing
-            // SELECT's WHERE (see `pre_visit_select`), so post-aggregation HAVING
-            // predicates are intentionally excluded — they can't be pushed to a
-            // pre-scan PREWHERE anyway.
-            if table_name == TRACES_TABLE {
-                let where_clause = self.where_stack.last().and_then(|w| w.as_ref());
-                let (min_expr, max_expr) = traces_time_bound_args(where_clause, &alias_ident.value);
-                view_args.push(named_arg("min_start_time", min_expr));
-                view_args.push(named_arg("max_start_time", max_expr));
+            // Time-parameterized views derive their bounds from the enclosing
+            // WHERE so the view narrows its scan. Columns are matched against
+            // this relation's alias (or the bare table name) so a joined table's
+            // `start_time` is not confused for this one. `where_stack` only ever
+            // carries the enclosing SELECT's WHERE (see `pre_visit_select`), so
+            // post-aggregation HAVING predicates are intentionally excluded —
+            // they can't be pushed to a pre-scan PREWHERE anyway.
+            let where_clause = self.where_stack.last().and_then(|w| w.as_ref());
+            if let Some(spec) = time_bound_spec(&table_name) {
+                let (min_expr, max_expr) = time_bound_args(
+                    where_clause,
+                    &alias_ident.value,
+                    spec,
+                    self.retention_cutoff,
+                );
+                view_args.push(named_arg(spec.min_param, min_expr));
+                view_args.push(named_arg(spec.max_param, max_expr));
+            }
+            if table_name == EVALUATION_DATAPOINTS_TABLE {
+                view_args.push(named_arg(
+                    EVALUATION_IDS_PARAM,
+                    evaluation_ids_arg(where_clause, &alias_ident.value),
+                ));
             }
             *args = Some(TableFunctionArgs {
                 args: view_args,
@@ -1087,14 +1167,82 @@ impl VisitorMut for ViewRewriter<'_> {
     }
 }
 
-/// Which trace time column a WHERE predicate constrains. `start_time` bounds the
-/// start_time column directly; because `end_time >= start_time` always holds, an
-/// UPPER bound on `end_time` is also an upper bound on `start_time` (a LOWER
-/// bound on `end_time` says nothing about start_time, so it is ignored).
+/// Which time column a WHERE predicate constrains. `Start` is the view's primary
+/// bound column; because `end_time >= start_time` always holds, an UPPER bound on
+/// `End` is also an upper bound on `Start` (a LOWER bound on `End` says nothing
+/// about the start, so it is ignored).
 #[derive(Clone, Copy, PartialEq)]
 enum TimeCol {
     Start,
     End,
+}
+
+/// True if `expr` is the bare column `column`, or `column` qualified by `alias`.
+/// A qualifier naming a different relation is rejected so a joined table's
+/// same-named column is never mistaken for this relation's.
+fn is_relation_column(expr: &Expr, column: &str, alias: &str) -> bool {
+    match deparen(expr) {
+        Expr::Identifier(ident) => ident.value.eq_ignore_ascii_case(column),
+        Expr::CompoundIdentifier(parts) if !parts.is_empty() => {
+            let col = &parts[parts.len() - 1].value;
+            if parts.len() >= 2 && !parts[parts.len() - 2].value.eq_ignore_ascii_case(alias) {
+                return false;
+            }
+            col.eq_ignore_ascii_case(column)
+        }
+        _ => false,
+    }
+}
+
+/// Collect the `evaluation_id` values a WHERE subtree pins the relation to.
+/// Under `AND` any one branch's set is a valid superset filter (both must hold),
+/// so the first one found wins; under `OR` both branches must supply a set and
+/// the union is taken. `None` means "not constrained" and the view receives an
+/// empty array (all evaluations of the project).
+fn extract_evaluation_ids(expr: &Expr, alias: &str) -> Option<Vec<Expr>> {
+    match deparen(expr) {
+        Expr::BinaryOp { left, op, right } => match op {
+            BinaryOperator::And => {
+                extract_evaluation_ids(left, alias).or_else(|| extract_evaluation_ids(right, alias))
+            }
+            BinaryOperator::Or => {
+                let mut l = extract_evaluation_ids(left, alias)?;
+                let r = extract_evaluation_ids(right, alias)?;
+                l.extend(r);
+                Some(l)
+            }
+            BinaryOperator::Eq => {
+                let value = if is_relation_column(left, EVALUATION_ID_COLUMN, alias) {
+                    deparen(right)
+                } else if is_relation_column(right, EVALUATION_ID_COLUMN, alias) {
+                    deparen(left)
+                } else {
+                    return None;
+                };
+                (!expr_references_column(value)).then(|| vec![value.clone()])
+            }
+            _ => None,
+        },
+        Expr::InList {
+            expr,
+            list,
+            negated: false,
+        } if is_relation_column(expr, EVALUATION_ID_COLUMN, alias) => {
+            let values: Vec<Expr> = list.iter().map(|v| deparen(v).clone()).collect();
+            (!values.is_empty() && values.iter().all(|v| !expr_references_column(v)))
+                .then_some(values)
+        }
+        _ => None,
+    }
+}
+
+/// `evaluation_ids = [...]` argument for `evaluation_datapoints_v0`: the ids the
+/// WHERE pins the relation to, or an empty array when unconstrained.
+fn evaluation_ids_arg(where_clause: Option<&Expr>, alias: &str) -> Expr {
+    let elem = where_clause
+        .and_then(|w| extract_evaluation_ids(w, alias))
+        .unwrap_or_default();
+    Expr::Array(Array { elem, named: false })
 }
 
 /// Peel `Expr::Nested` (parenthesization) so the shape underneath can be matched.
@@ -1150,23 +1298,27 @@ fn expr_references_column(expr: &Expr) -> bool {
     s.found
 }
 
-/// If `expr` is `start_time` / `end_time` (bare or qualified by `alias`), or a
-/// supported date-truncation function wrapping one of them, return which column
+/// If `expr` is one of the spec's time columns (bare or qualified by `alias`), or
+/// a supported date-truncation function wrapping one of them, return which column
 /// it is plus the truncation bucket width (for widening equality/upper bounds).
-fn classify_time_expr(expr: &Expr, alias: &str) -> Option<(TimeCol, Option<&'static str>)> {
+fn classify_time_expr(
+    expr: &Expr,
+    alias: &str,
+    spec: TimeBoundSpec,
+) -> Option<(TimeCol, Option<&'static str>)> {
     match deparen(expr) {
-        Expr::Identifier(ident) => time_col_from_name(&ident.value).map(|c| (c, None)),
+        Expr::Identifier(ident) => time_col_from_name(&ident.value, spec).map(|c| (c, None)),
         Expr::CompoundIdentifier(parts) if !parts.is_empty() => {
             let col = &parts[parts.len() - 1].value;
             // A qualifier that names a different relation must not be treated as
-            // a traces column (avoids applying a joined table's start_time to
-            // the traces bounds). An unqualified column is accepted best-effort.
+            // this relation's column (avoids applying a joined table's start_time
+            // to these bounds). An unqualified column is accepted best-effort.
             if parts.len() >= 2
                 && parts[parts.len() - 2].value.to_lowercase() != alias.to_lowercase()
             {
                 return None;
             }
-            time_col_from_name(col).map(|c| (c, None))
+            time_col_from_name(col, spec).map(|c| (c, None))
         }
         Expr::Function(f) => {
             let func = relation_table_name(&f.name);
@@ -1184,7 +1336,7 @@ fn classify_time_expr(expr: &Expr, alias: &str) -> Option<(TimeCol, Option<&'sta
                 FunctionArg::Unnamed(FunctionArgExpr::Expr(e)) => e,
                 _ => return None,
             };
-            match classify_time_expr(inner, alias) {
+            match classify_time_expr(inner, alias, spec) {
                 Some((col, None)) => Some((col, Some(width))),
                 _ => None,
             }
@@ -1193,11 +1345,13 @@ fn classify_time_expr(expr: &Expr, alias: &str) -> Option<(TimeCol, Option<&'sta
     }
 }
 
-fn time_col_from_name(name: &str) -> Option<TimeCol> {
-    match name.to_lowercase().as_str() {
-        "start_time" => Some(TimeCol::Start),
-        "end_time" => Some(TimeCol::End),
-        _ => None,
+fn time_col_from_name(name: &str, spec: TimeBoundSpec) -> Option<TimeCol> {
+    if name.eq_ignore_ascii_case(spec.primary_col) {
+        Some(TimeCol::Start)
+    } else if spec.end_col.is_some_and(|c| name.eq_ignore_ascii_case(c)) {
+        Some(TimeCol::End)
+    } else {
+        None
     }
 }
 
@@ -1212,13 +1366,19 @@ fn to_dt64(value_sql: &str) -> String {
 /// subtree is guaranteed to respect, or `None` when the subtree gives no bound.
 type Bounds = (Option<String>, Option<String>);
 
-/// Analyze a single comparison `left OP right` for a start_time bound.
-fn analyze_comparison(left: &Expr, op: &BinaryOperator, right: &Expr, alias: &str) -> Bounds {
+/// Analyze a single comparison `left OP right` for a primary-column bound.
+fn analyze_comparison(
+    left: &Expr,
+    op: &BinaryOperator,
+    right: &Expr,
+    alias: &str,
+    spec: TimeBoundSpec,
+) -> Bounds {
     // Identify which side is the (possibly truncated) time column; the other is
     // the value. Flip the operator when the column is on the right.
-    let (kind, bucket, value, op) = match classify_time_expr(left, alias) {
+    let (kind, bucket, value, op) = match classify_time_expr(left, alias, spec) {
         Some((k, b)) => (k, b, deparen(right), op.clone()),
-        None => match classify_time_expr(right, alias) {
+        None => match classify_time_expr(right, alias, spec) {
             Some((k, b)) => (k, b, deparen(left), flip_op(op)),
             None => return (None, None),
         },
@@ -1250,12 +1410,19 @@ fn analyze_comparison(left: &Expr, op: &BinaryOperator, right: &Expr, alias: &st
     }
 }
 
-/// Analyze `col BETWEEN low AND high` for a start_time bound.
-fn analyze_between(expr: &Expr, low: &Expr, high: &Expr, negated: bool, alias: &str) -> Bounds {
+/// Analyze `col BETWEEN low AND high` for a primary-column bound.
+fn analyze_between(
+    expr: &Expr,
+    low: &Expr,
+    high: &Expr,
+    negated: bool,
+    alias: &str,
+    spec: TimeBoundSpec,
+) -> Bounds {
     if negated {
         return (None, None);
     }
-    let Some((kind, bucket)) = classify_time_expr(expr, alias) else {
+    let Some((kind, bucket)) = classify_time_expr(expr, alias, spec) else {
         return (None, None);
     };
     let (low, high) = (deparen(low), deparen(high));
@@ -1284,31 +1451,31 @@ fn flip_op(op: &BinaryOperator) -> BinaryOperator {
     }
 }
 
-/// Recursively derive start_time bounds from a WHERE subtree with proper
+/// Recursively derive primary-column bounds from a WHERE subtree with proper
 /// boolean semantics: under `AND` every branch's bound holds (take the tightest
 /// — `greatest` of lowers, `least` of uppers); under `OR` a bound holds only if
 /// *both* branches supply one (take the loosest — `least` of lowers, `greatest`
 /// of uppers). A branch with no bound makes the whole `OR` unbounded on that
 /// side, which is what prevents `start_time > X OR unrelated = 1` from wrongly
 /// dropping the unrelated rows.
-fn extract_bounds(expr: &Expr, alias: &str) -> Bounds {
+fn extract_bounds(expr: &Expr, alias: &str, spec: TimeBoundSpec) -> Bounds {
     match deparen(expr) {
         Expr::BinaryOp { left, op, right } => match op {
             BinaryOperator::And => combine(
-                extract_bounds(left, alias),
-                extract_bounds(right, alias),
+                extract_bounds(left, alias, spec),
+                extract_bounds(right, alias, spec),
                 true,
             ),
             BinaryOperator::Or => combine(
-                extract_bounds(left, alias),
-                extract_bounds(right, alias),
+                extract_bounds(left, alias, spec),
+                extract_bounds(right, alias, spec),
                 false,
             ),
             BinaryOperator::Eq
             | BinaryOperator::Gt
             | BinaryOperator::GtEq
             | BinaryOperator::Lt
-            | BinaryOperator::LtEq => analyze_comparison(left, op, right, alias),
+            | BinaryOperator::LtEq => analyze_comparison(left, op, right, alias, spec),
             _ => (None, None),
         },
         Expr::Between {
@@ -1316,7 +1483,7 @@ fn extract_bounds(expr: &Expr, alias: &str) -> Bounds {
             negated,
             low,
             high,
-        } => analyze_between(expr, low, high, *negated, alias),
+        } => analyze_between(expr, low, high, *negated, alias, spec),
         _ => (None, None),
     }
 }
@@ -1343,18 +1510,29 @@ fn merge(a: Option<String>, b: Option<String>, is_and: bool, lower: bool) -> Opt
     }
 }
 
-/// Build the `min_start_time` / `max_start_time` argument expressions for a
-/// `traces_v0(...)` call from the enclosing WHERE clause. Derived bounds are
-/// padded ±[`START_TIME_PADDING`]; missing bounds fall back to the broad epoch
-/// defaults so every trace stays visible.
-fn traces_time_bound_args(where_clause: Option<&Expr>, alias: &str) -> (Expr, Expr) {
+/// Build the `min_*` / `max_*` argument expressions for a time-parameterized
+/// view call from the enclosing WHERE clause. Derived bounds are padded
+/// ±[`START_TIME_PADDING`]; missing bounds fall back to the broad epoch defaults
+/// so every row stays visible. The lower bound is then clamped to
+/// `retention_cutoff` via `greatest(...)` so the clamp survives whatever the
+/// user's own filter says.
+fn time_bound_args(
+    where_clause: Option<&Expr>,
+    alias: &str,
+    spec: TimeBoundSpec,
+    retention_cutoff: Option<&str>,
+) -> (Expr, Expr) {
     let (lower, upper) = where_clause
-        .map(|w| extract_bounds(w, alias))
+        .map(|w| extract_bounds(w, alias, spec))
         .unwrap_or((None, None));
 
-    let min_sql = match lower {
-        Some(l) => format!("{l} - {START_TIME_PADDING}"),
-        None => to_dt64(&format!("'{DEFAULT_MIN_START_TIME}'")),
+    let derived_min = lower.map(|l| format!("{l} - {START_TIME_PADDING}"));
+    let cutoff = retention_cutoff.map(|c| to_dt64(&format!("'{c}'")));
+    let min_sql = match (derived_min, cutoff) {
+        (Some(l), Some(c)) => format!("greatest({l}, {c})"),
+        (Some(l), None) => l,
+        (None, Some(c)) => c,
+        (None, None) => to_dt64(&format!("'{DEFAULT_MIN_START_TIME}'")),
     };
     let max_sql = match upper {
         Some(u) => format!("{u} + {START_TIME_PADDING}"),

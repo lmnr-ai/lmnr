@@ -10,7 +10,9 @@ use super::utils::chrono_to_nanoseconds;
 use super::{
     ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS, Table,
 };
-use crate::traces::input_extraction::metadata::USER_TASK_METADATA_KEY;
+use crate::{
+    traces::input_extraction::metadata::USER_TASK_METADATA_KEY, utils::retention::NEVER_EXPIRES,
+};
 
 /// Whether any partial exists for the trace. Existence probe on the
 /// `(project_id, id)` primary key: no GROUP BY (a trace is present iff it has at
@@ -76,6 +78,10 @@ pub struct CHTraceAgg {
     /// (an unlisted variant, or a value > 127 wrapping in the u8→i8 cast)
     /// are accepted at insert but poison every later read of the part.
     pub trace_types: Vec<i8>,
+    /// Unix seconds; `SimpleAggregateFunction(max)` in the DDL and the table's
+    /// TTL. Stamped by the processor from the workspace tier (`utils::retention`).
+    #[serde(default = "crate::utils::retention::never_expires")]
+    pub expires_at: u32,
 }
 
 fn encode_metadata(metadata: Option<&Value>) -> Vec<(String, String)> {
@@ -140,6 +146,7 @@ impl CHTraceAgg {
             reasoning_tokens: agg.reasoning_tokens as u64,
             statuses: status_enum_values(agg.status.as_deref()),
             trace_types: vec![trace_type_enum_value(agg.trace_type)],
+            expires_at: NEVER_EXPIRES,
         }
     }
 
@@ -189,6 +196,7 @@ impl CHTraceAgg {
             reasoning_tokens: 0,
             statuses: Vec::new(),
             trace_types: Vec::new(),
+            expires_at: NEVER_EXPIRES,
         }
     }
 }

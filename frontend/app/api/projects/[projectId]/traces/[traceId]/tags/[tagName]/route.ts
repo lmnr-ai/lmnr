@@ -1,4 +1,4 @@
-import { clickhouseClient } from "@/lib/clickhouse/client";
+import { getTraceTags, setTraceTags } from "@/lib/actions/tags";
 
 export async function DELETE(
   _req: Request,
@@ -7,35 +7,12 @@ export async function DELETE(
   try {
     const { projectId, traceId, tagName } = await props.params;
 
-    // Read current tags from CH
-    const result = await clickhouseClient.query({
-      query: `
-        SELECT tags
-        FROM trace_tags FINAL
-        WHERE project_id = {projectId:UUID} AND trace_id = {traceId:UUID}
-      `,
-      format: "JSONEachRow",
-      query_params: { projectId, traceId },
-    });
-
-    const rows = await result.json<{ tags: string[] }>();
-    const currentTags = rows.length > 0 ? rows[0].tags : [];
+    const currentTags = await getTraceTags({ projectId, traceId });
 
     // Remove the tag
     const updatedTags = currentTags.filter((t) => t !== tagName);
 
-    // Insert updated row (ReplacingMergeTree deduplicates by updated_at)
-    await clickhouseClient.insert({
-      table: "trace_tags",
-      values: [
-        {
-          project_id: projectId,
-          trace_id: traceId,
-          tags: updatedTags,
-        },
-      ],
-      format: "JSONEachRow",
-    });
+    await setTraceTags({ projectId, traceId, tags: updatedTags });
 
     return new Response("Trace tag deleted successfully", { status: 200 });
   } catch (error) {

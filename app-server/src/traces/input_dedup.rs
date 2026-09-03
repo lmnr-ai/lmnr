@@ -34,7 +34,7 @@ use uuid::Uuid;
 use crate::cache::{Cache, CacheTrait};
 use crate::ch::deduped_content::CHDedupedContent;
 use crate::db::spans::Span;
-use crate::utils::sanitize_string;
+use crate::utils::{retention::NEVER_EXPIRES, sanitize_string};
 
 const MESSAGE_SEEN_TTL_SECONDS: u64 = 3600;
 
@@ -365,6 +365,8 @@ pub fn build_dedup_batch(
                     project_id: span.project_id,
                     content_hash: hash,
                     content,
+                    // Stamped per tier by the processor before the insert.
+                    expires_at: NEVER_EXPIRES,
                 });
             }
         }

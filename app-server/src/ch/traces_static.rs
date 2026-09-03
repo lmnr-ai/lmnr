@@ -47,7 +47,9 @@ use super::utils::chrono_to_nanoseconds;
 use super::{
     ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS, Table,
 };
-use crate::traces::input_extraction::metadata::USER_TASK_METADATA_KEY;
+use crate::{
+    traces::input_extraction::metadata::USER_TASK_METADATA_KEY, utils::retention::NEVER_EXPIRES,
+};
 
 /// One delta write of the static columns for a trace. Field order MUST match the
 /// CREATE TABLE column order (RowBinary is positional).
@@ -100,6 +102,10 @@ pub struct CHTraceStatic {
     pub has_browser_session: Option<u8>,
     /// Reserved, no writer yet; same SET semantics as `metadata`.
     pub internal_metadata: Option<String>,
+    /// Unix seconds; the table TTL. Not a coalescing column (never NULL), so
+    /// the last write wins — stamped by the processor from the workspace tier.
+    #[serde(default = "crate::utils::retention::never_expires")]
+    pub expires_at: u32,
 }
 
 /// Empty strings collapse to `None` so a batch that saw no value writes a NULL
@@ -183,6 +189,7 @@ impl CHTraceStatic {
             root_span_type,
             has_browser_session: agg.has_browser_session.map(|v| v as u8),
             internal_metadata: None,
+            expires_at: NEVER_EXPIRES,
         };
         row.has_any_value().then_some(row)
     }
@@ -225,6 +232,7 @@ impl CHTraceStatic {
             root_span_type: None,
             has_browser_session: None,
             internal_metadata: None,
+            expires_at: NEVER_EXPIRES,
         })
     }
 
@@ -260,6 +268,7 @@ impl CHTraceStatic {
             root_span_type: None,
             has_browser_session: None,
             internal_metadata: None,
+            expires_at: NEVER_EXPIRES,
         })
     }
 

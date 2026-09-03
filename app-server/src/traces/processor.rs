@@ -41,7 +41,7 @@ use crate::{
         tool_dedup::{ToolDedup, resolve_tool_dedup},
         utils::{get_llm_usage_for_span, prepare_span_for_recording},
     },
-    utils::limits::update_workspace_bytes_ingested,
+    utils::{limits::update_workspace_bytes_ingested, retention},
     worker::HandlerError,
 };
 
@@ -544,6 +544,24 @@ pub async fn process_span_messages(
     // See CLAUDE.md "Ingest order in process_span_messages".
     let ch = &ch;
 
+    // Tier retention drives the TTL'd tables' `expires_at`; one cached
+    // billing lookup per distinct project in the batch.
+    let mut batch_project_ids: Vec<Uuid> = Vec::new();
+    batch_project_ids.extend(trace_aggregations.iter().map(|agg| agg.project_id));
+    batch_project_ids.extend(metadata_patches.iter().map(|patch| patch.project_id));
+    batch_project_ids.extend(shared_content.iter().map(|content| content.project_id));
+    let retention_by_project =
+        retention::retention_days_by_project(db.clone(), cache.clone(), batch_project_ids).await;
+    let retention_days =
+        |project_id: Uuid| retention_by_project.get(&project_id).copied().flatten();
+    // Content has no trace time of its own; it expires relative to when it was
+    // (last) seen, matching the RMT's `last_seen_at` version.
+    let content_seen_ns = chrono_to_nanoseconds(chrono::Utc::now());
+    for content in &mut shared_content {
+        content.expires_at =
+            retention::expires_at(content_seen_ns, retention_days(content.project_id));
+    }
+
     let trace_branch = async {
         let now_ns = chrono_to_nanoseconds(chrono::Utc::now());
 
@@ -583,6 +601,9 @@ pub async fn process_span_messages(
                     .unwrap_or(now_ns + PATCH_START_TIME_OFFSET_NS),
             )
         }));
+        for row in &mut traces_agg_rows {
+            row.expires_at = retention::expires_at(row.start_time, retention_days(row.project_id));
+        }
         if !traces_agg_rows.is_empty()
             && let Err(e) = ch.insert_batch(&traces_agg_rows, config).await
         {
@@ -620,6 +641,9 @@ pub async fn process_span_messages(
             &start_time_by_trace,
             now_ns,
         ));
+        for row in &mut traces_static_rows {
+            row.expires_at = retention::expires_at(row.start_time, retention_days(row.project_id));
+        }
         if !traces_static_rows.is_empty()
             && let Err(e) = ch.insert_batch(&traces_static_rows, config).await
         {

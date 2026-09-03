@@ -81,6 +81,10 @@ const MCP_SQL_EXTRAS: &str = r#"<joins>
   product, NOT an event-to-cluster match).
 - Top-level clusters have parent_id = the nil UUID '00000000-0000-0000-0000-000000000000' (NOT SQL
   NULL): filter with parent_id = toUUID('00000000-0000-0000-0000-000000000000'), not IS NULL.
+- traces.signals / traces.clusters already hold the signal and cluster NAMES for each trace: to
+  find traces by signal or cluster use has(traces.clusters, 'name') instead of a join.
+- signal_events carries trace_start_time, user_id, session_id and top_span_name from its trace,
+  so filtering events by user/session needs no join to traces.
 </joins>
 
 <parameters>

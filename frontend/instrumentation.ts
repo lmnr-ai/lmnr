@@ -117,38 +117,10 @@ export async function register() {
             QUERY_WAIT_TIMEOUT_MILLISECONDS 15000`;
       };
 
-      const ensureLlmMessagesDict = async () => {
-        const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
-        const user = escapeChCreds(process.env.CLICKHOUSE_USER || "ch_user");
-        const password = escapeChCreds(process.env.CLICKHOUSE_PASSWORD || "ch_passwd");
-        const db = escapeChCreds(process.env.CLICKHOUSE_DB || "default");
-
-        await clickhouseClient.command({
-          query: `
-            CREATE OR REPLACE DICTIONARY llm_messages_dict
-            (
-                project_id UUID,
-                trace_id UUID,
-                message_hash String,
-                content String
-            )
-            PRIMARY KEY project_id, trace_id, message_hash
-            SOURCE(CLICKHOUSE(
-                USER '${user}'
-                PASSWORD '${password}'
-                DB '${db}'
-                TABLE 'llm_messages'
-            ))
-            LAYOUT(COMPLEX_KEY_CACHE(${dictCacheOptions()}))
-            LIFETIME(MIN 1800 MAX 3600)
-          `,
-        });
-      };
-
       // Project-scoped dedup dict. Backs the `deduped_content` table for
-      // both input/output messages and tool definitions. The `spans_v0`
-      // view tries this dict first and falls back to `llm_messages_dict`
-      // for legacy spans.
+      // both input/output messages and tool definitions; `spans_v0` resolves
+      // every content hash through it. (Legacy `llm_messages` rows were folded
+      // into `deduped_content` by migration 60, so there is no fallback dict.)
       const ensureDedupedContentDict = async () => {
         const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
         const user = escapeChCreds(process.env.CLICKHOUSE_USER || "ch_user");
@@ -193,7 +165,6 @@ export async function register() {
             String(Number(process.env.CH_MIGRATIONS_TIMEOUT) || 30000) // timeout as string
           );
 
-          await ensureLlmMessagesDict();
           await ensureDedupedContentDict();
         } catch (error) {
           console.error("Failed to apply ClickHouse migrations:", error);

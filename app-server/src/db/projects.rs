@@ -106,6 +106,18 @@ impl WorkspaceTierName {
             Self::Other => "your",
         }
     }
+
+    /// How far back this tier may read, in days; `None` keeps data forever.
+    /// Must stay in sync with `TIER_RETENTION` in `frontend/lib/billing/retention.ts`
+    /// (Pro's "6 months" is approximated as 183 days).
+    pub fn retention_days(&self) -> Option<u32> {
+        match self {
+            Self::Free => Some(7),
+            Self::Hobby => Some(30),
+            Self::Pro => Some(183),
+            Self::Other => None,
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize, Clone)]
