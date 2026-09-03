@@ -7,6 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 import React, { type KeyboardEvent, memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { useSWRConfig } from "swr";
 import { v4 } from "uuid";
+import { useShallow } from "zustand/react/shallow";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -55,10 +56,12 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
   const { mutate } = useSWRConfig();
   const { toast } = useToast();
 
-  const { editTemplate, setEditTemplate } = useSqlEditorStore((state) => ({
-    editTemplate: state.editTemplate,
-    setEditTemplate: state.setEditTemplate,
-  }));
+  const { editTemplate, setEditTemplate } = useSqlEditorStore(
+    useShallow((state) => ({
+      editTemplate: state.editTemplate,
+      setEditTemplate: state.setEditTemplate,
+    }))
+  );
 
   const inputRef = useRef<HTMLInputElement>(null);
 

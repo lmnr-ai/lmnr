@@ -16,6 +16,7 @@ import {
 import { useParams } from "next/navigation";
 import { type ReactNode, useCallback, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
+import { useShallow } from "zustand/react/shallow";
 
 import ExportSqlDialog from "@/components/sql/export-sql-dialog";
 import ParametersPanel from "@/components/sql/parameters-panel";
@@ -41,12 +42,14 @@ export default function EditorPanel() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const { toast } = useToast();
 
-  const { template, getFormattedParameters, parameters, onChange } = useSqlEditorStore((state) => ({
-    template: state.currentTemplate,
-    getFormattedParameters: state.getFormattedParameters,
-    parameters: state.parameters,
-    onChange: state.setParameterValue,
-  }));
+  const { template, getFormattedParameters, parameters, onChange } = useSqlEditorStore(
+    useShallow((state) => ({
+      template: state.currentTemplate,
+      getFormattedParameters: state.getFormattedParameters,
+      parameters: state.parameters,
+      onChange: state.setParameterValue,
+    }))
+  );
 
   const hasQuery = Boolean(template?.query?.trim());
   const hasResults = results !== null && results.length > 0;

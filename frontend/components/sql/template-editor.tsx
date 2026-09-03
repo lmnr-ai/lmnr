@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
 import { useSWRConfig } from "swr";
 import { v4 } from "uuid";
+import { useShallow } from "zustand/react/shallow";
 
 import SQLEditor from "@/components/sql/sql-editor";
 import { type SQLTemplate, useSqlEditorStore } from "@/components/sql/sql-editor-store";
@@ -21,10 +22,12 @@ export default function TemplateEditor({ className }: TemplateEditorProps) {
   const router = useRouter();
   const { toast } = useToast();
   const { mutate } = useSWRConfig();
-  const { template, onChange } = useSqlEditorStore((state) => ({
-    template: state.currentTemplate,
-    onChange: state.onCurrentTemplateChange,
-  }));
+  const { template, onChange } = useSqlEditorStore(
+    useShallow((state) => ({
+      template: state.currentTemplate,
+      onChange: state.onCurrentTemplateChange,
+    }))
+  );
 
   // Extract stable values to avoid recreating the callback on every keystroke
   const templateId = template?.id;
