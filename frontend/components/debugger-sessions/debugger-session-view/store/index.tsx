@@ -1,7 +1,8 @@
 import { useParams } from "next/navigation";
 import { createContext, type PropsWithChildren, useContext, useState } from "react";
-import { createStore, type StoreApi, useStore } from "zustand";
+import { createStore, type StoreApi } from "zustand";
 import { persist } from "zustand/middleware";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import {
   type BaseSessionViewStore,
@@ -802,12 +803,15 @@ const DebuggerSessionViewStoreProvider = ({
   );
 };
 
-export const useDebuggerSessionViewStore = <T,>(selector: (store: DebuggerSessionViewStore) => T): T => {
+export const useDebuggerSessionViewStore = <T,>(
+  selector: (store: DebuggerSessionViewStore) => T,
+  equalityFn?: (a: T, b: T) => boolean
+): T => {
   const store = useContext(DebuggerSessionViewContext);
   if (!store) {
     throw new Error("useDebuggerSessionViewStore must be used within a DebuggerSessionViewContext provider");
   }
-  return useStore(store, selector);
+  return useStoreWithEqualityFn(store, selector, equalityFn);
 };
 
 export const useDebuggerSessionViewStoreRaw = () => {

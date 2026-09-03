@@ -17,7 +17,7 @@ import { arrayMove } from "@dnd-kit/sortable";
 import { type Row, type RowData, type Table as TanstackTable } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
-import { useStore } from "zustand";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Table } from "@/components/ui/table.tsx";
@@ -175,8 +175,8 @@ export function VirtualizedScroll<TData extends RowData>({
   scrollContentClassName = "border rounded",
 }: VirtualizedScrollProps<TData>) {
   const tableStore = useTableStore();
-  const setDraggingColumnId = useStore(tableStore, (s) => s.setDraggingColumnId);
-  const draggingColumnId = useStore(tableStore, (s) => s.draggingColumnId);
+  const setDraggingColumnId = useStoreWithEqualityFn(tableStore, (s) => s.setDraggingColumnId);
+  const draggingColumnId = useStoreWithEqualityFn(tableStore, (s) => s.draggingColumnId);
 
   // State (via callback ref) rather than a plain ref: the virtualizer lives in a
   // child, and a ref populated after the child's layout effect leaves getVirtualItems

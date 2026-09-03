@@ -3,7 +3,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { flexRender, type Header, type RowData } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, Check, ChevronDown, EyeOff } from "lucide-react";
 import React, { type CSSProperties } from "react";
-import { useStore } from "zustand";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { TableHead } from "@/components/ui/table.tsx";
 import { cn } from "@/lib/utils.ts";
@@ -31,7 +31,7 @@ export function InfiniteTableHead<TData extends RowData>({
 }: DraggableTableHeaderProps<TData>) {
   const columnId = header.column.id;
   const store = useTableStore();
-  const draggingColumnId = useStore(store, (state) => state.draggingColumnId);
+  const draggingColumnId = useStoreWithEqualityFn(store, (state) => state.draggingColumnId);
   const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({
     id: columnId || "",
     disabled: !columnId, // Disable drag if no id

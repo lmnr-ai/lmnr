@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import { useStore } from "zustand";
+import { shallow } from "zustand/shallow";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { useTableStore } from "../model/table-store.tsx";
 
@@ -11,10 +12,14 @@ type Updater<T> = T | ((old: T) => T);
 export function useSelection() {
   const store = useTableStore();
 
-  const { selectedRows, selectAll } = useStore(store, (state) => ({
-    selectedRows: state.selectedRows,
-    selectAll: state.selectAll,
-  }));
+  const { selectedRows, selectAll } = useStoreWithEqualityFn(
+    store,
+    (state) => ({
+      selectedRows: state.selectedRows,
+      selectAll: state.selectAll,
+    }),
+    shallow
+  );
 
   const rowSelection = useMemo<RowSelectionState>(
     () =>

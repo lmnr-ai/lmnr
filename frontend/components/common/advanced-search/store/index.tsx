@@ -11,8 +11,9 @@ import {
   useRef,
   useState,
 } from "react";
-import { createStore, type StoreApi, useStore } from "zustand";
+import { createStore, type StoreApi } from "zustand";
 import { persist } from "zustand/middleware";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { dataTypeOperationsMap, toFilterDataType } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { type Filter } from "@/lib/actions/common/filters";
@@ -375,12 +376,15 @@ const createAdvancedSearchStore = (
 
 const AdvancedSearchStoreContext = createContext<StoreApi<AdvancedSearchStore> | undefined>(undefined);
 
-export const useAdvancedSearchContext = <T,>(selector: (store: AdvancedSearchStore) => T): T => {
+export const useAdvancedSearchContext = <T,>(
+  selector: (store: AdvancedSearchStore) => T,
+  equalityFn?: (a: T, b: T) => boolean
+): T => {
   const store = useContext(AdvancedSearchStoreContext);
   if (!store) {
     throw new Error("useAdvancedSearchContext must be used within AdvancedSearchStoreProvider");
   }
-  return useStore(store, selector);
+  return useStoreWithEqualityFn(store, selector, equalityFn);
 };
 
 interface AdvancedSearchRefs {

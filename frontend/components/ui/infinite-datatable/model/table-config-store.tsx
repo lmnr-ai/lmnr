@@ -143,7 +143,7 @@ export interface TableConfigStoreActions {
 export type TableConfigStore = TableConfigStoreState & TableConfigStoreActions;
 
 // Must be passed to createTableConfigStore (not applied via post-creation setState):
-// Zustand's `useStore` reads `getInitialState` as the server snapshot during hydration,
+// Zustand's store hook reads `getInitialState` as the server snapshot during hydration,
 // so a post-creation mutation would be invisible to the first render and produce a
 // double fetch.
 export interface InitialViewSeed {

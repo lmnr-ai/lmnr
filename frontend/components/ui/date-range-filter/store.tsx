@@ -4,7 +4,8 @@ import { isNil } from "lodash";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, type PropsWithChildren, useContext, useEffect, useMemo, useState } from "react";
 import { type DateRange as ReactDateRange } from "react-day-picker";
-import { createStore, type StoreApi, useStore } from "zustand";
+import { createStore, type StoreApi } from "zustand";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { getDisplayRange } from "@/components/ui/date-range-filter/utils.ts";
 
@@ -140,12 +141,15 @@ const createDateRangeFilterStore = (
 
 const DateRangeFilterStoreContext = createContext<StoreApi<DateRangeFilterStore> | undefined>(undefined);
 
-export const useDateRangeFilterContext = <T,>(selector: (store: DateRangeFilterStore) => T): T => {
+export const useDateRangeFilterContext = <T,>(
+  selector: (store: DateRangeFilterStore) => T,
+  equalityFn?: (a: T, b: T) => boolean
+): T => {
   const store = useContext(DateRangeFilterStoreContext);
   if (!store) {
     throw new Error("useDateRangeFilterContext must be used within DateRangeFilterProvider");
   }
-  return useStore(store, selector);
+  return useStoreWithEqualityFn(store, selector, equalityFn);
 };
 
 interface DateRangeFilterProviderProps {
