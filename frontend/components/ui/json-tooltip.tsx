@@ -1,5 +1,5 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { Loader2 } from "lucide-react";
+import { Columns3, Loader2 } from "lucide-react";
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { defaultRehypePlugins, Streamdown } from "streamdown";
 
@@ -13,92 +13,131 @@ interface JsonTooltipProps {
   columnSize?: number;
   className?: string;
   onOpen?: () => Promise<unknown>;
+  /**
+   * Opt-in per-key action shown next to each top-level key of an object value
+   * (used by the traces table to promote a metadata key to a custom column).
+   */
+  onAddKeyColumn?: (key: string) => void;
 }
 
 const breakStyle = { wordBreak: "break-all" as const, overflowWrap: "anywhere" as const };
 
-export const ObjectWithMarkdown = ({ data }: { data: Record<string, any> }) => (
+// A single pasted document or stack trace otherwise fills the whole tooltip and
+// buries the remaining keys, so long values start collapsed.
+const MAX_COLLAPSED_VALUE_LENGTH = 280;
+
+const MarkdownValue = ({ value }: { value: string }) => (
+  <Streamdown
+    mode="static"
+    parseIncompleteMarkdown={false}
+    isAnimating={false}
+    className="inline"
+    rehypePlugins={[defaultRehypePlugins.harden]}
+    components={{
+      p: ({ children, className, ...props }) => (
+        <span {...props} className={cn(className, "text-xs inline")} style={breakStyle}>
+          {children}
+        </span>
+      ),
+      a: ({ children, className, href, ...props }) => (
+        <a
+          {...props}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(className, "text-primary/80 underline")}
+          style={breakStyle}
+        >
+          {children}
+        </a>
+      ),
+      code: ({ children, className, ...props }) => (
+        <code {...props} className={cn(className, "text-xs font-mono bg-muted px-1 rounded")} style={breakStyle}>
+          {children}
+        </code>
+      ),
+      pre: ({ children, className, ...props }) => (
+        <pre {...props} className={cn(className, "text-xs font-mono whitespace-pre-wrap")} style={breakStyle}>
+          {children}
+        </pre>
+      ),
+      strong: ({ children, className, ...props }) => (
+        <strong {...props} className={cn(className, "font-semibold")} style={breakStyle}>
+          {children}
+        </strong>
+      ),
+      em: ({ children, className, ...props }) => (
+        <em {...props} className={cn(className, "italic")} style={breakStyle}>
+          {children}
+        </em>
+      ),
+      span: ({ children, className, ...props }) => (
+        <span {...props} className={className} style={breakStyle}>
+          {children}
+        </span>
+      ),
+      div: ({ children, className, ...props }) => (
+        <div {...props} className={className} style={breakStyle}>
+          {children}
+        </div>
+      ),
+    }}
+  >
+    {value}
+  </Streamdown>
+);
+
+const JsonValue = ({ value }: { value: unknown }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const text = typeof value === "string" ? value : (JSON.stringify(value) ?? String(value));
+  const isLong = text.length > MAX_COLLAPSED_VALUE_LENGTH;
+  const shown = isLong && !isExpanded ? text.slice(0, MAX_COLLAPSED_VALUE_LENGTH) : text;
+
+  return (
+    <span className="inline" style={breakStyle}>
+      {typeof value === "string" ? <MarkdownValue value={shown} /> : <span style={breakStyle}>{shown}</span>}
+      {isLong && (
+        <button
+          type="button"
+          className="ml-1 text-primary/80 underline underline-offset-2 cursor-pointer"
+          onClick={() => setIsExpanded((expanded) => !expanded)}
+        >
+          {isExpanded ? "show less" : `… show ${text.length - MAX_COLLAPSED_VALUE_LENGTH} more`}
+        </button>
+      )}
+    </span>
+  );
+};
+
+export const ObjectWithMarkdown = ({
+  data,
+  onAddKeyColumn,
+}: {
+  data: Record<string, any>;
+  onAddKeyColumn?: (key: string) => void;
+}) => (
   <div className="text-xs font-mono text-secondary-foreground p-2 max-h-96" style={breakStyle}>
     <div>{"{"}</div>
     <div className="pl-4 flex flex-col gap-0.5" style={breakStyle}>
       {Object.entries(data).map(([key, value], index, array) => (
-        <div key={key} style={breakStyle}>
+        <div key={key} className="group/json-key" style={breakStyle}>
           <span className="text-primary" style={breakStyle}>
             &quot;{key}&quot;:{" "}
           </span>
-          {typeof value === "string" ? (
-            <span className="inline" style={breakStyle}>
-              <Streamdown
-                mode="static"
-                parseIncompleteMarkdown={false}
-                isAnimating={false}
-                className="inline"
-                rehypePlugins={[defaultRehypePlugins.harden]}
-                components={{
-                  p: ({ children, className, ...props }) => (
-                    <span {...props} className={cn(className, "text-xs inline")} style={breakStyle}>
-                      {children}
-                    </span>
-                  ),
-                  a: ({ children, className, href, ...props }) => (
-                    <a
-                      {...props}
-                      href={href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={cn(className, "text-primary/80 underline")}
-                      style={breakStyle}
-                    >
-                      {children}
-                    </a>
-                  ),
-                  code: ({ children, className, ...props }) => (
-                    <code
-                      {...props}
-                      className={cn(className, "text-xs font-mono bg-muted px-1 rounded")}
-                      style={breakStyle}
-                    >
-                      {children}
-                    </code>
-                  ),
-                  pre: ({ children, className, ...props }) => (
-                    <pre
-                      {...props}
-                      className={cn(className, "text-xs font-mono whitespace-pre-wrap")}
-                      style={breakStyle}
-                    >
-                      {children}
-                    </pre>
-                  ),
-                  strong: ({ children, className, ...props }) => (
-                    <strong {...props} className={cn(className, "font-semibold")} style={breakStyle}>
-                      {children}
-                    </strong>
-                  ),
-                  em: ({ children, className, ...props }) => (
-                    <em {...props} className={cn(className, "italic")} style={breakStyle}>
-                      {children}
-                    </em>
-                  ),
-                  span: ({ children, className, ...props }) => (
-                    <span {...props} className={className} style={breakStyle}>
-                      {children}
-                    </span>
-                  ),
-                  div: ({ children, className, ...props }) => (
-                    <div {...props} className={className} style={breakStyle}>
-                      {children}
-                    </div>
-                  ),
-                }}
-              >
-                {value}
-              </Streamdown>
-            </span>
-          ) : (
-            <span style={breakStyle}>{JSON.stringify(value)}</span>
-          )}
+          <JsonValue value={value} />
           {index < array.length - 1 && <span>,</span>}
+          {onAddKeyColumn && (
+            <button
+              type="button"
+              aria-label={`Add "${key}" as a column`}
+              title={`Add "${key}" as a column`}
+              className="ml-1 align-middle inline-flex items-center rounded p-0.5 cursor-pointer text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-primary focus-visible:opacity-100 group-hover/json-key:opacity-100"
+              onClick={() => onAddKeyColumn(key)}
+            >
+              <Columns3 className="size-3" />
+            </button>
+          )}
         </div>
       ))}
     </div>
@@ -106,7 +145,7 @@ export const ObjectWithMarkdown = ({ data }: { data: Record<string, any> }) => (
   </div>
 );
 
-const JsonTooltip = ({ data, columnSize, className, onOpen }: JsonTooltipProps) => {
+const JsonTooltip = ({ data, columnSize, className, onOpen, onAddKeyColumn }: JsonTooltipProps) => {
   const [fullData, setFullData] = useState<unknown>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const fetchedRef = useRef(false);
@@ -184,7 +223,7 @@ const JsonTooltip = ({ data, columnSize, className, onOpen }: JsonTooltipProps) 
       <TooltipPortal>
         <TooltipContent
           side="bottom"
-          className="relative p-0 border max-w-96 max-h-96 min-h-8 min-w-32"
+          className="relative p-0 border max-w-[32rem] max-h-96 min-h-8 min-w-32"
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
@@ -203,9 +242,9 @@ const JsonTooltip = ({ data, columnSize, className, onOpen }: JsonTooltipProps) 
                 text={jsonString}
               />
 
-              <ScrollArea className="max-w-96">
+              <ScrollArea className="max-w-[32rem]">
                 {isObject ? (
-                  <ObjectWithMarkdown data={tooltipData as Record<string, any>} />
+                  <ObjectWithMarkdown data={tooltipData as Record<string, any>} onAddKeyColumn={onAddKeyColumn} />
                 ) : (
                   <div className="text-xs font-mono text-secondary-foreground p-2 max-h-96 whitespace-pre-wrap break-all">
                     {jsonString}

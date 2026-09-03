@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 
 import SQLEditor from "@/components/sql/sql-editor.tsx";
 import { Button } from "@/components/ui/button";
@@ -29,13 +29,14 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn, config }: Cus
 
   if (!projectId) return null;
 
-  const handleSave = async () => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
     setError(null);
 
     const trimmedName = name.trim();
     const trimmedSql = sql.trim();
 
-    if (!trimmedName || !trimmedSql) return;
+    if (!trimmedName || !trimmedSql || isTesting) return;
 
     // Check for duplicate names (skip the current name when editing)
     const cols = config.getColumnDefs();
@@ -90,7 +91,9 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn, config }: Cus
       exit={{ x: 20, opacity: 0 }}
       transition={{ duration: 0.15 }}
     >
-      <div className="w-md">
+      {/* A form so Enter in the name input saves — the SQL editor is a
+          CodeMirror instance, so its Enter still inserts a newline. */}
+      <form className="w-md" onSubmit={handleSubmit}>
         <div className="px-3 py-2 border-b flex items-center">
           <Button variant="ghost" size="sm" className="p-0 h-auto hover:bg-transparent" onClick={onBack}>
             <ArrowLeft data-icon="inline-start" className="size-3.5 mr-1" />
@@ -147,12 +150,12 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn, config }: Cus
             </Select>
           </div>
           {error && <p className="text-xs text-destructive break-words">{error}</p>}
-          <Button className="w-full" onClick={handleSave} disabled={!name.trim() || !sql.trim() || isTesting}>
+          <Button type="submit" className="w-full" disabled={!name.trim() || !sql.trim() || isTesting}>
             {isTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
             {editingColumn ? "Save" : "Add"}
           </Button>
         </div>
-      </div>
+      </form>
     </motion.div>
   );
 };

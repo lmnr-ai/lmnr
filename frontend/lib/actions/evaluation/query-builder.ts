@@ -61,13 +61,15 @@ function buildFilterConditions(
     const safeColumn = filter.column.replace(/[^a-zA-Z0-9_]/g, "_");
     const paramKey = `${paramPrefix}_${safeColumn}_${index}`;
 
-    // JSON template filter (e.g. metadata)
+    // JSON template filter (e.g. metadata). `ne` negates the whole equality
+    // template, so datapoints without the key are included.
     if (filterSql.includes("{KEY:")) {
       const [key, val] = String(filter.value).split("=", 2);
       if (key && val) {
-        const condition = filterSql
+        const match = filterSql
           .replace(/\{KEY:String\}/g, `{${paramKey}_key:String}`)
           .replace(/\{VAL:String\}/g, `{${paramKey}_val:String}`);
+        const condition = filter.operator === Operator.Ne ? `NOT ${match}` : match;
         conditions.push(condition);
         params[`${paramKey}_key`] = key;
         params[`${paramKey}_val`] = val;

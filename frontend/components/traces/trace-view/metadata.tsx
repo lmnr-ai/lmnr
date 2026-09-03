@@ -23,7 +23,9 @@ const Metadata = ({ metadata }: MetadataProps) => {
           <span>Metadata</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="p-0 overflow-hidden">
+      {/* Wider than the `w-72` default — metadata values are routinely long
+          enough that the default width wraps every line. */}
+      <PopoverContent className="p-0 overflow-hidden w-[28rem]">
         <ContentRenderer
           value={metadata}
           readOnly={true}

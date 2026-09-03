@@ -28,6 +28,13 @@ interface TranscriptProps {
 
 type FlatRow = TranscriptRowData;
 
+const DEFAULT_ROW_HEIGHT = 182;
+// Matches the `pt-4` applied to rows that need LLM top spacing.
+const LLM_TOP_SPACING = 16;
+// Enough slack that the last row clears the viewport bottom even while later
+// rows are still being measured.
+const SCROLL_PADDING_END = 160;
+
 const isGroupChildType = (type: FlatRow["type"]): boolean => type === "group-span" || type === "group-input";
 
 function getSpanIdsForRow(row: FlatRow, expandedGroups: Set<string>): string[] {
@@ -245,14 +252,41 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
     [stickyIndexes, flatRows]
   );
 
+  // Rows are measured only once mounted, and their span previews stream in
+  // afterwards, so a fixed estimate keeps under-counting the rows below the
+  // viewport: the total size grows as you scroll and the list never settles at
+  // the bottom. Feed measured heights back as the estimate for rows that
+  // haven't rendered yet so the total converges instead of drifting.
+  const measuredSizeRef = useRef({ total: 0, count: 0 });
+
+  const estimateSize = useCallback(
+    (index: number) => {
+      const { total, count } = measuredSizeRef.current;
+      const base = count > 0 ? total / count : DEFAULT_ROW_HEIGHT;
+      return needsLlmTopSpacing(index) ? base + LLM_TOP_SPACING : base;
+    },
+    [needsLlmTopSpacing]
+  );
+
   const virtualizer = useVirtualizer({
     count: flatRows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: (index) => (needsLlmTopSpacing(index) ? 198 : 182),
+    estimateSize,
     overscan: 20,
-    paddingEnd: 64,
+    paddingEnd: SCROLL_PADDING_END,
     rangeExtractor,
   });
+
+  const measureRow = useCallback(
+    (element: HTMLDivElement | null) => {
+      virtualizer.measureElement(element);
+      if (element && element.offsetHeight > 0) {
+        measuredSizeRef.current.total += element.offsetHeight;
+        measuredSizeRef.current.count += 1;
+      }
+    },
+    [virtualizer]
+  );
 
   const items = virtualizer.getVirtualItems();
 
@@ -457,7 +491,7 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
             <div
               key={virtualRow.key}
               data-index={virtualRow.index}
-              ref={virtualizer.measureElement}
+              ref={measureRow}
               style={{ ...positionStyle, left: 0, width: "100%" }}
               className={cn({
                 "pt-1": row.type === "group",
