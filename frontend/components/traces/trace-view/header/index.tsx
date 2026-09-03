@@ -3,7 +3,7 @@ import { ChevronsRight, Layers, Maximize, Radio, Sparkles, User } from "lucide-r
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { createSerializer, parseAsArrayOf, parseAsString } from "nuqs";
-import { memo, useCallback, useEffect, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { useLaminarAgentStore } from "@/components/agent";
@@ -61,6 +61,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   const agentOpen = useLaminarAgentStore((s) => s.viewMode === "open");
   const openAgent = useLaminarAgentStore((s) => s.open);
   const collapseAgent = useLaminarAgentStore((s) => s.collapse);
+  const [isSearchAnimating, setIsSearchAnimating] = useState(false);
 
   const {
     trace,
@@ -238,7 +239,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           {signalCount > 0 && (
             <span className={HEADER_ITEM_CLS}>
               <HeaderIconButton
-                icon={<Radio size={14} />}
+                icon={<Radio className={cn({ "text-primary": signalsPanelOpen })} size={14} />}
                 label={`Signals (${signalCount})`}
                 active={signalsPanelOpen}
                 onClick={() => setSignalsPanelOpen(!signalsPanelOpen)}
@@ -317,11 +318,15 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
       <AnimatePresence initial={false}>
         {tab !== "custom" && (
           <motion.div
-            className="flex items-center gap-2 overflow-hidden"
+            // Clip only while the height animates — a persistent overflow-hidden
+            // would cut off the search suggestions dropdown.
+            className={cn("flex items-center gap-2", isSearchAnimating && "overflow-hidden")}
             initial={{ height: 0, opacity: 0, marginTop: 0 }}
             animate={{ height: "auto", opacity: 1, marginTop: 8 }}
             exit={{ height: 0, opacity: 0, marginTop: 0 }}
             transition={{ duration: 0.2, ease: "easeInOut" }}
+            onAnimationStart={() => setIsSearchAnimating(true)}
+            onAnimationComplete={() => setIsSearchAnimating(false)}
           >
             <TraceViewSearch
               spans={spans}
