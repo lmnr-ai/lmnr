@@ -30,14 +30,15 @@ export default function ClusterStackedChart({
   showTooltip,
   runTotals,
 }: ClusterStackedChartProps) {
-  const hasOverlay = !!runTotals && runTotals.length > 0;
+  const overlayPoints = Array.isArray(runTotals) ? runTotals : undefined;
+  const hasOverlay = !!overlayPoints && overlayPoints.length > 0;
 
   const { data, chartConfig, fields } = useMemo(() => {
     const config: TimeSeriesChartConfig = {};
     const fieldKeys: string[] = [];
 
     const runTotalByTs = new Map<string, number>();
-    if (runTotals) for (const t of runTotals) runTotalByTs.set(t.timestamp, t.count);
+    if (overlayPoints) for (const t of overlayPoints) runTotalByTs.set(t.timestamp, t.count);
     if (hasOverlay)
       config[RUN_TOTAL_KEY] = {
         label: OVERLAY_LABEL,
@@ -77,7 +78,7 @@ export default function ClusterStackedChart({
       });
 
     return { data: chartData, chartConfig: config, fields: fieldKeys };
-  }, [clusters, statsData, colorMap, runTotals, hasOverlay]);
+  }, [clusters, statsData, colorMap, overlayPoints, hasOverlay]);
 
   if (data.length === 0) {
     return (
