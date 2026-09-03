@@ -3,6 +3,7 @@ export enum ChartType {
   "BarChart" = "bar",
   "HorizontalBarChart" = "horizontalBar",
   "Table" = "table",
+  "MetricCard" = "metric",
 }
 
 export type DisplayMode = "total" | "average" | "none";
@@ -31,9 +32,19 @@ export interface TableChartConfig extends BaseChartConfig {
   tableColumnConfig?: TableColumnConfig;
 }
 
-export type ChartConfig = AxisChartConfig | TableChartConfig;
+export interface MetricCardConfig extends BaseChartConfig {
+  type: ChartType.MetricCard;
+  /** The key in the result row to display. Defaults to first key if omitted. */
+  valueKey?: string;
+  /** Optional unit label shown below the number, e.g. "USD" or "tokens". */
+  unit?: string;
+}
+
+export type ChartConfig = AxisChartConfig | TableChartConfig | MetricCardConfig;
 
 export const isTableConfig = (config: ChartConfig): config is TableChartConfig => config.type === ChartType.Table;
+
+export const isMetricConfig = (config: ChartConfig): config is MetricCardConfig => config.type === ChartType.MetricCard;
 
 /** Resolve displayMode from config, with backward compatibility for `total: true`. */
 export const resolveDisplayMode = (config: ChartConfig): DisplayMode => {

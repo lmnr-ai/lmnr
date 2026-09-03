@@ -15,12 +15,18 @@ interface TablePresetConfig {
   type: "table";
 }
 
+interface MetricPresetConfig {
+  type: "metric";
+  valueKey?: string;
+  unit?: string;
+}
+
 export interface ChartPreset {
   name: string;
   table: PresetTable;
   query: string;
   queryStructure: QueryStructure;
-  config: AxisPresetConfig | TablePresetConfig;
+  config: AxisPresetConfig | TablePresetConfig | MetricPresetConfig;
 }
 
 // The default timeRange Form.tsx generates at execute time for time-series
@@ -36,6 +42,63 @@ const TIME_SERIES_TIME_RANGE = (column: string): QueryStructure["timeRange"] => 
 });
 
 export const CHART_PRESETS: ChartPreset[] = [
+  // ── Metric (single-number) presets ──────────────────────────────────────
+  {
+    name: "Total cost (metric)",
+    table: "traces",
+    query: `SELECT
+    round(sum(total_cost), 6) AS total_cost
+FROM traces
+WHERE
+    start_time >= {start_time:DateTime64}
+    AND start_time <= {end_time:DateTime64}`,
+    queryStructure: {
+      table: "traces",
+      metrics: [{ fn: "sum", column: "total_cost", alias: "total_cost", args: [] }],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+    },
+    config: { type: "metric", valueKey: "total_cost", unit: "USD" },
+  },
+  {
+    name: "Total traces (metric)",
+    table: "traces",
+    query: `SELECT
+    count(*) AS total_traces
+FROM traces
+WHERE
+    start_time >= {start_time:DateTime64}
+    AND start_time <= {end_time:DateTime64}`,
+    queryStructure: {
+      table: "traces",
+      metrics: [{ fn: "count", column: "*", alias: "total_traces", args: [] }],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+    },
+    config: { type: "metric", valueKey: "total_traces" },
+  },
+  {
+    name: "Total tokens (metric)",
+    table: "spans",
+    query: `SELECT
+    sum(total_tokens) AS total_tokens
+FROM spans
+WHERE
+    span_type = 'LLM'
+    AND start_time >= {start_time:DateTime64}
+    AND start_time <= {end_time:DateTime64}`,
+    queryStructure: {
+      table: "spans",
+      metrics: [{ fn: "sum", column: "total_tokens", alias: "total_tokens", args: [] }],
+      dimensions: [],
+      filters: [{ field: "span_type", op: "eq", stringValue: "LLM" }],
+      orderBy: [],
+    },
+    config: { type: "metric", valueKey: "total_tokens", unit: "tokens" },
+  },
+  // ── Time-series & table presets (unchanged) ──────────────────────────────
   {
     name: "Trace p90 cost",
     table: "traces",
