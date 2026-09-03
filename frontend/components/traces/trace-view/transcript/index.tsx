@@ -1,4 +1,9 @@
-import { defaultRangeExtractor, type Range, useVirtualizer } from "@tanstack/react-virtual";
+import {
+  defaultRangeExtractor,
+  measureElement as measureElementSize,
+  type Range,
+  useVirtualizer,
+} from "@tanstack/react-virtual";
 import { isEmpty, times } from "lodash";
 import { ListTree } from "lucide-react";
 import { useParams } from "next/navigation";
@@ -252,17 +257,39 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
     [stickyIndexes, flatRows]
   );
 
-  // Rows are measured only once mounted, and their span previews stream in
-  // afterwards, so a fixed estimate keeps under-counting the rows below the
-  // viewport: the total size grows as you scroll and the list never settles at
-  // the bottom. Feed measured heights back as the estimate for rows that
-  // haven't rendered yet so the total converges instead of drifting.
-  const measuredSizeRef = useRef({ total: 0, count: 0 });
+  // Rows grow after mount as their span previews stream in, so a fixed estimate
+  // under-counts every row below the viewport and the list never settles at the
+  // bottom. Keep a running average of measured heights — keyed by index so a
+  // re-measure replaces the old value — and estimate unrendered rows from it.
+  const measuredRef = useRef({ sizes: new Map<number, number>(), total: 0 });
+
+  // Heights from a previous trace say nothing about this one, and index-keyed
+  // sizes would be attributed to unrelated rows.
+  const measuredTraceIdRef = useRef(trace?.id);
+  if (measuredTraceIdRef.current !== trace?.id) {
+    measuredTraceIdRef.current = trace?.id;
+    measuredRef.current = { sizes: new Map(), total: 0 };
+  }
+
+  const recordMeasuredSize = useCallback(
+    (index: number, size: number) => {
+      if (!Number.isInteger(index) || index < 0 || size <= 0) return;
+      // Store the spacing-free height, so the average isn't inflated by rows
+      // that carry `pt-4` and `estimateSize` can add it back per row.
+      const base = needsLlmTopSpacing(index) ? size - LLM_TOP_SPACING : size;
+      const measured = measuredRef.current;
+      const previous = measured.sizes.get(index);
+      if (previous === base) return;
+      measured.sizes.set(index, base);
+      measured.total += base - (previous ?? 0);
+    },
+    [needsLlmTopSpacing]
+  );
 
   const estimateSize = useCallback(
     (index: number) => {
-      const { total, count } = measuredSizeRef.current;
-      const base = count > 0 ? total / count : DEFAULT_ROW_HEIGHT;
+      const { sizes, total } = measuredRef.current;
+      const base = sizes.size > 0 ? total / sizes.size : DEFAULT_ROW_HEIGHT;
       return needsLlmTopSpacing(index) ? base + LLM_TOP_SPACING : base;
     },
     [needsLlmTopSpacing]
@@ -275,18 +302,15 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
     overscan: 20,
     paddingEnd: SCROLL_PADDING_END,
     rangeExtractor,
-  });
-
-  const measureRow = useCallback(
-    (element: HTMLDivElement | null) => {
-      virtualizer.measureElement(element);
-      if (element && element.offsetHeight > 0) {
-        measuredSizeRef.current.total += element.offsetHeight;
-        measuredSizeRef.current.count += 1;
-      }
+    // Runs on mount AND on every resize observation, so a row that grows once
+    // its preview arrives replaces its earlier height instead of leaving the
+    // average stuck at mount-time sizes.
+    measureElement: (element, entry, instance) => {
+      const size = measureElementSize(element, entry, instance);
+      recordMeasuredSize(Number(element.getAttribute("data-index")), size);
+      return size;
     },
-    [virtualizer]
-  );
+  });
 
   const items = virtualizer.getVirtualItems();
 
@@ -491,7 +515,7 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
             <div
               key={virtualRow.key}
               data-index={virtualRow.index}
-              ref={measureRow}
+              ref={virtualizer.measureElement}
               style={{ ...positionStyle, left: 0, width: "100%" }}
               className={cn({
                 "pt-1": row.type === "group",
