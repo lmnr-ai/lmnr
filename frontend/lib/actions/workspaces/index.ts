@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { createProject } from "@/lib/actions/projects";
@@ -37,6 +37,69 @@ type CreateWorkspaceResult = {
   projectId?: string;
 };
 
+// Onboarding extras that belong to an account's very FIRST project: the default
+// Failure Detector signal and email targets on the workspace's default reports.
+// Split out of createWorkspace because a first project doesn't always arrive with
+// a fresh workspace — createWorkspace isn't transactional, so a create that fails
+// after the workspace insert leaves a workspace with no project behind, and the
+// retry has to seed these onto an existing workspace.
+export const seedFirstProject = async ({
+  workspaceId,
+  projectId,
+  userEmail,
+}: {
+  workspaceId: string;
+  projectId: string;
+  userEmail?: string | null;
+}): Promise<void> => {
+  // Route through createSignal so the default Failure Detector signal gets
+  // the same SIGNAL_EVENT alert + creator email target as a UI-created signal.
+  const signal = await createSignal({
+    projectId,
+    name: DEFAULT_SIGNAL.name,
+    prompt: DEFAULT_SIGNAL.prompt,
+    structuredOutput: DEFAULT_SIGNAL.structuredOutputSchema,
+    subscriberEmail: userEmail ?? undefined,
+  });
+
+  if (signal) {
+    await db.insert(signalTriggers).values({
+      projectId,
+      signalId: signal.id,
+      value: DEFAULT_SIGNAL_TRIGGER_VALUE,
+      filters: DEFAULT_SIGNAL_TRIGGER_FILTERS,
+    });
+  }
+
+  if (!userEmail) return;
+
+  // Re-read instead of taking ids from the caller: on the retry path the default
+  // reports were inserted by an earlier, half-failed request.
+  const workspaceReports = await db
+    .select({ id: reports.id })
+    .from(reports)
+    .where(eq(reports.workspaceId, workspaceId));
+  if (workspaceReports.length === 0) return;
+
+  // report_targets has no unique constraint, so dedupe here rather than re-mailing.
+  const existingTargets = await db
+    .select({ reportId: reportTargets.reportId })
+    .from(reportTargets)
+    .where(and(eq(reportTargets.workspaceId, workspaceId), eq(reportTargets.email, userEmail)));
+  const targeted = new Set(existingTargets.map((t) => t.reportId));
+  const untargeted = workspaceReports.filter((r) => !targeted.has(r.id));
+  if (untargeted.length === 0) return;
+
+  await db.insert(reportTargets).values(
+    untargeted.map((r) => ({
+      workspaceId,
+      reportId: r.id,
+      type: REPORT_TARGET_TYPE.EMAIL,
+      email: userEmail,
+    }))
+  );
+};
+
 export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchema>): Promise<CreateWorkspaceResult> => {
   const session = await getServerSession();
 
@@ -69,17 +132,14 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
     memberRole: "owner",
   });
 
-  const insertedReports = await db
-    .insert(reports)
-    .values(
-      defaultReports.map((r) => ({
-        workspaceId: workspace.id,
-        type: r.type,
-        weekdays: r.weekdays,
-        hour: r.hour,
-      }))
-    )
-    .returning({ id: reports.id });
+  await db.insert(reports).values(
+    defaultReports.map((r) => ({
+      workspaceId: workspace.id,
+      type: r.type,
+      weekdays: r.weekdays,
+      hour: r.hour,
+    }))
+  );
 
   let projectId: string | undefined;
 
@@ -90,36 +150,8 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
     });
     projectId = project.id;
 
-    if (isFirstProject && projectId) {
-      // Route through createSignal so the default Failure Detector signal gets
-      // the same SIGNAL_EVENT alert + creator email target as a UI-created signal.
-      const signal = await createSignal({
-        projectId,
-        name: DEFAULT_SIGNAL.name,
-        prompt: DEFAULT_SIGNAL.prompt,
-        structuredOutput: DEFAULT_SIGNAL.structuredOutputSchema,
-        subscriberEmail: userEmail ?? undefined,
-      });
-
-      if (signal) {
-        await db.insert(signalTriggers).values({
-          projectId,
-          signalId: signal.id,
-          value: DEFAULT_SIGNAL_TRIGGER_VALUE,
-          filters: DEFAULT_SIGNAL_TRIGGER_FILTERS,
-        });
-      }
-
-      if (userEmail && insertedReports.length > 0) {
-        await db.insert(reportTargets).values(
-          insertedReports.map((r) => ({
-            workspaceId: workspace.id,
-            reportId: r.id,
-            type: REPORT_TARGET_TYPE.EMAIL,
-            email: userEmail,
-          }))
-        );
-      }
+    if (isFirstProject) {
+      await seedFirstProject({ workspaceId: workspace.id, projectId, userEmail });
     }
   }
 
