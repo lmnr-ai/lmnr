@@ -95,7 +95,7 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn, config }: Cus
           CodeMirror instance, so its Enter still inserts a newline. */}
       <form className="w-md" onSubmit={handleSubmit}>
         <div className="px-3 py-2 border-b flex items-center">
-          <Button variant="ghost" size="sm" className="p-0 h-auto hover:bg-transparent" onClick={onBack}>
+          <Button type="button" variant="ghost" size="sm" className="p-0 h-auto hover:bg-transparent" onClick={onBack}>
             <ArrowLeft data-icon="inline-start" className="size-3.5 mr-1" />
             <span>Back</span>
           </Button>

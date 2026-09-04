@@ -23,6 +23,11 @@ const MetadataCell = ({ value, columnSize }: MetadataCellProps) => {
   const store = useTableConfigStoreApi();
   const { toast } = useToast();
 
+  const isKeyColumn = useCallback(
+    (key: string) => store.getState().config.customColumns.some((column) => column.name === key),
+    [store]
+  );
+
   const handleAddKeyColumn = useCallback(
     (key: string) => {
       const { config, addCustomColumn } = store.getState();
@@ -42,7 +47,9 @@ const MetadataCell = ({ value, columnSize }: MetadataCellProps) => {
     [store, toast]
   );
 
-  return <JsonTooltip data={value} columnSize={columnSize} onAddKeyColumn={handleAddKeyColumn} />;
+  return (
+    <JsonTooltip data={value} columnSize={columnSize} onAddKeyColumn={handleAddKeyColumn} isKeyColumn={isKeyColumn} />
+  );
 };
 
 export default MetadataCell;

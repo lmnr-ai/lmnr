@@ -1,5 +1,5 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { Columns3, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { defaultRehypePlugins, Streamdown } from "streamdown";
 
@@ -14,17 +14,15 @@ interface JsonTooltipProps {
   className?: string;
   onOpen?: () => Promise<unknown>;
   /**
-   * Opt-in per-key action shown next to each top-level key of an object value
-   * (used by the traces table to promote a metadata key to a custom column).
+   * Opt-in per-key action: keys of an object value become clickable so the
+   * traces table can promote a metadata key to a custom column.
    */
   onAddKeyColumn?: (key: string) => void;
+  /** Keys that are already custom columns, so the tooltip can mute them. */
+  isKeyColumn?: (key: string) => boolean;
 }
 
 const breakStyle = { wordBreak: "break-all" as const, overflowWrap: "anywhere" as const };
-
-// A single pasted document or stack trace otherwise fills the whole tooltip and
-// buries the remaining keys, so long values start collapsed.
-const MAX_COLLAPSED_VALUE_LENGTH = 280;
 
 const MarkdownValue = ({ value }: { value: string }) => (
   <Streamdown
@@ -87,65 +85,85 @@ const MarkdownValue = ({ value }: { value: string }) => (
   </Streamdown>
 );
 
-const JsonValue = ({ value }: { value: unknown }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  const text = typeof value === "string" ? value : (JSON.stringify(value) ?? String(value));
-  const isLong = text.length > MAX_COLLAPSED_VALUE_LENGTH;
-  const shown = isLong && !isExpanded ? text.slice(0, MAX_COLLAPSED_VALUE_LENGTH) : text;
-
-  return (
+const JsonValue = ({ value }: { value: unknown }) =>
+  typeof value === "string" ? (
     <span className="inline" style={breakStyle}>
-      {typeof value === "string" ? <MarkdownValue value={shown} /> : <span style={breakStyle}>{shown}</span>}
-      {isLong && (
-        <button
-          type="button"
-          className="ml-1 text-primary/80 underline underline-offset-2 cursor-pointer"
-          onClick={() => setIsExpanded((expanded) => !expanded)}
-        >
-          {isExpanded ? "show less" : `… show ${text.length - MAX_COLLAPSED_VALUE_LENGTH} more`}
-        </button>
-      )}
+      <MarkdownValue value={value} />
     </span>
+  ) : (
+    <span style={breakStyle}>{JSON.stringify(value)}</span>
   );
-};
 
 export const ObjectWithMarkdown = ({
   data,
   onAddKeyColumn,
+  isKeyColumn,
 }: {
   data: Record<string, any>;
   onAddKeyColumn?: (key: string) => void;
-}) => (
-  <div className="text-xs font-mono text-secondary-foreground p-2 max-h-96" style={breakStyle}>
-    <div>{"{"}</div>
-    <div className="pl-4 flex flex-col gap-0.5" style={breakStyle}>
-      {Object.entries(data).map(([key, value], index, array) => (
-        <div key={key} className="group/json-key" style={breakStyle}>
-          <span className="text-primary" style={breakStyle}>
-            &quot;{key}&quot;:{" "}
-          </span>
-          <JsonValue value={value} />
-          {index < array.length - 1 && <span>,</span>}
-          {onAddKeyColumn && (
-            <button
-              type="button"
-              aria-label={`Add "${key}" as a column`}
-              title={`Add "${key}" as a column`}
-              className="ml-1 align-middle inline-flex items-center rounded p-0.5 cursor-pointer text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-primary focus-visible:opacity-100 group-hover/json-key:opacity-100"
-              onClick={() => onAddKeyColumn(key)}
-            >
-              <Columns3 className="size-3" />
-            </button>
-          )}
-        </div>
-      ))}
-    </div>
-    <div className="pb-2">{"}"}</div>
-  </div>
-);
+  isKeyColumn?: (key: string) => boolean;
+}) => {
+  const [addedKeys, setAddedKeys] = useState<Set<string>>(() => new Set());
 
-const JsonTooltip = ({ data, columnSize, className, onOpen, onAddKeyColumn }: JsonTooltipProps) => {
+  const handleAdd = useCallback(
+    (key: string) => {
+      onAddKeyColumn?.(key);
+      setAddedKeys((prev) => {
+        if (prev.has(key)) return prev;
+        const next = new Set(prev);
+        next.add(key);
+        return next;
+      });
+    },
+    [onAddKeyColumn]
+  );
+
+  return (
+    <div className="text-xs font-mono text-secondary-foreground p-2 max-h-96" style={breakStyle}>
+      <div>{"{"}</div>
+      <div className="pl-4 flex flex-col gap-0.5" style={breakStyle}>
+        {Object.entries(data).map(([key, value], index, array) => {
+          const isAdded = addedKeys.has(key) || !!isKeyColumn?.(key);
+          return (
+            <div key={key} style={breakStyle}>
+              {onAddKeyColumn && !isAdded ? (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Add "${key}" as a column`}
+                  className="cursor-pointer text-primary hover:underline underline-offset-2"
+                  style={breakStyle}
+                  onClick={() => handleAdd(key)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleAdd(key);
+                    }
+                  }}
+                >
+                  &quot;{key}&quot;
+                </span>
+              ) : (
+                <span className={onAddKeyColumn ? "text-muted-foreground" : "text-primary"} style={breakStyle}>
+                  &quot;{key}&quot;
+                </span>
+              )}
+              <span>: </span>
+              <JsonValue value={value} />
+              {index < array.length - 1 && <span>,</span>}
+            </div>
+          );
+        })}
+      </div>
+      <div>{"}"}</div>
+      {onAddKeyColumn && (
+        <p className="pt-1.5 text-[10px] font-sans text-muted-foreground">Click a key to add it as a column</p>
+      )}
+    </div>
+  );
+};
+
+const JsonTooltip = ({ data, columnSize, className, onOpen, onAddKeyColumn, isKeyColumn }: JsonTooltipProps) => {
   const [fullData, setFullData] = useState<unknown>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const fetchedRef = useRef(false);
@@ -244,7 +262,11 @@ const JsonTooltip = ({ data, columnSize, className, onOpen, onAddKeyColumn }: Js
 
               <ScrollArea className="max-w-[32rem]">
                 {isObject ? (
-                  <ObjectWithMarkdown data={tooltipData as Record<string, any>} onAddKeyColumn={onAddKeyColumn} />
+                  <ObjectWithMarkdown
+                    data={tooltipData as Record<string, any>}
+                    onAddKeyColumn={onAddKeyColumn}
+                    isKeyColumn={isKeyColumn}
+                  />
                 ) : (
                   <div className="text-xs font-mono text-secondary-foreground p-2 max-h-96 whitespace-pre-wrap break-all">
                     {jsonString}
