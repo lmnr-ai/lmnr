@@ -14,25 +14,22 @@ const COLORS: Record<number, string> = {
   2: "text-red-400",
 };
 
-/**
- * Severity as a glyph beside the signal name.
- *
- * A word up here would be a second title competing with the signal's own name,
- * so the label lives in a tooltip — a colour and a shape are a convention, and
- * conventions have to be learnable.
- *
- * The size is a CLASS, not lucide's `size` prop: `size` becomes a width/height
- * attribute, which loses to `TabsTrigger`'s `[&_svg:not([class*='size-'])]:size-4`
- * and pins every glyph inside a tab to 16px.
- */
-export default function SeverityIcon({ severity, bare }: { severity: number; bare?: boolean }) {
+interface Props {
+  severity: number;
+  /** Skip the tooltip. Inside a tab it would nest interactive elements and
+   *  compete for the click, and the tab's own label already names the signal. */
+  bare?: boolean;
+}
+
+/** Severity beside the signal name. A word there would be a second title, so the
+ *  label lives in a tooltip — a colour and a shape have to be learnable. */
+export default function SeverityIcon({ severity, bare }: Props) {
   const Icon = ICONS[severity as keyof typeof ICONS] ?? Info;
   const label = SEVERITY_LABELS[severity as keyof typeof SEVERITY_LABELS] ?? "Info";
   const color = COLORS[severity] ?? COLORS[0];
 
-  // Inside a signal TAB the glyph sits within a button, where a tooltip trigger
-  // would both nest interactive elements and compete with the tab for the click.
-  // The tab's label already names the signal, so the glyph keeps only its label.
+  // Sized by CLASS: lucide's `size` prop becomes an attribute, which loses to
+  // `TabsTrigger`'s `[&_svg:not([class*='size-'])]:size-4`.
   if (bare) {
     return (
       <span className={cn("pointer-events-none shrink-0", color)} aria-label={label}>

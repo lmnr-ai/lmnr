@@ -111,14 +111,11 @@
 
   --color-subagent: hsl(var(--subagent));
 
-  /* The signal panel's one hue. Everything in the panel that is not a cluster
-     colour or a severity colour is a wash of this, so the card can be re-keyed
-     from here. Was three separate hardcoded `blue-400` opacities. */
+  /* The signal panel's one hue: everything in it that is not a cluster or severity
+     colour is a wash of this. Was three hardcoded `blue-400` opacities. */
   --color-signal: #75acff;
-  /* The panel's muted text — payload field names, inactive tab labels — pulled
-     10% toward the hue. A neutral grey there reads as the page's chrome rather
-     than the card's. Mixed into each token rather than replacing it, so the
-     existing lightness gap between the two survives. */
+  /* The panel's muted text — payload keys, inactive tab labels — mixed 10% toward
+     the hue, so it reads as the card's chrome rather than the page's. */
   --color-signal-key: color-mix(in oklab, var(--color-signal) 10%, var(--color-muted-foreground));
   --color-signal-tab: color-mix(in oklab, var(--color-signal) 10%, var(--color-secondary-foreground));
 
