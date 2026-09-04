@@ -233,8 +233,8 @@ function SessionTimeline() {
           aria-label="Close"
           onClick={() => setSessionTimelineEnabled(false)}
           variant="ghost"
-          size="icon"
-          className="size-5 min-w-5"
+          size="icon-xs"
+          className="min-w-5"
         >
           <X className="size-3.5" />
         </Button>

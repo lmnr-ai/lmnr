@@ -25,7 +25,7 @@ export default function EvalTableSkeleton() {
               <ChevronDown data-icon="inline-end" className="size-3.5 shrink-0 opacity-60" />
             </Button>
 
-            <Button aria-label="Settings" className="h-7 w-7" variant="outline" size="icon" disabled>
+            <Button aria-label="Settings" variant="outline" size="icon" disabled>
               <Settings className="h-4 w-4 text-secondary-foreground" />
             </Button>
           </div>

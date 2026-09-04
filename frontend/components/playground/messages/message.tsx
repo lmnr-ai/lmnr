@@ -212,7 +212,7 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
           </Tooltip>
         )}
         <CollapsibleTrigger asChild>
-          <Button aria-label="Toggle message parts" variant="ghost" size="icon" className="w-6 h-6 ml-auto">
+          <Button aria-label="Toggle message parts" variant="ghost" size="icon-sm" className="ml-auto">
             <ChevronRight className="w-4 h-4 text-muted-foreground mr-2 group-data-[state=open]:rotate-90 transition-transform duration-200" />
           </Button>
         </CollapsibleTrigger>

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import DatasetSelect from "@/components/ui/dataset-select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { type Dataset } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 
@@ -101,9 +102,9 @@ export default function ExportJobDialog({ sqlQuery, children }: PropsWithChildre
         <div className="flex flex-1 flex-col gap-4">
           <DatasetSelect onChange={(dataset) => setSelectedDataset(dataset)} />
           <div className="flex flex-col gap-2">
-            <label htmlFor="batch-size" className="text-sm font-medium">
+            <Label htmlFor="batch-size" className="font-medium text-foreground">
               Batch Size
-            </label>
+            </Label>
             <Input
               id="batch-size"
               type="number"

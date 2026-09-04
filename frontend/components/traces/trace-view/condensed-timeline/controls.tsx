@@ -41,16 +41,16 @@ export default function Controls({
               <span>Cost heatmap</span>
             </button>
           </TooltipTrigger>
-          <TooltipContent className="border">Toggle cost heatmap</TooltipContent>
+          <TooltipContent>Toggle cost heatmap</TooltipContent>
         </Tooltip>
       </TooltipProvider>
       <div className={cn("flex items-center border rounded-md px-0.5 h-[24px]", raisedSurface)}>
         <Button
           aria-label="Zoom in"
           disabled={zoom >= MAX_ZOOM}
-          className="size-5 min-w-5"
+          className="min-w-5"
           variant="ghost"
-          size="icon"
+          size="icon-xs"
           onClick={onZoomIn}
         >
           <Plus className="size-3" />
@@ -58,9 +58,9 @@ export default function Controls({
         <Button
           aria-label="Zoom out"
           disabled={zoom <= MIN_ZOOM}
-          className="size-5 min-w-5"
+          className="min-w-5"
           variant="ghost"
-          size="icon"
+          size="icon-xs"
           onClick={onZoomOut}
         >
           <Minus className="size-3" />

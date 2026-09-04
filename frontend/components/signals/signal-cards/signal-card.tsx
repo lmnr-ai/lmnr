@@ -76,7 +76,7 @@ export default function SignalCard({
               </TooltipTrigger>
               {signal.prompt && (
                 <TooltipPrimitive.Portal>
-                  <TooltipContent side="bottom" align="start" className="max-w-[350px] border">
+                  <TooltipContent side="bottom" align="start" className="max-w-[350px]">
                     <p className="text-muted-foreground whitespace-pre-wrap">{signal.prompt}</p>
                   </TooltipContent>
                 </TooltipPrimitive.Portal>

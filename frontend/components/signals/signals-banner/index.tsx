@@ -60,13 +60,15 @@ export default function SignalsBanner({ onCreateSignal }: SignalsBannerProps) {
                 </p>
               </div>
               <div className="flex flex-col items-end justify-between self-stretch">
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
                   onClick={dismiss}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-muted-foreground hover:text-foreground"
                   aria-label="Dismiss banner"
                 >
                   <X className="size-4" />
-                </button>
+                </Button>
                 <div className="flex items-center gap-2">
                   <a
                     href="https://laminar.sh/docs/signals"
@@ -77,7 +79,7 @@ export default function SignalsBanner({ onCreateSignal }: SignalsBannerProps) {
                     Docs
                   </a>
                   {onCreateSignal && (
-                    <Button variant="default" size="sm" onClick={onCreateSignal}>
+                    <Button size="sm" onClick={onCreateSignal}>
                       Create a Signal
                     </Button>
                   )}

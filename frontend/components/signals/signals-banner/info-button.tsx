@@ -2,18 +2,22 @@
 
 import { Info } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+
 import { useSignalsBannerStore } from "./store";
 
 export function SignalsBannerInfoButton() {
   const { show } = useSignalsBannerStore();
 
   return (
-    <button
+    <Button
       onClick={show}
-      className="inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground transition-colors size-6"
+      variant="ghost"
+      size="icon-sm"
+      className="text-muted-foreground hover:text-foreground"
       aria-label="Show signals info"
     >
       <Info className="size-3.5" />
-    </button>
+    </Button>
   );
 }

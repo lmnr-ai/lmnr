@@ -68,24 +68,12 @@ const SpanViewTabs = ({
       tabIndex={0}
     >
       <div className="px-2 pb-2 mt-2 border-b w-full">
-        <TabsList className="border-none text-xs h-7">
-          {isLLM && (
-            <TabsTrigger value="overview" className="text-xs">
-              Overview
-            </TabsTrigger>
-          )}
-          <TabsTrigger value="span-input" className="text-xs">
-            Span Input
-          </TabsTrigger>
-          <TabsTrigger value="span-output" className="text-xs">
-            Span Output
-          </TabsTrigger>
-          <TabsTrigger value="attributes" className="text-xs">
-            Attributes
-          </TabsTrigger>
-          <TabsTrigger value="events" className="text-xs">
-            Events
-          </TabsTrigger>
+        <TabsList size="sm">
+          {isLLM && <TabsTrigger value="overview">Overview</TabsTrigger>}
+          <TabsTrigger value="span-input">Span Input</TabsTrigger>
+          <TabsTrigger value="span-output">Span Output</TabsTrigger>
+          <TabsTrigger value="attributes">Attributes</TabsTrigger>
+          <TabsTrigger value="events">Events</TabsTrigger>
         </TabsList>
       </div>
       <SpanViewSearchBar ref={searchRef} open={searchOpen} setOpen={setSearchOpen} />
@@ -104,7 +92,7 @@ const SpanViewTabs = ({
         <TabsContent value="attributes" className="w-full h-full">
           <ContentRenderer
             className="rounded-none border-0"
-            codeEditorClassName="rounded-none border-none bg-background contain-strict"
+            codeEditorClassName="rounded-none border-none contain-strict"
             readOnly
             value={JSON.stringify(span.attributes)}
             defaultMode="yaml"
@@ -114,7 +102,7 @@ const SpanViewTabs = ({
         <TabsContent value="events" className="w-full h-full">
           <ContentRenderer
             className="rounded-none border-0"
-            codeEditorClassName="rounded-none border-none bg-background contain-strict"
+            codeEditorClassName="rounded-none border-none contain-strict"
             readOnly
             value={JSON.stringify(span.events)}
             defaultMode="yaml"
@@ -183,7 +171,7 @@ export function SpanView({
 
   if (span && get(span.attributes, "gen_ai.prompt.user")) {
     return (
-      <div className="whitespace-pre-wrap p-4 border rounded-md bg-muted/50">
+      <div className="whitespace-pre-wrap p-4 m-2 border rounded-md bg-surface-up">
         {get(span.attributes, "gen_ai.prompt.user")}
       </div>
     );

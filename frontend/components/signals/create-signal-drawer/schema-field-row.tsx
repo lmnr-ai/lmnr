@@ -123,9 +123,10 @@ export default function SchemaFieldRow({
           aria-label="Remove field"
           type="button"
           variant="ghost"
+          size="icon"
           onClick={onRemove}
           disabled={!canRemove}
-          className="py-[7px] shrink-0"
+          className="shrink-0"
         >
           <X className="w-3.5 h-3.5" />
         </Button>

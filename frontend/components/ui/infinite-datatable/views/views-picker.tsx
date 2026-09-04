@@ -213,7 +213,6 @@ export default function ViewsPicker({
             <div className="relative">
               <Search className="pointer-events-none absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
               <Input
-                size="xs"
                 placeholder="Search views…"
                 value={search}
                 autoFocus

@@ -10,7 +10,7 @@ export const StructuredOutputSchema = ({ schema }: { schema: string }) => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="focus:outline-hidden flex h-6 w-fit items-center border-tool bg-tool/10 gap-1 text-xs font-mono border rounded-md px-2 text-tool hover:bg-tool/20 transition-colors">
+        <button className="focus:outline-hidden flex h-6 w-fit items-center gap-1 rounded-md px-2 text-xs font-mono bg-tool/20 text-tool hover:bg-tool/30 transition-colors">
           <Braces size={12} className="min-w-3" />
           <span>output schema</span>
           <ChevronDown size={12} />

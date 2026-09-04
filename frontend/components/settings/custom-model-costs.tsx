@@ -496,7 +496,7 @@ export default function CustomModelCosts() {
                     initialCosts={costObj}
                     onSave={upsertCost}
                     trigger={
-                      <Button aria-label="Edit" variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <Button aria-label="Edit" variant="ghost" size="icon">
                         <Pencil size={14} />
                       </Button>
                     }
@@ -504,8 +504,7 @@ export default function CustomModelCosts() {
                   <Button
                     aria-label="Delete"
                     variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0"
+                    size="icon"
                     onClick={() => setDeleteTarget({ id: cost.id, model: cost.model })}
                   >
                     <Trash2 size={14} />

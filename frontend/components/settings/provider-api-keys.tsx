@@ -82,8 +82,7 @@ export default function ProviderApiKeys() {
                 <Button
                   aria-label="Delete"
                   variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0"
+                  size="icon"
                   onClick={() => {
                     deleteProviderApiKey(apiKey.name);
                   }}

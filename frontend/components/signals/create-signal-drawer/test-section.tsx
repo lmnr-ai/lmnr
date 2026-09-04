@@ -34,8 +34,8 @@ function TraceChip({ trace, onClear, disabled }: { trace: TraceRow; onClear: () 
       <Button
         type="button"
         variant="ghost"
-        size="icon"
-        className="h-6 w-6 shrink-0"
+        size="icon-sm"
+        className="shrink-0"
         onClick={onClear}
         disabled={disabled}
         aria-label="Clear selected trace"
@@ -146,8 +146,8 @@ export default function TestSection() {
             <Button
               type="button"
               variant="ghost"
-              size="icon"
-              className="h-6 w-6 -mr-1"
+              size="icon-sm"
+              className="-mr-1"
               onClick={clear}
               disabled={isExecuting}
               aria-label="Dismiss test result"

@@ -84,7 +84,7 @@ const SpanFilter = ({ traceId }: Props) => {
           <Button
             type="button"
             variant="secondary"
-            className="absolute bottom-2 right-2 z-10 h-7 text-xs shadow-md"
+            className="absolute bottom-2 right-2 z-10 shadow-md"
             disabled={isTesting}
             onClick={testWhereClause}
           >

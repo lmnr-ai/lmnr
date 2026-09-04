@@ -147,8 +147,8 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
             <Button
               aria-label="More options"
               variant="ghost"
-              size="sm"
-              className="opacity-0 group-hover:opacity-100 h-6 w-6 min-w-6 p-0 ml-auto focus-visible:ring-0 hover:bg-muted"
+              size="icon-sm"
+              className="opacity-0 group-hover:opacity-100 min-w-6 ml-auto focus-visible:ring-0 hover:bg-muted"
               onClick={(e) => e.stopPropagation()}
             >
               <EllipsisVertical className="h-3 w-3" />
@@ -269,7 +269,7 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
       <div className="flex items-center p-2 px-4 border-b shrink-0">
         <span className="font-medium">Queries</span>
         <Link className="ml-auto" href={`/project/${projectId}/sql`}>
-          <Button aria-label="Add" onClick={handleCreate} variant="outline" className="size-6 p-0 lg:flex">
+          <Button aria-label="Add" onClick={handleCreate} variant="outline" size="icon-sm" className="lg:flex">
             <Plus className="w-4 h-4" />
           </Button>
         </Link>

@@ -7,6 +7,7 @@ import ContentRenderer from "@/components/ui/content-renderer/index";
 import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import DownloadButton from "@/components/ui/download-button";
 import PdfRenderer from "@/components/ui/pdf-renderer";
+import { ElevatedSurface } from "@/components/ui/surface";
 import { isStorageUrl } from "@/lib/s3";
 import { resolveContentMode } from "@/lib/spans/resolve-content-mode";
 import { cn } from "@/lib/utils";
@@ -77,7 +78,7 @@ const PureToolCallContentPart = ({
 }: ToolCallContentPartProps) => {
   const { mode, modes, value } = resolveContentMode(content);
   return (
-    <div className="flex flex-col gap-2 p-2 bg-background rounded-b">
+    <div className="flex flex-col gap-2 p-2">
       <span
         className="flex items-center gap-1.5 text-xs font-medium"
         style={{ color: ROLE_COLORS.tool.badgeText, opacity: 0.85 }}
@@ -93,7 +94,7 @@ const PureToolCallContentPart = ({
         codeEditorClassName="rounded"
         value={value}
         presetKey={`editor-${presetKey}`}
-        className="border-0 bg-card"
+        className="border-0"
         messageIndex={messageIndex}
         contentPartIndex={contentPartIndex}
         customTheme={spanViewTheme}
@@ -123,7 +124,7 @@ const PureToolResultContentPart = ({
 }: ToolResultContentPartProps) => {
   const { mode, modes, value } = resolveContentMode(content);
   return (
-    <div className="flex flex-col gap-2 p-2 bg-background rounded-b">
+    <div className="flex flex-col gap-2 p-2">
       <span
         className="flex items-center gap-1.5 text-xs font-medium"
         style={{ color: ROLE_COLORS.tool.badgeText, opacity: 0.85 }}
@@ -140,7 +141,7 @@ const PureToolResultContentPart = ({
           codeEditorClassName="rounded"
           value={value}
           presetKey={`editor-${presetKey}`}
-          className="border-0 bg-card"
+          className="border-0"
           messageIndex={messageIndex}
           contentPartIndex={contentPartIndex}
           customTheme={spanViewTheme}
@@ -190,7 +191,7 @@ const PureTextContentPart = ({
         readOnly
         value={value}
         presetKey={`editor-${presetKey}`}
-        className={cn("border-0 bg-card", className)}
+        className={cn("border-0", className)}
         codeEditorClassName={codeEditorClassName}
         messageIndex={messageIndex}
         contentPartIndex={contentPartIndex}
@@ -209,7 +210,7 @@ export const RoleHeader = ({ role, className }: RoleHeaderProps) => {
   if (role) {
     const colors = getRoleColors(role);
     return (
-      <div className={cn("flex items-center px-2 py-1 gap-2 border-b bg-background rounded-t", className)}>
+      <div className={cn("flex items-center px-2 py-1 gap-2 border-b rounded-t", className)}>
         <span className="text-sm font-medium" style={{ color: colors.badgeText }}>
           {capitalize(role)}
         </span>
@@ -250,7 +251,7 @@ const PureThinkingContentPart = ({
   messageIndex = 0,
   contentPartIndex = 0,
 }: ThinkingContentPartProps) => (
-  <div className="flex flex-col gap-2 p-2 bg-background rounded-b">
+  <div className="flex flex-col gap-2 p-2">
     <span className="flex items-center text-xs">
       <Brain size={12} className="min-w-3 mr-2" />
       {label}
@@ -262,7 +263,7 @@ const PureThinkingContentPart = ({
       codeEditorClassName="rounded"
       value={content}
       presetKey={`editor-${presetKey}`}
-      className="border-0 bg-card"
+      className="border-0"
       messageIndex={messageIndex}
       contentPartIndex={contentPartIndex}
       customTheme={spanViewTheme}
@@ -284,15 +285,17 @@ export const MessageWrapper = ({
   role,
   maxHeight = DEFAULT_MESSAGE_MAX_HEIGHT,
   stickyHeader = true,
+  defaultExpanded = false,
 }: PropsWithChildren<{
   role?: string;
   presetKey: string;
   maxHeight?: number;
   stickyHeader?: boolean;
+  defaultExpanded?: boolean;
 }>) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isOverflowing, setIsOverflowing] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   const checkOverflow = useCallback(() => {
     const el = containerRef.current;
@@ -312,28 +315,33 @@ export const MessageWrapper = ({
     return () => resizeObserver.disconnect();
   }, [checkOverflow]);
 
-  const showToggle = isOverflowing || isExpanded;
+  const showToggle = isOverflowing;
 
   return (
-    <div className={cn("relative border rounded", { "border-b-0": showToggle })}>
-      <RoleHeader role={role} className={stickyHeader ? "sticky top-0 z-10" : undefined} />
-      <div ref={containerRef} className="overflow-hidden" style={!isExpanded ? { maxHeight } : undefined}>
+    // overflow-clip (not hidden): clips to radius without creating a scroll
+    // container, so sticky can still pin to the messages list.
+    <ElevatedSurface offset={1} className="relative border rounded-lg overflow-clip">
+      <RoleHeader role={role} className={stickyHeader ? "sticky top-0 z-10 bg-surface" : undefined} />
+      <div
+        ref={containerRef}
+        className="overflow-hidden bg-surface-down"
+        style={!isExpanded ? { maxHeight } : undefined}
+      >
         <div className="flex flex-col divide-y">{children}</div>
       </div>
       {showToggle && (
-        <div className="sticky bottom-0 z-30 flex flex-col items-center rounded-b">
+        <div className="sticky bottom-0 z-30 flex flex-col items-center rounded-b-lg">
           <div
-            className="w-full pointer-events-none"
+            className="w-full pointer-events-none bg-gradient-to-b from-background/0 to-background"
             style={{
               height: isExpanded ? 16 : 36,
               marginTop: isExpanded ? -8 : -36,
-              background: "linear-gradient(to bottom, transparent, hsl(var(--background) / 1))",
             }}
           />
-          <div className="w-full bg-background rounded-b">
+          <div className="w-full bg-background rounded-b-lg">
             <button
               onClick={() => setIsExpanded((prev) => !prev)}
-              className="h-3 relative w-full flex items-center justify-center text-secondary-foreground cursor-pointer rounded-b border-b transition-colors"
+              className="h-3 relative w-full flex items-center justify-center cursor-pointer rounded-b-lg"
             >
               <span className="absolute -top-2.5 w-full flex justify-center">
                 {isExpanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
@@ -342,6 +350,6 @@ export const MessageWrapper = ({
           </div>
         </div>
       )}
-    </div>
+    </ElevatedSurface>
   );
 };

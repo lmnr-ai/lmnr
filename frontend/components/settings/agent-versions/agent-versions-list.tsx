@@ -28,8 +28,8 @@ export default function AgentVersionsList({ projectId, agentId, onBack }: AgentV
 
   return (
     <SettingsSection>
-      <Button variant="ghost" className="w-fit -ml-2 h-7 text-muted-foreground" onClick={onBack}>
-        <ArrowLeft data-icon="inline-start" className="size-4 mr-1" />
+      <Button variant="ghost" className="w-fit -ml-2 text-muted-foreground" onClick={onBack}>
+        <ArrowLeft className="size-4 mr-1" />
         All agents
       </Button>
       <SettingsSectionHeader

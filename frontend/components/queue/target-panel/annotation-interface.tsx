@@ -76,7 +76,7 @@ const OptionButton = ({
   isSelected: boolean;
   onClick: () => void;
 }) => (
-  <Button variant={isSelected ? "default" : "outline"} size="sm" className="h-8 px-3 text-xs" onClick={onClick}>
+  <Button variant={isSelected ? "default" : "outline"} size="md" className="text-xs" onClick={onClick}>
     <div className="flex items-center gap-2">
       <span>{option.label}</span>
       <span className="text-xs opacity-60 bg-muted px-1 rounded">{option.keyNumber}</span>

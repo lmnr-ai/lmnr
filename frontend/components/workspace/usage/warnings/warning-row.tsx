@@ -141,8 +141,8 @@ export function AddWarningPopover({ workspaceId, usageItem, unit, toRawValue, on
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-xs">
-          <Plus data-icon="inline-start" className="h-3 w-3" />
+        <Button type="button" variant="outline" className="gap-1">
+          <Plus className="h-3 w-3" />
           Add
         </Button>
       </PopoverTrigger>

@@ -29,7 +29,7 @@ const ParamsPopover = ({ className }: ParamsPopoverProps) => {
               size="icon"
               disabled={!watch("model")}
               variant="outline"
-              className={cn(className, "self-end size-7")}
+              className={cn(className, "self-end")}
             >
               <SlidersHorizontal className="size-3.5" />
             </Button>

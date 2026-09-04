@@ -51,8 +51,8 @@ export default function ErrorPage({ error, backAction, backLabel }: ErrorPagePro
             <ArrowLeft data-icon="inline-start" className="size-4 transition-transform group-active:-translate-x-0.5" />
             {backLabel}
           </Button>
-          <Button onClick={handleRetry} className="gap-2 pl-3 pr-5 transition-transform" size="lg" variant="default">
-            <RefreshCw data-icon="inline-start" ref={refreshIconRef} className="size-4" />
+          <Button onClick={handleRetry} className="gap-2 pl-3 pr-5 transition-transform" size="lg">
+            <RefreshCw ref={refreshIconRef} className="size-4" />
             Try again
           </Button>
         </div>

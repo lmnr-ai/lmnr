@@ -293,12 +293,7 @@ export default function WorkspaceBilling({
               )}
               {!subscription.cancelAtPeriodEnd && isOwner && (
                 <div className="pt-2 flex gap-2">
-                  <Button
-                    className="bg-secondary"
-                    variant="outline"
-                    onClick={handleManagePaymentMethods}
-                    disabled={isLoadingPortal}
-                  >
+                  <Button variant="secondary" onClick={handleManagePaymentMethods} disabled={isLoadingPortal}>
                     {isLoadingPortal && <Loader2 className="animate-spin h-3.5 w-3.5 mr-1.5" />}
                     Billing portal
                     <ExternalLink className="h-3 w-3 ml-1.5" />
