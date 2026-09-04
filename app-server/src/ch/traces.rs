@@ -41,11 +41,21 @@ pub struct TraceAggregation {
 impl TraceAggregation {
     /// Aggregate statistics from a batch of Spans and SpanUsage grouped by trace_id
     pub fn from_spans(spans: &[Span], span_usage_vec: &[SpanUsage]) -> Vec<Self> {
+        Self::from_span_pairs(spans.iter().zip(span_usage_vec.iter()))
+    }
+
+    /// The fold itself. `from_spans` covers a whole batch (realtime updates,
+    /// debugger blocks, signals); the ClickHouse write path feeds it only the
+    /// spans that never reach the `spans` table, because the materialized views
+    /// on `spans` emit the partials for everything that does.
+    pub fn from_span_pairs<'a>(
+        pairs: impl IntoIterator<Item = (&'a Span, &'a SpanUsage)>,
+    ) -> Vec<Self> {
         use std::collections::HashMap;
 
         let mut trace_aggregations: HashMap<Uuid, TraceAggregation> = HashMap::new();
 
-        for (span, span_usage) in spans.iter().zip(span_usage_vec.iter()) {
+        for (span, span_usage) in pairs {
             let entry =
                 trace_aggregations
                     .entry(span.trace_id)
@@ -248,5 +258,53 @@ mod tests {
         assert_eq!(agg.total_tokens, 100);
         assert_eq!(agg.total_cost, 1.5);
         assert_eq!(agg.num_spans, 2);
+    }
+
+    // The `spans` materialized views cover the recordable half of a batch and
+    // app-server writes the rest, so the two halves must add back up to what
+    // `from_spans` produces over the whole batch — otherwise the split either
+    // drops or double-counts a span (LAM-2215).
+    #[test]
+    fn recordable_and_residual_halves_sum_to_the_full_aggregation() {
+        let trace_id = Uuid::new_v4();
+        let mut signal_span = make_span(trace_id, SpanType::Default, 0);
+        signal_span.name = "cdp_use.session".to_string();
+        signal_span.attributes = SpanAttributes::new(HashMap::from([(
+            "lmnr.internal.has_browser_session".to_string(),
+            json!(true),
+        )]));
+        assert!(!signal_span.should_record_to_clickhouse());
+
+        let spans = vec![make_span(trace_id, SpanType::LLM, 100), signal_span];
+        let usage = vec![make_usage(100, 1.5), make_usage(0, 0.0)];
+
+        let full = TraceAggregation::from_spans(&spans, &usage);
+        let residual = TraceAggregation::from_span_pairs(
+            spans
+                .iter()
+                .zip(usage.iter())
+                .filter(|(s, _)| !s.should_record_to_clickhouse()),
+        );
+        let recordable = TraceAggregation::from_span_pairs(
+            spans
+                .iter()
+                .zip(usage.iter())
+                .filter(|(s, _)| s.should_record_to_clickhouse()),
+        );
+
+        assert_eq!(residual.len(), 1);
+        assert_eq!(recordable.len(), 1);
+        assert_eq!(
+            residual[0].num_spans + recordable[0].num_spans,
+            full[0].num_spans
+        );
+        assert_eq!(
+            residual[0].total_tokens + recordable[0].total_tokens,
+            full[0].total_tokens
+        );
+        // The signal span is the only carrier of this flag, and only the
+        // residual write can put it in `traces_static`.
+        assert_eq!(residual[0].has_browser_session, Some(true));
+        assert_eq!(recordable[0].has_browser_session, None);
     }
 }
