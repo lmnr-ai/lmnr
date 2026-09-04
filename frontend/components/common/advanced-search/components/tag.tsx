@@ -30,7 +30,7 @@ import {
   getColumnFilter,
   type TagFocusPosition,
 } from "../types";
-import { displayFilterValue } from "../utils";
+import { displayFilterValue, rankValues } from "../utils";
 import FilterSelect from "./select";
 
 interface FilterTagProps {
@@ -111,8 +111,7 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
       return preloadedValues;
     }
 
-    const lowerQuery = tag.value.toLowerCase();
-    return preloadedValues.filter((value) => value.toLowerCase().includes(lowerQuery));
+    return rankValues(preloadedValues, tag.value);
   }, [dataType, resource, tag.field, tag.value, autocompleteData]);
 
   useEffect(() => {

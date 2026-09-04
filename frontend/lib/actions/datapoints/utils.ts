@@ -7,7 +7,7 @@ import {
   buildSelectQuery,
   type ColumnFilterConfig,
   type ColumnFilterProcessor,
-  createCustomFilter,
+  createJsonKeyValueFilter,
   type QueryParams,
   type QueryResult,
   type SelectQueryOptions,
@@ -45,28 +45,7 @@ const DATAPOINTS_TABLE = "dataset_datapoints";
  * `dataset_datapoints`. (`metadata` is not truncated, but qualifying it too is harmless.)
  */
 const jsonKeyValueFilter = (column: string): ColumnFilterProcessor =>
-  createCustomFilter(
-    (filter, paramKey) => {
-      const [key, val] = String(filter.value).split("=", 2);
-      if (key && val) {
-        return (
-          `(simpleJSONExtractString(${DATAPOINTS_TABLE}.${column}, {${paramKey}_key:String}) = {${paramKey}_val:String}` +
-          ` OR simpleJSONExtractRaw(${DATAPOINTS_TABLE}.${column}, {${paramKey}_key:String}) = {${paramKey}_val:String})`
-        );
-      }
-      return "";
-    },
-    (filter, paramKey) => {
-      const [key, val] = String(filter.value).split("=", 2);
-      if (key && val) {
-        return {
-          [`${paramKey}_key`]: key,
-          [`${paramKey}_val`]: `${val}`,
-        };
-      }
-      return {};
-    }
-  );
+  createJsonKeyValueFilter(`${DATAPOINTS_TABLE}.${column}`);
 
 // `id` is a UUID column, so compare via toString to avoid "illegal types UUID and String".
 const idFilter: ColumnFilterProcessor = (filter, paramKey) => ({

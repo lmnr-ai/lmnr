@@ -206,6 +206,30 @@ const createArrayColumnFilter =
     };
   };
 
+/**
+ * `key=value` filter over a stringified-JSON column. `eq` matches when either
+ * the decoded string OR the raw JSON encoding equals the value (so `{"n":1}`
+ * matches a typed `1` as well as a quoted `"1"`); `ne` negates the whole match,
+ * which also lets through rows that don't carry the key at all.
+ */
+const createJsonKeyValueFilter =
+  (columnExpression: string): ColumnFilterProcessor =>
+  (filter, paramKey) => {
+    const [key, value] = String(filter.value).split("=", 2);
+    if (!key || !value) {
+      return { condition: null, params: {} };
+    }
+
+    const match =
+      `(simpleJSONExtractString(${columnExpression}, {${paramKey}_key:String}) = {${paramKey}_val:String}` +
+      ` OR simpleJSONExtractRaw(${columnExpression}, {${paramKey}_key:String}) = {${paramKey}_val:String})`;
+
+    return {
+      condition: filter.operator === Operator.Ne ? `NOT ${match}` : match,
+      params: { [`${paramKey}_key`]: key, [`${paramKey}_val`]: value },
+    };
+  };
+
 const createCustomFilter =
   (
     conditionBuilder: (filter: Filter, paramKey: string) => string,
@@ -369,6 +393,7 @@ export {
   buildWhereClause,
   createArrayColumnFilter,
   createCustomFilter,
+  createJsonKeyValueFilter,
   createNumberFilter,
   createStringFilter,
 };
