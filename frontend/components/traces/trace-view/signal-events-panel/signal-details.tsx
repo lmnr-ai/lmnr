@@ -1,35 +1,19 @@
 "use client";
 
-import { ArrowUpRight, Sparkles } from "lucide-react";
-import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
-import { laminarAgentStore } from "@/components/agent";
-import ClusterIcon from "@/components/signal/clusters-section/cluster-list/cluster-icon";
 import { jsonSchemaToSchemaFields, type SchemaField } from "@/components/signals/utils";
 import { type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
 import { useSpanRefCallbacks } from "@/components/traces/trace-view/span-reference/use-span-ref-callbacks";
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { type TraceSignal, type TraceSignalEvent } from "@/components/traces/trace-view/store/base";
 import Markdown from "@/components/traces/trace-view/transcript/markdown.tsx";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ElevatedSurface } from "@/components/ui/surface";
-import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
-import { SEVERITY_LABELS } from "@/lib/actions/alerts/types";
-import { getClusterColorById } from "@/lib/clusters/colors";
-import { Feature } from "@/lib/features/features.ts";
 import { cn } from "@/lib/utils";
 
+import ClusterButton, { EnumPill, OpenInSignalsButton } from "./cluster-button";
 import { schemaFieldsToStructuredOutput } from "./utils";
-
-const SEVERITY_STYLES: Record<number, string> = {
-  0: "text-muted-foreground/60",
-  1: "text-orange-400/80",
-  2: "text-red-400",
-};
 
 interface Props {
   traceId: string;
@@ -64,7 +48,7 @@ function PayloadValue({
     case "boolean":
       return <span>{value ? "true" : "false"}</span>;
     case "enum":
-      return <Badge variant="secondary">{String(value)}</Badge>;
+      return <EnumPill value={String(value)} />;
     case "number":
       return <span className="tabular-nums">{String(value)}</span>;
     case "string":
@@ -76,9 +60,17 @@ function PayloadValue({
   }
 }
 
-/** One finding card: the event's severity + a link per leaf cluster it belongs to,
- *  then the event payload rendered field-by-field from the signal's schema. */
-function FindingCard({
+/**
+ * One event: the clusters it landed in, then its payload rendered field-by-field
+ * from the signal's schema.
+ *
+ * No card around it. A card is a separator, and a separator needs something to
+ * separate from — but a signal produces one event per trace almost always, so
+ * the box drew a boundary around the only thing in the panel, inside a panel
+ * that already has a border. Severity left this row too: it is a property of the
+ * card, and the card already has a header.
+ */
+function Event({
   event,
   projectId,
   signalId,
@@ -96,8 +88,6 @@ function FindingCard({
   highlighted?: boolean;
 }) {
   const parsed = useMemo(() => parsePayload(event.payload), [event.payload]);
-  const severityLabel = SEVERITY_LABELS[event.severity as keyof typeof SEVERITY_LABELS] ?? "Info";
-  const severityClassName = SEVERITY_STYLES[event.severity] ?? SEVERITY_STYLES[0];
 
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -107,50 +97,53 @@ function FindingCard({
   }, [highlighted]);
 
   return (
-    <ElevatedSurface
+    <div
       ref={ref}
-      offset={1}
-      className={cn("flex flex-col gap-2.5 rounded-lg border p-3", highlighted && "border-primary/50 bg-surface-up")}
+      // A deep-linked event still has to be findable, so the highlight is a rule
+      // down the left edge rather than a ring around a box that is no longer drawn.
+      className={cn("flex min-w-0 flex-col", highlighted && "border-l-2 border-signal/60")}
     >
-      <div className="flex items-center gap-1.5 flex-wrap">
-        <Badge variant="outline" className={cn("rounded-full font-medium", severityClassName)}>
-          {severityLabel}
-        </Badge>
-        {event.leafClusters.map((cluster) => (
-          <Link
-            key={cluster.id}
-            href={`/project/${projectId}/signals/${signalId}?clusterId=${cluster.id}&traceId=${traceId}&eventId=${event.id}`}
-            target="_blank"
-            className="group flex items-center gap-1.5 min-w-0 rounded-full bg-blue-400/8 border-blue-400/30 border px-2 py-1 hover:bg-blue-400/12"
-          >
-            <ClusterIcon iconVariant="box" color={getClusterColorById(cluster.id)} />
-            <span className="truncate text-xs font-medium">{cluster.name}</span>
-            <ArrowUpRight className="size-3.5 shrink-0" />
-          </Link>
-        ))}
+      {/* The SIDE inset is the fields' one, not its own: the cluster row and the
+          payload below it are two blocks in one column, and a column has one left
+          edge. Only the vertical inset is the row's own, because that one is
+          genuinely about the buttons. */}
+      <div className="flex min-w-0 items-center gap-1.5 px-3 py-2">
+        {event.leafClusters.length > 0 ? (
+          event.leafClusters.map((cluster) => (
+            <ClusterButton
+              key={cluster.id}
+              shrinkable
+              cluster={cluster}
+              href={`/project/${projectId}/signals/${signalId}?clusterId=${cluster.id}&traceId=${traceId}&eventId=${event.id}`}
+            />
+          ))
+        ) : (
+          // A cluster button already links into the signal page, scoped to that
+          // cluster and that event. Alongside one, the bare link is a second and
+          // worse copy of it; with none, it is the only way out of the trace.
+          <OpenInSignalsButton href={`/project/${projectId}/signals/${signalId}?traceId=${traceId}`} />
+        )}
       </div>
-      <div className="flex flex-col gap-2.5">
+
+      <div className="flex min-w-0 flex-col gap-2.5 px-3 pb-0.5">
         {validFields.map((field) => (
           <div key={field.name} className="flex flex-col gap-0.5">
-            <div className="text-xs font-medium text-muted-foreground/80">{field.name}</div>
+            <div className="text-xs font-medium text-signal-key">{field.name}</div>
             <div className="text-sm leading-relaxed text-secondary-foreground">
               <PayloadValue value={parsed[field.name]} field={field} spanRefCallbacks={spanRefCallbacks} />
             </div>
           </div>
         ))}
       </div>
-    </ElevatedSurface>
+    </div>
   );
 }
 
-/** The per-signal body rendered inside a panel tab: the "Open in Signals" / "Open
- *  in AI Chat" actions plus one finding card per event, each rendered
- *  field-by-field from the schema. */
+/** The per-signal body rendered inside a panel tab. */
 export default function SignalDetails({ traceId, signal }: Props) {
   const { projectId } = useParams();
   const searchParams = useSearchParams();
   const highlightedEventId = searchParams.get("eventId");
-  const featureFlags = useFeatureFlags();
   const { selectSpanById, spans } = useTraceViewStore(
     (state) => ({
       selectSpanById: state.selectSpanById,
@@ -160,12 +153,6 @@ export default function SignalDetails({ traceId, signal }: Props) {
   );
 
   const events = signal.events ?? [];
-
-  // Chat is the global agent column now; open it (already scoped to this trace's context via the
-  // registered trace store). Signal-definition/payload injection was dropped with the old inline chat.
-  const handleOpenInChat = () => {
-    laminarAgentStore.getState().open();
-  };
 
   const schemaFields = useMemo(
     () => jsonSchemaToSchemaFields(schemaFieldsToStructuredOutput(signal.schemaFields)),
@@ -178,30 +165,18 @@ export default function SignalDetails({ traceId, signal }: Props) {
     onSelectSpan: selectSpanById,
   });
 
-  const signalHref = `/project/${projectId}/signals/${signal.signalId}?traceId=${traceId}`;
-
   return (
-    <div className="px-2 pt-2 pb-0.5 flex flex-col gap-3">
-      <div className="flex items-center gap-1.5 flex-wrap">
-        <Button className="gap-1" variant="outline" size="sm" asChild>
-          <Link href={signalHref} target="_blank">
-            Open in Signals
-            <ArrowUpRight className="size-3.5 shrink-0" data-icon="inline-end" />
-          </Link>
-        </Button>
-        {featureFlags[Feature.AGENT] && (
-          <Button className="gap-1" variant="outline" size="sm" onClick={handleOpenInChat}>
-            <Sparkles className="size-3.5 shrink-0" data-icon="inline-start" />
-            <span>Open in AI Chat</span>
-          </Button>
-        )}
-      </div>
+    // No padding here: the cluster row and the field block each carry their own,
+    // so neither is stuck with the other's inset.
+    <div className="flex min-w-0 flex-col">
       {events.length === 0 ? (
-        <div className="py-2 text-sm text-muted-foreground">No events found</div>
+        <div className="px-2 py-2 text-sm text-muted-foreground">No events found</div>
       ) : (
-        <div className="flex flex-col gap-2.5">
+        // Only a per-span signal ever has more than one event, and then they need
+        // telling apart; with one event this gap never renders.
+        <div className="flex min-w-0 flex-col gap-3">
           {events.map((event) => (
-            <FindingCard
+            <Event
               key={event.id}
               event={event}
               projectId={projectId as string}

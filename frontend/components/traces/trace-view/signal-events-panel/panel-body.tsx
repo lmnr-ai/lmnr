@@ -1,18 +1,25 @@
 "use client";
 
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { Loader2, X } from "lucide-react";
+import { Loader2, Sparkles, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
+import { laminarAgentStore } from "@/components/agent";
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
+import { type TraceSignal } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ElevatedSurface } from "@/components/ui/surface";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
+import { Feature } from "@/lib/features/features.ts";
+import { cn } from "@/lib/utils";
 
+import { TOOLTIP_DELAY_MS } from "./cluster-button";
+import SeverityIcon from "./severity-icon";
 import SignalDetails from "./signal-details";
 
 interface Props {
@@ -22,6 +29,57 @@ interface Props {
 
 const MIN_BODY_HEIGHT = 120;
 const MAX_BODY_HEIGHT = 320;
+
+/** The worst event's severity. With several events (a per-span signal) the header
+ *  speaks for the whole card, and the card is as bad as its worst event. */
+const worstSeverity = (signal: TraceSignal) => signal.events.reduce((worst, e) => Math.max(worst, e.severity), 0);
+
+/**
+ * The header when a trace has a single signal: severity, then the signal's name.
+ * Severity is a glyph here rather than a `Critical` pill on the event's row — a
+ * pill is the right shape for a list, and there is no list.
+ */
+function SignalHeader({ signal }: { signal: TraceSignal }) {
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-1.5 pl-1">
+      {signal.events.length > 0 && <SeverityIcon severity={worstSeverity(signal)} />}
+      <span className="min-w-0 truncate text-xs font-medium">{signal.signalName}</span>
+    </div>
+  );
+}
+
+/**
+ * One signal tab.
+ *
+ * Its own component because of the tooltip: several tabs in a panel this wide
+ * truncate to a few characters, at which point the row stops naming anything.
+ * The tooltip trigger is a WRAPPER, not the tab itself — both primitives own a
+ * `data-state` (`active`/`inactive` vs `closed`/`delayed-open`) and
+ * `Tabs.Trigger` spreads incoming props after its own attributes, so `asChild`
+ * onto the tab overwrites `active` with `closed` and every `data-[state=active]:`
+ * rule in the trigger's base classes stops matching.
+ */
+function SignalTab({ signal }: { signal: TraceSignal }) {
+  const trigger = (
+    <TabsTrigger value={signal.signalId} className="w-full min-w-0">
+      {/* The tab row REPLACES the header, so without this the severity glyph
+          disappears exactly when there is more than one severity to tell apart. */}
+      {signal.events.length > 0 && <SeverityIcon bare severity={worstSeverity(signal)} />}
+      <span className="min-w-0 truncate">{signal.signalName}</span>
+    </TabsTrigger>
+  );
+
+  return (
+    <Tooltip delayDuration={TOOLTIP_DELAY_MS}>
+      <TooltipTrigger asChild>
+        <span className="flex min-w-0 flex-1">{trigger}</span>
+      </TooltipTrigger>
+      <TooltipPortal>
+        <TooltipContent side="bottom">{signal.signalName}</TooltipContent>
+      </TooltipPortal>
+    </Tooltip>
+  );
+}
 
 export default function PanelBody({ traceId, onClose }: Props) {
   const contentRef = useRef<HTMLDivElement>(null);
@@ -74,6 +132,7 @@ export default function PanelBody({ traceId, onClose }: Props) {
       shallow
     );
 
+  const featureFlags = useFeatureFlags();
   const searchParams = useSearchParams();
   const highlightedEventId = searchParams.get("eventId");
 
@@ -81,8 +140,8 @@ export default function PanelBody({ traceId, onClose }: Props) {
     if (activeSignalTabId && traceSignals.some((s) => s.signalId === activeSignalTabId)) {
       return activeSignalTabId;
     }
-    // A deep link with eventId points at one specific finding — surface the
-    // signal tab that owns it so the highlighted card is visible on open.
+    // A deep link with eventId points at one specific event — surface the signal
+    // tab that owns it so the highlighted event is visible on open.
     if (highlightedEventId) {
       const owner = traceSignals.find((s) => s.events.some((e) => e.id === highlightedEventId));
       if (owner) return owner.signalId;
@@ -123,20 +182,46 @@ export default function PanelBody({ traceId, onClose }: Props) {
         </div>
       ) : (
         <Tabs value={effectiveTabId} onValueChange={setActiveSignalTabId} className="flex flex-col gap-0">
-          <div className="shrink-0 flex items-center gap-2 justify-between px-2 py-1.5">
-            {isSingleSignal && activeSignal ? (
-              <span className="min-w-0 truncate pl-1 text-xs font-medium">{activeSignal.signalName}</span>
-            ) : (
-              <TabsList size="sm" className="min-w-0 max-w-full justify-start overflow-x-auto">
-                {traceSignals.map((signal) => (
-                  <TabsTrigger key={signal.signalId} value={signal.signalId} className="shrink-0">
-                    <span className="max-w-40 truncate">{signal.signalName}</span>
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            )}
-            {closeButton}
-          </div>
+          <TooltipProvider delayDuration={TOOLTIP_DELAY_MS}>
+            {/* The leading inset matches the trailing one under tabs — the tab
+                list is a filled pill with its own inset, so it wants to start
+                where the close button ends. The single-signal header is bare
+                text and keeps the wider inset. */}
+            <div className={cn("flex shrink-0 items-center justify-between gap-2 p-1.5", isSingleSignal && "pl-2")}>
+              {isSingleSignal && activeSignal ? (
+                <SignalHeader signal={activeSignal} />
+              ) : (
+                <TabsList size="sm" className="min-w-0 flex-1 justify-start">
+                  {traceSignals.map((signal) => (
+                    <SignalTab key={signal.signalId} signal={signal} />
+                  ))}
+                </TabsList>
+              )}
+              {/* "Open in AI Chat" lost its actions row when that row collapsed
+                  into the header, so it becomes an icon beside the close button:
+                  it is feature-flagged and usually absent, and a second worded
+                  button would outweigh the signal's own name. */}
+              {featureFlags[Feature.AGENT] && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      aria-label="Open in AI Chat"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="shrink-0 hover:bg-surface-up"
+                      onClick={() => laminarAgentStore.getState().open()}
+                    >
+                      <Sparkles className="size-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipPortal>
+                    <TooltipContent side="top">Open in AI Chat</TooltipContent>
+                  </TooltipPortal>
+                </Tooltip>
+              )}
+              {closeButton}
+            </div>
+          </TooltipProvider>
           <ScrollArea
             className="[&>div>div]:!block [&>[data-radix-scroll-area-viewport]]:!h-full"
             style={bodyHeight !== null ? { height: bodyHeight } : undefined}
@@ -157,7 +242,7 @@ export default function PanelBody({ traceId, onClose }: Props) {
             role="separator"
             aria-orientation="horizontal"
             onPointerDown={handleResizePointerDown}
-            className="group h-1.5 shrink-0 cursor-row-resize flex items-center justify-center hover:bg-surface-up transition-colors"
+            className="group flex h-1.5 shrink-0 cursor-row-resize items-center justify-center transition-colors hover:bg-surface-up"
           >
             <div className="h-0.5 w-8 rounded-full bg-border" />
           </div>
