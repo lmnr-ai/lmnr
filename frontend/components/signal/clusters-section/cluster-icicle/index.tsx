@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 
 import { type ClusterNode } from "../model";
 import BandDetails from "./band-details";
-import { BAND } from "./constants";
+import { BAND, BAND_ID_ATTR } from "./constants";
 import ExtraList from "./extra-list";
 import { buildView, finestLevel, type ViewNode } from "./fold";
 import IcicleNode from "./node";
@@ -25,7 +25,6 @@ interface Props {
   tree: ClusterNode[];
   /** Cluster pinned by a click. */
   selectedId: string | null;
-  hoveredId: string | null;
   /** id → its ancestors, so a node can tell whether it is under the focus. */
   ancestors: Map<string, Set<string>>;
   onHover: (id: string | null) => void;
@@ -33,7 +32,9 @@ interface Props {
   className?: string;
 }
 
-export default function ClusterIcicle({ tree, selectedId, hoveredId, ancestors, onHover, onSelect, className }: Props) {
+// Hover is deliberately absent from these props: it lives in the focus store, so
+// that the strip itself does not re-render on a pointer move.
+export default function ClusterIcicle({ tree, selectedId, ancestors, onHover, onSelect, className }: Props) {
   const stripRef = useRef<HTMLDivElement>(null);
   // The strip owns ONE tooltip, not one per band. A band's own bottom edge is the
   // wrong place to hang it: inside an open panel that edge is in the middle of
@@ -93,6 +94,14 @@ export default function ClusterIcicle({ tree, selectedId, hoveredId, ancestors, 
     <div
       ref={stripRef}
       className={cn("relative w-full shrink-0", className)}
+      // Hover is delegated rather than handled per band: a leave/enter pair
+      // writes a `null` between two bands, and a `null` focus un-mutes every band
+      // on the strip — so a sweep re-rendered the whole forest twice per step.
+      // One `pointerover` on the way in is one write.
+      onPointerOver={(e) => {
+        const band = (e.target as HTMLElement).closest<HTMLElement>(`[${BAND_ID_ATTR}]`);
+        onHover(band?.getAttribute(BAND_ID_ATTR) ?? null);
+      }}
       onPointerLeave={() => {
         onHover(null);
         onTip(null);
@@ -133,7 +142,7 @@ export default function ClusterIcicle({ tree, selectedId, hoveredId, ancestors, 
             className={cn("border pl-1.5", extraNodes ? "pointer-events-auto p-1" : "pointer-events-none")}
           >
             {extraNodes ? (
-              <ExtraList nodes={extraNodes} focusId={selectedId ?? hoveredId} onHover={onHover} onSelect={onSelect} />
+              <ExtraList nodes={extraNodes} selectedId={selectedId} onHover={onHover} onSelect={onSelect} />
             ) : (
               tip && <BandDetails node={tip.node} grandTotal={grandTotal} />
             )}
@@ -157,9 +166,7 @@ export default function ClusterIcicle({ tree, selectedId, hoveredId, ancestors, 
             node={node}
             minLevel={minLevel}
             selectedId={selectedId}
-            hoveredId={hoveredId}
             ancestors={ancestors}
-            onHover={onHover}
             onSelect={onSelect}
             onTip={onTip}
           />

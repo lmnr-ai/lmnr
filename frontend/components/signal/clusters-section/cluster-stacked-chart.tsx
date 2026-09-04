@@ -26,7 +26,6 @@ interface ClusterStackedChartProps {
   statsData: ClusterStatsDataPoint[];
   containerWidth: number | null;
   colorMap: Map<string, string>;
-  showTooltip?: boolean;
   runTotals?: { timestamp: string; count: number }[];
   /** Absolutely-positioned content over the plot — the cluster readout. */
   overlay?: ReactNode;
@@ -37,7 +36,6 @@ export default function ClusterStackedChart({
   statsData,
   containerWidth,
   colorMap,
-  showTooltip,
   runTotals,
   overlay,
 }: ClusterStackedChartProps) {
@@ -107,7 +105,6 @@ export default function ClusterStackedChart({
         fields={fields}
         containerWidth={containerWidth}
         showTotal={false}
-        showTooltip={showTooltip}
         tooltipDelay={TOOLTIP_DELAY_MS}
         // Only over the stack itself: recharts' axis tooltip otherwise fires
         // anywhere in the column, including the empty space above the bars.

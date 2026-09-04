@@ -53,6 +53,14 @@ export const BAND = {
   outline: { hover: 0.04, default: 0.04, muted: 0.04 },
 } as const;
 
+/**
+ * Marks a band with its cluster id, so the strip can read hover off one
+ * delegated `pointerover` instead of a leave/enter pair per band. The pair wrote
+ * a `null` between two bands, and a `null` focus un-mutes every band on the
+ * strip — so a sweep re-rendered the whole forest twice per step.
+ */
+export const BAND_ID_ATTR = "data-cluster-band";
+
 /** The hairline joining a nested band to the row above it. Its LENGTH is
  *  `BAND.rowGap`; wider than this and it reads as a second thing on the strip. */
 export const STEM = { width: 2, className: "bg-surface-up-8" } as const;

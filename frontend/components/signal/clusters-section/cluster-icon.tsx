@@ -9,14 +9,12 @@ export default function ClusterIcon({
   iconVariant,
   color,
   isSelected,
-  isPaywall,
   iconClassName,
   size,
 }: {
   iconVariant: IconVariant;
   color: string;
   isSelected?: boolean;
-  isPaywall?: boolean;
   /** Overrides the glyph's own size. The three variants are sized differently
    * on purpose, so this merges over whichever one is drawn rather than setting
    * one size for all of them. */
@@ -29,7 +27,7 @@ export default function ClusterIcon({
   const sized = size !== undefined;
   return (
     <div
-      className={cn("flex justify-center items-center", !sized && "size-4", { "blur-[5px]": isPaywall })}
+      className={cn("flex justify-center items-center", !sized && "size-4")}
       style={sized ? { width: size, height: size } : undefined}
     >
       {iconVariant === "boxes" ? (

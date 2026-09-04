@@ -10,6 +10,7 @@
 import { type CSSProperties } from "react";
 
 import ClusterIcon from "@/components/signal/clusters-section/cluster-icon";
+import { getFocusId, useClusterFocusContext } from "@/components/signal/clusters-section/focus-store";
 import { withOpacity } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
@@ -29,12 +30,17 @@ function sharePct(count: number, total: number): number {
 
 interface Props {
   nodes: ViewNode[];
-  focusId: string | null;
+  /** Cluster pinned by a click; hover comes from the focus store. */
+  selectedId: string | null;
   onHover: (id: string | null) => void;
   onSelect: (id: string) => void;
 }
 
-export default function ExtraList({ nodes, focusId, onHover, onSelect }: Props) {
+export default function ExtraList({ nodes, selectedId, onHover, onSelect }: Props) {
+  // Subscribed here rather than passed in, so hovering a row does not re-render
+  // the strip that owns this tooltip.
+  const focusId = useClusterFocusContext((state) => getFocusId(state, selectedId));
+
   // The denominator is THIS LIST, not the strip. Every cluster in here was folded
   // away for being too small to draw, so measuring them against the signal's
   // total gives a column of empty bars. Against the LARGEST of them the top of

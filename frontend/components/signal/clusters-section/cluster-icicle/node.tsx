@@ -3,32 +3,27 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { type CSSProperties } from "react";
+import { type CSSProperties, memo } from "react";
+import { shallow } from "zustand/shallow";
 
+import { getNodeFocus, useClusterFocusContext } from "@/components/signal/clusters-section/focus-store";
 import { withOpacity } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
-import { BAND, EXTRA, PANEL, STEM, SURFACE } from "./constants";
+import ClusterBand, { type BandState } from "./cluster-band";
+import { BAND, PANEL, STEM, SURFACE } from "./constants";
+import ExtraBand from "./extra-band";
 import { childRowGap, type ViewNode } from "./fold";
-
-/**
- * Every band is in exactly one of three states:
- *   hover   — the band being pointed at, or the pinned one
- *   default — no focus anywhere, or this band is under the focus
- *   muted   — some other cluster has the focus
- */
-export type BandState = "hover" | "default" | "muted";
 
 export interface NodeProps {
   node: ViewNode;
   /** Finest level in the tree — the only level that pads along the bottom. */
   minLevel: number;
-  /** Cluster pinned by a click. */
+  /** Cluster pinned by a click. Owned by the URL, so it comes down as a prop
+   *  rather than out of the focus store; it only changes on a click. */
   selectedId: string | null;
-  hoveredId: string | null;
   /** id → its ancestors, so a node can tell whether it is under the focus. */
   ancestors: Map<string, Set<string>>;
-  onHover: (id: string | null) => void;
   onSelect: (id: string) => void;
   /** Aim the strip's one tooltip at this band, or clear it on `null`. */
   onTip: (node: ViewNode | null, el?: HTMLElement) => void;
@@ -37,29 +32,21 @@ export interface NodeProps {
   nested?: boolean;
 }
 
-export default function IcicleNode({
-  node,
-  minLevel,
-  selectedId,
-  hoveredId,
-  ancestors,
-  onHover,
-  onSelect,
-  onTip,
-  nested,
-}: NodeProps) {
-  // Selection wins over hover: a click locks the focus in.
-  const focusId = selectedId ?? hoveredId;
-  const isFocus = focusId !== null && node.id === focusId;
-  const inFocus = focusId === null || isFocus || (ancestors.get(node.id)?.has(focusId) ?? false);
+// Named separately from the memoised export so the recursion below goes through
+// `memo` — a self-reference inside a named function expression would not.
+function IcicleNodeColumn({ node, minLevel, selectedId, ancestors, onSelect, onTip, nested }: NodeProps) {
+  const { isFocus, inFocus, holdsFocus } = useClusterFocusContext(
+    (state) => getNodeFocus(state, node, selectedId, ancestors),
+    shallow
+  );
   const isSelected = selectedId !== null && node.id === selectedId;
 
   const state: BandState = isFocus ? "hover" : inFocus ? "default" : "muted";
 
   // Only a parent gets a panel; on a leaf it would just double the ring around a
-  // single pill. The band itself is styled the same either way. Keyed on
-  // `focusId`, so hovering opens it too — the panel is what shows which children
-  // are inside this cluster, which is most of the point of pointing at it.
+  // single pill. The band itself is styled the same either way. Keyed on the
+  // focus, so hovering opens it too — the panel is what shows which children are
+  // inside this cluster, which is most of the point of pointing at it.
   const panelled = isFocus && node.children.length > 0;
 
   // The finest level always carries the bottom padding; nothing coarser ever
@@ -118,93 +105,6 @@ export default function IcicleNode({
       }
     : {};
 
-  // The counter stands for a set, not a cluster, so it never drives the focus —
-  // but it does open the tooltip, which is the only way into the clusters behind
-  // it. Its own active state: the focused cluster came from in here, and without
-  // this the strip shows nothing selected at all.
-  // The focus counts as "in here" if it IS one of the folded clusters or sits
-  // under one — a deep link, or a leaf the fold dropped on resize. Matching only
-  // the folded nodes themselves left the whole strip muted with nothing lit.
-  const holdsFocus =
-    node.isExtra === true &&
-    focusId !== null &&
-    (node.extra?.some((n) => n.id === focusId || (ancestors.get(focusId)?.has(n.id) ?? false)) ?? false);
-
-  const band = node.isExtra ? (
-    <div
-      style={style}
-      // A bead only carries a number down its column — see `ViewNode.isBead`.
-      onPointerEnter={node.isBead ? undefined : (e) => onTip(node, e.currentTarget)}
-      onPointerLeave={node.isBead ? undefined : () => onTip(null)}
-      className={cn(
-        "flex w-full min-w-0 shrink-0 items-center overflow-hidden text-left",
-        node.isBead && "pointer-events-none",
-        holdsFocus ? EXTRA.focusClassName : EXTRA.className
-      )}
-    >
-      <span
-        className={cn(
-          "pointer-events-none block min-w-0 truncate leading-tight",
-          holdsFocus ? "text-foreground" : "text-foreground/40"
-        )}
-        // A couple of pixels more inset than a band's own: there is no glyph
-        // sitting in the corner, so a bare "+36" needs the room one would have
-        // taken to read as centred in the pill.
-        style={{ fontSize: BAND.labelSize, paddingInline: BAND.paddingX + EXTRA.padLeft }}
-      >
-        {node.name}
-      </span>
-    </div>
-  ) : (
-    <button
-      type="button"
-      aria-label={node.name}
-      style={style}
-      onPointerEnter={(e) => {
-        onHover(node.id);
-        // Nothing to tell the reader about the band they already picked — the
-        // rest of the section is showing exactly these facts, so the tooltip
-        // would be a second copy of them sitting on top of the strip.
-        if (isSelected) {
-          onTip(null);
-          return;
-        }
-        // The band hands the strip its own element: that is the only thing the
-        // strip cannot work out for itself, since the tooltip is anchored to the
-        // strip's bottom edge and only borrows this band's left edge.
-        onTip(node, e.currentTarget);
-      }}
-      onPointerLeave={() => {
-        onHover(null);
-        onTip(null);
-      }}
-      onClick={() => {
-        // Selecting is the moment the tooltip stops being useful — same reason it
-        // never opens on the selected band. The pointer is still here, so nothing
-        // else would close it.
-        onTip(null);
-        onSelect(node.id);
-      }}
-      // No CSS :hover ring: pointing at a band already puts it in the `hover`
-      // state through `onHover`, which styles it properly.
-      className={cn(
-        "flex w-full min-w-0 shrink-0 items-center overflow-hidden text-left",
-        "transition-[filter,background-color,box-shadow] focus:outline-none",
-        state === "muted" ? SURFACE.muted : SURFACE.band
-      )}
-    >
-      <span
-        className={cn(
-          "pointer-events-none block min-w-0 truncate leading-tight",
-          inFocus ? "text-foreground" : "text-foreground/40"
-        )}
-        style={{ fontSize: BAND.labelSize, paddingInlineStart: BAND.labelPadLeft }}
-      >
-        {node.name}
-      </span>
-    </button>
-  );
-
   // `flexGrow` is the value axis; `flexBasis: 0` makes the sibling split purely
   // proportional. Depth flows top-to-bottom via the column direction.
   return (
@@ -247,7 +147,19 @@ export default function IcicleNode({
           style={{ bottom: "100%", left: "50%", width: STEM.width, height: BAND.rowGap }}
         />
       )}
-      {band}
+      {node.isExtra ? (
+        <ExtraBand node={node} holdsFocus={holdsFocus} style={style} onTip={onTip} />
+      ) : (
+        <ClusterBand
+          node={node}
+          state={state}
+          inFocus={inFocus}
+          isSelected={isSelected}
+          style={style}
+          onSelect={onSelect}
+          onTip={onTip}
+        />
+      )}
       {(node.foldedDepth ?? 0) > 0 && (
         // The rows this column stands over. Pure height, no width — an empty flex
         // child contributes nothing across — but without it the column is one row
@@ -280,9 +192,7 @@ export default function IcicleNode({
               minLevel={minLevel}
               nested
               selectedId={selectedId}
-              hoveredId={hoveredId}
               ancestors={ancestors}
-              onHover={onHover}
               onSelect={onSelect}
               onTip={onTip}
             />
@@ -292,3 +202,10 @@ export default function IcicleNode({
     </motion.div>
   );
 }
+
+// `memo` is the point of the focus store: every prop is stable across a pointer
+// move, so a node the new focus does not affect bails out instead of rebuilding
+// its gradients and its motion element.
+const IcicleNode = memo(IcicleNodeColumn);
+
+export default IcicleNode;
