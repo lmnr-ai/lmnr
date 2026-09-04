@@ -225,7 +225,10 @@ export default function ClustersSection({ className }: Props) {
 
         {/* Unwrapped: no border, no surface fill, no padding, so the chart reads
             as part of the page rather than a card sitting on it. */}
-        <div className="h-[240px] min-h-[240px] max-h-[240px] w-full overflow-hidden">{card}</div>
+        {/* Stretches instead of taking a fixed height: it is the only flexible
+            child of the 70vh top part, so it soaks up whatever the strip, the
+            trail and the table's controls leave over. */}
+        <div className="min-h-0 w-full flex-1 overflow-hidden">{card}</div>
 
         {isPaywall && (
           <div className="absolute bottom-2 left-2 right-2 flex items-center gap-2 px-3 py-2 rounded-md border bg-background">

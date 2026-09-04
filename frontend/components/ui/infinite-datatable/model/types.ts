@@ -49,6 +49,15 @@ export interface InfiniteDataTableProps<TData extends RowData> extends Omit<
   childrenClassName?: string;
   scrollContentClassName?: string;
 
+  /**
+   * Scroll the table with an ancestor instead of inside itself. Pass the element
+   * that actually scrolls; the table then grows to its natural height and hands
+   * that element to the virtualizer and the infinite-scroll observer, so the page
+   * gets one scrollbar rather than one per table. Leave unset for the default,
+   * where the table owns a fixed-height viewport of its own.
+   */
+  externalScrollElement?: HTMLElement | null;
+
   emptyRow?: ReactNode;
   loadingRow?: ReactNode;
   error?: Error | null;
@@ -65,7 +74,9 @@ export interface InfiniteDataTableHeaderProps<TData extends RowData> {
 
 export interface InfiniteDataTableBodyProps<TData extends RowData> {
   table: Table<TData>;
-  rowVirtualizer: Virtualizer<HTMLDivElement, Element>;
+  // HTMLElement, not HTMLDivElement: with `externalScrollElement` the scroll
+  // container is an ancestor the table doesn't own and can't assume the tag of.
+  rowVirtualizer: Virtualizer<HTMLElement, Element>;
   virtualItems: VirtualItem[];
   isLoading: boolean;
   isFetching: boolean;
