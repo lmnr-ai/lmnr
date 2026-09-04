@@ -23,6 +23,7 @@ import { cn, swrFetcher } from "@/lib/utils";
 
 import ClusterBreadcrumbs from "./cluster-breadcrumbs";
 import ClusterIcicle from "./cluster-icicle";
+import ClusterIcicleSkeleton from "./cluster-icicle-skeleton";
 import ClusterReadout from "./cluster-readout";
 import ClusterStackedChart from "./cluster-stacked-chart";
 import { buildClusterModel } from "./model";
@@ -73,8 +74,10 @@ export default function ClustersSection({ className }: Props) {
     fetchClusters({ pastHours, startDate, endDate });
   }, [fetchClusters, pastHours, startDate, endDate]);
 
-  // Skeleton only on first load; a refresh keeps the old chart until new data arrives.
-  const showSkeleton = isClustersLoading && isEmpty(rawClusters);
+  // Only while a fetch is actually in flight: settled with no clusters must fall
+  // through to the empty chart, since a strip of grey pills over it reads as
+  // still loading. A refresh keeps the old strip, because the model survives it.
+  const showSkeleton = !model && (isClustersLoading || isClusterStatsLoading);
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [localChartWidth, setLocalChartWidth] = useState<number | null>(null);
@@ -90,7 +93,7 @@ export default function ClustersSection({ className }: Props) {
 
     resizeObserver.observe(chartContainerRef.current);
     return () => resizeObserver.disconnect();
-  }, [showSkeleton]);
+  }, []);
 
   const statsUrl = useTimeSeriesStatsUrl({
     baseUrl: `/api/projects/${signal.projectId}/signals/${signal.id}/events/clusters/stats`,
@@ -158,7 +161,7 @@ export default function ClustersSection({ className }: Props) {
   const card = useMemo(
     () => (
       <div className="h-full" ref={chartContainerRef}>
-        {isClusterStatsLoading && (isEmpty(chartClusters) || isEmpty(clusterStatsData)) ? (
+        {(isClustersLoading || isClusterStatsLoading) && (isEmpty(chartClusters) || isEmpty(clusterStatsData)) ? (
           <div className="flex items-center justify-center h-full text-muted-foreground text-sm">Loading chart...</div>
         ) : (
           <ClusterStackedChart
@@ -185,6 +188,7 @@ export default function ClustersSection({ className }: Props) {
       </div>
     ),
     [
+      isClustersLoading,
       isClusterStatsLoading,
       chartClusters,
       clusterStatsData,
@@ -204,7 +208,7 @@ export default function ClustersSection({ className }: Props) {
         {/* The strip and the trail read as one block above the chart, which is
             why the gap between them is looser than the one under it. */}
         <div className="mb-2 flex w-full shrink-0 flex-col gap-4">
-          {model && (
+          {model ? (
             <ClusterIcicle
               tree={model.tree}
               ancestors={model.ancestors}
@@ -213,21 +217,15 @@ export default function ClustersSection({ className }: Props) {
               onHover={setHoveredId}
               onSelect={selectCluster}
             />
+          ) : (
+            showSkeleton && <ClusterIcicleSkeleton />
           )}
           {emergingClusterId ? <EmergingClusterBreadcrumbs /> : <ClusterBreadcrumbs />}
         </div>
 
         {/* Unwrapped: no border, no surface fill, no padding, so the chart reads
             as part of the page rather than a card sitting on it. */}
-        <div className="h-[240px] min-h-[240px] max-h-[240px] w-full overflow-hidden">
-          {showSkeleton ? (
-            <div className="flex h-full items-center justify-center">
-              <span className="shimmer text-sm text-muted-foreground duration-[2s]">Loading clusters</span>
-            </div>
-          ) : (
-            card
-          )}
-        </div>
+        <div className="h-[240px] min-h-[240px] max-h-[240px] w-full overflow-hidden">{card}</div>
 
         {isPaywall && (
           <div className="absolute bottom-2 left-2 right-2 flex items-center gap-2 px-3 py-2 rounded-md border bg-background">
