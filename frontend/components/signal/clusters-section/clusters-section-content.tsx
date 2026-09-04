@@ -1,6 +1,5 @@
 "use client";
 
-import { isEmpty } from "lodash";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
@@ -11,8 +10,9 @@ import EmergingClusterBreadcrumbs from "@/components/signal/emerging-cluster-bre
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
 import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-cluster-id";
 import { getChartClusters, useSignalStoreContext } from "@/components/signal/store.tsx";
-import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { type ClusterStatsDataPoint, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { getClusterColorById, UNCLUSTERED_COLOR } from "@/lib/clusters/colors";
+import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
 
@@ -28,8 +28,16 @@ interface Props {
   className?: string;
 }
 
+type ClusterStatsResponse = {
+  items: ClusterStatsDataPoint[];
+  unclusteredCounts: { timestamp: string; count: number }[];
+};
+
+const EMPTY_STATS: ClusterStatsDataPoint[] = [];
+
 export default function ClustersSectionContent({ className }: Props) {
   const searchParams = useSearchParams();
+  const { toast } = useToast();
   const [clusterId, setClusterId] = useClusterId();
   const [emergingClusterId, setEmergingClusterId] = useEmergingClusterId();
 
@@ -38,18 +46,61 @@ export default function ClustersSectionContent({ className }: Props) {
   const setHoveredId = useClusterFocusContext((state) => state.setHoveredId);
 
   const isClustersLoading = useSignalStoreContext((state) => state.isClustersLoading);
-  const clusterStatsData = useSignalStoreContext((state) => state.clusterStatsData);
-  const isClusterStatsLoading = useSignalStoreContext((state) => state.isClusterStatsLoading);
   const rawClusters = useSignalStoreContext((state) => state.rawClusters);
   const signal = useSignalStoreContext((state) => state.signal);
   const fetchClusters = useSignalStoreContext((state) => state.fetchClusters);
-  const fetchClusterStats = useSignalStoreContext((state) => state.fetchClusterStats);
 
   const pastHours = searchParams.get("pastHours");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
 
   const chartClusters = useSignalStoreContext((state) => getChartClusters(state, clusterId), shallow);
+
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const [localChartWidth, setLocalChartWidth] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!chartContainerRef.current) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setLocalChartWidth(entry.contentRect.width);
+      }
+    });
+
+    resizeObserver.observe(chartContainerRef.current);
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  // Null until the ResizeObserver has measured the container, which pauses SWR —
+  // the state that "not fetched yet" must be distinguishable from "fetched empty".
+  const statsUrl = useTimeSeriesStatsUrl({
+    baseUrl: `/api/projects/${signal.projectId}/signals/${signal.id}/events/clusters/stats`,
+    chartContainerWidth: localChartWidth,
+    pastHours,
+    startDate,
+    endDate,
+  });
+
+  const { data: statsResponse, error: statsError } = useSWR<ClusterStatsResponse>(statsUrl, swrFetcher, {
+    keepPreviousData: true,
+    onError: () => toast({ title: "Error", description: "Failed to load cluster stats.", variant: "destructive" }),
+  });
+
+  // Undefined data with no error covers both "paused on a null key" and "in flight".
+  const isStatsPending = !statsResponse && !statsError;
+
+  // Memoized on the response object so the merged array keeps one identity —
+  // buildClusterModel and the chart both memoize on it.
+  const clusterStatsData = useMemo(() => {
+    if (!statsResponse) return EMPTY_STATS;
+    const unclustered: ClusterStatsDataPoint[] = statsResponse.unclusteredCounts.map((item) => ({
+      cluster_id: UNCLUSTERED_ID,
+      timestamp: item.timestamp,
+      count: item.count,
+    }));
+    return [...statsResponse.items, ...unclustered];
+  }, [statsResponse]);
 
   // The strip draws every cluster at every level, not the drill-down's slice: it
   // is the navigation, so re-rooting it on selection would take away what the
@@ -73,44 +124,11 @@ export default function ClustersSectionContent({ className }: Props) {
   // Only while a fetch is actually in flight: settled with no clusters must fall
   // through to the empty chart, since a strip of grey pills over it reads as
   // still loading. A refresh keeps the old strip, because the model survives it.
-  const showSkeleton = !model && (isClustersLoading || isClusterStatsLoading);
+  const showSkeleton = !model && (isClustersLoading || isStatsPending);
 
-  const chartContainerRef = useRef<HTMLDivElement>(null);
-  const [localChartWidth, setLocalChartWidth] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!chartContainerRef.current) return;
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setLocalChartWidth(entry.contentRect.width);
-      }
-    });
-
-    resizeObserver.observe(chartContainerRef.current);
-    return () => resizeObserver.disconnect();
-  }, []);
-
-  const statsUrl = useTimeSeriesStatsUrl({
-    baseUrl: `/api/projects/${signal.projectId}/signals/${signal.id}/events/clusters/stats`,
-    chartContainerWidth: localChartWidth,
-    pastHours,
-    startDate,
-    endDate,
-  });
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    fetchClusterStats({
-      statsUrl,
-      abortSignal: controller.signal,
-    });
-
-    return () => {
-      controller.abort();
-    };
-  }, [statsUrl, fetchClusterStats, rawClusters]);
+  // The chart's own empty state may only speak for a window whose stats resolved.
+  const hasChartData = chartClusters.length > 0 && clusterStatsData.length > 0;
+  const showChartLoading = !hasChartData && (isClustersLoading || isStatsPending);
 
   // Signal-runs overlay: count of traces this signal actually evaluated (post-trigger),
   // fetched at the SAME interval as the cluster stats (same hook → same container width →
@@ -172,7 +190,7 @@ export default function ClustersSectionContent({ className }: Props) {
           trail and the table's controls leave over. */}
       <div className="min-h-0 w-full flex-1 overflow-hidden">
         <div className="h-full" ref={chartContainerRef}>
-          {(isClustersLoading || isClusterStatsLoading) && (isEmpty(chartClusters) || isEmpty(clusterStatsData)) ? (
+          {showChartLoading ? (
             <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
               Loading chart...
             </div>

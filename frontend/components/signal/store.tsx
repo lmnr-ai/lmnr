@@ -6,15 +6,13 @@ import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { type ManageSignalForm } from "@/components/signals/create-signal-drawer/types";
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
-import { type ClusterStatsDataPoint, type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { type Filter } from "@/lib/actions/common/filters.ts";
 import { type Trigger } from "@/lib/actions/signal-triggers";
 import { type Signal } from "@/lib/actions/signals";
 import { type EventRow } from "@/lib/events/types";
 
 import { buildPath, buildTree, type ClusterNode, collectDescendantIds, findNodeById } from "./clusters-section/utils";
-
-export type { ClusterStatsDataPoint };
 
 export type SignalState = {
   events?: EventRow[];
@@ -34,13 +32,6 @@ export type SignalState = {
   totalEventCount: number;
   clusteredEventCount: number;
   isClustersLoading: boolean;
-  clusterStatsData: ClusterStatsDataPoint[];
-  isClusterStatsLoading: boolean;
-};
-
-export type FetchClusterStatsParams = {
-  statsUrl: string | null;
-  abortSignal?: AbortSignal;
 };
 
 export type FetchClustersParams = {
@@ -58,7 +49,6 @@ export type SignalActions = {
   setRunsFilters: Dispatch<SetStateAction<Filter[]>>;
   // Cluster actions
   fetchClusters: (params: FetchClustersParams) => Promise<void>;
-  fetchClusterStats: (params: FetchClusterStatsParams) => Promise<void>;
 };
 
 export interface EventsProps {
@@ -157,8 +147,6 @@ export const createSignalStore = (initProps: EventsProps) =>
     totalEventCount: 0,
     clusteredEventCount: 0,
     isClustersLoading: true,
-    clusterStatsData: [],
-    isClusterStatsLoading: false,
     signal: {
       ...initProps.signal,
       prompt: initProps.signal.prompt,
@@ -230,40 +218,6 @@ export const createSignalStore = (initProps: EventsProps) =>
         console.error("Failed to load clusters:", err);
       } finally {
         set({ isClustersLoading: false });
-      }
-    },
-    fetchClusterStats: async ({ statsUrl, abortSignal }: FetchClusterStatsParams) => {
-      if (!statsUrl) {
-        set({ clusterStatsData: [], isClusterStatsLoading: false });
-        return;
-      }
-
-      set({ isClusterStatsLoading: true });
-
-      try {
-        const res = await fetch(statsUrl, { signal: abortSignal });
-        if (!res.ok) throw new Error("Failed to fetch cluster event counts");
-        const data = (await res.json()) as {
-          items: ClusterStatsDataPoint[];
-          unclusteredCounts: Array<{ timestamp: string; count: number }>;
-        };
-
-        const unclusteredData: ClusterStatsDataPoint[] = data.unclusteredCounts.map((item) => ({
-          cluster_id: UNCLUSTERED_ID,
-          timestamp: item.timestamp,
-          count: item.count,
-        }));
-
-        set({
-          clusterStatsData: [...data.items, ...unclusteredData],
-          isClusterStatsLoading: false,
-        });
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") {
-          set({ isClusterStatsLoading: false });
-          return;
-        }
-        set({ clusterStatsData: [], isClusterStatsLoading: false });
       }
     },
   }));
