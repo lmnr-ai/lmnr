@@ -141,7 +141,7 @@ export default function PanelBody({ traceId, onClose }: Props) {
               ) : (
                 <TabsList size="sm" className="min-w-0 flex-1 justify-start">
                   {traceSignals.map((signal) => (
-                    <SignalTab key={signal.signalId} signal={signal} active={signal.signalId === effectiveTabId} />
+                    <SignalTab key={signal.signalId} signal={signal} />
                   ))}
                 </TabsList>
               )}

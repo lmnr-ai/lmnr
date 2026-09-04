@@ -117,10 +117,6 @@
   /* The panel's muted text — payload keys, inactive tab labels — mixed 10% toward
      the hue, so it reads as the card's chrome rather than the page's. */
   --color-signal-key: color-mix(in oklab, var(--color-signal) 10%, var(--color-muted-foreground));
-  --color-signal-tab: color-mix(in oklab, var(--color-signal) 10%, var(--color-secondary-foreground));
-  /* The active tab: the hue over a surface step, as ONE colour. Not baked to a hex
-     so `--color-surface-up-2` still re-scopes with whatever surface the panel sits on. */
-  --color-signal-tab-active: color-mix(in oklab, var(--color-signal) 8%, var(--color-surface-up-2));
 
   /* Surface ramp: a 50-step scale from surface-00 (base plane / darkest) to surface-800
      (lightest). OKLCH lightness in ~0.022 steps; surface-50 splits the old base→card jump so the
