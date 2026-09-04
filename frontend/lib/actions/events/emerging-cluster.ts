@@ -100,33 +100,3 @@ export async function getEventsByEmergingClusterPaginated(
     count: countResult?.count || 0,
   };
 }
-
-export const GetEmergingClusterNameSchema = z.object({
-  projectId: z.guid(),
-  signalId: z.guid(),
-  emergingClusterId: z.guid(),
-});
-
-export async function getEmergingClusterName(
-  input: z.infer<typeof GetEmergingClusterNameSchema>
-): Promise<{ name: string } | null> {
-  const { projectId, signalId, emergingClusterId } = GetEmergingClusterNameSchema.parse(input);
-
-  const query = `
-    SELECT cluster_name AS name
-    FROM event_clusters_all
-    WHERE cluster_id = {emergingClusterId:UUID}
-      AND signal_id = {signalId:UUID}
-    LIMIT 1
-  `;
-
-  const rows = await executeQuery<{ name: string }>({
-    query,
-    parameters: { signalId, emergingClusterId },
-    projectId,
-  });
-
-  if (rows.length === 0) return null;
-
-  return { name: rows[0].name };
-}
