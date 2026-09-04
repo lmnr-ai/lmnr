@@ -1,6 +1,6 @@
 import { Box, Boxes, CircleDashed } from "lucide-react";
 
-import { type IconVariant } from "@/components/signal/clusters-section/cluster-list/cluster-icon";
+import { type IconVariant } from "@/components/signal/clusters-section/cluster-icon";
 import { withOpacity } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 

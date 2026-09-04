@@ -94,12 +94,6 @@ export const getVisibleClusters = (state: Store, clusterId: string | null): Clus
   return node.children;
 };
 
-export const getIsLeaf = (state: Store, clusterId: string | null): boolean => {
-  if (clusterId === UNCLUSTERED_ID) return true;
-  const node = getCurrentNode(state, clusterId);
-  return node !== null && node.children.length === 0;
-};
-
 export const getDrillDownDepth = (state: Store, clusterId: string | null): number =>
   getBreadcrumb(state, clusterId).length;
 
@@ -143,40 +137,6 @@ export const getChartClusters = (state: Store, clusterId: string | null): Cluste
     clusters.push(getUnclusteredVirtualCluster(state));
   }
   return clusters;
-};
-
-export const getFilteredCountByCluster = (
-  state: Store,
-  clusterId: string | null,
-  hasTimeRange: boolean
-): Map<string, number> => {
-  const counts = new Map<string, number>();
-  if (hasTimeRange) {
-    for (const cluster of getVisibleClusters(state, clusterId)) {
-      counts.set(cluster.id, 0);
-    }
-    if (getDrillDownDepth(state, clusterId) === 0) {
-      counts.set(UNCLUSTERED_ID, 0);
-    }
-  }
-  for (const row of state.clusterStatsData) {
-    counts.set(row.cluster_id, (counts.get(row.cluster_id) ?? 0) + row.count);
-  }
-  return counts;
-};
-
-// Total events in the selected time range = Σ root-cluster counts + unclustered.
-// Root clusters aggregate their whole subtree, so summing roots (not every level)
-// counts each event once. Drives the list's "global scale" proportion bars — the
-// denominator stays fixed regardless of how deep the user has drilled.
-export const selectRangeEventTotal = (state: Store): number => {
-  const byId = new Map<string, number>();
-  for (const row of state.clusterStatsData) {
-    byId.set(row.cluster_id, (byId.get(row.cluster_id) ?? 0) + row.count);
-  }
-  let total = byId.get(UNCLUSTERED_ID) ?? 0;
-  for (const root of state.clusterTree) total += byId.get(root.id) ?? 0;
-  return total;
 };
 
 // --- Store ---

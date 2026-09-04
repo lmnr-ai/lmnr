@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { type IconVariant } from "@/components/signal/clusters-section/cluster-list/cluster-icon";
+import { type IconVariant } from "@/components/signal/clusters-section/cluster-icon";
 import { type ClusterNode } from "@/components/signal/clusters-section/utils";
 import { withOpacity } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";

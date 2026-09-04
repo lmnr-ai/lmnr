@@ -2,9 +2,6 @@
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import ClustersSection from "@/components/signal/clusters-section";
-import ClusterBreadcrumbs from "@/components/signal/clusters-section/cluster-breadcrumbs";
-import EmergingClusterBreadcrumbs from "@/components/signal/emerging-cluster-breadcrumbs";
-import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-cluster-id";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
@@ -36,8 +33,6 @@ export function EventsTableControls({
   onSearchChange,
   onRefresh,
 }: EventsTableControlsProps) {
-  const [emergingClusterId] = useEmergingClusterId();
-
   return (
     <>
       <div className="flex flex-1 w-full h-full gap-2">
@@ -58,7 +53,8 @@ export function EventsTableControls({
           className="w-full flex-1 mb-2"
         />
       </div>
-      {emergingClusterId ? <EmergingClusterBreadcrumbs /> : <ClusterBreadcrumbs />}
+      {/* The section owns the breadcrumb trail: it belongs under the icicle
+          strip, which only exists inside the section. */}
       <ClustersSection className="mb-2" />
     </>
   );

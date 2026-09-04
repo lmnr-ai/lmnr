@@ -3,16 +3,17 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useMemo } from "react";
 
-import { type IconVariant } from "@/components/signal/clusters-section/cluster-list/cluster-icon";
-import ClusterListEmptyState from "@/components/signal/clusters-section/cluster-list/empty-state";
+import { type IconVariant } from "@/components/signal/clusters-section/cluster-icon";
 import { type ClusterNode } from "@/components/signal/clusters-section/utils";
 import { getClusterColorById } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
 import ClusterItem from "./cluster-item";
+import ClusterListEmptyState from "./empty-state";
 
-// Landing copy of components/signal/clusters-section/cluster-list. Exists only
-// to thread `pulsingClusterId` down to the row — see ./cluster-item.
+// The cluster list now lives here only: the signals page draws the icicle strip
+// instead, and this copy threads `pulsingClusterId` down to the row — see
+// ./cluster-item.
 interface Props {
   drillDownDepth: number;
   filteredCountByCluster: Map<string, number>;

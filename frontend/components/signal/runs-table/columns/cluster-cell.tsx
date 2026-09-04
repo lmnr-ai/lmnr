@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
-import ClusterIcon from "@/components/signal/clusters-section/cluster-list/cluster-icon";
+import ClusterIcon from "@/components/signal/clusters-section/cluster-icon";
 import { signalClusterHref } from "@/components/signal/hooks/signal-tab-search";
 import { type SignalRunCluster } from "@/lib/actions/signal-runs/types";
 import { getClusterColorById } from "@/lib/clusters/colors";

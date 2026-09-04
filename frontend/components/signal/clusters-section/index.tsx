@@ -1,7 +1,6 @@
 "use client";
 
 import { isEmpty } from "lodash";
-import { Circle } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -9,22 +8,11 @@ import useSWR from "swr";
 import { shallow } from "zustand/shallow";
 
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
+import EmergingClusterBreadcrumbs from "@/components/signal/emerging-cluster-breadcrumbs";
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
 import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-cluster-id";
-import {
-  getChartClusters,
-  getCurrentNode,
-  getDrillDownDepth,
-  getFilteredCountByCluster,
-  getIsLeaf,
-  getUnclusteredVirtualCluster,
-  getVisibleClusters,
-  selectRangeEventTotal,
-  selectUnclusteredCount,
-  useSignalStoreContext,
-} from "@/components/signal/store.tsx";
+import { getChartClusters, useSignalStoreContext } from "@/components/signal/store.tsx";
 import { Button } from "@/components/ui/button";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useProjectContext } from "@/contexts/project-context";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
@@ -33,8 +21,11 @@ import { getHasClusteringAccess } from "@/lib/features/clustering";
 import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
 
-import ClusterList from "./cluster-list";
+import ClusterBreadcrumbs from "./cluster-breadcrumbs";
+import ClusterIcicle from "./cluster-icicle";
+import ClusterReadout from "./cluster-readout";
 import ClusterStackedChart from "./cluster-stacked-chart";
+import { buildClusterModel } from "./model";
 
 interface Props {
   className?: string;
@@ -46,12 +37,8 @@ export default function ClustersSection({ className }: Props) {
   const billingHref = settingsHref("billing");
   const searchParams = useSearchParams();
   const [clusterId, setClusterId] = useClusterId();
-  const [, setEmergingClusterId] = useEmergingClusterId();
-
-  // For leaf nodes, stay at the parent's navigation level
-  const isLeaf = useSignalStoreContext((state) => getIsLeaf(state, clusterId));
-  const currentNode = useSignalStoreContext((state) => getCurrentNode(state, clusterId));
-  const displayId = isLeaf ? (currentNode?.parentId ?? null) : clusterId;
+  const [emergingClusterId, setEmergingClusterId] = useEmergingClusterId();
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   const isClustersLoading = useSignalStoreContext((state) => state.isClustersLoading);
   const clusterStatsData = useSignalStoreContext((state) => state.clusterStatsData);
@@ -64,33 +51,30 @@ export default function ClustersSection({ className }: Props) {
   const pastHours = searchParams.get("pastHours");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
-  const hasTimeRange = !!(pastHours || (startDate && endDate));
 
-  // Depth uses displayId (parent level for leaves), chart uses clusterId (shows selected node's data)
-  const visibleClusters = useSignalStoreContext((state) => getVisibleClusters(state, displayId), shallow);
-  const drillDownDepth = useSignalStoreContext((state) => getDrillDownDepth(state, displayId));
   const chartClusters = useSignalStoreContext((state) => getChartClusters(state, clusterId), shallow);
-  const filteredCountByCluster = useSignalStoreContext(
-    (state) => getFilteredCountByCluster(state, displayId, hasTimeRange),
-    shallow
-  );
-  const unclusteredCount = useSignalStoreContext(selectUnclusteredCount);
-  const unclusteredVirtualCluster = useSignalStoreContext(getUnclusteredVirtualCluster);
-  const rangeTotal = useSignalStoreContext(selectRangeEventTotal);
+
+  // The strip draws every cluster at every level, not the drill-down's slice: it
+  // is the navigation, so re-rooting it on selection would take away what the
+  // selection is read against.
+  const model = useMemo(() => buildClusterModel(rawClusters, clusterStatsData), [rawClusters, clusterStatsData]);
 
   // Color is a pure function of cluster id (shared with trace-view), so the
   // map is just for the unclustered virtual bucket plus convenience lookups.
   const colorMap = useMemo(() => {
     const map = new Map<string, string>();
-    visibleClusters.forEach((c) => map.set(c.id, getClusterColorById(c.id)));
+    chartClusters.forEach((c) => map.set(c.id, getClusterColorById(c.id)));
     map.set(UNCLUSTERED_ID, UNCLUSTERED_COLOR);
     return map;
-  }, [visibleClusters]);
+  }, [chartClusters]);
 
   useEffect(() => {
     if (!pastHours && !(startDate && endDate)) return;
     fetchClusters({ pastHours, startDate, endDate });
   }, [fetchClusters, pastHours, startDate, endDate]);
+
+  // Skeleton only on first load; a refresh keeps the old chart until new data arrives.
+  const showSkeleton = isClustersLoading && isEmpty(rawClusters);
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [localChartWidth, setLocalChartWidth] = useState<number | null>(null);
@@ -106,7 +90,7 @@ export default function ClustersSection({ className }: Props) {
 
     resizeObserver.observe(chartContainerRef.current);
     return () => resizeObserver.disconnect();
-  }, [isClustersLoading]);
+  }, [showSkeleton]);
 
   const statsUrl = useTimeSeriesStatsUrl({
     baseUrl: `/api/projects/${signal.projectId}/signals/${signal.id}/events/clusters/stats`,
@@ -148,8 +132,9 @@ export default function ClustersSection({ className }: Props) {
     [runStats?.items]
   );
 
-  // Navigation callbacks. No-op when paywalled — drilling is a Pro feature.
-  const navigateToCluster = useCallback(
+  // The one way anything in the section changes the selection. No-op when
+  // paywalled — drilling is a Pro feature.
+  const selectCluster = useCallback(
     (id: string) => {
       if (isPaywall) return;
       track("signals", "cluster_clicked", {
@@ -159,96 +144,100 @@ export default function ClustersSection({ className }: Props) {
       // otherwise the events fetcher would keep filtering to the L0 cluster
       // (it prioritizes emergingClusterId over clusterId/unclustered).
       setEmergingClusterId(null);
-      // Toggle off if clicking the already-selected leaf/unclustered — go back to parent
-      if (id === clusterId && isLeaf) {
-        setClusterId(displayId);
-      } else {
-        setClusterId(id);
-      }
+      setClusterId(clusterId === id ? null : id);
     },
-    [isPaywall, setClusterId, setEmergingClusterId, clusterId, isLeaf, displayId]
+    [isPaywall, setClusterId, setEmergingClusterId, clusterId]
   );
 
-  // Skeleton only on first load; refresh keeps old data until new arrives.
-  if (isClustersLoading && isEmpty(rawClusters)) {
-    return (
-      <div
-        className={cn("flex border rounded-lg overflow-hidden h-[240px] w-full bg-secondary", className)}
-        style={{ maxHeight: 300 }}
-      >
-        <div className="w-[320px] shrink-0 border-r overflow-y-auto">
-          <div className="flex flex-col gap-0.5 py-2 px-2">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded text-sm">
-                <Circle className="size-4 shrink-0 fill-muted stroke-none" />
-                <div className="h-4 w-40 bg-muted rounded animate-pulse truncate" />
-                <div className="h-3 w-6 bg-muted rounded animate-pulse ml-auto shrink-0" />
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="flex-1 p-2 bg-secondary flex items-center justify-center text-muted-foreground text-sm shimmer duration-[2s]">
-          Loading clusters
-        </div>
+  // The card is memoised as an ELEMENT, not wrapped in `React.memo`: hover state
+  // lives here, and the chart is a recharts stack of ~30 buckets × N clusters, so
+  // one pointer move over a band otherwise re-commits the whole thing. An
+  // identical element object is React's own bail-out signal.
+  //
+  // Nothing to do with hover may be in these deps.
+  const card = useMemo(
+    () => (
+      <div className="h-full" ref={chartContainerRef}>
+        {isClusterStatsLoading && (isEmpty(chartClusters) || isEmpty(clusterStatsData)) ? (
+          <div className="flex items-center justify-center h-full text-muted-foreground text-sm">Loading chart...</div>
+        ) : (
+          <ClusterStackedChart
+            clusters={chartClusters}
+            statsData={clusterStatsData}
+            containerWidth={localChartWidth}
+            colorMap={colorMap}
+            showTooltip={!isPaywall}
+            runTotals={runTotals}
+            // With the list gone the chart has no other label for what is pinned.
+            overlay={
+              model && (
+                <ClusterReadout
+                  tree={model.tree}
+                  hasChildren={model.hasChildren}
+                  clusterId={clusterId}
+                  onSelect={selectCluster}
+                  onHover={setHoveredId}
+                />
+              )
+            }
+          />
+        )}
       </div>
-    );
-  }
+    ),
+    [
+      isClusterStatsLoading,
+      chartClusters,
+      clusterStatsData,
+      localChartWidth,
+      colorMap,
+      isPaywall,
+      runTotals,
+      model,
+      clusterId,
+      selectCluster,
+    ]
+  );
 
   return (
     <TooltipProvider delayDuration={200}>
-      <ResizablePanelGroup
-        id="clusters-section"
-        orientation="horizontal"
-        className={cn("border rounded-lg overflow-hidden h-[240px] min-h-[240px] max-h-[240px]", className)}
-      >
-        <ResizablePanel defaultSize={"36%"} minSize={"200px"} className="overflow-hidden">
-          <div className="relative h-full w-full">
-            <ClusterList
-              className="h-full w-full"
-              drillDownDepth={drillDownDepth}
-              filteredCountByCluster={filteredCountByCluster}
-              visibleClusters={visibleClusters}
-              unclusteredCount={unclusteredCount}
-              unclusteredVirtualCluster={unclusteredVirtualCluster}
-              selectedClusterId={clusterId}
-              onNavigateToCluster={navigateToCluster}
-              rangeTotal={rangeTotal}
-              isPaywall={isPaywall}
+      <div className={cn("relative flex w-full min-w-0 flex-col", className)}>
+        {/* The strip and the trail read as one block above the chart, which is
+            why the gap between them is looser than the one under it. */}
+        <div className="mb-2 flex w-full shrink-0 flex-col gap-4">
+          {model && (
+            <ClusterIcicle
+              tree={model.tree}
+              ancestors={model.ancestors}
+              selectedId={clusterId}
+              hoveredId={hoveredId}
+              onHover={setHoveredId}
+              onSelect={selectCluster}
             />
-            {isPaywall && (
-              <div className="absolute bottom-2 left-2 right-2 flex items-center gap-2 px-3 py-2 rounded-md border bg-background">
-                <span className="text-xs text-muted-foreground flex-1 min-w-0">
-                  Event clusters for high-level insights
-                </span>
-                <Link href={billingHref}>
-                  <Button size="sm">Upgrade to Pro</Button>
-                </Link>
-              </div>
-            )}
-          </div>
-        </ResizablePanel>
+          )}
+          {emergingClusterId ? <EmergingClusterBreadcrumbs /> : <ClusterBreadcrumbs />}
+        </div>
 
-        <ResizableHandle />
+        {/* Unwrapped: no border, no surface fill, no padding, so the chart reads
+            as part of the page rather than a card sitting on it. */}
+        <div className="h-[240px] min-h-[240px] max-h-[240px] w-full overflow-hidden">
+          {showSkeleton ? (
+            <div className="flex h-full items-center justify-center">
+              <span className="shimmer text-sm text-muted-foreground duration-[2s]">Loading clusters</span>
+            </div>
+          ) : (
+            card
+          )}
+        </div>
 
-        <ResizablePanel defaultSize={"64%"} minSize={"400px"}>
-          <div className="h-full py-2 pr-2 bg-secondary" ref={chartContainerRef}>
-            {isClusterStatsLoading && (isEmpty(chartClusters) || isEmpty(clusterStatsData)) ? (
-              <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-                Loading chart...
-              </div>
-            ) : (
-              <ClusterStackedChart
-                clusters={chartClusters}
-                statsData={clusterStatsData}
-                containerWidth={localChartWidth}
-                colorMap={colorMap}
-                showTooltip={!isPaywall}
-                runTotals={runTotals}
-              />
-            )}
+        {isPaywall && (
+          <div className="absolute bottom-2 left-2 right-2 flex items-center gap-2 px-3 py-2 rounded-md border bg-background">
+            <span className="text-xs text-muted-foreground flex-1 min-w-0">Event clusters for high-level insights</span>
+            <Link href={billingHref}>
+              <Button size="sm">Upgrade to Pro</Button>
+            </Link>
           </div>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+        )}
+      </div>
     </TooltipProvider>
   );
 }
