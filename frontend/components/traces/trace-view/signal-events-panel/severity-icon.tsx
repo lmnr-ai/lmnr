@@ -26,25 +26,20 @@ interface Props {
 export default function SeverityIcon({ severity, bare }: Props) {
   const Icon = ICONS[severity as keyof typeof ICONS] ?? Info;
   const label = SEVERITY_LABELS[severity as keyof typeof SEVERITY_LABELS] ?? "Info";
-  const color = COLORS[severity] ?? COLORS[0];
 
   // Sized by CLASS: lucide's `size` prop becomes an attribute, which loses to
   // `TabsTrigger`'s `[&_svg:not([class*='size-'])]:size-4`.
-  if (bare) {
-    return (
-      <span className={cn("pointer-events-none shrink-0", color)} aria-label={label}>
-        <Icon className="size-3" />
-      </span>
-    );
-  }
+  const glyph = (
+    <span className={cn("shrink-0", COLORS[severity] ?? COLORS[0], bare && "pointer-events-none")} aria-label={label}>
+      <Icon className="size-3" />
+    </span>
+  );
+
+  if (bare) return glyph;
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <span className={color} aria-label={label}>
-          <Icon className="size-3 shrink-0" />
-        </span>
-      </TooltipTrigger>
+      <TooltipTrigger asChild>{glyph}</TooltipTrigger>
       <TooltipContent side="bottom">{label}</TooltipContent>
     </Tooltip>
   );
