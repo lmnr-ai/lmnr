@@ -219,7 +219,7 @@ const UsageProgressDisc = memo(({ maxValue, value, color }: UsageProgressDiscPro
       data={[{ fill: color, usage: Math.min(value, maxValue) }]}
       startAngle={90}
       endAngle={-270}
-      innerRadius="70%"
+      innerRadius="75%"
       outerRadius="100%"
       margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
     >
