@@ -111,13 +111,6 @@
 
   --color-subagent: hsl(var(--subagent));
 
-  /* The signal panel's one hue: everything in it that is not a cluster or severity
-     colour is a wash of this. Was three hardcoded `blue-400` opacities. */
-  --color-signal: #75acff;
-  /* The panel's muted text — payload keys, inactive tab labels — mixed 10% toward
-     the hue, so it reads as the card's chrome rather than the page's. */
-  --color-signal-key: color-mix(in oklab, var(--color-signal) 10%, var(--color-muted-foreground));
-
   /* Surface ramp: a 50-step scale from surface-00 (base plane / darkest) to surface-800
      (lightest). OKLCH lightness in ~0.022 steps; surface-50 splits the old base→card jump so the
      ramp is even. surface-450..800 extend past the old top to give room for the dynamic border. */

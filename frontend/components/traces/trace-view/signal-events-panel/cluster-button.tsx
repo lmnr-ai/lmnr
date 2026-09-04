@@ -10,7 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { getClusterColorById } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
-import { CHIP, CHIP_ARROW, TOOLTIP_DELAY_MS } from "./constants";
+import { CHIP, CHIP_ARROW, CHIP_SURFACE, TOOLTIP_DELAY_MS } from "./constants";
 
 interface Props {
   cluster: TraceSignalClusterNode;
@@ -27,11 +27,7 @@ export default function ClusterButton({ cluster, href, shrinkable }: Props) {
     <Link
       href={href}
       target="_blank"
-      className={cn(
-        CHIP,
-        "min-w-0 overflow-hidden px-1.5 text-left transition-colors bg-signal/14 hover:bg-signal/24",
-        shrinkable ? "shrink" : "shrink-0"
-      )}
+      className={cn(CHIP, CHIP_SURFACE, "min-w-0 overflow-hidden px-1.5 text-left", shrinkable ? "shrink" : "shrink-0")}
     >
       {/* Never shrinks, so a squeezed button loses the label rather than its identity. */}
       <ClusterIcon iconVariant="box" color={getClusterColorById(cluster.id)} />
