@@ -3,7 +3,7 @@
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { memo, useEffect } from "react";
-import { PolarGrid, PolarRadiusAxis, RadialBar, RadialBarChart } from "recharts";
+import { PolarAngleAxis, RadialBar, RadialBarChart } from "recharts";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { ChartContainer } from "@/components/ui/chart";
@@ -151,12 +151,7 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
                 )}
               </div>
               {!isUnlimited && hasLimits && (
-                <UsageProgressDisc
-                  data={[{ fill: "hsl(var(--chart-1))", usage: gbUsedThisMonth }]}
-                  dataKey="usage"
-                  value={gbUsedThisMonth}
-                  maxValue={gbLimit}
-                />
+                <UsageProgressDisc color="hsl(var(--chart-1))" value={gbUsedThisMonth} maxValue={gbLimit} />
               )}
             </div>
           </div>
@@ -176,12 +171,7 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
                 )}
               </div>
               {!isUnlimited && hasLimits && (
-                <UsageProgressDisc
-                  data={[{ fill: "hsl(var(--chart-2))", usage: signalCostUsed }]}
-                  dataKey="usage"
-                  value={signalCostUsed}
-                  maxValue={signalCostLimit}
-                />
+                <UsageProgressDisc color="hsl(var(--chart-2))" value={signalCostUsed} maxValue={signalCostLimit} />
               )}
             </div>
           </div>
@@ -217,28 +207,26 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
 interface UsageProgressDiscProps {
   value: number;
   maxValue: number;
-  data: any[];
-  dataKey: string;
+  color: string;
 }
 
-const UsageProgressDisc = memo(({ maxValue, value, data, dataKey }: UsageProgressDiscProps) => {
-  const startAngle = 90;
-  const endAngle = startAngle - (Math.min(value, maxValue) / maxValue) * 360;
-
-  return (
-    <ChartContainer config={{}} className="aspect-square h-16 w-16">
-      <RadialBarChart data={data} innerRadius={24} outerRadius={36} startAngle={startAngle} endAngle={endAngle}>
-        <PolarGrid
-          gridType="circle"
-          radialLines={false}
-          className="first:fill-muted last:fill-sidebar"
-          polarRadius={[25, 22]}
-        />
-        <RadialBar dataKey={dataKey} cornerRadius={50} />
-        <PolarRadiusAxis tick={false} tickLine={false} axisLine={false} />
-      </RadialBarChart>
-    </ChartContainer>
-  );
-});
+// The chart always sweeps a full circle and the value is encoded by the angle axis domain:
+// recharts v3 fits the polar viewbox to the sweep, so a partial startAngle/endAngle would
+// resize and re-centre the disc instead of filling part of it.
+const UsageProgressDisc = memo(({ maxValue, value, color }: UsageProgressDiscProps) => (
+  <ChartContainer config={{}} className="aspect-square h-16 w-16">
+    <RadialBarChart
+      data={[{ fill: color, usage: Math.min(value, maxValue) }]}
+      startAngle={90}
+      endAngle={-270}
+      innerRadius="75%"
+      outerRadius="100%"
+      margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
+    >
+      <PolarAngleAxis type="number" domain={[0, maxValue]} tick={false} tickLine={false} axisLine={false} />
+      <RadialBar dataKey="usage" background cornerRadius={10} />
+    </RadialBarChart>
+  </ChartContainer>
+));
 
 UsageProgressDisc.displayName = "UsageProgressDisc";
