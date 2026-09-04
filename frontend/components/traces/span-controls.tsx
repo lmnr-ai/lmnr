@@ -120,7 +120,7 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
           <div className="flex gap-2 gap-y-1 flex-wrap items-center">
             <AddToLabelingQueuePopover spanId={span.spanId} traceId={span.traceId} />
             <ExportSpansPopover span={span} />
-            <SpanTagsList spanId={span.spanId} />
+            <SpanTagsList traceId={span.traceId} spanId={span.spanId} />
           </div>
         </div>
 
