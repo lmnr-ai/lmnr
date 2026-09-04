@@ -98,6 +98,19 @@ export default function ClusterReadout({ tree, hasChildren, clusterId, onSelect,
     setRect(null);
   }, [clearTimers]);
 
+  // The card is position-fixed against a rect captured when it opened, so
+  // anything that moves the trigger strands it. Capture phase, because the page
+  // scroller is an ancestor and scroll does not bubble.
+  useEffect(() => {
+    if (rect === null) return;
+    window.addEventListener("scroll", closeNow, true);
+    window.addEventListener("resize", closeNow);
+    return () => {
+      window.removeEventListener("scroll", closeNow, true);
+      window.removeEventListener("resize", closeNow);
+    };
+  }, [rect, closeNow]);
+
   const node = clusterId ? findNode(tree, clusterId) : null;
   // Hooks are all above this line — the readout renders nothing when no cluster
   // is pinned, and that must not change the hook order.

@@ -122,7 +122,13 @@ export default function IcicleNode({
   // but it does open the tooltip, which is the only way into the clusters behind
   // it. Its own active state: the focused cluster came from in here, and without
   // this the strip shows nothing selected at all.
-  const holdsFocus = node.isExtra === true && focusId !== null && (node.extra?.some((n) => n.id === focusId) ?? false);
+  // The focus counts as "in here" if it IS one of the folded clusters or sits
+  // under one — a deep link, or a leaf the fold dropped on resize. Matching only
+  // the folded nodes themselves left the whole strip muted with nothing lit.
+  const holdsFocus =
+    node.isExtra === true &&
+    focusId !== null &&
+    (node.extra?.some((n) => n.id === focusId || (ancestors.get(focusId)?.has(n.id) ?? false)) ?? false);
 
   const band = node.isExtra ? (
     <div
