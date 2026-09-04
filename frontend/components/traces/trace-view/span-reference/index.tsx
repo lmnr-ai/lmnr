@@ -49,6 +49,10 @@ function SpanChip({
         e.preventDefault();
         onClick();
       }}
+      // A styling hook, not a behaviour one: the signal-events panel re-paints
+      // these onto the surface ramp, and the chip has nothing else stable to
+      // select on. Purely additive — no rule in shipping CSS matches it.
+      data-slot="span-chip"
       className="inline-flex items-center gap-1 rounded px-1 py-0.25 align-middle bg-foreground-300/20 hover:bg-foreground-300/30 transition-colors cursor-pointer"
     >
       <span
