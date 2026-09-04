@@ -23,8 +23,10 @@ export default function SignalTab({ signal, active }: { signal: TraceSignal; act
         "h-5.5 w-full min-w-0 rounded-md px-2 text-[11px] shadow-none",
         // A step off the panel's elevation, not `bg-gray-900`: a fixed near-black
         // that ignores the surface ladder and reads as a hole in the header.
+        // Both variants, or `TabsTrigger`'s own `data-[state=active]:bg-background`
+        // and `dark:...:bg-input/30` outrank a plain `bg-*` and twMerge keeps them.
         active
-          ? "bg-surface-up-2 text-foreground dark:text-foreground"
+          ? "data-[state=active]:bg-surface-up-2 dark:data-[state=active]:bg-surface-up-2 text-foreground dark:text-foreground"
           : // `dark:` on ours too — `TabsTrigger` ships `dark:text-muted-foreground`,
             // and a bare `text-*` never outranks a variant.
             "text-signal-tab hover:text-foreground dark:text-signal-tab dark:hover:text-foreground"
