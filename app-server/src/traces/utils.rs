@@ -31,10 +31,14 @@ static SKIP_SPAN_NAME_REGEX: LazyLock<Regex> =
 
 /// Calculate token/cost usage for an LLM span from its `gen_ai.usage.*` attributes.
 ///
+/// **Consumer-side only.** Resolving the model's prices is a DB lookup (`model_costs` plus the
+/// project's overrides), far too heavy for the ingest path — anything that needs raw token
+/// counts before the queue reads them off [`SpanAttributes`] directly instead.
+///
 /// Call this only for LLM spans. A non-LLM span may still carry stray `gen_ai.usage.*`
 /// attributes (some auto-instrumentations set them on Default/Tool spans); counting those
-/// would inflate the per-span token/cost columns and the trace totals (LAM-1873), so callers
-/// use `SpanUsage::default()` (all zeros) for non-LLM spans instead.
+/// would inflate the per-span token/cost columns and the trace totals (LAM-1873), so the
+/// caller uses `SpanUsage::default()` (all zeros) for non-LLM spans instead.
 pub async fn get_llm_usage_for_span(
     // mut because input and output tokens are updated to new convention
     attributes: &mut SpanAttributes,

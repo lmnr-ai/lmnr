@@ -109,8 +109,9 @@ pub struct WinnerState {
     /// first span's system prompt is often cache-read from prior
     /// conversations while helper spans are too small to cache at all
     /// (~1024 token minimum), so subtracting cache-read ranks the helper
-    /// higher. Tokens (not cost) on purpose: cost is only derivable when the
-    /// model resolves in the pricing tables.
+    /// higher. Tokens (not cost) on purpose: tokens are on the span's
+    /// attributes, whereas cost needs a model-pricing lookup that the ingest
+    /// path must not pay for.
     #[serde(rename = "k", default)]
     pub input_tokens: i64,
     /// Start time (ns since epoch); `i64::MAX` = unknown. Also the default
