@@ -64,6 +64,8 @@ interface Rect {
 export default function ClusterReadout({ tree, hasChildren, clusterId, onSelect, onHover, className }: Props) {
   const [rect, setRect] = useState<Rect | null>(null);
   const headerRef = useRef<HTMLDivElement>(null);
+  // So the scroll-dismiss below can tell the card's own list from everything else.
+  const cardRef = useRef<HTMLDivElement>(null);
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -100,13 +102,20 @@ export default function ClusterReadout({ tree, hasChildren, clusterId, onSelect,
 
   // The card is position-fixed against a rect captured when it opened, so
   // anything that moves the trigger strands it. Capture phase, because the page
-  // scroller is an ancestor and scroll does not bubble.
+  // scroller is an ancestor and scroll does not bubble — which also means this
+  // sees the card's OWN list scrolling, and closing on that would put every
+  // cluster past the first screenful out of reach.
   useEffect(() => {
     if (rect === null) return;
-    window.addEventListener("scroll", closeNow, true);
+    const onScroll = (e: Event) => {
+      const target = e.target;
+      if (target instanceof Node && cardRef.current?.contains(target)) return;
+      closeNow();
+    };
+    window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", closeNow);
     return () => {
-      window.removeEventListener("scroll", closeNow, true);
+      window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", closeNow);
     };
   }, [rect, closeNow]);
@@ -259,6 +268,7 @@ export default function ClusterReadout({ tree, hasChildren, clusterId, onSelect,
           <AnimatePresence>
             {rect && (
               <motion.div
+                ref={cardRef}
                 className="pointer-events-auto fixed z-50 flex flex-col gap-2 rounded-md border bg-secondary px-2 py-1.5 text-xs leading-tight shadow-md shadow-background/80"
                 style={{
                   top: rect.top - CARD_PAD_Y,
