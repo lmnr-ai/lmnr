@@ -56,7 +56,15 @@ function PureEventsTable() {
     if (!fetchEnabled) return;
     refetchRef.current();
     fetchClusters({ pastHours, startDate, endDate });
-    mutate((key) => typeof key === "string" && key.includes(`/signals/${signal.id}/runs/stats`));
+    // Both stats series, or the strip's band structure refreshes while its widths
+    // and the bars underneath keep the previous counts. Their keys are the time
+    // range, which a refresh does not change, so nothing else revalidates them.
+    mutate(
+      (key) =>
+        typeof key === "string" &&
+        (key.includes(`/signals/${signal.id}/runs/stats`) ||
+          key.includes(`/signals/${signal.id}/events/clusters/stats`))
+    );
   }, [fetchEnabled, fetchClusters, pastHours, startDate, endDate, mutate, signal.id]);
 
   const handleSort = useCallback(
