@@ -1,3 +1,4 @@
+mod datapoint_update;
 pub mod realtime;
 
 use std::collections::HashMap;
@@ -90,20 +91,11 @@ fn scores_to_json_string(scores: &HashMap<String, Option<f64>>) -> String {
 }
 
 /// Convert a Value to a ClickHouse string, returning "" for falsey values.
-/// Truncates the value to a limit of 250K chars, because the limit for
-/// parameters bound to non-canonical insert queries is 256KB
-fn value_to_ch_string_trunc(v: &Value) -> String {
+fn value_to_ch_string(v: &Value) -> String {
     if is_falsey_value(v) {
         String::new()
     } else {
-        let s = json_value_to_string(v);
-        let max_bytes = 250000;
-        s.char_indices()
-            .take_while(|(i, _)| *i < max_bytes)
-            .last()
-            .map(|(i, c)| &s[..i + c.len_utf8()])
-            .unwrap_or("")
-            .to_string()
+        json_value_to_string(v)
     }
 }
 
@@ -197,80 +189,25 @@ pub async fn update_evaluation_datapoint(
     let new_trace_id = trace_id.unwrap_or(Uuid::nil());
     let new_executor_output = executor_output
         .as_ref()
-        .map(|v| value_to_ch_string_trunc(v))
+        .map(value_to_ch_string)
         .unwrap_or_default();
     let new_scores = scores_to_json_string(&scores);
     let now_nanos = chrono_to_nanoseconds(Utc::now());
 
-    // The existing row MUST exist (verified above). We SELECT from it and override
-    // only the columns being updated. ClickHouse empty() detects falsey new values
-    // (empty string, nil UUID) so the existing value is preserved.
-    // We use prewhere id here, so that we hit the bloom_filter skip index on the
-    // project_id, evaluation_id, id BEFORE we execute FINAL
-    let query = "INSERT INTO evaluation_datapoints (
-            id, evaluation_id, project_id, trace_id, updated_at,
-            data, target, metadata, executor_output, `index`,
-            dataset_id, dataset_datapoint_id, dataset_datapoint_created_at,
-            group_id, scores
-        )
-        SELECT
-            existing.id,
-            existing.evaluation_id,
-            existing.project_id,
-            if(empty(toUUID(?)), existing.trace_id, toUUID(?)),
-            fromUnixTimestamp64Nano(toInt64(?), 'UTC'),
-            existing.data,
-            existing.target,
-            existing.metadata,
-            if(empty(?), existing.executor_output, ?),
-            existing.`index`,
-            existing.dataset_id,
-            existing.dataset_datapoint_id,
-            existing.dataset_datapoint_created_at,
-            ?,
-            if(empty(?),
-                existing.scores,
-                if(notEmpty(existing.scores),
-                    jsonMergePatch(existing.scores, ?),
-                    ?))
-        FROM (
-            SELECT
-                id,
-                evaluation_id,
-                project_id,
-                trace_id,
-                data,
-                target,
-                metadata,
-                executor_output,
-                `index`,
-                scores,
-                dataset_id,
-                dataset_datapoint_id,
-                dataset_datapoint_created_at,
-                group_id
-            FROM evaluation_datapoints FINAL
-            PREWHERE id = ?
-            WHERE project_id = ? AND evaluation_id = ?
-        ) AS existing";
-
-    clickhouse
-        .query(query)
-        .bind(new_trace_id)
-        .bind(new_trace_id)
-        .bind(now_nanos)
-        .bind(new_executor_output.as_str())
-        .bind(new_executor_output.as_str())
-        .bind(group_id.as_str())
-        .bind(new_scores.as_str())
-        .bind(new_scores.as_str())
-        .bind(new_scores.as_str())
-        .bind(datapoint_id)
-        .bind(project_id)
-        .bind(evaluation_id)
-        .execute()
-        .await
-        .map_err(|e| anyhow::anyhow!("Clickhouse evaluation datapoint update failed: {:?}", e))?;
+    datapoint_update::write(
+        &clickhouse,
+        evaluation_id,
+        project_id,
+        datapoint_id,
+        &datapoint_update::Update {
+            trace_id: new_trace_id,
+            updated_at: now_nanos,
+            executor_output: &new_executor_output,
+            group_id,
+            scores: &new_scores,
+        },
+    )
+    .await?;
 
     Ok(UpdatedDatapointStrings {
         executor_output: new_executor_output,
