@@ -37,7 +37,6 @@ use crate::mq::{MessageQueue, stream::StreamPublisher};
 use crate::traces::metadata::publish_trace_input_update;
 use crate::traces::sp_versioning::producer::VersionVerdicts;
 use crate::traces::spans::SpanAttributes;
-use crate::traces::utils::get_llm_usage_for_span;
 
 /// The span's system-prompt identity, threaded from the ingest producer. The
 /// agent hash is a key component of both regex cachings; the byte-identity hash
@@ -203,27 +202,13 @@ pub async fn process_user_task_candidates(
         };
         let content_hash = candidate.content_hash.clone();
         let rollout_session_id = rollout_session_id_from_attributes(&ctx.attributes);
-        let usage = get_llm_usage_for_span(
-            &mut ctx.attributes,
-            db.clone(),
-            cache.clone(),
-            &ctx.span_name,
-            &project_id,
-        )
-        .await;
-        // Total input tokens (cached + uncached). The real main-agent span
-        // carries a large context; small helper spans (title/routing) carry
-        // little. Subtracting cache-read was tried and reverted: it penalized
-        // the true first span — its system prompt is often cache-read from
-        // prior conversations, while tiny helper spans have too few tokens to
-        // cache at all (providers need ~1024+), so uncached-tokens ranked the
-        // helper above the main agent. (Tokens, not cost — cost is zero when
-        // the model doesn't resolve in the pricing tables.)
         let state = WinnerState {
             // Empty for a span with no system message: ungroupable, so they
             // all share one bucket.
             agent_hash: candidate.prompt_hash.clone().unwrap_or_default(),
-            input_tokens: usage.input_tokens,
+            // Read straight off the span's `gen_ai.usage.*` attributes — see
+            // [`WinnerState::input_tokens`] for why total, and why tokens.
+            input_tokens: ctx.attributes.input_tokens().total(),
             start_time_ns: ctx.start_time_ns,
             span_id: span_key(ctx.span_id),
             content_hash,
