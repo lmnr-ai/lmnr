@@ -4,8 +4,11 @@ import { CATEGORICAL_COLOR_PALETTE } from "@/lib/colors";
 // the same color everywhere (cluster list, stacked chart, trace-view signal
 // panel, breadcrumbs). Draws from the shared categorical palette.
 
-// Fallback for the synthetic "Unclustered" bucket in the cluster list.
-export const UNCLUSTERED_COLOR = "var(--color-primary)";
+// The synthetic "Unclustered" bucket, in the list and in the stacked chart. A
+// step off the surface ramp rather than a palette entry: it is the ABSENCE of a
+// cluster, and the accent it used to wear made it read as the most important one
+// on screen. 500 sits well clear of the card (100) and of the runs overlay (350).
+export const UNCLUSTERED_COLOR = "var(--color-surface-500)";
 
 // Bump to shift every cluster's color into a different palette slot.
 // Stays under FNV's seed (a u32) so the hash domain doesn't degenerate.

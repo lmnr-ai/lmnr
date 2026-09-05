@@ -55,6 +55,7 @@ export function InfiniteDataTable<TData extends RowData>({
   getRowClassName,
   loadMoreButton,
   hideSelectionPanel = false,
+  externalScrollElement,
   ...tableOptions
 }: PropsWithChildren<InfiniteDataTableProps<TData>>) {
   const selectedRowIds = state?.rowSelection ? Object.keys(state.rowSelection) : [];
@@ -150,7 +151,15 @@ export function InfiniteDataTable<TData extends RowData>({
   };
 
   return (
-    <div className={cn("flex flex-col gap-2 relative overflow-hidden w-full", className)}>
+    <div
+      className={cn(
+        "flex flex-col gap-2 relative w-full",
+        // Under an external scroller the table has to be free to grow past the
+        // viewport — that overflow is exactly what the ancestor scrolls.
+        externalScrollElement ? "overflow-visible" : "overflow-hidden",
+        className
+      )}
+    >
       {!hideSelectionPanel && (
         <SelectionPanel
           selectedRowIds={selectedRowIds}
@@ -178,6 +187,7 @@ export function InfiniteDataTable<TData extends RowData>({
         getRowClassName={getRowClassName}
         loadMoreButton={loadMoreButton}
         scrollContentClassName={scrollContentClassName}
+        externalScrollElement={externalScrollElement}
       />
     </div>
   );

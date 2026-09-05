@@ -1,8 +1,19 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useId, useMemo, useState } from "react";
-import { Area, Bar, BarChart, BarStack, CartesianGrid, ComposedChart, ReferenceArea, XAxis, YAxis } from "recharts";
+import React, { useCallback, useEffect, useId, useMemo, useState } from "react";
+import {
+  Area,
+  Bar,
+  BarChart,
+  BarStack,
+  CartesianGrid,
+  ComposedChart,
+  ReferenceArea,
+  useYAxisScale,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import { type CategoricalChartFunc } from "@/components/chart-builder/charts/line-chart";
 import { numberFormatter, parseUtcTimestamp, selectNiceTicksFromData } from "@/components/chart-builder/charts/utils";
@@ -24,6 +35,65 @@ const countNumberFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 3,
 });
 
+/**
+ * `ChartTooltipContent`, held back until the pointer has dwelled on the plot.
+ *
+ * The delay lives on the content because gating the `<Tooltip>` itself drops the
+ * cursor highlight with it, and recharts has no delay of its own. Keyed on
+ * `active` alone, not on the hovered bar, so sliding along the axis does not
+ * restart it.
+ *
+ * `requireBar` suppresses the tooltip in the empty space above a stack. Recharts'
+ * own `shared={false}` cannot do it — `ComposedChart` only honours axis-triggered
+ * tooltips — so the test is geometric: put the stack total through the y scale
+ * and compare with the pointer. The overlay series rides a second axis, so its
+ * value is not in the bars' units and is left out of the sum.
+ */
+function DelayedTooltipContent({
+  delayMs,
+  requireBar,
+  overlayField,
+  ...props
+}: React.ComponentProps<typeof ChartTooltipContent> & {
+  delayMs: number;
+  requireBar: boolean;
+  overlayField?: string;
+  // Injected by recharts into whatever it is handed as `content`; not on the
+  // Tooltip's own prop type, which is what ChartTooltipContent mirrors.
+  coordinate?: { x?: number; y?: number };
+}) {
+  const yScale = useYAxisScale();
+  const { coordinate, payload } = props;
+
+  let overBar = true;
+  if (requireBar && yScale && coordinate?.y != null) {
+    const total = (payload ?? [])
+      .filter((p) => p.dataKey !== overlayField)
+      .reduce((sum, p) => sum + (Number(p.value) || 0), 0);
+    const top = Number(yScale(total));
+    // Fall open rather than shut when the scale gives nothing back: a tooltip
+    // that sometimes refuses to appear is worse than an eager one.
+    overBar = !Number.isFinite(top) || coordinate.y >= top;
+  }
+
+  const open = !!props.active && overBar;
+  const [ready, setReady] = useState(false);
+
+  // The reset rides the cleanup rather than an early return, so the effect never
+  // sets state synchronously on the way in.
+  useEffect(() => {
+    if (!open) return;
+    const timer = setTimeout(() => setReady(true), delayMs);
+    return () => {
+      clearTimeout(timer);
+      setReady(false);
+    };
+  }, [open, delayMs]);
+
+  if (!open || !ready) return null;
+  return <ChartTooltipContent {...props} />;
+}
+
 export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
   data,
   chartConfig,
@@ -33,6 +103,9 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
   formatValue = numberFormatter.format,
   showTotal = true,
   showTooltip = true,
+  tooltipDelay = 0,
+  tooltipRequireBar = false,
+  animate = true,
   hideZeroValues = false,
   overlayField,
   overlayColor = "var(--color-muted-foreground)",
@@ -106,6 +179,13 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
 
   const ChartComp = overlayField ? ComposedChart : BarChart;
 
+  const tooltipContentProps: React.ComponentProps<typeof ChartTooltipContent> = {
+    labelKey: "timestamp",
+    hideZeroValues,
+    labelFormatter: (_, payload) =>
+      payload && payload[0] ? formatter.format(parseUtcTimestamp(payload[0].payload.timestamp)) : "-",
+  };
+
   return (
     <div className="flex flex-col items-start h-full">
       <ChartContainer config={chartConfig} className={cn("h-48 w-full", className)}>
@@ -163,13 +243,19 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
           {showTooltip && (
             <ChartTooltip
               content={
-                <ChartTooltipContent
-                  labelKey="timestamp"
-                  hideZeroValues={hideZeroValues}
-                  labelFormatter={(_, payload) =>
-                    payload && payload[0] ? formatter.format(parseUtcTimestamp(payload[0].payload.timestamp)) : "-"
-                  }
-                />
+                // Plain content unless one of the gates is asked for: the wrapper
+                // costs a state update per hover, which a chart that wants
+                // neither should not pay.
+                tooltipDelay > 0 || tooltipRequireBar ? (
+                  <DelayedTooltipContent
+                    delayMs={tooltipDelay}
+                    requireBar={tooltipRequireBar}
+                    overlayField={overlayField}
+                    {...tooltipContentProps}
+                  />
+                ) : (
+                  <ChartTooltipContent {...tooltipContentProps} />
+                )
               }
             />
           )}
@@ -177,7 +263,15 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
             {fields.map((fieldKey) => {
               const config = chartConfig[fieldKey];
               if (!config) return null;
-              return <Bar key={fieldKey} dataKey={fieldKey} fill={config.color} stackId={config.stackId} />;
+              return (
+                <Bar
+                  key={fieldKey}
+                  dataKey={fieldKey}
+                  fill={config.color}
+                  stackId={config.stackId}
+                  isAnimationActive={animate}
+                />
+              );
             })}
           </BarStack>
           {refArea.left && refArea.right && (

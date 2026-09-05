@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
 import { laminarAgentStore } from "@/components/agent";
-import ClusterIcon from "@/components/signal/clusters-section/cluster-list/cluster-icon";
+import ClusterIcon from "@/components/signal/clusters-section/cluster-icon";
 import { jsonSchemaToSchemaFields, type SchemaField } from "@/components/signals/utils";
 import { type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
 import { useSpanRefCallbacks } from "@/components/traces/trace-view/span-reference/use-span-ref-callbacks";
