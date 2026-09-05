@@ -48,7 +48,9 @@ const findByKey = (value: unknown, target: string): string | null => {
 
   const obj = value as Record<string, unknown>;
   const direct = obj[target];
-  if (isLeaf(direct)) {
+  // Skip content from thinking/reasoning blocks; prefer the text part instead.
+  const isThinkingBlock = target === "content" && (obj["type"] === "thinking" || obj["type"] === "reasoning");
+  if (isLeaf(direct) && !isThinkingBlock) {
     const formatted = formatLeaf(direct);
     if (formatted !== null) return formatted;
   }
