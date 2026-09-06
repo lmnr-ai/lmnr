@@ -1,8 +1,8 @@
 export enum ChartType {
-  "LineChart" = "line",
-  "BarChart" = "bar",
-  "HorizontalBarChart" = "horizontalBar",
-  "Table" = "table",
+  LineChart = "line",
+  BarChart = "bar",
+  HorizontalBarChart = "horizontalBar",
+  Table = "table",
 }
 
 export type DisplayMode = "total" | "average" | "none";

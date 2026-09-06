@@ -2,7 +2,6 @@
 
 import "rrweb-player/dist/style.css";
 import "@/lib/styles/session-player.css";
-
 import { PauseIcon, PlayIcon } from "@radix-ui/react-icons";
 import { truncate } from "lodash";
 import { Loader2, X } from "lucide-react";

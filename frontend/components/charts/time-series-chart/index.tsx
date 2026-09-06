@@ -2,14 +2,14 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useId, useMemo, useState } from "react";
-import { Area, Bar, BarChart, CartesianGrid, ComposedChart, ReferenceArea, XAxis, YAxis } from "recharts";
-import { type CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
+import { Area, Bar, BarChart, BarStack, CartesianGrid, ComposedChart, ReferenceArea, XAxis, YAxis } from "recharts";
 
+import { type CategoricalChartFunc } from "@/components/chart-builder/charts/line-chart";
 import { numberFormatter, parseUtcTimestamp, selectNiceTicksFromData } from "@/components/chart-builder/charts/utils";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
 
-import RoundedBar from "./bar";
+import DelayedTooltipContent from "./delayed-tooltip-content";
 import { type TimeSeriesChartProps, type TimeSeriesDataPoint } from "./types";
 import { getTickCountForWidth, isValidZoomRange, normalizeTimeRange } from "./utils";
 
@@ -34,6 +34,10 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
   formatValue = numberFormatter.format,
   showTotal = true,
   showTooltip = true,
+  tooltipDelay = 0,
+  tooltipRequireBar = false,
+  tooltipMaxItems,
+  animate = true,
   hideZeroValues = false,
   overlayField,
   overlayColor = "var(--color-muted-foreground)",
@@ -105,19 +109,22 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
     [refArea.left]
   );
 
-  const BarShapeWithConfig = useCallback(
-    (props: any) => <RoundedBar {...props} chartConfig={chartConfig} fields={fields} />,
-    [chartConfig, fields]
-  );
-
   const ChartComp = overlayField ? ComposedChart : BarChart;
+
+  const tooltipContentProps: React.ComponentProps<typeof ChartTooltipContent> = {
+    labelKey: "timestamp",
+    hideZeroValues,
+    maxItems: tooltipMaxItems,
+    labelFormatter: (_, payload) =>
+      payload && payload[0] ? formatter.format(parseUtcTimestamp(payload[0].payload.timestamp)) : "-",
+  };
 
   return (
     <div className="flex flex-col items-start h-full">
       <ChartContainer config={chartConfig} className={cn("h-48 w-full", className)}>
         <ChartComp
           data={data}
-          margin={{ left: -8, top: 8 }}
+          margin={{ left: 8, right: 8, top: 8, bottom: 4 }}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={zoom}
@@ -129,21 +136,16 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
             dataKey="timestamp"
             tickLine={false}
             axisLine={false}
+            tickMargin={8}
             tickFormatter={smartTicksResult?.formatter}
             allowDataOverflow
             ticks={smartTicksResult?.ticks}
           />
-          <YAxis tickLine={false} axisLine={false} tickFormatter={formatValue} />
-          {overlayField && (
-            <YAxis
-              yAxisId="overlay"
-              orientation="right"
-              tickLine={false}
-              axisLine={false}
-              width={32}
-              tickFormatter={formatValue}
-            />
-          )}
+          <YAxis tickLine={false} axisLine={false} tickFormatter={formatValue} width="auto" />
+          {/* Hidden, not removed: the overlay Area needs its own scale so it
+              isn't squashed by the bar axis, but its absolute values aren't
+              worth a second set of ticks — the tooltip already names them. */}
+          {overlayField && <YAxis yAxisId="overlay" orientation="right" hide />}
           {overlayField && (
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -168,30 +170,37 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
           {showTooltip && (
             <ChartTooltip
               content={
-                <ChartTooltipContent
-                  labelKey="timestamp"
-                  hideZeroValues={hideZeroValues}
-                  labelFormatter={(_, payload) =>
-                    payload && payload[0] ? formatter.format(parseUtcTimestamp(payload[0].payload.timestamp)) : "-"
-                  }
-                />
+                // Plain content unless one of the gates is asked for: the wrapper
+                // costs a state update per hover, which a chart that wants
+                // neither should not pay.
+                tooltipDelay > 0 || tooltipRequireBar ? (
+                  <DelayedTooltipContent
+                    delayMs={tooltipDelay}
+                    requireBar={tooltipRequireBar}
+                    overlayField={overlayField}
+                    {...tooltipContentProps}
+                  />
+                ) : (
+                  <ChartTooltipContent {...tooltipContentProps} />
+                )
               }
             />
           )}
-          {fields.map((fieldKey) => {
-            const config = chartConfig[fieldKey];
-            if (!config) return null;
-
-            return (
-              <Bar
-                key={fieldKey}
-                dataKey={fieldKey}
-                fill={config.color}
-                stackId={config.stackId}
-                shape={BarShapeWithConfig}
-              />
-            );
-          })}
+          <BarStack radius={[4, 4, 4, 4]}>
+            {fields.map((fieldKey) => {
+              const config = chartConfig[fieldKey];
+              if (!config) return null;
+              return (
+                <Bar
+                  key={fieldKey}
+                  dataKey={fieldKey}
+                  fill={config.color}
+                  stackId={config.stackId}
+                  isAnimationActive={animate}
+                />
+              );
+            })}
+          </BarStack>
           {refArea.left && refArea.right && (
             <ReferenceArea
               x1={refArea.left}

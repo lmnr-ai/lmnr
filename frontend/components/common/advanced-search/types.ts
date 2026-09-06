@@ -6,7 +6,7 @@ import { type Operator } from "@/lib/actions/common/operators";
 
 export type { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 
-export type AdvancedSearchResource = "traces" | "spans" | "sessions" | "signal-events";
+export type AdvancedSearchResource = "traces" | "spans" | "sessions" | "signal-events" | "signal-runs";
 
 export type AutocompleteCache = Map<string, string[]>;
 

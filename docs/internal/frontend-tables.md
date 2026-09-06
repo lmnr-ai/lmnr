@@ -24,6 +24,7 @@
 ## Advanced Search filter tags
 
 - The search-bar filter tag (`frontend/components/common/advanced-search/components/tag.tsx`) and the field dropdown (`.../components/select.tsx`) must render filters whose `column` is NOT in the registered `ColumnFilter[]` (`filters` prop). A shared/bookmarked URL can carry a filter for a column the current user hasn't configured — most commonly a per-user `custom:<name>` column that lives only in the URL-author's table config. If `getColumnFilter` returns undefined, synthesize a fallback `{ name: field, key: field, dataType: tag.dataType ?? "string" }` instead of returning `null`; otherwise the tag silently disappears while the filter stays ACTIVE on the query (invisible + un-removable). Applies to every `AdvancedSearch` consumer (traces/spans/sessions/signal-events).
+- Recent-search chips (`.../components/suggestions.tsx`) and the tag remove label must show enum **labels**, not stored values (`displayFilterValue`). The live tag already does this via `EnumValueInput`; recents were rendering `has_event = event` instead of `Has event = Yes`.
 
 ## Add-filter popover (`datatable-filter`)
 
@@ -45,5 +46,8 @@
 
 ## Recharts
 
-- Pinned at v2 (`^2.15.4`). A previous v3 upgrade was reverted due to a runtime bug; do NOT bump to v3 without revalidating it. Use only v2 APIs.
-- `<YAxis width="auto">` is v3-only — on v2 `width` must be a number (omit it for the default). `CategoricalChartFunc` imports from `recharts/types/chart/generateCategoricalChart`, which exists in v2.
+- On v3 (`^3.10.1`). `recharts/types/chart/generateCategoricalChart` no longer exists — `CategoricalChartFunc` is defined locally in `frontend/components/chart-builder/charts/line-chart.tsx` from the exported `MouseHandlerDataParam` and imported from that module in all consumers (`traces-chart`, `time-series-chart`, `dashboards/chart`).
+- `MouseHandlerDataParam.activeLabel` is typed `string | number | undefined` (was `string`). Any state setter or store that stores it as `string` must wrap with `String(e.activeLabel)` AND use `!= null` checks (not truthy) so the numeric 0 is not dropped.
+- `<YAxis width="auto">` sizes the axis to its ticks. Rounded stacked bars use the native `<BarStack radius={[4,4,4,4]}>` wrapper — do NOT reintroduce a custom `shape` just to round stacked-bar corners.
+- Radial progress rings (`RadialBarChart`) must sweep a full circle (`startAngle={90} endAngle={-270}`) and encode the value via `<PolarAngleAxis type="number" domain={[0, max]}>`. v3 fits the polar viewbox to the chart's own sweep, so the v2 trick of shrinking `endAngle` to the used fraction now resizes and re-centres the whole disc instead of filling part of it. Use `<RadialBar background>` for the track — v3's `PolarGrid` hardcodes `fill="none"` on each concentric circle, so the shadcn `first:fill-muted last:fill-sidebar` + `polarRadius` trick no longer draws one. See `components/workspace/usage/index.tsx`.
+- The `ChartTooltipContent` in `components/ui/chart.tsx` intersects `Omit<RechartsPrimitive.DefaultTooltipContentProps<TooltipValueType, TooltipNameType>, 'accessibilityLayer'>` to type `payload`/`label`. Filter payload arrays with `item.type !== 'none'` before rendering. Custom `shape={...}` render props on `<Bar>` receive recharts-internal props that must not land on a DOM node. Use recharts `<Rectangle>` as the shape (it already filters to SVG attrs + event handlers) — do not spread onto a raw `<rect>` or maintain an internals denylist. See `horizontal-bar-chart.tsx`.

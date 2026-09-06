@@ -1,10 +1,10 @@
 "use client";
 
 import { type ColumnDef, type Row } from "@tanstack/react-table";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { memo, type PropsWithChildren, type RefObject, useCallback, useEffect, useMemo } from "react";
 
-import { useSignalStoreContext } from "@/components/signal/store";
+import { signalTraceHref, useSignalTraceParams } from "@/components/signal/hooks/use-signal-trace-params";
 import { type SchemaField } from "@/components/signals/utils";
 import { getDisplayRange, getTimeDifference } from "@/components/ui/date-range-filter/utils";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
@@ -59,6 +59,8 @@ export interface EventsTableContentsProps {
   selectedClusterIds: string[];
   isUnclusteredFilter: boolean;
   emergingClusterId: string | null;
+  /** The page-level scroller; see `InfiniteDataTableProps.externalScrollElement`. */
+  externalScrollElement: HTMLElement | null;
 }
 
 export const EventsTableContents = memo(function EventsTableContents({
@@ -80,13 +82,12 @@ export const EventsTableContents = memo(function EventsTableContents({
   selectedClusterIds,
   isUnclusteredFilter,
   emergingClusterId,
+  externalScrollElement,
 }: PropsWithChildren<EventsTableContentsProps>) {
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const pathName = usePathname();
-  const router = useRouter();
-  const setTraceId = useSignalStoreContext((state) => state.setTraceId);
-  const setSpanId = useSignalStoreContext((state) => state.setSpanId);
+  const [{ eventId }, setTraceParams] = useSignalTraceParams();
 
   const fetchEnabled = !!(pastHours || (startDate && endDate)) && !isViewLoading;
 
@@ -198,43 +199,41 @@ export const EventsTableContents = memo(function EventsTableContents({
     refetchRef.current = refetch;
   }, [refetch, refetchRef]);
 
-  const eventId = searchParams.get("eventId");
-
   const focusedRowId = useMemo(() => {
     if (!events || !eventId) return undefined;
     return events.some((e) => e.id === eventId) ? eventId : undefined;
   }, [eventId, events]);
 
   const getRowHref = useCallback(
-    (row: Row<EventRow>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("eventId", row.original.id);
-      params.set("traceId", row.original.traceId);
-      params.delete("spanId");
-      return `${pathName}?${params.toString()}`;
-    },
+    (row: Row<EventRow>) =>
+      signalTraceHref(pathName, searchParams.toString(), {
+        traceId: row.original.traceId,
+        eventId: row.original.id,
+        spanId: null,
+      }),
     [pathName, searchParams]
   );
 
   const handleRowClick = useCallback(
     (row: Row<EventRow>) => {
-      const traceId = row.original.traceId;
       track("signals", "event_to_trace");
-      setTraceId(traceId);
-      setSpanId(null);
-
-      const newParams = new URLSearchParams(searchParams.toString());
-      newParams.set("eventId", row.original.id);
-      newParams.set("traceId", traceId);
-      newParams.delete("spanId");
-      router.push(`${pathName}?${newParams.toString()}`);
+      void setTraceParams({
+        traceId: row.original.traceId,
+        eventId: row.original.id,
+        spanId: null,
+      });
     },
-    [setTraceId, setSpanId, searchParams, pathName, router]
+    [setTraceParams]
   );
 
   return (
     <InfiniteDataTable<EventRow>
       className="w-full"
+      externalScrollElement={externalScrollElement}
+      // Everything above the rows — controls, search, breadcrumbs, the clusters
+      // chart — is the "top part", a fixed 70vh so the table starts just below
+      // the fold. The clusters area inside it stretches to take up the slack.
+      childrenClassName="h-[70vh]"
       columns={columns}
       data={events}
       onRowClick={handleRowClick}

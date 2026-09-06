@@ -14,8 +14,8 @@ import {
 import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 
-import { dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-import { type Filter, type FilterDataType } from "@/lib/actions/common/filters";
+import { dataTypeOperationsMap, toFilterDataType } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import { type Filter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 import { track } from "@/lib/posthog";
 
@@ -26,6 +26,7 @@ import {
   type FilterTag,
   type FilterTagFocusState,
   type FilterTagRef,
+  getOperationsForField,
   type TagFocusPosition,
 } from "../types";
 import { getNextField, getPreviousField, hasUuidSuggestion } from "../utils";
@@ -35,10 +36,6 @@ import { createUndoRedoSlice, type UndoRedoSlice, type UndoSnapshot } from "./un
 
 export type { RecentSearch } from "./recents-slice";
 export type { AdvancedSearchStore } from "./types";
-
-function toFilterDataType(uiDataType: ColumnFilter["dataType"]): FilterDataType {
-  return uiDataType === "enum" ? "string" : uiDataType;
-}
 
 // Stable wrapper around `tags + inputValue → onChange`. Pulls fresh values
 // from the store and routes them to the consumer-provided onChange via the
@@ -469,6 +466,7 @@ export const AdvancedSearchStoreProvider = ({
 export const useAdvancedSearchNavigation = () => {
   const { tagHandlesRef, mainInputRef } = useAdvancedSearchRefsContext();
   const tags = useAdvancedSearchContext((state) => state.tags);
+  const filters = useAdvancedSearchContext((state) => state.filters);
   const tagFocusStates = useAdvancedSearchContext((state) => state.tagFocusStates);
 
   return useMemo(
@@ -482,7 +480,11 @@ export const useAdvancedSearchNavigation = () => {
         if (!focusState || focusState.type === "idle") return;
 
         const currentType = focusState.type;
-        const targetField = direction === "left" ? getPreviousField(currentType) : getNextField(currentType);
+        const tag = tags.find((t) => t.id === tagId);
+        const skip: TagFocusPosition[] =
+          tag && getOperationsForField(filters, tag.field, tag.dataType).length <= 1 ? ["operator"] : [];
+        const targetField =
+          direction === "left" ? getPreviousField(currentType, skip) : getNextField(currentType, skip);
 
         if (targetField) {
           tagHandlesRef.current.get(tagId)?.focusPosition(targetField);
@@ -512,6 +514,6 @@ export const useAdvancedSearchNavigation = () => {
         }
       },
     }),
-    [tags, tagFocusStates, tagHandlesRef, mainInputRef]
+    [tags, filters, tagFocusStates, tagHandlesRef, mainInputRef]
   );
 };

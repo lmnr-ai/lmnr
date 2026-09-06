@@ -65,6 +65,19 @@ fn test_traces_table_schema() {
 }
 
 #[test]
+fn test_spans_token_detail_columns_allowed() {
+    // Qualified references are the only ones checked against the allowlist, so
+    // a column missing from `spans_columns` fails only in this form.
+    for column in [
+        "cache_read_input_tokens",
+        "cache_creation_input_tokens",
+        "reasoning_tokens",
+    ] {
+        validate_ok(&format!("SELECT spans.{column} FROM spans"));
+    }
+}
+
+#[test]
 fn test_column_validation() {
     let reg = TableRegistry::new();
     let spans = reg.get_table_schema("spans").expect("spans schema");

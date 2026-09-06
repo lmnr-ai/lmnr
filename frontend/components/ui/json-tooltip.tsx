@@ -169,13 +169,13 @@ const JsonTooltip = ({ data, columnSize, className, onOpen }: JsonTooltipProps) 
     <Tooltip delayDuration={100} onOpenChange={handleOpenChange}>
       <TooltipTrigger asChild className="relative p-0">
         <pre
-          style={{
-            ...(columnSize
+          style={
+            columnSize
               ? {
                   width: columnSize - 32,
                 }
-              : {}),
-          }}
+              : {}
+          }
           className={cn("font-mono text-secondary-foreground overflow-hidden text-xs truncate", className)}
         >
           {displayValue}

@@ -12,6 +12,7 @@ import {
   JSON_OPERATIONS,
   NUMBER_OPERATIONS,
   STRING_OPERATIONS,
+  toFilterDataType,
 } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import { Input } from "@/components/ui/input.tsx";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
@@ -70,9 +71,7 @@ const FilterPopover = ({
   const handleApplyFilters = useCallback(
     (filter: { column: string; operator: Operator; value: string | number | string[] }) => {
       const column = find(columns, ["key", filter.column]);
-      const uiDataType = column?.dataType || "string";
-      // Map "enum" to "string" for the filter schema — enum is a UI-only concept
-      const dataType: FilterDataType = uiDataType === "enum" ? "string" : uiDataType;
+      const dataType: FilterDataType = toFilterDataType(column?.dataType || "string");
 
       const filterValue = dataType === "array" && typeof filter.value === "string" ? [filter.value] : filter.value;
 

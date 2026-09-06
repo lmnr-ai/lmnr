@@ -13,8 +13,6 @@ export default function ClusterBreadcrumbs() {
 
   const breadcrumb = useSignalStoreContext((state) => getBreadcrumb(state, clusterId), shallow);
 
-  const isClustersLoading = useSignalStoreContext((state) => state.isClustersLoading);
-
   const navigateToBreadcrumb = useCallback(
     (index: number) => {
       if (index < 0) {
@@ -26,14 +24,9 @@ export default function ClusterBreadcrumbs() {
     [setClusterId, breadcrumb]
   );
 
-  if (isClustersLoading) {
-    return (
-      <div className="flex items-center gap-1 text-sm">
-        <span className="font-semibold text-secondary-foreground">All Events</span>
-      </div>
-    );
-  }
-
+  // No loading branch: an unresolved tree gives an empty breadcrumb, which is
+  // already the root on its own. A separate loading markup only drifts from the
+  // real trail's label and type scale.
   return (
     <ClusterBreadcrumb
       breadcrumb={breadcrumb}

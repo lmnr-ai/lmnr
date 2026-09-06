@@ -16,7 +16,7 @@ import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
 import { arrayMove } from "@dnd-kit/sortable";
 import { type Row, type RowData, type Table as TanstackTable } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { Skeleton } from "@/components/ui/skeleton.tsx";
@@ -48,12 +48,16 @@ interface VirtualizedScrollProps<TData extends RowData> {
   getRowClassName?: (row: Row<TData>) => string;
   loadMoreButton?: boolean | ((props: LoadMoreButtonProps) => ReactNode);
   scrollContentClassName?: string;
+  /** When set, this element scrolls instead of the table's own viewport. */
+  externalScrollElement?: HTMLElement | null;
 }
 
 interface VirtualizedRowsProps<TData extends RowData> {
   table: TanstackTable<TData>;
   // Scroll element as state so the child virtualizer re-measures once it mounts.
-  scrollElement: HTMLDivElement | null;
+  // Typed as HTMLElement, not HTMLDivElement: with `externalScrollElement` this is
+  // an ancestor the table doesn't own and can't assume the tag of.
+  scrollElement: HTMLElement | null;
   estimatedRowHeight: number;
   overscan: number;
   hasMore: boolean;
@@ -68,11 +72,14 @@ interface VirtualizedRowsProps<TData extends RowData> {
   getRowHref?: (row: Row<TData>) => string;
   getRowClassName?: (row: Row<TData>) => string;
   loadMoreButton?: boolean | ((props: LoadMoreButtonProps) => ReactNode);
+  /** Pixels of content sitting above the rows inside the scroll element. */
+  scrollMargin: number;
 }
 
 function VirtualizedRows<TData extends RowData>({
   table,
   scrollElement,
+  scrollMargin,
   estimatedRowHeight,
   overscan,
   hasMore,
@@ -96,13 +103,25 @@ function VirtualizedRows<TData extends RowData>({
     getScrollElement: () => scrollElement,
     estimateSize: () => estimatedRowHeight,
     overscan,
+    // Under an external scroller the rows do not start at the top of the scroll
+    // element — the whole top part is above them. Without this the virtualizer
+    // reads a scroll offset that is too large by exactly that much and renders
+    // the wrong slice of rows.
+    scrollMargin,
     measureElement:
       typeof window !== "undefined" && navigator.userAgent.indexOf("Firefox") === -1
         ? (element) => element?.getBoundingClientRect().height
         : undefined,
   });
 
-  const virtualItems = rowVirtualizer.getVirtualItems();
+  // `scrollMargin` is baked into each item's `start`, but rows are positioned by
+  // `translateY` inside the table, whose own origin is already past the margin.
+  // Take it back off so the two coordinate spaces agree.
+  const virtualItems = useMemo(
+    () => rowVirtualizer.getVirtualItems().map((item) => ({ ...item, start: item.start - scrollMargin })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rowVirtualizer.getVirtualItems(), scrollMargin]
+  );
 
   useEffect(() => {
     if (loadMoreButton) return;
@@ -173,6 +192,7 @@ export function VirtualizedScroll<TData extends RowData>({
   getRowClassName,
   loadMoreButton,
   scrollContentClassName = "border rounded",
+  externalScrollElement,
 }: VirtualizedScrollProps<TData>) {
   const tableStore = useTableStore();
   const setDraggingColumnId = useStore(tableStore, (s) => s.setDraggingColumnId);
@@ -181,9 +201,36 @@ export function VirtualizedScroll<TData extends RowData>({
   // State (via callback ref) rather than a plain ref: the virtualizer lives in a
   // child, and a ref populated after the child's layout effect leaves getVirtualItems
   // empty until an unrelated re-render. State forces the child to re-measure on mount.
-  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
+  const [ownScrollElement, setOwnScrollElement] = useState<HTMLDivElement | null>(null);
+  const scrollElement = externalScrollElement ?? ownScrollElement;
   const headerRef = useRef<HTMLTableSectionElement>(null);
   const [headerTop, setHeaderTop] = useState(0);
+
+  // How far the rows sit below the top of the scroll element. Zero when the table
+  // owns its scrollport; under an external scroller it is whatever content sits
+  // above the table, and it has to be re-measured because that content (filters,
+  // charts) changes height as it loads.
+  const [measuredScrollMargin, setMeasuredScrollMargin] = useState(0);
+  // Derived rather than reset in the effect: without an external scroller the
+  // margin is zero by definition, and a stale measurement must not leak through.
+  const scrollMargin = externalScrollElement ? measuredScrollMargin : 0;
+  useLayoutEffect(() => {
+    if (!externalScrollElement || !ownScrollElement) return;
+    const measure = () =>
+      setMeasuredScrollMargin(
+        ownScrollElement.getBoundingClientRect().top -
+          externalScrollElement.getBoundingClientRect().top +
+          externalScrollElement.scrollTop
+      );
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(externalScrollElement);
+    observer.observe(ownScrollElement);
+    // The content above the table is a sibling, so growing it moves the table
+    // without resizing it — watch the shared parent to catch that.
+    if (ownScrollElement.parentElement) observer.observe(ownScrollElement.parentElement);
+    return () => observer.disconnect();
+  }, [externalScrollElement, ownScrollElement]);
 
   const dndContextId = useId();
 
@@ -233,8 +280,15 @@ export function VirtualizedScroll<TData extends RowData>({
 
   return (
     <div
-      ref={setScrollElement}
-      className={cn("flex relative overflow-auto styled-scrollbar bg-secondary", scrollContentClassName)}
+      ref={setOwnScrollElement}
+      className={cn(
+        "flex relative bg-secondary",
+        // `overflow-auto` here is what makes the table its own scrollport. Under an
+        // external scroller it has to stay visible, or the table clips itself at
+        // whatever height it happens to have and the ancestor gets nothing to scroll.
+        externalScrollElement ? "overflow-visible" : "overflow-auto styled-scrollbar",
+        scrollContentClassName
+      )}
     >
       <div className="size-full">
         <DndContext
@@ -250,6 +304,7 @@ export function VirtualizedScroll<TData extends RowData>({
             <VirtualizedRows
               table={table}
               scrollElement={scrollElement}
+              scrollMargin={scrollMargin}
               estimatedRowHeight={estimatedRowHeight}
               overscan={overscan}
               hasMore={hasMore}

@@ -2,6 +2,7 @@ import { type Filter } from "@/lib/actions/common/filters";
 import {
   buildSelectQuery,
   type ColumnFilterConfig,
+  createCustomFilter,
   createStringFilter,
   type QueryParams,
   type QueryResult,
@@ -21,6 +22,18 @@ const signalRunsSelectColumns = [
   "output_tokens outputTokens",
 ];
 
+const NIL_EVENT_ID = "00000000-0000-0000-0000-000000000000";
+
+// Virtual column: Has event Yes/No in the picker, an `event_id` nil-check in SQL (`ne` inverts the choice).
+const createHasEventFilter = createCustomFilter(
+  (filter, paramKey) => {
+    const wantsEvent = String(filter.value) === "event";
+    const hasEvent = wantsEvent === (filter.operator !== "ne");
+    return hasEvent ? `event_id != {${paramKey}:UUID}` : `event_id = {${paramKey}:UUID}`;
+  },
+  (_filter, paramKey) => ({ [paramKey]: NIL_EVENT_ID })
+);
+
 export const signalRunsColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
     ["job_id", createStringFilter],
@@ -28,6 +41,7 @@ export const signalRunsColumnFilterConfig: ColumnFilterConfig = {
     ["trace_id", createStringFilter],
     ["trigger_id", createStringFilter],
     ["event_id", createStringFilter],
+    ["has_event", createHasEventFilter],
     ["status", createStringFilter],
   ]),
 };

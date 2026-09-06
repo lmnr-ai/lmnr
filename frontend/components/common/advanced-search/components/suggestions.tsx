@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 
 import { type RecentSearch, useAdvancedSearchContext, useAdvancedSearchRefsContext } from "../store";
 import { type ColumnFilter, createTagFromFilter } from "../types";
-import { buildValueSuggestions, hasUuidSuggestion } from "../utils";
+import { buildValueSuggestions, displayFilterValue, hasUuidSuggestion } from "../utils";
 
 interface FieldSuggestion {
   type: "field";
@@ -122,7 +122,7 @@ const RecentSearchChip = ({
         const colFilter = columnFilters.find((f) => f.key === tag.field);
         const displayName = colFilter?.name ?? tag.field;
         const operatorLabel = OperatorLabelMap[tag.operator] ?? tag.operator;
-        const displayValue = Array.isArray(tag.value) ? tag.value.join(", ") : String(tag.value);
+        const displayValue = displayFilterValue(colFilter, tag.value);
 
         return (
           <span key={tag.id} className="inline-flex items-center gap-1 px-1.5 h-4">

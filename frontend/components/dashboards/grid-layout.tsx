@@ -1,6 +1,5 @@
 import "react-grid-layout/css/styles.css";
 import "./styles.css";
-
 import { compact, debounce, isEqual, pick } from "lodash";
 import { useParams } from "next/navigation";
 import React, { memo, useCallback, useEffect, useMemo } from "react";

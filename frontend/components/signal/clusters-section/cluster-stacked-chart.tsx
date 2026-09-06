@@ -1,11 +1,11 @@
 "use client";
 
 import { Circle } from "lucide-react";
-import { useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 
 import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { type TimeSeriesChartConfig, type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
-import ClusterIcon, { type IconVariant } from "@/components/signal/clusters-section/cluster-list/cluster-icon";
+import ClusterIcon, { type IconVariant } from "@/components/signal/clusters-section/cluster-icon";
 import { type ClusterStatsDataPoint, type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { UNCLUSTERED_COLOR, withOpacity } from "@/lib/clusters/colors";
 
@@ -13,13 +13,27 @@ const RUN_TOTAL_KEY = "__runTotal";
 const OVERLAY_LABEL = "Signal runs";
 const OVERLAY_COLOR = "var(--color-surface-350)";
 
+// How much of the cluster colour a bar keeps. The palette is built for flat
+// charts and reads hot as a large filled area on a dark surface.
+const BAR_OPACITY = 0.6;
+
+// The icicle strip sits directly above the plot and is a hover target of its
+// own, so crossing the chart on the way to it must not flash a tooltip.
+const TOOLTIP_DELAY_MS = 300;
+
+// A signal can have a hundred top-level clusters, and the tooltip lists one row
+// per series. Uncapped it grows taller than the window, so only the largest
+// contributors to the hovered bucket are named.
+const TOOLTIP_MAX_ITEMS = 12;
+
 interface ClusterStackedChartProps {
   clusters: EventCluster[];
   statsData: ClusterStatsDataPoint[];
   containerWidth: number | null;
   colorMap: Map<string, string>;
-  showTooltip?: boolean;
   runTotals?: { timestamp: string; count: number }[];
+  /** Absolutely-positioned content over the plot — the cluster readout. */
+  overlay?: ReactNode;
 }
 
 export default function ClusterStackedChart({
@@ -27,28 +41,36 @@ export default function ClusterStackedChart({
   statsData,
   containerWidth,
   colorMap,
-  showTooltip,
   runTotals,
+  overlay,
 }: ClusterStackedChartProps) {
-  const hasOverlay = !!runTotals && runTotals.length > 0;
+  const overlayPoints = Array.isArray(runTotals) ? runTotals : undefined;
+  const hasOverlay = !!overlayPoints && overlayPoints.length > 0;
 
   const { data, chartConfig, fields } = useMemo(() => {
     const config: TimeSeriesChartConfig = {};
     const fieldKeys: string[] = [];
 
     const runTotalByTs = new Map<string, number>();
-    if (runTotals) for (const t of runTotals) runTotalByTs.set(t.timestamp, t.count);
+    if (overlayPoints) for (const t of overlayPoints) runTotalByTs.set(t.timestamp, t.count);
     if (hasOverlay)
       config[RUN_TOTAL_KEY] = {
         label: OVERLAY_LABEL,
         color: OVERLAY_COLOR,
-        icon: () => <Circle className="size-2.5 text-muted-foreground" />,
+        // Boxed to `ClusterIcon`'s footprint. The tooltip lists this row above
+        // the cluster rows, and a bare glyph is both smaller and subject to the
+        // parent's `[&>svg]:size-2.5`, so the labels wouldn't line up.
+        icon: () => (
+          <div className="flex size-4 shrink-0 items-center justify-center">
+            <Circle className="size-2.5 text-muted-foreground" />
+          </div>
+        ),
       };
 
     clusters.forEach((cluster) => {
       const key = cluster.id;
       const baseColor = colorMap.get(key) ?? UNCLUSTERED_COLOR;
-      const color = withOpacity(baseColor, 0.75);
+      const color = withOpacity(baseColor, BAR_OPACITY);
       const iconVariant: IconVariant =
         key === UNCLUSTERED_ID ? "circle-dashed" : cluster.numChildrenClusters > 0 ? "boxes" : "box";
       config[key] = {
@@ -77,9 +99,14 @@ export default function ClusterStackedChart({
       });
 
     return { data: chartData, chartConfig: config, fields: fieldKeys };
-  }, [clusters, statsData, colorMap, runTotals, hasOverlay]);
+  }, [clusters, statsData, colorMap, overlayPoints, hasOverlay]);
 
-  if (data.length === 0) {
+  // Row count is not emptiness: the stats query fills the range, so a window with
+  // no events still comes back as a full set of zero buckets and would otherwise
+  // render as an axis with nothing on it.
+  const isEmpty = data.every((point) => fields.every((key) => !(point as Record<string, unknown>)[key]));
+
+  if (isEmpty) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
         No data for selected time range
@@ -88,17 +115,27 @@ export default function ClusterStackedChart({
   }
 
   return (
-    <TimeSeriesChart
-      data={data}
-      chartConfig={chartConfig}
-      fields={fields}
-      containerWidth={containerWidth}
-      showTotal={false}
-      showTooltip={showTooltip}
-      hideZeroValues
-      overlayField={hasOverlay ? RUN_TOTAL_KEY : undefined}
-      overlayColor={OVERLAY_COLOR}
-      className="!h-full"
-    />
+    <div className="relative h-full w-full">
+      <TimeSeriesChart
+        data={data}
+        chartConfig={chartConfig}
+        fields={fields}
+        containerWidth={containerWidth}
+        showTotal={false}
+        tooltipDelay={TOOLTIP_DELAY_MS}
+        tooltipMaxItems={TOOLTIP_MAX_ITEMS}
+        // Only over the stack itself: recharts' axis tooltip otherwise fires
+        // anywhere in the column, including the empty space above the bars.
+        tooltipRequireBar
+        // On a stack of ~30 buckets × N clusters the entry transition costs more
+        // main thread than the animation is worth.
+        animate={false}
+        hideZeroValues
+        overlayField={hasOverlay ? RUN_TOTAL_KEY : undefined}
+        overlayColor={OVERLAY_COLOR}
+        className="!h-full"
+      />
+      {overlay}
+    </div>
   );
 }

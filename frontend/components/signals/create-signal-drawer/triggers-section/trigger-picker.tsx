@@ -26,7 +26,7 @@ const options: { kind: TriggerKind; title: string; description: string }[] = [
   {
     kind: TRIGGER_KIND.SPAN_NAME,
     title: "When a specific span finishes",
-    description: "Analysis begins when the span you specify by name ends.",
+    description: "Analysis begins when any of the named spans ends.",
   },
 ];
 
@@ -84,10 +84,10 @@ export default function TriggerPicker() {
                         <Info className="size-3.5" />
                       </span>
                     </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-56">
+                    <TooltipContent side="top" className="max-w-64">
                       <p>
-                        Necessary when spans can arrive after the root span finishes <br />
-                        e.g. Distributed Tracing
+                        Fires when any of the named spans ends (OR). Use this when spans can arrive after the root span
+                        finishes — e.g. distributed tracing.
                       </p>
                     </TooltipContent>
                   </Tooltip>

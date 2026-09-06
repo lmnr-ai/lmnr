@@ -64,7 +64,7 @@ const ENUMS: &[(&str, &[&str])] = &[
     ("status", &["success", "error"]),
     (
         "signal_run_status",
-        &["PENDING", "COMPLETED", "FAILED", "UNKNOWN"],
+        &["PENDING", "PROCESSING", "COMPLETED", "FAILED", "UNKNOWN"],
     ),
     ("signal_run_mode", &["BATCH", "REALTIME", "UNKNOWN"]),
 ];
@@ -116,6 +116,17 @@ const TABLES: &[Table] = &[
             col("input_tokens", "Int64", "Input tokens"),
             col("output_tokens", "Int64", "Output tokens"),
             col("total_tokens", "Int64", "Total tokens"),
+            col(
+                "cache_read_input_tokens",
+                "UInt64",
+                "Tokens read from prompt cache",
+            ),
+            col(
+                "cache_creation_input_tokens",
+                "UInt64",
+                "Tokens written to prompt cache",
+            ),
+            col("reasoning_tokens", "UInt64", "Reasoning tokens"),
             col("input_cost", "Float64", "Input cost"),
             col("output_cost", "Float64", "Output cost"),
             col("total_cost", "Float64", "Total cost"),
@@ -436,7 +447,11 @@ const TABLES: &[Table] = &[
             col("trigger_id", "UUID", "Id of the trigger"),
             col("run_id", "UUID", "Id of the run"),
             col("trace_id", "UUID", "Id of the trace"),
-            col("status", "String (enum signal_run_status)", "Run status"),
+            col(
+                "status",
+                "String (enum signal_run_status)",
+                "Pipeline stage: 'PENDING' (elected, waiting on the agent), 'PROCESSING' (agent running), 'COMPLETED', 'FAILED'",
+            ),
             col(
                 "mode",
                 "String (enum signal_run_mode)",

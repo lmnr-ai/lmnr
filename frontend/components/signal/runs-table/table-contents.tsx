@@ -1,20 +1,23 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { type Row } from "@tanstack/react-table";
+import { useParams, usePathname, useSearchParams } from "next/navigation";
 import { memo, type PropsWithChildren, type RefObject, useCallback, useEffect, useMemo } from "react";
 
+import { signalTraceHref, useSignalTraceParams } from "@/components/signal/hooks/use-signal-trace-params";
+import { runTraceParams } from "@/components/signal/runs-table/columns/event-cell";
+import { FETCH_SIZE } from "@/components/signal/runs-table/constants";
 import { useSignalStoreContext } from "@/components/signal/store";
 import { getDisplayRange, getTimeDifference } from "@/components/ui/date-range-filter/utils";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { type Filter } from "@/lib/actions/common/filters";
-import { type SignalRunRow } from "@/lib/actions/signal-runs";
+import { type SignalRunRow } from "@/lib/actions/signal-runs/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 import { getSignalRunsColumns } from "./columns";
-
-const FETCH_SIZE = 50;
 
 function getEmptyRow({ pastHours, startDate, endDate }: { pastHours?: string; startDate?: string; endDate?: string }) {
   const { from, to } = getDisplayRange({ startDate, endDate, pastHours });
@@ -51,7 +54,10 @@ export const RunsTableContents = memo(function RunsTableContents({
 }: PropsWithChildren<RunsTableContentsProps>) {
   const { toast } = useToast();
   const params = useParams<{ projectId: string }>();
+  const searchParams = useSearchParams();
+  const pathName = usePathname();
   const signal = useSignalStoreContext((state) => state.signal);
+  const [{ traceId, eventId }, setTraceParams] = useSignalTraceParams();
 
   // Factory returns a fresh array each call; memoize to keep the cell-content token stable.
   const columns = useMemo(() => getSignalRunsColumns(), []);
@@ -107,12 +113,38 @@ export const RunsTableContents = memo(function RunsTableContents({
     refetchRef.current = refetch;
   }, [refetch, refetchRef]);
 
+  const focusedRowId = useMemo(() => {
+    if (!runs) return undefined;
+    if (eventId) {
+      const byEvent = runs.find((run) => run.eventId === eventId);
+      if (byEvent) return byEvent.runId;
+    }
+    if (traceId) return runs.find((run) => run.traceId === traceId)?.runId;
+    return undefined;
+  }, [runs, eventId, traceId]);
+
+  const getRowHref = useCallback(
+    (row: Row<SignalRunRow>) => signalTraceHref(pathName, searchParams.toString(), runTraceParams(row.original)),
+    [pathName, searchParams]
+  );
+
+  const handleRowClick = useCallback(
+    (row: Row<SignalRunRow>) => {
+      track("signals", "run_to_trace");
+      void setTraceParams(runTraceParams(row.original));
+    },
+    [setTraceParams]
+  );
+
   return (
     <InfiniteDataTable<SignalRunRow>
       className="w-full"
       columns={columns}
       data={runs}
       getRowId={(row: SignalRunRow) => row.runId}
+      onRowClick={handleRowClick}
+      getRowHref={getRowHref}
+      focusedRowId={focusedRowId}
       hasMore={hasMore}
       isFetching={isFetching}
       isLoading={isLoading}

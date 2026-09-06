@@ -32,7 +32,7 @@ export const enumValues = {
   span_type: ["DEFAULT", "LLM", "EXECUTOR", "EVALUATOR", "EVALUATION", "TOOL", "HUMAN_EVALUATOR", "CACHED", "UNKNOWN"],
   trace_type: ["DEFAULT", "EVALUATION", "PLAYGROUND"],
   status: ["success", "error"],
-  signal_run_status: ["PENDING", "COMPLETED", "FAILED", "UNKNOWN"],
+  signal_run_status: ["PENDING", "PROCESSING", "COMPLETED", "FAILED", "UNKNOWN"],
   signal_run_mode: ["BATCH", "REALTIME", "UNKNOWN"],
 } as const satisfies Record<string, readonly string[]>;
 
@@ -93,6 +93,17 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "input_tokens", type: "UInt64", description: "Number of input tokens" },
       { name: "output_tokens", type: "UInt64", description: "Number of output tokens" },
       { name: "total_tokens", type: "UInt64", description: "Total tokens used" },
+      {
+        name: "cache_read_input_tokens",
+        type: "UInt64",
+        description: "Tokens read from prompt cache. LLM spans only",
+      },
+      {
+        name: "cache_creation_input_tokens",
+        type: "UInt64",
+        description: "Tokens written to prompt cache. LLM spans only",
+      },
+      { name: "reasoning_tokens", type: "UInt64", description: "Reasoning tokens. LLM spans only" },
       { name: "input_cost", type: "Float64", description: "Cost for input tokens" },
       { name: "output_cost", type: "Float64", description: "Cost for output tokens" },
       { name: "total_cost", type: "Float64", description: "Total cost of the span" },
@@ -306,7 +317,8 @@ export const tableSchemas: Record<string, TableSchema> = {
         name: "status",
         type: "String",
         enumType: "signal_run_status",
-        description: "Status of the signal run",
+        description:
+          "Pipeline stage of the signal run: 'PENDING' (elected, waiting on the agent), 'PROCESSING' (agent running), 'COMPLETED', 'FAILED'",
       },
       {
         name: "mode",

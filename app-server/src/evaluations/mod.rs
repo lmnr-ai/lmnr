@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -90,20 +90,11 @@ fn scores_to_json_string(scores: &HashMap<String, Option<f64>>) -> String {
 }
 
 /// Convert a Value to a ClickHouse string, returning "" for falsey values.
-/// Truncates the value to a limit of 250K chars, because the limit for
-/// parameters bound to non-canonical insert queries is 256KB
-fn value_to_ch_string_trunc(v: &Value) -> String {
+fn value_to_ch_string(v: &Value) -> String {
     if is_falsey_value(v) {
         String::new()
     } else {
-        let s = json_value_to_string(v);
-        let max_bytes = 250000;
-        s.char_indices()
-            .take_while(|(i, _)| *i < max_bytes)
-            .last()
-            .map(|(i, c)| &s[..i + c.len_utf8()])
-            .unwrap_or("")
-            .to_string()
+        json_value_to_string(v)
     }
 }
 
@@ -147,6 +138,18 @@ pub async fn insert_evaluation_datapoints(
     ch_insert_evaluation_datapoints(clickhouse, ch_rows.as_slice()).await?;
 
     Ok(ch_rows)
+}
+
+/// The changed columns, streamed as a single JSONEachRow record instead of being
+/// bound as SQL literals. Borrows the strings so an unbounded executor output is
+/// not cloned on its way to ClickHouse.
+#[derive(Serialize)]
+struct DatapointUpdate<'a> {
+    trace_id: Uuid,
+    updated_at: i64,
+    executor_output: &'a str,
+    group_id: &'a str,
+    scores: &'a str,
 }
 
 /// Update a single evaluation datapoint using INSERT...SELECT pattern.
@@ -197,80 +200,80 @@ pub async fn update_evaluation_datapoint(
     let new_trace_id = trace_id.unwrap_or(Uuid::nil());
     let new_executor_output = executor_output
         .as_ref()
-        .map(|v| value_to_ch_string_trunc(v))
+        .map(value_to_ch_string)
         .unwrap_or_default();
     let new_scores = scores_to_json_string(&scores);
     let now_nanos = chrono_to_nanoseconds(Utc::now());
 
-    // The existing row MUST exist (verified above). We SELECT from it and override
-    // only the columns being updated. ClickHouse empty() detects falsey new values
-    // (empty string, nil UUID) so the existing value is preserved.
-    // We use prewhere id here, so that we hit the bloom_filter skip index on the
-    // project_id, evaluation_id, id BEFORE we execute FINAL
-    let query = "INSERT INTO evaluation_datapoints (
-            id, evaluation_id, project_id, trace_id, updated_at,
-            data, target, metadata, executor_output, `index`,
-            dataset_id, dataset_datapoint_id, dataset_datapoint_created_at,
-            group_id, scores
-        )
-        SELECT
-            existing.id,
-            existing.evaluation_id,
-            existing.project_id,
-            if(empty(toUUID(?)), existing.trace_id, toUUID(?)),
-            fromUnixTimestamp64Nano(toInt64(?), 'UTC'),
-            existing.data,
-            existing.target,
-            existing.metadata,
-            if(empty(?), existing.executor_output, ?),
-            existing.`index`,
-            existing.dataset_id,
-            existing.dataset_datapoint_id,
-            existing.dataset_datapoint_created_at,
-            ?,
-            if(empty(?),
-                existing.scores,
-                if(notEmpty(existing.scores),
-                    jsonMergePatch(existing.scores, ?),
-                    ?))
-        FROM (
+    // The existing row MUST exist (verified above). We SELECT from it and override only the
+    // columns being updated. ClickHouse empty() detects falsey incoming values (empty string,
+    // nil UUID) so the existing value is preserved.
+    // The variable-size values arrive through input() as request-body data rather than as SQL
+    // literals, which would otherwise be repeated per use and blow past max_query_size. The three
+    // UUIDs stay bound in SQL on purpose: moving them into input() would force a join on id and
+    // lose the PREWHERE primary-index lookup, scanning the whole table under FINAL.
+    let sql = clickhouse
+        .query(
+            "INSERT INTO evaluation_datapoints (
+                id, evaluation_id, project_id, trace_id, updated_at,
+                data, target, metadata, executor_output, `index`,
+                dataset_id, dataset_datapoint_id, dataset_datapoint_created_at,
+                group_id, scores
+            )
             SELECT
-                id,
-                evaluation_id,
-                project_id,
-                trace_id,
-                data,
-                target,
-                metadata,
-                executor_output,
-                `index`,
-                scores,
-                dataset_id,
-                dataset_datapoint_id,
-                dataset_datapoint_created_at,
-                group_id
-            FROM evaluation_datapoints FINAL
-            PREWHERE id = ?
-            WHERE project_id = ? AND evaluation_id = ?
-        ) AS existing";
-
-    clickhouse
-        .query(query)
-        .bind(new_trace_id)
-        .bind(new_trace_id)
-        .bind(now_nanos)
-        .bind(new_executor_output.as_str())
-        .bind(new_executor_output.as_str())
-        .bind(group_id.as_str())
-        .bind(new_scores.as_str())
-        .bind(new_scores.as_str())
-        .bind(new_scores.as_str())
+                existing.id,
+                existing.evaluation_id,
+                existing.project_id,
+                if(empty(incoming.trace_id), existing.trace_id, incoming.trace_id),
+                fromUnixTimestamp64Nano(incoming.updated_at, 'UTC'),
+                existing.data,
+                existing.target,
+                existing.metadata,
+                if(empty(incoming.executor_output), existing.executor_output, incoming.executor_output),
+                existing.`index`,
+                existing.dataset_id,
+                existing.dataset_datapoint_id,
+                existing.dataset_datapoint_created_at,
+                incoming.group_id,
+                if(empty(incoming.scores),
+                    existing.scores,
+                    if(notEmpty(existing.scores),
+                        jsonMergePatch(existing.scores, incoming.scores),
+                        incoming.scores))
+            FROM input('trace_id UUID, updated_at Int64, executor_output String, group_id String, scores String') AS incoming
+            CROSS JOIN (
+                SELECT
+                    id, evaluation_id, project_id, trace_id,
+                    data, target, metadata, executor_output, `index`, scores,
+                    dataset_id, dataset_datapoint_id, dataset_datapoint_created_at
+                FROM evaluation_datapoints FINAL
+                PREWHERE id = ?
+                WHERE project_id = ? AND evaluation_id = ?
+            ) AS existing
+            FORMAT JSONEachRow",
+        )
         .bind(datapoint_id)
         .bind(project_id)
         .bind(evaluation_id)
-        .execute()
-        .await
-        .map_err(|e| anyhow::anyhow!("Clickhouse evaluation datapoint update failed: {:?}", e))?;
+        // sql_display() skips the unbound-argument check, so every `?` above must be bound here.
+        .sql_display()
+        .to_string();
+
+    let payload = serde_json::to_vec(&DatapointUpdate {
+        trace_id: new_trace_id,
+        updated_at: now_nanos,
+        executor_output: &new_executor_output,
+        group_id,
+        scores: &new_scores,
+    })?;
+
+    let mut insert = clickhouse.insert_formatted_with(sql);
+    async {
+        insert.send(payload.into()).await?;
+        insert.end().await
+    }
+    .await
+    .map_err(|e| anyhow::anyhow!("Clickhouse evaluation datapoint update failed: {:?}", e))?;
 
     Ok(UpdatedDatapointStrings {
         executor_output: new_executor_output,

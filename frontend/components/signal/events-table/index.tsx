@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
 import { shallow } from "zustand/shallow";
 
@@ -22,6 +22,9 @@ function PureEventsTable() {
   const pathName = usePathname();
   const router = useRouter();
   const refetchRef = useRef<() => void>(() => {});
+  // State, not a ref: the virtualizer lives further down the tree and has to
+  // re-measure once this element exists.
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
 
   const [clusterId] = useClusterId();
   const [emergingClusterId] = useEmergingClusterId();
@@ -53,7 +56,15 @@ function PureEventsTable() {
     if (!fetchEnabled) return;
     refetchRef.current();
     fetchClusters({ pastHours, startDate, endDate });
-    mutate((key) => typeof key === "string" && key.includes(`/signals/${signal.id}/runs/stats`));
+    // Both stats series, or the strip's band structure refreshes while its widths
+    // and the bars underneath keep the previous counts. Their keys are the time
+    // range, which a refresh does not change, so nothing else revalidates them.
+    mutate(
+      (key) =>
+        typeof key === "string" &&
+        (key.includes(`/signals/${signal.id}/runs/stats`) ||
+          key.includes(`/signals/${signal.id}/events/clusters/stats`))
+    );
   }, [fetchEnabled, fetchClusters, pastHours, startDate, endDate, mutate, signal.id]);
 
   const handleSort = useCallback(
@@ -72,8 +83,13 @@ function PureEventsTable() {
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
 
   return (
-    <div className="flex flex-1 overflow-hidden px-4 pb-4">
+    // The page scrolls, not the table. Everything above the rows sits in a
+    // `70vh` block, so the table starts just below the fold and scrolling down
+    // reveals it — instead of the old layout, where the table filled the
+    // remaining height and scrolled inside its own box.
+    <div ref={setScroller} className="styled-scrollbar min-h-0 flex-1 overflow-y-auto px-4 pb-4">
       <EventsTableContents
+        externalScrollElement={scroller}
         refetchRef={refetchRef}
         columns={columns}
         projectId={params.projectId}

@@ -1,12 +1,10 @@
-import { eq } from "drizzle-orm";
 import { type Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import Playground from "@/components/playground/playground";
 import { getPlaygroundConfig } from "@/components/playground/utils";
+import { createPlayground, getPlayground } from "@/lib/actions/playgrounds";
 import { getSpan } from "@/lib/actions/span";
-import { db } from "@/lib/db/drizzle";
-import { playgrounds } from "@/lib/db/migrations/schema";
 import { type Playground as PlaygroundType } from "@/lib/playground/types";
 import { convertSpanToPlayground } from "@/lib/spans/utils";
 import { type Span } from "@/lib/traces/types";
@@ -40,40 +38,30 @@ export default async function PlaygroundPage(props: {
           const config = getPlaygroundConfig(span);
           const promptMessages = await convertSpanToPlayground(span.input);
 
-          const result = await db
-            .insert(playgrounds)
-            .values({
-              ...config,
-              projectId: params.projectId,
-              name: `${span.name} - ${parsedSpanId}`,
-              promptMessages,
-            })
-            .returning();
+          const playground = await createPlayground({
+            ...config,
+            projectId: params.projectId,
+            name: `${span.name} - ${parsedSpanId}`,
+            promptMessages,
+          });
 
-          const playground = result?.[0];
-
-          if (playground) {
-            return <Playground playground={playground as PlaygroundType} />;
-          }
+          return <Playground playground={playground as PlaygroundType} />;
         }
       }
       return notFound();
-    } catch (e) {
+    } catch {
       return notFound();
     }
   }
 
-  try {
-    const playground = await db.query.playgrounds.findFirst({
-      where: eq(playgrounds.id, params.playgroundId),
-    });
+  const playground = await getPlayground({
+    playgroundId: params.playgroundId,
+    projectId: params.projectId,
+  });
 
-    if (!playground) {
-      return notFound();
-    }
-
-    return <Playground playground={playground as PlaygroundType} />;
-  } catch (error) {
+  if (!playground) {
     return notFound();
   }
+
+  return <Playground playground={playground as PlaygroundType} />;
 }

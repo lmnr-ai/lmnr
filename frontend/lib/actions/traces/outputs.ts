@@ -22,43 +22,51 @@ const OUTPUTS_QUERY = `
 // main-agent LLM path within a trace — the shallowest parent path with the
 // most input tokens among the first N LLM spans. Mirrors the app-server
 // compression boundary heuristic (arrayPopBack of the '.'-split span path).
-const TOP_PATH_QUERY = `
+const TOP_PATHS_QUERY = `
     SELECT
+      trace_id AS traceId,
       parent_path AS path,
       prompt_hash AS promptHash
     FROM (
       SELECT
+        trace_id,
         path,
         arrayStringConcat(arrayPopBack(splitByChar('.', path)), '.') AS parent_path,
         input_tokens,
         start_time,
         simpleJSONExtractString(attributes, 'lmnr.span.prompt_hash') AS prompt_hash
       FROM spans
-      WHERE trace_id = {traceId: UUID}
+      WHERE trace_id IN ({traceIds: Array(UUID)})
         AND span_type = 'LLM'
-      ORDER BY start_time ASC
-      LIMIT ${MAIN_AGENT_SEARCH_WINDOW}
+      ORDER BY trace_id ASC, start_time ASC
+      LIMIT ${MAIN_AGENT_SEARCH_WINDOW} BY trace_id
     )
-    GROUP BY parent_path, prompt_hash
+    GROUP BY trace_id, parent_path, prompt_hash
     ORDER BY
       min(length(splitByChar('.', path))) ASC,
       max(input_tokens) DESC
-    LIMIT 1
+    LIMIT 1 BY trace_id
 `;
 
-// Last LLM span on the main-agent path — its output is the trace's output.
-const OUTPUT_QUERY = `
-  SELECT span_id AS spanId, output AS data, name
+// Last LLM span on each trace's main-agent path — its output is the trace's output.
+// `paths` / `promptHashes` are positionally aligned with `traceIds`, and the row's
+// expected pair is looked up by indexOf. A composite string key would be shorter but
+// needs a separator no span name can contain; the parallel arrays have no such hazard.
+const OUTPUTS_QUERY_FALLBACK = `
+  SELECT trace_id AS traceId, span_id AS spanId, output AS data, name
   FROM spans
-  WHERE trace_id = {traceId: UUID}
+  WHERE trace_id IN ({traceIds: Array(UUID)})
     AND span_type = 'LLM'
-    AND arrayStringConcat(arrayPopBack(splitByChar('.', path)), '.') = {path: String}
-    AND simpleJSONExtractString(attributes, 'lmnr.span.prompt_hash') = {promptHash: String}
+    AND arrayElement({paths: Array(String)}, indexOf({traceIds: Array(UUID)}, trace_id))
+        = arrayStringConcat(arrayPopBack(splitByChar('.', path)), '.')
+    AND arrayElement({promptHashes: Array(String)}, indexOf({traceIds: Array(UUID)}, trace_id))
+        = simpleJSONExtractString(attributes, 'lmnr.span.prompt_hash')
   ORDER BY start_time DESC
-  LIMIT 1
+  LIMIT 1 BY trace_id
 `;
 
 interface OutputSpanRow {
+  traceId: string;
   spanId: string;
   data: string;
   name: string;
@@ -93,38 +101,43 @@ export async function getAgentOutputsBatch({
   }
 
   const missing = parsed.traceIds.filter((id) => !results[id]);
-  const fallbackEntries = await Promise.all(
-    missing.map(async (traceId) => [traceId, await resolveTraceOutputText(traceId, projectId)] as const)
-  );
-  for (const [traceId, text] of fallbackEntries) {
-    results[traceId] = text;
+  if (missing.length > 0) {
+    const fallback = await resolveTraceOutputTexts(missing, projectId);
+    for (const traceId of missing) {
+      results[traceId] = fallback[traceId] ?? null;
+    }
   }
 
   return results;
 }
 
-async function resolveTraceOutputText(traceId: string, projectId: string): Promise<string | null> {
-  const pathRows = await executeQuery<{ path: string; promptHash: string }>({
-    query: TOP_PATH_QUERY,
-    parameters: { traceId },
+/**
+ * Legacy path for a batch of traces: two queries total, not two per trace.
+ * `LIMIT ... BY trace_id` gives the per-trace top-N/top-1 the single-trace form
+ * got from a plain LIMIT.
+ */
+async function resolveTraceOutputTexts(traceIds: string[], projectId: string): Promise<Record<string, string | null>> {
+  const pathRows = await executeQuery<{ traceId: string; path: string; promptHash: string }>({
+    query: TOP_PATHS_QUERY,
+    parameters: { traceIds },
     projectId,
   });
-  if (pathRows.length === 0) return null;
-
-  const { path: topPath, promptHash: topPromptHash } = pathRows[0];
+  if (pathRows.length === 0) return {};
 
   const outputRows = await executeQuery<OutputSpanRow>({
-    query: OUTPUT_QUERY,
-    parameters: { traceId, path: topPath, promptHash: topPromptHash ?? "" },
+    query: OUTPUTS_QUERY_FALLBACK,
+    parameters: {
+      traceIds: pathRows.map((row) => row.traceId),
+      paths: pathRows.map((row) => row.path ?? ""),
+      promptHashes: pathRows.map((row) => row.promptHash ?? ""),
+    },
     projectId,
   });
+  if (outputRows.length === 0) return {};
 
-  return resolveOutput(outputRows, projectId);
-}
+  const spanIds = outputRows.map((row) => row.spanId);
+  const spanTypes = Object.fromEntries(spanIds.map((spanId) => [spanId, "LLM"]));
+  const { previews } = await processSpanPreviews(outputRows, projectId, spanIds, spanTypes);
 
-async function resolveOutput(rows: OutputSpanRow[], projectId: string): Promise<string | null> {
-  if (rows.length === 0) return null;
-  const { spanId } = rows[0];
-  const result = await processSpanPreviews(rows, projectId, [spanId], { [spanId]: "LLM" });
-  return result.previews[spanId] || null;
+  return Object.fromEntries(outputRows.map((row) => [row.traceId, previews[row.spanId] || null]));
 }
