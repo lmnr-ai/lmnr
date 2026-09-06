@@ -14,6 +14,12 @@
 -- app-server change that stops writing span-derived partials, (2) only then
 -- let this migration run. Until then, keep the file out of the applied set.
 --
+-- ALSO BLOCKED ON: `spans.cache_read_input_tokens` / `cache_creation_input_tokens`
+-- / `reasoning_tokens`. `traces_agg` has those columns (migration 49) and they
+-- must fold, but no migration here adds them to `spans` and `CHSpan` has no
+-- writer for them, so this file cannot be applied to a fresh database until the
+-- migration that adds them lands ahead of it.
+--
 -- WHAT THE VIEWS DO NOT COVER. They see `spans` only, and ingestion drops
 -- three classes of span before that table (`should_record_to_clickhouse`):
 -- metadata-only virtual spans (`POST /v1/traces/metadata`), extracted agent io,
@@ -41,13 +47,16 @@ SELECT
     sum(input_cost) AS input_cost,
     sum(output_cost) AS output_cost,
     sum(total_cost) AS total_cost,
-    -- Raw JSON value per key, matching the `maxMap` column's encoding. The
-    -- reserved keys are compatibility shims that carry agent io, never customer
-    -- metadata; they cannot reach `spans` today, this is the backstop.
+    -- Raw JSON value per key, matching the `maxMap` column's encoding. Strips
+    -- exactly what `CHTraceAgg::encode_metadata` strips -- only the user-task key,
+    -- NOT `lmnr_trace_output`, which the static view does strip. The asymmetry is
+    -- app-server's and deliberate: extracted input has a dedicated supplementary
+    -- table so the shim key would diverge the two stores, output never had a
+    -- metadata-key equivalent. Neither key can reach `spans`; this is a backstop.
     maxMap(CAST(
         arrayMap(
             k -> (k, JSONExtractRaw(trace_metadata, k)),
-            arrayFilter(k -> (k NOT IN ('lmnr_user_task', 'lmnr_trace_output')), JSONExtractKeys(trace_metadata))
+            arrayFilter(k -> (k != 'lmnr_user_task'), JSONExtractKeys(trace_metadata))
         ),
         'Map(String, String)'
     )) AS metadata,
@@ -64,11 +73,23 @@ SELECT
     -- status contributes nothing (an empty array reads back as 'success'), which
     -- is what the app-server wrote.
     groupUniqArrayIf(toInt8(if(status = 'error', 2, 1)), status != '') AS statuses,
-    -- An Evaluation span (SpanType 5) types the whole trace EVALUATION, mirroring
-    -- `TraceAggregation::from_spans`. The `trace_type <= 3` clamp is not
-    -- defensive noise: an out-of-range Enum8 int is accepted at INSERT and then
-    -- poisons every later read of the part with UNKNOWN_ELEMENT_OF_ENUM.
-    groupUniqArray(toInt8(multiIf(span_type = 5, 1, trace_type <= 3, trace_type, 0))) AS trace_types
+    -- Mirrors `TraceAggregation::from_span_pairs`: the trace_type ATTRIBUTE, with
+    -- an unconditional override to EVALUATION when the block holds an
+    -- evaluation-family span. It has to stay an override and not a union --
+    -- `traces_v0` ranks PLAYGROUND ABOVE EVALUATION, so emitting both would flip
+    -- the trace's type. SpanType 3/4/5 = EXECUTOR / EVALUATOR / EVALUATION
+    -- (`Into<u8> for SpanType` is NOT declaration order); all three occur only
+    -- inside an evaluation, so any of them is as good a signal as EVALUATION.
+    -- 0 (DEFAULT) is dropped rather than emitted: an empty array already reads
+    -- back as 'DEFAULT', and it is the identity the metadata-patch partial
+    -- writes. The `<= 3` clamp is not defensive noise -- an out-of-range Enum8
+    -- int is accepted at INSERT and then poisons every later read of the part
+    -- with UNKNOWN_ELEMENT_OF_ENUM.
+    if(
+        countIf(span_type IN (3, 4, 5)) > 0,
+        [toInt8(1)],
+        groupUniqArrayIf(toInt8(trace_type), (trace_type > 0) AND (trace_type <= 3))
+    ) AS trace_types
 FROM default.spans
 GROUP BY project_id, trace_id;
 
