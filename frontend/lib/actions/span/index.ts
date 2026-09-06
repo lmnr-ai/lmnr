@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import { tryParseJson } from "@/lib/actions/common/utils";
 import { createDatapoints } from "@/lib/actions/datapoints";
 import { pushQueueItems } from "@/lib/actions/queue";
+import { resolveSpanTokenDetails, spanTokenDetailColumns } from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { downloadSpanImages } from "@/lib/spans/utils";
 import { type Span, type SpanType } from "@/lib/traces/types.ts";
@@ -55,6 +56,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
       input_cost as inputCost,
       output_cost as outputCost,
       total_cost as totalCost,
+      ${spanTokenDetailColumns.join(",\n      ")},
       formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
       formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
       trace_id as traceId,
@@ -96,8 +98,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
     input: tryParseJson(span.input),
     output: tryParseJson(span.output),
     attributes: parsedAttributes,
-    cacheReadInputTokens: parsedAttributes["gen_ai.usage.cache_read_input_tokens"] || 0,
-    reasoningTokens: parsedAttributes["gen_ai.usage.reasoning_tokens"] || 0,
+    ...resolveSpanTokenDetails(span, parsedAttributes),
     events: (span.events || []).map((event) => ({
       timestamp: event.timestamp,
       name: event.name,

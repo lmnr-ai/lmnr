@@ -11,6 +11,7 @@ import {
   buildSpansQueryWithParams,
   buildTraceViewAttributesExpression,
   createParentRewiring,
+  spanTokenDetailColumns,
   transformSpanWithEvents,
 } from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
@@ -198,6 +199,7 @@ const fetchTraceSpans = async ({
       "input_cost as inputCost",
       "output_cost as outputCost",
       "total_cost as totalCost",
+      ...spanTokenDetailColumns,
       "span_type as spanType",
       "formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime",
       "formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime",

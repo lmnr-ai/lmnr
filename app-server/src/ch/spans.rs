@@ -156,6 +156,16 @@ pub struct CHSpan {
     /// view as a virtual `tool_definitions` column via `deduped_content_dict`.
     #[serde(default)]
     pub tool_definitions_hash: [u8; 32],
+    /// Prompt-cache / reasoning token breakdown, LLM spans only (the caller
+    /// passes `SpanUsage::default()` for everything else). Spans ingested
+    /// before these columns existed carry 0 here and the values only in
+    /// `attributes` — readers fall back to `gen_ai.usage.*` for those.
+    #[serde(default)]
+    pub cache_read_input_tokens: u64,
+    #[serde(default)]
+    pub cache_creation_input_tokens: u64,
+    #[serde(default)]
+    pub reasoning_tokens: u64,
 }
 
 impl CHSpan {
@@ -196,6 +206,9 @@ impl CHSpan {
             input_tokens: usage.input_tokens,
             output_tokens: usage.output_tokens,
             total_tokens: usage.total_tokens,
+            cache_read_input_tokens: usage.cache_read_input_tokens.max(0) as u64,
+            cache_creation_input_tokens: usage.cache_creation_input_tokens.max(0) as u64,
+            reasoning_tokens: usage.reasoning_tokens.max(0) as u64,
             input_cost: usage.input_cost,
             output_cost: usage.output_cost,
             total_cost: usage.total_cost,
