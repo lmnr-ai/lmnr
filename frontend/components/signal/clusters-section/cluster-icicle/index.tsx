@@ -137,7 +137,6 @@ export default function ClusterIcicle({
             side="bottom"
             align="start"
             sideOffset={3}
-            elevationOffset={2}
             // Inert for a band — drifting into it must not read as leaving the
             // band — but the extra-clusters list is the only way into the
             // clusters it stands for, so that one takes the cursor. Entering it

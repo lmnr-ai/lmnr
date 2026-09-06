@@ -4,7 +4,7 @@ import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
-import ClusterIcon from "@/components/signal/clusters-section/cluster-list/cluster-icon";
+import ClusterIcon from "@/components/signal/clusters-section/cluster-icon";
 import { type TraceSignalClusterNode } from "@/components/traces/trace-view/store/base";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getClusterColorById } from "@/lib/clusters/colors";
