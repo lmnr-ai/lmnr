@@ -82,8 +82,12 @@ export default function ClustersSectionContent({ className }: Props) {
     endDate,
   });
 
+  // No revalidation on focus: the strip's tree is fetched through the store, which
+  // has no such trigger, so refetching the bars alone would leave the two halves of
+  // this chart describing different moments.
   const { data: statsResponse, error: statsError } = useSWR<ClusterStatsResponse>(statsUrl, swrFetcher, {
     keepPreviousData: true,
+    revalidateOnFocus: false,
     onError: () => toast({ title: "Error", description: "Failed to load cluster stats.", variant: "destructive" }),
   });
 
@@ -143,7 +147,11 @@ export default function ClustersSectionContent({ className }: Props) {
   });
 
   // Same URL as the Runs chart, so the SWR cache is shared and must stay in its `{ items }` shape.
-  const { data: runStats } = useSWR<{ items: { timestamp: string; count: number }[] }>(runStatsUrl, swrFetcher);
+  // Focus revalidation off for the same reason as the cluster stats above — this
+  // overlay is drawn over those bars and has to move with them.
+  const { data: runStats } = useSWR<{ items: { timestamp: string; count: number }[] }>(runStatsUrl, swrFetcher, {
+    revalidateOnFocus: false,
+  });
   const runTotals = useMemo(
     () => (runStats?.items ?? []).map((i) => ({ timestamp: i.timestamp, count: Number(i.count) })),
     [runStats?.items]
