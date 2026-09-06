@@ -22,6 +22,13 @@ import ClusterReadoutHeader from "./header";
 import ClusterReadoutScrim from "./scrim";
 import { useHoverCard } from "./use-hover-card";
 
+/** Every cluster in the window, at every level — not just the roots the card
+ *  lists. The list is a way in, so it shows what you can pick from here; the
+ *  title says how much there is. */
+function countNodes(nodes: ClusterNode[]): number {
+  return nodes.reduce((sum, n) => sum + 1 + countNodes(n.children), 0);
+}
+
 function findNode(nodes: ClusterNode[], id: string): ClusterNode | null {
   for (const n of nodes) {
     if (n.id === id) return n;
@@ -87,6 +94,8 @@ export default function ClusterReadout({
   // of the things that cluster breaks down into.
   const listUnclusteredCount = isRoot ? unclusteredCount : undefined;
 
+  const totalClusters = isRoot ? countNodes(tree) : 0;
+
   // No chevron on a leaf: the affordance has to promise something that is
   // actually there.
   const expandable = children.length > 0 || (listUnclusteredCount ?? 0) > 0;
@@ -98,7 +107,7 @@ export default function ClusterReadout({
       // glyph is what ties the header to them.
       iconVariant="boxes"
       color={ROOT_COLOR}
-      title={`${children.length.toLocaleString()} ${children.length === 1 ? "Cluster" : "Clusters"}`}
+      title={`${totalClusters.toLocaleString()} ${totalClusters === 1 ? "Cluster" : "Clusters"}`}
       // Nothing is pinned, so there is no subject for a fact to be about.
       facts={[]}
       expandable={expandable}
