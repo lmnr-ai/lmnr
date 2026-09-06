@@ -12,7 +12,7 @@ actix-limitation = {version = "0.6.0", default-features = false, features = ["re
 actix-web = "4.14.1"
 actix-web-httpauth = "0.8.2"
 anyhow = "1.0"
-arc-swap = "1.7"
+arc-swap = "1.9"
 async-stream = "0.3.6"
 async-trait = "0.1"
 aws-config = "1.10.1"
