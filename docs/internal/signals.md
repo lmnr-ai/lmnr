@@ -49,7 +49,9 @@
 - **Clusters deliberately have no version.** A cluster legitimately spans versions; a cluster's version mix is a `GROUP BY` over its events.
 - **Settings → Versions is a read-only changelog.** Newest first; v1 expands to the stored JSON snapshot, later rows expand to a `DiffView` against the previous mint. The collapsed summary lists the fields that changed (`components/signal/versions-section/changelog.ts`). Chart markers (`v2+`) link to `?tab=settings&section=versions&version=N`.
 
-## Signal CRUD in app-server (`signals/service.rs`, `/v1/cli/signals`)
+## Signal CRUD in app-server (`signals/service.rs`, `/v1/cli/signals`, `/v1/signals`)
+
+- **Two auth front-ends, one service.** `/v1/cli/signals` (user token, `CliProjectAuth`) and `/v1/signals` (project API key, `ProjectApiKey`) call the identical `signals::service` functions, so validation, version minting and error mapping cannot drift. Two deliberate differences: the project-key `POST` subscribes nobody to the auto-created alert (`subscriber_email: None` — a key has no user) and answers **201**, while the CLI twin subscribes the creator and answers 200. Both surfaces expose the same five reads/writes plus `GET /signals/{id}/versions`; a new route on one is a bug on the other.
 
 - **Signal CRUD is ungated by the `signals` cargo feature and lives in `signals/service.rs` + `db/signals.rs` + `db/signal_triggers.rs`.** Writing a signal row is a plain DB write; only signal *processing* is enterprise. `db/signals.rs` was previously `#[cfg(feature = "signals")]` — ungating it exposes `SignalMetadata` / `Signal` / `get_signal` as dead code in OSS, so those carry `#[cfg_attr(not(feature = "signals"), allow(dead_code))]`.
 - **`GET /v1/cli/signals/{id}/versions`** returns the append-only snapshot log (`{ versions: [{ version, definition, createdAt }, …] }`, oldest first). 404 if the signal is missing in this project. The scalar `version` on `GET /v1/cli/signals/{id}` is still just the current pointer. `definition.trigger` is Filter[] (drawer JSON), not the tagged `Trigger` on GET `/signals`.

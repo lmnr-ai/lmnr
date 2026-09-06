@@ -2826,6 +2826,12 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::evals::update_eval)
                                     .service(api::v1::evals::save_eval_datapoints)
                                     .service(api::v1::evals::update_eval_datapoint)
+                                    .service(api::v1::signals::create_signal)
+                                    .service(api::v1::signals::list_signals)
+                                    .service(api::v1::signals::list_signal_versions)
+                                    .service(api::v1::signals::get_signal)
+                                    .service(api::v1::signals::update_signal)
+                                    .service(api::v1::signals::delete_signal)
                                     // Debugger session lifecycle — SDK-driven
                                     // (project API key). update_name is CLI-only,
                                     // so it lives under /v1/cli, not here.

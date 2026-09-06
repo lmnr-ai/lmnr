@@ -266,6 +266,21 @@ fn name_is_trimmed_for_storage() {
 }
 
 #[test]
+fn patch_name_uses_create_validation() {
+    assert_eq!(validate_signal_name("  Renamed  ").unwrap(), "Renamed");
+    assert!(validate_signal_name("   ").is_err());
+    assert!(validate_signal_name(&"a".repeat(SIGNAL_NAME_MAX_LEN + 1)).is_err());
+}
+
+#[test]
+fn patch_name_null_and_omitted_are_unchanged() {
+    let omitted: UpdateSignalInput = serde_json::from_value(json!({})).unwrap();
+    let null: UpdateSignalInput = serde_json::from_value(json!({ "name": null })).unwrap();
+    assert!(omitted.name.is_none());
+    assert!(null.name.is_none());
+}
+
+#[test]
 fn blank_name_and_prompt_are_rejected() {
     let mut blank_name = signal_input(valid_schema());
     blank_name.name = "   ".to_string();
