@@ -83,7 +83,7 @@ thiserror = "2"
 # glibc arenas — per-call multi-MB C allocations fragment glibc's per-thread
 # arenas and RSS grows until OOM (LAM-2024 prod leak, zstd contexts); the
 # Rust-side `#[global_allocator]` alone doesn't cover C code.
-tikv-jemallocator = {version = "0.6.1", features = ["unprefixed_malloc_on_supported_platforms"]}
+tikv-jemallocator = {version = "0.7.0", features = ["unprefixed_malloc_on_supported_platforms"]}
 tokenizers = {version = "0.23.1", default-features = false, features = ["onig"], optional = true}
 tokio = {version = "1.49", features = ["macros", "rt-multi-thread"]}
 tokio-stream = {version = "0.1", features = ["net"]}
