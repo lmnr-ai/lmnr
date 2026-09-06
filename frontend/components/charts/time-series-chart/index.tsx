@@ -142,16 +142,10 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
             ticks={smartTicksResult?.ticks}
           />
           <YAxis tickLine={false} axisLine={false} tickFormatter={formatValue} width="auto" />
-          {overlayField && (
-            <YAxis
-              yAxisId="overlay"
-              orientation="right"
-              tickLine={false}
-              axisLine={false}
-              width="auto"
-              tickFormatter={formatValue}
-            />
-          )}
+          {/* Hidden, not removed: the overlay Area needs its own scale so it
+              isn't squashed by the bar axis, but its absolute values aren't
+              worth a second set of ticks — the tooltip already names them. */}
+          {overlayField && <YAxis yAxisId="overlay" orientation="right" hide />}
           {overlayField && (
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">

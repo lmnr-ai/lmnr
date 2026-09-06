@@ -57,7 +57,14 @@ export default function ClusterStackedChart({
       config[RUN_TOTAL_KEY] = {
         label: OVERLAY_LABEL,
         color: OVERLAY_COLOR,
-        icon: () => <Circle className="size-2.5 text-muted-foreground" />,
+        // Boxed to `ClusterIcon`'s footprint. The tooltip lists this row above
+        // the cluster rows, and a bare glyph is both smaller and subject to the
+        // parent's `[&>svg]:size-2.5`, so the labels wouldn't line up.
+        icon: () => (
+          <div className="flex size-4 shrink-0 items-center justify-center">
+            <Circle className="size-2.5 text-muted-foreground" />
+          </div>
+        ),
       };
 
     clusters.forEach((cluster) => {
