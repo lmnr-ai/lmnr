@@ -69,7 +69,11 @@ const getVisibleClusters = (state: Store, clusterId: string | null): ClusterNode
 
 const getDrillDownDepth = (state: Store, clusterId: string | null): number => getBreadcrumb(state, clusterId).length;
 
-const selectUnclusteredCount = (state: Store): number => Math.max(0, state.totalEventCount - state.clusteredEventCount);
+// Exported for the readout, which offers the unclustered bucket as a pick and so
+// has to name its size. Not derivable from the cluster tree — the tree only knows
+// about events that landed in a cluster.
+export const selectUnclusteredCount = (state: Store): number =>
+  Math.max(0, state.totalEventCount - state.clusteredEventCount);
 
 export const getFilterClusterIds = (state: Store, clusterId: string | null): string[] => {
   const node = getCurrentNode(state, clusterId);

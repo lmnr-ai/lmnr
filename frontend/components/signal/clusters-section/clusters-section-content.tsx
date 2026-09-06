@@ -9,7 +9,7 @@ import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use
 import EmergingClusterBreadcrumbs from "@/components/signal/emerging-cluster-breadcrumbs";
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
 import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-cluster-id";
-import { getChartClusters, useSignalStoreContext } from "@/components/signal/store.tsx";
+import { getChartClusters, selectUnclusteredCount, useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type ClusterStatsDataPoint, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { getClusterColorById, UNCLUSTERED_COLOR } from "@/lib/clusters/colors";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -55,6 +55,7 @@ export default function ClustersSectionContent({ className }: Props) {
   const endDate = searchParams.get("endDate");
 
   const chartClusters = useSignalStoreContext((state) => getChartClusters(state, clusterId), shallow);
+  const unclusteredCount = useSignalStoreContext(selectUnclusteredCount);
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [localChartWidth, setLocalChartWidth] = useState<number | null>(null);
@@ -209,13 +210,17 @@ export default function ClustersSectionContent({ className }: Props) {
               containerWidth={localChartWidth}
               colorMap={colorMap}
               runTotals={runTotals}
-              // With the list gone the chart has no other label for what is pinned.
+              // With the list gone the chart has no other label for what is pinned
+              // — and with nothing pinned, the readout's root list is the only way
+              // to reach a folded cluster or the unclustered bucket, which has no
+              // band on the strip at all.
               overlay={
                 model && (
                   <ClusterReadout
                     tree={model.tree}
                     hasChildren={model.hasChildren}
                     clusterId={clusterId}
+                    unclusteredCount={unclusteredCount}
                     onSelect={selectCluster}
                     onHover={setHoveredId}
                   />

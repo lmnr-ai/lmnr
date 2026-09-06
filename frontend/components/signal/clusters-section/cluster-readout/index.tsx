@@ -1,22 +1,28 @@
-// The readout pinned in the chart's top-left corner: which cluster is in play,
-// the facts about it, and — behind a hover card — what it breaks down into.
+// The readout pinned in the chart's top-left corner: what the section is focused
+// on, the facts about it, and — behind a hover card — what it breaks down into.
 //
 // It exists because the strip took the cluster list's place, and with the list
-// gone nothing else on the card names what is currently selected.
+// gone nothing else on the card names what is currently selected. It has three
+// subjects, and is never absent: a cluster, the unclustered bucket, or — with
+// nothing pinned — the root list, which is the only route to either of the other
+// two for a cluster the strip folded away or a bucket it cannot draw at all.
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
 import { createPortal } from "react-dom";
 
+import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { UNCLUSTERED_COLOR } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
+import { clusterFacts } from "../cluster-icicle/band-details";
 import { type ClusterNode } from "../model";
 import ClusterChildList from "./child-list";
 import ClusterReadoutHeader from "./header";
 import ClusterReadoutScrim from "./scrim";
 import { useHoverCard } from "./use-hover-card";
 
-export function findNode(nodes: ClusterNode[], id: string): ClusterNode | null {
+function findNode(nodes: ClusterNode[], id: string): ClusterNode | null {
   for (const n of nodes) {
     if (n.id === id) return n;
     const hit = findNode(n.children, id);
@@ -31,38 +37,91 @@ export function findNode(nodes: ClusterNode[], id: string): ClusterNode | null {
 const CARD_PAD_X = 8;
 const CARD_PAD_Y = 6;
 
+// The root header stands for the whole forest rather than any one cluster, so it
+// borrows the list's own colour instead of claiming a cluster's identity.
+const ROOT_COLOR = "var(--color-muted-foreground)";
+
 interface Props {
   /** The cluster forest, roots at the coarsest level. */
   tree: ClusterNode[];
   hasChildren: Set<string>;
-  /** The pinned cluster. `null` renders nothing at all. */
+  /** The pinned cluster, `UNCLUSTERED_ID`, or `null` for the root list. */
   clusterId: string | null;
+  /** Events in the window no cluster claimed. */
+  unclusteredCount: number;
   onSelect: (id: string) => void;
   onHover: (id: string | null) => void;
   className?: string;
 }
 
-export default function ClusterReadout({ tree, hasChildren, clusterId, onSelect, onHover, className }: Props) {
+export default function ClusterReadout({
+  tree,
+  hasChildren,
+  clusterId,
+  unclusteredCount,
+  onSelect,
+  onHover,
+  className,
+}: Props) {
   const { rect, headerRef, cardRef, clearTimers, scheduleOpen, scheduleClose, closeNow } = useHoverCard();
-
-  const node = clusterId ? findNode(tree, clusterId) : null;
-  // Hooks are all above this line — the readout renders nothing when no cluster
-  // is pinned, and that must not change the hook order.
-  if (!node) return null;
 
   // Roots only: a parent's rolled-up total already contains its children's.
   const grandTotal = tree.reduce((sum, n) => sum + n.total, 0);
-  const children = [...node.children].sort((a, b) => b.total - a.total);
+  const node = clusterId && clusterId !== UNCLUSTERED_ID ? findNode(tree, clusterId) : null;
+  // A pinned id the model does not know — a cluster that aged out of the window,
+  // or a stale bookmark. Falling back to the root list keeps the readout present
+  // and gives the reader somewhere to go.
+  const isRoot = !clusterId || (clusterId !== UNCLUSTERED_ID && !node);
+  const isUnclustered = clusterId === UNCLUSTERED_ID;
+
+  // The list under the header. Roots are already "every cluster with no parent,
+  // whatever its level" — `buildTree` re-hangs orphans as roots — so no filtering
+  // is needed here, only the list's own biggest-first order.
+  const children = isRoot
+    ? [...tree].sort((a, b) => b.total - a.total)
+    : node
+      ? [...node.children].sort((a, b) => b.total - a.total)
+      : [];
+
+  // Only the root list offers it: from inside a cluster, "unclustered" is not one
+  // of the things that cluster breaks down into.
+  const listUnclusteredCount = isRoot ? unclusteredCount : undefined;
+
   // No chevron on a leaf: the affordance has to promise something that is
   // actually there.
-  const expandable = children.length > 0;
+  const expandable = children.length > 0 || (listUnclusteredCount ?? 0) > 0;
   const open = expandable && rect !== null;
 
-  const header = (
+  const header = isRoot ? (
     <ClusterReadoutHeader
-      node={node}
-      hasChildren={hasChildren}
-      grandTotal={grandTotal}
+      // Not a cluster, but the list it opens is nothing but clusters, and the
+      // glyph is what ties the header to them.
+      iconVariant="boxes"
+      color={ROOT_COLOR}
+      title={`${children.length.toLocaleString()} ${children.length === 1 ? "Cluster" : "Clusters"}`}
+      // Nothing is pinned, so there is no subject for a fact to be about.
+      facts={[]}
+      expandable={expandable}
+      open={open}
+    />
+  ) : isUnclustered ? (
+    <ClusterReadoutHeader
+      iconVariant="circle-dashed"
+      color={UNCLUSTERED_COLOR}
+      title="Unclustered Events"
+      // Count only, no share: the clusters' percentages are taken against the
+      // clustered total, and a bucket outside that total cannot join that scale
+      // without the two readings disagreeing.
+      facts={[`${unclusteredCount.toLocaleString()} events`]}
+      expandable={false}
+      open={false}
+    />
+  ) : (
+    <ClusterReadoutHeader
+      iconVariant={hasChildren.has(node!.id) ? "boxes" : "box"}
+      color={node!.color}
+      title={node!.name}
+      facts={clusterFacts(node!, grandTotal)}
       expandable={expandable}
       open={open}
     />
@@ -122,7 +181,13 @@ export default function ClusterReadout({ tree, hasChildren, clusterId, onSelect,
                 onWheel={(e) => e.stopPropagation()}
               >
                 {header}
-                <ClusterChildList nodes={children} onSelect={onSelect} onHover={onHover} onPick={closeNow} />
+                <ClusterChildList
+                  nodes={children}
+                  onSelect={onSelect}
+                  onHover={onHover}
+                  onPick={closeNow}
+                  unclusteredCount={listUnclusteredCount}
+                />
               </motion.div>
             )}
           </AnimatePresence>,

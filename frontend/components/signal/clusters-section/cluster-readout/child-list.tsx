@@ -1,6 +1,6 @@
-// What this cluster breaks down into, ranked by size rather than by the strip's
-// stack order: the strip is ordered so subtrees stay contiguous across the rows,
-// which is the wrong question for a list. It scrolls, fading at both ends via
+// What the readout's subject breaks down into, ranked by size rather than by the
+// strip's stack order: the strip is ordered so subtrees stay contiguous across the
+// rows, which is the wrong question for a list. It scrolls, fading at both ends via
 // `scroll-fade-y`, which ramps each edge's mask off the scroll position, so an
 // edge only fades when there is really something past it. `auto-rows-min` so the
 // rows keep their own height instead of stretching to fill the box.
@@ -8,10 +8,12 @@
 
 import { type CSSProperties } from "react";
 
-import ClusterIcon from "@/components/signal/clusters-section/cluster-icon";
+import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { UNCLUSTERED_COLOR } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
 import { type ClusterNode } from "../model";
+import ReadoutRow from "./readout-row";
 
 interface Props {
   nodes: ClusterNode[];
@@ -19,9 +21,16 @@ interface Props {
   onHover: (id: string | null) => void;
   /** Picking from the card ends that interaction, so the card is dismissed too. */
   onPick: () => void;
+  /** Events in the window that no cluster claimed. `undefined` omits the row —
+   *  it is only offered from the root list, where "not in any of these" is a
+   *  meaningful sibling of the clusters above it. */
+  unclusteredCount?: number;
 }
 
-export default function ClusterChildList({ nodes, onSelect, onHover, onPick }: Props) {
+export default function ClusterChildList({ nodes, onSelect, onHover, onPick, unclusteredCount }: Props) {
+  // Zero is not a pick: an empty bucket would filter the table to nothing.
+  const showUnclustered = unclusteredCount !== undefined && unclusteredCount > 0;
+
   return (
     <div
       className={cn(
@@ -33,41 +42,41 @@ export default function ClusterChildList({ nodes, onSelect, onHover, onPick }: P
       style={{ "--scroll-fade-size": "12px" } as CSSProperties}
     >
       {nodes.map((child) => (
-        // The whole row is one button, spanning both columns as a subgrid so its
-        // icon and name still sit on the list's own tracks. The pointer-up is
-        // stopped as well as handled: the chart pane reads a bare pointer-up as
-        // "clicked empty space, drop the selection", which would undo the pick on
-        // the way out.
-        <button
+        <ReadoutRow
           key={child.id}
-          type="button"
-          className="col-span-2 grid grid-cols-subgrid items-center text-left text-muted-foreground transition-colors hover:text-foreground"
-          onPointerUp={(e) => {
-            e.stopPropagation();
+          iconVariant={child.children.length > 0 ? "boxes" : "box"}
+          color={child.color}
+          name={child.name}
+          total={child.total}
+          onPick={() => {
             onPick();
             onSelect(child.id);
           }}
-          onPointerEnter={() => onHover(child.id)}
-          onPointerLeave={() => onHover(null)}
-        >
-          <ClusterIcon
-            iconVariant={child.children.length > 0 ? "boxes" : "box"}
-            color={child.color}
-            iconClassName={child.children.length > 0 ? "size-4" : undefined}
-          />
-          <span className="flex min-w-0 items-center">
-            {/* `flex-1`: without it the name hugs its text, so a short one drags
-                the count in beside it and the column of numbers goes ragged. */}
-            <span className="min-w-0 max-w-[320px] flex-1 truncate">{child.name}</span>
-            {/* Fixed width and right-aligned, not just pushed to the end: with
-                every name truncating at its cap the counts all START in the same
-                place, so left-aligned they end wherever their digit count says. */}
-            <span className="ml-2 min-w-[38px] shrink-0 text-right tabular-nums opacity-60">
-              {child.total.toLocaleString()}
-            </span>
-          </span>
-        </button>
+          onHover={(hovering) => onHover(hovering ? child.id : null)}
+        />
       ))}
+
+      {showUnclustered && (
+        <>
+          {/* Last and ruled off, not sorted in among the clusters: it is the
+              leftover, so its position should not depend on how big it happens
+              to be this window. */}
+          <div className="col-span-2 my-0.5 border-t border-border/60" />
+          <ReadoutRow
+            iconVariant="circle-dashed"
+            color={UNCLUSTERED_COLOR}
+            name="Unclustered Events"
+            total={unclusteredCount}
+            onPick={() => {
+              onPick();
+              onSelect(UNCLUSTERED_ID);
+            }}
+            // Hovering it mutes every band, which is the honest answer: none of
+            // them holds these events.
+            onHover={(hovering) => onHover(hovering ? UNCLUSTERED_ID : null)}
+          />
+        </>
+      )}
     </div>
   );
 }
