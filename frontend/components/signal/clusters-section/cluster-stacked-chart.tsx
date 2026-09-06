@@ -21,6 +21,11 @@ const BAR_OPACITY = 0.6;
 // own, so crossing the chart on the way to it must not flash a tooltip.
 const TOOLTIP_DELAY_MS = 300;
 
+// A signal can have a hundred top-level clusters, and the tooltip lists one row
+// per series. Uncapped it grows taller than the window, so only the largest
+// contributors to the hovered bucket are named.
+const TOOLTIP_MAX_ITEMS = 12;
+
 interface ClusterStackedChartProps {
   clusters: EventCluster[];
   statsData: ClusterStatsDataPoint[];
@@ -89,7 +94,12 @@ export default function ClusterStackedChart({
     return { data: chartData, chartConfig: config, fields: fieldKeys };
   }, [clusters, statsData, colorMap, overlayPoints, hasOverlay]);
 
-  if (data.length === 0) {
+  // Row count is not emptiness: the stats query fills the range, so a window with
+  // no events still comes back as a full set of zero buckets and would otherwise
+  // render as an axis with nothing on it.
+  const isEmpty = data.every((point) => fields.every((key) => !(point as Record<string, unknown>)[key]));
+
+  if (isEmpty) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
         No data for selected time range
@@ -106,6 +116,7 @@ export default function ClusterStackedChart({
         containerWidth={containerWidth}
         showTotal={false}
         tooltipDelay={TOOLTIP_DELAY_MS}
+        tooltipMaxItems={TOOLTIP_MAX_ITEMS}
         // Only over the stack itself: recharts' axis tooltip otherwise fires
         // anywhere in the column, including the empty space above the bars.
         tooltipRequireBar

@@ -36,6 +36,7 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
   showTooltip = true,
   tooltipDelay = 0,
   tooltipRequireBar = false,
+  tooltipMaxItems,
   animate = true,
   hideZeroValues = false,
   overlayField,
@@ -113,6 +114,7 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
   const tooltipContentProps: React.ComponentProps<typeof ChartTooltipContent> = {
     labelKey: "timestamp",
     hideZeroValues,
+    maxItems: tooltipMaxItems,
     labelFormatter: (_, payload) =>
       payload && payload[0] ? formatter.format(parseUtcTimestamp(payload[0].payload.timestamp)) : "-",
   };

@@ -30,6 +30,9 @@ export interface TimeSeriesChartProps<T extends TimeSeriesDataPoint> {
   /** Only open the tooltip when the pointer is actually over the stack, not
    *  anywhere in its column. Off by default — recharts' own behaviour. */
   tooltipRequireBar?: boolean;
+  /** Cap the tooltip's rows, keeping the largest and summarising the rest.
+   *  Unset (the default) lists every series. */
+  tooltipMaxItems?: number;
   /** Bar entry animation. Turn it off where the stack is wide enough that the
    *  transition costs more main thread than it is worth. */
   animate?: boolean;

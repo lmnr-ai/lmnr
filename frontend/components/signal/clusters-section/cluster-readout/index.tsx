@@ -56,6 +56,8 @@ interface Props {
   clusterId: string | null;
   /** Events in the window no cluster claimed. */
   unclusteredCount: number;
+  /** Traces the signal evaluated over the window — the share's denominator. */
+  traceTotal: number;
   onSelect: (id: string) => void;
   onHover: (id: string | null) => void;
   className?: string;
@@ -66,14 +68,13 @@ export default function ClusterReadout({
   hasChildren,
   clusterId,
   unclusteredCount,
+  traceTotal,
   onSelect,
   onHover,
   className,
 }: Props) {
   const { rect, headerRef, cardRef, clearTimers, scheduleOpen, scheduleClose, closeNow } = useHoverCard();
 
-  // Roots only: a parent's rolled-up total already contains its children's.
-  const grandTotal = tree.reduce((sum, n) => sum + n.total, 0);
   const node = clusterId && clusterId !== UNCLUSTERED_ID ? findNode(tree, clusterId) : null;
   // A pinned id the model does not know — a cluster that aged out of the window,
   // or a stale bookmark. Falling back to the root list keeps the readout present
@@ -118,9 +119,8 @@ export default function ClusterReadout({
       iconVariant="circle-dashed"
       color={UNCLUSTERED_COLOR}
       title="Unclustered Events"
-      // Count only, no share: the clusters' percentages are taken against the
-      // clustered total, and a bucket outside that total cannot join that scale
-      // without the two readings disagreeing.
+      // Count only: "unclustered" is the leftover, not a thing whose prevalence
+      // anyone is sizing up against the traces that were looked at.
       facts={[`${unclusteredCount.toLocaleString()} events`]}
       expandable={false}
       open={false}
@@ -130,7 +130,7 @@ export default function ClusterReadout({
       iconVariant={hasChildren.has(node!.id) ? "boxes" : "box"}
       color={node!.color}
       title={node!.name}
-      facts={clusterFacts(node!, grandTotal)}
+      facts={clusterFacts(node!, traceTotal)}
       expandable={expandable}
       open={open}
     />

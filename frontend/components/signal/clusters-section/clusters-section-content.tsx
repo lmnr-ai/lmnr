@@ -18,11 +18,12 @@ import { cn, swrFetcher } from "@/lib/utils";
 
 import ClusterBreadcrumbs from "./cluster-breadcrumbs";
 import ClusterIcicle from "./cluster-icicle";
+import ClusterIcicleEmpty from "./cluster-icicle-empty";
 import ClusterIcicleSkeleton from "./cluster-icicle-skeleton";
 import ClusterReadout from "./cluster-readout";
 import ClusterStackedChart from "./cluster-stacked-chart";
 import { useClusterFocusContext } from "./focus-store";
-import { buildClusterModel } from "./model";
+import { buildClusterModel, type ClusterNode } from "./model";
 
 interface Props {
   className?: string;
@@ -34,6 +35,10 @@ type ClusterStatsResponse = {
 };
 
 const EMPTY_STATS: ClusterStatsDataPoint[] = [];
+// Stable identities: the readout is rendered without a model when only the
+// unclustered bucket exists, and fresh literals would remount it each render.
+const EMPTY_TREE: ClusterNode[] = [];
+const EMPTY_HAS_CHILDREN = new Set<string>();
 
 export default function ClustersSectionContent({ className }: Props) {
   const searchParams = useSearchParams();
@@ -158,6 +163,12 @@ export default function ClustersSectionContent({ className }: Props) {
     [runStats?.items]
   );
 
+  // Every trace this signal evaluated in the window: each run falls in exactly
+  // one bucket, so the buckets sum to the range. This is what a cluster's share
+  // is quoted against — "x% of traces" — rather than the clustered total, which
+  // would make a cluster look larger the fewer traces got clustered at all.
+  const traceTotal = useMemo(() => runTotals.reduce((sum, r) => sum + r.count, 0), [runTotals]);
+
   // The one way anything in the section changes the selection.
   const selectCluster = useCallback(
     (id: string) => {
@@ -182,12 +193,15 @@ export default function ClustersSectionContent({ className }: Props) {
           <ClusterIcicle
             tree={model.tree}
             ancestors={model.ancestors}
+            traceTotal={traceTotal}
             selectedId={clusterId}
             onHover={setHoveredId}
             onSelect={selectCluster}
           />
+        ) : showSkeleton ? (
+          <ClusterIcicleSkeleton />
         ) : (
-          showSkeleton && <ClusterIcicleSkeleton />
+          <ClusterIcicleEmpty />
         )}
         {emergingClusterId ? <EmergingClusterBreadcrumbs /> : <ClusterBreadcrumbs />}
       </div>
@@ -214,13 +228,18 @@ export default function ClustersSectionContent({ className }: Props) {
               // — and with nothing pinned, the readout's root list is the only way
               // to reach a folded cluster or the unclustered bucket, which has no
               // band on the strip at all.
+              // Rendered without a model too, as long as there is something to
+              // pick: with no clusters at all the unclustered bucket has neither a
+              // band nor a list row anywhere else, so gating this on `model` left
+              // those events unreachable.
               overlay={
-                model && (
+                (model || unclusteredCount > 0) && (
                   <ClusterReadout
-                    tree={model.tree}
-                    hasChildren={model.hasChildren}
+                    tree={model?.tree ?? EMPTY_TREE}
+                    hasChildren={model?.hasChildren ?? EMPTY_HAS_CHILDREN}
                     clusterId={clusterId}
                     unclusteredCount={unclusteredCount}
+                    traceTotal={traceTotal}
                     onSelect={selectCluster}
                     onHover={setHoveredId}
                   />

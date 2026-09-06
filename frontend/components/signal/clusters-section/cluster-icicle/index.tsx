@@ -27,6 +27,8 @@ interface Props {
   selectedId: string | null;
   /** id → its ancestors, so a node can tell whether it is under the focus. */
   ancestors: Map<string, Set<string>>;
+  /** Traces the signal evaluated over the window — the share's denominator. */
+  traceTotal: number;
   onHover: (id: string | null) => void;
   onSelect: (id: string) => void;
   className?: string;
@@ -34,7 +36,15 @@ interface Props {
 
 // Hover is deliberately absent from these props: it lives in the focus store, so
 // that the strip itself does not re-render on a pointer move.
-export default function ClusterIcicle({ tree, selectedId, ancestors, onHover, onSelect, className }: Props) {
+export default function ClusterIcicle({
+  tree,
+  selectedId,
+  ancestors,
+  traceTotal,
+  onHover,
+  onSelect,
+  className,
+}: Props) {
   const stripRef = useRef<HTMLDivElement>(null);
   // The strip owns ONE tooltip, not one per band. A band's own bottom edge is the
   // wrong place to hang it: inside an open panel that edge is in the middle of
@@ -83,9 +93,6 @@ export default function ClusterIcicle({ tree, selectedId, ancestors, onHover, on
   if (view.length === 0) return null;
 
   const minLevel = finestLevel(view, Infinity);
-  // Summed over the roots, not over every node — the tree double-counts by depth,
-  // since a parent's rolled-up total already contains its children's.
-  const grandTotal = view.reduce((sum, n) => sum + n.total, 0);
   // A tooltip over a counter lists what it stands for; over any other band it is
   // the usual read-only summary.
   const extraNodes = tip?.node.isExtra ? (tip.node.extra ?? []) : null;
@@ -144,7 +151,7 @@ export default function ClusterIcicle({ tree, selectedId, ancestors, onHover, on
             {extraNodes ? (
               <ExtraList nodes={extraNodes} selectedId={selectedId} onHover={onHover} onSelect={onSelect} />
             ) : (
-              tip && <BandDetails node={tip.node} grandTotal={grandTotal} />
+              tip && <BandDetails node={tip.node} traceTotal={traceTotal} />
             )}
           </TooltipContent>
         </TooltipPortal>

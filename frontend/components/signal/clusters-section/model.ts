@@ -12,6 +12,9 @@ import { getClusterColorById } from "@/lib/clusters/colors";
  *  exist in the data but have nowhere to go on a three-row strip. */
 export const MAX_LEVELS = 3;
 
+/** Stand-in for a cluster the namer left blank. */
+export const UNNAMED_CLUSTER = "Unnamed cluster";
+
 export interface ClusterNode {
   id: string;
   name: string;
@@ -144,7 +147,10 @@ export function buildClusterModel(
       .filter((c) => c.level === level && (totals.get(c.id) ?? 0) > 0)
       .map((c): ClusterNode => ({
         id: c.id,
-        name: c.name,
+        // Naming is an LLM step that can land on whitespace, and a band or a list
+        // row with no text in it is unidentifiable. Substituted here rather than
+        // in each renderer so the strip, the readout and the trail all agree.
+        name: c.name.trim() === "" ? UNNAMED_CLUSTER : c.name,
         color: getClusterColorById(c.id),
         total: totals.get(c.id) ?? 0,
         level: c.level,
