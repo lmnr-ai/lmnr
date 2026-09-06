@@ -42,6 +42,17 @@ export const tableSchemas: Record<string, ColumnDefinition[]> = {
     { name: "input_tokens", type: "number", description: "Number of input tokens" },
     { name: "output_tokens", type: "number", description: "Number of output tokens" },
     { name: "total_tokens", type: "number", description: "Total tokens used" },
+    {
+      name: "cache_read_input_tokens",
+      type: "number",
+      description: "Tokens read from prompt cache, summed across LLM spans",
+    },
+    {
+      name: "cache_creation_input_tokens",
+      type: "number",
+      description: "Tokens written to prompt cache, summed across LLM spans",
+    },
+    { name: "reasoning_tokens", type: "number", description: "Reasoning tokens, summed across LLM spans" },
     { name: "input_cost", type: "number", description: "Cost for input tokens" },
     { name: "output_cost", type: "number", description: "Cost for output tokens" },
     { name: "total_cost", type: "number", description: "Total cost of the trace" },
