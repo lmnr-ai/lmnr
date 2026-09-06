@@ -107,7 +107,7 @@ export function OgContainer({ children, accentColor }: { children: ReactNode; ac
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
-        backgroundColor: "#171717", // surface-700
+        backgroundColor: "#171717", // surface-300
         padding: "60px 80px",
         fontFamily: "Inter, system-ui, sans-serif",
       }}

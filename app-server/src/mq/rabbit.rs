@@ -1,10 +1,10 @@
-use backoff::ExponentialBackoffBuilder;
+use backon::Retryable;
 use deadpool::managed::{Manager, Pool, PoolError, RecycleError};
 use futures_util::StreamExt;
 use lapin::{
     Acker, BasicProperties, Channel, Connection, ConnectionStatus, Consumer,
     options::{BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueBindOptions},
-    types::{FieldTable, ShortString},
+    types::{AMQPValue, FieldTable, ShortString},
 };
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
@@ -13,12 +13,53 @@ use super::{
     MessageQueueAcker, MessageQueueDelivery, MessageQueueDeliveryTrait, MessageQueueReceiver,
     MessageQueueReceiverTrait, MessageQueueTrait,
 };
+use crate::utils::retry;
+
+/// `backon` decides retryability from the error value alone, so the publish
+/// closure's failures — all `anyhow::Error` — need the transient/permanent
+/// split that `backoff::Error` used to carry alongside them.
+#[derive(thiserror::Error, Debug)]
+enum PublishError {
+    #[error("{0}")]
+    Transient(anyhow::Error),
+    #[error("{0}")]
+    Permanent(anyhow::Error),
+}
 
 /// Whole-chain timeout for consumer setup (`create_channel` → `basic_qos` →
 /// `queue_bind` → `basic_consume`). Tunable because a memory-pressured broker
 /// can leave channel ops stalled for tens of seconds before the alarm clears.
 static CONSUMER_SETUP_TIMEOUT: LazyLock<Duration> =
     LazyLock::new(|| Duration::from_secs(crate::env::mq::CONSUMER_SETUP_TIMEOUT_SECS.get()));
+
+/// Carries the delayed-retry count across a retry-queue round trip. RabbitMQ
+/// preserves headers through dead-lettering, so the value survives the hop back
+/// into the origin queue.
+const RETRY_ATTEMPT_HEADER: &str = "x-lmnr-retry-attempt";
+
+fn retry_properties(ttl_ms: u64, attempt: u32) -> BasicProperties {
+    let mut headers = FieldTable::default();
+    headers.insert(RETRY_ATTEMPT_HEADER.into(), AMQPValue::LongUInt(attempt));
+
+    BasicProperties::default()
+        .with_delivery_mode(2)
+        .with_expiration(ShortString::from(ttl_ms.to_string()))
+        .with_headers(headers)
+}
+
+/// Anything but the `LongUInt` written by `retry_properties` reads as a first
+/// delivery, which restarts the budget rather than dropping the message early.
+fn retry_attempt_of(properties: &BasicProperties) -> u32 {
+    properties
+        .headers()
+        .as_ref()
+        .and_then(|headers| headers.inner().get(RETRY_ATTEMPT_HEADER))
+        .and_then(|value| match value {
+            AMQPValue::LongUInt(n) => Some(*n),
+            _ => None,
+        })
+        .unwrap_or(0)
+}
 
 struct RabbitChannelManager {
     connection: Arc<Connection>,
@@ -29,19 +70,18 @@ impl Manager for RabbitChannelManager {
     type Error = anyhow::Error;
 
     async fn create(&self) -> Result<Channel, Self::Error> {
-        let create_channel = || async {
-            self.connection.create_channel().await.map_err(|e| {
-                log::warn!("Failed to create channel: {:?}", e);
-                backoff::Error::transient(anyhow::Error::from(e))
-            })
-        };
-        let backoff = ExponentialBackoffBuilder::new()
-            .with_initial_interval(std::time::Duration::from_millis(100))
-            .with_max_interval(std::time::Duration::from_secs(5))
-            .with_max_elapsed_time(Some(std::time::Duration::from_secs(30)))
-            .build();
+        let create_channel = || async { self.connection.create_channel().await };
+        let backoff = retry::bounded_delay(
+            Duration::from_millis(100),
+            Duration::from_secs(5),
+            Duration::from_secs(30),
+        );
 
-        match backoff::future::retry(backoff, create_channel).await {
+        match create_channel
+            .retry(backoff)
+            .notify(|e, _| log::warn!("Failed to create channel: {:?}", e))
+            .await
+        {
             Ok(channel) => {
                 log::debug!("Successfully created channel");
                 Ok(channel)
@@ -86,6 +126,7 @@ pub struct RabbitMQDelivery {
     acker: Acker,
     data: Vec<u8>,
     delivery_tag: u64,
+    retry_attempt: u32,
 }
 
 impl MessageQueueDeliveryTrait for RabbitMQDelivery {
@@ -99,6 +140,10 @@ impl MessageQueueDeliveryTrait for RabbitMQDelivery {
 
     fn delivery_tag(&self) -> u64 {
         self.delivery_tag
+    }
+
+    fn retry_attempt(&self) -> u32 {
+        self.retry_attempt
     }
 }
 
@@ -115,6 +160,7 @@ impl MessageQueueReceiverTrait for RabbitMQReceiver {
                 acker: delivery.acker,
                 data: delivery.data,
                 delivery_tag: delivery.delivery_tag,
+                retry_attempt: retry_attempt_of(&delivery.properties),
             })))
         } else {
             None
@@ -143,39 +189,29 @@ impl RabbitMQ {
             publisher_channel_pool: pool,
         }
     }
-}
 
-impl MessageQueueTrait for RabbitMQ {
-    /// Publish a message to a RabbitMQ exchange.
-    /// It uses a channel from the pool to publish the message.
-    /// We use a channel from the pool to avoid creating a new channel for each message.
-    async fn publish(
+    /// Publish with pre-built properties, using a channel from the pool to avoid
+    /// creating a new channel for each message.
+    async fn publish_inner(
         &self,
         message: &[u8],
         exchange: &str,
         routing_key: &str,
-        ttl_ms: Option<u64>,
+        properties: BasicProperties,
     ) -> anyhow::Result<()> {
-        // Build properties with delivery_mode=2 (persistent) and optional TTL
-        let properties = BasicProperties::default().with_delivery_mode(2);
-        let properties = match ttl_ms {
-            Some(ttl) => properties.with_expiration(ShortString::from(ttl.to_string())),
-            None => properties,
-        };
-
         let publish_with_retry = || async {
             let channel = match self.publisher_channel_pool.get().await {
                 Ok(channel) => channel,
                 Err(PoolError::Backend(e)) => {
                     log::warn!("Failed to get channel from pool: {}", e);
-                    return Err(backoff::Error::transient(anyhow::anyhow!(
+                    return Err(PublishError::Transient(anyhow::anyhow!(
                         "Failed to get channel from pool: {}",
                         e
                     )));
                 }
                 Err(e) => {
                     log::error!("Pool error: {}", e);
-                    return Err(backoff::Error::permanent(anyhow::anyhow!(
+                    return Err(PublishError::Permanent(anyhow::anyhow!(
                         "Pool error: {}",
                         e
                     )));
@@ -185,7 +221,7 @@ impl MessageQueueTrait for RabbitMQ {
             // Check if channel is still connected before using it
             if !channel.status().connected() {
                 log::warn!("Channel is not connected, retrying...");
-                return Err(backoff::Error::transient(anyhow::anyhow!(
+                return Err(PublishError::Transient(anyhow::anyhow!(
                     "Channel is not connected"
                 )));
             }
@@ -204,23 +240,27 @@ impl MessageQueueTrait for RabbitMQ {
                     Ok(_confirmation) => Ok(()),
                     Err(e) => {
                         log::warn!("Failed to publish message promise: {:?}", e);
-                        Err(backoff::Error::transient(anyhow::Error::from(e)))
+                        Err(PublishError::Transient(anyhow::Error::from(e)))
                     }
                 },
                 Err(e) => {
                     log::warn!("Failed to get call promise from basic_publish: {:?}", e);
-                    Err(backoff::Error::transient(anyhow::Error::from(e)))
+                    Err(PublishError::Transient(anyhow::Error::from(e)))
                 }
             }
         };
 
-        let backoff = ExponentialBackoffBuilder::new()
-            .with_initial_interval(std::time::Duration::from_millis(100))
-            .with_max_interval(std::time::Duration::from_secs(2))
-            .with_max_elapsed_time(Some(std::time::Duration::from_secs(60)))
-            .build();
+        let backoff = retry::bounded_delay(
+            Duration::from_millis(100),
+            Duration::from_secs(2),
+            Duration::from_secs(60),
+        );
 
-        match backoff::future::retry(backoff, publish_with_retry).await {
+        match publish_with_retry
+            .retry(backoff)
+            .when(|e| matches!(e, PublishError::Transient(_)))
+            .await
+        {
             Ok(()) => Ok(()),
             Err(e) => {
                 log::error!("Failed to publish message after retries: {:?}", e);
@@ -230,6 +270,43 @@ impl MessageQueueTrait for RabbitMQ {
                 ))
             }
         }
+    }
+}
+
+impl MessageQueueTrait for RabbitMQ {
+    async fn publish(
+        &self,
+        message: &[u8],
+        exchange: &str,
+        routing_key: &str,
+        ttl_ms: Option<u64>,
+    ) -> anyhow::Result<()> {
+        // delivery_mode=2 is persistent
+        let properties = BasicProperties::default().with_delivery_mode(2);
+        let properties = match ttl_ms {
+            Some(ttl) => properties.with_expiration(ShortString::from(ttl.to_string())),
+            None => properties,
+        };
+
+        self.publish_inner(message, exchange, routing_key, properties)
+            .await
+    }
+
+    async fn publish_retry(
+        &self,
+        message: &[u8],
+        exchange: &str,
+        routing_key: &str,
+        ttl_ms: u64,
+        attempt: u32,
+    ) -> anyhow::Result<()> {
+        self.publish_inner(
+            message,
+            exchange,
+            routing_key,
+            retry_properties(ttl_ms, attempt),
+        )
+        .await
     }
 
     async fn get_receiver(
@@ -350,4 +427,43 @@ fn connection_state(status: &ConnectionStatus) -> String {
         "unknown"
     };
     s.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn retry_attempt_round_trips_through_message_properties() {
+        assert_eq!(retry_attempt_of(&retry_properties(30_000, 7)), 7);
+    }
+
+    #[test]
+    fn retry_attempt_of_a_first_delivery_is_zero() {
+        // Nothing published by `publish` carries the header.
+        let properties = BasicProperties::default().with_delivery_mode(2);
+        assert_eq!(retry_attempt_of(&properties), 0);
+
+        let mut headers = FieldTable::default();
+        headers.insert("x-death".into(), AMQPValue::LongUInt(4));
+        assert_eq!(
+            retry_attempt_of(&BasicProperties::default().with_headers(headers)),
+            0
+        );
+    }
+
+    #[test]
+    fn a_header_written_by_something_else_restarts_the_budget() {
+        // Not written by `retry_properties`, so the count is unusable. Restarting
+        // is the safe reading — it retries more, it doesn't drop early.
+        let mut wrong_type = FieldTable::default();
+        wrong_type.insert(
+            RETRY_ATTEMPT_HEADER.into(),
+            AMQPValue::LongString("3".into()),
+        );
+        assert_eq!(
+            retry_attempt_of(&BasicProperties::default().with_headers(wrong_type)),
+            0
+        );
+    }
 }

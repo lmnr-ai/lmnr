@@ -14,8 +14,8 @@
 use std::sync::Arc;
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+use ed25519_compact::SecretKey;
 use log::warn;
-use sodiumoxide::crypto::sign;
 
 use crate::cache::{Cache, CacheTrait, keys::DATA_PLANE_AUTH_TOKEN_CACHE_KEY};
 use crate::db::workspaces::WorkspaceDeployment;
@@ -28,7 +28,7 @@ const TOKEN_EXPIRATION_SECS: i64 = 900;
 /// Cache TTL - refresh token when 80% of lifetime has passed (12 minutes)
 const TOKEN_CACHE_TTL_SECS: u64 = 720;
 
-fn key_from_base64(config: &WorkspaceDeployment) -> Result<sign::SecretKey, String> {
+fn key_from_base64(config: &WorkspaceDeployment) -> Result<SecretKey, String> {
     let (Some(private_key_nonce), Some(private_key)) =
         (&config.private_key_nonce, &config.private_key)
     else {
@@ -42,8 +42,8 @@ fn key_from_base64(config: &WorkspaceDeployment) -> Result<sign::SecretKey, Stri
         .decode(&decrypted)
         .map_err(|e| format!("Invalid base64 in private key: {}", e))?;
 
-    sign::SecretKey::from_slice(&key_bytes)
-        .ok_or_else(|| "Invalid Ed25519 secret key (expected 64 bytes)".to_string())
+    SecretKey::from_slice(&key_bytes)
+        .map_err(|_| "Invalid Ed25519 secret key (expected 64 bytes)".to_string())
 }
 
 /// Generate a signed token for data plane authentication.
@@ -76,8 +76,8 @@ pub async fn generate_auth_token(
     let payload: String = format!("{}:{}:{}", config.workspace_id, now, expires_at);
     let payload_bytes = payload.as_bytes();
 
-    // Sign the payload
-    let signature = sign::sign_detached(payload_bytes, &signing_key);
+    // Sign the payload (deterministic Ed25519 — no noise, matching libsodium's crypto_sign_detached)
+    let signature = signing_key.sign(payload_bytes, None);
 
     // Encode as base64: payload.signature
     let token = format!(
@@ -98,4 +98,47 @@ pub async fn generate_auth_token(
     }
 
     Ok(token)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::data_plane::crypto::encrypt;
+    use crate::db::workspaces::DeploymentMode;
+    use uuid::Uuid;
+
+    /// Private keys are minted by the frontend with libsodium `crypto_sign_keypair` (64-byte
+    /// seed||pubkey, base64). Pinned vectors prove ed25519-compact loads them and produces
+    /// byte-identical detached signatures.
+    #[test]
+    fn signs_compatibly_with_libsodium() {
+        unsafe {
+            std::env::set_var(
+                crate::env::secrets::AEAD_SECRET_KEY,
+                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            );
+        }
+
+        // libsodium crypto_sign_seed_keypair(seed = [3u8; 32])
+        let sk_b64 = "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwPtSSjGKNHCxurpAziQWZVhKVknOlxj+TY2wUYUrIc30Q==";
+        let workspace_id = Uuid::nil();
+        let (nonce, encrypted) = encrypt(workspace_id, sk_b64).unwrap();
+
+        let signing_key = key_from_base64(&WorkspaceDeployment {
+            workspace_id,
+            mode: DeploymentMode::HYBRID,
+            private_key: Some(encrypted),
+            private_key_nonce: Some(nonce),
+            public_key: None,
+            data_plane_url: None,
+            data_plane_url_nonce: None,
+        })
+        .unwrap();
+
+        let signature = signing_key.sign(b"payload-to-sign", None);
+        assert_eq!(
+            base64::engine::general_purpose::STANDARD.encode(signature.as_ref()),
+            "W94/2rIYKW0koqs48hXzzaEcER581tZnJD/hBBlfjM2U0CEQ9DYtb8bPctp1/Om4EnuXgeENpQjDPLm93sL6CQ=="
+        );
+    }
 }

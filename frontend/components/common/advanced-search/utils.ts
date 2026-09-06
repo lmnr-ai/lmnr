@@ -2,13 +2,27 @@ import { type ColumnFilter, type TagFocusPosition } from "@/components/common/ad
 
 const FIELD_ORDER: TagFocusPosition[] = ["field", "operator", "value", "remove"];
 
-export const getNextField = (current: TagFocusPosition): TagFocusPosition | null => {
-  const index = FIELD_ORDER.indexOf(current);
-  return index < FIELD_ORDER.length - 1 ? FIELD_ORDER[index + 1] : null;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const isUuid = (value: string): boolean => UUID_REGEX.test(value.trim());
+
+// Single source of truth for "does this input resolve to the id suggestion",
+// shared by the suggestion list builder and the store's pre-selection so the
+// two can never drift apart.
+export const hasUuidSuggestion = (value: string, filters: ColumnFilter[], uuidFilterColumn?: string): boolean =>
+  !!uuidFilterColumn && isUuid(value) && filters.some((f) => f.key === uuidFilterColumn);
+
+// `skip` holds positions that render as static text (a single-option operator),
+// so arrow keys step over them instead of landing on nothing focusable.
+export const getNextField = (current: TagFocusPosition, skip: TagFocusPosition[] = []): TagFocusPosition | null => {
+  let index = FIELD_ORDER.indexOf(current) + 1;
+  while (index < FIELD_ORDER.length && skip.includes(FIELD_ORDER[index])) index++;
+  return index < FIELD_ORDER.length ? FIELD_ORDER[index] : null;
 };
-export const getPreviousField = (current: TagFocusPosition): TagFocusPosition | null => {
-  const index = FIELD_ORDER.indexOf(current);
-  return index > 0 ? FIELD_ORDER[index - 1] : null;
+export const getPreviousField = (current: TagFocusPosition, skip: TagFocusPosition[] = []): TagFocusPosition | null => {
+  let index = FIELD_ORDER.indexOf(current) - 1;
+  while (index >= 0 && skip.includes(FIELD_ORDER[index])) index--;
+  return index >= 0 ? FIELD_ORDER[index] : null;
 };
 
 export interface ValueSuggestion {
@@ -16,6 +30,12 @@ export interface ValueSuggestion {
   value: string;
   label?: string;
 }
+
+export const displayFilterValue = (columnFilter: ColumnFilter | undefined, value: string | string[]): string => {
+  const parts = Array.isArray(value) ? value : [String(value)];
+  if (columnFilter?.dataType !== "enum") return parts.join(", ");
+  return parts.map((part) => columnFilter.options.find((option) => option.value === part)?.label ?? part).join(", ");
+};
 
 export const buildValueSuggestions = (
   input: string,

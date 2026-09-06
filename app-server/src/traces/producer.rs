@@ -31,17 +31,23 @@ use crate::{
         ExportTracePartialSuccess, ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
     traces::{
+        input_extraction::SystemPromptIdentity,
         prompt_hash::{extract_system_message, prompt_hashes},
-        sp_versioning::producer::{StaticPromptCandidate, publish_static_prompt_candidates},
+        sp_versioning::{
+            producer::{StaticPromptCandidate, publish_static_prompt_candidates},
+            similarity as sp_similarity,
+        },
         span_attributes::{SPAN_AGENT_HASH, SPAN_PROMPT_HASH},
     },
 };
 
-/// System prompt of an LLM span with its two hashes: the skeleton (naive
-/// signature) and the first-sentence agent identity.
+/// System prompt of an LLM span with its hashes: the skeleton (naive
+/// signature), the first-sentence agent identity, and the byte-identity hash
+/// (memo key for classification, verdict-map key for the user-task regex).
 struct SystemPromptVerdict {
     skeleton_hash: String,
     agent_hash: String,
+    full_prompt_hash: String,
     text: String,
 }
 
@@ -76,7 +82,6 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
     convert_span_to_provider_format(span);
 
     let mut system_prompt = None;
-    let mut first_sentence_hash = None;
     if span.is_llm_span() {
         if let Some((system_text, _)) = span.input.as_ref().and_then(|v| extract_system_message(v))
         {
@@ -89,10 +94,10 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
                 SPAN_AGENT_HASH.to_string(),
                 serde_json::Value::String(hashes.first_sentence.clone()),
             );
-            first_sentence_hash = Some(hashes.first_sentence.clone());
             system_prompt = Some(SystemPromptVerdict {
                 skeleton_hash: hashes.skeleton,
                 agent_hash: hashes.first_sentence,
+                full_prompt_hash: sp_similarity::full_prompt_hash(&system_text),
                 text: system_text,
             });
         }
@@ -104,7 +109,10 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
     // prompt's XML scaffolding don't re-trigger regex generation.
     let user_task = crate::traces::input_extraction::capture_user_task_candidate(
         span,
-        first_sentence_hash.as_deref(),
+        system_prompt.as_ref().map(|sp| SystemPromptIdentity {
+            agent_hash: &sp.agent_hash,
+            full_prompt_hash: &sp.full_prompt_hash,
+        }),
     );
 
     // Tool dedup runs first so its source attributes are stripped before
@@ -183,6 +191,7 @@ pub async fn publish_span_messages(
                 span_id: msg.span.span_id,
                 prompt_hash: verdict.skeleton_hash,
                 agent_hash: verdict.agent_hash,
+                full_prompt_hash: verdict.full_prompt_hash,
                 system_prompt: verdict.text,
             });
         }
@@ -263,7 +272,12 @@ pub async fn publish_span_messages(
     // Static-prompt extraction candidates ride a separate queue and are
     // best-effort — only after the span publish succeeded, so a rejected
     // batch doesn't feed the accumulator with spans that were never stored.
-    publish_static_prompt_candidates(static_prompt_candidates, cache.clone(), queue.clone()).await;
+    // The returned verdicts are the versions this call resolved inline; the
+    // user-task hook below keys its regex cache on them, which is why the
+    // subset match runs on the ingest path at all.
+    let version_verdicts =
+        publish_static_prompt_candidates(static_prompt_candidates, cache.clone(), queue.clone())
+            .await;
 
     // Runs after the batch is on the wire so attribute mutation inside the
     // hook can't affect the published payload. Never fails ingestion.
@@ -289,6 +303,7 @@ pub async fn publish_span_messages(
     crate::traces::input_extraction::process_user_task_candidates(
         contexts,
         project_id,
+        version_verdicts,
         queue,
         db,
         cache,

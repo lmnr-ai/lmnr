@@ -24,6 +24,7 @@ export const googleThinkingModels = [
   "gemini:gemini-3.1-pro-preview",
   "gemini:gemini-3.1-flash-lite-preview",
   "gemini:gemini-3.5-flash",
+  "gemini:gemini-3.5-flash-lite",
 ] as const;
 
 export const googleProviderOptionsSettings: Record<
@@ -76,6 +77,12 @@ export const googleProviderOptionsSettings: Record<
     },
   },
   "gemini:gemini-3.5-flash": {
+    thinkingConfig: {
+      type: "level",
+      levels: ["minimal", "low", "medium", "high"],
+    },
+  },
+  "gemini:gemini-3.5-flash-lite": {
     thinkingConfig: {
       type: "level",
       levels: ["minimal", "low", "medium", "high"],

@@ -9,7 +9,7 @@ export function SelectionPanel({ selectedRowIds, onClearSelection, selectionPane
   if (selectedRowIds.length === 0) return null;
 
   return (
-    <div className="h-12 flex pl-4 pr-3 items-center border-primary/50 border rounded-lg absolute bottom-4 z-50 left-1/2 transform -translate-x-1/2 bg-surface-600 gap-2">
+    <div className="h-12 flex pl-4 pr-3 items-center border-primary/50 border rounded-lg absolute bottom-4 z-50 left-1/2 transform -translate-x-1/2 bg-surface-200 gap-2">
       <div className="flex gap-4 items-center">
         <Label>
           {`${selectedRowIds.length} ${selectedRowIds.length === 1 ? "row " : "rows "}`}

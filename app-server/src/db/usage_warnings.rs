@@ -1,20 +1,23 @@
 use std::{fmt::Display, time::Duration};
 
 use anyhow::Result;
-use backoff::ExponentialBackoffBuilder;
+use backon::{ExponentialBuilder, Retryable};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
+use crate::utils::retry;
+
 /// Retry a dedup-stamp write with exponential backoff. Losing this write means
 /// the next ingestion batch re-enqueues the same notification, so it's worth a
 /// few retries before giving up.
-fn notified_stamp_backoff() -> backoff::ExponentialBackoff {
-    ExponentialBackoffBuilder::new()
-        .with_initial_interval(Duration::from_millis(200))
-        .with_max_elapsed_time(Some(Duration::from_secs(5)))
-        .build()
+fn notified_stamp_backoff() -> ExponentialBuilder {
+    retry::bounded_delay(
+        Duration::from_millis(200),
+        Duration::from_secs(60),
+        Duration::from_secs(5),
+    )
 }
 
 #[derive(FromRow, Debug, Clone, Serialize, Deserialize)]
@@ -104,13 +107,13 @@ pub async fn get_usage_warnings_for_workspace(
 /// Mark a usage warning as notified now. Called by the notification worker after
 /// successfully delivering the notification.
 pub async fn mark_warning_as_notified(pool: &PgPool, warning_id: Uuid) -> Result<()> {
-    backoff::future::retry(notified_stamp_backoff(), || async {
+    (|| async {
         sqlx::query("UPDATE workspace_usage_warnings SET last_notified_at = NOW() WHERE id = $1")
             .bind(warning_id)
             .execute(pool)
             .await
-            .map_err(|e| backoff::Error::transient(anyhow::Error::from(e)))
     })
+    .retry(notified_stamp_backoff())
     .await?;
     Ok(())
 }
@@ -147,7 +150,7 @@ pub async fn mark_hard_limit_as_notified(
     workspace_id: Uuid,
     usage_item: &UsageItem,
 ) -> Result<()> {
-    backoff::future::retry(notified_stamp_backoff(), || async {
+    (|| async {
         sqlx::query(
             "INSERT INTO workspace_hard_limit_notifications (workspace_id, usage_item, last_notified_at)
              VALUES ($1, $2, NOW())
@@ -158,8 +161,8 @@ pub async fn mark_hard_limit_as_notified(
         .bind(usage_item.to_string())
         .execute(pool)
         .await
-        .map_err(|e| backoff::Error::transient(anyhow::Error::from(e)))
     })
+    .retry(notified_stamp_backoff())
     .await?;
     Ok(())
 }

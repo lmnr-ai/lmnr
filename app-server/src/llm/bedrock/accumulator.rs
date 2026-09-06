@@ -10,7 +10,7 @@ use crate::llm::models::{
 };
 
 #[derive(Default)]
-pub(super) struct BedrockStreamAccumulator {
+pub(crate) struct BedrockStreamAccumulator {
     blocks: Vec<BedrockBlock>,
     stop_reason: Option<String>,
     usage: Option<Value>,
@@ -32,7 +32,7 @@ enum BedrockBlock {
 }
 
 impl BedrockStreamAccumulator {
-    pub(super) fn ingest(
+    pub(crate) fn ingest(
         &mut self,
         value: &Value,
         chunk_tx: &UnboundedSender<ProviderStreamChunk>,
@@ -174,7 +174,7 @@ impl BedrockStreamAccumulator {
         }
     }
 
-    pub(super) fn into_response(self, model: &str) -> ProviderResponse {
+    pub(crate) fn into_response(self, model: &str) -> ProviderResponse {
         let mut parts = Vec::new();
         for block in self.blocks {
             match block {

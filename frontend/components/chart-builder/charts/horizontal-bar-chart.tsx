@@ -1,13 +1,13 @@
 import { ArrowUpRight } from "lucide-react";
 import React, { useMemo } from "react";
-import { Bar, BarChart as RechartsBarChart, LabelList, XAxis, YAxis } from "recharts";
+import { Bar, BarChart as RechartsBarChart, LabelList, Rectangle, XAxis, YAxis } from "recharts";
 
 import { type DisplayMode } from "@/components/chart-builder/types";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
 
 import { formatMetricValue } from "./format-value";
-import { calculateDisplayValue, createAxisFormatter, getChartMargins } from "./utils";
+import { calculateDisplayValue, createAxisFormatter } from "./utils";
 
 interface HorizontalBarChartProps {
   data: Record<string, any>[];
@@ -88,7 +88,7 @@ const HorizontalBarChart = ({
           barCategoryGap={0}
           layout="vertical"
           data={data}
-          margin={{ ...getChartMargins(), right: maxTextWidth }}
+          margin={{ right: maxTextWidth }}
         >
           <XAxis
             hide
@@ -104,7 +104,7 @@ const HorizontalBarChart = ({
             yAxisId={0}
             tickLine={false}
             axisLine={false}
-            tickMargin={8}
+            width="auto"
             dataKey={categoryColumn}
             tickFormatter={yAxisFormatter}
           />
@@ -136,13 +136,12 @@ const HorizontalBarChart = ({
                 dataKey={valueColumn}
                 fill={config.color}
                 shape={(props: any) => {
-                  const { payload, tooltipPayload, tooltipPosition, dataKey, ...svgProps } = props;
-                  const isClickable = onBarClick && (payload?.trace_id || payload?.id);
+                  const isClickable = onBarClick && (props.payload?.trace_id || props.payload?.id);
                   return (
-                    <rect
-                      {...svgProps}
+                    <Rectangle
+                      {...props}
+                      radius={4}
                       className={cn({ "hover:opacity-60 transition-opacity cursor-pointer": isClickable })}
-                      rx={4}
                     />
                   );
                 }}

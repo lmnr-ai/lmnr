@@ -1,11 +1,9 @@
 import { type ColumnDef } from "@tanstack/react-table";
 import { Check, X } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useMemo } from "react";
-import { shallow } from "zustand/shallow";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
-import { useSignalStoreContext } from "@/components/signal/store.tsx";
+import { useSignalTraceParams } from "@/components/signal/hooks/use-signal-trace-params";
 import { type SchemaField, type SchemaFieldType } from "@/components/signals/utils";
 import { renderSpanReferences, type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
 import { Badge } from "@/components/ui/badge";
@@ -86,13 +84,7 @@ function PayloadText({
   eventId: string;
   spanTypes?: Record<string, string>;
 }) {
-  const router = useRouter();
-  const pathName = usePathname();
-  const searchParams = useSearchParams();
-  const { setTraceId, setSpanId } = useSignalStoreContext(
-    (state) => ({ setTraceId: state.setTraceId, setSpanId: state.setSpanId }),
-    shallow
-  );
+  const [, setTraceParams] = useSignalTraceParams();
 
   const callbacks = useMemo<SpanReferenceCallbacks>(
     () => ({
@@ -100,21 +92,17 @@ function PayloadText({
       getSpanType: (uuid) => spanTypes?.[uuid] as SpanType | undefined,
       onSelectSpan: ({ traceId, spanId }) => {
         if (!traceId) return;
-        setTraceId(traceId);
-        setSpanId(spanId ?? null);
-
-        const params = new URLSearchParams(searchParams.toString());
-        params.set("traceId", traceId);
-        params.set("eventId", eventId);
-        if (spanId) {
-          params.set("spanId", spanId);
-        } else {
-          params.delete("spanId");
-        }
-        router.replace(`${pathName}?${params.toString()}`);
+        void setTraceParams(
+          {
+            traceId,
+            eventId,
+            spanId: spanId ?? null,
+          },
+          { history: "replace" }
+        );
       },
     }),
-    [router, pathName, searchParams, setTraceId, setSpanId, spanTypes, eventId]
+    [setTraceParams, spanTypes, eventId]
   );
 
   return <>{renderSpanReferences(text, callbacks) ?? text}</>;

@@ -136,6 +136,11 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         name: "gpt-5.5",
         label: "GPT-5.5",
       },
+      {
+        id: "openai:gpt-5.6",
+        name: "gpt-5.6",
+        label: "GPT-5.6",
+      },
     ],
   },
   {
@@ -216,6 +221,11 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         name: "claude-fable-5",
         label: "Claude Fable 5",
       },
+      {
+        id: "anthropic:claude-sonnet-5",
+        name: "claude-sonnet-5",
+        label: "Claude 5 Sonnet",
+      },
     ],
   },
   {
@@ -270,6 +280,11 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         id: "gemini:gemini-3.5-flash",
         name: "gemini-3.5-flash",
         label: "Gemini 3.5 Flash",
+      },
+      {
+        id: "gemini:gemini-3.5-flash-lite",
+        name: "gemini-3.5-flash-lite",
+        label: "Gemini 3.5 Flash Lite",
       },
     ],
   },

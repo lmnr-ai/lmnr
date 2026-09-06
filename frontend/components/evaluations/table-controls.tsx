@@ -84,6 +84,7 @@ export function EvaluationsTableControls({
           onChange={onSearchChange}
           storageKey={`evaluations-${projectId}`}
           filters={filters}
+          uuidFilterColumn="id"
           placeholder="Search evaluations..."
           className="w-full flex-1"
         />

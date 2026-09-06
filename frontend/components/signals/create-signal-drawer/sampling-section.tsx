@@ -27,8 +27,8 @@ export default function SamplingSection() {
               </TooltipTrigger>
               <TooltipContent side="right" className="max-w-60">
                 <p>
-                  When enabled, only a percentage of traces will be analyzed. Traces are sampled per user to ensure
-                  diverse coverage across different users.
+                  Specify a percentage of traces to be analyzed. Traces are sampled per user to ensure diverse coverage
+                  across different users.
                 </p>
               </TooltipContent>
             </Tooltip>

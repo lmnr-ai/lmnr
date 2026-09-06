@@ -109,10 +109,7 @@ export function InfiniteTableHead<TData extends RowData>({
                     )}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="relative z-50 min-w-32 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md"
-                >
+                <DropdownMenuContent align="end" className="relative z-50 min-w-32 overflow-hidden rounded-md border">
                   {header.column.getCanSort() && (
                     <>
                       <DropdownMenuItem

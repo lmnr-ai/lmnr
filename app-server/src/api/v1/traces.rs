@@ -12,7 +12,7 @@ use crate::{
     routes::types::ResponseResult,
     traces::{
         input_dedup::MessageDedup,
-        rate_limit::IngestionRateLimiter,
+        rate_limit::{IngestionRateLimiter, IngestionTransport},
         tool_dedup::ToolDedup,
         {opentelemetry_json::decode_export_trace_service_request, producer::push_spans_to_queue},
     },
@@ -70,7 +70,10 @@ pub async fn process_traces(
     // two transports draw from one quota. Checked before decode so a
     // rate-limited caller doesn't cost us the protobuf/JSON parse.
     if let Some(limiter) = rate_limiter.get_ref() {
-        if !limiter.check(&cache, project_api_key.project_id).await {
+        if !limiter
+            .check(&cache, project_api_key.project_id, IngestionTransport::Http)
+            .await
+        {
             return Ok(HttpResponse::TooManyRequests().finish());
         }
     }

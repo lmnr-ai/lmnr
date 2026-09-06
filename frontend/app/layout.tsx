@@ -1,6 +1,5 @@
 import "@/app/globals.css";
 import "@/app/scroll.css";
-
 import { type Metadata } from "next";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { type PropsWithChildren } from "react";

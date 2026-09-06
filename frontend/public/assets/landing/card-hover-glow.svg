@@ -1,0 +1,12 @@
+<svg preserveAspectRatio="none" overflow="visible" width="721.281" height="314.344" viewBox="0 0 721.281 314.344" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g filter="url(#cardHoverGlowBlur)">
+<path d="M549.391 139.307C388.977 139.307 224.001 50.8667 100 139.307V214.344H553.238C605.427 189.331 677.722 139.307 549.391 139.307Z" fill="#D0754E"/>
+</g>
+<defs>
+<filter id="cardHoverGlowBlur" x="0" y="0" width="721.281" height="314.344" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feGaussianBlur stdDeviation="50" result="effect1_foregroundBlur"/>
+</filter>
+</defs>
+</svg>

@@ -40,7 +40,7 @@ export default function PricingCard({
     <div
       className={cn(
         "flex flex-col gap-6 rounded h-full p-5",
-        isAccent ? "bg-primary-400" : "bg-surface-500",
+        isAccent ? "bg-primary-400" : "bg-surface-250",
         className
       )}
     >

@@ -1,6 +1,6 @@
 import { subSection } from "../../class-names";
+import LearnMoreLink from "../learn-more-link";
 import IntegrationsGrid from "./integrations-grid";
-import LearnMoreLink from "./learn-more-link";
 
 // Stacked full-width row: title at top, 3-col integrations grid + learn-more
 // below.

@@ -88,6 +88,13 @@ pub const CONFIRM_TIMEOUT_MS: NumEnv<u64> =
 /// Bounded queue depth between the per-partition readers and the batchers.
 /// This is the backpressure knob: when full, readers stop granting credit and
 /// the backlog stays on broker disk (exactly where we want it under burst).
+///
+/// NOTE: the client crate keeps its own delivery buffers UPSTREAM of this one —
+/// one channel per partition plus one combined per super stream, 10000 records
+/// each by default — which fill before this channel's backpressure reaches the
+/// broker. Our fork (see Cargo.toml) makes them configurable via
+/// `RABBITMQ_STREAM_CLIENT_CHANNEL_CAPACITY`, read directly by the crate (not
+/// registered here as a descriptor — a `NumEnv` default would not affect it).
 pub const CHANNEL_CAPACITY: NumEnv<usize> = NumEnv::new("RABBITMQ_STREAM_CHANNEL_CAPACITY", 256);
 
 /// Batcher tasks per stream consumer, one env var per stream so they tune

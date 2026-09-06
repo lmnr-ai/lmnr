@@ -1,11 +1,9 @@
-import { get } from "lodash";
 import { useParams, useSearchParams } from "next/navigation";
-import React, { useMemo } from "react";
+import React from "react";
 import useSWR from "swr";
 
 import { SpanControls } from "@/components/traces/span-controls";
 import SpanMessages from "@/components/traces/span-view/span-content";
-import HumanEvaluationScore from "@/components/traces/trace-view/human-evaluation-score";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,24 +18,13 @@ interface HumanEvaluatorSpanViewProps {
 }
 
 export function HumanEvaluatorSpanView({ spanId, traceId, onClose, isAlwaysSelectSpan }: HumanEvaluatorSpanViewProps) {
-  const { projectId, evaluationId: evaluationIdParams } = useParams();
+  const { projectId } = useParams();
   const searchParams = useSearchParams();
-  const evaluationId = (evaluationIdParams || searchParams.get("evaluationId")) as string | null;
   const datapointId = searchParams.get("datapointId");
   const { data: span, isLoading } = useSWR<Span>(
     `/api/projects/${projectId}/traces/${traceId}/spans/${spanId}`,
     swrFetcher
   );
-  const humanEvaluatorOptions = useMemo(() => {
-    try {
-      const options = get(span?.attributes, "lmnr.span.human_evaluator_options");
-      if (options) {
-        return JSON.parse(options) as { value: number; label: string }[];
-      }
-    } catch {
-      // Invalid JSON options, return undefined
-    }
-  }, [span?.attributes]);
 
   if (isLoading || !span) {
     return (
@@ -77,19 +64,6 @@ export function HumanEvaluatorSpanView({ spanId, traceId, onClose, isAlwaysSelec
           <TabsContent value="span" className="w-full h-full">
             <div className="flex flex-col h-full">
               <SpanMessages type="input" key={`${datapointId}-${spanId}`} span={span}></SpanMessages>
-              {datapointId && evaluationId && (
-                <div className="flex flex-col p-2 pt-0">
-                  <HumanEvaluationScore
-                    traceId={traceId}
-                    options={humanEvaluatorOptions}
-                    evaluationId={evaluationId as string}
-                    spanId={span.spanId}
-                    resultId={datapointId}
-                    name={span.name}
-                    projectId={projectId as string}
-                  />
-                </div>
-              )}
             </div>
           </TabsContent>
           <TabsContent value="attributes" className="h-full w-full">

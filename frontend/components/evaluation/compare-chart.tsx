@@ -48,7 +48,7 @@ export default function CompareChart({
               padding={{ left: 0, right: 0 }}
               tick={renderTick as never}
             />
-            <YAxis tickLine={false} axisLine={false} tickMargin={8} tickCount={3} />
+            <YAxis tickLine={false} axisLine={false} tickMargin={8} tickCount={3} width="auto" />
             <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
             <Bar dataKey="comparedHeight" fill="hsl(var(--chart-2))" radius={4} name="Compared" />
             <Bar dataKey="height" fill="hsl(var(--chart-1))" radius={4} name="Current" />

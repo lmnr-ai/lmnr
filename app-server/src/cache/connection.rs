@@ -3,9 +3,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use arc_swap::ArcSwap;
-use backoff::ExponentialBackoffBuilder;
+use backon::Retryable;
 use redis::aio::MultiplexedConnection;
 use tokio::sync::Notify;
+
+use crate::utils::retry;
 
 /// Self-healing wrapper around a `redis::aio::MultiplexedConnection`.
 ///
@@ -91,23 +93,16 @@ impl ResilientRedisConnection {
 
             // Never give up — a multi-minute Redis outage should still
             // converge to a healthy connection without a process restart.
-            let backoff = ExponentialBackoffBuilder::new()
-                .with_initial_interval(Duration::from_millis(500))
-                .with_max_interval(Duration::from_secs(30))
-                .with_max_elapsed_time(None)
-                .build();
+            let backoff = retry::unbounded(Duration::from_millis(500), Duration::from_secs(30));
 
             let label = self.label;
             let client = self.client.clone();
-            let result = backoff::future::retry(backoff, || {
+            let result = (|| {
                 let client = client.clone();
-                async move {
-                    dial(&client).await.map_err(|e| {
-                        log::warn!("Failed to redial Redis ({}): {:?}", label, e);
-                        backoff::Error::transient(e)
-                    })
-                }
+                async move { dial(&client).await }
             })
+            .retry(backoff)
+            .notify(|e, _| log::warn!("Failed to redial Redis ({}): {:?}", label, e))
             .await;
 
             match result {

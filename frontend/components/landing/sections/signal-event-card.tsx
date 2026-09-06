@@ -1,50 +1,54 @@
-import { ArrowUpRight, Bolt, Box, MessageCircle, X } from "lucide-react";
+import { Bolt, Boxes, MessageCircle, X } from "lucide-react";
 import { type ReactNode } from "react";
 
+import { withOpacity } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
-const SIGNAL_BORDER = "rgb(49 134 255 / 0.6)";
-const SIGNAL_BG = "rgb(49 134 255 / 0.12)";
+import { DEMO_ANSWER_SPAN_ID, DEMO_FAILED_FETCH_SPAN_ID, DEMO_LAST_SEARCH_SPAN_ID } from "./demo-trace";
+import { SIGNAL_CLUSTER_COLOR, SIGNAL_CLUSTER_EVENT_COUNT, SIGNAL_CLUSTER_NAME } from "./signal-cluster";
 
-// Real spans inside trace f4a22e85-089a-0959-fd1e-3002e236e42f (opencode
-// REST-client scaffold trace). Each chip points at the span that materialises
-// the issue described in the surrounding prose.
-//
-// FLAG: these IDs are load-bearing — they're referenced by the auto-select
-// + flash trigger in trace-bento.tsx. If the trace_id in
-// `understand-why-trace-view/index.tsx` changes, re-derive these and the
-// matching IDs in ask-ai.tsx from the new trace, or the chips will point
-// at spans that don't exist in the rendered transcript.
-//
-// All four spans sit at top level under the `opencode turn` root — no
-// subagent reveal required. `selectAndRevealSpan` in trace-bento still
-// routes through `useSelectAndRevealSpan` for the timeline-link case, but
-// the signal chips here would resolve via `selectSpanById` directly.
-export const SIGNAL_PLAN_LLM_SPAN_ID = "00000000-0000-0000-5d0e-4970807b7819";
-export const SIGNAL_PYTHON_NOT_FOUND_SPAN_ID = "00000000-0000-0000-038c-8b88bf836ac3";
-export const SIGNAL_PARALLEL_CANCEL_SPAN_ID = "00000000-0000-0000-29df-c05ef26d7cd7";
-export const SIGNAL_CWD_DRIFT_READ_SPAN_ID = "00000000-0000-0000-0cc6-1af923a75a8e";
+// Literal values, not `var(--color-*)` — the landing trace panel animates the
+// card open with framer, which can't tween CSS variable references.
+export const SIGNAL_BORDER = "rgb(49 134 255 / 0.6)";
+export const SIGNAL_BG = "rgb(49 134 255 / 0.12)";
+
+/** The card's width at the base breakpoint: the trace panel's 400 less the
+ *  header's `px-2` gutters. The panel widens at 2xl, so the desktop stack
+ *  MEASURES the live card instead and this is only its seed — the two must agree
+ *  or the card resizes at the frame the flight hands over. */
+export const SIGNAL_CARD_W = 384;
+
+/** The cluster pill's box height, and the morph's collapse target. A CONSTANT,
+ *  not the measured pill, which would disagree for a frame while fonts settle:
+ *  icon (20) + py-1.5 (12) + border (2). NOT a header row height — it used to
+ *  double as one and left ~9px of dead air around every card title. */
+export const SIGNAL_HEADER_H = 34;
+
+/** The SIGNAL's name, as the card's headline. NOT the cluster name: a cluster
+ *  only exists once enough events have grouped together, which is what the
+ *  collapse-to-pill animation depicts. */
+export const SIGNAL_EVENT_TITLE = "Failure detector";
+
+/** What this particular event caught, as a sentence. Split from the title
+ *  because ./slack-notification-card opens its message body with it, where a
+ *  signal's NAME would read as a fragment. */
+export const SIGNAL_EVENT_SUMMARY = "Answered without citing a source";
 
 interface SpanChipProps {
   iconBg: string;
   icon: ReactNode;
   label: string;
   spanId?: string;
-  flashSpanId?: string;
   onClick?: (spanId: string) => void;
 }
 
 // Renders inline inside the payload paragraph. Chip is a <button> when an
 // `onClick` is wired in, otherwise renders as a static <span> (mobile path
-// has no trace-view store to wire selection into). Flash class is a small
-// pulse keyed on `flashSpanId === spanId` and consumed by globals.css's
-// `signal-span-flash` keyframe.
-const SpanChip = ({ iconBg, icon, label, spanId, flashSpanId, onClick }: SpanChipProps) => {
-  const isFlashing = !!spanId && flashSpanId === spanId;
+// has no trace-view store to wire selection into).
+const SpanChip = ({ iconBg, icon, label, spanId, onClick }: SpanChipProps) => {
   const className = cn(
     "inline-flex items-center gap-1 rounded border border-foreground-200/15 bg-foreground-200/15 pl-0.5 pr-1.5 py-0.5 align-middle transition-colors",
-    onClick && "cursor-pointer hover:bg-foreground-200/25",
-    isFlashing && "signal-span-flash"
+    onClick && "cursor-pointer hover:bg-foreground-200/25"
   );
   const inner = (
     <>
@@ -63,103 +67,102 @@ const SpanChip = ({ iconBg, icon, label, spanId, flashSpanId, onClick }: SpanChi
 };
 
 interface SignalContentProps {
-  // Wired by the desktop trace-bento path. Selecting a span via the store
+  // Wired by the desktop trace-panel path. Selecting a span via the store
   // drives both the transcript scroll-to and the row's selected styling.
   onSpanClick?: (spanId: string) => void;
-  // When matches one of the span IDs below, that chip pulses for ~1s to
-  // grab the user's attention. Cleared by the trigger after the auto-select.
-  flashSpanId?: string;
-  // Wired by the desktop trace-bento path to close the signal panel.
+  // Wired by the desktop trace-panel path to close the signal panel.
   // Omitted on mobile — the X stays as a static icon.
   onClose?: () => void;
 }
 
-// Signal event card inner content. No outer frame — callers wrap it (static
-// border/bg here, animated wrapper in slack-to-signal-morph).
-// Copy summarises the 4 real failure-points from trace
-// f4a22e85-089a-0959-fd1e-3002e236e42f (opencode REST-client scaffold). The
-// first chip — ai.streamText.doStream — points at the top-level verify LLM
-// where the agent *reasoned* itself into a PATH assumption; the other three
-// chips are the downstream tool consequences. Clicking any chip drives the
-// transcript scroll + selection.
-export const SignalContent = ({ onSpanClick, flashSpanId, onClose }: SignalContentProps = {}) => {
-  const chipProps = { onSpanClick, flashSpanId };
-  return (
-    <div className="w-full flex flex-col px-3 py-2 gap-2">
-      <div className="flex items-center justify-between gap-2">
-        {/* (cube, label, arrow) is decorative — signals the row would be
-            clickable in the real product. The wrapper gets the X's flex
-            sibling treatment so X stays pinned right via justify-between. */}
-        <div className="flex items-center gap-1.5 min-w-0 rounded-full border border-foreground-600 px-2 py-1">
-          <Box className="size-3.5 shrink-0 text-primary-200" strokeWidth={2} />
-          <span className="text-white text-xs leading-none whitespace-nowrap">Agent run hit avoidable failures</span>
-          <ArrowUpRight className="size-3.5 shrink-0 text-foreground-300" strokeWidth={2} />
-        </div>
-        {onClose ? (
-          <button
-            type="button"
-            onClick={onClose}
-            className="shrink-0 rounded p-0.5 text-foreground-300 hover:text-foreground-200 transition-colors"
-            aria-label="Close signal panel"
-          >
-            <X className="size-4" strokeWidth={1.5} />
-          </button>
-        ) : (
-          <X className="size-4 shrink-0 text-foreground-300" strokeWidth={1.5} />
-        )}
-      </div>
+// The cluster this event was grouped into. Its icon is drawn here rather than
+// via the production `ClusterIcon`, which pins itself in a `size-4` box: a
+// standalone badge wants a bigger glyph than a dense list row. Any size change
+// must be mirrored in SIGNAL_HEADER_H, the box the card collapses onto.
+export const ClusterPill = () => (
+  <div className="flex items-center gap-2 min-w-0 rounded-full border border-foreground-600 bg-white/5 px-2.5 py-1.5">
+    <Boxes
+      className="size-5 shrink-0"
+      fill={withOpacity(SIGNAL_CLUSTER_COLOR, 0.1)}
+      stroke={withOpacity(SIGNAL_CLUSTER_COLOR, 0.7)}
+      strokeWidth={1}
+    />
+    <span className="text-white text-xs leading-none whitespace-nowrap">{SIGNAL_CLUSTER_NAME}</span>
+    {/* Events in the cluster — the count of cards that collapsed into it. */}
+    <span className="text-foreground-300 text-xs leading-none tabular-nums shrink-0">{SIGNAL_CLUSTER_EVENT_COUNT}</span>
+  </div>
+);
 
-      <p className="text-foreground-300 text-xs leading-5">
-        Agent run flagged 4 issues. In one{" "}
-        <SpanChip
-          iconBg="bg-llm"
-          icon={<MessageCircle className="size-3 text-white" strokeWidth={2} />}
-          label="ai.streamText.doStream"
-          spanId={SIGNAL_PLAN_LLM_SPAN_ID}
-          onClick={chipProps.onSpanClick}
-          flashSpanId={chipProps.flashSpanId}
-        />{" "}
-        the agent decided to run <code className="text-foreground-200">python</code> (macOS only ships{" "}
-        <code className="text-foreground-200">python3</code>),{" "}
-        <SpanChip
-          iconBg="bg-tool"
-          icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
-          label="bash"
-          spanId={SIGNAL_PYTHON_NOT_FOUND_SPAN_ID}
-          onClick={chipProps.onSpanClick}
-          flashSpanId={chipProps.flashSpanId}
-        />{" "}
-        then hit <code className="text-foreground-200">command not found</code> three times before recovering, a
-        parallel{" "}
-        <SpanChip
-          iconBg="bg-tool"
-          icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
-          label="bash"
-          spanId={SIGNAL_PARALLEL_CANCEL_SPAN_ID}
-          onClick={chipProps.onSpanClick}
-          flashSpanId={chipProps.flashSpanId}
-        />{" "}
-        pair cascade-cancelled, and{" "}
-        <SpanChip
-          iconBg="bg-tool"
-          icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
-          label="read"
-          spanId={SIGNAL_CWD_DRIFT_READ_SPAN_ID}
-          onClick={chipProps.onSpanClick}
-          flashSpanId={chipProps.flashSpanId}
-        />{" "}
-        missed when the shell CWD drifted after a <code className="text-foreground-200">cd</code>.
-      </p>
+// The card's payload, split out of SignalContent so the clusters animation can
+// collapse it away independently of the pill. Each chip points at the span that
+// materialises its claim, and clicking one scrolls the transcript to it.
+export const SignalCardBody = ({ onSpanClick }: Omit<SignalContentProps, "onClose"> = {}) => (
+  <p className="text-foreground-300 text-xs leading-5">
+    The agent ran{" "}
+    <SpanChip
+      iconBg="bg-tool"
+      icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
+      label="web_search"
+      spanId={DEMO_LAST_SEARCH_SPAN_ID}
+      onClick={onSpanClick}
+    />{" "}
+    three times for the same question, carried on past a <code className="text-foreground-200">404</code> from{" "}
+    <SpanChip
+      iconBg="bg-tool"
+      icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
+      label="fetch_page"
+      spanId={DEMO_FAILED_FETCH_SPAN_ID}
+      onClick={onSpanClick}
+    />{" "}
+    without retrying, then{" "}
+    <SpanChip
+      iconBg="bg-llm"
+      icon={<MessageCircle className="size-3 text-white" strokeWidth={2} />}
+      label="ai.llm"
+      spanId={DEMO_ANSWER_SPAN_ID}
+      onClick={onSpanClick}
+    />{" "}
+    answered from a snippet without linking the page it read.
+  </p>
+);
+
+// Signal event card inner content. No outer frame — callers wrap it (static
+// border/bg here; the landing trace panel supplies its own animated wrapper).
+export const SignalContent = ({ onSpanClick, onClose }: SignalContentProps = {}) => (
+  <div className="w-full flex flex-col px-3 py-2 gap-0.5">
+    {/* Natural height. It used to be pinned to SIGNAL_HEADER_H so this card and
+        the morphing one shared a header box, but that constant is the PILL's
+        height — 34px around a 12px title, which is ~9px of dead air above and
+        below it. The morph now centres its pill on the card instead, so both
+        header rows can just be as tall as their content. */}
+    <div className="flex items-center justify-between gap-2">
+      {/* Same size as the body below it — weight and colour already carry the
+          hierarchy, so a larger title only adds a gap under the header. */}
+      <span className="text-xs font-medium text-white truncate">{SIGNAL_EVENT_TITLE}</span>
+      {onClose ? (
+        <button
+          type="button"
+          onClick={onClose}
+          className="shrink-0 rounded p-0.5 text-foreground-300 hover:text-foreground-200 transition-colors"
+          aria-label="Close signal panel"
+        >
+          <X className="size-4" strokeWidth={1.5} />
+        </button>
+      ) : (
+        <X className="size-4 shrink-0 text-foreground-300" strokeWidth={1.5} />
+      )}
     </div>
-  );
-};
+
+    <SignalCardBody onSpanClick={onSpanClick} />
+  </div>
+);
 
 interface Props {
   className?: string;
 }
 
 // Static signal-event card (no morph). Used on mobile where each card is
-// rendered standalone instead of cross-fading via the morph wrapper.
+// rendered standalone rather than animated open inside a trace panel.
 const SignalEventCard = ({ className }: Props) => (
   <div
     style={{ borderColor: SIGNAL_BORDER, backgroundColor: SIGNAL_BG }}

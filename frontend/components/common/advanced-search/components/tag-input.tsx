@@ -3,6 +3,7 @@
 import { X } from "lucide-react";
 import {
   type InputHTMLAttributes,
+  Fragment,
   type KeyboardEvent,
   type Ref,
   useCallback,
@@ -25,6 +26,11 @@ interface TagInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "onC
   onComplete?: () => void;
   suggestions: string[];
   open?: boolean;
+  // Standalone field: keep input mounted; drive dropdown off focus+typing.
+  alwaysEditable?: boolean;
+  joinLabel?: string;
+  inputClassName?: string;
+  chipClassName?: string;
   onNavigateLeft?: () => void;
   onNavigateRight?: () => void;
   ref?: Ref<FocusableRef>;
@@ -39,6 +45,10 @@ const TagInput = ({
   placeholder = "...",
   className,
   open = false,
+  alwaysEditable = false,
+  joinLabel,
+  inputClassName,
+  chipClassName,
   onNavigateLeft,
   onNavigateRight,
   ref,
@@ -54,6 +64,7 @@ const TagInput = ({
   const [prevShowDropdown, setPrevShowDropdown] = useState(false);
   const [prevSuggestionsLength, setPrevSuggestionsLength] = useState(0);
   const [focusedTagIndex, setFocusedTagIndex] = useState<number | null>(null);
+  const [inputFocused, setInputFocused] = useState(false);
   const tagRefs = useRef<(HTMLSpanElement | null)[]>([]);
 
   const autosizeRef = useSizeInput(inputValue);
@@ -75,7 +86,9 @@ const TagInput = ({
     .filter((s) => !values.includes(s))
     .filter((s) => !inputValue || s.toLowerCase().includes(inputValue.toLowerCase()));
 
-  const showDropdown = open && filteredSuggestions.length > 0;
+  // alwaysEditable: wait for typing; in-tag (`open`): show while editing
+  const showDropdown =
+    (alwaysEditable ? inputFocused && inputValue.trim().length > 0 : open) && filteredSuggestions.length > 0;
 
   if (showDropdown !== prevShowDropdown || filteredSuggestions.length !== prevSuggestionsLength) {
     setPrevShowDropdown(showDropdown);
@@ -126,6 +139,7 @@ const TagInput = ({
 
   const handleContainerBlur = useCallback(
     (e: React.FocusEvent) => {
+      setInputFocused(false);
       if (containerRef.current?.contains(e.relatedTarget as Node)) {
         return;
       }
@@ -267,51 +281,65 @@ const TagInput = ({
       ref={containerRef}
       className={cn("relative flex items-center gap-1 px-1", className)}
       onBlur={handleContainerBlur}
+      onClick={(e) => {
+        // Don't steal focus from value chips (keyboard remove/nav needs chip focus).
+        if ((e.target as HTMLElement).closest("[data-tag-chip]")) return;
+        inputRef.current?.focus();
+      }}
     >
       <>
         {values.map((value, index) => (
-          <span
-            key={value}
-            ref={(el) => {
-              tagRefs.current[index] = el;
-            }}
-            tabIndex={0}
-            onKeyDown={(e) => handleTagKeyDown(e, index)}
-            onFocus={() => setFocusedTagIndex(index)}
-            onBlur={() => setFocusedTagIndex(null)}
-            className={cn(
-              "inline-flex items-center gap-0.5 px-1 py-0.25 text-xs rounded bg-muted text-secondary-foreground outline-none",
-              focusedTagIndex === index && "ring-1 ring-primary"
+          <Fragment key={value}>
+            {joinLabel && index > 0 && (
+              <span className="text-[11px] text-muted-foreground select-none">{joinLabel}</span>
             )}
-          >
-            <span className="truncate max-w-24">{value}</span>
-            <button
-              type="button"
-              tabIndex={-1}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleRemoveValue(value);
+            <span
+              data-tag-chip
+              ref={(el) => {
+                tagRefs.current[index] = el;
               }}
-              onMouseDown={(e) => e.preventDefault()}
-              className="ml-0.5 hover:text-foreground focus:outline-none"
+              tabIndex={0}
+              onKeyDown={(e) => handleTagKeyDown(e, index)}
+              onFocus={() => setFocusedTagIndex(index)}
+              onBlur={() => setFocusedTagIndex(null)}
+              className={cn(
+                "inline-flex items-center gap-0.5 px-1 py-0.25 text-xs rounded-md bg-muted text-secondary-foreground outline-none",
+                focusedTagIndex === index && "ring-1 ring-primary",
+                chipClassName
+              )}
             >
-              <X className="w-3 h-3" />
-            </button>
-          </span>
+              <span className="truncate max-w-24">{value}</span>
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRemoveValue(value);
+                }}
+                onMouseDown={(e) => e.preventDefault()}
+                className="ml-0.5 hover:text-foreground focus:outline-none"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          </Fragment>
         ))}
       </>
-      {(open || values.length === 0) && (
-        <div className="relative">
+      {(alwaysEditable || open || values.length === 0) && (
+        <div className={cn("relative", alwaysEditable && "flex-1 min-w-0")}>
           <input
-            ref={combinedInputRef}
+            ref={alwaysEditable ? inputRef : combinedInputRef}
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleInputKeyDown}
+            onFocus={() => setInputFocused(true)}
             placeholder={placeholder}
             className={cn(
               "h-5 py-0 text-xs bg-transparent outline-none text-primary",
-              "placeholder:text-primary/50 min-w-4 px-1"
+              "placeholder:text-primary/50 min-w-4 px-1",
+              alwaysEditable && "w-full",
+              inputClassName
             )}
             {...props}
           />

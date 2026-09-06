@@ -56,6 +56,7 @@ export default function SignalSparkline({ data, maxCount, isLoading }: SignalSpa
         <LineChart width={width} height={40} data={data} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
           <YAxis domain={[0, Math.max(maxCount ?? 1, 1)]} hide />
           <Line
+            activeDot={false}
             type="linear"
             dataKey="count"
             stroke="hsl(var(--primary))"

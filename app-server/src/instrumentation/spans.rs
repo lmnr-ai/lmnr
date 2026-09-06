@@ -83,7 +83,13 @@ impl InternalSpan {
     /// `None` leaves the span as whatever `info_span!` made it (a fresh root when `parent: None`).
     pub fn parent(self, parent: Option<SpanContextCarrier>) -> Self {
         if let Some(parent) = parent {
-            self.span.set_parent(parent.as_remote_context());
+            if let Err(e) = self.span.set_parent(parent.as_remote_context()) {
+                log::warn!(
+                    "Failed to set parent for internal span {:?}. Error: {:?}",
+                    self.span.id(),
+                    e
+                )
+            }
         }
         self
     }

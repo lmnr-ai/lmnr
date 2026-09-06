@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use backoff::ExponentialBackoffBuilder;
+use backon::Retryable;
 use resend_rs::Resend;
 use resend_rs::types::{CreateAttachment, CreateEmailBaseOptions};
 use serde::{Deserialize, Serialize};
@@ -19,6 +19,7 @@ use crate::ch::notification_deliveries::CHNotificationDelivery;
 use crate::ch::service::ClickhouseService;
 use crate::db::DB;
 use crate::mq::{MessageQueue, MessageQueueTrait};
+use crate::utils::retry;
 use crate::worker::{HandlerError, MessageHandler};
 
 // ── Notification deliveries queue (notifications_consumer → deliveries_consumer) ──
@@ -278,23 +279,15 @@ async fn send_email_with_retry(
     resend: &Resend,
     email: CreateEmailBaseOptions,
 ) -> resend_rs::Result<resend_rs::types::CreateEmailResponse> {
-    let backoff = ExponentialBackoffBuilder::new()
-        .with_initial_interval(Duration::from_secs(1))
-        .with_max_elapsed_time(Some(Duration::from_secs(10)))
-        .build();
+    let backoff = retry::bounded_delay(
+        Duration::from_secs(1),
+        Duration::from_secs(60),
+        Duration::from_secs(10),
+    );
 
-    backoff::future::retry(backoff, || async {
-        resend
-            .emails
-            .send(email.clone())
-            .await
-            .map_err(|e| match &e {
-                resend_rs::Error::RateLimit { .. } => {
-                    log::info!("[NotificationDelivery] Rate limited, will retry");
-                    backoff::Error::transient(e)
-                }
-                _ => backoff::Error::permanent(e),
-            })
-    })
-    .await
+    (|| async { resend.emails.send(email.clone()).await })
+        .retry(backoff)
+        .when(|e| matches!(e, resend_rs::Error::RateLimit { .. }))
+        .notify(|_, _| log::info!("[NotificationDelivery] Rate limited, will retry"))
+        .await
 }

@@ -70,7 +70,7 @@ use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use backoff::{ExponentialBackoffBuilder, backoff::Backoff};
+use backon::{BackoffBuilder, Retryable};
 use futures_util::StreamExt;
 use rabbitmq_stream_client::{
     Client,
@@ -84,6 +84,7 @@ use uuid::Uuid;
 use super::encoding;
 use super::topology::StreamEnvironment;
 use crate::env;
+use crate::utils::retry;
 use crate::worker::HandlerError;
 
 /// Escalate the transient-retry log from `warn` to `error` every N attempts.
@@ -459,20 +460,20 @@ impl<H: StreamBatchHandler> StreamReader<H> {
 /// the fresh activation's direct query gives the authoritative answer. Bounded
 /// because the broker is waiting on our activation response.
 ///
-/// Drives `ExponentialBackoff` manually via `Backoff::next_backoff` rather than
-/// `backoff::future::retry`: the caller lives inside the client's
-/// `consumer_update` closure, whose future must be `Sync`, which the combinator's
-/// closure isn't. `next_backoff` still owns the schedule — jitter and the
-/// `max_elapsed_time` budget (it returns `None` once exhausted) — so this is the
-/// crate's policy, just stepped by hand.
+/// Steps the `backon` schedule by hand rather than going through `Retryable`:
+/// the caller lives inside the client's `consumer_update` closure, whose future
+/// must be `Sync`, which the combinator's isn't. The built iterator still owns
+/// the schedule — jitter and the sleep budget (it ends once exhausted) — so this
+/// is the crate's policy, just stepped by hand.
 async fn retry_query_offset(context: &MessageContext) -> Option<u64> {
-    let mut backoff = ExponentialBackoffBuilder::new()
-        .with_initial_interval(Duration::from_millis(200))
-        .with_max_interval(Duration::from_secs(2))
-        .with_max_elapsed_time(Some(OFFSET_QUERY_RETRY_BUDGET))
-        .build();
+    let mut backoff = retry::bounded_delay(
+        Duration::from_millis(200),
+        Duration::from_secs(2),
+        OFFSET_QUERY_RETRY_BUDGET,
+    )
+    .build();
 
-    while let Some(delay) = backoff.next_backoff() {
+    while let Some(delay) = backoff.next() {
         tokio::time::sleep(delay).await;
 
         match context
@@ -676,15 +677,13 @@ async fn flush_and_commit<H: StreamBatchHandler>(
 
     let messages: Vec<H::Message> = entries.into_iter().map(|(_, message)| message).collect();
 
-    // No `max_elapsed_time`: transient retries are unbounded (see fn docs).
-    let backoff = ExponentialBackoffBuilder::new()
-        .with_initial_interval(Duration::from_millis(200))
-        .with_max_interval(Duration::from_secs(10))
-        .with_max_elapsed_time(None)
-        .build();
+    // Unbounded: transient retries must never expire (see fn docs).
+    let backoff = retry::unbounded(Duration::from_millis(200), Duration::from_secs(10));
 
     let mut attempt = 0u32;
-    let outcome = backoff::future::retry(backoff, || {
+    // Logging stays inside the closure rather than in `.notify()`: it needs the
+    // mutable attempt counter, which a second closure can't also borrow.
+    let outcome = (|| {
         let handler = handler.clone();
         let messages = &messages;
         attempt += 1;
@@ -707,15 +706,17 @@ async fn flush_and_commit<H: StreamBatchHandler>(
                     } else {
                         log::warn!("Stream batcher {} flush failed transiently: {}", index, e);
                     }
-                    Err(backoff::Error::transient(e))
+                    Err(HandlerError::Transient(e))
                 }
                 Err(HandlerError::Permanent(e)) => {
                     log::error!("Stream batcher {} flush failed permanently: {}", index, e);
-                    Err(backoff::Error::permanent(e))
+                    Err(HandlerError::Permanent(e))
                 }
             }
         }
     })
+    .retry(backoff)
+    .when(HandlerError::should_requeue)
     .await;
 
     if let Err(e) = outcome {
@@ -1081,14 +1082,11 @@ mod tests {
     /// "offsets never advance on transient" true.
     #[test]
     fn transient_retry_budget_is_unbounded() {
-        let backoff = ExponentialBackoffBuilder::new()
-            .with_initial_interval(Duration::from_millis(200))
-            .with_max_interval(Duration::from_secs(10))
-            .with_max_elapsed_time(None)
-            .build();
+        let mut backoff =
+            retry::unbounded(Duration::from_millis(200), Duration::from_secs(10)).build();
 
         assert!(
-            backoff.max_elapsed_time.is_none(),
+            backoff.nth(100_000).is_some(),
             "a bounded budget would drop spans the quorum queue would have requeued"
         );
     }
@@ -1166,37 +1164,35 @@ mod tests {
         assert!(should_flush(128, 128, false, true));
     }
 
-    /// `retry_query_offset` steps `ExponentialBackoff` by hand (the combinator
+    /// `retry_query_offset` steps the `backon` schedule by hand (the combinator
     /// can't satisfy `consumer_update`'s `Sync` bound), so assert the crate still
-    /// owns the schedule: delays respect `max_interval`, and the loop terminates
-    /// once `max_elapsed_time` is spent — that termination is what makes the
-    /// caller's "give up and replay from retention" arm reachable.
+    /// owns the schedule: delays respect `max_delay`, and the iterator ends once
+    /// the sleep budget is spent — that termination is what makes the caller's
+    /// "give up and replay from retention" arm reachable.
     ///
-    /// NOTE the crate measures `max_elapsed_time` on the REAL clock
-    /// (`Instant::now()`), not tokio's virtual clock, so the loop only terminates
-    /// because the production code sleeps between attempts. This test sleeps for
-    /// the same reason and uses a deliberately small budget; polling
-    /// `next_backoff` without sleeping never terminates.
-    #[tokio::test]
-    async fn offset_query_backoff_is_crate_driven_and_terminates() {
-        let max_interval = Duration::from_millis(100);
-        let mut backoff = ExponentialBackoffBuilder::new()
-            .with_initial_interval(Duration::from_millis(50))
-            .with_max_interval(max_interval)
-            .with_max_elapsed_time(Some(Duration::from_millis(300)))
-            .build();
+    /// The budget is the SUM OF YIELDED DELAYS, tracked by the iterator itself,
+    /// so it terminates whether or not the caller actually sleeps — unlike
+    /// `backoff`'s real-clock `max_elapsed_time`, which this used to depend on.
+    #[test]
+    fn offset_query_backoff_is_crate_driven_and_terminates() {
+        let max_delay = Duration::from_millis(100);
+        let backoff = retry::bounded_delay(
+            Duration::from_millis(50),
+            max_delay,
+            Duration::from_millis(300),
+        )
+        .build();
 
         let mut attempts = 0;
-        while let Some(delay) = backoff.next_backoff() {
-            // Jitter is applied on top of the interval (±randomization_factor),
-            // so the ceiling is max_interval * 1.5, not max_interval.
+        for delay in backoff {
+            // `backon` jitters UP only (`[d, 2d)`) and does so AFTER the
+            // `max_delay` clamp, so the realized ceiling is `max_delay * 2`.
             assert!(
-                delay <= max_interval.mul_f64(1.5),
-                "delay {:?} exceeded max_interval {:?} plus jitter",
+                delay < max_delay * 2,
+                "delay {:?} exceeded max_delay {:?} plus jitter",
                 delay,
-                max_interval
+                max_delay
             );
-            tokio::time::sleep(delay).await;
             attempts += 1;
             assert!(attempts < 100, "backoff should terminate on its budget");
         }

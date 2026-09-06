@@ -17,6 +17,10 @@ pub const NUM_SP_REGEX_EXTRACTION: NumEnv<usize> =
     NumEnv::new("NUM_SP_REGEX_EXTRACTION_WORKERS", 2);
 
 pub const NUM_INPUT_EXTRACTION: NumEnv<usize> = NumEnv::new("NUM_INPUT_EXTRACTION_WORKERS", 2);
+/// Separate from `NUM_INPUT_EXTRACTION` because an agent run takes minutes
+/// while a per-trace extraction takes seconds — sharing one queue would block
+/// the fast path behind the slow one.
+pub const NUM_USER_TASK_REGEX: NumEnv<usize> = NumEnv::new("NUM_USER_TASK_REGEX_WORKERS", 2);
 
 pub const NUM_NOTIFICATION: NumEnv<usize> = NumEnv::new("NUM_NOTIFICATION_WORKERS", 2);
 pub const NUM_NOTIFICATION_DELIVERY: NumEnv<usize> =
@@ -39,6 +43,11 @@ pub const NUM_SIGNAL_JOB_PENDING_BATCH: NumEnv<usize> =
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const NUM_SIGNAL_JOB_REALTIME: NumEnv<usize> =
     NumEnv::new("NUM_SIGNAL_JOB_REALTIME_WORKERS", 4);
+/// Consumers of the admission gate in front of the signals agent. Its work is a
+/// cache read plus at most one ClickHouse query, so these are far cheaper than
+/// the realtime workers and scale independently of them.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const NUM_SIGNAL_ADMISSION: NumEnv<usize> = NumEnv::new("NUM_SIGNAL_ADMISSION_WORKERS", 4);
 
 /// Cap on the backoff between worker connect retries (`worker/mod.rs`).
 pub const CONNECT_BACKOFF_MAX_INTERVAL_SECS: NumEnv<u64> =

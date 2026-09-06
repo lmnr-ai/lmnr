@@ -26,6 +26,7 @@ use crate::cache::keys::{
     STATIC_SP_ACCUMULATOR_CACHE_KEY, STATIC_SP_LOCK_CACHE_KEY, STATIC_SP_OCCURRENCES_CACHE_KEY,
     STATIC_SP_REGEX_CACHE_KEY,
 };
+use crate::cache::{Cache, CacheError, CacheTrait};
 
 pub mod agent;
 pub mod consumer;
@@ -44,6 +45,16 @@ pub const STATIC_PROMPT_ROUTING_KEY: &str = "static_prompt_routing_key";
 /// `naive_signature → Vec<{pattern, label}>` for static-part extraction.
 pub fn static_regex_cache_key(project_id: Uuid, prompt_hash: &str) -> String {
     format!("{STATIC_SP_REGEX_CACHE_KEY}:{project_id}:{prompt_hash}")
+}
+
+/// Read a cached `[{pattern, label}]` regex list.
+/// Consumers (signals summarizer, prewarm route) are signals-gated.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub async fn get_cached_static_regexes(
+    cache: &Cache,
+    key: &str,
+) -> Result<Option<Vec<tool::LabeledRegex>>, CacheError> {
+    cache.get::<Vec<tool::LabeledRegex>>(key).await
 }
 
 /// `naive_signature → Vec<system_prompt>` samples awaiting extraction.

@@ -1,6 +1,6 @@
 import { type Metadata } from "next";
-import { notFound } from "next/navigation";
 import { MDXRemote } from "next-mdx-remote/rsc";
+import { notFound } from "next/navigation";
 import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 

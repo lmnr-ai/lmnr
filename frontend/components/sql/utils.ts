@@ -32,7 +32,7 @@ export const enumValues = {
   span_type: ["DEFAULT", "LLM", "EXECUTOR", "EVALUATOR", "EVALUATION", "TOOL", "HUMAN_EVALUATOR", "CACHED", "UNKNOWN"],
   trace_type: ["DEFAULT", "EVALUATION", "PLAYGROUND"],
   status: ["success", "error"],
-  signal_run_status: ["PENDING", "COMPLETED", "FAILED", "UNKNOWN"],
+  signal_run_status: ["PENDING", "PROCESSING", "COMPLETED", "FAILED", "UNKNOWN"],
   signal_run_mode: ["BATCH", "REALTIME", "UNKNOWN"],
 } as const satisfies Record<string, readonly string[]>;
 
@@ -306,7 +306,8 @@ export const tableSchemas: Record<string, TableSchema> = {
         name: "status",
         type: "String",
         enumType: "signal_run_status",
-        description: "Status of the signal run",
+        description:
+          "Pipeline stage of the signal run: 'PENDING' (elected, waiting on the agent), 'PROCESSING' (agent running), 'COMPLETED', 'FAILED'",
       },
       {
         name: "mode",
@@ -344,7 +345,7 @@ export const tableSchemas: Record<string, TableSchema> = {
       {
         name: "summary",
         type: "String",
-        description: "Short, human-readable description of the event. May be empty for older events",
+        description: "Short human-readable description (may be empty)",
       },
       {
         name: "clusters",
@@ -365,7 +366,11 @@ export const tableSchemas: Record<string, TableSchema> = {
         description: "Level of the cluster in the hierarchy. Higher levels are coarser groupings",
       },
       { name: "parent_id", type: "UUID", description: "ID of the parent cluster. Nil UUID for top-level clusters" },
-      { name: "num_signal_events", type: "UInt32", description: "Number of signal events in the cluster" },
+      {
+        name: "num_signal_events",
+        type: "UInt32",
+        description: "Number of clustered event summaries in the cluster (an event contributes once per summary)",
+      },
       { name: "num_children_clusters", type: "UInt16", description: "Number of immediate child clusters" },
       { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the cluster was created" },
       { name: "updated_at", type: "DateTime64(9, 'UTC')", description: "When the cluster was last updated" },

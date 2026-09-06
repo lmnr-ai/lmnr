@@ -212,15 +212,29 @@ pub fn compile_removal_regex(pattern: &str) -> Result<Regex, fancy_regex::Error>
 /// Delete every match of `re` from `text`. Manual loop instead of
 /// `Regex::replace_all` so runtime errors surface as `Err` instead of a panic.
 pub fn remove_all(re: &Regex, text: &str) -> Result<String, fancy_regex::Error> {
+    remove_all_collect(re, text).map(|(residual, _)| residual)
+}
+
+/// Like [`remove_all`], but also returns the removed match texts in order.
+/// The matches are the pattern's dynamic content — consumers pair them with
+/// the pattern's label (see [`LabeledRegex`]) to surface what was stripped.
+pub fn remove_all_collect(
+    re: &Regex,
+    text: &str,
+) -> Result<(String, Vec<String>), fancy_regex::Error> {
     let mut out = String::with_capacity(text.len());
+    let mut removed = Vec::new();
     let mut last = 0;
     for m in re.find_iter(text) {
         let m = m?;
         out.push_str(&text[last..m.start()]);
+        if !m.as_str().is_empty() {
+            removed.push(m.as_str().to_string());
+        }
         last = m.end();
     }
     out.push_str(&text[last..]);
-    Ok(out)
+    Ok((out, removed))
 }
 
 /// Cap `s` to roughly `cap` chars: head of `cap - 120` chars + omission
@@ -413,6 +427,15 @@ mod tests {
         // "ac" doesn't match the original; it only matches after "b" is removed.
         let out = run_regex_tool(&["b".to_string(), "ac".to_string()], &examples);
         assert_eq!(out["removed"][0], json!("abc"));
+    }
+
+    #[test]
+    fn remove_all_collect_returns_removed_matches() {
+        let re = compile_removal_regex(r"(?<=Current date: )\d{4}-\d{2}-\d{2}").unwrap();
+        let text = "Current date: 2026-07-01\nrules\nCurrent date: 2026-07-02";
+        let (residual, removed) = remove_all_collect(&re, text).unwrap();
+        assert_eq!(residual, "Current date: \nrules\nCurrent date: ");
+        assert_eq!(removed, vec!["2026-07-01", "2026-07-02"]);
     }
 
     #[test]

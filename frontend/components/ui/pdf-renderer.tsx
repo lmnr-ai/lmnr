@@ -3,7 +3,6 @@
 // Import CSS at module level - these are safe for SSR
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
-
 import { ChevronDown, ChevronUp, Maximize } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";

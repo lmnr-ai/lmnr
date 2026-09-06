@@ -1,5 +1,6 @@
 import { type ReactNode } from "react";
 
+import { type FilterDataType } from "@/lib/actions/common/filter-schemas";
 import {
   ARRAY_OPERATORS,
   BOOLEAN_OPERATORS,
@@ -30,6 +31,7 @@ export const OperatorLabelMap: Record<Operator, string> = {
   [Operator.Gte]: ">=",
   [Operator.Ne]: "!=",
   [Operator.Includes]: "includes",
+  [Operator.NotIncludes]: "not includes",
 };
 
 export const STRING_OPERATIONS = STRING_OPERATORS.map((op) => ({
@@ -65,3 +67,7 @@ export const dataTypeOperationsMap: Record<ColumnFilter["dataType"], { key: Oper
   enum: STRING_OPERATIONS,
   array: ARRAY_OPERATIONS,
 };
+
+/** UI-only dataTypes narrowed to what `FilterSchema` persists. */
+export const toFilterDataType = (dataType: ColumnFilter["dataType"]): FilterDataType =>
+  dataType === "enum" ? "string" : dataType;
