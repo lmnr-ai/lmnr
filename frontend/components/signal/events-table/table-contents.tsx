@@ -59,6 +59,8 @@ export interface EventsTableContentsProps {
   selectedClusterIds: string[];
   isUnclusteredFilter: boolean;
   emergingClusterId: string | null;
+  /** The page-level scroller; see `InfiniteDataTableProps.externalScrollElement`. */
+  externalScrollElement: HTMLElement | null;
 }
 
 export const EventsTableContents = memo(function EventsTableContents({
@@ -80,6 +82,7 @@ export const EventsTableContents = memo(function EventsTableContents({
   selectedClusterIds,
   isUnclusteredFilter,
   emergingClusterId,
+  externalScrollElement,
 }: PropsWithChildren<EventsTableContentsProps>) {
   const { toast } = useToast();
   const searchParams = useSearchParams();
@@ -226,6 +229,11 @@ export const EventsTableContents = memo(function EventsTableContents({
   return (
     <InfiniteDataTable<EventRow>
       className="w-full"
+      externalScrollElement={externalScrollElement}
+      // Everything above the rows — controls, search, breadcrumbs, the clusters
+      // chart — is the "top part", a fixed 70vh so the table starts just below
+      // the fold. The clusters area inside it stretches to take up the slack.
+      childrenClassName="h-[70vh]"
       columns={columns}
       data={events}
       onRowClick={handleRowClick}

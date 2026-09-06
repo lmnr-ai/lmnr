@@ -11,7 +11,7 @@ interface HoverRect {
 
 /**
  * Timer/rect bookkeeping for the "grows out of the trigger" hover-card
- * choreography shared with signal/clusters-section/cluster-list/cluster-item.tsx:
+ * choreography shared with landing/sections/has-this-issue/cluster-list/cluster-item.tsx:
  * 500ms open delay, measured trigger rect, 80ms delayed close, close on wheel
  * and on perceptible window scroll. Extracted so the chip component (which
  * also owns the trigger markup + portal JSX) stays under the house line cap.

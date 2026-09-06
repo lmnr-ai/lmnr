@@ -9,6 +9,7 @@ import { numberFormatter, parseUtcTimestamp, selectNiceTicksFromData } from "@/c
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
 
+import DelayedTooltipContent from "./delayed-tooltip-content";
 import { type TimeSeriesChartProps, type TimeSeriesDataPoint } from "./types";
 import { getTickCountForWidth, isValidZoomRange, normalizeTimeRange } from "./utils";
 
@@ -33,6 +34,10 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
   formatValue = numberFormatter.format,
   showTotal = true,
   showTooltip = true,
+  tooltipDelay = 0,
+  tooltipRequireBar = false,
+  tooltipMaxItems,
+  animate = true,
   hideZeroValues = false,
   overlayField,
   overlayColor = "var(--color-muted-foreground)",
@@ -106,6 +111,14 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
 
   const ChartComp = overlayField ? ComposedChart : BarChart;
 
+  const tooltipContentProps: React.ComponentProps<typeof ChartTooltipContent> = {
+    labelKey: "timestamp",
+    hideZeroValues,
+    maxItems: tooltipMaxItems,
+    labelFormatter: (_, payload) =>
+      payload && payload[0] ? formatter.format(parseUtcTimestamp(payload[0].payload.timestamp)) : "-",
+  };
+
   return (
     <div className="flex flex-col items-start h-full">
       <ChartContainer config={chartConfig} className={cn("h-48 w-full", className)}>
@@ -163,13 +176,19 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
           {showTooltip && (
             <ChartTooltip
               content={
-                <ChartTooltipContent
-                  labelKey="timestamp"
-                  hideZeroValues={hideZeroValues}
-                  labelFormatter={(_, payload) =>
-                    payload && payload[0] ? formatter.format(parseUtcTimestamp(payload[0].payload.timestamp)) : "-"
-                  }
-                />
+                // Plain content unless one of the gates is asked for: the wrapper
+                // costs a state update per hover, which a chart that wants
+                // neither should not pay.
+                tooltipDelay > 0 || tooltipRequireBar ? (
+                  <DelayedTooltipContent
+                    delayMs={tooltipDelay}
+                    requireBar={tooltipRequireBar}
+                    overlayField={overlayField}
+                    {...tooltipContentProps}
+                  />
+                ) : (
+                  <ChartTooltipContent {...tooltipContentProps} />
+                )
               }
             />
           )}
@@ -177,7 +196,15 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
             {fields.map((fieldKey) => {
               const config = chartConfig[fieldKey];
               if (!config) return null;
-              return <Bar key={fieldKey} dataKey={fieldKey} fill={config.color} stackId={config.stackId} />;
+              return (
+                <Bar
+                  key={fieldKey}
+                  dataKey={fieldKey}
+                  fill={config.color}
+                  stackId={config.stackId}
+                  isAnimationActive={animate}
+                />
+              );
             })}
           </BarStack>
           {refArea.left && refArea.right && (

@@ -120,6 +120,7 @@ function ChartTooltipContent({
   nameKey,
   labelKey,
   hideZeroValues = false,
+  maxItems,
 }: React.ComponentProps<typeof RechartsPrimitive.Tooltip> &
   React.ComponentProps<"div"> & {
     hideLabel?: boolean;
@@ -128,6 +129,10 @@ function ChartTooltipContent({
     nameKey?: string;
     labelKey?: string;
     hideZeroValues?: boolean;
+    /** Cap the rows, keeping the largest and summarising the rest as "+N more".
+     *  A stacked chart has one series per stack member, so an uncapped tooltip
+     *  grows past the viewport once there are enough of them. */
+    maxItems?: number;
   } & Omit<RechartsPrimitive.DefaultTooltipContentProps<TooltipValueType, TooltipNameType>, "accessibilityLayer">) {
   const { config } = useChart();
 
@@ -167,7 +172,15 @@ function ChartTooltipContent({
     return null;
   }
 
-  const nestLabel = visiblePayload.length === 1 && indicator !== "dot";
+  // Only reordered when the cap actually bites: below it the stack order is the
+  // more useful one, since it matches the bars top to bottom.
+  const capped = maxItems !== undefined && visiblePayload.length > maxItems;
+  const shownPayload = capped
+    ? [...visiblePayload].sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0)).slice(0, maxItems)
+    : visiblePayload;
+  const hiddenCount = visiblePayload.length - shownPayload.length;
+
+  const nestLabel = shownPayload.length === 1 && indicator !== "dot";
 
   return (
     <div
@@ -178,7 +191,7 @@ function ChartTooltipContent({
     >
       {!nestLabel ? tooltipLabel : null}
       <div className="grid gap-1.5">
-        {visiblePayload
+        {shownPayload
           .filter((item) => item.type !== "none")
           .map((item, index) => {
             const key = `${nameKey ?? item.name ?? item.dataKey ?? "value"}`;
@@ -238,6 +251,7 @@ function ChartTooltipContent({
               </div>
             );
           })}
+        {hiddenCount > 0 && <div className="pl-4.5 text-muted-foreground">+{hiddenCount.toLocaleString()} more</div>}
       </div>
     </div>
   );

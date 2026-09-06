@@ -6,7 +6,6 @@ import AdvancedSearch, { type AdvancedSearchValue } from "@/components/common/ad
 import RunsChart from "@/components/signal/runs-table/chart";
 import { RESOURCE } from "@/components/signal/runs-table/constants";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
-import DateRangeFilter from "@/components/ui/date-range-filter";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
@@ -46,7 +45,6 @@ export function RunsTableControls({
         <DataTableFilter columns={filterColumns} filters={filters} onFiltersChange={onFiltersChange} />
         <ColumnsMenu columnLabels={columnLabels} />
         <ViewsToolbar projectId={projectId} resource={RESOURCE} />
-        <DateRangeFilter />
         <RefreshButton onClick={onRefresh} variant="outline" />
       </div>
       <div className="w-full px-px">

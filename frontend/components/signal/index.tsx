@@ -10,6 +10,7 @@ import SignalRunsTable from "@/components/signal/runs-table";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type ManageSignalForm, ManageSignalPanel } from "@/components/signals/create-signal-drawer";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
+import DateRangeFilter from "@/components/ui/date-range-filter";
 import Header from "@/components/ui/header.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { track } from "@/lib/posthog";
@@ -73,7 +74,12 @@ export default function Signal({ slackClientId, slackRedirectUri, slackBrokerEna
     <>
       <Header path={[{ name: "signals", href: `/project/${params.projectId}/signals` }, { name: signal.name }]} />
       <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col gap-6 overflow-hidden">
-        <div className="px-4">
+        {/* The time range sits up here, beside the tabs, because it is the one
+            control on this page with PAGE scope — it moves the cluster strip,
+            the chart and the table together. Everything else (filters, columns,
+            views, search, refresh) only touches the table, and lives directly
+            above it. Position is the only thing telling a reader which is which. */}
+        <div className="flex items-center justify-start gap-2 px-4">
           <TabsList className="h-8">
             <TabsTrigger className="text-xs" value="events">
               Events
@@ -85,9 +91,16 @@ export default function Signal({ slackClientId, slackRedirectUri, slackBrokerEna
               Settings
             </TabsTrigger>
           </TabsList>
+          {/* Purely URL-driven (`useSearchParams`), so it needs nothing from the
+              table's provider and can live outside it. Settings has no time
+              axis, so it does not get one. */}
+          {activeTab !== "settings" && <DateRangeFilter />}
         </div>
 
-        <TabsContent value="events" className="flex flex-col overflow-hidden">
+        {/* `min-h-0 flex-1` so the page-level scroller inside gets a bounded
+            height to scroll against — without the `min-h-0` a flex child refuses
+            to shrink below its content and the page grows instead of scrolling. */}
+        <TabsContent value="events" className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <EventsTable />
         </TabsContent>
         <TabsContent value="runs" className="flex flex-col overflow-hidden">
