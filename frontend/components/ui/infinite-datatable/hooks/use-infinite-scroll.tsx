@@ -1,6 +1,6 @@
 "use client";
 
-import { type DependencyList, useCallback, useEffect } from "react";
+import { type DependencyList, useCallback, useEffect, useRef } from "react";
 import { shallow } from "zustand/shallow";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 
@@ -56,9 +56,10 @@ export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }:
   );
 
   const depsString = JSON.stringify(deps);
+  const requestGeneration = useRef(0);
 
   const fetchPage = useCallback(
-    async (pageNumber: number, shouldReset: boolean = false) => {
+    async (pageNumber: number, shouldReset: boolean = false, generation = requestGeneration.current) => {
       if (!enabled) return;
 
       try {
@@ -68,6 +69,7 @@ export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }:
         }
 
         const result = await fetchFn(pageNumber);
+        if (generation !== requestGeneration.current) return;
 
         if (shouldReset) {
           replaceData(result.items, result.count);
@@ -76,6 +78,7 @@ export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }:
         }
         setCurrentPage(pageNumber);
       } catch (err) {
+        if (generation !== requestGeneration.current) return;
         setError(err instanceof Error ? err : new Error("Failed to fetch data"));
         setIsFetching(false);
         setIsLoading(false);
@@ -94,18 +97,23 @@ export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }:
     // Same guard as the deps effect below: fetchPage no-ops when disabled,
     // so resetting first would clear the table without a follow-up load.
     if (!enabled || isViewLoading) return;
+    const generation = ++requestGeneration.current;
     resetInfiniteScroll();
-    fetchPage(0, true);
+    fetchPage(0, true, generation);
   }, [fetchPage, enabled, isViewLoading, resetInfiniteScroll]);
 
-  const updateData = useCallback((updater: (prevData: TData[]) => TData[]) => {
-    setData(updater);
-  }, []);
+  const updateData = useCallback(
+    (updater: (prevData: TData[]) => TData[]) => {
+      setData(updater);
+    },
+    [setData]
+  );
 
   useEffect(() => {
+    const generation = ++requestGeneration.current;
     if (enabled && !isViewLoading) {
       resetInfiniteScroll();
-      fetchPage(0, true);
+      fetchPage(0, true, generation);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, isViewLoading, depsString]);

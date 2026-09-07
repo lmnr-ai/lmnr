@@ -23,6 +23,13 @@ declare module "@tanstack/react-table" {
       // Flip + persist a score's direction (from the header dropdown toggle).
       onToggleScoreDirection?: (scoreName: string) => void;
     };
+
+    // Signals table — sparkline series are fetched per page after the rows land,
+    // so they ride on meta instead of the row to avoid refetching the list.
+    signalsCellMeta?: {
+      data: Record<string, { timestamp: string; count: number }[]>;
+      maxCount: number;
+    };
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
