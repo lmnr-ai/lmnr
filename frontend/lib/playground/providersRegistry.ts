@@ -8,6 +8,21 @@ import { createOpenAI } from "@ai-sdk/openai";
 
 import { type Provider } from "@/components/playground/types";
 
+const DEFAULT_MINIMAX_BASE_URL = "https://api.minimax.io/v1";
+
+const createMiniMax = ({ apiKey }: { apiKey: string }) => {
+  const configuredBaseURL = process.env.MINIMAX_BASE_URL?.trim() || DEFAULT_MINIMAX_BASE_URL;
+  const baseURL = configuredBaseURL.replace(/\/+$/, "");
+
+  if (baseURL.endsWith("/anthropic")) {
+    const provider = createAnthropic({ apiKey, baseURL: `${baseURL}/v1` });
+    return (model: string) => provider(model);
+  }
+
+  const provider = createOpenAI({ apiKey, baseURL });
+  return (model: string) => provider.chat(model);
+};
+
 const providersInstanceMap = {
   openai: createOpenAI,
   gemini: createGoogleGenerativeAI,
@@ -15,6 +30,7 @@ const providersInstanceMap = {
   anthropic: createAnthropic,
   groq: createGroq,
   bedrock: createAmazonBedrock,
+  minimax: createMiniMax,
   ["openai-azure"]: createAzure,
 };
 
@@ -32,7 +48,13 @@ export const getModel = <P extends Provider, K extends string>(key: `${P}:${K}`,
   }
 
   try {
-    const providerInstance = createProvider({ apiKey });
+    if (provider === "minimax") {
+      const providerInstance = providersInstanceMap.minimax({ apiKey });
+      return providerInstance(model);
+    }
+
+    const providerConfig = { apiKey };
+    const providerInstance = createProvider(providerConfig);
     return providerInstance(model);
   } catch (error) {
     throw new Error(`Failed to initialize model ${key}`, {

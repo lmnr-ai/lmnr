@@ -26,6 +26,7 @@ export const providerIconMap: Record<Provider, ReactNode> = {
   gemini: <IconGemini />,
   groq: <IconGroq />,
   mistral: <IconMistral />,
+  minimax: <IconOpenAI />,
   bedrock: <IconAmazonBedrock />,
   "openai-azure": <IconAzure />,
 };
@@ -36,6 +37,7 @@ export const providerNameMap: Record<Provider, string> = {
   gemini: "Gemini",
   groq: "Groq",
   mistral: "Mistral",
+  minimax: "MiniMax",
   bedrock: "Amazon Bedrock",
   "openai-azure": "Azure",
 };
@@ -46,6 +48,7 @@ export const envVarsToIconMap: Record<EnvVars, ReactNode> = {
   [EnvVars.GROQ_API_KEY]: <IconGroq />,
   [EnvVars.ANTHROPIC_API_KEY]: <IconAnthropic />,
   [EnvVars.MISTRAL_API_KEY]: <IconMistral />,
+  [EnvVars.MINIMAX_API_KEY]: <IconOpenAI />,
   [EnvVars.OPENAI_AZURE_API_KEY]: <IconAzure />,
   [EnvVars.OPENAI_AZUURE_DEPLOYMENT_NAME]: <IconAzure />,
   [EnvVars.OPENAI_AZUURE_RESOURCE_ID]: <IconAzure />,

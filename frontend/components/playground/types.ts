@@ -6,7 +6,7 @@ export type LanguageModel = {
   label: string;
 };
 
-export type Provider = "openai" | "anthropic" | "gemini" | "groq" | "mistral" | "bedrock" | "openai-azure";
+export type Provider = "openai" | "anthropic" | "gemini" | "groq" | "mistral" | "bedrock" | "openai-azure" | "minimax";
 
 export const providerToApiKey: Record<Provider, EnvVars> = {
   openai: EnvVars.OPENAI_API_KEY,
@@ -16,6 +16,7 @@ export const providerToApiKey: Record<Provider, EnvVars> = {
   mistral: EnvVars.MISTRAL_API_KEY,
   bedrock: EnvVars.AWS_ACCESS_KEY_ID,
   "openai-azure": EnvVars.AWS_ACCESS_KEY_ID,
+  minimax: EnvVars.MINIMAX_API_KEY,
 } as const;
 
 export const apiKeyToProvider: Partial<Record<EnvVars, Provider>> = {
@@ -24,6 +25,7 @@ export const apiKeyToProvider: Partial<Record<EnvVars, Provider>> = {
   [EnvVars.GEMINI_API_KEY]: "gemini",
   [EnvVars.GROQ_API_KEY]: "groq",
   [EnvVars.MISTRAL_API_KEY]: "mistral",
+  [EnvVars.MINIMAX_API_KEY]: "minimax",
   [EnvVars.AWS_ACCESS_KEY_ID]: "bedrock",
   [EnvVars.AWS_SECRET_ACCESS_KEY]: "bedrock",
   [EnvVars.AWS_REGION]: "bedrock",
@@ -285,6 +287,21 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         id: "gemini:gemini-3.5-flash-lite",
         name: "gemini-3.5-flash-lite",
         label: "Gemini 3.5 Flash Lite",
+      },
+    ],
+  },
+  {
+    provider: "minimax",
+    models: [
+      {
+        id: "minimax:MiniMax-M3",
+        name: "MiniMax-M3",
+        label: "MiniMax-M3",
+      },
+      {
+        id: "minimax:MiniMax-M2.7",
+        name: "MiniMax-M2.7",
+        label: "MiniMax-M2.7",
       },
     ],
   },
