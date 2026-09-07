@@ -611,7 +611,11 @@ const readDeclaredAgentName = (span: TraceViewSpan | undefined): string | undefi
 };
 
 /** Nearest non-empty `gen_ai.agent.name` walking `ids_path` leaf-to-root. */
-const declaredAgentNameForSpan = (start: TraceViewSpan, spanMap: Map<string, TraceViewSpan>): string | null => {
+const declaredAgentNameForSpan = (
+  start: TraceViewSpan,
+  spanMap: Map<string, TraceViewSpan>,
+  mainAgentAncestors: Set<string>
+): string | null => {
   const idsPathRaw = start.attributes?.["lmnr.span.ids_path"];
   const idsPath =
     Array.isArray(idsPathRaw) && idsPathRaw.length > 0
@@ -619,6 +623,8 @@ const declaredAgentNameForSpan = (start: TraceViewSpan, spanMap: Map<string, Tra
       : [start.spanId];
 
   for (let i = idsPath.length - 1; i >= 0; i--) {
+    // Ancestors shared with the main agent name the main agent, not this subagent.
+    if (mainAgentAncestors.has(idsPath[i])) return null;
     const name = readDeclaredAgentName(spanMap.get(idsPath[i]));
     if (name) return name;
   }
@@ -712,7 +718,7 @@ export const buildTranscriptListEntries = (
       type: "group",
       groupId,
       name: anchorSpan?.name ?? groupSpans[0].name,
-      declaredName: declaredAgentNameForSpan(firstLlm, spanMap),
+      declaredName: declaredAgentNameForSpan(firstLlm, spanMap, grouping.mainAgentAncestors),
       path: anchorSpan?.path ?? "",
       firstSpan: lightSpans[0],
       firstLlmSpanId: firstLlm.spanId,

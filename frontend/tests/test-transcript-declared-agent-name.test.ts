@@ -5,7 +5,7 @@ import { type TraceViewSpan, type TranscriptListGroup } from "@/components/trace
 import { buildTranscriptListEntries, transcriptGroupTitle } from "@/components/traces/trace-view/store/utils";
 import { buildTraceViewAttributesExpression, TRACE_VIEW_ATTRIBUTE_KEYS } from "@/lib/actions/spans/utils";
 
-type FixtureSpanType = "LLM" | "DEFAULT";
+type FixtureSpanType = "LLM" | "DEFAULT" | "TOOL";
 
 interface SpanInput {
   id: string;
@@ -161,6 +161,37 @@ describe("transcript declared agent names", () => {
     const none = groupForLlm(twoWorkers({}), "llm_a1");
     assert.equal(transcriptGroupTitle(none, { llm_a1: "Code Review" }), "Code Review");
     assert.equal(transcriptGroupTitle(none, { llm_a1: null }), "chat");
+  });
+
+  it("does not take gen_ai.agent.name from a main-agent ancestor", () => {
+    const spans = buildSpans([
+      {
+        id: "root",
+        type: "DEFAULT",
+        path: ["root"],
+        idsPath: ["root"],
+        agentName: "MainAgent",
+      },
+      mainLlm(),
+      { id: "tool", parentId: "root", type: "TOOL", path: ["root", "tool"], idsPath: ["root", "tool"] },
+      {
+        id: "sub1",
+        parentId: "tool",
+        type: "LLM",
+        path: ["root", "tool", "chat"],
+        idsPath: ["root", "tool", "sub1"],
+        promptHash: "sub_hash",
+      },
+      {
+        id: "sub2",
+        parentId: "tool",
+        type: "LLM",
+        path: ["root", "tool", "chat"],
+        idsPath: ["root", "tool", "sub2"],
+        promptHash: "sub_hash",
+      },
+    ]);
+    assert.equal(groupForLlm(spans, "sub1").declaredName, null);
   });
 
   it("extracts gen_ai.agent.name in the trace-view attributes subset", () => {
