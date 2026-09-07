@@ -3,6 +3,7 @@ import React, { memo, useCallback, useMemo } from "react";
 
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
 import { type TranscriptListGroup } from "@/components/traces/trace-view/store/base";
+import { transcriptGroupTitle } from "@/components/traces/trace-view/store/utils";
 import {
   CollapsedPreviewBlock,
   type PreviewMap,
@@ -37,8 +38,6 @@ function AgentGroupHeaderInner({
   const outputSpanId = group.lastLlmSpanId ?? group.firstLlmSpanId;
 
   const { preview, outputPreview, agentName } = useMemo(() => {
-    const name = group.firstLlmSpanId ? agentNames[group.firstLlmSpanId] : undefined;
-
     let inputPreview: string | null | undefined;
     if (collapsed && group.firstLlmSpanId) {
       inputPreview = inputPreviews[group.firstLlmSpanId];
@@ -49,12 +48,15 @@ function AgentGroupHeaderInner({
       output = previews[outputSpanId];
     }
 
-    return { preview: inputPreview, outputPreview: output, agentName: name };
-  }, [collapsed, group.firstLlmSpanId, outputSpanId, previews, inputPreviews, agentNames]);
+    return {
+      preview: inputPreview,
+      outputPreview: output,
+      agentName: transcriptGroupTitle(group, agentNames),
+    };
+  }, [collapsed, group, outputSpanId, previews, inputPreviews, agentNames]);
 
   const isLoadingPreview = preview === undefined;
   const previewText = typeof preview === "string" && preview !== "" ? preview : null;
-  const displayName = agentName || group.name;
 
   const isLoadingOutput = outputPreview === undefined;
   const outputText = typeof outputPreview === "string" && outputPreview !== "" ? outputPreview : null;
@@ -78,7 +80,7 @@ function AgentGroupHeaderInner({
           <div className="flex items-center justify-center z-10 rounded shrink-0 bg-subagent/70 size-5 min-w-5 min-h-5">
             <Bot size={14} />
           </div>
-          <span className="font-medium text-[13px] whitespace-nowrap truncate">{displayName}</span>
+          <span className="font-medium text-[13px] whitespace-nowrap truncate">{agentName}</span>
           <div className="flex items-center shrink-0 ml-auto gap-2">
             <SpanStatsShield
               variant="inline"
