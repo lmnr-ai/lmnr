@@ -298,6 +298,7 @@ const convertOne = (message: AiSdkMessage): Omit<ModelMessage, "role"> & { role?
     };
     switch (p.type) {
       case "text":
+      case "reasoning":
         if (typeof p.text === "string" && p.text.length > 0) content.push(part);
         break;
       case "image": {
