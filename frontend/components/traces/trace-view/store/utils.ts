@@ -690,10 +690,12 @@ export const buildTranscriptListEntries = (
     let outputTokens = 0;
     let cacheReadInputTokens = 0;
     let totalCost = 0;
+    const declaredSeen = new Set<string | null>();
     for (const s of groupSpans) {
       if (s.spanType === "LLM" || s.spanType === "CACHED") {
         firstLlm ??= s;
         lastLlm = s;
+        declaredSeen.add(declaredAgentNameForSpan(s, spanMap, grouping.mainAgentAncestors));
       }
       inputTokens += s.inputTokens;
       outputTokens += s.outputTokens;
@@ -718,7 +720,7 @@ export const buildTranscriptListEntries = (
       type: "group",
       groupId,
       name: anchorSpan?.name ?? groupSpans[0].name,
-      declaredName: declaredAgentNameForSpan(firstLlm, spanMap, grouping.mainAgentAncestors),
+      declaredName: declaredSeen.size === 1 ? [...declaredSeen][0] : null,
       path: anchorSpan?.path ?? "",
       firstSpan: lightSpans[0],
       firstLlmSpanId: firstLlm.spanId,

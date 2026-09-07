@@ -194,6 +194,52 @@ describe("transcript declared agent names", () => {
     assert.equal(groupForLlm(spans, "sub1").declaredName, null);
   });
 
+  it("leaves declaredName null when a merged group has conflicting names", () => {
+    const spans = buildSpans([
+      { id: "root", type: "DEFAULT", path: ["root"], idsPath: ["root"] },
+      mainLlm(),
+      {
+        id: "invoke_a",
+        parentId: "root",
+        type: "DEFAULT",
+        path: ["root", "invoke_agent"],
+        idsPath: ["root", "invoke_a"],
+        agentName: "Research - Pricing",
+      },
+      {
+        id: "la",
+        parentId: "invoke_a",
+        type: "LLM",
+        path: ["root", "invoke_agent", "chat"],
+        idsPath: ["root", "invoke_a", "la"],
+        promptHash: "sub_hash",
+      },
+      {
+        id: "invoke_b",
+        parentId: "root",
+        type: "DEFAULT",
+        path: ["root", "invoke_agent"],
+        idsPath: ["root", "invoke_b"],
+        agentName: "Research - Competitors",
+      },
+      {
+        id: "lb",
+        parentId: "invoke_b",
+        type: "LLM",
+        path: ["root", "invoke_agent", "chat"],
+        idsPath: ["root", "invoke_b", "lb"],
+        promptHash: "sub_hash",
+      },
+    ]);
+    const groups = buildTranscriptListEntries(spans, new Set()).filter(
+      (e): e is TranscriptListGroup => e.type === "group"
+    );
+    assert.equal(groups.length, 1);
+    assert.equal(groups[0].declaredName, null);
+    assert.equal(groups[0].firstLlmSpanId, "la");
+    assert.equal(groups[0].lastLlmSpanId, "lb");
+  });
+
   it("extracts gen_ai.agent.name in the trace-view attributes subset", () => {
     assert.ok(TRACE_VIEW_ATTRIBUTE_KEYS.includes("gen_ai.agent.name"));
     assert.match(buildTraceViewAttributesExpression(), /gen_ai\.agent\.name/);
