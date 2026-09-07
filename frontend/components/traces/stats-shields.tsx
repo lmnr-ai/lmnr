@@ -252,8 +252,8 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
   return (
     <div
       className={cn(
-        "flex items-center gap-2 px-1.5 py-0.5 rounded-md overflow-hidden text-xs font-mono min-w-0",
-        variant === "outline" ? "border border-muted text-white" : "bg-muted text-secondary-foreground",
+        "flex h-[26px] items-center gap-2 px-2 rounded-md overflow-hidden text-xs min-w-0",
+        variant === "outline" ? "border border-muted text-white" : "bg-surface-up-2 text-secondary-foreground",
         className
       )}
     >

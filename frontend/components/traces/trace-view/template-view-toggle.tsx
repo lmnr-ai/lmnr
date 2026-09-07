@@ -120,11 +120,8 @@ export default function TemplateViewToggle({
       <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <Button
-            variant="outline"
-            className={cn(
-              "flex h-6.5 items-center focus-visible:outline-0 bg-surface-100",
-              isTreeView && "rounded-r-none border-r-0 outline-inset -outline-offset-1 hover:bg-secondary"
-            )}
+            variant="ghost"
+            className={cn("flex h-[26px] items-center hover:bg-surface-up-3", isTreeView && "rounded-r-none")}
           >
             <CurrentIcon size={14} className="mr-1 flex-shrink-0" />
             <span className={cn("truncate max-w-[160px]", !isCustom && "capitalize")}>{current.label}</span>
@@ -208,11 +205,11 @@ export default function TemplateViewToggle({
       {/* Content toggle (only visible in tree view) */}
       {isTreeView && (
         <Button
-          variant="outline"
+          variant="ghost"
           onClick={onToggleContent}
           className={cn(
-            "flex items-center h-6.5 rounded-l-none text-muted-foreground overflow-hidden bg-surface-100",
-            showContent ? "text-foreground" : "border-input"
+            "flex h-[26px] items-center overflow-hidden rounded-l-none text-muted-foreground hover:bg-surface-up-3",
+            showContent && "text-foreground"
           )}
         >
           {showContent ? <Eye size={14} className="flex-shrink-0" /> : <EyeOff size={14} className="flex-shrink-0" />}

@@ -50,11 +50,8 @@ export default function ViewToggle({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
-            variant="outline"
-            className={cn(
-              "flex h-6.5 items-center border rounded-md focus-visible:outline-0 bg-surface-100",
-              isTreeView && "rounded-r-none border-r-0 outline-inset -outline-offset-1 hover:bg-secondary"
-            )}
+            variant="ghost"
+            className={cn("flex h-[26px] items-center hover:bg-surface-up-3", isTreeView && "rounded-r-none")}
           >
             <CurrentIcon size={14} className="mr-1" />
             <span className="capitalize">{currentView.label}</span>
@@ -81,11 +78,11 @@ export default function ViewToggle({
       {/* Content toggle (only visible in tree view) */}
       {isTreeView && (
         <Button
-          variant="outline"
+          variant="ghost"
           onClick={onToggleContent}
           className={cn(
-            "flex items-center h-6.5 px-1.5 rounded-l-none text-muted-foreground overflow-hidden",
-            showContent ? "text-white hover:bg-muted" : "border-input hover:bg-secondary/50"
+            "flex h-[26px] items-center overflow-hidden rounded-l-none px-1.5 text-muted-foreground hover:bg-surface-up-3",
+            showContent && "text-foreground"
           )}
         >
           {showContent ? <Eye size={14} className="flex-shrink-0" /> : <EyeOff size={14} className="flex-shrink-0" />}

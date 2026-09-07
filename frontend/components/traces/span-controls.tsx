@@ -1,29 +1,16 @@
-import { ChevronDown, Copy, Database, Loader, PlayCircle, X } from "lucide-react";
-import Link from "next/link";
+import { X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useMemo } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SpanTagsList from "@/components/tags/span-tags-list";
-import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import ErrorCard from "@/components/traces/error-card";
-import ExportSpansPopover from "@/components/traces/export-spans-popover";
-import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
+import SpanActionsDropdown from "@/components/traces/span-actions-dropdown";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useToast } from "@/lib/hooks/use-toast";
-import { track } from "@/lib/posthog";
-import { type Span, SpanType } from "@/lib/traces/types";
+import { type Span } from "@/lib/traces/types";
 import { type ErrorEventAttributes } from "@/lib/types";
 
-import { ModelIndicator, getSpanModel } from "./model-indicator";
+import { ModelIndicator } from "./model-indicator";
 import SpanTypeIcon from "./span-type-icon";
 import SpanStatsShields from "./stats-shields";
 import { StructuredOutputSchema } from "./structured-output-schema";
@@ -43,99 +30,44 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
     [span.events]
   );
 
-  const { toast } = useToast();
-  const { openInSql, isLoading } = useOpenInSql({
-    projectId: projectId as string,
-    params: { type: "span", spanId: span.spanId, traceId: span.traceId },
-  });
-
-  const handleCopySpanId = async () => {
-    if (span?.spanId) {
-      await navigator.clipboard.writeText(span.spanId);
-      toast({ title: "Copied span ID", duration: 1000 });
-    }
-  };
-
   const tools = resolveTools(span);
   const schema = span.attributes?.["gen_ai.request.structured_output_schema"] || span.attributes?.["ai.schema"];
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
       <div className="flex flex-col px-2 pt-2 gap-2">
-        <div className="flex flex-none items-center space-x-2">
+        <div className="flex flex-none items-center gap-2">
           <SpanTypeIcon spanType={span.spanType} />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          <div className="min-w-0 flex-1">
+            <SpanActionsDropdown projectId={projectId as string} span={span} />
+          </div>
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            {!isAlwaysSelectSpan && onClose && (
               <Button
                 variant="ghost"
-                className="px-1 text-base font-medium focus-visible:outline-0 truncate text-left min-w-0 hover:bg-surface-up"
+                size="icon-sm"
+                className="flex-shrink-0 hover:bg-surface-up"
+                onClick={onClose}
+                aria-label="Close span panel"
               >
-                <span className="truncate">{span.name}</span>
-                <ChevronDown className="ml-1 min-w-3.5 size-3.5" />
+                <X className="w-4 h-4" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuLabel className="text-xs font-normal font-mono text-muted-foreground">
-                <ClientTimestampFormatter
-                  absolute
-                  timestamp={span.startTime}
-                  className="text-xs font-mono text-muted-foreground"
-                />
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleCopySpanId}>
-                <Copy size={14} />
-                Copy span ID
-              </DropdownMenuItem>
-              <DropdownMenuItem disabled={isLoading} onClick={openInSql}>
-                {isLoading ? <Loader className="size-3.5" /> : <Database className="size-3.5" />}
-                Open in SQL editor
-              </DropdownMenuItem>
-              {span.spanType === SpanType.LLM && (
-                <DropdownMenuItem asChild>
-                  <Link
-                    href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
-                    onClick={() => track("playgrounds", "experiment_clicked", { source: "span_view" })}
-                  >
-                    <PlayCircle className="size-3.5" />
-                    Experiment in playground
-                  </Link>
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          {!isAlwaysSelectSpan && onClose && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="ml-auto flex-shrink-0 hover:bg-surface-up"
-              onClick={onClose}
-              aria-label="Close span panel"
-            >
-              <X className="w-4 h-4" />
-            </Button>
-          )}
-        </div>
-        <div className="flex flex-col flex-wrap gap-1.5">
-          <SpanStatsShields span={span} className="w-fit" />
-          {(getSpanModel(span.attributes) || tools.length > 0 || schema) && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <ModelIndicator attributes={span.attributes} />
-              <ToolList tools={tools} />
-              <StructuredOutputSchema schema={schema} />
-            </div>
-          )}
-
-          <div className="flex gap-1 gap-y-1 flex-wrap items-center">
-            <AddToLabelingQueuePopover
-              spanId={span.spanId}
-              traceId={span.traceId}
-              buttonVariant="ghost"
-              buttonSize="default"
-            />
-            <ExportSpansPopover span={span} buttonVariant="ghost" />
-            <SpanTagsList spanId={span.spanId} />
+            )}
           </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <ModelIndicator attributes={span.attributes} />
+          <SpanStatsShields span={span} className="w-fit" />
+          <div className="flex h-[26px] w-fit items-center rounded-md bg-surface-up-2 px-2">
+            <ClientTimestampFormatter
+              absolute
+              timestamp={span.startTime}
+              className="text-xs text-secondary-foreground"
+            />
+          </div>
+          <ToolList tools={tools} />
+          <StructuredOutputSchema schema={schema} />
+          <SpanTagsList spanId={span.spanId} />
         </div>
 
         {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}
