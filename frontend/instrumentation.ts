@@ -50,18 +50,46 @@ export async function register() {
 
       const PRICES_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json";
 
+      const costPerToken = (costPerMillionTokens: number) => costPerMillionTokens / 1_000_000;
+      const starveriCosts = (input: number, output: number, cachedInput: number) => ({
+        litellm_provider: "starveri",
+        source: "https://api.starveri.net/models",
+        input_cost_per_token: costPerToken(input),
+        output_cost_per_token: costPerToken(output),
+        cache_read_input_token_cost: costPerToken(cachedInput),
+      });
+
+      const STARVERI_MODEL_COSTS: Record<string, Record<string, unknown>> = {
+        "starveri/gpt-5.1-codex": starveriCosts(0.4166666666666667, 3.3333333333333335, 0.041666666666666664),
+        "starveri/gpt-5.3-codex-spark": starveriCosts(0.3333333333333333, 0.6666666666666666, 0.0033333333333333335),
+        "starveri/gpt-5.3-codex": starveriCosts(0.16666666666666666, 0.3333333333333333, 0.016666666666666666),
+        "starveri/gpt-5.4": starveriCosts(0.3333333333333333, 1.6666666666666667, 0.03333333333333333),
+        "starveri/gpt-5.4-mini": starveriCosts(0.25, 1.1666666666666667, 0.025),
+        "starveri/gpt-5.5": starveriCosts(0.8333333333333334, 2.5, 0.08333333333333333),
+      };
+
       const SHORT_NAME_PREFIXES = ["mistral", "xai", "minimax", "moonshot"];
 
       const initializeModelCosts = async (): Promise<boolean> => {
         try {
-          const response = await fetch(PRICES_URL, { signal: AbortSignal.timeout(30000) });
-          if (!response.ok) {
-            throw new Error(`Failed to fetch model prices: ${response.status} ${response.statusText}`);
+          let data: Record<string, unknown> = {};
+          try {
+            const response = await fetch(PRICES_URL, { signal: AbortSignal.timeout(30000) });
+            if (!response.ok) {
+              throw new Error(`Failed to fetch model prices: ${response.status} ${response.statusText}`);
+            }
+            data = await response.json();
+          } catch (error) {
+            console.error("Failed to fetch LiteLLM model prices:", error);
+            console.log("Continuing with bundled model costs only...");
           }
-          const data: Record<string, unknown> = await response.json();
+          // Bundled Starveri rows always win: if LiteLLM later publishes a
+          // stale or incorrect starveri/* entry, the source-backed local
+          // mapping takes precedence rather than being silently overwritten.
+          const modelCostsData = { ...data, ...STARVERI_MODEL_COSTS };
 
           const rows = new Map<string, unknown>();
-          for (const [modelName, info] of Object.entries(data)) {
+          for (const [modelName, info] of Object.entries(modelCostsData)) {
             if (modelName === "sample_spec") continue;
             const lowerName = modelName.toLowerCase();
             rows.set(lowerName, info);
