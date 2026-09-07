@@ -32,7 +32,7 @@ dotenv = "0.15"
 ed25519-compact = "2.4"
 enum_dispatch = "0.3.13"
 eventsource-stream = "0.2.3"
-fancy-regex = "0.18"
+fancy-regex = "0.19"
 futures-util = "0.3"
 half = {version = "2.7.1", features = ["serde"], optional = true}
 hex = "0.4"
