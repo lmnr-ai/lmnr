@@ -24,6 +24,8 @@ export default function useTestExecution({
   const execute = useCallback(async () => {
     const prompt = getValues("prompt");
     const schemaFields = getValues("schemaFields");
+    const llmProfileId = getValues("llmProfileId");
+    const llmModel = getValues("llmModel");
     const traceId = selectedTrace?.id;
 
     if (!prompt || !schemaFields?.length || !traceId) return;
@@ -45,6 +47,8 @@ export default function useTestExecution({
             prompt,
             structured_output_schema: schemaFieldsToJsonSchema(schemaFields),
           },
+          // Test runs resolve the LLM exactly like production: the signal's profile + model, or env.
+          ...(llmProfileId && llmModel ? { llmProfileId, model: llmModel } : {}),
         }),
         signal: controller.signal,
       });

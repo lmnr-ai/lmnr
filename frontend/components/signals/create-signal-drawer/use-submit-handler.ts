@@ -170,12 +170,16 @@ export default function useSubmitHandler({
         }
 
         const structuredOutput = schemaFieldsToJsonSchema(data.schemaFields);
+        // Both route fields travel together; an unset pair means "env LLM" for
+        // legacy signals (create requires it server-side on self-hosted).
+        const hasProfile = !!data.llmProfileId && !!data.llmModel;
         const signal = {
           name: data.name,
           prompt: data.prompt,
           structuredOutput,
           sampleRate: data.sampleRate ?? null,
           disabled: data.disabled ?? false,
+          ...(hasProfile ? { llmProfileId: data.llmProfileId, llmModel: data.llmModel } : {}),
         };
         const isUpdate = !!data.id;
         const url = isUpdate ? `/api/projects/${projectId}/signals/${data.id}` : `/api/projects/${projectId}/signals`;

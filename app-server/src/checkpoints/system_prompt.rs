@@ -149,6 +149,7 @@ async fn generate_dynamic_regex(
         service_tier: None,
         provider: None,
         model_size: Some(ModelSize::Small),
+        llm_profile: None,
     };
 
     let response = match run_llm(root, llm_client, &request, || {

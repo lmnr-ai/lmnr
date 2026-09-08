@@ -55,24 +55,78 @@ pub struct BedrockClient {
     client: AwsBedrockClient,
 }
 
+/// Explicit Bedrock credentials (LLM profiles), bypassing the AWS default chain.
+pub(crate) enum BedrockCredentials {
+    AwsKeys {
+        access_key_id: String,
+        secret_access_key: String,
+    },
+    /// Bedrock API key, sent as `Authorization: Bearer`.
+    BearerToken(String),
+}
+
 impl BedrockClient {
     pub async fn new() -> ProviderResult<Self> {
         let sdk_config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
-        // Mirror the reqwest-based clients (openai/gemini): a single attempt bounded
-        // by the shared LLM_HTTP_TIMEOUT_SECS request timeout plus a 10s connect
-        // timeout. SDK auto-retries are disabled so all providers behave the same —
-        // the retry layer is owned by the caller.
+        let config =
+            Self::apply_timeouts(aws_sdk_bedrockruntime::config::Builder::from(&sdk_config))
+                .build();
+        Ok(Self {
+            client: AwsBedrockClient::from_conf(config),
+        })
+    }
+
+    /// Build from explicit values (LLM profiles) instead of the env/default chain.
+    pub(crate) fn from_credentials(region: &str, credentials: BedrockCredentials) -> Self {
+        Self {
+            client: AwsBedrockClient::from_conf(Self::config_builder(region, credentials).build()),
+        }
+    }
+
+    fn config_builder(
+        region: &str,
+        credentials: BedrockCredentials,
+    ) -> aws_sdk_bedrockruntime::config::Builder {
+        use aws_sdk_bedrockruntime::config::{BehaviorVersion, Credentials, Region, Token};
+        use aws_smithy_runtime_api::client::auth::http::HTTP_BEARER_AUTH_SCHEME_ID;
+
+        let builder = aws_sdk_bedrockruntime::config::Builder::new()
+            .behavior_version(BehaviorVersion::latest())
+            .region(Region::new(region.trim().to_string()));
+        let builder = match credentials {
+            BedrockCredentials::AwsKeys {
+                access_key_id,
+                secret_access_key,
+            } => builder.credentials_provider(Credentials::new(
+                access_key_id,
+                secret_access_key,
+                None,
+                None,
+                "llm_profile",
+            )),
+            // Bedrock advertises sigv4 first; the preference makes the bearer
+            // scheme win so the missing sigv4 identity is never an error.
+            BedrockCredentials::BearerToken(token) => builder
+                .bearer_token(Token::new(token, None))
+                .auth_scheme_preference([HTTP_BEARER_AUTH_SCHEME_ID]),
+        };
+        Self::apply_timeouts(builder)
+    }
+
+    /// Mirror the reqwest-based clients (openai/gemini): a single attempt bounded
+    /// by the shared LLM_HTTP_TIMEOUT_SECS request timeout plus a 10s connect
+    /// timeout. SDK auto-retries are disabled so all providers behave the same —
+    /// the retry layer is owned by the caller.
+    fn apply_timeouts(
+        builder: aws_sdk_bedrockruntime::config::Builder,
+    ) -> aws_sdk_bedrockruntime::config::Builder {
         let timeout_config = TimeoutConfig::builder()
             .operation_attempt_timeout(Duration::from_secs(env::llm::HTTP_TIMEOUT_SECS.get()))
             .connect_timeout(Duration::from_secs(10))
             .build();
-        let config = aws_sdk_bedrockruntime::config::Builder::from(&sdk_config)
+        builder
             .timeout_config(timeout_config)
             .retry_config(RetryConfig::disabled())
-            .build();
-        Ok(Self {
-            client: AwsBedrockClient::from_conf(config),
-        })
     }
 }
 
@@ -604,6 +658,7 @@ mod tests {
             service_tier: None,
             provider: None,
             model_size: None,
+            llm_profile: None,
         };
         let body = build_request_body("us.anthropic.claude-opus-4-8", &request).unwrap();
         assert_eq!(body["thinking"]["type"], "adaptive");
@@ -627,6 +682,7 @@ mod tests {
             service_tier: None,
             provider: None,
             model_size: None,
+            llm_profile: None,
         };
         let body = build_request_body("us.anthropic.claude-sonnet-5", &request).unwrap();
         assert!(body.get("temperature").is_none());
@@ -648,6 +704,7 @@ mod tests {
             service_tier: None,
             provider: None,
             model_size: None,
+            llm_profile: None,
         };
         let body = build_request_body("us.anthropic.claude-sonnet-4-6", &request).unwrap();
         assert!(body["temperature"].is_number());
@@ -667,5 +724,59 @@ mod tests {
             "us.anthropic.claude-sonnet-4-6"
         ));
         assert!(!requires_adaptive_thinking("us.anthropic.claude-opus-4-6"));
+    }
+
+    async fn captured_authorization(credentials: BedrockCredentials) -> String {
+        use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "content": [{"type": "text", "text": "ok"}],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 1, "output_tokens": 1}
+            })))
+            .mount(&server)
+            .await;
+
+        let config = BedrockClient::config_builder("us-east-1", credentials)
+            .endpoint_url(server.uri())
+            .build();
+        AwsBedrockClient::from_conf(config)
+            .invoke_model()
+            .model_id("m")
+            .body(Blob::new("{}"))
+            .send()
+            .await
+            .expect("mock invoke succeeds");
+
+        let requests = server.received_requests().await.unwrap();
+        requests[0]
+            .headers
+            .get("authorization")
+            .expect("authorization header present")
+            .to_str()
+            .unwrap()
+            .to_string()
+    }
+
+    #[tokio::test]
+    async fn profile_bearer_token_is_sent_as_bearer_auth() {
+        let auth = captured_authorization(BedrockCredentials::BearerToken("tok-123".into())).await;
+        assert_eq!(auth, "Bearer tok-123");
+    }
+
+    #[tokio::test]
+    async fn profile_aws_keys_sign_with_sigv4() {
+        let auth = captured_authorization(BedrockCredentials::AwsKeys {
+            access_key_id: "AKIAEXAMPLE".into(),
+            secret_access_key: "secret".into(),
+        })
+        .await;
+        assert!(
+            auth.starts_with("AWS4-HMAC-SHA256 Credential=AKIAEXAMPLE/"),
+            "{auth}"
+        );
+        assert!(auth.contains("/us-east-1/bedrock/aws4_request"), "{auth}");
     }
 }

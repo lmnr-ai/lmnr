@@ -101,7 +101,22 @@ impl AzureAnthropicClient {
         let api_base_url = anthropic_base_url()?;
         let default_headers =
             default_headers_from_env().map_err(AzureAnthropicError::ConfigError)?;
+        Self::with_config(api_key, api_base_url, default_headers)
+    }
 
+    /// Build from explicit values (LLM profiles). `resource_root` is the Foundry
+    /// host root; `/anthropic` is appended here.
+    pub(crate) fn with_resource_root(api_key: String, resource_root: &str) -> ProviderResult<Self> {
+        let api_base_url = format!("{}/anthropic", resource_root.trim_end_matches('/'));
+        Self::with_config(api_key, api_base_url, reqwest::header::HeaderMap::new())
+            .map_err(Into::into)
+    }
+
+    fn with_config(
+        api_key: String,
+        api_base_url: String,
+        default_headers: reqwest::header::HeaderMap,
+    ) -> AzureAnthropicResult<Self> {
         let client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(10))
             .timeout(Duration::from_secs(env::llm::HTTP_TIMEOUT_SECS.get()))
@@ -272,6 +287,7 @@ mod tests {
             service_tier: None,
             provider: None,
             model_size: None,
+            llm_profile: None,
         }
     }
 

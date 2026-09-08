@@ -37,6 +37,10 @@ pub struct ProviderRequest {
     pub provider: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_size: Option<ModelSize>,
+    /// Workspace LLM profile + pinned model. Takes precedence over
+    /// `provider`/`model_size`, which are only consulted for env routing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub llm_profile: Option<super::profiles::LlmProfileRoute>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
