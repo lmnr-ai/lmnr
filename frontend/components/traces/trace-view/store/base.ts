@@ -72,6 +72,8 @@ export type TraceSignalEvent = {
   payload: string;
   timestamp: string;
   severity: number;
+  /** `signals.version` when produced; 0 predates versioning. */
+  signalVersion: number;
   leafClusters: TraceSignalClusterNode[];
 };
 

@@ -36,6 +36,18 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
         };
       },
     ],
+    // Needs an explicit processor: `defaultProcessor` treats every column it
+    // doesn't know about as a payload JSON field.
+    [
+      "signal_version",
+      (filter, paramKey) => {
+        const opSymbol = OperatorLabelMap[filter.operator];
+        return {
+          condition: `signal_version ${opSymbol} {${paramKey}:UInt32}`,
+          params: { [paramKey]: parseInt(String(filter.value), 10) || 0 },
+        };
+      },
+    ],
   ]),
   defaultProcessor: (filter, paramKey) => {
     const { column, value, dataType } = filter;
@@ -83,6 +95,8 @@ const eventsSelectColumns = [
   "formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp",
   "payload",
   "severity",
+  // 0 = the event predates versioning; rendered as an em dash.
+  "signal_version signalVersion",
 ];
 
 /** Data type of a payload field being sorted on; drives the JSONExtract cast. */

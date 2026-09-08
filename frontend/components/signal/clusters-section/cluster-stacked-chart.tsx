@@ -6,6 +6,7 @@ import { type ReactNode, useMemo } from "react";
 import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { type TimeSeriesChartConfig, type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
 import ClusterIcon, { type IconVariant } from "@/components/signal/clusters-section/cluster-icon";
+import { useSignalVersionMarkers } from "@/components/signal/hooks/use-signal-version-markers";
 import { type ClusterStatsDataPoint, type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { UNCLUSTERED_COLOR, withOpacity } from "@/lib/clusters/colors";
 
@@ -46,6 +47,7 @@ export default function ClusterStackedChart({
 }: ClusterStackedChartProps) {
   const overlayPoints = Array.isArray(runTotals) ? runTotals : undefined;
   const hasOverlay = !!overlayPoints && overlayPoints.length > 0;
+  const markers = useSignalVersionMarkers();
 
   const { data, chartConfig, fields } = useMemo(() => {
     const config: TimeSeriesChartConfig = {};
@@ -121,6 +123,7 @@ export default function ClusterStackedChart({
         chartConfig={chartConfig}
         fields={fields}
         containerWidth={containerWidth}
+        markers={markers}
         showTotal={false}
         tooltipDelay={TOOLTIP_DELAY_MS}
         tooltipMaxItems={TOOLTIP_MAX_ITEMS}

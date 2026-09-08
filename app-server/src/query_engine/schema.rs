@@ -475,6 +475,11 @@ const TABLES: &[Table] = &[
                 "UInt32",
                 "Output tokens produced by the signal agent",
             ),
+            col(
+                "signal_version",
+                "UInt32",
+                "Signal definition version the run used; 0 predates versioning",
+            ),
         ],
     },
     Table {
@@ -506,6 +511,11 @@ const TABLES: &[Table] = &[
                 "clusters",
                 "Array(UUID)",
                 "Cluster ids this event belongs to (excludes L0)",
+            ),
+            col(
+                "signal_version",
+                "UInt32",
+                "Signal definition version that produced the event; 0 predates versioning",
             ),
         ],
     },

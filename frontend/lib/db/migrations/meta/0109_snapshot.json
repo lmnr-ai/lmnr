@@ -1,6 +1,6 @@
 {
-  "id": "d24cb917-3b15-4e01-bb3f-a25f7017d596",
-  "prevId": "0107a7d1-5f2c-4c8e-9b3a-7e6d4c1f80b2",
+  "id": "76515e35-30be-46ba-83a6-700da0fe5c30",
+  "prevId": "d24cb917-3b15-4e01-bb3f-a25f7017d596",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3617,6 +3617,85 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.signal_versions": {
+      "name": "signal_versions",
+      "schema": "",
+      "columns": {
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "signal_id": {
+          "name": "signal_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "definition": {
+          "name": "definition",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "signal_versions_project_id_fkey": {
+          "name": "signal_versions_project_id_fkey",
+          "tableFrom": "signal_versions",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "signal_versions_signal_id_fkey": {
+          "name": "signal_versions_signal_id_fkey",
+          "tableFrom": "signal_versions",
+          "tableTo": "signals",
+          "columnsFrom": [
+            "signal_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "signal_versions_pkey": {
+          "name": "signal_versions_pkey",
+          "columns": [
+            "signal_id",
+            "version"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.signals": {
       "name": "signals",
       "schema": "",
@@ -3665,6 +3744,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'{}'::jsonb"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
         },
         "llm_profile_id": {
           "name": "llm_profile_id",

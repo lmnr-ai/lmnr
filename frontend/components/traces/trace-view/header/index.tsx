@@ -136,6 +136,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                 payload: e.payload,
                 timestamp: e.timestamp,
                 severity: e.severity,
+                signalVersion: e.signalVersion ?? 0,
                 leafClusters: e.leafClusters ?? [],
               }))
             : [],
