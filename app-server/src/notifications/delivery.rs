@@ -72,109 +72,6 @@ pub(crate) async fn push_to_deliveries_queue(
 }
 
 const LAMINAR_LOGO_PNG: &[u8] = include_bytes!("../../data/logo.png");
-const EMAIL_ARROW_PNG: &[u8] = include_bytes!("../../data/email-arrow.png");
-const EMAIL_CLUSTER_PNGS: [&[u8]; 100] = [
-    include_bytes!("../../data/email-clusters/0.png"),
-    include_bytes!("../../data/email-clusters/1.png"),
-    include_bytes!("../../data/email-clusters/2.png"),
-    include_bytes!("../../data/email-clusters/3.png"),
-    include_bytes!("../../data/email-clusters/4.png"),
-    include_bytes!("../../data/email-clusters/5.png"),
-    include_bytes!("../../data/email-clusters/6.png"),
-    include_bytes!("../../data/email-clusters/7.png"),
-    include_bytes!("../../data/email-clusters/8.png"),
-    include_bytes!("../../data/email-clusters/9.png"),
-    include_bytes!("../../data/email-clusters/10.png"),
-    include_bytes!("../../data/email-clusters/11.png"),
-    include_bytes!("../../data/email-clusters/12.png"),
-    include_bytes!("../../data/email-clusters/13.png"),
-    include_bytes!("../../data/email-clusters/14.png"),
-    include_bytes!("../../data/email-clusters/15.png"),
-    include_bytes!("../../data/email-clusters/16.png"),
-    include_bytes!("../../data/email-clusters/17.png"),
-    include_bytes!("../../data/email-clusters/18.png"),
-    include_bytes!("../../data/email-clusters/19.png"),
-    include_bytes!("../../data/email-clusters/20.png"),
-    include_bytes!("../../data/email-clusters/21.png"),
-    include_bytes!("../../data/email-clusters/22.png"),
-    include_bytes!("../../data/email-clusters/23.png"),
-    include_bytes!("../../data/email-clusters/24.png"),
-    include_bytes!("../../data/email-clusters/25.png"),
-    include_bytes!("../../data/email-clusters/26.png"),
-    include_bytes!("../../data/email-clusters/27.png"),
-    include_bytes!("../../data/email-clusters/28.png"),
-    include_bytes!("../../data/email-clusters/29.png"),
-    include_bytes!("../../data/email-clusters/30.png"),
-    include_bytes!("../../data/email-clusters/31.png"),
-    include_bytes!("../../data/email-clusters/32.png"),
-    include_bytes!("../../data/email-clusters/33.png"),
-    include_bytes!("../../data/email-clusters/34.png"),
-    include_bytes!("../../data/email-clusters/35.png"),
-    include_bytes!("../../data/email-clusters/36.png"),
-    include_bytes!("../../data/email-clusters/37.png"),
-    include_bytes!("../../data/email-clusters/38.png"),
-    include_bytes!("../../data/email-clusters/39.png"),
-    include_bytes!("../../data/email-clusters/40.png"),
-    include_bytes!("../../data/email-clusters/41.png"),
-    include_bytes!("../../data/email-clusters/42.png"),
-    include_bytes!("../../data/email-clusters/43.png"),
-    include_bytes!("../../data/email-clusters/44.png"),
-    include_bytes!("../../data/email-clusters/45.png"),
-    include_bytes!("../../data/email-clusters/46.png"),
-    include_bytes!("../../data/email-clusters/47.png"),
-    include_bytes!("../../data/email-clusters/48.png"),
-    include_bytes!("../../data/email-clusters/49.png"),
-    include_bytes!("../../data/email-clusters/50.png"),
-    include_bytes!("../../data/email-clusters/51.png"),
-    include_bytes!("../../data/email-clusters/52.png"),
-    include_bytes!("../../data/email-clusters/53.png"),
-    include_bytes!("../../data/email-clusters/54.png"),
-    include_bytes!("../../data/email-clusters/55.png"),
-    include_bytes!("../../data/email-clusters/56.png"),
-    include_bytes!("../../data/email-clusters/57.png"),
-    include_bytes!("../../data/email-clusters/58.png"),
-    include_bytes!("../../data/email-clusters/59.png"),
-    include_bytes!("../../data/email-clusters/60.png"),
-    include_bytes!("../../data/email-clusters/61.png"),
-    include_bytes!("../../data/email-clusters/62.png"),
-    include_bytes!("../../data/email-clusters/63.png"),
-    include_bytes!("../../data/email-clusters/64.png"),
-    include_bytes!("../../data/email-clusters/65.png"),
-    include_bytes!("../../data/email-clusters/66.png"),
-    include_bytes!("../../data/email-clusters/67.png"),
-    include_bytes!("../../data/email-clusters/68.png"),
-    include_bytes!("../../data/email-clusters/69.png"),
-    include_bytes!("../../data/email-clusters/70.png"),
-    include_bytes!("../../data/email-clusters/71.png"),
-    include_bytes!("../../data/email-clusters/72.png"),
-    include_bytes!("../../data/email-clusters/73.png"),
-    include_bytes!("../../data/email-clusters/74.png"),
-    include_bytes!("../../data/email-clusters/75.png"),
-    include_bytes!("../../data/email-clusters/76.png"),
-    include_bytes!("../../data/email-clusters/77.png"),
-    include_bytes!("../../data/email-clusters/78.png"),
-    include_bytes!("../../data/email-clusters/79.png"),
-    include_bytes!("../../data/email-clusters/80.png"),
-    include_bytes!("../../data/email-clusters/81.png"),
-    include_bytes!("../../data/email-clusters/82.png"),
-    include_bytes!("../../data/email-clusters/83.png"),
-    include_bytes!("../../data/email-clusters/84.png"),
-    include_bytes!("../../data/email-clusters/85.png"),
-    include_bytes!("../../data/email-clusters/86.png"),
-    include_bytes!("../../data/email-clusters/87.png"),
-    include_bytes!("../../data/email-clusters/88.png"),
-    include_bytes!("../../data/email-clusters/89.png"),
-    include_bytes!("../../data/email-clusters/90.png"),
-    include_bytes!("../../data/email-clusters/91.png"),
-    include_bytes!("../../data/email-clusters/92.png"),
-    include_bytes!("../../data/email-clusters/93.png"),
-    include_bytes!("../../data/email-clusters/94.png"),
-    include_bytes!("../../data/email-clusters/95.png"),
-    include_bytes!("../../data/email-clusters/96.png"),
-    include_bytes!("../../data/email-clusters/97.png"),
-    include_bytes!("../../data/email-clusters/98.png"),
-    include_bytes!("../../data/email-clusters/99.png"),
-];
 const LAMINAR_LOGO_CID: &str = "laminar-logo";
 
 pub struct NotificationDeliveryHandler {
@@ -350,30 +247,12 @@ impl NotificationDeliveryHandler {
                 .with_html(&content.html);
 
         // Attach inline logo for all notification emails.
-        email_opts = email_opts
-            .with_attachment(
-                CreateAttachment::from_content(LAMINAR_LOGO_PNG.to_vec())
-                    .with_filename("logo.png")
-                    .with_content_type("image/png")
-                    .with_content_id(LAMINAR_LOGO_CID),
-            )
-            .with_attachment(
-                CreateAttachment::from_content(EMAIL_ARROW_PNG.to_vec())
-                    .with_filename("email-arrow.png")
-                    .with_content_type("image/png")
-                    .with_content_id("email-arrow"),
-            );
-        for (index, png) in EMAIL_CLUSTER_PNGS.iter().enumerate() {
-            let content_id = format!("email-cluster-{index}");
-            if content.html.contains(&format!("cid:{content_id}")) {
-                email_opts = email_opts.with_attachment(
-                    CreateAttachment::from_content(png.to_vec())
-                        .with_filename(&format!("{content_id}.png"))
-                        .with_content_type("image/png")
-                        .with_content_id(&content_id),
-                );
-            }
-        }
+        email_opts = email_opts.with_attachment(
+            CreateAttachment::from_content(LAMINAR_LOGO_PNG.to_vec())
+                .with_filename("logo.png")
+                .with_content_type("image/png")
+                .with_content_id(LAMINAR_LOGO_CID),
+        );
 
         match send_email_with_retry(&resend, email_opts).await {
             Ok(response) => {

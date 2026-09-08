@@ -36,7 +36,7 @@ const ROW: &str = "#f7f7f7";
 
 fn email_document(title: &str, width: u16, body: &str) -> String {
     format!(
-        r#"<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{}</title><style>@media(max-width:720px){{.email-shell{{padding-left:0!important;padding-right:0!important}}}}</style></head><body style="margin:0;background:{};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;"><div class="email-shell" style="max-width:{}px;margin:0 auto;padding:20px;">{}</div></body></html>"#,
+        r#"<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{}</title><style>@media(max-width:720px){{.email-shell{{padding-left:0!important;padding-right:0!important}}}}.email-view-button:hover{{background:#e0e0e0!important}}</style></head><body style="margin:0;background:{};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;"><div class="email-shell" style="max-width:{}px;margin:0 auto;padding:20px;">{}</div></body></html>"#,
         html_escape(title),
         PAGE,
         width,
@@ -102,7 +102,7 @@ fn breadcrumb(parts: &[&str], href: &str) -> String {
         .collect::<Vec<_>>()
         .join(r#"<span style="display:inline-block;margin:0 10px;color:#92949c">/</span>"#);
     format!(
-        r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr><td style="font-size:16px;font-weight:400">{}</td><td align="right"><a href="{}"><img src="cid:email-arrow" alt="Open" width="20" height="20" style="display:block;border:0"></a></td></tr></table>"#,
+        r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr><td style="font-size:16px;font-weight:400">{}</td><td width="54" align="right" valign="top"><a class="email-view-button" href="{}" style="display:inline-block;background:#ebebeb;border-radius:999px;color:#252525;font-size:12px;line-height:16px;padding:4px 10px;text-decoration:none;white-space:nowrap">View&nbsp;›</a></td></tr></table>"#,
         text, href
     )
 }
@@ -709,10 +709,10 @@ fn cluster_row(
         "view_cluster",
     );
     let width = row.count * 100 / max;
-    let color_index = cluster_color_index(&row.id.to_string());
-    let tint = cluster_tint(CLUSTER_PALETTE[color_index]);
+    let accent = CLUSTER_PALETTE[cluster_color_index(&row.id.to_string())];
+    let tint = cluster_tint(accent);
     format!(
-        r#"<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:4px;background-color:#f7f7f7;background-image:linear-gradient(to right,{tint} 0%,{tint} {width}%,#f7f7f7 {width}%);border-radius:999px"><tr><td style="padding:6px 12px 6px 10px;font-size:14px;color:#252525"><img src="cid:email-cluster-{color_index}" alt="" width="16" height="16" style="vertical-align:middle;border:0">&nbsp;&nbsp;{name}</td><td align="right" style="padding:6px 4px;font-size:14px;color:#92949c">{count} events</td><td width="80" align="right" style="padding:6px 4px">{delta}</td><td width="20" align="right" style="padding:6px 12px 6px 8px"><a href="{href}"><img src="cid:email-arrow" alt="Open" width="16" height="16" style="display:block;border:0"></a></td></tr></table>"#,
+        r#"<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:4px;background-color:#f7f7f7;background-image:linear-gradient(to right,{tint} 0%,{tint} {width}%,#f7f7f7 {width}%);border-radius:999px"><tr><td style="padding:6px 12px 6px 10px;font-size:14px;color:#252525"><span aria-hidden="true" style="display:inline-block;color:{accent};font-family:Arial,sans-serif;font-size:20px;font-weight:400;line-height:20px;vertical-align:middle">◇</span>&nbsp;&nbsp;{name}</td><td align="right" style="padding:6px 4px;font-size:14px;color:#92949c">{count} events</td><td width="80" align="right" style="padding:6px 4px">{delta}</td><td width="54" align="right" style="padding:3px 4px 3px 8px"><a class="email-view-button" href="{href}" style="display:inline-block;background:#ebebeb;background:rgba(0,0,0,.08);border-radius:999px;color:#252525;font-size:12px;line-height:16px;padding:4px 10px;text-decoration:none;white-space:nowrap">View&nbsp;›</a></td></tr></table>"#,
         name = html_escape(&row.name),
         count = row.count,
         delta = delta(row.count, row.previous_count)
