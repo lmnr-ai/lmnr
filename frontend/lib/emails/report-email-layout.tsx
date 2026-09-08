@@ -1,4 +1,4 @@
-import { Button, Html, Img, Link, Preview, Section, Text } from "@react-email/components";
+import { Button, Head, Html, Img, Link, Preview, Section, Text } from "@react-email/components";
 import type { CSSProperties, ReactNode } from "react";
 
 import { defaultEmailTheme, type EmailTheme } from "./theme";
@@ -48,9 +48,12 @@ export function ReportEmailLayout({
 
   return (
     <Html lang="en">
+      <Head>
+        <style>{`@media screen and (max-width:720px) { .email-page { background:#fff !important; } .email-shell { padding-left:0 !important; padding-right:0 !important; } }`}</style>
+      </Head>
       <Preview>{preview}</Preview>
-      <div style={page}>
-        <div style={shell}>
+      <div className="email-page" style={page}>
+        <div className="email-shell" style={shell}>
           <Section style={banner}>
             <table cellPadding="0" cellSpacing="0" role="presentation">
               <tbody>

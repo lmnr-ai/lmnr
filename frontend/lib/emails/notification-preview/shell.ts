@@ -70,11 +70,12 @@ export function document(
 <title>${escapeHtml(title)}</title>
 <style>
 @media screen and (max-width:720px) {
+  .email-body { background:${t.reportSurface} !important; }
   .email-shell { padding-left:0 !important; padding-right:0 !important; }
 }
 </style>
 </head>
-<body style="margin:0;padding:0;background:${t.pageBackground};font-family:${t.fontFamily};">
+<body class="email-body" style="margin:0;padding:0;background:${t.pageBackground};font-family:${t.fontFamily};">
 <div class="email-shell" style="max-width:${contentWidth}px;margin:0 auto;padding:24px ${paddingX}px;">
 ${inner}
 </div>
