@@ -2,6 +2,12 @@
 //! either required, optional-with-fallback-to-in-memory, or consumed by
 //! multi-var feature detection, so they're bare names.
 
+use super::BoolEnv;
+
+/// `true` on Laminar Cloud. Mirrors the frontend `LAMINAR_CLOUD` flag; gates
+/// self-hosted-only features such as workspace LLM profiles.
+pub const LAMINAR_CLOUD: BoolEnv = BoolEnv::new("LAMINAR_CLOUD", false);
+
 /// Redis URL. Optional — absence falls back to in-memory cache + pub/sub.
 pub const REDIS_URL: &str = "REDIS_URL";
 /// pii-redactor gRPC URL. Presence enables the PII redaction feature.

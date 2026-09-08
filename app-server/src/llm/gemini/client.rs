@@ -59,8 +59,25 @@ impl GeminiClient {
             .ok()
             .filter(|s| !s.trim().is_empty())
             .unwrap_or_else(|| "https://generativelanguage.googleapis.com/v1beta".to_string());
-        let api_base_url = raw_base_url.trim_end_matches('/').to_string();
         let default_headers = default_headers_from_env().map_err(GeminiError::config)?;
+        Self::with_config(api_key, &raw_base_url, default_headers)
+    }
+
+    /// Build from explicit values (LLM profiles) instead of env.
+    pub(crate) fn with_api_key(api_key: String) -> GeminiResult<Self> {
+        Self::with_config(
+            api_key,
+            "https://generativelanguage.googleapis.com/v1beta",
+            reqwest::header::HeaderMap::new(),
+        )
+    }
+
+    fn with_config(
+        api_key: String,
+        raw_base_url: &str,
+        default_headers: reqwest::header::HeaderMap,
+    ) -> GeminiResult<Self> {
+        let api_base_url = raw_base_url.trim_end_matches('/').to_string();
 
         let client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(10))

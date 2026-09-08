@@ -9,6 +9,9 @@ pub const PROJECT_CACHE_KEY: &str = "project";
 pub const SIGNAL_TRIGGERS_CACHE_KEY: &str = "signal_triggers";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_TRIGGER_LOCK_CACHE_KEY: &str = "signal_trigger_lock";
+/// `llm_profile:{workspace_id}:{profile_id}` → full profile row (encrypted secrets included).
+/// `llm::profiles::service` removes the key on every profile write.
+pub const LLM_PROFILE_CACHE_KEY: &str = "llm_profile";
 /// Gives one signal run exclusive use of a trace for its FIRST step, so the
 /// next signal's request hits the provider prefix cache the first one warmed
 /// instead of racing it. Held only across step 0 and scoped per

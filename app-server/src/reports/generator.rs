@@ -412,6 +412,7 @@ async fn generate_project_summary(
         service_tier: None,
         provider: None,
         model_size: None,
+        llm_profile: None,
     };
 
     let response = llm_client

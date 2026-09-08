@@ -93,13 +93,16 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
     if (isFirstProject && projectId) {
       // Route through createSignal so the default Failure Detector signal gets
       // the same SIGNAL_EVENT alert + creator email target as a UI-created signal.
-      const signal = await createSignal({
-        projectId,
-        name: DEFAULT_SIGNAL.name,
-        prompt: DEFAULT_SIGNAL.prompt,
-        structuredOutput: DEFAULT_SIGNAL.structuredOutputSchema,
-        subscriberEmail: userEmail ?? undefined,
-      });
+      const signal = await createSignal(
+        {
+          projectId,
+          name: DEFAULT_SIGNAL.name,
+          prompt: DEFAULT_SIGNAL.prompt,
+          structuredOutput: DEFAULT_SIGNAL.structuredOutputSchema,
+          subscriberEmail: userEmail ?? undefined,
+        },
+        { requireLlmProfile: false }
+      );
 
       if (signal) {
         await db.insert(signalTriggers).values({

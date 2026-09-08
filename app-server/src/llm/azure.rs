@@ -15,13 +15,29 @@ pub(crate) fn has_endpoint() -> bool {
 /// `AZURE_BASE_URL` wins over `AZURE_RESOURCE_ID`. Returns the host root; callers
 /// append their own API-shape path (`/openai/v1`, `/anthropic`).
 pub(crate) fn resource_root() -> Result<String, String> {
-    if let Some(base_url) = non_empty_env(env::llm::AZURE_BASE_URL) {
-        return Ok(strip_api_shape_path(&base_url));
-    }
-    let resource_id = non_empty_env(env::llm::AZURE_RESOURCE_ID).ok_or_else(|| {
+    resource_root_from(
+        non_empty_env(env::llm::AZURE_RESOURCE_ID).as_deref(),
+        non_empty_env(env::llm::AZURE_BASE_URL).as_deref(),
+    )
+    .map_err(|_| {
         "AZURE_RESOURCE_ID or AZURE_BASE_URL must be set when LLM_PROVIDER is an azure_* provider"
             .to_string()
-    })?;
+    })
+}
+
+/// Same resolution from explicit values (LLM profiles): base URL wins, else the
+/// resource id is expanded to the Foundry host.
+pub(crate) fn resource_root_from(
+    resource_id: Option<&str>,
+    base_url: Option<&str>,
+) -> Result<String, String> {
+    if let Some(base_url) = base_url.map(str::trim).filter(|v| !v.is_empty()) {
+        return Ok(strip_api_shape_path(base_url));
+    }
+    let resource_id = resource_id
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .ok_or_else(|| "Azure resource id or base URL is required".to_string())?;
     Ok(format!("https://{resource_id}.services.ai.azure.com"))
 }
 

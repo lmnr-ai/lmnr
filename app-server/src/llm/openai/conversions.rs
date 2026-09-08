@@ -432,6 +432,7 @@ mod tests {
             service_tier: None,
             provider: None,
             model_size: None,
+            llm_profile: None,
         };
         let body = provider_request_to_openai_body("gpt-5-mini", &req);
         let messages = body["messages"].as_array().unwrap();
@@ -458,6 +459,7 @@ mod tests {
             service_tier: None,
             provider: None,
             model_size: None,
+            llm_profile: None,
         };
         let body = provider_request_to_openai_body("gpt-5", &req);
         let messages = body["messages"].as_array().unwrap();
@@ -493,6 +495,7 @@ mod tests {
             service_tier: None,
             provider: None,
             model_size: None,
+            llm_profile: None,
         };
         let body = provider_request_to_openai_body("gpt-5", &req);
         let tools = body["tools"].as_array().unwrap();
@@ -521,6 +524,7 @@ mod tests {
             service_tier: None,
             provider: None,
             model_size: None,
+            llm_profile: None,
         };
 
         // No tools: reasoning_effort forwarded.
@@ -557,6 +561,7 @@ mod tests {
             service_tier: None,
             provider: None,
             model_size: None,
+            llm_profile: None,
         };
 
         // Function tools + reasoning_effort 400s on gpt-5 chat/completions, on

@@ -15,6 +15,7 @@ export type SettingsSection =
   | "reports"
   | "billing"
   | "workspace-general"
+  | "llm-profiles"
   | "general"
   | "project-api-keys"
   | "provider-api-keys"

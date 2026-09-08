@@ -4,7 +4,8 @@ export type Project = {
   workspaceId: string;
 };
 
-export type WorkspaceRole = "member" | "admin" | "owner";
+export const WORKSPACE_ROLES = ["member", "admin", "owner"] as const;
+export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
 
 export interface WorkspaceUser {
   id: string;

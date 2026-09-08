@@ -41,6 +41,11 @@ pub struct Signal {
     #[serde(default)]
     #[sqlx(json)]
     pub metadata: SignalMetadata,
+    /// Both set or both `NULL` (DB CHECK). `None` = env-var `LlmClient` routing.
+    #[serde(default)]
+    pub llm_profile_id: Option<Uuid>,
+    #[serde(default)]
+    pub llm_model: Option<String>,
 }
 
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
@@ -50,7 +55,7 @@ pub async fn get_signal(
     project_id: Uuid,
 ) -> Result<Option<Signal>> {
     let signal = sqlx::query_as::<_, Signal>(
-        "SELECT id, name, prompt, structured_output_schema, metadata
+        "SELECT id, name, prompt, structured_output_schema, metadata, llm_profile_id, llm_model
         FROM signals
         WHERE id = $1 AND project_id = $2",
     )
@@ -68,7 +73,7 @@ pub async fn get_signal_row(
     signal_id: Uuid,
 ) -> Result<Option<SignalRow>> {
     let row = sqlx::query_as::<_, SignalRow>(
-        "SELECT id, project_id, name, prompt, structured_output_schema, metadata, created_at
+        "SELECT id, project_id, name, prompt, structured_output_schema, metadata, llm_profile_id, llm_model, created_at
          FROM signals
          WHERE id = $1 AND project_id = $2",
     )
@@ -88,6 +93,8 @@ pub struct SignalRow {
     pub prompt: String,
     pub structured_output_schema: Value,
     pub metadata: Value,
+    pub llm_profile_id: Option<Uuid>,
+    pub llm_model: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -111,19 +118,22 @@ pub async fn create_signal_with_alerts(
     conditions: &Value,
     filters: &Value,
     mode: i16,
+    llm_route: Option<&(Uuid, String)>,
 ) -> Result<(SignalRow, TriggerRow), CreateSignalError> {
     let mut tx = pool.begin().await.map_err(anyhow::Error::from)?;
 
     let signal = sqlx::query_as::<_, SignalRow>(
-        "INSERT INTO signals (project_id, name, prompt, structured_output_schema, metadata)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, project_id, name, prompt, structured_output_schema, metadata, created_at",
+        "INSERT INTO signals (project_id, name, prompt, structured_output_schema, metadata, llm_profile_id, llm_model)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id, project_id, name, prompt, structured_output_schema, metadata, llm_profile_id, llm_model, created_at",
     )
     .bind(project_id)
     .bind(name)
     .bind(prompt)
     .bind(structured_output_schema)
     .bind(metadata)
+    .bind(llm_route.map(|(id, _)| *id))
+    .bind(llm_route.map(|(_, model)| model.as_str()))
     .fetch_one(&mut *tx)
     .await
     .map_err(|e| match &e {
@@ -226,6 +236,9 @@ pub struct SignalUpdate {
     /// Outer `None` = leave stored; `Some(None)` = clear sampling.
     pub sample_rate: Option<Option<i16>>,
     pub disabled: Option<bool>,
+    /// `None` = leave stored. Callers validate the pair before writing; the
+    /// composite FK is the backstop.
+    pub llm_route: Option<(Uuid, String)>,
 }
 
 pub async fn update_signal(
@@ -238,7 +251,7 @@ pub async fn update_signal(
     let mut tx = pool.begin().await?;
 
     let existing = sqlx::query_as::<_, SignalRow>(
-        "SELECT id, project_id, name, prompt, structured_output_schema, metadata, created_at
+        "SELECT id, project_id, name, prompt, structured_output_schema, metadata, llm_profile_id, llm_model, created_at
          FROM signals
          WHERE id = $1 AND project_id = $2
          FOR UPDATE",
@@ -256,9 +269,10 @@ pub async fn update_signal(
 
     let updated = sqlx::query_as::<_, SignalRow>(
         "UPDATE signals
-         SET prompt = $3, structured_output_schema = $4, metadata = $5
+         SET prompt = $3, structured_output_schema = $4, metadata = $5,
+             llm_profile_id = $6, llm_model = $7
          WHERE id = $1 AND project_id = $2
-         RETURNING id, project_id, name, prompt, structured_output_schema, metadata, created_at",
+         RETURNING id, project_id, name, prompt, structured_output_schema, metadata, llm_profile_id, llm_model, created_at",
     )
     .bind(signal_id)
     .bind(project_id)
@@ -269,6 +283,20 @@ pub async fn update_signal(
             .unwrap_or(existing.structured_output_schema),
     )
     .bind(metadata)
+    .bind(
+        update
+            .llm_route
+            .as_ref()
+            .map(|(id, _)| *id)
+            .or(existing.llm_profile_id),
+    )
+    .bind(
+        update
+            .llm_route
+            .as_ref()
+            .map(|(_, model)| model.clone())
+            .or(existing.llm_model),
+    )
     .fetch_one(&mut *tx)
     .await?;
 
@@ -351,7 +379,7 @@ pub async fn delete_signal(
     let deleted = sqlx::query_as::<_, SignalRow>(
         "DELETE FROM signals
          WHERE id = $1 AND project_id = $2
-         RETURNING id, project_id, name, prompt, structured_output_schema, metadata, created_at",
+         RETURNING id, project_id, name, prompt, structured_output_schema, metadata, llm_profile_id, llm_model, created_at",
     )
     .bind(signal_id)
     .bind(project_id)
@@ -378,7 +406,7 @@ pub async fn list_signals(
     let pattern = name.map(|n| format!("%{}%", escape_like_pattern(n)));
 
     let signals = sqlx::query_as::<_, SignalRow>(
-        "SELECT id, project_id, name, prompt, structured_output_schema, metadata, created_at
+        "SELECT id, project_id, name, prompt, structured_output_schema, metadata, llm_profile_id, llm_model, created_at
          FROM signals
          WHERE project_id = $1
            AND ($2::text IS NULL OR name ILIKE $2 ESCAPE '\\')

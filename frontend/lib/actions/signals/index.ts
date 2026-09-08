@@ -11,7 +11,15 @@ import { clickhouseClient } from "@/lib/clickhouse/client";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { DEFAULT_SIGNAL_TRIGGER_FILTERS, DEFAULT_SIGNAL_TRIGGER_VALUE } from "@/lib/db/default-signals.ts";
 import { db } from "@/lib/db/drizzle";
-import { alerts, alertTargets, signals, signalTriggers } from "@/lib/db/migrations/schema";
+import {
+  alerts,
+  alertTargets,
+  llmProfileModels,
+  llmProfiles,
+  projects,
+  signals,
+  signalTriggers,
+} from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 // User-controlled signal settings stored in the `metadata` jsonb column.
@@ -42,6 +50,29 @@ export type Signal = {
   structuredOutput: Record<string, unknown>;
   sampleRate: number | null;
   disabled: boolean;
+  /** Both null = run on the server's env-configured LLM (legacy / cloud). */
+  llmProfileId: string | null;
+  llmModel: string | null;
+};
+
+// Optional, not nullable: absent means "keep the stored route", and no client sends null.
+const LlmProfileFieldsSchema = {
+  llmProfileId: z.guid().optional(),
+  llmModel: z.string().trim().min(1).max(256).optional(),
+};
+
+/** Mirrors `signals_llm_profile_pair_check`: a signal pins both a profile and a model, or neither. */
+const llmRouteIsPaired = (v: { llmProfileId?: string; llmModel?: string }) =>
+  (v.llmProfileId === undefined) === (v.llmModel === undefined);
+
+/** Cloud runs signals on Laminar's own keys, so no route may be pinned there. */
+const llmRouteIsAllowed = (v: { llmProfileId?: string }) =>
+  v.llmProfileId === undefined || isFeatureEnabled(Feature.LLM_PROFILES);
+
+const LLM_PROFILE_PAIR_ERROR = { message: "Select both an LLM profile and a model", path: ["llmModel"] };
+const LLM_PROFILE_CLOUD_ERROR = {
+  message: "LLM profiles are not available on Laminar Cloud",
+  path: ["llmProfileId"],
 };
 
 export const GetSignalsSchema = PaginationFiltersSchema.extend({
@@ -55,26 +86,34 @@ const GetSignalSchema = z.object({
   id: z.guid(),
 });
 
-const CreateSignalSchema = z.object({
-  projectId: z.guid(),
-  name: z.string().min(1, "Name is required").max(255, { error: "Name must be less than 255 characters" }),
-  prompt: z.string(),
-  structuredOutput: z.record(z.string(), z.unknown()),
-  sampleRate: z.number().int().min(1).max(95).nullable().optional(),
-  disabled: z.boolean().optional(),
-  // When provided, the creator is auto-subscribed via EMAIL alert targets on
-  // every alert created for this signal.
-  subscriberEmail: z.email().optional(),
-});
+const CreateSignalSchema = z
+  .object({
+    projectId: z.guid(),
+    name: z.string().min(1, "Name is required").max(255, { error: "Name must be less than 255 characters" }),
+    prompt: z.string(),
+    structuredOutput: z.record(z.string(), z.unknown()),
+    sampleRate: z.number().int().min(1).max(95).nullable().optional(),
+    disabled: z.boolean().optional(),
+    // When provided, the creator is auto-subscribed via EMAIL alert targets on
+    // every alert created for this signal.
+    subscriberEmail: z.email().optional(),
+    ...LlmProfileFieldsSchema,
+  })
+  .refine(llmRouteIsPaired, LLM_PROFILE_PAIR_ERROR)
+  .refine(llmRouteIsAllowed, LLM_PROFILE_CLOUD_ERROR);
 
-const UpdateSignalSchema = z.object({
-  projectId: z.guid(),
-  id: z.guid(),
-  prompt: z.string(),
-  structuredOutput: z.record(z.string(), z.unknown()),
-  sampleRate: z.number().int().min(1).max(95).nullable().optional(),
-  disabled: z.boolean().optional(),
-});
+const UpdateSignalSchema = z
+  .object({
+    projectId: z.guid(),
+    id: z.guid(),
+    prompt: z.string(),
+    structuredOutput: z.record(z.string(), z.unknown()),
+    sampleRate: z.number().int().min(1).max(95).nullable().optional(),
+    disabled: z.boolean().optional(),
+    ...LlmProfileFieldsSchema,
+  })
+  .refine(llmRouteIsPaired, LLM_PROFILE_PAIR_ERROR)
+  .refine(llmRouteIsAllowed, LLM_PROFILE_CLOUD_ERROR);
 
 export const DeleteSignalSchema = z.object({
   projectId: z.guid(),
@@ -407,15 +446,59 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
   };
 }
 
-export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
-  const { projectId, name, prompt, structuredOutput, sampleRate, disabled, subscriberEmail } =
+const llmProfileError = (path: string, message: string) =>
+  new z.ZodError([{ code: "custom", path: [path], message, input: undefined }]);
+
+/**
+ * Confirms a pinned route belongs to the project's workspace and lists the model
+ * (the composite FK is the backstop). Undefined means there is no route to write,
+ * which leaves the stored columns alone — drizzle skips undefined keys. The flag
+ * is re-checked here so a caller that skipped `llmRouteIsAllowed` still can't pin
+ * a route on Cloud; that refine owns the user-facing 400.
+ */
+async function resolveLlmRoute(
+  projectId: string,
+  llmProfileId: string | undefined,
+  llmModel: string | undefined
+): Promise<{ llmProfileId: string; llmModel: string } | undefined> {
+  if (!isFeatureEnabled(Feature.LLM_PROFILES) || llmProfileId === undefined || llmModel === undefined) {
+    return undefined;
+  }
+
+  const [match] = await db
+    .select({ model: llmProfileModels.name })
+    .from(llmProfiles)
+    .innerJoin(projects, and(eq(projects.workspaceId, llmProfiles.workspaceId), eq(projects.id, projectId)))
+    .leftJoin(
+      llmProfileModels,
+      and(eq(llmProfileModels.profileId, llmProfiles.id), eq(llmProfileModels.name, llmModel))
+    )
+    .where(eq(llmProfiles.id, llmProfileId))
+    .limit(1);
+
+  if (!match) throw llmProfileError("llmProfileId", "LLM profile not found in this workspace");
+  if (!match.model) throw llmProfileError("llmModel", "The selected model is not part of this LLM profile");
+  return { llmProfileId, llmModel };
+}
+
+export async function createSignal(
+  input: z.infer<typeof CreateSignalSchema>,
+  // Seeded default signals have no profile to pick; they run on env credentials until edited.
+  { requireLlmProfile = true }: { requireLlmProfile?: boolean } = {}
+) {
+  const { projectId, name, prompt, structuredOutput, sampleRate, disabled, subscriberEmail, llmProfileId, llmModel } =
     CreateSignalSchema.parse(input);
+
+  if (requireLlmProfile && llmProfileId === undefined && isFeatureEnabled(Feature.LLM_PROFILES)) {
+    throw llmProfileError("llmProfileId", "Select an LLM profile and a model");
+  }
 
   const metadata: SignalMetadata = {};
   if (sampleRate != null) metadata.sampleRate = sampleRate;
   // Only persist `disabled` when deactivated; absence means active.
   if (disabled === true) metadata.disabled = true;
 
+  const llmRoute = await resolveLlmRoute(projectId, llmProfileId, llmModel);
   const result = await db.transaction(async (tx) => {
     const [signal] = await tx
       .insert(signals)
@@ -425,6 +508,7 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
         prompt,
         structuredOutputSchema: structuredOutput,
         metadata,
+        ...llmRoute,
       })
       .returning();
 
@@ -475,7 +559,11 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
 }
 
 export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
-  const { projectId, id, prompt, structuredOutput, sampleRate, disabled } = UpdateSignalSchema.parse(input);
+  const { projectId, id, prompt, structuredOutput, sampleRate, disabled, llmProfileId, llmModel } =
+    UpdateSignalSchema.parse(input);
+
+  // No "required" check here: an edit must not force a legacy env-backed signal onto a profile.
+  const llmRoute = await resolveLlmRoute(projectId, llmProfileId, llmModel);
 
   const [existing] = await db
     .select({ metadata: signals.metadata })
@@ -494,7 +582,7 @@ export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
 
   const result = await db
     .update(signals)
-    .set({ prompt, structuredOutputSchema: structuredOutput, metadata })
+    .set({ prompt, structuredOutputSchema: structuredOutput, metadata, ...llmRoute })
     .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
     .returning();
 
