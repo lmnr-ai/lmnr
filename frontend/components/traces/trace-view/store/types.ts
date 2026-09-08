@@ -62,6 +62,8 @@ export type TranscriptListGroup = {
   type: "group";
   groupId: string;
   name: string;
+  /** Nearest non-empty `gen_ai.agent.name` on the anchor LLM or its ancestors. */
+  declaredName: string | null;
   path: string;
   firstSpan: TraceViewListSpan;
   firstLlmSpanId: string | null;
