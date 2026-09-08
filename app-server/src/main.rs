@@ -2734,6 +2734,7 @@ fn main() -> anyhow::Result<()> {
                             // shadowed by the dynamic segment.
                             .service(api::v1::cli::signals::create_signal)
                             .service(api::v1::cli::signals::list_signals)
+                            .service(api::v1::cli::signals::list_signal_versions)
                             .service(api::v1::cli::signals::get_signal)
                             .service(api::v1::cli::signals::update_signal)
                             .service(api::v1::cli::signals::delete_signal)

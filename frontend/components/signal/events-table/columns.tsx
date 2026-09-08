@@ -4,6 +4,7 @@ import React, { useMemo } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
 import { useSignalTraceParams } from "@/components/signal/hooks/use-signal-trace-params";
+import SignalVersion from "@/components/signal/signal-version";
 import { type SchemaField, type SchemaFieldType } from "@/components/signals/utils";
 import { renderSpanReferences, type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
 import { Badge } from "@/components/ui/badge";
@@ -266,6 +267,13 @@ const staticColumnsAfterPayload: ColumnDef<EventRow>[] = [
     size: 180,
     id: "traceId",
   },
+  {
+    accessorKey: "signalVersion",
+    header: "Version",
+    cell: (row) => <SignalVersion version={Number(row.getValue())} />,
+    size: 88,
+    id: "signalVersion",
+  },
 ];
 
 const staticFilters: ColumnFilter[] = [
@@ -294,11 +302,23 @@ const staticFilters: ColumnFilter[] = [
       { value: "2", label: "Critical" },
     ],
   },
+  {
+    name: "Version",
+    key: "signal_version",
+    dataType: "number",
+  },
 ];
+
+// Hidden by default, like Run ID on the runs table: only relevant once you're
+// comparing definitions.
+const defaultEventsColumnVisibility: Record<string, boolean> = {
+  signalVersion: false,
+};
 
 export function buildEventsColumns(schemaFields: SchemaField[]): {
   columns: ColumnDef<EventRow>[];
   columnOrder: string[];
+  columnVisibility: Record<string, boolean>;
   filters: ColumnFilter[];
 } {
   const validFields = schemaFields.filter((f) => f.name.trim());
@@ -307,9 +327,21 @@ export function buildEventsColumns(schemaFields: SchemaField[]): {
 
   const columns = [...staticColumnsBeforePayload, ...payloadColumns, ...staticColumnsAfterPayload];
 
-  const columnOrder = ["timestamp", "severity", ...validFields.map((f) => `payload:${f.name}`), "traceId", "id"];
+  const columnOrder = [
+    "timestamp",
+    "severity",
+    ...validFields.map((f) => `payload:${f.name}`),
+    "traceId",
+    "id",
+    "signalVersion",
+  ];
 
   const filters = [...staticFilters, ...payloadFilters];
 
-  return { columns, columnOrder, filters };
+  return {
+    columns,
+    columnOrder,
+    columnVisibility: defaultEventsColumnVisibility,
+    filters,
+  };
 }

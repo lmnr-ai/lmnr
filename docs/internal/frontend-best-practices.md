@@ -10,6 +10,13 @@
 
 Frontend lint is oxlint (`frontend/.oxlintrc.json`), format is oxfmt (`frontend/.oxfmtrc.json`). Do not add ESLint or Prettier. Policy markdown and blog MDX are oxfmt-ignored — see the policy-pages note in `docs/internal/frontend-app.md`.
 
+- **Never run `prettier --write` on this repo, not even on a single file — the damage is not undoable by re-running oxfmt.** oxfmt inherits prettier's "objects stay expanded if the source had a newline after `{`" rule, so once prettier (default `printWidth: 80`, `trailingComma: "all"`) has broken a one-line object literal across lines, `oxfmt --write` accepts the expanded form as already-correct and leaves it. The result is dozens of formatting-only lines buried in the diff that have to be reverted by hand. Format changed files with `npx oxfmt --write <file…>` (never bare `.` / `pnpm format:write`, which rewrites the whole tree).
+- `.oxfmtrc.json`'s `ignorePatterns` includes `lib/db/migrations/**`, so oxfmt will not even touch `schema.ts` or the drizzle snapshots. A stray formatter run there can only be fixed with `git checkout -- <file>` plus a manual re-apply.
+
+### Recharts `ReferenceLine` on a categorical axis
+
+`TimeSeriesChart` (and every chart built on it) uses a categorical `<XAxis dataKey="timestamp">`, so a `<ReferenceLine x={…}>` renders **only** when `x` is byte-identical to one of the bucket labels in `data`. An arbitrary instant (an annotation's `created_at`) silently renders nothing. Snap it first — find the last bucket whose start is `<= at`, drop anything past the last bucket's end, and merge labels that land in the same bucket into one line. That is what `TimeSeriesChartProps.markers` / `snappedMarkers` does; reuse it rather than passing raw timestamps. A lone bucket has no measurable width — treat it as unbounded to the right so a marker later in that window still snaps. Clickable labels (`TimeSeriesMarker.href`) must `stopPropagation` on mouseDown/pointerDown so the chart's drag-zoom does not start; last marker's href wins when several snap to one bar.
+
 ### One component per file
 
 Related components should be in a folder named by the parent component (`my-list/`) and the parent component should follow the index.tsx pattern (`my-list/index.tsx`) and all related components should be in the folder (`my-list/my-list-item.tsx`).
