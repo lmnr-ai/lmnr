@@ -1,17 +1,16 @@
-import { type ColumnDef, type Table } from "@tanstack/react-table";
+import { type ColumnDef } from "@tanstack/react-table";
 import { isNil } from "lodash";
 
 import DefinitionHoverCard from "@/components/signals/definition-hover-card";
 import SignalSparkline from "@/components/signals/signal-sparkline.tsx";
+import { useSignalSparklines } from "@/components/signals/sparkline-context";
 import { Badge } from "@/components/ui/badge";
 import { type SignalRow } from "@/lib/actions/signals";
 import { cn, formatRelativeTime } from "@/lib/utils.ts";
 
-// Sparkline data + shared y-scale live on table `meta` rather than in the row,
-// because they're fetched separately (per-page batch) after the rows land.
-function SparklineCell({ signalId, table }: { signalId: string; table: Table<SignalRow> }) {
-  const { data, maxCount } = table.options.meta?.signalsCellMeta ?? {};
-  const points = data?.[signalId];
+function SparklineCell({ signalId }: { signalId: string }) {
+  const { data, maxCount } = useSignalSparklines();
+  const points = data[signalId];
 
   return (
     <div className="h-full w-full flex items-center">
@@ -70,7 +69,7 @@ export const signalsColumns: ColumnDef<SignalRow>[] = [
     header: "Activity",
     size: 192,
     enableResizing: false,
-    cell: ({ row, table }) => <SparklineCell signalId={row.original.id} table={table} />,
+    cell: ({ row }) => <SparklineCell signalId={row.original.id} />,
   },
   {
     id: "lastEventAt",

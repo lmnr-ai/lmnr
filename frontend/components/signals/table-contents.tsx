@@ -6,6 +6,7 @@ import { memo, type PropsWithChildren, type RefObject, useCallback, useEffect, u
 
 import { signalsColumns } from "@/components/signals/columns";
 import { FETCH_SIZE } from "@/components/signals/constants";
+import { SignalSparklineProvider } from "@/components/signals/sparkline-context";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
@@ -178,19 +179,14 @@ export const SignalsTableContents = memo(function SignalsTableContents({
     return () => abortController.abort();
   }, [signalIdsCacheKey, sparklineData, sparklinePastHours, projectId, toast]);
 
-  const meta = useMemo(() => {
+  const sparklineContext = useMemo(() => {
     let maxCount = 0;
     for (const signal of signals) {
       for (const point of sparklineData[signal.id] ?? []) {
         if (point.count > maxCount) maxCount = point.count;
       }
     }
-    return {
-      signalsCellMeta: {
-        data: sparklineData,
-        maxCount,
-      },
-    };
+    return { data: sparklineData, maxCount };
   }, [signals, sparklineData]);
 
   const handleDelete = useCallback(
@@ -223,33 +219,34 @@ export const SignalsTableContents = memo(function SignalsTableContents({
   );
 
   return (
-    <InfiniteDataTable<SignalRow>
-      className="w-full"
-      enableRowSelection
-      getRowHref={(row) => `/project/${projectId}/signals/${row.original.id}`}
-      getRowId={(row) => row.id}
-      getRowClassName={(row) => (row.original.disabled ? "opacity-60" : "")}
-      columns={signalsColumns}
-      data={signals}
-      estimatedRowHeight={64}
-      meta={meta}
-      hasMore={hasMore}
-      isFetching={isFetching}
-      isLoading={isLoading || isViewLoading}
-      fetchNextPage={fetchNextPage}
-      state={{ rowSelection }}
-      onRowSelectionChange={onRowSelectionChange}
-      sortBy={sortBy}
-      sortDirection={sortDirection}
-      onSort={onSort}
-      emptyRow={filter.length === 0 && !search ? EmptyRow : undefined}
-      selectionPanel={(selectedRowIds) => (
-        <div className="flex flex-col space-y-2">
-          <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDelete} entityName="signals" />
-        </div>
-      )}
-    >
-      {children}
-    </InfiniteDataTable>
+    <SignalSparklineProvider value={sparklineContext}>
+      <InfiniteDataTable<SignalRow>
+        className="w-full"
+        enableRowSelection
+        getRowHref={(row) => `/project/${projectId}/signals/${row.original.id}`}
+        getRowId={(row) => row.id}
+        getRowClassName={(row) => (row.original.disabled ? "opacity-60" : "")}
+        columns={signalsColumns}
+        data={signals}
+        estimatedRowHeight={64}
+        hasMore={hasMore}
+        isFetching={isFetching}
+        isLoading={isLoading || isViewLoading}
+        fetchNextPage={fetchNextPage}
+        state={{ rowSelection }}
+        onRowSelectionChange={onRowSelectionChange}
+        sortBy={sortBy}
+        sortDirection={sortDirection}
+        onSort={onSort}
+        emptyRow={filter.length === 0 && !search ? EmptyRow : undefined}
+        selectionPanel={(selectedRowIds) => (
+          <div className="flex flex-col space-y-2">
+            <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDelete} entityName="signals" />
+          </div>
+        )}
+      >
+        {children}
+      </InfiniteDataTable>
+    </SignalSparklineProvider>
   );
 });
