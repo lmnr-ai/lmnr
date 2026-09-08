@@ -1,6 +1,10 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
 import { Resend } from "resend";
 
 import PaymentFailedEmail from "./payment-failed-email";
+import { REPORT_LOGO_CID } from "./report-email-layout";
 import SubscriptionUpdatedEmail from "./subscription-updated-email";
 import WelcomeEmail from "./welcome-email";
 import WorkspaceInviteEmail from "./workspace-invite";
@@ -15,6 +19,12 @@ const RESEND = new Resend(process.env.RESEND_API_KEY ?? "_RESEND_API_KEY_PLACEHO
 // of having to navigate workspace settings → billing → "Billing portal".
 const billingPortalUrl = (workspaceId: string) =>
   `https://lmnr.ai/checkout/portal?workspaceId=${encodeURIComponent(workspaceId)}`;
+
+const reportLogoAttachment = async () => ({
+  content: await readFile(path.join(process.cwd(), "public", "report-logo.png")),
+  filename: "report-logo.png",
+  contentId: REPORT_LOGO_CID,
+});
 
 interface InvoiceEmailArgs {
   email: string;
@@ -52,6 +62,7 @@ export async function sendOnPaymentReceivedEmail({ email, workspaceId, total, da
     to: [email],
     subject,
     react: component,
+    attachments: [await reportLogoAttachment()],
   });
 
   if (error) console.error(error);
@@ -72,6 +83,7 @@ export async function sendOnPaymentFailedEmail({ email, workspaceId, total, date
     to: [email],
     subject,
     react: component,
+    attachments: [await reportLogoAttachment()],
   });
 
   if (error) console.error(error);
@@ -86,6 +98,7 @@ export async function sendInvitationEmail(email: string, workspaceName: string, 
     to: [email],
     subject,
     react: WorkspaceInviteEmail({ workspaceName, inviteLink }),
+    attachments: [await reportLogoAttachment()],
   });
 
   if (error) console.log(error);

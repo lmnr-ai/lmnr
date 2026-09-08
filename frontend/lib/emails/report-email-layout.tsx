@@ -4,7 +4,8 @@ import type { CSSProperties, ReactNode } from "react";
 import { defaultEmailTheme, type EmailTheme } from "./theme";
 
 const PRIMARY_300 = "#d57e57";
-const LOGO_URL = "https://lmnr.ai/report-logo.png";
+export const REPORT_LOGO_CID = "laminar-report-logo";
+const LOGO_URL = `cid:${REPORT_LOGO_CID}`;
 
 interface ReportEmailLayoutProps {
   preview: string;
