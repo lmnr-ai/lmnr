@@ -13,8 +13,13 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use super::ReportTriggerMessage;
-use super::report_data::{NoteworthyEvent, ProjectReportData};
-use crate::ch::signal_events::{get_signal_event_counts, get_signal_events_for_summary};
+use super::report_data::{
+    NoteworthyEvent, ProjectReportData, ReportChartBucket, ReportClusterData, SignalReportData,
+};
+use crate::ch::signal_events::{
+    get_signal_cluster_counts, get_signal_event_buckets, get_signal_event_counts,
+    get_signal_events_for_summary,
+};
 use crate::db::DB;
 use crate::db::projects::get_projects_for_workspace;
 use crate::db::reports::get_signals_for_workspace;
@@ -32,6 +37,7 @@ use crate::notifications::{
 use crate::worker::{HandlerError, MessageHandler};
 
 const MAX_EVENTS_FOR_SUMMARY: u64 = 128;
+const REPORT_CHART_BUCKETS: u32 = 14;
 
 /// Report type identifier for signal events summary reports.
 const REPORT_TYPE_SIGNAL_EVENTS_SUMMARY: &str = "SIGNAL_EVENTS_SUMMARY";
@@ -149,7 +155,47 @@ async fn process_report_trigger(
                 .await
                 .map_err(|e| HandlerError::transient(e))?;
 
+        let period_seconds = end_ts - start_ts;
+        let previous_start_ts = start_ts - period_seconds;
+        let previous_counts = get_signal_event_counts(
+            &clickhouse,
+            &project.id,
+            &signal_ids,
+            previous_start_ts,
+            start_ts,
+        )
+        .await
+        .map_err(HandlerError::transient)?;
+        let bucket_rows = get_signal_event_buckets(
+            &clickhouse,
+            &project.id,
+            &signal_ids,
+            start_ts,
+            end_ts,
+            REPORT_CHART_BUCKETS,
+        )
+        .await
+        .map_err(HandlerError::transient)?;
+        let cluster_rows = get_signal_cluster_counts(
+            &clickhouse,
+            &project.id,
+            &signal_ids,
+            previous_start_ts,
+            start_ts,
+            end_ts,
+        )
+        .await
+        .map_err(HandlerError::transient)?;
+
         let mut signal_event_counts: BTreeMap<String, u64> = BTreeMap::new();
+        let current_by_id: HashMap<Uuid, u64> = counts
+            .iter()
+            .map(|row| (row.signal_id, row.count))
+            .collect();
+        let previous_by_id: HashMap<Uuid, u64> = previous_counts
+            .iter()
+            .map(|row| (row.signal_id, row.count))
+            .collect();
         for count_row in &counts {
             if let Some(name) = signal_name_map.get(&count_row.signal_id) {
                 signal_event_counts.insert(name.clone(), count_row.count);
@@ -210,10 +256,57 @@ async fn process_report_trigger(
             &signal_name_map,
         );
 
+        let signals_report = signals
+            .iter()
+            .filter_map(|signal| {
+                let current_count = *current_by_id.get(&signal.id).unwrap_or(&0);
+                if current_count == 0 {
+                    return None;
+                }
+                let bucket_seconds = (period_seconds as u64).div_ceil(REPORT_CHART_BUCKETS as u64);
+                let buckets = (0..REPORT_CHART_BUCKETS)
+                    .map(|bucket_index| {
+                        let timestamp = period_start
+                            + Duration::seconds((bucket_index as u64 * bucket_seconds) as i64);
+                        ReportChartBucket {
+                            label: timestamp.format("%b %-d").to_string(),
+                            value: bucket_rows
+                                .iter()
+                                .find(|row| {
+                                    row.signal_id == signal.id && row.bucket_index == bucket_index
+                                })
+                                .map(|row| row.count)
+                                .unwrap_or(0),
+                        }
+                    })
+                    .collect();
+                let clusters = cluster_rows
+                    .iter()
+                    .filter(|row| row.signal_id == signal.id)
+                    .map(|row| ReportClusterData {
+                        id: row.cluster_id,
+                        name: row.cluster_name.clone(),
+                        count: row.current_count,
+                        previous_count: row.previous_count,
+                    })
+                    .collect();
+                Some(SignalReportData {
+                    signal_id: signal.id,
+                    signal_name: signal.name.clone(),
+                    current_count,
+                    previous_count: *previous_by_id.get(&signal.id).unwrap_or(&0),
+                    summary: ai_summary.clone(),
+                    buckets,
+                    clusters,
+                })
+            })
+            .collect();
+
         project_reports.push(ProjectReportData {
             project_name: project.name.clone(),
             project_id: project.id,
             signal_event_counts,
+            signals: signals_report,
             ai_summary,
             noteworthy_events,
         });
@@ -246,6 +339,7 @@ async fn process_report_trigger(
             period_start: period_start_str.clone(),
             period_end: period_end_str.clone(),
             signal_event_counts: project_report.signal_event_counts,
+            signals: project_report.signals,
             ai_summary: project_report.ai_summary,
             noteworthy_events: project_report.noteworthy_events,
         })

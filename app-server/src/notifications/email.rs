@@ -27,7 +27,80 @@ pub struct EmailContent {
 
 const LAMINAR_LOGO_CID: &str = "laminar-logo";
 /// Primary brand color (#D0754E)
-const PRIMARY: &str = "#D0754E";
+const PRIMARY: &str = "#d57e57";
+const PAGE: &str = "#f4f4f4";
+const TEXT: &str = "#252525";
+const MUTED: &str = "#92949c";
+const ROW: &str = "#f7f7f7";
+
+fn email_document(title: &str, width: u16, body: &str) -> String {
+    format!(
+        r#"<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{}</title><style>@media(max-width:720px){{.email-shell{{padding-left:0!important;padding-right:0!important}}}}</style></head><body style="margin:0;background:{};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;"><div class="email-shell" style="max-width:{}px;margin:0 auto;padding:20px;">{}</div></body></html>"#,
+        html_escape(title),
+        PAGE,
+        width,
+        body
+    )
+}
+
+fn banner(workspace: &str, title: &str, subtitle: Option<&str>) -> String {
+    let (height, bottom) = if subtitle.is_some() {
+        (200, 16)
+    } else {
+        (160, 12)
+    };
+    let subtitle_html = subtitle
+        .map(|s| {
+            format!(
+                r#"<p style="margin:0;font-size:16px;font-weight:400;color:#bfc1c7;">{}</p>"#,
+                html_escape(s)
+            )
+        })
+        .unwrap_or_default();
+    format!(
+        r#"<table width="100%" height="{height}" cellpadding="0" cellspacing="0" role="presentation" style="height:{height}px;background:#252525;border-radius:8px;margin-bottom:4px;"><tr height="{half}"><td valign="top" style="padding:16px 20px 0"><table cellpadding="0" cellspacing="0" role="presentation"><tr height="15"><td width="76" height="15" style="line-height:0"><img src="cid:{cid}" alt="Laminar" width="76" height="13" style="display:block;border:0"></td><td width="8"></td><td style="font-size:16px;font-weight:400;color:#bfc1c7">/</td><td width="8"></td><td style="font-size:16px;font-weight:400;color:#bfc1c7">{workspace}</td></tr></table></td></tr><tr height="{half}"><td valign="bottom" style="padding:0 20px {bottom}px"><p style="margin:0 0 6px;font-size:28px;font-weight:400;color:#fff;letter-spacing:-.56px">{title}</p>{subtitle_html}</td></tr></table>"#,
+        height = height,
+        half = height / 2,
+        bottom = bottom,
+        cid = LAMINAR_LOGO_CID,
+        workspace = html_escape(workspace),
+        title = html_escape(title),
+        subtitle_html = subtitle_html
+    )
+}
+
+fn footer(message: &str, link: &str, label: &str) -> String {
+    format!(
+        r#"<div style="text-align:center;padding:16px 0;font-size:12px;color:#92949c;line-height:1.6"><p style="margin:0 0 4px">{}</p><p style="margin:0"><a href="{}" style="color:#92949c">{}</a></p></div>"#,
+        message, link, label
+    )
+}
+
+fn action(href: &str, label: &str) -> String {
+    format!(
+        r#"<div style="margin-top:20px;text-align:center"><a href="{}" style="display:inline-block;background:{};color:{};text-decoration:none;padding:10px 16px;border-radius:4px;font-size:14px;font-weight:400">{}</a></div>"#,
+        href,
+        PRIMARY,
+        PAGE,
+        html_escape(label)
+    )
+}
+
+fn breadcrumb(parts: &[&str], href: &str) -> String {
+    let text = parts
+        .iter()
+        .map(|p| html_escape(p))
+        .collect::<Vec<_>>()
+        .join(r#" <span style="display:inline-block;margin:0 10px;color:#92949c">/</span> "#);
+    format!(
+        r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr><td style="font-size:16px;font-weight:400;color:{}">{}</td><td align="right"><a href="{}"><img src="cid:email-arrow" alt="Open" width="20" height="20" style="display:block;border:0"></a></td></tr></table>"#,
+        TEXT, text, href
+    )
+}
+
+fn data_rows(rows: &[(String, String)]) -> String {
+    rows.iter().map(|(label, value)| format!(r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:{};border-radius:4px;margin-bottom:4px"><tr><td style="padding:7px 10px;font-size:14px;color:{}">{}</td><td align="right" style="padding:7px 10px;font-size:14px;color:{}">{}</td></tr></table>"#, ROW, MUTED, html_escape(label), TEXT, value)).collect()
+}
 
 /// Format an email for a batch of notifications.
 ///
@@ -175,16 +248,6 @@ fn severity_label(severity: u8) -> &'static str {
     }
 }
 
-/// Hex color matching the severity dot used in the Slack message.
-fn severity_color(severity: u8) -> &'static str {
-    match severity {
-        0 => "#10b981", // green
-        1 => "#f59e0b", // orange
-        2 => "#ef4444", // red
-        _ => "#9ca3af",
-    }
-}
-
 /// Render an HTML email for an alert notification.
 fn render_alert_email(
     event_name: &str,
@@ -194,155 +257,66 @@ fn render_alert_email(
     project_id: &Uuid,
     signal_id: &Uuid,
     severity: u8,
-    alert_name: &str,
-    event_id: Option<&Uuid>,
+    _alert_name: &str,
+    _event_id: Option<&Uuid>,
 ) -> String {
-    let severity_label = severity_label(severity);
-    let severity_color = severity_color(severity);
-    let base = frontend_url_email();
-    let alert_link = with_utm(
-        &format!("{}/project/{}/settings?tab=alerts", base, project_id),
-        "email",
-        "signal_alert",
-        "manage_alert",
-    );
-    let similar_events_part = match event_id {
-        Some(eid) => {
-            let similar_link = with_utm(
-                &format!(
-                    "{}/project/{}/signals/{}?eventCluster={}",
-                    base, project_id, signal_id, eid
+    let mut rows = vec![("Severity".to_string(), severity_label(severity).to_string())];
+    if let Some(object) = attributes.as_object() {
+        rows.extend(object.iter().map(|(key, value)| {
+            let value = value
+                .as_str()
+                .map(str::to_owned)
+                .unwrap_or_else(|| value.to_string());
+            (
+                key.clone(),
+                md_links_to_html_escaped(
+                    &inject_utm_into_links(&value, "email", "signal_alert", "event_description"),
+                    PRIMARY,
                 ),
-                "email",
-                "signal_alert",
-                "similar_events",
-            );
-            format!(
-                r#"<span style="vertical-align:middle;">&nbsp;·&nbsp;Similar events: <a href="{link}" style="color:{primary};text-decoration:none;">View</a></span>"#,
-                link = similar_link,
-                primary = PRIMARY,
             )
-        }
-        None => String::new(),
-    };
-    let context_html = format!(
-        r##"<div style="text-align:center;margin-top:14px;font-size:12px;color:#9ca3af;line-height:1.6;">
-  <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:{severity_color};margin-right:5px;vertical-align:middle;"></span><span style="vertical-align:middle;">{severity_label}</span><span style="vertical-align:middle;">&nbsp;·&nbsp;Alert: <a href="{alert_link}" style="color:{primary};text-decoration:none;">{alert_name}</a></span>{similar_events_part}
-</div>"##,
-        severity_color = severity_color,
-        severity_label = severity_label,
-        alert_link = alert_link,
-        alert_name = html_escape(alert_name),
-        similar_events_part = similar_events_part,
-        primary = PRIMARY,
-    );
-
-    let attributes_html = if let Some(obj) = attributes.as_object() {
-        if obj.is_empty() {
-            String::new()
-        } else {
-            let rows: Vec<String> = obj
-                .iter()
-                .map(|(key, value)| {
-                    let formatted_value = match value {
-                        serde_json::Value::String(s) => md_links_to_html_escaped(
-                            &inject_utm_into_links(
-                                s,
-                                "email",
-                                "signal_alert",
-                                "event_description",
-                            ),
-                            PRIMARY,
-                        ),
-                        serde_json::Value::Null => String::new(),
-                        _ => md_links_to_html_escaped(
-                            &inject_utm_into_links(
-                                &serde_json::to_string_pretty(value).unwrap_or_default(),
-                                "email",
-                                "signal_alert",
-                                "event_description",
-                            ),
-                            PRIMARY,
-                        ),
-                    };
-                    format!(
-                        r#"<tr>
-  <td style="padding:6px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6;vertical-align:top;">{key}</td>
-  <td style="padding:6px 0 6px 12px;font-size:13px;color:#111827;border-bottom:1px solid #f3f4f6;">{value}</td>
-</tr>"#,
-                        key = html_escape(key),
-                        value = formatted_value,
-                    )
-                })
-                .collect();
-            format!(
-                r#"<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:20px;">
-  <h3 style="margin:0 0 12px;font-size:14px;font-weight:600;color:#6b7280;">Details</h3>
-  <table width="100%" cellpadding="0" cellspacing="0" border="0">
-    {}
-  </table>
-</div>"#,
-                rows.join("\n    ")
-            )
-        }
-    } else {
-        String::new()
-    };
-
-    let manage_prefs_link = with_utm(
-        &format!("{}/project/{}/settings?tab=alerts", base, project_id),
+        }));
+    }
+    let manage = with_utm(
+        &format!(
+            "{}/project/{}/settings?tab=alerts",
+            frontend_url_email(),
+            project_id
+        ),
         "email",
         "signal_alert",
         "manage_preferences",
     );
-
-    let eyebrow = if project_name.is_empty() {
-        "New event for signal".to_string()
-    } else {
-        format!("New event for signal · {}", html_escape(project_name))
-    };
-
-    format!(
-        r##"<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>{event_name}: {severity_label} event</title>
-</head>
-<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
-<div style="max-width:640px;margin:0 auto;padding:24px 16px;">
-
-  <div style="background:#0A0A0A;border-radius:10px;padding:24px 28px 16px;margin-bottom:20px;">
-    <img src="cid:laminar-logo" alt="Laminar" width="120" height="21" style="display:block;margin-bottom:24px;" />
-    <p style="margin:0 0 6px;font-size:13px;color:#9ca3af;">{eyebrow}</p>
-    <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">{event_name}</h1>
-  </div>
-
-  <div style="background:#ffffff;border-radius:10px;border:1px solid #e5e7eb;padding:24px;margin-bottom:20px;">
-    {attributes_html}
-    <div style="text-align:center;padding-top:8px;">
-      <a href="{trace_link}" style="display:inline-block;background:#D0754E;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:600;">View Trace</a>
-    </div>
-    {context_html}
-  </div>
-
-  <div style="text-align:center;padding:16px 0;">
-    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">This alert was generated automatically by <a href="https://www.lmnr.ai" style="color:#D0754E;text-decoration:none;">Laminar</a>.</p>
-    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">You are receiving this because you are subscribed to alerts for this project.</p>
-    <p style="margin:0;font-size:12px;color:#9ca3af;"><a href="{manage_prefs_link}" style="color:#D0754E;text-decoration:none;">Manage alert preferences</a></p>
-  </div>
-
-</div>
-</body>
-</html>"##,
-        event_name = html_escape(event_name),
-        severity_label = severity_label,
-        eyebrow = eyebrow,
-        attributes_html = attributes_html,
-        trace_link = trace_link,
-        manage_prefs_link = manage_prefs_link,
-        context_html = context_html,
+    let signal_link = format!(
+        "{}/project/{}/signals/{}",
+        frontend_url_email(),
+        project_id,
+        signal_id
+    );
+    let card = format!(
+        r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:4px">{}<p style="margin:16px 0 20px;font-size:14px;line-height:1.5;color:{}">A new signal event requires your attention.</p>{}{}</div>"#,
+        breadcrumb(&[project_name, event_name], &signal_link),
+        TEXT,
+        data_rows(&rows),
+        action(trace_link, "View trace")
+    );
+    let body = format!(
+        "{}{}{}",
+        banner(
+            project_name,
+            &format!("{} signal event", severity_label(severity)),
+            None
+        ),
+        card,
+        footer(
+            "This alert was generated automatically by Laminar.",
+            &manage,
+            "Manage alert preferences"
+        )
+    );
+    email_document(
+        &format!("{}: {} event", event_name, severity_label(severity)),
+        680,
+        &body,
     )
 }
 
@@ -350,20 +324,19 @@ fn render_alert_email(
 fn render_new_cluster_section(kind: &NotificationKind, base: &str) -> String {
     let NotificationKind::NewCluster {
         project_id,
+        project_name,
         signal_id,
+        signal_name,
         cluster_id,
         cluster_name,
         num_signal_events,
-        first_seen,
         last_seen,
         severity_counts,
-        example_events,
         ..
     } = kind
     else {
         return String::new();
     };
-
     let cluster_link = with_utm(
         &format!(
             "{}/project/{}/signals/{}?clusterId={}",
@@ -373,191 +346,71 @@ fn render_new_cluster_section(kind: &NotificationKind, base: &str) -> String {
         "new_cluster_alert",
         "view_cluster",
     );
-
-    let mut meta_parts: Vec<String> = vec![format!(
-        "{} event{}",
-        num_signal_events,
-        if *num_signal_events == 1 { "" } else { "s" }
-    )];
-    if let Some(first_seen) = first_seen {
-        meta_parts.push(format!("First seen: {}", html_escape(first_seen)));
-    }
-    if let Some(last_seen) = last_seen {
-        meta_parts.push(format!("Last seen: {}", html_escape(last_seen)));
-    }
-    let meta_html = format!(
-        r#"<div style="margin:4px 0 0;font-size:12px;color:#6b7280;">{}</div>"#,
-        meta_parts.join(" &middot; ")
-    );
-
-    let severity_parts: Vec<String> = severity_counts
-        .iter()
-        .enumerate()
-        .filter(|(_, count)| **count > 0)
-        .map(|(i, count)| {
-            format!(
-                r#"<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:{color};margin-right:4px;vertical-align:middle;"></span><span style="vertical-align:middle;">{count} {label}</span>"#,
-                color = severity_color(i as u8),
-                count = count,
-                label = severity_label(i as u8),
-            )
-        })
-        .collect();
-    let severity_html = if severity_parts.is_empty() {
-        String::new()
-    } else {
-        format!(
-            r#"<div style="margin:6px 0 0;font-size:12px;color:#6b7280;">{}</div>"#,
-            severity_parts.join("&nbsp;&nbsp;")
-        )
-    };
-
-    let examples_html = if example_events.is_empty() {
-        String::new()
-    } else {
-        let cards: Vec<String> = example_events
-            .iter()
-            .map(|event| {
-                let trace_link = with_utm(
-                    &format!(
-                        "{}/project/{}/traces/{}?chat=true",
-                        base, project_id, event.trace_id
-                    ),
-                    "email",
-                    "new_cluster_alert",
-                    "view_trace",
-                );
-                let summary_part = if let Some(summary) = &event.summary {
-                    format!(
-                        r#"<div style="margin-top:4px;color:#374151;font-size:13px;">{}</div>"#,
-                        html_escape(summary)
-                    )
-                } else {
-                    String::new()
-                };
-                format!(
-                    r##"<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:12px;margin-bottom:8px;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-    <td style="font-size:12px;color:#6b7280;" align="left"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:{severity_color};margin-right:5px;vertical-align:middle;"></span><span style="vertical-align:middle;">{name} &middot; {timestamp}</span></td>
-    <td style="font-size:12px;" align="right"><a href="{trace_link}" style="color:{primary};text-decoration:none;">View trace &rarr;</a></td>
-  </tr></table>{summary}
-</div>"##,
-                    severity_color = severity_color(event.severity),
-                    name = html_escape(&event.name),
-                    timestamp = html_escape(&event.timestamp),
-                    trace_link = trace_link,
-                    summary = summary_part,
-                    primary = PRIMARY,
-                )
-            })
-            .collect();
-        format!(
-            r#"<div style="margin-top:12px;">{}</div>"#,
-            cards.join("\n")
-        )
-    };
-
+    let rows = vec![
+        (
+            "Critical".to_string(),
+            format!("{} events", severity_counts[2]),
+        ),
+        (
+            "Warning".to_string(),
+            format!("{} events", severity_counts[1]),
+        ),
+        ("Info".to_string(), format!("{} events", severity_counts[0])),
+        ("Total".to_string(), format!("{} events", num_signal_events)),
+        (
+            "Last seen".to_string(),
+            last_seen
+                .clone()
+                .unwrap_or_else(|| "Not available".to_string()),
+        ),
+    ];
     format!(
-        r##"<div>
-  <h2 style="margin:0;font-size:16px;font-weight:600;"><a href="{cluster_link}" style="color:#111827;text-decoration:none;">{cluster_name}</a></h2>
-  {meta_html}
-  {severity_html}
-  {examples_html}
-  <div style="margin-top:10px;font-size:13px;"><a href="{cluster_link}" style="color:{primary};text-decoration:none;">View cluster &rarr;</a></div>
-</div>"##,
-        cluster_link = cluster_link,
-        cluster_name = html_escape(cluster_name),
-        meta_html = meta_html,
-        severity_html = severity_html,
-        examples_html = examples_html,
-        primary = PRIMARY,
+        r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:4px">{}<p style="margin:16px 0 20px;font-size:14px;line-height:1.5;color:{}">A new group of related signal events has emerged.</p>{}{}</div>"#,
+        breadcrumb(&[project_name, signal_name, cluster_name], &cluster_link),
+        TEXT,
+        data_rows(&rows),
+        action(&cluster_link, "View cluster")
     )
 }
 
 /// Render an HTML digest email covering every new cluster in the batch.
 fn render_new_cluster_email(clusters: &[&NotificationKind]) -> String {
     let Some(NotificationKind::NewCluster {
-        project_id,
+        project_name,
         signal_name,
-        alert_name,
+        project_id,
         ..
     }) = clusters.first()
     else {
         return String::new();
     };
-
     let base = frontend_url_email();
-    let alert_link = with_utm(
-        &format!("{}/project/{}/settings?tab=alerts", base, project_id),
-        "email",
-        "new_cluster_alert",
-        "manage_alert",
-    );
-    let manage_prefs_link = with_utm(
+    let cards = clusters
+        .iter()
+        .map(|kind| render_new_cluster_section(kind, &base))
+        .collect::<String>();
+    let manage = with_utm(
         &format!("{}/project/{}/settings?tab=alerts", base, project_id),
         "email",
         "new_cluster_alert",
         "manage_preferences",
     );
-
-    let eyebrow = if clusters.len() > 1 {
-        format!("{} new clusters", clusters.len())
+    let title = if clusters.len() == 1 {
+        "New cluster detected".to_string()
     } else {
-        "New cluster".to_string()
+        format!("{} new clusters detected", clusters.len())
     };
-
-    let sections = clusters
-        .iter()
-        .map(|c| render_new_cluster_section(c, &base))
-        .collect::<Vec<String>>()
-        .join(r#"<div style="border-top:1px solid #e5e7eb;margin:20px 0;"></div>"#);
-
-    let context_html = format!(
-        r##"<div style="text-align:center;margin-top:18px;font-size:12px;color:#9ca3af;line-height:1.6;">
-  <span style="vertical-align:middle;">Alert: <a href="{alert_link}" style="color:{primary};text-decoration:none;">{alert_name}</a></span>
-</div>"##,
-        alert_link = alert_link,
-        alert_name = html_escape(alert_name),
-        primary = PRIMARY,
+    let body = format!(
+        "{}{}{}",
+        banner(project_name, &title, None),
+        cards,
+        footer(
+            &format!("New-cluster notification for {}.", html_escape(signal_name)),
+            &manage,
+            "Manage alert preferences"
+        )
     );
-
-    format!(
-        r##"<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>{signal_name}: New cluster</title>
-</head>
-<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
-<div style="max-width:640px;margin:0 auto;padding:24px 16px;">
-
-  <div style="background:#0A0A0A;border-radius:10px;padding:28px 24px;margin-bottom:20px;">
-    <img src="cid:laminar-logo" alt="Laminar" width="120" height="21" style="display:block;margin-bottom:16px;" />
-    <p style="margin:0 0 6px;font-size:13px;color:#9ca3af;">{eyebrow}</p>
-    <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">{signal_name}</h1>
-  </div>
-
-  <div style="background:#ffffff;border-radius:10px;border:1px solid #e5e7eb;padding:24px;margin-bottom:20px;">
-    {sections}
-    {context_html}
-  </div>
-
-  <div style="text-align:center;padding:16px 0;">
-    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">This alert was generated automatically by <a href="https://www.lmnr.ai" style="color:#D0754E;text-decoration:none;">Laminar</a>.</p>
-    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">You are receiving this because you are subscribed to alerts for this project.</p>
-    <p style="margin:0;font-size:12px;color:#9ca3af;"><a href="{manage_prefs_link}" style="color:#D0754E;text-decoration:none;">Manage alert preferences</a></p>
-  </div>
-
-</div>
-</body>
-</html>"##,
-        signal_name = html_escape(signal_name),
-        eyebrow = eyebrow,
-        sections = sections,
-        context_html = context_html,
-        manage_prefs_link = manage_prefs_link,
-    )
+    email_document(&format!("{}: New cluster", signal_name), 680, &body)
 }
 
 /// Render an HTML email for a usage warning notification.
@@ -572,116 +425,58 @@ fn render_usage_warning_email(
     tier_display_name: &str,
     overage_billable: bool,
 ) -> String {
-    let meter_description = match usage_item {
+    let meter = match usage_item {
         "bytes" => "data ingestion",
         "signal_cost" => "Signals usage",
         _ => "usage",
     };
-
-    let base = frontend_url_email();
-    let view_usage_link = with_utm(
-        &format!("{}/workspace/{}?tab=usage", base, workspace_id),
+    let copy = if at_tier_included_allowance && overage_billable {
+        format!(
+            "Your workspace has used all {} included in the {} plan for this billing cycle. Additional usage is now billed at the overage rate.",
+            meter, tier_display_name
+        )
+    } else {
+        format!(
+            "Your workspace has reached {} of {} in the current billing cycle.",
+            formatted_limit, meter
+        )
+    };
+    let link = with_utm(
+        &format!(
+            "{}/workspace/{}?tab=usage",
+            frontend_url_email(),
+            workspace_id
+        ),
         "email",
         "usage_warning",
         "view_usage",
     );
-    let manage_thresholds_link = with_utm(
-        &format!("{}/workspace/{}?tab=usage", base, workspace_id),
-        "email",
-        "usage_warning",
-        "manage_thresholds",
+    let rows = vec![
+        ("Threshold".to_string(), html_escape(formatted_limit)),
+        ("Usage".to_string(), html_escape(usage_label)),
+        ("Plan".to_string(), html_escape(tier_display_name)),
+    ];
+    let card = format!(
+        r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:4px"><p style="margin:0 0 20px;font-size:14px;line-height:1.5;color:{}">{}</p>{}{}</div>"#,
+        TEXT,
+        html_escape(&copy),
+        data_rows(&rows),
+        action(&link, "View usage")
     );
-
-    // When the threshold being hit is exactly the included allowance of the
-    // workspace's tier, tell the customer they've used up the allowance bundled
-    // into their plan's flat rate. If the tier bills overage (Hobby / Pro) we
-    // additionally make the "from now on it's billable" message explicit.
-    let tier_message_html = if at_tier_included_allowance {
-        // Space-prefixed tier name, or empty when the tier display name is
-        // unknown (legacy emails) so the surrounding copy stays grammatical.
-        let tier_label = if tier_display_name.is_empty() {
-            String::new()
-        } else {
-            format!(" {}", html_escape(tier_display_name))
-        };
-        let billing_sentence = if overage_billable {
-            format!(
-                " <strong>From now until the next billing cycle, any further {meter_description} is billable.</strong> It is charged pay-as-you-go at the{tier_label} tier's overage rate, on top of your flat monthly rate."
-            )
-        } else {
-            String::new()
-        };
-        format!(
-            r#"<p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
-      This threshold equals the {meter_description} already included in your{tier_label} plan's flat monthly rate, so you have now used up everything bundled into your plan for this cycle.{billing_sentence}
-    </p>"#
+    let body = format!(
+        "{}{}{}",
+        banner(workspace_name, "Usage warning", None),
+        card,
+        footer(
+            "This notification was generated automatically by Laminar.",
+            &link,
+            "Manage warning thresholds"
         )
-    } else {
-        String::new()
-    };
-
-    let secondary_message_html = if at_tier_included_allowance {
-        String::new()
-    } else {
-        r#"<p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
-      This is a warning notification you configured. No action is required unless you want to adjust your usage or limits.
-    </p>"#.to_string()
-    };
-
-    format!(
-        r##"<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Usage Warning – {workspace_name}</title>
-</head>
-<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
-<div style="max-width:640px;margin:0 auto;padding:24px 16px;">
-
-  <!-- Header -->
-  <div style="background:#0A0A0A;border-radius:10px;padding:28px 24px;margin-bottom:20px;">
-    <img src="cid:laminar-logo" alt="Laminar" width="120" height="21" style="display:block;margin-bottom:16px;" />
-    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#ffffff;">Usage Warning</h1>
-    <p style="margin:0;font-size:16px;color:#D0754E;">{usage_label} threshold reached</p>
-  </div>
-
-  <!-- Content -->
-  <div style="background:#ffffff;border-radius:10px;border:1px solid #e5e7eb;padding:24px;margin-bottom:20px;">
-    <p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
-      Your workspace <strong>{workspace_name}</strong> has reached <strong>{formatted_limit}</strong> of {meter_description} in the current billing cycle.
-    </p>
-    {tier_message_html}
-    {secondary_message_html}
-    <div style="text-align:center;padding-top:8px;">
-      <a href="{view_usage_link}" style="display:inline-block;background:#D0754E;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:600;">View Usage</a>
-    </div>
-  </div>
-
-  <!-- Footer -->
-  <div style="text-align:center;padding:16px 0;">
-    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">This notification was generated automatically by <a href="https://www.lmnr.ai" style="color:#D0754E;text-decoration:none;">Laminar</a>.</p>
-    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">You are receiving this because you are the owner of the {workspace_name} workspace.</p>
-    <p style="margin:0;font-size:12px;color:#9ca3af;"><a href="{manage_thresholds_link}" style="color:#D0754E;text-decoration:none;">Manage warning thresholds</a></p>
-  </div>
-
-</div>
-</body>
-</html>"##,
-        workspace_name = html_escape(workspace_name),
-        usage_label = html_escape(usage_label),
-        formatted_limit = html_escape(formatted_limit),
-        meter_description = meter_description,
-        tier_message_html = tier_message_html,
-        secondary_message_html = secondary_message_html,
-        view_usage_link = view_usage_link,
-        manage_thresholds_link = manage_thresholds_link,
-    )
+    );
+    email_document(&format!("Usage Warning – {}", workspace_name), 544, &body)
 }
 
-/// Render an HTML email for a usage hard-limit notification. Unlike the soft
-/// warning, this tells the owner that the metered activity is now BLOCKED until
-/// the billing cycle resets.
+/// Render an HTML email for a usage hard-limit notification.
 fn render_usage_hard_limit_email(
     workspace_name: &str,
     workspace_id: Uuid,
@@ -689,257 +484,266 @@ fn render_usage_hard_limit_email(
     formatted_limit: &str,
     usage_label: &str,
 ) -> String {
-    // What is now blocked, and the noun used in the running-cost copy.
-    let (blocked_activity, meter_description) = match usage_item {
-        "bytes" => ("data ingestion", "data ingested"),
-        "signal_cost" => ("signal runs", "signals cost"),
-        _ => ("usage", "usage"),
+    let (blocked, meter) = match usage_item {
+        "bytes" => ("Data ingestion", "data ingested"),
+        "signal_cost" => ("Signal runs", "signals cost"),
+        _ => ("Usage", "usage"),
     };
-
-    let base = frontend_url_email();
-    let view_usage_link = with_utm(
-        &format!("{}/workspace/{}?tab=usage", base, workspace_id),
-        "email",
-        "usage_hard_limit",
-        "view_usage",
-    );
-    let manage_limits_link = with_utm(
-        &format!("{}/workspace/{}?tab=usage", base, workspace_id),
+    let link = with_utm(
+        &format!(
+            "{}/workspace/{}?tab=usage",
+            frontend_url_email(),
+            workspace_id
+        ),
         "email",
         "usage_hard_limit",
         "manage_limits",
     );
-
-    format!(
-        r##"<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Usage Limit Reached – {workspace_name}</title>
-</head>
-<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
-<div style="max-width:640px;margin:0 auto;padding:24px 16px;">
-
-  <!-- Header -->
-  <div style="background:#0A0A0A;border-radius:10px;padding:28px 24px;margin-bottom:20px;">
-    <img src="cid:laminar-logo" alt="Laminar" width="120" height="21" style="display:block;margin-bottom:16px;" />
-    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#ffffff;">Usage Limit Reached</h1>
-    <p style="margin:0;font-size:16px;color:#ef4444;">{usage_label} hard limit hit &middot; {blocked_activity} paused</p>
-  </div>
-
-  <!-- Content -->
-  <div style="background:#ffffff;border-radius:10px;border:1px solid #e5e7eb;padding:24px;margin-bottom:20px;">
-    <p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
-      Your workspace <strong>{workspace_name}</strong> has reached its hard limit of <strong>{formatted_limit}</strong> of {meter_description} for the current billing cycle.
-    </p>
-    <p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
-      <strong>From now on, {blocked_activity} will stop until your billing cycle resets.</strong> To resume sooner, raise or remove this limit from your workspace usage settings.
-    </p>
-    <div style="text-align:center;padding-top:8px;">
-      <a href="{view_usage_link}" style="display:inline-block;background:#D0754E;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:600;">View Usage</a>
-    </div>
-  </div>
-
-  <!-- Footer -->
-  <div style="text-align:center;padding:16px 0;">
-    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">This notification was generated automatically by <a href="https://www.lmnr.ai" style="color:#D0754E;text-decoration:none;">Laminar</a>.</p>
-    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">You are receiving this because you are the owner of the {workspace_name} workspace.</p>
-    <p style="margin:0;font-size:12px;color:#9ca3af;"><a href="{manage_limits_link}" style="color:#D0754E;text-decoration:none;">Manage usage limits</a></p>
-  </div>
-
-</div>
-</body>
-</html>"##,
-        workspace_name = html_escape(workspace_name),
-        usage_label = html_escape(usage_label),
-        formatted_limit = html_escape(formatted_limit),
-        blocked_activity = blocked_activity,
-        meter_description = meter_description,
-        view_usage_link = view_usage_link,
-        manage_limits_link = manage_limits_link,
+    let copy = format!(
+        "Your workspace reached its hard limit. New {} will stop until the billing cycle resets or the limit is changed.",
+        meter
+    );
+    let rows = vec![
+        ("Hard limit".to_string(), html_escape(formatted_limit)),
+        ("Usage".to_string(), html_escape(usage_label)),
+        ("Status".to_string(), "Paused".to_string()),
+    ];
+    let card = format!(
+        r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:4px"><p style="margin:0 0 20px;font-size:14px;line-height:1.5;color:{}">{}</p>{}{}</div>"#,
+        TEXT,
+        html_escape(&copy),
+        data_rows(&rows),
+        action(&link, "Manage limit")
+    );
+    let subtitle = format!("{} has paused", blocked);
+    let body = format!(
+        "{}{}{}",
+        banner(workspace_name, "Usage limit reached", Some(&subtitle)),
+        card,
+        footer(
+            "This notification was generated automatically by Laminar.",
+            &link,
+            "Manage usage limits"
+        )
+    );
+    email_document(
+        &format!("Usage Limit Reached – {}", workspace_name),
+        544,
+        &body,
     )
 }
 
 /// Render an HTML email for a signals report notification.
 fn render_report_email(data: &ReportData) -> String {
-    let mut projects_html = String::new();
     let base = frontend_url_email();
-
+    let mut cards = String::new();
     for project in &data.projects {
-        let mut summary_rows = String::new();
-        let project_total: u64 = project.signal_event_counts.values().sum();
-        for (signal_name, count) in &project.signal_event_counts {
-            summary_rows.push_str(&format!(
-                r##"<tr>
-  <td style="padding:6px 0;font-size:14px;color:#111827;border-bottom:1px solid #f3f4f6;">{signal_name}</td>
-  <td style="padding:6px 0;font-size:14px;font-weight:600;color:{primary};text-align:right;border-bottom:1px solid #f3f4f6;">{count}</td>
-</tr>"##,
-                signal_name = html_escape(signal_name),
-                count = count,
-                primary = PRIMARY,
-            ));
+        for signal in &project.signals {
+            cards.push_str(&render_signal_card(project, signal, &base));
         }
-
-        let summary_section = format!(
-            r##"<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:20px;">
-  <h3 style="margin:0 0 12px;font-size:14px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Signal Overview</h3>
-  <table width="100%" cellpadding="0" cellspacing="0" border="0">
-    <tr>
-      <td style="padding:6px 0;font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid #e5e7eb;">Signal</td>
-      <td style="padding:6px 0;font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;text-align:right;border-bottom:1px solid #e5e7eb;">Events</td>
-    </tr>
-    {summary_rows}
-    <tr>
-      <td style="padding:8px 0;font-size:14px;font-weight:700;color:#111827;">Total</td>
-      <td style="padding:8px 0;font-size:14px;font-weight:700;color:{primary};text-align:right;">{project_total}</td>
-    </tr>
-  </table>
-</div>"##,
-            summary_rows = summary_rows,
-            project_total = project_total,
-            primary = PRIMARY,
-        );
-
-        let ai_summary_html = if project.ai_summary.is_empty() {
-            String::new()
-        } else {
-            format!(
-                r##"<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:20px;">
-  <h3 style="margin:0 0 8px;font-size:14px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Summary</h3>
-  <p style="margin:0;font-size:14px;color:#374151;line-height:1.6;">{ai_summary}</p>
-</div>"##,
-                ai_summary = html_escape(&project.ai_summary),
-            )
-        };
-
-        let noteworthy_html = if project.noteworthy_events.is_empty() {
-            String::new()
-        } else {
-            let mut events_html = String::new();
-            for event in &project.noteworthy_events {
-                let summary_part = if event.summary.is_empty() {
-                    String::new()
-                } else {
-                    format!(
-                        r#"<div style="margin-top:4px;color:#374151;font-size:13px;">{}</div>"#,
-                        html_escape(&event.summary)
-                    )
-                };
-
-                let trace_link = with_utm(
-                    &format!(
-                        "{}/project/{}/traces/{}?chat=true",
-                        base,
-                        project.project_id,
-                        html_escape(&event.trace_id),
-                    ),
-                    "email",
-                    "signals_report",
-                    "view_trace",
-                );
-                events_html.push_str(&format!(
-                    r##"<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:12px;margin-bottom:8px;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:4px;"><tr>
-    <td style="font-size:12px;color:#6b7280;" align="left">{signal_name} &middot; {timestamp}</td>
-    <td style="font-size:12px;" align="right"><a href="{trace_link}" style="color:{primary};text-decoration:none;">View trace &rarr;</a></td>
-  </tr></table>{summary}
-</div>"##,
-                    signal_name = html_escape(&event.signal_name),
-                    timestamp = html_escape(&event.timestamp),
-                    trace_link = trace_link,
-                    summary = summary_part,
-                    primary = PRIMARY,
-                ));
-            }
-
-            format!(
-                r##"<div style="margin-bottom:20px;">
-  <h3 style="margin:0 0 12px;font-size:14px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Noteworthy Events</h3>
-  {events_html}
-</div>"##,
-                events_html = events_html,
-            )
-        };
-
-        projects_html.push_str(&format!(
-            r##"<div style="margin-bottom:28px;">
-  <div style="border-bottom:1px solid #e5e7eb;padding-bottom:8px;margin-bottom:16px;">
-    <h2 style="margin:0;font-size:17px;font-weight:600;color:#111827;">{project_name}</h2>
-  </div>
-  {summary_section}
-  {ai_summary_html}
-  {noteworthy_html}
-</div>"##,
-            project_name = html_escape(&project.project_name),
-            summary_section = summary_section,
-            ai_summary_html = ai_summary_html,
-            noteworthy_html = noteworthy_html,
-        ));
     }
-
-    if projects_html.is_empty() {
-        projects_html = r#"<p style="color:#9ca3af;font-size:14px;text-align:center;padding:24px 0;">No projects with signal activity found.</p>"#.to_string();
-    }
-
-    let unsubscribe_link = with_utm(
+    let cards = if cards.is_empty() {
+        r#"<div style="background:#fff;border-radius:8px;padding:24px;text-align:center;color:#92949c">No signal activity in this period.</div>"#.to_string()
+    } else {
+        cards
+    };
+    let unsubscribe = with_utm(
         &format!("{}/workspace/{}?tab=reports", base, data.workspace_id),
         "email",
         "signals_report",
         "unsubscribe",
     );
+    let subtitle = format!("{} - {}", data.period_start, data.period_end);
+    let body = format!(
+        "{}{}{}",
+        banner(&data.workspace_name, "Signals Report", Some(&subtitle)),
+        cards,
+        footer(
+            &format!(
+                "This report was generated automatically for the {} workspace.",
+                html_escape(&data.workspace_name)
+            ),
+            &unsubscribe,
+            "Unsubscribe"
+        )
+    );
+    email_document(
+        &format!("Signals Report – {}", data.workspace_name),
+        680,
+        &body,
+    )
+}
 
+fn render_signal_card(
+    project: &crate::reports::ProjectReportData,
+    signal: &crate::reports::SignalReportData,
+    base: &str,
+) -> String {
+    let signal_link = with_utm(
+        &format!(
+            "{}/project/{}/signals/{}",
+            base, project.project_id, signal.signal_id
+        ),
+        "email",
+        "signals_report",
+        "view_signal",
+    );
+    let mut clusters: Vec<_> = signal
+        .clusters
+        .iter()
+        .filter(|row| row.count + row.previous_count >= 5)
+        .collect();
+    clusters.sort_by(
+        |a, b| match (a.previous_count == 0, b.previous_count == 0) {
+            (true, false) => std::cmp::Ordering::Greater,
+            (false, true) => std::cmp::Ordering::Less,
+            _ => cluster_score(b)
+                .partial_cmp(&cluster_score(a))
+                .unwrap_or(std::cmp::Ordering::Equal),
+        },
+    );
+    clusters.truncate(5);
+    let max_count = clusters
+        .iter()
+        .map(|row| row.count)
+        .max()
+        .unwrap_or(1)
+        .max(1);
+    let clusters_html = if clusters.is_empty() {
+        r#"<p style="margin:0;color:#92949c;font-size:14px">No notable clusters in this period.</p>"#.to_string()
+    } else {
+        clusters
+            .into_iter()
+            .map(|row| cluster_row(project.project_id, signal.signal_id, row, max_count, base))
+            .collect()
+    };
+    let summary = if signal.summary.is_empty() {
+        format!(
+            "{} events were detected during this period.",
+            signal.current_count
+        )
+    } else {
+        signal.summary.clone()
+    };
     format!(
-        r##"<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Signals Report – {workspace_name}</title>
-</head>
-<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
-<div style="max-width:640px;margin:0 auto;padding:24px 16px;">
+        r#"<div style="background:#fff;border-radius:8px;padding:16px 20px;margin-bottom:4px">{}<p style="margin:16px 0 0;font-size:14px;line-height:1.5;color:{}">{}</p><div style="margin-top:24px"><p style="margin:0 0 4px;font-size:14px;color:{}">Events</p><table cellpadding="0" cellspacing="0"><tr><td style="font-size:30px;color:{};padding-right:6px">{}</td><td>{} <span style="font-size:12px;color:#92949c">vs previous period</span></td></tr></table><div style="margin-top:12px">{}</div></div><div style="margin-top:24px"><p style="margin:0 0 12px;font-size:14px;color:{}">Notable clusters</p>{}</div></div>"#,
+        breadcrumb(&[&project.project_name, &signal.signal_name], &signal_link),
+        TEXT,
+        html_escape(&summary),
+        TEXT,
+        TEXT,
+        signal.current_count,
+        delta(signal.current_count, signal.previous_count),
+        chart(&signal.buckets),
+        TEXT,
+        clusters_html
+    )
+}
 
-  <!-- Header -->
-  <div style="background:#0A0A0A;border-radius:10px;padding:28px 24px;margin-bottom:20px;">
-    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;"><tr>
-      <td style="vertical-align:middle;">
-        <img src="cid:{logo_cid}" alt="Laminar" width="120" height="21" style="display:block;" />
-      </td>
-      <td style="vertical-align:middle;text-align:right;">
-        <p style="margin:0 0 2px;font-size:13px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;">Total Events</p>
-        <p style="margin:0;font-size:32px;font-weight:700;color:#ffffff;">{total_events}</p>
-      </td>
-    </tr></table>
-    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#ffffff;">Signals Report</h1>
-    <p style="margin:0 0 4px;font-size:14px;color:#9ca3af;">{workspace_name} &middot; {period_label}</p>
-    <p style="margin:0;font-size:13px;color:#6b7280;">{period_start} &ndash; {period_end}</p>
-  </div>
+fn cluster_score(row: &&crate::reports::ReportClusterData) -> f64 {
+    ((row.count as f64 - row.previous_count as f64)
+        / ((row.count + row.previous_count) as f64).sqrt())
+    .abs()
+}
 
-  <!-- Projects -->
-  <div style="background:#ffffff;border-radius:10px;border:1px solid #e5e7eb;padding:24px;margin-bottom:20px;">
-    {projects_html}
-  </div>
+fn delta(current: u64, previous: u64) -> String {
+    if previous == 0 {
+        return r#"<span style="font-size:14px;color:#92949c">NEW</span>"#.to_string();
+    }
+    let pct = (current as f64 - previous as f64) / previous as f64 * 100.0;
+    if pct == 0.0 {
+        return r#"<span style="font-size:14px;color:#92949c">0.0%</span>"#.to_string();
+    }
+    let (glyph, color) = if pct > 0.0 {
+        ("&#9650;", "#e05252")
+    } else {
+        ("&#9660;", "#2f9e67")
+    };
+    format!(
+        r#"<span style="font-size:12px;color:{color}">{glyph}</span><span style="display:inline-block;width:2px">&nbsp;</span><span style="font-size:14px;color:{color}">{:.1}%</span>"#,
+        pct.abs()
+    )
+}
 
-  <!-- Footer -->
-  <div style="text-align:center;padding:16px 0;">
-    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">This report was generated automatically by <a href="https://www.lmnr.ai" style="color:{primary};text-decoration:none;">Laminar</a>.</p>
-    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">You are receiving this because you are subscribed to reports for the {workspace_name} workspace.</p>
-    <p style="margin:0;font-size:12px;color:#9ca3af;"><a href="{unsubscribe_link}" style="color:{primary};text-decoration:none;">Unsubscribe</a></p>
-  </div>
+fn chart(buckets: &[crate::reports::ReportChartBucket]) -> String {
+    let max = buckets.iter().map(|b| b.value).max().unwrap_or(0);
+    let scale = max.max(1);
+    let cells: String = buckets.iter().map(|b| { let height = if b.value == 0 { 0 } else { ((b.value * 96 / scale).max(2)) as u32 }; format!(r#"<td valign="bottom" style="padding:0 2px"><div style="height:{}px;line-height:{}px;font-size:0">&nbsp;</div><div style="height:{}px;line-height:{}px;font-size:0;background:#ebebeb;border-radius:2px 2px 0 0">&nbsp;</div></td>"#, 96-height, 96-height, height, height) }).collect();
+    let first = buckets.first().map(|b| b.label.as_str()).unwrap_or("");
+    let middle = buckets
+        .get(buckets.len().saturating_sub(1) / 2)
+        .map(|b| b.label.as_str())
+        .unwrap_or("");
+    let last = buckets.last().map(|b| b.label.as_str()).unwrap_or("");
+    format!(
+        r#"<table width="100%" cellpadding="0" cellspacing="0"><tr><td width="28" valign="top" align="right" style="padding-right:8px;font-size:11px;color:#b1b1b1">{max}</td><td><table width="100%" height="96" cellpadding="0" cellspacing="0" style="height:96px;border-bottom:1px solid #e5e5e5"><tr valign="bottom">{cells}</tr></table></td></tr><tr><td align="right" style="padding:2px 8px 0 0;font-size:11px;color:#b1b1b1">0</td><td style="padding-top:4px"><table width="100%"><tr><td style="font-size:11px;color:#b1b1b1">{first}</td><td align="center" style="font-size:11px;color:#b1b1b1">{middle}</td><td align="right" style="font-size:11px;color:#b1b1b1">{last}</td></tr></table></td></tr></table>"#,
+        first = html_escape(first),
+        middle = html_escape(middle),
+        last = html_escape(last)
+    )
+}
 
-</div>
-</body>
-</html>"##,
-        workspace_name = html_escape(&data.workspace_name),
-        period_label = html_escape(&data.period_label),
-        period_start = html_escape(&data.period_start),
-        period_end = html_escape(&data.period_end),
-        total_events = data.total_events,
-        projects_html = projects_html,
-        primary = PRIMARY,
-        logo_cid = LAMINAR_LOGO_CID,
-        unsubscribe_link = unsubscribe_link,
+fn cluster_row(
+    project_id: Uuid,
+    signal_id: Uuid,
+    row: &crate::reports::ReportClusterData,
+    max: u64,
+    base: &str,
+) -> String {
+    let href = with_utm(
+        &format!(
+            "{}/project/{}/signals/{}?clusterId={}",
+            base, project_id, signal_id, row.id
+        ),
+        "email",
+        "signals_report",
+        "view_cluster",
+    );
+    let width = row.count * 100 / max;
+    let color_index = cluster_color_index(&row.id.to_string());
+    let tint = cluster_tint(CLUSTER_PALETTE[color_index]);
+    format!(
+        r#"<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:4px;background-color:#f7f7f7;background-image:linear-gradient(to right,{tint} 0%,{tint} {width}%,#f7f7f7 {width}%);border-radius:4px"><tr><td style="padding:6px 12px 6px 10px;font-size:14px;color:#252525"><img src="cid:email-cluster-{color_index}" alt="" width="16" height="16" style="vertical-align:middle;border:0">&nbsp;&nbsp;{name}</td><td align="right" style="padding:6px 4px;font-size:14px;color:#92949c">{count} events</td><td width="80" align="right" style="padding:6px 4px">{delta}</td><td width="20" align="right" style="padding:6px 12px 6px 8px"><a href="{href}" style="color:#92949c;text-decoration:none">↗</a></td></tr></table>"#,
+        name = html_escape(&row.name),
+        count = row.count,
+        delta = delta(row.count, row.previous_count)
+    )
+}
+
+const CLUSTER_PALETTE: [&str; 100] = [
+    "#ef4444", "#f0493c", "#f24f35", "#f4572d", "#f55f25", "#f7691d", "#f97416", "#f87b14",
+    "#f88212", "#f78910", "#f6910e", "#f6980c", "#f59f0a", "#f3a30a", "#f1a609", "#efaa09",
+    "#edad09", "#ebb108", "#e8ba09", "#e3ce0b", "#dbde0e", "#c0d910", "#a7d413", "#90cf15",
+    "#76cb17", "#59ca19", "#3dc91b", "#22c81d", "#1fc736", "#21c652", "#20c461", "#1dc267",
+    "#1ac06d", "#17be73", "#14bc79", "#11ba7f", "#10b986", "#11b98c", "#12b992", "#13b899",
+    "#13b89f", "#14b8a5", "#12bcaf", "#10c0bb", "#0ec3c5", "#0bbfca", "#09bbcf", "#06b6d4",
+    "#07b4d7", "#08b1db", "#0aaedf", "#0babe2", "#0da8e6", "#0ea5ea", "#109ff1", "#1997f2",
+    "#2291f3", "#2b8bf4", "#3486f5", "#3c81f6", "#437af5", "#4a74f4", "#516ff3", "#586bf2",
+    "#5e68f1", "#6363f1", "#6961f2", "#7060f3", "#775ff4", "#7f5ef5", "#865df5", "#8d5cf6",
+    "#925af6", "#9659f6", "#9b58f7", "#a057f7", "#a656f7", "#ac54f6", "#b451f5", "#bd4ef4",
+    "#c54cf2", "#cd49f1", "#d647f0", "#e546ef", "#ee47e6", "#ee47d4", "#ed47c1", "#ed48af",
+    "#ec489d", "#ed4792", "#ee4588", "#f0447f", "#f14275", "#f2416a", "#f43f5f", "#f3405a",
+    "#f24155", "#f24151", "#f1424c", "#f04348",
+];
+fn cluster_hash(id: &str) -> u32 {
+    format!("v4{}", id)
+        .bytes()
+        .fold(2_166_136_261u32, |hash, byte| {
+            (hash ^ byte as u32).wrapping_mul(16_777_619)
+        })
+}
+fn cluster_color_index(id: &str) -> usize {
+    cluster_hash(id) as usize % CLUSTER_PALETTE.len()
+}
+
+fn cluster_tint(color: &str) -> String {
+    let component = |range| u8::from_str_radix(&color[range], 16).unwrap_or(0);
+    let blend = |value: u8| ((value as f32 * 0.08) + (247.0 * 0.92)).round() as u8;
+    format!(
+        "#{:02x}{:02x}{:02x}",
+        blend(component(1..3)),
+        blend(component(3..5)),
+        blend(component(5..7))
     )
 }
 
@@ -949,4 +753,101 @@ fn html_escape(s: &str) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;")
         .replace('\'', "&#x27;")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::reports::{
+        ProjectReportData, ReportChartBucket, ReportClusterData, ReportData, SignalReportData,
+    };
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn cluster_color_matches_frontend_golden_vectors() {
+        let vectors = [
+            ("abc", 2_654_589_193, "#f2416a"),
+            (
+                "550e8400-e29b-41d4-a716-446655440000",
+                843_809_330,
+                "#20c461",
+            ),
+            (
+                "7f3a1c22-0000-4000-8000-000000000001",
+                2_838_285_401,
+                "#f0493c",
+            ),
+        ];
+        for (id, hash, color) in vectors {
+            assert_eq!(cluster_hash(id), hash);
+            assert_eq!(CLUSTER_PALETTE[cluster_color_index(id)], color);
+        }
+    }
+
+    #[test]
+    fn ranks_existing_clusters_before_new_and_filters_small_rows() {
+        let id = |n| Uuid::from_u128(n);
+        let signal = SignalReportData {
+            signal_id: id(1),
+            signal_name: "Signal".into(),
+            current_count: 12,
+            previous_count: 10,
+            summary: "Summary".into(),
+            buckets: vec![ReportChartBucket {
+                label: "Mar 1".into(),
+                value: 12,
+            }],
+            clusters: vec![
+                ReportClusterData {
+                    id: id(2),
+                    name: "new".into(),
+                    count: 100,
+                    previous_count: 0,
+                },
+                ReportClusterData {
+                    id: id(3),
+                    name: "existing".into(),
+                    count: 2,
+                    previous_count: 10,
+                },
+                ReportClusterData {
+                    id: id(4),
+                    name: "small".into(),
+                    count: 2,
+                    previous_count: 2,
+                },
+            ],
+        };
+        let project = ProjectReportData {
+            project_name: "Project".into(),
+            project_id: id(5),
+            signal_event_counts: BTreeMap::new(),
+            signals: vec![],
+            ai_summary: String::new(),
+            noteworthy_events: vec![],
+        };
+        let html = render_signal_card(&project, &signal, "https://example.com");
+        assert!(html.find("existing").unwrap() < html.find("new").unwrap());
+        assert!(!html.contains("small"));
+        assert!(html.contains("height:96px"));
+    }
+
+    #[test]
+    fn report_uses_fixed_banner_and_email_safe_markup() {
+        let report = ReportData {
+            workspace_id: Uuid::nil(),
+            workspace_name: "A & B".into(),
+            period_label: "Weekly".into(),
+            period_start: "Mar 1".into(),
+            period_end: "Mar 7".into(),
+            projects: vec![],
+            total_events: 0,
+        };
+        let html = render_report_email(&report);
+        assert!(html.contains("height:200px"));
+        assert!(html.contains("cid:laminar-logo"));
+        assert!(!html.contains("<svg"));
+        assert!(!html.contains("data:image"));
+        assert!(html.contains("A &amp; B"));
+    }
 }

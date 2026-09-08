@@ -148,6 +148,8 @@ pub enum NotificationKind {
     },
     NewCluster {
         project_id: Uuid,
+        #[serde(default)]
+        project_name: String,
         signal_id: Uuid,
         signal_name: String,
         cluster_id: Uuid,
@@ -176,6 +178,9 @@ pub enum NotificationKind {
         period_start: String,
         period_end: String,
         signal_event_counts: BTreeMap<String, u64>,
+        /// Per-signal chart and cluster data. Empty for legacy queued reports.
+        #[serde(default)]
+        signals: Vec<crate::reports::SignalReportData>,
         ai_summary: String,
         noteworthy_events: Vec<NoteworthyEvent>,
     },

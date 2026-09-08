@@ -498,6 +498,7 @@ mod tests {
     fn new_cluster_kind(cluster_name: &str, num_signal_events: u32) -> NotificationKind {
         NotificationKind::NewCluster {
             project_id: Uuid::nil(),
+            project_name: "Test Project".to_string(),
             signal_id: Uuid::nil(),
             signal_name: "Failure Detector".to_string(),
             cluster_id: Uuid::new_v4(),
@@ -579,6 +580,7 @@ mod tests {
                 project_name: "background-agent".to_string(),
                 project_id: Uuid::nil(),
                 signal_event_counts: counts,
+                signals: Vec::new(),
                 ai_summary: "Summary text".to_string(),
                 noteworthy_events: noteworthy,
             }],
@@ -657,6 +659,7 @@ mod tests {
                 project_name: format!("project-{}", i),
                 project_id: Uuid::nil(),
                 signal_event_counts: counts.clone(),
+                signals: Vec::new(),
                 ai_summary: "summary text".to_string(),
                 noteworthy_events: vec![event(2), event(1)],
             })

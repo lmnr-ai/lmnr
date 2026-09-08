@@ -77,6 +77,100 @@ pub async fn get_signal_event_counts(
     Ok(rows)
 }
 
+#[derive(Row, Serialize, Deserialize, Debug)]
+pub struct SignalEventBucketRow {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub signal_id: Uuid,
+    pub bucket_index: u32,
+    pub count: u64,
+}
+
+#[derive(Row, Serialize, Deserialize, Debug)]
+pub struct SignalClusterCountRow {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub signal_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub cluster_id: Uuid,
+    pub cluster_name: String,
+    pub current_count: u64,
+    pub previous_count: u64,
+}
+
+/// Get fixed-width event buckets for each signal in a report period.
+pub async fn get_signal_event_buckets(
+    clickhouse: &clickhouse::Client,
+    project_id: &Uuid,
+    signal_ids: &[Uuid],
+    start_ts: i64,
+    end_ts: i64,
+    bucket_count: u32,
+) -> Result<Vec<SignalEventBucketRow>> {
+    if signal_ids.is_empty() || bucket_count == 0 || end_ts <= start_ts {
+        return Ok(vec![]);
+    }
+    let placeholders = vec!["?"; signal_ids.len()].join(",");
+    let bucket_seconds = ((end_ts - start_ts) as u64).div_ceil(bucket_count as u64);
+    let query_str = format!(
+        "SELECT signal_id,
+                toUInt32(intDiv(toUnixTimestamp(timestamp) - ?, {bucket_seconds})) AS bucket_index,
+                count() AS count
+         FROM signal_events
+         WHERE project_id = ? AND signal_id IN ({placeholders})
+           AND timestamp >= toDateTime64(?, 9) AND timestamp < toDateTime64(?, 9)
+         GROUP BY signal_id, bucket_index"
+    );
+    let mut query = clickhouse.query(&query_str).bind(start_ts).bind(project_id);
+    for signal_id in signal_ids {
+        query = query.bind(signal_id);
+    }
+    Ok(query
+        .bind(start_ts)
+        .bind(end_ts)
+        .fetch_all::<SignalEventBucketRow>()
+        .await?)
+}
+
+/// Count current and previous-period event memberships for every named cluster.
+pub async fn get_signal_cluster_counts(
+    clickhouse: &clickhouse::Client,
+    project_id: &Uuid,
+    signal_ids: &[Uuid],
+    previous_start_ts: i64,
+    current_start_ts: i64,
+    current_end_ts: i64,
+) -> Result<Vec<SignalClusterCountRow>> {
+    if signal_ids.is_empty() {
+        return Ok(vec![]);
+    }
+    let placeholders = vec!["?"; signal_ids.len()].join(",");
+    let query_str = format!(
+        "SELECT c.signal_id AS signal_id, c.id AS cluster_id, c.name AS cluster_name,
+                countIf(e.timestamp >= toDateTime64(?, 9)) AS current_count,
+                countIf(e.timestamp < toDateTime64(?, 9)) AS previous_count
+         FROM events_to_clusters AS ec FINAL
+         INNER JOIN signal_event_clusters AS c FINAL
+           ON ec.project_id = c.project_id AND ec.cluster_id = c.id
+         INNER JOIN signal_events AS e
+           ON ec.project_id = e.project_id AND ec.event_id = e.id
+         WHERE ec.project_id = ? AND c.signal_id IN ({placeholders}) AND c.level > 0
+           AND e.timestamp >= toDateTime64(?, 9) AND e.timestamp < toDateTime64(?, 9)
+         GROUP BY c.signal_id, c.id, c.name"
+    );
+    let mut query = clickhouse
+        .query(&query_str)
+        .bind(current_start_ts)
+        .bind(current_start_ts)
+        .bind(project_id);
+    for signal_id in signal_ids {
+        query = query.bind(signal_id);
+    }
+    Ok(query
+        .bind(previous_start_ts)
+        .bind(current_end_ts)
+        .fetch_all::<SignalClusterCountRow>()
+        .await?)
+}
+
 /// ClickHouse row for signal events used as LLM summary context
 #[derive(Row, Serialize, Deserialize, Debug)]
 pub struct SignalEventContextRow {
