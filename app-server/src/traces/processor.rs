@@ -123,7 +123,9 @@ struct RawTraceIo {
 /// agent io). `start_time` is the partition key on `traces_agg` /
 /// `traces_static`, so those writes MUST agree with the span-batch writes' value
 /// or they land in a different partition and drop out of `start_time`-bounded
-/// reads.
+/// reads. Keyed off the FULL aggregation, not the residual one: the materialized
+/// views partition on the trace's min over the spans that reached ClickHouse,
+/// and this is the closest value app-server can name.
 ///
 /// A trace whose spans arrived in an EARLIER flush isn't in this map — the
 /// caller falls back per table (`now_ns` for `traces_static`, `now_ns +
@@ -370,6 +372,22 @@ pub async fn process_span_messages(
         .filter(|(_, s)| s.should_record_to_clickhouse())
         .map(|(i, _)| i)
         .collect();
+
+    // `traces_agg_mv` / `traces_static_mv` (CH migration 61) fold every row that
+    // lands in `spans` into the trace tables, so app-server must NOT write those
+    // partials again — it would double-count every `sum` column. What the views
+    // structurally cannot see is the residue filtered out just above:
+    // `cdp_use.session` (the sole carrier of `has_browser_session`) and the
+    // skipped Claude Code `anthropic.messages` spans, whose tokens and costs
+    // still count toward the trace. Those partials are still ours to write.
+    // Metadata-only virtual spans are invisible to the views too, but they were
+    // already split off above and ride the `metadata_patches` path instead.
+    let residual_aggregations = TraceAggregation::from_span_pairs(
+        spans
+            .iter()
+            .zip(span_usage_vec.iter())
+            .filter(|(span, _)| !span.should_record_to_clickhouse()),
+    );
     let (mut shared_content, mut input_batch, mut output_batch, tool_content_bytes_per_recordable) = {
         let dedup_spans: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
         let recordable_input_dedups: Vec<Option<MessageDedup>> = recordable_indices
@@ -563,12 +581,13 @@ pub async fn process_span_messages(
 
         // Aggregate partials come from the in-memory per-batch deltas — never a
         // cumulative row, which would double-count every `sum` column on each
-        // batch. Metadata patches contribute an identity partial carrying only
+        // batch. Only the residue the materialized views can't see is written
+        // here. Metadata patches contribute an identity partial carrying only
         // the patched metadata map.
         let mut traces_agg_rows: Vec<CHTraceAgg> =
-            Vec::with_capacity(trace_aggregations.len() + metadata_patches.len());
+            Vec::with_capacity(residual_aggregations.len() + metadata_patches.len());
         traces_agg_rows.extend(
-            trace_aggregations
+            residual_aggregations
                 .iter()
                 .map(|agg| CHTraceAgg::from_aggregation(agg, now_ns)),
         );
@@ -600,7 +619,7 @@ pub async fn process_span_messages(
         // semantics (see `ch::traces_static`).
         let mut traces_static_rows: Vec<CHTraceStatic> = Vec::new();
         traces_static_rows.extend(
-            trace_aggregations
+            residual_aggregations
                 .iter()
                 .filter_map(|agg| CHTraceStatic::from_aggregation(agg, now_ns)),
         );
