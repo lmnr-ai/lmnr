@@ -26,11 +26,9 @@ pub struct EmailContent {
 }
 
 const LAMINAR_LOGO_CID: &str = "laminar-logo";
-/// Primary brand color (#D0754E)
-const PRIMARY_200: &str = "#da875f";
+const EMAIL_PRIMARY_50: &str = "#e49970";
 const PRIMARY_300: &str = "#d57e57";
 const PAGE: &str = "#f4f4f4";
-const SURFACE_50: &str = "#0d0d0d";
 const TEXT: &str = "#252525";
 const MUTED: &str = "#92949c";
 const ROW: &str = "#f7f7f7";
@@ -82,8 +80,8 @@ fn action(href: &str, label: &str) -> String {
     format!(
         r#"<div style="margin-top:20px;text-align:center"><a href="{}" style="display:inline-block;background:{};color:{};text-decoration:none;padding:10px 16px;border-radius:4px;font-size:14px;font-weight:400">{}</a></div>"#,
         href,
-        PRIMARY_200,
-        SURFACE_50,
+        EMAIL_PRIMARY_50,
+        "#ffffff",
         html_escape(label)
     )
 }
