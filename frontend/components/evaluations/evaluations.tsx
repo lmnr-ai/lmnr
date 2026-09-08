@@ -521,6 +521,7 @@ function EvaluationsContent() {
                     onChange={setSearchAndFilters}
                     storageKey={`evaluations-${params?.projectId}`}
                     filters={filters}
+                    uuidFilterColumn="id"
                     placeholder="Search evaluations..."
                     className="w-full flex-1"
                   />
