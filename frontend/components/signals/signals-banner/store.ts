@@ -1,4 +1,3 @@
-import { useSyncExternalStore } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -18,11 +17,3 @@ export const useSignalsBannerStore = create<SignalsBannerStore>()(
     { name: "signals-banner" }
   )
 );
-
-export function useSignalsBannerHydrated() {
-  return useSyncExternalStore(
-    useSignalsBannerStore.persist.onFinishHydration,
-    useSignalsBannerStore.persist.hasHydrated,
-    () => false
-  );
-}

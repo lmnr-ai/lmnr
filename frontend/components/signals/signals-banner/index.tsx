@@ -2,10 +2,11 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 
-import { useSignalsBannerHydrated, useSignalsBannerStore } from "./store";
+import { useSignalsBannerStore } from "./store";
 
 export { SignalsBannerInfoButton } from "./info-button";
 
@@ -18,12 +19,12 @@ const STEPS = [
   {
     number: 2,
     title: "Run your Signal on traces",
-    description: "Specify past traces with Jobs, or run on future traces with Triggers",
+    description: "Specify past traces with backfill, or run on future traces with triggers",
   },
   {
     number: 3,
     title: "Find insights",
-    description: "See trace analysis in Events, and see high-level patterns with Clusters.",
+    description: "See trace analysis in events, and see high-level patterns with clusters.",
   },
 ];
 
@@ -33,9 +34,12 @@ interface SignalsBannerProps {
 
 export default function SignalsBanner({ onCreateSignal }: SignalsBannerProps) {
   const { isBannerDismissed, dismiss } = useSignalsBannerStore();
-  const isHydrated = useSignalsBannerHydrated();
+  const [mounted, setMounted] = useState(false);
 
-  if (!isHydrated) return null;
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setMounted(true), []);
+
+  if (!mounted) return null;
 
   return (
     <AnimatePresence initial={false}>
@@ -93,7 +97,7 @@ export default function SignalsBanner({ onCreateSignal }: SignalsBannerProps) {
                     <div
                       key={step.number}
                       className="flex min-w-0 shrink-0 gap-3 items-start"
-                      style={{ width: [180, 230, 250][index] }}
+                      style={{ width: [180, 240, 250][index] }}
                     >
                       <div className="flex items-center justify-center size-5 rounded bg-muted border text-xs text-secondary-foreground shrink-0">
                         {step.number}
