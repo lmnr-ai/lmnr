@@ -1,6 +1,5 @@
-import { Button, Html, Preview, Text } from "@react-email/components";
-
-import { buildEmailStyles, defaultEmailTheme, type EmailTheme } from "./theme";
+import { EmailAction, EmailParagraph, EmailRows, ReportEmailLayout } from "./report-email-layout";
+import { defaultEmailTheme, type EmailTheme } from "./theme";
 
 interface SubscriptionUpdatedEmailProps {
   total: string;
@@ -17,26 +16,27 @@ export default function SubscriptionUpdatedEmail({
   billingPortalUrl,
   theme = defaultEmailTheme,
 }: SubscriptionUpdatedEmailProps) {
-  const s = buildEmailStyles(theme);
-
   return (
-    <Html lang="en">
-      <Preview>Payment received — thanks for using Laminar.</Preview>
-      <div style={s.container}>
-        <Text style={s.heading}>Payment received</Text>
-        <Text style={s.text}>Thanks for your payment.</Text>
-        <Text style={s.label}>Total</Text>
-        <Text style={s.value}>{total}</Text>
-        <Text style={s.label}>Date</Text>
-        <Text style={s.value}>{date}</Text>
-        <Text style={s.label}>Billed to</Text>
-        <Text style={s.value}>{billedTo}</Text>
-        <Text style={s.text}>You can view and download invoices in your Stripe billing portal.</Text>
-        <Button style={s.button} href={billingPortalUrl}>
-          View billing portal
-        </Button>
-        <Text style={{ ...s.muted, marginTop: `${theme.blockSpacing}px` }}>LMNR AI, INC. 2026</Text>
-      </div>
-    </Html>
+    <ReportEmailLayout
+      preview="Payment received — thanks for using Laminar."
+      workspace="Laminar"
+      title="Payment received"
+      theme={theme}
+    >
+      <EmailParagraph first theme={theme}>
+        Thanks for your payment.
+      </EmailParagraph>
+      <EmailRows
+        rows={[
+          ["Total", total],
+          ["Date", date],
+          ["Billed to", billedTo],
+          ["Status", "Paid"],
+        ]}
+        theme={theme}
+      />
+      <EmailParagraph theme={theme}>You can view and download invoices in your Stripe billing portal.</EmailParagraph>
+      <EmailAction href={billingPortalUrl}>View billing portal</EmailAction>
+    </ReportEmailLayout>
   );
 }

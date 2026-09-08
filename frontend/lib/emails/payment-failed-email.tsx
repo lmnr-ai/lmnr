@@ -1,6 +1,5 @@
-import { Button, Html, Preview, Text } from "@react-email/components";
-
-import { buildEmailStyles, defaultEmailTheme, type EmailTheme } from "./theme";
+import { EmailAction, EmailParagraph, EmailRows, ReportEmailLayout } from "./report-email-layout";
+import { defaultEmailTheme, type EmailTheme } from "./theme";
 
 interface PaymentFailedEmailProps {
   total: string;
@@ -17,31 +16,27 @@ export default function PaymentFailedEmail({
   billingPortalUrl,
   theme = defaultEmailTheme,
 }: PaymentFailedEmailProps) {
-  const s = buildEmailStyles(theme);
-
   return (
-    <Html lang="en">
-      <Preview>Payment failed — action required.</Preview>
-      <div style={s.container}>
-        <Text style={s.heading}>Payment failed</Text>
-        <Text style={s.text}>
-          We were unable to process your payment. Please update your payment method or verify your details in your
-          billing portal.
-        </Text>
-        <Text style={s.label}>Amount due</Text>
-        <Text style={s.value}>{total}</Text>
-        <Text style={s.label}>Date</Text>
-        <Text style={s.value}>{date}</Text>
-        <Text style={s.label}>Billed to</Text>
-        <Text style={s.value}>{billedTo}</Text>
-        <Button style={s.button} href={billingPortalUrl}>
-          Update payment
-        </Button>
-        <Text style={s.text}>
-          If you have any questions or need assistance, please don{"'"}t hesitate to reach out.
-        </Text>
-        <Text style={{ ...s.muted, marginTop: `${theme.blockSpacing}px` }}>LMNR AI, INC. 2026</Text>
-      </div>
-    </Html>
+    <ReportEmailLayout
+      preview="Payment failed — action required."
+      workspace="Laminar"
+      title="Payment failed"
+      theme={theme}
+    >
+      <EmailParagraph first theme={theme}>
+        We were unable to process your payment. Please update your payment method or verify your details in your billing
+        portal.
+      </EmailParagraph>
+      <EmailRows
+        rows={[
+          ["Amount due", total],
+          ["Date", date],
+          ["Billed to", billedTo],
+          ["Status", "Past due"],
+        ]}
+        theme={theme}
+      />
+      <EmailAction href={billingPortalUrl}>Update payment</EmailAction>
+    </ReportEmailLayout>
   );
 }
