@@ -3,8 +3,9 @@ import { z } from "zod/v4";
 
 import signalTemplates from "@/components/signals/prompts";
 import { SEVERITY_LEVEL } from "@/lib/actions/alerts/types";
-import { type Filter, parseFilters } from "@/lib/actions/common/filters";
+import { type Filter, FilterSchema, parseFilters } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
+import { buildSignalDefinition, mintSignalVersion } from "@/lib/actions/signal-versions";
 import { executeQuery } from "@/lib/actions/sql";
 import { cache, SIGNAL_TRIGGERS_CACHE_KEY } from "@/lib/cache.ts";
 import { clickhouseClient } from "@/lib/clickhouse/client";
@@ -36,6 +37,7 @@ export type SignalRow = {
   createdAt: string;
   projectId: string;
   disabled: boolean;
+  version: number;
   eventsCount: number;
   clustersCount: number;
   lastEventAt: string | null;
@@ -86,6 +88,17 @@ const GetSignalSchema = z.object({
   id: z.guid(),
 });
 
+const TriggerInputSchema = z.object({
+  id: z.guid().optional(),
+  conditions: z.array(FilterSchema).min(1, "A trigger must have at least one condition"),
+  filters: z.array(FilterSchema).default([]),
+  mode: z.number().int().min(0).max(1).default(0),
+});
+
+type TriggerInput = z.infer<typeof TriggerInputSchema>;
+
+type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 const CreateSignalSchema = z
   .object({
     projectId: z.guid(),
@@ -94,6 +107,7 @@ const CreateSignalSchema = z
     structuredOutput: z.record(z.string(), z.unknown()),
     sampleRate: z.number().int().min(1).max(95).nullable().optional(),
     disabled: z.boolean().optional(),
+    triggers: z.array(TriggerInputSchema).optional(),
     // When provided, the creator is auto-subscribed via EMAIL alert targets on
     // every alert created for this signal.
     subscriberEmail: z.email().optional(),
@@ -106,10 +120,12 @@ const UpdateSignalSchema = z
   .object({
     projectId: z.guid(),
     id: z.guid(),
+    name: z.string().min(1, "Name is required").max(255, { error: "Name must be less than 255 characters" }),
     prompt: z.string(),
     structuredOutput: z.record(z.string(), z.unknown()),
     sampleRate: z.number().int().min(1).max(95).nullable().optional(),
     disabled: z.boolean().optional(),
+    triggers: z.array(TriggerInputSchema).optional(),
     ...LlmProfileFieldsSchema,
   })
   .refine(llmRouteIsPaired, LLM_PROFILE_PAIR_ERROR)
@@ -123,11 +139,6 @@ export const DeleteSignalSchema = z.object({
 const DeleteSignalsSchema = z.object({
   projectId: z.guid(),
   ids: z.array(z.string()).min(1, "At least one signal ID is required"),
-});
-
-const GetLastEventSchema = z.object({
-  projectId: z.guid(),
-  signalId: z.guid(),
 });
 
 const SetTemplateSignalsSchema = z.object({
@@ -174,6 +185,97 @@ async function purgeSignalsFromClickhouse(projectId: string, signalIds: string[]
     console.error("Failed to purge signals from ClickHouse:", error);
   }
 }
+
+const toTriggerInput = (row: { id: string; value: unknown; filters: unknown; mode: number }): TriggerInput => ({
+  id: row.id,
+  conditions: row.value as Filter[],
+  filters: (row.filters ?? []) as Filter[],
+  mode: row.mode,
+});
+
+const insertTrigger = async (tx: Transaction, projectId: string, signalId: string, trigger: TriggerInput) => {
+  const [created] = await tx
+    .insert(signalTriggers)
+    .values({
+      projectId,
+      signalId,
+      value: trigger.conditions,
+      filters: trigger.filters,
+      mode: trigger.mode,
+    })
+    .returning();
+  return toTriggerInput(created);
+};
+
+const syncTriggersInTx = async (
+  tx: Transaction,
+  projectId: string,
+  signalId: string,
+  triggers: TriggerInput[]
+): Promise<TriggerInput[]> => {
+  const existing = await tx
+    .select({ id: signalTriggers.id })
+    .from(signalTriggers)
+    .where(and(eq(signalTriggers.projectId, projectId), eq(signalTriggers.signalId, signalId)));
+
+  const incomingIds = new Set(triggers.filter((t) => t.id).map((t) => t.id!));
+  const toDelete = existing.map((row) => row.id).filter((id) => !incomingIds.has(id));
+
+  if (toDelete.length > 0) {
+    await tx
+      .delete(signalTriggers)
+      .where(
+        and(
+          eq(signalTriggers.projectId, projectId),
+          eq(signalTriggers.signalId, signalId),
+          inArray(signalTriggers.id, toDelete)
+        )
+      );
+  }
+
+  const synced: TriggerInput[] = [];
+  for (const trigger of triggers) {
+    if (!trigger.id) {
+      synced.push(await insertTrigger(tx, projectId, signalId, trigger));
+      continue;
+    }
+
+    const [updated] = await tx
+      .update(signalTriggers)
+      .set({
+        value: trigger.conditions,
+        filters: trigger.filters,
+        mode: trigger.mode,
+      })
+      .where(
+        and(
+          eq(signalTriggers.projectId, projectId),
+          eq(signalTriggers.signalId, signalId),
+          eq(signalTriggers.id, trigger.id)
+        )
+      )
+      .returning();
+
+    synced.push(
+      updated ? toTriggerInput(updated) : await insertTrigger(tx, projectId, signalId, { ...trigger, id: undefined })
+    );
+  }
+  return synced;
+};
+
+const newestTrigger = async (tx: Transaction, projectId: string, signalId: string) => {
+  const [row] = await tx
+    .select({
+      value: signalTriggers.value,
+      filters: signalTriggers.filters,
+      mode: signalTriggers.mode,
+    })
+    .from(signalTriggers)
+    .where(and(eq(signalTriggers.projectId, projectId), eq(signalTriggers.signalId, signalId)))
+    .orderBy(desc(signalTriggers.createdAt), desc(signalTriggers.id))
+    .limit(1);
+  return row;
+};
 
 // Replaces the project's template signals with `templateNames`. Scope is
 // limited to template-named rows; custom user signals are never touched.
@@ -260,6 +362,20 @@ export async function setTemplateSignals(input: z.infer<typeof SetTemplateSignal
         value: DEFAULT_SIGNAL_TRIGGER_VALUE,
         filters: DEFAULT_SIGNAL_TRIGGER_FILTERS,
       });
+
+      await mintSignalVersion(
+        tx,
+        projectId,
+        signal.id,
+        buildSignalDefinition({
+          name: template.name,
+          prompt: template.prompt,
+          structuredOutputSchema: signal.structuredOutputSchema as Record<string, unknown>,
+          trigger: DEFAULT_SIGNAL_TRIGGER_VALUE,
+          filters: DEFAULT_SIGNAL_TRIGGER_FILTERS,
+          mode: 0,
+        })
+      );
     }
 
     if (toDeleteIds.length === 0) return [];
@@ -334,6 +450,7 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
       prompt: signals.prompt,
       projectId: signals.projectId,
       metadata: signals.metadata,
+      version: signals.version,
     })
     .from(signals)
     .where(and(...whereConditions))
@@ -486,8 +603,18 @@ export async function createSignal(
   // Seeded default signals have no profile to pick; they run on env credentials until edited.
   { requireLlmProfile = true }: { requireLlmProfile?: boolean } = {}
 ) {
-  const { projectId, name, prompt, structuredOutput, sampleRate, disabled, subscriberEmail, llmProfileId, llmModel } =
-    CreateSignalSchema.parse(input);
+  const {
+    projectId,
+    name,
+    prompt,
+    structuredOutput,
+    sampleRate,
+    disabled,
+    subscriberEmail,
+    triggers,
+    llmProfileId,
+    llmModel,
+  } = CreateSignalSchema.parse(input);
 
   if (requireLlmProfile && llmProfileId === undefined && isFeatureEnabled(Feature.LLM_PROFILES)) {
     throw llmProfileError("llmProfileId", "Select an LLM profile and a model");
@@ -511,6 +638,41 @@ export async function createSignal(
         ...llmRoute,
       })
       .returning();
+
+    const seededTriggers: TriggerInput[] =
+      triggers && triggers.length > 0
+        ? triggers
+        : [
+            {
+              conditions: DEFAULT_SIGNAL_TRIGGER_VALUE as Filter[],
+              filters: DEFAULT_SIGNAL_TRIGGER_FILTERS as Filter[],
+              mode: 1,
+            },
+          ];
+
+    const syncedTriggers: TriggerInput[] = [];
+    for (const trigger of seededTriggers) {
+      syncedTriggers.push(await insertTrigger(tx, projectId, signal.id, trigger));
+    }
+
+    const newest = await newestTrigger(tx, projectId, signal.id);
+    await mintSignalVersion(
+      tx,
+      projectId,
+      signal.id,
+      buildSignalDefinition({
+        name,
+        prompt,
+        structuredOutputSchema: structuredOutput,
+        trigger: newest?.value,
+        filters: newest?.filters,
+        mode: newest?.mode,
+        sampleRate: metadata.sampleRate,
+        disabled: metadata.disabled,
+        llmProfileId: llmRoute?.llmProfileId ?? null,
+        llmModel: llmRoute?.llmModel ?? null,
+      })
+    );
 
     const clusteringEnabled = isFeatureEnabled(Feature.CLUSTERING);
 
@@ -552,39 +714,81 @@ export async function createSignal(
       );
     }
 
-    return signal;
+    return { ...signal, triggers: syncedTriggers };
   });
+
+  await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
 
   return result;
 }
 
 export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
-  const { projectId, id, prompt, structuredOutput, sampleRate, disabled, llmProfileId, llmModel } =
+  const { projectId, id, name, prompt, structuredOutput, sampleRate, disabled, triggers, llmProfileId, llmModel } =
     UpdateSignalSchema.parse(input);
 
   // No "required" check here: an edit must not force a legacy env-backed signal onto a profile.
   const llmRoute = await resolveLlmRoute(projectId, llmProfileId, llmModel);
 
-  const [existing] = await db
-    .select({ metadata: signals.metadata })
-    .from(signals)
-    .where(and(eq(signals.projectId, projectId), eq(signals.id, id)));
+  // FOR UPDATE serializes the version insert against the denormalized `version` bump.
+  const result = await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({
+        metadata: signals.metadata,
+        llmProfileId: signals.llmProfileId,
+        llmModel: signals.llmModel,
+      })
+      .from(signals)
+      .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
+      .for("update");
 
-  // Merge over stored metadata so omitted fields keep their values — a PUT
-  // without `disabled` must not silently re-enable a deactivated signal.
-  const metadata: SignalMetadata = { ...((existing?.metadata ?? {}) as SignalMetadata) };
-  if (sampleRate !== undefined) metadata.sampleRate = sampleRate;
-  // Only persist `disabled` when deactivated; absence means active.
-  if (disabled !== undefined) {
-    if (disabled) metadata.disabled = true;
-    else delete metadata.disabled;
-  }
+    if (!existing) return undefined;
 
-  const result = await db
-    .update(signals)
-    .set({ prompt, structuredOutputSchema: structuredOutput, metadata, ...llmRoute })
-    .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
-    .returning();
+    // Merge over stored metadata so omitted fields keep their values — a PUT
+    // without `disabled` must not silently re-enable a deactivated signal.
+    const metadata: SignalMetadata = { ...((existing.metadata ?? {}) as SignalMetadata) };
+    if (sampleRate !== undefined) metadata.sampleRate = sampleRate;
+    // Only persist `disabled` when deactivated; absence means active.
+    if (disabled !== undefined) {
+      if (disabled) metadata.disabled = true;
+      else delete metadata.disabled;
+    }
+
+    const syncedTriggers = triggers !== undefined ? await syncTriggersInTx(tx, projectId, id, triggers) : undefined;
+
+    const newest = await newestTrigger(tx, projectId, id);
+    const newVersion = await mintSignalVersion(
+      tx,
+      projectId,
+      id,
+      buildSignalDefinition({
+        name,
+        prompt,
+        structuredOutputSchema: structuredOutput,
+        trigger: newest?.value,
+        filters: newest?.filters,
+        mode: newest?.mode,
+        sampleRate: metadata.sampleRate,
+        disabled: metadata.disabled,
+        llmProfileId: llmRoute?.llmProfileId ?? existing.llmProfileId ?? null,
+        llmModel: llmRoute?.llmModel ?? existing.llmModel ?? null,
+      })
+    );
+
+    const [updated] = await tx
+      .update(signals)
+      .set({
+        name,
+        prompt,
+        structuredOutputSchema: structuredOutput,
+        metadata,
+        ...llmRoute,
+        ...(newVersion === null ? {} : { version: newVersion }),
+      })
+      .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
+      .returning();
+
+    return { ...updated, triggers: syncedTriggers };
+  });
 
   await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
 
@@ -648,29 +852,4 @@ export async function deleteSignals(input: z.infer<typeof DeleteSignalsSchema>) 
   return { success: true };
 }
 
-export { executeSignal } from "./execute";
-export { getTraceSignals, GetTraceSignalsSchema } from "./trace";
-
-export const getLastEvent = async (input: z.infer<typeof GetLastEventSchema>) => {
-  const { projectId, signalId } = GetLastEventSchema.parse(input);
-
-  const query = `
-      SELECT
-          id,
-          formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp
-      FROM signal_events
-      WHERE signal_id = {signalId: UUID}
-      ORDER BY timestamp DESC
-      LIMIT 1
-  `;
-
-  const [result] = await executeQuery<{ id: string; timestamp: string }>({
-    projectId,
-    query,
-    parameters: {
-      signalId,
-    },
-  });
-
-  return result;
-};
+export { getTraceSignals } from "./trace";

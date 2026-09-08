@@ -58,6 +58,10 @@ export async function POST(
       mode: body.mode ?? 0,
     });
 
+    if (!result) {
+      return Response.json({ error: "Signal not found" }, { status: 404 });
+    }
+
     return Response.json(result);
   } catch (error) {
     if (error instanceof ZodError) {

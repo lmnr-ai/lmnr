@@ -427,6 +427,7 @@ fn missing_description_is_allowed() {
 #[test]
 fn omitted_patch_fields_are_left_alone() {
     let absent: UpdateSignalInput = serde_json::from_value(json!({ "prompt": "x" })).unwrap();
+    assert!(absent.name.is_none());
     assert_eq!(absent.sample_rate, None);
     assert!(absent.trigger.is_none());
     assert!(absent.filters.is_none());

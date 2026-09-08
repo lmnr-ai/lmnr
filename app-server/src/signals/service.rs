@@ -16,7 +16,7 @@ use uuid::Uuid;
 use crate::cache::keys::SIGNAL_TRIGGERS_CACHE_KEY;
 use crate::cache::{Cache, CacheTrait};
 use crate::db::signal_triggers::{TriggerPatch, TriggerRow};
-use crate::db::signals::{CreateSignalError, SignalRow, SignalUpdate};
+use crate::db::signals::{CreateSignalError, SignalRow, SignalUpdate, SignalVersionRow};
 use crate::db::{llm_profiles, projects, signal_triggers, signals};
 use crate::features::{Feature, is_feature_enabled};
 
@@ -251,6 +251,7 @@ pub struct SignalResponse {
     pub trigger: Trigger,
     pub filters: Vec<Value>,
     pub mode: Mode,
+    pub version: i32,
     /// Workspace LLM profile id + pinned model; both `null` when the signal
     /// runs on the server's env `LLM_PROVIDER`. The name rides along for display.
     pub llm_profile_id: Option<Uuid>,
@@ -290,9 +291,29 @@ impl SignalResponse {
             trigger,
             filters,
             mode,
+            version: row.version,
             llm_profile_id: row.llm_profile_id,
             llm_profile_name,
             model: row.llm_model,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignalVersionResponse {
+    pub version: i32,
+    /// Stored snapshot blob.
+    pub definition: Value,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl From<SignalVersionRow> for SignalVersionResponse {
+    fn from(row: SignalVersionRow) -> Self {
+        Self {
+            version: row.version,
+            definition: row.definition,
+            created_at: row.created_at,
         }
     }
 }
@@ -509,9 +530,24 @@ pub async fn list_signals(
         .collect())
 }
 
+pub async fn list_signal_versions(
+    pool: &PgPool,
+    project_id: Uuid,
+    signal_id: Uuid,
+) -> Result<Vec<SignalVersionResponse>, CrudError> {
+    signals::get_signal_row(pool, project_id, signal_id)
+        .await?
+        .ok_or(CrudError::SignalNotFound)?;
+
+    let rows = signals::list_signal_versions(pool, project_id, signal_id).await?;
+    Ok(rows.into_iter().map(SignalVersionResponse::from).collect())
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateSignalInput {
+    #[serde(default)]
+    pub name: Option<String>,
     #[serde(default)]
     pub prompt: Option<String>,
     #[serde(default)]
@@ -543,6 +579,11 @@ pub async fn update_signal(
     signal_id: Uuid,
     input: UpdateSignalInput,
 ) -> Result<SignalResponse, CrudError> {
+    let name = input
+        .name
+        .as_deref()
+        .map(validate_signal_name)
+        .transpose()?;
     if let Some(prompt) = &input.prompt
         && prompt.trim().is_empty()
     {
@@ -584,6 +625,7 @@ pub async fn update_signal(
         project_id,
         signal_id,
         SignalUpdate {
+            name,
             prompt: input.prompt,
             structured_output_schema: input.structured_output,
             sample_rate,
@@ -592,8 +634,7 @@ pub async fn update_signal(
         },
         patch,
     )
-    .await
-    .map_err(CrudError::Internal)?
+    .await?
     .ok_or(CrudError::SignalNotFound)?;
 
     invalidate_trigger_cache(cache, project_id).await;
@@ -679,8 +720,8 @@ fn validate_sample_rate(rate: i64) -> Result<(), CrudError> {
     Ok(())
 }
 
-fn validate_signal_input(input: &mut SignalInput) -> Result<(), CrudError> {
-    let trimmed = input.name.trim();
+fn validate_signal_name(name: &str) -> Result<String, CrudError> {
+    let trimmed = name.trim();
     if trimmed.is_empty() {
         return Err(CrudError::Validation("Name is required".to_string()));
     }
@@ -689,9 +730,11 @@ fn validate_signal_input(input: &mut SignalInput) -> Result<(), CrudError> {
             "Name must be at most {SIGNAL_NAME_MAX_LEN} characters"
         )));
     }
-    if trimmed.len() != input.name.len() {
-        input.name = trimmed.to_string();
-    }
+    Ok(trimmed.to_string())
+}
+
+fn validate_signal_input(input: &mut SignalInput) -> Result<(), CrudError> {
+    input.name = validate_signal_name(&input.name)?;
 
     if input.prompt.trim().is_empty() {
         return Err(CrudError::Validation("Prompt is required".to_string()));

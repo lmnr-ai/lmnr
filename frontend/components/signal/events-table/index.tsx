@@ -130,12 +130,15 @@ function PureEventsTable() {
 export default function EventsTable() {
   const signal = useSignalStoreContext((state) => state.signal);
   const params = useParams<{ projectId: string }>();
-  const { columnOrder } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
+  const { columnOrder, columnVisibility } = useMemo(
+    () => buildEventsColumns(signal.schemaFields),
+    [signal.schemaFields]
+  );
 
   return (
     <InfiniteDataTableProvider
       uniqueKey="id"
-      defaults={{ columnOrder }}
+      defaults={{ columnOrder, columnVisibility }}
       views={{ projectId: params.projectId, resource: `signal-events:${signal.id}` }}
     >
       <PureEventsTable />

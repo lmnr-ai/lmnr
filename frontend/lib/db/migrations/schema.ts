@@ -143,6 +143,8 @@ export const signals = pgTable(
     structuredOutputSchema: jsonb("structured_output_schema").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     metadata: jsonb().default({}).notNull(),
+    // Newest `signal_versions.version` row.
+    version: integer().default(1).notNull(),
     llmProfileId: uuid("llm_profile_id"),
     llmModel: text("llm_model"),
   },
@@ -160,6 +162,30 @@ export const signals = pgTable(
     }).onDelete("restrict"),
     unique("signals_project_id_name_key").on(table.projectId, table.name),
     check("signals_llm_profile_pair_check", sql`(llm_profile_id IS NULL) = (llm_model IS NULL)`),
+  ]
+);
+
+export const signalVersions = pgTable(
+  "signal_versions",
+  {
+    projectId: uuid("project_id").notNull(),
+    signalId: uuid("signal_id").notNull(),
+    version: integer().notNull(),
+    definition: jsonb().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_versions_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.signalId],
+      foreignColumns: [signals.id],
+      name: "signal_versions_signal_id_fkey",
+    }).onDelete("cascade"),
+    primaryKey({ columns: [table.signalId, table.version], name: "signal_versions_pkey" }),
   ]
 );
 
