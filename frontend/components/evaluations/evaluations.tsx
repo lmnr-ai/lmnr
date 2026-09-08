@@ -289,11 +289,13 @@ function EvaluationsContent() {
 
   const { rowSelection, onRowSelectionChange } = useSelection();
 
-  // When exactly one (or more — we take the first) eval is row-selected, the progression
-  // charts subtract that run's scores from every other run so it becomes the zero baseline.
+  // Baseline mode is a strictly single-selection gesture: when EXACTLY one eval is
+  // row-selected, the progression charts subtract that run's scores from every other
+  // run so it becomes the zero baseline. Multi-select (incl. select-all) is a bulk-action
+  // gesture (Delete), so it must NOT hijack the chart into a baseline.
   const selectedEvaluationId = useMemo(() => {
     const ids = Object.keys(rowSelection).filter((id) => rowSelection[id]);
-    return ids.length > 0 ? ids[0] : undefined;
+    return ids.length === 1 ? ids[0] : undefined;
   }, [rowSelection]);
 
   // Single source for the group-scoped progression (no `ids` ⇒ every run in the

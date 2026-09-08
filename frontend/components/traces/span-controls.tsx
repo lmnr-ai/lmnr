@@ -67,7 +67,7 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
           </div>
           <ToolList tools={tools} />
           <StructuredOutputSchema schema={schema} />
-          <SpanTagsList spanId={span.spanId} />
+          <SpanTagsList traceId={span.traceId} spanId={span.spanId} />
         </div>
 
         {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}
