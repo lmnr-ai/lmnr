@@ -85,7 +85,7 @@ export function clusterRow(t: NotificationEmailTheme, row: ClusterRow, maxCount:
     `background-color:${t.reportRowBackground};` +
     `background-image:linear-gradient(to right,${tint} 0%,${tint} ${pct}%,${t.reportRowBackground} ${pct}%);`;
 
-  return `<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin-bottom:4px;${bar}border-radius:16px;">
+  return `<table class="email-cluster-row" width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin-bottom:4px;${bar}border-radius:16px;">
   <tr>
     <td style="padding:6px 12px 6px 10px;font-size:${t.bodySize}px;color:${t.text};" align="left" valign="middle">
       <table cellpadding="0" cellspacing="0" border="0" role="presentation"><tr>

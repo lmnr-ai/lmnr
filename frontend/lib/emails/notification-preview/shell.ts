@@ -72,6 +72,7 @@ export function document(
 @media screen and (max-width:720px) {
   .email-body { background:transparent !important; }
   .email-report-card { background:#fafafa !important; }
+  .email-cluster-row { background-color:#f5f5f5 !important; }
   .email-shell { padding-left:0 !important; padding-right:0 !important; }
 }
 </style>
