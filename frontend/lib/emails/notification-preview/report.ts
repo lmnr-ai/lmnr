@@ -59,7 +59,7 @@ function signalCard(t: NotificationEmailTheme, s: ReportSignal): string {
       ${ranked.map((c) => clusterRow(t, c, maxCount)).join("\n")}`
     : `<p style="margin:0;font-size:${t.bodySize}px;color:${t.faintText};">No notable clusters in this period.</p>`;
 
-  return `<div style="background:${t.reportSurface};border-radius:${t.cardRadius}px;padding:16px 20px;margin-bottom:4px;">
+  return `<div class="email-report-card" style="background:${t.reportSurface};border-radius:${t.cardRadius}px;padding:16px 20px;margin-bottom:4px;">
   ${signalHeading(t, s)}
   <p style="margin:16px 0 0;font-size:${t.bodySize}px;color:${t.text};line-height:${t.bodyLineHeight};">${escapeHtml(s.summary)}</p>
 

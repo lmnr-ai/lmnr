@@ -37,7 +37,7 @@ const ROW: &str = "#f7f7f7";
 
 fn email_document(title: &str, width: u16, body: &str) -> String {
     format!(
-        r#"<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{}</title><style>@media(max-width:720px){{.email-body{{background:#fff!important}}.email-shell{{padding-left:0!important;padding-right:0!important}}}}.email-view-button:hover{{background:#e0e0e0!important}}.email-cluster-view-button:hover{{background:rgba(0,0,0,.12)!important}}u+.email-body .gmail-blend-screen{{background:#000;mix-blend-mode:screen}}u+.email-body .gmail-blend-difference{{background:#000;mix-blend-mode:difference}}</style></head><body class="email-body" style="margin:0;background:{};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;"><div class="email-shell" style="max-width:{}px;margin:0 auto;padding:20px;">{}</div></body></html>"#,
+        r#"<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{}</title><style>@media(max-width:720px){{.email-body{{background:transparent!important}}.email-report-card{{background:#fafafa!important}}.email-shell{{padding-left:0!important;padding-right:0!important}}}}.email-view-button:hover{{background:#e0e0e0!important}}.email-cluster-view-button:hover{{background:rgba(0,0,0,.12)!important}}u+.email-body .gmail-blend-screen{{background:#000;mix-blend-mode:screen}}u+.email-body .gmail-blend-difference{{background:#000;mix-blend-mode:difference}}</style></head><body class="email-body" style="margin:0;background:{};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;"><div class="email-shell" style="max-width:{}px;margin:0 auto;padding:20px;">{}</div></body></html>"#,
         html_escape(title),
         PAGE,
         width,
@@ -636,7 +636,7 @@ fn render_signal_card(
         signal.summary.clone()
     };
     format!(
-        r#"<div style="background:#fff;border-radius:8px;padding:16px 20px;margin-bottom:4px">{}<p style="margin:16px 0 0;font-size:14px;line-height:1.5;color:{}">{}</p><div style="margin-top:24px"><p style="margin:0 0 4px;font-size:14px;color:{}">Events</p><table cellpadding="0" cellspacing="0"><tr><td valign="baseline" style="font-size:30px;line-height:30px;color:{};padding-right:6px">{}</td><td valign="baseline" style="white-space:nowrap">{} <span style="font-size:12px;color:#92949c">vs previous period</span></td></tr></table><div style="margin-top:12px">{}</div></div><div style="margin-top:24px"><p style="margin:0 0 12px;font-size:14px;color:{}">Notable clusters</p>{}</div></div>"#,
+        r#"<div class="email-report-card" style="background:#fff;border-radius:8px;padding:16px 20px;margin-bottom:4px">{}<p style="margin:16px 0 0;font-size:14px;line-height:1.5;color:{}">{}</p><div style="margin-top:24px"><p style="margin:0 0 4px;font-size:14px;color:{}">Events</p><table cellpadding="0" cellspacing="0"><tr><td valign="baseline" style="font-size:30px;line-height:30px;color:{};padding-right:6px">{}</td><td valign="baseline" style="white-space:nowrap">{} <span style="font-size:12px;color:#92949c">vs previous period</span></td></tr></table><div style="margin-top:12px">{}</div></div><div style="margin-top:24px"><p style="margin:0 0 12px;font-size:14px;color:{}">Notable clusters</p>{}</div></div>"#,
         breadcrumb(&[&project.project_name, &signal.signal_name], &signal_link),
         TEXT,
         html_escape(&summary),

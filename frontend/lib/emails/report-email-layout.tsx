@@ -49,7 +49,7 @@ export function ReportEmailLayout({
   return (
     <Html lang="en">
       <Head>
-        <style>{`@media screen and (max-width:720px) { .email-page { background:#fff !important; } .email-shell { padding-left:0 !important; padding-right:0 !important; } }`}</style>
+        <style>{`@media screen and (max-width:720px) { .email-page { background:transparent !important; } .email-report-card { background:#fafafa !important; } .email-shell { padding-left:0 !important; padding-right:0 !important; } }`}</style>
       </Head>
       <Preview>{preview}</Preview>
       <div className="email-page" style={page}>
