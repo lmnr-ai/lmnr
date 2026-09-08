@@ -88,14 +88,22 @@ fn action(href: &str, label: &str) -> String {
 }
 
 fn breadcrumb(parts: &[&str], href: &str) -> String {
+    let last = parts.len().saturating_sub(1);
     let text = parts
         .iter()
-        .map(|p| html_escape(p))
+        .enumerate()
+        .map(|(index, part)| {
+            let color = if index == last { TEXT } else { MUTED };
+            format!(
+                r#"<span style="color:{color}">{}</span>"#,
+                html_escape(part)
+            )
+        })
         .collect::<Vec<_>>()
-        .join(r#" <span style="display:inline-block;margin:0 10px;color:#92949c">/</span> "#);
+        .join(r#"<span style="display:inline-block;margin:0 10px;color:#92949c">/</span>"#);
     format!(
-        r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr><td style="font-size:16px;font-weight:400;color:{}">{}</td><td align="right"><a href="{}"><img src="cid:email-arrow" alt="Open" width="20" height="20" style="display:block;border:0"></a></td></tr></table>"#,
-        TEXT, text, href
+        r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr><td style="font-size:16px;font-weight:400">{}</td><td align="right"><a href="{}"><img src="cid:email-arrow" alt="Open" width="20" height="20" style="display:block;border:0"></a></td></tr></table>"#,
+        text, href
     )
 }
 
@@ -627,7 +635,7 @@ fn render_signal_card(
         signal.summary.clone()
     };
     format!(
-        r#"<div style="background:#fff;border-radius:8px;padding:16px 20px;margin-bottom:4px">{}<p style="margin:16px 0 0;font-size:14px;line-height:1.5;color:{}">{}</p><div style="margin-top:24px"><p style="margin:0 0 4px;font-size:14px;color:{}">Events</p><table cellpadding="0" cellspacing="0"><tr><td style="font-size:30px;color:{};padding-right:6px">{}</td><td>{} <span style="font-size:12px;color:#92949c">vs previous period</span></td></tr></table><div style="margin-top:12px">{}</div></div><div style="margin-top:24px"><p style="margin:0 0 12px;font-size:14px;color:{}">Notable clusters</p>{}</div></div>"#,
+        r#"<div style="background:#fff;border-radius:8px;padding:16px 20px;margin-bottom:4px">{}<p style="margin:16px 0 0;font-size:14px;line-height:1.5;color:{}">{}</p><div style="margin-top:24px"><p style="margin:0 0 4px;font-size:14px;color:{}">Events</p><table cellpadding="0" cellspacing="0"><tr><td valign="bottom" style="font-size:30px;line-height:30px;color:{};padding-right:6px">{}</td><td valign="bottom" style="padding-bottom:2px;white-space:nowrap">{} <span style="font-size:12px;color:#92949c">vs previous period</span></td></tr></table><div style="margin-top:12px">{}</div></div><div style="margin-top:24px"><p style="margin:0 0 12px;font-size:14px;color:{}">Notable clusters</p>{}</div></div>"#,
         breadcrumb(&[&project.project_name, &signal.signal_name], &signal_link),
         TEXT,
         html_escape(&summary),
@@ -704,7 +712,7 @@ fn cluster_row(
     let color_index = cluster_color_index(&row.id.to_string());
     let tint = cluster_tint(CLUSTER_PALETTE[color_index]);
     format!(
-        r#"<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:4px;background-color:#f7f7f7;background-image:linear-gradient(to right,{tint} 0%,{tint} {width}%,#f7f7f7 {width}%);border-radius:4px"><tr><td style="padding:6px 12px 6px 10px;font-size:14px;color:#252525"><img src="cid:email-cluster-{color_index}" alt="" width="16" height="16" style="vertical-align:middle;border:0">&nbsp;&nbsp;{name}</td><td align="right" style="padding:6px 4px;font-size:14px;color:#92949c">{count} events</td><td width="80" align="right" style="padding:6px 4px">{delta}</td><td width="20" align="right" style="padding:6px 12px 6px 8px"><a href="{href}"><img src="cid:email-arrow" alt="Open" width="16" height="16" style="display:block;border:0"></a></td></tr></table>"#,
+        r#"<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:4px;background-color:#f7f7f7;background-image:linear-gradient(to right,{tint} 0%,{tint} {width}%,#f7f7f7 {width}%);border-radius:999px"><tr><td style="padding:6px 12px 6px 10px;font-size:14px;color:#252525"><img src="cid:email-cluster-{color_index}" alt="" width="16" height="16" style="vertical-align:middle;border:0">&nbsp;&nbsp;{name}</td><td align="right" style="padding:6px 4px;font-size:14px;color:#92949c">{count} events</td><td width="80" align="right" style="padding:6px 4px">{delta}</td><td width="20" align="right" style="padding:6px 12px 6px 8px"><a href="{href}"><img src="cid:email-arrow" alt="Open" width="16" height="16" style="display:block;border:0"></a></td></tr></table>"#,
         name = html_escape(&row.name),
         count = row.count,
         delta = delta(row.count, row.previous_count)
@@ -831,6 +839,12 @@ mod tests {
         assert!(html.find("existing").unwrap() < html.find("new").unwrap());
         assert!(!html.contains("small"));
         assert!(html.contains("height:96px"));
+        assert!(html.contains("border-radius:999px"));
+        assert!(html.contains(r#"<span style="color:#92949c">Project</span>"#));
+        assert!(html.contains(r#"<span style="color:#252525">Signal</span>"#));
+        assert!(
+            html.contains(r#"<td valign="bottom" style="padding-bottom:2px;white-space:nowrap">"#)
+        );
     }
 
     #[test]
