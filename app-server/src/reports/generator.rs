@@ -137,7 +137,6 @@ async fn process_report_trigger(
     }
 
     let mut project_reports = Vec::new();
-    let mut total_events: u64 = 0;
 
     for project in &projects {
         let signals = match signals_by_project.get(&project.id) {
@@ -196,18 +195,17 @@ async fn process_report_trigger(
             .iter()
             .map(|row| (row.signal_id, row.count))
             .collect();
-        for count_row in &counts {
-            if let Some(name) = signal_name_map.get(&count_row.signal_id) {
-                signal_event_counts.insert(name.clone(), count_row.count);
+        for signal in signals {
+            let current_count = *current_by_id.get(&signal.id).unwrap_or(&0);
+            let previous_count = *previous_by_id.get(&signal.id).unwrap_or(&0);
+            if current_count > 0 || previous_count > 0 {
+                signal_event_counts.insert(signal.name.clone(), current_count);
             }
         }
 
         if signal_event_counts.is_empty() {
             continue;
         }
-
-        // Only count events for projects that actually appear in the report
-        total_events += signal_event_counts.values().sum::<u64>();
 
         // Fetch up to 128 recent events for LLM summary context
         let summary_context_events = get_signal_events_for_summary(
@@ -260,7 +258,8 @@ async fn process_report_trigger(
             .iter()
             .filter_map(|signal| {
                 let current_count = *current_by_id.get(&signal.id).unwrap_or(&0);
-                if current_count == 0 {
+                let previous_count = *previous_by_id.get(&signal.id).unwrap_or(&0);
+                if current_count == 0 && previous_count == 0 {
                     return None;
                 }
                 let bucket_seconds = (period_seconds as u64).div_ceil(REPORT_CHART_BUCKETS as u64);
@@ -294,7 +293,7 @@ async fn process_report_trigger(
                     signal_id: signal.id,
                     signal_name: signal.name.clone(),
                     current_count,
-                    previous_count: *previous_by_id.get(&signal.id).unwrap_or(&0),
+                    previous_count,
                     summary: ai_summary.clone(),
                     buckets,
                     clusters,
@@ -312,9 +311,9 @@ async fn process_report_trigger(
         });
     }
 
-    if total_events == 0 {
+    if project_reports.is_empty() {
         log::info!(
-            "[Reports Generator] No signal events found for workspace {}, in period",
+            "[Reports Generator] No current or previous signal events found for workspace {}",
             workspace_id
         );
         return Ok(());
