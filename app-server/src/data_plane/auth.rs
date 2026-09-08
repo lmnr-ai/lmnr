@@ -35,8 +35,12 @@ fn key_from_base64(config: &WorkspaceDeployment) -> Result<SecretKey, String> {
         return Err("Private key is not configured".to_string());
     };
 
-    let decrypted = decrypt(config.workspace_id, private_key_nonce, private_key)
-        .map_err(|e| format!("Failed to decrypt private key: {}", e))?;
+    let decrypted = decrypt(
+        &config.workspace_id.to_string(),
+        private_key_nonce,
+        private_key,
+    )
+    .map_err(|e| format!("Failed to decrypt private key: {}", e))?;
 
     let key_bytes = base64::engine::general_purpose::STANDARD
         .decode(&decrypted)
@@ -122,7 +126,7 @@ mod tests {
         // libsodium crypto_sign_seed_keypair(seed = [3u8; 32])
         let sk_b64 = "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwPtSSjGKNHCxurpAziQWZVhKVknOlxj+TY2wUYUrIc30Q==";
         let workspace_id = Uuid::nil();
-        let (nonce, encrypted) = encrypt(workspace_id, sk_b64).unwrap();
+        let (nonce, encrypted) = encrypt(&workspace_id.to_string(), sk_b64).unwrap();
 
         let signing_key = key_from_base64(&WorkspaceDeployment {
             workspace_id,

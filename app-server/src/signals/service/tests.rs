@@ -12,6 +12,8 @@ fn signal_input(structured_output: Value) -> SignalInput {
         trigger: None,
         filters: None,
         mode: None,
+        llm_profile_id: None,
+        model: None,
     }
 }
 
