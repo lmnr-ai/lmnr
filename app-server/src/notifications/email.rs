@@ -36,7 +36,7 @@ const ROW: &str = "#f7f7f7";
 
 fn email_document(title: &str, width: u16, body: &str) -> String {
     format!(
-        r#"<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{}</title><style>@media(max-width:720px){{.email-shell{{padding-left:0!important;padding-right:0!important}}}}.email-view-button:hover{{background:#e0e0e0!important}}</style></head><body style="margin:0;background:{};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;"><div class="email-shell" style="max-width:{}px;margin:0 auto;padding:20px;">{}</div></body></html>"#,
+        r#"<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{}</title><style>@media(max-width:720px){{.email-shell{{padding-left:0!important;padding-right:0!important}}}}.email-view-button:hover{{background:#e0e0e0!important}}.email-cluster-view-button:hover{{background:rgba(0,0,0,.12)!important}}u+.email-body .gmail-blend-screen{{background:#000;mix-blend-mode:screen}}u+.email-body .gmail-blend-difference{{background:#000;mix-blend-mode:difference}}</style></head><body class="email-body" style="margin:0;background:{};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;"><div class="email-shell" style="max-width:{}px;margin:0 auto;padding:20px;">{}</div></body></html>"#,
         html_escape(title),
         PAGE,
         width,
@@ -53,13 +53,13 @@ fn banner(workspace: &str, title: &str, subtitle: Option<&str>) -> String {
     let subtitle_html = subtitle
         .map(|s| {
             format!(
-                r#"<p style="margin:0;font-size:16px;font-weight:400;color:#bfc1c7;">{}</p>"#,
+                r#"<div class="gmail-blend-screen"><div class="gmail-blend-difference"><p style="margin:0;font-size:14px;font-weight:400;color:#bfc1c7;">{}</p></div></div>"#,
                 html_escape(s)
             )
         })
         .unwrap_or_default();
     format!(
-        r#"<table width="100%" height="{height}" cellpadding="0" cellspacing="0" role="presentation" style="height:{height}px;background:#252525;border-radius:8px;margin-bottom:4px;"><tr height="{half}"><td valign="top" style="padding:16px 20px 0"><table cellpadding="0" cellspacing="0" role="presentation"><tr height="15"><td width="76" height="15" style="line-height:0"><img src="cid:{cid}" alt="Laminar" width="76" height="13" style="display:block;border:0"></td><td width="8"></td><td style="font-size:16px;font-weight:400;color:#bfc1c7">/</td><td width="8"></td><td style="font-size:16px;font-weight:400;color:#bfc1c7">{workspace}</td></tr></table></td></tr><tr height="{half}"><td valign="bottom" style="padding:0 20px {bottom}px"><p style="margin:0 0 6px;font-size:28px;font-weight:400;color:#fff;letter-spacing:-.56px">{title}</p>{subtitle_html}</td></tr></table>"#,
+        r#"<div style="background:#252525;background-image:linear-gradient(#252525,#252525);border-radius:8px;margin-bottom:4px"><table width="100%" height="{height}" cellpadding="0" cellspacing="0" role="presentation" style="height:{height}px"><tr height="{half}"><td valign="top" style="padding:16px 20px 0"><table cellpadding="0" cellspacing="0" role="presentation"><tr height="15"><td width="76" height="15" style="line-height:0"><img src="cid:{cid}" alt="Laminar" width="76" height="13" style="display:block;border:0"></td><td width="8"></td><td style="font-size:14px;font-weight:400;color:#bfc1c7"><div class="gmail-blend-screen"><div class="gmail-blend-difference">/</div></div></td><td width="8"></td><td style="font-size:14px;font-weight:400;color:#bfc1c7"><div class="gmail-blend-screen"><div class="gmail-blend-difference">{workspace}</div></div></td></tr></table></td></tr><tr height="{half}"><td valign="bottom" style="padding:0 20px {bottom}px"><div class="gmail-blend-screen"><div class="gmail-blend-difference"><p style="margin:0 0 6px;font-size:28px;font-weight:400;color:#fff;letter-spacing:-.56px">{title}</p></div></div>{subtitle_html}</td></tr></table></div>"#,
         height = height,
         half = height / 2,
         bottom = bottom,
@@ -102,7 +102,7 @@ fn breadcrumb(parts: &[&str], href: &str) -> String {
         .collect::<Vec<_>>()
         .join(r#"<span style="display:inline-block;margin:0 10px;color:#92949c">/</span>"#);
     format!(
-        r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr><td style="font-size:16px;font-weight:400">{}</td><td width="54" align="right" valign="top"><a class="email-view-button" href="{}" style="display:inline-block;background:#ebebeb;border-radius:999px;color:#252525;font-size:12px;line-height:16px;padding:4px 10px;text-decoration:none;white-space:nowrap">View&nbsp;›</a></td></tr></table>"#,
+        r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr><td style="font-size:14px;font-weight:400">{}</td><td width="54" align="right" valign="top"><a class="email-view-button" href="{}" style="display:inline-block;background:#ebebeb;border-radius:999px;color:#252525;font-size:12px;line-height:16px;padding:4px 10px;text-decoration:none;white-space:nowrap">View&nbsp;›</a></td></tr></table>"#,
         text, href
     )
 }
@@ -635,7 +635,7 @@ fn render_signal_card(
         signal.summary.clone()
     };
     format!(
-        r#"<div style="background:#fff;border-radius:8px;padding:16px 20px;margin-bottom:4px">{}<p style="margin:16px 0 0;font-size:14px;line-height:1.5;color:{}">{}</p><div style="margin-top:24px"><p style="margin:0 0 4px;font-size:14px;color:{}">Events</p><table cellpadding="0" cellspacing="0"><tr><td valign="bottom" style="font-size:30px;line-height:30px;color:{};padding-right:6px">{}</td><td valign="bottom" style="padding-bottom:2px;white-space:nowrap">{} <span style="font-size:12px;color:#92949c">vs previous period</span></td></tr></table><div style="margin-top:12px">{}</div></div><div style="margin-top:24px"><p style="margin:0 0 12px;font-size:14px;color:{}">Notable clusters</p>{}</div></div>"#,
+        r#"<div style="background:#fff;border-radius:8px;padding:16px 20px;margin-bottom:4px">{}<p style="margin:16px 0 0;font-size:14px;line-height:1.5;color:{}">{}</p><div style="margin-top:24px"><p style="margin:0 0 4px;font-size:14px;color:{}">Events</p><table cellpadding="0" cellspacing="0"><tr><td valign="baseline" style="font-size:30px;line-height:30px;color:{};padding-right:6px">{}</td><td valign="baseline" style="white-space:nowrap">{} <span style="font-size:12px;color:#92949c">vs previous period</span></td></tr></table><div style="margin-top:12px">{}</div></div><div style="margin-top:24px"><p style="margin:0 0 12px;font-size:14px;color:{}">Notable clusters</p>{}</div></div>"#,
         breadcrumb(&[&project.project_name, &signal.signal_name], &signal_link),
         TEXT,
         html_escape(&summary),
@@ -710,9 +710,9 @@ fn cluster_row(
     );
     let width = row.count * 100 / max;
     let accent = CLUSTER_PALETTE[cluster_color_index(&row.id.to_string())];
-    let tint = cluster_tint(accent);
+    let tint = cluster_tint_rgba(accent);
     format!(
-        r#"<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:4px;background-color:#f7f7f7;background-image:linear-gradient(to right,{tint} 0%,{tint} {width}%,#f7f7f7 {width}%);border-radius:999px"><tr><td style="padding:6px 12px 6px 10px;font-size:14px;color:#252525"><span aria-hidden="true" style="display:inline-block;color:{accent};font-family:Arial,sans-serif;font-size:20px;font-weight:400;line-height:20px;vertical-align:middle">◇</span>&nbsp;&nbsp;{name}</td><td align="right" style="padding:6px 4px;font-size:14px;color:#92949c">{count} events</td><td width="80" align="right" style="padding:6px 4px">{delta}</td><td width="54" align="right" style="padding:3px 4px 3px 8px"><a class="email-view-button" href="{href}" style="display:inline-block;background:#ebebeb;background:rgba(0,0,0,.08);border-radius:999px;color:#252525;font-size:12px;line-height:16px;padding:4px 10px;text-decoration:none;white-space:nowrap">View&nbsp;›</a></td></tr></table>"#,
+        r#"<table class="email-cluster-row" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:4px;background-color:#f7f7f7;background-image:linear-gradient(to right,{tint} 0%,{tint} {width}%,transparent {width}%);border-radius:999px"><tr><td style="padding:6px 12px 6px 10px;font-size:14px;color:#252525"><span aria-hidden="true" style="display:inline-block;color:{accent};font-family:Arial,sans-serif;font-size:20px;font-weight:400;line-height:20px;vertical-align:middle">◇</span>&nbsp;&nbsp;{name}</td><td align="right" style="padding:6px 4px;font-size:14px;color:#92949c">{count} events</td><td width="80" align="right" style="padding:6px 4px">{delta}</td><td width="54" align="right" style="padding:3px 4px 3px 8px"><a class="email-view-button email-cluster-view-button" href="{href}" style="display:inline-block;background:#ebebeb;background:rgba(0,0,0,.08);border-radius:999px;color:#252525;font-size:12px;line-height:16px;padding:4px 10px;text-decoration:none;white-space:nowrap">View&nbsp;›</a></td></tr></table>"#,
         name = html_escape(&row.name),
         count = row.count,
         delta = delta(row.count, row.previous_count)
@@ -745,14 +745,13 @@ fn cluster_color_index(id: &str) -> usize {
     cluster_hash(id) as usize % CLUSTER_PALETTE.len()
 }
 
-fn cluster_tint(color: &str) -> String {
+fn cluster_tint_rgba(color: &str) -> String {
     let component = |range| u8::from_str_radix(&color[range], 16).unwrap_or(0);
-    let blend = |value: u8| ((value as f32 * 0.08) + (247.0 * 0.92)).round() as u8;
     format!(
-        "#{:02x}{:02x}{:02x}",
-        blend(component(1..3)),
-        blend(component(3..5)),
-        blend(component(5..7))
+        "rgba({},{},{},.08)",
+        component(1..3),
+        component(3..5),
+        component(5..7)
     )
 }
 
@@ -842,9 +841,7 @@ mod tests {
         assert!(html.contains("border-radius:999px"));
         assert!(html.contains(r#"<span style="color:#92949c">Project</span>"#));
         assert!(html.contains(r#"<span style="color:#252525">Signal</span>"#));
-        assert!(
-            html.contains(r#"<td valign="bottom" style="padding-bottom:2px;white-space:nowrap">"#)
-        );
+        assert!(html.contains(r#"<td valign="baseline" style="white-space:nowrap">"#));
     }
 
     #[test]
@@ -861,6 +858,9 @@ mod tests {
         let html = render_report_email(&report);
         assert!(html.contains("height:200px"));
         assert!(html.contains("cid:laminar-logo"));
+        assert!(html.contains("background-image:linear-gradient(#252525,#252525)"));
+        assert!(html.contains("gmail-blend-screen"));
+        assert!(!html.contains("font-size:16px"));
         assert!(!html.contains("<svg"));
         assert!(!html.contains("data:image"));
         assert!(html.contains("A &amp; B"));

@@ -24,14 +24,14 @@ function banner(t: NotificationEmailTheme, workspace: string, title: string, sub
     <table cellpadding="0" cellspacing="0" border="0" role="presentation"><tr height="15">
       <td width="76" height="15" valign="middle" style="width:76px;height:15px;line-height:0;"><img src="${LOGO}" alt="Laminar" width="76" height="13" style="display:block;width:76px;height:13px;border:0;" /></td>
       <td width="8" style="width:8px;font-size:0;">&nbsp;</td>
-      <td valign="middle" style="font-size:16px;font-weight:400;line-height:15px;letter-spacing:-0.32px;color:${t.reportHeaderText};"><span style="display:inline-block;vertical-align:${-t.reportHeaderIdentityOffsetY}px;">/</span></td>
+      <td valign="middle" style="font-size:14px;font-weight:400;line-height:15px;letter-spacing:-0.32px;color:${t.reportHeaderText};"><span style="display:inline-block;vertical-align:${-t.reportHeaderIdentityOffsetY}px;">/</span></td>
       <td width="8" style="width:8px;font-size:0;">&nbsp;</td>
-      <td valign="middle" style="font-size:16px;font-weight:400;line-height:15px;letter-spacing:-0.32px;color:${t.reportHeaderText};white-space:nowrap;"><span style="display:inline-block;vertical-align:${-t.reportHeaderIdentityOffsetY}px;">${escapeHtml(workspace)}</span></td>
+      <td valign="middle" style="font-size:14px;font-weight:400;line-height:15px;letter-spacing:-0.32px;color:${t.reportHeaderText};white-space:nowrap;"><span style="display:inline-block;vertical-align:${-t.reportHeaderIdentityOffsetY}px;">${escapeHtml(workspace)}</span></td>
     </tr></table>
   </td></tr>
   <tr height="${rowHeight}"><td valign="bottom" style="padding:0 20px ${subtitle ? 16 : 12}px;">
     <p style="margin:0 0 6px;font-size:28px;font-weight:400;letter-spacing:-0.56px;color:#ffffff;line-height:normal;">${escapeHtml(title)}</p>
-    ${subtitle ? `<p style="margin:0;font-size:16px;font-weight:400;letter-spacing:-0.32px;color:${t.reportHeaderText};line-height:normal;">${escapeHtml(subtitle)}</p>` : ""}
+    ${subtitle ? `<p style="margin:0;font-size:14px;font-weight:400;letter-spacing:-0.32px;color:${t.reportHeaderText};line-height:normal;">${escapeHtml(subtitle)}</p>` : ""}
   </td></tr>
 </table>`;
 }
@@ -44,10 +44,10 @@ function heading(t: NotificationEmailTheme, ...parts: string[]): string {
   const crumbs = parts
     .map(
       (part, index) =>
-        `<td style="font-size:16px;font-weight:400;letter-spacing:-0.32px;color:${index === parts.length - 1 ? t.text : t.mutedText};white-space:nowrap;">${escapeHtml(part)}</td>`
+        `<td style="font-size:14px;font-weight:400;letter-spacing:-0.32px;color:${index === parts.length - 1 ? t.text : t.mutedText};white-space:nowrap;">${escapeHtml(part)}</td>`
     )
     .join(
-      `<td width="10" style="width:10px;font-size:0;">&nbsp;</td><td style="font-size:16px;color:${t.mutedText};">/</td><td width="10" style="width:10px;font-size:0;">&nbsp;</td>`
+      `<td width="10" style="width:10px;font-size:0;">&nbsp;</td><td style="font-size:14px;color:${t.mutedText};">/</td><td width="10" style="width:10px;font-size:0;">&nbsp;</td>`
     );
   return `<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"><tr>
     <td valign="top"><table cellpadding="0" cellspacing="0" border="0" role="presentation"><tr>

@@ -55,7 +55,7 @@ export function renderUsageWarningEmail(t: NotificationEmailTheme, d: UsageData)
     header(
       t,
       `<h1 style="margin:0 0 8px;font-size:${t.titleSize}px;font-weight:${t.titleWeight};color:${t.headerForeground};">Usage Warning</h1>
-    <p style="margin:0;font-size:16px;color:${t.primary};">${escapeHtml(d.usageLabel)} threshold reached</p>`
+    <p style="margin:0;font-size:14px;color:${t.primary};">${escapeHtml(d.usageLabel)} threshold reached</p>`
     ),
     card(
       t,
@@ -79,7 +79,7 @@ export function renderUsageHardLimitEmail(t: NotificationEmailTheme, d: UsageDat
     header(
       t,
       `<h1 style="margin:0 0 8px;font-size:${t.titleSize}px;font-weight:${t.titleWeight};color:${t.headerForeground};">Usage Limit Reached</h1>
-    <p style="margin:0;font-size:16px;color:${t.severityCritical};">${escapeHtml(d.usageLabel)} hard limit hit &middot; ${blockedActivity} paused</p>`
+    <p style="margin:0;font-size:14px;color:${t.severityCritical};">${escapeHtml(d.usageLabel)} hard limit hit &middot; ${blockedActivity} paused</p>`
     ),
     card(
       t,

@@ -36,11 +36,11 @@ function signalHeading(t: NotificationEmailTheme, s: ReportSignal): string {
     <tr>
       <td align="left" valign="top">
         <table cellpadding="0" cellspacing="0" border="0" role="presentation"><tr>
-          <td style="font-size:16px;font-weight:400;letter-spacing:-0.32px;color:${t.mutedText};white-space:nowrap;">${escapeHtml(s.projectName)}</td>
+          <td style="font-size:14px;font-weight:400;letter-spacing:-0.32px;color:${t.mutedText};white-space:nowrap;">${escapeHtml(s.projectName)}</td>
           <td width="10" style="width:10px;font-size:0;">&nbsp;</td>
-          <td style="font-size:16px;font-weight:400;letter-spacing:-0.32px;color:${t.mutedText};">/</td>
+          <td style="font-size:14px;font-weight:400;letter-spacing:-0.32px;color:${t.mutedText};">/</td>
           <td width="10" style="width:10px;font-size:0;">&nbsp;</td>
-          <td style="font-size:16px;font-weight:400;letter-spacing:-0.32px;color:${t.text};white-space:nowrap;">${escapeHtml(s.signalName)}</td>
+          <td style="font-size:14px;font-weight:400;letter-spacing:-0.32px;color:${t.text};white-space:nowrap;">${escapeHtml(s.signalName)}</td>
         </tr></table>
       </td>
       <td align="right" valign="top" width="20">
@@ -65,9 +65,9 @@ function signalCard(t: NotificationEmailTheme, s: ReportSignal): string {
 
   <div style="margin-top:24px;">
     <p style="margin:0 0 4px;font-size:${t.bodySize}px;font-weight:500;color:${t.text};">Events</p>
-    <table cellpadding="0" cellspacing="0" border="0" role="presentation"><tr valign="bottom">
-      <td style="font-size:${t.reportMetricSize}px;font-weight:500;color:${t.text};line-height:1;padding-right:6px;">${s.eventCount}</td>
-      <td style="padding-bottom:2px;">${deltaCell(t, s.eventCount, s.prevEventCount)}
+    <table cellpadding="0" cellspacing="0" border="0" role="presentation"><tr>
+      <td valign="baseline" style="font-size:${t.reportMetricSize}px;font-weight:500;color:${t.text};line-height:1;padding-right:6px;">${s.eventCount}</td>
+      <td valign="baseline">${deltaCell(t, s.eventCount, s.prevEventCount)}
         <span style="font-size:${t.metaSize}px;color:${t.mutedText};">&nbsp;vs previous period</span></td>
     </tr></table>
     <div style="margin-top:12px;">${barChart(t, s.buckets)}</div>
@@ -92,16 +92,16 @@ export function renderReportEmail(t: NotificationEmailTheme, d: ReportData): str
             <img src="${REPORT_LOGO_SRC}" alt="Laminar" width="76" height="13" style="display:block;width:76px;height:13px;border:0;" />
           </td>
           <td width="8" style="width:8px;font-size:0;">&nbsp;</td>
-          <td valign="middle" style="font-size:16px;font-weight:400;line-height:15px;letter-spacing:-0.32px;color:${t.reportHeaderText};"><span style="display:inline-block;vertical-align:${-t.reportHeaderIdentityOffsetY}px;">/</span></td>
+          <td valign="middle" style="font-size:14px;font-weight:400;line-height:15px;letter-spacing:-0.32px;color:${t.reportHeaderText};"><span style="display:inline-block;vertical-align:${-t.reportHeaderIdentityOffsetY}px;">/</span></td>
           <td width="8" style="width:8px;font-size:0;">&nbsp;</td>
-          <td valign="middle" style="font-size:16px;font-weight:400;line-height:15px;letter-spacing:-0.32px;color:${t.reportHeaderText};white-space:nowrap;"><span style="display:inline-block;vertical-align:${-t.reportHeaderIdentityOffsetY}px;">${escapeHtml(d.workspaceName)}</span></td>
+          <td valign="middle" style="font-size:14px;font-weight:400;line-height:15px;letter-spacing:-0.32px;color:${t.reportHeaderText};white-space:nowrap;"><span style="display:inline-block;vertical-align:${-t.reportHeaderIdentityOffsetY}px;">${escapeHtml(d.workspaceName)}</span></td>
         </tr></table>
       </td>
     </tr>
     <tr height="100">
       <td valign="bottom" style="padding:0 20px 16px;">
         <p style="margin:0 0 6px;font-size:28px;font-weight:400;letter-spacing:-0.56px;color:#ffffff;line-height:normal;">Signals Report</p>
-        <p style="margin:0;font-size:16px;font-weight:400;letter-spacing:-0.32px;color:${t.reportHeaderText};line-height:normal;">${escapeHtml(d.periodStart)} - ${escapeHtml(d.periodEnd)}</p>
+        <p style="margin:0;font-size:14px;font-weight:400;letter-spacing:-0.32px;color:${t.reportHeaderText};line-height:normal;">${escapeHtml(d.periodStart)} - ${escapeHtml(d.periodEnd)}</p>
       </td>
     </tr>
   </table>`;

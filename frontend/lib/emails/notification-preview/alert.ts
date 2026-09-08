@@ -100,7 +100,7 @@ export function renderNewClusterEmail(t: NotificationEmailTheme, d: ClusterData)
     .join("\n");
 
   const section = `<div>
-  <h2 style="margin:0;font-size:16px;font-weight:600;"><a href="${PREFS}" style="color:${t.text};text-decoration:none;">${escapeHtml(d.clusterName)}</a></h2>
+  <h2 style="margin:0;font-size:14px;font-weight:600;"><a href="${PREFS}" style="color:${t.text};text-decoration:none;">${escapeHtml(d.clusterName)}</a></h2>
   <div style="margin:4px 0 0;font-size:${t.metaSize}px;color:${t.mutedText};">${meta.join(" &middot; ")}</div>
   ${severityHtml ? `<div style="margin:6px 0 0;font-size:${t.metaSize}px;color:${t.mutedText};">${severityHtml}</div>` : ""}
   ${examplesHtml ? `<div style="margin-top:12px;">${examplesHtml}</div>` : ""}

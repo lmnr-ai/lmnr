@@ -75,7 +75,7 @@ export function ReportEmailLayout({
 
 const identity: CSSProperties = {
   color: "#c3c4c8",
-  fontSize: "16px",
+  fontSize: "14px",
   fontWeight: 400,
   letterSpacing: "-0.32px",
   lineHeight: "15px",
