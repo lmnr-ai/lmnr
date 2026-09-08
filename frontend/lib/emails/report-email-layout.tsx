@@ -4,6 +4,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { defaultEmailTheme, type EmailTheme } from "./theme";
 
 const PRIMARY_300 = "#d57e57";
+const SURFACE_50 = "#0d0d0d";
 export const REPORT_LOGO_CID = "laminar-report-logo";
 const LOGO_URL = `cid:${REPORT_LOGO_CID}`;
 
@@ -150,7 +151,7 @@ export function EmailAction({
           padding: "10px 16px",
           borderRadius: "4px",
           backgroundColor: PRIMARY_300,
-          color: "#f3f4f6",
+          color: SURFACE_50,
           fontSize: "14px",
           fontWeight: 400,
           textDecoration: "none",
