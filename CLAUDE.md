@@ -110,7 +110,9 @@ Keep comments short: a single terse line covering the WHY (non-obvious constrain
 - Every env var is registered in `app-server/src/env/` (typed `NumEnv`/`StringEnv`/`BoolEnv` descriptors) — never inline a string-literal env name at a call site.
 - `mod env` shadows `std::env`: inside files with `use crate::env;`, write `std::env::var(...)` fully qualified.
 - Backend `Feature` flags are fine-grained — one flag per feature; never gate a new feature on another feature's flag.
-- More: `docs/internal/app-server.md`.
+- Return a named struct, not a tuple — especially when the members share a type (`ModelProvider` in `llm/mod.rs`).
+- `src/db/` is SQL and row mapping only (no cache, no business logic); carry `&DB` through services and take `.pool` at the `crate::db::` boundary. Every tenant-owned query filters on `workspace_id`/`project_id`.
+- More: `docs/internal/app-server.md`, and `docs/internal/code-style.md` for the cross-cutting style/design rules.
 
 ## Frontend conventions
 
@@ -119,6 +121,7 @@ Keep comments short: a single terse line covering the WHY (non-obvious constrain
 - Client fetches: `try/catch`, check `res.ok`, toast on error. API routes: `try/catch`, 400 for `ZodError`, 500 otherwise, always JSON with an `error` field. Use `AbortController` for superseded in-flight fetches.
 - Recharts is on v3 (`^3.10.1`). `CategoricalChartFunc` is defined from `MouseHandlerDataParam` in `chart-builder/charts/line-chart.tsx` (the v2 `recharts/types/chart/generateCategoricalChart` path is gone). Use `<YAxis width="auto">` and `<BarStack>` for stacked rounded bars — do not reintroduce a custom bar `shape`.
 - New data tables MUST follow the `InfiniteDataTable` split pattern (index/contents/controls/constants). Full patterns: `docs/internal/frontend-best-practices.md`.
+- Logic any other surface needs (CLI, public API, agent, Terraform) belongs behind an app-server route, not in a server action; derive per-action Zod schemas with `.pick()`/`.omit()` instead of reusing the full resource schema. See `docs/internal/code-style.md`.
 
 ## Key Technical Details
 
@@ -137,6 +140,7 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, an
 
 | File | Read when touching |
 |---|---|
+| `docs/internal/code-style.md` | Any code change — reuse, layering, tenant scoping, error retryability, Rust/schema style rules |
 | `docs/internal/database.md` | Postgres migrations, `POSTGRES_SCHEMA`, name-sort collation |
 | `docs/internal/sql-query-engine.md` | `query_engine/` validator (a security boundary), SQL editor schema/autocomplete, `/v1/sql/query` guards, rate limiting |
 | `docs/internal/clickhouse-traces.md` | `traces_agg`/`traces_static`/`traces_v0`, spans query scoping, trace aggregation, async-insert tuning, traces-table filters, project data deletion |
