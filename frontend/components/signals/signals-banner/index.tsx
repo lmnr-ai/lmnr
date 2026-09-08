@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
-import { useSignalsBannerStore } from "./store";
+import { useSignalsBannerHydrated, useSignalsBannerStore } from "./store";
 
 export { SignalsBannerInfoButton } from "./info-button";
 
@@ -33,6 +33,9 @@ interface SignalsBannerProps {
 
 export default function SignalsBanner({ onCreateSignal }: SignalsBannerProps) {
   const { isBannerDismissed, dismiss } = useSignalsBannerStore();
+  const isHydrated = useSignalsBannerHydrated();
+
+  if (!isHydrated) return null;
 
   return (
     <AnimatePresence initial={false}>
