@@ -30,7 +30,7 @@ function banner(t: NotificationEmailTheme, workspace: string, title: string, sub
     </tr></table>
   </td></tr>
   <tr height="${rowHeight}"><td valign="bottom" style="padding:0 20px ${subtitle ? 16 : 12}px;">
-    <p style="margin:0 0 6px;font-size:28px;font-weight:400;letter-spacing:-0.56px;color:#ffffff;line-height:normal;">${escapeHtml(title)}</p>
+    <p style="margin:0 0 2px;font-size:28px;font-weight:400;letter-spacing:-0.56px;color:#ffffff;line-height:normal;">${escapeHtml(title)}</p>
     ${subtitle ? `<p style="margin:0;font-size:14px;font-weight:400;letter-spacing:-0.32px;color:${t.reportHeaderText};line-height:normal;">${escapeHtml(subtitle)}</p>` : ""}
   </td></tr>
 </table>`;

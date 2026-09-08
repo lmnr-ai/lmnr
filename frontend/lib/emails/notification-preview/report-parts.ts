@@ -74,7 +74,7 @@ export function deltaCell(t: NotificationEmailTheme, count: number, prevCount: n
   return `<span style="font-size:${t.metaSize}px;color:${color};">${glyph}</span><span style="display:inline-block;width:2px;font-size:0;">&nbsp;</span><span style="font-size:${t.bodySize}px;color:${color};">${Math.abs(pct).toFixed(1)}%</span>`;
 }
 
-/** One pill row. The proportion bar is a hard-stop linear-gradient rather than
+/** One rounded row. The proportion bar is a hard-stop linear-gradient rather than
  *  an absolutely-positioned div: Gmail strips `position` entirely. Outlook's
  *  Word engine drops the gradient and keeps the flat row background. */
 export function clusterRow(t: NotificationEmailTheme, row: ClusterRow, maxCount: number): string {
@@ -85,7 +85,7 @@ export function clusterRow(t: NotificationEmailTheme, row: ClusterRow, maxCount:
     `background-color:${t.reportRowBackground};` +
     `background-image:linear-gradient(to right,${tint} 0%,${tint} ${pct}%,${t.reportRowBackground} ${pct}%);`;
 
-  return `<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin-bottom:4px;${bar}border-radius:999px;">
+  return `<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin-bottom:4px;${bar}border-radius:16px;">
   <tr>
     <td style="padding:6px 12px 6px 10px;font-size:${t.bodySize}px;color:${t.text};" align="left" valign="middle">
       <table cellpadding="0" cellspacing="0" border="0" role="presentation"><tr>

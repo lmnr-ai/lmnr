@@ -100,7 +100,7 @@ export function renderReportEmail(t: NotificationEmailTheme, d: ReportData): str
     </tr>
     <tr height="100">
       <td valign="bottom" style="padding:0 20px 16px;">
-        <p style="margin:0 0 6px;font-size:28px;font-weight:400;letter-spacing:-0.56px;color:#ffffff;line-height:normal;">Signals Report</p>
+        <p style="margin:0 0 2px;font-size:28px;font-weight:400;letter-spacing:-0.56px;color:#ffffff;line-height:normal;">Signals Report</p>
         <p style="margin:0;font-size:14px;font-weight:400;letter-spacing:-0.32px;color:${t.reportHeaderText};line-height:normal;">${escapeHtml(d.periodStart)} - ${escapeHtml(d.periodEnd)}</p>
       </td>
     </tr>
