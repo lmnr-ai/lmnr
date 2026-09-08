@@ -1,7 +1,7 @@
 "use client";
 
 import AdvancedSearch from "@/components/common/advanced-search";
-import { RESOURCE, SIGNAL_QUICK_RANGES, signalsTableFilters } from "@/components/signals/constants";
+import { RESOURCE, signalsTableFilters } from "@/components/signals/constants";
 import CreateSignalDrawer from "@/components/signals/create-signal-drawer";
 import { Button } from "@/components/ui/button";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
@@ -45,13 +45,7 @@ export function SignalsTableControls({
         <ColumnsMenu columnLabels={columnLabels} />
         <ViewsToolbar projectId={projectId} resource={RESOURCE} />
         {/* Scopes the Activity sparkline window only — not the signal list itself. */}
-        <DateRangeFilter
-          mode="state"
-          value={dateRange}
-          onChange={onDateRangeChange}
-          quickRanges={SIGNAL_QUICK_RANGES}
-          hideAbsoluteDate
-        />
+        <DateRangeFilter mode="state" value={dateRange} onChange={onDateRangeChange} hideAbsoluteDate />
         <div className="flex-1" />
         <CreateSignalDrawer open={isCreateOpen} setOpen={onCreateOpenChange} onSuccess={onCreateSuccess}>
           <Button icon="plus" onClick={() => onCreateOpenChange(true)}>
