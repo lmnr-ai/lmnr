@@ -62,7 +62,7 @@ function paragraph(t: NotificationEmailTheme, text: string, first = false): stri
 }
 
 function action(t: NotificationEmailTheme, label: string, align: "left" | "center" = "center"): string {
-  return `<div style="margin-top:20px;text-align:${align};"><a href="${ACTION}" style="display:inline-block;background:#d57e57;color:#0d0d0d;text-decoration:none;padding:10px 16px;border-radius:4px;font-size:${t.bodySize}px;font-weight:400;">${escapeHtml(label)}</a></div>`;
+  return `<div style="margin-top:20px;text-align:${align};"><a href="${ACTION}" style="display:inline-block;background:#da875f;color:#0d0d0d;text-decoration:none;padding:10px 16px;border-radius:4px;font-size:${t.bodySize}px;font-weight:400;">${escapeHtml(label)}</a></div>`;
 }
 
 function rows(t: NotificationEmailTheme, entries: Array<[string, string]>): string {
