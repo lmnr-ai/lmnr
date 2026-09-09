@@ -52,27 +52,31 @@ const CondensedTimelineElement = ({
 
   return (
     <div
-      className={cn("absolute rounded-xs cursor-pointer", "hover:brightness-110", opacity, {
-        "border border-white/70 z-20": isSelected,
-        "bg-muted": isCostHeatmapVisible,
-      })}
+      className={cn("@container absolute cursor-pointer @min-[5px]:pr-px", opacity)}
       style={{
         left: `${left}%`,
         width: `max(${width}%, 4px)`,
         top: row * ROW_HEIGHT + 1,
         height: ROW_HEIGHT - 2,
-        backgroundColor,
       }}
       onClick={handleClick}
     >
-      {isCostHeatmapVisible && (
-        <div
-          className="absolute inset-0 rounded-xs"
-          style={{
-            backgroundColor: `rgba(239, 68, 68, ${heatmapOpacity})`,
-          }}
-        />
-      )}
+      <div
+        className={cn("relative size-full rounded-xs hover:brightness-110", {
+          "border border-white/70 z-20": isSelected,
+          "bg-muted": isCostHeatmapVisible,
+        })}
+        style={{ backgroundColor }}
+      >
+        {isCostHeatmapVisible && (
+          <div
+            className="absolute inset-0 rounded-xs"
+            style={{
+              backgroundColor: `rgba(239, 68, 68, ${heatmapOpacity})`,
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 };
