@@ -7,6 +7,7 @@ export const DEFAULT_SPARKLINE_PAST_HOURS = "168";
 
 export const defaultSignalsColumnOrder = [
   "__row_selection",
+  "status",
   "name",
   "prompt",
   "eventsCount",
@@ -17,6 +18,10 @@ export const defaultSignalsColumnOrder = [
   "versionsCount",
   "createdAt",
 ];
+
+export const defaultSignalsColumnVisibility: Record<string, boolean> = {
+  prompt: false,
+};
 
 export const signalsTableFilters: ColumnFilter[] = [
   { name: "ID", key: "id", dataType: "string" },

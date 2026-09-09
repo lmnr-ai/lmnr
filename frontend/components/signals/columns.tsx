@@ -21,21 +21,29 @@ function SparklineCell({ signalId }: { signalId: string }) {
 
 export const signalsColumns: ColumnDef<SignalRow>[] = [
   {
+    id: "status",
+    header: "Status",
+    size: 90,
+    enableSorting: false,
+    cell: ({ row }) => (
+      <Badge
+        variant="outline"
+        className={cn(
+          "rounded-full px-2 text-[10px]",
+          row.original.disabled ? "text-muted-foreground" : "bg-primary-400/10 border-primary-400/25 text-primary-400"
+        )}
+      >
+        {row.original.disabled ? "Disabled" : "Active"}
+      </Badge>
+    ),
+  },
+  {
     id: "name",
     accessorKey: "name",
     header: "Name",
     size: 240,
     enableSorting: true,
-    cell: ({ row }) => (
-      <div className="flex items-center gap-2 min-w-0">
-        <span className={cn("truncate", row.original.disabled && "text-muted-foreground")}>{row.original.name}</span>
-        {row.original.disabled && (
-          <Badge variant="outline" className="text-[10px] text-muted-foreground shrink-0">
-            Disabled
-          </Badge>
-        )}
-      </div>
-    ),
+    cell: ({ row }) => <span className="truncate">{row.original.name}</span>,
   },
   {
     id: "prompt",

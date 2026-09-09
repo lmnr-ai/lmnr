@@ -4,7 +4,12 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { signalsColumnLabels } from "@/components/signals/columns";
-import { DEFAULT_SPARKLINE_PAST_HOURS, defaultSignalsColumnOrder, RESOURCE } from "@/components/signals/constants";
+import {
+  DEFAULT_SPARKLINE_PAST_HOURS,
+  defaultSignalsColumnOrder,
+  defaultSignalsColumnVisibility,
+  RESOURCE,
+} from "@/components/signals/constants";
 import SignalsBanner, { SignalsBannerInfoButton } from "@/components/signals/signals-banner";
 import { SignalsTableContents } from "@/components/signals/table-contents";
 import { SignalsTableControls } from "@/components/signals/table-controls";
@@ -19,7 +24,7 @@ export default function Signals() {
   return (
     <InfiniteDataTableProvider
       uniqueKey="id"
-      defaults={{ columnOrder: defaultSignalsColumnOrder }}
+      defaults={{ columnOrder: defaultSignalsColumnOrder, columnVisibility: defaultSignalsColumnVisibility }}
       lockedColumns={["__row_selection"]}
       views={{ projectId: String(projectId), resource: RESOURCE }}
     >
