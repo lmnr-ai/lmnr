@@ -5,7 +5,7 @@ import { type CSSProperties } from "react";
 
 import { cn } from "@/lib/utils";
 
-import { BAND, BAND_ID_ATTR, SURFACE } from "./constants";
+import { BAND, BAND_BORDER, BAND_ID_ATTR, SURFACE } from "./constants";
 import { type ViewNode } from "./fold";
 
 /**
@@ -25,12 +25,22 @@ interface Props {
   /** The band's own box: fill, ring, radius, height. Built by the column, which
    *  is the only place that knows whether the panel is open. */
   style: CSSProperties;
+  tintClassName: string;
   onSelect: (id: string) => void;
   /** Aim the strip's one tooltip at this band, or clear it on `null`. */
   onTip: (node: ViewNode | null, el?: HTMLElement) => void;
 }
 
-export default function ClusterBand({ node, state, inFocus, isSelected, style, onSelect, onTip }: Props) {
+export default function ClusterBand({
+  node,
+  state,
+  inFocus,
+  isSelected,
+  style,
+  tintClassName,
+  onSelect,
+  onTip,
+}: Props) {
   return (
     <button
       type="button"
@@ -63,14 +73,16 @@ export default function ClusterBand({ node, state, inFocus, isSelected, style, o
       // No CSS :hover ring: pointing at a band already puts it in the `hover`
       // state through the strip's delegated hover, which styles it properly.
       className={cn(
-        "flex w-full min-w-0 shrink-0 items-center overflow-hidden text-left",
+        "@container flex w-full min-w-0 shrink-0 items-center overflow-hidden text-left",
         "transition-[filter,background-color,box-shadow] focus:outline-none",
+        BAND_BORDER,
+        tintClassName,
         state === "muted" ? SURFACE.muted : SURFACE.band
       )}
     >
       <span
         className={cn(
-          "pointer-events-none block min-w-0 truncate leading-tight",
+          "pointer-events-none block min-w-0 truncate leading-tight @max-[24px]:opacity-0",
           inFocus ? "text-foreground" : "text-foreground/40"
         )}
         style={{ fontSize: BAND.labelSize, paddingInlineStart: BAND.labelPadLeft }}
