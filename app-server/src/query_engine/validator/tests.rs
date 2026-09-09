@@ -1086,6 +1086,106 @@ fn test_full_clusters_emerging_query() {
 }
 
 #[test]
+fn test_array_join_allows_other_tables_array_columns() {
+    // Every allowlisted array column is reachable, not just `signal_events.clusters`.
+    let by_table = [
+        ("traces", "span_names", "n"),
+        ("traces", "tags", "tag"),
+        ("evaluation_datapoints", "trace_spans", "s"),
+        ("spans", "tags", "tag"),
+    ];
+    for (table, column, alias) in by_table {
+        let query = format!("SELECT {alias} FROM {table} ARRAY JOIN {column} AS {alias}");
+        let result = validate_ok(&query);
+        assert!(
+            contains_ws(&result, &format!("ARRAY JOIN {column} AS {alias}")),
+            "{table}.{column} should stay a bare array column, got: {result}"
+        );
+        assert!(
+            !result.contains(&format!("{column}_v0")),
+            "{table}.{column} must not be rewritten as a view, got: {result}"
+        );
+    }
+}
+
+#[test]
+fn test_array_join_rejects_name_that_is_not_a_column_of_the_joined_table() {
+    // The hole this closes: an ARRAY JOIN right-hand side used to be skipped by
+    // every pass, so a name that is not a column of the left relation was
+    // neither validated nor rewritten and reached ClickHouse verbatim. `spans`
+    // is a real table but not a column of `signal_events`.
+    let err = validate("SELECT x FROM signal_events ARRAY JOIN spans AS x")
+        .expect_err("ARRAY JOIN of a non-column must be rejected");
+    assert!(err.contains("'spans'"), "got: {err}");
+
+    // Same for a name that is neither table nor column.
+    let err = validate("SELECT x FROM traces ARRAY JOIN not_a_column AS x")
+        .expect_err("ARRAY JOIN of an unknown identifier must be rejected");
+    assert!(err.contains("'not_a_column'"), "got: {err}");
+}
+
+#[test]
+fn test_array_join_rejects_qualified_and_function_relations() {
+    // A database-qualified table (`default.spans`) and a qualified column
+    // (`s.tags`) are the same shape to sqlparser, so both are refused rather
+    // than risk letting the former through.
+    for query in [
+        "SELECT x FROM signal_events ARRAY JOIN default.spans AS x",
+        "SELECT x FROM signal_events s ARRAY JOIN s.clusters AS x",
+        // A table function can never be an array column.
+        "SELECT x FROM signal_events ARRAY JOIN spans(1) AS x",
+    ] {
+        let err = validate(query).expect_err("must be rejected: {query}");
+        assert!(
+            err.contains("ARRAY JOIN must reference an unqualified array column"),
+            "query: {query}\ngot: {err}"
+        );
+    }
+}
+
+#[test]
+fn test_array_join_subquery_right_hand_side_is_still_rewritten() {
+    // A subquery is a genuine relation, so it must stay visible to the rewriter
+    // — the inner `spans` is a real table and has to become a scoped view.
+    let query = r#"
+        SELECT x
+        FROM signal_events
+        ARRAY JOIN (SELECT groupArray(name) FROM spans) AS x
+    "#;
+    let result = validate_ok(query);
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}')")
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_array_join_on_cte_cannot_name_an_allowlisted_table() {
+    // A CTE's columns are unknown here, so an identifier is allowed in general...
+    let ok = validate_ok(
+        r#"
+        WITH grouped AS (SELECT groupArray(name) AS names FROM spans)
+        SELECT n FROM grouped ARRAY JOIN names AS n
+    "#,
+    );
+    assert!(contains_ws(&ok, "ARRAY JOIN names AS n"), "got: {ok}");
+
+    // ...but never an allowlisted table name, which would otherwise be shipped
+    // to ClickHouse unscoped.
+    let err = validate(
+        r#"
+        WITH grouped AS (SELECT groupArray(name) AS names FROM spans)
+        SELECT n FROM grouped ARRAY JOIN spans AS n
+    "#,
+    )
+    .expect_err("an allowlisted table name must never be treated as a column");
+    assert!(err.contains("'spans'"), "got: {err}");
+}
+
+#[test]
 fn test_interval_with_unit_inside_string_literal() {
     // LAM-1854: ClickHouse (and Postgres) accept the unit inside the string
     // literal, e.g. `interval '1 day'`. sqlparser's stock ClickHouseDialect

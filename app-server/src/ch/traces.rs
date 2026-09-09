@@ -206,8 +206,6 @@ mod tests {
             events: vec![],
             status: None,
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         }
     }

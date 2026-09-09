@@ -51,6 +51,18 @@ pub async fn query(
         .with_setting("max_execution_time", env::sql::MAX_EXECUTION_TIME.get())
         .with_setting("max_result_bytes", env::sql::MAX_RESULT_BYTES.get());
 
+    // Both settings are only needed because cloud production pins
+    // `compatibility = 24.6`, which reverts them to off / `LIMIT <= 10`.
+    let lazy_materialization_limit = env::sql::MAX_LIMIT_FOR_LAZY_MATERIALIZATION.get();
+    if lazy_materialization_limit != 0 {
+        clickhouse_query = clickhouse_query
+            .with_setting("query_plan_optimize_lazy_materialization", "1")
+            .with_setting(
+                "query_plan_max_limit_for_lazy_materialization",
+                lazy_materialization_limit.to_string(),
+            );
+    }
+
     // Cap per-query memory for public/CLI traffic only — the trusted frontend
     // runs uncapped. `0` (the default) means unlimited, so we only set it when an
     // operator has opted in to a concrete ceiling.
