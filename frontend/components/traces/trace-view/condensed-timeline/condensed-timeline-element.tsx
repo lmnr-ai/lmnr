@@ -52,7 +52,7 @@ const CondensedTimelineElement = ({
 
   return (
     <div
-      className={cn("@container absolute cursor-pointer @min-[5px]:pr-px", opacity)}
+      className={cn("@container absolute cursor-pointer", opacity)}
       style={{
         left: `${left}%`,
         width: `max(${width}%, 4px)`,
@@ -62,7 +62,7 @@ const CondensedTimelineElement = ({
       onClick={handleClick}
     >
       <div
-        className={cn("relative size-full rounded-xs hover:brightness-110", {
+        className={cn("relative size-full rounded-xs hover:brightness-110 @min-[5px]:w-[calc(100%-1px)]", {
           "border border-white/70 z-20": isSelected,
           "bg-muted": isCostHeatmapVisible,
         })}
