@@ -204,6 +204,14 @@ impl InternalSpan {
         self
     }
 
+    /// Numeric trace metadata (range-filterable in the trace UI). Like
+    /// [`Self::metadata_str`], the value must be uniform across the trace —
+    /// ingest keeps only one span's metadata per export batch.
+    pub fn metadata_i64(self, key: &str, value: i64) -> Self {
+        set_metadata_i64(&self.span, key, value);
+        self
+    }
+
     pub fn build(self) -> tracing::Span {
         self.span
     }
