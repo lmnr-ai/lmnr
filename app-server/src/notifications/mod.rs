@@ -166,6 +166,9 @@ pub enum NotificationKind {
         /// Event counts by severity: [info, warning, critical].
         #[serde(default)]
         severity_counts: [u64; 3],
+        /// Event counts in equal-width buckets from first_seen through last_seen.
+        #[serde(default)]
+        activity_buckets: Vec<u64>,
         #[serde(default)]
         example_events: Vec<ClusterExampleEvent>,
     },

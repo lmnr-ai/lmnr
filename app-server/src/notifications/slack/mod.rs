@@ -508,6 +508,7 @@ mod tests {
             first_seen: Some("Jul 1, 2026".to_string()),
             last_seen: Some("Jul 6, 2026".to_string()),
             severity_counts: [1, 0, 2],
+            activity_buckets: vec![],
             example_events: vec![],
         }
     }

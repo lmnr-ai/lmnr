@@ -5,6 +5,8 @@
 //! contains multiple notifications (e.g. a report with per-project entries),
 //! they are combined into a single email.
 
+use std::ops::Range;
+
 use uuid::Uuid;
 
 use super::NotificationKind;
@@ -339,8 +341,10 @@ fn render_new_cluster_section(kind: &NotificationKind, base: &str) -> String {
         cluster_id,
         cluster_name,
         num_signal_events,
+        first_seen,
         last_seen,
         severity_counts,
+        activity_buckets,
         ..
     } = kind
     else {
@@ -365,20 +369,34 @@ fn render_new_cluster_section(kind: &NotificationKind, base: &str) -> String {
             format!("{} events", severity_counts[1]),
         ),
         ("Info".to_string(), format!("{} events", severity_counts[0])),
-        ("Total".to_string(), format!("{} events", num_signal_events)),
         (
-            "Last seen".to_string(),
+            "First event".to_string(),
+            first_seen
+                .clone()
+                .unwrap_or_else(|| "Not available".to_string()),
+        ),
+        (
+            "Last event".to_string(),
             last_seen
                 .clone()
                 .unwrap_or_else(|| "Not available".to_string()),
         ),
     ];
+    let accent = CLUSTER_PALETTE[cluster_color_index(&cluster_id.to_string())];
     format!(
-        r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:4px">{}<p style="margin:16px 0 20px;font-size:14px;line-height:1.5;color:{}">A new group of related signal events has emerged.</p>{}{}</div>"#,
-        breadcrumb(&[project_name, signal_name, cluster_name], &cluster_link),
-        TEXT,
-        data_rows(&rows),
-        action(&cluster_link, "View cluster")
+        r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:4px">{}{}<div style="margin-top:24px"><p style="margin:0 0 4px;font-size:14px;font-weight:500;color:{text}">Events</p><div style="font-size:28px;font-weight:500;color:{text};line-height:1">{num_signal_events}</div><div style="margin:12px 0 20px">{chart}</div></div>{rows}{action}</div>"#,
+        breadcrumb(&[project_name, signal_name], &cluster_link),
+        cluster_title(cluster_name, accent),
+        text = TEXT,
+        num_signal_events = num_signal_events,
+        chart = cluster_activity_chart(
+            activity_buckets,
+            first_seen.as_deref(),
+            last_seen.as_deref(),
+            accent
+        ),
+        rows = data_rows(&rows),
+        action = action(&cluster_link, "View cluster")
     )
 }
 
@@ -405,9 +423,9 @@ fn render_new_cluster_email(clusters: &[&NotificationKind]) -> String {
         "manage_preferences",
     );
     let title = if clusters.len() == 1 {
-        "New cluster detected".to_string()
+        "New Signal Cluster".to_string()
     } else {
-        format!("{} new clusters detected", clusters.len())
+        format!("{} New Signal Clusters", clusters.len())
     };
     let body = format!(
         "{}{}{}",
@@ -692,6 +710,56 @@ fn chart(buckets: &[crate::reports::ReportChartBucket]) -> String {
     )
 }
 
+fn cluster_title(name: &str, color: &str) -> String {
+    format!(
+        r#"<table cellpadding="0" cellspacing="0" role="presentation" style="margin-top:16px"><tr><td width="24" valign="middle" style="line-height:0"><span aria-hidden="true" style="display:inline-block;color:{color};font-family:Arial,sans-serif;font-size:20px;font-weight:400;line-height:20px;vertical-align:middle">◇</span></td><td valign="middle" style="font-size:20px;font-weight:500;letter-spacing:-.4px;color:{text};line-height:24px">{name}</td></tr></table>"#,
+        text = TEXT,
+        name = html_escape(name)
+    )
+}
+
+fn cluster_activity_chart(
+    buckets: &[u64],
+    first_seen: Option<&str>,
+    last_seen: Option<&str>,
+    color: &str,
+) -> String {
+    if buckets.is_empty() {
+        return String::new();
+    }
+    let tint = blend_hex(color, "#ffffff", 0.25);
+    let max = buckets.iter().copied().max().unwrap_or(0);
+    let cells: String = buckets
+        .iter()
+        .map(|bucket_value| {
+            let height = if *bucket_value == 0 {
+                0
+            } else {
+                (bucket_value.saturating_mul(96) / max.max(1)).max(2)
+            };
+            format!(
+                r#"<td valign="bottom" style="padding:0 2px"><div style="height:{empty}px;line-height:{empty}px;font-size:0">&nbsp;</div><div style="height:{height}px;line-height:{height}px;font-size:0;background:{tint};border-radius:2px 2px 0 0">&nbsp;</div></td>"#,
+                empty = 96 - height
+            )
+        })
+        .collect();
+    format!(
+        r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr><td width="28" valign="top" align="right" style="padding-right:8px;font-size:11px;color:#b1b1b1">{max}</td><td><table width="100%" height="96" cellpadding="0" cellspacing="0" role="presentation" style="height:96px;border-bottom:1px solid #e5e5e5"><tr valign="bottom">{cells}</tr></table></td></tr><tr><td align="right" style="padding:2px 8px 0 0;font-size:11px;color:#b1b1b1">0</td><td style="padding-top:4px"><table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr><td style="font-size:11px;color:#b1b1b1">{first}</td><td align="right" style="font-size:11px;color:#b1b1b1">{last}</td></tr></table></td></tr></table>"#,
+        first = html_escape(first_seen.unwrap_or("")),
+        last = html_escape(last_seen.unwrap_or("")),
+    )
+}
+
+fn blend_hex(foreground: &str, background: &str, opacity: f64) -> String {
+    let component = |color: &str, range| u8::from_str_radix(&color[range], 16).unwrap_or(0) as f64;
+    let blend = |range: Range<usize>| {
+        (component(foreground, range.clone()) * opacity
+            + component(background, range) * (1.0 - opacity))
+            .round() as u8
+    };
+    format!("#{:02x}{:02x}{:02x}", blend(1..3), blend(3..5), blend(5..7))
+}
+
 fn cluster_row(
     project_id: Uuid,
     signal_id: Uuid,
@@ -864,6 +932,43 @@ mod tests {
         assert!(!html.contains(">null<"));
         assert!(html.contains("nested"));
         assert!(html.contains("\n"));
+    }
+
+    #[test]
+    fn new_cluster_uses_report_chart_language() {
+        let cluster_id = Uuid::from_u128(42);
+        let html = render_new_cluster_email(&[&NotificationKind::NewCluster {
+            project_id: Uuid::nil(),
+            project_name: "Project".into(),
+            signal_id: Uuid::from_u128(1),
+            signal_name: "Signal".into(),
+            cluster_id,
+            cluster_name: "Cluster".into(),
+            num_signal_events: 34,
+            alert_name: "Alert".into(),
+            first_seen: Some("Mar 1".into()),
+            last_seen: Some("Mar 4".into()),
+            severity_counts: [4, 11, 19],
+            activity_buckets: vec![1, 0, 3, 0, 0, 5, 0, 2, 0, 0, 4, 19],
+            example_events: vec![],
+        }]);
+
+        assert!(html.contains("New Signal Cluster"));
+        assert!(html.contains("font-size:20px"));
+        assert!(html.contains(">◇</span>"));
+        assert!(html.contains(">34</div>"));
+        assert!(html.contains("First event"));
+        assert!(html.contains("Last event"));
+        assert!(!html.contains(">Total<"));
+        assert!(!html.contains("related signal events has emerged"));
+        assert!(html.contains("height:96px"));
+        assert!(html.contains(">19</td>"));
+        assert!(html.contains("height:0px"));
+        assert_eq!(
+            html.matches(r#"valign="bottom" style="padding:0 2px""#)
+                .count(),
+            12
+        );
     }
 
     #[test]
