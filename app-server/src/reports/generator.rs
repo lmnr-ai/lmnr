@@ -1,5 +1,5 @@
 //! This module reads report triggers from RabbitMQ and processes them: fetches signal event
-//! samples from ClickHouse, generates per-project AI summaries via the LLM service with tool
+//! samples from ClickHouse, generates per-signal AI summaries via the LLM service with tool
 //! calling, builds a ReportData struct, and pushes a single notification message to the
 //! notification queue. Target fetching and rendering happen downstream in the notification
 //! consumer pipeline.
@@ -208,53 +208,68 @@ async fn process_report_trigger(
             continue;
         }
 
-        // Fetch up to 128 recent events for LLM summary context
-        let summary_context_events = get_signal_events_for_summary(
-            &clickhouse,
-            &project.id,
-            &signal_ids,
-            start_ts,
-            end_ts,
-            MAX_EVENTS_FOR_SUMMARY,
-        )
-        .await
-        .map_err(|e| HandlerError::transient(e))?;
+        let project_scope = SpanScope::new(report_id, workspace_id, project.id, start_ts, end_ts);
+        let root = SpanBuilder::root(&project_scope);
+        let traced_project_scope = project_scope
+            .with_parent(crate::instrumentation::spans::SpanContextCarrier::from_span(&root));
+        let mut noteworthy_event_ids = Vec::new();
+        let mut summary_context_events = Vec::new();
+        let mut signal_summaries = HashMap::new();
 
-        // Generate per-project AI summary with tool calling
-        let (ai_summary, noteworthy_event_ids) = if let Some(ref client) = llm_client {
-            let scope = SpanScope::new(report_id, workspace_id, project.id, start_ts, end_ts);
-            let root = SpanBuilder::root(&scope);
-            let scope = scope
-                .with_parent(crate::instrumentation::spans::SpanContextCarrier::from_span(&root));
-            generate_project_summary(
-                client,
-                &project.name,
-                &signal_name_map,
-                &signal_event_counts,
-                &summary_context_events,
-                &scope,
-            )
+        if let Some(ref client) = llm_client {
+            async {
+                for signal in signals {
+                    let current_count = *current_by_id.get(&signal.id).unwrap_or(&0);
+                    if current_count == 0 {
+                        continue;
+                    }
+                    let events = get_signal_events_for_summary(
+                        &clickhouse,
+                        &project.id,
+                        &[signal.id],
+                        start_ts,
+                        end_ts,
+                        MAX_EVENTS_FOR_SUMMARY,
+                    )
+                    .await
+                    .map_err(HandlerError::transient)?;
+                    let event_refs = events.iter().collect::<Vec<_>>();
+                    let signal_scope = traced_project_scope.with_signal(signal.id);
+                    match generate_signal_summary(
+                        client,
+                        &project.name,
+                        &signal.name,
+                        current_count,
+                        &event_refs,
+                        &signal_scope,
+                    )
+                    .await
+                    {
+                        Ok((summary, event_ids)) => {
+                            signal_summaries.insert(signal.id, summary);
+                            noteworthy_event_ids.extend(event_ids);
+                        }
+                        Err(error) => log::warn!(
+                            "[Reports Generator] Failed to generate AI summary for signal {} in project {}: {:?}",
+                            signal.name,
+                            project.name,
+                            error
+                        ),
+                    }
+                    summary_context_events.extend(events);
+                }
+                Ok::<(), HandlerError>(())
+            }
             .instrument(root)
-            .await
-            .unwrap_or_else(|e| {
-                log::warn!(
-                    "[Reports Generator] Failed to generate AI summary for project {} in workspace {}: {:?}",
-                    project.name,
-                    workspace_id,
-                    e
-                );
-                (String::new(), Vec::new())
-            })
+            .await?;
         } else {
             log::warn!(
-                "[Reports Generator] LLM client not configured, skipping AI summary for project {} in workspace {}",
+                "[Reports Generator] LLM client not configured, skipping AI summaries for project {} in workspace {}",
                 project.name,
                 workspace_id
             );
-            (String::new(), Vec::new())
-        };
+        }
 
-        // Build noteworthy events from the IDs returned by the LLM
         let noteworthy_events = build_noteworthy_events(
             &noteworthy_event_ids,
             &summary_context_events,
@@ -301,7 +316,7 @@ async fn process_report_trigger(
                     signal_name: signal.name.clone(),
                     current_count,
                     previous_count,
-                    summary: String::new(),
+                    summary: signal_summaries.remove(&signal.id).unwrap_or_default(),
                     buckets,
                     clusters,
                 })
@@ -313,7 +328,7 @@ async fn process_report_trigger(
             project_id: project.id,
             signal_event_counts,
             signals: signals_report,
-            ai_summary,
+            ai_summary: String::new(),
             noteworthy_events,
         });
     }
@@ -398,7 +413,7 @@ fn build_summary_tool() -> ProviderTool {
     ProviderTool {
         function_declarations: vec![ProviderFunctionDeclaration {
             name: SUMMARY_TOOL_NAME.to_string(),
-            description: "REQUIRED: Submit the summary of signal events for this project. \
+            description: "REQUIRED: Submit the summary of events for this signal. \
                 You MUST always call this tool with your analysis. Never respond with plain text."
                 .to_string(),
             parameters: serde_json::json!({
@@ -406,7 +421,7 @@ fn build_summary_tool() -> ProviderTool {
                 "properties": {
                     "summary": {
                         "type": "string",
-                        "description": "A concise 2-4 sentence summary of the signal events for this project. Highlight the most important trends, notable spikes, and actionable insights. Do not use markdown formatting. Write in plain text only."
+                        "description": "A concise 2-4 sentence summary of this signal's events. Highlight important trends, notable spikes, and actionable insights. Do not use markdown formatting. Write in plain text only."
                     },
                     "event_ids": {
                         "type": "array",
@@ -423,22 +438,15 @@ fn build_summary_tool() -> ProviderTool {
 /// Build a prompt context string from the signal events fetched for summary generation.
 fn build_summary_context(
     project_name: &str,
-    signal_name_map: &HashMap<Uuid, String>,
-    signal_event_counts: &BTreeMap<String, u64>,
-    events: &[crate::ch::signal_events::SignalEventContextRow],
+    signal_name: &str,
+    event_count: u64,
+    events: &[&crate::ch::signal_events::SignalEventContextRow],
 ) -> String {
-    let mut context = format!("Project: {project_name}\n\nSignal event counts:\n");
-    for (name, count) in signal_event_counts {
-        context.push_str(&format!("  - {name}: {count} events\n"));
-    }
-    context.push_str("\nRecent signal events (id, signal_name, summary, payload):\n");
+    let mut context = format!(
+        "Project: {project_name}\nSignal: {signal_name}\nEvent count: {event_count}\n\nRecent signal events (id, summary, payload):\n"
+    );
 
     for event in events {
-        let signal_name = signal_name_map
-            .get(&event.signal_id)
-            .cloned()
-            .unwrap_or_else(|| "Unknown".to_string());
-
         // Truncate payload for context to avoid exceeding token limits
         let payload_display = match event.payload.char_indices().nth(500) {
             Some((idx, _)) => format!("{}...", &event.payload[..idx]),
@@ -446,32 +454,32 @@ fn build_summary_context(
         };
 
         context.push_str(&format!(
-            "\n[Event ID: {}]\nSignal: {}\nSummary: {}\nPayload: {}\n",
-            event.id, signal_name, event.summary, payload_display,
+            "\n[Event ID: {}]\nSummary: {}\nPayload: {}\n",
+            event.id, event.summary, payload_display,
         ));
     }
 
     context
 }
 
-/// Generate a per-project AI summary using the LLM with tool calling.
+/// Generate a per-signal AI summary using the LLM with tool calling.
 /// Returns (summary_text, noteworthy_signal_event_ids).
-async fn generate_project_summary(
+async fn generate_signal_summary(
     llm_client: &LlmClient,
     project_name: &str,
-    signal_name_map: &HashMap<Uuid, String>,
-    signal_event_counts: &BTreeMap<String, u64>,
-    events: &[crate::ch::signal_events::SignalEventContextRow],
+    signal_name: &str,
+    event_count: u64,
+    events: &[&crate::ch::signal_events::SignalEventContextRow],
     tracing_scope: &SpanScope,
 ) -> anyhow::Result<(String, Vec<Uuid>)> {
-    let context = build_summary_context(project_name, signal_name_map, signal_event_counts, events);
+    let context = build_summary_context(project_name, signal_name, event_count, events);
 
     let system_instruction = ProviderContent {
         role: None,
         parts: Some(vec![ProviderPart {
             text: Some(
                 "You are an expert at analyzing observability data from LLM-powered applications. \
-                 You will be given signal event data from a project. Your job is to:\n\
+                 You will be given event data for one signal. Your job is to:\n\
                  1. Write a concise 2-4 sentence summary highlighting the most important trends, \
                     notable spikes, and actionable insights.\n\
                  2. Select the most interesting/noteworthy signal event IDs that are worth \

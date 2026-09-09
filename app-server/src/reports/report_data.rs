@@ -59,7 +59,8 @@ pub struct ProjectReportData {
     /// Per-signal chart and cluster data. Empty for legacy queued reports.
     #[serde(default)]
     pub signals: Vec<SignalReportData>,
-    /// AI-generated summary for this project's signals
+    /// Legacy project-level AI summary retained for queued-report compatibility.
+    #[serde(default)]
     pub ai_summary: String,
     /// Noteworthy events selected by the AI summary
     pub noteworthy_events: Vec<NoteworthyEvent>,
