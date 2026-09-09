@@ -161,16 +161,150 @@ fn test_trace_outputs_time_column_is_start_time() {
 
 #[test]
 fn test_validate_evaluation_datapoints_select() {
+    // No WHERE: the mandatory args are still supplied, as sentinel + defaults.
     let result = validate_ok("SELECT id, evaluation_id FROM evaluation_datapoints");
     assert!(
         contains_ws(
             &result,
             &format!(
-                "FROM evaluation_datapoints_v0(project_id = '{SAMPLE_PROJECT_ID}') AS evaluation_datapoints"
+                "FROM evaluation_datapoints_v0(project_id = '{SAMPLE_PROJECT_ID}', eval_ids = [], \
+                 min_start_time = toDateTime64('1970-01-01 00:00:00', 9), \
+                 max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS evaluation_datapoints"
             )
         ),
         "got: {result}"
     );
+}
+
+/// Extract the `eval_ids = [...]` fragment of the rewritten
+/// `evaluation_datapoints_v0(...)` call, whitespace-normalized.
+fn eval_ids_of(query: &str) -> String {
+    let sql = validate_ok(query);
+    let n = norm(&sql);
+    let start = n
+        .find("eval_ids = [")
+        .expect("no eval_ids in output; got: {n}");
+    let after = &n[start + "eval_ids = ".len()..];
+    let end = after.find(']').expect("unterminated eval_ids array") + 1;
+    after[..end].to_string()
+}
+
+#[test]
+fn test_eval_ids_picked_up_from_where() {
+    // The shape the evaluations page emits, and the case this exists for.
+    assert_eq!(
+        eval_ids_of(
+            "SELECT id FROM evaluation_datapoints \
+             WHERE evaluation_id = '0195b6e0-0000-7000-8000-000000000001'"
+        ),
+        "[toUUID('0195b6e0-0000-7000-8000-000000000001')]"
+    );
+    // A bind placeholder is a scalar, so it hoists like a literal. This is the
+    // form the frontend sends.
+    assert_eq!(
+        eval_ids_of("SELECT id FROM evaluation_datapoints WHERE evaluation_id = {evalId: UUID}"),
+        "[toUUID({evalId: UUID})]"
+    );
+    // Column on the right-hand side.
+    assert_eq!(
+        eval_ids_of(
+            "SELECT id FROM evaluation_datapoints \
+             WHERE '0195b6e0-0000-7000-8000-000000000001' = evaluation_id"
+        ),
+        "[toUUID('0195b6e0-0000-7000-8000-000000000001')]"
+    );
+    // Qualified by the relation's own alias.
+    assert_eq!(
+        eval_ids_of(
+            "SELECT e.id FROM evaluation_datapoints AS e \
+             WHERE e.evaluation_id = '0195b6e0-0000-7000-8000-000000000001'"
+        ),
+        "[toUUID('0195b6e0-0000-7000-8000-000000000001')]"
+    );
+    // IN list.
+    assert_eq!(
+        eval_ids_of(
+            "SELECT id FROM evaluation_datapoints WHERE evaluation_id IN \
+             ('0195b6e0-0000-7000-8000-000000000001', '0195b6e0-0000-7000-8000-000000000002')"
+        ),
+        "[toUUID('0195b6e0-0000-7000-8000-000000000001'), \
+         toUUID('0195b6e0-0000-7000-8000-000000000002')]"
+    );
+    // AND keeps the restriction; the unrelated conjunct is ignored.
+    assert_eq!(
+        eval_ids_of(
+            "SELECT id FROM evaluation_datapoints \
+             WHERE evaluation_id = '0195b6e0-0000-7000-8000-000000000001' AND index > 5"
+        ),
+        "[toUUID('0195b6e0-0000-7000-8000-000000000001')]"
+    );
+    // OR of two evaluation_ids restricts to their union.
+    assert_eq!(
+        eval_ids_of(
+            "SELECT id FROM evaluation_datapoints \
+             WHERE evaluation_id = '0195b6e0-0000-7000-8000-000000000001' \
+             OR evaluation_id = '0195b6e0-0000-7000-8000-000000000002'"
+        ),
+        "[toUUID('0195b6e0-0000-7000-8000-000000000001'), \
+         toUUID('0195b6e0-0000-7000-8000-000000000002')]"
+    );
+}
+
+#[test]
+fn test_eval_ids_widen_to_sentinel_when_unsafe() {
+    // Each of these legitimately wants rows outside one evaluation, so eval_ids
+    // must widen to the sentinel. Narrowing any would silently drop rows.
+    for q in [
+        // `index > 5` rows belong to other evaluations.
+        "SELECT id FROM evaluation_datapoints \
+         WHERE evaluation_id = '0195b6e0-0000-7000-8000-000000000001' OR index > 5",
+        "SELECT id FROM evaluation_datapoints \
+         WHERE evaluation_id != '0195b6e0-0000-7000-8000-000000000001'",
+        "SELECT id FROM evaluation_datapoints \
+         WHERE evaluation_id NOT IN ('0195b6e0-0000-7000-8000-000000000001')",
+        "SELECT id FROM evaluation_datapoints WHERE index > 5",
+        // A per-row column cannot become a scalar view argument.
+        "SELECT id FROM evaluation_datapoints WHERE evaluation_id = group_id",
+        // Another relation's evaluation_id must not be borrowed.
+        "SELECT e.id FROM evaluation_datapoints AS e \
+         WHERE other.evaluation_id = '0195b6e0-0000-7000-8000-000000000001'",
+    ] {
+        assert_eq!(eval_ids_of(q), "[]", "should have widened, query: {q}");
+    }
+}
+
+#[test]
+fn test_eval_ids_and_bounds_derived_together() {
+    // A time-filtered evaluation query gets both narrowings at once.
+    let sql = validate_ok(
+        "SELECT id FROM evaluation_datapoints \
+         WHERE evaluation_id = '0195b6e0-0000-7000-8000-000000000001' \
+         AND start_time >= '2026-09-08 00:00:00' AND start_time <= '2026-09-10 00:00:00'",
+    );
+    let n = norm(&sql);
+    assert!(
+        n.contains("eval_ids = [toUUID('0195b6e0-0000-7000-8000-000000000001')]"),
+        "got: {n}"
+    );
+    assert!(
+        n.contains("min_start_time = toDateTime64('2026-09-08 00:00:00', 9) - INTERVAL 3 HOUR"),
+        "got: {n}"
+    );
+    assert!(
+        n.contains("max_start_time = toDateTime64('2026-09-10 00:00:00', 9) + INTERVAL 3 HOUR"),
+        "got: {n}"
+    );
+}
+
+#[test]
+fn test_eval_ids_cannot_be_passed_by_user() {
+    // The rewriter is the only thing that may set eval_ids.
+    validate(
+        "SELECT id FROM evaluation_datapoints_v0(project_id = '00000000-0000-0000-0000-000000000000', eval_ids = [])",
+    )
+    .expect_err("_v0 view functions must not be callable directly");
+    validate("SELECT id FROM evaluation_datapoints(eval_ids = [])")
+        .expect_err("an allowlisted table must not be usable as a table function");
 }
 
 #[test]

@@ -30,6 +30,11 @@ const VIEW_VERSION: &str = "v0";
 /// see [`START_TIME_PADDING`]); when the query has no time filter on traces, the
 /// broad epoch defaults below are used so every trace is visible.
 const TRACES_TABLE: &str = "traces";
+/// `evaluation_datapoints_v0` takes the same start_time bounds plus an
+/// `eval_ids` array narrowing its three joins to one evaluation. All args are
+/// mandatory — ClickHouse parameterized views have no defaults — so empty
+/// `eval_ids` is the "no filter" sentinel (see [`eval_ids_arg`]).
+const EVALUATION_DATAPOINTS_TABLE: &str = "evaluation_datapoints";
 /// 1970-01-01 UTC — the lower default when the query has no lower time bound.
 const DEFAULT_MIN_START_TIME: &str = "1970-01-01 00:00:00";
 /// 2099-12-31 UTC — the upper default when the query has no upper time bound.
@@ -1165,6 +1170,18 @@ impl VisitorMut for ViewRewriter<'_> {
                 let (min_expr, max_expr) = traces_time_bound_args(where_clause, &alias_ident.value);
                 view_args.push(named_arg("min_start_time", min_expr));
                 view_args.push(named_arg("max_start_time", max_expr));
+            } else if table_name == EVALUATION_DATAPOINTS_TABLE {
+                // Same bounds derivation as traces (the view exposes the trace's
+                // `start_time`), plus `eval_ids` so the joins hit one evaluation
+                // instead of the project's whole datapoint history.
+                let where_clause = self.where_stack.last().and_then(|w| w.as_ref());
+                let (min_expr, max_expr) = traces_time_bound_args(where_clause, &alias_ident.value);
+                view_args.push(named_arg(
+                    "eval_ids",
+                    eval_ids_arg(where_clause, &alias_ident.value),
+                ));
+                view_args.push(named_arg("min_start_time", min_expr));
+                view_args.push(named_arg("max_start_time", max_expr));
             }
             *args = Some(TableFunctionArgs {
                 args: view_args,
@@ -1461,6 +1478,134 @@ fn traces_time_bound_args(where_clause: Option<&Expr>, alias: &str) -> (Expr, Ex
     let min_expr = parse_ch_expr(&min_sql).unwrap_or_else(|_| string_expr(DEFAULT_MIN_START_TIME));
     let max_expr = parse_ch_expr(&max_sql).unwrap_or_else(|_| string_expr(DEFAULT_MAX_START_TIME));
     (min_expr, max_expr)
+}
+
+/// `evaluation_id` values a WHERE subtree restricts to, `None` if it restricts
+/// nothing. `None` is the safe answer: it widens to every evaluation, so an
+/// unrecognized predicate costs speed, never rows.
+type EvalIds = Option<Vec<Expr>>;
+
+/// True if `expr` is this relation's `evaluation_id`. A qualifier naming another
+/// relation is rejected so a joined table's `evaluation_id` isn't mistaken for
+/// this one; unqualified is accepted best-effort, as in [`classify_time_expr`].
+fn is_eval_id_column(expr: &Expr, alias: &str) -> bool {
+    match deparen(expr) {
+        Expr::Identifier(ident) => ident.value.eq_ignore_ascii_case("evaluation_id"),
+        Expr::CompoundIdentifier(parts) if !parts.is_empty() => {
+            if parts.len() >= 2
+                && parts[parts.len() - 2].value.to_lowercase() != alias.to_lowercase()
+            {
+                return false;
+            }
+            parts[parts.len() - 1]
+                .value
+                .eq_ignore_ascii_case("evaluation_id")
+        }
+        _ => false,
+    }
+}
+
+/// Derive the `evaluation_id` set from a WHERE subtree, with the same boolean
+/// semantics as [`extract_bounds`]: under `AND` either branch's restriction
+/// holds; under `OR` one holds only if *both* branches supply it. An
+/// unrestricted `OR` branch makes the whole `OR` unrestricted, which is what
+/// stops `evaluation_id = X OR index > 5` from dropping the `index > 5` rows.
+fn extract_eval_ids(expr: &Expr, alias: &str) -> EvalIds {
+    match deparen(expr) {
+        Expr::BinaryOp { left, op, right } => match op {
+            BinaryOperator::And => {
+                match (
+                    extract_eval_ids(left, alias),
+                    extract_eval_ids(right, alias),
+                ) {
+                    // Narrower side, not a true intersection: comparing value
+                    // expressions for equality is unreliable, and a superset
+                    // only costs scan work.
+                    (Some(a), Some(b)) => Some(if a.len() <= b.len() { a } else { b }),
+                    (Some(a), None) | (None, Some(a)) => Some(a),
+                    (None, None) => None,
+                }
+            }
+            BinaryOperator::Or => {
+                let (a, b) = (
+                    extract_eval_ids(left, alias),
+                    extract_eval_ids(right, alias),
+                );
+                match (a, b) {
+                    (Some(mut a), Some(b)) => {
+                        a.extend(b);
+                        Some(a)
+                    }
+                    _ => None,
+                }
+            }
+            BinaryOperator::Eq => {
+                let value = if is_eval_id_column(left, alias) {
+                    deparen(right)
+                } else if is_eval_id_column(right, alias) {
+                    deparen(left)
+                } else {
+                    return None;
+                };
+                // View args are scalars evaluated once at the call site, so a
+                // per-row column can't be hoisted into one. Bind placeholders
+                // are scalars and do pass.
+                if expr_references_column(value) {
+                    return None;
+                }
+                Some(vec![value.clone()])
+            }
+            _ => None,
+        },
+        Expr::InList {
+            expr: col,
+            list,
+            negated,
+        } => {
+            // `NOT IN` does not narrow.
+            if *negated || list.is_empty() || !is_eval_id_column(col, alias) {
+                return None;
+            }
+            if list.iter().any(expr_references_column) {
+                return None;
+            }
+            Some(list.iter().map(deparen).cloned().collect())
+        }
+        _ => None,
+    }
+}
+
+/// Build the `eval_ids` argument for an `evaluation_datapoints_v0(...)` call.
+/// The empty array is the view's "no evaluation filter" sentinel, so a WHERE we
+/// cannot narrow safely degrades to the unoptimized scan.
+fn eval_ids_arg(where_clause: Option<&Expr>, alias: &str) -> Expr {
+    let ids = where_clause
+        .and_then(|w| extract_eval_ids(w, alias))
+        .unwrap_or_default();
+    // `toUUID` so a string literal or placeholder matches the view's
+    // `Array(UUID)` parameter type.
+    Expr::Array(sqlparser::ast::Array {
+        elem: ids
+            .into_iter()
+            .map(|e| {
+                Expr::Function(sqlparser::ast::Function {
+                    name: ObjectName(vec![ObjectNamePart::Identifier(Ident::new("toUUID"))]),
+                    uses_odbc_syntax: false,
+                    parameters: FunctionArguments::None,
+                    args: FunctionArguments::List(sqlparser::ast::FunctionArgumentList {
+                        duplicate_treatment: None,
+                        args: vec![FunctionArg::Unnamed(FunctionArgExpr::Expr(e))],
+                        clauses: vec![],
+                    }),
+                    filter: None,
+                    null_treatment: None,
+                    over: None,
+                    within_group: vec![],
+                })
+            })
+            .collect(),
+        named: false,
+    })
 }
 
 fn named_arg(name: &str, value: Expr) -> FunctionArg {
