@@ -116,63 +116,55 @@ export async function register() {
             QUERY_WAIT_TIMEOUT_MILLISECONDS 15000`;
       };
 
-      const ensureLlmMessagesDict = async () => {
+      // Content-dedup dictionaries. `spans_v0` / `trace_outputs_v0` / search
+      // snippets resolve message and tool-definition hashes through these.
+      // Key columns mirror each table's ORDER BY; the hash is declared
+      // `String` because dict attrs can't be `FixedString(N)` — CH coerces
+      // the table's `FixedString(32)` transparently.
+      const CONTENT_DICTS = [
+        // Current: group-scoped (session, else trace) so one trace's
+        // lookups land in adjacent granules.
+        {
+          name: "deduped_content_v2_dict",
+          table: "deduped_content_v2",
+          keyColumns: ["project_id UUID", "group_id String", "content_hash String"],
+        },
+        // Legacy: project-scoped, read-only fallback for spans ingested
+        // before migration 63. No writer.
+        {
+          name: "deduped_content_dict",
+          table: "deduped_content",
+          keyColumns: ["project_id UUID", "content_hash String"],
+        },
+      ];
+
+      const ensureContentDicts = async () => {
         const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
         const user = escapeChCreds(process.env.CLICKHOUSE_USER || "ch_user");
         const password = escapeChCreds(process.env.CLICKHOUSE_PASSWORD || "ch_passwd");
         const db = escapeChCreds(process.env.CLICKHOUSE_DB || "default");
 
-        await clickhouseClient.command({
-          query: `
-            CREATE OR REPLACE DICTIONARY llm_messages_dict
-            (
-                project_id UUID,
-                trace_id UUID,
-                message_hash String,
-                content String
-            )
-            PRIMARY KEY project_id, trace_id, message_hash
-            SOURCE(CLICKHOUSE(
-                USER '${user}'
-                PASSWORD '${password}'
-                DB '${db}'
-                TABLE 'llm_messages'
-            ))
-            LAYOUT(COMPLEX_KEY_CACHE(${dictCacheOptions()}))
-            LIFETIME(MIN 1800 MAX 3600)
-          `,
-        });
-      };
-
-      // Project-scoped dedup dict. Backs the `deduped_content` table for
-      // both input/output messages and tool definitions. The `spans_v0`
-      // view tries this dict first and falls back to `llm_messages_dict`
-      // for legacy spans.
-      const ensureDedupedContentDict = async () => {
-        const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
-        const user = escapeChCreds(process.env.CLICKHOUSE_USER || "ch_user");
-        const password = escapeChCreds(process.env.CLICKHOUSE_PASSWORD || "ch_passwd");
-        const db = escapeChCreds(process.env.CLICKHOUSE_DB || "default");
-
-        await clickhouseClient.command({
-          query: `
-            CREATE OR REPLACE DICTIONARY deduped_content_dict
-            (
-                project_id UUID,
-                content_hash String,
-                content String
-            )
-            PRIMARY KEY project_id, content_hash
-            SOURCE(CLICKHOUSE(
-                USER '${user}'
-                PASSWORD '${password}'
-                DB '${db}'
-                TABLE 'deduped_content'
-            ))
-            LAYOUT(COMPLEX_KEY_CACHE(${dictCacheOptions()}))
-            LIFETIME(MIN 1800 MAX 3600)
-          `,
-        });
+        for (const { name, table, keyColumns } of CONTENT_DICTS) {
+          const primaryKey = keyColumns.map((c) => c.split(" ")[0]).join(", ");
+          await clickhouseClient.command({
+            query: `
+              CREATE OR REPLACE DICTIONARY ${name}
+              (
+                  ${keyColumns.join(",\n                  ")},
+                  content String
+              )
+              PRIMARY KEY ${primaryKey}
+              SOURCE(CLICKHOUSE(
+                  USER '${user}'
+                  PASSWORD '${password}'
+                  DB '${db}'
+                  TABLE '${table}'
+              ))
+              LAYOUT(COMPLEX_KEY_CACHE(${dictCacheOptions()}))
+              LIFETIME(MIN 1800 MAX 3600)
+            `,
+          });
+        }
       };
 
       const initializeClickHouse = async () => {
@@ -192,8 +184,7 @@ export async function register() {
             String(Number(process.env.CH_MIGRATIONS_TIMEOUT) || 30000) // timeout as string
           );
 
-          await ensureLlmMessagesDict();
-          await ensureDedupedContentDict();
+          await ensureContentDicts();
         } catch (error) {
           console.error("Failed to apply ClickHouse migrations:", error);
           throw error;

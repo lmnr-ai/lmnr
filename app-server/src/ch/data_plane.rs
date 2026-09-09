@@ -31,7 +31,7 @@ pub enum DataPlaneBatch {
     TracesStatic(Vec<CHTraceStatic>),
     NotificationDeliveries(Vec<CHNotificationDelivery>),
     Notifications(Vec<CHNotification>),
-    DedupedContent(Vec<CHDedupedContent>),
+    DedupedContentV2(Vec<CHDedupedContent>),
 }
 
 /// Data plane ClickHouse client that sends data to a remote data plane server.

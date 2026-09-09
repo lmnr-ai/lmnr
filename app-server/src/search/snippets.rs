@@ -197,36 +197,37 @@ fn build_key_tuples(pairs: &[(Uuid, Uuid)]) -> String {
         .join(", ")
 }
 
+/// Dictionary lookup for one content hash, mirroring `spans_v0`: the
+/// group-scoped `deduped_content_v2_dict` first, the legacy project-scoped
+/// `deduped_content_dict` only when v2 has no row. Nested `if` rather than
+/// `coalesce` because `coalesce` evaluates every branch eagerly, while `if`
+/// skips the v1 lookup for v2-only hashes (identical `dictGetOrNull` calls are
+/// evaluated once). `dedup_group` is the query's `WITH` alias.
+fn content_lookup(hash_expr: &str) -> String {
+    format!(
+        "if(
+            isNull(dictGetOrNull('deduped_content_v2_dict', 'content', tuple(project_id, dedup_group, {hash_expr}))),
+            dictGetOrDefault('deduped_content_dict', 'content', tuple(project_id, {hash_expr}), 'null'),
+            assumeNotNull(dictGetOrNull('deduped_content_v2_dict', 'content', tuple(project_id, dedup_group, {hash_expr})))
+        )"
+    )
+}
+
 fn build_snippet_query(project_id: Uuid, context_regex: &str, key_tuples: &str) -> String {
     // For LLM (deduped) spans, input/output snippets match only the deduped
     // "new messages" — older repeated history is searchable via earlier
-    // spans in the trace. Project-scoped `deduped_content_dict` is tried
-    // first; legacy spans fall back to the trace-scoped `llm_messages_dict`
-    // for input. Output reconstruction has no legacy fallback. Attributes
-    // are untransformed. Reading raw `spans` directly skips the `spans_v0`
-    // view's full reconstruction.
+    // spans in the trace. Attributes are untransformed. Reading raw `spans`
+    // directly skips the `spans_v0` view's full reconstruction.
+    let input_lookup = content_lookup("input_message_hashes[i + 1]");
+    let output_lookup = content_lookup("output_message_hashes[i + 1]");
     format!(
-        "SELECT span_id,
+        "WITH if(session_id != '', session_id, toString(trace_id)) AS dedup_group
+         SELECT span_id,
                 if(
                     notEmpty(input_message_hashes),
                     extract(
                         arrayStringConcat(
-                            arrayMap(
-                                i -> coalesce(
-                                    dictGetOrNull(
-                                        'deduped_content_dict',
-                                        'content',
-                                        tuple(project_id, input_message_hashes[i + 1])
-                                    ),
-                                    dictGetOrNull(
-                                        'llm_messages_dict',
-                                        'content',
-                                        tuple(project_id, trace_id, input_message_hashes[i + 1])
-                                    ),
-                                    'null'
-                                ),
-                                input_new_message_indices
-                            ),
+                            arrayMap(i -> {input_lookup}, input_new_message_indices),
                             ','
                         ),
                         '{context_regex}'
@@ -237,15 +238,7 @@ fn build_snippet_query(project_id: Uuid, context_regex: &str, key_tuples: &str) 
                     notEmpty(output_message_hashes),
                     extract(
                         arrayStringConcat(
-                            arrayMap(
-                                i -> dictGetOrDefault(
-                                    'deduped_content_dict',
-                                    'content',
-                                    tuple(project_id, output_message_hashes[i + 1]),
-                                    'null'
-                                ),
-                                output_new_message_indices
-                            ),
+                            arrayMap(i -> {output_lookup}, output_new_message_indices),
                             ','
                         ),
                         '{context_regex}'

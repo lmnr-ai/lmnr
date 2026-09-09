@@ -16,9 +16,7 @@ use crate::utils::sanitize_string;
 #[allow(clippy::all)]
 pub mod pii_redactor;
 
-use pii_redactor::{
-    RedactRequest, pii_redactor_service_client::PiiRedactorServiceClient,
-};
+use pii_redactor::{RedactRequest, pii_redactor_service_client::PiiRedactorServiceClient};
 
 #[derive(Clone)]
 pub struct PiiRedactorClient {
@@ -62,7 +60,7 @@ enum Target {
     Input(usize),
     /// Whole `span.output`.
     Output(usize),
-    /// One row of the `shared_content` CH buffer. Redacted content is
+    /// One row of the `deduped_content_v2` CH buffer. Redacted content is
     /// inserted into ClickHouse on the next step; same content also lives
     /// in some span's `span_trace_new_contents` (under
     /// [`Target::TraceNew`]), redacted independently in the same RPC.
@@ -115,24 +113,24 @@ async fn resolve_opted_in_projects(
 ///
 /// - **Whole `span.input` / `span.output`**: kept on root spans for the
 ///   trace-list preview and on non-LLM / non-array-input spans.
-/// - **`shared_content` rows**: every row about to be inserted into the
-///   CH `shared_content` table.
+/// - **`SharedContentBatch` rows**: every row about to be inserted into
+///   the CH `deduped_content_v2` table.
 /// - **Per-span `span_trace_new_contents`**: the per-span Quickwit
 ///   indexing buffer. Covers ALL trace-new positions (storage-miss AND
 ///   storage-hit-but-trace-new), so cross-trace shared content is
 ///   redacted before indexing.
 ///
-/// Storage-miss content is duplicated across `shared_content` and
+/// Storage-miss content is duplicated across the shared rows and
 /// `span_trace_new_contents`; both copies are redacted independently
 /// (sent twice to the redactor RPC). Acceptable cost — storage-miss is
 /// the common case but the wire shape favors correctness over RPC count.
 /// Already-seen-in-trace messages aren't in any of these buffers and
 /// were redacted on first emit. Tool-definition blobs share the
-/// `shared_content` buffer but are NOT walked here (tool definitions
+/// shared-row buffer but are NOT walked here (tool definitions
 /// are schemas, not user text).
 ///
-/// MUST run after `build_dedup_batch` (input + output) and BEFORE the
-/// `shared_content` ClickHouse insert / Quickwit indexing.
+/// MUST run after `MessageBatch::build` (input + output) and BEFORE the
+/// `deduped_content_v2` ClickHouse insert / Quickwit indexing.
 ///
 /// Best-effort: any RPC failure is logged and the batch is left untouched —
 /// PII redaction must never block trace ingestion.
@@ -172,7 +170,7 @@ pub async fn redact_spans_in_place(
     let mut targets: Vec<Target> = Vec::new();
     let mut texts: Vec<String> = Vec::new();
 
-    // Walk the `shared_content` rows that belong to opted-in projects.
+    // Walk the shared rows that belong to opted-in projects.
     for (idx, msg) in shared_content.iter().enumerate() {
         if opted_in.contains(&msg.project_id) {
             targets.push(Target::SharedRow(idx));
@@ -214,9 +212,7 @@ pub async fn redact_spans_in_place(
                     targets.push(Target::Input(span_idx));
                     texts.push(s);
                 }
-                Err(e) => log::warn!(
-                    "pii-redactor: serialize span[{span_idx}].input: {e:#}"
-                ),
+                Err(e) => log::warn!("pii-redactor: serialize span[{span_idx}].input: {e:#}"),
             }
         }
 
@@ -226,9 +222,7 @@ pub async fn redact_spans_in_place(
                     targets.push(Target::Output(span_idx));
                     texts.push(s);
                 }
-                Err(e) => log::warn!(
-                    "pii-redactor: serialize span[{span_idx}].output: {e:#}"
-                ),
+                Err(e) => log::warn!("pii-redactor: serialize span[{span_idx}].output: {e:#}"),
             }
         }
     }
@@ -260,7 +254,10 @@ pub async fn redact_spans_in_place(
     let redacted = match client.redact(texts).instrument(rpc_span).await {
         Ok(r) => r,
         Err(e) => {
-            log::error!("pii-redactor: skipping batch of {} fields: {e:#}", targets.len());
+            log::error!(
+                "pii-redactor: skipping batch of {} fields: {e:#}",
+                targets.len()
+            );
             return;
         }
     };
