@@ -28,11 +28,12 @@ const Metadata = ({ metadata }: MetadataProps) => {
           active={open}
         />
       </PopoverTrigger>
-      <PopoverContent className="p-0 overflow-hidden">
+      <PopoverContent align="end" className="p-0 overflow-hidden">
         <ContentRenderer
           value={metadata}
           readOnly={true}
           defaultMode="json"
+          codeEditorClassName="pr-1"
           className="max-h-[50vh] border-none bg-muted/30"
           placeholder=""
         />
