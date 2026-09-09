@@ -85,8 +85,8 @@ mod tests {
         MessageDedup {
             hashes,
             trace_new_indices: vec![],
-            trace_new_contents: vec![],
-            storage_miss_offsets: vec![],
+            storage_miss_indices: vec![],
+            contents: Default::default(),
         }
     }
 

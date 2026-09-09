@@ -58,7 +58,7 @@ const ROLLOUT_SESSION_METADATA_KEY: &str = "rollout.session_id";
 ///   - recordable + dedup'd (hashes > 0): 32B/hash + newly-inserted shared
 ///     content bytes (first referrer in batch pays the content).
 ///   - non-recordable + producer stripped the field to `None`: bill from the
-///     wire dedup — 32B/hash + every trace-new content. Over-bills the
+///     wire dedup — 32B/hash + every shipped content. Over-bills the
 ///     trace-new-but-storage-hit subset (content already stored from another
 ///     trace) by its JSON size; acceptable, bounded by the trace's
 ///     unique-message tail, and the only post-dedup analogue available without
@@ -80,7 +80,7 @@ fn field_bytes(
             raw.as_ref().map_or(0, crate::utils::estimate_json_size)
         }
     } else if let Some(d) = wire_dedup {
-        d.hashes.len() * 32 + d.trace_new_contents.iter().map(|s| s.len()).sum::<usize>()
+        d.hashes.len() * 32 + d.contents.values().map(|s| s.len()).sum::<usize>()
     } else {
         raw.as_ref().map_or(0, crate::utils::estimate_json_size)
     }
