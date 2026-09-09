@@ -110,7 +110,7 @@ Keep comments short: a single terse line covering the WHY (non-obvious constrain
 - Every env var is registered in `app-server/src/env/` (typed `NumEnv`/`StringEnv`/`BoolEnv` descriptors) — never inline a string-literal env name at a call site.
 - `mod env` shadows `std::env`: inside files with `use crate::env;`, write `std::env::var(...)` fully qualified.
 - Backend `Feature` flags are fine-grained — one flag per feature; never gate a new feature on another feature's flag.
-- Return a named struct, not a tuple — especially when the members share a type (`ModelProvider` in `llm/mod.rs`). `src/db/` is SQL only (no cache, no business logic), and every tenant-owned query filters on `workspace_id`/`project_id`.
+- `src/db/` is SQL only (no cache, no business logic); DB queries and cache keys are scoped by project id, or workspace id when there is no project.
 - More: `docs/internal/app-server.md`, and `docs/internal/code-style.md` for the cross-cutting style rules.
 
 ## Frontend conventions
@@ -120,7 +120,6 @@ Keep comments short: a single terse line covering the WHY (non-obvious constrain
 - Client fetches: `try/catch`, check `res.ok`, toast on error. API routes: `try/catch`, 400 for `ZodError`, 500 otherwise, always JSON with an `error` field. Use `AbortController` for superseded in-flight fetches.
 - Recharts is on v3 (`^3.10.1`). `CategoricalChartFunc` is defined from `MouseHandlerDataParam` in `chart-builder/charts/line-chart.tsx` (the v2 `recharts/types/chart/generateCategoricalChart` path is gone). Use `<YAxis width="auto">` and `<BarStack>` for stacked rounded bars — do not reintroduce a custom bar `shape`.
 - New data tables MUST follow the `InfiniteDataTable` split pattern (index/contents/controls/constants). Full patterns: `docs/internal/frontend-best-practices.md`.
-- Logic any other surface needs (CLI, public API, agent) belongs behind an app-server route, not in a server action. See `docs/internal/code-style.md`.
 
 ## Key Technical Details
 
