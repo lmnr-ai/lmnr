@@ -133,7 +133,10 @@ pub const WINDOW_TTL_SECONDS: NumEnv<u64> =
 /// Live versions kept per agent in the registry (oldest evicted on mint).
 pub const VERSION_CAP: NumEnv<usize> = NumEnv::new("SP_VERSIONING_CAP", 10);
 
-/// Sliding TTL on the version registry / line-set / regex keys.
+/// TTL on the version registry / line-set / regex keys. Written at mint and
+/// slid on staleness-probe hits (`versions::touch_version`), so a version
+/// still matching prompts never expires while one nothing matched for this
+/// long ages out.
 pub const VERSION_TTL_SECONDS: NumEnv<u64> =
     NumEnv::new("SP_VERSIONING_TTL_SECONDS", 7 * 24 * 3600);
 
