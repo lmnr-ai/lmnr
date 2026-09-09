@@ -522,6 +522,38 @@ impl Resolved {
             Self::Env { model, .. } | Self::Profile { model, .. } => model,
         }
     }
+
+    fn provider(&self) -> &str {
+        match self {
+            Self::Env { provider, .. } => provider,
+            Self::Profile {
+                reported_provider, ..
+            } => reported_provider,
+        }
+    }
+
+    /// Provider clients return errors without logging so direct callers (the
+    /// profile "test connection" probe) stay silent; pipeline calls log here.
+    /// Capacity errors we can't act on stay out of error monitoring: 503 is
+    /// `warn`, and flex-tier 429/503 is `debug` since the tier retries and
+    /// falls back to standard on its own.
+    fn log_error(&self, request: &ProviderRequest, e: &ProviderError) {
+        let is_flex = request.service_tier.as_deref() == Some(gemini::FLEX_SERVICE_TIER);
+        let status = match e {
+            ProviderError::ApiError { status_code, .. } => Some(*status_code),
+            _ => None,
+        };
+        let msg = format!(
+            "LLM call failed [{} / {}]: {e}",
+            self.provider(),
+            self.model()
+        );
+        match status {
+            Some(429 | 503) if is_flex => log::debug!("{msg} [flex]"),
+            Some(503) => log::warn!("{msg}"),
+            _ => log::error!("{msg}"),
+        }
+    }
 }
 
 impl LlmClient {
@@ -764,6 +796,7 @@ impl LlmClient {
             .client()
             .generate_content(resolved.model(), request)
             .await
+            .inspect_err(|e| resolved.log_error(request, e))
     }
 
     #[cfg_attr(not(feature = "signals"), allow(dead_code))]
@@ -777,6 +810,7 @@ impl LlmClient {
             .client()
             .generate_content_stream(resolved.model(), request, chunk_tx)
             .await
+            .inspect_err(|e| resolved.log_error(request, e))
     }
 
     /// Resolve the model/provider labels for `request` without firing the
