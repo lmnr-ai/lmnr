@@ -168,7 +168,6 @@ impl AzureAnthropicClient {
         let status = response.status();
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            log::error!("Azure Anthropic API error ({}): {}", status, error_text);
             let message = serde_json::from_str::<Value>(&error_text)
                 .ok()
                 .and_then(|v| {
