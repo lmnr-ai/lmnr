@@ -423,9 +423,9 @@ fn render_new_cluster_email(clusters: &[&NotificationKind]) -> String {
         "manage_preferences",
     );
     let title = if clusters.len() == 1 {
-        "New Signal Cluster".to_string()
+        "New cluster detected".to_string()
     } else {
-        format!("{} New Signal Clusters", clusters.len())
+        format!("{} new clusters detected", clusters.len())
     };
     let body = format!(
         "{}{}{}",
@@ -953,7 +953,42 @@ mod tests {
             example_events: vec![],
         }]);
 
-        assert!(html.contains("New Signal Cluster"));
+        assert!(html.contains("New cluster detected"));
+        assert!(
+            render_new_cluster_email(&[
+                &NotificationKind::NewCluster {
+                    project_id: Uuid::nil(),
+                    project_name: "Project".into(),
+                    signal_id: Uuid::from_u128(1),
+                    signal_name: "Signal".into(),
+                    cluster_id: Uuid::from_u128(2),
+                    cluster_name: "Second cluster".into(),
+                    num_signal_events: 1,
+                    alert_name: "Alert".into(),
+                    first_seen: None,
+                    last_seen: None,
+                    severity_counts: [1, 0, 0],
+                    activity_buckets: vec![1],
+                    example_events: vec![],
+                },
+                &NotificationKind::NewCluster {
+                    project_id: Uuid::nil(),
+                    project_name: "Project".into(),
+                    signal_id: Uuid::from_u128(1),
+                    signal_name: "Signal".into(),
+                    cluster_id: Uuid::from_u128(3),
+                    cluster_name: "Third cluster".into(),
+                    num_signal_events: 1,
+                    alert_name: "Alert".into(),
+                    first_seen: None,
+                    last_seen: None,
+                    severity_counts: [1, 0, 0],
+                    activity_buckets: vec![1],
+                    example_events: vec![],
+                },
+            ])
+            .contains("2 new clusters detected")
+        );
         assert!(html.contains("font-size:20px"));
         assert!(html.contains(">◇</span>"));
         assert!(html.contains(">34</div>"));
