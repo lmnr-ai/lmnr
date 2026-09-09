@@ -11,7 +11,7 @@ import { withOpacity } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
 import ClusterBand, { type BandState } from "./cluster-band";
-import { BAND, PANEL, STEM, SURFACE } from "./constants";
+import { BAND, BAND_TINT, PANEL, STEM, SURFACE } from "./constants";
 import ExtraBand from "./extra-band";
 import { childRowGap, type ViewNode } from "./fold";
 
@@ -27,10 +27,6 @@ export interface NodeProps {
   onSelect: (id: string) => void;
   /** Aim the strip's one tooltip at this band, or clear it on `null`. */
   onTip: (node: ViewNode | null, el?: HTMLElement) => void;
-  opacity: {
-    fill: Record<BandState | "selected", number>;
-    border: Record<BandState | "selected", number>;
-  };
   /** Drawn inside a parent's children row, so there is a band above to join. A
    *  root — of any level, orphan L1 included — has nothing up there. */
   nested?: boolean;
@@ -38,14 +34,14 @@ export interface NodeProps {
 
 // Named separately from the memoised export so the recursion below goes through
 // `memo` — a self-reference inside a named function expression would not.
-function IcicleNodeColumn({ node, minLevel, selectedId, ancestors, onSelect, onTip, opacity, nested }: NodeProps) {
+function IcicleNodeColumn({ node, minLevel, selectedId, ancestors, onSelect, onTip, nested }: NodeProps) {
   const { isFocus, inFocus, holdsFocus } = useClusterFocusContext(
     (state) => getNodeFocus(state, node, selectedId, ancestors),
     shallow
   );
   const isSelected = selectedId !== null && node.id === selectedId;
   const state: BandState = isFocus ? "hover" : inFocus ? "default" : "muted";
-  const opacityState = isSelected ? "selected" : state;
+  const tint = BAND_TINT[isSelected ? "selected" : state];
 
   // Only a parent gets a panel; on a leaf it would just double the ring around a
   // single pill. The band itself is styled the same either way. Keyed on the
@@ -60,15 +56,12 @@ function IcicleNodeColumn({ node, minLevel, selectedId, ancestors, onSelect, onT
   // an L2.
   const padBottom = node.level === minLevel ? PANEL.padBottom : 0;
 
-  const style: CSSProperties = {
+  const style: CSSProperties & { "--cluster-color": string } = {
     // Layered, not replaced: the neutral surface step comes off the class as
     // `background-color` and the cluster wash goes on top of it as a flat
     // `background-image`. Setting `backgroundColor` here would override the class
     // outright and lose the surface. A counter has no cluster colour to wash on.
-    backgroundImage: node.isExtra
-      ? undefined
-      : `linear-gradient(${withOpacity(node.color, opacity.fill[opacityState])}, ${withOpacity(node.color, opacity.fill[opacityState])})`,
-    boxShadow: `inset 0 0 0 1px ${withOpacity(node.color, opacity.border[opacityState])}`,
+    "--cluster-color": node.color,
     borderRadius: BAND.radius,
     // While the panel is open the band stops being a pill and becomes the head of
     // the panel: squared off along the bottom, and pulled back to `radiusTop` on
@@ -160,6 +153,7 @@ function IcicleNodeColumn({ node, minLevel, selectedId, ancestors, onSelect, onT
           inFocus={inFocus}
           isSelected={isSelected}
           style={style}
+          tintClassName={tint}
           onSelect={onSelect}
           onTip={onTip}
         />
@@ -199,7 +193,6 @@ function IcicleNodeColumn({ node, minLevel, selectedId, ancestors, onSelect, onT
               ancestors={ancestors}
               onSelect={onSelect}
               onTip={onTip}
-              opacity={opacity}
             />
           ))}
         </div>

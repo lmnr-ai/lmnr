@@ -1,6 +1,5 @@
 "use client";
 
-import { useDialKit } from "dialkit";
 import { type ReactNode, useMemo } from "react";
 
 import TimeSeriesChart from "@/components/charts/time-series-chart";
@@ -39,12 +38,6 @@ export default function ClusterStackedChart({
   colorMap,
   overlay,
 }: ClusterStackedChartProps) {
-  // TODO: Remove DialKit and freeze the chosen top padding before production.
-  const { graphTopPadding } = useDialKit(
-    "Cluster graph",
-    { graphTopPadding: [48, 0, 160, 1] },
-    { id: "cluster-graph-layout" }
-  );
   const markers = useSignalVersionMarkers();
 
   const { data, chartConfig, fields } = useMemo(() => {
@@ -98,7 +91,7 @@ export default function ClusterStackedChart({
   }
 
   return (
-    <div className="relative h-full w-full" style={{ paddingTop: graphTopPadding }}>
+    <div className="relative h-full w-full pt-12">
       <TimeSeriesChart
         data={data}
         chartConfig={chartConfig}

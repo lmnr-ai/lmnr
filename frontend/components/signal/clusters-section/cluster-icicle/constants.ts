@@ -1,10 +1,18 @@
 // Every number that shapes the icicle strip, in one place. Several are
 // load-bearing for the fold arithmetic, so tune them together.
 
-export const BAND_OPACITY_DEFAULTS = {
-  fill: { hover: 0.36, default: 0.28, muted: 0.06, selected: 0.42 },
-  outline: { hover: 0.04, default: 0.04, muted: 0.04, selected: 0.04 },
+export const BAND_TINT = {
+  default:
+    "bg-[linear-gradient(color-mix(in_srgb,var(--cluster-color)_28%,transparent),color-mix(in_srgb,var(--cluster-color)_28%,transparent))]",
+  muted:
+    "bg-[linear-gradient(color-mix(in_srgb,var(--cluster-color)_6%,transparent),color-mix(in_srgb,var(--cluster-color)_6%,transparent))]",
+  hover:
+    "bg-[linear-gradient(color-mix(in_srgb,var(--cluster-color)_36%,transparent),color-mix(in_srgb,var(--cluster-color)_36%,transparent))]",
+  selected:
+    "bg-[linear-gradient(color-mix(in_srgb,var(--cluster-color)_42%,transparent),color-mix(in_srgb,var(--cluster-color)_42%,transparent))]",
 } as const;
+
+export const BAND_BORDER = "shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--cluster-color)_4%,transparent)]";
 
 /** The bands themselves. Everything is CSS, so the units are plain pixels. */
 export const BAND = {
@@ -43,16 +51,6 @@ export const BAND = {
    *  so without it the text starts hard against the pill's curve. Trailing edge
    *  is where the label truncates, and padding there only cuts a word earlier. */
   labelPadLeft: 6,
-  /**
-   * A wash of the cluster's colour laid OVER the band's neutral surface step, not
-   * instead of it, so it stays a tint of the surface rather than a colour of its
-   * own. Three states: the band under the pointer (or pinned), a band with no
-   * focus on it or under the focus, and a band some other cluster has stolen the
-   * focus from.
-   */
-  fill: BAND_OPACITY_DEFAULTS.fill,
-  /** The ring, in the same colour. */
-  outline: BAND_OPACITY_DEFAULTS.outline,
 } as const;
 
 /**
