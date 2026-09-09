@@ -9,11 +9,12 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Datelike, Duration, Utc};
-use tracing::instrument;
+use tracing::{Instrument, instrument};
 use uuid::Uuid;
 
 use super::ReportTriggerMessage;
 use super::report_data::{NoteworthyEvent, ProjectReportData};
+use super::self_tracing::{SpanBuilder, SpanScope};
 use crate::ch::signal_events::{get_signal_event_counts, get_signal_events_for_summary};
 use crate::db::DB;
 use crate::db::projects::get_projects_for_workspace;
@@ -21,8 +22,8 @@ use crate::db::reports::get_signals_for_workspace;
 use crate::db::workspaces::get_workspace;
 use crate::llm::models::{ProviderFunctionDeclaration, ProviderGenerationConfig, ProviderTool};
 use crate::llm::{
-    LlmClient, ProviderContent, ProviderPart, ProviderRequest, ProviderThinkingConfig,
-    ProviderThinkingLevel,
+    LlmClient, ModelProvider, ProviderContent, ProviderPart, ProviderRequest,
+    ProviderThinkingConfig, ProviderThinkingLevel, request_to_span_input, request_to_tools_attr,
 };
 use crate::mq::MessageQueue;
 use crate::mq::utils::mq_max_payload;
@@ -177,13 +178,19 @@ async fn process_report_trigger(
 
         // Generate per-project AI summary with tool calling
         let (ai_summary, noteworthy_event_ids) = if let Some(ref client) = llm_client {
+            let scope = SpanScope::new(report_id, workspace_id, project.id, start_ts, end_ts);
+            let root = SpanBuilder::root(&scope);
+            let scope = scope
+                .with_parent(crate::instrumentation::spans::SpanContextCarrier::from_span(&root));
             generate_project_summary(
                 client,
                 &project.name,
                 &signal_name_map,
                 &signal_event_counts,
                 &summary_context_events,
+                &scope,
             )
+            .instrument(root)
             .await
             .unwrap_or_else(|e| {
                 log::warn!(
@@ -362,6 +369,7 @@ async fn generate_project_summary(
     signal_name_map: &HashMap<Uuid, String>,
     signal_event_counts: &BTreeMap<String, u64>,
     events: &[crate::ch::signal_events::SignalEventContextRow],
+    tracing_scope: &SpanScope,
 ) -> anyhow::Result<(String, Vec<Uuid>)> {
     let context = build_summary_context(project_name, signal_name_map, signal_event_counts, events);
 
@@ -415,10 +423,32 @@ async fn generate_project_summary(
         llm_profile: None,
     };
 
-    let response = llm_client
+    let ModelProvider { model, provider } = llm_client.resolve_model_provider(&request).await;
+    let span = SpanBuilder::llm(tracing_scope)
+        .input(&request_to_span_input(&request))
+        .tools(request_to_tools_attr(&request).as_ref())
+        .model(&provider, &model)
+        .build();
+    let response = match llm_client
         .generate_content(&request)
+        .instrument(span.clone())
         .await
-        .map_err(|e| anyhow::anyhow!("LLM generate_content failed: {:?}", e))?;
+    {
+        Ok(response) => response,
+        Err(error) => {
+            crate::instrumentation::spans::record_error(&span, error.to_string());
+            return Err(anyhow::anyhow!("LLM generate_content failed: {error:?}"));
+        }
+    };
+    crate::instrumentation::spans::set_output(&span, &serde_json::json!(&response.candidates));
+    if let Some(usage) = response.usage_metadata.as_ref() {
+        crate::instrumentation::spans::set_usage(
+            &span,
+            usage.prompt_token_count,
+            usage.cache_read_input_tokens,
+            usage.candidates_token_count,
+        );
+    }
 
     // Extract the tool call from the response
     let parts = response
