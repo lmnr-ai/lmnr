@@ -410,6 +410,17 @@ impl SpVersioningHandler {
                     &version_hash,
                 )
                 .await;
+                // Extend the version's TTL, gate by "run_full" to limit number of updates –
+                // updating once per "full algorithm" interval is more than enough.
+                if message.run_full {
+                    versions::touch_version(
+                        &self.cache,
+                        message.project_id,
+                        &message.agent_hash,
+                        &version_hash,
+                    )
+                    .await;
+                }
                 // Staleness probe: a hit can be an OLD version whose static
                 // set still subset-matches after an addition, so the producer's
                 // per-agent interval sends some hits back through the full algorithm,
@@ -430,6 +441,13 @@ impl SpVersioningHandler {
                 Ok(())
             }
             None => {
+                // `labeled` is entry-scoped and was set by an earlier message
+                // that cheap-matched a then-live version. A miss proves that
+                // version is gone (registry expired or evicted), and THIS
+                // message's spans have no rows yet — left set, the flag would
+                // suppress both the forced mint and the park below, and a
+                // below-`MIN_WINDOW` agent would never be labeled again.
+                win[entry_idx].labeled = false;
                 self.full_algorithm(message, win, entry_idx, line_hashes, None, rows_out)
                     .await
             }
@@ -568,10 +586,21 @@ impl SpVersioningHandler {
 
         // Known version — reachable when the version's line-set key lapsed
         // (subset match skipped it) or a concurrent worker minted it between
-        // our cheap match and here.
+        // our cheap match and here. Rewriting the line set is idempotent
+        // (same hash, same intersection) and, in the lapsed case, is what
+        // lets the cheap match resolve this shape inline again instead of
+        // every prompt taking the miss path.
         let registry =
             versions::load_registry(&self.cache, message.project_id, &message.agent_hash).await?;
         if registry.iter().any(|v| v.version_hash == version_hash) {
+            versions::restore_version_lines(
+                &self.cache,
+                message.project_id,
+                &message.agent_hash,
+                &version_hash,
+                &intersection,
+            )
+            .await;
             self.resolve_message(message, win, entry_idx, &version_hash, rows_out)
                 .await;
             return Ok(());
@@ -1219,6 +1248,116 @@ mod tests {
         )
         .await;
         assert_eq!(memo.as_deref(), Some(version_hash.as_str()));
+    }
+
+    /// The registry of a stable agent expires (nothing re-minted it for the
+    /// TTL) while its window entry is still `labeled` from the last hit. The
+    /// next message must re-mint, not silently skip: below `MIN_WINDOW` the
+    /// only way out is the forced mint, and a stale `labeled` used to veto it.
+    #[tokio::test]
+    async fn stale_label_does_not_block_remint_after_registry_expiry() {
+        let handler = make_handler();
+        let project_id = Uuid::new_v4();
+        let prompt = "You are a static agent.\nno dynamic content";
+
+        for _ in 0..*OCCURRENCE_THRESHOLD {
+            let mut rows = Vec::new();
+            handler
+                .process_message(&make_message(project_id, prompt), &mut rows)
+                .await
+                .unwrap();
+        }
+        let registry = versions::load_registry(&handler.cache, project_id, AGENT)
+            .await
+            .unwrap();
+        assert_eq!(registry.len(), 1);
+        let version_hash = registry[0].version_hash.clone();
+        let window_key = window::window_cache_key(project_id, AGENT);
+        let win = window::load_window(&handler.cache, &window_key)
+            .await
+            .unwrap();
+        assert!(win[0].labeled, "the mint labeled the entry");
+
+        // Simulate the TTL lapsing on every version key plus the memo, leaving
+        // the window (24h sliding) intact.
+        let full_hash = similarity::full_prompt_hash(prompt);
+        for key in [
+            versions::versions_cache_key(project_id, AGENT),
+            versions::version_lines_cache_key(project_id, AGENT, &version_hash),
+            versions::version_regex_cache_key(project_id, AGENT, &version_hash),
+            versions::memo_cache_key(project_id, &full_hash),
+        ] {
+            handler.cache.remove(&key).await.unwrap();
+        }
+
+        let mut rows = Vec::new();
+        handler
+            .process_message(&make_message(project_id, prompt), &mut rows)
+            .await
+            .unwrap();
+
+        assert_eq!(rows.len(), 1, "the first post-expiry message gets its row");
+        assert_eq!(rows[0].static_prompt_version_hash, version_hash);
+        let registry = versions::load_registry(&handler.cache, project_id, AGENT)
+            .await
+            .unwrap();
+        assert_eq!(registry.len(), 1, "same version re-registered");
+        assert_eq!(registry[0].version_hash, version_hash);
+        assert!(
+            versions::load_version_lines(&handler.cache, project_id, AGENT, &version_hash)
+                .await
+                .is_some(),
+            "line set restored so the cheap match resolves inline again"
+        );
+        assert_eq!(
+            versions::memo_get(&handler.cache, project_id, &full_hash)
+                .await
+                .as_deref(),
+            Some(version_hash.as_str())
+        );
+    }
+
+    /// Only the line-set key lapsed (the registry outlives it because every
+    /// mint for the agent rewrites the registry). The miss path re-derives the
+    /// same hash, finds it registered, and must put the line set back.
+    #[tokio::test]
+    async fn lapsed_line_set_of_a_registered_version_is_restored() {
+        let handler = make_handler();
+        let project_id = Uuid::new_v4();
+        let (_, version_hash) = mint_first_version(&handler, project_id).await;
+
+        let lines_key = versions::version_lines_cache_key(project_id, AGENT, &version_hash);
+        handler.cache.remove(&lines_key).await.unwrap();
+
+        let mut rows = Vec::new();
+        let message = make_message(project_id, &versioned_prompt(4242));
+        handler.process_message(&message, &mut rows).await.unwrap();
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].static_prompt_version_hash, version_hash);
+        let registry = versions::load_registry(&handler.cache, project_id, AGENT)
+            .await
+            .unwrap();
+        assert_eq!(registry.len(), 1, "no duplicate mint");
+        assert!(
+            versions::load_version_lines(&handler.cache, project_id, AGENT, &version_hash)
+                .await
+                .is_some()
+        );
+
+        // And the next prompt of the same shape cheap-matches again.
+        let mut rows = Vec::new();
+        let message = make_message(project_id, &versioned_prompt(4243));
+        handler.process_message(&message, &mut rows).await.unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].static_prompt_version_hash, version_hash);
+        assert_eq!(
+            versions::load_registry(&handler.cache, project_id, AGENT)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
     }
 
     #[tokio::test]
