@@ -110,7 +110,7 @@ Keep comments short: a single terse line covering the WHY (non-obvious constrain
 - Every env var is registered in `app-server/src/env/` (typed `NumEnv`/`StringEnv`/`BoolEnv` descriptors) — never inline a string-literal env name at a call site.
 - `mod env` shadows `std::env`: inside files with `use crate::env;`, write `std::env::var(...)` fully qualified.
 - Backend `Feature` flags are fine-grained — one flag per feature; never gate a new feature on another feature's flag.
-- More: `docs/internal/app-server.md`, and `docs/internal/code-style.md` for the cross-cutting style rules.
+- More: `docs/internal/app-server.md`, and `docs/internal/rust-best-practices.md` for reuse/layering/scoping rules.
 
 ## Frontend conventions
 
@@ -137,7 +137,7 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, an
 
 | File | Read when touching |
 |---|---|
-| `docs/internal/code-style.md` | Any code change — reuse, layering, tenant scoping, error retryability, Rust/schema style rules |
+| `docs/internal/rust-best-practices.md` | Any app-server change — reuse, layering, db/cache scoping, named types, error retryability |
 | `docs/internal/database.md` | Postgres migrations, `POSTGRES_SCHEMA`, name-sort collation |
 | `docs/internal/sql-query-engine.md` | `query_engine/` validator (a security boundary), SQL editor schema/autocomplete, `/v1/sql/query` guards, rate limiting |
 | `docs/internal/clickhouse-traces.md` | `traces_agg`/`traces_static`/`traces_v0`, spans query scoping, trace aggregation, async-insert tuning, traces-table filters, project data deletion |

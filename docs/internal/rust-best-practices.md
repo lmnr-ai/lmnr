@@ -1,10 +1,10 @@
-# Code style and design rules
+# Rust best practices (app-server)
 
 <!-- Detailed working notes for coding agents and developers. -->
 <!-- Referenced from the index in the repo-root CLAUDE.md; read when working in this area. -->
 <!-- Sibling files in docs/internal/ may be cross-referenced by section name. -->
 
-Cross-cutting rules for every change, in any language.
+Cross-cutting rules for app-server changes. The frontend equivalents live in `docs/internal/frontend-best-practices.md`.
 
 ## Reuse before you add
 
@@ -18,14 +18,9 @@ Cross-cutting rules for every change, in any language.
 
 - `app-server/src/db/` is SQL and row mapping only — no caching, no business rules. Carry `&DB` through services and take `.pool` at the `crate::db::` boundary.
 - DB access and cache keys are always scoped: filter on / key by the project id when the data has one, the workspace id otherwise. A cache key missing the scope re-opens what the `WHERE` clause closed, since a hit skips the query.
-- Logic another surface may need (CLI, public API, agent) belongs behind an app-server route, not in a Next.js server action.
 
-## Rust
+## Types and errors
 
 - Return a named struct, not a tuple — especially when members share a type (`ModelProvider` in `llm/mod.rs`). A swapped tuple compiles.
 - No inline closures standing in for helper functions; extract a named function with a verb name.
 - Transient failures (DB, cache, network) get retryable error variants; non-retryable ones are for genuine misconfiguration. On a worker path, the wrong choice turns a blip into a permanently failed run.
-
-## Frontend schemas
-
-- Derive per-action schemas with `.pick()` / `.omit()` / `.partial()` instead of reusing the full resource schema, and keep whatever gates the action in the UI reading the same required fields.
