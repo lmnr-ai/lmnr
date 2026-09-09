@@ -1,7 +1,10 @@
-// Every number that shapes the icicle strip, in one place. They were tuned
-// against each other in a live panel and then frozen — several are load-bearing
-// for the fold arithmetic, so the comments here are about what breaks when one
-// moves rather than about what it does.
+// Every number that shapes the icicle strip, in one place. Several are
+// load-bearing for the fold arithmetic, so tune them together.
+
+export const BAND_OPACITY_DEFAULTS = {
+  fill: { hover: 0.36, default: 0.28, muted: 0.06, selected: 0.42 },
+  outline: { hover: 0.04, default: 0.04, muted: 0.04, selected: 0.04 },
+} as const;
 
 /** The bands themselves. Everything is CSS, so the units are plain pixels. */
 export const BAND = {
@@ -35,11 +38,11 @@ export const BAND = {
    * band and it comes back.
    */
   paddingX: 2,
-  labelSize: 10,
+  labelSize: 12,
   /** Extra leading inset on the label. There is no glyph standing in the corner,
    *  so without it the text starts hard against the pill's curve. Trailing edge
    *  is where the label truncates, and padding there only cuts a word earlier. */
-  labelPadLeft: 4,
+  labelPadLeft: 6,
   /**
    * A wash of the cluster's colour laid OVER the band's neutral surface step, not
    * instead of it, so it stays a tint of the surface rather than a colour of its
@@ -47,10 +50,9 @@ export const BAND = {
    * focus on it or under the focus, and a band some other cluster has stolen the
    * focus from.
    */
-  fill: { hover: 0.3, default: 0.24, muted: 0.12 },
-  /** The ring, in the same colour. Always drawn, at the same strength in every
-   *  state — the surface step and the wash carry the state on their own. */
-  outline: { hover: 0.04, default: 0.04, muted: 0.04 },
+  fill: BAND_OPACITY_DEFAULTS.fill,
+  /** The ring, in the same colour. */
+  outline: BAND_OPACITY_DEFAULTS.outline,
 } as const;
 
 /**

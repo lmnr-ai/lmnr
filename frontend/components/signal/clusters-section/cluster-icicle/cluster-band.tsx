@@ -63,14 +63,14 @@ export default function ClusterBand({ node, state, inFocus, isSelected, style, o
       // No CSS :hover ring: pointing at a band already puts it in the `hover`
       // state through the strip's delegated hover, which styles it properly.
       className={cn(
-        "flex w-full min-w-0 shrink-0 items-center overflow-hidden text-left",
+        "@container flex w-full min-w-0 shrink-0 items-center overflow-hidden text-left",
         "transition-[filter,background-color,box-shadow] focus:outline-none",
         state === "muted" ? SURFACE.muted : SURFACE.band
       )}
     >
       <span
         className={cn(
-          "pointer-events-none block min-w-0 truncate leading-tight",
+          "pointer-events-none block min-w-0 truncate leading-tight @max-[24px]:opacity-0",
           inFocus ? "text-foreground" : "text-foreground/40"
         )}
         style={{ fontSize: BAND.labelSize, paddingInlineStart: BAND.labelPadLeft }}

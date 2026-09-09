@@ -4,6 +4,7 @@
 // Hovering a band focuses that cluster across the section; clicking pins it.
 "use client";
 
+import { useDialKit } from "dialkit";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Tooltip, TooltipContent, TooltipPortal, TooltipTrigger } from "@/components/ui/tooltip";
@@ -11,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 import { type ClusterNode } from "../model";
 import BandDetails from "./band-details";
-import { BAND, BAND_ID_ATTR } from "./constants";
+import { BAND, BAND_ID_ATTR, BAND_OPACITY_DEFAULTS } from "./constants";
 import ExtraList from "./extra-list";
 import { buildView, finestLevel, type ViewNode } from "./fold";
 import IcicleNode from "./node";
@@ -27,8 +28,6 @@ interface Props {
   selectedId: string | null;
   /** id → its ancestors, so a node can tell whether it is under the focus. */
   ancestors: Map<string, Set<string>>;
-  /** Traces the signal evaluated over the window — the share's denominator. */
-  traceTotal: number;
   onHover: (id: string | null) => void;
   onSelect: (id: string) => void;
   className?: string;
@@ -36,15 +35,26 @@ interface Props {
 
 // Hover is deliberately absent from these props: it lives in the focus store, so
 // that the strip itself does not re-render on a pointer move.
-export default function ClusterIcicle({
-  tree,
-  selectedId,
-  ancestors,
-  traceTotal,
-  onHover,
-  onSelect,
-  className,
-}: Props) {
+export default function ClusterIcicle({ tree, selectedId, ancestors, onHover, onSelect, className }: Props) {
+  // TODO: Remove DialKit and freeze the chosen opacity values before production.
+  const opacity = useDialKit(
+    "Cluster icicle button",
+    {
+      fill: {
+        default: [BAND_OPACITY_DEFAULTS.fill.default, 0, 1, 0.01],
+        muted: [BAND_OPACITY_DEFAULTS.fill.muted, 0, 1, 0.01],
+        hover: [BAND_OPACITY_DEFAULTS.fill.hover, 0, 1, 0.01],
+        selected: [BAND_OPACITY_DEFAULTS.fill.selected, 0, 1, 0.01],
+      },
+      border: {
+        default: [BAND_OPACITY_DEFAULTS.outline.default, 0, 1, 0.01],
+        muted: [BAND_OPACITY_DEFAULTS.outline.muted, 0, 1, 0.01],
+        hover: [BAND_OPACITY_DEFAULTS.outline.hover, 0, 1, 0.01],
+        selected: [BAND_OPACITY_DEFAULTS.outline.selected, 0, 1, 0.01],
+      },
+    },
+    { id: "cluster-icicle-button-opacity" }
+  );
   const stripRef = useRef<HTMLDivElement>(null);
   // The strip owns ONE tooltip, not one per band. A band's own bottom edge is the
   // wrong place to hang it: inside an open panel that edge is in the middle of
@@ -151,7 +161,7 @@ export default function ClusterIcicle({
             {extraNodes ? (
               <ExtraList nodes={extraNodes} selectedId={selectedId} onHover={onHover} onSelect={onSelect} />
             ) : (
-              tip && <BandDetails node={tip.node} traceTotal={traceTotal} />
+              tip && <BandDetails node={tip.node} />
             )}
           </TooltipContent>
         </TooltipPortal>
@@ -176,6 +186,7 @@ export default function ClusterIcicle({
             ancestors={ancestors}
             onSelect={onSelect}
             onTip={onTip}
+            opacity={opacity}
           />
         ))}
       </div>

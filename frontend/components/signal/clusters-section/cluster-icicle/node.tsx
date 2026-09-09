@@ -27,6 +27,10 @@ export interface NodeProps {
   onSelect: (id: string) => void;
   /** Aim the strip's one tooltip at this band, or clear it on `null`. */
   onTip: (node: ViewNode | null, el?: HTMLElement) => void;
+  opacity: {
+    fill: Record<BandState | "selected", number>;
+    border: Record<BandState | "selected", number>;
+  };
   /** Drawn inside a parent's children row, so there is a band above to join. A
    *  root — of any level, orphan L1 included — has nothing up there. */
   nested?: boolean;
@@ -34,14 +38,14 @@ export interface NodeProps {
 
 // Named separately from the memoised export so the recursion below goes through
 // `memo` — a self-reference inside a named function expression would not.
-function IcicleNodeColumn({ node, minLevel, selectedId, ancestors, onSelect, onTip, nested }: NodeProps) {
+function IcicleNodeColumn({ node, minLevel, selectedId, ancestors, onSelect, onTip, opacity, nested }: NodeProps) {
   const { isFocus, inFocus, holdsFocus } = useClusterFocusContext(
     (state) => getNodeFocus(state, node, selectedId, ancestors),
     shallow
   );
   const isSelected = selectedId !== null && node.id === selectedId;
-
   const state: BandState = isFocus ? "hover" : inFocus ? "default" : "muted";
+  const opacityState = isSelected ? "selected" : state;
 
   // Only a parent gets a panel; on a leaf it would just double the ring around a
   // single pill. The band itself is styled the same either way. Keyed on the
@@ -63,8 +67,8 @@ function IcicleNodeColumn({ node, minLevel, selectedId, ancestors, onSelect, onT
     // outright and lose the surface. A counter has no cluster colour to wash on.
     backgroundImage: node.isExtra
       ? undefined
-      : `linear-gradient(${withOpacity(node.color, BAND.fill[state])}, ${withOpacity(node.color, BAND.fill[state])})`,
-    boxShadow: `inset 0 0 0 1px ${withOpacity(node.color, BAND.outline[state])}`,
+      : `linear-gradient(${withOpacity(node.color, opacity.fill[opacityState])}, ${withOpacity(node.color, opacity.fill[opacityState])})`,
+    boxShadow: `inset 0 0 0 1px ${withOpacity(node.color, opacity.border[opacityState])}`,
     borderRadius: BAND.radius,
     // While the panel is open the band stops being a pill and becomes the head of
     // the panel: squared off along the bottom, and pulled back to `radiusTop` on
@@ -195,6 +199,7 @@ function IcicleNodeColumn({ node, minLevel, selectedId, ancestors, onSelect, onT
               ancestors={ancestors}
               onSelect={onSelect}
               onTip={onTip}
+              opacity={opacity}
             />
           ))}
         </div>

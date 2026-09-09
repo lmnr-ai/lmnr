@@ -1,5 +1,9 @@
 "use client";
 
+import { DialRoot } from "dialkit";
+
+import "dialkit/styles.css";
+
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 import ClustersSectionContent from "./clusters-section-content";
@@ -16,6 +20,8 @@ export default function ClustersSection({ className }: Props) {
     <TooltipProvider delayDuration={200}>
       <ClusterFocusStoreProvider>
         <ClustersSectionContent className={className} />
+        {/* TODO: Remove DialKit after the icicle opacity values are finalized. */}
+        <DialRoot />
       </ClusterFocusStoreProvider>
     </TooltipProvider>
   );
