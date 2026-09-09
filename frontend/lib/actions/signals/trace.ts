@@ -65,6 +65,7 @@ export async function getTraceSignals(input: z.infer<typeof GetTraceSignalsSchem
         trace_id as traceId,
         payload,
         severity,
+        signal_version as signalVersion,
         formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp,
         clusters
       FROM signal_events
@@ -116,6 +117,7 @@ export async function getTraceSignals(input: z.infer<typeof GetTraceSignalsSchem
       payload: e.payload,
       timestamp: e.timestamp,
       severity: e.severity,
+      signalVersion: e.signalVersion,
       leafClusters: pickLeafClusters(e.clusters, clusterMeta),
     }));
     return {

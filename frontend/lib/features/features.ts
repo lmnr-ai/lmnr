@@ -19,6 +19,7 @@ export enum Feature {
   SLACK = "SLACK",
   LANDING = "LANDING",
   LAMINAR_CLOUD = "LAMINAR_CLOUD",
+  LLM_PROFILES = "LLM_PROFILES",
   LOOPS = "LOOPS",
   AGENT = "AGENT",
   TELEMETRY = "TELEMETRY",
@@ -94,7 +95,14 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
     if (process.env.SIGNALS_ENABLED !== "true") {
       return false;
     }
-    return isAiProviderConfigured();
+    // Self-hosted deployments can supply credentials per signal via LLM
+    // profiles, so an env-configured provider is only required on cloud.
+    return isAiProviderConfigured() || isFeatureEnabled(Feature.LLM_PROFILES);
+  }
+
+  if (feature === Feature.LLM_PROFILES) {
+    // Cloud runs signals on Laminar's own keys; profiles are self-hosted only.
+    return process.env.LAMINAR_CLOUD !== "true";
   }
 
   if (feature === Feature.BATCH_SIGNALS) {

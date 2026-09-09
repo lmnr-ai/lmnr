@@ -12,6 +12,7 @@ import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-clu
 import { getFilterClusterIds, useSignalStoreContext } from "@/components/signal/store.tsx";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
 
 import { buildEventsColumns } from "./columns";
@@ -59,12 +60,7 @@ function PureEventsTable() {
     // Both stats series, or the strip's band structure refreshes while its widths
     // and the bars underneath keep the previous counts. Their keys are the time
     // range, which a refresh does not change, so nothing else revalidates them.
-    mutate(
-      (key) =>
-        typeof key === "string" &&
-        (key.includes(`/signals/${signal.id}/runs/stats`) ||
-          key.includes(`/signals/${signal.id}/events/clusters/stats`))
-    );
+    mutate((key) => typeof key === "string" && key.includes(`/signals/${signal.id}/events/clusters/stats`));
   }, [fetchEnabled, fetchClusters, pastHours, startDate, endDate, mutate, signal.id]);
 
   const handleSort = useCallback(
@@ -83,11 +79,7 @@ function PureEventsTable() {
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
 
   return (
-    // The page scrolls, not the table. Everything above the rows sits in a
-    // `70vh` block, so the table starts just below the fold and scrolling down
-    // reveals it — instead of the old layout, where the table filled the
-    // remaining height and scrolled inside its own box.
-    <div ref={setScroller} className="styled-scrollbar min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+    <ScrollArea ref={setScroller} className="min-h-0 flex-1" viewportClassName="px-4 pb-4">
       <EventsTableContents
         externalScrollElement={scroller}
         refetchRef={refetchRef}
@@ -123,19 +115,22 @@ function PureEventsTable() {
           onRefresh={handleRefresh}
         />
       </EventsTableContents>
-    </div>
+    </ScrollArea>
   );
 }
 
 export default function EventsTable() {
   const signal = useSignalStoreContext((state) => state.signal);
   const params = useParams<{ projectId: string }>();
-  const { columnOrder } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
+  const { columnOrder, columnVisibility } = useMemo(
+    () => buildEventsColumns(signal.schemaFields),
+    [signal.schemaFields]
+  );
 
   return (
     <InfiniteDataTableProvider
       uniqueKey="id"
-      defaults={{ columnOrder }}
+      defaults={{ columnOrder, columnVisibility }}
       views={{ projectId: params.projectId, resource: `signal-events:${signal.id}` }}
     >
       <PureEventsTable />

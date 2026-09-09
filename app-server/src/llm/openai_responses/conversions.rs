@@ -450,6 +450,7 @@ mod tests {
             service_tier: None,
             provider: None,
             model_size: None,
+            llm_profile: None,
         }
     }
 

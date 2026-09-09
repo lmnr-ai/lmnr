@@ -26,21 +26,13 @@ const realChildCount = (node: DetailedNode) => (node.all ?? node.children).lengt
 /**
  * Everything a cluster says about itself besides its name.
  *
- * `traceTotal` is the signal's run count over the window — the traces this
- * signal actually evaluated — so the share reads against what was looked at
- * rather than against what happened to be clustered.
- *
  * No level: L1/L2/L3 is our word for how deep the tree is, not something anyone
  * reading the chart needs.
  */
-export function clusterFacts(node: DetailedNode, traceTotal: number): string[] {
-  // A single trace can raise several events, so the ratio is not bounded by one.
-  // Capped rather than shown, because ">100% of traces" reads as a broken number.
-  const share = traceTotal > 0 ? Math.min(100, (node.total / traceTotal) * 100) : 0;
+export function clusterFacts(node: DetailedNode): string[] {
   const childCount = realChildCount(node);
   return [
     `${node.total.toLocaleString()} events`,
-    share > 0 ? `${share < 1 ? "<1" : Math.round(share)}% of traces` : null,
     // A leaf says nothing rather than saying it has nothing: "no sub-clusters" is
     // the absence of a fact, and it read as one more thing to take in.
     childCount > 0 ? `${childCount} sub-cluster${childCount === 1 ? "" : "s"}` : null,
@@ -61,7 +53,7 @@ export function ClusterFacts({ facts, className }: { facts: string[]; className?
   );
 }
 
-export default function BandDetails({ node, traceTotal }: { node: DetailedNode; traceTotal: number }) {
+export default function BandDetails({ node }: { node: DetailedNode }) {
   const childCount = realChildCount(node);
 
   // A grid, so the facts line up with the *name* rather than with the icon: the
@@ -74,7 +66,7 @@ export default function BandDetails({ node, traceTotal }: { node: DetailedNode; 
         iconClassName={childCount > 0 ? "size-4" : undefined}
       />
       <span className="min-w-0 truncate font-medium">{node.name}</span>
-      <ClusterFacts className="col-start-2" facts={clusterFacts(node, traceTotal)} />
+      <ClusterFacts className="col-start-2" facts={clusterFacts(node)} />
     </div>
   );
 }

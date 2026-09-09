@@ -2,9 +2,12 @@ import { differenceInMinutes } from "date-fns";
 import { and, eq } from "drizzle-orm";
 import jwt, { type JwtPayload } from "jsonwebtoken";
 import { revalidatePath } from "next/cache";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import InvitationActions from "@/components/invitations/invitation-actions";
+import WrongAccountActions from "@/components/invitations/wrong-account-actions";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { clearOnboardingState } from "@/lib/actions/onboarding";
 import { getNewestProjectId } from "@/lib/actions/projects";
@@ -88,17 +91,21 @@ export default async function InvitationsPage(props: {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const searchParams = await props.searchParams;
-  const session = await getServerSession();
-  const user = session?.user;
-
-  if (!user) {
-    return redirect(`/sign-up?callbackUrl=/invitations?token=${searchParams?.token}`);
-  }
-
   const token = searchParams?.token as string;
 
   if (!token) {
     return notFound();
+  }
+
+  // Encode when embedding: an unescaped `?token=` would be parsed as a param of
+  // the auth page itself, so the user would come back here without the token.
+  const invitationUrl = `/invitations?token=${encodeURIComponent(token)}`;
+
+  const session = await getServerSession();
+  const user = session?.user;
+
+  if (!user) {
+    return redirect(`/sign-up?callbackUrl=${encodeURIComponent(invitationUrl)}`);
   }
 
   const decoded = verifyToken(token);
@@ -140,6 +147,11 @@ export default async function InvitationsPage(props: {
               This invitation is no longer valid. Ask a workspace admin to send a new one.
             </CardDescription>
           </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" className="w-full mt-2">
+              <Link href="/projects">Go to home</Link>
+            </Button>
+          </CardContent>
         </Card>
       ) : isWrongAccount ? (
         <Card className="w-full max-w-md">
@@ -147,9 +159,13 @@ export default async function InvitationsPage(props: {
             <span className="text-xs text-muted-foreground/80">Signed in as {user.email}</span>
             <CardTitle>Wrong account</CardTitle>
             <CardDescription className="mt-1">
-              This invitation was sent to a different email address. Sign in with the invited account to accept it.
+              This invitation was sent to a different email address. Sign out and sign back in with the invited account
+              to accept it.
             </CardDescription>
           </CardHeader>
+          <CardContent>
+            <WrongAccountActions workspaceId={decoded.workspaceId} invitationUrl={invitationUrl} />
+          </CardContent>
         </Card>
       ) : (
         <Card className="w-full max-w-md">

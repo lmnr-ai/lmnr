@@ -374,6 +374,7 @@ dependencies = [
  "aws-config",
  "aws-sdk-bedrockruntime",
  "aws-sdk-s3",
+ "aws-smithy-runtime-api",
  "backon",
  "base64 0.22.1",
  "blake3",

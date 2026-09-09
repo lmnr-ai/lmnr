@@ -1590,7 +1590,15 @@ fn main() -> anyhow::Result<()> {
         is_feature_enabled(Feature::Signals) || is_feature_enabled(Feature::InputExtraction);
     let llm_provider_client: Option<Arc<llm::LlmClient>> = if llm_client_needed {
         log::info!("Initializing LLM client");
-        match runtime_handle.block_on(llm::LlmClient::new()) {
+        let llm_profile_store = if is_feature_enabled(Feature::LlmProfiles) {
+            Some(Arc::new(llm::profiles::LlmProfileStore::new(
+                db.clone(),
+                cache.clone(),
+            )))
+        } else {
+            None
+        };
+        match runtime_handle.block_on(llm::LlmClient::new(llm_profile_store)) {
             Ok(client) => Some(Arc::new(client)),
             Err(e) => {
                 log::warn!(
@@ -2726,9 +2734,15 @@ fn main() -> anyhow::Result<()> {
                             // shadowed by the dynamic segment.
                             .service(api::v1::cli::signals::create_signal)
                             .service(api::v1::cli::signals::list_signals)
+                            .service(api::v1::cli::signals::list_signal_versions)
                             .service(api::v1::cli::signals::get_signal)
                             .service(api::v1::cli::signals::update_signal)
-                            .service(api::v1::cli::signals::delete_signal);
+                            .service(api::v1::cli::signals::delete_signal)
+                            .service(api::v1::cli::llm_profiles::list_llm_profiles)
+                            .service(api::v1::cli::llm_profiles::create_llm_profile)
+                            .service(api::v1::cli::llm_profiles::get_llm_profile)
+                            .service(api::v1::cli::llm_profiles::update_llm_profile)
+                            .service(api::v1::cli::llm_profiles::delete_llm_profile);
                         #[cfg(feature = "signals")]
                         let cli_scope = cli_scope
                             .service(web::scope("/agent").service(api::v1::cli::agent::agent_chat));
@@ -2799,6 +2813,11 @@ fn main() -> anyhow::Result<()> {
                                 web::scope("/v1")
                                     .wrap(project_auth.clone())
                                     .service(api::v1::projects::get_current_project)
+                                    .service(api::v1::llm_profiles::list_llm_profiles)
+                                    .service(api::v1::llm_profiles::create_llm_profile)
+                                    .service(api::v1::llm_profiles::get_llm_profile)
+                                    .service(api::v1::llm_profiles::update_llm_profile)
+                                    .service(api::v1::llm_profiles::delete_llm_profile)
                                     .service(api::v1::datasets::get_datasets)
                                     .service(api::v1::datasets::get_datapoints)
                                     .service(api::v1::datasets::create_datapoints)
@@ -2807,6 +2826,12 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::evals::update_eval)
                                     .service(api::v1::evals::save_eval_datapoints)
                                     .service(api::v1::evals::update_eval_datapoint)
+                                    .service(api::v1::signals::create_signal)
+                                    .service(api::v1::signals::list_signals)
+                                    .service(api::v1::signals::list_signal_versions)
+                                    .service(api::v1::signals::get_signal)
+                                    .service(api::v1::signals::update_signal)
+                                    .service(api::v1::signals::delete_signal)
                                     // Debugger session lifecycle — SDK-driven
                                     // (project API key). update_name is CLI-only,
                                     // so it lives under /v1/cli, not here.
@@ -2844,6 +2869,16 @@ fn main() -> anyhow::Result<()> {
                         let app = app.service(
                             web::scope("/api/v1/slack")
                                 .service(crate::agent::slack_events::slack_process),
+                        );
+                        // Workspace-scoped internal routes; like projects/{project_id}, the
+                        // Next.js route checks the caller's workspace membership.
+                        #[cfg(feature = "signals")]
+                        let app = app.service(
+                            web::scope("/api/v1/workspaces/{workspace_id}")
+                                .service(routes::llm_profiles::probe_llm_profile)
+                                .service(routes::llm_profiles::create_llm_profile)
+                                .service(routes::llm_profiles::update_llm_profile)
+                                .service(routes::llm_profiles::delete_llm_profile),
                         );
                         app.service(routes::probes::check_health)
                             .service(routes::probes::check_ready)

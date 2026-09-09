@@ -140,35 +140,6 @@ export default function ClustersSectionContent({ className }: Props) {
   const hasChartData = chartClusters.length > 0 && clusterStatsData.length > 0;
   const showChartLoading = !hasChartData && (isClustersLoading || isStatsPending);
 
-  // Signal-runs overlay: count of traces this signal actually evaluated (post-trigger),
-  // fetched at the SAME interval as the cluster stats (same hook → same container width →
-  // aligned timestamps) and drawn behind the bars. This is the true denominator for the
-  // event counts — no trigger-filter re-implementation, since the backend records each run.
-  const runStatsUrl = useTimeSeriesStatsUrl({
-    baseUrl: `/api/projects/${signal.projectId}/signals/${signal.id}/runs/stats`,
-    chartContainerWidth: localChartWidth,
-    pastHours,
-    startDate,
-    endDate,
-  });
-
-  // Same URL as the Runs chart, so the SWR cache is shared and must stay in its `{ items }` shape.
-  // Focus revalidation off for the same reason as the cluster stats above — this
-  // overlay is drawn over those bars and has to move with them.
-  const { data: runStats } = useSWR<{ items: { timestamp: string; count: number }[] }>(runStatsUrl, swrFetcher, {
-    revalidateOnFocus: false,
-  });
-  const runTotals = useMemo(
-    () => (runStats?.items ?? []).map((i) => ({ timestamp: i.timestamp, count: Number(i.count) })),
-    [runStats?.items]
-  );
-
-  // Every trace this signal evaluated in the window: each run falls in exactly
-  // one bucket, so the buckets sum to the range. This is what a cluster's share
-  // is quoted against — "x% of traces" — rather than the clustered total, which
-  // would make a cluster look larger the fewer traces got clustered at all.
-  const traceTotal = useMemo(() => runTotals.reduce((sum, r) => sum + r.count, 0), [runTotals]);
-
   // The one way anything in the section changes the selection.
   const selectCluster = useCallback(
     (id: string) => {
@@ -193,7 +164,6 @@ export default function ClustersSectionContent({ className }: Props) {
           <ClusterIcicle
             tree={model.tree}
             ancestors={model.ancestors}
-            traceTotal={traceTotal}
             selectedId={clusterId}
             onHover={setHoveredId}
             onSelect={selectCluster}
@@ -206,12 +176,9 @@ export default function ClustersSectionContent({ className }: Props) {
         {emergingClusterId ? <EmergingClusterBreadcrumbs /> : <ClusterBreadcrumbs />}
       </div>
 
-      {/* Unwrapped: no border, no surface fill, no padding, so the chart reads
-          as part of the page rather than a card sitting on it. */}
-      {/* Stretches instead of taking a fixed height: it is the only flexible
-          child of the 70vh top part, so it soaks up whatever the strip, the
-          trail and the table's controls leave over. */}
-      <div className="min-h-0 w-full flex-1 overflow-hidden">
+      {/* The graph fills this fixed-height container below tunable top padding;
+          the readout remains absolutely positioned over the full container. */}
+      <div className="h-[320px] w-full overflow-hidden">
         <div className="h-full" ref={chartContainerRef}>
           {showChartLoading ? (
             <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
@@ -223,7 +190,6 @@ export default function ClustersSectionContent({ className }: Props) {
               statsData={clusterStatsData}
               containerWidth={localChartWidth}
               colorMap={colorMap}
-              runTotals={runTotals}
               // With the list gone the chart has no other label for what is pinned
               // — and with nothing pinned, the readout's root list is the only way
               // to reach a folded cluster or the unclustered bucket, which has no
@@ -239,7 +205,6 @@ export default function ClustersSectionContent({ className }: Props) {
                     hasChildren={model?.hasChildren ?? EMPTY_HAS_CHILDREN}
                     clusterId={clusterId}
                     unclusteredCount={unclusteredCount}
-                    traceTotal={traceTotal}
                     onSelect={selectCluster}
                     onHover={setHoveredId}
                   />

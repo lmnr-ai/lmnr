@@ -230,10 +230,6 @@ export const EventsTableContents = memo(function EventsTableContents({
     <InfiniteDataTable<EventRow>
       className="w-full"
       externalScrollElement={externalScrollElement}
-      // Everything above the rows — controls, search, breadcrumbs, the clusters
-      // chart — is the "top part", a fixed 70vh so the table starts just below
-      // the fold. The clusters area inside it stretches to take up the slack.
-      childrenClassName="h-[70vh]"
       columns={columns}
       data={events}
       onRowClick={handleRowClick}

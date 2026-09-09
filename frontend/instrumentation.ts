@@ -14,8 +14,7 @@ export async function register() {
     if (isFeatureEnabled(Feature.LOCAL_DB)) {
       const { sql } = await import("drizzle-orm");
       const { migrate } = await import("drizzle-orm/postgres-js/migrator");
-      const { subscriptionTiers, modelCosts, signals, signalTriggers, projects } =
-        await import("@/lib/db/migrations/schema.ts");
+      const { subscriptionTiers, modelCosts, signals, projects } = await import("@/lib/db/migrations/schema.ts");
       const { db, getDatabaseConfig, getPostgresSchema } = await import("@/lib/db/drizzle.ts");
 
       const initializeData = async () => {
@@ -263,9 +262,10 @@ export async function register() {
       const { startTracesAggBackfill } = await import("@/lib/clickhouse/scripts/backfill-traces-agg.ts");
       startTracesAggBackfill().catch((error) => console.error("Failed to start traces_agg backfill:", error));
 
-      // Seed default signals for projects that don't have any
-      const { DEFAULT_SIGNAL, DEFAULT_SIGNAL_TRIGGER_VALUE, DEFAULT_SIGNAL_TRIGGER_FILTERS } =
-        await import("@/lib/db/default-signals.ts");
+      // Seed default signals for projects that don't have any. Same path as
+      // workspace create: one transaction for signal + trigger + v1 + alerts.
+      const { DEFAULT_SIGNAL } = await import("@/lib/db/default-signals.ts");
+      const { createSignal } = await import("@/lib/actions/signals/index.ts");
 
       const initializeDefaultSignals = async () => {
         try {
@@ -288,24 +288,16 @@ export async function register() {
           let seeded = 0;
           for (const project of projectsWithoutSignals) {
             try {
-              const [signal] = await db
-                .insert(signals)
-                .values({
+              await createSignal(
+                {
                   projectId: project.id,
-                  ...DEFAULT_SIGNAL,
-                })
-                .onConflictDoNothing()
-                .returning({ id: signals.id });
-
-              if (signal) {
-                await db.insert(signalTriggers).values({
-                  projectId: project.id,
-                  signalId: signal.id,
-                  value: DEFAULT_SIGNAL_TRIGGER_VALUE,
-                  filters: DEFAULT_SIGNAL_TRIGGER_FILTERS,
-                });
-                seeded++;
-              }
+                  name: DEFAULT_SIGNAL.name,
+                  prompt: DEFAULT_SIGNAL.prompt,
+                  structuredOutput: DEFAULT_SIGNAL.structuredOutputSchema,
+                },
+                { requireLlmProfile: false }
+              );
+              seeded++;
             } catch (err) {
               console.error(`Failed to seed default signal for project ${project.id}:`, err);
             }

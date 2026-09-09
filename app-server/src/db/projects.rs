@@ -227,6 +227,15 @@ pub async fn get_project_name(pool: &PgPool, project_id: &Uuid) -> anyhow::Resul
     Ok(name)
 }
 
+/// `projects.workspace_id`; `None` when the project does not exist.
+pub async fn get_project_workspace_id(pool: &PgPool, project_id: Uuid) -> Result<Option<Uuid>> {
+    let row: Option<(Uuid,)> = sqlx::query_as("SELECT workspace_id FROM projects WHERE id = $1")
+        .bind(project_id)
+        .fetch_optional(pool)
+        .await?;
+    Ok(row.map(|(id,)| id))
+}
+
 /// Returns true if `user_id` is a member of the workspace that owns `project_id`.
 /// Any membership grants access (no role filter) — this is the per-request
 /// authorization for the CLI user-token surface (`/v1/cli/*`).

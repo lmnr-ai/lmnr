@@ -270,18 +270,19 @@ fn render_alert_email(
 ) -> String {
     let mut rows = vec![("Severity".to_string(), severity_label(severity).to_string())];
     if let Some(object) = attributes.as_object() {
-        rows.extend(object.iter().map(|(key, value)| {
-            let value = value
-                .as_str()
-                .map(str::to_owned)
-                .unwrap_or_else(|| value.to_string());
-            (
+        rows.extend(object.iter().filter_map(|(key, value)| {
+            let value = match value {
+                serde_json::Value::Null => return None,
+                serde_json::Value::String(value) => value.clone(),
+                _ => serde_json::to_string_pretty(value).unwrap_or_default(),
+            };
+            Some((
                 key.clone(),
                 md_links_to_html_escaped(
                     &inject_utm_into_links(&value, "email", "signal_alert", "event_description"),
                     PRIMARY_300,
                 ),
-            )
+            ))
         }));
     }
     let manage = with_utm(
@@ -841,6 +842,28 @@ mod tests {
         assert!(html.contains(r#"<span style="color:#92949c">Project</span>"#));
         assert!(html.contains(r#"<span style="color:#252525">Signal</span>"#));
         assert!(html.contains(r#"<td valign="baseline" style="white-space:nowrap">"#));
+    }
+
+    #[test]
+    fn alert_omits_null_attributes_and_pretty_prints_nested_values() {
+        let html = render_alert_email(
+            "Event",
+            "Project",
+            &serde_json::json!({
+                "empty": null,
+                "nested": { "status": "failed", "attempt": 2 }
+            }),
+            "https://example.com/trace",
+            &Uuid::nil(),
+            &Uuid::nil(),
+            1,
+            "Alert",
+            None,
+        );
+        assert!(!html.contains("empty"));
+        assert!(!html.contains(">null<"));
+        assert!(html.contains("nested"));
+        assert!(html.contains("\n"));
     }
 
     #[test]

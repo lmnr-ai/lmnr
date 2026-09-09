@@ -15,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { track } from "@/lib/posthog";
 import { cn, tryParseJson } from "@/lib/utils";
 
+import LlmProfileSection from "./llm-profile-section";
 import SamplingSection from "./sampling-section";
 import SchemaFieldsBuilder from "./schema-fields-builder";
 import TemplatePicker from "./template-picker";
@@ -124,6 +125,7 @@ export default function SignalFormFields({
         {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
       </div>
       {showTemplates && <TemplatePicker onApply={applyTemplate} onClear={clearToBlank} />}
+      <LlmProfileSection />
       <div className="grid gap-1.5">
         <TooltipProvider delayDuration={200}>
           <div className="flex items-center gap-1.5">

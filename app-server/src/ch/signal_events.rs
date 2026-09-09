@@ -30,6 +30,10 @@ pub struct CHSignalEvent {
     pub summaries: Vec<String>,
     /// 0 = info, 1 = warning, 2 = critical
     pub severity: u8,
+    /// `signals.version` at the time the event was produced; 0 means the
+    /// event predates versioning. MUST stay last — `ALTER TABLE ADD COLUMN`
+    /// appends, and the `Row` derive maps columns by position.
+    pub signal_version: u32,
 }
 
 /// ClickHouse row for signal event counts

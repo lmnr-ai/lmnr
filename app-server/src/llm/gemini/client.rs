@@ -24,23 +24,6 @@ use tokio::sync::mpsc::UnboundedSender;
 static FLEX_REQUEST_TIMEOUT: LazyLock<Duration> =
     LazyLock::new(|| Duration::from_secs(env::llm::FLEX_LLM_TIMEOUT_SECS.get()));
 
-/// Log a non-2xx Gemini response. For FLEX requests, transient capacity errors
-/// (429/503) are downgraded to `debug` — the flex tier retries them and falls
-/// back to standard, so logging every attempt at `error` floods pod logs. On any
-/// other path (standard signals, trace-chat, batch) every non-2xx stays at
-/// `error`, since a 429/503 there is meaningful and not part of a retry storm.
-fn log_gemini_api_error(status: reqwest::StatusCode, error_text: &str, is_flex: bool) {
-    if is_flex && matches!(status.as_u16(), 429 | 503) {
-        log::debug!(
-            "Gemini API capacity error ({}) [flex]: {}",
-            status,
-            error_text
-        );
-    } else {
-        log::error!("Gemini API error ({}): {}", status, error_text);
-    }
-}
-
 #[derive(Clone)]
 pub struct GeminiClient {
     client: reqwest::Client,
@@ -59,8 +42,25 @@ impl GeminiClient {
             .ok()
             .filter(|s| !s.trim().is_empty())
             .unwrap_or_else(|| "https://generativelanguage.googleapis.com/v1beta".to_string());
-        let api_base_url = raw_base_url.trim_end_matches('/').to_string();
         let default_headers = default_headers_from_env().map_err(GeminiError::config)?;
+        Self::with_config(api_key, &raw_base_url, default_headers)
+    }
+
+    /// Build from explicit values (LLM profiles) instead of env.
+    pub(crate) fn with_api_key(api_key: String) -> GeminiResult<Self> {
+        Self::with_config(
+            api_key,
+            "https://generativelanguage.googleapis.com/v1beta",
+            reqwest::header::HeaderMap::new(),
+        )
+    }
+
+    fn with_config(
+        api_key: String,
+        raw_base_url: &str,
+        default_headers: reqwest::header::HeaderMap,
+    ) -> GeminiResult<Self> {
+        let api_base_url = raw_base_url.trim_end_matches('/').to_string();
 
         let client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(10))
@@ -106,8 +106,6 @@ impl GeminiClient {
 
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            log_gemini_api_error(status, &error_text, is_flex);
-
             return Err(GeminiError::from_response(status.as_u16(), error_text));
         }
 
@@ -144,8 +142,6 @@ impl GeminiClient {
 
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            log_gemini_api_error(status, &error_text, false);
-
             return Err(GeminiError::from_response(status.as_u16(), error_text));
         }
 
@@ -170,8 +166,6 @@ impl GeminiClient {
 
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            log_gemini_api_error(status, &error_text, false);
-
             return Err(GeminiError::from_response(status.as_u16(), error_text));
         }
 
@@ -245,7 +239,6 @@ impl LanguageModelClient for GeminiClient {
         let status = response.status();
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            log_gemini_api_error(status, &error_text, false);
             return Err(GeminiError::from_response(status.as_u16(), error_text).into());
         }
 

@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/sidebar";
 import WorkspaceBilling from "@/components/workspace/billing";
 import WorkspaceDeployment from "@/components/workspace/deployment-settings/workspace-deployment.tsx";
+import LlmProfiles from "@/components/workspace/llm-profiles";
 import WorkspaceReports from "@/components/workspace/reports";
 import WorkspaceUsage from "@/components/workspace/usage";
 import WorkspaceIntegrations from "@/components/workspace/workspace-integrations";
@@ -83,6 +84,7 @@ const VALID_SECTIONS = new Set<Section>([
   "reports",
   "billing",
   "workspace-general",
+  "llm-profiles",
   "general",
   "project-api-keys",
   "provider-api-keys",
@@ -117,6 +119,7 @@ const SharedSettings = ({
   const isSectionEnabled = (section: Section): boolean => {
     if (section === "billing") return !!featureFlags[Feature.SUBSCRIPTION];
     if (section === "deployment") return !!featureFlags[Feature.DEPLOYMENT];
+    if (section === "llm-profiles") return !!featureFlags[Feature.LLM_PROFILES];
     return true;
   };
 
@@ -142,6 +145,9 @@ const SharedSettings = ({
       items.push({ label: "Data residency", section: "deployment", icon: Cloud });
     }
     items.push({ label: "Integrations", section: "integrations", icon: Unplug });
+    if (featureFlags[Feature.LLM_PROFILES]) {
+      items.push({ label: "LLM profiles", section: "llm-profiles", icon: Sparkles });
+    }
     items.push({ label: "Signal reports", section: "reports", icon: FileBarChart });
     if (featureFlags[Feature.SUBSCRIPTION]) {
       items.push({ label: "Billing", section: "billing", icon: CreditCard });
@@ -205,6 +211,8 @@ const SharedSettings = ({
         );
       case "workspace-general":
         return <WorkspaceSettings workspace={workspace} isOwner={isOwner} />;
+      case "llm-profiles":
+        return <LlmProfiles workspaceId={workspaceId} />;
       // Project sections
       case "general":
         return (

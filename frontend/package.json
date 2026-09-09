@@ -21,11 +21,11 @@
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs}": [
-      "oxfmt --write",
+      "oxfmt --write --no-error-on-unmatched-pattern",
       "oxlint --fix"
     ],
     "*.{json,md,mdx}": [
-      "oxfmt --write"
+      "oxfmt --write --no-error-on-unmatched-pattern"
     ]
   },
   "dependencies": {
