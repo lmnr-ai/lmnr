@@ -4,7 +4,7 @@
 //! `mode` as sibling fields, while storage stays one `signal_triggers` row
 //! (`value` / `filters` / `mode`) — so the evaluator and the drawer are untouched.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
 use regex::Regex;
@@ -16,8 +16,9 @@ use uuid::Uuid;
 use crate::cache::keys::SIGNAL_TRIGGERS_CACHE_KEY;
 use crate::cache::{Cache, CacheTrait};
 use crate::db::signal_triggers::{TriggerPatch, TriggerRow};
-use crate::db::signals::{CreateSignalError, SignalRow, SignalUpdate};
-use crate::db::{signal_triggers, signals};
+use crate::db::signals::{CreateSignalError, SignalRow, SignalUpdate, SignalVersionRow};
+use crate::db::{llm_profiles, projects, signal_triggers, signals};
+use crate::features::{Feature, is_feature_enabled};
 
 /// Search/sort silently drop non-identifier field names.
 static FIELD_NAME_RE: LazyLock<Regex> =
@@ -250,10 +251,20 @@ pub struct SignalResponse {
     pub trigger: Trigger,
     pub filters: Vec<Value>,
     pub mode: Mode,
+    pub version: i32,
+    /// Workspace LLM profile id + pinned model; both `null` when the signal
+    /// runs on the server's env `LLM_PROVIDER`. The name rides along for display.
+    pub llm_profile_id: Option<Uuid>,
+    pub llm_profile_name: Option<String>,
+    pub model: Option<String>,
 }
 
 impl SignalResponse {
-    fn new(row: SignalRow, trigger_row: Option<TriggerRow>) -> Self {
+    fn new(
+        row: SignalRow,
+        trigger_row: Option<TriggerRow>,
+        llm_profile_name: Option<String>,
+    ) -> Self {
         let sample_rate = row.metadata.get("sampleRate").and_then(Value::as_i64);
         let disabled = row
             .metadata
@@ -280,8 +291,101 @@ impl SignalResponse {
             trigger,
             filters,
             mode,
+            version: row.version,
+            llm_profile_id: row.llm_profile_id,
+            llm_profile_name,
+            model: row.llm_model,
         }
     }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignalVersionResponse {
+    pub version: i32,
+    /// Stored snapshot blob.
+    pub definition: Value,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl From<SignalVersionRow> for SignalVersionResponse {
+    fn from(row: SignalVersionRow) -> Self {
+        Self {
+            version: row.version,
+            definition: row.definition,
+            created_at: row.created_at,
+        }
+    }
+}
+
+/// Profile name for `row`, when it has one. Absent rows (a profile deleted
+/// under RESTRICT cannot happen, but a stale cache row could) read as `None`.
+async fn llm_profile_name(pool: &PgPool, row: &SignalRow) -> Result<Option<String>, CrudError> {
+    let Some(profile_id) = row.llm_profile_id else {
+        return Ok(None);
+    };
+    llm_profiles::get_llm_profile_name(pool, profile_id)
+        .await
+        .map_err(CrudError::Internal)
+}
+
+/// Resolves the CLI's `llmProfileId` + `model` pair to the stored route.
+///
+/// Self-hosted (`Feature::LlmProfiles`): a complete pair is required when
+/// `required`, a half pair is rejected, the id must exist in the project's
+/// workspace and the model must be one of the profile's. On Laminar Cloud any
+/// profile field is rejected. `Ok(None)` = env routing / leave stored.
+async fn resolve_llm_route(
+    pool: &PgPool,
+    project_id: Uuid,
+    llm_profile_id: Option<Uuid>,
+    model: Option<String>,
+    required: bool,
+) -> Result<Option<(Uuid, String)>, CrudError> {
+    let model = model
+        .map(|m| m.trim().to_string())
+        .filter(|m| !m.is_empty());
+    let profiles_enabled = is_feature_enabled(Feature::LlmProfiles);
+
+    let (profile_id, model) = match (llm_profile_id, model) {
+        (None, None) if required && profiles_enabled => {
+            return Err(CrudError::Validation(
+                "llmProfileId and model are required: pick a workspace LLM profile (`lmnr-cli llm-profile list` or Settings → LLM profiles) and one of its models".to_string(),
+            ));
+        }
+        (None, None) => return Ok(None),
+        _ if !profiles_enabled => {
+            return Err(CrudError::Validation(
+                "LLM profiles are not available on Laminar Cloud".to_string(),
+            ));
+        }
+        (Some(profile_id), Some(model)) => (profile_id, model),
+        _ => {
+            return Err(CrudError::Validation(
+                "llmProfileId and model must be provided together".to_string(),
+            ));
+        }
+    };
+
+    let workspace_id = projects::get_project_workspace_id(pool, project_id)
+        .await
+        .map_err(CrudError::Internal)?
+        .ok_or_else(|| CrudError::Internal(anyhow::anyhow!("project {project_id} not found")))?;
+    let (name, models) = llm_profiles::get_llm_profile_route_info(pool, workspace_id, profile_id)
+        .await
+        .map_err(CrudError::Internal)?
+        .ok_or_else(|| {
+            CrudError::Validation(format!(
+                "LLM profile {profile_id} was not found in this workspace"
+            ))
+        })?;
+    if !models.iter().any(|m| m == &model) {
+        return Err(CrudError::Validation(format!(
+            "Model \"{model}\" is not part of LLM profile \"{name}\". Available: {}",
+            models.join(", ")
+        )));
+    }
+    Ok(Some((profile_id, model)))
 }
 
 /// Matches `DEFAULT_SIGNAL_TRIGGER_VALUE` / `DEFAULT_SIGNAL_TRIGGER_FILTERS`.
@@ -314,6 +418,12 @@ pub struct SignalInput {
     /// Absent or `null` → realtime.
     #[serde(default)]
     pub mode: Option<Mode>,
+    /// Workspace LLM profile id + one of its models. Required together on
+    /// self-hosted deployments; rejected on Laminar Cloud.
+    #[serde(default)]
+    pub llm_profile_id: Option<Uuid>,
+    #[serde(default)]
+    pub model: Option<String>,
 }
 
 pub async fn create_signal(
@@ -333,6 +443,8 @@ pub async fn create_signal(
     let mode = input.mode.unwrap_or_default();
 
     let metadata = build_signal_metadata(input.sample_rate, input.disabled.unwrap_or(false));
+    let llm_route =
+        resolve_llm_route(pool, project_id, input.llm_profile_id, input.model, true).await?;
 
     let (signal, trigger_row) = signals::create_signal_with_alerts(
         pool,
@@ -346,12 +458,14 @@ pub async fn create_signal(
         &trigger.to_conditions(),
         &Value::Array(filters),
         mode.to_i16(),
+        llm_route.as_ref(),
     )
     .await?;
 
     invalidate_trigger_cache(cache, project_id).await;
 
-    Ok(SignalResponse::new(signal, Some(trigger_row)))
+    let profile_name = llm_profile_name(pool, &signal).await?;
+    Ok(SignalResponse::new(signal, Some(trigger_row), profile_name))
 }
 
 async fn invalidate_trigger_cache(cache: &Cache, project_id: Uuid) {
@@ -377,7 +491,8 @@ pub async fn get_signal(
         .await
         .map_err(CrudError::Internal)?;
 
-    Ok(SignalResponse::new(row, trigger_row))
+    let profile_name = llm_profile_name(pool, &row).await?;
+    Ok(SignalResponse::new(row, trigger_row, profile_name))
 }
 
 pub async fn list_signals(
@@ -397,18 +512,42 @@ pub async fn list_signals(
     .await
     .map_err(CrudError::Internal)?;
 
+    let profile_ids: Vec<Uuid> = rows.iter().filter_map(|row| row.llm_profile_id).collect();
+    let profile_names: HashMap<Uuid, String> =
+        llm_profiles::get_llm_profile_names(pool, &profile_ids)
+            .await
+            .map_err(CrudError::Internal)?;
+
     Ok(rows
         .into_iter()
         .map(|row| {
             let trigger_row = triggers.remove(&row.id);
-            SignalResponse::new(row, trigger_row)
+            let profile_name = row
+                .llm_profile_id
+                .and_then(|id| profile_names.get(&id).cloned());
+            SignalResponse::new(row, trigger_row, profile_name)
         })
         .collect())
+}
+
+pub async fn list_signal_versions(
+    pool: &PgPool,
+    project_id: Uuid,
+    signal_id: Uuid,
+) -> Result<Vec<SignalVersionResponse>, CrudError> {
+    signals::get_signal_row(pool, project_id, signal_id)
+        .await?
+        .ok_or(CrudError::SignalNotFound)?;
+
+    let rows = signals::list_signal_versions(pool, project_id, signal_id).await?;
+    Ok(rows.into_iter().map(SignalVersionResponse::from).collect())
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateSignalInput {
+    #[serde(default)]
+    pub name: Option<String>,
     #[serde(default)]
     pub prompt: Option<String>,
     #[serde(default)]
@@ -426,6 +565,11 @@ pub struct UpdateSignalInput {
     pub filters: Option<Vec<Value>>,
     #[serde(default)]
     pub mode: Option<Mode>,
+    /// Absent = leave stored; set together to re-route the signal.
+    #[serde(default)]
+    pub llm_profile_id: Option<Uuid>,
+    #[serde(default)]
+    pub model: Option<String>,
 }
 
 pub async fn update_signal(
@@ -435,6 +579,11 @@ pub async fn update_signal(
     signal_id: Uuid,
     input: UpdateSignalInput,
 ) -> Result<SignalResponse, CrudError> {
+    let name = input
+        .name
+        .as_deref()
+        .map(validate_signal_name)
+        .transpose()?;
     if let Some(prompt) = &input.prompt
         && prompt.trim().is_empty()
     {
@@ -468,26 +617,30 @@ pub async fn update_signal(
     };
 
     let sample_rate = input.sample_rate.map(|inner| inner.map(|rate| rate as i16));
+    let llm_route =
+        resolve_llm_route(pool, project_id, input.llm_profile_id, input.model, false).await?;
 
     let (updated, trigger_row) = signals::update_signal(
         pool,
         project_id,
         signal_id,
         SignalUpdate {
+            name,
             prompt: input.prompt,
             structured_output_schema: input.structured_output,
             sample_rate,
             disabled: input.disabled,
+            llm_route,
         },
         patch,
     )
-    .await
-    .map_err(CrudError::Internal)?
+    .await?
     .ok_or(CrudError::SignalNotFound)?;
 
     invalidate_trigger_cache(cache, project_id).await;
 
-    Ok(SignalResponse::new(updated, trigger_row))
+    let profile_name = llm_profile_name(pool, &updated).await?;
+    Ok(SignalResponse::new(updated, trigger_row, profile_name))
 }
 
 pub async fn delete_signal(
@@ -505,7 +658,9 @@ pub async fn delete_signal(
     invalidate_trigger_cache(cache, project_id).await;
     purge_signal_from_clickhouse(clickhouse, project_id, signal_id).await;
 
-    Ok(SignalResponse::new(deleted, None))
+    // The row is gone; name lookup still works since profiles outlive signals.
+    let profile_name = llm_profile_name(pool, &deleted).await?;
+    Ok(SignalResponse::new(deleted, None, profile_name))
 }
 
 /// Link rows first — they're resolved by `event_id` against `signal_events`.
@@ -565,8 +720,8 @@ fn validate_sample_rate(rate: i64) -> Result<(), CrudError> {
     Ok(())
 }
 
-fn validate_signal_input(input: &mut SignalInput) -> Result<(), CrudError> {
-    let trimmed = input.name.trim();
+fn validate_signal_name(name: &str) -> Result<String, CrudError> {
+    let trimmed = name.trim();
     if trimmed.is_empty() {
         return Err(CrudError::Validation("Name is required".to_string()));
     }
@@ -575,9 +730,11 @@ fn validate_signal_input(input: &mut SignalInput) -> Result<(), CrudError> {
             "Name must be at most {SIGNAL_NAME_MAX_LEN} characters"
         )));
     }
-    if trimmed.len() != input.name.len() {
-        input.name = trimmed.to_string();
-    }
+    Ok(trimmed.to_string())
+}
+
+fn validate_signal_input(input: &mut SignalInput) -> Result<(), CrudError> {
+    input.name = validate_signal_name(&input.name)?;
 
     if input.prompt.trim().is_empty() {
         return Err(CrudError::Validation("Prompt is required".to_string()));

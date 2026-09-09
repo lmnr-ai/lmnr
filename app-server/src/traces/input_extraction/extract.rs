@@ -128,6 +128,7 @@ fn build_request(signposted_text: &str) -> ProviderRequest {
         // the recurring cost of the pipeline. Watch the `fallback` resolution
         // rate before moving it up.
         model_size: Some(ModelSize::Small),
+        llm_profile: None,
     }
 }
 

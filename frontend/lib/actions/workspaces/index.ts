@@ -6,17 +6,12 @@ import { REPORT_TARGET_TYPE } from "@/lib/actions/reports/types";
 import { createSignal } from "@/lib/actions/signals";
 import { getServerSession } from "@/lib/auth-session";
 import { defaultReports } from "@/lib/db/default-charts.ts";
-import {
-  DEFAULT_SIGNAL,
-  DEFAULT_SIGNAL_TRIGGER_FILTERS,
-  DEFAULT_SIGNAL_TRIGGER_VALUE,
-} from "@/lib/db/default-signals.ts";
+import { DEFAULT_SIGNAL } from "@/lib/db/default-signals.ts";
 import { db } from "@/lib/db/drizzle";
 import {
   membersOfWorkspaces,
   reports,
   reportTargets,
-  signalTriggers,
   subscriptionTiers,
   workspaceAddons,
   workspaces,
@@ -93,22 +88,16 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
     if (isFirstProject && projectId) {
       // Route through createSignal so the default Failure Detector signal gets
       // the same SIGNAL_EVENT alert + creator email target as a UI-created signal.
-      const signal = await createSignal({
-        projectId,
-        name: DEFAULT_SIGNAL.name,
-        prompt: DEFAULT_SIGNAL.prompt,
-        structuredOutput: DEFAULT_SIGNAL.structuredOutputSchema,
-        subscriberEmail: userEmail ?? undefined,
-      });
-
-      if (signal) {
-        await db.insert(signalTriggers).values({
+      await createSignal(
+        {
           projectId,
-          signalId: signal.id,
-          value: DEFAULT_SIGNAL_TRIGGER_VALUE,
-          filters: DEFAULT_SIGNAL_TRIGGER_FILTERS,
-        });
-      }
+          name: DEFAULT_SIGNAL.name,
+          prompt: DEFAULT_SIGNAL.prompt,
+          structuredOutput: DEFAULT_SIGNAL.structuredOutputSchema,
+          subscriberEmail: userEmail ?? undefined,
+        },
+        { requireLlmProfile: false }
+      );
 
       if (userEmail && insertedReports.length > 0) {
         await db.insert(reportTargets).values(

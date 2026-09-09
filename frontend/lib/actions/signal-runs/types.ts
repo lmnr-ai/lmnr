@@ -40,6 +40,8 @@ export type SignalRun = {
   inputTokens: number;
   cacheReadTokens: number;
   outputTokens: number;
+  /** `signals.version` at admit; 0 predates versioning. */
+  signalVersion: number;
 };
 
 export type SignalRunRow = Pick<
@@ -54,6 +56,7 @@ export type SignalRunRow = Pick<
   | "inputTokens"
   | "cacheReadTokens"
   | "outputTokens"
+  | "signalVersion"
 > & {
   // Priced server-side (`signalTokenCostMicroUsd`) so env rate overrides are honoured and match metered usage.
   costMicroUsd: number;

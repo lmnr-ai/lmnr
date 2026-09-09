@@ -5,11 +5,11 @@ import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces } from "@/lib/db/migrations/schema";
 import { AuthorizationError } from "@/lib/errors";
-import { type WorkspaceRole } from "@/lib/workspaces/types";
+import { WORKSPACE_ROLES, type WorkspaceRole } from "@/lib/workspaces/types";
 
 const CheckWorkspaceRoleSchema = z.object({
   workspaceId: z.guid(),
-  roles: z.array(z.enum(["member", "admin", "owner"])).min(1),
+  roles: z.array(z.enum(WORKSPACE_ROLES)).min(1),
 });
 
 export const checkUserWorkspaceRole = async (input: z.infer<typeof CheckWorkspaceRoleSchema>) => {

@@ -17,6 +17,7 @@ import {
   uniqueIndex,
   primaryKey,
   pgEnum,
+  check,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -142,6 +143,10 @@ export const signals = pgTable(
     structuredOutputSchema: jsonb("structured_output_schema").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     metadata: jsonb().default({}).notNull(),
+    // Newest `signal_versions.version` row.
+    version: integer().default(1).notNull(),
+    llmProfileId: uuid("llm_profile_id"),
+    llmModel: text("llm_model"),
   },
   (table) => [
     foreignKey({
@@ -149,7 +154,38 @@ export const signals = pgTable(
       foreignColumns: [projects.id],
       name: "signals_project_id_fkey",
     }).onDelete("cascade"),
+    // RESTRICT: a profile/model in use cannot be deleted; the UI surfaces "used by N signals".
+    foreignKey({
+      columns: [table.llmProfileId, table.llmModel],
+      foreignColumns: [llmProfileModels.profileId, llmProfileModels.name],
+      name: "signals_llm_profile_model_fkey",
+    }).onDelete("restrict"),
     unique("signals_project_id_name_key").on(table.projectId, table.name),
+    check("signals_llm_profile_pair_check", sql`(llm_profile_id IS NULL) = (llm_model IS NULL)`),
+  ]
+);
+
+export const signalVersions = pgTable(
+  "signal_versions",
+  {
+    projectId: uuid("project_id").notNull(),
+    signalId: uuid("signal_id").notNull(),
+    version: integer().notNull(),
+    definition: jsonb().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_versions_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.signalId],
+      foreignColumns: [signals.id],
+      name: "signal_versions_signal_id_fkey",
+    }).onDelete("cascade"),
+    primaryKey({ columns: [table.signalId, table.version], name: "signal_versions_pkey" }),
   ]
 );
 
@@ -534,6 +570,48 @@ export const providerApiKeys = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
+  ]
+);
+
+// Workspace-wide LLM credentials for self-hosted signal runs. `config` holds the
+// provider's non-secret fields; `secrets` is one AEAD blob ({nonce, value} hex,
+// AAD = profile id) holding every credential value.
+export const llmProfiles = pgTable(
+  "llm_profiles",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    name: text().notNull(),
+    provider: text().notNull(),
+    config: jsonb().default({}).notNull(),
+    secrets: jsonb().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "llm_profiles_workspace_id_fkey",
+    }).onDelete("cascade"),
+    unique("llm_profiles_workspace_id_name_key").on(table.workspaceId, table.name),
+  ]
+);
+
+export const llmProfileModels = pgTable(
+  "llm_profile_models",
+  {
+    profileId: uuid("profile_id").notNull(),
+    name: text().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.profileId, table.name], name: "llm_profile_models_pkey" }),
+    foreignKey({
+      columns: [table.profileId],
+      foreignColumns: [llmProfiles.id],
+      name: "llm_profile_models_profile_id_fkey",
+    }).onDelete("cascade"),
   ]
 );
 

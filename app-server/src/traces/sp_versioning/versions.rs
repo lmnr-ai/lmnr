@@ -5,8 +5,10 @@
 //! Split keys by access pattern: the registry is a tiny list read per
 //! classification; line sets are read per live version by the cheap match;
 //! regexes are read only by resolution consumers (summarizer). A registry
-//! entry whose line/regex keys lapsed independently is treated as unknown —
-//! the next full run re-mints, so drift self-heals. A registered version
+//! entry whose line-set key lapsed independently is skipped by the cheap
+//! match; the next full run re-derives the hash and restores the key. All
+//! three key families share `VERSION_TTL_SECONDS`, slid by `touch_version`
+//! on probe hits so only versions nothing matches age out. A registered version
 //! with NO regex key means generation is pending (the extraction worker
 //! hasn't finished) or permanently failed — readers fall back to the raw
 //! prompt.
@@ -112,6 +114,44 @@ pub async fn cheap_match(
         }
     }
     Ok(best.map(|(_, hash)| hash))
+}
+
+/// Slide the TTLs of a version that just resolved a prompt — the registry it
+/// lives in, its line set, and its regex list — so a version still matching
+/// prompts never expires while one nothing matched for `VERSION_TTL_SECONDS`
+/// ages out. `EXPIRE` on a missing key is a no-op, so an already-lapsed regex
+/// key stays absent (its absence is the demand-driven generation signal).
+pub async fn touch_version(cache: &Cache, project_id: Uuid, agent_hash: &str, version_hash: &str) {
+    let ttl = crate::env::static_sp::VERSION_TTL_SECONDS.get();
+    for key in [
+        versions_cache_key(project_id, agent_hash),
+        version_lines_cache_key(project_id, agent_hash, version_hash),
+        version_regex_cache_key(project_id, agent_hash, version_hash),
+    ] {
+        if let Err(e) = cache.set_ttl(&key, ttl).await {
+            log::warn!("[STATIC_SP_V2] Failed to refresh TTL on {key}: {e:?}");
+        }
+    }
+}
+
+/// (Re)write a registered version's line set. Covers the key lapsing ahead of
+/// the registry entry (the registry is rewritten on every mint for the agent,
+/// the line set only at its own mint), after which the cheap match would skip
+/// the version forever and every prompt of that shape would take the
+/// full-algorithm path. Idempotent for a given hash, so callers write
+/// unconditionally. No registry RMW, so no mint lock is needed.
+pub async fn restore_version_lines(
+    cache: &Cache,
+    project_id: Uuid,
+    agent_hash: &str,
+    version_hash: &str,
+    static_lines: &[u64],
+) {
+    let ttl = crate::env::static_sp::VERSION_TTL_SECONDS.get();
+    let lines_key = version_lines_cache_key(project_id, agent_hash, version_hash);
+    if let Err(e) = cache.insert_with_ttl(&lines_key, static_lines, ttl).await {
+        log::warn!("[STATIC_SP_V2] Failed to restore version lines {lines_key}: {e:?}");
+    }
 }
 
 /// Consumer (the signals summarizer) is signals-gated.

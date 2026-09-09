@@ -40,4 +40,6 @@ export const getDefaultValues = (projectId: string, defaultMode: number): Manage
   triggers: getDefaultTriggers(defaultMode),
   sampleRate: null,
   disabled: false,
+  llmProfileId: null,
+  llmModel: null,
 });

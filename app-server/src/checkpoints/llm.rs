@@ -12,7 +12,10 @@ use uuid::Uuid;
 
 use crate::{
     instrumentation::spans::{InternalSpan, SpanType, record_error, set_output, set_usage},
-    llm::{LlmClient, ProviderContent, ProviderRequest, ProviderResponse, ProviderResult},
+    llm::{
+        LlmClient, ModelProvider, ProviderContent, ProviderRequest, ProviderResponse,
+        ProviderResult,
+    },
     traces::span_attributes::CHECKPOINT_INTERNAL_SPAN,
 };
 
@@ -78,7 +81,7 @@ where
         return llm_client.generate_content(request).await;
     };
 
-    let (model, provider) = llm_client.resolve_model_provider(request);
+    let ModelProvider { model, provider } = llm_client.resolve_model_provider(request).await;
     let span = {
         let _enter = root.span().map(|s| s.enter());
         InternalSpan::wrap(make_span(), SpanType::LLM)

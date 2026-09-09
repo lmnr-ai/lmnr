@@ -5,12 +5,11 @@ import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import DiffView from "@/components/ui/diff";
+import { prettyJson } from "@/components/ui/diff/diff";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { type AgentVersionItem } from "@/lib/actions/agents";
 import { cn, formatTimestamp } from "@/lib/utils";
-
-import { prettyJson } from "./diff";
-import DiffView from "./diff-view";
 
 interface VersionCardProps {
   version: AgentVersionItem;
