@@ -18,6 +18,9 @@ pub const CHECKPOINTS_INTERNAL_PROJECT_ID: &str = "CHECKPOINTS_INTERNAL_PROJECT_
 pub const STATIC_SP_INTERNAL_PROJECT_ID: &str = "STATIC_SP_INTERNAL_PROJECT_ID";
 /// Signal job self-tracing destination project id.
 pub const SIGNALS_INTERNAL_PROJECT_ID: &str = "SIGNAL_JOB_INTERNAL_PROJECT_ID";
+/// Cluster-naming self-tracing destination project id; invalid or unset disables export.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const CLUSTERING_INTERNAL_PROJECT_ID: &str = "CLUSTERING_INTERNAL_PROJECT_ID";
 
 /// `producer` | `consumer` | unset (= both). Selects which halves run.
 pub const OPERATION_MODE: &str = "OPERATION_MODE";
