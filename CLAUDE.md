@@ -110,7 +110,6 @@ Keep comments short: a single terse line covering the WHY (non-obvious constrain
 - Every env var is registered in `app-server/src/env/` (typed `NumEnv`/`StringEnv`/`BoolEnv` descriptors) — never inline a string-literal env name at a call site.
 - `mod env` shadows `std::env`: inside files with `use crate::env;`, write `std::env::var(...)` fully qualified.
 - Backend `Feature` flags are fine-grained — one flag per feature; never gate a new feature on another feature's flag.
-- `src/db/` is SQL only (no cache, no business logic); DB queries and cache keys are scoped by project id, or workspace id when there is no project.
 - More: `docs/internal/app-server.md`, and `docs/internal/code-style.md` for the cross-cutting style rules.
 
 ## Frontend conventions
