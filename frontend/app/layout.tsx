@@ -5,7 +5,6 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { type PropsWithChildren } from "react";
 
 import BasePathFetchShim from "@/components/common/base-path-fetch-shim";
-import NotificationAttributionTracker from "@/components/common/notification-attribution-tracker";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flags-context";
@@ -81,7 +80,6 @@ export default async function RootLayout({ children }: PropsWithChildren) {
         <BasePathFetchShim />
         <FeatureFlagsProvider flags={featureFlags}>
           <PostHogProvider telemetryEnabled={posthogEnabled} email={email}>
-            <NotificationAttributionTracker />
             <TooltipProvider delayDuration={0}>
               <NuqsAdapter>
                 <div className="flex">
