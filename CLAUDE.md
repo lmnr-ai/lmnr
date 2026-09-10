@@ -47,6 +47,8 @@ cargo test -- --nocapture  # Run tests
 
 - The `aws-*` crates in `Cargo.lock` require **rustc ≥ 1.94.1**; on 1.94.0 `cargo check` fails during resolution ("requires rustc 1.94.1") before compiling anything — `rustup update stable`.
 - `cargo check --features signals` and `cargo fmt` on `main.rs` both fail in OSS — the `signals` feature gates modules that live only in `lmnr-private`. Default-feature `cargo check` is the real gate; format leaf files individually with `rustfmt --edition 2024 <file>`. Full stub workaround list: `docs/internal/app-server.md`.
+- NEVER run `cargo fmt`, even as `cargo fmt -- <file>` (the file arg does NOT scope it). The tree is not rustfmt-clean at HEAD, so it rewrites ~40 unrelated files and buries the real diff. Use `rustfmt --edition 2024 <file>` on the files you changed.
+- `cargo test --lib` fails with "no library targets found" — `app-server` is a binary crate. Use `cargo test --bin app-server <filter>`; the filter takes a single path prefix, not a list.
 
 ## Local Development Setup
 
@@ -103,9 +105,13 @@ pnpm db:generate   # generate migrations AND strip "public". qualifiers (require
 - ClickHouse migrations (`frontend/lib/clickhouse/migrations/`) run once and are checksummed — NEVER modify an applied migration file; always add a new numbered one.
 - Full details (drizzle-kit quirks, snapshots, `POSTGRES_SCHEMA`): `docs/internal/database.md`.
 
-## Comment style
+## Comments
 
-Keep comments short: a single terse line covering the WHY (non-obvious constraint, invariant, workaround). No multi-paragraph rationale blocks. Prefer removing a comment once identifier names make intent obvious.
+Comments are welcome when they add a WHY that names cannot: a constraint, invariant, or workaround. Keep them to a line or two. Skip comments that restate the next lines, and skip changelog notes ("previously X, now Y") — describe the current code, not the diff. Longer design notes belong in `docs/internal/`.
+
+```rust
+// Exclusive parks happen after admission; a wait_count>0 wake already owns the claim.
+```
 
 ## App-server conventions
 
@@ -160,3 +166,4 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, an
 | `docs/internal/frontend-app.md` | Settings pages, onboarding, base-path serving, render templates, SSE proxy routes, landing page, agent stubs |
 | `docs/internal/frontend-best-practices.md` | Any new frontend component/table/store work |
 | `docs/internal/app-server.md` | App-server env vars, local dev env quirks, signals-feature build stubs |
+| `docs/internal/oss-private-sync.md` | Copying code between `lmnr` and `lmnr-private` — which files may differ, auditing drift, back-porting a private PR |
