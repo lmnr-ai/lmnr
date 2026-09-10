@@ -152,45 +152,47 @@ export default function TemplateViewToggle({
                   })}
                 </CommandGroup>
                 <CommandSeparator alwaysRender />
-                <CommandInput
-                  placeholder="Search templates…"
-                  value={search}
-                  onValueChange={setSearch}
-                  className="h-8 py-1 text-xs"
-                />
-                <CommandGroup heading="Custom" className={GROUP_CLASS}>
-                  {filteredTemplates.length === 0 ? (
-                    <div className="px-2 py-3 text-center text-xs text-muted-foreground">
-                      {templates?.length ? "No matches." : "No templates yet."}
-                    </div>
-                  ) : (
-                    filteredTemplates.map((t) => {
-                      const active = isCustom && selectedTemplate?.id === t.id;
-                      return (
-                        <CommandItem
-                          key={t.id}
-                          value={`template:${t.id}`}
-                          onSelect={() => handlePickTemplate(t.id)}
-                          className="group text-xs"
-                        >
-                          <span className="flex-1 truncate">{t.name}</span>
-                          <div className="ml-2 flex shrink-0 items-center justify-end gap-1">
-                            <button
-                              type="button"
-                              aria-label={`Edit ${t.name}`}
-                              onClick={(e) => handleEditTemplate(e, t.id)}
-                              className="inline-flex size-5 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 group-aria-selected:opacity-100 focus-visible:opacity-100"
-                            >
-                              <PencilIcon className="size-2.5" />
-                            </button>
-                            {active && <Check className="size-3.5" />}
-                          </div>
-                        </CommandItem>
-                      );
-                    })
-                  )}
-                </CommandGroup>
-                <CommandSeparator alwaysRender />
+                {(templates?.length ?? 0) > 5 && (
+                  <CommandInput
+                    placeholder="Search templates…"
+                    value={search}
+                    onValueChange={setSearch}
+                    className="h-8 py-1 text-xs"
+                  />
+                )}
+                {(templates?.length ?? 0) > 0 && (
+                  <CommandGroup heading="Custom" className={GROUP_CLASS}>
+                    {filteredTemplates.length === 0 ? (
+                      <div className="px-2 py-3 text-center text-xs text-muted-foreground">No matches.</div>
+                    ) : (
+                      filteredTemplates.map((t) => {
+                        const active = isCustom && selectedTemplate?.id === t.id;
+                        return (
+                          <CommandItem
+                            key={t.id}
+                            value={`template:${t.id}`}
+                            onSelect={() => handlePickTemplate(t.id)}
+                            className="group text-xs"
+                          >
+                            <span className="flex-1 truncate">{t.name}</span>
+                            <div className="ml-2 flex shrink-0 items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                aria-label={`Edit ${t.name}`}
+                                onClick={(e) => handleEditTemplate(e, t.id)}
+                                className="inline-flex size-5 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 group-aria-selected:opacity-100 focus-visible:opacity-100"
+                              >
+                                <PencilIcon className="size-2.5" />
+                              </button>
+                              {active && <Check className="size-3.5" />}
+                            </div>
+                          </CommandItem>
+                        );
+                      })
+                    )}
+                  </CommandGroup>
+                )}
+                {(templates?.length ?? 0) > 0 && <CommandSeparator alwaysRender />}
                 <CommandGroup className={GROUP_CLASS}>
                   <CommandItem onSelect={handleCreate} className="text-xs text-muted-foreground">
                     <Plus className="mr-1.5 size-3.5" />
