@@ -45,7 +45,7 @@ export default function SpanActionsDropdown({ projectId, span }: SpanActionsDrop
           <Button
             variant="ghost"
             aria-label="Span actions"
-            className="min-w-0 justify-start gap-1 px-1 text-base font-medium hover:bg-surface-up"
+            className="w-full min-w-0 justify-start gap-1 px-1 text-base font-medium hover:bg-surface-up"
           >
             <span className="truncate">{span.name}</span>
             <ChevronDown className="size-3.5 shrink-0" />
