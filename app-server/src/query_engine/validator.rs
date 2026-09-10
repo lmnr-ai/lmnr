@@ -97,6 +97,13 @@ fn blocked_functions() -> &'static HashSet<&'static str> {
             // Cluster execution
             "cluster",
             "clusterallreplicas",
+            // Table functions that read other tables by name/regex, so they
+            // sidestep the allowlist. Unreachable from `FROM` (the allowlist
+            // rejects the name), but an `ARRAY JOIN` operand skips that check.
+            "merge",
+            "view",
+            "viewifpermitted",
+            "mergetreeindex",
             // Misc dangerous
             "executable",
             "azureblobstorage",
@@ -667,22 +674,23 @@ impl QueryValidator {
         // "allowlisted name ⇒ always a physical table ⇒ always rewritten".
         self.validate_cte_names(&statement)?;
 
-        // ARRAY JOIN right-hand sides are array columns, not table references —
-        // identified by source span so they're skipped (not rewritten into
-        // `_v0(...)`) across all passes. The rewriter leaves these nodes intact,
-        // so the same spans stay valid for the post-rewrite check; compute once.
-        // Only proven columns are recorded; anything else is rejected here.
-        // Runs after `validate_cte_names` because it relies on that invariant.
-        let array_join_spans = collect_array_join_columns(&statement, &self.registry)?;
+        // ARRAY JOIN right-hand sides are array columns or expressions over
+        // them, not table references — identified by source span so the passes
+        // below can skip them instead of rewriting them into `_v0(...)`. The
+        // rewriter leaves these nodes intact, so the same spans stay valid for
+        // the post-rewrite check; compute once. Only operands proven not to be
+        // tables are recorded; anything else is rejected here. Runs after
+        // `validate_cte_names` because it relies on that invariant.
+        let array_join_operands = collect_array_join_operands(&statement, &self.registry)?;
 
-        self.validate_tables_and_columns(&statement, &array_join_spans)?;
+        self.validate_tables_and_columns(&statement, &array_join_operands)?;
 
         let cte_names = collect_cte_names(&statement);
         let mut rewriter = ViewRewriter {
             registry: &self.registry,
             project_id,
             cte_names,
-            array_join_spans: &array_join_spans,
+            array_join_operands: &array_join_operands,
             where_stack: Vec::new(),
             error: None,
         };
@@ -698,7 +706,7 @@ impl QueryValidator {
         // function), and no blocked function may have been introduced. A
         // violation means a rewrite escape — fail closed rather than ship
         // unscoped SQL to ClickHouse.
-        self.validate_post_rewrite(&statement, &array_join_spans)?;
+        self.validate_post_rewrite(&statement, &array_join_operands)?;
 
         Ok(statement.to_string())
     }
@@ -717,12 +725,12 @@ impl QueryValidator {
 
     /// Re-scan the rewritten statement: assert every allowlisted physical table
     /// reference was rewritten away and no blocked function was introduced.
-    /// `array_join_spans` are exempt — those array-column relations are
+    /// `ARRAY JOIN` array columns are exempt — those relations are
     /// intentionally left un-rewritten (they aren't tables).
     fn validate_post_rewrite(
         &self,
         statement: &Statement,
-        array_join_spans: &HashSet<Span>,
+        array_join_operands: &HashSet<Span>,
     ) -> Result<(), String> {
         let mut scan = BlockedScanner { blocked: None };
         let _ = statement.visit(&mut scan);
@@ -732,7 +740,7 @@ impl QueryValidator {
 
         let mut checker = PostRewriteChecker {
             registry: &self.registry,
-            array_join_spans,
+            array_join_operands,
             error: None,
         };
         let _ = statement.visit(&mut checker);
@@ -764,13 +772,13 @@ impl QueryValidator {
     fn validate_tables_and_columns(
         &self,
         statement: &Statement,
-        array_join_spans: &HashSet<Span>,
+        array_join_operands: &HashSet<Span>,
     ) -> Result<(), String> {
         let cte_names = collect_cte_names(statement);
         let mut checker = TableColumnChecker {
             registry: &self.registry,
             cte_names: &cte_names,
-            array_join_spans,
+            array_join_operands,
             error: None,
         };
         let _ = statement.visit(&mut checker);
@@ -823,9 +831,14 @@ fn collect_cte_names(statement: &Statement) -> HashSet<String> {
 /// Source-span of an `ObjectName`'s last identifier, used to uniquely identify a
 /// particular relation occurrence in the original SQL (two textually identical
 /// names at different positions have different spans).
+///
+/// `Span::empty()` is rejected: it means "no source location", which identifies
+/// nothing. Idents synthesized rather than parsed carry it — including the
+/// `_v0` view names [`ViewRewriter`] builds — so treating it as a real span
+/// would let one exempted operand exempt every synthesized relation too.
 fn relation_name_span(name: &ObjectName) -> Option<Span> {
     match name.0.last()? {
-        ObjectNamePart::Identifier(ident) => Some(ident.span),
+        ObjectNamePart::Identifier(ident) if ident.span != Span::empty() => Some(ident.span),
         _ => None,
     }
 }
@@ -837,21 +850,27 @@ fn is_array_join(op: &JoinOperator) -> bool {
     )
 }
 
-/// Rejection message for an `ARRAY JOIN` right-hand side that cannot be an array
-/// column. A qualified name (`s.tags`) is indistinguishable from a
-/// database-qualified table (`default.spans`) at this level, so both are refused
-/// and the message points at the workaround.
+/// Rejection message for an `ARRAY JOIN` right-hand side that can be neither an
+/// array column nor an expression over one (`UNNEST(...)`, a nested join, a
+/// three-part name).
 const ARRAY_JOIN_NOT_A_COLUMN: &str =
-    "ARRAY JOIN must reference an unqualified array column of the joined table";
+    "ARRAY JOIN must reference an array column or an expression over one";
 
-/// The relations an `ARRAY JOIN` in this `FROM` item can draw its array column
+/// A relation an `ARRAY JOIN` in the same `FROM` item can draw its array column
 /// from: the left-most relation plus anything attached by a regular join.
-/// `None` means at least one of them has an unknown column set (a CTE, subquery
-/// or table function), so no column-level claim can be made about the item.
+struct ScopeRelation<'a> {
+    /// What a column qualifier has to say to address it — the alias, or the bare
+    /// table name when unaliased. `None` for an unaliased subquery, which no
+    /// qualifier can name.
+    name: Option<String>,
+    /// `None` when the column set is unknown (a CTE or a subquery).
+    schema: Option<&'a TableSchema>,
+}
+
 fn array_join_scope<'a>(
     twj: &TableWithJoins,
     registry: &'a TableRegistry,
-) -> Option<Vec<&'a TableSchema>> {
+) -> Vec<ScopeRelation<'a>> {
     let relations = std::iter::once(&twj.relation).chain(
         twj.joins
             .iter()
@@ -859,21 +878,86 @@ fn array_join_scope<'a>(
             .map(|j| &j.relation),
     );
 
-    let mut schemas = Vec::new();
-    for relation in relations {
-        let TableFactor::Table {
-            name, args: None, ..
-        } = relation
-        else {
-            return None;
-        };
-        // A name that is not allowlisted is a CTE reference — an unknown table is
-        // rejected later by `TableColumnChecker`, and `validate_cte_names` has
-        // already refused any CTE that shadows an allowlisted name. Either way
-        // its columns are not knowable here.
-        schemas.push(registry.get_table_schema(&relation_table_name(name))?);
+    relations
+        .map(|relation| match relation {
+            TableFactor::Table {
+                name, alias, args, ..
+            } => {
+                let table = relation_table_name(name);
+                ScopeRelation {
+                    name: Some(
+                        alias
+                            .as_ref()
+                            .map_or_else(|| table.clone(), |a| a.name.value.to_lowercase()),
+                    ),
+                    // A name that is not allowlisted is a CTE reference — an unknown
+                    // table is rejected later by `TableColumnChecker`, and
+                    // `validate_cte_names` has already refused any CTE that shadows
+                    // an allowlisted name. Either way its columns are not knowable.
+                    schema: args
+                        .is_none()
+                        .then(|| registry.get_table_schema(&table))
+                        .flatten(),
+                }
+            }
+            TableFactor::Derived { alias, .. } | TableFactor::NestedJoin { alias, .. } => {
+                ScopeRelation {
+                    name: alias.as_ref().map(|a| a.name.value.to_lowercase()),
+                    schema: None,
+                }
+            }
+            _ => ScopeRelation {
+                name: None,
+                schema: None,
+            },
+        })
+        .collect()
+}
+
+/// Establish that `column`, optionally qualified, is a column of a relation in
+/// `scope`. `Err` carries the message the query is rejected with.
+fn resolve_array_join_column(
+    scope: &[ScopeRelation<'_>],
+    qualifier: Option<&str>,
+    column: &str,
+    registry: &TableRegistry,
+) -> Result<(), String> {
+    // Unqualified, every relation in the `FROM` item can supply the column;
+    // qualified, only the one the qualifier names.
+    let candidates: Vec<_> = scope
+        .iter()
+        .filter(|r| qualifier.is_none_or(|q| r.name.as_deref() == Some(q)))
+        .collect();
+
+    // Nothing in the FROM clause answers to the qualifier, so the name is a
+    // database-qualified table (`default.spans`) rather than a column.
+    if let Some(qualifier) = qualifier
+        && candidates.is_empty()
+    {
+        return Err(format!(
+            "ARRAY JOIN qualifier '{qualifier}' does not name a relation in this FROM clause"
+        ));
     }
-    Some(schemas)
+
+    let known = |r: &&ScopeRelation| r.schema.is_some_and(|s| s.is_column_allowed(column));
+    // A CTE or subquery has no knowable column set, so any identifier is
+    // plausible — but never an allowlisted table name, which
+    // `FROM cte ARRAY JOIN spans` would otherwise ship to ClickHouse unscoped.
+    let opaque = |r: &&ScopeRelation| r.schema.is_none() && !registry.is_table_allowed(column);
+
+    if candidates.iter().any(known) || candidates.iter().any(opaque) {
+        Ok(())
+    } else {
+        Err(format!("Column '{column}' does not exist"))
+    }
+}
+
+/// Is this relation a recorded `ARRAY JOIN` right-hand side? Callers that
+/// rewrite must additionally require `args.is_none()`: a bare name there is an
+/// array column and must survive verbatim, but a function call is an ordinary
+/// expression that only has to be hidden from the *table allowlist*.
+fn is_array_join_operand(operands: &HashSet<Span>, name: &ObjectName) -> bool {
+    relation_name_span(name).is_some_and(|s| operands.contains(&s))
 }
 
 /// Collect the source spans of every relation that is the right-hand side of a
@@ -883,74 +967,100 @@ fn array_join_scope<'a>(
 /// table/column visitors can recognise and skip exactly that occurrence without
 /// affecting a genuine `FROM clusters` elsewhere in the query.
 ///
-/// A recorded span is skipped by all three passes: it is neither checked against
-/// the table allowlist nor rewritten into its `_v0` view. That is only sound for
-/// an identifier positively established to be a column of a relation in scope —
-/// anything else would reach ClickHouse verbatim and unscoped. Names that cannot
-/// be proven to be columns are therefore rejected here rather than skipped.
-fn collect_array_join_columns(
+/// A recorded bare name is skipped by all three passes: it is neither checked
+/// against the table allowlist nor rewritten into its `_v0` view. That is only
+/// sound for an identifier positively established to be a column of a relation
+/// in scope — anything else would reach ClickHouse verbatim and unscoped. Names
+/// that cannot be proven to be columns are therefore rejected here rather than
+/// skipped.
+fn collect_array_join_operands(
     statement: &Statement,
     registry: &TableRegistry,
 ) -> Result<HashSet<Span>, String> {
     struct ArrayJoinCollector<'a> {
         registry: &'a TableRegistry,
-        spans: HashSet<Span>,
+        operands: HashSet<Span>,
         error: Option<String>,
     }
+
+    impl ArrayJoinCollector<'_> {
+        fn record(
+            &mut self,
+            scope: &[ScopeRelation<'_>],
+            relation: &TableFactor,
+        ) -> Result<(), String> {
+            let TableFactor::Table { name, args, .. } = relation else {
+                // A subquery right-hand side is a genuine relation, so it must
+                // stay visible to the rewriter rather than be exempted.
+                return match relation {
+                    TableFactor::Derived { .. } => Ok(()),
+                    _ => Err(ARRAY_JOIN_NOT_A_COLUMN.to_string()),
+                };
+            };
+            let Some(span) = relation_name_span(name) else {
+                return Err(ARRAY_JOIN_NOT_A_COLUMN.to_string());
+            };
+            let qualifier = match name.0.as_slice() {
+                [_] => None,
+                [qualifier, _] => Some(object_name_part_ident(qualifier).to_lowercase()),
+                // `a.b.c` cannot be a column reference.
+                _ => return Err(ARRAY_JOIN_NOT_A_COLUMN.to_string()),
+            };
+
+            // A function call is an expression over the row's columns, not a
+            // relation, so there is no column to resolve. Recording it hides the
+            // function name from the table allowlist and nothing else — the
+            // rewriter still visits it (see `is_array_join_operand`), which is
+            // what keeps `spans(1)` rejected and still scopes any table inside
+            // the arguments.
+            if args.is_some() {
+                if qualifier.is_some() {
+                    return Err(ARRAY_JOIN_NOT_A_COLUMN.to_string());
+                }
+            } else {
+                resolve_array_join_column(
+                    scope,
+                    qualifier.as_deref(),
+                    &relation_table_name(name),
+                    self.registry,
+                )?;
+            }
+            self.operands.insert(span);
+            Ok(())
+        }
+    }
+
     impl Visitor for ArrayJoinCollector<'_> {
         type Break = ();
         fn pre_visit_select(&mut self, select: &Select) -> ControlFlow<()> {
             for twj in &select.from {
+                if !twj.joins.iter().any(|j| is_array_join(&j.join_operator)) {
+                    continue;
+                }
+                let scope = array_join_scope(twj, self.registry);
                 for join in &twj.joins {
                     if !is_array_join(&join.join_operator) {
                         continue;
                     }
-                    match &join.relation {
-                        // A subquery right-hand side is a genuine relation, so it
-                        // must stay visible to the rewriter rather than be
-                        // recorded as a column to skip.
-                        TableFactor::Derived { .. } => continue,
-                        TableFactor::Table {
-                            name, args: None, ..
-                        } if name.0.len() == 1 => {
-                            let column = relation_table_name(name);
-                            let is_column = match array_join_scope(twj, self.registry) {
-                                Some(schemas) => {
-                                    schemas.iter().any(|s| s.is_column_allowed(&column))
-                                }
-                                // Unknown columns in scope, so the identifier is
-                                // plausible — but never accept an allowlisted table
-                                // name, which `FROM cte ARRAY JOIN spans` would
-                                // otherwise ship to ClickHouse unscoped.
-                                None => !self.registry.is_table_allowed(&column),
-                            };
-                            if !is_column {
-                                self.error = Some(format!("Column '{column}' does not exist"));
-                                return ControlFlow::Break(());
-                            }
-                            if let Some(span) = relation_name_span(name) {
-                                self.spans.insert(span);
-                            }
-                        }
-                        _ => {
-                            self.error = Some(ARRAY_JOIN_NOT_A_COLUMN.to_string());
-                            return ControlFlow::Break(());
-                        }
+                    if let Err(e) = self.record(&scope, &join.relation) {
+                        self.error = Some(e);
+                        return ControlFlow::Break(());
                     }
                 }
             }
             ControlFlow::Continue(())
         }
     }
+
     let mut c = ArrayJoinCollector {
         registry,
-        spans: HashSet::new(),
+        operands: HashSet::new(),
         error: None,
     };
     let _ = statement.visit(&mut c);
     match c.error {
         Some(e) => Err(e),
-        None => Ok(c.spans),
+        None => Ok(c.operands),
     }
 }
 
@@ -985,7 +1095,7 @@ impl Visitor for BlockedScanner {
 struct TableColumnChecker<'a> {
     registry: &'a TableRegistry,
     cte_names: &'a HashSet<String>,
-    array_join_spans: &'a HashSet<Span>,
+    array_join_operands: &'a HashSet<Span>,
     error: Option<String>,
 }
 
@@ -993,9 +1103,10 @@ impl Visitor for TableColumnChecker<'_> {
     type Break = ();
 
     fn pre_visit_relation(&mut self, name: &ObjectName) -> ControlFlow<()> {
-        // An ARRAY JOIN right-hand side is an array column of the left table,
-        // not a table reference — don't validate it against the table allowlist.
-        if relation_name_span(name).is_some_and(|s| self.array_join_spans.contains(&s)) {
+        // An ARRAY JOIN right-hand side is an array column of a relation in
+        // scope, or a function over one — either way not a table reference, so
+        // don't validate its name against the table allowlist.
+        if is_array_join_operand(self.array_join_operands, name) {
             return ControlFlow::Continue(());
         }
         let table = relation_table_name(name);
@@ -1054,7 +1165,7 @@ impl Visitor for TableColumnChecker<'_> {
 /// (one without table-function args) may remain.
 struct PostRewriteChecker<'a> {
     registry: &'a TableRegistry,
-    array_join_spans: &'a HashSet<Span>,
+    array_join_operands: &'a HashSet<Span>,
     error: Option<String>,
 }
 
@@ -1063,9 +1174,9 @@ impl Visitor for PostRewriteChecker<'_> {
 
     fn pre_visit_table_factor(&mut self, table_factor: &TableFactor) -> ControlFlow<()> {
         if let TableFactor::Table { name, args, .. } = table_factor {
-            // ARRAY JOIN array-column relations are intentionally left un-rewritten;
-            // they aren't tables, so don't flag them as "not project-scoped".
-            if relation_name_span(name).is_some_and(|s| self.array_join_spans.contains(&s)) {
+            // ARRAY JOIN array columns are intentionally left un-rewritten; they
+            // aren't tables, so don't flag them as "not project-scoped".
+            if args.is_none() && is_array_join_operand(self.array_join_operands, name) {
                 return ControlFlow::Continue(());
             }
             // A view function (`spans_v0(...)`) carries args; a bare allowlisted
@@ -1088,7 +1199,7 @@ struct ViewRewriter<'a> {
     registry: &'a TableRegistry,
     project_id: &'a str,
     cte_names: HashSet<String>,
-    array_join_spans: &'a HashSet<Span>,
+    array_join_operands: &'a HashSet<Span>,
     where_stack: Vec<Option<Expr>>,
     error: Option<String>,
 }
@@ -1111,11 +1222,13 @@ impl VisitorMut for ViewRewriter<'_> {
             name, alias, args, ..
         } = table_factor
         {
-            // An ARRAY JOIN right-hand side is an array column of the left table,
-            // not a table reference — leave it exactly as written. (sqlparser
-            // models it as a `TableFactor::Table`, so without this guard we'd
-            // rewrite e.g. `ARRAY JOIN clusters` into `clusters_v0(...)`.)
-            if relation_name_span(name).is_some_and(|s| self.array_join_spans.contains(&s)) {
+            // An ARRAY JOIN array column is not a table reference — leave it
+            // exactly as written. (sqlparser models it as a
+            // `TableFactor::Table`, so without this guard we'd rewrite e.g.
+            // `ARRAY JOIN clusters` into `clusters_v0(...)`.) A function operand
+            // deliberately falls through instead: that is what keeps
+            // `ARRAY JOIN spans(1)` rejected below.
+            if args.is_none() && is_array_join_operand(self.array_join_operands, name) {
                 return ControlFlow::Continue(());
             }
 
