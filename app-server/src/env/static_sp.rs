@@ -140,10 +140,33 @@ pub const VERSION_CAP: NumEnv<usize> = NumEnv::new("SP_VERSIONING_CAP", 10);
 pub const VERSION_TTL_SECONDS: NumEnv<u64> =
     NumEnv::new("SP_VERSIONING_TTL_SECONDS", 7 * 24 * 3600);
 
-/// Raw samples fed to the extraction agent on a mint: the triggering prompt
-/// plus the least-close of the top-K cluster (maximizes the dynamic-content
-/// variance the agent sees while keeping per-run cost at legacy parity).
+/// Distinct raw samples fed to the extraction agent per version — both the
+/// target and the HARD MINIMUM: a request with fewer distinct bodies drops and
+/// the next demand retries. Fewer samples let per-user values that happen to
+/// coincide (one user's burst) pass as static.
 pub const AGENT_SAMPLES: NumEnv<usize> = NumEnv::new("SP_VERSIONING_AGENT_SAMPLES", 5);
+
+/// Candidate span refs per time bucket when spreading agent samples across the
+/// pool. One sample is taken per bucket; the extra candidates are fallbacks for
+/// byte-identical bodies within the bucket.
+pub const CANDIDATES_PER_BUCKET: NumEnv<usize> =
+    NumEnv::new("SP_VERSIONING_CANDIDATES_PER_BUCKET", 3);
+
+/// Size of the random sample of a version's distinct traces (over the registry
+/// TTL) fetched as the pool the agent's samples are spread across.
+pub const SAMPLE_POOL_LIMIT: NumEnv<usize> = NumEnv::new("SP_VERSIONING_SAMPLE_POOL_LIMIT", 100);
+
+/// Distinct traces the pool must hold before extraction runs. Right after a
+/// mint the version's traces are one user's burst; waiting for more traces is
+/// what buys the per-user variance the agent needs.
+pub const MIN_SAMPLE_POOL_TRACES: NumEnv<usize> =
+    NumEnv::new("SP_VERSIONING_MIN_SAMPLE_POOL_TRACES", 15);
+
+/// Wall-clock span (oldest → newest trace) the pool must cover before
+/// extraction runs, so a burst of traces landing within a minute does not
+/// qualify on count alone.
+pub const MIN_SAMPLE_POOL_SPAN_SECONDS: NumEnv<i64> =
+    NumEnv::new("SP_VERSIONING_MIN_SAMPLE_POOL_SPAN_SECONDS", 10 * 60);
 
 /// Park delay (ms) for classifier messages that can't resolve yet
 /// (cold-start window, mint in progress, transient error) — the delay
