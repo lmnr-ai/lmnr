@@ -38,7 +38,7 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
       <div className="flex flex-col px-2 pt-2 gap-2">
         <div className="flex flex-none items-center gap-2">
           <SpanTypeIcon spanType={span.spanType} />
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0">
             <SpanActionsDropdown projectId={projectId as string} span={span} />
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1">
