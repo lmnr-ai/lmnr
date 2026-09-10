@@ -2,14 +2,9 @@ import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { listProjectLlmProfileOptions } from "@/lib/actions/llm-profiles";
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 /** Picker payload for the signal form: the project's workspace profiles with their models. */
 export async function GET(_req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  if (!isFeatureEnabled(Feature.LLM_PROFILES)) {
-    return Response.json({ error: "LLM profiles are not available on Laminar Cloud" }, { status: 404 });
-  }
-
   try {
     const { projectId } = await props.params;
     const options = await listProjectLlmProfileOptions({ projectId });

@@ -69,11 +69,11 @@ const llmRouteIsPaired = (v: { llmProfileId?: string; llmModel?: string }) =>
 
 /** Cloud runs signals on Laminar's own keys, so no route may be pinned there. */
 const llmRouteIsAllowed = (v: { llmProfileId?: string }) =>
-  v.llmProfileId === undefined || isFeatureEnabled(Feature.LLM_PROFILES);
+  v.llmProfileId === undefined || isFeatureEnabled(Feature.SIGNAL_LLM_PROFILES);
 
 const LLM_PROFILE_PAIR_ERROR = { message: "Select both an LLM profile and a model", path: ["llmModel"] };
 const LLM_PROFILE_CLOUD_ERROR = {
-  message: "LLM profiles are not available on Laminar Cloud",
+  message: "Signals run on Laminar's own keys on Laminar Cloud",
   path: ["llmProfileId"],
 };
 
@@ -578,7 +578,7 @@ async function resolveLlmRoute(
   llmProfileId: string | undefined,
   llmModel: string | undefined
 ): Promise<{ llmProfileId: string; llmModel: string } | undefined> {
-  if (!isFeatureEnabled(Feature.LLM_PROFILES) || llmProfileId === undefined || llmModel === undefined) {
+  if (!isFeatureEnabled(Feature.SIGNAL_LLM_PROFILES) || llmProfileId === undefined || llmModel === undefined) {
     return undefined;
   }
 
@@ -616,7 +616,7 @@ export async function createSignal(
     llmModel,
   } = CreateSignalSchema.parse(input);
 
-  if (requireLlmProfile && llmProfileId === undefined && isFeatureEnabled(Feature.LLM_PROFILES)) {
+  if (requireLlmProfile && llmProfileId === undefined && isFeatureEnabled(Feature.SIGNAL_LLM_PROFILES)) {
     throw llmProfileError("llmProfileId", "Select an LLM profile and a model");
   }
 

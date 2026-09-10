@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { handleChatGeneration } from "@/lib/actions/chat";
+import { NotFoundError } from "@/lib/errors";
 import { parseSystemMessages } from "@/lib/playground/utils";
 
 export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }) {
@@ -27,6 +28,9 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
     console.error(error);
     if (error instanceof ZodError) {
       return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    if (error instanceof NotFoundError) {
+      return NextResponse.json({ error: error.message }, { status: 404 });
     }
 
     return NextResponse.json(

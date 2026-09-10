@@ -28,7 +28,10 @@ use uuid::Uuid;
 pub enum LlmProfileProvider {
     OpenaiCompletions,
     OpenaiResponses,
+    Anthropic,
     Gemini,
+    Groq,
+    Mistral,
     Bedrock,
     AzureChatCompletions,
     AzureResponses,
@@ -42,7 +45,10 @@ impl LlmProfileProvider {
         match self {
             Self::OpenaiCompletions => "openai_completions",
             Self::OpenaiResponses => "openai_responses",
+            Self::Anthropic => "anthropic",
             Self::Gemini => "gemini",
+            Self::Groq => "groq",
+            Self::Mistral => "mistral",
             Self::Bedrock => "bedrock",
             Self::AzureChatCompletions => "azure_chat_completions",
             Self::AzureResponses => "azure_responses",
@@ -57,7 +63,10 @@ impl LlmProfileProvider {
     pub fn reported_name(self) -> &'static str {
         match self {
             Self::OpenaiCompletions | Self::OpenaiResponses | Self::Custom => "openai",
+            Self::Anthropic => "anthropic",
             Self::Gemini => "gemini",
+            Self::Groq => "groq",
+            Self::Mistral => "mistral",
             Self::Bedrock => "bedrock",
             Self::AzureChatCompletions | Self::AzureResponses => "azure",
             Self::AzureAnthropic => "azure_ai",
@@ -153,6 +162,9 @@ mod tests {
     fn config_round_trips_frontend_shapes() {
         let cases: Vec<(&str, &str)> = vec![
             ("openai_completions", r#"{"auth":{"type":"api_key"}}"#),
+            ("anthropic", r#"{"auth":{"type":"api_key"}}"#),
+            ("groq", r#"{"auth":{"type":"api_key"}}"#),
+            ("mistral", r#"{"auth":{"type":"api_key"}}"#),
             (
                 "bedrock",
                 r#"{"region":"us-east-1","auth":{"type":"aws_keys","accessKeyId":"AKIA"}}"#,

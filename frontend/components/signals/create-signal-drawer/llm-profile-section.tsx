@@ -8,13 +8,21 @@ import { Controller, useFormContext } from "react-hook-form";
 import useSWR from "swr";
 
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  selectTriggerWithIconClassName,
+  SelectValue,
+} from "@/components/ui/select";
+import { ProviderIcon } from "@/components/workspace/llm-profiles/provider-icon";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
 import { type LlmProfileOption } from "@/lib/actions/llm-profiles";
 import { PROVIDER_LABELS } from "@/lib/actions/llm-profiles/schema";
 import { Feature } from "@/lib/features/features";
-import { swrFetcher } from "@/lib/utils";
+import { cn, swrFetcher } from "@/lib/utils";
 
 import { type ManageSignalForm } from "./types";
 
@@ -25,7 +33,7 @@ import { type ManageSignalForm } from "./types";
  */
 export default function LlmProfileSection() {
   const featureFlags = useFeatureFlags();
-  if (!featureFlags[Feature.LLM_PROFILES]) return null;
+  if (!featureFlags[Feature.SIGNAL_LLM_PROFILES]) return null;
   return <LlmProfileFields />;
 }
 
@@ -93,13 +101,14 @@ function LlmProfileFields() {
                   setValue("llmModel", next?.models[0] ?? null, { shouldDirty: true, shouldValidate: true });
                 }}
               >
-                <SelectTrigger className="h-8 text-sm">
+                <SelectTrigger className={cn("h-8 text-sm", selectTriggerWithIconClassName)}>
                   <SelectValue placeholder={isEmpty ? "No profiles yet" : "Profile"} />
                 </SelectTrigger>
                 <SelectContent>
                   {profiles?.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
-                      <span className="flex items-center gap-2">
+                      <span className="flex items-center gap-2 leading-none">
+                        <ProviderIcon provider={p.provider} />
                         {p.name}
                         <span className="text-xs text-muted-foreground">{PROVIDER_LABELS[p.provider]}</span>
                       </span>

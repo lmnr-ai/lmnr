@@ -18,7 +18,6 @@ use uuid::Uuid;
 use crate::cache::{Cache, CacheTrait, keys::LLM_PROFILE_CACHE_KEY};
 use crate::data_plane::crypto;
 use crate::db::{llm_profiles, projects};
-use crate::features::{Feature, is_feature_enabled};
 
 use super::{
     EncryptedSecrets, LlmProfile, LlmProfileProvider, ProfileConfig, ProfileSecrets,
@@ -43,8 +42,6 @@ pub enum CrudError {
     /// A delete or model removal blocked by the RESTRICT FK from `signals`.
     #[error("{0}")]
     InUse(String),
-    #[error("LLM profiles are not available on this deployment")]
-    Unavailable,
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
 }
@@ -55,9 +52,7 @@ pub fn error_response(e: CrudError) -> HttpResponse {
         e @ (CrudError::DuplicateName(_) | CrudError::InUse(_)) => {
             HttpResponse::Conflict().json(json!({ "error": e.to_string() }))
         }
-        e @ (CrudError::NotFound | CrudError::Unavailable) => {
-            HttpResponse::NotFound().json(json!({ "error": e.to_string() }))
-        }
+        e @ CrudError::NotFound => HttpResponse::NotFound().json(json!({ "error": e.to_string() })),
         CrudError::Internal(err) => {
             log::error!("LLM profile crud error: {err:?}");
             HttpResponse::InternalServerError().json(json!({ "error": "Internal server error" }))
@@ -143,19 +138,10 @@ pub async fn workspace_for_project(pool: &PgPool, project_id: Uuid) -> Result<Uu
         .ok_or_else(|| CrudError::Internal(anyhow::anyhow!("project {project_id} not found")))
 }
 
-fn ensure_enabled() -> Result<(), CrudError> {
-    if is_feature_enabled(Feature::LlmProfiles) {
-        Ok(())
-    } else {
-        Err(CrudError::Unavailable)
-    }
-}
-
 pub async fn list_llm_profiles(
     pool: &PgPool,
     workspace_id: Uuid,
 ) -> Result<Vec<LlmProfileResponse>, CrudError> {
-    ensure_enabled()?;
     let profiles = llm_profiles::list_llm_profiles(pool, workspace_id)
         .await
         .map_err(CrudError::Internal)?;
@@ -167,7 +153,6 @@ pub async fn get_llm_profile(
     workspace_id: Uuid,
     profile_id: Uuid,
 ) -> Result<LlmProfileResponse, CrudError> {
-    ensure_enabled()?;
     describe(load(pool, workspace_id, profile_id).await?)
 }
 
@@ -176,7 +161,6 @@ pub async fn create_llm_profile(
     workspace_id: Uuid,
     input: CreateLlmProfileInput,
 ) -> Result<LlmProfileResponse, CrudError> {
-    ensure_enabled()?;
     let name = validate_name(&input.name)?;
     let models = validate_models(input.models)?;
     let config = normalize_config(input.provider, input.config)?;
@@ -216,7 +200,6 @@ pub async fn update_llm_profile(
     profile_id: Uuid,
     input: UpdateLlmProfileInput,
 ) -> Result<LlmProfileResponse, CrudError> {
-    ensure_enabled()?;
     let existing = load(pool, workspace_id, profile_id).await?;
 
     let name = input.name.as_deref().map(validate_name).transpose()?;
@@ -296,7 +279,6 @@ pub async fn delete_llm_profile(
     workspace_id: Uuid,
     profile_id: Uuid,
 ) -> Result<LlmProfileResponse, CrudError> {
-    ensure_enabled()?;
     let existing = load(pool, workspace_id, profile_id).await?;
 
     let count = llm_profiles::count_signals_using_profile(pool, profile_id)
@@ -333,7 +315,6 @@ pub async fn probe_llm_profile(
     workspace_id: Uuid,
     input: ProbeLlmProfileInput,
 ) -> Result<Result<std::time::Duration, String>, CrudError> {
-    ensure_enabled()?;
     let model = input.model.trim().to_string();
     if model.is_empty() {
         return Err(CrudError::Validation("model is required".to_string()));

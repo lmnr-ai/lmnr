@@ -12,7 +12,14 @@ import {
 
 describe("LlmProfileConfigSchema", () => {
   it("accepts every api_key provider with an empty config", () => {
-    for (const provider of ["openai_completions", "openai_responses", "gemini"] as const) {
+    for (const provider of [
+      "openai_completions",
+      "openai_responses",
+      "anthropic",
+      "gemini",
+      "groq",
+      "mistral",
+    ] as const) {
       const parsed = LlmProfileConfigSchema.parse({ provider, config: { auth: { type: "api_key" } } });
       assert.equal(requiredSecretKey(parsed), "apiKey");
     }
@@ -65,9 +72,7 @@ describe("LlmProfileConfigSchema", () => {
   });
 
   it("rejects unknown providers", () => {
-    assert.ok(
-      !LlmProfileConfigSchema.safeParse({ provider: "anthropic", config: { auth: { type: "api_key" } } }).success
-    );
+    assert.ok(!LlmProfileConfigSchema.safeParse({ provider: "cohere", config: { auth: { type: "api_key" } } }).success);
   });
 });
 

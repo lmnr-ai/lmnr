@@ -1124,6 +1124,8 @@ export const playgrounds = pgTable(
     providerOptions: jsonb("provider_options").default({}),
     toolChoice: jsonb("tool_choice").default("none"),
     tools: jsonb().default({}),
+    llmProfileId: uuid("llm_profile_id"),
+    llmModel: text("llm_model"),
   },
   (table) => [
     foreignKey({
@@ -1133,6 +1135,13 @@ export const playgrounds = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
+    // SET NULL: a playground outlives its model; the user just picks another one.
+    foreignKey({
+      columns: [table.llmProfileId, table.llmModel],
+      foreignColumns: [llmProfileModels.profileId, llmProfileModels.name],
+      name: "playgrounds_llm_profile_model_fkey",
+    }).onDelete("set null"),
+    check("playgrounds_llm_profile_pair_check", sql`(llm_profile_id IS NULL) = (llm_model IS NULL)`),
   ]
 );
 

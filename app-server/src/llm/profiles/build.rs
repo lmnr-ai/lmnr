@@ -36,9 +36,27 @@ pub(super) fn build_client(profile: &LlmProfile) -> ProviderResult<ProviderClien
                 azure: false,
             })?,
         ),
+        LlmProfileProvider::Anthropic => ProviderClient::AzureAnthropic(
+            AzureAnthropicClient::direct(required_secret(profile, &secrets.api_key, "API key")?)?,
+        ),
         LlmProfileProvider::Gemini => ProviderClient::Gemini(GeminiClient::with_api_key(
             required_secret(profile, &secrets.api_key, "API key")?,
         )?),
+        // OpenAI-compatible Chat Completions hosts with fixed roots and bearer auth.
+        LlmProfileProvider::Groq | LlmProfileProvider::Mistral => {
+            let api_base_url = if profile.provider == LlmProfileProvider::Groq {
+                "https://api.groq.com/openai/v1"
+            } else {
+                "https://api.mistral.ai/v1"
+            };
+            ProviderClient::OpenAI(OpenAIClient::from_config(OpenAIExplicitConfig {
+                api_key: required_secret(profile, &secrets.api_key, "API key")?,
+                api_base_url: api_base_url.to_string(),
+                api_version: None,
+                default_headers: HeaderMap::new(),
+                azure: false,
+            })?)
+        }
         LlmProfileProvider::Bedrock => {
             let region = config
                 .region
@@ -208,6 +226,30 @@ mod tests {
         );
         let client = build_client(&p).unwrap();
         assert!(matches!(client, ProviderClient::OpenAI(_)));
+    }
+
+    #[test]
+    fn direct_anthropic_targets_anthropic_host() {
+        let p = profile(
+            LlmProfileProvider::Anthropic,
+            ProfileConfig::default(),
+            r#"{"apiKey":"sk-ant"}"#,
+        );
+        let ProviderClient::AzureAnthropic(client) = build_client(&p).unwrap() else {
+            panic!("anthropic must build the Messages client");
+        };
+        assert_eq!(client.api_base_url(), "https://api.anthropic.com");
+    }
+
+    #[test]
+    fn groq_and_mistral_reuse_the_openai_client() {
+        for provider in [LlmProfileProvider::Groq, LlmProfileProvider::Mistral] {
+            let p = profile(provider, ProfileConfig::default(), r#"{"apiKey":"k"}"#);
+            assert!(matches!(
+                build_client(&p).unwrap(),
+                ProviderClient::OpenAI(_)
+            ));
+        }
     }
 
     #[test]

@@ -243,6 +243,17 @@ export async function register() {
       await initializeData();
       console.log("✓ Postgres data initialized successfully");
 
+      // Folds legacy playground keys into workspace LLM profiles and deletes them; no-op once the table is empty.
+      try {
+        const { migrateProviderApiKeys } = await import("@/lib/db/migrate-provider-api-keys.ts");
+        const migrated = await migrateProviderApiKeys({ deleteLegacyRows: true });
+        if (migrated.profilesCreated > 0) {
+          console.log(`✓ Legacy provider API keys migrated into ${migrated.profilesCreated} LLM profile(s)`);
+        }
+      } catch (error) {
+        console.error("Legacy provider API key migration failed (will retry on next start):", error);
+      }
+
       // Fetch model costs and populate the database
       console.log("Fetching model costs...");
       const modelCostsOk = await initializeModelCosts();

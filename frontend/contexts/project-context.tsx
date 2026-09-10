@@ -18,7 +18,6 @@ export type SettingsSection =
   | "llm-profiles"
   | "general"
   | "project-api-keys"
-  | "provider-api-keys"
   | "model-costs"
   | "render-templates"
   | "agent-versions"

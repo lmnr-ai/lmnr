@@ -27,7 +27,6 @@ import CustomModelCosts from "@/components/settings/custom-model-costs";
 import DeleteProject from "@/components/settings/delete-project";
 import PiiRedaction from "@/components/settings/pii-redaction";
 import ProjectApiKeys from "@/components/settings/project-api-keys";
-import ProviderApiKeys from "@/components/settings/provider-api-keys";
 import RenameProject from "@/components/settings/rename-project";
 import RenderTemplates from "@/components/settings/render-templates";
 import { SettingsSectionHeader } from "@/components/settings/settings-section";
@@ -87,7 +86,6 @@ const VALID_SECTIONS = new Set<Section>([
   "llm-profiles",
   "general",
   "project-api-keys",
-  "provider-api-keys",
   "model-costs",
   "render-templates",
   "agent-versions",
@@ -119,7 +117,6 @@ const SharedSettings = ({
   const isSectionEnabled = (section: Section): boolean => {
     if (section === "billing") return !!featureFlags[Feature.SUBSCRIPTION];
     if (section === "deployment") return !!featureFlags[Feature.DEPLOYMENT];
-    if (section === "llm-profiles") return !!featureFlags[Feature.LLM_PROFILES];
     return true;
   };
 
@@ -145,9 +142,7 @@ const SharedSettings = ({
       items.push({ label: "Data residency", section: "deployment", icon: Cloud });
     }
     items.push({ label: "Integrations", section: "integrations", icon: Unplug });
-    if (featureFlags[Feature.LLM_PROFILES]) {
-      items.push({ label: "LLM profiles", section: "llm-profiles", icon: Sparkles });
-    }
+    items.push({ label: "LLM profiles", section: "llm-profiles", icon: Sparkles });
     items.push({ label: "Signal reports", section: "reports", icon: FileBarChart });
     if (featureFlags[Feature.SUBSCRIPTION]) {
       items.push({ label: "Billing", section: "billing", icon: CreditCard });
@@ -158,7 +153,6 @@ const SharedSettings = ({
   const projectMenus: { label: string; section: Section; icon: LucideIcon }[] = [
     { label: "General", section: "general", icon: Settings2 },
     { label: "Project API Keys", section: "project-api-keys", icon: Key },
-    { label: "Playground model providers", section: "provider-api-keys", icon: Sparkles },
     { label: "Model costs", section: "model-costs", icon: DollarSign },
     { label: "Render templates", section: "render-templates", icon: Code2 },
     { label: "Agent versions", section: "agent-versions", icon: GitBranch },
@@ -235,8 +229,6 @@ const SharedSettings = ({
         );
       case "project-api-keys":
         return <ProjectApiKeys apiKeys={apiKeys} />;
-      case "provider-api-keys":
-        return <ProviderApiKeys />;
       case "model-costs":
         return <CustomModelCosts />;
       case "render-templates":

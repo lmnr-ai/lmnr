@@ -3,15 +3,10 @@ import { prettifyError, ZodError } from "zod/v4";
 
 import { deleteLlmProfile, updateLlmProfile } from "@/lib/actions/llm-profiles";
 import { AppServerError } from "@/lib/actions/llm-profiles/app-server";
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 type Params = { params: Promise<{ workspaceId: string; profileId: string }> };
 
 export async function PUT(req: NextRequest, props: Params): Promise<Response> {
-  if (!isFeatureEnabled(Feature.LLM_PROFILES)) {
-    return Response.json({ error: "LLM profiles are not available on Laminar Cloud" }, { status: 404 });
-  }
-
   try {
     const { workspaceId, profileId } = await props.params;
     const body = await req.json();
@@ -32,10 +27,6 @@ export async function PUT(req: NextRequest, props: Params): Promise<Response> {
 }
 
 export async function DELETE(_req: NextRequest, props: Params): Promise<Response> {
-  if (!isFeatureEnabled(Feature.LLM_PROFILES)) {
-    return Response.json({ error: "LLM profiles are not available on Laminar Cloud" }, { status: 404 });
-  }
-
   try {
     const { workspaceId, profileId } = await props.params;
     await deleteLlmProfile({ workspaceId, profileId });
