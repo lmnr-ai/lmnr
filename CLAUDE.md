@@ -166,4 +166,3 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, an
 | `docs/internal/frontend-app.md` | Settings pages, onboarding, base-path serving, render templates, SSE proxy routes, landing page, agent stubs |
 | `docs/internal/frontend-best-practices.md` | Any new frontend component/table/store work |
 | `docs/internal/app-server.md` | App-server env vars, local dev env quirks, signals-feature build stubs |
-| `docs/internal/oss-private-sync.md` | Copying code between `lmnr` and `lmnr-private` — which files may differ, auditing drift, back-porting a private PR |
