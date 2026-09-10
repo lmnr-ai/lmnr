@@ -1,5 +1,6 @@
 "use client";
 
+import { Plus } from "lucide-react";
 import { useState } from "react";
 
 import {
@@ -26,7 +27,7 @@ interface Props {
   disabled?: boolean;
 }
 
-// Sentinel value for the "+ Create project" dropdown item — opens the modal
+// Sentinel value for the create-project dropdown item — opens the modal
 // instead of selecting a project.
 const CREATE_VALUE = "__create__";
 
@@ -81,8 +82,11 @@ export function ProjectSelect({ projects, workspaces, value, onChange, onCreated
                 ))}
               </SelectGroup>
             ))}
-            <SelectSeparator />
-            <SelectItem value={CREATE_VALUE}>+ Create project</SelectItem>
+            <SelectSeparator className="my-1" />
+            <SelectItem value={CREATE_VALUE}>
+              <Plus className="size-4" />
+              Create project
+            </SelectItem>
           </SelectContent>
         </Select>
       </Field>
