@@ -238,7 +238,13 @@ pub(super) fn build_request_body(model: &str, request: &ProviderRequest) -> Prov
             }
         }
 
-        // Build messages, placing cache_control on the last block of the first user message
+        // Build messages, placing cache_control on the first AND last block of
+        // the first user message. Signals put the rendered trace in block 0 and
+        // the per-signal instructions after it, so the first-block breakpoint is
+        // what lets several signals analysing one trace share its cached tokens;
+        // the last-block one keeps the whole opening turn warm across the steps
+        // of a run. Two here + system + tools is exactly Anthropic's ceiling of
+        // 4 cache breakpoints — don't add a third.
         let mut messages: Vec<Value> = Vec::new();
         for (i, content) in request.contents.iter().enumerate() {
             let role = match content.role.as_deref().unwrap_or("user") {
@@ -252,11 +258,12 @@ pub(super) fn build_request_body(model: &str, request: &ProviderRequest) -> Prov
                 .map(|p| build_message_blocks(p))
                 .unwrap_or_default();
 
-            if i == 0 && role == "user" {
-                if let Some(last) = blocks.last_mut() {
-                    last.as_object_mut().map(|obj| {
+            if i == 0 && role == "user" && !blocks.is_empty() {
+                let last = blocks.len() - 1;
+                for index in [0, last] {
+                    if let Some(obj) = blocks[index].as_object_mut() {
                         obj.insert("cache_control".to_string(), cache_control_ephemeral());
-                    });
+                    }
                 }
             }
 
@@ -570,6 +577,43 @@ fn supports_sampling_params(model: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The signals request splits the first user message into (trace,
+    /// per-signal instructions); both ends need a breakpoint so signals sharing
+    /// a trace hit the cache on the trace prefix.
+    #[test]
+    fn first_user_message_caches_first_and_last_block() {
+        let text = |t: &str| ProviderPart {
+            text: Some(t.to_string()),
+            ..Default::default()
+        };
+        let request = ProviderRequest {
+            contents: vec![
+                ProviderContent {
+                    role: Some("user".to_string()),
+                    parts: Some(vec![text("<trace>…</trace>"), text("developer prompt")]),
+                },
+                ProviderContent {
+                    role: Some("model".to_string()),
+                    parts: Some(vec![text("…")]),
+                },
+            ],
+            system_instruction: None,
+            tools: None,
+            generation_config: None,
+            service_tier: None,
+            provider: None,
+            model_size: None,
+            llm_profile: None,
+        };
+
+        let body = build_request_body("us.anthropic.claude-opus-4-8", &request).unwrap();
+        let first = &body["messages"][0]["content"];
+        assert_eq!(first[0]["cache_control"]["type"], "ephemeral");
+        assert_eq!(first[1]["cache_control"]["type"], "ephemeral");
+        // Later turns are never cached — nothing follows them in the prefix.
+        assert!(body["messages"][1]["content"][0]["cache_control"].is_null());
+    }
 
     #[test]
     fn opus_4_7_under_any_bedrock_prefix_requires_adaptive() {
