@@ -16,6 +16,7 @@ import { type ViewTab } from "@/components/traces/trace-view/view-toggle";
 import { Button } from "@/components/ui/button.tsx";
 import { Command, CommandGroup, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTemplatePicker } from "@/components/ui/template-renderer/template-picker";
 import { cn } from "@/lib/utils";
 
@@ -108,9 +109,9 @@ export default function TemplateViewToggle({
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-[280px] p-0" onWheel={(e) => e.stopPropagation()}>
-          <Command shouldFilter={false} className="max-h-[360px]">
-            <CommandList className="flex max-h-[360px] min-h-0 flex-col overflow-hidden">
-              <CommandGroup heading="Default" className={cn(GROUP_CLASS, "shrink-0")}>
+          <Command shouldFilter={false}>
+            <CommandList className="max-h-none overflow-hidden">
+              <CommandGroup heading="Default" className={GROUP_CLASS}>
                 {viewTabs.map((option) => {
                   const view = viewOptions[option];
                   if (!view) return null;
@@ -129,38 +130,34 @@ export default function TemplateViewToggle({
                   );
                 })}
               </CommandGroup>
-              <CommandSeparator alwaysRender className="shrink-0" />
-              <CommandGroup
-                heading="Custom"
-                className={cn(
-                  GROUP_CLASS,
-                  "min-h-0 flex-1 flex flex-col [&_[cmdk-group-items]]:min-h-0 [&_[cmdk-group-items]]:overflow-y-auto [&_[cmdk-group-items]]:scroll-fade-t"
-                )}
-              >
-                {templates?.map((t) => {
-                  const active = isCustom && selectedTemplate?.id === t.id;
-                  return (
-                    <CommandItem
-                      key={t.id}
-                      value={`template:${t.id}`}
-                      onSelect={() => handlePickTemplate(t.id)}
-                      className="group text-xs"
-                    >
-                      <span className="flex-1 truncate">{t.name}</span>
-                      <div className="ml-2 flex shrink-0 items-center justify-end gap-1">
-                        <button
-                          type="button"
-                          aria-label={`Edit ${t.name}`}
-                          onClick={(e) => handleEditTemplate(e, t.id)}
-                          className="inline-flex size-5 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 group-aria-selected:opacity-100 focus-visible:opacity-100"
-                        >
-                          <PencilIcon className="size-2.5" />
-                        </button>
-                        {active && <Check className="size-3.5" />}
-                      </div>
-                    </CommandItem>
-                  );
-                })}
+              <CommandSeparator alwaysRender />
+              <CommandGroup heading="Custom" className={GROUP_CLASS}>
+                <ScrollArea className="max-h-[240px] scroll-fade-t [&>div]:max-h-[240px] [&>div>div]:block!">
+                  {templates?.map((t) => {
+                    const active = isCustom && selectedTemplate?.id === t.id;
+                    return (
+                      <CommandItem
+                        key={t.id}
+                        value={`template:${t.id}`}
+                        onSelect={() => handlePickTemplate(t.id)}
+                        className="group text-xs"
+                      >
+                        <span className="flex-1 truncate">{t.name}</span>
+                        <div className="ml-2 flex shrink-0 items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            aria-label={`Edit ${t.name}`}
+                            onClick={(e) => handleEditTemplate(e, t.id)}
+                            className="inline-flex size-5 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 group-aria-selected:opacity-100 focus-visible:opacity-100"
+                          >
+                            <PencilIcon className="size-2.5" />
+                          </button>
+                          {active && <Check className="size-3.5" />}
+                        </div>
+                      </CommandItem>
+                    );
+                  })}
+                </ScrollArea>
                 {templateCount <= 5 && (
                   <CommandItem onSelect={handleCreate} className="text-xs text-muted-foreground">
                     <Plus className="mr-1.5 size-3.5" />
@@ -170,8 +167,8 @@ export default function TemplateViewToggle({
               </CommandGroup>
               {templateCount > 5 && (
                 <>
-                  <CommandSeparator alwaysRender className="shrink-0" />
-                  <CommandGroup className={cn(GROUP_CLASS, "shrink-0")}>
+                  <CommandSeparator alwaysRender />
+                  <CommandGroup className={GROUP_CLASS}>
                     <CommandItem onSelect={handleCreate} className="text-xs text-muted-foreground">
                       <Plus className="mr-1.5 size-3.5" />
                       New template
