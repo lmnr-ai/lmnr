@@ -169,7 +169,11 @@ export const TraceTagsPills = ({ traceId }: TraceTagsProps) => {
   return (
     <>
       {tags.map(({ name, color, id }) => (
-        <Badge key={id} variant="outline" className="rounded-full gap-1">
+        <Badge
+          key={id}
+          variant="outline"
+          className="gap-1 rounded-full border-0 bg-surface-up-2 text-secondary-foreground"
+        >
           <div className="rounded-full size-2.5 bg-gray-300" style={{ backgroundColor: color }} />
           {name}
         </Badge>
