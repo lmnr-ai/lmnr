@@ -134,7 +134,7 @@ pub async fn get_signal_event_buckets(
         .await?)
 }
 
-/// Count current and previous-period event memberships for every named cluster.
+/// Count distinct current and previous-period events for every named cluster.
 pub async fn get_signal_cluster_counts(
     clickhouse: &clickhouse::Client,
     project_id: &Uuid,
@@ -148,17 +148,17 @@ pub async fn get_signal_cluster_counts(
     }
     let placeholders = vec!["?"; signal_ids.len()].join(",");
     let query_str = format!(
-        "SELECT c.signal_id AS signal_id, c.id AS cluster_id, c.name AS cluster_name,
-                countIf(e.timestamp >= toDateTime64(?, 9)) AS current_count,
-                countIf(e.timestamp < toDateTime64(?, 9)) AS previous_count
-         FROM events_to_clusters AS ec FINAL
-         INNER JOIN signal_event_clusters AS c FINAL
+        "SELECT c.signal_id AS signal_id, c.id AS cluster_id, any(c.name) AS cluster_name,
+                uniqExactIf(e.id, e.timestamp >= toDateTime64(?, 9)) AS current_count,
+                uniqExactIf(e.id, e.timestamp < toDateTime64(?, 9)) AS previous_count
+         FROM signal_event_clusters AS c FINAL
+         INNER JOIN events_to_clusters AS ec FINAL
            ON ec.project_id = c.project_id AND ec.cluster_id = c.id
          INNER JOIN signal_events AS e
-           ON ec.project_id = e.project_id AND ec.event_id = e.id
-         WHERE ec.project_id = ? AND c.signal_id IN ({placeholders}) AND c.level > 0
+           ON e.project_id = c.project_id AND e.signal_id = c.signal_id AND e.id = ec.event_id
+         WHERE c.project_id = ? AND c.signal_id IN ({placeholders}) AND c.level > 0
            AND e.timestamp >= toDateTime64(?, 9) AND e.timestamp < toDateTime64(?, 9)
-         GROUP BY c.signal_id, c.id, c.name"
+         GROUP BY c.signal_id, c.id"
     );
     let mut query = clickhouse
         .query(&query_str)
