@@ -1247,6 +1247,72 @@ fn test_array_join_rejects_allowlisted_table_as_function_or_deep_name() {
 }
 
 #[test]
+fn test_array_join_rejects_every_table_function_family() {
+    // The whole point of the `BLOCKED_FUNCTIONS` table-function entries is this
+    // position: an ARRAY JOIN function operand is exempt from the table
+    // allowlist, so a name that reads another table (or an external source) has
+    // nothing else stopping it. Every family in `system.table_functions` that
+    // reads by name or reaches off-box must be covered, not just the ones that
+    // existed when the exemption was written.
+    for name in [
+        // Read another table / dictionary / view by name.
+        "loop",
+        "dictionary",
+        "viewExplain",
+        "mergeTreeParts",
+        "mergeTreeProjection",
+        "mergeTreeTextIndex",
+        "mergeTreeAnalyzeIndexes",
+        "mergeTreeAnalyzeIndexesUUID",
+        "timeSeriesData",
+        "timeSeriesTags",
+        "timeSeriesMetrics",
+        "timeSeriesSelector",
+        "prometheusQuery",
+        "prometheusQueryRange",
+        // Reach off-box. The lakehouse readers take a path/URL argument.
+        "iceberg",
+        "icebergS3Cluster",
+        "deltaLake",
+        "deltaLakeAzureCluster",
+        "hudi",
+        "hudiCluster",
+        "paimon",
+        "paimonS3",
+        "arrowFlight",
+        "hive",
+        "ytsaurus",
+        "urlCluster",
+        "fileCluster",
+        "hdfsCluster",
+        "azureBlobStorageCluster",
+    ] {
+        let query = format!("SELECT x FROM spans ARRAY JOIN {name}('a', 'b') AS x");
+        let err = validate(&query).expect_err(&format!("{name} must be rejected"));
+        assert!(
+            err.contains(&format!("'{}' is not allowed", name.to_lowercase())),
+            "query: {query}\ngot: {err}"
+        );
+    }
+}
+
+#[test]
+fn test_blocked_table_function_prefixes_spare_legitimate_scalars() {
+    // The `mergetree` / `iceberg` prefixes are broad on purpose, but the
+    // `timeSeries*` scalar family must survive — two of its members even extend
+    // `timeseriestags`, which is why that one is exact-matched.
+    for expr in [
+        "timeSeriesTagsToGroup(tags)",
+        "timeSeriesTagsGroupToTags(tags)",
+        "timeSeriesExtractTag(name, 'a')",
+        "timeSeriesRange(1, 2, 3)",
+    ] {
+        let query = format!("SELECT {expr} FROM spans");
+        validate(&query).unwrap_or_else(|e| panic!("query: {query}\nunexpectedly rejected: {e}"));
+    }
+}
+
+#[test]
 fn test_array_join_subquery_right_hand_side_is_still_rewritten() {
     // A subquery is a genuine relation, so it must stay visible to the rewriter
     // — the inner `spans` is a real table and has to become a scoped view.

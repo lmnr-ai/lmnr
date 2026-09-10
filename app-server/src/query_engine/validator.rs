@@ -74,17 +74,24 @@ fn blocked_functions() -> &'static HashSet<&'static str> {
         [
             // Filesystem access
             "file",
+            "filecluster",
             // Network / remote table access
             "url",
+            "urlcluster",
             "remote",
             "remotesecure",
-            // S3 / cloud storage
+            // S3 / cloud storage. The lakehouse readers (`iceberg*`, `deltaLake*`,
+            // `hudi*`, `paimon*`) and `arrowFlight` are prefix-blocked instead —
+            // each is a family of ~10 per-backend variants.
             "s3",
             "s3cluster",
             "gcs",
             "oss",
             "cosn",
             "hdfs",
+            "hdfscluster",
+            "hive",
+            "ytsaurus",
             // Other table functions that can read external data
             "jdbc",
             "odbc",
@@ -100,13 +107,29 @@ fn blocked_functions() -> &'static HashSet<&'static str> {
             // Table functions that read other tables by name/regex, so they
             // sidestep the allowlist. Unreachable from `FROM` (the allowlist
             // rejects the name), but an `ARRAY JOIN` operand skips that check.
+            // The list is the `reads a table/dictionary by name` subset of
+            // `system.table_functions` (checked on 26.4) — re-derive it from
+            // there when bumping ClickHouse. `mergeTree*` is prefix-blocked.
             "merge",
+            "loop",
+            "dictionary",
             "view",
             "viewifpermitted",
-            "mergetreeindex",
+            "viewexplain",
+            "prometheusquery",
+            "prometheusqueryrange",
+            // The TimeSeries-engine readers. Exact-matched, NOT prefixed: 30-odd
+            // legitimate scalar/aggregate `timeSeries*` functions share the
+            // prefix, and two of them (`timeSeriesTagsToGroup`,
+            // `timeSeriesTagsGroupToTags`) even extend `timeseriestags`.
+            "timeseriesdata",
+            "timeseriestags",
+            "timeseriesmetrics",
+            "timeseriesselector",
             // Misc dangerous
             "executable",
             "azureblobstorage",
+            "azureblobstoragecluster",
             // DoS via server-side delays
             "sleep",
             "sleepeachrow",
@@ -140,7 +163,27 @@ fn blocked_functions() -> &'static HashSet<&'static str> {
 /// whose typed/suffixed variants would otherwise slip past the exact-match set
 /// (e.g. `dictGetString`, `dictGetUInt64`, `dictGetHierarchy`, `dictIsIn`,
 /// `joinGetOrNull`). Matched against the lowercased last name part.
-const BLOCKED_FUNCTION_PREFIXES: &[&str] = &["dictget", "dicthas", "dictis", "joinget"];
+///
+/// The table-function families are here rather than in `blocked_functions`
+/// because each ships ~10 per-backend variants (`icebergS3Cluster`,
+/// `deltaLakeAzure`, …) and ClickHouse keeps adding to them — `mergeTree*` alone
+/// went from one function to six in three releases. Deliberate collateral: the
+/// harmless scalars `mergeTreePartInfo`, `icebergBucket`, `icebergHash` and
+/// `icebergTruncate` are blocked too. Do NOT add a `view` prefix here — this is
+/// matched against CTE references as well, so it would reject a user CTE named
+/// `view_data`.
+const BLOCKED_FUNCTION_PREFIXES: &[&str] = &[
+    "dictget",
+    "dicthas",
+    "dictis",
+    "joinget",
+    "mergetree",
+    "iceberg",
+    "deltalake",
+    "hudi",
+    "paimon",
+    "arrowflight",
+];
 
 /// Returns true if a (lowercased) function / relation name is blocked, by exact
 /// match against `blocked_functions` or by dangerous-family prefix. Centralising
