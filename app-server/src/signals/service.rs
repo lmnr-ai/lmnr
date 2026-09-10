@@ -36,7 +36,10 @@ const SPAN_NAME_POSITIVE_OPERATORS: &[&str] = &["eq", "includes"];
 enum ValueRule {
     FiniteNumber,
     OneOf(&'static [&'static str]),
-    NonBlankString,
+    /// A non-empty list of non-blank names. A bare string is rejected, not
+    /// coerced: `includes`/`not_includes` are the only operators these columns
+    /// accept and both are list-valued, so a scalar is a caller bug.
+    NonBlankList,
 }
 
 struct FilterColumn {
@@ -58,10 +61,18 @@ const FILTER_COLUMNS: &[FilterColumn] = &[
         operators: &["eq", "ne"],
         value: ValueRule::OneOf(&["error", "success"]),
     },
+    // Set membership over a list. The pre-`includes` `eq`/`ne` shape is not
+    // accepted — migration 0107 converted every row, and the evaluator no
+    // longer honours it, so writing one back would create a dead filter.
     FilterColumn {
         name: "span_names",
-        operators: &["eq", "ne"],
-        value: ValueRule::NonBlankString,
+        operators: &["includes", "not_includes"],
+        value: ValueRule::NonBlankList,
+    },
+    FilterColumn {
+        name: "tags",
+        operators: &["includes", "not_includes"],
+        value: ValueRule::NonBlankList,
     },
 ];
 
@@ -936,18 +947,27 @@ fn normalize_value(spec: &FilterColumn, value: Value) -> Result<Value, CrudError
             }
             Ok(value)
         }
-        ValueRule::NonBlankString => {
-            let s = value
-                .as_str()
+        ValueRule::NonBlankList => {
+            let Value::Array(items) = &value else {
+                return Err(CrudError::Validation(format!(
+                    "{} value must be a list of non-blank strings",
+                    spec.name
+                )));
+            };
+            let names: Vec<Value> = items
+                .iter()
+                .filter_map(Value::as_str)
                 .map(str::trim)
                 .filter(|s| !s.is_empty())
-                .ok_or_else(|| {
-                    CrudError::Validation(format!(
-                        "{} value must be a non-blank span name",
-                        spec.name
-                    ))
-                })?;
-            Ok(Value::String(s.to_string()))
+                .map(|s| Value::String(s.to_string()))
+                .collect();
+            if names.is_empty() {
+                return Err(CrudError::Validation(format!(
+                    "{} value must be a list of non-blank strings",
+                    spec.name
+                )));
+            }
+            Ok(Value::Array(names))
         }
     }
 }
