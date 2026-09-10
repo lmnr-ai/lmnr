@@ -63,7 +63,7 @@ const CondensedTimelineElement = ({
     >
       <div
         className={cn("relative size-full rounded-xs hover:brightness-110 @min-[5px]:w-[calc(100%-1px)]", {
-          "border border-white/70 z-20": isSelected,
+          "ring-1 ring-white/70 z-20": isSelected,
           "bg-muted": isCostHeatmapVisible,
         })}
         style={{ backgroundColor }}
