@@ -150,12 +150,18 @@ struct SpanInputRow {
     input: String,
 }
 
-#[derive(Row, Deserialize, Debug)]
-struct VersionSpanRefRow {
+/// One trace that classified to a version: its newest span and when that
+/// span was classified (nanoseconds).
+#[derive(Row, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct VersionSpanRef {
     #[serde(with = "clickhouse::serde::uuid")]
-    trace_id: Uuid,
+    pub trace_id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
-    span_id: Uuid,
+    pub span_id: Uuid,
+    /// Aliased in SQL as `last_created_at`: naming the aggregate `created_at`
+    /// would shadow the column in the query's `WHERE` (ClickHouse alias scope).
+    #[serde(rename = "last_created_at")]
+    pub created_at: i64,
 }
 
 /// Version the classifier recorded for one span, if any — the summarizer's
@@ -190,39 +196,46 @@ pub async fn fetch_span_version(
     Ok(row.map(|r| r.static_prompt_version_hash))
 }
 
-/// Recent spans that classified to the given version, at most one per trace
-/// (steps within a trace usually carry the byte-identical prompt, while
-/// distinct traces carry distinct dynamic content), newest traces first.
-/// Feeds the demand-driven regex extraction worker's sample refetch. The
-/// `created_at` bound matches the version registry TTL — older rows belong
-/// to versions the registry has forgotten anyway.
-pub async fn fetch_recent_version_span_refs(
+/// A uniform random sample of up to `limit` traces that classified to the
+/// given version, one ref per trace (steps within a trace usually carry the
+/// byte-identical prompt, while distinct traces carry distinct dynamic
+/// content). This is the sample POOL for the demand-driven regex extraction
+/// worker, which spreads its picks across the pool's time range — so the pool
+/// must cover the version's whole lifetime, not its newest slice: taking the
+/// newest `limit` traces would confine a high-volume version's pool to minutes
+/// and starve it at the span gate. Each call is a fresh draw, so a demand
+/// retry does not replay the pool that just failed a gate. The `created_at`
+/// bound matches the version registry TTL — older rows belong to versions the
+/// registry has forgotten anyway.
+pub async fn fetch_version_span_refs(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
     version_hash: &str,
     limit: usize,
-) -> Result<Vec<(Uuid, Uuid)>> {
+) -> Result<Vec<VersionSpanRef>> {
     let ttl_days = crate::env::static_sp::VERSION_TTL_SECONDS
         .get()
         .div_ceil(24 * 3600);
     let rows = clickhouse
         .query(
-            "SELECT trace_id, argMax(span_id, created_at) AS span_id
+            "SELECT trace_id,
+                    argMax(span_id, created_at) AS span_id,
+                    max(created_at) AS last_created_at
              FROM system_prompt_versions
              WHERE project_id = {project_id:UUID}
                AND static_prompt_version_hash = {version_hash:String}
                AND created_at >= now64(9) - INTERVAL {ttl_days:UInt64} DAY
              GROUP BY trace_id
-             ORDER BY max(created_at) DESC
+             ORDER BY rand()
              LIMIT {limit:UInt64}",
         )
         .param("project_id", project_id)
         .param("version_hash", version_hash)
         .param("ttl_days", ttl_days)
         .param("limit", limit as u64)
-        .fetch_all::<VersionSpanRefRow>()
+        .fetch_all::<VersionSpanRef>()
         .await?;
-    Ok(rows.into_iter().map(|r| (r.trace_id, r.span_id)).collect())
+    Ok(rows)
 }
 
 /// Fetch the SYSTEM PROMPT text of the given spans, keyed by span id.

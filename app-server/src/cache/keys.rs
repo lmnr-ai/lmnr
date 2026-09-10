@@ -69,7 +69,11 @@ pub const HARD_LIMIT_SEND_LOCK_KEY: &str = "hard_limit_send_lock";
 /// frontend constant in `frontend/lib/cache.ts`.
 pub const HARD_LIMIT_NOTIFIED_CACHE_KEY: &str = "hard_limit_notified";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub const SYS_PROMPT_SUMMARY_CACHE_KEY: &str = "sys_prompt_summary_v2";
+/// `(project, static_signature) → String` summary of one system-prompt
+/// template. `_v3` is per prompt; `_v2` was per prompt SET with a struct
+/// value under the same `{prefix}:{project}:{8hex}` shape, so it must not be
+/// reused.
+pub const SYS_PROMPT_SUMMARY_CACHE_KEY: &str = "sys_prompt_summary_v3";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SPAN_KEEP_DEFAULT_RULES_CACHE_KEY: &str = "signals_span_keep_default_rules";
 pub const TRACE_EVALUATION_ID_CACHE_KEY: &str = "trace_evaluation_id";
