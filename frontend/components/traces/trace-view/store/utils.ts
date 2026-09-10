@@ -858,13 +858,13 @@ export const transformSpansToCondensedTimeline = (spans: TraceViewSpan[]): Conde
 
   // Gravity algorithm: compact spans upward while respecting parent-child invariant
   const rowAssignments = new Map<string, number>();
-  const rowOccupancy: Array<Array<{ left: number; right: number; spanId: string }>> = [];
+  const rowOccupancy: Array<Array<{ startMs: number; endMs: number; spanId: string }>> = [];
 
-  // Helper to check if a span overlaps with any existing span in a row
-  const hasOverlap = (row: number, left: number, right: number, excludeSpanId?: string): boolean => {
+  // Compare source timestamps; percentage geometry can introduce false overlaps through floating-point rounding.
+  const hasOverlap = (row: number, startMs: number, endMs: number, excludeSpanId?: string): boolean => {
     if (!rowOccupancy[row]) return false;
     return rowOccupancy[row].some(
-      (occupant) => occupant.spanId !== excludeSpanId && !(right <= occupant.left || left >= occupant.right)
+      (occupant) => occupant.spanId !== excludeSpanId && !(endMs <= occupant.startMs || startMs >= occupant.endMs)
     );
   };
 
@@ -881,10 +881,7 @@ export const transformSpansToCondensedTimeline = (spans: TraceViewSpan[]): Conde
 
     // Find the lowest valid row (closest to top)
     let targetRow = minRow;
-    const leftBound = item.left;
-    const rightBound = item.left + item.width;
-
-    while (hasOverlap(targetRow, leftBound, rightBound)) {
+    while (hasOverlap(targetRow, item.startMs, item.endMs)) {
       targetRow++;
     }
 
@@ -896,8 +893,8 @@ export const transformSpansToCondensedTimeline = (spans: TraceViewSpan[]): Conde
       rowOccupancy[targetRow] = [];
     }
     rowOccupancy[targetRow].push({
-      left: leftBound,
-      right: rightBound,
+      startMs: item.startMs,
+      endMs: item.endMs,
       spanId: item.span.spanId,
     });
   }
