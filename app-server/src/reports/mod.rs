@@ -1,6 +1,7 @@
 pub mod generator;
 pub mod report_data;
 pub mod scheduler;
+mod self_tracing;
 
 pub use report_data::{NoteworthyEvent, ProjectReportData, ReportData};
 

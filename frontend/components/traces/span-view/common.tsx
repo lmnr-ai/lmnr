@@ -8,7 +8,6 @@ import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import DownloadButton from "@/components/ui/download-button";
 import PdfRenderer from "@/components/ui/pdf-renderer";
 import { ElevatedSurface } from "@/components/ui/surface";
-import { isStorageUrl } from "@/lib/s3";
 import { resolveContentMode } from "@/lib/spans/resolve-content-mode";
 import { cn } from "@/lib/utils";
 
@@ -230,11 +229,7 @@ const PureImageContentPart = ({
   src,
   className = "object-cover rounded-sm size-16 m-2",
   alt = "span image",
-}: ImageContentPartProps) => {
-  const imageUrl = isStorageUrl(src) ? `${src}?payloadType=image` : src;
-
-  return <ImageWithPreview src={imageUrl} className={className} alt={alt} />;
-};
+}: ImageContentPartProps) => <ImageWithPreview src={src} className={className} alt={alt} />;
 
 interface ThinkingContentPartProps {
   content: string;

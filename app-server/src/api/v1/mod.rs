@@ -10,6 +10,7 @@ pub mod mcp;
 pub mod metrics;
 pub mod projects;
 pub mod rollouts;
+pub mod signals;
 pub mod spans;
 pub mod sql;
 pub mod tag;
