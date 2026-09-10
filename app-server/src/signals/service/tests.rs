@@ -53,7 +53,7 @@ fn unknown_filter_column_lists_the_supported_ones() {
     ])
     .expect_err("unknown filter column must be rejected");
     let msg = err.to_string();
-    for expected in ["total_token_count", "status", "span_names"] {
+    for expected in ["total_token_count", "status", "span_names", "tags"] {
         assert!(msg.contains(expected), "{expected} should be listed: {msg}");
     }
 }
@@ -228,14 +228,61 @@ fn status_accepts_error_and_success_only() {
 
 #[test]
 fn blank_span_names_filter_is_rejected() {
-    for value in ["", "   "] {
+    // A live operator, so this exercises the value rule rather than the
+    // operator check.
+    for value in [json!([]), json!([" "]), json!(["", "  "])] {
         assert!(
             normalize_filters(vec![
-                json!({ "column": "span_names", "operator": "ne", "value": value }),
+                json!({ "column": "span_names", "operator": "not_includes", "value": value }),
             ])
             .is_err(),
-            "blank span_names target {value:?} must be rejected"
+            "blank span_names target {value} must be rejected"
         );
+    }
+}
+
+/// Storage is always a list, so the evaluator — which honours only
+/// `includes`/`not_includes` — never meets a scalar value.
+#[test]
+fn set_filters_require_a_list() {
+    for column in ["span_names", "tags"] {
+        let many = normalize_filters(vec![
+            json!({ "column": column, "operator": "not_includes", "value": ["a", " b ", ""] }),
+        ])
+        .expect("a list is accepted");
+        assert_eq!(
+            many[0]["value"],
+            json!(["a", "b"]),
+            "{column} trims and drops blanks"
+        );
+
+        // A bare string is a caller bug, not something to coerce.
+        for scalar in [json!("agent.run"), json!(42), json!(null)] {
+            assert!(
+                normalize_filters(vec![
+                    json!({ "column": column, "operator": "includes", "value": scalar }),
+                ])
+                .is_err(),
+                "{column} must reject the scalar {scalar}"
+            );
+        }
+    }
+}
+
+/// Migration 0107 converted every row and the evaluator no longer honours the
+/// pre-`includes` shape, so writing one back would create a dead filter.
+#[test]
+fn legacy_scalar_operators_are_rejected_for_set_columns() {
+    for column in ["span_names", "tags"] {
+        for operator in ["eq", "ne"] {
+            assert!(
+                normalize_filters(vec![
+                    json!({ "column": column, "operator": operator, "value": "agent.run" }),
+                ])
+                .is_err(),
+                "{column} must reject the legacy {operator} shape"
+            );
+        }
     }
 }
 
