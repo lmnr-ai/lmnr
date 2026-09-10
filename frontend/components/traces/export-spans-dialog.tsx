@@ -1,10 +1,13 @@
+"use client";
+
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { type PropsWithChildren, useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { type Dataset } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
@@ -14,15 +17,26 @@ import DatasetSelect from "../ui/dataset-select";
 
 interface ExportSpansDialogProps {
   span: Span;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
-export default function ExportSpansPopover({ children, span }: PropsWithChildren<ExportSpansDialogProps>) {
+export default function ExportSpansDialog({ span, open, onOpenChange }: ExportSpansDialogProps) {
   const { projectId } = useParams();
-  const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
-
   const { toast } = useToast();
+
+  const setOpen = useCallback(
+    (next: boolean) => {
+      onOpenChange(next);
+      if (!next) {
+        setSelectedDataset(null);
+        setIsLoading(false);
+      }
+    },
+    [onOpenChange]
+  );
 
   const exportSpan = useCallback(async () => {
     try {
@@ -67,38 +81,25 @@ export default function ExportSpansPopover({ children, span }: PropsWithChildren
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, selectedDataset, span.spanId, toast]);
+  }, [projectId, selectedDataset, setOpen, span.spanId, toast]);
 
   return (
-    <>
-      <Popover
-        open={open}
-        onOpenChange={(open) => {
-          setOpen(open);
-          if (!open) {
-            setSelectedDataset(null);
-            setIsLoading(false);
-          }
-        }}
-      >
-        <PopoverTrigger asChild>
-          {children || (
-            <Button icon="database" size="sm" variant="secondary">
-              <span>Add to dataset</span>
-            </Button>
-          )}
-        </PopoverTrigger>
-        <PopoverContent className="w-80" align="end" side="bottom">
-          <div className="flex flex-col space-y-4">
-            <span className="font-medium">Export span to dataset</span>
-            <DatasetSelect onChange={(dataset) => setSelectedDataset(dataset)} />
-            <Button className="ml-auto" onClick={exportSpan} disabled={!selectedDataset || isLoading}>
-              {isLoading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-              Add to dataset
-            </Button>
-          </div>
-        </PopoverContent>
-      </Popover>
-    </>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent className="sm:max-w-96">
+        <DialogHeader>
+          <DialogTitle>Add to dataset</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-2">
+          <Label>Dataset</Label>
+          <DatasetSelect value={selectedDataset?.id} onChange={(dataset) => setSelectedDataset(dataset)} />
+        </div>
+        <DialogFooter>
+          <Button handleEnter onClick={exportSpan} disabled={!selectedDataset || isLoading}>
+            {isLoading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+            Add to dataset
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

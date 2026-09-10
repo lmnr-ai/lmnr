@@ -1,19 +1,26 @@
 "use client";
 
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { Loader2, X } from "lucide-react";
+import { Loader2, Sparkles, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
+import { laminarAgentStore } from "@/components/agent";
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ElevatedSurface } from "@/components/ui/surface";
+import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
+import { Feature } from "@/lib/features/features.ts";
 import { cn } from "@/lib/utils";
 
+import { TOOLTIP_DELAY_MS } from "./constants";
 import SignalDetails from "./signal-details";
+import SignalHeader from "./signal-header";
+import SignalTab from "./signal-tab";
 
 interface Props {
   traceId: string;
@@ -74,6 +81,7 @@ export default function PanelBody({ traceId, onClose }: Props) {
       shallow
     );
 
+  const featureFlags = useFeatureFlags();
   const searchParams = useSearchParams();
   const highlightedEventId = searchParams.get("eventId");
 
@@ -81,8 +89,8 @@ export default function PanelBody({ traceId, onClose }: Props) {
     if (activeSignalTabId && traceSignals.some((s) => s.signalId === activeSignalTabId)) {
       return activeSignalTabId;
     }
-    // A deep link with eventId points at one specific finding — surface the
-    // signal tab that owns it so the highlighted card is visible on open.
+    // A deep link with eventId points at one specific event — surface the signal
+    // tab that owns it so the highlighted event is visible on open.
     if (highlightedEventId) {
       const owner = traceSignals.find((s) => s.events.some((e) => e.id === highlightedEventId));
       if (owner) return owner.signalId;
@@ -97,9 +105,15 @@ export default function PanelBody({ traceId, onClose }: Props) {
   const activeSignal = traceSignals.find((s) => s.signalId === effectiveTabId);
 
   const closeButton = (
-    <Tooltip>
+    <Tooltip delayDuration={400}>
       <TooltipTrigger asChild>
-        <Button aria-label="Close" variant="ghost" className="h-6 w-6 p-0 shrink-0" onClick={onClose}>
+        <Button
+          aria-label="Close"
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0 hover:bg-surface-up"
+          onClick={onClose}
+        >
           <X className="size-3.5" />
         </Button>
       </TooltipTrigger>
@@ -110,41 +124,71 @@ export default function PanelBody({ traceId, onClose }: Props) {
   );
 
   return (
-    <div className="flex flex-col rounded-md border bg-blue-400/12 overflow-hidden border-blue-400/30">
+    // Three rungs off the trace view, not one: the card carries a ladder of its
+    // own — header, chips, tabs, span chips — and one step leaves no room under
+    // the top of it. `ElevatedSurface` also publishes `--color-border` at +5, so
+    // the border and the deep-link rule track the card for free.
+    <ElevatedSurface offset={3} className="relative flex flex-col overflow-hidden rounded-md border">
       {isTraceSignalsLoading ? (
         <div className="flex items-center justify-center py-8 text-muted-foreground">
           <Loader2 className="size-4 animate-spin" />
         </div>
       ) : (
         <Tabs value={effectiveTabId} onValueChange={setActiveSignalTabId} className="flex flex-col gap-0">
-          <TooltipProvider delayDuration={300}>
-            <div className="shrink-0 flex items-center gap-2 justify-between px-2 py-1 bg-blue-400/12">
+          <TooltipProvider delayDuration={TOOLTIP_DELAY_MS}>
+            {/* The tab list is a filled pill with its own inset, so under tabs the
+                leading inset matches the trailing one; bare header text keeps the
+                wider one. */}
+            <div
+              className={cn(
+                "flex shrink-0 items-center justify-between gap-2 bg-surface-up p-1",
+                isSingleSignal && "pl-2"
+              )}
+            >
               {isSingleSignal && activeSignal ? (
-                <span className="flex items-center min-w-0 pl-1 text-xs font-medium">
-                  <span className="truncate">{activeSignal.signalName}</span>
-                </span>
+                <SignalHeader signal={activeSignal} />
               ) : (
-                <TabsList className="flex-1 min-w-0 h-auto bg-transparent p-0 gap-1 justify-start">
+                <TabsList className="h-auto min-w-0 flex-1 justify-start gap-1 bg-transparent p-0">
                   {traceSignals.map((signal) => (
-                    <TabsTrigger
-                      key={signal.signalId}
-                      value={signal.signalId}
-                      className={cn(
-                        "flex-1 min-w-0 h-auto px-2 py-1 text-xs rounded-md",
-                        "data-[state=active]:bg-gray-900 data-[state=active]:shadow-none data-[state=active]:text-foreground",
-                        "text-secondary-foreground hover:text-foreground"
-                      )}
-                    >
-                      <span className="block w-full truncate text-center">{signal.signalName}</span>
-                    </TabsTrigger>
+                    <SignalTab key={signal.signalId} signal={signal} />
                   ))}
                 </TabsList>
+              )}
+              {/* An icon, not a worded button: it is feature-flagged and usually
+                  absent, and a second label would outweigh the signal's own name. */}
+              {featureFlags[Feature.AGENT] && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      aria-label="Open in AI Chat"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="shrink-0 hover:bg-surface-up"
+                      onClick={() => laminarAgentStore.getState().open()}
+                    >
+                      <Sparkles className="size-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipPortal>
+                    <TooltipContent side="top">Open in AI Chat</TooltipContent>
+                  </TooltipPortal>
+                </Tooltip>
               )}
               {closeButton}
             </div>
           </TooltipProvider>
+          {/* `scroll-fade-b` on the VIEWPORT, not a painted scrim over it. It is a
+              scroll-driven mask, so the fade only exists while there is more
+              payload below and is gone the moment you reach the bottom — and
+              being a mask it has no colour to keep in step with the ramp. It has
+              to sit on the element that actually scrolls, since the animation is
+              timed to `scroll(self y)`: the Radix viewport, not the root.
+
+              Both classes: `scroll-fade-b` is the mask, `scroll-fade-b-7` only
+              sets `--scroll-fade-b-size` (7 × 4px = 28px). The suffixed one alone
+              is a size for a mask that was never applied. */}
           <ScrollArea
-            className="[&>div>div]:!block [&>[data-radix-scroll-area-viewport]]:!h-full"
+            className="[&>div>div]:!block [&>[data-radix-scroll-area-viewport]]:!h-full [&>[data-radix-scroll-area-viewport]]:scroll-fade-b [&>[data-radix-scroll-area-viewport]]:scroll-fade-b-7"
             style={bodyHeight !== null ? { height: bodyHeight } : undefined}
           >
             <div ref={contentRef}>
@@ -159,16 +203,20 @@ export default function PanelBody({ traceId, onClose }: Props) {
               ))}
             </div>
           </ScrollArea>
+          {/* Absolute, and with no fill of its own: it costs the body no height,
+              and the only thing that reacts is the grip. `--color-border` is the
+              card's elevation +5, so +7 is what reads as a step up from where the
+              grip sits. */}
           <div
             role="separator"
             aria-orientation="horizontal"
             onPointerDown={handleResizePointerDown}
-            className="group h-1.5 shrink-0 cursor-row-resize flex items-center justify-center hover:bg-blue-300/10 transition-colors"
+            className="group/resize absolute inset-x-0 bottom-0 flex h-1.5 cursor-row-resize items-center justify-center"
           >
-            <div className="h-0.5 w-8 rounded-full bg-primary-foreground/20" />
+            <div className="h-0.5 w-8 rounded-full bg-border transition-colors group-hover/resize:bg-surface-up-7" />
           </div>
         </Tabs>
       )}
-    </div>
+    </ElevatedSurface>
   );
 }

@@ -153,11 +153,12 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
                   <div className="flex items-center gap-1 min-w-0">
                     {hasBrowserSession && (
                       <Button
+                        variant="ghost"
+                        className={cn(
+                          "flex h-[26px] items-center overflow-hidden px-1.5 hover:bg-surface-up-3",
+                          browserSession && "text-primary hover:text-primary"
+                        )}
                         disabled={!trace}
-                        className={cn("h-6 px-1.5 text-xs overflow-hidden", {
-                          "border-primary text-primary": browserSession,
-                        })}
-                        variant="outline"
                         onClick={() => setBrowserSession(!browserSession)}
                       >
                         <CirclePlay data-icon="inline-start" size={14} className="flex-shrink-0" />

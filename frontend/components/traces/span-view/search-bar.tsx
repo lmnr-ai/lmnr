@@ -103,8 +103,8 @@ const SpanViewSearchBar = ({ open, setOpen, ref }: SpanViewSearchBarProps) => {
           <span className="text-xs text-muted-foreground whitespace-nowrap">
             {currentIndex === 0 ? `${totalMatches} found` : `${currentIndex} of ${totalMatches}`}
           </span>
-          <Button className="size-5" icon="chevronUp" variant="ghost" size="icon" onClick={goToPrev} />
-          <Button className="size-5" icon="chevronDown" variant="ghost" size="icon" onClick={goToNext} />
+          <Button icon="chevronUp" variant="ghost" size="icon-xs" onClick={goToPrev} />
+          <Button icon="chevronDown" variant="ghost" size="icon-xs" onClick={goToNext} />
         </>
       )}
     </div>

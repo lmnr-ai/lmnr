@@ -199,7 +199,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
           </div>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent className="border">{formatDurationExact(durationMs)}</TooltipContent>
+          <TooltipContent>{formatDurationExact(durationMs)}</TooltipContent>
         </TooltipPortal>
       </Tooltip>
     </TooltipProvider>
@@ -217,7 +217,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
           </div>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent side="bottom" className="flex flex-col border gap-1 min-w-55 p-2">
+          <TooltipContent side="bottom" className="flex flex-col gap-1 min-w-55 p-2">
             {span && (span.spanType === SpanType.LLM || span?.spanType === SpanType.CACHED) ? (
               <InputTokenBreakdown span={span} />
             ) : (
@@ -241,7 +241,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
           </div>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent className="flex flex-col border gap-1 p-2">
+          <TooltipContent className="flex flex-col gap-1 p-2">
             <CostBreakdown stats={stats} labelPrefix={labelPrefix} />
           </TooltipContent>
         </TooltipPortal>
@@ -252,8 +252,8 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
   return (
     <div
       className={cn(
-        "flex items-center gap-2 px-1.5 py-0.5 rounded-md overflow-hidden text-xs font-mono min-w-0",
-        variant === "outline" ? "border border-muted text-white" : "bg-muted text-secondary-foreground",
+        "flex h-[26px] items-center gap-2 px-2 rounded-md overflow-hidden text-xs min-w-0",
+        variant === "outline" ? "border border-muted text-white" : "bg-surface-up-2 text-secondary-foreground",
         className
       )}
     >
