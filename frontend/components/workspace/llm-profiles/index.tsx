@@ -18,6 +18,7 @@ import { swrFetcher } from "@/lib/utils";
 
 import DeleteProfileDialog from "./delete-profile-dialog";
 import ManageProfileSheet from "./manage-profile-sheet";
+import { ProviderIcon } from "./provider-icon";
 
 interface LlmProfilesProps {
   workspaceId: string;
@@ -36,7 +37,10 @@ export default function LlmProfiles({ workspaceId }: LlmProfilesProps) {
 
   return (
     <SettingsSection>
-      <SettingsSectionHeader title="LLM Profiles" description="Provider credentials that signals run on." />
+      <SettingsSectionHeader
+        title="LLM Profiles"
+        description="Provider credentials and models that the playground and signals run on."
+      />
       <Button variant="outline" icon="plus" className="w-fit" onClick={() => openEditor(null)}>
         Profile
       </Button>
@@ -55,7 +59,10 @@ export default function LlmProfiles({ workspaceId }: LlmProfilesProps) {
           >
             <td className="px-4 text-sm font-medium">{profile.name}</td>
             <td className="px-4 text-sm text-muted-foreground whitespace-nowrap">
-              {PROVIDER_LABELS[profile.provider]}
+              <span className="inline-flex items-center gap-2">
+                <ProviderIcon provider={profile.provider} />
+                {PROVIDER_LABELS[profile.provider]}
+              </span>
             </td>
             <td className="px-4">
               <div className="flex flex-wrap gap-1 py-2">

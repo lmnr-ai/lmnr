@@ -4,7 +4,10 @@ import { z } from "zod/v4";
 export const LLM_PROFILE_PROVIDERS = [
   "openai_completions",
   "openai_responses",
+  "anthropic",
   "gemini",
+  "groq",
+  "mistral",
   "bedrock",
   "azure_chat_completions",
   "azure_responses",
@@ -21,7 +24,7 @@ export const AZURE_PROVIDERS = ["azure_chat_completions", "azure_responses", "az
 export type AzureProvider = (typeof AZURE_PROVIDERS)[number];
 
 /** Providers whose whole config is an API key. */
-const API_KEY_PROVIDERS = ["openai_completions", "openai_responses", "gemini"] as const;
+const API_KEY_PROVIDERS = ["openai_completions", "openai_responses", "anthropic", "gemini", "groq", "mistral"] as const;
 
 // RFC 7230 token: the characters allowed in an HTTP header name.
 const HEADER_NAME_RE = /^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/;
@@ -157,13 +160,34 @@ export type LlmProfile = LlmProfileConfig & {
 export const PROVIDER_LABELS: Record<LlmProfileProvider, string> = {
   openai_completions: "OpenAI (Chat Completions)",
   openai_responses: "OpenAI (Responses)",
+  anthropic: "Anthropic",
   gemini: "Google Gemini",
+  groq: "Groq",
+  mistral: "Mistral",
   bedrock: "AWS Bedrock",
   azure_chat_completions: "Azure AI Foundry (Chat Completions)",
   azure_responses: "Azure AI Foundry (Responses)",
   azure_anthropic: "Azure AI Foundry (Anthropic Messages)",
   custom: "Custom (OpenAI-compatible)",
 };
+
+/** Vendor family: the icon to show and the `gen_ai.system` value the playground reports. */
+export type LlmProviderFamily = "openai" | "anthropic" | "gemini" | "groq" | "mistral" | "bedrock" | "azure";
+
+export function providerFamily(provider: LlmProfileProvider): LlmProviderFamily {
+  switch (provider) {
+    case "openai_completions":
+    case "openai_responses":
+    case "custom":
+      return "openai";
+    case "azure_chat_completions":
+    case "azure_responses":
+    case "azure_anthropic":
+      return "azure";
+    default:
+      return provider;
+  }
+}
 
 export const isOpenAIProvider = (provider: LlmProfileProvider): provider is OpenAIProvider =>
   (OPENAI_PROVIDERS as readonly string[]).includes(provider);

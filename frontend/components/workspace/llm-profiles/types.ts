@@ -15,7 +15,10 @@ export type UiProvider = Exclude<LlmProfileProvider, OpenAIProvider | AzureProvi
 
 export const UI_PROVIDER_OPTIONS: Array<{ value: UiProvider; label: string }> = [
   { value: "openai", label: "OpenAI" },
+  { value: "anthropic", label: "Anthropic" },
   { value: "gemini", label: "Google Gemini" },
+  { value: "groq", label: "Groq" },
+  { value: "mistral", label: "Mistral" },
   { value: "bedrock", label: "AWS Bedrock" },
   { value: "azure", label: "Azure AI Foundry" },
   { value: "custom", label: "Custom (OpenAI-compatible)" },

@@ -22,9 +22,9 @@ pub enum Feature {
     /// on `ENABLE_TRACING` so it works without a Sentry DSN.
     InternalTracing,
     Signals,
-    /// Workspace-scoped LLM profiles (provider + credentials + models) that
-    /// signals run on. Self-hosted only: cloud keeps its internal keys.
-    LlmProfiles,
+    /// Signals route their LLM calls through a profile. Self-hosted only: cloud
+    /// signals keep running on Laminar's internal keys.
+    SignalLlmProfiles,
     /// Ingestion-time user-task extraction (LAM-1880). Shares the
     /// LLM-provider condition with `Signals` but stays a separate flag —
     /// features are fine-grained so gating can diverge later.
@@ -87,9 +87,8 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::Clustering => has_llm_provider(),
         // Self-hosted signals can route every call through a workspace LLM
         // profile, so an env provider is only mandatory on Laminar Cloud.
-        Feature::Signals => has_llm_provider() || is_feature_enabled(Feature::LlmProfiles),
-        // TODO: include LLM profiles in the Cloud once playgrounds migrated to use them
-        Feature::LlmProfiles => !env::connections::LAMINAR_CLOUD.get(),
+        Feature::Signals => has_llm_provider() || is_feature_enabled(Feature::SignalLlmProfiles),
+        Feature::SignalLlmProfiles => !env::connections::LAMINAR_CLOUD.get(),
         Feature::InputExtraction => has_llm_provider(),
         Feature::Reports => {
             std::env::var(env::observability::ENABLE_REPORTS).is_ok_and(|s| s == "true")

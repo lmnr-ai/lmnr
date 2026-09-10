@@ -31,6 +31,9 @@ const ANTHROPIC_VERSION: &str = "2023-06-01";
 /// Note the OpenAI-shaped `azure_*` providers take the opposite header.
 const AUTH_HEADER: &str = "x-api-key";
 
+/// Host for the `anthropic` LLM profile provider; `send` appends `/v1/messages`.
+pub(crate) const ANTHROPIC_API_URL: &str = "https://api.anthropic.com";
+
 #[derive(Debug, Error)]
 pub enum AzureAnthropicError {
     #[error("Request failed: {0}")]
@@ -110,6 +113,18 @@ impl AzureAnthropicClient {
         let api_base_url = format!("{}/anthropic", resource_root.trim_end_matches('/'));
         Self::with_config(api_key, api_base_url, reqwest::header::HeaderMap::new())
             .map_err(Into::into)
+    }
+
+    /// Anthropic's own API: same Messages body, `x-api-key` and `anthropic-version`
+    /// headers as the Azure route, so the client is shared. `/v1/messages` is
+    /// appended per request, hence the bare host.
+    pub(crate) fn direct(api_key: String) -> ProviderResult<Self> {
+        Self::with_config(
+            api_key,
+            ANTHROPIC_API_URL.to_string(),
+            reqwest::header::HeaderMap::new(),
+        )
+        .map_err(Into::into)
     }
 
     fn with_config(

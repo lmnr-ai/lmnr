@@ -1,9 +1,8 @@
 //! CLI workspace LLM profile CRUD. Auth via `CliProjectAuth`; the caller's
 //! project resolves to a workspace and the shared `api::v1::llm_profiles::handlers`
 //! do the rest. Any workspace member may write, matching the signals CLI.
-//!
-//! Self-hosted only: on Laminar Cloud (`Feature::LlmProfiles` off) every route
-//! 404s with the `{error}` envelope the CLI's error unwrapper surfaces verbatim.
+//! Profiles back the playground everywhere, so these routes are not Cloud-gated;
+//! only pinning a profile on a signal is (`Feature::SignalLlmProfiles`).
 
 use actix_web::{HttpResponse, delete, get, patch, post, web};
 use uuid::Uuid;

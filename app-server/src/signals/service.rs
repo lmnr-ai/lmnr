@@ -331,7 +331,7 @@ async fn llm_profile_name(pool: &PgPool, row: &SignalRow) -> Result<Option<Strin
 
 /// Resolves the CLI's `llmProfileId` + `model` pair to the stored route.
 ///
-/// Self-hosted (`Feature::LlmProfiles`): a complete pair is required when
+/// Self-hosted (`Feature::SignalLlmProfiles`): a complete pair is required when
 /// `required`, a half pair is rejected, the id must exist in the project's
 /// workspace and the model must be one of the profile's. On Laminar Cloud any
 /// profile field is rejected. `Ok(None)` = env routing / leave stored.
@@ -345,7 +345,7 @@ async fn resolve_llm_route(
     let model = model
         .map(|m| m.trim().to_string())
         .filter(|m| !m.is_empty());
-    let profiles_enabled = is_feature_enabled(Feature::LlmProfiles);
+    let profiles_enabled = is_feature_enabled(Feature::SignalLlmProfiles);
 
     let (profile_id, model) = match (llm_profile_id, model) {
         (None, None) if required && profiles_enabled => {
@@ -356,7 +356,7 @@ async fn resolve_llm_route(
         (None, None) => return Ok(None),
         _ if !profiles_enabled => {
             return Err(CrudError::Validation(
-                "LLM profiles are not available on Laminar Cloud".to_string(),
+                "Signals run on Laminar's own keys on Laminar Cloud; llmProfileId and model are not accepted".to_string(),
             ));
         }
         (Some(profile_id), Some(model)) => (profile_id, model),

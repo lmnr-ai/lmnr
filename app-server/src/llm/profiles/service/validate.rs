@@ -71,7 +71,7 @@ pub(super) fn normalize_config(
     let trimmed = |v: Option<String>| v.map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
 
     match provider {
-        OpenaiCompletions | OpenaiResponses | Gemini => {
+        OpenaiCompletions | OpenaiResponses | Anthropic | Gemini | Groq | Mistral => {
             require_api_key_auth(&config.auth)?;
             Ok(ProfileConfig::default())
         }
