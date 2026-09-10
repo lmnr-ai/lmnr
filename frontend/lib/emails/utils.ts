@@ -4,7 +4,7 @@ import path from "node:path";
 import { Resend } from "resend";
 
 import PaymentFailedEmail from "./payment-failed-email";
-import { REPORT_LOGO_CID } from "./report-email-layout";
+import { LAMINAR_LOGO_CID } from "./report-email-layout";
 import SubscriptionUpdatedEmail from "./subscription-updated-email";
 import WelcomeEmail from "./welcome-email";
 import WorkspaceInviteEmail from "./workspace-invite";
@@ -20,10 +20,10 @@ const RESEND = new Resend(process.env.RESEND_API_KEY ?? "_RESEND_API_KEY_PLACEHO
 const billingPortalUrl = (workspaceId: string) =>
   `https://lmnr.ai/checkout/portal?workspaceId=${encodeURIComponent(workspaceId)}`;
 
-const reportLogoAttachment = async () => ({
-  content: await readFile(path.join(process.cwd(), "public", "report-logo.png")),
-  filename: "report-logo.png",
-  contentId: REPORT_LOGO_CID,
+const laminarLogoAttachment = async () => ({
+  content: await readFile(path.join(process.cwd(), "public", "laminar-logo-sm.png")),
+  filename: "laminar-logo-sm.png",
+  contentId: LAMINAR_LOGO_CID,
 });
 
 interface InvoiceEmailArgs {
@@ -44,7 +44,8 @@ export async function sendWelcomeEmail(email: string) {
     react: WelcomeEmail(),
   });
 
-  if (error) console.log(error);
+  if (error) throw error;
+  return data;
 }
 
 export async function sendOnPaymentReceivedEmail({ email, workspaceId, total, date }: InvoiceEmailArgs) {
@@ -62,10 +63,11 @@ export async function sendOnPaymentReceivedEmail({ email, workspaceId, total, da
     to: [email],
     subject,
     react: component,
-    attachments: [await reportLogoAttachment()],
+    attachments: [await laminarLogoAttachment()],
   });
 
-  if (error) console.error(error);
+  if (error) throw error;
+  return data;
 }
 
 export async function sendOnPaymentFailedEmail({ email, workspaceId, total, date }: InvoiceEmailArgs) {
@@ -83,10 +85,11 @@ export async function sendOnPaymentFailedEmail({ email, workspaceId, total, date
     to: [email],
     subject,
     react: component,
-    attachments: [await reportLogoAttachment()],
+    attachments: [await laminarLogoAttachment()],
   });
 
-  if (error) console.error(error);
+  if (error) throw error;
+  return data;
 }
 
 export async function sendInvitationEmail(email: string, workspaceName: string, inviteLink: string) {
@@ -98,8 +101,9 @@ export async function sendInvitationEmail(email: string, workspaceName: string, 
     to: [email],
     subject,
     react: WorkspaceInviteEmail({ workspaceName, inviteLink }),
-    attachments: [await reportLogoAttachment()],
+    attachments: [await laminarLogoAttachment()],
   });
 
-  if (error) console.log(error);
+  if (error) throw error;
+  return data;
 }

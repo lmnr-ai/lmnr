@@ -563,11 +563,16 @@ fn render_usage_hard_limit_email(
 /// Render an HTML email for a signals report notification.
 fn render_report_email(data: &ReportData) -> String {
     let base = frontend_url_email();
+    let mut signals: Vec<_> = data
+        .projects
+        .iter()
+        .flat_map(|project| project.signals.iter().map(move |signal| (project, signal)))
+        .collect();
+    signals.sort_by(|(_, a), (_, b)| b.current_count.cmp(&a.current_count));
+
     let mut cards = String::new();
-    for project in &data.projects {
-        for signal in &project.signals {
-            cards.push_str(&render_signal_card(project, signal, &base));
-        }
+    for (project, signal) in signals {
+        cards.push_str(&render_signal_card(project, signal, &base));
     }
     let cards = if cards.is_empty() {
         r#"<div style="background:#fff;border-radius:8px;padding:24px;text-align:center;color:#92949c">No signal activity in this period.</div>"#.to_string()
@@ -1004,6 +1009,45 @@ mod tests {
                 .count(),
             12
         );
+    }
+
+    #[test]
+    fn report_sorts_signal_cards_by_current_event_count_descending() {
+        let id = |n| Uuid::from_u128(n);
+        let signal = |signal_id: u128, name: &str, current_count: u64| SignalReportData {
+            signal_id: id(signal_id),
+            signal_name: name.into(),
+            current_count,
+            previous_count: 0,
+            summary: String::new(),
+            buckets: vec![],
+            clusters: vec![],
+        };
+        let project =
+            |project_id: u128, name: &str, signals: Vec<SignalReportData>| ProjectReportData {
+                project_name: name.into(),
+                project_id: id(project_id),
+                signal_event_counts: BTreeMap::new(),
+                signals,
+                ai_summary: String::new(),
+                noteworthy_events: vec![],
+            };
+        let report = ReportData {
+            workspace_id: Uuid::nil(),
+            workspace_name: "Workspace".into(),
+            period_label: "Weekly".into(),
+            period_start: "Mar 1".into(),
+            period_end: "Mar 7".into(),
+            projects: vec![
+                project(10, "First project", vec![signal(1, "Few events", 2)]),
+                project(20, "Second project", vec![signal(2, "Many events", 9)]),
+            ],
+            total_events: 11,
+        };
+
+        let html = render_report_email(&report);
+
+        assert!(html.find("Many events").unwrap() < html.find("Few events").unwrap());
     }
 
     #[test]
