@@ -29,7 +29,7 @@ const CondensedTimelineElement = ({
   const { span, left, width, row } = condensedSpan;
 
   const isSelected = useMemo(() => selectedSpan?.spanId === span.spanId, [span.spanId, selectedSpan?.spanId]);
-  const opacity = isIncludedInGroupSelection === false ? "opacity-30" : isMuted ? "opacity-60" : "";
+  const opacity = isIncludedInGroupSelection === false ? "opacity-30" : "";
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -46,11 +46,9 @@ const CondensedTimelineElement = ({
 
   const backgroundColor = useMemo(() => {
     if (isCostHeatmapVisible) return undefined;
-    if (span.status === "error") {
-      return "rgba(204, 51, 51, 1)";
-    }
-    return SPAN_TYPE_TO_COLOR[span.spanType];
-  }, [span.status, span.spanType, isCostHeatmapVisible]);
+    const color = span.status === "error" ? "rgba(204, 51, 51, 1)" : SPAN_TYPE_TO_COLOR[span.spanType];
+    return isMuted ? `color-mix(in oklch, ${color} 60%, var(--color-surface-200))` : color;
+  }, [span.status, span.spanType, isCostHeatmapVisible, isMuted]);
 
   return (
     <div
