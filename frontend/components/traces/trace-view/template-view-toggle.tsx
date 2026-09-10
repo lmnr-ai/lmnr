@@ -10,18 +10,11 @@ import {
   PencilIcon,
   Plus,
 } from "lucide-react";
-import { type MouseEvent, useCallback, useMemo, useState } from "react";
+import { type MouseEvent, useCallback, useState } from "react";
 
 import { type ViewTab } from "@/components/traces/trace-view/view-toggle";
 import { Button } from "@/components/ui/button.tsx";
-import {
-  Command,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-} from "@/components/ui/command";
+import { Command, CommandGroup, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTemplatePicker } from "@/components/ui/template-renderer/template-picker";
@@ -47,8 +40,7 @@ interface TemplateViewToggleProps {
 }
 
 /** Trace-view variant of `ViewToggle` that folds custom render templates into
- *  the same dropdown: built-in views up top, then a searchable template list
- *  and a "New template" action. Requires a `TemplatePickerProvider` above. */
+ *  the same dropdown. Requires a `TemplatePickerProvider` above. */
 export default function TemplateViewToggle({
   tab,
   onTabChange,
@@ -58,19 +50,7 @@ export default function TemplateViewToggle({
 }: TemplateViewToggleProps) {
   const { templates, selectedTemplate, selectTemplate, openCreate, openEdit } = useTemplatePicker();
   const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-
-  const handleOpenChange = useCallback((next: boolean) => {
-    setOpen(next);
-    if (!next) setSearch("");
-  }, []);
-
-  const filteredTemplates = useMemo(() => {
-    if (!templates) return [];
-    const q = search.trim().toLowerCase();
-    if (!q) return templates;
-    return templates.filter((t) => t.name.toLowerCase().includes(q));
-  }, [templates, search]);
+  const templateCount = templates?.length ?? 0;
 
   const isCustom = tab === "custom";
   const isTreeView = tab === "tree";
@@ -117,7 +97,7 @@ export default function TemplateViewToggle({
 
   return (
     <div className="flex items-center min-w-0">
-      <Popover open={open} onOpenChange={handleOpenChange}>
+      <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             variant="ghost"
@@ -152,52 +132,49 @@ export default function TemplateViewToggle({
                   })}
                 </CommandGroup>
                 <CommandSeparator alwaysRender />
-                {(templates?.length ?? 0) > 5 && (
-                  <CommandInput
-                    placeholder="Search templates…"
-                    value={search}
-                    onValueChange={setSearch}
-                    className="h-8 py-1 text-xs"
-                  />
-                )}
                 <CommandGroup heading="Custom" className={GROUP_CLASS}>
-                  {(templates?.length ?? 0) > 0 &&
-                    (filteredTemplates.length === 0 ? (
-                      <div className="px-2 py-3 text-center text-xs text-muted-foreground">No matches.</div>
-                    ) : (
-                      filteredTemplates.map((t) => {
-                        const active = isCustom && selectedTemplate?.id === t.id;
-                        return (
-                          <CommandItem
-                            key={t.id}
-                            value={`template:${t.id}`}
-                            onSelect={() => handlePickTemplate(t.id)}
-                            className="group text-xs"
+                  {templates?.map((t) => {
+                    const active = isCustom && selectedTemplate?.id === t.id;
+                    return (
+                      <CommandItem
+                        key={t.id}
+                        value={`template:${t.id}`}
+                        onSelect={() => handlePickTemplate(t.id)}
+                        className="group text-xs"
+                      >
+                        <span className="flex-1 truncate">{t.name}</span>
+                        <div className="ml-2 flex shrink-0 items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            aria-label={`Edit ${t.name}`}
+                            onClick={(e) => handleEditTemplate(e, t.id)}
+                            className="inline-flex size-5 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 group-aria-selected:opacity-100 focus-visible:opacity-100"
                           >
-                            <span className="flex-1 truncate">{t.name}</span>
-                            <div className="ml-2 flex shrink-0 items-center justify-end gap-1">
-                              <button
-                                type="button"
-                                aria-label={`Edit ${t.name}`}
-                                onClick={(e) => handleEditTemplate(e, t.id)}
-                                className="inline-flex size-5 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 group-aria-selected:opacity-100 focus-visible:opacity-100"
-                              >
-                                <PencilIcon className="size-2.5" />
-                              </button>
-                              {active && <Check className="size-3.5" />}
-                            </div>
-                          </CommandItem>
-                        );
-                      })
-                    ))}
+                            <PencilIcon className="size-2.5" />
+                          </button>
+                          {active && <Check className="size-3.5" />}
+                        </div>
+                      </CommandItem>
+                    );
+                  })}
+                  {templateCount <= 5 && (
+                    <CommandItem onSelect={handleCreate} className="text-xs text-muted-foreground">
+                      <Plus className="mr-1.5 size-3.5" />
+                      New template
+                    </CommandItem>
+                  )}
                 </CommandGroup>
-                {(templates?.length ?? 0) > 0 && <CommandSeparator alwaysRender />}
-                <CommandGroup className={GROUP_CLASS}>
-                  <CommandItem onSelect={handleCreate} className="text-xs text-muted-foreground">
-                    <Plus className="mr-1.5 size-3.5" />
-                    New template
-                  </CommandItem>
-                </CommandGroup>
+                {templateCount > 5 && (
+                  <>
+                    <CommandSeparator alwaysRender />
+                    <CommandGroup className={GROUP_CLASS}>
+                      <CommandItem onSelect={handleCreate} className="text-xs text-muted-foreground">
+                        <Plus className="mr-1.5 size-3.5" />
+                        New template
+                      </CommandItem>
+                    </CommandGroup>
+                  </>
+                )}
               </ScrollArea>
             </CommandList>
           </Command>
