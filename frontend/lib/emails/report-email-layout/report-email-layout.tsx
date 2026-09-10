@@ -33,7 +33,7 @@ export function ReportEmailLayout({
     boxSizing: "border-box",
     height: "160px",
     padding: "16px 20px 12px",
-    marginBottom: "4px",
+    marginBottom: "12px",
     borderRadius: "8px",
     backgroundColor: "#252526",
   };

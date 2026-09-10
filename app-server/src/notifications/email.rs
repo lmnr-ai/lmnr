@@ -60,7 +60,7 @@ fn banner(workspace: &str, title: &str, subtitle: Option<&str>) -> String {
         })
         .unwrap_or_default();
     format!(
-        r#"<div style="background:#252525;background-image:linear-gradient(#252525,#252525);border-radius:8px;margin-bottom:4px"><table width="100%" height="{height}" cellpadding="0" cellspacing="0" role="presentation" style="height:{height}px"><tr height="{half}"><td valign="top" style="padding:16px 20px 0"><table cellpadding="0" cellspacing="0" role="presentation"><tr height="15"><td width="76" height="15" style="line-height:0"><img src="cid:{cid}" alt="Laminar" width="76" height="13" style="display:block;border:0"></td><td width="8"></td><td style="font-size:14px;font-weight:400;color:#bfc1c7"><div class="gmail-blend-screen"><div class="gmail-blend-difference">/</div></div></td><td width="8"></td><td style="font-size:14px;font-weight:400;color:#bfc1c7"><div class="gmail-blend-screen"><div class="gmail-blend-difference">{workspace}</div></div></td></tr></table></td></tr><tr height="{half}"><td valign="bottom" style="padding:0 20px {bottom}px"><div class="gmail-blend-screen"><div class="gmail-blend-difference"><p style="margin:0 0 2px;font-size:28px;font-weight:400;color:#fff;letter-spacing:-.56px">{title}</p></div></div>{subtitle_html}</td></tr></table></div>"#,
+        r#"<div style="background:#252525;background-image:linear-gradient(#252525,#252525);border-radius:8px;margin-bottom:12px"><table width="100%" height="{height}" cellpadding="0" cellspacing="0" role="presentation" style="height:{height}px"><tr height="{half}"><td valign="top" style="padding:16px 20px 0"><table cellpadding="0" cellspacing="0" role="presentation"><tr height="15"><td width="76" height="15" style="line-height:0"><img src="cid:{cid}" alt="Laminar" width="76" height="13" style="display:block;border:0"></td><td width="8"></td><td style="font-size:14px;font-weight:400;color:#bfc1c7"><div class="gmail-blend-screen"><div class="gmail-blend-difference">/</div></div></td><td width="8"></td><td style="font-size:14px;font-weight:400;color:#bfc1c7"><div class="gmail-blend-screen"><div class="gmail-blend-difference">{workspace}</div></div></td></tr></table></td></tr><tr height="{half}"><td valign="bottom" style="padding:0 20px {bottom}px"><div class="gmail-blend-screen"><div class="gmail-blend-difference"><p style="margin:0 0 2px;font-size:28px;font-weight:400;color:#fff;letter-spacing:-.56px">{title}</p></div></div>{subtitle_html}</td></tr></table></div>"#,
         height = height,
         half = height / 2,
         bottom = bottom,
@@ -103,7 +103,7 @@ fn breadcrumb(parts: &[&str], href: &str) -> String {
         .collect::<Vec<_>>()
         .join(r#"<span style="display:inline-block;margin:0 10px;color:#92949c">/</span>"#);
     format!(
-        r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr><td style="font-size:14px;font-weight:400">{}</td><td width="54" align="right" valign="top"><a class="email-view-button" href="{}" style="display:inline-block;background:#ebebeb;border-radius:999px;color:#252525;font-size:12px;line-height:16px;padding:4px 10px;text-decoration:none;white-space:nowrap">View&nbsp;›</a></td></tr></table>"#,
+        r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr><td style="font-size:14px;font-weight:400">{}</td><td width="54" align="right" valign="top"><a class="email-view-button" href="{}" style="display:inline-block;background:#252525;border-radius:999px;color:#ffffff;font-size:12px;line-height:16px;padding:6px 11px;text-decoration:none;white-space:nowrap">View&nbsp;›</a></td></tr></table>"#,
         text, href
     )
 }
@@ -304,7 +304,7 @@ fn render_alert_email(
         signal_id
     );
     let card = format!(
-        r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:4px">{}<p style="margin:16px 0 20px;font-size:14px;line-height:1.5;color:{}">A new signal event requires your attention.</p>{}{}</div>"#,
+        r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:12px">{}<p style="margin:16px 0 20px;font-size:14px;line-height:1.5;color:{}">A new signal event requires your attention.</p>{}{}</div>"#,
         breadcrumb(&[project_name, event_name], &signal_link),
         TEXT,
         data_rows(&rows),
@@ -383,8 +383,10 @@ fn render_new_cluster_section(kind: &NotificationKind, base: &str) -> String {
         ),
     ];
     let accent = CLUSTER_PALETTE[cluster_color_index(&cluster_id.to_string())];
+    let severity_rows = data_rows(&rows[..3]);
+    let event_time_rows = data_rows(&rows[3..]);
     format!(
-        r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:4px">{}{}<div style="margin-top:24px"><p style="margin:0 0 4px;font-size:14px;font-weight:500;color:{text}">Events</p><div style="font-size:28px;font-weight:500;color:{text};line-height:1">{num_signal_events}</div><div style="margin:12px 0 20px">{chart}</div></div>{rows}{action}</div>"#,
+        r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:12px">{}{}<div style="margin-top:24px"><p style="margin:0 0 4px;font-size:14px;font-weight:500;color:{text}">Events</p><div style="font-size:28px;font-weight:500;color:{text};line-height:1">{num_signal_events}</div><div style="margin:12px 0 20px">{chart}</div></div>{severity_rows}<div style="height:8px;line-height:8px;font-size:0">&nbsp;</div>{event_time_rows}</div>"#,
         breadcrumb(&[project_name, signal_name], &cluster_link),
         cluster_title(cluster_name, accent),
         text = TEXT,
@@ -395,8 +397,8 @@ fn render_new_cluster_section(kind: &NotificationKind, base: &str) -> String {
             last_seen.as_deref(),
             accent
         ),
-        rows = data_rows(&rows),
-        action = action(&cluster_link, "View cluster")
+        severity_rows = severity_rows,
+        event_time_rows = event_time_rows
     )
 }
 
@@ -484,7 +486,7 @@ fn render_usage_warning_email(
         ("Plan".to_string(), html_escape(tier_display_name)),
     ];
     let card = format!(
-        r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:4px"><p style="margin:0 0 20px;font-size:14px;line-height:1.5;color:{}">{}</p>{}{}</div>"#,
+        r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:12px"><p style="margin:0 0 20px;font-size:14px;line-height:1.5;color:{}">{}</p>{}{}</div>"#,
         TEXT,
         html_escape(&copy),
         data_rows(&rows),
@@ -536,7 +538,7 @@ fn render_usage_hard_limit_email(
         ("Status".to_string(), "Paused".to_string()),
     ];
     let card = format!(
-        r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:4px"><p style="margin:0 0 20px;font-size:14px;line-height:1.5;color:{}">{}</p>{}{}</div>"#,
+        r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:12px"><p style="margin:0 0 20px;font-size:14px;line-height:1.5;color:{}">{}</p>{}{}</div>"#,
         TEXT,
         html_escape(&copy),
         data_rows(&rows),
@@ -658,7 +660,7 @@ fn render_signal_card(
         signal.summary.clone()
     };
     format!(
-        r#"<div class="email-report-card" style="background:#fff;border-radius:8px;padding:16px 20px;margin-bottom:4px">{}<p style="margin:16px 0 0;font-size:14px;line-height:1.5;color:{}">{}</p><div style="margin-top:24px"><p style="margin:0 0 4px;font-size:14px;color:{}">Events</p><table cellpadding="0" cellspacing="0"><tr><td valign="baseline" style="font-size:30px;line-height:30px;color:{};padding-right:6px">{}</td><td valign="baseline" style="white-space:nowrap">{} <span style="font-size:12px;color:#92949c">vs previous period</span></td></tr></table><div style="margin-top:12px">{}</div></div><div style="margin-top:24px"><p style="margin:0 0 12px;font-size:14px;color:{}">Notable clusters</p>{}</div></div>"#,
+        r#"<div class="email-report-card" style="background:#fff;border-radius:8px;padding:16px 20px;margin-bottom:12px">{}<p style="margin:16px 0 0;font-size:14px;line-height:1.5;color:{}">{}</p><div style="margin-top:24px"><p style="margin:0 0 4px;font-size:14px;color:{}">Events</p><table cellpadding="0" cellspacing="0"><tr><td valign="baseline" style="font-size:30px;line-height:30px;color:{};padding-right:6px">{}</td><td valign="baseline" style="white-space:nowrap">{} <span style="font-size:12px;color:#92949c">vs previous period</span></td></tr></table><div style="margin-top:12px">{}</div></div><div style="margin-top:24px"><p style="margin:0 0 12px;font-size:14px;color:{}">Notable clusters</p>{}</div></div>"#,
         breadcrumb(&[&project.project_name, &signal.signal_name], &signal_link),
         TEXT,
         html_escape(&summary),
@@ -999,7 +1001,9 @@ mod tests {
         assert!(html.contains(">34</div>"));
         assert!(html.contains("First event"));
         assert!(html.contains("Last event"));
+        assert!(html.contains(r#"height:8px;line-height:8px;font-size:0"#));
         assert!(!html.contains(">Total<"));
+        assert!(!html.contains("View cluster"));
         assert!(!html.contains("related signal events has emerged"));
         assert!(html.contains("height:96px"));
         assert!(html.contains(">19</td>"));
