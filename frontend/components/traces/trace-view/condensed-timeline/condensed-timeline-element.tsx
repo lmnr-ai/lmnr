@@ -11,6 +11,7 @@ interface CondensedTimelineElementProps {
   condensedSpan: CondensedTimelineSpan;
   selectedSpan?: TraceViewSpan;
   isIncludedInGroupSelection: boolean | null;
+  isMuted: boolean;
   maxSpanCost: number;
   isCostHeatmapVisible: boolean;
   onClick: (span: TraceViewSpan) => void;
@@ -20,6 +21,7 @@ const CondensedTimelineElement = ({
   condensedSpan,
   selectedSpan,
   isIncludedInGroupSelection,
+  isMuted,
   maxSpanCost,
   isCostHeatmapVisible,
   onClick,
@@ -27,7 +29,7 @@ const CondensedTimelineElement = ({
   const { span, left, width, row } = condensedSpan;
 
   const isSelected = useMemo(() => selectedSpan?.spanId === span.spanId, [span.spanId, selectedSpan?.spanId]);
-  const opacity = isIncludedInGroupSelection === false ? "opacity-30" : "";
+  const opacity = isIncludedInGroupSelection === false ? "opacity-30" : isMuted ? "opacity-60" : "";
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
