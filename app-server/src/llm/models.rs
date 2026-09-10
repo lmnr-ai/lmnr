@@ -138,6 +138,7 @@ pub struct ProviderFunctionDeclaration {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct ProviderBatchOutput {
     pub responses: Vec<ProviderInlineResponse>,
 }
@@ -193,6 +194,7 @@ pub enum ProviderFinishReason {
 }
 
 impl ProviderFinishReason {
+    #[allow(dead_code)]
     pub fn is_retryable(&self) -> bool {
         match self {
             Self::Stop => true,
@@ -238,6 +240,7 @@ pub struct ProviderUsageMetadata {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum ProviderBatchState {
     Pending,
     Running,
@@ -250,6 +253,7 @@ pub enum ProviderBatchState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct ProviderBatchOperation {
     pub name: String,
     #[serde(default)]

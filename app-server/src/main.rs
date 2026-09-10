@@ -55,15 +55,8 @@ use reports::{REPORT_TRIGGERS_EXCHANGE, REPORT_TRIGGERS_QUEUE, REPORT_TRIGGERS_R
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
 #[cfg(feature = "signals")]
 use signals::private::{
-    SIGNAL_JOB_PENDING_BATCH_EXCHANGE, SIGNAL_JOB_PENDING_BATCH_QUEUE,
-    SIGNAL_JOB_PENDING_BATCH_ROUTING_KEY, SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
-    SIGNAL_JOB_SUBMISSION_BATCH_QUEUE, SIGNAL_JOB_SUBMISSION_BATCH_ROUTING_KEY,
-    SIGNAL_JOB_WAITING_BATCH_EXCHANGE, SIGNAL_JOB_WAITING_BATCH_QUEUE,
-    SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY, SIGNALS_EXCHANGE, SIGNALS_QUEUE, SIGNALS_ROUTING_KEY,
     SignalWorkerConfig,
     admission::SignalAdmissionHandler,
-    batching::SignalBatchingHandler,
-    pendings_consumer::SignalJobPendingBatchHandler,
     queue::{
         SIGNALS_ADMISSION_EXCHANGE, SIGNALS_ADMISSION_QUEUE, SIGNALS_ADMISSION_RETRY_EXCHANGE,
         SIGNALS_ADMISSION_RETRY_QUEUE, SIGNALS_ADMISSION_RETRY_ROUTING_KEY,
@@ -75,7 +68,6 @@ use signals::private::{
         SIGNALS_REALTIME_WAITING_QUEUE, SIGNALS_REALTIME_WAITING_ROUTING_KEY,
     },
     realtime::SignalJobRealtimeHandler,
-    submissions_consumer::SignalJobSubmissionBatchHandler,
 };
 use tonic::transport::Server;
 use traces::{
@@ -466,35 +458,6 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            // ==== 3.5 Signals message queue ====
-            #[cfg(feature = "signals")]
-            {
-                channel
-                    .exchange_declare(
-                        SIGNALS_EXCHANGE.into(),
-                        ExchangeKind::Fanout,
-                        ExchangeDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-
-                channel
-                    .queue_declare(
-                        SIGNALS_QUEUE.into(),
-                        QueueDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        quorum_queue_args.clone(),
-                    )
-                    .await
-                    .unwrap();
-            }
-
             // ==== 3.5b Input extraction message queue ====
             channel
                 .exchange_declare(
@@ -658,104 +621,9 @@ fn main() -> anyhow::Result<()> {
                     .unwrap();
             }
 
-            // ==== 3.8 Trace Analysis LLM Batch Submissions message queue ====
+            // ==== 3.8 Signals Realtime message queue ====
             #[cfg(feature = "signals")]
             {
-                channel
-                    .exchange_declare(
-                        SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE.into(),
-                        ExchangeKind::Fanout,
-                        ExchangeDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-
-                channel
-                    .queue_declare(
-                        SIGNAL_JOB_SUBMISSION_BATCH_QUEUE.into(),
-                        QueueDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        quorum_queue_args.clone(),
-                    )
-                    .await
-                    .unwrap();
-
-                // ==== 3.9 Trace Analysis LLM Batch Pending message queue ====
-                channel
-                    .exchange_declare(
-                        SIGNAL_JOB_PENDING_BATCH_EXCHANGE.into(),
-                        ExchangeKind::Fanout,
-                        ExchangeDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-
-                channel
-                    .queue_declare(
-                        SIGNAL_JOB_PENDING_BATCH_QUEUE.into(),
-                        QueueDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        quorum_queue_args.clone(),
-                    )
-                    .await
-                    .unwrap();
-
-                // ==== 3.10 Trace Analysis LLM Batch Waiting message queue ====
-                channel
-                    .exchange_declare(
-                        SIGNAL_JOB_WAITING_BATCH_EXCHANGE.into(),
-                        ExchangeKind::Fanout,
-                        ExchangeDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-
-                let mut waiting_queue_args = quorum_queue_args.clone();
-                waiting_queue_args.insert(
-                    "x-dead-letter-exchange".into(),
-                    lapin::types::AMQPValue::LongString(SIGNAL_JOB_PENDING_BATCH_EXCHANGE.into()),
-                );
-
-                channel
-                    .queue_declare(
-                        SIGNAL_JOB_WAITING_BATCH_QUEUE.into(),
-                        QueueDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        waiting_queue_args,
-                    )
-                    .await
-                    .unwrap();
-
-                // Bind waiting queue to its exchange (no consumer, messages expire via TTL to DLX)
-                channel
-                    .queue_bind(
-                        SIGNAL_JOB_WAITING_BATCH_QUEUE.into(),
-                        SIGNAL_JOB_WAITING_BATCH_EXCHANGE.into(),
-                        SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY.into(),
-                        lapin::options::QueueBindOptions::default(),
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-
                 channel
                     .exchange_declare(
                         SIGNALS_REALTIME_EXCHANGE.into(),
@@ -1236,9 +1104,6 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE);
         // ==== 3.2 Browser events message queue ====
         queue.register_queue(BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE);
-        // ==== 3.5 Signals event message queue ====
-        #[cfg(feature = "signals")]
-        queue.register_queue(SIGNALS_EXCHANGE, SIGNALS_QUEUE);
         // ==== 3.5b Input extraction message queue ====
         queue.register_queue(INPUT_EXTRACTION_EXCHANGE, INPUT_EXTRACTION_QUEUE);
         // ==== 3.5c User-task regex agent queue ====
@@ -1260,26 +1125,11 @@ fn main() -> anyhow::Result<()> {
                 EVENT_CLUSTERING_BATCH_QUEUE,
             );
         }
-        // ==== 3.8 Signal Job Submission Batch message queue ====
+        // ==== 3.8 Signals Admission message queue ====
         #[cfg(feature = "signals")]
         {
-            queue.register_queue(
-                SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
-                SIGNAL_JOB_SUBMISSION_BATCH_QUEUE,
-            );
-            // ==== 3.9 Signal Job Pending Batch message queue ====
-            queue.register_queue(
-                SIGNAL_JOB_PENDING_BATCH_EXCHANGE,
-                SIGNAL_JOB_PENDING_BATCH_QUEUE,
-            );
-            // ==== 3.10 Signal Job Waiting Batch message queue ====
-            queue.register_queue(
-                SIGNAL_JOB_WAITING_BATCH_EXCHANGE,
-                SIGNAL_JOB_WAITING_BATCH_QUEUE,
-            );
-            // ==== 3.10b Signals Admission message queue ====
             queue.register_queue(SIGNALS_ADMISSION_EXCHANGE, SIGNALS_ADMISSION_QUEUE);
-            // ==== 3.10c Signals Realtime message queue ====
+            // ==== 3.8b Signals Realtime message queue ====
             queue.register_queue(SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_QUEUE);
         }
         // ==== 3.11 Logs message queue ====
@@ -1650,8 +1500,6 @@ fn main() -> anyhow::Result<()> {
 
         let num_browser_events_workers = env::workers::NUM_BROWSER_EVENTS.get();
 
-        let num_signals_workers = env::workers::NUM_SEMANTIC_EVENT.get();
-
         let num_notification_workers = env::workers::NUM_NOTIFICATION.get();
 
         let num_notification_delivery_workers = env::workers::NUM_NOTIFICATION_DELIVERY.get();
@@ -1659,11 +1507,6 @@ fn main() -> anyhow::Result<()> {
         let num_clustering_batching_workers = env::workers::NUM_CLUSTERING_BATCHING.get();
 
         let num_clustering_workers = env::workers::NUM_CLUSTERING.get();
-
-        let num_signal_job_submission_batch_workers =
-            env::workers::NUM_SIGNAL_JOB_SUBMISSION_BATCH.get();
-
-        let num_signal_job_pending_batch_workers = env::workers::NUM_SIGNAL_JOB_PENDING_BATCH.get();
 
         let num_logs_workers = env::workers::NUM_LOGS.get();
 
@@ -1681,18 +1524,15 @@ fn main() -> anyhow::Result<()> {
         let num_input_extraction_workers = env::workers::NUM_INPUT_EXTRACTION.get();
 
         log::info!(
-            "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Signals workers: {}, Notification workers: {}, Notification delivery workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}, Reports workers: {}, Input extraction workers: {}",
+            "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Notification workers: {}, Notification delivery workers: {}, Clustering batching workers: {}, Clustering workers: {}, Logs workers: {}, Reports workers: {}, Input extraction workers: {}",
             num_spans_workers,
             num_data_plane_spans_workers,
             num_spans_indexer_workers,
             num_browser_events_workers,
-            num_signals_workers,
             num_notification_workers,
             num_notification_delivery_workers,
             num_clustering_batching_workers,
             num_clustering_workers,
-            num_signal_job_submission_batch_workers,
-            num_signal_job_pending_batch_workers,
             num_logs_workers,
             num_reports_workers,
             num_input_extraction_workers,
@@ -1961,36 +1801,6 @@ fn main() -> anyhow::Result<()> {
                         );
                     }
 
-                    // Spawn signals workers using new worker pool
-                    #[cfg(feature = "signals")]
-                    if llm_provider_client.is_some() {
-                        let batch_size: usize = env::num_with_default(
-                            env::batching::SIGNALS_SIZE,
-                            crate::signals::private::queue::DEFAULT_BATCH_SIZE,
-                        );
-                        let batch_flush_interval_sec =
-                            env::batching::SIGNALS_FLUSH_INTERVAL_SEC.get();
-                        let queue = mq_for_consumer.clone();
-                        batch_worker_pool_clone.spawn(
-                            BatchWorkerType::SignalsBatching,
-                            num_signals_workers,
-                            move || {
-                                SignalBatchingHandler::new(
-                                    queue.clone(),
-                                    BatchingConfig {
-                                        size: batch_size,
-                                        flush_interval: Duration::from_secs(
-                                            batch_flush_interval_sec,
-                                        ),
-                                    },
-                                )
-                            },
-                            QueueConfig::new(SIGNALS_QUEUE, SIGNALS_EXCHANGE, SIGNALS_ROUTING_KEY),
-                        );
-                    } else {
-                        log::warn!("LLM client not available - skipping signals workers");
-                    }
-
                     // Spawn notification workers (stage 1: persist + fan-out to targets)
                     {
                         let db = db_for_consumer.clone();
@@ -2134,72 +1944,6 @@ fn main() -> anyhow::Result<()> {
                                 );
                             }
                         }
-                    }
-
-                    // Spawn LLM batch submissions workers
-                    #[cfg(feature = "signals")]
-                    if let Some(llm_client) = llm_provider_client.as_ref() {
-                        let db = db_for_consumer.clone();
-                        let cache = cache_for_consumer.clone();
-                        let queue = mq_for_consumer.clone();
-                        let clickhouse = clickhouse_for_consumer.clone();
-                        let llm_client_clone = llm_client.clone();
-                        let config = Arc::new(SignalWorkerConfig::from_env());
-                        worker_pool_clone.spawn(
-                            WorkerType::SignalJobSubmissionBatch,
-                            num_signal_job_submission_batch_workers,
-                            move || {
-                                SignalJobSubmissionBatchHandler::new(
-                                    db.clone(),
-                                    cache.clone(),
-                                    queue.clone(),
-                                    clickhouse.clone(),
-                                    llm_client_clone.clone(),
-                                    config.clone(),
-                                )
-                            },
-                            QueueConfig::new(
-                                SIGNAL_JOB_SUBMISSION_BATCH_QUEUE,
-                                SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
-                                SIGNAL_JOB_SUBMISSION_BATCH_ROUTING_KEY,
-                            ),
-                        );
-                    } else {
-                        log::warn!(
-                            "LLM provider not available - skipping batch submissions workers"
-                        );
-                    }
-
-                    // Spawn LLM batch pending workers
-                    #[cfg(feature = "signals")]
-                    if let Some(llm_client) = llm_provider_client.as_ref() {
-                        let db = db_for_consumer.clone();
-                        let queue = mq_for_consumer.clone();
-                        let clickhouse = clickhouse_for_consumer.clone();
-                        let llm_client_clone = llm_client.clone();
-                        let cache = cache_for_consumer.clone();
-                        let config = Arc::new(SignalWorkerConfig::from_env());
-                        worker_pool_clone.spawn(
-                            WorkerType::SignalJobPendingBatch,
-                            num_signal_job_pending_batch_workers,
-                            move || {
-                                SignalJobPendingBatchHandler::new(
-                                    db.clone(),
-                                    cache.clone(),
-                                    queue.clone(),
-                                    clickhouse.clone(),
-                                    llm_client_clone.clone(),
-                                    config.clone(),
-                                )
-                            },
-                            QueueConfig::new(
-                                SIGNAL_JOB_PENDING_BATCH_QUEUE,
-                                SIGNAL_JOB_PENDING_BATCH_EXCHANGE,
-                                SIGNAL_JOB_PENDING_BATCH_ROUTING_KEY,
-                            ),
-                        );
-                    } else {
-                        log::warn!("LLM provider not available - skipping batch pending workers");
                     }
 
                     // Spawn LLM realtime workers

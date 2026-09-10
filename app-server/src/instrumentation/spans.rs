@@ -165,17 +165,6 @@ impl InternalSpan {
         self
     }
 
-    /// Mark an LLM span as a provider batch submission: stamps the batch id plus the attributes
-    /// ingest keys batch pricing/filtering off. The caller still owns the `.batch` name suffix.
-    pub fn batch(self, provider_batch_id: &str) -> Self {
-        self.span
-            .set_attribute("signal.batch_id", provider_batch_id.to_string());
-        self.span.set_attribute("gen_ai.request.batch", true);
-        self.span
-            .set_attribute("lmnr.association.properties.tags", "batch".to_string());
-        self
-    }
-
     /// `lmnr.association.properties.session_id`; empty ids are skipped.
     pub fn session_id(self, session_id: &str) -> Self {
         if !session_id.is_empty() {
@@ -236,15 +225,6 @@ pub fn set_output(span: &tracing::Span, output: &Value) {
 pub fn set_model(span: &tracing::Span, provider: &str, model: &str) {
     span.set_attribute("gen_ai.request.model", model.to_string());
     span.set_attribute("gen_ai.system", provider.to_string());
-}
-
-/// Post-build counterpart to [`InternalSpan::batch`] — used when the span is built before the
-/// provider `create_batch` call (to time submission latency) but batch-ness is only confirmed
-/// after the call returns with an id.
-pub fn set_batch(span: &tracing::Span, provider_batch_id: &str) {
-    span.set_attribute("signal.batch_id", provider_batch_id.to_string());
-    span.set_attribute("gen_ai.request.batch", true);
-    span.set_attribute("lmnr.association.properties.tags", "batch".to_string());
 }
 
 pub fn set_usage(
